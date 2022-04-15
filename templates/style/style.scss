@@ -1,0 +1,368 @@
+$color1: #ECEFEB;
+$color2: #727B8A;
+$color3: #8F9EAA;
+$color4: #6D6F80;
+$color5: #354165;
+
+$font-hd: Arial;
+$font-tx: 'Times New Roman';
+$font-hdsz1: 1.3rem;
+$font-hdsz2: 1.1rem;
+$font-hdsz3: 0.9rem;
+$font-lksz: 0.9rem;
+$font-txsz: 1rem;
+
+@mixin style-div-standart {
+    position: relative;
+    width: 100%;
+    height: auto;
+}
+@mixin flex-vertical {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+}
+@mixin flex-horizontal {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+
+    scrollbar-width: thin;
+    scrollbar-color: $color5 $color1;
+}
+
+*::-webkit-scrollbar {
+    height: 10px;
+    width: 10px;
+}
+*::-webkit-scrollbar-track {
+    background: $color1;
+}
+*::-webkit-scrollbar-thumb {
+    background-color: $color5;
+    border-radius: 5px;
+    border: 3px solid $color4;
+}
+
+body {
+    background: url(https://phonoteka.org/uploads/posts/2021-05/1621707133_23-phonoteka_org-p-fon-dlya-prezentatsii-kvadrati-23.jpg);
+    background-repeat: no-repeat;
+    background-size: cover;
+    
+    @include flex-vertical();
+
+    justify-content: center;
+    align-items: center;
+}
+.container {
+    max-width: 1200px;
+    width: 100%;
+
+    @include flex-vertical();
+
+    box-shadow: 0 0 45px #000;
+}
+
+.header {
+    @include style-div-standart();
+    height: 200px;
+    padding: 25px;
+    background-color: $color1;
+    background-image: url('https://invigor.by/assets/images/resources/190/3920-o.jpg');
+    .site-title {
+        color: $color5;
+    }
+}
+.top-menu {
+    @include style-div-standart();
+    width: 100%;
+
+    @include flex-horizontal();
+
+    justify-content: center;
+    align-items: center;
+
+    background-color: $color5;
+
+    .menu-container {
+        margin: 0 0;
+
+        list-style: none;
+
+        @include flex-horizontal();
+
+        justify-content: center;
+        align-items: center;
+
+        .menu-item {
+            padding: 15px;
+
+            transition: background-color .3s;
+            
+            .menu-link {
+                text-decoration: none;
+                
+                color: $color1;
+                transition: color .3s;
+            }
+            
+            &:hover {
+                background-color: $color4;
+            }
+            
+            &:hover > .menu-link {
+                color: $color1;
+            }
+        }
+    }
+}
+
+.page {
+    @include style-div-standart();
+    height: 100%;
+
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    align-items: start;
+}
+
+.sidebar {
+    @include style-div-standart();
+    width: 200px;
+    height: 100%;
+    padding: 3px;
+
+    @include flex-vertical();
+
+    justify-content: flex-start;
+
+    background-color: $color4;
+
+    .sidebar-box {
+        @include style-div-standart();
+        padding-bottom: 10px;
+
+        @include flex-vertical();
+
+        justify-self: start;
+        align-items: start;
+
+        .sidebar-box-title {
+            @include style-div-standart();
+            padding: 5px 0;
+
+            @include flex-vertical();
+
+            justify-content: center;
+            align-items: flex-start;
+
+            background-color: #fff;
+            color: $color5;
+            border-radius: 5px;
+            box-shadow: 0 0 15px $color5;
+            
+            h3 {
+                margin-left: 10px;
+                
+                text-transform: uppercase;
+                font-family: $font-hd;
+                font-size: $font-hdsz3;
+            }
+            
+        }
+        .sidebar-box-body {
+            @include style-div-standart();
+
+            margin-top: 8px;
+
+            .sidebar-box-body-items {
+                list-style: none;
+                margin-left: 10px;
+                .sidebar-item {
+                    margin: 5px 0;
+
+                    .sidebar-link {
+                        text-decoration: none;
+
+                        font-family: $font-tx;
+                        font-size: $font-lksz;
+                        font-weight: 300;
+
+                        color: $color1;
+                        transition: color .3s;
+                        &:hover {
+                            color: $color5;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+.content {
+    @include style-div-standart();
+    width: 1000px;
+    height: 100%;
+
+    @include flex-vertical();
+
+    background-color: $color1;
+    box-shadow: 0 0 15px $color5;
+
+    .discription {
+        @include style-div-standart();
+
+        padding: 10px;
+        margin-bottom: 15px;
+
+        @include flex-vertical();
+        align-items: flex-start;
+
+        h2 {
+            font-family: $font-hd;
+            font-size: $font-hdsz2;
+
+            color: $color5;
+        }
+        p {
+            padding: 5px 0;
+
+            font-family: $font-tx;
+            font-size: $font-txsz;
+
+            color: $color4;
+        }
+    }
+    .information {
+        @include style-div-standart();
+
+        padding: 10px;
+        margin-bottom: 15px;
+
+        @include flex-vertical();
+        align-items: flex-start;
+
+        h2 {
+            padding: 3px;
+            font-family: $font-hd;
+            font-size: $font-hdsz2;
+
+            color: $color1;
+            background-color: $color5;
+        }
+        p {
+            padding: 8px 5px;
+            font-family: $font-tx;
+            font-size: $font-txsz;
+
+            color: $color4;
+            background-color: #fff;
+            border: 1px solid $color5;
+        }
+    }
+
+    .main-news {
+        @include style-div-standart();
+
+        padding: 10px;
+        margin-bottom: 15px;
+
+        @include flex-vertical();
+        align-items: flex-start;
+
+        h2 {
+            padding: 3px;
+            font-family: $font-hd;
+            font-size: $font-hdsz2;
+
+            color: $color1;
+            background-color: $color5;
+        }
+
+        .news-container {
+            @include style-div-standart();
+
+            @include flex-vertical();
+
+            .news-box {
+                @include style-div-standart();
+                margin-bottom: 10px;
+
+                @include flex-horizontal();
+                flex-wrap: nowrap;
+
+                background-color: #fff;
+                border: 1px solid $color5;
+                box-shadow: 0 0 5px $color5;
+                .news-box-img {
+                    @include style-div-standart();
+                    max-width: 200px;
+                    height: 136.5px;
+
+                    box-sizing: content-box;
+                    img {
+                        width: 100%;
+                        height: auto;
+                    }
+                }
+
+                .news-box-body {
+                    @include style-div-standart();
+                    padding: 10px;
+
+                    h3,
+                    p {
+                        margin-bottom: 10px;
+                    }
+
+                    h3 {
+                        font-family: $font-hd;
+                        font-size: $font-hdsz3;
+                        color: $color5;
+                    }
+                    p {
+                        font-family: $font-tx;
+                        font-size: $font-txsz;
+                        color: $color4;
+                    }
+                    .news-box-body-rel {
+                        @include flex-horizontal();
+
+                        justify-content: space-between;
+
+                        span {
+                            color: $color3;
+                        }
+                        a {
+                            text-decoration: none;
+                            padding: 5px;
+                            background-color: $color5;
+                            border-radius: 5px;
+                            color: $color1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+.footer {
+    background-color: $color5;
+    padding: 10px;
+    width: 100%;
+
+    p {
+        padding: 5px 0;
+        color: $color1;
+        font-family: $font-tx;
+        font-size: 0.7rem;
+    }
+}
