@@ -1,22 +1,41 @@
 <?php
-    class Route 
-    {
-        static function start()
-        {
+    /*  получаем адрес из адресной строки
+        разбираем адрес на аргументы 
+        при определенном адресе запускаем определенный контроллер и действие
+        если контроллера не существует, или такой адрес не предусмотрен, то выводим ошибку
+        */
+    class Route {
+        /* static function get($uri, $callback) {
+            $routes = explode('/', $_SERVER['REQUEST_URI']);
+            $uri = explode('/', $uri);
+            if ($routes[1] == $uri[1]) 
+                echo "Это страница: {$uri[1]} <br>";
+            else if ($routes[1] == null)
+                echo "Главная <br>";
+            
+            foreach ($routes as $v)
+                echo "v: {$v} <br>";
+        } */
+
+        static function start() {
+            
             // контроллер и действие по умолчанию
             $controller_name = 'Main';
-            $action_name = 'index';
+            
+            /* if ($_SESSION['key'] == null)
+                $action_name = 'login'; */
 
+            $action_name = 'index';
             $routes = explode('/', $_SERVER['REQUEST_URI']);
 
             // получаем имя контроллера
-            if (!empty($routes[1])) {
+            /* if (!empty($routes[1])) {
                 $controller_name = $routes[1];
-            }
+            } */
 
             // получаем имя экшена
-            if (!empty($routes[2])) {
-                $action_name = $routes[2];
+            if (!empty($routes[1])) {
+                $action_name = $routes[1];
             }
 
             // добавляем префиксы

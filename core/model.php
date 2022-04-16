@@ -11,8 +11,7 @@
         private $server_url, $name_db, $user_name, $password;
 
         // метод выборки данных
-        public function get_data()
-        {
+        public function get_data() {
             $this->server_url = getenv('DB_SERVER');
         }
     }
