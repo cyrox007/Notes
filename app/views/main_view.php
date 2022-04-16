@@ -24,4 +24,9 @@
                 </div>
             </div>
             <?php endforeach; ?>
+            <div class="page-pagination">
+                <button class="btn-page">1</button>
+                <button class="btn-page">2</button>
+                <button class="btn-page">3</button>
+            </div>
 		</section>

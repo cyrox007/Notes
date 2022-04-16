@@ -30,11 +30,9 @@
         function action_login() {
             $default_key = "f6f4061a1bddc1c04d8109b39f581270"; // test0
 
-            if (isset($_POST['key'])) {
-                if (md5($_POST['key']) === $default_key) {
-                    $_SESSION['key'] = 'auth';
-                    header("Location: /");
-                }
+            if (isset($_POST['key']) && md5($_POST['key']) === $default_key) {
+                $_SESSION['key'] = 'auth';
+                header("Location: /");
             }
 
             $data = [
@@ -43,25 +41,49 @@
             $this->view->render_template('login_view.php', 'template_view.php', $data);
         }
 
+        function action_logout() {
+            if (isset($_SESSION['key']) && $_SESSION['key'] == 'auth') {
+                unset($_SESSION['key']);
+            }
+            header("Location: /");
+        }
+
         function action_edit() {
             if ($_SESSION['key'] == null)
                 header("Location: /login");
-
-            $note_directory = "c855721/";
-            $uri = explode('/', $_SERVER['REQUEST_URI']);
-            $fname = mb_substr(urldecode($uri[2]), 16, -4);
-            $filepath = $note_directory . urldecode($uri[2]);
-            $text = file_get_contents($filepath);;
             
+            /* получаем файл и содержимое */
+            $note_directory = "c855721/"; // папка с файлами заметок
+            $uri = explode('/', $_SERVER['REQUEST_URI']); // получаем запрос к файлу
+            $fname = mb_substr(urldecode($uri[2]), 16, -4); // декодируем и обрежаем название файла для получение его имени
+            $filepath = $note_directory . urldecode($uri[2]); // получаем путь к файлу
+            $file_data = file_get_contents($filepath); // получаем содержимое файла
+
+            /* расшифровываем содежимое и выводим в поле ввода */
+            $decode_data_base64 = base64_decode($file_data); // декодируем содержмое файла из base64
+
+            $key = "592e6419d1d04634848f40f22f9f71a7450800611f4e497cdd71b7cef3e3450ae63fd149609d36eb";
+            $method = "AES-192-CBC";
+
+            $decrypted = openssl_decrypt($decode_data_base64, $method, $key);
+            
+            /* получаем содержимое поля ввода и зашифровываем обратно */
             if (isset($_POST['textarea'])) {
-                $text = $_POST['textarea'];
-                file_put_contents($filepath, $text);
+                $textarea = $_POST['textarea'];
+
+                $key = "592e6419d1d04634848f40f22f9f71a7450800611f4e497cdd71b7cef3e3450ae63fd149609d36eb";
+                $method = "AES-192-CBC";
+                
+                $encrypted = openssl_encrypt($textarea, $method, $key);
+                $raw = base64_encode($encrypted);
+
+                file_put_contents($filepath, $raw);
                 header('Location: /');
             }
 
             $data = [
                 "title" => $fname,
-                "text" => $text,
+                "text" => $decrypted,
             ];
             $this->view->render_template('edit_view.php', 'template_view.php', $data);
         }
