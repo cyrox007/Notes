@@ -1,6 +1,7 @@
-# Notes
 # Notes 1.3.3а
-# Планы на версию 1.4:
+## Description
+PHP приложение для работы с персональными заметками на корпоративном предприятии
+## Планы на версию 1.4:
 * Переписать класс Route. Это позволит работать с масками GET запросов и расширить приложение новыми классами. Примеры: 
 * * https://myrusakov.ru/php-simlple-mvc-router.html
 * * http://code.mu/ru/php/book/oop/mvc/framework/router/
