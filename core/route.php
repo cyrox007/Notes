@@ -1,37 +1,54 @@
 <?php
-    /*  получаем адрес из адресной строки
-        разбираем адрес на аргументы 
-        при определенном адресе запускаем определенный контроллер и действие
-        если контроллера не существует, или такой адрес не предусмотрен, то выводим ошибку
-        */
     class Route {
-        /* static function get($uri, $callback) {
-            $routes = explode('/', $_SERVER['REQUEST_URI']);
-            $uri = explode('/', $uri);
-            if ($routes[1] == $uri[1]) 
-                echo "Это страница: {$uri[1]} <br>";
-            else if ($routes[1] == null)
-                echo "Главная <br>";
+        static function getTrack($track, $controller) {
+            $uri = urldecode($_SERVER['REQUEST_URI']); // Получаем и декодируем запрос
+            $uri_route = explode('/', $uri); // рабиваем запрос на массив
             
-            foreach ($routes as $v)
-                echo "v: {$v} <br>";
-        } */
+            $param = $uri_route[2]; // получаем параметр запроса
+            $track_track = str_replace('(param)', $param, $track); // подставляем параметр запроса в полученный маршрут
+            $routes = array( // создаем массив, полученных маршрута и контролера
+                $controller => $track_track
+            );
 
-        static function start() {
+            foreach ($routes as $key => $route) { // перебираем массив маршрутов и контроллер функций 
+                if ($uri == $route) { // проверяем какой маршрут совпал с запросом
+                    $contoller_action = explode('@', $key); // разбиваем контроллер функцию на массив
+                    $controller_name = $contoller_action[0]; 
+                    $action_name = $contoller_action[1];
+                    Route::Loader($controller_name, $action_name); // передаем переменные с именем контроллера в функцию загрузки
+                }
+            }
             
+        }
+        static function Loader($controller_name, $action_name) {
+            $controller_file = strtolower($controller_name) . '.php';
+            $controller_path = "app/controllers/" . $controller_file;
+            $action_name = 'action_' . $action_name;
+            if (file_exists($controller_path)) {
+                include "app/controllers/" . $controller_file;
+            }
+            else {
+                Route::ErrorPage404();
+            }
+            
+            // Создаем контроллер
+            $controller = new $controller_name;
+            $action = $action_name;
+
+            // вызываем действие контроллера
+            if (method_exists($controller, $action)) {
+                $controller->$action();
+            }
+            else {
+                Route::ErrorPage404();
+            }
+        }
+        static function start() {
             // контроллер и действие по умолчанию
             $controller_name = 'Main';
-            
-            /* if ($_SESSION['key'] == null)
-                $action_name = 'login'; */
 
             $action_name = 'index';
             $routes = explode('/', $_SERVER['REQUEST_URI']);
-
-            // получаем имя контроллера
-            /* if (!empty($routes[1])) {
-                $controller_name = $routes[1];
-            } */
 
             // получаем имя экшена
             if (!empty($routes[1])) {

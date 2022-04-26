@@ -55,6 +55,8 @@
             /* получаем файл и содержимое */
             $note_directory = "c855721/"; // папка с файлами заметок
             $uri = explode('/', $_SERVER['REQUEST_URI']); // получаем запрос к файлу
+            $param = $uri[2];
+            
             $fname = mb_substr(urldecode($uri[2]), 16, -4); // декодируем и обрежаем название файла для получение его имени
             $filepath = $note_directory . urldecode($uri[2]); // получаем путь к файлу
             $file_data = file_get_contents($filepath); // получаем содержимое файла

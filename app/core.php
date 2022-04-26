@@ -20,5 +20,5 @@
     */
 
     require_once 'core/route.php';
-    //require_once 'app/web.php';
-    Route::start(); // запускаем маршрутизатор
+    require_once 'app/web.php';
+    //Route::start(); // запускаем маршрутизатор
