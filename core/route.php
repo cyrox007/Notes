@@ -1,14 +1,10 @@
 <?php
     class Route {
         static function getTrack($track, $controller) {
-            $name_folder_attach = null; // папка куда вкладываем приложение
-            $name_folder_attach = count(explode('/', $name_folder_attach));
-
-            var_dump($name_folder_attach);
             $uri = urldecode($_SERVER['REQUEST_URI']); // Получаем и декодируем запрос
-            $uri_route = explode('/', $uri); // рабиваем запрос на массив
             
-            $param = $uri_route[2]; // получаем параметр запроса
+            $uri_route = explode('/', $uri); // рабиваем запрос на массив
+            $param = $uri_route[2 + $name_folder_attach_len]; // получаем параметр запроса
             $track_track = str_replace('(param)', $param, $track); // подставляем параметр запроса в полученный маршрут
             $routes = array( // создаем массив, полученных маршрута и контролера
                 $controller => $track_track
@@ -16,14 +12,15 @@
 
             foreach ($routes as $key => $route) { // перебираем массив маршрутов и контроллер функций 
                 if ($uri == $route) { // проверяем какой маршрут совпал с запросом
+                    
                     $contoller_action = explode('@', $key); // разбиваем контроллер функцию на массив
                     $controller_name = $contoller_action[0]; 
                     $action_name = $contoller_action[1];
                     Route::Loader($controller_name, $action_name); // передаем переменные с именем контроллера в функцию загрузки
                 }
             }
-            
         }
+
         static function Loader($controller_name, $action_name) {
             $controller_file = strtolower($controller_name) . '.php';
             $controller_path = "app/controllers/" . $controller_file;
