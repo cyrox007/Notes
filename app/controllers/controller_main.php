@@ -1,6 +1,11 @@
 <?php
     class Controller_Main extends Controller
     {
+        public function __construct() {
+            $this->model = new Model_Main();
+            $this->view = new View();
+            
+        }
         function action_index() {
             if ($_SESSION['key'] == null)
                 header("Location: /login");

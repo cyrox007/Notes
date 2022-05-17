@@ -1,6 +1,10 @@
 <?php
     class Route {
         static function getTrack($track, $controller) {
+            $name_folder_attach = null; // папка куда вкладываем приложение
+            $name_folder_attach = count(explode('/', $name_folder_attach));
+
+            var_dump($name_folder_attach);
             $uri = urldecode($_SERVER['REQUEST_URI']); // Получаем и декодируем запрос
             $uri_route = explode('/', $uri); // рабиваем запрос на массив
             
@@ -24,6 +28,15 @@
             $controller_file = strtolower($controller_name) . '.php';
             $controller_path = "app/controllers/" . $controller_file;
             $action_name = 'action_' . $action_name;
+            
+            $model_name = str_replace("Controller_", "Model_", $controller_name); // получим имя модели
+            
+            $model_file = strtolower($model_name) . '.php';
+            $model_path = "app/models/" . $model_file;
+            if (file_exists($model_path)) {
+                include "app/models/" . $model_file;
+            }
+            
             if (file_exists($controller_path)) {
                 include "app/controllers/" . $controller_file;
             }
@@ -43,7 +56,7 @@
                 Route::ErrorPage404();
             }
         }
-        static function start() {
+        /* static function start() {
             // контроллер и действие по умолчанию
             $controller_name = 'Main';
 
@@ -89,7 +102,7 @@
             else {
                 Route::ErrorPage404();
             }
-        }
+        } */
 
         function ErrorPage404()
         {

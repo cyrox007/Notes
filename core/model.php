@@ -13,7 +13,7 @@
         // метод выборки данных
         public function get_data() {
             $this->server_url = getenv('DB_SERVER');
-            $database = new SQLite('table.db');
+            $database = new SQLite('core/table.db');
             $database->exec('CREATE TABLE foo (bar STRING)');
             var_dump($database);
         }
