@@ -39,6 +39,15 @@ body {
   text-align: center;
 }
 
+.page-title-login {
+  font-family: var(--main-font);
+  font-size: 1.5rem;
+  line-height: 1.5rem;
+  color: var(--color-d);
+  text-align: center;
+  margin-top: 13px;
+}
+
 .container {
   width: 375px;
   margin: 0 auto;
@@ -254,12 +263,28 @@ body {
   margin: 15px;
 }
 
+.container .login-page form input[type=text] {
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  background: var(--color-w);
+  border: 1px solid var(--color-d);
+  border-radius: 5px;
+}
+
 .container .login-page form input[type=password] {
   margin-bottom: 8px;
   padding: 8px 10px;
   background: var(--color-w);
   border: 1px solid var(--color-d);
   border-radius: 5px;
+}
+
+.container .login-page form span {
+  font-family: var(--main-font);
+  font-size: 14px;
+  font-weight: 300;
+  text-align: center;
+  color: red;
 }
 
 .container .login-page form button {
@@ -274,4 +299,3 @@ body {
 .container .footer {
   padding: 5px 15px;
 }
-/*# sourceMappingURL=style.css.map */
