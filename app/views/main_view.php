@@ -17,10 +17,10 @@
             <div class="note">
                 <div class="note-l">
                     <i class="fa-solid fa-pen"></i>
-                    <a href="/edit/<? echo "{$file}"?>" class="note-link"><? echo "{$fname}"?></a>
+                    <a href="/Main/edit/<? echo "{$file}"?>" class="note-link"><? echo "{$fname}"?></a>
                 </div>
                 <div class="note-del">
-                    <a href="/delete/<? echo "{$file}"?>"><i class="fa-solid fa-trash"></a></i>
+                    <a href="/Main/delete/<? echo "{$file}"?>"><i class="fa-solid fa-trash"></a></i>
                 </div>
             </div>
             <?php endforeach; ?>

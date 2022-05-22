@@ -1,14 +1,13 @@
 <?php
-    class Controller_Main extends Controller
-    {
+    class Controller_Main extends Controller {
         public function __construct() {
             $this->model = new Model_Main();
             $this->view = new View();
-            
         }
+        
         function action_index() {
             if ($_SESSION['key'] == null)
-                header("Location: /login");
+                header("Location: /Auth/login");
 
             $note_directory = "c855721/";
             $dtime = date('Ymd_His');
@@ -32,38 +31,17 @@
             $this->view->render_template('main_view.php', 'template_view.php', $data);
         }
 
-        function action_login() {
-            $default_key = "f6f4061a1bddc1c04d8109b39f581270"; // test0
-
-            if (isset($_POST['key']) && md5($_POST['key']) === $default_key) {
-                $_SESSION['key'] = 'auth';
-                header("Location: /");
-            }
-
-            $data = [
-                'title' => 'Авторизация'
-            ];
-            $this->view->render_template('login_view.php', 'template_view.php', $data);
-        }
-
-        function action_logout() {
-            if (isset($_SESSION['key']) && $_SESSION['key'] == 'auth') {
-                unset($_SESSION['key']);
-            }
-            header("Location: /");
-        }
-
         function action_edit() {
             if ($_SESSION['key'] == null)
-                header("Location: /login");
+                header("Location: /Auth/login");
             
             /* получаем файл и содержимое */
             $note_directory = "c855721/"; // папка с файлами заметок
             $uri = explode('/', $_SERVER['REQUEST_URI']); // получаем запрос к файлу
-            $param = $uri[2];
+            $param = $uri[3];
             
-            $fname = mb_substr(urldecode($uri[2]), 16, -4); // декодируем и обрежаем название файла для получение его имени
-            $filepath = $note_directory . urldecode($uri[2]); // получаем путь к файлу
+            $fname = mb_substr(urldecode($uri[3]), 16, -4); // декодируем и обрежаем название файла для получение его имени
+            $filepath = $note_directory . urldecode($uri[3]); // получаем путь к файлу
             $file_data = file_get_contents($filepath); // получаем содержимое файла
 
             /* расшифровываем содежимое и выводим в поле ввода */
@@ -97,12 +75,12 @@
 
         function action_delete() {
             if ($_SESSION['key'] == null)
-                header("Location: /login");
+                header("Location: /Auth/login");
 
             $note_directory = "c855721/";
             $uri = explode('/', $_SERVER['REQUEST_URI']);
-            if ($url[2] != " ") {
-                $filepath = $note_directory . urldecode($uri[2]);
+            if ($url[3] != " ") {
+                $filepath = $note_directory . urldecode($uri[3]);
                 unlink($filepath);
             }
             header('Location: /');

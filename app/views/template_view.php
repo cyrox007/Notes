@@ -15,7 +15,7 @@
             <i class="fas fa-clipboard"></i>
             <h1 class="title">Блокнот 1.3.3</h1>
             <? if ($_SESSION['key'] != null): ?>
-            <a href="/logout">Выйти</a>
+            <a href="/Auth/logout">Выйти</a>
             <? endif ?>
         </header>
 		<?php include 'app/views/'.$content_view; ?>

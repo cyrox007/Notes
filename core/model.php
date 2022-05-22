@@ -11,10 +11,14 @@
         private $server_url, $name_db, $user_name, $password;
 
         // метод выборки данных
-        public function get_data() {
-            $this->server_url = getenv('DB_SERVER');
-            $database = new SQLite('core/table.db');
-            $database->exec('CREATE TABLE foo (bar STRING)');
-            var_dump($database);
+        public function connect_db($file_name_db) {
+            $db = new SQLite3($file_name_db);
+            return $db;
         }
+
+        public function get_data($db, $table, $param, $value) {
+            $sql = "SELECT * FROM {$table} WHERE {$param} = '{$value}'";
+            return $result = $db->query($sql);
+        }
+        
     }
