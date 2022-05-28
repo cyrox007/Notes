@@ -15,6 +15,8 @@
   --color-bg: var(--color-l);
   --color-light: var(--color-w);
   --color-header: var(--color-m);
+  --login-page-image-desktop: url("/templates/img/lockscreen-desk.jpg");
+  --login-page-image-mobile: url("/templates/img/Mobile-lockscreen-bg.jpg");
 }
 
 * {
@@ -23,10 +25,9 @@
 }
 
 body {
+  width: 100%;
   -webkit-box-sizing: border-box;
           box-sizing: border-box;
-  width: 100%;
-  height: 100vh;
   overflow-x: hidden;
   background-color: var(--color-bg);
 }
@@ -54,7 +55,7 @@ body {
   background: var(--color-w);
 }
 
-.container .header {
+.header {
   background: var(--color-m);
   padding: 15px;
   display: -webkit-box;
@@ -65,7 +66,7 @@ body {
           align-items: center;
 }
 
-.container .header h1 {
+.header h1 {
   -webkit-box-flex: 1;
       -ms-flex: 1;
           flex: 1;
@@ -77,28 +78,28 @@ body {
   color: var(--color-w);
 }
 
-.container .header i {
+.header i {
   font-size: 24px;
   margin-right: 15px;
   color: var(--color-w);
 }
 
-.container .header a {
+.header a {
   text-decoration: none;
   color: var(--color-l);
   -webkit-transition: color .2s;
   transition: color .2s;
 }
 
-.container .header a:hover {
+.header a:hover {
   color: var(--color-w);
 }
 
-.container .main {
+.main {
   padding: 15px;
 }
 
-.container .main form {
+.main form {
   display: -webkit-box;
   display: -ms-flexbox;
   display: flex;
@@ -107,7 +108,7 @@ body {
           align-items: center;
 }
 
-.container .main form input[type=text] {
+.main form input[type=text] {
   -webkit-box-flex: 1;
       -ms-flex: 1;
           flex: 1;
@@ -119,7 +120,7 @@ body {
           box-shadow: 0 0 15px var(--color-m);
 }
 
-.container .main form button {
+.main form button {
   cursor: pointer;
   border: none;
   width: 40px;
@@ -133,17 +134,17 @@ body {
   transition: background 0.3s;
 }
 
-.container .main form button:hover {
+.main form button:hover {
   background: var(--color-n);
 }
 
-.container hr {
+hr {
   background: var(--color-m);
   height: 2px;
   border: none;
 }
 
-.container .block-notes {
+.block-notes {
   padding: 15px;
   display: -webkit-box;
   display: -ms-flexbox;
@@ -154,7 +155,7 @@ body {
           flex-direction: column;
 }
 
-.container .block-notes .note {
+.block-notes .note {
   margin: 6px 0;
   color: var(--color-d);
   display: -webkit-box;
@@ -172,7 +173,7 @@ body {
           align-items: center;
 }
 
-.container .block-notes .note .note-l a {
+.block-notes .note .note-l a {
   text-decoration: none;
   color: var(--color-d);
   cursor: pointer;
@@ -181,7 +182,7 @@ body {
   position: relative;
 }
 
-.container .block-notes .note .note-l a::before {
+.block-notes .note .note-l a::before {
   content: '';
   position: absolute;
   bottom: 0;
@@ -193,40 +194,40 @@ body {
   transition: width 0.2s;
 }
 
-.container .block-notes .note .note-l a:hover::before {
+.block-notes .note .note-l a:hover::before {
   width: 100%;
 }
 
-.container .block-notes .note .note-del {
+.block-notes .note .note-del {
   cursor: pointer;
 }
 
-.container .block-notes .note .note-del a {
+.block-notes .note .note-del a {
   text-decoration: none;
   color: var(--color-d);
   -webkit-transition: color .2s;
   transition: color .2s;
 }
 
-.container .block-notes .note .note-del a:hover {
+.block-notes .note .note-del a:hover {
   color: #961010;
 }
 
-.container .block-notes .page-pagination {
+.block-notes .page-pagination {
   display: none;
 }
 
-.container .block-notes .active {
+.block-notes .active {
   display: -webkit-box;
   display: -ms-flexbox;
   display: flex;
 }
 
-.container .edit-note {
+.edit-note {
   padding: 15px;
 }
 
-.container .edit-note form {
+.edit-note form {
   display: -webkit-box;
   display: -ms-flexbox;
   display: flex;
@@ -237,14 +238,14 @@ body {
   margin: 10px 0px;
 }
 
-.container .edit-note form textarea {
+.edit-note form textarea {
   margin-bottom: 5px;
   padding: 5px;
   border: 1px solid var(--color-d);
   border-radius: 5px;
 }
 
-.container .edit-note form button {
+.edit-note form button {
   padding: 8px 10px;
   border: none;
   background: var(--color-success);
@@ -252,7 +253,128 @@ body {
   border-radius: 5px;
 }
 
-.container .login-page form {
+.login-page {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-pack: center;
+      -ms-flex-pack: center;
+          justify-content: center;
+  -webkit-box-align: center;
+      -ms-flex-align: center;
+          align-items: center;
+  height: 100vh;
+}
+
+.login-page .overlay {
+  position: absolute;
+  width: 100wv;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 30px;
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-orient: horizontal;
+  -webkit-box-direction: normal;
+      -ms-flex-direction: row;
+          flex-direction: row;
+  -webkit-box-align: end;
+      -ms-flex-align: end;
+          align-items: end;
+  -webkit-box-pack: justify;
+      -ms-flex-pack: justify;
+          justify-content: space-between;
+  /* background: var(--login-page-image-desktop); */
+  background: #258ceb;
+  background: linear-gradient(135deg, var(--color-d) 0%, var(--color-m) 40%, var(--color-l) 100%);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  -webkit-transition: all .3s;
+  transition: all .3s;
+  z-index: 1;
+}
+
+@media screen and (max-width: 700px) {
+  .login-page .overlay {
+    /* background: var(--login-page-image-mobile); */
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+}
+
+.login-page .overlay .sitename {
+  font-family: var(--main-font);
+  font-size: 5rem;
+  font-weight: 600;
+  color: #000;
+}
+
+.login-page .overlay .date-time {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-orient: vertical;
+  -webkit-box-direction: normal;
+      -ms-flex-direction: column;
+          flex-direction: column;
+  -webkit-box-align: end;
+      -ms-flex-align: end;
+          align-items: end;
+  font-family: var(--main-font);
+  color: var(--color-d);
+  opacity: 1;
+  -webkit-transition: all .3s;
+  transition: all .3s;
+}
+
+.login-page .overlay .date-time.invisible {
+  opacity: 0;
+}
+
+.login-page .overlay .time {
+  font-size: 5rem;
+  font-weight: 600;
+}
+
+.login-page .overlay .date {
+  font-size: 1.5rem;
+}
+
+.login-page .overlay.active {
+  -webkit-filter: blur(10px);
+          filter: blur(10px);
+  z-index: -1;
+}
+
+.login-page .login {
+  width: 320px;
+  height: auto;
+  display: none;
+  -webkit-box-orient: vertical;
+  -webkit-box-direction: normal;
+      -ms-flex-direction: column;
+          flex-direction: column;
+  background: rgba(255, 255, 255, 0.493);
+  border-radius: 5px;
+  opacity: 0;
+  -webkit-transition: all .3s;
+  transition: all .3s;
+}
+
+.login-page .login.active {
+  opacity: 1;
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  z-index: 1;
+}
+
+.login-page form {
   display: -webkit-box;
   display: -ms-flexbox;
   display: flex;
@@ -263,7 +385,7 @@ body {
   margin: 15px;
 }
 
-.container .login-page form input[type=text] {
+.login-page form input[type=text] {
   margin-bottom: 8px;
   padding: 8px 10px;
   background: var(--color-w);
@@ -271,7 +393,7 @@ body {
   border-radius: 5px;
 }
 
-.container .login-page form input[type=password] {
+.login-page form input[type=password] {
   margin-bottom: 8px;
   padding: 8px 10px;
   background: var(--color-w);
@@ -279,7 +401,7 @@ body {
   border-radius: 5px;
 }
 
-.container .login-page form span {
+.login-page form span {
   font-family: var(--main-font);
   font-size: 14px;
   font-weight: 300;
@@ -287,7 +409,7 @@ body {
   color: red;
 }
 
-.container .login-page form button {
+.login-page form button {
   padding: 8px 10px;
   padding: 8px 10px;
   border: none;
@@ -296,6 +418,6 @@ body {
   border-radius: 5px;
 }
 
-.container .footer {
+.footer {
   padding: 5px 15px;
 }

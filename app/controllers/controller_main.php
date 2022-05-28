@@ -28,7 +28,7 @@
                 'files' => $files
             ];
 
-            $this->view->render_template('main_view.php', 'template_view.php', $data);
+            $this->view->render_template('main_page/main_view.php', 'core/template_view.php', $data);
         }
 
         function action_edit() {
@@ -70,7 +70,7 @@
                 "title" => $fname,
                 "text" => $decrypted,
             ];
-            $this->view->render_template('edit_view.php', 'template_view.php', $data);
+            $this->view->render_template('main_page/edit_view.php', 'core/template_view.php', $data);
         }
 
         function action_delete() {
@@ -87,6 +87,6 @@
         }
 
         function action_404() {
-            $this->view->render_template('404_view.php', 'template_view.php');
+            $this->view->render_template('error_page/404_view.php', 'core/template_view.php');
         }
     }

@@ -1,28 +1,17 @@
 document.addEventListener("DOMContentLoaded", function () {
-    let noteBlock = document.querySelector('.block-notes');
-    let notes = document.querySelectorAll('.note');
-    let pagination = document.querySelector('.page-pagination');
-
-    let notesOnPage = 10;
-    let countOfItems = Math.ceil(notes.length / notesOnPage);
+    let overlay = document.querySelector('.overlay');
+    setInterval(() => {
+        let now = new Date();
+        let time = now.getHours() + ':' + now.getMinutes() + ':' + now.getSeconds();
+        let date = now.getDate() + '.' + now.getMonth() + '.' + now.getFullYear();
+        document.querySelector('.time').innerHTML = time;
+        document.querySelector('.date').innerHTML = date;
+    },
+    1000);
     
-    if (countOfItems > 1) {
-        pagination.classList.add('active');
-    }
-    let pageNum = document.querySelectorAll('.btn-page');
-
-    for (let item of pageNum) {
-        item.addEventListener('click', function() {
-            let pNum = +this.innerHTML;            
-
-            let start = (pNum - 1) * notesOnPage;
-            let end = start + notesOnPage;
-
-            for (let i = start; i < end; i++) {
-                noteBlock.prepend(notes[i]);
-                console.log(notes[i]);
-            }
-            
-        });
-    }
+    overlay.addEventListener('click', () => {
+        overlay.classList.add('active');
+        document.querySelector('.login').classList.add('active');
+        document.querySelector('.date-time').classList.add('invisible');
+    });
 });

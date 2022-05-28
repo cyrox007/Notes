@@ -10,20 +10,18 @@
     <link rel="shortcut icon" href="/img/favicon.png" type="image/x-icon">
 </head>
 <body>
-    <div class="container">
-		<header class="header">
-            <i class="fas fa-clipboard"></i>
-            <h1 class="title">Блокнот 1.3.3</h1>
-            <? if ($_SESSION['key'] != null): ?>
-            <a href="/Auth/logout">Выйти</a>
-            <? endif ?>
-        </header>
-		<?php include 'app/views/'.$content_view; ?>
-		<hr style="height: 1px;">
-		<!-- <footer class="footer">
-			<span class="copy">&copy;</span><a href="https://vk.com/jsinteractive" target="_blank" rel="noopener noreferrer">+Ультра</a> 
-		</footer> -->
-    </div>
+    <header class="header">
+        <i class="fas fa-clipboard"></i>
+        <h1 class="title">Блокнот 1.3.3</h1>
+        <? if ($_SESSION['key'] != null): ?>
+        <a href="/Auth/logout">Выйти</a>
+        <? endif ?>
+    </header>
+    <?php include 'app/views/'.$content_view; ?>
+    <hr style="height: 1px;">
+    <!-- <footer class="footer">
+        <span class="copy">&copy;</span><a href="https://vk.com/jsinteractive" target="_blank" rel="noopener noreferrer">+Ультра</a> 
+    </footer> -->
     <script src="../../templates/js/script.js"></script>
 </body>
 </html>
