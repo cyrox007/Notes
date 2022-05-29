@@ -3,6 +3,7 @@
 	
         public $model;
         public $view;
+        public $config;
         
         function __construct() {
             $this->view = new View();
