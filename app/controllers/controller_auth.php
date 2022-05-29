@@ -3,6 +3,7 @@ class Controller_Auth extends Controller {
     public function __construct() {
         $this->model = new Model_Auth();
         $this->view = new View();
+        $this->config = new Config();
     }
 
     function action_login() {
@@ -61,6 +62,12 @@ class Controller_Auth extends Controller {
         if (!$db_invate_code)
             header("Location: /Error/invate_error");
 
+        $key = $this->config->hash_key; // ключ хеширования
+        $method = $this->config->hash_method; // алгоритм хеширования
+        
+        $user_login = $_POST['login'];
+        $user_password = openssl_encrypt($_POST['password'], $method, $key);
+        $user_phone = $_POST['user_phone'];
         /*  тут мы собираем все данные из формы в переменные
             затем мы находим пользователя по id из инвайта
             находим его в таблице users и profile 
