@@ -44,10 +44,29 @@ class Controller_Auth extends Controller {
     function action_registration() {
         $base_url = ((!empty($_SERVER['HTTPS'])) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/';
         $data = [
-            'style' => '',
-            'script' => '',
+            'style' => $base_url . 'templates/style/style.css',
+            'script' => $base_url . 'templates/js/reg-script.js',
             'title' => 'Регистрация',
         ];
+
+        $uri = explode('/', $_SERVER['REQUEST_URI']);
+        $invate_code = $uri[3]; // получим код приглашения из ссылки
+        
+        // Если пришли без кода пришлашения
+        if ($invate_code == "")
+            header("Location: /Error/invate_error");
+
+        // проверим соответствие ссылки с тем что мы имеем в БД
+        $db_invate_code = $this->model->get_data_invate_code($invate_code);
+        if (!$db_invate_code)
+            header("Location: /Error/invate_error");
+
+        /*  тут мы собираем все данные из формы в переменные
+            затем мы находим пользователя по id из инвайта
+            находим его в таблице users и profile 
+            выполняем UPDATE для таблиц
+            необходимо написать еще пару функций в модель auth*/
+
         $this->view->render_template('login_page/register_view.php', 'login_page/login_temp.php', $data);
     }
 }

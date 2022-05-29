@@ -287,7 +287,6 @@ hr {
   -webkit-box-pack: justify;
       -ms-flex-pack: justify;
           justify-content: space-between;
-  /* background: var(--login-page-image-desktop); */
   background: #258ceb;
   background: linear-gradient(135deg, var(--color-d) 0%, var(--color-m) 40%, var(--color-l) 100%);
   background-size: cover;
@@ -296,15 +295,6 @@ hr {
   -webkit-transition: all .3s;
   transition: all .3s;
   z-index: 1;
-}
-
-@media screen and (max-width: 700px) {
-  .login-page .overlay {
-    /* background: var(--login-page-image-mobile); */
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-  }
 }
 
 .login-page .overlay .sitename {
@@ -416,6 +406,97 @@ hr {
   background: var(--color-success);
   color: var(--color-l);
   border-radius: 5px;
+}
+
+.register-page {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-pack: center;
+      -ms-flex-pack: center;
+          justify-content: center;
+  -webkit-box-align: center;
+      -ms-flex-align: center;
+          align-items: center;
+  height: 100vh;
+}
+
+.register-page .overlay {
+  position: absolute;
+  width: 100wv;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #258ceb;
+  background: linear-gradient(135deg, var(--color-d) 0%, var(--color-m) 40%, var(--color-l) 100%);
+  -webkit-filter: blur(10px);
+          filter: blur(10px);
+  z-index: -1;
+}
+
+.register-page .register {
+  width: 320px;
+  height: auto;
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-orient: vertical;
+  -webkit-box-direction: normal;
+      -ms-flex-direction: column;
+          flex-direction: column;
+  background: rgba(255, 255, 255, 0.493);
+  border-radius: 5px;
+  -webkit-transition: all .3s;
+  transition: all .3s;
+}
+
+.register-page .register form {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-orient: vertical;
+  -webkit-box-direction: normal;
+      -ms-flex-direction: column;
+          flex-direction: column;
+  margin: 15px;
+}
+
+.register-page .register form input[type=text] {
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  background: var(--color-w);
+  border: 1px solid var(--color-d);
+  border-radius: 5px;
+}
+
+.register-page .register form input[type=password] {
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  background: var(--color-w);
+  border: 1px solid var(--color-d);
+  border-radius: 5px;
+}
+
+.register-page .register form span {
+  font-family: var(--main-font);
+  font-size: 14px;
+  font-weight: 300;
+  text-align: center;
+  color: red;
+}
+
+.register-page .register form button {
+  padding: 8px 10px;
+  padding: 8px 10px;
+  border: none;
+  background: var(--color-success);
+  color: var(--color-l);
+  border-radius: 5px;
+}
+
+.register-page .register form button:disabled {
+  background: grey;
 }
 
 .footer {

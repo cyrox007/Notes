@@ -85,8 +85,4 @@
             }
             header('Location: /');
         }
-
-        function action_404() {
-            $this->view->render_template('error_page/404_view.php', 'core/template_view.php');
-        }
     }
