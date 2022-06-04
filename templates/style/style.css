@@ -460,17 +460,18 @@ hr {
       -ms-flex-direction: column;
           flex-direction: column;
   margin: 15px;
+  /* input[type=password] {
+                margin-bottom: 8px;
+                padding: 8px 10px;
+                background: var(--color-w);
+                border: 1px solid var(--color-d);
+                border-radius: 5px;
+            } */
 }
 
-.register-page .register form input[type=text] {
-  margin-bottom: 8px;
-  padding: 8px 10px;
-  background: var(--color-w);
-  border: 1px solid var(--color-d);
-  border-radius: 5px;
-}
-
-.register-page .register form input[type=password] {
+.register-page .register form input[type=text],
+.register-page .register form input[type=password],
+.register-page .register form input[type=tel] {
   margin-bottom: 8px;
   padding: 8px 10px;
   background: var(--color-w);
@@ -487,7 +488,7 @@ hr {
 }
 
 .register-page .register form button {
-  padding: 8px 10px;
+  margin-top: 8px;
   padding: 8px 10px;
   border: none;
   background: var(--color-success);
