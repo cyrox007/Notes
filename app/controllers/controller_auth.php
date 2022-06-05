@@ -1,9 +1,10 @@
 <?php
 class Controller_Auth extends Controller {
     public function __construct() {
+        $this->config = new Config();
         $this->model = new Model_Auth();
         $this->view = new View();
-        $this->config = new Config();
+        $this->images = new Images();
     }
 
     function action_login() {
@@ -76,22 +77,20 @@ class Controller_Auth extends Controller {
         $user_role = $this->config->user_role; // получим роль пользователя
         $user_photo = 'app\uploads\us_avatars\user_default.png';
         
+        $this->images->load($_FILES['userphoto']['tmp_name']);
         //проверяем изображение
         if ($_FILES['userphoto']['type'] == 'image/jpeg') {
             $user_photo = $_FILES['userphoto']['name'];
-            $size = getimagesize($_FILES['userphoto']['full_path']);
+            $size = getimagesize($_FILES['userphoto']['tmp_name']);
             var_dump($size);
         }
-
-        /* 
-            необходимо получить размер загружаемого изображения соответствкет ли он параметрам 150*150px
-        */
 
         $pack1 = [
             'username' => $user_login,
             'password' => $user_password,
             'role' => $user_role_activate
-        ]; // первый пакет данных в основную таблицу
+        ]; // первый пакет данных в основную таблицу пользователя
+
         $pack2 = [
             'first_name' => $user_firstname,
             'patronymic' => $user_patronymic,

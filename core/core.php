@@ -6,6 +6,7 @@
     require_once 'core/view.php';
     require_once 'core/controller.php';
     
+    require_once 'core/images.php';
 
     /*
     Здесь обычно подключаются дополнительные модули, реализующие различный функционал:
