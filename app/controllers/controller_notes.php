@@ -1,7 +1,7 @@
 <?php
-    class Controller_Main extends Controller {
+    class Controller_Notes extends Controller {
         public function __construct() {
-            $this->model = new Model_Main();
+            //$this->model = new Model_Main();
             $this->view = new View();
         }
         
@@ -17,8 +17,8 @@
                 $file = fopen($note_directory.$filename, "w");
                 fclose($file);
             
-                $location = 'edit/'.$filename;
-                header('Location: '.$location);
+                $location = 'Notes/edit/'.$filename;
+                header('Location: ' .$location);
             }
             $files = array_diff(scandir($note_directory), ['.', '..', '.htaccess']);
             $files = array_reverse($files);
@@ -28,7 +28,7 @@
                 'files' => $files
             ];
 
-            $this->view->render_template('main_page/main_view.php', 'core/template_view.php', $data);
+            $this->view->render_template('notes_page/main_view.php', 'core/template_view.php', $data);
         }
 
         function action_edit() {
@@ -70,7 +70,7 @@
                 "title" => $fname,
                 "text" => $decrypted,
             ];
-            $this->view->render_template('main_page/edit_view.php', 'core/template_view.php', $data);
+            $this->view->render_template('notes_page/edit_view.php', 'core/template_view.php', $data);
         }
 
         function action_delete() {
@@ -83,6 +83,6 @@
                 $filepath = $note_directory . urldecode($uri[3]);
                 unlink($filepath);
             }
-            header('Location: /');
+            header('Location: /Notes');
         }
     }
