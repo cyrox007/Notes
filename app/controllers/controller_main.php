@@ -1,6 +1,7 @@
 <?php
     class Controller_Main extends Controller {
         public function __construct() {
+            $this->config = new Config();
             $this->model = new Model_Main();
             $this->view = new View();
         }
@@ -8,25 +9,29 @@
         function action_index() {
             if ($_SESSION['auth_login'] == null)
                 header("Location: /Auth/login");
-
-            $note_directory = "c855721/";
-            $dtime = date('Ymd_His');
             
-            if(isset($_POST['name'])) {
-                $filename = $dtime.'_'.$_POST['name'].".txt";
-                $file = fopen($note_directory.$filename, "w");
-                fclose($file);
-            
-                $location = 'edit/'.$filename;
-                header('Location: '.$location);
-            }
-            $files = array_diff(scandir($note_directory), ['.', '..', '.htaccess']);
-            $files = array_reverse($files);
-
+            $user = $_SESSION['auth_login'];
+            $user_info = $this->model->getUser_data($user);
             $data = [
+                'styles' => [
+                    $this->config->base_url().'templates/style/'.'plugins/fontawesome-free/css/all.min.css',
+                    $this->config->base_url().'templates/style/'.'dist/css/adminlte.min.css'
+                ],
+                'scripts' => [
+                    $this->config->base_url().'templates/script/'.'plugins/jquery/jquery.min.js',
+                    $this->config->base_url().'templates/script/'.'plugins/bootstrap/js/bootstrap.bundle.min.js',
+                    $this->config->base_url().'templates/script/'.'dist/js/adminlte.min.js',
+                    $this->config->base_url().'templates/script/'.'/dist/js/demo.js'
+                ],
+                'tpl_images' => [
+                    'logo' => $this->config->base_url().'templates/img/AdminLTELogo.png'
+                ],
                 'title' => 'Главная',
-                'files' => $files
+                'user' => $user,
+                'username' => $user_info['first_name']. " " .$user_info['surname'],
+                'userphoto' => $user_info['user_photo']
             ];
+            
 
             $this->view->render_template('main_page/main_view.php', 'core/template_view.php', $data);
         }

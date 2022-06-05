@@ -1,7 +1,8 @@
 <?php
     class Controller_Notes extends Controller {
         public function __construct() {
-            //$this->model = new Model_Main();
+            $this->config = new Config();
+            $this->model = new Model_Notes();
             $this->view = new View();
         }
         
@@ -9,6 +10,8 @@
             if ($_SESSION['auth_login'] == null)
                 header("Location: /Auth/login");
 
+            $user = $_SESSION['auth_login'];
+            $user_info = $this->model->getUser_data($user);
             $note_directory = "c855721/";
             $dtime = date('Ymd_His');
             
@@ -20,12 +23,29 @@
                 $location = 'Notes/edit/'.$filename;
                 header('Location: ' .$location);
             }
+
             $files = array_diff(scandir($note_directory), ['.', '..', '.htaccess']);
             $files = array_reverse($files);
 
             $data = [
-                'title' => 'Главная',
-                'files' => $files
+                'styles' => [
+                    $this->config->base_url().'templates/style/'.'plugins/fontawesome-free/css/all.min.css',
+                    $this->config->base_url().'templates/style/'.'dist/css/adminlte.min.css'
+                ],
+                'scripts' => [
+                    $this->config->base_url().'templates/script/'.'plugins/jquery/jquery.min.js',
+                    $this->config->base_url().'templates/script/'.'plugins/bootstrap/js/bootstrap.bundle.min.js',
+                    $this->config->base_url().'templates/script/'.'dist/js/adminlte.min.js',
+                    $this->config->base_url().'templates/script/'.'/dist/js/demo.js'
+                ],
+                'tpl_images' => [
+                    'logo' => $this->config->base_url().'templates/img/AdminLTELogo.png'
+                ],
+                'title' => 'Блокнот',
+                'files' => $files,
+                'user' => $user,
+                'username' => $user_info['first_name']. " " .$user_info['surname'],
+                'userphoto' => $user_info['user_photo']
             ];
 
             $this->view->render_template('notes_page/main_view.php', 'core/template_view.php', $data);

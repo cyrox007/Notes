@@ -10,7 +10,7 @@ class Controller_Auth extends Controller {
     function action_login() {
         $base_url = ((!empty($_SERVER['HTTPS'])) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/';
         $data = [
-            'style' => $base_url . 'templates/style/style.css',
+            'style' => $base_url . 'templates/css/style.css',
             'script' => $base_url . 'templates/js/script.js',
             'title' => 'Авторизация',
             'error' => ''
@@ -46,7 +46,7 @@ class Controller_Auth extends Controller {
     function action_registration() {
         $base_url = ((!empty($_SERVER['HTTPS'])) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/';
         $data = [
-            'style' => $base_url . 'templates/style/style.css',
+            'style' => $base_url . 'templates/css/style.css',
             'reg-script' => $base_url . 'templates/js/reg-script.js',
             'title' => 'Регистрация',
             'error' => ''

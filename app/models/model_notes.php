@@ -1,5 +1,5 @@
 <?php
-    class Model_Main extends Model {
+    class Model_Notes extends Model {
         public function __construct() {
             $this->config = new Config();
         }
