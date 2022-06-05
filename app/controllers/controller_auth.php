@@ -25,7 +25,7 @@ class Controller_Auth extends Controller {
             
             $pass = $this->model->get_data_password($login); // получаем значение из БД
             if ($encrypted_password === $pass) {
-                $_SESSION['key'] = 'auth';
+                $_SESSION['auth_login'] = $login;
                 header("Location: /");
             } else {
                 $data['error'] = 'Неправильный логин или пароль';
@@ -37,8 +37,8 @@ class Controller_Auth extends Controller {
     }
 
     function action_logout() {
-        if (isset($_SESSION['key']) && $_SESSION['key'] == 'auth') {
-            unset($_SESSION['key']);
+        if (isset($_SESSION['auth_login'])) {
+            unset($_SESSION['auth_login']);
         }
         header("Location: /");
     }
@@ -74,34 +74,34 @@ class Controller_Auth extends Controller {
         $user_patronymic = $_POST['patronymic'];
         $user_surname = $_POST['surname'];
         $user_phone = $_POST['user_phone']; // получаем номер телефона пользователя
-        $user_role = $this->config->user_role; // получим роль пользователя
-        $user_photo = 'app\uploads\us_avatars\user_default.png';
+        $user_role = $this->config->user_role_activate; // получим роль пользователя
+        $user_photo = 'app\uploads\us_avatars\user_default.png'; // изображение по умолчанию
         
-        $this->images->load($_FILES['userphoto']['tmp_name']);
-        //проверяем изображение
+        // проверяем изображение
+        // нужно передать изображение библиотеке
         if ($_FILES['userphoto']['type'] == 'image/jpeg') {
-            $user_photo = $_FILES['userphoto']['name'];
-            $size = getimagesize($_FILES['userphoto']['tmp_name']);
-            var_dump($size);
+            $user_photo = $this->images->checkAvatar_save($_FILES['userphoto']['tmp_name'], $_FILES['userphoto']['name']);
         }
 
         $pack1 = [
-            'username' => $user_login,
-            'password' => $user_password,
-            'role' => $user_role_activate
+            'username' => "$user_login",
+            'password' => "$user_password",
+            'role' => $user_role
         ]; // первый пакет данных в основную таблицу пользователя
-
+        //var_dump($pack1);
         $pack2 = [
             'first_name' => $user_firstname,
             'patronymic' => $user_patronymic,
             'surname' => $user_surname,
             'user_phone' => $user_phone,
-            'user_photo' => $user_photo,
+            'user_photo' => "$user_photo",
         ]; // второй пакет данных в дополнительную таблицу пользователя
 
-        //var_dump($pack2);
+        if ($this->model->update_user_profile_in_register($db_invate_code, $pack1, $pack2)) {
+            $this->model->delete_invate($db_invate_code); // удалим код приглашения из базы
+            header("Location: /Auth/login");
+        }
 
-        //$this->model->update_user_profile_in_register($db_invate_code);
         /*  затем мы находим пользователя по id из инвайта
             находим его в таблице users и profile 
             выполняем UPDATE для таблиц

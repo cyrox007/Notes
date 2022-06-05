@@ -27,13 +27,21 @@
         // Принимает параметры: Открытая БД, таблица, параметр поиска, 
         // значение поиска, массив значений, который будет внесен
         // key => value
-        public function update_data($db, $table, $param, $value, $array) {
+        public function update_data($db, $table, $where_param, $where_value, $array) {
             $imploded = []; // это строка в которую будем собирать параметры для изменения и значения
             foreach ($array as $key => $value) { // разбираем массив
-                $imploded[] = "$key = $value";
+                $imploded[] = "$key = '$value'";
             }
+            
             $string_parametrs = implode(", ", $imploded);
-            $sql = "UPDATE {$table} SET {$string_parametrs} WHERE {$param} = '{$value}'";
+            $string_parametrs = str_replace('"', '', $string_parametrs); // почистим от кавычек
+            $sql = "UPDATE {$table} SET {$string_parametrs} WHERE {$where_param} = {$where_value}";
+            $db->query($sql);
+        }
+
+        // функция удаления позиции из БД
+        public function delete_data($db, $table, $where_param, $where_value) {
+            $sql = "DELETE FROM {$table} WHERE {$where_param} = {$where_value}";
             $db->query($sql);
         }
     }
