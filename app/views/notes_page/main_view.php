@@ -23,7 +23,7 @@
             <div class="form-row form-group">
                 <!-- text input -->
                 <div class="col-sm-10">
-                    <input type="text" class="form-control" placeholder="Введите название новой заметки...">
+                    <input type="text" name="note-name" class="form-control" placeholder="Введите название новой заметки...">
                 </div>
                 <div class="col-sm-2 d-flex justify-content-end">
                     <button type="submit" class="btn btn-primary">Создать</button>
@@ -60,46 +60,55 @@
                   </tr>
               </thead>
               <tbody>
-              <?php 
-                        foreach($data['files'] as $file): 
-                        mb_internal_encoding("UTF-8");
-                        // сколько знаков надо убрать сначала - отрезаем в имени дату и время
-                        $fname = mb_substr($file, 16);
-                        // сколько знаков надо убрать в конце строки - отрезаем расширение .txt
-                        $fname = mb_substr($fname, 0, -4); 
-                    ?>
+              <?php foreach($data['notes'] as $note): 
+                
+                ?>
                   <tr>
                       <td>
                           #
                       </td>
                       <td>
                           <a>
-                            <? echo "{$fname}"?>
+                            <? echo $note['name_note'];?>
                           </a>
                           <br/>
                           <small>
-                              Created 01.01.2019
+                              Создано <? echo $note['date_create']; ?>
                           </small>
+                          <?php if ($note['date_create'] != $note['date_edit']):?>
+                          <br/>
+                          <small>
+                              Редактировано <? echo $note['date_edit']; ?>
+                          </small>
+                          <?php endif ?>
                       </td>
                       <td>
                           <ul class="list-inline">
                               <li class="list-inline-item">
-                                  <img alt="<?php echo $data['user'] ?>" class="table-avatar" src="<?php echo $data['userphoto'] ?>">
+                                  <?php echo $note['author']?>
+                                  <!-- <img alt="<?php echo $data['user'] ?>" class="table-avatar" src="<?php echo $data['userphoto'] ?>"> -->
                               </li>
                           </ul>
                       </td>
+                      <?php if (!$data['admin'] || $data['user_id'] != $note['user_id']):?>
+                          
+                          <td class="project-actions text-right">
+                        </td>
+                      
+                      <? else: ?>
                       <td class="project-actions text-right">
-                          <a class="btn btn-info btn-sm" href="/Notes/edit/<? echo "{$file}"?>">
+                          <a class="btn btn-info btn-sm" href="/Notes/edit/<? echo $note['id']?>">
                               <i class="fas fa-pencil-alt">
                               </i>
-                              Edit
+                              Редактировать
                           </a>
-                          <a class="btn btn-danger btn-sm" href="/Notes/delete/<? echo "{$file}"?>">
+                          <a class="btn btn-danger btn-sm" href="/Notes/delete/<? echo $note['id']?>">
                               <i class="fas fa-trash">
                               </i>
-                              Delete
+                              Удалить
                           </a>
                       </td>
+                      <?php endif; ?> 
                   </tr>
                   <?php endforeach; ?>
               </tbody>

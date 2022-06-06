@@ -7,25 +7,34 @@
         }
         
         function action_index() {
-            if ($_SESSION['auth_login'] == null)
+            if ($_SESSION['auth_login'] == null) // проверим факт авторизованности
                 header("Location: /Auth/login");
 
-            $user = $_SESSION['auth_login'];
-            $user_info = $this->model->getUser_data($user);
-            $note_directory = "c855721/";
-            $dtime = date('Ymd_His');
+            $user = $_SESSION['auth_login']; // пользователя авторизованного в сессии
+            $user_info = $this->model->getUser_data($user); // получаем информацию о нем
             
-            if(isset($_POST['name'])) {
-                $filename = $dtime.'_'.$_POST['name'].".txt";
-                $file = fopen($note_directory.$filename, "w");
-                fclose($file);
-            
-                $location = 'Notes/edit/'.$filename;
-                header('Location: ' .$location);
+            if($_SERVER['REQUEST_METHOD'] == 'POST') {
+                
+                    $dtime = date('Ymd_His'); // текущее дата и время
+                    $filename = $dtime.'_'.$_POST['note-name'].".txt"; // формируем имя заметки 
+                    $filepath = $this->config->dir_notes.$filename; // формируем путь к заметке
+                    $file = fopen($filepath, "w"); // создаем файл 
+                    fclose($file); // закрываем файл
+                    
+                    $new_note = $this->model->createNewNote($_POST['note-name'], $filepath, $user, $user_info['id']);
+                    
+                    $location = 'Notes/edit/'.$new_note;
+                    header('Location: ' .$location);
             }
 
-            $files = array_diff(scandir($note_directory), ['.', '..', '.htaccess']);
-            $files = array_reverse($files);
+            $allNotes = $this->model->getAllNotes();
+
+            function isAdmin($user_role, $admin) {
+                if ($user_role > $admin)
+                    return false;
+                
+                return true;
+            }
 
             $data = [
                 'styles' => [
@@ -42,10 +51,12 @@
                     'logo' => $this->config->base_url().'templates/img/AdminLTELogo.png'
                 ],
                 'title' => 'Блокнот',
-                'files' => $files,
+                'notes' => $allNotes,
                 'user' => $user,
+                'user_id' => $user_info['id'],
+                'admin' => isAdmin($user_info['role'], $this->config->user_role_admin),
                 'username' => $user_info['first_name']. " " .$user_info['surname'],
-                'userphoto' => $user_info['user_photo']
+                'userphoto' => $this->config->base_url().$user_info['user_photo']
             ];
 
             $this->view->render_template('notes_page/main_view.php', 'core/template_view.php', $data);
@@ -54,48 +65,116 @@
         function action_edit() {
             if ($_SESSION['auth_login'] == null)
                 header("Location: /Auth/login");
+
+            $user = $_SESSION['auth_login']; // пользователя авторизованного в сессии
+            $user_info = $this->model->getUser_data($user); // получаем информацию о нем
+
+            $uri = explode('/', $_SERVER['REQUEST_URI']); // получаем запрос к файлу
+            $note_id = $uri[3]; // вытаскиваем id записи из запроса
+            $note_info = $this->model->getNote_data($note_id);
+            
+            if (!$note_info) 
+                header("Location: /Error/noteError");
+            
+            function isAdmin($user_role) {
+                if ($user_role > $this->config->user_role_admin)
+                    return false;
+                
+                return true;
+            }
+
+            function isAuthor($user_id) {
+                # code...
+            }
+            
+            if ($note_info['user_id'] != $user_info['id']){
+                if (!isAdmin($user_info['role']))
+                    header('Location: /Error/noteError');
+            }
             
             /* получаем файл и содержимое */
             $note_directory = "c855721/"; // папка с файлами заметок
             $uri = explode('/', $_SERVER['REQUEST_URI']); // получаем запрос к файлу
             $param = $uri[3];
             
-            $fname = mb_substr(urldecode($uri[3]), 16, -4); // декодируем и обрежаем название файла для получение его имени
-            $filepath = $note_directory . urldecode($uri[3]); // получаем путь к файлу
-            $file_data = file_get_contents($filepath); // получаем содержимое файла
+            $file_data = file_get_contents($note_info['notefile_link']); // получаем содержимое файла
 
             /* расшифровываем содежимое и выводим в поле ввода */
             $decode_data_base64 = base64_decode($file_data); // декодируем содержмое файла из base64
 
-            $key = "592e6419d1d04634848f40f22f9f71a7450800611f4e497cdd71b7cef3e3450ae63fd149609d36eb";
-            $method = "AES-192-CBC";
+            $key = $this->config->hash_key;
+            $method = $this->config->hash_method;
 
             $decrypted = openssl_decrypt($decode_data_base64, $method, $key);
             
             /* получаем содержимое поля ввода и зашифровываем обратно */
-            if (isset($_POST['textarea'])) {
-                $textarea = $_POST['textarea'];
+            if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+                $textarea = $_POST['content']; // получаем содержимое поля ввода
 
-                $key = "592e6419d1d04634848f40f22f9f71a7450800611f4e497cdd71b7cef3e3450ae63fd149609d36eb";
-                $method = "AES-192-CBC";
+                $key = $this->config->hash_key; // ключь
+                $method = $this->config->hash_method; // метод
                 
-                $encrypted = openssl_encrypt($textarea, $method, $key);
-                $raw = base64_encode($encrypted);
+                $encrypted = openssl_encrypt($textarea, $method, $key); // хешируем
+                $raw = base64_encode($encrypted); // теперь в base64
 
-                file_put_contents($filepath, $raw);
+                file_put_contents($note_info['notefile_link'], $raw); // пишем в файл
+                $this->model->update_note($note_id, date("Y-m-d H:i:s"));
                 header('Location: /');
             }
-
+            
             $data = [
+                'styles' => [
+                    $this->config->base_url().'templates/style/'.'plugins/fontawesome-free/css/all.min.css',
+                    $this->config->base_url().'templates/style/'.'dist/css/adminlte.min.css',
+                ],
+                'scripts' => [
+                    $this->config->base_url().'templates/script/'.'plugins/jquery/jquery.min.js',
+                    $this->config->base_url().'templates/script/'.'plugins/bootstrap/js/bootstrap.bundle.min.js',
+                    $this->config->base_url().'templates/script/'.'dist/js/adminlte.min.js',
+                    $this->config->base_url().'templates/script/'.'/dist/js/demo.js',
+                ],
+                'page_style' => [
+                    $this->config->base_url().'templates/resource/'.'summernote/summernote-bs4.css'
+                ],
+                'page_script' => [
+                    $this->config->base_url().'templates/resource/'.'summernote/summernote-bs4.min.js'
+                ],
+                'call_script' => [
+                    "$(function () {
+                        // Summernote
+                        $('.textarea').summernote()
+                      })"
+                ],
+                'tpl_images' => [
+                    'logo' => $this->config->base_url().'templates/img/AdminLTELogo.png'
+                ],
+                'title' => 'Блокнот: Редактируем > '.$note_info['name_note'],
+                'name_note' => $note_info['name_note'],
+                'user' => $user,
+                'user_id' => $user_info['id'],
+                'admin' => isAdmin(),
+                'username' => $user_info['first_name']. " " .$user_info['surname'],
+                'userphoto' => $this->config->base_url().$user_info['user_photo'],
+                'content' => $decrypted
+            ];
+            /* $data = [
                 "title" => $fname,
                 "text" => $decrypted,
-            ];
+            ]; */
+            
             $this->view->render_template('notes_page/edit_view.php', 'core/template_view.php', $data);
         }
 
         function action_delete() {
             if ($_SESSION['auth_login'] == null)
                 header("Location: /Auth/login");
+
+            $user = $_SESSION['auth_login']; // пользователя авторизованного в сессии
+            $user_info = $this->model->getUser_data($user); // получаем информацию о нем
+
+            $uri = explode('/', $_SERVER['REQUEST_URI']); // получаем запрос к файлу
+            $note_id = $uri[3]; // вытаскиваем id записи из запроса
+            $note_info = $this->model->getNote_data($note_id);
 
             $note_directory = "c855721/";
             $uri = explode('/', $_SERVER['REQUEST_URI']);

@@ -1,7 +1,7 @@
 <!-- <header class="header">
     <i class="fas fa-clipboard"></i>
     <h1 class="title">My Workspace 1.1</h1>
-    <? if ($_SESSION['key'] != null): ?>
+    <? if ($_SESSION['auth_login'] != null): ?>
     <a href="/Auth/logout">Выйти</a>
     <? endif ?>
 </header> -->
@@ -15,9 +15,11 @@
       <li class="nav-item d-none d-sm-inline-block">
         <a href="/" class="nav-link">Главная</a>
       </li>
+      <? if ($_SESSION['auth_login'] != null): ?>
       <li class="nav-item d-none d-sm-inline-block">
-        <a href="#" class="nav-link">Contact</a>
+        <a href="/Auth/logout" class="nav-link">Выйти</a>
       </li>
+      <? endif ?>
     </ul>
 
     <!-- SEARCH FORM -->
@@ -147,7 +149,7 @@
                 <img src="<?php echo $data['userphoto'];?>" class="img-circle elevation-2" alt="User Image">
             </div>
             <div class="info">
-                <a href="#" class="d-block"><?php echo $data['username']; ?></a>
+                <a href="/" class="d-block"><?php echo $data['username']; ?></a>
             </div>
       </div>
 

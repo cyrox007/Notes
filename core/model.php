@@ -20,7 +20,30 @@
         // Принимает параметры: Открытая БД, таблицу откуда получаем, параметр поиска, значение поиска
         public function get_data($db, $table, $param, $value) {
             $sql = "SELECT * FROM {$table} WHERE {$param} = '{$value}'";
-            return $result = $db->query($sql);
+            $result = $db->query($sql);
+            $row = $result->fetchArray(SQLITE3_ASSOC);
+            
+            return $row;
+        }
+
+        // Метод для добавления поля в таблицу массива данных
+        // Принимает параметры: Открытая БД, таблица, 
+        // массив значений, который будет внесен в БД
+        // key => value
+        public function insert_data($db, $table, $array_data) {
+            $imploded_key = []; // это строка в которую будем собирать параметры для изменения 
+            $imploded_value = []; // это строка бует собирать их значения
+            
+            foreach ($array_data as $key => $value) { // разбираем массив
+                $imploded_key[] = "$key";
+                $imploded_value[] = "'$value'";
+            }
+
+            $string_parametrs_key = implode(", ", $imploded_key);
+            $string_parametrs_value = implode(", ", $imploded_value);
+
+            $sql = "INSERT INTO {$table} ({$string_parametrs_key}) VALUES ({$string_parametrs_value})";
+            $db->query($sql);
         }
         
         // Обновление поля таблицы:
@@ -35,6 +58,7 @@
             
             $string_parametrs = implode(", ", $imploded);
             $string_parametrs = str_replace('"', '', $string_parametrs); // почистим от кавычек
+            
             $sql = "UPDATE {$table} SET {$string_parametrs} WHERE {$where_param} = {$where_value}";
             $db->query($sql);
         }

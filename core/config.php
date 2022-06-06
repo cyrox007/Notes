@@ -6,7 +6,6 @@ class Config {
     // шифрование
     public $hash_key = "592e6419d1d04634848f40f22f9f71a7450800611f4e497cdd71b7cef3e3450ae63fd149609d36eb"; //SSL Key Code
     public $hash_method = "AES-192-CBC"; // алгоритм шифрования
-    
 
     // статичные параметры пользвателя
     /* 
@@ -17,6 +16,8 @@ class Config {
         888 - пользователь 
         999 - гость
     */
+    public $user_role_superadmin = 1;
+    public $user_role_admin = 111;
     public $user_role_activate = 888; // роль активированного пользователя
     public $user_role_inactive = 899; // роль не активированного пользователя
 
@@ -26,4 +27,6 @@ class Config {
         return ((!empty($_SERVER['HTTPS'])) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/';
     }
 
+    // Модуль Блокнот
+    public $dir_notes = "c855721/"; // хранит папку с заметками
 }

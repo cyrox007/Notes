@@ -8,4 +8,8 @@
             $data['title'] = "Ошибка! Приглашение не действительно";
             $this->view->render_template('error_page/invate_error_view.php', 'core/template_view.php', $data);
         }
+        public function action_noteError() {
+            $data['title'] = "Ошибка! Такой записи не существует";
+            $this->view->render_template('error_page/404_view.php', 'core/template_view.php', $data);
+        }
     }
