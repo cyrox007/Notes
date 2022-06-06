@@ -78,4 +78,10 @@
 
             $this->update_data($db, "notes", "id", $id, $arr1);
         }
+
+        public function deleteNote($note_id) {
+            $db = $this->connect_db($this->config->db_name);
+
+            $this->delete_data($db, "notes", "id", $note_id);
+        }
     }

@@ -82,10 +82,6 @@
                 
                 return true;
             }
-
-            function isAuthor($user_id) {
-                # code...
-            }
             
             if ($note_info['user_id'] != $user_info['id']){
                 if (!isAdmin($user_info['role']))
@@ -93,7 +89,6 @@
             }
             
             /* получаем файл и содержимое */
-            $note_directory = "c855721/"; // папка с файлами заметок
             $uri = explode('/', $_SERVER['REQUEST_URI']); // получаем запрос к файлу
             $param = $uri[3];
             
@@ -151,16 +146,10 @@
                 'title' => 'Блокнот: Редактируем > '.$note_info['name_note'],
                 'name_note' => $note_info['name_note'],
                 'user' => $user,
-                'user_id' => $user_info['id'],
-                'admin' => isAdmin(),
                 'username' => $user_info['first_name']. " " .$user_info['surname'],
                 'userphoto' => $this->config->base_url().$user_info['user_photo'],
                 'content' => $decrypted
             ];
-            /* $data = [
-                "title" => $fname,
-                "text" => $decrypted,
-            ]; */
             
             $this->view->render_template('notes_page/edit_view.php', 'core/template_view.php', $data);
         }
@@ -175,13 +164,30 @@
             $uri = explode('/', $_SERVER['REQUEST_URI']); // получаем запрос к файлу
             $note_id = $uri[3]; // вытаскиваем id записи из запроса
             $note_info = $this->model->getNote_data($note_id);
+            
+            if (!$note_info) 
+                header("Location: /Error/noteError");
+            
+            function isAdmin($user_role) {
+                if ($user_role > $this->config->user_role_admin)
+                    return false;
+                
+                return true;
+            }
+            
+            if ($note_info['user_id'] != $user_info['id']){
+                if (!isAdmin($user_info['role']))
+                    header('Location: /Error/noteError');
+            }
 
-            $note_directory = "c855721/";
-            $uri = explode('/', $_SERVER['REQUEST_URI']);
+            //$note_directory = "c855721/";
+            /* $uri = explode('/', $_SERVER['REQUEST_URI']);
             if ($url[3] != " ") {
                 $filepath = $note_directory . urldecode($uri[3]);
                 unlink($filepath);
-            }
+            } */
+            unlink($note_info['notefile_link']);
+            $this->model->deleteNote($note_id);
             header('Location: /Notes');
         }
     }

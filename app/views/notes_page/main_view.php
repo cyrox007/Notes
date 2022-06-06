@@ -90,7 +90,7 @@
                               </li>
                           </ul>
                       </td>
-                      <?php if (!$data['admin'] || $data['user_id'] != $note['user_id']):?>
+                      <?php if (!$data['admin'] && $data['user_id'] != $note['user_id']):?>
                           
                           <td class="project-actions text-right">
                         </td>
