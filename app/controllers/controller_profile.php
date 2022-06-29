@@ -38,6 +38,8 @@ class Controller_Profile extends Controller {
             ];
 
             $pack_second = array_diff($pack_second, array('', null, 0));
+            $this->model->update_user_profile($user_info['id'], $pack_second);
+            header('Location: /Profile');
         }
         $data = [
             'styles' => [
