@@ -460,13 +460,6 @@ hr {
       -ms-flex-direction: column;
           flex-direction: column;
   margin: 15px;
-  /* input[type=password] {
-                margin-bottom: 8px;
-                padding: 8px 10px;
-                background: var(--color-w);
-                border: 1px solid var(--color-d);
-                border-radius: 5px;
-            } */
 }
 
 .register-page .register form input[type=text],
