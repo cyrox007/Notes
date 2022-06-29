@@ -149,7 +149,7 @@
                 <img src="<?php echo $data['userphoto'];?>" class="img-circle elevation-2" alt="User Image">
             </div>
             <div class="info">
-                <a href="/" class="d-block"><?php echo $data['username']; ?></a>
+                <a href="/Profile" class="d-block"><?php echo $data['username']; ?></a>
             </div>
       </div>
 

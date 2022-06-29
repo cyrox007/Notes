@@ -29,7 +29,7 @@
                 'title' => 'Главная',
                 'user' => $user,
                 'username' => $user_info['first_name']. " " .$user_info['surname'],
-                'userphoto' => $user_info['user_photo']
+                'userphoto' => $user_info['user_photo'],
             ];
             
 

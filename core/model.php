@@ -35,13 +35,14 @@
             $imploded_value = []; // это строка бует собирать их значения
             
             foreach ($array_data as $key => $value) { // разбираем массив
-                $imploded_key[] = "$key";
-                $imploded_value[] = "'$value'";
+                $imploded_key[] = "$key"; // запишем ключи массива как значение массива
+                $imploded_value[] = "'$value'"; // запишем отдельно значения массива
             }
 
-            $string_parametrs_key = implode(", ", $imploded_key);
-            $string_parametrs_value = implode(", ", $imploded_value);
+            $string_parametrs_key = implode(", ", $imploded_key); // преобразовываем в строку
+            $string_parametrs_value = implode(", ", $imploded_value); 
 
+            // формируем запрос к базе данных
             $sql = "INSERT INTO {$table} ({$string_parametrs_key}) VALUES ({$string_parametrs_value})";
             $db->query($sql);
         }

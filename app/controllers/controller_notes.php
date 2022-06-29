@@ -180,12 +180,6 @@
                     header('Location: /Error/noteError');
             }
 
-            //$note_directory = "c855721/";
-            /* $uri = explode('/', $_SERVER['REQUEST_URI']);
-            if ($url[3] != " ") {
-                $filepath = $note_directory . urldecode($uri[3]);
-                unlink($filepath);
-            } */
             unlink($note_info['notefile_link']);
             $this->model->deleteNote($note_id);
             header('Location: /Notes');
