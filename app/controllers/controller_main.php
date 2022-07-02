@@ -13,16 +13,7 @@
             $user = $_SESSION['auth_login'];
             $user_info = $this->model->getUser_data($user);
             $data = [
-                'styles' => [
-                    $this->config->base_url().'templates/style/'.'plugins/fontawesome-free/css/all.min.css',
-                    $this->config->base_url().'templates/style/'.'dist/css/adminlte.min.css'
-                ],
-                'scripts' => [
-                    $this->config->base_url().'templates/script/'.'plugins/jquery/jquery.min.js',
-                    $this->config->base_url().'templates/script/'.'plugins/bootstrap/js/bootstrap.bundle.min.js',
-                    $this->config->base_url().'templates/script/'.'dist/js/adminlte.min.js',
-                    $this->config->base_url().'templates/script/'.'/dist/js/demo.js'
-                ],
+                'style' =>  $this->config->base_url().'templates/css/style.css',
                 'tpl_images' => [
                     'logo' => $this->config->base_url().'templates/img/AdminLTELogo.png'
                 ],
@@ -31,8 +22,7 @@
                 'username' => $user_info['first_name']. " " .$user_info['surname'],
                 'userphoto' => $user_info['user_photo'],
             ];
-            
-
+        
             $this->view->render_template('main_page/main_view.php', 'core/template_view.php', $data);
         }
 

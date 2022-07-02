@@ -1,5 +1,4 @@
 <main class="register-page">
-    <div class="overlay"></div>
     <div class="register">
         <h2 class="page-title-login"><? echo "{$data['title']}";?></h2>
         <form action="" method="post" enctype="multipart/form-data">
