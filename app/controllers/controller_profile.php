@@ -12,13 +12,14 @@ class Controller_Profile extends Controller {
         $user = $_SESSION['auth_login'];
         $user_info = $this->model->getUser_data($user);
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-            $set_surname = $_POST['setSurname'];
-            $set_name = $_POST['setName'];
-            $set_patronymic = $_POST['setPatronymic'];
-            $set_avatar = $_FILES['setAvatar']['tmp_name'];
-            $set_user_phone = $_POST['setUserPhone'];
-            $set_user_position = $_POST['setUserPosition'];
-            $set_department = $_POST['setDepartment'];
+            $set_name = $_POST['set-user-name'];
+            $set_patronymic = $_POST['set-user-patronymic'];
+            $set_surname = $_POST['set-user-surname'];
+            $set_user_phone = $_POST['set-user-phone'];
+            $set_avatar/*  = $_FILES['set-user-avatar']['tmp_name'] */;
+            $set_user_position = $_POST['set-user-position'];
+            $set_department = $_POST['set-user-deportament'];
+            $set_office_phone = $_POST['set-office-phone'];
 
             if ($_FILES['setAvatar']['type'] == 'image/jpeg' || $_FILES['setAvatar']['tmp_name'] != NULL) {
                 $set_avatar = $this->images->checkAvatar_save($_FILES['setAvatar']['tmp_name'], $_FILES['setAvatar']['name']);
@@ -34,7 +35,8 @@ class Controller_Profile extends Controller {
                 'user_phone' => $set_user_phone,
                 'user_photo' => "$set_avatar",
                 'user_position' => $set_user_position,
-                'department' => $set_department
+                'department' => $set_department,
+                'office_phone' => $set_office_phone
             ];
 
             $pack_second = array_diff($pack_second, array('', null, 0));
@@ -42,30 +44,24 @@ class Controller_Profile extends Controller {
             header('Location: /Profile');
         }
         $data = [
-            'styles' => [
-                $this->config->base_url().'templates/style/'.'plugins/fontawesome-free/css/all.min.css',
-                $this->config->base_url().'templates/style/'.'dist/css/adminlte.min.css'
-            ],
-            'scripts' => [
-                $this->config->base_url().'templates/script/'.'plugins/jquery/jquery.min.js',
-                $this->config->base_url().'templates/script/'.'plugins/bootstrap/js/bootstrap.bundle.min.js',
-                $this->config->base_url().'templates/script/'.'dist/js/adminlte.min.js',
-                $this->config->base_url().'templates/script/'.'/dist/js/demo.js'
-            ],
+            'style' =>  $this->config->base_url().'templates/css/style.css',
+            'script' => $this->config->base_url().'templates/js/script.js',
             'tpl_images' => [
                 'logo' => $this->config->base_url().'templates/img/AdminLTELogo.png'
             ],
-            
+            'site' => $this->config->site,
             'title' => $user_info['first_name']. " " .$user_info['surname'],
             
             'user' => $user,
-            'username' => $user_info['first_name']. " " .$user_info['surname'],
+            'user-name' => $user_info['first_name'],
+            'user-surname' => $user_info['surname'],
+            'user-patronymic' => $user_info['patronymic'],
+            'user-photo' => $user_info['user_photo'],
 
-            'user_position' => $user_info['user_position'],
-            'user_phone' => $user_info['user_phone'],
+            'user-position' => $user_info['user_position'],
+            'user-phone' => $user_info['user_phone'],
             'department' => $user_info['department'],
-            'office_phone' => $user_info['office_phone'],
-            'userphoto' => $user_info['user_photo'],
+            'office-phone' => $user_info['office_phone'],
             'personal_notes' => $this->model->getPersonalNotes($user_info['id'])
         ];
 

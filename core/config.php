@@ -27,6 +27,12 @@ class Config {
         return ((!empty($_SERVER['HTTPS'])) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/';
     }
 
+    // Данные сайта
+    public $site = [
+        'sitename' => 'My Workspace',
+        'version' => 1.5,
+    ];
+
     // Модуль Блокнот
     public $dir_notes = "c855721/"; // хранит папку с заметками
 }
