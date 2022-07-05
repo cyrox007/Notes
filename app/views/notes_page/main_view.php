@@ -43,76 +43,51 @@
           </div>
         </div>
         <div class="card-body p-0">
-          <table class="table table-striped projects">
-              <thead>
-                  <tr>
-                      <th style="width: 1%">
-                          #
-                      </th>
-                      <th style="width: 20%">
-                          Название
-                      </th>
-                      <th style="width: 30%">
-                          Автор
-                      </th>
-                      <th style="width: 20%">
-                      </th>
-                  </tr>
-              </thead>
-              <tbody>
-              <?php foreach($data['notes'] as $note): 
-                
-                ?>
-                  <tr>
-                      <td>
-                          #
-                      </td>
-                      <td>
-                          <a>
-                            <? echo $note['name_note'];?>
-                          </a>
+          <div class="notes_list">
+              <div class="notes__list-head">
+                  <p>Название</p>
+                  <p>Автор</p>
+                  <p></p>
+              </div>
+              <div class="notes__list-body">
+              <? foreach($data['notes'] as $note): ?>
+                    
+                      <div class="notes__item">
+                          <p>
+                              <a class="notes__link">
+                                    <? echo $note['name_note'];?>
+                                </a> 
+                          </p>
                           <br/>
-                          <small>
-                              Создано <? echo $note['date_create']; ?>
-                          </small>
-                          <?php if ($note['date_create'] != $note['date_edit']):?>
-                          <br/>
-                          <small>
-                              Редактировано <? echo $note['date_edit']; ?>
-                          </small>
-                          <?php endif ?>
-                      </td>
-                      <td>
-                          <ul class="list-inline">
-                              <li class="list-inline-item">
-                                  <?php echo $note['author']?>
-                                  <!-- <img alt="<?php echo $data['user'] ?>" class="table-avatar" src="<?php echo $data['userphoto'] ?>"> -->
-                              </li>
-                          </ul>
-                      </td>
+                          <span>Создано <? echo $note['date_create']; ?></span>
+                            <? if ($note['date_create'] != $note['date_edit']): ?>
+                              <br/>
+                              <span>
+                                  Редактировано <? echo $note['date_edit']; ?>
+                              </span>
+                              <? endif; ?>
+                          <p><? echo $note['author']; ?></p>
                       <?php if (!$data['admin'] && $data['user_id'] != $note['user_id']):?>
                           
                           <td class="project-actions text-right">
                         </td>
                       
                       <? else: ?>
-                      <td class="project-actions text-right">
-                          <a class="btn btn-info btn-sm" href="/Notes/edit/<? echo $note['id']?>">
-                              <i class="fas fa-pencil-alt">
-                              </i>
+                      <div class="">
+                          <a class="btn" href="/Notes/edit/<? echo $note['id']?>">
+                              <i class="fas fa-pencil-alt"></i>
                               Редактировать
                           </a>
-                          <a class="btn btn-danger btn-sm" href="/Notes/delete/<? echo $note['id']?>">
-                              <i class="fas fa-trash">
-                              </i>
+                          <a class="btn" href="/Notes/delete/<? echo $note['id']?>">
+                              <i class="fas fa-trash"></i>
                               Удалить
                           </a>
-                      </td>
+                      </div>
                       <?php endif; ?> 
-                  </tr>
+                  </div>
                   <?php endforeach; ?>
-              </tbody>
-          </table>
+              </div>
+          </div>
         </div>
         <!-- /.card-body -->
       </div>
