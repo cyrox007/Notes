@@ -12,14 +12,15 @@
             $user_info = $this->get_data($db, "users", "username", $login);
             
             foreach ($user_info as $key => $value) {
+                if ($key == "password")
+                    continue;
+                
                 $all_info[$key] = $value;
             }
             $user_profile = $this->get_data($db, "profile", "user_id", $user_info['id']);
             
             foreach ($user_profile as $key => $value) {
                 if ($key == "id")
-                    continue;
-                if ($key == "password")
                     continue;
                 
                 $all_info[$key] = $value;

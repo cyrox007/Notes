@@ -13,50 +13,41 @@
             $user = $_SESSION['auth_login']; // пользователя авторизованного в сессии
             $user_info = $this->model->getUser_data($user); // получаем информацию о нем
             
-            if($_SERVER['REQUEST_METHOD'] == 'POST') {
+            if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+                $dtime = date('Ymd_His'); // текущее дата и время
+                $filename = $dtime.'_'.$_POST['note-name'].".txt"; // формируем имя заметки 
+                $filepath = $this->config->dir_notes.$filename; // формируем путь к заметке
+                $file = fopen($filepath, "w"); // создаем файл 
+                fclose($file); // закрываем файл
                 
-                    $dtime = date('Ymd_His'); // текущее дата и время
-                    $filename = $dtime.'_'.$_POST['note-name'].".txt"; // формируем имя заметки 
-                    $filepath = $this->config->dir_notes.$filename; // формируем путь к заметке
-                    $file = fopen($filepath, "w"); // создаем файл 
-                    fclose($file); // закрываем файл
-                    
-                    $new_note = $this->model->createNewNote($_POST['note-name'], $filepath, $user, $user_info['id']);
-                    
-                    $location = 'Notes/edit/'.$new_note;
-                    header('Location: ' .$location);
+                $new_note = $this->model->createNewNote($_POST['note-name'], $filepath, $user, $user_info['id']);
+                
+                $location = 'Notes/edit/'.$new_note;
+                header('Location: ' .$location);
             }
 
-            $allNotes = $this->model->getAllNotes();
-
-            function isAdmin($user_role, $admin) {
-                if ($user_role > $admin)
+            function isAdmin($user, $admin) {
+                if ($user > $admin)
                     return false;
                 
                 return true;
             }
 
             $data = [
-                'styles' => [
-                    $this->config->base_url().'templates/style/'.'plugins/fontawesome-free/css/all.min.css',
-                    $this->config->base_url().'templates/style/'.'dist/css/adminlte.min.css'
-                ],
-                'scripts' => [
-                    $this->config->base_url().'templates/script/'.'plugins/jquery/jquery.min.js',
-                    $this->config->base_url().'templates/script/'.'plugins/bootstrap/js/bootstrap.bundle.min.js',
-                    $this->config->base_url().'templates/script/'.'dist/js/adminlte.min.js',
-                    $this->config->base_url().'templates/script/'.'/dist/js/demo.js'
-                ],
+                'style' =>  $this->config->base_url().'templates/css/style.css',
+                'script' => $this->config->base_url().'templates/js/script.js',
                 'tpl_images' => [
                     'logo' => $this->config->base_url().'templates/img/AdminLTELogo.png'
                 ],
+                'site' => $this->config->site,
                 'title' => 'Блокнот',
-                'notes' => $allNotes,
+                'notes' => $this->model->getAllNotes(),
                 'user' => $user,
                 'user_id' => $user_info['id'],
                 'admin' => isAdmin($user_info['role'], $this->config->user_role_admin),
-                'username' => $user_info['first_name']. " " .$user_info['surname'],
-                'userphoto' => $this->config->base_url().$user_info['user_photo']
+                'user-name' => $user_info['first_name'],
+                'user-surname' => $user_info['surname'],
+                'user-photo' => $user_info['user_photo'],
             ];
 
             $this->view->render_template('notes_page/main_view.php', 'core/template_view.php', $data);

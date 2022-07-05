@@ -2,17 +2,17 @@
   <a href="/" class="sidebar__site-title">
     <img src="<?php echo $data['tpl_images']['logo']; ?>" alt="AdminLTE Logo" class="brand-image img-circle elevation-3"
       style="opacity: .8">
-    <span class="brand-text font-weight-light">My Workspace</span>
+    <span class="brand-text font-weight-light"><? echo $data['site']['sitename']; ?></span>
   </a>
 
   <div class="sidebar__content">
     <div class="sidebar__user-panel">
       <div class="sidebar__user-image">
-        <img src="<?php echo $data['userphoto'];?>" class="img-circle elevation-2" alt="User Image">
+        <img src="<?php echo $data['user-photo'];?>" class="img-circle elevation-2" alt="User Image">
       </div>
       <div class="sidebar__user-info">
         <a href="/Profile" class="d-block">
-          <?php echo $data['username']; ?>
+          <?php echo $data['user-name'].' '.$data['user-surname']; ?>
         </a>
       </div>
     </div>

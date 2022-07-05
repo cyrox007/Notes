@@ -17,6 +17,8 @@
 * {
   margin: 0;
   padding: 0;
+  -webkit-box-sizing: border-box;
+          box-sizing: border-box;
 }
 
 body {
@@ -135,14 +137,27 @@ body {
 }
 
 .sidebar {
+  position: fixed;
   height: 100vh;
-  min-width: 250px;
+  width: 250px;
   text-decoration: none;
   background-color: #343a40;
   -webkit-box-shadow: 0 14px 28px rgba(0, 0, 0, 0.25), 0 10px 10px rgba(0, 0, 0, 0.22);
           box-shadow: 0 14px 28px rgba(0, 0, 0, 0.25), 0 10px 10px rgba(0, 0, 0, 0.22);
-  -webkit-transition: margin-left .3s ease-in-out, width .3s ease-in-out;
-  transition: margin-left .3s ease-in-out, width .3s ease-in-out;
+  -webkit-transition: width .3s ease-in-out, opacity .3s ease-in-out;
+  transition: width .3s ease-in-out, opacity .3s ease-in-out;
+}
+
+@media screen and (max-width: 991px) {
+  .sidebar {
+    width: 0;
+    opacity: 0;
+  }
+}
+
+.sidebar.active {
+  width: 250px;
+  opacity: 1;
 }
 
 .sidebar__site-title {
@@ -236,6 +251,19 @@ body {
 
 .wrapper__content {
   width: 100%;
+  margin-left: 250px;
+  -webkit-transition: margin-left .3s ease-in-out;
+  transition: margin-left .3s ease-in-out;
+}
+
+@media screen and (max-width: 991px) {
+  .wrapper__content {
+    margin-left: 0;
+  }
+}
+
+.wrapper__content.sidebar--active {
+  margin-left: 250px;
 }
 
 .navbar {
@@ -271,6 +299,46 @@ body {
   margin-right: 15px;
 }
 
+.navbar #sidebarControl span {
+  position: relative;
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-pack: center;
+      -ms-flex-pack: center;
+          justify-content: center;
+  -webkit-box-align: center;
+      -ms-flex-align: center;
+          align-items: center;
+  width: 15px;
+  height: 1px;
+  background: #000;
+}
+
+.navbar #sidebarControl span::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 15px;
+  height: 1px;
+  background: #000;
+  -webkit-transform: translateY(-5px);
+          transform: translateY(-5px);
+}
+
+.navbar #sidebarControl span::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 15px;
+  height: 1px;
+  background: #000;
+  -webkit-transform: translateY(5px);
+          transform: translateY(5px);
+}
+
 .content {
   padding: 15px 0.5rem;
 }
@@ -287,6 +355,174 @@ body {
   font-size: 1.8rem;
   font-weight: 500;
   line-height: 1.2;
+}
+
+.profile {
+  position: relative;
+  width: 100%;
+  margin: 1rem 0;
+  display: -ms-grid;
+  display: grid;
+  -ms-grid-columns: 200px auto;
+      grid-template-columns: 200px auto;
+  gap: 10px;
+}
+
+.profile__column-left {
+  margin-left: 10px;
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-pack: center;
+      -ms-flex-pack: center;
+          justify-content: center;
+  /* align-items: center; */
+}
+
+.profile__column-right {
+  position: relative;
+  margin-right: 10px;
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-pack: center;
+      -ms-flex-pack: center;
+          justify-content: center;
+  /* align-items: center; */
+}
+
+.profile__card-avatar {
+  padding: 15px;
+  background: #fff;
+  border-radius: 5px;
+  border-top: 1px solid #0069d9;
+}
+
+.profile__card-info {
+  width: 100%;
+  padding: 15px;
+  /* display: none; */
+  background: #fff;
+  border-radius: 5px;
+  border-top: 1px solid #0069d9;
+  opacity: 0;
+  -webkit-transform: scaleX(0);
+          transform: scaleX(0);
+  -webkit-transition: opacity 0.3s ease-in-out, display 0.3s ease-in-out, -webkit-transform 0.3s ease-in-out;
+  transition: opacity 0.3s ease-in-out, display 0.3s ease-in-out, -webkit-transform 0.3s ease-in-out;
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out, display 0.3s ease-in-out;
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out, display 0.3s ease-in-out, -webkit-transform 0.3s ease-in-out;
+}
+
+.profile__card-info.visible {
+  opacity: 1;
+  -webkit-transform: scaleX(1);
+          transform: scaleX(1);
+  /* display: block; */
+}
+
+.profile__card-info-edit {
+  width: 100%;
+  padding: 15px;
+  /* display: none; */
+  background: #fff;
+  border-radius: 5px;
+  border-top: 1px solid #0069d9;
+  opacity: 0;
+  -webkit-transform: scaleX(0);
+          transform: scaleX(0);
+  -webkit-transition: opacity 0.3s ease-in-out, display 0.3s ease-in-out, -webkit-transform 0.3s ease-in-out;
+  transition: opacity 0.3s ease-in-out, display 0.3s ease-in-out, -webkit-transform 0.3s ease-in-out;
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out, display 0.3s ease-in-out;
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out, display 0.3s ease-in-out, -webkit-transform 0.3s ease-in-out;
+}
+
+.profile__card-info-edit.visible {
+  opacity: 1;
+  -webkit-transform: scaleX(1);
+          transform: scaleX(1);
+  /* display: block; */
+}
+
+.profile__card-info-edit form {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-orient: vertical;
+  -webkit-box-direction: normal;
+      -ms-flex-direction: column;
+          flex-direction: column;
+  -webkit-box-pack: center;
+      -ms-flex-pack: center;
+          justify-content: center;
+  -webkit-box-align: center;
+      -ms-flex-align: center;
+          align-items: center;
+}
+
+.profile__card-info-edit form .set-input {
+  height: 30px;
+  width: 50%;
+  margin: 0.5rem 0;
+  padding: 0.1rem 0.5rem;
+}
+
+.profile__card-info-edit form .set-save {
+  height: 30px;
+  width: 50%;
+  margin: 0.5rem 0;
+  padding: 0.1rem 0.5rem;
+  border: none;
+  border-radius: 5px;
+  background: var(--color-success);
+  color: #fff;
+}
+
+.profile__user-login {
+  font-family: var(--text-font);
+  text-align: center;
+}
+
+.profile__user-fio {
+  font-family: var(--text-font);
+  font-size: 1.5rem;
+  font-weight: 500;
+  /* padding-bottom: 15px; */
+  border-bottom: 1px solid #869099;
+}
+
+.profile__user-other-info {
+  padding: 15px 0;
+  font-family: var(--text-font);
+  font-weight: 400;
+  font-size: 1.1rem;
+}
+
+.profile__edit_user-info {
+  height: 25px;
+  width: 100%;
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-align: center;
+      -ms-flex-align: center;
+          align-items: center;
+  -webkit-box-pack: center;
+      -ms-flex-pack: center;
+          justify-content: center;
+  border: none;
+  border-radius: 3px;
+  background: #0069d9;
+  color: #fff;
+  /* font-family: var(--text-font); */
+  font-size: 1rem;
+  font-weight: 100;
+  -webkit-transition: background 0.3s ease-out;
+  transition: background 0.3s ease-out;
+}
+
+.profile__edit_user-info.invisible-btn {
+  background: #9aaec0;
 }
 
 .main-footer {
