@@ -69,8 +69,8 @@
                           <p><? echo $note['author']; ?></p>
                       <?php if (!$data['admin'] && $data['user_id'] != $note['user_id']):?>
                           
-                          <td class="project-actions text-right">
-                        </td>
+                          <p class="">
+                        </p>
                       
                       <? else: ?>
                       <div class="">
