@@ -11,7 +11,7 @@
             <input type="text" name="patronymic" id="patronymic" placeholder="Введите отчество" maxlength="15" required>
             <input type="text" name="surname" id="surname" placeholder="Введите фамилию" maxlength="15" required>
             <input type="tel" name="user_phone" id="user_phone" placeholder="Введите телефон" maxlength="15" required>
-            <input type="file" name="userphoto" id="user_photo">
+            <input type="file" name="userphoto" id="user_photo" style="border: none;">
             <span><? echo "{$data['error']}"; ?></span>
             <button id="btn-reg" type="submit">Зарегестрироваться</button>
             <a href="/Auth/login">Авторизация</a>

@@ -1,3 +1,5 @@
-<main class="404-page">
-    <h2 class="page-title">Error 404! Page not found</h2>
+<main class="error">
+    <h2 class="error__title"><? echo $data['title']; ?></h2>
+    <img src="<? echo $data['svg']; ?>" alt="" srcset="">
+    <a class="error__back" href="/">Go back to Dashboard</a>
 </main>
