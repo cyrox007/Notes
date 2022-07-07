@@ -41,7 +41,8 @@
                 ],
                 'site' => $this->config->site,
                 'title' => 'Блокнот',
-                'notes' => $this->model->getAllNotes(),
+                'notes' => $this->model->getPersonalNotes($user_info['id']),
+                'all-notes' => $this->model->getAllNotes(),
                 'user' => $user,
                 'user_id' => $user_info['id'],
                 'admin' => isAdmin($user_info['role'], $this->config->user_role_admin),
@@ -79,10 +80,6 @@
                     header('Location: /Error/noteError');
             }
             
-            /* получаем файл и содержимое */
-            $uri = explode('/', $_SERVER['REQUEST_URI']); // получаем запрос к файлу
-            $param = $uri[3];
-            
             $file_data = file_get_contents($note_info['notefile_link']); // получаем содержимое файла
 
             /* расшифровываем содежимое и выводим в поле ввода */
@@ -105,41 +102,29 @@
 
                 file_put_contents($note_info['notefile_link'], $raw); // пишем в файл
                 $this->model->update_note($note_id, date("Y-m-d H:i:s"));
-                header('Location: /');
+                header('Location: /Notes');
             }
             
             $data = [
-                'styles' => [
-                    $this->config->base_url().'templates/style/'.'plugins/fontawesome-free/css/all.min.css',
-                    $this->config->base_url().'templates/style/'.'dist/css/adminlte.min.css',
-                ],
-                'scripts' => [
-                    $this->config->base_url().'templates/script/'.'plugins/jquery/jquery.min.js',
-                    $this->config->base_url().'templates/script/'.'plugins/bootstrap/js/bootstrap.bundle.min.js',
-                    $this->config->base_url().'templates/script/'.'dist/js/adminlte.min.js',
-                    $this->config->base_url().'templates/script/'.'/dist/js/demo.js',
-                ],
-                'page_style' => [
-                    $this->config->base_url().'templates/resource/'.'summernote/summernote-bs4.css'
-                ],
-                'page_script' => [
-                    $this->config->base_url().'templates/resource/'.'summernote/summernote-bs4.min.js'
-                ],
-                'call_script' => [
-                    "$(function () {
-                        // Summernote
-                        $('.textarea').summernote()
-                      })"
-                ],
+                'style' =>  $this->config->base_url().'templates/css/style.css',
+                'script' => $this->config->base_url().'templates/js/script.js',
+                
                 'tpl_images' => [
                     'logo' => $this->config->base_url().'templates/img/AdminLTELogo.png'
                 ],
+                'site' => $this->config->site,
                 'title' => 'Блокнот: Редактируем > '.$note_info['name_note'],
-                'name_note' => $note_info['name_note'],
+                
                 'user' => $user,
-                'username' => $user_info['first_name']. " " .$user_info['surname'],
-                'userphoto' => $this->config->base_url().$user_info['user_photo'],
-                'content' => $decrypted
+                'user-name' => $user_info['first_name'],
+                'user-surname' => $user_info['surname'],
+                'user-photo' => $this->config->base_url().$user_info['user_photo'],
+                
+                'note-name' => $note_info['name_note'],
+                'note-author' => $note_info['author'],
+                'note-create' => $note_info['date_create'],
+                'note-edit' => $note_info['date_edit'],
+                'note-content' => $decrypted,
             ];
             
             $this->view->render_template('notes_page/edit_view.php', 'core/template_view.php', $data);

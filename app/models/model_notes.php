@@ -61,6 +61,20 @@
             return $arr;
         }
 
+        public function getPersonalNotes($user_id) {
+            $db = $this->connect_db($this->config->db_name);
+
+            $sql = "SELECT * FROM notes WHERE user_id = {$user_id}";
+            $res = $db->query($sql);
+            $arr = [];
+            while ($row = $res->fetchArray()) {
+                $arr[] = $row;
+            }
+            
+            $db->close();
+            return $arr;
+        }
+
         public function getNote_data($note_id) {
             $db = $this->connect_db($this->config->db_name);
 

@@ -19,15 +19,14 @@
 
     <nav class="sidebar__menu">
       <div class="sidebar__menu-item">
-        <a href="/" class="sidebar__menu-link">
-          <!-- <i class="nav-icon fas fa-home"></i> -->
-          <p>Главная</p>
-        </a>
-      </div>
-      <div class="sidebar__menu-item">
         <a href="/Notes" class="sidebar__menu-link">
           <!-- <i class="nav-icon fa fa-sticky-note" aria-hidden="true"></i> -->
           <p>Блокнот</p>
+        </a>
+      </div>
+      <div class="sidebar__menu-item">
+        <a href="/Messager" class="sidebar__menu-link">
+          <p>Мессенджер</p>
         </a>
       </div>
     </nav>

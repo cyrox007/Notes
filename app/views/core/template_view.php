@@ -6,6 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><?php echo $data['site']['sitename'].' '.$data['site']['version']; ?> | <?php echo $data['title']; ?></title>
   <link rel="stylesheet" href="<?php echo $data['style']; ?>">
+  <link rel="icon" href="/favicon.ico" type="image/x-icon">
+  <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
 </head>
 <body>
 
@@ -14,7 +16,9 @@
     <?php include 'app/views/shared/sidebar.php'; ?>
     <div class="wrapper__content">
       <?php include 'app/views/shared/header.php'; ?>
-      <?php include 'app/views/'.$content_view; ?>
+      <div class="content-wrapper">
+        <?php include 'app/views/'.$content_view; ?>
+      </div>
       <?php include 'app/views/shared/footer.php'; ?>
     </div>
   </div>
