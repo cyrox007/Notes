@@ -18,8 +18,8 @@ class Controller_Auth extends Controller {
         if (isset($_POST['login']) && isset($_POST['password'])) {
             $login = $_POST['login']; // получаем логин
             $password = $_POST['password']; // получаем введенный пароль
-            $key = "592e6419d1d04634848f40f22f9f71a7450800611f4e497cdd71b7cef3e3450ae63fd149609d36eb"; // ключ хеширования
-            $method = "AES-192-CBC"; // алгоритм хеширования
+            $key = $this->config->hash_key; // ключ хеширования
+            $method = $this->config->hash_method; // алгоритм хеширования
 
             $encrypted_password = openssl_encrypt($password, $method, $key); // хешируем введенный пароль
 

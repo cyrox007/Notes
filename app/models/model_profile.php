@@ -49,4 +49,20 @@
 
             $this->update_data($db, 'profile', 'user_id', $user_id, $array);
         }
+
+        public function update_user_password($user_id, $value) {
+            $db = $this->connect_db($this->config->db_name);
+
+            $sql = "UPDATE users SET password = '{$value}' WHERE id = {$user_id}";
+            $db->query($sql);
+            $db->close();
+        }
+
+        public function get_data_password($user_login) {
+            $db = $this->connect_db($this->config->db_name); // коннектимся к базе
+            $res = $this->get_data($db, "users", "username", $user_login);
+            
+            $db->close();
+            return $res["password"];
+        }
     }

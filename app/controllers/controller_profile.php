@@ -16,7 +16,7 @@ class Controller_Profile extends Controller {
             $set_patronymic = $_POST['set-user-patronymic'];
             $set_surname = $_POST['set-user-surname'];
             $set_user_phone = $_POST['set-user-phone'];
-            $set_avatar/*  = $_FILES['set-user-avatar']['tmp_name'] */;
+            $set_avatar;
             $set_user_position = $_POST['set-user-position'];
             $set_department = $_POST['set-user-deportament'];
             $set_office_phone = $_POST['set-office-phone'];
@@ -25,9 +25,6 @@ class Controller_Profile extends Controller {
                 $set_avatar = $this->images->checkAvatar_save($_FILES['setAvatar']['tmp_name'], $_FILES['setAvatar']['name']);
             }
 
-            $pack_main = [
-
-            ];
             $pack_second = [
                 'first_name' => $set_name,
                 'patronymic' => $set_patronymic,
@@ -41,7 +38,7 @@ class Controller_Profile extends Controller {
 
             $pack_second = array_diff($pack_second, array('', null, 0));
             $this->model->update_user_profile($user_info['id'], $pack_second);
-            header('Location: /Profile');
+            header('Location: /Profile');            
         }
         $data = [
             'style' =>  $this->config->base_url().'templates/css/style.css',
@@ -66,5 +63,29 @@ class Controller_Profile extends Controller {
         ];
 
         $this->view->render_template('profile_page/index_view.php', 'core/template_view.php', $data);
+    }
+    function action_changePass() {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            $key = $this->config->hash_key;
+            $method = $this->config->hash_method;
+            $user = $_SESSION['auth_login'];
+            $user_info = $this->model->getUser_data($user);
+
+            if (isset($_POST['old-password'])) {
+                $encrypted_password = openssl_encrypt($_POST['old-password'], $method, $key);
+                $user_password = $this->model->get_data_password($user);
+
+                if ($encrypted_password == $user_password) {
+                    $new_passord = openssl_encrypt($_POST['new-password'], $method, $key);
+                    var_dump($_POST['new-password']);
+                    var_dump($new_passord);
+
+                    $this->model->update_user_password($user_info['id'], $new_passord);
+                    
+                    unset($_SESSION['auth_login']);
+                    header('Location: /Profile');
+                }
+            }
+        }
     }
 }

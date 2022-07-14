@@ -574,14 +574,14 @@ body {
           align-items: center;
 }
 
-.profile__card-info-edit form .set-input {
+.profile__card-info-edit--set-input {
   height: 30px;
   width: 70%;
   margin: 0.5rem 0;
   padding: 0.1rem 0.5rem;
 }
 
-.profile__card-info-edit form .set-save {
+.profile__card-info-edit--set-save {
   height: 30px;
   width: 50%;
   margin: 0.5rem 0;
