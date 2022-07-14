@@ -20,18 +20,40 @@
     </div>
     <div class="profile__card-info-edit" style="display: none">
       <form action="" method="post" enctype="multipart/form-data">
-        <input class="set-input" type="text" name="set-user-name" id="user-name" placeholder="Введите имя">
-        <input class="set-input" type="text" name="set-user-patronymic" id="user-patronymic" placeholder="Введите отчество">
-        <input class="set-input" type="text" name="set-user-surname" id="user-name" placeholder="Введите фамилию">
-        <input class="set-input" type="text" name="set-user-phone" id="user-phone" placeholder="Введите свой номер телефона">
+        <div class="profile__card-info-edit--form-group">
+          <label for="">Имя: </label>
+          <input class="set-input" type="text" name="set-user-name" id="user-name" placeholder="Введите имя">
+        </div>
+        <div class="profile__card-info-edit--form-group">
+          <label for="">Отчество: </label>
+          <input class="set-input" type="text" name="set-user-patronymic" id="user-patronymic" placeholder="Введите отчество">
+        </div>
+        <div class="profile__card-info-edit--form-group">
+          <label for="">Фамилия: </label>
+          <input class="set-input" type="text" name="set-user-surname" id="user-name" placeholder="Введите фамилию">
+        </div>
+        <div class="profile__card-info-edit--form-group">
+          <label for="">Телефон: </label>
+          <input class="set-input" type="text" name="set-user-phone" id="user-phone" placeholder="Введите свой номер телефона">
+        </div>
         <label for="">Изменить изображение пользователя:</label>
         <input class="set-files" type="file" name="set-user-avatar" id="user-avatar">
         <hr style="width: 100%; height: 1px; margin: 15px 0;">
-        <input class="set-input" type="text" name="set-user-position" id="user-position" placeholder="Введите вашу должность">
-        <input class="set-input" type="text" name="set-user-deportament" id="user-deportament" placeholder="Укажите ваш отдел">
-        <input class="set-input" type="text" name="set-office-phone" id="user-office-phone" placeholder="Укажите телефон офиса">
+        <div class="profile__card-info-edit--form-group">
+          <label for="">Должность: </label>
+          <input class="set-input" type="text" name="set-user-position" id="user-position" placeholder="Введите вашу должность">
+        </div>
+        <div class="profile__card-info-edit--form-group">
+          <label for="">Отдел: </label>
+          <input class="set-input" type="text" name="set-user-deportament" id="user-deportament" placeholder="Укажите ваш отдел">
+        </div>
+        <div class="profile__card-info-edit--form-group">
+          <label for="">Телефон офиса: </label>
+          <input class="set-input" type="text" name="set-office-phone" id="user-office-phone" placeholder="Укажите телефон офиса">
+        </div>
         <button class="set-save" type="submit">Сохранить изменения</button>
       </form>
+      
     </div>
   </div>
 </section>
@@ -49,10 +71,10 @@
       setTimeout(()=>{
         cardInfo.style.display = 'none';
         cardEdit.style.display = 'block';
-      },300);
+      }, 300);
       setTimeout(()=>{
         cardEdit.style.display = 'block';
-      },300);
+      }, 300);
       cardEdit.classList.toggle('visible');
     });
   });

@@ -541,6 +541,23 @@ body {
   /* display: block; */
 }
 
+.profile__card-info-edit--form-group {
+  width: 60%;
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-orient: horizontal;
+  -webkit-box-direction: normal;
+      -ms-flex-direction: row;
+          flex-direction: row;
+  -webkit-box-pack: justify;
+      -ms-flex-pack: justify;
+          justify-content: space-between;
+  -webkit-box-align: center;
+      -ms-flex-align: center;
+          align-items: center;
+}
+
 .profile__card-info-edit form {
   display: -webkit-box;
   display: -ms-flexbox;
@@ -559,7 +576,7 @@ body {
 
 .profile__card-info-edit form .set-input {
   height: 30px;
-  width: 50%;
+  width: 70%;
   margin: 0.5rem 0;
   padding: 0.1rem 0.5rem;
 }
