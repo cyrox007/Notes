@@ -76,15 +76,15 @@
             if (!$note_info) 
                 header("Location: /Error/noteError");
             
-            function isAdmin($user_role) {
-                if ($user_role > $this->config->user_role_admin)
+            function isAdmin($user, $admin) {
+                if ($user > $admin)
                     return false;
                 
                 return true;
             }
             
             if ($note_info['user_id'] != $user_info['id']){
-                if (!isAdmin($user_info['role']))
+                if (!isAdmin($user_info['role'], $this->config->user_role_admin))
                     header('Location: /Error/noteError');
             }
             
@@ -156,15 +156,15 @@
             if (!$note_info) 
                 header("Location: /Error/noteError");
             
-            function isAdmin($user_role) {
-                if ($user_role > $this->config->user_role_admin)
+            function isAdmin($user, $admin) {
+                if ($user > $admin)
                     return false;
                 
                 return true;
             }
             
             if ($note_info['user_id'] != $user_info['id']){
-                if (!isAdmin($user_info['role']))
+                if (!isAdmin($user_info['role'], $this->config->user_role_admin))
                     header('Location: /Error/noteError');
             }
 
