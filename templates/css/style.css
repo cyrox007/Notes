@@ -468,6 +468,15 @@ body {
   display: flex;
 }
 
+@media screen and (max-width: 600px) {
+  .profile {
+    -webkit-box-orient: vertical;
+    -webkit-box-direction: normal;
+        -ms-flex-direction: column;
+            flex-direction: column;
+  }
+}
+
 .profile__column-left {
   margin-right: 10px;
   margin-left: 10px;
@@ -818,6 +827,12 @@ body {
   background: #F3F4F6;
 }
 
+@media screen and (max-width: 500px) {
+  .notes__list_head--date {
+    display: none;
+  }
+}
+
 .notes__list_item {
   height: 75px;
   display: -ms-grid;
@@ -830,6 +845,13 @@ body {
   font-family: var(--text-font);
 }
 
+@media screen and (max-width: 500px) {
+  .notes__list_item {
+    -ms-grid-columns: (1fr)[2];
+        grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 .notes__name {
   font-family: var(--text-font);
   font-weight: 600;
@@ -837,24 +859,30 @@ body {
 }
 
 .notes__date {
-  font-size: 14px;
+  font-size: 12px;
+}
+
+@media screen and (max-width: 500px) {
+  .notes__date {
+    display: none;
+  }
 }
 
 .notes__btn {
   display: -webkit-box;
   display: -ms-flexbox;
   display: flex;
-  -webkit-box-orient: vertical;
+  -webkit-box-orient: horizontal;
   -webkit-box-direction: normal;
-      -ms-flex-direction: column;
-          flex-direction: column;
+      -ms-flex-direction: row;
+          flex-direction: row;
 }
 
 .notes__btn--edit {
   text-decoration: none;
-  height: 30px;
-  width: 160px;
-  margin-bottom: 5px;
+  height: 40px;
+  width: 40px;
+  margin-right: 5px;
   display: -webkit-box;
   display: -ms-flexbox;
   display: flex;
@@ -865,14 +893,15 @@ body {
       -ms-flex-align: center;
           align-items: center;
   color: #fff;
-  background-color: #ffc107;
+  background-color: var(--color-warning);
   border-radius: 5px;
+  font-size: 1.4rem;
 }
 
 .notes__btn--delete {
   text-decoration: none;
-  height: 30px;
-  width: 160px;
+  height: 40px;
+  width: 40px;
   display: -webkit-box;
   display: -ms-flexbox;
   display: flex;
@@ -883,8 +912,9 @@ body {
       -ms-flex-align: center;
           align-items: center;
   color: #fff;
-  background-color: #dc3545;
+  background-color: var(--color-danger);
   border-radius: 5px;
+  font-size: 1.4rem;
 }
 
 .note-header {

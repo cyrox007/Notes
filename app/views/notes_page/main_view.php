@@ -1,3 +1,4 @@
+<link rel="stylesheet" href="<? echo $data['font-awesome']; ?>">
 <section class="content-header">
   <h1>
     <? echo $data['title']; ?>
@@ -38,10 +39,10 @@
           </div>
           <div class="notes__btn">
             <a class="notes__btn--edit" href="/Notes/edit/<? echo $note['id']?>">
-              Редактировать
+              <i class="fa fa-pencil" aria-hidden="true"></i>
             </a>
             <a class="notes__btn--delete" href="/Notes/delete/<? echo $note['id']?>">
-              Удалить
+              <i class="fa fa-trash" aria-hidden="true"></i>
             </a>
           </div>
         </div>
@@ -60,10 +61,10 @@
             </div>
             <div class="notes__btn">
               <a class="notes__btn--edit" href="/Notes/edit/<? echo $note['id']?>">
-                Редактировать
+                <i class="fa fa-pencil" aria-hidden="true"></i>
               </a>
               <a class="notes__btn--delete" href="/Notes/delete/<? echo $note['id']?>">
-                Удалить
+                <i class="fa fa-trash" aria-hidden="true"></i>
               </a>
             </div>
           </div>
