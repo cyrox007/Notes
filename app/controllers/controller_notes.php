@@ -13,6 +13,10 @@
             $user = $_SESSION['auth_login']; // пользователя авторизованного в сессии
             $user_info = $this->model->getUser_data($user); // получаем информацию о нем
             
+            if ($user_info['role'] >= $this->config->user_role_inactive) {
+                header('Location: /Error/accessDenied');
+            }
+
             if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $dtime = date('Ymd_His'); // текущее дата и время
                 $filename = $dtime.'_'.$_POST['note-name'].".txt"; // формируем имя заметки 
@@ -60,6 +64,10 @@
 
             $user = $_SESSION['auth_login']; // пользователя авторизованного в сессии
             $user_info = $this->model->getUser_data($user); // получаем информацию о нем
+
+            if ($user_info['role'] >= $this->config->user_role_inactive) {
+                header('Location: /Error/accessDenied');
+            }
 
             $uri = explode('/', $_SERVER['REQUEST_URI']); // получаем запрос к файлу
             $note_id = $uri[3]; // вытаскиваем id записи из запроса
@@ -136,6 +144,10 @@
 
             $user = $_SESSION['auth_login']; // пользователя авторизованного в сессии
             $user_info = $this->model->getUser_data($user); // получаем информацию о нем
+
+            if ($user_info['role'] >= $this->config->user_role_inactive) {
+                header('Location: /Error/accessDenied');
+            }
 
             $uri = explode('/', $_SERVER['REQUEST_URI']); // получаем запрос к файлу
             $note_id = $uri[3]; // вытаскиваем id записи из запроса

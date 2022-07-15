@@ -34,4 +34,15 @@
             ];
             $this->view->render_template('error_page/404_view.php', 'error_page/error_wrapper.php', $data);
         }
+
+        public function action_accessDenied() {
+            $data = [
+                'style' =>  $this->config->base_url().'templates/css/style.css',
+                'script' => $this->config->base_url().'templates/js/script.js',
+                'svg' => $this->config->base_url().'templates/img/Frame.svg',
+                'site' => $this->config->site,
+                'title' => 'Ошибка! Доступ к странице запрещен'
+            ];
+            $this->view->render_template('error_page/accessDenied_view.php', 'error_page/error_wrapper.php', $data);
+        }
     }

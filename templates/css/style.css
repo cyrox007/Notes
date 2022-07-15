@@ -12,7 +12,12 @@
   --color-second: #8A7D87;
   --color-dark: #2B556D;
   --color-black: #000;
-  --color-success: #4F8A10;
+  --color-success: #198754;
+  --color-primary: #0D6EFD;
+  --color-secondary: #6C757D;
+  --color-danger: #DC3545;
+  --color-warning: #FFC107;
+  --color-info: #0DCAF0;
 }
 
 * {
@@ -582,6 +587,7 @@ body {
 }
 
 .profile__card-info-edit--set-save {
+  cursor: pointer;
   height: 30px;
   width: 50%;
   margin: 0.5rem 0;
@@ -589,6 +595,22 @@ body {
   border: none;
   border-radius: 5px;
   background: var(--color-success);
+  color: #fff;
+}
+
+.profile__card-info-edit--set-save:disabled {
+  background: var(--color-grey);
+}
+
+.profile__card-info-edit--delete {
+  cursor: pointer;
+  height: 30px;
+  width: 50%;
+  margin: 0.5rem 0;
+  padding: 0.1rem 0.5rem;
+  border: none;
+  border-radius: 5px;
+  background: var(--color-danger);
   color: #fff;
 }
 

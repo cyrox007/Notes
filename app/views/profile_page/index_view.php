@@ -67,7 +67,12 @@
           <label for="">Повторите пароль: </label>
           <input class="profile__card-info-edit--set-input" type="password" name="repeat-new-password" id="repeat-new-password" placeholder="Повторите новый пароль...">
         </div>
-        <button class="profile__card-info-edit--set-save" type="submit">Изменить пароль</button>
+        <span id="error-repeat"></span>
+        <button id="change-password-btn" class="profile__card-info-edit--set-save" type="submit">Изменить пароль</button>
+      </form>
+      <hr>
+      <form name="deleteUser" action="/Profile/deleteUser" method="post">
+      <button class="profile__card-info-edit--delete" type="submit">Удалить аккаунт</button>
       </form>
     </div>
   </div>
@@ -91,6 +96,23 @@
         cardEdit.style.display = 'block';
       }, 300);
       cardEdit.classList.toggle('visible');
+    });
+
+    let fieldNewPassword = document.getElementById('new-password');
+    let fieldRepeatPassword = document.getElementById('repeat-new-password');
+    let errorRepeatMsg = document.getElementById('error-repeat');
+    
+    let changePasswordBtn = document.getElementById('change-password-btn');
+    changePasswordBtn.disabled = true;
+
+    fieldRepeatPassword.addEventListener('input', ()=>{
+      if (fieldNewPassword.value != fieldRepeatPassword.value) {
+        errorRepeatMsg.innerText = "Пароли не совпадают";
+        changePasswordBtn.disabled = true;
+      } else {
+        errorRepeatMsg.innerText = "";
+        changePasswordBtn.disabled = false;
+      }
     });
   });
 </script>

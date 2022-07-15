@@ -12,6 +12,11 @@ class Controller_Main extends Controller {
         
         $user = $_SESSION['auth_login'];
         $user_info = $this->model->getUser_data($user);
+
+        if ($user_info['role'] >= $this->config->user_role_inactive) {
+            header('Location: /Error/accessDenied');
+        }
+
         $data = [
             'style' =>  $this->config->base_url().'templates/css/style.css',
             'script' => $this->config->base_url().'templates/js/script.js',

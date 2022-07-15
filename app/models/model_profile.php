@@ -65,4 +65,12 @@
             $db->close();
             return $res["password"];
         }
+
+        public function update_user_status($user_id) {
+            $db = $this->connect_db($this->config->db_name);
+
+            $sql = "UPDATE users SET role = '{$this->config->user_role_inactive}' WHERE id = {$user_id}";
+            $db->query($sql);
+            $db->close();
+        }
     }

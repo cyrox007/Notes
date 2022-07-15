@@ -11,6 +11,11 @@ class Controller_Profile extends Controller {
 
         $user = $_SESSION['auth_login'];
         $user_info = $this->model->getUser_data($user);
+
+        if ($user_info['role'] >= $this->config->user_role_inactive) {
+            header('Location: /Error/accessDenied');
+        }
+        
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $set_name = $_POST['set-user-name'];
             $set_patronymic = $_POST['set-user-patronymic'];
@@ -86,6 +91,17 @@ class Controller_Profile extends Controller {
                     header('Location: /Profile');
                 }
             }
+        }
+    }
+
+    function action_deleteUser () {
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            $user = $_SESSION['auth_login'];
+            $user_info = $this->model->getUser_data($user);
+
+            $this->model->update_user_status($user_info['id']);
+            unset($_SESSION['auth_login']);
+            header('Location: /Profile');
         }
     }
 }
