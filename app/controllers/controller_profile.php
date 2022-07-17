@@ -3,6 +3,7 @@ class Controller_Profile extends Controller {
     public function __construct() {
         $this->config = new Config();
         $this->model = new Model_Profile();
+        $this->images = new Images();
         $this->view = new View();
     }
     function action_index() {
@@ -15,19 +16,26 @@ class Controller_Profile extends Controller {
         if ($user_info['role'] >= $this->config->user_role_inactive) {
             header('Location: /Error/accessDenied');
         }
+
+
         
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $set_name = $_POST['set-user-name'];
             $set_patronymic = $_POST['set-user-patronymic'];
             $set_surname = $_POST['set-user-surname'];
             $set_user_phone = $_POST['set-user-phone'];
-            $set_avatar;
+            $set_avatar = null;
             $set_user_position = $_POST['set-user-position'];
             $set_department = $_POST['set-user-deportament'];
             $set_office_phone = $_POST['set-office-phone'];
 
-            if ($_FILES['setAvatar']['type'] == 'image/jpeg' || $_FILES['setAvatar']['tmp_name'] != NULL) {
-                $set_avatar = $this->images->checkAvatar_save($_FILES['setAvatar']['tmp_name'], $_FILES['setAvatar']['name']);
+            if ($_FILES['set-user-avatar']['type'] == 'image/jpeg' 
+                || $_FILES['set-user-avatar']['type'] == 'image/png'
+                || $_FILES['set-user-avatar']['tmp_name'] != null) {
+                $set_avatar = $this->images->checkAvatar_save(
+                    $_FILES['set-user-avatar']['tmp_name'], 
+                    $_FILES['set-user-avatar']['name']
+                );
             }
 
             $pack_second = [
@@ -48,7 +56,12 @@ class Controller_Profile extends Controller {
         $data = [
             'style' =>  $this->config->base_url().'templates/css/style.css',
             'font-awesome' => $this->config->base_url().'templates/img/icons/css/font-awesome.css',
+            'styles' => [
+                'main-style' => $this->config->base_url().'templates/css/style.css',
+                'font-awesome' => $this->config->base_url().'templates/img/icons/css/font-awesome.css',
+            ],
             'script' => $this->config->base_url().'templates/js/script.js',
+            'profile-script' => $this->config->base_url().'templates/js/profile_script.js',
             'tpl_images' => [
                 'logo' => $this->config->base_url().'templates/img/AdminLTELogo.png'
             ],
@@ -60,7 +73,7 @@ class Controller_Profile extends Controller {
             'user-surname' => $user_info['surname'],
             'user-patronymic' => $user_info['patronymic'],
             'user-photo' => $user_info['user_photo'],
-
+            'is-admin' => $this->config->isAdmin($user_info['role'], $this->config->user_role_admin),
             'user-position' => $user_info['user_position'],
             'user-phone' => $user_info['user_phone'],
             'department' => $user_info['department'],

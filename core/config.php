@@ -27,6 +27,14 @@ class Config {
         return ((!empty($_SERVER['HTTPS'])) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/';
     }
 
+    // проверяет уровень доступа
+    public function isAdmin($user, $admin) {
+        if ($user > $admin)
+            return false;
+        
+        return true;
+    }
+
     // Данные сайта
     public $site = [
         'sitename' => 'My Workspace',
@@ -35,4 +43,7 @@ class Config {
 
     // Модуль Блокнот
     public $dir_notes = "c855721/"; // хранит папку с заметками
+
+    // Модуль Мессенджер
+    public $dir_messages = "q56Xl54Fs8zc/";
 }

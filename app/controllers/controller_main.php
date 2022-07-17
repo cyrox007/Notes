@@ -18,7 +18,10 @@ class Controller_Main extends Controller {
         }
 
         $data = [
-            'style' =>  $this->config->base_url().'templates/css/style.css',
+            'styles' => [
+                'main-style' => $this->config->base_url().'templates/css/style.css',
+                'font-awesome' => $this->config->base_url().'templates/img/icons/css/font-awesome.css',
+            ],
             'script' => $this->config->base_url().'templates/js/script.js',
             'tpl_images' => [
                 'logo' => $this->config->base_url().'templates/img/AdminLTELogo.png'
