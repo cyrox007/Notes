@@ -10,8 +10,8 @@ class Controller_Auth extends Controller {
     function action_login() {
         $base_url = ((!empty($_SERVER['HTTPS'])) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/';
         $data = [
-            'style' => $base_url . 'templates/css/style.css',
-            'script' => $base_url . 'templates/js/script.js',
+            'style' => $base_url . 'templates/css/auth_page/style.css',
+            /* 'script' => $base_url . 'templates/js/script.js', */
             'title' => 'Авторизация',
             'error' => ''
         ];

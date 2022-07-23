@@ -1,0 +1,230 @@
+@import url("https://fonts.googleapis.com/css2?family=Montserrat&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Anek+Devanagari:wght@100;400;500&family=Grape+Nuts&display=swap");
+:root {
+  --header-font: 'Grape Nuts', cursive;
+  --text-font: 'Anek Devanagari', sans-serif;
+  --main-font: 'Montserrat', sans-serif;
+  --color-white: #fff;
+  --color-light: #e9ecef;
+  --color-grey: #495057;
+  --color-main: #7BADC3;
+  --color-second: #8A7D87;
+  --color-dark: #2B556D;
+  --color-black: #000;
+  --color-success: #198754;
+  --color-primary: #0D6EFD;
+  --color-secondary: #6C757D;
+  --color-danger: #DC3545;
+  --color-warning: #FFC107;
+  --color-info: #0DCAF0;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  -webkit-box-sizing: border-box;
+          box-sizing: border-box;
+}
+
+body {
+  width: 100%;
+  -webkit-box-sizing: border-box;
+          box-sizing: border-box;
+  overflow-x: hidden;
+  background-color: var(--color-light);
+  font-family: "Source Sans Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+}
+
+.login-page {
+  width: 100%;
+  height: 100vh;
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-pack: center;
+      -ms-flex-pack: center;
+          justify-content: center;
+  -webkit-box-align: center;
+      -ms-flex-align: center;
+          align-items: center;
+  font-family: var(--main-font);
+}
+
+.login-page__box {
+  width: 360px;
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-orient: vertical;
+  -webkit-box-direction: normal;
+      -ms-flex-direction: column;
+          flex-direction: column;
+  -webkit-box-pack: center;
+      -ms-flex-pack: center;
+          justify-content: center;
+  -webkit-box-sizing: border-box;
+          box-sizing: border-box;
+}
+
+.login-page__title {
+  font-size: 2.1rem;
+  font-weight: 300;
+  margin-bottom: 0.9rem;
+  text-align: center;
+}
+
+.login-page__title span {
+  color: var(--color-grey);
+}
+
+.login-page__card {
+  padding: 20px;
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-orient: vertical;
+  -webkit-box-direction: normal;
+      -ms-flex-direction: column;
+          flex-direction: column;
+  background: var(--color-white);
+  -webkit-box-shadow: 0 0 1px rgba(0, 0, 0, 0.13), 0 1px 3px rgba(0, 0, 0, 0.2);
+          box-shadow: 0 0 1px rgba(0, 0, 0, 0.13), 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.login-page_msg {
+  padding: 0 20px 20px;
+}
+
+.login-page form {
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-orient: vertical;
+  -webkit-box-direction: normal;
+      -ms-flex-direction: column;
+          flex-direction: column;
+}
+
+.login-page form input {
+  margin-bottom: 10px;
+  display: block;
+  height: calc(2.25rem + 2px);
+  padding: 0 0.75rem;
+  font-size: 1rem;
+  color: var(--color-grey);
+  border: 1px solid #ced4da;
+  border-radius: 0.25rem;
+  -webkit-box-shadow: inset 0 0 0 transparent;
+          box-shadow: inset 0 0 0 transparent;
+  -webkit-transition: border-color .15s ease-in-out, -webkit-box-shadow .15s ease-in-out;
+  transition: border-color .15s ease-in-out, -webkit-box-shadow .15s ease-in-out;
+  transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+  transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out, -webkit-box-shadow .15s ease-in-out;
+}
+
+.login-page form button {
+  padding: 0.375rem 0.75rem;
+  color: #fff;
+  background-color: #007bff;
+  border-color: #007bff;
+  -webkit-box-shadow: none;
+          box-shadow: none;
+  border: none;
+  border-radius: 0.25rem;
+  -webkit-transition: border-color .15s ease-in-out, background-color .15s ease-in-out;
+  transition: border-color .15s ease-in-out, background-color .15s ease-in-out;
+}
+
+.login-page form button:hover {
+  color: #fff;
+  background-color: #0069d9;
+  border-color: #0062cc;
+}
+
+.register-page {
+  width: 100%;
+  height: 100vh;
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-pack: center;
+      -ms-flex-pack: center;
+          justify-content: center;
+  -webkit-box-align: center;
+      -ms-flex-align: center;
+          align-items: center;
+  font-family: var(--main-font);
+}
+
+.register-page .register {
+  width: 360px;
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-orient: vertical;
+  -webkit-box-direction: normal;
+      -ms-flex-direction: column;
+          flex-direction: column;
+  -webkit-box-pack: center;
+      -ms-flex-pack: center;
+          justify-content: center;
+  -webkit-box-sizing: border-box;
+          box-sizing: border-box;
+}
+
+.register-page .register .page-title-login {
+  font-size: 2.1rem;
+  font-weight: 300;
+  margin-bottom: 0.9rem;
+  text-align: center;
+}
+
+.register-page .register form {
+  padding: 20px;
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-orient: vertical;
+  -webkit-box-direction: normal;
+      -ms-flex-direction: column;
+          flex-direction: column;
+  background: var(--color-white);
+  -webkit-box-shadow: 0 0 1px rgba(0, 0, 0, 0.13), 0 1px 3px rgba(0, 0, 0, 0.2);
+          box-shadow: 0 0 1px rgba(0, 0, 0, 0.13), 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.register-page .register form input {
+  margin-bottom: 10px;
+  display: block;
+  height: calc(2.25rem + 2px);
+  padding: 0 0.75rem;
+  font-size: 1rem;
+  color: var(--color-grey);
+  border: 1px solid #ced4da;
+  border-radius: 0.25rem;
+  -webkit-box-shadow: inset 0 0 0 transparent;
+          box-shadow: inset 0 0 0 transparent;
+  -webkit-transition: border-color .15s ease-in-out, -webkit-box-shadow .15s ease-in-out;
+  transition: border-color .15s ease-in-out, -webkit-box-shadow .15s ease-in-out;
+  transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+  transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out, -webkit-box-shadow .15s ease-in-out;
+}
+
+.register-page .register form #btn-reg {
+  padding: 0.375rem 0.75rem;
+  color: #fff;
+  background-color: #007bff;
+  border-color: #007bff;
+  -webkit-box-shadow: none;
+          box-shadow: none;
+  border: none;
+  border-radius: 0.25rem;
+  -webkit-transition: border-color .15s ease-in-out, background-color .15s ease-in-out;
+  transition: border-color .15s ease-in-out, background-color .15s ease-in-out;
+}
+
+.register-page .register form #btn-reg:hover {
+  color: #fff;
+  background-color: #0069d9;
+  border-color: #0062cc;
+}
