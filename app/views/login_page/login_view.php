@@ -14,3 +14,4 @@
         </div>
     </div>
 </div>
+<script src="<?php ?>"></script>

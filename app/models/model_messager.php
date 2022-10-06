@@ -25,20 +25,29 @@ class Model_Messager extends Model {
         $db->close();
         return $all_info;
     }
+
     function getUserDialogues($user_id) {
         $db = $this->connect_db($this->config->db_name);
         
-        $dialogues_list = $this->get_data($db, "messages", "user_id", $user_id);
-        $dialogues_list_2 = $this->get_data($db, "messages", "interlocutor", $user_id);
-        
-        if ($dialogues_list != false && $dialogues_list_2 != false)
-            $output = array_merge($dialogues_list, $dialogues_list_2);
+        $dialogues_list = $this->get_data($db, "conversation", "user_id", $user_id); // диалоги со мной
+        $dialogues_list_2 = $this->get_data($db, "conversation", "interlocutor_id", $user_id); // мои диалоги к кем то
 
-        if (!$dialogues_list) {
-            $dialogues_list = $dialogues_list_2;
-        }
+        $user_info = $this->get_data($db, "profile", "user_id", $dialogues_list['interlocutor']); // получим инфо собеседника
+        $dialogues_list['first_name'] = $user_info['first_name'];
+        $dialogues_list['surname'] = $user_info['surname'];
         
-        return $dialogues_list;
+        
+        if ($dialogues_list != false && $dialogues_list_2 != false) // если и со мной есть диалоги и мои объединяем список
+            return $output = array_merge($dialogues_list, $dialogues_list_2);
+
+        if (!$dialogues_list) { // если диалогов со мной нет то 
+            return $dialogues_list_2;
+        } 
+        if (!$dialogues_list_2) {
+            return $dialogues_list;
+        }
+
+        
     }
 
     function getAllUsers($user_id) {
@@ -65,5 +74,23 @@ class Model_Messager extends Model {
         ];
 
         $this->insert_data($db, 'messages', $array);
+    }
+
+    function getInfoAbouteInterlocutor($user_id) {
+        $db = $this->connect_db($this->config->db_name);
+
+        $all_info = [];
+
+        $user_profile = $this->get_data($db, "profile", "user_id", $user_id);
+        
+        foreach ($user_profile as $key => $value) {
+            if ($key == "first_name" || $key == "surname")
+                $all_info[$key] = $value;
+            
+            continue;
+        }
+        
+        $db->close();
+        return $all_info;
     }
 }

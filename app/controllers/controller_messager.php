@@ -17,8 +17,10 @@ class Controller_Messager extends Controller {
             header('Location: /Error/accessDenied');
         }
         $dialogues = $this->model->getUserDialogues($user_info['id']);
-        $users = $this->model->getAllUsers($user_info['id']);
         var_dump($dialogues);
+        
+        $users = $this->model->getAllUsers($user_info['id']);
+        
         $data = [
             'styles' => [
                 'main-style' => $this->config->base_url().'templates/css/style.css',
@@ -30,6 +32,7 @@ class Controller_Messager extends Controller {
                 'logo' => $this->config->base_url().'templates/img/AdminLTELogo.png'
             ],
             'site' => $this->config->site,
+            'base-url' => $this->config->base_url(),
             'title' => 'Мессенджер',
             'user' => $user,
             'user-name' => $user_info['first_name'],

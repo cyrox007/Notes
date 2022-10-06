@@ -26,7 +26,7 @@ class Config {
     public function base_url() {
         return ((!empty($_SERVER['HTTPS'])) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/';
     }
-
+    
     // проверяет уровень доступа
     public function isAdmin($user, $admin) {
         if ($user > $admin)
@@ -39,6 +39,7 @@ class Config {
     public $site = [
         'sitename' => 'My Workspace',
         'version' => 1.5,
+        'base-url' => ''
     ];
 
     // Модуль Блокнот
