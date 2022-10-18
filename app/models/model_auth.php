@@ -27,14 +27,6 @@
 
         public function update_user_profile_in_register($id, $arr1 = [], $arr2 = []) {
             $db = $this->connect_db($this->config->db_name); // коннектимся к базе
-            
-            /* временное решение
-            foreach ($arr1 as $key => $value) {
-                $db->query("UPDATE users SET {$key}='{$value}' WHERE id = {$id}");
-            } 
-            foreach ($arr2 as $key => $value) {
-                $db->query("UPDATE profile SET {$key}='{$value}' WHERE user_id = {$id}");
-            } */
 
             $this->update_data($db, "users", "id", $id, $arr1);
             $this->update_data($db, "profile", "user_id", $id, $arr2);

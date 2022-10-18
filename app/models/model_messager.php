@@ -10,12 +10,11 @@ class Model_Messager extends Model {
         $all_info = [];
 
         $user_info = $this->get_data($db, "users", "username", $login);
-        //$user_info_row = $user_info->fetchArray(SQLITE3_ASSOC);
         foreach ($user_info as $key => $value) {
             $all_info[$key] = $value;
         }
+
         $user_profile = $this->get_data($db, "profile", "user_id", $user_info['id']);
-        //$user_profile_row = $user_profile->fetchArray(SQLITE3_ASSOC);
         foreach ($user_profile as $key => $value) {
             if ($key == "id")
                 continue;
@@ -28,26 +27,45 @@ class Model_Messager extends Model {
 
     function getUserDialogues($user_id) {
         $db = $this->connect_db($this->config->db_name);
-        
-        $dialogues_list = $this->get_data($db, "conversation", "user_id", $user_id); // диалоги со мной
-        $dialogues_list_2 = $this->get_data($db, "conversation", "interlocutor_id", $user_id); // мои диалоги к кем то
 
-        $user_info = $this->get_data($db, "profile", "user_id", $dialogues_list['interlocutor']); // получим инфо собеседника
-        $dialogues_list['first_name'] = $user_info['first_name'];
-        $dialogues_list['surname'] = $user_info['surname'];
-        
-        
-        if ($dialogues_list != false && $dialogues_list_2 != false) // если и со мной есть диалоги и мои объединяем список
-            return $output = array_merge($dialogues_list, $dialogues_list_2);
+        $sql = "SELECT d.id, d.hash, d.public, d.user_id, 
+                    ud.user_id, ud.dialog_id, 
+                    u.first_name, u.surname
+                FROM dialoges AS d
+                INNER JOIN user_to_dialog AS ud
+                    ON ud.dialog_id = d.id
+                INNER JOIN profile AS u 
+                    ON ud.user_id = u.user_id 
+                WHERE d.user_id = {$user_id}";
 
-        if (!$dialogues_list) { // если диалогов со мной нет то 
-            return $dialogues_list_2;
-        } 
-        if (!$dialogues_list_2) {
-            return $dialogues_list;
+        $raw = $db->query($sql);
+        
+        $result = [];
+        while ($row = $raw->fetchArray()) {
+            $result[] = $row;
         }
 
-        
+        $db->close();
+        return $result;
+    }
+
+    public function get_messages($dialog_id) {
+        $db = $this->connect_db($this->config->db_name);
+
+        $sql = "SELECT msg.id, msg.message, u.first_name, u.surname 
+                FROM messages AS msg
+                INNER JOIN profile AS u
+                    ON msg.sender_id = u.user_id
+                WHERE dialog_id = {$dialog_id}";
+
+        $raw = $db->query($sql);
+        $result = [];
+        while ($row = $raw->fetchArray()) {
+            $result[] = $row;
+        }
+
+        $db->close();
+        return $result;
     }
 
     function getAllUsers($user_id) {

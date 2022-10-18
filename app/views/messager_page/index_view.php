@@ -7,12 +7,11 @@
                     Диалогов нет. Создать?
                 </div>
             <? else: ?>
-                
-                <div class="messager__contact_item" data-href="<? echo $data['base-url'].$dialogues['file_messages']?>">
-                    <input type="file" name="" id="file" style="display:none;" value="<? echo $data['base-url'].$dialogues['file_messages']?>">
-                    <p class="messager__username"><? echo $dialogues['first_name'].' '.$dialogues['surname']; ?></p>
+                <? foreach ($data['dialogues'] as $dialog): ?>
+                <div class="messager__contact_item" data-href="<? echo $data['base-url'].'Messager/getMsg/'.$dialog['id']?>">
+                    <p class="messager__username"><? echo $dialog['first_name'].' '.$dialog['surname']; ?></p>
                 </div>
-                
+                <? endforeach; ?>
             <? endif; ?>
             <div class="messager__contact_list" id="view-users" style="display: none;">
                 <? foreach ($data['all-users'] as $all_users): ?>

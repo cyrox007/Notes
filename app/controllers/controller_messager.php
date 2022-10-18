@@ -4,11 +4,11 @@ class Controller_Messager extends Controller {
         $this->config = new Config();
         $this->model = new Model_Messager();
         $this->view = new View();
+        $this->helper = new Helper();
     }
 
     function action_index () {
-        if ($_SESSION['auth_login'] == null) // проверим факт авторизованности
-                header("Location: /Auth/login");
+        $this->helper->login_requared($_SESSION['auth_login']); // проверим факт авторизованности
 
         $user = $_SESSION['auth_login']; // пользователя авторизованного в сессии
         $user_info = $this->model->getUser_data($user); // получаем информацию о нем
@@ -16,11 +16,9 @@ class Controller_Messager extends Controller {
         if ($user_info['role'] >= $this->config->user_role_inactive) {
             header('Location: /Error/accessDenied');
         }
-        $dialogues = $this->model->getUserDialogues($user_info['id']);
-        var_dump($dialogues);
-        
-        $users = $this->model->getAllUsers($user_info['id']);
-        
+
+        $user_dialog = $this->model->getUserDialogues($user_info['id']);
+        var_dump($user_dialog);
         $data = [
             'styles' => [
                 'main-style' => $this->config->base_url().'templates/css/style.css',
@@ -38,10 +36,20 @@ class Controller_Messager extends Controller {
             'user-name' => $user_info['first_name'],
             'user-surname' => $user_info['surname'],
             'user-photo' => $user_info['user_photo'],
-            'dialogues' => $dialogues,
-            'all-users' => $users,
+            'dialogues' => $user_dialog
         ];
         $this->view->render_template('messager_page/index_view.php', 'core/template_view.php', $data);
+    }
+
+    function action_getMsg() {
+        $this->helper->login_requared($_SESSION['auth_login']); // проверим факт авторизованности
+
+        $uri = explode('/', $_SERVER['REQUEST_URI']); // запрос
+        $dialog_id = $uri[3];
+
+        $messages = $this->model->get_messages($dialog_id);
+        echo(json_encode($messages));
+        /* return json_encode($messages); */
     }
 
     function action_startDialog() {
@@ -61,13 +69,9 @@ class Controller_Messager extends Controller {
             header('Location: /Error/accessDenied');
         }
 
-        
-        $file_dialog_name_hash = substr(md5(microtime() . rand(0, 9999)), 0, 20).'.txt';
-        $file_dialog_path = $this->config->dir_messages.$file_dialog_name_hash;
-        $file = fopen($file_dialog_path, "w"); // создаем файл 
-        fclose($file); // закрываем файл
 
-        $this->model->addDialog($user_info['id'], $interlocutor_id, $file_dialog_path);
+
+        $this->model->addDialog($user_info['id'], $interlocutor_id);
         header('Location: /Messager');
     }
 }

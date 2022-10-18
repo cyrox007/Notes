@@ -6,6 +6,8 @@
     require_once 'core/view.php';
     require_once 'core/controller.php';
     
+    /* require_once 'migrations/migrations.php'; */
+    require_once 'core/helper.php';
     require_once 'core/images.php';
 
     /*
