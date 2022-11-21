@@ -18,7 +18,8 @@ class Controller_Messager extends Controller {
         }
 
         $user_dialog = $this->model->getUserDialogues($user_info['id']);
-        var_dump($user_dialog);
+        $users = $this->model->getUsers($user_info['id']);
+        /* var_dump($user_dialog); */
         $data = [
             'styles' => [
                 'main-style' => $this->config->base_url().'templates/css/style.css',
@@ -36,7 +37,8 @@ class Controller_Messager extends Controller {
             'user-name' => $user_info['first_name'],
             'user-surname' => $user_info['surname'],
             'user-photo' => $user_info['user_photo'],
-            'dialogues' => $user_dialog
+            'dialogues' => $user_dialog,
+            'users' => $users
         ];
         $this->view->render_template('messager_page/index_view.php', 'core/template_view.php', $data);
     }
@@ -49,18 +51,13 @@ class Controller_Messager extends Controller {
 
         $messages = $this->model->get_messages($dialog_id);
         echo(json_encode($messages));
-        /* return json_encode($messages); */
     }
 
     function action_startDialog() {
-        if ($_SESSION['auth_login'] == null)
-            header("Location: /Auth/login");
+        $this->helper->login_requared($_SESSION['auth_login']); // проверим факт авторизованности
 
         $uri = explode('/', $_SERVER['REQUEST_URI']); // получаем запрос к файлу
         $interlocutor_id = $uri[3];
-
-        if (!$interlocutor_id)
-            header('Location: /Error/404');
 
         $user = $_SESSION['auth_login']; // пользователя авторизованного в сессии
         $user_info = $this->model->getUser_data($user); // получаем информацию о нем
@@ -69,9 +66,8 @@ class Controller_Messager extends Controller {
             header('Location: /Error/accessDenied');
         }
 
-
-
         $this->model->addDialog($user_info['id'], $interlocutor_id);
+        
         header('Location: /Messager');
     }
 }

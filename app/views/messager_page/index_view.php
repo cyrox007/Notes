@@ -14,9 +14,9 @@
                 <? endforeach; ?>
             <? endif; ?>
             <div class="messager__contact_list" id="view-users" style="display: none;">
-                <? foreach ($data['all-users'] as $all_users): ?>
-                    <a class="messager__contact_link" href="/Messager/startDialog/<? echo $all_users['user_id']; ?>">
-                        <? echo $all_users['first_name'].' '.$all_users['surname']; ?>
+                <? foreach ($data['users'] as $user): ?>
+                    <a class="messager__contact_link" href="/Messager/startDialog/<? echo $user['user_id']; ?>">
+                        <? echo $user['first_name'].' '.$user['surname']; ?>
                     </a>
                 <? endforeach; ?>
             </div>

@@ -28,21 +28,24 @@ class Model_Messager extends Model {
     function getUserDialogues($user_id) {
         $db = $this->connect_db($this->config->db_name);
 
-        $sql = "SELECT d.id, d.hash, d.public, d.user_id, 
-                    ud.user_id, ud.dialog_id, 
-                    u.first_name, u.surname
-                FROM dialoges AS d
-                INNER JOIN user_to_dialog AS ud
-                    ON ud.dialog_id = d.id
-                INNER JOIN profile AS u 
-                    ON ud.user_id = u.user_id 
-                WHERE d.user_id = {$user_id}";
+        $sql = "SELECT utd.id, utd.user_id, 
+                    utd.dialog_id, d.id, d.hash
+                FROM user_to_dialog AS utd
+                INNER JOIN dialoges AS d
+                    ON utd.dialog_id = d.id
+                WHERE utd.user_id = {$user_id}";
 
         $raw = $db->query($sql);
         
         $result = [];
         while ($row = $raw->fetchArray()) {
             $result[] = $row;
+        }
+        
+        if ($result) {
+            foreach ($result as $key => $value) {
+                var_dump($key.' '.$value);
+            }
         }
 
         $db->close();
@@ -68,7 +71,7 @@ class Model_Messager extends Model {
         return $result;
     }
 
-    function getAllUsers($user_id) {
+    function getUsers($user_id) {
         $db = $this->connect_db($this->config->db_name);
 
         $sql = "SELECT * FROM profile WHERE user_id != {$user_id}";
@@ -82,16 +85,15 @@ class Model_Messager extends Model {
         return $arr;
     }
 
-    function addDialog($user_id, $interlocutor_id, $file_dialog) {
+    function addDialog($user_id, $interlocutor_id) {
         $db = $this->connect_db($this->config->db_name);
         
-        $array = [
-            'file_messages' => $file_dialog,
+        /* $array = [
             'interlocutor' => $interlocutor_id,
             'user_id' => $user_id
-        ];
+        ]; */
 
-        $this->insert_data($db, 'messages', $array);
+        
     }
 
     function getInfoAbouteInterlocutor($user_id) {
