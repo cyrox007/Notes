@@ -19,7 +19,7 @@ class Controller_Messager extends Controller {
 
         $user_dialog = $this->model->getUserDialogues($user_info['id']);
         $users = $this->model->getUsers($user_info['id']);
-        /* var_dump($user_dialog); */
+        var_dump($user_dialog[0]);
         $data = [
             'styles' => [
                 'main-style' => $this->config->base_url().'templates/css/style.css',
@@ -53,21 +53,24 @@ class Controller_Messager extends Controller {
         echo(json_encode($messages));
     }
 
-    function action_startDialog() {
+    function action_createDialog() {
         $this->helper->login_requared($_SESSION['auth_login']); // проверим факт авторизованности
 
-        $uri = explode('/', $_SERVER['REQUEST_URI']); // получаем запрос к файлу
-        $interlocutor_id = $uri[3];
+        $dialog_name = $_POST['dialog-name'];
+        $interlocutor_ids = $_POST['contact'];
 
         $user = $_SESSION['auth_login']; // пользователя авторизованного в сессии
         $user_info = $this->model->getUser_data($user); // получаем информацию о нем
 
-        if ($user_info['role'] >= $this->config->user_role_inactive) {
-            header('Location: /Error/accessDenied');
-        }
+        $data = [
+            'chat_name' => $dialog_name ? $dialog_name : null,
+            'interlocutor_ids' => $interlocutor_ids,
+            'user-id' => $user_info['id']
+        ];
 
-        $this->model->addDialog($user_info['id'], $interlocutor_id);
-        
+        $this->model->addDialog($data);
+
         header('Location: /Messager');
     }
+
 }

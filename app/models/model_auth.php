@@ -5,7 +5,7 @@
         }
 
         public function get_data_password($login) {
-            $db = $this->connect_db("base.db"); // коннектимся к базе
+            $db = $this->connect_db($this->config->db_name); // коннектимся к базе
             $res = $this->get_data($db, "users", "username", $login);
             //$row = $res->fetchArray(SQLITE3_ASSOC);
             
@@ -14,7 +14,7 @@
         }
 
         public function get_data_invate_code($code) {
-            $db = $this->connect_db("base.db"); // коннектимся к базе
+            $db = $this->connect_db($this->config->db_name); // коннектимся к базе
             $res = $this->get_data($db, "invations", "invation_code", $code);
             if ($res == null)
                 return null;

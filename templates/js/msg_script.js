@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
         });
     });
         
-    wspace.messeger.data.sendBtn.addEventListener('click', () => {
+    /* wspace.messeger.data.sendBtn.addEventListener('click', () => {
         
-    });
+    }); */
 });

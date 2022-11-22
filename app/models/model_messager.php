@@ -29,7 +29,7 @@ class Model_Messager extends Model {
         $db = $this->connect_db($this->config->db_name);
 
         $sql = "SELECT utd.id, utd.user_id, 
-                    utd.dialog_id, d.id, d.hash
+                    utd.dialog_id, d.hash
                 FROM user_to_dialog AS utd
                 INNER JOIN dialoges AS d
                     ON utd.dialog_id = d.id
@@ -43,13 +43,20 @@ class Model_Messager extends Model {
         }
         
         if ($result) {
+            $new_res = [];
             foreach ($result as $key => $value) {
-                var_dump($key.' '.$value);
+                $sql = "SELECT p.first_name, p.surname
+                        FROM user_to_dialog AS utd
+                        INNER JOIN profile AS p
+                            ON p.user_id = utd.user_id
+                        WHERE utd.dialog_id = {$value['dialog_id']} AND utd.user_id != {$user_id}";
+                $res = $db->query($sql);
+                $value['profile'] = $res->fetchArray(SQLITE3_ASSOC);
+                $new_res[] = $value;
             }
         }
-
         $db->close();
-        return $result;
+        return $new_res;
     }
 
     public function get_messages($dialog_id) {
@@ -85,32 +92,24 @@ class Model_Messager extends Model {
         return $arr;
     }
 
-    function addDialog($user_id, $interlocutor_id) {
+    /*  Добавляет новый диалог в БД и создает связи с ним
+        принимает id пользователей учавствующих в диалоге 
+        и имя диалога */
+    function addDialog($data) {
         $db = $this->connect_db($this->config->db_name);
-        
-        /* $array = [
-            'interlocutor' => $interlocutor_id,
-            'user_id' => $user_id
-        ]; */
+        $chatN = $data['chat_name'] ? $data['chat_name'] : null;
+        $hash = null;
+        $sql = "INSERT INTO dialoges (hash, dialog_name) VALUES ('{$hash}', '{$chatN}')";
+        $db->query($sql);
+        $res = $db->query("SELECT last_insert_rowid()");
+        $row = $res->fetchArray(SQLITE3_ASSOC);
 
-        
-    }
-
-    function getInfoAbouteInterlocutor($user_id) {
-        $db = $this->connect_db($this->config->db_name);
-
-        $all_info = [];
-
-        $user_profile = $this->get_data($db, "profile", "user_id", $user_id);
-        
-        foreach ($user_profile as $key => $value) {
-            if ($key == "first_name" || $key == "surname")
-                $all_info[$key] = $value;
-            
-            continue;
+        $sql2 = "INSERT INTO user_to_dialog (user_id, dialog_id) VALUES ({$data['user-id']}, {$row['last_insert_rowid()']})";
+        $db->query($sql2);
+        foreach ($data['interlocutor_ids'] as $value) {
+            $addsql = "INSERT INTO user_to_dialog (user_id, dialog_id) VALUES ({$value}, {$row['last_insert_rowid()']})";
+            $db->query($addsql);
         }
-        
         $db->close();
-        return $all_info;
     }
 }
