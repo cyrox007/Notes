@@ -126,7 +126,9 @@ $worker->onMessage = function($connection, $message) use (&$connections) {
     if ($action == 'PrivateMessage') {
         var_dump($connection->dialoges);
 
-        // сообщение добавляется в таблицу
+        // ну допустим я могу записать сообщение в БД
+        // а как их получать 
+        // 
     }
 };
 
