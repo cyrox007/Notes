@@ -38,7 +38,7 @@ class Config {
     // Данные сайта
     public $site = [
         'sitename' => 'My Workspace',
-        'version' => 1.5,
+        'version' => 0.5,
         'base-url' => ''
     ];
 

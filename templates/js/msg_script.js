@@ -1,11 +1,12 @@
 wspace.messeger = {
     data: {
-        dialoguesEmpty: document.getElementById('dialogues-empty'),
-        viewUsers: document.getElementById('view-users'),
+        dialoguesEmpty: document.getElementById('dialogues-empty'), // Кнопка создания диалога
+        viewUsers: document.getElementById('view-users'), 
         msgField: document.getElementById('msg-view'),
-        dialogLink: document.querySelectorAll('.messager__contact_item'),
+        dialogLink: document.querySelectorAll('.messager__contact_item'), // Все блоки-кнопки контактов
         msgView: document.getElementById('msg-view'),
         sendBtn: document.getElementById('message-send'),
+        msgInputText: document.getElementById("message-field"),
     },
     handler: {
         getSelectedDialog: (dialoges) => {
@@ -18,7 +19,7 @@ wspace.messeger = {
             if (element.classList.contains('selected')) {
                 return;
             }
-
+            
             if ((prevElem = wspace.messeger.handler.getSelectedDialog(wspace.messeger.data.dialogLink)) != null) {
                 prevElem.classList.remove('selected');
             }
@@ -51,7 +52,7 @@ wspace.messeger = {
         },
     }
 };
-document.addEventListener('DOMContentLoaded', ()=>{
+(function(){
     wspace.messeger.methods.dialoguesEmptySet();
     
     wspace.messeger.data.dialogLink.forEach(element => {
@@ -59,13 +60,15 @@ document.addEventListener('DOMContentLoaded', ()=>{
             wspace.messeger.handler.listenerMsg(element);
         });
     });
-    
-    /* setInterval(()=>{
-        let eleme = wspace.messeger.handler.getSelectedDialog();
-        wspace.messeger.handler.listenerMsg(eleme);
-    }, 1000); */
 
     wspace.messeger.data.sendBtn.addEventListener('click', () => {
-        
+        wspace.messeger.handler.getSelectedDialog(wspace.messeger.data.dialogLink);
+        let sendData = {
+            "action": "PrivateMessage",
+            "toDialogId": 11,
+            "text": wspace.messeger.data.msgInputText.value
+        };
+        wspace.core.data.socket.send(JSON.stringify(sendData));
+        console.log("send");
     });
-});
+}());

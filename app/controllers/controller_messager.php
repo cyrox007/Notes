@@ -37,6 +37,8 @@ class Controller_Messager extends Controller {
             'base-url' => $this->config->base_url(),
             'title' => 'Мессенджер',
             'user' => $user,
+            'user_id' => $user_info['id'],
+            'user_token' => $user_info['id'],
             'user-name' => $user_info['first_name'],
             'user-surname' => $user_info['surname'],
             'user-photo' => $user_info['user_photo'],

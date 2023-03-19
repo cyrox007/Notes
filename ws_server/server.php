@@ -83,40 +83,17 @@ $worker->onClose = function($connection) use(&$connections)
     
     // Удаляем соединение из списка
     unset($connections[$connection->id]);
-    
-    // Оповещаем всех пользователей о выходе участника из чата
-    /* $messageData = [
-        'action' => 'Disconnected',
-        'userId' => $connection->id,
-        'userName' => $connection->userName,
-        'gender' => $connection->gender,
-        'userColor' => $connection->userColor
-    ];
-    $message = json_encode($messageData);
-    
-    foreach ($connections as $c) {
-        $c->send($message);
-    } */
 };
 
 $worker->onWorkerStart = function($worker) use (&$connections)
 {
     $interval = 5; // пингуем каждые 5 секунд
 
-
     Timer::add($interval, function() use(&$connections) {
         foreach ($connections as $c) {
             // Если ответ от клиента не пришел 3 раза, то удаляем соединение из списка
             // и оповещаем всех участников об "отвалившемся" пользователе
             if ($c->pingWithoutResponseCount >= 3) {
-                /* $messageData = [
-                    'action' => 'ConnectionLost',
-                    'userId' => $c->id,
-                    'userName' => $c->userName,
-                    'gender' => $c->gender,
-                    'userColor' => $c->userColor
-                ];
-                $message = json_encode($messageData); */
                 echo $c->id." отвалился";
                 unset($connections[$c->id]); 
                 $c->destroy(); // уничтожаем соединение
@@ -125,8 +102,7 @@ $worker->onWorkerStart = function($worker) use (&$connections)
                 foreach ($connections as $c) {
                     /* $c->send($message); */
                 }
-            }
-            else {
+            } else {
                 $c->send('{"action":"Ping"}');
                 $c->pingWithoutResponseCount++; // увеличиваем счетчик пингов
             }
@@ -145,9 +121,12 @@ $worker->onMessage = function($connection, $message) use (&$connections) {
     if ($action == 'Pong') {
         // При получении сообщения "Pong", обнуляем счетчик пингов
         $connection->pingWithoutResponseCount = 0;
-    } else {
-        // Надо обновлять все диалоги
-        
+    }
+
+    if ($action == 'PrivateMessage') {
+        var_dump($connection->dialoges);
+
+        // сообщение добавляется в таблицу
     }
 };
 

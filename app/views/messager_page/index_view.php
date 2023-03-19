@@ -31,12 +31,12 @@
         <div class="messager__messages">
             <? if ($data['dialogues']): ?>
                 <div id="msg-view" class="messager__view"></div>
-                <form action="" method="post" class="messager__send">
+                <div class="messager__send">
                     <input class="messager__send--field" type="text" name="message" id="message-field" placeholder="Напишите сообщение...">
                     <button class="messager__send--btn" type="submit" name="send" id="message-send">
                         <i class="fa fa-paper-plane" aria-hidden="true"></i>
                     </button>
-                </form>
+                </div>
             <? else: ?>
                 <div class="messager__empty">
                     Выберите чат или создайте новый

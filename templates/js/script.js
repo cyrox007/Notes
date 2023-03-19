@@ -9,20 +9,21 @@ document.addEventListener("DOMContentLoaded", function () {
         sidebar.classList.toggle('active');
     });
 });
-
+wspace.core = {
+    data: {
+        socket: new WebSocket(`ws://localhost:27800?user_id=<? echo $user_id; ?>&user_token=<? echo $user_token; ?>`)
+    }
+};
 (function () {
-    let id = 3;
-    let token = 123456;
-    let socket = new WebSocket(`ws://localhost:27800?user_id=${id}&user_token=${token}`);
-    socket.onopen = (event)=>{
+    wspace.core.data.socket.onopen = (event)=>{
         console.log("connect");
     };
-    socket.onmessage = (event) => {
+    wspace.core.data.socket.onmessage = (event) => {
         let server_data = JSON.parse(event.data);
         console.log(server_data.action);
         if (server_data["action"] == "Ping") {
             let data = JSON.stringify({"action": "Pong"});
-            socket.send(data);
+            wspace.core.data.socket.send(data);
         } else {
             
         }
