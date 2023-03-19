@@ -1,5 +1,7 @@
 <?php
 class Model_Messager extends Model {
+    public $config;
+
     function __construct() {
         $this->config = new Config();
     }
@@ -44,7 +46,7 @@ class Model_Messager extends Model {
         
         if ($result) {
             $new_res = [];
-            foreach ($result as $key => $value) {
+            foreach ($result as $value) {
                 $sql = "SELECT p.first_name, p.surname
                         FROM user_to_dialog AS utd
                         INNER JOIN profile AS p

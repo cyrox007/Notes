@@ -19,6 +19,14 @@ RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule .* index.php [L]
 ```
+Так же необходимо установить зависимости для работы сервера WebSocket
+``` bash
+composer install
+```
+Запуск сервера WebSocket'a 
+``` bash
+php ws_server/server.php start
+```
 Так же для работы приложения необходима база данных SQLite, которую необходимо сформировать самостоятельно
 ## Работа с приложением
 ### Маршрутизация
@@ -111,17 +119,17 @@ function action_admin() {
 ```
 При помощи `<?php include 'app/views/'.$content_view; ?>` в шаблон будет встроен код вашей HTML верстки.
 Последний параметр "$data" -- это массив, который может быть передан в шаблон. С его помощью вы можете динамически передавать данные из своего контроллера в шаблон, например:
+`controller_admin.php`
 ``` php 
-controller_admin.php
-
 $data = [
             'style' => 'style.css',
             'title' => 'Админ панель',
         ];
-
 ```
+
+`template_view.php`
 ``` html 
-template_view.php
+
 <!DOCTYPE html>
 <html lang="en">
 <head>

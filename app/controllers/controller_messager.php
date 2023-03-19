@@ -1,5 +1,8 @@
 <?php
 class Controller_Messager extends Controller {
+    
+    public $helper;
+
     function __construct() {
         $this->config = new Config();
         $this->model = new Model_Messager();
@@ -19,7 +22,7 @@ class Controller_Messager extends Controller {
 
         $user_dialog = $this->model->getUserDialogues($user_info['id']);
         $users = $this->model->getUsers($user_info['id']);
-        var_dump($user_dialog[0]);
+        
         $data = [
             'styles' => [
                 'main-style' => $this->config->base_url().'templates/css/style.css',

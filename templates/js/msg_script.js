@@ -35,7 +35,6 @@ wspace.messeger = {
                     wspace.messeger.data.msgField.appendChild(msgContainer);
                     msgContainer.innerHTML = `<span>${msg['first_name']}</span> ${msg['message']}`;
                 });
-                
             } else {
                 console.log(response.status);
             }
@@ -60,8 +59,13 @@ document.addEventListener('DOMContentLoaded', ()=>{
             wspace.messeger.handler.listenerMsg(element);
         });
     });
+    
+    /* setInterval(()=>{
+        let eleme = wspace.messeger.handler.getSelectedDialog();
+        wspace.messeger.handler.listenerMsg(eleme);
+    }, 1000); */
+
+    wspace.messeger.data.sendBtn.addEventListener('click', () => {
         
-    /* wspace.messeger.data.sendBtn.addEventListener('click', () => {
-        
-    }); */
+    });
 });
