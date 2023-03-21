@@ -105,6 +105,6 @@ wspace.messeger = {
         };
         wspace.core.data.socket.send(JSON.stringify(sendData));
         wspace.messeger.methods.loadMessages();
-        wspace.messeger.data.sendBtn.value = null;
+        wspace.messeger.data.msgInputText.value = null;
     });
 }());
