@@ -2,7 +2,7 @@
     <div class="login-page__box">
         <div class="login-page__title">
             <span>
-                My Workspace 1.5
+                <?=$site['sitename']?> <?=$site['version']?>
             </span>
         </div>
         <div class="login-page__card">
