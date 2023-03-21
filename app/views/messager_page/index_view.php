@@ -2,17 +2,20 @@
 <main class="messager">
     <div class="messager__container">
         <div class="messager__contact">
+            <!-- DIALOG VIEW -->
             <? if (!$data['dialogues']): ?>
                 <div id="dialogues-empty" class="messager__contact_empty">
                     Диалогов нет. Создать?
                 </div>
             <? else: ?>
                 <? foreach ($data['dialogues'] as $dialog): ?>
-                <div class="messager__contact_item" data-href="<? echo $data['base-url'].'Messager/getMsg/'.$dialog['dialog_id']?>">
+                <div class="messager__contact_item" data-href="<? echo $data['base-url'].'Messager/getMsg/'.$dialog['dialog_id']?>" user-id="<?=$dialog['profile']['user_id']?>" dialog-id="<?=$dialog['dialog_id']?>">
                     <p class="messager__username"><? echo $dialog['profile']['first_name'].' '.$dialog['profile']['surname']; ?></p>
                 </div>
                 <? endforeach; ?>
             <? endif; ?>
+            <!-- DIALOG VIEW END -->
+            <!-- CREATE DIALOG -->
             <div class="messager__contact_list" id="view-users" style="display: none;">
                 <h2>Создание чата</h2>
                 <form action="/Messager/createDialog" method="post">
@@ -25,10 +28,10 @@
                     <? endforeach; ?>
                     <input type="submit" value="Создать чат">
                 </form>
-                
             </div>
+            <!-- CREATE DIALOG END -->
         </div>
-        <div class="messager__messages">
+        <div id="messager-window" class="messager__messages" to-user="" dialog-id="">
             <? if ($data['dialogues']): ?>
                 <div id="msg-view" class="messager__view"></div>
                 <div class="messager__send">
@@ -45,4 +48,6 @@
         </div>
     </div>
 </main>
-<script src="<? echo $data['msg-script']; ?>"></script>
+<script>
+    <? include_once "templates/js/msg_script.js"; ?>
+</script>

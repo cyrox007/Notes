@@ -640,6 +640,9 @@ body {
 .messager__contact_item:hover {
   background: rgb(220, 225, 230);
 }
+.messager__contact_item.selected {
+  background: #72b6ff;
+}
 .messager__contact_empty {
   cursor: pointer;
   height: 100%;
@@ -705,6 +708,23 @@ body {
 }
 .messager__view {
   height: calc(100% - 35px);
+  overflow-y: scroll;
+}
+.messager__view__message {
+  padding: 5px;
+  display: flex;
+}
+.messager__view__message--img {
+  width: 20px;
+  height: auto;
+}
+.messager__view__message--img img {
+  width: 100%;
+  height: auto;
+}
+.messager__view__message--body {
+  display: flex;
+  flex-direction: column;
 }
 .messager__send {
   display: flex;

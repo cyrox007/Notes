@@ -47,7 +47,7 @@ class Model_Messager extends Model {
         if ($result) {
             $new_res = [];
             foreach ($result as $value) {
-                $sql = "SELECT p.first_name, p.surname
+                $sql = "SELECT p.first_name, p.surname, p.user_id
                         FROM user_to_dialog AS utd
                         INNER JOIN profile AS p
                             ON p.user_id = utd.user_id
