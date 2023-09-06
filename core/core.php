@@ -5,10 +5,6 @@
     require_once 'core/model.php';
     require_once 'core/view.php';
     require_once 'core/controller.php';
-    
-    /* require_once 'migrations/migrations.php'; */
-    require_once 'core/helper.php';
-    require_once 'core/images.php';
 
     /*
     Здесь обычно подключаются дополнительные модули, реализующие различный функционал:
@@ -23,6 +19,9 @@
         > Backup
         > и др.
     */
+    require_once 'core/helper.php';
+    require_once 'core/images.php';
 
+    // Маршрутизатор
     require_once 'core/route.php';
     Route::start(); // запускаем маршрутизатор
