@@ -16,8 +16,6 @@ class Controller_Profile extends Controller {
         if ($user_info['role'] >= $this->config->user_role_inactive) {
             header('Location: /Error/accessDenied');
         }
-
-
         
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $set_name = $_POST['set-user-name'];
@@ -70,6 +68,8 @@ class Controller_Profile extends Controller {
             
             'user' => $user,
             'user-name' => $user_info['first_name'],
+            'user_id' => $user_info['id'],
+            'user_token' => $user_info['id'],
             'user-surname' => $user_info['surname'],
             'user-patronymic' => $user_info['patronymic'],
             'user-photo' => $user_info['user_photo'],

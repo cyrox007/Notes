@@ -1,5 +1,7 @@
 <?php
 class Controller_Auth extends Controller {
+    public $images;
+    
     public function __construct() {
         $this->config = new Config();
         $this->model = new Model_Auth();
@@ -11,9 +13,9 @@ class Controller_Auth extends Controller {
         $base_url = ((!empty($_SERVER['HTTPS'])) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/';
         $data = [
             'style' => $base_url . 'templates/css/auth_page/style.css',
-            /* 'script' => $base_url . 'templates/js/script.js', */
+            'site' => $this->config->site,
             'title' => 'Авторизация',
-            'error' => ''
+            'error' => '',
         ];
         if (isset($_POST['login']) && isset($_POST['password'])) {
             $login = $_POST['login']; // получаем логин
@@ -31,7 +33,6 @@ class Controller_Auth extends Controller {
                 $data['error'] = 'Неправильный логин или пароль';
             }
         }
-
         
         $this->view->render_template('login_page/login_view.php', 'login_page/login_temp.php', $data);
     }

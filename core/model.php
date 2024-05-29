@@ -12,7 +12,12 @@
 
         // метод соединения с БД
         public function connect_db($file_name_db) {
-            $db = new SQLite3($file_name_db);
+            $hostname = Config::$db_connection['hostname'];
+            $port = Config::$db_connection['port'];
+            $database = Config::$db_connection['database'];
+            $username = Config::$db_connection['username'];
+            $password = Config::$db_connection['password'];
+            $db = new PDO("mysql:host={$hostname};port={$port};dbname={$database}", $username, $password);
             return $db;
         }
         
@@ -21,7 +26,7 @@
         public function get_data($db, $table, $param, $value) {
             $sql = "SELECT * FROM {$table} WHERE {$param} = '{$value}'";
             $result = $db->query($sql);
-            $row = $result->fetchArray(SQLITE3_ASSOC);
+            $row = $result->fetch();
             
             return $row;
         }

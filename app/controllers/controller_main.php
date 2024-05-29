@@ -29,6 +29,8 @@ class Controller_Main extends Controller {
             'site' => $this->config->site,
             'title' => 'Главная',
             'user' => $user,
+            'user_id' => $user_info['id'],
+            'user_token' => $user_info['id'],
             'user-name' => $user_info['first_name'],
             'user-surname' => $user_info['surname'],
             'user-photo' => $user_info['user_photo'],

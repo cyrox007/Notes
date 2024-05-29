@@ -31,6 +31,8 @@
     </div>
   </div>
   <!-- ./wrapper -->
-  <script src="<? echo $data['script']; ?>"></script>
+  <script>
+    <? include_once "templates/js/script.js"; ?>
+  </script>
 </body>
 </html>
