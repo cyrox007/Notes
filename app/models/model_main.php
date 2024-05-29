@@ -1,5 +1,7 @@
 <?php
     class Model_Main extends Model {
+        private $config;
+        
         public function __construct() {
             $this->config = new Config();
         }
@@ -17,15 +19,15 @@
                 
                 $all_info[$key] = $value;
             }
-            $user_profile = $this->get_data($db, "profile", "user_id", $user_info['id']);
+            //$user_profile = $this->get_data($db, "users", "user_id", $user_info['id']);
             
-            foreach ($user_profile as $key => $value) {
+            /* foreach ($user_profile as $key => $value) {
                 if ($key == "id")
                     continue;
                 
                 $all_info[$key] = $value;
-            }
-            $db->close();
+            } */
+            /* $db->close(); */
             return $all_info;
         }
     }

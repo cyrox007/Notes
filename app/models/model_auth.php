@@ -1,5 +1,6 @@
 <?php
     class Model_Auth extends Model {
+        private $config;
         public function __construct() {
             $this->config = new Config();
         }
@@ -9,7 +10,7 @@
             $res = $this->get_data($db, "users", "username", $login);
             //$row = $res->fetchArray(SQLITE3_ASSOC);
             
-            $db->close();
+            /* $db->close(); */
             return $res["password"];
         }
 
@@ -21,7 +22,7 @@
             
             //$row = $res->fetchArray(SQLITE3_ASSOC);
 
-            $db->close();
+            /* $db->close(); */
             return $res['user_id'];
         }
 
@@ -30,7 +31,7 @@
 
             $this->update_data($db, "users", "id", $id, $arr1);
             $this->update_data($db, "profile", "user_id", $id, $arr2);
-            $db->close();
+            /* $db->close(); */
             return true;
         }
         public function delete_invate($invite_id) {

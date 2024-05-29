@@ -47,4 +47,13 @@ class Config {
 
     // Модуль Мессенджер
     public $dir_messages = "q56Xl54Fs8zc/";
+
+    public static $db_connection = [
+        'hostname'     => 'localhost',
+        'port'         => 3306,
+        'username'     => 'root',
+        'password'     => '',
+        'database'     => 'workspace',
+        'DBDriver'     => 'MySQLi',
+    ];
 }

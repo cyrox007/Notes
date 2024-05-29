@@ -33,7 +33,6 @@ class Controller_Auth extends Controller {
                 $data['error'] = 'Неправильный логин или пароль';
             }
         }
-
         
         $this->view->render_template('login_page/login_view.php', 'login_page/login_temp.php', $data);
     }
