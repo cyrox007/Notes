@@ -1,13 +1,13 @@
 <?php 
 
 // Подключаем библиотеку Workerman
-require_once './vendor/autoload.php';
+require_once __DIR__.'/../vendor/autoload.php';
 
 use Workerman\Lib\Timer;
 use Workerman\Worker;
 
 function connect_db() {
-    $db = new SQLite3("wspace.db");
+    $db = new SQLite3(__DIR__."/../wspace.db");
     return $db;
 }
 
@@ -138,7 +138,7 @@ $worker->onMessage = function($connection, $message) use (&$connections) {
     $messageData = json_decode($message, true);
     
     // проверяем наличие ключа 'toDialogId', который используется для отправки приватных сообщений
-    $toDialogId = (int)$messageData['toDialogId'];
+    $toDialogId = isset($messageData['toDialogId']) ? (int)$messageData['toDialogId'] : null;
     $action = isset($messageData['action']) ? $messageData['action'] : '';
     
     if ($action == 'Pong') {
@@ -166,7 +166,7 @@ $worker->onMessage = function($connection, $message) use (&$connections) {
             'userDialoges' => $newMsgArray
         ]; // формируем данные для отправки пользователю
         $connection->send(json_encode($messageData)); // отправляем тому кто отправил
-        if ($connections[$to] != null) { // отправляем тому кому отправили
+        if (isset($connections[$to])) { // отправляем тому кому отправили
             $connections[$to]->send(json_encode($messageData));
         }
 

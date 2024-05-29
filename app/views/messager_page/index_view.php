@@ -1,4 +1,4 @@
-<link rel="stylesheet" href="<?=$data['font-awesome']; ?>">
+<link rel="stylesheet" href="<?=$data['styles']['font-awesome']; ?>">
 <main class="messager">
     <div class="messager__container">
         <div class="messager__contact">
