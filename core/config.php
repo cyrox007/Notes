@@ -1,11 +1,22 @@
 <?php
+namespace Core;
+
 class Config {
     // БД
-    public $db_name = "wspace.db"; // передаем имя БД и даже относительный путь к ней относительно точки входа
+    //public $db_name = "wspace.db"; // передаем имя БД и даже относительный путь к ней относительно точки входа
+    public static $db_connection = [
+        'hostname'     => 'localhost',
+        'port'         => 3306,
+        'username'     => 'root',
+        'password'     => '',
+        'database'     => 'workspace',
+        'DBDriver'     => 'MySQLi',
+    ];
     
     // шифрование
     public $hash_key = "592e6419d1d04634848f40f22f9f71a7450800611f4e497cdd71b7cef3e3450ae63fd149609d36eb"; //SSL Key Code
     public $hash_method = "AES-192-CBC"; // алгоритм шифрования
+    public $secret_key = '';
 
     // статичные параметры пользвателя
     /* 
@@ -38,7 +49,7 @@ class Config {
     // Данные сайта
     public $site = [
         'sitename' => 'My Workspace',
-        'version' => 0.5,
+        'version' => "0.6.1",
         'base-url' => ''
     ];
 
@@ -47,13 +58,4 @@ class Config {
 
     // Модуль Мессенджер
     public $dir_messages = "q56Xl54Fs8zc/";
-
-    public static $db_connection = [
-        'hostname'     => 'localhost',
-        'port'         => 3306,
-        'username'     => 'root',
-        'password'     => '',
-        'database'     => 'workspace',
-        'DBDriver'     => 'MySQLi',
-    ];
 }

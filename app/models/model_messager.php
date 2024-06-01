@@ -1,4 +1,9 @@
 <?php
+namespace App\Models;
+
+use Core\Model;
+use Core\Config;
+
 class Model_Messager extends Model {
     public $config;
 

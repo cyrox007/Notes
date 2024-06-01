@@ -1,4 +1,6 @@
 <?php
+namespace Core;
+
 class Images {
     var $image; // само изображение
     var $image_type; // тип изображения

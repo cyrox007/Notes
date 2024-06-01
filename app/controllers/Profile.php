@@ -1,5 +1,9 @@
 <?php
-class Controller_Profile extends Controller {
+namespace App\Controller;
+
+use Core\Controller;
+
+class Profile extends Controller {
     public function __construct() {
         $this->config = new Config();
         $this->model = new Model_Profile();

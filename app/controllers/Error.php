@@ -1,5 +1,9 @@
 <?php
-    class Controller_Error extends Controller {
+namespace App\Controller;
+
+use Core\Controller;
+
+    class Error extends Controller {
         public function __construct() {
             $this->config = new Config();
             $this->view = new View();
