@@ -1,14 +1,23 @@
 <?php
-class Controller_Main extends Controller {
+namespace App\Controller;
+
+use Core\Controller;
+use Core\Config;
+use Core\View;
+
+use App\Models\Model_Main;
+
+class Main extends Controller {
     public function __construct() {
         $this->config = new Config();
         $this->model = new Model_Main();
         $this->view = new View();
     }
     
-    function action_index() {
-        if ($_SESSION['auth_login'] == null)
-            header("Location: /Auth/login");
+    function index() {
+        if (empty($_SESSION['auth_login'])) {
+            return header("Location: /Auth/login");
+        }
         
         $user = $_SESSION['auth_login'];
         $user_info = $this->model->getUser_data($user);

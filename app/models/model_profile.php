@@ -1,4 +1,9 @@
 <?php
+namespace App\Models;
+
+use Core\Model;
+use Core\Config;
+
     class Model_Profile extends Model {
         public function __construct() {
             $this->config = new Config();

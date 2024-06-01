@@ -1,4 +1,8 @@
 <?php
+namespace  Core;
+
+use PDO;
+
     class Model {
         /*
             Модель обычно включает методы выборки данных, это могут быть:
@@ -11,7 +15,7 @@
         private $server_url, $name_db, $user_name, $password;
 
         // метод соединения с БД
-        public function connect_db($file_name_db) {
+        public function connect_db() {
             $hostname = Config::$db_connection['hostname'];
             $port = Config::$db_connection['port'];
             $database = Config::$db_connection['database'];

@@ -1,5 +1,15 @@
 <?php
-class Controller_Auth extends Controller {
+namespace App\Controller;
+
+use Core\Controller;
+use Core\View;
+use Core\Images;
+use Core\Config;
+
+use App\Models\Model_Auth;
+use App\Helpers\CryptMethods;
+
+class Auth extends Controller {
     public $images;
     
     public function __construct() {
@@ -9,33 +19,41 @@ class Controller_Auth extends Controller {
         $this->images = new Images();
     }
 
-    function action_login() {
-        $base_url = ((!empty($_SERVER['HTTPS'])) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/';
+    function login() {
         $data = [
-            'style' => $base_url . 'templates/css/auth_page/style.css',
+            'style' => $this->config->base_url() . 'templates/css/auth_page/style.css',
             'site' => $this->config->site,
             'title' => 'Авторизация',
             'error' => '',
         ];
+        
+        return $this->view->render_template('login_page/login_view.php', 'login_page/login_temp.php', $data);
+    }
+
+    function sigin() {
+        $data = [
+            'style' => $this->config->base_url() . 'templates/css/auth_page/style.css',
+            'site' => $this->config->site,
+            'title' => 'Авторизация',
+            'error' => '',
+        ];
+
         if (isset($_POST['login']) && isset($_POST['password'])) {
             $login = $_POST['login']; // получаем логин
-            $password = $_POST['password']; // получаем введенный пароль
-            $key = $this->config->hash_key; // ключ хеширования
-            $method = $this->config->hash_method; // алгоритм хеширования
-
-            $encrypted_password = openssl_encrypt($password, $method, $key); // хешируем введенный пароль
+            $password = CryptMethods::createHashFromPassword($_POST['password']); // получаем введенный пароль
 
             $pass = $this->model->get_data_password($login); // получаем значение из БД
-            if ($encrypted_password === $pass) {
+            
+            if ($password === $pass) {
                 $_SESSION['auth_login'] = $login;
-                header("Location: /");
+                return header("Location: /");
             } else {
                 $data['error'] = 'Неправильный логин или пароль';
             }
         }
-        
-        $this->view->render_template('login_page/login_view.php', 'login_page/login_temp.php', $data);
-    }
+
+        return $this->view->render_template('login_page/login_view.php', 'login_page/login_temp.php', $data); 
+    } 
 
     function action_logout() {
         if (isset($_SESSION['auth_login'])) {

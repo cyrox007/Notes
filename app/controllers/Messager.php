@@ -1,5 +1,9 @@
 <?php
-class Controller_Messager extends Controller {
+namespace App\Controller;
+
+use Core\Controller;
+
+class Messager extends Controller {
     
     public $helper;
 

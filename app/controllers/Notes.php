@@ -1,5 +1,9 @@
 <?php
-    class Controller_Notes extends Controller {
+namespace App\Controller;
+
+use Core\Controller;
+
+    class Notes extends Controller {
         public function __construct() {
             $this->config = new Config();
             $this->model = new Model_Notes();
