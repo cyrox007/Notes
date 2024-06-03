@@ -21,7 +21,6 @@ class Auth extends Controller {
 
     function login() {
         $data = [
-            'style' => $this->config->base_url() . 'templates/css/auth_page/style.css',
             'site' => $this->config->site,
             'title' => 'Авторизация',
             'error' => '',
@@ -32,7 +31,6 @@ class Auth extends Controller {
 
     function sigin() {
         $data = [
-            'style' => $this->config->base_url() . 'templates/css/auth_page/style.css',
             'site' => $this->config->site,
             'title' => 'Авторизация',
             'error' => '',
@@ -123,6 +121,11 @@ class Auth extends Controller {
             }
         }
 
-        $this->view->render_template('login_page/register_view.php', 'login_page/login_temp.php', $data);
+        return $this->view->render_template('login_page/register_view.php', 'login_page/login_temp.php', $data);
+    }
+
+    function test(int $id): void {
+        echo "Hello " . $id;
+        return;
     }
 }
