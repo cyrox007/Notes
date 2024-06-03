@@ -19,29 +19,42 @@ class Route {
 		];
 	}
 
-	
+	private function create_pattern(string $path): string {
+		$pattern = '/{(?:int:|str:)([a-zA-Z0-9_]+)}/';
+		return "~^" . preg_replace($pattern, "(?P<$1>\w+)", $path) . "$~";
+	}
+
+	private function clearParams(array $mached): array {
+		$result = [];
+		foreach ($mached as $key => $param) {
+			if (!is_int($key)) {
+				$result[$key] = $param;
+			}
+		}
+		return $result;
+	}
 
 	public function dispatch() {
 		$request_url = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 		$request_url = $this->normalizePath($request_url);
+		
 		$request_method = strtoupper($_SERVER['REQUEST_METHOD']);
 		
 		foreach ($this->routes as $route) {
-			$rp = $route['path'];
-
-			$rp = preg_replace('/\{.+?\}/m', "/(?<$1>[^/]+)", $rp);
+			$path_pattern = $this->create_pattern($route['path']);
 
 			if (
-				!preg_match('#^'.$rp.'/?$#', $request_url, $params) ||
+				!preg_match($path_pattern, $request_url, $params) ||
 				$route['method'] !== $request_method
 			) continue;
 
 			[$class, $function] = $route['controller'];
 
 			$controllerInstance = new $class;
-			
+			$params = $this->clearParams($params);
+
 			if (empty($params)) $controllerInstance->{$function}();
-			else $controllerInstance->{$function}($params);
+			else $controllerInstance->{$function}(...$params);
 		}
 	}
 }

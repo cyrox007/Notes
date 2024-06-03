@@ -124,8 +124,8 @@ class Auth extends Controller {
         return $this->view->render_template('login_page/register_view.php', 'login_page/login_temp.php', $data);
     }
 
-    function test($ultravar) {
-        echo "Hello".$ultravar;
+    function test(int $id): void {
+        echo "Hello " . $id;
         return;
     }
 }
