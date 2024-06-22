@@ -37,7 +37,7 @@ php ws_server/server.php start
 * * Класс контроллера
 * * Метод этого контроллера
 Пример:
-```
+``` php
 use App\Controller\Main;
 $router->add('GET', '/', [Main::class, 'index']);
 ```
