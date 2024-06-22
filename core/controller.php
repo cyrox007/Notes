@@ -28,6 +28,8 @@ class Controller {
         $this->smarty->setCompileDir(SITEPATH . '/compile');
         $this->smarty->setCacheDir(SITEPATH . '/cache');
 
+        $this->smarty->setEscapeHtml(true);
+
         if (!empty($data)) {
             foreach ($data as $key => $value) {
                 $this->smarty->assign($key, $value);

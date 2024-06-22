@@ -26,7 +26,7 @@ class Auth extends Controller {
             'error' => '',
         ];
         
-        return $this->render_template('index', [
+        return $this->render_template('login_page/login_view', [
             'name' => "TEST",
             'names' => ['art', 't1000']
         ]);

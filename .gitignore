@@ -3,3 +3,7 @@ c855721/*
 vendor/
 .osp/
 .vscode/
+.env
+compile/*
+cache/*
+config/*
