@@ -26,7 +26,10 @@ class Auth extends Controller {
             'error' => '',
         ];
         
-        return $this->view->render_template('login_page/login_view.php', 'login_page/login_temp.php', $data);
+        return $this->render_template('index', [
+            'name' => "TEST",
+            'names' => ['art', 't1000']
+        ]);
     }
 
     function sigin() {
@@ -50,7 +53,7 @@ class Auth extends Controller {
             }
         }
 
-        return $this->view->render_template('login_page/login_view.php', 'login_page/login_temp.php', $data); 
+        //return $this->view->render_template('login_page/login_view.php', 'login_page/login_temp.php', $data); 
     } 
 
     function action_logout() {
@@ -121,7 +124,7 @@ class Auth extends Controller {
             }
         }
 
-        return $this->view->render_template('login_page/register_view.php', 'login_page/login_temp.php', $data);
+        //return $this->view->render_template('login_page/register_view.php', 'login_page/login_temp.php', $data);
     }
 
     function test(int $id): void {

@@ -41,6 +41,7 @@ spl_autoload_register(function () {
     */
     require_once SITEPATH . '/core/helper.php';
     require_once SITEPATH . '/core/images.php';
+    require SITEPATH . '/vendor/autoload.php';
 });
 
 // Маршрутизатор
