@@ -2,6 +2,10 @@
 class Route {
 	private array $routes = [];
 
+	/* public function __get() {
+		return $this->routes;
+	} */
+	
 	private function normalizePath(string $path): string {
 		$path = trim($path, '/');
 		$path = "/{$path}/";
@@ -9,7 +13,7 @@ class Route {
 		return $path;
 	}
 
-	public function add(string $method, string $path, array $controller) {
+	public function add(string $method, string $path, array $controller): void {
 		$path = $this->normalizePath($path);
 		$this->routes[] = [
 			'path' => $path,
