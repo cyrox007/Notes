@@ -1,6 +1,7 @@
 {
     "require": {
         "workerman/workerman": "^4.1",
-        "smarty/smarty": "^5.3"
+        "smarty/smarty": "^5.3",
+        "vlucas/phpdotenv": "^5.6"
     }
 }

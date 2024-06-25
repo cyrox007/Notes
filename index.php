@@ -7,6 +7,9 @@ define('SITEPATH', __DIR__);
 // подключаем файлы ядра
 
 spl_autoload_register(function () {
+    require SITEPATH . '/vendor/autoload.php';
+    Dotenv\Dotenv::createUnsafeImmutable(SITEPATH)->load();
+    
     require_once SITEPATH . '/core/config.php';
     require_once SITEPATH . '/core/model.php';
     $methods_scripts = array_diff(scandir(SITEPATH . '/app/models/'), array('.', '..'));
@@ -41,7 +44,7 @@ spl_autoload_register(function () {
     */
     require_once SITEPATH . '/core/helper.php';
     require_once SITEPATH . '/core/images.php';
-    require SITEPATH . '/vendor/autoload.php';
+    
 });
 
 // Маршрутизатор

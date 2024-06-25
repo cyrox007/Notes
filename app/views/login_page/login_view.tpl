@@ -7,16 +7,18 @@
     <div class="login-page__box">
         <div class="login-page__title">
             <span>
-                {$smarty.env.sitename} <?=$site['version']?>
+                {$smarty.env.SITENAME} {$smarty.env.VERSION}
             </span>
         </div>
         <div class="login-page__card">
             <form action="" method="post">
                 <input type="text" name="login" id="login" placeholder="Логин" required>
                 <input type="password" name="password" id="password" placeholder="Пароль" required>
-                <?if (isset($data['error'])):?>
-                    <span><?=$data['error']?></span>
-                <?endif;?>
+                {if ($errors)}
+                    {foreach $errors as $keyvar=>$itemvar}
+                        <span id="{$itemvar['CODE']}">{$itemvar['MESSAGE']}</span>
+                    {/foreach}
+                {/if}
                 <button type="submit">Войти</button>
             </form>
         </div>

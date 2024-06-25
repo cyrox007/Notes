@@ -20,24 +20,16 @@ class Auth extends Controller {
     }
 
     function login() {
-        $data = [
-            'site' => $this->config->site,
-            'title' => 'Авторизация',
-            'error' => '',
-        ];
-        
-        return $this->render_template('login_page/login_view', [
-            'name' => "TEST",
-            'names' => ['art', 't1000']
-        ]);
+        var_dump($this->model->select("users", ["username"])
+            ->innerJoin('notes', "users.id", "user_id", ["notename"])
+            ->where("users.id", "=", 6)
+            ->where("users.id", '=', 5, "OR")
+            ->get());    
+        return $this->render_template('login_page/login_view');
     }
 
     function sigin() {
-        $data = [
-            'site' => $this->config->site,
-            'title' => 'Авторизация',
-            'error' => '',
-        ];
+        $data['errors'] = [];
 
         if (isset($_POST['login']) && isset($_POST['password'])) {
             $login = $_POST['login']; // получаем логин
@@ -49,11 +41,16 @@ class Auth extends Controller {
                 $_SESSION['auth_login'] = $login;
                 return header("Location: /");
             } else {
-                $data['error'] = 'Неправильный логин или пароль';
+                $data['errors'] = [
+                    [
+                        "CODE" => "Auth error",
+                        "MESSAGE" => "Неправильный логин или пароль"
+                    ]
+                ];
             }
         }
 
-        //return $this->view->render_template('login_page/login_view.php', 'login_page/login_temp.php', $data); 
+        return $this->render_template('login_page/login_view', $data); 
     } 
 
     function action_logout() {
