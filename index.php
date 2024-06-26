@@ -11,6 +11,7 @@ spl_autoload_register(function () {
     Dotenv\Dotenv::createUnsafeImmutable(SITEPATH)->load();
     
     require_once SITEPATH . '/core/config.php';
+    require_once SITEPATH . '/core/database.php';
     require_once SITEPATH . '/core/model.php';
     $methods_scripts = array_diff(scandir(SITEPATH . '/app/models/'), array('.', '..'));
     foreach ($methods_scripts as $script) {

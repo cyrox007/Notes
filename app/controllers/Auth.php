@@ -5,26 +5,40 @@ use Core\Controller;
 use Core\View;
 use Core\Images;
 use Core\Config;
+use Core\DatabaseManager;
 
 use App\Models\Model_Auth;
 use App\Helpers\CryptMethods;
+
+use App\Models\Model_Notes;
 
 class Auth extends Controller {
     public $images;
     
     public function __construct() {
         $this->config = new Config();
-        $this->model = new Model_Auth();
+        //$this->model = new Model_Auth();
         $this->view = new View();
         $this->images = new Images();
     }
 
+    function guidv4($data = null) {
+        // Generate 16 bytes (128 bits) of random data or use the data passed into the function.
+        $data = $data ?? random_bytes(16);
+        assert(strlen($data) == 16);
+    
+        // Set version to 0100
+        $data[6] = chr(ord($data[6]) & 0x0f | 0x40);
+        // Set bits 6-7 to 10
+        $data[8] = chr(ord($data[8]) & 0x3f | 0x80);
+    
+        // Output the 36 character UUID.
+        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
+    }
+
     function login() {
-        var_dump($this->model->select("users", ["username"])
-            ->innerJoin('notes', "users.id", "user_id", ["notename"])
-            ->where("users.id", "=", 6)
-            ->where("users.id", '=', 5, "OR")
-            ->get());    
+        
+
         return $this->render_template('login_page/login_view');
     }
 
@@ -124,8 +138,15 @@ class Auth extends Controller {
         //return $this->view->render_template('login_page/register_view.php', 'login_page/login_temp.php', $data);
     }
 
-    function test(int $id): void {
-        echo "Hello " . $id;
-        return;
+    function test(): void {
+        /* $note = new Model_Notes();
+        $note = $note->select('notes')->where('id', '=', 1)->first(true); */
+        
+        /* $note->notename = "TestUpdate";
+        $dbManager = new DatabaseManager();
+
+        $dbManager->queueUpdate($note);
+        $dbManager->commit(); */
+        $this->response_json(["status" => "0"]);
     }
 }

@@ -39,7 +39,8 @@ class Controller {
         $this->smarty->display("{$template}.tpl");
     }
 
-    function response_json(string $json) {
-        echo $json;
+    function response_json(array $data): void {
+        header('Content-Type: application/json');
+        echo json_encode($data);
     }
 }

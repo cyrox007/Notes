@@ -5,20 +5,24 @@ use Core\Model;
 use Core\Config;
 
 class Model_Auth extends Model {
-    private $config;
+    protected static $_tablename = "users";
+    public $id;
+    public string $username;
+
+    /* private $config;
     public function __construct() {
         $this->config = new Config();
-    }
+    } */
 
-    public function get_data_password($login) {
-        $db = $this->connect_db(); // коннектимся к базе
-        $res = $this->get_data($db, "users", "username", $login);
+    /* public function get_data_password($login) {
+        //$db = $this->connect_db(); // коннектимся к базе
+        //$res = $this->get_data($db, "users", "username", $login);
         
-        return $res["password"];
+        //return $res["password"];
     }
 
     public function get_data_invate_code($code) {
-        $db = $this->connect_db(); // коннектимся к базе
+        //$db = $this->connect_db(); // коннектимся к базе
         $res = $this->get_data($db, "invations", "invation_code", $code);
         if ($res == null)
             return null;
@@ -37,5 +41,5 @@ class Model_Auth extends Model {
     public function delete_invate($invite_id) {
         $db = $this->connect_db(); // коннектимся к базе
         $this->delete_data($db, "invations", "user_id", $invite_id);
-    }
+    } */
 }

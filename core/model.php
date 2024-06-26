@@ -3,8 +3,11 @@ namespace  Core;
 
 use PDO;
 use PDOStatement;
+use ReflectionClass, ReflectionProperty;
+use Exception;
 
 class Model {
+    public $id;
     /*
         Модель обычно включает методы выборки данных, это могут быть:
             > методы нативных библиотек pgsql или mysql;
@@ -13,6 +16,7 @@ class Model {
             > методы для работы с NoSQL;
             > и др.
     */
+    protected static $_tablename;
 
     private string $query = "";
     private array $joins = [];
@@ -79,17 +83,34 @@ class Model {
         return $this;
     }
 
-    public function first(): ?array {
-        return $this->executeFetch(function ($stmt) {
-            return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    protected function hydrate(array $data): self {
+        foreach ($data as $key => $value) {
+            if (property_exists($this, $key)) {
+                $this->$key = $value;
+            }
+        }
+        return $this;
+    }
+
+    public function first(bool $asObject = false): array|object|null {
+        return $this->executeFetch(function ($stmt) use ($asObject) {
+            $data = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($asObject) {
+                return $data ? $this->hydrate($data) : null;
+            }
+            return $data ?: null;
         });
     }
 
-    public function get() {
-        return $this->executeFetch(function ($stmt) {
+    public function get(bool $asObjects = false) {
+        return $this->executeFetch(function ($stmt) use ($asObjects) {
             $rows = [];
             while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                $rows[] = $row;
+                if ($asObjects) {
+                    $rows[] = (new static())->hydrate($row);
+                } else {
+                    $rows[] = $row;
+                }
             }
             return $rows;
         });
@@ -105,6 +126,66 @@ class Model {
         }
         
         return null;
+    }
+    
+    public function getTableName(): string {
+        if (isset(static::$_tablename)) {
+            return static::$_tablename;
+        }
+        return strtolower(static::class) . 's';
+    }
+
+    public function insert(): array {
+        $reflectionClass = new ReflectionClass($this);
+        $tablename = $this->getTableName();
+        $columns = [];
+        $values = [];
+        $parameters = [];
+
+        foreach ($reflectionClass->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
+            $propertyName = $property->getName();
+            if ($propertyName != '_tablename') {
+                $columns[] = $propertyName;
+                $values[] = ":$propertyName";
+                $parameters[$propertyName] = $this->$propertyName;
+            }
+        }
+
+        $columnNames = implode(',', $columns);
+        $valuePlaceholders = implode(',', $values);
+        $query = "INSERT INTO $tablename ($columnNames) VALUES ($valuePlaceholders)";
+
+        return [
+            'query' => $query,
+            'parameters' => $parameters
+        ];
+    }
+
+    public function update(): array {
+        $reflectionClass = new ReflectionClass($this);
+        $tablename = $this->getTableName();
+        $updateFields = [];
+        $parameters = [];
+    
+        // Loop through each public property of the model
+        foreach ($reflectionClass->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
+            $propertyName = $property->getName();
+            if ($propertyName != '_tablename' && property_exists($this, $propertyName)) {
+                $updateFields[] = "$propertyName = :$propertyName";
+                $parameters[$propertyName] = $this->$propertyName;
+            }
+        }
+    
+        // Assuming there's an 'id' property to identify the record
+        $parameters['id'] = $this->id;
+    
+        $updateFieldsStr = implode(', ', $updateFields);
+        $query = "UPDATE $tablename SET $updateFieldsStr WHERE id = :id";
+    
+        return [
+            'query' => $query,
+            'parameters' => $parameters
+        ];
     }
     
     // Метод соединения с БД
