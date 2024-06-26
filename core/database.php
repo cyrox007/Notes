@@ -24,6 +24,12 @@ class DatabaseManager {
         $this->transactQueue[] = $updateData;
         return $this;
     }
+    
+    public function queueDelete(Model $model): self {
+        $updateData = $model->delete();
+        $this->transactQueue[] = $updateData;
+        return $this;
+    }
 
     public function commit(): bool {
         try {

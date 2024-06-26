@@ -187,6 +187,20 @@ class Model {
             'parameters' => $parameters
         ];
     }
+
+    public function delete(): array {
+        $tablename = $this->getTableName();
+
+        // Assuming there's an 'id' property to identify the record
+        $parameters = ['id' => $this->id];
+
+        $query = "DELETE FROM $tablename WHERE id = :id";
+
+        return [
+            'query' => $query,
+            'parameters' => $parameters
+        ];
+    }
     
     // Метод соединения с БД
     private function connectDb(): PDO {
