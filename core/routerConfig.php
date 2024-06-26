@@ -8,6 +8,6 @@ $router = new Route();
 $router->add('GET', '/', [Main::class, 'index']);
 $router->add('GET', '/Auth/login', [Auth::class, 'login']);
 $router->add('POST', '/Auth/login', [Auth::class, 'sigin']);
-$router->add('GET', '/test/{int:id}', [Auth::class, 'test']);
+$router->add('GET', '/test', [Auth::class, 'test']);
 
 $router->dispatch(); 

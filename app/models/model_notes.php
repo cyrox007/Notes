@@ -5,7 +5,17 @@ use Core\Model;
 use Core\Config;
 
     class Model_Notes extends Model {
-        public function __construct() {
+        protected static $_tablename = "notes";
+
+        public $id;
+        public string $uid;
+        public string $created_note;
+        public string $updated_note;
+        public string $notename;
+        public string $content;
+        public int $user_id;
+
+        /* public function __construct() {
             $this->config = new Config();
         }
 
@@ -102,5 +112,5 @@ use Core\Config;
             $db = $this->connect_db($this->config->db_name);
 
             $this->delete_data($db, "notes", "id", $note_id);
-        }
+        } */
     }
