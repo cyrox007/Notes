@@ -14,7 +14,7 @@
 
         xhr.open("POST", '/test');
         xhr.onload = () => {
-            console.log(JSON.parse(xhr.responseText));
+            console.log(xhr.responseText);
         };
 
         xhr.send(formData);

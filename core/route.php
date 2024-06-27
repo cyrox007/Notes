@@ -8,13 +8,13 @@ class Route {
 		return preg_replace('#[/]{2,}#', '/', $path);
 	}
 
-	public function add(string $method, string $path, array $controller): void {
+	public function add(string $method, string $path, array $controller, array $middlewares = []): void {
 		$path = $this->normalizePath($path);
 		$this->routes[] = [
 			'path' => $path,
 			'method' => strtoupper($method),
 			'controller' => $controller,
-			'middlewares' => []
+			'middlewares' => $middlewares
 		];
 	}
 
@@ -44,9 +44,15 @@ class Route {
 				continue;
 			}
 
+			$request = new \Core\Request();
+
+			if (!$this->executeMiddlewares($route['middlewares'], $request)) {
+				continue;
+			}
+
 			[$class, $function] = $route['controller'];
 			$controllerInstance = new $class;
-			$request = new \Core\Request();
+			
 
 			$params = $this->clearParams($params);
 
@@ -66,5 +72,14 @@ class Route {
 		}
 	}
 
-
+	private function executeMiddlewares(array $middlewares, \Core\Request $request): bool {
+		foreach ($middlewares as $middleware) {
+			$middlewareInstance = new $middleware();
+	
+			if (!$middlewareInstance->handle($request)) {
+				return false;
+			}
+		}
+		return true;
+	}
 }

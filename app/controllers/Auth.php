@@ -38,8 +38,6 @@ class Auth extends Controller {
     }
 
     function login() {
-        
-
         return $this->render_template('login_page/login_view');
     }
 
@@ -151,8 +149,8 @@ class Auth extends Controller {
         return $this->render_template("test");
     }
 
-    public function test_post(Request $request) {
-        $data = $request->all();
-        return $this->response_json($data);
+    public function test_post() {
+        /* $data = $request->all(); */
+        return $this->render_template("test");
     }
 }
