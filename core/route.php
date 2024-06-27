@@ -5,8 +5,7 @@ class Route {
 	private function normalizePath(string $path): string {
 		$path = trim($path, '/');
 		$path = "/{$path}/";
-		$path = preg_replace('#[/]{2,}#', '/', $path);
-		return $path;
+		return preg_replace('#[/]{2,}#', '/', $path);
 	}
 
 	public function add(string $method, string $path, array $controller): void {
@@ -24,9 +23,9 @@ class Route {
 		return "~^" . preg_replace($pattern, "(?P<$1>\w+)", $path) . "$~";
 	}
 
-	private function clearParams(array $mached): array {
+	private function clearParams(array $matched): array {
 		$result = [];
-		foreach ($mached as $key => $param) {
+		foreach ($matched as $key => $param) {
 			if (!is_int($key)) {
 				$result[$key] = $param;
 			}
@@ -34,35 +33,38 @@ class Route {
 		return $result;
 	}
 
-	public function dispatch() {
-    $request_url = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-    $request_url = $this->normalizePath($request_url);
+	public function dispatch(): void {
+		$requestUrl = $this->normalizePath(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH));
+		$requestMethod = strtoupper($_SERVER['REQUEST_METHOD']);
 
-    $request_method = strtoupper($_SERVER['REQUEST_METHOD']);
+		foreach ($this->routes as $route) {
+			$pathPattern = $this->create_pattern($route['path']);
 
-    foreach ($this->routes as $route) {
-        $path_pattern = $this->create_pattern($route['path']);
+			if (!$this->isMatchingRoute($pathPattern, $requestUrl, $route['method'], $requestMethod, $params)) {
+				continue;
+			}
 
-        if (
-            !preg_match($path_pattern, $request_url, $params) ||
-            $route['method'] !== $request_method
-        ) continue;
+			[$class, $function] = $route['controller'];
+			$controllerInstance = new $class;
+			$request = new \Core\Request();
 
-        [$class, $function] = $route['controller'];
+			$params = $this->clearParams($params);
 
-        // Инициализация контроллера и запроса
-        $controllerInstance = new $class;
-        $request = new \Core\Request(); // Предположение, что Request находится в \Core
+			$this->invokeController($controllerInstance, $function, $request, $params);
+		}
+	}
 
-        $params = $this->clearParams($params);
+	private function isMatchingRoute(string $pathPattern, string $requestUrl, string $routeMethod, string $requestMethod, &$params): bool {
+		return preg_match($pathPattern, $requestUrl, $params) && $routeMethod === $requestMethod;
+	}
 
-        // Логика вызова функции контроллера
-        if (empty($params)) {
-            $controllerInstance->{$function}($request); // Передаем объект Request
-        } else {
-            $controllerInstance->{$function}($request, ...$params); // Передаем объект Request и параметры
-        }
-    }
-}
+	private function invokeController(object $controllerInstance, string $function, \Core\Request $request, array $params): void {
+		if (empty($params)) {
+			$controllerInstance->{$function}($request);
+		} else {
+			$controllerInstance->{$function}($request, ...$params);
+		}
+	}
+
 
 }

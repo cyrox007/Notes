@@ -153,6 +153,6 @@ class Auth extends Controller {
 
     public function test_post(Request $request) {
         $data = $request->all();
-        echo json_encode($data);
+        return $this->response_json($data);
     }
 }
