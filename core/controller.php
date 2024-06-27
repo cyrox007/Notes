@@ -5,19 +5,21 @@ use Smarty\Smarty;
 
 class Controller {
 
-    public $model;
-    public $view;
-    public $config;
-    public $images;
-
     protected $smarty;
-    
-    function __construct() {
-        
+
+    public function __construct() {
+        ob_start();
     }
-    
-    function action_index() {
-        // Do something
+
+    public function __destruct() {
+        $output = ob_get_clean();
+        if (!empty($output)) {
+            if (is_string($output)) {
+                echo $output;
+            } elseif (is_array($output) || is_object($output)) {
+                $this->response_json((array) $output);
+            }
+        }
     }
 
     function render_template(string $template, ?array $data = null) {
