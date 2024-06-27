@@ -1,10 +1,6 @@
 <?php
 class Route {
 	private array $routes = [];
-
-	/* public function __get() {
-		return $this->routes;
-	} */
 	
 	private function normalizePath(string $path): string {
 		$path = trim($path, '/');
@@ -39,26 +35,34 @@ class Route {
 	}
 
 	public function dispatch() {
-		$request_url = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-		$request_url = $this->normalizePath($request_url);
-		
-		$request_method = strtoupper($_SERVER['REQUEST_METHOD']);
-		
-		foreach ($this->routes as $route) {
-			$path_pattern = $this->create_pattern($route['path']);
+    $request_url = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+    $request_url = $this->normalizePath($request_url);
 
-			if (
-				!preg_match($path_pattern, $request_url, $params) ||
-				$route['method'] !== $request_method
-			) continue;
+    $request_method = strtoupper($_SERVER['REQUEST_METHOD']);
 
-			[$class, $function] = $route['controller'];
+    foreach ($this->routes as $route) {
+        $path_pattern = $this->create_pattern($route['path']);
 
-			$controllerInstance = new $class;
-			$params = $this->clearParams($params);
+        if (
+            !preg_match($path_pattern, $request_url, $params) ||
+            $route['method'] !== $request_method
+        ) continue;
 
-			if (empty($params)) $controllerInstance->{$function}();
-			else $controllerInstance->{$function}(...$params);
-		}
-	}
+        [$class, $function] = $route['controller'];
+
+        // Инициализация контроллера и запроса
+        $controllerInstance = new $class;
+        $request = new \Core\Request(); // Предположение, что Request находится в \Core
+
+        $params = $this->clearParams($params);
+
+        // Логика вызова функции контроллера
+        if (empty($params)) {
+            $controllerInstance->{$function}($request); // Передаем объект Request
+        } else {
+            $controllerInstance->{$function}($request, ...$params); // Передаем объект Request и параметры
+        }
+    }
+}
+
 }

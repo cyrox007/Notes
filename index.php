@@ -1,7 +1,6 @@
 <?php
 ini_set('display_errors', 1);
 session_start();
-
 define('SITEPATH', __DIR__);
 
 // подключаем файлы ядра
@@ -9,46 +8,46 @@ define('SITEPATH', __DIR__);
 spl_autoload_register(function () {
     require SITEPATH . '/vendor/autoload.php';
     Dotenv\Dotenv::createUnsafeImmutable(SITEPATH)->load();
-    
-    require_once SITEPATH . '/core/config.php';
-    require_once SITEPATH . '/core/database.php';
-    require_once SITEPATH . '/core/model.php';
-    $methods_scripts = array_diff(scandir(SITEPATH . '/app/models/'), array('.', '..'));
-    foreach ($methods_scripts as $script) {
-        require_once SITEPATH . '/app/models/' . $script;
-    }
 
-    require_once SITEPATH . '/core/view.php';
-    
-    require_once SITEPATH . '/core/controller.php';
-    $methods_scripts = array_diff(scandir(SITEPATH . '/app/controllers/'), array('.', '..'));
-    foreach ($methods_scripts as $script) {
-        require_once SITEPATH . '/app/controllers/' . $script;
+    // Core files
+    $coreFiles = [
+        '/core/config.php',
+        '/core/database.php',
+        '/core/model.php',
+        '/core/view.php',
+        '/core/request.php',
+        '/core/controller.php',
+        '/core/helper.php',
+        '/core/images.php'
+    ];
+
+    foreach ($coreFiles as $file) {
+        require_once SITEPATH . $file;
     }
     
-    $methods_scripts = array_diff(scandir(SITEPATH . '/app/handlers/'), array('.', '..'));
-    foreach ($methods_scripts as $script) {
-        require_once SITEPATH . '/app/handlers/' . $script;
-    }
-    /*
-    Здесь обычно подключаются дополнительные модули, реализующие различный функционал:
-        > аутентификацию
-        > кеширование
-        > работу с формами
-        > абстракции для доступа к данным
-        > ORM
-        > Unit тестирование
-        > Benchmarking
-        > Работу с изображениями
-        > Backup
-        > и др.
-    */
-    require_once SITEPATH . '/core/helper.php';
-    require_once SITEPATH . '/core/images.php';
-    
+    // Load application models
+    loadDirectoryFiles(SITEPATH . '/app/models/');
+
+    // Load application controllers
+    loadDirectoryFiles(SITEPATH . '/app/controllers/');
+
+    // Load application handlers
+    loadDirectoryFiles(SITEPATH . '/app/handlers/');
 });
 
 // Маршрутизатор
 require_once SITEPATH . '/core/route.php';
 require_once SITEPATH . '/core/routerConfig.php';
+
+/**
+ * Load all PHP files in a directory excluding '.' and '..'
+ *
+ * @param string $dir Directory path
+ */
+function loadDirectoryFiles($dir) {
+    $scripts = array_diff(scandir($dir), ['.', '..']);
+    foreach ($scripts as $script) {
+        require_once $dir . $script;
+    }
+}
     

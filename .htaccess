@@ -2,3 +2,10 @@ RewriteEngine On
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule .* index.php [L]
+
+<IfModule mod_headers.c>
+    Header set Content-Security-Policy "default-src 'self'; connect-src 'self' http://notes.loc/; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://notes.loc; style-src 'self' https://notes.loc; img-src 'self';"
+    Header set X-Content-Security-Policy "default-src 'self'; connect-src 'self' http://notes.loc/; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://notes.loc; style-src 'self' https://notes.loc; img-src 'self';"
+</IfModule>
+
+

@@ -10,16 +10,17 @@ use Core\DatabaseManager;
 use App\Models\Model_Auth;
 use App\Helpers\CryptMethods;
 
-use App\Models\Model_Notes;
+use Core\Request;
 
 class Auth extends Controller {
     public $images;
-    
+
     public function __construct() {
-        $this->config = new Config();
+        parent::__construct();
+        /* $this->config = new Config();
         //$this->model = new Model_Auth();
         $this->view = new View();
-        $this->images = new Images();
+        $this->images = new Images(); */
     }
 
     function guidv4($data = null) {
@@ -138,7 +139,7 @@ class Auth extends Controller {
         //return $this->view->render_template('login_page/register_view.php', 'login_page/login_temp.php', $data);
     }
 
-    function test(): void {
+    function test() {
         /* $note = new Model_Notes();
         $note = $note->select('notes')->where('id', '=', 1)->first(true); */
         
@@ -147,6 +148,11 @@ class Auth extends Controller {
 
         $dbManager->queueUpdate($note);
         $dbManager->commit(); */
-        $this->response_json(["status" => "0"]);
+        return $this->render_template("test");
+    }
+
+    public function test_post(Request $request) {
+        $data = $request->all();
+        echo json_encode($data);
     }
 }

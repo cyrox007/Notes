@@ -6,9 +6,11 @@ use Smarty\Smarty;
 class Controller {
 
     protected $smarty;
+    protected $request;
 
     public function __construct() {
         ob_start();
+        $this->request = new Request();
     }
 
     public function __destruct() {
