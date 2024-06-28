@@ -1,6 +1,5 @@
 <?php
 ini_set('display_errors', 1);
-session_start();
 define('SITEPATH', __DIR__);
 
 // подключаем файлы ядра

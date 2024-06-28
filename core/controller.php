@@ -1,6 +1,7 @@
 <?php
 namespace Core;
 
+use Route;
 use Smarty\Smarty;
 
 class Controller {
@@ -11,6 +12,18 @@ class Controller {
     public function __construct() {
         ob_start();
         $this->request = new Request();
+
+        $this->smarty = new Smarty();
+        
+        $this->smarty->setTemplateDir(SITEPATH . "/app/views");
+        $this->smarty->setConfigDir(SITEPATH . "/config");
+        $this->smarty->setCompileDir(SITEPATH . '/compile');
+        $this->smarty->setCacheDir(SITEPATH . '/cache');
+
+        $this->smarty->setEscapeHtml(true);
+        
+        // Регистрация пользовательской функции для получения маршрута
+        $this->smarty->registerPlugin('function', 'route_path', [$this, 'getRoutePath']);
     }
 
     public function __destruct() {
@@ -24,22 +37,23 @@ class Controller {
         }
     }
 
-    function render_template(string $template, ?array $data = null) {
-        $this->smarty = new Smarty();
-        
-        $this->smarty->setTemplateDir(SITEPATH . "/app/views");
-        $this->smarty->setConfigDir(SITEPATH . "/config");
-        $this->smarty->setCompileDir(SITEPATH . '/compile');
-        $this->smarty->setCacheDir(SITEPATH . '/cache');
+    public function getRoutePath($params) {
+        $routeManager = Route::getInstance();  // Используем синглтон
+        if (!isset($params['name'])) {
+            return '';
+        }
 
-        $this->smarty->setEscapeHtml(true);
+        $route = $routeManager->getRoute($params['name']);
+        return $route ?? '';
+    }
 
+    protected function render_template(string $template, ?array $data = null) {
         if (!empty($data)) {
             foreach ($data as $key => $value) {
                 $this->smarty->assign($key, $value);
             }
         }
-        
+
         $this->smarty->display("{$template}.tpl");
     }
 

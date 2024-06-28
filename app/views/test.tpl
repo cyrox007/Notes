@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
 </head>
+{route_path name='main'}
 <body>
     <script>
         const xhr = new XMLHttpRequest();

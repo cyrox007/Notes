@@ -137,7 +137,7 @@ class Auth extends Controller {
         //return $this->view->render_template('login_page/register_view.php', 'login_page/login_temp.php', $data);
     }
 
-    function test() {
+    function test(Request $request) {
         /* $note = new Model_Notes();
         $note = $note->select('notes')->where('id', '=', 1)->first(true); */
         
@@ -146,6 +146,7 @@ class Auth extends Controller {
 
         $dbManager->queueUpdate($note);
         $dbManager->commit(); */
+        
         return $this->render_template("test");
     }
 

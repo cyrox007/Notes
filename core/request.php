@@ -6,6 +6,7 @@ class Request {
     private $post;
     private $server;
     private $json;
+    private $session;
 
     public function __construct() {
         // Заполнение свойств данными из суперглобальных массивов
@@ -15,30 +16,65 @@ class Request {
     }
 
     private function initialize() {
+        if (session_status() == PHP_SESSION_NONE) {
+            session_start();
+        }
+        
         $this->get = $_GET;
         $this->post = $_POST;
         $this->server = $_SERVER;
+        $this->session = &$_SESSION;
+    }
+
+    public function session($key = null, $default = null) {
+        return $key === null ? $this->session : ($this->session[$key] ?? $default);
+    }
+
+    public function setSession($key, $value) {
+        $_SESSION[$key] = $value;
+        $this->session[$key] = $value; // Обновление локальной переменной
+        error_log("Set session: [$key] => " . print_r($value, true));
+    }
+
+    public function unsetSession($key) {
+        unset($_SESSION[$key]);
+        unset($this->session[$key]); // Обновление локальной переменной
     }
 
     private function parseJson() {
         $input = file_get_contents('php://input');
-        $this->json = json_decode($input, true);
+        $this->json = $this->sanitize(json_decode($input, true));
+    }
+
+    private function sanitize($data) {
+        if (is_array($data)) {
+            foreach ($data as $key => $value) {
+                $data[$key] = $this->sanitize($value);
+            }
+            return $data;
+        }
+    
+        return is_string($data) ? htmlspecialchars($data, ENT_QUOTES, 'UTF-8') : $data;
     }
     
     public function get($key = null, $default = null) {
-        return $key === null ? $this->get : ($this->get[$key] ?? $default);
+        $data = $key === null ? $this->get : ($this->get[$key] ?? $default);
+        return $this->sanitize($data);
     }
-
+    
     public function post($key = null, $default = null) {
-        return $key === null ? $this->post : ($this->post[$key] ?? $default);
+        $data = $key === null ? $this->post : ($this->post[$key] ?? $default);
+        return $this->sanitize($data);
     }
-
+    
     public function json($key = null, $default = null) {
-        return $key === null ? $this->json : ($this->json[$key] ?? $default);
+        $data = $key === null ? $this->json : ($this->json[$key] ?? $default);
+        return $this->sanitize($data);
     }
-
+    
     public function server($key = null, $default = null) {
-        return $key === null ? $this->server : ($this->server[$key] ?? $default);
+        $data = $key === null ? $this->server : ($this->server[$key] ?? $default);
+        return $this->sanitize($data);
     }
 
     public function all() {

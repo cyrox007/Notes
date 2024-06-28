@@ -1,6 +1,17 @@
 <?php
 class Route {
-	private array $routes = [];
+	private static $instance;
+    protected $routes = [];
+
+    private function __construct() {}
+    private function __clone() {}
+
+	public static function getInstance(): Route {
+        if (self::$instance === null) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
 	
 	private function normalizePath(string $path): string {
 		$path = trim($path, '/');
@@ -8,14 +19,20 @@ class Route {
 		return preg_replace('#[/]{2,}#', '/', $path);
 	}
 
-	public function add(string $method, string $path, array $controller, array $middlewares = []): void {
+	public function add(string $method, string $path, array $controller, array $middlewares = [], string $name = ''): void {
 		$path = $this->normalizePath($path);
-		$this->routes[] = [
+		$route = [
 			'path' => $path,
 			'method' => strtoupper($method),
 			'controller' => $controller,
 			'middlewares' => $middlewares
 		];
+
+		if (!empty($name)) {
+            $route['name'] = $name;
+        }
+
+		$this->routes[] = $route;
 	}
 
 	private function create_pattern(string $path): string {
@@ -82,4 +99,43 @@ class Route {
 		}
 		return true;
 	}
+
+	public function redirect(string $to): void {
+        if (filter_var($to, FILTER_VALIDATE_URL)) {
+            header("Location: $to");
+        } else {
+            $route = $this->findRouteByName($to) ?? $this->findRouteByPath($to);
+            if ($route) {
+                $url = $route['path'];
+                header("Location: $url");
+            } else {
+                throw new \Exception("Route for redirect not found: $to");
+            }
+        }
+        exit();
+    }
+
+	private function findRouteByName(string $name): ?array {
+        foreach ($this->routes as $route) {
+            if (isset($route['name']) && $route['name'] === $name) {
+                return $route;
+            }
+        }
+        return null;
+    }
+
+	public function getRoute(string $name): string {
+		$route = $this->findRouteByName($name);
+		return $route['path'] ?? '';
+	}
+
+	
+	private function findRouteByPath(string $path): ?array {
+        foreach ($this->routes as $route) {
+            if (isset($route['path']) && $route['path'] === $path) {
+                return $route;
+            }
+        }
+        return null;
+    }
 }
