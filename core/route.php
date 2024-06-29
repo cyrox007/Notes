@@ -100,18 +100,20 @@ class Route {
 		return true;
 	}
 
-	public function redirect(string $to): void {
-        if (filter_var($to, FILTER_VALIDATE_URL)) {
+	public function redirect(string $to, string $type = 'url'): void {
+        if ($type === 'url' && filter_var($to, FILTER_VALIDATE_URL)) {
             header("Location: $to");
-        } else {
-            $route = $this->findRouteByName($to) ?? $this->findRouteByPath($to);
+        } elseif ($type === 'name') {
+            $route = $this->findRouteByName($to);
             if ($route) {
                 $url = $route['path'];
                 header("Location: $url");
             } else {
                 throw new \Exception("Route for redirect not found: $to");
             }
-        }
+        } else {
+			throw new \Exception("Invalid type provided for redirect: $type");
+		}
         exit();
     }
 
