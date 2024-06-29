@@ -5,10 +5,12 @@ use Core\Request;
 use Route;
 
 class LoginRequared {
-    public function handle(Request $request) {
+    public function handle(Request $request): bool {
         $routeManager = Route::getInstance();
         if (!$request->session("auth")) {
             return $routeManager->redirect('authpage', 'name');
-        } 
+        }
+
+        return true;
     }
 }

@@ -4,15 +4,31 @@ namespace App\Models;
 use Core\Model;
 use Core\Config;
 
-class Model_Auth extends Model {
+class UserModel extends Model {
     protected static $_tablename = "users";
+    
     public $id;
+    public $uid;
     public string $username;
+    public string $email;
+    public string $password;
+    public string $firstname;
+    public string $surname;
+    public string $patronymic;
+    public string $phone;
+    public string $property;
+    public int $role;
+    public string $reg_date;
+    public string $service_token;
+    public string $user_status;
+    public string $user_image;
+    public int $socket_connection_id;
 
-    /* private $config;
-    public function __construct() {
-        $this->config = new Config();
-    } */
+    public function get_user_by_login(string $login) {
+        return $this->select('users')
+        ->where('username', '=', $login)
+        ->first();
+    }
 
     /* public function get_data_password($login) {
         //$db = $this->connect_db(); // коннектимся к базе

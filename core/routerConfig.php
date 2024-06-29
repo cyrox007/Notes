@@ -1,16 +1,22 @@
 <?php
 
-use App\Controller\Main;
-use App\Controller\Auth;
-
+use App\Controller\MainController;
+use App\Controller\AuthController;
+use App\Controller\NoteController;
 use App\Middlewares\LoginRequared;
 
 $router = Route::getInstance();
 
-$router->add('GET', '/', [Main::class, 'index'], [LoginRequared::class]);
-$router->add('GET', '/Auth/login', [Auth::class, 'login'], [], "authpage");
-$router->add('POST', '/Auth/login', [Auth::class, 'sigin']);
-$router->add('GET', '/test', [Auth::class, 'test']);
-$router->add('POST', '/test', [Auth::class, 'test_post'], [], 'main');
+$router->add('GET', '/', [MainController::class, 'index'], [LoginRequared::class], 'main');
+
+$router->group('/auth', function ($addRoute) {
+    $addRoute('GET', '/login', [AuthController::class, 'login'], [], "authpage");
+    $addRoute('POST', '/login', [AuthController::class, 'sigin']);
+    $addRoute('POST', '/logout', [AuthController::class, 'logout'], [LoginRequared::class], 'logout');
+});
+
+$router->group('/notes', function ($addRoute) {
+    $addRoute("GET", '/', [NoteController::class, 'index'], [LoginRequared::class], 'notes');    
+});
 
 $router->dispatch(); 

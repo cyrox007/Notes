@@ -1,24 +1,28 @@
 <aside class="sidebar">
 	<a href="/" class="sidebar__site-title">
-		<img src="<?php echo $data['tpl_images']['logo']; ?>" alt="AdminLTE Logo" class="brand-image img-circle elevation-3" style="opacity: .8">
-		<span class="brand-text font-weight-light"><? echo $data['site']['sitename']; ?></span>
+		{html_image file='assets/img/AdminLTELogo.png' alt="AdminLTE Logo" class="brand-image img-circle elevation-3" style="opacity: .8"}
+		<span class="brand-text font-weight-light">{$smarty.env.SITENAME}</span>
 	</a>
 
 	<div class="sidebar__content">
 		<div class="sidebar__user-panel">
 			<div class="sidebar__user-image">
-				<img src="<?php echo $data['user-photo']; ?>" class="img-circle elevation-2" alt="User Image">
+				{if $user['user_image'] == 'default_img'}
+					{html_image file="assets/img/default_avatar.png" alt="{$user['firstname']} {$user['surname']}" class="img-circle elevation-2"}
+				{else}
+					
+				{/if}
 			</div>
 			<div class="sidebar__user-info">
 				<a href="/Profile" class="d-block">
-					<?php echo $data['user-name'] . ' ' . $data['user-surname']; ?>
+					{$user['firstname']} {$user['surname']}
 				</a>
 			</div>
 		</div>
 
 		<nav class="sidebar__menu">
 			<div class="sidebar__menu-item">
-				<a href="/Notes" class="sidebar__menu-link">
+				<a href="{route_path name="notes"}" class="sidebar__menu-link">
 					<i class="fa fa-paperclip" aria-hidden="true"></i>
 					<p>Блокнот</p>
 				</a>

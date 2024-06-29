@@ -29,10 +29,23 @@ class Route {
 		];
 
 		if (!empty($name)) {
-            $route['name'] = $name;
-        }
+			$route['name'] = $name;
+		}
 
 		$this->routes[] = $route;
+	}
+
+	public function group(string $prefix, callable $callback): void {
+		$currentPrefix = $prefix;
+
+		// Создаем временную функцию для сохранения префикса
+		$addWithPrefix = function(string $method, string $path, array $handler, array $middlewares = [], string $name = '') use ($currentPrefix) {
+			$fullPath = $this->normalizePath($currentPrefix . $path);
+			$this->add($method, $fullPath, $handler, $middlewares, $name);
+		};
+
+		// Вызываем колбэк, передавая временную функцию как аргумент
+		$callback($addWithPrefix);
 	}
 
 	private function create_pattern(string $path): string {

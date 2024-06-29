@@ -4,6 +4,8 @@ namespace Core;
 use Route;
 use Smarty\Smarty;
 
+use App\Middlewares\CSRFMiddleware;
+
 class Controller {
 
     protected $smarty;
@@ -24,6 +26,12 @@ class Controller {
         
         // Регистрация пользовательской функции для получения маршрута
         $this->smarty->registerPlugin('function', 'route_path', [$this, 'getRoutePath']);
+        $this->smarty->registerPlugin('function', 'csrf_token', [$this, 'getCSRFInputTag']);
+        $this->smarty->registerPlugin('function', 'session', [$this, 'getSession']);
+
+        // Добавляем CSRF проверку для всех POST-запросов
+        $csrfMiddleware = new CSRFMiddleware();
+        $csrfMiddleware->handle();
     }
 
     public function __destruct() {
@@ -45,6 +53,14 @@ class Controller {
 
         $route = $routeManager->getRoute($params['name']);
         return $route ?? '';
+    }
+
+    public function getCSRFInputTag(): string {
+        return Helper::getCSRFInputTag();
+    }
+
+    public function getSession($params): ?string {
+        return $this->request->session($params['key']) ?? null;
     }
 
     protected function render_template(string $template, ?array $data = null) {

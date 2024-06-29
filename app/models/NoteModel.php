@@ -4,7 +4,7 @@ namespace App\Models;
 use Core\Model;
 use Core\Config;
 
-    class Model_Notes extends Model {
+    class NoteModel extends Model {
         protected static $_tablename = "notes";
 
         public $id;

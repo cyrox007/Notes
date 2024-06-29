@@ -1,69 +1,26 @@
 <?php
 namespace App\Controller;
 
+use App\Models\NoteModel;
+use App\Models\UserModel;
 use Core\Controller;
+use Core\Request;
 
-    class Notes extends Controller {
-        public function __construct() {
-            $this->config = new Config();
-            $this->model = new Model_Notes();
-            $this->view = new View();
-        }
-        
-        function action_index() {
-            if ($_SESSION['auth_login'] == null) // проверим факт авторизованности
-                header("Location: /Auth/login");
+    class NoteController extends Controller {
+        public function index(Request $request) {
+            $userModel = new UserModel();
+            $user = $userModel->select('users')->where('uid', '=', $request->session('user_uid'))->first();
 
-            $user = $_SESSION['auth_login']; // пользователя авторизованного в сессии
-            $user_info = $this->model->getUser_data($user); // получаем информацию о нем
-            
-            if ($user_info['role'] >= $this->config->user_role_inactive) {
-                header('Location: /Error/accessDenied');
-            }
-
-            if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-                $dtime = date('Ymd_His'); // текущее дата и время
-                $filename = $dtime.'_'.$_POST['note-name'].".txt"; // формируем имя заметки 
-                $filepath = $this->config->dir_notes.$filename; // формируем путь к заметке
-                $file = fopen($filepath, "w"); // создаем файл 
-                fclose($file); // закрываем файл
-                
-                $new_note = $this->model->createNewNote($_POST['note-name'], $filepath, $user, $user_info['id']);
-                
-                $location = 'Notes/edit/'.$new_note;
-                header('Location: ' .$location);
-            }
-
-            function isAdmin($user, $admin) {
-                if ($user > $admin)
-                    return false;
-                
-                return true;
-            }
-
+            $noteModel = new NoteModel();
+            $userNotes = $noteModel->select('notes')->where('user_id', '=', $user['id'])->get();
+            $allNotes = $noteModel->select('notes')->get();
             $data = [
-                'styles' => [
-                    'main-style' => $this->config->base_url().'templates/css/style.css',
-                    'font-awesome' => $this->config->base_url().'templates/img/icons/css/font-awesome.css',
-                ],
-                'font-awesome' => $this->config->base_url().'templates/img/icons/css/font-awesome.css',
-                'script' => $this->config->base_url().'templates/js/script.js',
-                'tpl_images' => [
-                    'logo' => $this->config->base_url().'templates/img/AdminLTELogo.png'
-                ],
-                'site' => $this->config->site,
-                'title' => 'Блокнот',
-                'notes' => $this->model->getPersonalNotes($user_info['id']),
-                'all-notes' => $this->model->getAllNotes(),
-                'user' => $user,
-                'user_id' => $user_info['id'],
-                'admin' => isAdmin($user_info['role'], $this->config->user_role_admin),
-                'user-name' => $user_info['first_name'],
-                'user-surname' => $user_info['surname'],
-                'user-photo' => $user_info['user_photo'],
-            ];
+                'personalNotes' => $userNotes,
+                'allNotes' => $allNotes,
+                'user' => $user
+            ]; 
 
-            $this->view->render_template('notes_page/main_view.php', 'core/template_view.php', $data);
+            $this->render_template('notes_page/index', $data);
         }
 
         function action_edit() {

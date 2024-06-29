@@ -12,6 +12,7 @@
         </div>
         <div class="login-page__card">
             <form action="" method="post">
+                {csrf_token}
                 <input type="text" name="login" id="login" placeholder="Логин" required>
                 <input type="password" name="password" id="password" placeholder="Пароль" required>
                 {if ($errors)}

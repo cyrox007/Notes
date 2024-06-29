@@ -2,75 +2,51 @@
 namespace App\Controller;
 
 use Core\Controller;
-use Core\View;
-use Core\Images;
-use Core\Config;
-use Core\DatabaseManager;
 
-use App\Models\Model_Auth;
 use App\Helpers\CryptMethods;
-
+use App\Models\UserModel;
 use Core\Request;
+use Route;
 
-class Auth extends Controller {
+class AuthController extends Controller {
     public $images;
 
     public function __construct() {
         parent::__construct();
-        /* $this->config = new Config();
-        //$this->model = new Model_Auth();
-        $this->view = new View();
-        $this->images = new Images(); */
-    }
-
-    function guidv4($data = null) {
-        // Generate 16 bytes (128 bits) of random data or use the data passed into the function.
-        $data = $data ?? random_bytes(16);
-        assert(strlen($data) == 16);
-    
-        // Set version to 0100
-        $data[6] = chr(ord($data[6]) & 0x0f | 0x40);
-        // Set bits 6-7 to 10
-        $data[8] = chr(ord($data[8]) & 0x3f | 0x80);
-    
-        // Output the 36 character UUID.
-        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
 
     function login() {
         return $this->render_template('login_page/login_view');
     }
 
-    function sigin() {
-        $data['errors'] = [];
-
-        if (isset($_POST['login']) && isset($_POST['password'])) {
-            $login = $_POST['login']; // получаем логин
-            $password = CryptMethods::createHashFromPassword($_POST['password']); // получаем введенный пароль
-
-            $pass = $this->model->get_data_password($login); // получаем значение из БД
-            
-            if ($password === $pass) {
-                $_SESSION['auth_login'] = $login;
-                return header("Location: /");
-            } else {
-                $data['errors'] = [
-                    [
-                        "CODE" => "Auth error",
-                        "MESSAGE" => "Неправильный логин или пароль"
-                    ]
-                ];
-            }
+    function sigin(Request $request) {
+        $login = $request->post('login'); // получаем логин
+        $password = $request->post('password'); // получаем введенный пароль
+        
+        $userModel = new UserModel();
+        $userData = $userModel->get_user_by_login($login);
+        
+        if (!CryptMethods::verifyPassword($password, $userData['password'])) {
+            $data['errors'] = [
+                "CODE" => 'login_error',
+                "MESSAGE" => "Password error"
+            ];
+            return $this->render_template('login_page/login_view', $data);
         }
+        
+        $request->setSession('auth', true);
+        $request->setSession('user_uid', $userData['uid']);
 
-        return $this->render_template('login_page/login_view', $data); 
+        return Route::getInstance()->redirect('main', 'name'); 
     } 
 
-    function action_logout() {
-        if (isset($_SESSION['auth_login'])) {
-            unset($_SESSION['auth_login']);
+    function logout(Request $request) {
+        if (empty($request->session('auth'))) {
+            return Route::getInstance()->redirect('main');
         }
-        header("Location: /");
+
+        $request->unsetSession("auth");
+        return Route::getInstance()->redirect('authpage', 'name');
     }
 
     function action_registration() {
@@ -119,7 +95,7 @@ class Auth extends Controller {
                 'password' => "$user_password",
                 'role' => $user_role
             ]; // первый пакет данных в основную таблицу пользователя
-            //var_dump($pack1);
+            
             $pack2 = [
                 'first_name' => $user_firstname,
                 'patronymic' => $user_patronymic,
@@ -135,23 +111,5 @@ class Auth extends Controller {
         }
 
         //return $this->view->render_template('login_page/register_view.php', 'login_page/login_temp.php', $data);
-    }
-
-    function test(Request $request) {
-        /* $note = new Model_Notes();
-        $note = $note->select('notes')->where('id', '=', 1)->first(true); */
-        
-        /* $note->notename = "TestUpdate";
-        $dbManager = new DatabaseManager();
-
-        $dbManager->queueUpdate($note);
-        $dbManager->commit(); */
-        
-        return $this->render_template("test");
-    }
-
-    public function test_post() {
-        /* $data = $request->all(); */
-        return $this->render_template("test");
     }
 }
