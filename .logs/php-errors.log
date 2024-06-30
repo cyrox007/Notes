@@ -1,0 +1,512 @@
+[30-Jun-2024 21:36:30 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\models\FieldModel.php
+[30-Jun-2024 21:36:30 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\models\model_messager.php
+[30-Jun-2024 21:36:30 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\models\NoteModel.php
+[30-Jun-2024 21:36:30 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\models\UserModel.php
+[30-Jun-2024 21:36:30 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\controllers\Admin\AdminController.php
+[30-Jun-2024 21:36:30 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\controllers\AuthController.php
+[30-Jun-2024 21:36:30 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\controllers\Error.php
+[30-Jun-2024 21:36:30 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\controllers\MainController.php
+[30-Jun-2024 21:36:30 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\controllers\Messager.php
+[30-Jun-2024 21:36:30 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\controllers\NoteController.php
+[30-Jun-2024 21:36:30 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\controllers\ProfileController.php
+[30-Jun-2024 21:36:30 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\handlers\CryptMethods.php
+[30-Jun-2024 21:36:30 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\handlers\UUID.php
+[30-Jun-2024 21:36:30 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\middlewares\CSRFMiddleware.php
+[30-Jun-2024 21:36:30 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\middlewares\IsAdmin.php
+[30-Jun-2024 21:36:30 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\middlewares\LoginRequared.php
+[30-Jun-2024 21:36:30 Etc/GMT-3] $_GET: Array
+(
+)
+
+[30-Jun-2024 21:36:30 Etc/GMT-3] $_POST: Array
+(
+)
+
+[30-Jun-2024 21:36:30 Etc/GMT-3] $_SERVER: Array
+(
+    [REDIRECT_UNIQUE_ID] => ZoGlrWNrBssAxfoCE92gqgAAPxs
+    [REDIRECT_HTTPS] => on
+    [REDIRECT_SSL_TLS_SNI] => notes.loc
+    [REDIRECT_HTTP2] => on
+    [REDIRECT_H2PUSH] => on
+    [REDIRECT_H2_PUSH] => on
+    [REDIRECT_H2_PUSHED] => 
+    [REDIRECT_H2_PUSHED_ON] => 
+    [REDIRECT_H2_STREAM_ID] => 11
+    [REDIRECT_H2_STREAM_TAG] => 1868-79-11
+    [REDIRECT_STATUS] => 200
+    [UNIQUE_ID] => ZoGlrWNrBssAxfoCE92gqgAAPxs
+    [HTTPS] => on
+    [SSL_TLS_SNI] => notes.loc
+    [SSL_SERVER_S_DN_CN] => notes.loc
+    [SSL_SERVER_I_DN_Email] => root@ospanel.local
+    [SSL_SERVER_I_DN_C] => EU
+    [SSL_SERVER_I_DN_ST] => Local Network
+    [SSL_SERVER_I_DN_O] => Open Server Panel
+    [SSL_SERVER_I_DN_CN] => Open Server Panel
+    [SSL_SERVER_SAN_DNS_0] => notes.loc
+    [SSL_SERVER_SAN_DNS_1] => www.notes.loc
+    [SSL_VERSION_INTERFACE] => mod_ssl/2.4.59
+    [SSL_VERSION_LIBRARY] => OpenSSL/3.1.5
+    [SSL_PROTOCOL] => TLSv1.3
+    [SSL_SECURE_RENEG] => false
+    [SSL_COMPRESS_METHOD] => NULL
+    [SSL_CIPHER] => TLS_AES_128_GCM_SHA256
+    [SSL_CIPHER_EXPORT] => false
+    [SSL_CIPHER_USEKEYSIZE] => 128
+    [SSL_CIPHER_ALGKEYSIZE] => 128
+    [SSL_CLIENT_VERIFY] => NONE
+    [SSL_SERVER_M_VERSION] => 3
+    [SSL_SERVER_M_SERIAL] => 0AE1329B7B5449226A5A5F0F34D2C21521EDB16D
+    [SSL_SERVER_V_START] => Jun  2 10:55:07 2024 GMT
+    [SSL_SERVER_V_END] => May 31 10:55:07 2034 GMT
+    [SSL_SERVER_S_DN] => CN=notes.loc
+    [SSL_SERVER_I_DN] => CN=Open Server Panel,O=Open Server Panel,ST=Local Network,C=EU,emailAddress=root@ospanel.local
+    [SSL_SERVER_A_KEY] => id-ecPublicKey
+    [SSL_SERVER_A_SIG] => ecdsa-with-SHA256
+    [SSL_SESSION_ID] => 3ee72841659638f2c0a6e969baa8452d407c859871b63a8b4b25c18d615b0cbd
+    [SSL_SESSION_RESUMED] => Resumed
+    [HTTP2] => on
+    [H2PUSH] => on
+    [H2_PUSH] => on
+    [H2_PUSHED] => 
+    [H2_PUSHED_ON] => 
+    [H2_STREAM_ID] => 11
+    [H2_STREAM_TAG] => 1868-79-11
+    [HTTP_USER_AGENT] => Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0
+    [HTTP_ACCEPT] => text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/png,image/svg+xml,*/*;q=0.8
+    [HTTP_ACCEPT_LANGUAGE] => ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3
+    [HTTP_ACCEPT_ENCODING] => gzip, deflate, br, zstd
+    [HTTP_REFERER] => https://notes.loc/notes/
+    [HTTP_COOKIE] => PHPSESSID=spjp95rkppldvuccn1eho5vfent2lobu
+    [HTTP_UPGRADE_INSECURE_REQUESTS] => 1
+    [HTTP_SEC_FETCH_DEST] => document
+    [HTTP_SEC_FETCH_MODE] => navigate
+    [HTTP_SEC_FETCH_SITE] => same-origin
+    [HTTP_SEC_FETCH_USER] => ?1
+    [HTTP_PRIORITY] => u=0, i
+    [HTTP_PRAGMA] => no-cache
+    [HTTP_CACHE_CONTROL] => no-cache
+    [HTTP_TE] => trailers
+    [HTTP_HOST] => notes.loc
+    [PATH] => E:\OSPanel\bin;E:\OSPanel\modules\PHP-8.1\Apache\bin;E:\OSPanel\modules\PHP-8.1\PHP;E:\OSPanel\data\PHP-8.1\default\composer\vendor\bin;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0
+    [SystemRoot] => C:\WINDOWS
+    [COMSPEC] => C:\WINDOWS\system32\cmd.exe
+    [PATHEXT] => .COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC
+    [WINDIR] => C:\WINDOWS
+    [SERVER_SIGNATURE] => 
+    [SERVER_SOFTWARE] => Apache
+    [SERVER_NAME] => notes.loc
+    [SERVER_ADDR] => 127.127.126.32
+    [SERVER_PORT] => 443
+    [REMOTE_ADDR] => 127.0.0.1
+    [DOCUMENT_ROOT] => E:/OSPanel/home/notes.loc
+    [REQUEST_SCHEME] => https
+    [CONTEXT_PREFIX] => 
+    [CONTEXT_DOCUMENT_ROOT] => E:/OSPanel/home/notes.loc
+    [SERVER_ADMIN] => [no address given]
+    [SCRIPT_FILENAME] => E:/OSPanel/home/notes.loc/index.php
+    [REMOTE_PORT] => 60738
+    [REDIRECT_URL] => /notes/
+    [GATEWAY_INTERFACE] => CGI/1.1
+    [SERVER_PROTOCOL] => HTTP/2.0
+    [REQUEST_METHOD] => GET
+    [QUERY_STRING] => 
+    [REQUEST_URI] => /notes/
+    [SCRIPT_NAME] => /index.php
+    [PHP_SELF] => /index.php
+    [REQUEST_TIME_FLOAT] => 1719772589.9972
+    [REQUEST_TIME] => 1719772589
+    [argv] => Array
+        (
+        )
+
+    [argc] => 0
+    [SITENAME] => Workspace
+    [VERSION] => 0.6.4
+    [SITEURL] => https://notes.loc
+    [DBHOST] => MySQL-8.0
+    [DBPORT] => 3306
+    [DBUSER] => root
+    [DBPASS] => 
+    [DBNAME] => workspace
+    [UNIQUE_KEY] => z5(1)B->?x7%$-?#7__%%!zCz1$)%Cxx?%x_##<1)D?0&x#^|-!<&-|-^^x7/zy-^($*68*!^9%x-0@z<97^$/A!zy#y3A*97&*1
+)
+
+[30-Jun-2024 21:36:30 Etc/GMT-3] $_GET: Array
+(
+)
+
+[30-Jun-2024 21:36:30 Etc/GMT-3] $_POST: Array
+(
+)
+
+[30-Jun-2024 21:36:30 Etc/GMT-3] $_SERVER: Array
+(
+    [REDIRECT_UNIQUE_ID] => ZoGlrWNrBssAxfoCE92gqgAAPxs
+    [REDIRECT_HTTPS] => on
+    [REDIRECT_SSL_TLS_SNI] => notes.loc
+    [REDIRECT_HTTP2] => on
+    [REDIRECT_H2PUSH] => on
+    [REDIRECT_H2_PUSH] => on
+    [REDIRECT_H2_PUSHED] => 
+    [REDIRECT_H2_PUSHED_ON] => 
+    [REDIRECT_H2_STREAM_ID] => 11
+    [REDIRECT_H2_STREAM_TAG] => 1868-79-11
+    [REDIRECT_STATUS] => 200
+    [UNIQUE_ID] => ZoGlrWNrBssAxfoCE92gqgAAPxs
+    [HTTPS] => on
+    [SSL_TLS_SNI] => notes.loc
+    [SSL_SERVER_S_DN_CN] => notes.loc
+    [SSL_SERVER_I_DN_Email] => root@ospanel.local
+    [SSL_SERVER_I_DN_C] => EU
+    [SSL_SERVER_I_DN_ST] => Local Network
+    [SSL_SERVER_I_DN_O] => Open Server Panel
+    [SSL_SERVER_I_DN_CN] => Open Server Panel
+    [SSL_SERVER_SAN_DNS_0] => notes.loc
+    [SSL_SERVER_SAN_DNS_1] => www.notes.loc
+    [SSL_VERSION_INTERFACE] => mod_ssl/2.4.59
+    [SSL_VERSION_LIBRARY] => OpenSSL/3.1.5
+    [SSL_PROTOCOL] => TLSv1.3
+    [SSL_SECURE_RENEG] => false
+    [SSL_COMPRESS_METHOD] => NULL
+    [SSL_CIPHER] => TLS_AES_128_GCM_SHA256
+    [SSL_CIPHER_EXPORT] => false
+    [SSL_CIPHER_USEKEYSIZE] => 128
+    [SSL_CIPHER_ALGKEYSIZE] => 128
+    [SSL_CLIENT_VERIFY] => NONE
+    [SSL_SERVER_M_VERSION] => 3
+    [SSL_SERVER_M_SERIAL] => 0AE1329B7B5449226A5A5F0F34D2C21521EDB16D
+    [SSL_SERVER_V_START] => Jun  2 10:55:07 2024 GMT
+    [SSL_SERVER_V_END] => May 31 10:55:07 2034 GMT
+    [SSL_SERVER_S_DN] => CN=notes.loc
+    [SSL_SERVER_I_DN] => CN=Open Server Panel,O=Open Server Panel,ST=Local Network,C=EU,emailAddress=root@ospanel.local
+    [SSL_SERVER_A_KEY] => id-ecPublicKey
+    [SSL_SERVER_A_SIG] => ecdsa-with-SHA256
+    [SSL_SESSION_ID] => 3ee72841659638f2c0a6e969baa8452d407c859871b63a8b4b25c18d615b0cbd
+    [SSL_SESSION_RESUMED] => Resumed
+    [HTTP2] => on
+    [H2PUSH] => on
+    [H2_PUSH] => on
+    [H2_PUSHED] => 
+    [H2_PUSHED_ON] => 
+    [H2_STREAM_ID] => 11
+    [H2_STREAM_TAG] => 1868-79-11
+    [HTTP_USER_AGENT] => Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0
+    [HTTP_ACCEPT] => text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/png,image/svg+xml,*/*;q=0.8
+    [HTTP_ACCEPT_LANGUAGE] => ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3
+    [HTTP_ACCEPT_ENCODING] => gzip, deflate, br, zstd
+    [HTTP_REFERER] => https://notes.loc/notes/
+    [HTTP_COOKIE] => PHPSESSID=spjp95rkppldvuccn1eho5vfent2lobu
+    [HTTP_UPGRADE_INSECURE_REQUESTS] => 1
+    [HTTP_SEC_FETCH_DEST] => document
+    [HTTP_SEC_FETCH_MODE] => navigate
+    [HTTP_SEC_FETCH_SITE] => same-origin
+    [HTTP_SEC_FETCH_USER] => ?1
+    [HTTP_PRIORITY] => u=0, i
+    [HTTP_PRAGMA] => no-cache
+    [HTTP_CACHE_CONTROL] => no-cache
+    [HTTP_TE] => trailers
+    [HTTP_HOST] => notes.loc
+    [PATH] => E:\OSPanel\bin;E:\OSPanel\modules\PHP-8.1\Apache\bin;E:\OSPanel\modules\PHP-8.1\PHP;E:\OSPanel\data\PHP-8.1\default\composer\vendor\bin;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0
+    [SystemRoot] => C:\WINDOWS
+    [COMSPEC] => C:\WINDOWS\system32\cmd.exe
+    [PATHEXT] => .COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC
+    [WINDIR] => C:\WINDOWS
+    [SERVER_SIGNATURE] => 
+    [SERVER_SOFTWARE] => Apache
+    [SERVER_NAME] => notes.loc
+    [SERVER_ADDR] => 127.127.126.32
+    [SERVER_PORT] => 443
+    [REMOTE_ADDR] => 127.0.0.1
+    [DOCUMENT_ROOT] => E:/OSPanel/home/notes.loc
+    [REQUEST_SCHEME] => https
+    [CONTEXT_PREFIX] => 
+    [CONTEXT_DOCUMENT_ROOT] => E:/OSPanel/home/notes.loc
+    [SERVER_ADMIN] => [no address given]
+    [SCRIPT_FILENAME] => E:/OSPanel/home/notes.loc/index.php
+    [REMOTE_PORT] => 60738
+    [REDIRECT_URL] => /notes/
+    [GATEWAY_INTERFACE] => CGI/1.1
+    [SERVER_PROTOCOL] => HTTP/2.0
+    [REQUEST_METHOD] => GET
+    [QUERY_STRING] => 
+    [REQUEST_URI] => /notes/
+    [SCRIPT_NAME] => /index.php
+    [PHP_SELF] => /index.php
+    [REQUEST_TIME_FLOAT] => 1719772589.9972
+    [REQUEST_TIME] => 1719772589
+    [argv] => Array
+        (
+        )
+
+    [argc] => 0
+    [SITENAME] => Workspace
+    [VERSION] => 0.6.4
+    [SITEURL] => https://notes.loc
+    [DBHOST] => MySQL-8.0
+    [DBPORT] => 3306
+    [DBUSER] => root
+    [DBPASS] => 
+    [DBNAME] => workspace
+    [UNIQUE_KEY] => z5(1)B->?x7%$-?#7__%%!zCz1$)%Cxx?%x_##<1)D?0&x#^|-!<&-|-^^x7/zy-^($*68*!^9%x-0@z<97^$/A!zy#y3A*97&*1
+)
+
+[30-Jun-2024 21:36:30 Etc/GMT-3] Generated SQL Query: SELECT users.* FROM users WHERE uid = :uid0
+[30-Jun-2024 21:36:30 Etc/GMT-3] Generated SQL Query: SELECT notes.* FROM notes WHERE user_id = :user_id0
+[30-Jun-2024 21:38:00 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\models\FieldModel.php
+[30-Jun-2024 21:38:00 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\models\model_messager.php
+[30-Jun-2024 21:38:00 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\models\NoteModel.php
+[30-Jun-2024 21:38:00 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\models\UserModel.php
+[30-Jun-2024 21:38:00 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\controllers\Admin\AdminController.php
+[30-Jun-2024 21:38:00 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\controllers\AuthController.php
+[30-Jun-2024 21:38:00 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\controllers\Error.php
+[30-Jun-2024 21:38:00 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\controllers\MainController.php
+[30-Jun-2024 21:38:00 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\controllers\Messager.php
+[30-Jun-2024 21:38:00 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\controllers\NoteController.php
+[30-Jun-2024 21:38:00 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\controllers\ProfileController.php
+[30-Jun-2024 21:38:00 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\handlers\CryptMethods.php
+[30-Jun-2024 21:38:00 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\handlers\UUID.php
+[30-Jun-2024 21:38:00 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\middlewares\CSRFMiddleware.php
+[30-Jun-2024 21:38:01 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\middlewares\IsAdmin.php
+[30-Jun-2024 21:38:01 Etc/GMT-3] Loaded file: E:\OSPanel\home\notes.loc\app\middlewares\LoginRequared.php
+[30-Jun-2024 21:38:01 Etc/GMT-3] $_GET: Array
+(
+)
+
+[30-Jun-2024 21:38:01 Etc/GMT-3] $_POST: Array
+(
+)
+
+[30-Jun-2024 21:38:01 Etc/GMT-3] $_SERVER: Array
+(
+    [REDIRECT_UNIQUE_ID] => ZoGmCGNrBssAxfoCE92gsAAAPy4
+    [REDIRECT_HTTPS] => on
+    [REDIRECT_SSL_TLS_SNI] => notes.loc
+    [REDIRECT_HTTP2] => on
+    [REDIRECT_H2PUSH] => on
+    [REDIRECT_H2_PUSH] => on
+    [REDIRECT_H2_PUSHED] => 
+    [REDIRECT_H2_PUSHED_ON] => 
+    [REDIRECT_H2_STREAM_ID] => 3
+    [REDIRECT_H2_STREAM_TAG] => 1868-80-3
+    [REDIRECT_STATUS] => 200
+    [UNIQUE_ID] => ZoGmCGNrBssAxfoCE92gsAAAPy4
+    [HTTPS] => on
+    [SSL_TLS_SNI] => notes.loc
+    [SSL_SERVER_S_DN_CN] => notes.loc
+    [SSL_SERVER_I_DN_Email] => root@ospanel.local
+    [SSL_SERVER_I_DN_C] => EU
+    [SSL_SERVER_I_DN_ST] => Local Network
+    [SSL_SERVER_I_DN_O] => Open Server Panel
+    [SSL_SERVER_I_DN_CN] => Open Server Panel
+    [SSL_SERVER_SAN_DNS_0] => notes.loc
+    [SSL_SERVER_SAN_DNS_1] => www.notes.loc
+    [SSL_VERSION_INTERFACE] => mod_ssl/2.4.59
+    [SSL_VERSION_LIBRARY] => OpenSSL/3.1.5
+    [SSL_PROTOCOL] => TLSv1.3
+    [SSL_SECURE_RENEG] => false
+    [SSL_COMPRESS_METHOD] => NULL
+    [SSL_CIPHER] => TLS_AES_128_GCM_SHA256
+    [SSL_CIPHER_EXPORT] => false
+    [SSL_CIPHER_USEKEYSIZE] => 128
+    [SSL_CIPHER_ALGKEYSIZE] => 128
+    [SSL_CLIENT_VERIFY] => NONE
+    [SSL_SERVER_M_VERSION] => 3
+    [SSL_SERVER_M_SERIAL] => 0AE1329B7B5449226A5A5F0F34D2C21521EDB16D
+    [SSL_SERVER_V_START] => Jun  2 10:55:07 2024 GMT
+    [SSL_SERVER_V_END] => May 31 10:55:07 2034 GMT
+    [SSL_SERVER_S_DN] => CN=notes.loc
+    [SSL_SERVER_I_DN] => CN=Open Server Panel,O=Open Server Panel,ST=Local Network,C=EU,emailAddress=root@ospanel.local
+    [SSL_SERVER_A_KEY] => id-ecPublicKey
+    [SSL_SERVER_A_SIG] => ecdsa-with-SHA256
+    [SSL_SESSION_ID] => 01016a959ad5577fd53b17f1c1c8d784303ce97ea29f1175bcaa876e8184e3d2
+    [SSL_SESSION_RESUMED] => Resumed
+    [HTTP2] => on
+    [H2PUSH] => on
+    [H2_PUSH] => on
+    [H2_PUSHED] => 
+    [H2_PUSHED_ON] => 
+    [H2_STREAM_ID] => 3
+    [H2_STREAM_TAG] => 1868-80-3
+    [HTTP_USER_AGENT] => Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0
+    [HTTP_ACCEPT] => text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/png,image/svg+xml,*/*;q=0.8
+    [HTTP_ACCEPT_LANGUAGE] => ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3
+    [HTTP_ACCEPT_ENCODING] => gzip, deflate, br, zstd
+    [HTTP_REFERER] => https://notes.loc/notes/
+    [HTTP_COOKIE] => PHPSESSID=spjp95rkppldvuccn1eho5vfent2lobu
+    [HTTP_UPGRADE_INSECURE_REQUESTS] => 1
+    [HTTP_SEC_FETCH_DEST] => document
+    [HTTP_SEC_FETCH_MODE] => navigate
+    [HTTP_SEC_FETCH_SITE] => same-origin
+    [HTTP_SEC_FETCH_USER] => ?1
+    [HTTP_PRIORITY] => u=0, i
+    [HTTP_PRAGMA] => no-cache
+    [HTTP_CACHE_CONTROL] => no-cache
+    [HTTP_TE] => trailers
+    [HTTP_HOST] => notes.loc
+    [PATH] => E:\OSPanel\bin;E:\OSPanel\modules\PHP-8.1\Apache\bin;E:\OSPanel\modules\PHP-8.1\PHP;E:\OSPanel\data\PHP-8.1\default\composer\vendor\bin;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0
+    [SystemRoot] => C:\WINDOWS
+    [COMSPEC] => C:\WINDOWS\system32\cmd.exe
+    [PATHEXT] => .COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC
+    [WINDIR] => C:\WINDOWS
+    [SERVER_SIGNATURE] => 
+    [SERVER_SOFTWARE] => Apache
+    [SERVER_NAME] => notes.loc
+    [SERVER_ADDR] => 127.127.126.32
+    [SERVER_PORT] => 443
+    [REMOTE_ADDR] => 127.0.0.1
+    [DOCUMENT_ROOT] => E:/OSPanel/home/notes.loc
+    [REQUEST_SCHEME] => https
+    [CONTEXT_PREFIX] => 
+    [CONTEXT_DOCUMENT_ROOT] => E:/OSPanel/home/notes.loc
+    [SERVER_ADMIN] => [no address given]
+    [SCRIPT_FILENAME] => E:/OSPanel/home/notes.loc/index.php
+    [REMOTE_PORT] => 60941
+    [REDIRECT_URL] => /notes/
+    [GATEWAY_INTERFACE] => CGI/1.1
+    [SERVER_PROTOCOL] => HTTP/2.0
+    [REQUEST_METHOD] => GET
+    [QUERY_STRING] => 
+    [REQUEST_URI] => /notes/
+    [SCRIPT_NAME] => /index.php
+    [PHP_SELF] => /index.php
+    [REQUEST_TIME_FLOAT] => 1719772680.843
+    [REQUEST_TIME] => 1719772680
+    [argv] => Array
+        (
+        )
+
+    [argc] => 0
+    [SITENAME] => Workspace
+    [VERSION] => 0.6.4
+    [SITEURL] => https://notes.loc
+    [DBHOST] => MySQL-8.0
+    [DBPORT] => 3306
+    [DBUSER] => root
+    [DBPASS] => 
+    [DBNAME] => workspace
+    [UNIQUE_KEY] => z5(1)B->?x7%$-?#7__%%!zCz1$)%Cxx?%x_##<1)D?0&x#^|-!<&-|-^^x7/zy-^($*68*!^9%x-0@z<97^$/A!zy#y3A*97&*1
+)
+
+[30-Jun-2024 21:38:01 Etc/GMT-3] $_GET: Array
+(
+)
+
+[30-Jun-2024 21:38:01 Etc/GMT-3] $_POST: Array
+(
+)
+
+[30-Jun-2024 21:38:01 Etc/GMT-3] $_SERVER: Array
+(
+    [REDIRECT_UNIQUE_ID] => ZoGmCGNrBssAxfoCE92gsAAAPy4
+    [REDIRECT_HTTPS] => on
+    [REDIRECT_SSL_TLS_SNI] => notes.loc
+    [REDIRECT_HTTP2] => on
+    [REDIRECT_H2PUSH] => on
+    [REDIRECT_H2_PUSH] => on
+    [REDIRECT_H2_PUSHED] => 
+    [REDIRECT_H2_PUSHED_ON] => 
+    [REDIRECT_H2_STREAM_ID] => 3
+    [REDIRECT_H2_STREAM_TAG] => 1868-80-3
+    [REDIRECT_STATUS] => 200
+    [UNIQUE_ID] => ZoGmCGNrBssAxfoCE92gsAAAPy4
+    [HTTPS] => on
+    [SSL_TLS_SNI] => notes.loc
+    [SSL_SERVER_S_DN_CN] => notes.loc
+    [SSL_SERVER_I_DN_Email] => root@ospanel.local
+    [SSL_SERVER_I_DN_C] => EU
+    [SSL_SERVER_I_DN_ST] => Local Network
+    [SSL_SERVER_I_DN_O] => Open Server Panel
+    [SSL_SERVER_I_DN_CN] => Open Server Panel
+    [SSL_SERVER_SAN_DNS_0] => notes.loc
+    [SSL_SERVER_SAN_DNS_1] => www.notes.loc
+    [SSL_VERSION_INTERFACE] => mod_ssl/2.4.59
+    [SSL_VERSION_LIBRARY] => OpenSSL/3.1.5
+    [SSL_PROTOCOL] => TLSv1.3
+    [SSL_SECURE_RENEG] => false
+    [SSL_COMPRESS_METHOD] => NULL
+    [SSL_CIPHER] => TLS_AES_128_GCM_SHA256
+    [SSL_CIPHER_EXPORT] => false
+    [SSL_CIPHER_USEKEYSIZE] => 128
+    [SSL_CIPHER_ALGKEYSIZE] => 128
+    [SSL_CLIENT_VERIFY] => NONE
+    [SSL_SERVER_M_VERSION] => 3
+    [SSL_SERVER_M_SERIAL] => 0AE1329B7B5449226A5A5F0F34D2C21521EDB16D
+    [SSL_SERVER_V_START] => Jun  2 10:55:07 2024 GMT
+    [SSL_SERVER_V_END] => May 31 10:55:07 2034 GMT
+    [SSL_SERVER_S_DN] => CN=notes.loc
+    [SSL_SERVER_I_DN] => CN=Open Server Panel,O=Open Server Panel,ST=Local Network,C=EU,emailAddress=root@ospanel.local
+    [SSL_SERVER_A_KEY] => id-ecPublicKey
+    [SSL_SERVER_A_SIG] => ecdsa-with-SHA256
+    [SSL_SESSION_ID] => 01016a959ad5577fd53b17f1c1c8d784303ce97ea29f1175bcaa876e8184e3d2
+    [SSL_SESSION_RESUMED] => Resumed
+    [HTTP2] => on
+    [H2PUSH] => on
+    [H2_PUSH] => on
+    [H2_PUSHED] => 
+    [H2_PUSHED_ON] => 
+    [H2_STREAM_ID] => 3
+    [H2_STREAM_TAG] => 1868-80-3
+    [HTTP_USER_AGENT] => Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0
+    [HTTP_ACCEPT] => text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/png,image/svg+xml,*/*;q=0.8
+    [HTTP_ACCEPT_LANGUAGE] => ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3
+    [HTTP_ACCEPT_ENCODING] => gzip, deflate, br, zstd
+    [HTTP_REFERER] => https://notes.loc/notes/
+    [HTTP_COOKIE] => PHPSESSID=spjp95rkppldvuccn1eho5vfent2lobu
+    [HTTP_UPGRADE_INSECURE_REQUESTS] => 1
+    [HTTP_SEC_FETCH_DEST] => document
+    [HTTP_SEC_FETCH_MODE] => navigate
+    [HTTP_SEC_FETCH_SITE] => same-origin
+    [HTTP_SEC_FETCH_USER] => ?1
+    [HTTP_PRIORITY] => u=0, i
+    [HTTP_PRAGMA] => no-cache
+    [HTTP_CACHE_CONTROL] => no-cache
+    [HTTP_TE] => trailers
+    [HTTP_HOST] => notes.loc
+    [PATH] => E:\OSPanel\bin;E:\OSPanel\modules\PHP-8.1\Apache\bin;E:\OSPanel\modules\PHP-8.1\PHP;E:\OSPanel\data\PHP-8.1\default\composer\vendor\bin;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0
+    [SystemRoot] => C:\WINDOWS
+    [COMSPEC] => C:\WINDOWS\system32\cmd.exe
+    [PATHEXT] => .COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC
+    [WINDIR] => C:\WINDOWS
+    [SERVER_SIGNATURE] => 
+    [SERVER_SOFTWARE] => Apache
+    [SERVER_NAME] => notes.loc
+    [SERVER_ADDR] => 127.127.126.32
+    [SERVER_PORT] => 443
+    [REMOTE_ADDR] => 127.0.0.1
+    [DOCUMENT_ROOT] => E:/OSPanel/home/notes.loc
+    [REQUEST_SCHEME] => https
+    [CONTEXT_PREFIX] => 
+    [CONTEXT_DOCUMENT_ROOT] => E:/OSPanel/home/notes.loc
+    [SERVER_ADMIN] => [no address given]
+    [SCRIPT_FILENAME] => E:/OSPanel/home/notes.loc/index.php
+    [REMOTE_PORT] => 60941
+    [REDIRECT_URL] => /notes/
+    [GATEWAY_INTERFACE] => CGI/1.1
+    [SERVER_PROTOCOL] => HTTP/2.0
+    [REQUEST_METHOD] => GET
+    [QUERY_STRING] => 
+    [REQUEST_URI] => /notes/
+    [SCRIPT_NAME] => /index.php
+    [PHP_SELF] => /index.php
+    [REQUEST_TIME_FLOAT] => 1719772680.843
+    [REQUEST_TIME] => 1719772680
+    [argv] => Array
+        (
+        )
+
+    [argc] => 0
+    [SITENAME] => Workspace
+    [VERSION] => 0.6.4
+    [SITEURL] => https://notes.loc
+    [DBHOST] => MySQL-8.0
+    [DBPORT] => 3306
+    [DBUSER] => root
+    [DBPASS] => 
+    [DBNAME] => workspace
+    [UNIQUE_KEY] => z5(1)B->?x7%$-?#7__%%!zCz1$)%Cxx?%x_##<1)D?0&x#^|-!<&-|-^^x7/zy-^($*68*!^9%x-0@z<97^$/A!zy#y3A*97&*1
+)
+
+[30-Jun-2024 21:38:01 Etc/GMT-3] Generated SQL Query: SELECT users.* FROM users WHERE uid = :uid0
+[30-Jun-2024 21:38:01 Etc/GMT-3] Generated SQL Query: SELECT notes.* FROM notes WHERE user_id = :user_id0

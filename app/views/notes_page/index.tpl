@@ -64,24 +64,25 @@
 		</div>
 		{if $user['role'] >= 900}
 			<div id="all-user" class="notes__list">
-				{foreach $allNotes as $note}
+			
+				{foreach $allNotes as $anote}
 					<div class="notes__list_item">
 						<div class="notes__name">
-							{$note['notename']}
+							{$anote['notename']}
 						</div>
 						<div class="notes__date">
 							Создано:
-							{$note['created_note']} <br>
-							{if $note['created_note'] != $note['updated_note']}
+							{$anote['created_note']} <br>
+							{if $anote['created_note'] != $anote['updated_note']}
 							Редактировано:
-							{$note['updated_note']}
+							{$anote['updated_note']}
 							{/if}
 						</div>
 						<div class="notes__btn">
-							<a class="notes__btn--edit" href="{route_path name="edit_page" uid=$note['uid']}">
+							<a class="notes__btn--edit" href="{route_path name="edit_page" uid=$anote['uid']}">
 								<i class="fa fa-pencil" aria-hidden="true"></i>
 							</a>
-							<a class="notes__btn--delete" href="{route_path name="delete_note" uid=$note['uid']}">
+							<a class="notes__btn--delete" href="{route_path name="delete_note" uid=$anote['uid']}">
 								<i class="fa fa-trash" aria-hidden="true"></i>
 							</a>
 						</div>
@@ -92,14 +93,16 @@
 	</div>
 </section>
 <script>
-	document.addEventListener('DOMContentLoaded', () => {
-		let btnShowAllNotes = document.querySelector('.switch-btn');
-		btnShowAllNotes.addEventListener('click', (e) => {
-			e.preventDefault();
-			btnShowAllNotes.classList.toggle('switch-on');
-			document.getElementById('personal').classList.toggle('visible');
-			document.getElementById('all-user').classList.toggle('visible');
-		});
+{literal}
+document.addEventListener('DOMContentLoaded', () => {
+	let btnShowAllNotes = document.querySelector('.switch-btn');
+	btnShowAllNotes.addEventListener('click', (e) => {
+		e.preventDefault();
+		btnShowAllNotes.classList.toggle('switch-on');
+		document.getElementById('personal').classList.toggle('visible');
+		document.getElementById('all-user').classList.toggle('visible');
 	});
+});
+{/literal}
 </script>
 {/block}

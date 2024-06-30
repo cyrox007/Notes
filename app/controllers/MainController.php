@@ -1,5 +1,5 @@
 <?php
-namespace App\Controller;
+namespace App\Controllers;
 
 use App\Models\UserModel;
 use Core\Controller;
@@ -9,9 +9,9 @@ class MainController extends Controller {
     public function __construct() {
         parent::__construct();
     }
-    function index(Request $request) {
+    public function index(Request $request) {
         $userModel = new UserModel();
-        $user = $userModel->select('users')->where('uid', '=', $request->session('user_uid'))->first();
+        $user = $userModel->select()->where('uid', '=', $request->session('user_uid'))->first();
         if (!$user) {
             return "Пользователь не загружен";
         }

@@ -1,10 +1,13 @@
 <?php
 
-use App\Controller\MainController;
-use App\Controller\AuthController;
-use App\Controller\NoteController;
-use App\Controller\ProfileController;
+use App\Controllers\MainController;
+use App\Controllers\AuthController;
+use App\Controllers\NoteController;
+use App\Controllers\ProfileController;
+use App\Controllers\Admin\AdminController;
+
 use App\Middlewares\LoginRequared;
+use App\Middlewares\IsAdmin;
 
 $router = Route::getInstance();
 
@@ -20,11 +23,15 @@ $router->group('/notes', function ($addRoute) {
     $addRoute("GET", '/', [NoteController::class, 'index'], [LoginRequared::class], 'notes');
     $addRoute("GET", '/{str:uid}/edit', [NoteController::class, 'edit'], [], 'edit_page');
     $addRoute("POST", '/{str:uid}/edit', [NoteController::class, 'update'], [], 'update_note');
-    $addRoute("POST", '/{str:uid}/delete', [NoteController::class, 'delete'], [LoginRequared::class], 'delete_note');
+    $addRoute("GET", '/{str:uid}/delete', [NoteController::class, 'delete'], [LoginRequared::class], 'delete_note');
 });
 
 $router->group('/profile', function ($addRoute) {
    $addRoute('GET', '/', [ProfileController::class, 'index'], [LoginRequared::class], 'profile');
+});
+
+$router->group('/admin', function ($addRoute) {
+   $addRoute('GET', '/', [AdminController::class, 'index'], [LoginRequared::class, IsAdmin::class], 'adminpanel'); 
 });
 
 $router->dispatch(); 

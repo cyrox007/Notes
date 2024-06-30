@@ -1,42 +1,67 @@
 <?php
 ini_set('display_errors', 1);
-define('SITEPATH', __DIR__);
+if (!defined('SITEPATH')) {
+    define('SITEPATH', dirname(__FILE__));
+}
+error_reporting(E_ALL);
+ini_set('error_log', SITEPATH . '/.logs/php-errors.log');
 
-// подключаем файлы ядра
-spl_autoload_register(function () {
+// Include vendor/autoload.php if exists
+if (file_exists(SITEPATH . '/vendor/autoload.php')) {
     require SITEPATH . '/vendor/autoload.php';
+}
+
+// Include Dotenv (or equivalent logic)
+if (class_exists('Dotenv\Dotenv')) {
     Dotenv\Dotenv::createUnsafeImmutable(SITEPATH)->load();
+}
 
-    // Core files
-    $coreFiles = [
-        '/core/config.php',
-        '/core/database.php',
-        '/core/model.php',
-        '/core/view.php',
-        '/core/request.php',
-        '/core/controller.php',
-        '/core/helper.php',
-        '/core/images.php'
-    ];
+// Register the autoload function
+spl_autoload_register(function ($class) {
+    $classPath = SITEPATH . '/' . str_replace('\\', '/', $class) . '.php';
+    
+    if (file_exists($classPath)) {
+        require_once $classPath;
+    } else {
+        error_log("Class file for {$class} not found at path: {$classPath}");
+    }
+});
 
-    array_walk($coreFiles, function($file) {
+// Core files
+$coreFiles = [
+    '/core/config.php',
+    '/core/database.php',
+    '/core/model.php',
+    '/core/view.php',
+    '/core/request.php',
+    '/core/controller.php',
+    '/core/helper.php',
+    '/core/images.php'
+];
+
+foreach ($coreFiles as $file) {
+    if (file_exists(SITEPATH . $file)) {
         require_once SITEPATH . $file;
-    });
+    } else {
+        die("Core file {$file} is missing.");
+    }
+}
 
-    $directories = [
-        '/app/models/',
-        '/app/controllers/',
-        '/app/handlers/',
-        '/app/middlewares/'
-    ];
+$directories = [
+    '/app/models/',
+    '/app/controllers/',
+    '/app/handlers/',
+    '/app/middlewares/'
+];
 
-    // Load each directory files if directory exists
-    array_walk($directories, function($directory) {
-        $path = SITEPATH . $directory;
-        if (is_dir($path)) {
-            loadDirectoryFiles($path);
-        }
-    });
+// Load each directory files if directory exists
+array_walk($directories, function ($directory) {
+    $path = SITEPATH . $directory;
+    if (is_dir($path)) {
+        loadDirectoryFiles($path);
+    } else {
+        error_log("Directory {$path} does not exist.");
+    }
 });
 
 // Маршрутизатор
@@ -50,9 +75,17 @@ require_once SITEPATH . '/core/routerConfig.php';
  * @return void
  */
 function loadDirectoryFiles(string $directory): void {
-    // Iterate over each PHP file in the directory and require it
-    foreach (glob("{$directory}/*.php") as $file) {
-        require_once $file;
+    $files = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($directory, RecursiveDirectoryIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::LEAVES_ONLY
+    );
+
+    foreach ($files as $file) {
+        // Если файл, а не директория
+        if ($file->isFile() && $file->getExtension() === 'php') {
+            require_once $file->getRealPath();
+            error_log("Loaded file: " . $file->getRealPath());  // Логирование загружаемых файлов
+        }
     }
 }
-    
+

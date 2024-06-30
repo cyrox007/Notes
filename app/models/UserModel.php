@@ -2,10 +2,9 @@
 namespace App\Models;
 
 use Core\Model;
-use Core\Config;
 
 class UserModel extends Model {
-    protected static $_tablename = "users";
+    protected $_tablename;
     
     public $id;
     public $uid;
@@ -24,8 +23,11 @@ class UserModel extends Model {
     public string $user_image;
     public int $socket_connection_id;
 
+    public function __construct() {
+        $this->_tablename = "users";
+    }
     public function get_user_by_login(string $login) {
-        return $this->select('users')
+        return $this->select()
         ->where('username', '=', $login)
         ->first();
     }

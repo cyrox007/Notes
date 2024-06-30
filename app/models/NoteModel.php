@@ -5,7 +5,7 @@ use Core\Model;
 use Core\Config;
 
     class NoteModel extends Model {
-        protected static $_tablename = "notes";
+        protected $_tablename;
 
         public $id;
         public string $uid;
@@ -14,6 +14,10 @@ use Core\Config;
         public string $notename;
         public string $content;
         public int $user_id;
+
+        public function __construct() {
+            $this->_tablename = "notes";
+        }
 
         /* public function __construct() {
             $this->config = new Config();

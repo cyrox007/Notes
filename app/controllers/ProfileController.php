@@ -1,5 +1,5 @@
 <?php
-namespace App\Controller;
+namespace App\Controllers;
 
 use App\Models\NoteModel;
 use App\Models\UserModel;
@@ -9,10 +9,10 @@ use Core\Request;
 class ProfileController extends Controller {
     public function index(Request $request) {
         $userModel = new UserModel();
-        $user = $userModel->select('users')->where('uid', '=', $request->session('user_uid'))->first();
+        $user = $userModel->select()->where('uid', '=', $request->session('user_uid'))->first();
         
         $noteModel = new NoteModel();
-        $notes = $noteModel->select('notes')->where('user_id', '=', $user['id'])->get();
+        $notes = $noteModel->select()->where('user_id', '=', $user['id'])->get();
 
         $data = [
             'user' => $user,

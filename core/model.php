@@ -16,7 +16,7 @@ class Model {
             > методы для работы с NoSQL;
             > и др.
     */
-    protected static $_tablename;
+    protected $_tablename;
 
     private string $query = "";
     private array $joins = [];
@@ -26,15 +26,15 @@ class Model {
     private array $parameters = [];
     private ?PDOStatement $preparedStmt = null;
 
-    public function select(string $tableName, array $columns = []): self {
-        $this->baseTable = $tableName;
+    public function select(array $columns = []): self {
+        $this->baseTable = $this->_tablename;
     
         if (!empty($columns)) {
             foreach ($columns as $column) {
-                $this->columns[] = "{$tableName}.{$column}";
+                $this->columns[] = "{$this->_tablename}.{$column}";
             }
         } else {
-            $this->columns[] = "{$tableName}.*";
+            $this->columns[] = "{$this->_tablename}.*";
         }
     
         return $this;
@@ -55,18 +55,35 @@ class Model {
     }
 
     private function buildQuery(): void {
+        // Check if columns are specified
+        if (empty($this->columns)) {
+            throw new Exception("No columns specified for the SELECT query.");
+        }
+
+        // Build the base query
         $cols = implode(', ', $this->columns);
         $this->query = "SELECT {$cols} FROM {$this->baseTable}";
-    
+
+        // Append joins
         foreach ($this->joins as $join) {
-            $this->query .= " " . $join . " ";
+            $this->query .= " " . trim($join);
         }
-    
+
+        // Append conditions if any, ensuring correct spacing
         if (!empty($this->conditions)) {
-            $this->query .= " WHERE " . implode(' ', $this->conditions);
+            $this->query .= " WHERE " . implode(' AND ', $this->conditions);
         }
-        
+
+        // Log the query for debugging
+        error_log("Generated SQL Query: " . $this->query);
+
+        // Attempt to prepare the statement
         $this->preparedStmt = $this->connectDb()->prepare($this->query);
+        
+        // Check if the statement was prepared successfully
+        if ($this->preparedStmt === false) {
+            throw new Exception("Failed to prepare the SQL statement.");
+        }
     }
 
     public function where(string $column, string $operator, $parameter, string $logicalOperator = 'AND'): self {
@@ -102,7 +119,7 @@ class Model {
         });
     }
 
-    public function get(bool $asObjects = false) {
+    public function get(bool $asObjects = false): array|object {
         return $this->executeFetch(function ($stmt) use ($asObjects) {
             $rows = [];
             while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
@@ -117,31 +134,51 @@ class Model {
     }
 
     private function executeFetch(callable $fetchFunction) {
+        // Check if prepared statement is null and build query
         if ($this->preparedStmt === null) {
             $this->buildQuery();
+
+            // Check if buildQuery successfully prepared the statement
+            if ($this->preparedStmt === null) {
+                // Log the error
+                error_log("Failed to build query and prepare statement.");
+                return null;
+            }
         }
-    
+
+        // Execute the prepared statement with parameters
         if ($this->preparedStmt->execute($this->parameters)) {
+            // Fetch results using the provided callback function
             return $fetchFunction($this->preparedStmt);
+        } else {
+            // Log the error if execution fails
+            error_log("Statement execution failed: " . implode(" ", $this->preparedStmt->errorInfo()));
         }
-        
+
         return null;
     }
-    
-    public function getTableName(): string {
-        if (isset(static::$_tablename)) {
-            return static::$_tablename;
+
+    protected function getTableName(): string {
+        if (isset($this->_tablename)) {
+            return $this->_tablename;
         }
-        return strtolower(static::class) . 's';
+        return strtolower((new ReflectionClass($this))->getShortName()) . 's';
     }
 
     public function insert(): array {
         $reflectionClass = new ReflectionClass($this);
         $tablename = $this->getTableName();
+        
+        // Проверка наличия имени таблицы
+        if (!$tablename) {
+            throw new Exception("Table name is not defined in the model.");
+        }
+
         $columns = [];
         $values = [];
         $parameters = [];
 
+        // Loop through each public property of the model
         foreach ($reflectionClass->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
             $propertyName = $property->getName();
             if ($propertyName != '_tablename') {
@@ -155,18 +192,28 @@ class Model {
         $valuePlaceholders = implode(',', $values);
         $query = "INSERT INTO $tablename ($columnNames) VALUES ($valuePlaceholders)";
 
+        // Логирование для дебага
+        error_log("Generated SQL Query: $query");
+        error_log("Parameters: " . print_r($parameters, true));
+
         return [
             'query' => $query,
             'parameters' => $parameters
         ];
     }
 
+
     public function update(): array {
         $reflectionClass = new ReflectionClass($this);
         $tablename = $this->getTableName();
+        
+        if (!$tablename) {
+            throw new Exception("Table name is not defined in the model.");
+        }
+
         $updateFields = [];
         $parameters = [];
-    
+
         // Loop through each public property of the model
         foreach ($reflectionClass->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
             $propertyName = $property->getName();
@@ -175,13 +222,17 @@ class Model {
                 $parameters[$propertyName] = $this->$propertyName;
             }
         }
-    
+
         // Assuming there's an 'id' property to identify the record
         $parameters['id'] = $this->id;
-    
+
         $updateFieldsStr = implode(', ', $updateFields);
         $query = "UPDATE $tablename SET $updateFieldsStr WHERE id = :id";
-    
+
+        // Логирование для дебага
+        error_log("Generated SQL Query: $query");
+        error_log("Parameters: " . print_r($parameters, true));
+
         return [
             'query' => $query,
             'parameters' => $parameters
@@ -189,18 +240,30 @@ class Model {
     }
 
     public function delete(): array {
+        // Получение имени таблицы
         $tablename = $this->getTableName();
+        
+        // Проверка наличия имени таблицы
+        if (!$tablename) {
+            throw new Exception("Table name is not defined in the model.");
+        }
 
-        // Assuming there's an 'id' property to identify the record
+        // Предполагаем, что свойство 'id' идентифицирует запись
         $parameters = ['id' => $this->id];
 
+        // Формирование SQL-запроса
         $query = "DELETE FROM $tablename WHERE id = :id";
+
+        // Логирование для дебага
+        error_log("Generated SQL Query: $query");
+        error_log("Parameters: " . print_r($parameters, true));
 
         return [
             'query' => $query,
             'parameters' => $parameters
         ];
     }
+
     
     // Метод соединения с БД
     private function connectDb(): PDO {
@@ -208,59 +271,5 @@ class Model {
         $dsn = "mysql:host={$config['hostname']};port={$config['port']};dbname={$config['database']}";
         $options = [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION];
         return new PDO($dsn, $config['username'], $config['password'], $options);
-    }
-        
-    // метод для получения поля таблицы. 
-    // Принимает параметры: Открытая БД, таблицу откуда получаем, параметр поиска, значение поиска
-    public function get_data($db, $table, $param, $value) {
-        $sql = "SELECT * FROM {$table} WHERE {$param} = '{$value}'";
-        $result = $db->query($sql);
-        $row = $result->fetch();
-        
-        return $row;
-    }
-
-    // Метод для добавления поля в таблицу массива данных
-    // Принимает параметры: Открытая БД, таблица, 
-    // массив значений, который будет внесен в БД
-    // key => value
-    public function insert_data($db, $table, $array_data) {
-        $imploded_key = []; // это строка в которую будем собирать параметры для изменения 
-        $imploded_value = []; // это строка бует собирать их значения
-        
-        foreach ($array_data as $key => $value) { // разбираем массив
-            $imploded_key[] = "$key"; // запишем ключи массива как значение массива
-            $imploded_value[] = "'$value'"; // запишем отдельно значения массива
-        }
-
-        $string_parametrs_key = implode(", ", $imploded_key); // преобразовываем в строку
-        $string_parametrs_value = implode(", ", $imploded_value); 
-
-        // формируем запрос к базе данных
-        $sql = "INSERT INTO {$table} ({$string_parametrs_key}) VALUES ({$string_parametrs_value})";
-        $db->query($sql);
-    }
-    
-    // Обновление поля таблицы:
-    // Принимает параметры: Открытая БД, таблица, параметр поиска, 
-    // значение поиска, массив значений, который будет внесен
-    // key => value
-    public function update_data($db, $table, $where_param, $where_value, $array) {
-        $imploded = []; // это строка в которую будем собирать параметры для изменения и значения
-        foreach ($array as $key => $value) { // разбираем массив
-            $imploded[] = "$key = '$value'";
-        }
-        
-        $string_parametrs = implode(", ", $imploded);
-        $string_parametrs = str_replace('"', '', $string_parametrs); // почистим от кавычек
-        
-        $sql = "UPDATE {$table} SET {$string_parametrs} WHERE {$where_param} = {$where_value}";
-        $db->query($sql);
-    }
-
-    // функция удаления позиции из БД
-    public function delete_data($db, $table, $where_param, $where_value) {
-        $sql = "DELETE FROM {$table} WHERE {$where_param} = {$where_value}";
-        $db->query($sql);
     }
 }

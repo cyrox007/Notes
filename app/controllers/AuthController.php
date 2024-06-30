@@ -1,5 +1,5 @@
 <?php
-namespace App\Controller;
+namespace App\Controllers;
 
 use Core\Controller;
 
@@ -9,12 +9,6 @@ use Core\Request;
 use Route;
 
 class AuthController extends Controller {
-    public $images;
-
-    public function __construct() {
-        parent::__construct();
-    }
-
     function login() {
         return $this->render_template('login_page/login_view');
     }
