@@ -1,6 +1,6 @@
 <aside class="sidebar">
 	<a href="/" class="sidebar__site-title">
-		{html_image file='assets/img/AdminLTELogo.png' alt="AdminLTE Logo" class="brand-image img-circle elevation-3" style="opacity: .8"}
+		{html_image file="{$base_url}/assets/img/AdminLTELogo.png" alt="AdminLTE Logo" class="brand-image img-circle elevation-3" style="opacity: .8"}
 		<span class="brand-text font-weight-light">{$smarty.env.SITENAME}</span>
 	</a>
 
@@ -8,13 +8,13 @@
 		<div class="sidebar__user-panel">
 			<div class="sidebar__user-image">
 				{if $user['user_image'] == 'default_img'}
-					{html_image file="assets/img/default_avatar.png" alt="{$user['firstname']} {$user['surname']}" class="img-circle elevation-2"}
+					{html_image file="{$base_url}/assets/img/default_avatar.png" alt="{$user['firstname']} {$user['surname']}" class="img-circle elevation-2"}
 				{else}
 					
 				{/if}
 			</div>
 			<div class="sidebar__user-info">
-				<a href="/Profile" class="d-block">
+				<a href="{route_path name='profile'}" class="d-block">
 					{$user['firstname']} {$user['surname']}
 				</a>
 			</div>

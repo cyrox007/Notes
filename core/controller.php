@@ -28,6 +28,7 @@ class Controller {
         $this->smarty->registerPlugin('function', 'route_path', [$this, 'getRoutePath']);
         $this->smarty->registerPlugin('function', 'csrf_token', [$this, 'getCSRFInputTag']);
         $this->smarty->registerPlugin('function', 'session', [$this, 'getSession']);
+        $this->smarty->registerPlugin('function', 'jsonParse', [$this, 'jsonParse']);
 
         // Добавляем CSRF проверку для всех POST-запросов
         $csrfMiddleware = new CSRFMiddleware();
@@ -46,14 +47,26 @@ class Controller {
     }
 
     public function getRoutePath($params) {
-        $routeManager = Route::getInstance();  // Используем синглтон
+        $routeManager = Route::getInstance(); // Используем синглтон
         if (!isset($params['name'])) {
             return '';
         }
 
         $route = $routeManager->getRoute($params['name']);
-        return $route ?? '';
+        if (!$route) {
+            return '';
+        }
+
+        foreach ($params as $key => $value) {
+            if ($key !== 'name') {
+                $pattern = sprintf("/{%s:%s}/", '[a-zA-Z]+', $key);
+                $route = preg_replace($pattern, $value, $route);
+            }
+        }
+
+        return $route;
     }
+
 
     public function getCSRFInputTag(): string {
         return Helper::getCSRFInputTag();
@@ -63,7 +76,12 @@ class Controller {
         return $this->request->session($params['key']) ?? null;
     }
 
+    public function jsonParse($params): ?array {
+        return json_decode($params['json'], true);
+    }
+
     protected function render_template(string $template, ?array $data = null) {
+        $this->smarty->assign('base_url', getenv('SITEURL'));
         if (!empty($data)) {
             foreach ($data as $key => $value) {
                 $this->smarty->assign($key, $value);

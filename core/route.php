@@ -12,7 +12,38 @@ class Route {
         }
         return self::$instance;
     }
-	
+
+	public function group(string $prefix, callable $callback): void {
+		$currentPrefix = $prefix;
+
+		// Создаем временную функцию для сохранения префикса
+		$addWithPrefix = function(string $method, string $path, array $handler, array $middlewares = [], string $name = '') use ($currentPrefix) {
+			$fullPath = $this->normalizePath($currentPrefix . $path);
+			$this->add($method, $fullPath, $handler, $middlewares, $name);
+		};
+
+		// Вызываем колбэк, передавая временную функцию как аргумент
+		$callback($addWithPrefix);
+	}
+
+	private function create_pattern(string $path): string {
+		$pattern = '/{(?:int:|str:)([a-zA-Z0-9_]+)}/';
+		return "~^" . preg_replace_callback($pattern, function($matches) {
+			$type = strpos($matches[0], 'int:') !== false ? '\d+' : '[\w-]+';
+			return "(?P<{$matches[1]}>{$type})";
+		}, $path) . "$~";
+	}
+
+	private function clearParams(array $matched): array {
+		$result = [];
+		foreach ($matched as $key => $param) {
+			if (!is_int($key)) {
+				$result[$key] = $param;
+			}
+		}
+		return $result;
+	}
+
 	private function normalizePath(string $path): string {
 		$path = trim($path, '/');
 		$path = "/{$path}/";
@@ -33,34 +64,6 @@ class Route {
 		}
 
 		$this->routes[] = $route;
-	}
-
-	public function group(string $prefix, callable $callback): void {
-		$currentPrefix = $prefix;
-
-		// Создаем временную функцию для сохранения префикса
-		$addWithPrefix = function(string $method, string $path, array $handler, array $middlewares = [], string $name = '') use ($currentPrefix) {
-			$fullPath = $this->normalizePath($currentPrefix . $path);
-			$this->add($method, $fullPath, $handler, $middlewares, $name);
-		};
-
-		// Вызываем колбэк, передавая временную функцию как аргумент
-		$callback($addWithPrefix);
-	}
-
-	private function create_pattern(string $path): string {
-		$pattern = '/{(?:int:|str:)([a-zA-Z0-9_]+)}/';
-		return "~^" . preg_replace($pattern, "(?P<$1>\w+)", $path) . "$~";
-	}
-
-	private function clearParams(array $matched): array {
-		$result = [];
-		foreach ($matched as $key => $param) {
-			if (!is_int($key)) {
-				$result[$key] = $param;
-			}
-		}
-		return $result;
 	}
 
 	public function dispatch(): void {
@@ -143,7 +146,6 @@ class Route {
 		$route = $this->findRouteByName($name);
 		return $route['path'] ?? '';
 	}
-
 	
 	private function findRouteByPath(string $path): ?array {
         foreach ($this->routes as $route) {

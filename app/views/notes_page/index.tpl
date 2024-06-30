@@ -18,7 +18,7 @@
 			<button type="submit">Создать</button>
 		</div>
 	</form>
-	{if $user['role'] > 900}
+	{if $user['role'] >= 900}
 		<div id="show-all-notes">
 			<p>Показать заметки всех пользователей</p>
 			<div class="switch-btn"></div>
@@ -33,61 +33,62 @@
 		</div>
 		<div id="personal" class="notes__list visible">
 			{if $personalNotes}
-				
+				{foreach $personalNotes as $note}
+					<div class="notes__list_item">
+						<div class="notes__name">
+							{$note['notename']}
+						</div>
+						<div class="notes__date">
+							Создано:
+							{$note['created_note']} <br>
+							{if $note['created_note'] != $note['updated_note']}
+							Редактировано:
+							{$note['updated_note']}
+							{/if}
+						</div>
+						<div class="notes__btn">
+							<a class="notes__btn--edit" href="{route_path name="edit_page" uid=$note['uid']}">
+								<i class="fa fa-pencil" aria-hidden="true"></i>
+							</a>
+							<a class="notes__btn--delete" href="{route_path name="delete_note" uid=$note['uid']}">
+								<i class="fa fa-trash" aria-hidden="true"></i>
+							</a>
+						</div>
+					</div>
+				{/foreach}
 			{else}
-				
+				<div class="notes__list_item">
+					<p>Здесь ничего нет</p>
+				</div>
 			{/if}
-			<? foreach($data['notes'] as $note): ?>
-			<div class="notes__list_item">
-				<div class="notes__name">
-					<? echo $note['name_note'];?>
-				</div>
-				<div class="notes__date">
-					Создано:
-					<? echo $note['date_create']; ?> <br>
-					<? if ($note['date_create'] != $note['date_edit']): ?>
-					Редактировано:
-					<? echo $note['date_edit']; ?>
-					<? endif; ?>
-				</div>
-				<div class="notes__btn">
-					<a class="notes__btn--edit" href="/Notes/edit/<? echo $note['id']?>">
-						<i class="fa fa-pencil" aria-hidden="true"></i>
-					</a>
-					<a class="notes__btn--delete" href="/Notes/delete/<? echo $note['id']?>">
-						<i class="fa fa-trash" aria-hidden="true"></i>
-					</a>
-				</div>
-			</div>
-			<?php endforeach; ?>
 		</div>
-		<? if ($data['admin']): ?>
-		<div id="all-user" class="notes__list">
-			<? foreach($data['all-notes'] as $note): ?>
-			<div class="notes__list_item">
-				<div class="notes__name">
-					<? echo $note['name_note'];?>
-				</div>
-				<div class="notes__date">
-					Создано:
-					<? echo $note['date_create']; ?> <br>
-					<? if ($note['date_create'] != $note['date_edit']): ?>
-					Редактировано:
-					<? echo $note['date_edit']; ?>
-					<? endif; ?>
-				</div>
-				<div class="notes__btn">
-					<a class="notes__btn--edit" href="/Notes/edit/<? echo $note['id']?>">
-						<i class="fa fa-pencil" aria-hidden="true"></i>
-					</a>
-					<a class="notes__btn--delete" href="/Notes/delete/<? echo $note['id']?>">
-						<i class="fa fa-trash" aria-hidden="true"></i>
-					</a>
-				</div>
+		{if $user['role'] >= 900}
+			<div id="all-user" class="notes__list">
+				{foreach $allNotes as $note}
+					<div class="notes__list_item">
+						<div class="notes__name">
+							{$note['notename']}
+						</div>
+						<div class="notes__date">
+							Создано:
+							{$note['created_note']} <br>
+							{if $note['created_note'] != $note['updated_note']}
+							Редактировано:
+							{$note['updated_note']}
+							{/if}
+						</div>
+						<div class="notes__btn">
+							<a class="notes__btn--edit" href="{route_path name="edit_page" uid=$note['uid']}">
+								<i class="fa fa-pencil" aria-hidden="true"></i>
+							</a>
+							<a class="notes__btn--delete" href="{route_path name="delete_note" uid=$note['uid']}">
+								<i class="fa fa-trash" aria-hidden="true"></i>
+							</a>
+						</div>
+					</div>
+				{/foreach}
 			</div>
-			<?php endforeach; ?>
-		</div>
-		<? endif; ?>
+		{/if}
 	</div>
 </section>
 <script>

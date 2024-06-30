@@ -1,26 +1,28 @@
 <?php
 namespace App\Controller;
 
+use App\Models\NoteModel;
+use App\Models\UserModel;
 use Core\Controller;
+use Core\Request;
 
-class Profile extends Controller {
-    public function __construct() {
-        $this->config = new Config();
-        $this->model = new Model_Profile();
-        $this->images = new Images();
-        $this->view = new View();
-    }
-    function action_index() {
-        if ($_SESSION['auth_login'] == null)
-                header("Location: /Auth/login");
-
-        $user = $_SESSION['auth_login'];
-        $user_info = $this->model->getUser_data($user);
-
-        if ($user_info['role'] >= $this->config->user_role_inactive) {
-            header('Location: /Error/accessDenied');
-        }
+class ProfileController extends Controller {
+    public function index(Request $request) {
+        $userModel = new UserModel();
+        $user = $userModel->select('users')->where('uid', '=', $request->session('user_uid'))->first();
         
+        $noteModel = new NoteModel();
+        $notes = $noteModel->select('notes')->where('user_id', '=', $user['id'])->get();
+
+        $data = [
+            'user' => $user,
+            'notes' => $notes
+        ];
+
+        $this->render_template('profile_page/index', $data);
+    }
+
+    function update() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $set_name = $_POST['set-user-name'];
             $set_patronymic = $_POST['set-user-patronymic'];
@@ -55,37 +57,6 @@ class Profile extends Controller {
             $this->model->update_user_profile($user_info['id'], $pack_second);
             header('Location: /Profile');            
         }
-        $data = [
-            'style' =>  $this->config->base_url().'templates/css/style.css',
-            'font-awesome' => $this->config->base_url().'templates/img/icons/css/font-awesome.css',
-            'styles' => [
-                'main-style' => $this->config->base_url().'templates/css/style.css',
-                'font-awesome' => $this->config->base_url().'templates/img/icons/css/font-awesome.css',
-            ],
-            'script' => $this->config->base_url().'templates/js/script.js',
-            'profile-script' => $this->config->base_url().'templates/js/profile_script.js',
-            'tpl_images' => [
-                'logo' => $this->config->base_url().'templates/img/AdminLTELogo.png'
-            ],
-            'site' => $this->config->site,
-            'title' => $user_info['first_name']. " " .$user_info['surname'],
-            
-            'user' => $user,
-            'user-name' => $user_info['first_name'],
-            'user_id' => $user_info['id'],
-            'user_token' => $user_info['id'],
-            'user-surname' => $user_info['surname'],
-            'user-patronymic' => $user_info['patronymic'],
-            'user-photo' => $user_info['user_photo'],
-            'is-admin' => $this->config->isAdmin($user_info['role'], $this->config->user_role_admin),
-            'user-position' => $user_info['user_position'],
-            'user-phone' => $user_info['user_phone'],
-            'department' => $user_info['department'],
-            'office-phone' => $user_info['office_phone'],
-            'personal_notes' => $this->model->getPersonalNotes($user_info['id'])
-        ];
-
-        $this->view->render_template('profile_page/index_view.php', 'core/template_view.php', $data);
     }
     function action_changePass() {
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {

@@ -1,3 +1,4 @@
+{literal}
 document.addEventListener("DOMContentLoaded", function () {
     let sidebarControl = document.getElementById('sidebarControl');
     let sidebar = document.querySelector('.sidebar');
@@ -11,7 +12,7 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 wspace.core = {
     data: {
-        socket: new WebSocket(`ws://localhost:27800?user_id=<? echo $user_id; ?>&user_token=<? echo $user_token; ?>`),
+        socket: new WebSocket(`ws://localhost:27800?user_id={/literal}{$user['id']}{literal}`),
         messagesArray: null, // Здесь будут храниться сообщения, которые придут от WS сервера
         userID: null,
     }
@@ -33,3 +34,4 @@ wspace.core = {
         }
     };
 }());
+{/literal}

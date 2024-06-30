@@ -1,3 +1,4 @@
+{literal}
 document.addEventListener('DOMContentLoaded', () => {
     let btnEditProfile = document.querySelector('.profile__edit_user-info');
     let cardInfo = document.querySelector('.profile__card-info--data');
@@ -38,3 +39,4 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+{/literal}

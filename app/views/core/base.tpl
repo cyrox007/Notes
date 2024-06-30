@@ -35,7 +35,7 @@
 	</div>
 	<!-- ./wrapper -->
 	<script>
-		< ? include_once "templates/js/script.js"; ? >
+		{include file='assets/js/script.js'}
 	</script>
 </body>
 

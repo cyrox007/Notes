@@ -58,7 +58,7 @@ $worker->onConnect = function($connection) use(&$connections) {
     // Эта функция выполняется при подключении пользователя к WebSocket-серверу
     $connection->onWebSocketConnect = function($connection) use(&$connections) {
         $db = connect_db();
-        if (isset($_GET["user_id"]) && is_numeric($_GET["user_id"]) && isset($_GET["user_token"])) {
+        if (isset($_GET["user_id"]) && is_numeric($_GET["user_id"])) {
             $userID = $_GET["user_id"];
             // нужно запомнить все диалоги которые начаты пользователем
             $msgArray = get_messages($db, $_GET["user_id"]);
