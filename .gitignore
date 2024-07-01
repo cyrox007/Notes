@@ -7,3 +7,4 @@ vendor/
 compile/*
 cache/*
 config/*
+.logs/*

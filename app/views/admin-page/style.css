@@ -1,0 +1,22 @@
+.admin-tab {
+  margin-top: 10px;
+  background: white;
+}
+.admin-tab__item {
+  width: auto;
+  padding: 10px;
+  flex: 1;
+}
+.admin-tab__item.active {
+  background: var(--color-primary);
+  color: white;
+}
+.admin-content {
+  display: flex;
+  margin-top: 10px;
+  padding: 10px;
+  background: white;
+}
+.admin-content .custom-fields-form h3 {
+  margin: 20px 0;
+}

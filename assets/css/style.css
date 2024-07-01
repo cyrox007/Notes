@@ -504,10 +504,13 @@ body {
 .notes__list_head {
   height: 50px;
   padding-left: 16px;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  display: flex;
+  justify-content: space-between;
   align-items: center;
   background: #F3F4F6;
+}
+.notes__list_head div {
+  flex: 1;
 }
 @media screen and (max-width: 500px) {
   .notes__list_head--date {
@@ -516,15 +519,13 @@ body {
 }
 .notes__list_item {
   height: 75px;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  display: flex;
+  justify-content: space-between;
   align-items: center;
   font-family: var(--text-font);
 }
-@media screen and (max-width: 500px) {
-  .notes__list_item {
-    grid-template-columns: repeat(2, 1fr);
-  }
+.notes__list_item div {
+  flex: 1;
 }
 .notes__name {
   font-family: var(--text-font);

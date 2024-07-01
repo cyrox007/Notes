@@ -1,21 +1,16 @@
 <?php
-namespace  Core;
+
+namespace Core;
 
 use PDO;
 use PDOStatement;
-use ReflectionClass, ReflectionProperty;
+use ReflectionClass;
+use ReflectionProperty;
 use Exception;
 
-class Model {
+class Model
+{
     public $id;
-    /*
-        Модель обычно включает методы выборки данных, это могут быть:
-            > методы нативных библиотек pgsql или mysql;
-            > методы библиотек, реализующих абстракицю данных. Например, методы библиотеки PEAR MDB2;
-            > методы ORM;
-            > методы для работы с NoSQL;
-            > и др.
-    */
     protected $_tablename;
 
     private string $query = "";
@@ -25,10 +20,26 @@ class Model {
     private array $conditions = [];
     private array $parameters = [];
     private ?PDOStatement $preparedStmt = null;
+    private ?int $limit = null;
+    private ?int $offset = null;
+
+    private function reset(): void {
+        $this->query = "";
+        $this->joins = [];
+        $this->columns = [];
+        $this->baseTable = $this->_tablename;
+        $this->conditions = [];
+        $this->parameters = [];
+        $this->preparedStmt = null;
+        $this->limit = null;
+        $this->offset = null;
+    }
 
     public function select(array $columns = []): self {
+        $this->reset();
+
         $this->baseTable = $this->_tablename;
-    
+
         if (!empty($columns)) {
             foreach ($columns as $column) {
                 $this->columns[] = "{$this->_tablename}.{$column}";
@@ -36,13 +47,13 @@ class Model {
         } else {
             $this->columns[] = "{$this->_tablename}.*";
         }
-    
+
         return $this;
     }
     
     public function innerJoin(string $table, string $primaryKey, string $foreignKey, array $columns = []): self {
         $this->joins[] = "INNER JOIN {$table} AS {$table} ON {$table}.{$foreignKey} = {$primaryKey}";
-    
+
         if (!empty($columns)) {
             foreach ($columns as $column) {
                 $this->columns[] = "{$table}.{$column}";
@@ -50,37 +61,65 @@ class Model {
         } else {
             $this->columns[] = "{$table}.*";
         }
-    
+
         return $this;
     }
 
+    public function limit(int $limit): self {
+        $this->limit = $limit;
+        return $this;
+    }
+
+    public function offset(int $offset): self {
+        $this->offset = $offset;
+        return $this;
+    }
+
+    public function count(): int {
+        // Ensure the query is built properly
+        $this->buildQuery();
+
+        // Modify the query to count the rows
+        $countQuery = "SELECT COUNT(*) FROM ({$this->query}) as count_query";
+
+        // Prepare and execute the count query
+        $stmt = $this->connectDb()->prepare($countQuery);
+        
+        if ($stmt->execute($this->parameters)) {
+            return (int) $stmt->fetchColumn();
+        } else {
+            error_log("Count query execution failed: " . implode(" ", $stmt->errorInfo()));
+            throw new Exception("Failed to execute count query.");
+        }
+    }
+
     private function buildQuery(): void {
-        // Check if columns are specified
+        // Ensure at least one column is specified for the SELECT query
         if (empty($this->columns)) {
             throw new Exception("No columns specified for the SELECT query.");
         }
 
-        // Build the base query
+        // Start building the query with selected columns and base table
         $cols = implode(', ', $this->columns);
         $this->query = "SELECT {$cols} FROM {$this->baseTable}";
 
-        // Append joins
+        // Include any specified joins
         foreach ($this->joins as $join) {
-            $this->query .= " " . trim($join);
+            $this->query .= ' ' . trim($join);
         }
 
-        // Append conditions if any, ensuring correct spacing
+        // Add conditions if any
         if (!empty($this->conditions)) {
-            $this->query .= " WHERE " . implode(' AND ', $this->conditions);
+            $this->query .= ' WHERE ' . implode(' AND ', $this->conditions);
         }
 
-        // Log the query for debugging
-        error_log("Generated SQL Query: " . $this->query);
+        // Log the query for debugging purposes
+        error_log("Generated SQL Query: {$this->query}");
 
-        // Attempt to prepare the statement
+        // Attempt to prepare the SQL statement
         $this->preparedStmt = $this->connectDb()->prepare($this->query);
-        
-        // Check if the statement was prepared successfully
+
+        // Check the prepared statement
         if ($this->preparedStmt === false) {
             throw new Exception("Failed to prepare the SQL statement.");
         }
@@ -92,6 +131,9 @@ class Model {
         
         if (!empty($this->conditions)) {
             $condition = "{$logicalOperator} {$condition}";
+        } else {
+            // If this is the first condition, no logical operator is needed
+            $condition = "{$column} {$operator} :{$placeholder}";
         }
     
         $this->conditions[] = $condition;

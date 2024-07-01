@@ -10,7 +10,7 @@ class IsAdmin {
         $routeManager = Route::getInstance();
 
         $userModel = new UserModel();
-        $user = $userModel->select('users', ['uid', 'role'])->where('uid', '=', $request->session('user_uid'))->first();
+        $user = $userModel->select(['uid', 'role'])->where('uid', '=', $request->session('user_uid'))->first();
         
         if ($user['role'] < 900) {
             return $routeManager->redirect('main', 'name');
