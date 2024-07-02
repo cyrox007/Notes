@@ -85,52 +85,52 @@ class ProfileController extends Controller {
         if (empty($_FILES['set-user-avatar']['tmp_name'])) {
             return null;
         }
-
+    
         $fileType = $_FILES['set-user-avatar']['type'];
         $validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
-
+    
+        // Check for valid file type
         if (!in_array($fileType, $validTypes)) {
+            error_log("Invalid file type: $fileType");
             return null;
         }
-
+    
         try {
-            list($relativePath, $filename) = $this->processAndSaveImage($user);
-            return $this->generateDbPath($user, $filename);
+            $relativePath = $this->processAndSaveImage($user);
+            return $relativePath;
         } catch (Exception $e) {
-            echo "Ошибка при обработке изображения: " . $e->getMessage();
+            error_log("Error processing image: " . $e->getMessage());
             return null;
         }
     }
 
-    private function processAndSaveImage(object $user): array {
-        // Загружаем изображение
+    private function processAndSaveImage(object $user): string {
+        // Load the image
         $imageHandler = Images::loadImage($_FILES['set-user-avatar']['tmp_name']);
-
-        // Обрабатываем изображение до размеров аватара (150x150)
-        $imageHandler->processImage(150, 150);
-
-        // Генерируем уникальное имя файла
+        
+        // Process the image to desired size (150x150)
+        $imageHandler = $imageHandler->processImage(150, 150);
+        
+        // Generate unique filename
         $hash = md5(uniqid(rand(), true));
         $extension = pathinfo($_FILES['set-user-avatar']['name'], PATHINFO_EXTENSION);
         $filename = $hash . '.' . $extension;
-
-        // Генерируем путь для сохранения (не включает SITEPATH)
-        $relative_path = getenv('UPLOAD_DIR') . '/' . $user->uid . '/avatars/' . $filename;
-        $save_path = SITEPATH . $relative_path;
-
-        // Создаем директории, если их нет
-        if (!file_exists(dirname($save_path))) {
-            mkdir(dirname($save_path), 0777, true);
+    
+        // Generate path for saving (not including SITEPATH)
+        $uploadDir = getenv('UPLOAD_DIR') ?: 'default/path'; // Fallback to default if UPLOAD_DIR isn't set
+        $relativePath = '/'.$uploadDir . '/' . $user->uid . '/avatars/' . $filename;
+        $savePath = SITEPATH . $relativePath;
+    
+        // Create directories if they do not exist
+        $directory = dirname($savePath);
+        if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
+            throw new \RuntimeException(sprintf('Directory "%s" was not created', $directory));
         }
-
-        // Сохраняем изображение
-        $imageHandler->saveImage($save_path);
-
-        return [$relative_path, $filename];
-    }
-
-    private function generateDbPath(object $user, string $filename): string {
-        return getenv('UPLOAD_DIR') . '/' . $user->uid . '/avatars/' . $filename;
+        
+        // Save the image
+        $imageHandler->saveImage($savePath);
+    
+        return $relativePath;
     }
 
     private function updateUserData(object $user, array $updateData): void {

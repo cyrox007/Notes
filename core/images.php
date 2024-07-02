@@ -33,15 +33,32 @@ class Images {
 
 	// Функция загрузки изображения
 	private function load($filename) {
-		$image_info = getimagesize($filename); // получаем информацию о изображении
-		$this->image_type = $image_info[2]; // получаем информацию о типе файла
-
-		if ($this->image_type == IMAGETYPE_JPEG) {
-			$this->image = imagecreatefromjpeg($filename);
-		} else if ($this->image_type == IMAGETYPE_GIF) {
-			$this->image = imagecreatefromgif($filename);
-		} else if ($this->image_type == IMAGETYPE_PNG) {
-			$this->image = imagecreatefrompng($filename);
+		$image_info = getimagesize($filename); // Получаем информацию о изображении
+		if ($image_info === false) {
+			throw new \Exception('Failed to get image size information.');
+		}
+	
+		$this->image_type = $image_info[2]; // Получаем информацию о типе файла
+	
+		switch ($this->image_type) {
+			case IMAGETYPE_JPEG:
+				$this->image = imagecreatefromjpeg($filename);
+				break;
+			case IMAGETYPE_GIF:
+				$this->image = imagecreatefromgif($filename);
+				break;
+			case IMAGETYPE_PNG:
+				$this->image = imagecreatefrompng($filename);
+				break;
+			case IMAGETYPE_WEBP:
+				$this->image = imagecreatefromwebp($filename);
+				break;
+			default:
+				throw new \Exception('Unsupported image type.');
+		}
+		
+		if (!$this->image) {
+			throw new \Exception('Failed to load image.');
 		}
 	}
 

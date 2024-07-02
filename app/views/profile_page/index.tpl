@@ -12,7 +12,7 @@
 			{if $user['user_image'] == 'default_img'}
 				{html_image file="{$base_url}/assets/img/default_avatar.png" alt="{$user['firstname']} {$user['surname']}" class="img-circle elevation-2"}
 			{else}
-				
+				{html_image file="{$base_url}/{$user.user_image}" alt="{$user['firstname']} {$user['surname']}" class="img-circle elevation-2"}
 			{/if}
 
 			<button class="profile__edit_user-info">Редактировать</button>
@@ -35,6 +35,18 @@
 						{$user['email']}
 					</p>
 				</div>
+				<hr>
+				{assign var="customData" value=[]}
+				{if !empty($user.property)}
+					{jsonParse json=$user.property assign="customData"}
+					{foreach $customData as $props}
+						<div class="profile__user-other-info">
+							<p class="profile__user-detals">{$props['label']}:
+								{$props['value']}
+							</p>
+						</div>
+					{/foreach}
+				{/if}
 				
 			</div>
 			<div class="profile__card-info--edit">
