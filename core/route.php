@@ -116,7 +116,7 @@ class Route {
 		return true;
 	}
 
-	public function redirect(string $to, string $type = 'url'): void {
+	public function redirect(string $to, string $type = 'name'): void {
         if ($type === 'url' && filter_var($to, FILTER_VALIDATE_URL)) {
             header("Location: $to");
         } elseif ($type === 'name') {

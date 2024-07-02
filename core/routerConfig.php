@@ -28,10 +28,14 @@ $router->group('/notes', function ($addRoute) {
 
 $router->group('/profile', function ($addRoute) {
    $addRoute('GET', '/', [ProfileController::class, 'index'], [LoginRequared::class], 'profile');
+   $addRoute('POST', '/', [ProfileController::class, 'update'], [LoginRequared::class], 'profile-set');
+   $addRoute('POST', '/change-pass', [ProfileController::class, 'changeUserPass'], [LoginRequared::class], 'profile-password-set');
+   $addRoute('POST', '/delete-user', [ProfileController::class, 'deleteUser'], [LoginRequared::class], 'profile-delete');
 });
 
 $router->group('/admin', function ($addRoute) {
    $addRoute('GET', '/', [AdminController::class, 'index'], [LoginRequared::class, IsAdmin::class], 'adminpanel'); 
+   $addRoute('POST', '/', [AdminController::class, 'saveCustomFields'], [LoginRequared::class, IsAdmin::class], 'save_custom_fields'); 
 });
 
 $router->dispatch(); 

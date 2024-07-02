@@ -76,9 +76,10 @@ class Controller {
         return $this->request->session($params['key']) ?? null;
     }
 
-    public function jsonParse($params): ?array {
-        return json_decode($params['json'], true);
+    public function jsonParse($params, &$smarty) {
+        $smarty->assign($params['assign'], json_decode($params['json'], true));
     }
+
 
     protected function render_template(string $template, ?array $data = null) {
         $this->smarty->assign('base_url', getenv('SITEURL'));

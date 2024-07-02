@@ -1,10 +1,17 @@
 <?php
 namespace App\Controllers;
 
+use App\Models\FieldModel;
 use App\Models\NoteModel;
 use App\Models\UserModel;
+use App\Helpers\CryptMethods;
 use Core\Controller;
+use Core\DatabaseManager;
 use Core\Request;
+use Core\Images;
+
+use Exception;
+use Route;
 
 class ProfileController extends Controller {
     public function index(Request $request) {
@@ -14,83 +21,161 @@ class ProfileController extends Controller {
         $noteModel = new NoteModel();
         $notes = $noteModel->select()->where('user_id', '=', $user['id'])->get();
 
+        $fieldsModel = new FieldModel();
+        $fields = $fieldsModel->select()->get();
+
         $data = [
             'user' => $user,
-            'notes' => $notes
+            'notes' => $notes,
+            'fields' => $fields
         ];
 
         $this->render_template('profile_page/index', $data);
     }
 
-    function update() {
-        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-            $set_name = $_POST['set-user-name'];
-            $set_patronymic = $_POST['set-user-patronymic'];
-            $set_surname = $_POST['set-user-surname'];
-            $set_user_phone = $_POST['set-user-phone'];
-            $set_avatar = null;
-            $set_user_position = $_POST['set-user-position'];
-            $set_department = $_POST['set-user-deportament'];
-            $set_office_phone = $_POST['set-office-phone'];
+    public function update(Request $request) {
+        $userModel = new UserModel();
+        $user = $userModel->select()->where('uid', '=', $request->session('user_uid'))->first(true);
 
-            if ($_FILES['set-user-avatar']['type'] == 'image/jpeg' 
-                || $_FILES['set-user-avatar']['type'] == 'image/png'
-                || $_FILES['set-user-avatar']['tmp_name'] != null) {
-                $set_avatar = $this->images->checkAvatar_save(
-                    $_FILES['set-user-avatar']['tmp_name'], 
-                    $_FILES['set-user-avatar']['name']
-                );
+        $postData = $request->post();
+        $updateData = $this->gatherUserData($postData, $user);
+
+        if ($newAvatarPath = $this->handleAvatarUpload($user)) {
+            $updateData['user_image'] = $newAvatarPath;
+        }
+
+        $customFields = $this->getCustomFields($postData['custom']);
+        $updateData['property'] = json_encode($customFields, JSON_UNESCAPED_UNICODE);
+
+        $this->updateUserData($user, $updateData);
+
+        $dbManager = new DatabaseManager();
+        $dbManager->queueUpdate($user);
+        $dbManager->commit();
+
+        return Route::getInstance()->redirect('profile');
+    }
+
+    private function gatherUserData(array $postData, object $user): array {
+        return [
+            'firstname' => $postData['set-user-name'],
+            'patronymic' => $postData['set-user-patronymic'],
+            'surname' => $postData['set-user-surname'],
+            'phone' => $postData['set-user-phone'],
+            'email' => $postData['set-user-email'],
+            'user_image' => $user->user_image
+        ];
+    }
+
+    private function getCustomFields(array $customData): array {
+        $customFields = [];
+        foreach ($customData as $name => $data) {
+            if (isset($data['label'], $data['value'])) {
+                $customFields[] = [
+                    'label' => $data['label'],
+                    'name' => $name,
+                    'value' => $data['value']
+                ];
             }
+        }
+        return $customFields;
+    }
 
-            $pack_second = [
-                'first_name' => $set_name,
-                'patronymic' => $set_patronymic,
-                'surname' => $set_surname,
-                'user_phone' => $set_user_phone,
-                'user_photo' => "$set_avatar",
-                'user_position' => $set_user_position,
-                'department' => $set_department,
-                'office_phone' => $set_office_phone
+    private function handleAvatarUpload(object $user): ?string {
+        if (empty($_FILES['set-user-avatar']['tmp_name'])) {
+            return null;
+        }
+
+        $fileType = $_FILES['set-user-avatar']['type'];
+        $validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'];
+
+        if (!in_array($fileType, $validTypes)) {
+            return null;
+        }
+
+        try {
+            list($relativePath, $filename) = $this->processAndSaveImage($user);
+            return $this->generateDbPath($user, $filename);
+        } catch (Exception $e) {
+            echo "Ошибка при обработке изображения: " . $e->getMessage();
+            return null;
+        }
+    }
+
+    private function processAndSaveImage(object $user): array {
+        // Загружаем изображение
+        $imageHandler = Images::loadImage($_FILES['set-user-avatar']['tmp_name']);
+
+        // Обрабатываем изображение до размеров аватара (150x150)
+        $imageHandler->processImage(150, 150);
+
+        // Генерируем уникальное имя файла
+        $hash = md5(uniqid(rand(), true));
+        $extension = pathinfo($_FILES['set-user-avatar']['name'], PATHINFO_EXTENSION);
+        $filename = $hash . '.' . $extension;
+
+        // Генерируем путь для сохранения (не включает SITEPATH)
+        $relative_path = getenv('UPLOAD_DIR') . '/' . $user->uid . '/avatars/' . $filename;
+        $save_path = SITEPATH . $relative_path;
+
+        // Создаем директории, если их нет
+        if (!file_exists(dirname($save_path))) {
+            mkdir(dirname($save_path), 0777, true);
+        }
+
+        // Сохраняем изображение
+        $imageHandler->saveImage($save_path);
+
+        return [$relative_path, $filename];
+    }
+
+    private function generateDbPath(object $user, string $filename): string {
+        return getenv('UPLOAD_DIR') . '/' . $user->uid . '/avatars/' . $filename;
+    }
+
+    private function updateUserData(object $user, array $updateData): void {
+        foreach ($updateData as $key => $value) {
+            if ($user->{$key} !== $value) {
+                $user->{$key} = $value;
+            }
+        }
+    }
+
+    public function changeUserPass(Request $request) {
+        $userModel = new UserModel();
+        $user = $userModel->select()->where('uid', '=', $request->session('user_uid'))->first(true);
+        $data['user'] = get_object_vars($user);
+
+
+        if (!CryptMethods::verifyPassword($request->post('old-password'), $user->password)) {
+            $data['errors'] = [
+                "CODE" => 'login_error',
+                "MESSAGE" => "Password error"
             ];
-
-            $pack_second = array_diff($pack_second, array('', null, 0));
-            $this->model->update_user_profile($user_info['id'], $pack_second);
-            header('Location: /Profile');            
+            return $this->render_template('profile_page/index', $data);
         }
-    }
-    function action_changePass() {
-        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-            $key = $this->config->hash_key;
-            $method = $this->config->hash_method;
-            $user = $_SESSION['auth_login'];
-            $user_info = $this->model->getUser_data($user);
 
-            if (isset($_POST['old-password'])) {
-                $encrypted_password = openssl_encrypt($_POST['old-password'], $method, $key);
-                $user_password = $this->model->get_data_password($user);
+        $user->password = CryptMethods::createHashFromPassword($request->post('new-password'));
 
-                if ($encrypted_password == $user_password) {
-                    $new_passord = openssl_encrypt($_POST['new-password'], $method, $key);
-                    var_dump($_POST['new-password']);
-                    var_dump($new_passord);
-
-                    $this->model->update_user_password($user_info['id'], $new_passord);
-                    
-                    unset($_SESSION['auth_login']);
-                    header('Location: /Profile');
-                }
-            }
-        }
+        $dbManager = new DatabaseManager();
+        $dbManager->queueUpdate($user);
+        $dbManager->commit();
+        
+        $request->unsetSession("auth");
+        $request->unsetSession('user_uid');
+        return Route::getInstance()->redirect('login');
     }
 
-    function action_deleteUser () {
-        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-            $user = $_SESSION['auth_login'];
-            $user_info = $this->model->getUser_data($user);
+    public function deleteUser (Request $request) {
+        $userModel = new UserModel();
+        $user = $userModel->select()->where('uid', '=', $request->session('user_uid'))->first(true);
 
-            $this->model->update_user_status($user_info['id']);
-            unset($_SESSION['auth_login']);
-            header('Location: /Profile');
-        }
+        $dbManager = new DatabaseManager();
+        $dbManager->queueDelete($user);
+        $dbManager->commit();
+        
+        $request->unsetSession("auth");
+        $request->unsetSession('user_uid');
+        return Route::getInstance()->redirect('login');
     }
 }

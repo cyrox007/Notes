@@ -20,3 +20,15 @@
 .admin-content .custom-fields-form h3 {
   margin: 20px 0;
 }
+.admin-content .custom-fields-form form {
+  display: flex;
+  flex-direction: column;
+}
+.admin-content .custom-fields-form form > #custom-fields-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.admin-content .custom-fields-form form > #custom-fields-container .custom-field {
+  margin: 5px 0;
+}

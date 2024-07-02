@@ -43,8 +43,10 @@
                     {/foreach}
                 {/if}
             </div>
-            <button type="button" id="add-field-btn">Добавить поле</button>
-            <button type="submit">Сохранить</button>
+            <div>
+                <button type="button" id="add-field-btn">Добавить поле</button>
+                <button type="submit">Сохранить</button>
+            </div>
         </form>
     </div>
 </section>
