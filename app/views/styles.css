@@ -1,0 +1,10 @@
+{include file="core/common.css"}
+{include file="^shared/sidebar/style.css"}
+{include file="^shared/header/style.css"}
+
+{include file="profile_page/style.css"}
+{include file="notes_page/style.css"}
+
+{include file="admin-page/style.css"}
+
+{include file="^shared/footer/style.css"}

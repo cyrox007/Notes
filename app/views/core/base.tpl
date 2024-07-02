@@ -10,7 +10,8 @@
 	<title>{$smarty.env.SITENAME} {$smarty.env.VERSION} | {block name=title}{/block}</title>
 
 	<style>
-		{include file='assets/css/style.css'}
+		{* {include file='assets/css/style.css'} *}
+		{include file='styles.css'}
 	</style>
 	<link rel="stylesheet" href="{$base_url}/assets/font-awesome/css/font-awesome.min.css">
 	<link rel="icon" href="/favicon.ico" type="image/x-icon">
@@ -24,13 +25,13 @@
 
 	<!-- Site wrapper -->
 	<div class="wrapper">
-		{include file='app/views/shared/sidebar.tpl'}
+		{include file='^shared/sidebar/index.tpl'}
 		<div class="wrapper__content">
-			{include file='app/views/shared/header.tpl'}
+			{include file='^shared/header/index.tpl'}
 			<div class="content-wrapper">
 				{block name=body}{/block}
 			</div>
-			{include file='app/views/shared/footer.tpl'}
+			{include file='^shared/footer/index.tpl'}
 		</div>
 	</div>
 	<!-- ./wrapper -->

@@ -1,0 +1,14 @@
+.main-footer {
+  background: #fff;
+  border-top: 1px solid #dee2e6;
+  color: #869099;
+  padding: 1rem;
+  display: flex;
+  flex-direction: row-reverse;
+  justify-content: space-between;
+}
+.main-footer a {
+  color: #007bff;
+  text-decoration: none;
+  background-color: transparent;
+}

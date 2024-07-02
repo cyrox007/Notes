@@ -3,9 +3,6 @@
     Админпанель
 {/block}
 {block name=body}
-<style>
-    {include file="admin-page/style.css"}
-</style>
 <section class="admin-tab">
     <div class="admin-tab__item active">Пользователи</div>
 </section>

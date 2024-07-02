@@ -1,0 +1,56 @@
+.navbar {
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  border-bottom: 1px solid #dee2e6;
+  background: var(--color-white);
+  gap: 20px;
+}
+.navbar__link,
+.navbar form > button {
+  background: none;
+  border: none;
+  position: relative;
+  /* height: 40px; */
+  padding: 13px 8px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-decoration: none;
+  color: var(--color-grey);
+  font-size: 16px;
+  cursor: pointer;
+}
+.navbar #sidebarControl {
+  margin-left: 20px;
+}
+.navbar #sidebarControl span {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 15px;
+  height: 1px;
+  background: #000;
+}
+.navbar #sidebarControl span::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 15px;
+  height: 1px;
+  background: #000;
+  transform: translateY(-5px);
+}
+.navbar #sidebarControl span::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 15px;
+  height: 1px;
+  background: #000;
+  transform: translateY(5px);
+}

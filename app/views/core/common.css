@@ -1,0 +1,57 @@
+@import url("https://fonts.googleapis.com/css2?family=Montserrat&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Anek+Devanagari:wght@100;400;500&family=Grape+Nuts&display=swap");
+:root {
+  --header-font: "Grape Nuts", cursive;
+  --text-font: "Anek Devanagari", sans-serif;
+  --main-font: "Montserrat", sans-serif;
+  --color-white: #fff;
+  --color-light: #e9ecef;
+  --color-grey: #495057;
+  --color-main: #7BADC3;
+  --color-second: #8A7D87;
+  --color-dark: #2B556D;
+  --color-black: #000;
+  --color-success: #198754;
+  --color-primary: #0D6EFD;
+  --color-secondary: #6C757D;
+  --color-danger: #DC3545;
+  --color-warning: #FFC107;
+  --color-info: #0DCAF0;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  background-color: var(--color-light);
+  font-family: "Source Sans Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+}
+
+.content {
+  padding: 15px 0.5rem;
+}
+.content-wrapper {
+  position: relative;
+  height: calc(100vh - 57px - 54px);
+  width: 100%;
+}
+@media screen and (min-width: 1440px) {
+  .content-wrapper {
+    width: 1200px;
+    margin: 0 auto;
+  }
+}
+.content-header {
+  padding: 15px 0.5rem;
+}
+.content-header h1 {
+  font-size: 1.8rem;
+  font-weight: 500;
+  line-height: 1.2;
+}

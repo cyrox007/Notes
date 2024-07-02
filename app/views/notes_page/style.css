@@ -1,0 +1,217 @@
+@charset "UTF-8";
+.notes {
+  padding: 0 0.5rem;
+}
+.notes__create {
+  display: flex;
+  justify-content: space-between;
+}
+.notes__input {
+  height: 35px;
+  width: 100%;
+}
+.notes__input input {
+  height: 100%;
+  width: 100%;
+  padding: 0 0.5rem;
+  border: 1px solid #0069d9;
+  border-radius: 5px;
+}
+.notes__submit {
+  height: 35px;
+  width: 70px;
+  margin-left: 10px;
+}
+.notes__submit button {
+  height: 100%;
+  width: 100%;
+  background: #0062cc;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+}
+.notes #show-all-notes {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  font-size: 18px;
+  color: #111827;
+}
+.notes #show-all-notes p {
+  margin: 0px 1rem;
+}
+.notes #show-all-notes .switch-btn {
+  display: inline-block;
+  width: 72px;
+  /* ширина */
+  height: 38px;
+  /* высота */
+  border-radius: 19px;
+  /* радиус скругления */
+  background: #bfbfbf;
+  /* цвет фона */
+  z-index: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  transition-duration: 300ms;
+  /* анимация */
+}
+.notes #show-all-notes .switch-btn::after {
+  content: "";
+  height: 32px;
+  /* высота кнопки */
+  width: 32px;
+  /* ширина кнопки */
+  border-radius: 17px;
+  background: #fff;
+  /* цвет кнопки */
+  top: 3px;
+  /* положение кнопки по вертикали относительно основы */
+  left: 3px;
+  /* положение кнопки по горизонтали относительно основы */
+  transition-duration: 300ms;
+  /* анимация */
+  position: absolute;
+  z-index: 1;
+}
+.notes #show-all-notes .switch-on {
+  background: #118c4e;
+}
+.notes #show-all-notes .switch-on::after {
+  left: 37px;
+}
+.notes__content {
+  margin-top: 15px;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  box-shadow: 0px 1px 1px rgba(100, 116, 139, 0.06), 0px 1px 2px rgba(100, 116, 139, 0.1);
+  border-radius: 8px;
+}
+.notes__title {
+  margin: 16px;
+  /* font-family: var(--text-font); */
+  font-size: 18px;
+  color: #111827;
+}
+.notes__list {
+  padding-left: 16px;
+  display: none;
+  flex-direction: column;
+  background-color: #fff;
+}
+.notes__list.visible {
+  display: flex;
+}
+.notes__list_head {
+  height: 50px;
+  padding-left: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #F3F4F6;
+}
+.notes__list_head div {
+  flex: 1;
+}
+@media screen and (max-width: 500px) {
+  .notes__list_head--date {
+    display: none;
+  }
+}
+.notes__list_item {
+  height: 75px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--text-font);
+}
+.notes__list_item div {
+  flex: 1;
+}
+.notes__name {
+  font-family: var(--text-font);
+  font-weight: 600;
+  font-size: 1rem;
+}
+.notes__date {
+  font-size: 12px;
+}
+@media screen and (max-width: 500px) {
+  .notes__date {
+    display: none;
+  }
+}
+.notes__btn {
+  display: flex;
+  flex-direction: row;
+}
+.notes__btn--edit {
+  text-decoration: none;
+  height: 40px;
+  width: 40px;
+  margin-right: 5px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #fff;
+  background-color: var(--color-warning);
+  border-radius: 5px;
+  font-size: 1.4rem;
+}
+.notes__btn--delete {
+  text-decoration: none;
+  height: 40px;
+  width: 40px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #fff;
+  background-color: var(--color-danger);
+  border-radius: 5px;
+  font-size: 1.4rem;
+}
+
+.note-header {
+  width: 100%;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+}
+.note-content {
+  width: 100%;
+  padding: 1rem;
+  display: flex;
+}
+.note__edit {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.note__text {
+  max-width: 500px;
+  height: 300px;
+}
+.note__text textarea {
+  width: 100%;
+  height: 100%;
+  padding: 0.5rem;
+  resize: none;
+  border: 1px solid #0062cc;
+  border-radius: 3px;
+}
+.note__submit {
+  height: 35px;
+  width: 150px;
+  margin-top: 10px;
+}
+.note__submit button {
+  height: 100%;
+  width: 100%;
+  color: #fff;
+  background: #0062cc;
+  border: none;
+}
