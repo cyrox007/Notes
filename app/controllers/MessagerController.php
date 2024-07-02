@@ -3,7 +3,7 @@ namespace App\Controllers;
 
 use Core\Controller;
 
-class Messager extends Controller {
+class MessagerController extends Controller {
     
     public $helper;
 
