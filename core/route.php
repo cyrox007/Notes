@@ -69,6 +69,7 @@ class Route {
 	public function dispatch(): void {
 		$requestUrl = $this->normalizePath(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH));
 		$requestMethod = strtoupper($_SERVER['REQUEST_METHOD']);
+		$routeFound = false; // Flag to check if any route matches
 
 		foreach ($this->routes as $route) {
 			$pathPattern = $this->create_pattern($route['path']);
@@ -77,6 +78,8 @@ class Route {
 				continue;
 			}
 
+			$routeFound = true; // route is found
+
 			$request = new \Core\Request();
 
 			if (!$this->executeMiddlewares($route['middlewares'], $request)) {
@@ -84,13 +87,24 @@ class Route {
 			}
 
 			[$class, $function] = $route['controller'];
-			$controllerInstance = new $class;
-			
+			$controllerInstance = new $class();
 
 			$params = $this->clearParams($params);
 
 			$this->invokeController($controllerInstance, $function, $request, $params);
+			
+			return; // Exit once the correct route is found and handled
 		}
+
+		if (!$routeFound) {
+			$this->handle404();
+		}
+	}
+
+	private function handle404(): void {
+		header("HTTP/1.0 404 Not Found");
+		echo '404 Page Not Found';
+		exit; // Ensure no further code is executed
 	}
 
 	private function isMatchingRoute(string $pathPattern, string $requestUrl, string $routeMethod, string $requestMethod, &$params): bool {
