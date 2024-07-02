@@ -7,6 +7,7 @@ use Core\Controller;
 use Core\DatabaseManager;
 use Core\Request;
 use Route;
+use UUID;
 
 class NoteController extends Controller {
     public function index(Request $request) {
@@ -25,6 +26,28 @@ class NoteController extends Controller {
         ]; 
 
         $this->render_template('notes_page/index', $data);
+    }
+
+    public function create(Request $request) {
+        $userModel = new UserModel();
+        $user = $userModel->select()->where('uid', '=', $request->session('user_uid'))->first();
+
+        $uidNote = UUID::guidv4();
+        $created_at = date("Y-m-d H:i:s");
+        
+        $newNote = new NoteModel();
+        $newNote->uid = $uidNote;
+        $newNote->notename = $request->post('notename');
+        $newNote->content = '';
+        $newNote->created_note = $created_at;
+        $newNote->updated_note = $created_at;
+        $newNote->user_id = $user['id'];
+
+        $dbManager = new DatabaseManager();
+        $dbManager->queueInsert($newNote);
+        $dbManager->commit();
+
+        return Route::getInstance()->redirect('edit_page', 'name', ['uid' => $uidNote]);
     }
 
     public function edit(Request $request, $uid) {
@@ -57,6 +80,7 @@ class NoteController extends Controller {
         }
 
         $note->content = $request->post('content');
+        $note->updated_note = date("Y-m-d H:i:s");
 
         $dbManager = new DatabaseManager();
         $dbManager->queueUpdate($note);
@@ -81,12 +105,5 @@ class NoteController extends Controller {
 
         $dbManager->commit();
         return Route::getInstance()->redirect('notes', 'name');
-    }
-
-    public function test() {
-        $userModel = new UserModel();
-        $users = $userModel->select()->get();
-        var_dump($users);
-        return;
     }
 }

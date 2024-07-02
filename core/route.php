@@ -130,22 +130,37 @@ class Route {
 		return true;
 	}
 
-	public function redirect(string $to, string $type = 'name'): void {
-        if ($type === 'url' && filter_var($to, FILTER_VALIDATE_URL)) {
-            header("Location: $to");
-        } elseif ($type === 'name') {
-            $route = $this->findRouteByName($to);
-            if ($route) {
-                $url = $route['path'];
-                header("Location: $url");
-            } else {
-                throw new \Exception("Route for redirect not found: $to");
-            }
-        } else {
+	public function redirect(string $to, string $type = 'name', array $params = []): void {
+		if ($type === 'url' && filter_var($to, FILTER_VALIDATE_URL)) {
+			header("Location: $to");
+			exit();
+		} elseif ($type === 'name') {
+			$route = $this->findRouteByName($to);
+			if ($route) {
+				$url = $this->buildUrlFromRoute($route['path'], $params);
+				header("Location: $url");
+				exit();
+			} else {
+				throw new \Exception("Route for redirect not found: $to");
+			}
+		} else {
 			throw new \Exception("Invalid type provided for redirect: $type");
 		}
-        exit();
-    }
+	}
+	
+	private function buildUrlFromRoute(string $path, array $params): string {
+		foreach ($params as $key => $value) {
+			// Define the pattern to match {type:paramName}
+			$pattern = '/\{(int|str):' . preg_quote($key, '/') . '\}/';
+			if (preg_match($pattern, $path)) {
+				// Replace the matched pattern with the value
+				$path = preg_replace($pattern, $value, $path, 1);
+			} else {
+				throw new \Exception("Parameter {$key} not found in route path");
+			}
+		}
+		return $this->normalizePath($path);
+	}
 
 	private function findRouteByName(string $name): ?array {
         foreach ($this->routes as $route) {

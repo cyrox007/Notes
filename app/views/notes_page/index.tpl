@@ -10,9 +10,10 @@
 </section>
 
 <section class="notes">
-	<form class="notes__create" action="" method="post">
+	<form class="notes__create" action="{route_path name="note_create"}" method="post">
+		{csrf_token}
 		<div class="notes__input">
-			<input type="text" name="note-name" placeholder="Введите название новой заметки...">
+			<input type="text" name="notename" placeholder="Введите название новой заметки...">
 		</div>
 		<div class="notes__submit">
 			<button type="submit">Создать</button>

@@ -21,6 +21,7 @@ $router->group('/auth', function ($addRoute) {
 
 $router->group('/notes', function ($addRoute) {
     $addRoute("GET", '/', [NoteController::class, 'index'], [LoginRequared::class], 'notes');
+    $addRoute("POST", '/', [NoteController::class, 'create'], [LoginRequared::class], 'note_create');
     $addRoute("GET", '/{str:uid}/edit', [NoteController::class, 'edit'], [], 'edit_page');
     $addRoute("POST", '/{str:uid}/edit', [NoteController::class, 'update'], [], 'update_note');
     $addRoute("GET", '/{str:uid}/delete', [NoteController::class, 'delete'], [LoginRequared::class], 'delete_note');
@@ -31,6 +32,10 @@ $router->group('/profile', function ($addRoute) {
    $addRoute('POST', '/', [ProfileController::class, 'update'], [LoginRequared::class], 'profile-set');
    $addRoute('POST', '/change-pass', [ProfileController::class, 'changeUserPass'], [LoginRequared::class], 'profile-password-set');
    $addRoute('POST', '/delete-user', [ProfileController::class, 'deleteUser'], [LoginRequared::class], 'profile-delete');
+});
+
+$router->group('messenger', function ($addRoute) {
+    $addRoute('GET', '/', [ProfileController::class, 'index'], [LoginRequared::class], 'profile');
 });
 
 $router->group('/admin', function ($addRoute) {
