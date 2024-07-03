@@ -13,7 +13,7 @@
                 </div>
             {else}
                 {foreach $dialogues as $dialog}
-                    <div class="messager__contact_item" data-href="{$dialog['d_uid']}" user-id="{$dialog['u_uid']}" dialog-id="{$dialog['d_uid']}">
+                    <div class="messager__contact_item" data-href="{$dialog['d_uid']}" user-id="{$dialog['u_uid']}" data-duid="{$dialog['d_uid']}">
                         <p class="messager__username">{$dialog['u_firstname']} {$dialog['u_surname']}</p>
                     </div>
                 {/foreach}

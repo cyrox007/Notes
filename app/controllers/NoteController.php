@@ -17,7 +17,7 @@ class NoteController extends Controller {
         $noteModel = new NoteModel();
         $userNotes = $noteModel->select()->where('user_id', '=', $user['id'])->get();
         
-        $allNotes = $noteModel->select()->innerJoin('users', 'notes.user_id', 'id', ['username', 'uid'])->get();
+        $allNotes = $noteModel->select()->innerJoin('users', 'user_id', 'id', ['username', 'uid'])->get();
         
         $data = [
             'personalNotes' => $userNotes,
@@ -55,7 +55,7 @@ class NoteController extends Controller {
         $user = $userModel->select()->where('uid', '=', $request->session('user_uid'))->first();
 
         $noteModel = new NoteModel();
-        $note = $noteModel->select()->innerJoin('users', 'notes.user_id', 'id', ['username'])->where('notes.uid', '=', $uid)->first();
+        $note = $noteModel->select()->innerJoin('users', 'user_id', 'id', ['username'])->where('uid', '=', $uid)->first();
         
         if ($note['user_id'] != $user['id'] || $user['role'] < 900) {
             return Route::getInstance()->redirect('notes', 'name');

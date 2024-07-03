@@ -50,12 +50,19 @@ class Model
         return $this;
     }
     
-    public function innerJoin(string $table, string $foreignKey, string $primaryKey, array $columns = [], ?string $alias = null): self {
+    public function innerJoin(
+        string $table, 
+        string $foreignKey, 
+        string $primaryKey, 
+        array $columns = [], 
+        ?string $alias = null,
+        string $operator = '='
+    ): self {
         $aliasTable = $alias ?? $table;
-        
-        // Создание правильного ON условия
-        $this->joins[] = "INNER JOIN {$table} AS {$aliasTable} ON {$this->baseTable}.{$foreignKey} = {$aliasTable}.{$primaryKey}";
-        
+    
+        // Создание правильного ON условия и управление оператором сравнения
+        $this->joins[] = "INNER JOIN {$table} AS {$aliasTable} ON {$this->baseTable}.{$foreignKey} {$operator} {$aliasTable}.{$primaryKey}";
+    
         if (!empty($columns)) {
             foreach ($columns as $column) {
                 $this->columns[] = "{$aliasTable}.{$column} AS {$aliasTable}_{$column}";
@@ -63,7 +70,7 @@ class Model
         } else {
             $this->columns[] = "{$aliasTable}.*";
         }
-        
+    
         return $this;
     }
 

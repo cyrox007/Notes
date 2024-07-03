@@ -6,47 +6,78 @@ require_once __DIR__.'/../vendor/autoload.php';
 use Workerman\Lib\Timer;
 use Workerman\Worker;
 
-function connect_db() {
-    $db = new SQLite3(__DIR__."/../wspace.db");
-    return $db;
-}
+use Dotenv\Dotenv;
 
-function get_messages($db, $user_id) {
-    $sql = "SELECT utd.id, utd.user_id, 
-                utd.dialog_id, d.hash
-            FROM user_to_dialog AS utd
-            INNER JOIN dialoges AS d
-                ON utd.dialog_id = d.id
-            WHERE utd.user_id = {$user_id}";
-    
-    $raw = $db->query($sql);
-    
-    $result = array();
-    while ($row = $raw->fetchArray()) {
-        $result[] = $row;
-    }
-    
-    $new_result = array();
-    if ($result != null) {
-        foreach ($result as $dbrow) {
-            $dialog_id = $dbrow["dialog_id"];
-            $sql = "SELECT msg.message, msg.dialog_id,
-                        msg.sender_id, msg.send_date, p.first_name,
-                        p.patronymic, p.user_photo
-                    FROM messages AS msg
-                    INNER JOIN profile AS p 
-                        ON msg.sender_id = p.user_id
-                    WHERE msg.dialog_id = '{$dialog_id}'";
-            $raw = $db->query($sql);
-            while ($row = $raw->fetchArray()) {
+// Загружаем переменные окружения из .env
+$dotenv = Dotenv::createUnsafeImmutable(__DIR__ . '/..');
+$dotenv->load();
 
-                $row["send_date"] = date("Y-m-d H:i:s", $row["send_date"]); // преобразуем метку времени из бд обратно в строку
-                $messages[] = $row;
-            }
-            $new_result[$dialog_id] = $messages;
+class ServerWS {
+    // Функция для подключения к MySQL с использованием PDO
+    public static function connect_db() {
+        try {
+            $config = [
+                'hostname' => getenv("DBHOST") ?: 'localhost',
+                'port' => getenv("DBPORT") ?: 3306,
+                'username' => getenv("DBUSER") ?: 'root',
+                'password' => getenv("DBPASS") ?: '',
+                'database' => getenv("DBNAME") ?: 'workspace'
+            ];
+
+            $dsn = "mysql:host={$config['hostname']};port={$config['port']};dbname={$config['database']}";
+            $db = new PDO($dsn, $config['username'], $config['password'], [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+            ]);
+
+            return $db;
+        } catch (PDOException $e) {
+            echo "Error connecting to database: " . $e->getMessage();
+            return null;
         }
     }
-    return $new_result;
+}
+
+function get_dialog_messages($conn, $data) {
+    $db = ServerWS::connect_db();
+
+    $get_dialog_id = "SELECT id FROM dialogs WHERE uid = :dialog_uid";
+    $stmt = $db->prepare($get_dialog_id);
+    $stmt->bindParam(':dialog_uid', $data['dialog_uid'], PDO::PARAM_STR);
+    $stmt->execute();
+
+
+    $dialog = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$dialog) {return;}
+    $dialog_id = $dialog['id'];
+    
+    $sql = "SELECT msg.message, msg.dialog_id, 
+                    msg.from_user_id, msg.created_at, 
+                    msg.updated_at, msg.message_status, 
+                    u.firstname, u.surname, u.user_image
+            FROM messages AS msg
+            INNER JOIN users AS u ON msg.from_user_id = u.id
+            WHERE msg.dialog_id = :dialog_id";
+
+    $stmt = $db->prepare($sql);
+    $stmt->bindParam(':dialog_id', $dialog_id, PDO::PARAM_INT);
+    $stmt->execute();
+    $rawMessages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Обработка и группировка сообщений по dialog_id
+    $messages = [];
+    foreach ($rawMessages as $row) {
+        $messages[] = $row;
+    }
+
+    $messageData = [
+        'messages' => $messages
+    ];
+    
+    if (isset($conn)) {
+        $conn->send(json_encode($messageData));
+    }
 }
 
 $connections = []; // сюда будем складывать все подключения
@@ -57,15 +88,17 @@ $worker = new Worker("websocket://0.0.0.0:27800");
 $worker->onConnect = function($connection) use(&$connections) {
     // Эта функция выполняется при подключении пользователя к WebSocket-серверу
     $connection->onWebSocketConnect = function($connection) use(&$connections) {
-        $db = connect_db();
-        if (isset($_GET["user_id"]) && is_numeric($_GET["user_id"])) {
-            $userID = $_GET["user_id"];
-            // нужно запомнить все диалоги которые начаты пользователем
-            $msgArray = get_messages($db, $_GET["user_id"]);
-            
-        }
-        $connection->id = $userID;
-        $connection->dialoges = $msgArray;
+        $db = ServerWS::connect_db();
+        
+        $sql = "SELECT id FROM users WHERE uid = :user_uid";
+        $stmt = $db->prepare($sql);
+        $stmt->bindParam(':user_uid', $_GET["user_uid"], PDO::PARAM_STR);
+        $stmt->execute();
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        
+        $connection->id = $user['id'];
+        //$connection->dialoges = $msgArray;
         $connection->pingWithoutResponseCount = 0;
 
         $connections[$connection->id] = $connection;
@@ -77,16 +110,13 @@ $worker->onConnect = function($connection) use(&$connections) {
             // идентификатор пользователя 'userId'.
             $users[] = [
                 'userId' => $c->id,
-                'userDialoges' => $connection->dialoges,
+                //'userDialoges' => $connection->dialoges,
             ];
         }
         $messageData = [
-            'action' => 'Authorized',
-            'userId' => $connection->id,
-            'userDialoges' => $connection->dialoges,
+            'action' => 'Authorized'
         ];
         $connection->send(json_encode($messageData, JSON_UNESCAPED_UNICODE));
-        $db->close();
     };
 };
 
@@ -134,44 +164,71 @@ $worker->onWorkerStart = function($worker) use (&$connections)
 };
 
 $worker->onMessage = function($connection, $message) use (&$connections) {
-    // распаковываем json
+    // Распаковываем JSON
     $messageData = json_decode($message, true);
     
-    // проверяем наличие ключа 'toDialogId', который используется для отправки приватных сообщений
-    $toDialogId = isset($messageData['toDialogId']) ? (int)$messageData['toDialogId'] : null;
-    $action = isset($messageData['action']) ? $messageData['action'] : '';
+    $request = isset($messageData['action']) ? $messageData['action'] : '';
+
+    switch ($request) {
+        case 'Pong':
+            $connection->pingWithoutResponseCount = 0;
+            break;
+
+        case '':
+            get_dialog_messages($connections[$messageData['user_id']], $messageData);
+            break;
+        
+        default:
+            break;
+    }
+
+    /* if ($action == 'PrivateMessage') { */
+        /* $db = ServerWS::connect_db(); // Подключаемся к базе
     
-    if ($action == 'Pong') {
-        // При получении сообщения "Pong", обнуляем счетчик пингов
-        $connection->pingWithoutResponseCount = 0;
-    }
-
-    if ($action == 'PrivateMessage') {
-        $db = connect_db(); // подключаемся к базе
-        
-        $text = $messageData["text"]; // получаем текст сообщения
-        $sender = $connection->id; // id от правителя
-        $dialog = $messageData["toDialogId"]; // связанный с сообщением диалог
-        $to = $messageData["to"]; // кому предназначается сообщение
-        $datetime = strtotime(date("Y-m-d H:i:s"));
-
-        $sql = "INSERT INTO messages (message, dialog_id, sender_id, send_date) VALUES ('{$text}', {$dialog}, {$sender}, {$datetime})";
-        
-        $db->query($sql); // отправляем в БД
-        
-        $newMsgArray = get_messages($db, $connection->id); // получаем новый массив сообщений
-
-        $messageData = [
-            'action'=> "Mess",
-            'userDialoges' => $newMsgArray
-        ]; // формируем данные для отправки пользователю
-        $connection->send(json_encode($messageData)); // отправляем тому кто отправил
-        if (isset($connections[$to])) { // отправляем тому кому отправили
-            $connections[$to]->send(json_encode($messageData));
-        }
-
-        $db->close(); // закрываем соединение с БД
-    }
+        $text = $messageData["text"]; // Получаем текст сообщения
+        $sender = $connection->id; // id отправителя
+        $dialog = $messageData["toDialogId"]; // Связанный с сообщением диалог
+        $to = $messageData["to"]; // Кому предназначается сообщение
+        $datetime = date("Y-m-d H:i:s"); // Форматируем текущую дату и время
+    
+        try {
+            // Вставляем новое сообщение в базу данных
+            $sql = "INSERT INTO messages (message, dialog_id, from_user_id, created_at, updated_at, message_status) VALUES (:message, :dialog_id, :from_user_id, :created_at, :updated_at, :message_status)";
+            $stmt = $db->prepare($sql);
+            $stmt->execute([
+                ':message' => $text,
+                ':dialog_id' => $dialog,
+                ':from_user_id' => $sender,
+                ':created_at' => $datetime,
+                ':updated_at' => $datetime,
+                ':message_status' => "Send"
+            ]);
+    
+            // Получаем обновленный массив сообщений
+            $newMsgArray = ServerWS::get_messages($db, $connection->id);
+    
+            // Формируем данные для отправки пользователям
+            $messageData = [
+                'action' => "NewMessage",
+                'userDialoges' => $newMsgArray
+            ];
+    
+            // Отправляем обновленные данные пользователю, который отправил сообщение
+            $connection->send(json_encode($messageData));
+    
+            // Отправляем обновленные данные пользователю, которому было отправлено сообщение (если он подключен)
+            if (isset($connections[$to])) {
+                $connections[$to]->send(json_encode($messageData));
+            }
+        } catch (PDOException $e) {
+            // Обработка ошибок при работе с базой данных
+            $errorMsg = [
+                'action' => 'Error',
+                'message' => 'Failed to send message: ' . $e->getMessage()
+            ];
+            $connection->send(json_encode($errorMsg));
+        } */
+    /* } */
 };
 
 Worker::runAll();

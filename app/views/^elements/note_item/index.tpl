@@ -4,7 +4,7 @@
     </div>
     {if isset($showAuthor) && $showAuthor}
         <div class="notes__author">
-            {$note.username}
+            {$note.users_username}
         </div>
     {/if}
     <div class="notes__date">

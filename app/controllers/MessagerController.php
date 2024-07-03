@@ -14,11 +14,10 @@ class MessagerController extends Controller {
 		$userToDialogsModel = new UserToDialogsModel();
 		$userToDialogs = $userToDialogsModel->select(['dialog_id', 'user_id'], 'utd')  // 'utd' — алиас для user_to_dialogs
 		    ->innerJoin('dialogs', 'dialog_id', 'id', ['uid'], 'd')  // 'd' — алиас для dialogs
-			->innerJoin('users', 'user_id', 'id', ['firstname', 'surname', 'uid'], 'u')  // 'u' — алиас для users
+			->innerJoin('users', 'user_id', 'id', ['firstname', 'surname', 'uid'], 'u', '!=')  // 'u' — алиас для users
 			->where('utd.user_id', '=', $user->id)
 			->get();
 
-		var_dump($userToDialogs);
 		$allUsers = $userModel->select()->where('id', '!=', $user->id)->get();
 
 		$data = [
