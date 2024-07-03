@@ -33,7 +33,7 @@ class Messenger {
             messageImgWrapper.classList.add("messager__view__message--img");
 
             let messageImg = document.createElement("img");
-            messageImg.setAttribute("src", msg["user_image"] != 'default_img' ? msg['user_image'] : '/assets/img/default_avatar.png');
+            messageImg.setAttribute("src", msg["u_user_image"] != 'default_img' ? msg['u_user_image'] : '/assets/img/default_avatar.png');
             messageImgWrapper.appendChild(messageImg);
             messageBox.appendChild(messageImgWrapper);
 
@@ -43,12 +43,12 @@ class Messenger {
 
             let messageInfo = document.createElement("div");
             messageInfo.classList.add("messager__view__message--body_info");
-            messageInfo.innerText = `${msg["firstname"]} ${msg["surname"]} - ${msg["created_at"]}`;
+            messageInfo.innerText = `${msg["u_firstname"]} ${msg["u_surname"]} - ${msg["msg_created_at"]}`;
             messageBody.appendChild(messageInfo);
 
             let messageText = document.createElement("div");
             messageText.classList.add("messager__view__message--body_text");
-            messageText.textContent = msg["message"];
+            messageText.textContent = msg["msg_message"];
             messageBody.appendChild(messageText);
 
             dialogMessages.appendChild(messageBox);

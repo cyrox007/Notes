@@ -32,13 +32,21 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const conn = wspace.core.data.socket;
 
+    const ping = () => {
+        conn.send(JSON.stringify({
+            action: "PingSocket:index",
+            data: {ping:"Pong"}
+        }));
+    };
+
     const loadMessages = (dialog_uid) => {
-        let data = {
-            user_uid: user_uid,
-            action: "get_dialog_messages",
-            dialog_uid: dialog_uid
-        };
-        conn.send(JSON.stringify(data));
+        conn.send(JSON.stringify({
+            action: "MessangerSocket:load",
+            data: {
+                user_uid: user_uid,
+                dialog_uid: dialog_uid
+            }
+        }));
     };
 
     const sendMessage = (dialog_uid, msg) => {
@@ -62,12 +70,15 @@ document.addEventListener("DOMContentLoaded", function () {
         const messenger = new Messenger();
 
         if (server_data["action"] == "Ping") {
-            let data = JSON.stringify({ "action": "Pong" });
-            wspace.core.data.socket.send(data);
-        } else {
+            ping();
+        } /* else {
             if (typeof messenger !== 'undefined' && server_data.messages) {
                 messenger.loadMessages(server_data.messages);
             }
+        } */
+
+        if (server_data['action'] == 'get_messages') {
+            messenger.loadMessages(server_data['messages']);
         }
     };
 });

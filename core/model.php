@@ -22,6 +22,7 @@ class Model
     private ?PDOStatement $preparedStmt = null;
     private ?int $limit = null;
     private ?int $offset = null;
+    private ?string $order_by = null;
 
     private function reset(): void {
         $this->query = "";
@@ -33,6 +34,7 @@ class Model
         $this->preparedStmt = null;
         $this->limit = null;
         $this->offset = null;
+        $this->order_by = null;
     }
 
     public function select(array $columns = [], ?string $alias = null): self {
@@ -84,6 +86,12 @@ class Model
         return $this;
     }
 
+    public function order_by(string $table, string $by = "ASC"): self {
+        $this->order_by = $table . ' ' . $by;
+        
+        return $this;
+    }
+
     public function count(): int {
         // Ensure the query is built properly
         $this->buildQuery();
@@ -130,6 +138,10 @@ class Model
         
         if ($this->offset !== null) {
             $this->query .= ' OFFSET ' . $this->offset;
+        }
+
+        if ($this->order_by != null) {
+            $this->query .= ' ORDER BY ' . $this->order_by;
         }
         
         // Логгируем финальный SQL запрос
