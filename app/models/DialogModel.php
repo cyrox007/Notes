@@ -2,10 +2,20 @@
 namespace App\Models;
 
 use Core\Model;
-use Core\Config;
 
-class Model_Messager extends Model {
-    public $config;
+class DialogModel extends Model {
+    protected $_tablename;
+
+    public $id;
+    public string $uid;
+    public string $dialogname;
+    public string $created_at;
+    public string $updated_at;
+
+    public function __construct() {
+        $this->_tablename = "dialogs";
+    }
+    /* public $config;
 
     function __construct() {
         $this->config = new Config();
@@ -102,7 +112,7 @@ class Model_Messager extends Model {
     /*  Добавляет новый диалог в БД и создает связи с ним
         принимает id пользователей учавствующих в диалоге 
         и имя диалога */
-    function addDialog($data) {
+    /* function addDialog($data) {
         $db = $this->connect_db($this->config->db_name);
         $chatN = $data['chat_name'] ? $data['chat_name'] : null;
         $hash = null;
@@ -118,5 +128,5 @@ class Model_Messager extends Model {
             $db->query($addsql);
         }
         $db->close();
-    }
+    } */
 }

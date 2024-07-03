@@ -10,7 +10,7 @@
 				{if $user['user_image'] == 'default_img'}
 					{html_image file="{$base_url}/assets/img/default_avatar.png" alt="{$user['firstname']} {$user['surname']}" class="img-circle elevation-2"}
 				{else}
-					
+					{html_image file="{$base_url}/{$user.user_image}" alt="{$user['firstname']} {$user['surname']}" class="img-circle elevation-2"}
 				{/if}
 			</div>
 			<div class="sidebar__user-info">
@@ -28,7 +28,7 @@
 				</a>
 			</div>
 			<div class="sidebar__menu-item">
-				<a href="/Messager" class="sidebar__menu-link">
+				<a href="{route_path name="messenger"}" class="sidebar__menu-link">
 					<i class="fa fa-comments" aria-hidden="true"></i>
 					<p>Мессенджер</p>
 				</a>

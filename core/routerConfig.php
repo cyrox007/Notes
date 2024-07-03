@@ -5,7 +5,7 @@ use App\Controllers\AuthController;
 use App\Controllers\NoteController;
 use App\Controllers\ProfileController;
 use App\Controllers\Admin\AdminController;
-
+use App\Controllers\MessagerController;
 use App\Middlewares\LoginRequared;
 use App\Middlewares\IsAdmin;
 
@@ -35,7 +35,7 @@ $router->group('/profile', function ($addRoute) {
 });
 
 $router->group('messenger', function ($addRoute) {
-    $addRoute('GET', '/', [ProfileController::class, 'index'], [LoginRequared::class], 'profile');
+    $addRoute('GET', '/', [MessagerController::class, 'index'], [LoginRequared::class], 'messenger');
 });
 
 $router->group('/admin', function ($addRoute) {

@@ -1,56 +1,33 @@
 <?php
 namespace App\Controllers;
 
+use App\Models\UserModel;
+use App\Models\UserToDialogsModel;
 use Core\Controller;
+use Core\Request;
 
 class MessagerController extends Controller {
-    
-    public $helper;
+	public function index(Request $request) {
+		$userModel = new UserModel();
+		$user = $userModel->select()->where('uid', '=', $request->session('user_uid'))->first(true);
 
-    function __construct() {
-        $this->config = new Config();
-        $this->model = new Model_Messager();
-        $this->view = new View();
-        $this->helper = new Helper();
-    }
+		$userToDialogsModel = new UserToDialogsModel();
+		$userToDialogs = $userToDialogsModel->select(['dialog_id', 'user_id'], 'utd')  // 'utd' — алиас для user_to_dialogs
+		    ->innerJoin('dialogs', 'dialog_id', 'id', ['uid'], 'd')  // 'd' — алиас для dialogs
+			->innerJoin('users', 'user_id', 'id', ['firstname', 'surname', 'uid'], 'u')  // 'u' — алиас для users
+			->where('utd.user_id', '=', $user->id)
+			->get();
 
-    function action_index () {
-        $this->helper->login_requared($_SESSION['auth_login']); // проверим факт авторизованности
+		var_dump($userToDialogs);
+		$allUsers = $userModel->select()->where('id', '!=', $user->id)->get();
 
-        $user = $_SESSION['auth_login']; // пользователя авторизованного в сессии
-        $user_info = $this->model->getUser_data($user); // получаем информацию о нем
-
-        if ($user_info['role'] >= $this->config->user_role_inactive) {
-            header('Location: /Error/accessDenied');
-        }
-
-        $user_dialog = $this->model->getUserDialogues($user_info['id']);
-        $users = $this->model->getUsers($user_info['id']);
-        
-        $data = [
-            'styles' => [
-                'main-style' => $this->config->base_url().'templates/css/style.css',
-                'font-awesome' => $this->config->base_url().'templates/img/icons/css/font-awesome.css',
-            ],
-            'script' => $this->config->base_url().'templates/js/script.js',
-            'msg-script' => $this->config->base_url().'templates/js/msg_script.js',
-            'tpl_images' => [
-                'logo' => $this->config->base_url().'templates/img/AdminLTELogo.png'
-            ],
-            'site' => $this->config->site,
-            'base-url' => $this->config->base_url(),
-            'title' => 'Мессенджер',
-            'user' => $user,
-            'user_id' => $user_info['id'],
-            'user_token' => $user_info['id'],
-            'user-name' => $user_info['first_name'],
-            'user-surname' => $user_info['surname'],
-            'user-photo' => $user_info['user_photo'],
-            'dialogues' => $user_dialog,
-            'users' => $users
-        ];
-        $this->view->render_template('messager_page/index_view.php', 'core/template_view.php', $data);
-    }
+		$data = [
+			'user' => get_object_vars($user),
+			'dialogues' => $userToDialogs,
+			'users' => $allUsers
+		];
+		$this->render_template('messager_page/index', $data);
+	}
 
     function action_getMsg() {
         $this->helper->login_requared($_SESSION['auth_login']); // проверим факт авторизованности

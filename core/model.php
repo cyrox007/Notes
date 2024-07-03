@@ -35,33 +35,35 @@ class Model
         $this->offset = null;
     }
 
-    public function select(array $columns = []): self {
+    public function select(array $columns = [], ?string $alias = null): self {
         $this->reset();
-
-        $this->baseTable = $this->_tablename;
+        $aliasTable = $alias ?? $this->_tablename;
+        $this->baseTable = $aliasTable;
 
         if (!empty($columns)) {
             foreach ($columns as $column) {
-                $this->columns[] = "{$this->_tablename}.{$column}";
+                $this->columns[] = "{$aliasTable}.{$column} AS {$aliasTable}_{$column}";
             }
         } else {
-            $this->columns[] = "{$this->_tablename}.*";
+            $this->columns[] = "{$aliasTable}.*";
         }
-
         return $this;
     }
     
-    public function innerJoin(string $table, string $primaryKey, string $foreignKey, array $columns = []): self {
-        $this->joins[] = "INNER JOIN {$table} AS {$table} ON {$table}.{$foreignKey} = {$primaryKey}";
-
+    public function innerJoin(string $table, string $foreignKey, string $primaryKey, array $columns = [], ?string $alias = null): self {
+        $aliasTable = $alias ?? $table;
+        
+        // Создание правильного ON условия
+        $this->joins[] = "INNER JOIN {$table} AS {$aliasTable} ON {$this->baseTable}.{$foreignKey} = {$aliasTable}.{$primaryKey}";
+        
         if (!empty($columns)) {
             foreach ($columns as $column) {
-                $this->columns[] = "{$table}.{$column}";
+                $this->columns[] = "{$aliasTable}.{$column} AS {$aliasTable}_{$column}";
             }
         } else {
-            $this->columns[] = "{$table}.*";
+            $this->columns[] = "{$aliasTable}.*";
         }
-
+        
         return $this;
     }
 
@@ -94,32 +96,42 @@ class Model
     }
 
     private function buildQuery(): void {
-        // Ensure at least one column is specified for the SELECT query
         if (empty($this->columns)) {
             throw new Exception("No columns specified for the SELECT query.");
         }
-
-        // Start building the query with selected columns and base table
+        
+        // Собираем все столбцы в строку
         $cols = implode(', ', $this->columns);
-        $this->query = "SELECT {$cols} FROM {$this->baseTable}";
-
-        // Include any specified joins
+        
+        // Строим основной запрос SELECT
+        $this->query = "SELECT {$cols} FROM {$this->_tablename} AS {$this->baseTable}";
+        
+        // Добавляем соединения JOIN
         foreach ($this->joins as $join) {
             $this->query .= ' ' . trim($join);
         }
-
-        // Add conditions if any
+        
+        // Добавляем условия WHERE
         if (!empty($this->conditions)) {
             $this->query .= ' WHERE ' . implode(' AND ', $this->conditions);
         }
-
-        // Log the query for debugging purposes
+        
+        // Добавляем LIMIT и OFFSET, если они заданы
+        if ($this->limit !== null) {
+            $this->query .= ' LIMIT ' . $this->limit;
+        }
+        
+        if ($this->offset !== null) {
+            $this->query .= ' OFFSET ' . $this->offset;
+        }
+        
+        // Логгируем финальный SQL запрос
         error_log("Generated SQL Query: {$this->query}");
-
-        // Attempt to prepare the SQL statement
+        
+        // Подготавливаем SQL выражение
         $this->preparedStmt = $this->connectDb()->prepare($this->query);
-
-        // Check the prepared statement
+        
+        // Проверяем, удалось ли подготовить выражение
         if ($this->preparedStmt === false) {
             throw new Exception("Failed to prepare the SQL statement.");
         }
