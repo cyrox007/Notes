@@ -10,7 +10,6 @@
 	<title>{$smarty.env.SITENAME} {$smarty.env.VERSION} | {block name=title}{/block}</title>
 
 	<style>
-		{* {include file='assets/css/style.css'} *}
 		{include file='styles.css'}
 	</style>
 	<link rel="stylesheet" href="{$base_url}/assets/font-awesome/css/font-awesome.min.css">
@@ -36,7 +35,9 @@
 	</div>
 	<!-- ./wrapper -->
 	<script>
-		{include file='assets/js/script.js'}
+		 
+		{include file='scripts.js'}
+		
 	</script>
 </body>
 

@@ -74,7 +74,7 @@ function loadDirectoryFiles(string $directory): void {
         // Если файл, а не директория
         if ($file->isFile() && $file->getExtension() === 'php') {
             require_once $file->getRealPath();
-            error_log("Loaded file: " . $file->getRealPath());  // Логирование загружаемых файлов
+            //error_log("Loaded file: " . $file->getRealPath());  // Логирование загружаемых файлов
         }
     }
 }

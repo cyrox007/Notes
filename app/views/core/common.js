@@ -53,10 +53,12 @@ document.addEventListener("DOMContentLoaded", function () {
         if (msg === '') return;
 
         let data = {
-            user_uid: user_uid,
-            request: "send_message",
-            dialog_uid: dialog_uid,
-            message: msg,
+            action: "MessangerSocket:send_message",
+            data: {
+                user_uid: user_uid,
+                dialog_uid: dialog_uid,
+                message: msg,
+            }
         };
         conn.send(JSON.stringify(data));
     };
@@ -71,11 +73,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         if (server_data["action"] == "Ping") {
             ping();
-        } /* else {
-            if (typeof messenger !== 'undefined' && server_data.messages) {
-                messenger.loadMessages(server_data.messages);
-            }
-        } */
+        }
 
         if (server_data['action'] == 'get_messages') {
             messenger.loadMessages(server_data['messages']);
