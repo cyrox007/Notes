@@ -139,6 +139,6 @@
 	</div>
 </section>
 <script>
-	{include file='assets/js/profile_script.js'}
+	{include file="profile_page/script.js"}
 </script>
 {/block}

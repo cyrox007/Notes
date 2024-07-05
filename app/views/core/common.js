@@ -6,15 +6,6 @@ document.addEventListener("DOMContentLoaded", function () {
     let sidebar = document.querySelector('.sidebar');
     let content = document.querySelector('.wrapper__content');
 
-    const dialogAll = document.querySelectorAll('.messager__contact_item');
-
-    dialogAll.forEach(dialog=>{
-        dialog.addEventListener('click', (e)=>{
-            let uid = dialog.dataset.duid;
-            loadMessages(uid);
-        });
-    });
-
     sidebarControl.addEventListener('click', (e) => {
         e.preventDefault();
         content.classList.toggle('sidebar--active');
@@ -35,49 +26,27 @@ document.addEventListener("DOMContentLoaded", function () {
     const ping = () => {
         conn.send(JSON.stringify({
             action: "PingSocket:index",
-            data: {ping:"Pong"}
+            data: { ping: "Pong" }
         }));
     };
 
-    const loadMessages = (dialog_uid) => {
-        conn.send(JSON.stringify({
-            action: "MessangerSocket:load",
-            data: {
-                user_uid: user_uid,
-                dialog_uid: dialog_uid
-            }
-        }));
-    };
-
-    const sendMessage = (dialog_uid, msg) => {
-        if (msg === '') return;
-
-        let data = {
-            action: "MessangerSocket:send_message",
-            data: {
-                user_uid: user_uid,
-                dialog_uid: dialog_uid,
-                message: msg,
-            }
-        };
-        conn.send(JSON.stringify(data));
-    };
-
-    wspace.core.data.socket.onopen = (event) => {
+    conn.onopen = (event) => {
         // действия при открытии соединения, если необходимо
     };
 
-    wspace.core.data.socket.onmessage = (event) => {
-        let server_data = JSON.parse(event.data);
-        const messenger = new Messenger();
+    conn.onmessage = (event) => {
+        handleIncomingMessage(event);
+        if (window.location.pathname === "/messenger/") {
+            const messConn = new MessengerConnect();
+        }
+    };
 
+    const handleIncomingMessage = (event) => {
+        let server_data = JSON.parse(event.data);
         if (server_data["action"] == "Ping") {
             ping();
         }
-
-        if (server_data['action'] == 'get_messages') {
-            messenger.loadMessages(server_data['messages']);
-        }
     };
 });
+
 {/literal}

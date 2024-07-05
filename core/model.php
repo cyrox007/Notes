@@ -18,6 +18,7 @@ class Model
     private array $columns = [];
     private string $baseTable = "";
     private array $conditions = [];
+    private string $conditionOperator = '';
     private array $parameters = [];
     private ?PDOStatement $preparedStmt = null;
     private ?int $limit = null;
@@ -30,6 +31,7 @@ class Model
         $this->columns = [];
         $this->baseTable = $this->_tablename;
         $this->conditions = [];
+        $this->conditionOperator = '';
         $this->parameters = [];
         $this->preparedStmt = null;
         $this->limit = null;
@@ -128,7 +130,7 @@ class Model
         
         // Добавляем условия WHERE
         if (!empty($this->conditions)) {
-            $this->query .= ' WHERE ' . implode(' AND ', $this->conditions);
+            $this->query .= ' WHERE ' . implode(' ', $this->conditions);
         }
         
         // Добавляем LIMIT и OFFSET, если они заданы
@@ -162,16 +164,15 @@ class Model
         
         if (!empty($this->conditions)) {
             $condition = "{$logicalOperator} {$condition}";
-        } else {
-            // If this is the first condition, no logical operator is needed
-            $condition = "{$column} {$operator} :{$placeholder}";
         }
-    
+        
         $this->conditions[] = $condition;
         $this->parameters[$placeholder] = $parameter;
         
         return $this;
     }
+
+
 
     protected function hydrate(array $data): self {
         foreach ($data as $key => $value) {

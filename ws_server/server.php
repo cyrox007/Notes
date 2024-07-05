@@ -227,6 +227,7 @@ $worker->onMessage = function(TcpConnection $connection, $message) use (&$connec
 
     if (!method_exists($classInterface, $methodName)) {
         error_log("Method {$methodName} does not exist in class {$fullClassName}");
+        return;
     }
 
     $dataParams = isset($data['data']) ? $data['data'] : [];

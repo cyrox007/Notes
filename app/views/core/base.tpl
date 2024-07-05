@@ -17,6 +17,7 @@
 	<link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
 	<script>
 		wspace = {};
+		{include file="core/common.js"}
 	</script>
 </head>
 
@@ -34,11 +35,6 @@
 		</div>
 	</div>
 	<!-- ./wrapper -->
-	<script>
-		 
-		{include file='scripts.js'}
-		
-	</script>
 </body>
 
 </html>

@@ -9,8 +9,8 @@ class DialogModel extends Model {
     public $id;
     public string $uid;
     public string $dialogname;
-    public string $created_at;
-    public string $updated_at;
+    public ?string $created_at;
+    public ?string $updated_at;
 
     public function __construct() {
         $this->_tablename = "dialogs";

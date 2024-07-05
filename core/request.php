@@ -11,7 +11,7 @@ class Request {
     public function __construct() {
         // Заполнение свойств данными из суперглобальных массивов
         $this->initialize();
-        $this->logRequestData();
+        //$this->logRequestData();
         $this->parseJson();
     }
 

@@ -6,19 +6,19 @@
 <main class="messager">
     <div class="messager__container">
         <div class="messager__contact">
-            <!-- DIALOG VIEW -->
+            <!-- DIALOG LIST VIEW -->
             {if !$dialogues}
                 <div id="dialogues-empty" class="messager__contact_empty">
                     Диалогов нет. Создать?
                 </div>
             {else}
                 {foreach $dialogues as $dialog}
-                    <div class="messager__contact_item" data-href="{$dialog['d_uid']}" user-id="{$dialog['u_uid']}" data-duid="{$dialog['d_uid']}">
+                    <div class="messager__contact_item" user-id="{$dialog['u_uid']}" data-duid="{$dialog['d_uid']}">
                         <p class="messager__username">{$dialog['u_firstname']} {$dialog['u_surname']}</p>
                     </div>
                 {/foreach}
             {/if}
-            <!-- DIALOG VIEW END -->
+            <!-- DIALOG LIST VIEW END -->
             <!-- CREATE DIALOG -->
             <div class="messager__contact_list" id="view-users" style="display: none;">
                 <h2>Создание чата</h2>
@@ -36,24 +36,27 @@
             </div>
             <!-- CREATE DIALOG END -->
         </div>
-        <div id="messager-window" class="messager__messages" to-user="" dialog-id="">
-            {if $dialogues}
+        <!-- DIALOG WINDOW -->
+        <div id="messager-window" class="messager__messages" data-uid="">
+            <div class="messager__content" id="msg-content" style="display: none;">
+                <div class="messager__header" id="msg-header">Заголовок диалога</div>
                 <div id="msg-view" class="messager__view"></div>
                 <div class="messager__send">
+                    <span id="typingNotification" style="display:none">Печатает</span>
                     <input class="messager__send--field" type="text" name="message" id="message-field" placeholder="Напишите сообщение...">
                     <button class="messager__send--btn" type="submit" name="send" id="message-send">
                         <i class="fa fa-paper-plane" aria-hidden="true"></i>
                     </button>
                 </div>
-            {else}
-                <div class="messager__empty">
-                    Выберите чат или создайте новый
-                </div>
-            {/if}
+            </div>
+            <div class="messager__empty" id="msg-empty" style="display: flex;">
+                Выберите чат или создайте новый
+            </div>
         </div>
+        <!-- DIALOG WINDOW END -->
     </div>
 </main>
 <script>
-    {include file="assets/js/msg_script.js"}
+    {include file="messager_page/script.js"}
 </script>
 {/block}
