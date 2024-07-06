@@ -25,9 +25,9 @@
                 <form action="/Messager/createDialog" method="post">
                     <input type="text" name="dialog-name" id="dialog-name" placeholder="Введите имя чата">
                     {foreach $users as $user}
-                        <label class="messager__contact_link" for="{$user['user_id']}">
-                            <input type="checkbox" name="contact[]" id="{$user['user_id']}" value="{$user['user_id']}">
-                            {$user['first_name']} {$user['surname']}
+                        <label class="messager__contact_link" for="{$user['uid']}">
+                            <input type="checkbox" name="contact[]" id="{$user['uid']}" value="{$user['uid']}">
+                            {$user['firstname']} {$user['surname']}
                         </label>
                     {/foreach}
                     

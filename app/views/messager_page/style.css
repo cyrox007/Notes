@@ -119,7 +119,8 @@
   display: flex;
 }
 .messager__view__message--img {
-  width: 20px;
+  max-width: 20px;
+  width: 100%;
   height: auto;
 }
 .messager__view__message--img img {

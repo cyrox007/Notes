@@ -6,6 +6,7 @@ use App\Models\DialogModel;
 use App\Models\MessageModel;
 use App\Models\UserModel;
 use App\Models\UserToDialogsModel;
+use Core\DatabaseManager;
 use Workerman\Connection\TcpConnection;
 
 class MessangerSocket {
@@ -94,6 +95,60 @@ class MessangerSocket {
             }
         }
         
+        return;
+    }
+
+    public function message_send(array $conns, TcpConnection $conn, string $user_uid, string $dialog_uid, string $message) {
+        $dialogModel = new DialogModel();
+        $userModel = new UserModel();
+
+        $dialog = $dialogModel->select()->where('uid', '=', $dialog_uid)->first(true);
+        $user = $userModel->select()->where('uid', '=', $user_uid)->first(true);
+
+        $newMessage = new MessageModel();
+
+        $current_date = date('Y-m-d H:i:s');
+
+        $newMessage->from_user_id = $user->id;
+        $newMessage->dialog_id = $dialog->id;
+        $newMessage->message = $message;
+        $newMessage->created_at = $current_date;
+        $newMessage->updated_at = $current_date;
+        $newMessage->message_status = 'sent';
+
+        $dbManager = new DatabaseManager();
+        $dbManager->queueInsert($newMessage);
+        $insertedIds = $dbManager->commit();
+        var_dump($insertedIds);
+        // Получить добавленное сообщение
+        $addedMessage = $newMessage->select([
+            'message', 
+            'dialog_id', 
+            'from_user_id', 
+            'created_at', 
+            'updated_at', 
+            'message_status'
+        ], 'msg')->where('msg.id', '=', $insertedIds[0])
+        ->innerJoin('users', 'from_user_id', 'id', [
+            'firstname',
+            'surname',
+            'user_image'
+        ], 'u')
+        ->first();
+
+        $userToDialogsModel = new UserToDialogsModel();
+        $users = $userToDialogsModel->select(['id'], 'utd')
+        ->where('dialog_id', '=', $dialog->id)
+        ->innerJoin('users', 'user_id', 'id', ['uid'], 'u')
+        ->get();
+        foreach ($users as $user) {
+            if (!empty($user['u_uid']) && $conns[$user['u_uid']]) {
+                $conns[$user['u_uid']]->send(json_encode([
+                    'action' => 'send_message',
+                    'message' => $addedMessage
+                ]));
+            }
+        }
         return;
     }
 }

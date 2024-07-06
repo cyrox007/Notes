@@ -8,6 +8,11 @@ use Core\Model;
 class DatabaseManager {
     private ?PDO $pdo = null;
     private array $transactQueue = [];
+    protected string $idPlaceholder = ':id';
+
+    public function setIdPlaceholder($id): void {
+        $this->idPlaceholder = $id;
+    }
 
     public function __construct() {
         $this->pdo = $this->connectDb();
@@ -31,12 +36,13 @@ class DatabaseManager {
         return $this;
     }
 
-    public function commit(): bool {
+    public function commit(): array|false {
         try {
             // Begin the transaction
             $this->pdo->beginTransaction();
 
             // Execute all queued transactions
+            $insertedIds = [];
             foreach ($this->transactQueue as $transaction) {
                 $stmt = $this->pdo->prepare($transaction['query']);
                 foreach ($transaction['parameters'] as $key => $value) {
@@ -45,6 +51,7 @@ class DatabaseManager {
                 if (!$stmt->execute()) {
                     throw new Exception('Transaction failed: ' . implode(', ', $stmt->errorInfo()));
                 }
+                $insertedIds[] = $this->pdo->lastInsertId($transaction['parameters']['id']);
             }
 
             // Commit the transaction if all queries execute successfully
@@ -53,11 +60,12 @@ class DatabaseManager {
             // Clear transaction queue after successful commit
             $this->transactQueue = [];
 
-            return true;
+            return $insertedIds;
         } catch (Exception $e) {
             // Roll back any previous changes if an error occurs
             $this->pdo->rollBack();
-            throw $e;
+            error_log($e->getMessage());
+            return false;
         }
     }
 
