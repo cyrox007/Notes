@@ -33,11 +33,12 @@ document.addEventListener("DOMContentLoaded", function () {
     conn.onopen = (event) => {
         // действия при открытии соединения, если необходимо
     };
-
+    const messConn = new MessengerConnect();
     conn.onmessage = (event) => {
         handleIncomingMessage(event);
         if (window.location.pathname === "/messenger/") {
-            const messConn = new MessengerConnect();
+            messConn.init();
+            messConn.listenWebSocket();
         }
     };
 

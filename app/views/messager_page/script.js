@@ -50,6 +50,10 @@ class Messenger {
 		this.data.messages.forEach(msg => {
 			let messageBox = document.createElement("div");
 			messageBox.classList.add("messager__view__message");
+			messageBox.dataset.uid = msg.msg_uid;
+			messageBox.dataset.user_uid = msg.u_uid;
+			messageBox.dataset.affiliation = msg.u_uid == user_uid ? 'my' : 'me';
+			messageBox.dataset.status = msg.msg_message_status;
 
 			let messageImgWrapper = document.createElement("div");
 			messageImgWrapper.classList.add("messager__view__message--img");
@@ -100,6 +104,16 @@ class Messenger {
 	hideTypingNotification() {
 		this.data.typingNotification.style.display = 'none';
 	}
+	updateMessageStatusByUid(messages, status) {
+		const messageItems = document.querySelectorAll('.messager__view__message');
+		messageItems.forEach(messageItem  => {
+			/* if (messageItem.dataset.uid === messageUid) {
+				messageItem.dataset.status = status;
+			} */
+			if (messages[messageItem.dataset.uid]) messageItem.dataset.status = status;
+			
+		});
+	}
 }
 
 
@@ -112,8 +126,6 @@ class MessengerConnect {
 
 		this.messenger = new Messenger();
 		this.typingTimeouts = {};
-		this.listenWebSocket();
-		this.init();
 	}
 
 	onDialogClick = (event) => {
@@ -142,7 +154,8 @@ class MessengerConnect {
 			data: {
 				user_uid: user_uid,
 				dialog_uid: dialogUid,
-				message: message
+				message: message,
+				status: 'unread'
 			}
 		};
 		this.sendMessageToSocket(data);
@@ -175,6 +188,18 @@ class MessengerConnect {
 		};
 		this.sendMessageToSocket(data);
 	};
+
+	setReadStatusMessage = (msgUidArray = []) => {
+		const data = {
+			action: "MessangerSocket:update_message_status",
+			data: {
+				user_uid: user_uid,
+				msg_uid_array: msgUidArray,
+				status: "read"
+			}
+		};
+		this.sendMessageToSocket(data);
+	}
 
 	sendMessageToSocket = (data) => {
 		wspace.core.data.socket.send(JSON.stringify(data));
@@ -212,7 +237,7 @@ class MessengerConnect {
 		});
 
 		messageField.addEventListener('keydown', (event) => {
-			if (event.key === 'Enter') {
+			if (event.key === 'Enter' && !event.shiftKey) {
 				const dialogUid = this.messenger.currentDialog.dataset.duid;
 				const message = messageField.value;
 				this.stopTyping(dialogUid);
@@ -225,6 +250,32 @@ class MessengerConnect {
 			const dialogUid = this.messenger.currentDialog.dataset.duid;
 			this.userTyping(dialogUid);
 		}, 500));
+
+		const observer = new IntersectionObserver(entries => {
+			const msgUids = [];
+			entries.forEach(entry => {
+				if (entry.isIntersecting) {
+					const status = entry.target.dataset.status;
+					const affiliation = entry.target.dataset.affiliation;
+					
+					if (status !== 'read' && affiliation !== 'my') {
+						const messageUid = entry.target.dataset.uid;
+						msgUids.push(messageUid);
+					}
+				}
+			});
+			if (msgUids.length > 0) {
+				clearTimeout(this.readStatusTimeout);
+				this.readStatusTimeout = setTimeout(() => {
+					this.setReadStatusMessage(msgUids);
+				}, 500); // Задержка в 500 миллисекунд перед отправкой запроса
+			}
+		});
+
+		const messageItems = document.querySelectorAll('.messager__view__message');
+		messageItems.forEach(message => {
+			observer.observe(message);
+		});
 	};
 
 	listenWebSocket = () => {
@@ -245,6 +296,11 @@ class MessengerConnect {
 
 			if (serverData.action === 'typing_stop') {
 				this.messenger.hideTypingNotification();
+			}
+
+			if (serverData.action === 'update_message_status') {
+				const { messages, status } = serverData;
+				this.messenger.updateMessageStatusByUid(messages, status);
 			}
 		});
 	};

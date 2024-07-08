@@ -1,10 +1,13 @@
 <?php
 namespace App\Controllers;
 
+use App\Models\MessageModel;
 use App\Models\UserModel;
 use App\Models\UserToDialogsModel;
 use Core\Controller;
+use Core\DatabaseManager;
 use Core\Request;
+use UUID;
 
 class MessagerController extends Controller {
 	public function index(Request $request) {
@@ -26,6 +29,7 @@ class MessagerController extends Controller {
 			'users' => $allUsers
 		];
 		$this->render_template('messager_page/index', $data);
+        return;
 	}
 
     function action_getMsg() {

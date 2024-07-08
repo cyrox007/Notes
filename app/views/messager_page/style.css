@@ -113,10 +113,17 @@
   padding: 10px;
   height: calc(100% - 100px);
   overflow-y: scroll;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 .messager__view__message {
   padding: 5px;
   display: flex;
+  background: #c5c5c5;
+}
+.messager__view__message[data-status=read] {
+  background: transparent;
 }
 .messager__view__message--img {
   max-width: 20px;

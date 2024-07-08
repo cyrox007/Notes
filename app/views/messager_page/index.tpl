@@ -39,7 +39,7 @@
         <!-- DIALOG WINDOW -->
         <div id="messager-window" class="messager__messages" data-uid="">
             <div class="messager__content" id="msg-content" style="display: none;">
-                <div class="messager__header" id="msg-header">Заголовок диалога</div>
+                <div class="messager__header" id="msg-header">Заголовок диалога <div id="unread-count"></div></div>
                 <div id="msg-view" class="messager__view"></div>
                 <div class="messager__send">
                     <span id="typingNotification" style="display:none">Печатает</span>

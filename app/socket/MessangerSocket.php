@@ -17,6 +17,7 @@ class MessangerSocket {
         
         $messageModel = new MessageModel();
         $messages = $messageModel->select([
+            'uid',
             'message', 
             'dialog_id', 
             'from_user_id', 
@@ -26,6 +27,7 @@ class MessangerSocket {
         ], 'msg')
         ->where('dialog_id', '=', $dialog['dialogs_id'])
         ->innerJoin('users', 'from_user_id', 'id', [
+            'uid',
             'firstname',
             'surname',
             'user_image'
@@ -119,7 +121,7 @@ class MessangerSocket {
         $dbManager = new DatabaseManager();
         $dbManager->queueInsert($newMessage);
         $insertedIds = $dbManager->commit();
-        var_dump($insertedIds);
+        
         // Получить добавленное сообщение
         $addedMessage = $newMessage->select([
             'message', 
@@ -151,4 +153,70 @@ class MessangerSocket {
         }
         return;
     }
+
+	public function update_message_status(array $conns, TcpConnection $conn, string $user_uid, array $msg_uid_array, string $status) {
+		// Instantiate the necessary models
+		$messageModel = new MessageModel();
+		$userModel = new UserModel();
+		$userToDialogsModel = new UserToDialogsModel();
+		$dbManager = new DatabaseManager();
+
+		// Check if the msg_uid_array is empty
+		if (empty($msg_uid_array)) {
+			error_log("msgUidsArray: " . json_encode($msg_uid_array));
+			return;
+		}
+
+		// Fetch the messages based on the msg_uid_array
+		$messages = [];
+		foreach ($msg_uid_array as $msg_uid) {
+			$message = $messageModel->select()->where('messages.uid', '=', $msg_uid)->first(true);
+			$messages[$message->uid] = $message;
+		}
+
+		// Check if no messages were found
+		if (empty($messages)) {
+			error_log("messages: " . json_encode($messages));
+			return;
+		}
+
+		// Update the message status and queue the updates
+		foreach ($messages as $message) {
+			$message->message_status = $status;
+			$dbManager->queueUpdate($message);
+		}
+
+		// Commit the updates to the database
+		if (!$dbManager->commit()) {
+			return;
+		}
+
+		// Prepare the notification payload
+		$notification = json_encode([
+			'action' => 'update_message_status',
+			'messages' => $messages,
+			'status' => $status
+		]);
+
+		// Fetch the user based on the user_uid
+		$user = $userModel->select()->where('uid', '=', $user_uid)->first(true);
+
+		// Fetch the userToDialogs based on the dialog_id and user_id
+		$userToDialogs = $userToDialogsModel->select()
+			->where('dialog_id', '=', $message->dialog_id)
+			->where('user_id', '!=', $user->id)
+			->innerJoin('users', 'user_id', 'id', ['uid'])
+			->get();
+
+		// Send the notification to the participants
+		foreach ($userToDialogs as $participant) {
+			if (isset($conns[$participant['users_uid']]) && $participant['users_uid'] !== $user_uid) {
+				$conns[$participant['users_uid']]->send($notification);
+			}
+		}
+
+		// Send the notification to the current user
+		$conn->send($notification);
+	}
+
 }

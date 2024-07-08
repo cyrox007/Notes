@@ -8,6 +8,7 @@ class MessageModel extends Model {
     protected $_tablename = "messages";
 
     public $id;
+    public $uid;
     public $from_user_id;
     public $dialog_id;
     public $message;
