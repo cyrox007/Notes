@@ -161,6 +161,27 @@ class MessengerConnect {
 		this.sendMessageToSocket(data);
 	};
 
+	sendImageMessage = () => {
+		
+	}
+	
+	sendVideoMessage = () => {
+
+	}
+	sendFileMessage = () => {
+
+	}
+	sendAudioMessage = () => {
+
+	}
+	
+	sendVoiceMessage = () => {
+
+	}
+	sendVideoNoteMessage = () => {
+
+	}
+
 	userTyping = (dialogUid) => {
 		clearTimeout(this.typingTimeouts[dialogUid]);
 

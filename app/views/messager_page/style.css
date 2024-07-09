@@ -145,8 +145,12 @@
   display: flex;
   background-color: #f0f0f0;
 }
+.messager__send--input {
+  width: 100%;
+  display: flex;
+}
 .messager__send--field {
-  flex: 100%;
+  flex: 1;
   padding: 9px 13px;
   border: 1px solid #ebeef1;
   border-radius: 4px;
@@ -155,13 +159,40 @@
   cursor: pointer;
   width: 35px;
   display: flex;
-  flex: 35px;
   justify-content: center;
   align-items: center;
   background: none;
   border: none;
   font-size: 1.2rem;
   color: #a5adb6;
+}
+.messager__send--buttons {
+  display: flex;
+  align-items: center;
+  margin-left: 10px;
+  position: relative;
+}
+.messager__send .attach-file:hover > .attach-file__dropdown {
+  display: block;
+}
+.messager__send .attach-file__dropdown {
+  display: none;
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  background-color: #fff;
+  border: 1px solid #ebeef1;
+  border-radius: 4px;
+  padding: 5px;
+  animation: fadeIn 0.3s ease-in-out;
+}
+.messager__send .attach-file__dropdown--item {
+  display: block;
+  padding: 5px;
+  cursor: pointer;
+}
+.messager__send #record-media {
+  margin-left: 10px;
 }
 .messager__send #typingNotification {
   display: inline-block;
@@ -175,6 +206,16 @@
   animation: typingAnimation 1s infinite;
 }
 
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 .error {
   display: flex;
   flex-direction: column;

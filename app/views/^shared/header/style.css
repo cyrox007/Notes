@@ -54,3 +54,51 @@
   background: #000;
   transform: translateY(5px);
 }
+
+.notification-popup {
+  position: fixed;
+  z-index: 9999;
+  top: 20px;
+  right: 20px;
+  background-color: var(--color-white);
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  padding: 10px;
+  animation: slideIn 0.5s ease-in-out;
+}
+
+.notification-popup__content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.notification-popup__image img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+
+.notification-popup__name {
+  font-weight: bold;
+  color: var(--color-dark);
+}
+
+.notification-popup__message {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-grey);
+}
+
+@keyframes slideIn {
+  0% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}

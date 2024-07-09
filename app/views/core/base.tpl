@@ -22,7 +22,6 @@
 </head>
 
 <body>
-
 	<!-- Site wrapper -->
 	<div class="wrapper">
 		{include file='^shared/sidebar/index.tpl'}
