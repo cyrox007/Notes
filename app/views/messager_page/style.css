@@ -111,11 +111,13 @@
 }
 .messager__view {
   padding: 10px;
-  height: calc(100% - 100px);
+  height: calc(100vh - 100px);
+  height: calc(100vh - 238px);
   overflow-y: scroll;
   display: flex;
   flex-direction: column;
   gap: 3px;
+  flex-shrink: 0;
 }
 .messager__view__message {
   padding: 5px;
