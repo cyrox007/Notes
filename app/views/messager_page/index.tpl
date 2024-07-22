@@ -44,22 +44,25 @@
 					<div id="msg-view" class="messager__view"></div>
 					<div class="messager__send">
 						<span id="typingNotification" style="display:none">Печатает</span>
-						<div class="messager__send--input">
+						<div class="messager__send--file-block">
+							<p id="file-count"></p>
+						</div>
+						<div class="messager__send--progress-bar-upload" id="progress-bar-upload">
+							{csrf_token}
+							<div id="progress"></div>
+						</div>
+						<div class="messager__send--input" style="flex-direction: column;">
 							<input class="messager__send--field" type="text" name="message" id="message-field"
 								placeholder="Напишите сообщение...">
 							
 						</div>
 						<div class="messager__send--buttons">
-							<button class="messager__send--btn attach-file" type="button" name="attach-file" id="attach-file">
-								<i class="fa fa-paperclip" aria-hidden="true"></i>
-							</button>
-							<div class="attach-file__dropdown">
-								<button class="attach-file__dropdown--item" type="button"
-									name="attach-image">Изображение</button>
-								<button class="attach-file__dropdown--item" type="button" name="attach-audio">Аудио</button>
-								<button class="attach-file__dropdown--item" type="button" name="attach-video">Видео</button>
-								<button class="attach-file__dropdown--item" type="button" name="attach-file">Файл</button>
+							<div class="attach-file">
+								<button class="messager__send--btn" type="button" name="attach-file" id="attach-file">
+									<i class="fa fa-paperclip" aria-hidden="true"></i>
+								</button>
 							</div>
+							
 							<button class="messager__send--btn" type="button" name="record-media" id="record-media">
 								<i class="fa fa-microphone" aria-hidden="true"></i>
 							</button>

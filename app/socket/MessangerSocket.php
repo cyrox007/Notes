@@ -100,7 +100,15 @@ class MessangerSocket {
         return;
     }
 
-    public function message_send(array $conns, TcpConnection $conn, string $user_uid, string $dialog_uid, string $message) {
+    public function message_send(
+        array $conns, 
+        TcpConnection $conn, 
+        string $user_uid, 
+        string $dialog_uid, 
+        string $message, 
+        bool $files, 
+        string $status
+    ) {
         $dialogModel = new DialogModel();
         $userModel = new UserModel();
 
@@ -116,7 +124,7 @@ class MessangerSocket {
         $newMessage->message = $message;
         $newMessage->created_at = $current_date;
         $newMessage->updated_at = $current_date;
-        $newMessage->message_status = 'sent';
+        $newMessage->message_status = $status;
 
         $dbManager = new DatabaseManager();
         $dbManager->queueInsert($newMessage);

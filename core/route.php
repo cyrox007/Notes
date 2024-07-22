@@ -13,8 +13,14 @@ class Route {
         return self::$instance;
     }
 
+	private function getBasePath(): string {
+		$basePath = getenv('BASE_PATH');
+		return $basePath !== false ? $basePath : '/';
+	}
+
 	public function group(string $prefix, callable $callback): void {
-		$currentPrefix = $prefix;
+		$basePath = $this->getBasePath();
+		$currentPrefix = $basePath . $prefix;
 
 		// Создаем временную функцию для сохранения префикса
 		$addWithPrefix = function(string $method, string $path, array $handler, array $middlewares = [], string $name = '') use ($currentPrefix) {
@@ -51,7 +57,8 @@ class Route {
 	}
 
 	public function add(string $method, string $path, array $controller, array $middlewares = [], string $name = ''): void {
-		$path = $this->normalizePath($path);
+		$basePath = $this->getBasePath();
+		$path = $this->normalizePath($basePath . $path);
 		$route = [
 			'path' => $path,
 			'method' => strtoupper($method),

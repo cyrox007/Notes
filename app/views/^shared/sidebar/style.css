@@ -5,7 +5,8 @@
 }
 
 .sidebar {
-  width: 250px;
+  max-width: 250px;
+  width: 100%;
   /* Ширина сайдбара */
   transition: width 0.3s ease;
   /* Плавный переход при изменении ширины */

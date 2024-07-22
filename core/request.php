@@ -4,6 +4,7 @@ namespace Core;
 class Request {
     private $get;
     private $post;
+    private $files;
     private $server;
     private $json;
     private $session;
@@ -22,6 +23,7 @@ class Request {
         
         $this->get = $_GET;
         $this->post = $_POST;
+        $this->files = $_FILES;
         $this->server = $_SERVER;
         $this->session = &$_SESSION;
     }
@@ -66,6 +68,11 @@ class Request {
         $data = $key === null ? $this->post : ($this->post[$key] ?? $default);
         return $this->sanitize($data);
     }
+
+    public function files($key = null, $default = null) {
+        $data = $key === null? $this->files : ($this->files[$key]?? $default);
+        return $data;
+    }
     
     public function json($key = null, $default = null) {
         $data = $key === null ? $this->json : ($this->json[$key] ?? $default);
@@ -81,6 +88,7 @@ class Request {
         return [
             'get' => $this->get,
             'post' => $this->post,
+            'files' => $this->files,
             'json' => $this->json,
             'server' => $this->server,
         ];

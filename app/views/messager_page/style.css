@@ -146,6 +146,21 @@
   padding: 10px;
   display: flex;
   background-color: #f0f0f0;
+  z-index: 0;
+}
+.messager__send--file-block {
+  padding: 0 10px;
+  position: absolute;
+  top: -40%;
+  left: 0;
+  right: 10px;
+  margin: auto;
+  height: auto;
+  z-index: 2;
+  background-color: #f0f0f0;
+}
+.messager__send--file-block #file-count {
+  display: none;
 }
 .messager__send--input {
   width: 100%;
@@ -156,6 +171,23 @@
   padding: 9px 13px;
   border: 1px solid #ebeef1;
   border-radius: 4px;
+}
+.messager__send--progress-bar-upload {
+  position: absolute;
+  top: -40%;
+  left: 0;
+  right: 0;
+  display: none;
+  height: 20px;
+  background-color: #999;
+  width: 100%;
+}
+.messager__send--progress-bar-upload #progress {
+  position: relative;
+  width: 0;
+  height: 100%;
+  background-color: rgb(73, 73, 148);
+  transition: width 0.3s ease-in-out;
 }
 .messager__send--btn {
   cursor: pointer;
@@ -175,12 +207,13 @@
   position: relative;
 }
 .messager__send .attach-file:hover > .attach-file__dropdown {
-  display: block;
+  display: flex;
+  flex-direction: column;
 }
 .messager__send .attach-file__dropdown {
   display: none;
   position: absolute;
-  bottom: 100%;
+  bottom: 80%;
   left: 0;
   background-color: #fff;
   border: 1px solid #ebeef1;

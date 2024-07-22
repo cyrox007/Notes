@@ -32,14 +32,12 @@ class MessagerController extends Controller {
         return;
 	}
 
-    function action_getMsg() {
-        $this->helper->login_requared($_SESSION['auth_login']); // проверим факт авторизованности
+    public function uploadFile(Request $request) {
+        $files = $request->files('files');
 
-        $uri = explode('/', $_SERVER['REQUEST_URI']); // запрос
-        $dialog_id = $uri[3];
-
-        $messages = $this->model->get_messages($dialog_id);
-        echo(json_encode($messages));
+        error_log(json_encode($request->files('files')));
+        
+        return $this->response_json(['status' => 'ok']);
     }
 
     function action_createDialog() {

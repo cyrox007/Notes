@@ -104,7 +104,14 @@ class Messenger {
 	hideTypingNotification() {
 		this.data.typingNotification.style.display = 'none';
 	}
-	updateMessageStatusByUid(messages, status) {
+
+	showFilesCount(fileCount) {
+		// Отображаем количество выбранных файлов
+		const fileCountElement = document.getElementById('file-count');
+		fileCountElement.style.display = 'block';
+		fileCountElement.textContent = `Выбрано файлов: ${fileCount}`;
+	}
+ 	updateMessageStatusByUid(messages, status) {
 		const messageItems = document.querySelectorAll('.messager__view__message');
 		messageItems.forEach(messageItem  => {
 			/* if (messageItem.dataset.uid === messageUid) {
@@ -113,6 +120,18 @@ class Messenger {
 			if (messages[messageItem.dataset.uid]) messageItem.dataset.status = status;
 			
 		});
+	}
+	setProgressUpload(progress) {
+		const progressElement = document.getElementById('progress-bar-upload');
+		if (window.getComputedStyle(progressElement).display === 'none') {
+			progressElement.style.display = 'block';
+		}
+		const progressBar = progressElement.querySelector('#progress');
+		progressBar.style.width = `${progress}%`;
+	}
+	hideProgressUpload() {
+		const progressElement = document.getElementById('progress-bar-upload');
+		progressElement.style.display = 'none';
 	}
 }
 
@@ -146,40 +165,47 @@ class MessengerConnect {
 		this.sendMessageToSocket(data);
 	};
 
-	sendMessage = (dialogUid, message) => {
-		if (!message) return;
-
+	sendMessage = (dialogUid, message, files = false) => {
 		const data = {
 			action: "MessangerSocket:message_send",
 			data: {
 				user_uid: user_uid,
 				dialog_uid: dialogUid,
 				message: message,
+				files: files, // Добавляем файлы в объект data
 				status: 'unread'
 			}
 		};
 		this.sendMessageToSocket(data);
 	};
 
-	sendImageMessage = () => {
+	sendFiles = (files) => {
+		document.querySelector('#file-count').style.display = 'none';
 		
-	}
-	
-	sendVideoMessage = () => {
+		const formData = new FormData();
+		formData.append('csrf_token', document.querySelector('input[name="csrf_token"]').value);
+		Array.from(files).forEach(file => {
+			formData.append('files[]', file);
+		});
 
-	}
-	sendFileMessage = () => {
+		let xhr = new XMLHttpRequest();
+		xhr.open('POST', '/messenger/send_files', true);
 
-	}
-	sendAudioMessage = () => {
+		xhr.upload.onprogress = (e) => {
+			if (e.lengthComputable) {
+				let percent = (e.loaded / e.total) * 100;
+				this.messenger.setProgressUpload(percent);
+			}
+		};
 
-	}
-	
-	sendVoiceMessage = () => {
+		xhr.onload = () => {
+			if (xhr.status === 200) {
+				this.messenger.hideProgressUpload();
+				let data = JSON.parse(xhr.responseText);
 
-	}
-	sendVideoNoteMessage = () => {
-
+			}
+		};
+		xhr.send(formData);
 	}
 
 	userTyping = (dialogUid) => {
@@ -252,20 +278,49 @@ class MessengerConnect {
 		messageSendBtn.addEventListener('click', () => {
 			const dialogUid = this.messenger.currentDialog.dataset.duid;
 			const message = messageField.value;
-			this.stopTyping(dialogUid);
-			this.sendMessage(dialogUid, message);
-			messageField.value = '';
+			const selectedFiles = fileInput.files;
+
+			// Проверяем наличие текста и файлов
+			if (message.trim() !== '' || selectedFiles.length > 0) {
+				this.stopTyping(dialogUid);
+
+				if (selectedFiles.length > 0) {
+					//const files = Array.from(selectedFiles).map(file => file.name);
+					this.sendFiles(selectedFiles);
+					//this.sendMessage(dialogUid, message, true);
+				} else {
+					this.sendMessage(dialogUid, message);
+				}
+
+				messageField.value = '';
+				fileInput.value = null; // Сбрасываем выбранные файлы
+			}
 		});
 
 		messageField.addEventListener('keydown', (event) => {
 			if (event.key === 'Enter' && !event.shiftKey) {
 				const dialogUid = this.messenger.currentDialog.dataset.duid;
 				const message = messageField.value;
-				this.stopTyping(dialogUid);
-				this.sendMessage(dialogUid, message);
-				messageField.value = '';
+				const selectedFiles = fileInput.files;
+
+				// Проверяем наличие текста и файлов
+				if (message.trim() !== '' || selectedFiles.length > 0) {
+					this.stopTyping(dialogUid);
+
+					if (selectedFiles.length > 0) {
+						const files = Array.from(selectedFiles).map(file => file.name);
+						sendFiles(files);
+						this.sendMessage(dialogUid, message, files);
+					} else {
+						this.sendMessage(dialogUid, message);
+					}
+
+					messageField.value = '';
+					fileInput.value = null; // Сбрасываем выбранные файлы
+				}
 			}
 		});
+
 
 		this.messenger.data.msgInputText.addEventListener('input', this.debounce(() => {
 			const dialogUid = this.messenger.currentDialog.dataset.duid;
@@ -278,7 +333,7 @@ class MessengerConnect {
 				if (entry.isIntersecting) {
 					const status = entry.target.dataset.status;
 					const affiliation = entry.target.dataset.affiliation;
-					
+
 					if (status !== 'read' && affiliation !== 'my') {
 						const messageUid = entry.target.dataset.uid;
 						msgUids.push(messageUid);
@@ -296,6 +351,31 @@ class MessengerConnect {
 		const messageItems = document.querySelectorAll('.messager__view__message');
 		messageItems.forEach(message => {
 			observer.observe(message);
+		});
+
+		const fileButton = document.getElementById('attach-file');
+		const fileInput = document.createElement('input');
+		fileInput.type = 'file';
+		fileInput.multiple = true; // Разрешить выбор нескольких файлов
+
+		// Обработчик события выбора файла
+		fileInput.addEventListener('change', () => {
+			const selectedFiles = fileInput.files;
+			const fileCount = Math.min(selectedFiles.length, 10); // Ограничить количество файлов до 10
+
+			this.messenger.showFilesCount(fileCount);
+		});
+
+		// Добавляем обработчик события клика на каждую кнопку
+		fileButton.addEventListener('click', () => {
+			// Получаем тип файла, соответствующий кнопке
+			// const fileType = fileButton.getAttribute('name');
+
+			// Устанавливаем типы файлов для input
+			// fileInput.accept = getFileAcceptType(fileType);
+
+			// Вызываем диалоговое окно для выбора файла
+			fileInput.click();
 		});
 	};
 

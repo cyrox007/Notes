@@ -34,8 +34,9 @@ $router->group('/profile', function ($addRoute) {
    $addRoute('POST', '/delete-user', [ProfileController::class, 'deleteUser'], [LoginRequared::class], 'profile-delete');
 });
 
-$router->group('messenger', function ($addRoute) {
+$router->group('/messenger', function ($addRoute) {
     $addRoute('GET', '/', [MessagerController::class, 'index'], [LoginRequared::class], 'messenger');
+    $addRoute('POST', '/send_files', [MessagerController::class, 'uploadFile'], [LoginRequared::class]);
 });
 
 $router->group('/admin', function ($addRoute) {
