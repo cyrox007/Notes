@@ -1,6 +1,7 @@
 <?php
 namespace App\Controllers;
 
+use App\Models\NoteModel;
 use App\Models\UserModel;
 use App\Models\UserNModel;
 use Core\Controller;
@@ -17,7 +18,11 @@ class MainController extends Controller {
             return "Пользователь не загружен";
         }*/
 
-        $user = UserNModel::select('users.username', 'users.email')->get();
+        $notes = NoteModel::select()
+        
+        ->first();
+
+        var_dump($notes);
         /* $data['user'] = $user; 
         return $this->render_template('main_page/index', $data); */
     }

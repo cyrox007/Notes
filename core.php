@@ -23,6 +23,7 @@ spl_autoload_register(function ($class) {
 // Core files
 $coreFiles = [
     '/core/config.php',
+    '/core/DatabaseControll.php',
     '/core/database.php',
     '/core/ORM.php',
     '/core/model.php',
