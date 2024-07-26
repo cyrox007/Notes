@@ -8,8 +8,7 @@ use ReflectionClass;
 use ReflectionProperty;
 use Exception;
 
-class Model
-{
+class Model {
     public $id;
     protected $_tablename;
 
@@ -18,7 +17,6 @@ class Model
     private array $columns = [];
     private string $baseTable = "";
     private array $conditions = [];
-    private string $conditionOperator = '';
     private array $parameters = [];
     private ?PDOStatement $preparedStmt = null;
     private ?int $limit = null;
@@ -31,7 +29,6 @@ class Model
         $this->columns = [];
         $this->baseTable = $this->_tablename;
         $this->conditions = [];
-        $this->conditionOperator = '';
         $this->parameters = [];
         $this->preparedStmt = null;
         $this->limit = null;
@@ -195,8 +192,6 @@ class Model
         
         return $this;
     }
-
-
 
     protected function hydrate(array $data): self {
         foreach ($data as $key => $value) {

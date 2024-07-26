@@ -82,7 +82,13 @@ class Controller {
 
 
     protected function render_template(string $template, ?array $data = null) {
-        $this->smarty->assign('base_url', getenv('SITEURL'));
+        $site_url = rtrim(getenv('SITEURL'), '/');  // Получение значения переменной окружения SITEURL и удаление лишних слешей с конца URL
+        $base_path = ltrim(getenv('BASE_PATH'), '/');  // Получение значения переменной окружения BASE_PATH и удаление лишних слешей с начала пути
+        
+        $base_url = $site_url . '/' . $base_path;  // Объединение SITEURL и BASE_PATH 
+        
+        $this->smarty->assign('base_url', $base_url);
+
         if (!empty($data)) {
             foreach ($data as $key => $value) {
                 $this->smarty->assign($key, $value);
