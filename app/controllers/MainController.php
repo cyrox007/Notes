@@ -12,18 +12,15 @@ class MainController extends Controller {
         parent::__construct();
     }
     public function index(Request $request) {
-        /* $userModel = new UserModel();
-        $user = $userModel->select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()
+        ->where('uid', '=', $request->session('user_uid'))
+        ->first();
+        
         if (!$user) {
             return "Пользователь не загружен";
-        }*/
+        }
 
-        $notes = NoteModel::select()
-        
-        ->first();
-
-        var_dump($notes);
-        /* $data['user'] = $user; 
-        return $this->render_template('main_page/index', $data); */
+        $data['user'] = get_object_vars($user); 
+        return $this->render_template('main_page/index', $data);
     }
 }

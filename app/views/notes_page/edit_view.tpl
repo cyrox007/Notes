@@ -5,16 +5,16 @@
 {block name=body}
 <section class="note-header">
 	<h1 class="note__title">
-		{$note['notename']}
+		{$note.notename}
 	</h1>
 	<p class="note__info">Автор:
-		{$note['username']}
+		{$note.author.username}
 	</p>
 	<p class="note__info">Дата создания:
-		{$note['created_note']}
+		{$note.created_note}
 	</p>
 	<p class="note__info">Дата редактирования:
-		{$note['updated_note']}
+		{$note.updated_note}
 	</p>
 </section>
 
@@ -23,7 +23,7 @@
 		{csrf_token}
 		<div class="note__text">
 			<textarea name="content" class="textarea"
-				placeholder="Place some text here">{$note['content']}</textarea>
+				placeholder="Place some text here">{$note.content}</textarea>
 		</div>
 		<div class="note__submit">
 			<button type="submit" class="btn btn-primary">Submit</button>

@@ -9,6 +9,9 @@ use Core\Request;
 use Route;
 
 class AuthController extends Controller {
+    public function __construct() {
+        parent::__construct();
+    }
     function login() {
         return $this->render_template('login_page/login_view');
     }
@@ -17,10 +20,11 @@ class AuthController extends Controller {
         $login = $request->post('login'); // получаем логин
         $password = $request->post('password'); // получаем введенный пароль
         
-        $userModel = new UserModel();
-        $userData = $userModel->get_user_by_login($login);
+        $user = UserModel::select()
+        ->where('username', '=', $login)
+        ->first();
         
-        if (!CryptMethods::verifyPassword($password, $userData['password'])) {
+        if (!CryptMethods::verifyPassword($password, $user->password)) {
             $data['errors'] = [
                 "CODE" => 'login_error',
                 "MESSAGE" => "Password error"
@@ -29,7 +33,7 @@ class AuthController extends Controller {
         }
         
         $request->setSession('auth', true);
-        $request->setSession('user_uid', $userData['uid']);
+        $request->setSession('user_uid', $user->uid);
 
         return Route::getInstance()->redirect('main', 'name'); 
     } 

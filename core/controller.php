@@ -90,13 +90,31 @@ class Controller {
         $this->smarty->assign('base_url', $base_url);
 
         if (!empty($data)) {
-            foreach ($data as $key => $value) {
-                $this->smarty->assign($key, $value);
+            $data = $this->convertObjectsToArray($data);
+            foreach ($data as $varKey => $varValue) {
+                //$varValue = $this->convertObjectsToArray($varValue);
+                if (is_array($varValue)) {
+                    $data[$varKey] = $this->convertObjectsToArray($varValue);
+                }
+                $this->smarty->assign($varKey, $varValue);
             }
         }
 
         $this->smarty->display("{$template}.tpl");
     }
+
+    private function convertObjectsToArray($data) {
+        if (is_object($data)) {
+            $data = get_object_vars($data);
+        }
+        if (is_array($data)) {
+            foreach ($data as $key => $value) {
+                $data[$key] = $this->convertObjectsToArray($value);
+            }
+        }
+        //var_dump($data);
+        return $data;
+    } 
 
     function response_json(array $data): void {
         header('Content-Type: application/json');

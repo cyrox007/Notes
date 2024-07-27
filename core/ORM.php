@@ -2,9 +2,12 @@
 
 namespace Core;
 
+use Exception;
 use PDO;
 use PDOException;
-use Core\databaseControll;
+use ReflectionClass;
+use ReflectionProperty;
+use Core\DatabaseControll;
 
 class ORM {
     protected $_tablename;
@@ -27,28 +30,28 @@ class ORM {
         return $classInstance;
     }
 
-    public function where(string $col, string $operator, string $value): self {
-        $placeholder = ":{$col}";
+    public function where(string $col, string $operator, string $value): static {
+        $placeholder = strpos($col, '.') !== false ? ':'.str_replace('.', "_", $col) : ":{$col}";
         $this->where = "WHERE {$col} {$operator} {$placeholder}";
         $this->params[$placeholder] = $value;
         return $this;
     }
 
-    public function whereAND(string $col, string $operator, string $value): self {
-        $placeholder = ":{$col}";
+    public function whereAND(string $col, string $operator, string $value): static {
+        $placeholder = strpos($col, '.') !== false ? ':'.str_replace('.', "_", $col) : ":{$col}";
         $this->where .= " AND {$col} {$operator} {$placeholder}";
         $this->params[$placeholder] = $value;
         return $this;
     }
     
-    public function whereOR(string $col, string $operator, string $value): self {
-        $placeholder = ":{$col}";
+    public function whereOR(string $col, string $operator, string $value): static {
+        $placeholder = strpos($col, '.') !== false ? ':'.str_replace('.', "_", $col) : ":{$col}";
         $this->where .= " OR {$col} {$operator} {$placeholder}";
         $this->params[$placeholder] = $value;
         return $this;
     }
 
-    public function innerJoin(array $model, string $on, string $operator, string $equals): self {
+    public function innerJoin(array $model, string $on, string $operator, string $equals): static {
         [$modelClass, $modelName] = $model;
         
         $modelClassInctance = new $modelClass();
@@ -57,7 +60,7 @@ class ORM {
         return $this;
     }
 
-    public function outerJoin(array $model, string $on, string $operator, string $equals): self {
+    public function outerJoin(array $model, string $on, string $operator, string $equals): static {
         [$modelClass, $modelName] = $model;
         
         $modelClassInctance = new $modelClass();
@@ -66,7 +69,7 @@ class ORM {
         return $this;
     }
     
-    public function leftJoin(array $model, string $on, string $operator, string $equals): self {
+    public function leftJoin(array $model, string $on, string $operator, string $equals): static {
         [$modelClass, $modelName] = $model;
         
         $modelClassInctance = new $modelClass();
@@ -75,17 +78,17 @@ class ORM {
         return $this;
     }
 
-    public function limit(int $limit): self {
+    public function limit(int $limit): static {
         $this->limit = $limit;
         return $this;
     }
     
-    public function offset(int $offset): self {
+    public function offset(int $offset): static {
         $this->offset = $offset;
         return $this;
     }
     
-    public function orderBy(string $col, string $by = "ASC"): self {
+    public function orderBy(string $col, string $by = "ASC"): static {
         $this->orderBy = "{$col} {$by}";
         return $this;
     }
@@ -114,12 +117,13 @@ class ORM {
         $db = DatabaseControll::connect();
     
         $stmt = $db->prepare($this->queryBuilder());
-    
+        
         foreach ($this->params as $key => $value) {
             $stmt->bindValue($key, $value);
         }
-    
+        
         $stmt->execute();
+        
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         
         if ($result) {
@@ -145,12 +149,16 @@ class ORM {
     }
 
     private function queryBuilder(): string {
-        $columns = [];
-        foreach ($this->columns as $col) {
-            $alias = str_replace('.', '_', $col);
-            $columns[] = "{$col} AS {$alias}";
+        if (empty($this->columns) && !empty($this->joins)) {
+            throw new Exception('Columns must be specified when using JOIN');
         }
-        $columns = empty($this->columns) ? '*' : implode(', ', $columns);
+        
+        $columns = array_map(function ($col) {
+            $alias = str_replace('.', '__', $col);
+            return "{$col} AS {$alias}";
+        }, $this->columns);
+        
+        $columns = empty($columns) ? '*' : implode(', ', $columns);
         $sql = "SELECT {$columns} FROM {$this->_tablename}";
 
         if (!empty($this->joins)) {
@@ -172,20 +180,21 @@ class ORM {
         if (!empty($this->offset)) {
             $sql .= ' OFFSET ' . $this->offset;
         }
-        
+        //var_dump($sql);
         return $sql;
     }
 
+
     private function mapRow(array $row): static {
         $object = new static();
-
         foreach ($row as $column => $value) {
-            if (strpos($column, '_') === 0) {
+            
+            if (strpos($column, '__') !== false) {
                 if (strpos($column, $this->_tablename) === 0) {
-                    $columnName = str_replace($this->_tablename . '_', '', $column);
+                    $columnName = str_replace($this->_tablename . '__', '', $column);
                     $object->$columnName = $value;
                 } else {
-                    [$table, $col] = explode('_', $column);
+                    [$table, $col] = explode('__', $column);
                     $object->$table->$col = $value;
                 }
             } else {
@@ -194,5 +203,104 @@ class ORM {
         }
 
         return $object;
+    }
+
+    public function insert(): array {
+        $reflectionClass = new ReflectionClass($this);
+        $tablename = $this->_tablename;
+        
+        // Проверка наличия имени таблицы
+        if (!$tablename) {
+            throw new Exception("Table name is not defined in the model.");
+        }
+
+        $columns = [];
+        $values = [];
+        $parameters = [];
+
+        // Loop through each public property of the model
+        foreach ($reflectionClass->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
+            $propertyName = $property->getName();
+            if ($propertyName != '_tablename') {
+                $columns[] = $propertyName;
+                $values[] = ":$propertyName";
+                $parameters[$propertyName] = $this->$propertyName;
+            }
+        }
+
+        $columnNames = implode(',', $columns);
+        $valuePlaceholders = implode(',', $values);
+        $query = "INSERT INTO $tablename ($columnNames) VALUES ($valuePlaceholders)";
+
+        // Логирование для дебага
+        error_log("Generated SQL Query: $query");
+        error_log("Parameters: " . print_r($parameters, true));
+
+        return [
+            'query' => $query,
+            'parameters' => $parameters
+        ];
+    }
+
+
+    public function update(): array {
+        $reflectionClass = new ReflectionClass($this);
+        $tablename = $this->_tablename;
+        
+        if (!$tablename) {
+            throw new Exception("Table name is not defined in the model.");
+        }
+
+        $updateFields = [];
+        $parameters = [];
+
+        // Loop through each public property of the model
+        foreach ($reflectionClass->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
+            $propertyName = $property->getName();
+            if ($propertyName != '_tablename' && property_exists($this, $propertyName) && !is_object($this->$propertyName)) {
+                $updateFields[] = "$propertyName = :$propertyName";
+                $parameters[$propertyName] = $this->$propertyName;
+            }
+        }
+
+        // Assuming there's an 'id' property to identify the record
+        $parameters['id'] = $this->id;
+
+        $updateFieldsStr = implode(', ', $updateFields);
+        $query = "UPDATE $tablename SET $updateFieldsStr WHERE id = :id";
+
+        // Логирование для дебага
+        error_log("Generated SQL Query: $query");
+        error_log("Parameters: " . print_r($parameters, true));
+
+        return [
+            'query' => $query,
+            'parameters' => $parameters
+        ];
+    }
+
+    public function delete(): array {
+        // Получение имени таблицы
+        $tablename = $this->_tablename;
+        
+        // Проверка наличия имени таблицы
+        if (!$tablename) {
+            throw new Exception("Table name is not defined in the model.");
+        }
+
+        // Предполагаем, что свойство 'id' идентифицирует запись
+        $parameters = ['id' => $this->id];
+
+        // Формирование SQL-запроса
+        $query = "DELETE FROM $tablename WHERE id = :id";
+
+        // Логирование для дебага
+        error_log("Generated SQL Query: $query");
+        error_log("Parameters: " . print_r($parameters, true));
+
+        return [
+            'query' => $query,
+            'parameters' => $parameters
+        ];
     }
 }

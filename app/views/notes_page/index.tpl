@@ -25,6 +25,7 @@
 			<div class="switch-btn"></div>
 		</div>
 	{/if}
+	
 	<div class="notes__content">
 		<h3 class="notes__title">Список записей</h3>
 		<div class="notes__list_head">

@@ -3,7 +3,7 @@ namespace Core;
 
 use PDO;
 use Exception;
-use Core\Model;
+use Core\ORM;
 
 class DatabaseManager {
     private ?PDO $pdo = null;
@@ -18,13 +18,13 @@ class DatabaseManager {
         $this->pdo = $this->connectDb();
     }
 
-    public function queueInsert(Model $model): self {
+    public function queueInsert(ORM $model): self {
         $insertData = $model->insert();
         $this->transactQueue[] = $insertData;
         return $this;
     }
 
-    public function queueUpdate(Model $model): self {
+    public function queueUpdate(ORM $model): self {
         $updateData = $model->update();
         $this->transactQueue[] = $updateData;
         return $this;
@@ -46,6 +46,7 @@ class DatabaseManager {
             foreach ($this->transactQueue as $transaction) {
                 $stmt = $this->pdo->prepare($transaction['query']);
                 foreach ($transaction['parameters'] as $key => $value) {
+                    if (is_object($value)) continue;
                     $stmt->bindValue(":$key", $value);
                 }
                 if (!$stmt->execute()) {

@@ -8,20 +8,18 @@ use Core\ORM;
     class NoteModel extends ORM {
         protected $_tablename = "notes";
 
-        public $id;
-        public string $uid;
-        public string $created_note;
-        public string $updated_note;
-        public string $notename;
-        public string $content;
-        public int $user_id;
+        public int $id = 0;
+        public string $uid = '';
+        public string $created_note = '';
+        public string $updated_note = '';
+        public string $notename = '';
+        public string $content = '';
+        public int $user_id = 0;
         
-        public ?UserNModel $author = null;
-        public ?UserNModel $editor = null;
+        public ?UserModel $author = null;
 
         public function __construct() {
-            $this->author = new UserNModel();
-            $this->editor = new UserNModel();
+            $this->author = new UserModel();
         }
 
     }

@@ -1,10 +1,11 @@
+
 <div class="notes__list_item">
     <div class="notes__name">
         {$note.notename}
     </div>
     {if isset($showAuthor) && $showAuthor}
         <div class="notes__author">
-            {$note.users_username}
+            {$note.author.username}
         </div>
     {/if}
     <div class="notes__date">
