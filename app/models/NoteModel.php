@@ -6,7 +6,7 @@ use Core\Config;
 use Core\ORM;
 
     class NoteModel extends ORM {
-        protected $_tablename = "notes";
+        protected ?string $_tablename = "notes";
 
         public int $id = 0;
         public string $uid = '';

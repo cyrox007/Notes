@@ -29,11 +29,28 @@
 	<div class="notes__content">
 		<h3 class="notes__title">Список записей</h3>
 		<div class="notes__list_head">
-			<div class="notes__list_head--name">Название</div>
-			{if $user['role'] >= 900}<div class="notes__list_head--author" style="display: none;">Автор</div>{/if}
-			<div class="notes__list_head--date">Дата создания</div>
+			<div class="notes__list_head--name">
+				{if isset($smarty.get.sort) && $smarty.get.sort == 'notename' && isset($smarty.get.direction) && $smarty.get.direction == 'asc'}
+					<a href="?sort=notename&direction=desc">Название ▲</a>
+				{else}
+					<a href="?sort=notename&direction=asc">Название ▼</a>
+				{/if}
+			</div>
+			{if $user['role'] >= 900}
+				<div class="notes__list_head--author" style="display: none;">Автор</div>
+			{/if}
+			<div class="notes__list_head--date">
+				{if isset($smarty.get.sort) && $smarty.get.sort == 'created_note' && isset($smarty.get.direction) && $smarty.get.direction == 'asc'}
+					<a href="?sort=created_note&direction=desc">Дата создания ▲</a>
+				{elseif !isset($smarty.get.sort) && !isset($smarty.get.direction)}
+					<a href="?sort=created_note&direction=asc">Дата создания ▼</a>
+				{else}
+					<a href="?sort=created_note&direction=asc">Дата создания ▼</a>
+				{/if}
+			</div>
 			<div class="notes__list_head--btn"></div>
 		</div>
+
 
 		<div id="personal" class="notes__list visible">
 			{if $personalNotes}

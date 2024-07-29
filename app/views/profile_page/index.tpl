@@ -110,7 +110,8 @@
 					<button class="profile__card-info--edit--set-save" type="submit">Сохранить изменения</button>
 				</form>
 				<hr>
-				<form name="changePassword" action="/Profile/changePass" method="post">
+				<form name="changePassword" action="{route_path name='profile-password-set'}" method="post">
+					{csrf_token}
 					<div class="profile__card-info--edit--form-group">
 						<label for="">Старый пароль: </label>
 						<input class="profile__card-info--edit--set-input" type="password" name="old-password"

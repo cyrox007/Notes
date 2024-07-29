@@ -9,5 +9,5 @@ ini_set('error_log', SITEPATH . '/.logs/php-errors.log');
 require_once SITEPATH . '/core.php';
 
 // Маршрутизатор
-require_once SITEPATH . '/core/route.php';
-require_once SITEPATH . '/core/routerConfig.php';
+require_once SITEPATH . '/core/Router.php';
+require_once SITEPATH . '/core/RouterConfig.php';

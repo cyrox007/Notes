@@ -10,7 +10,7 @@ use ReflectionProperty;
 use Core\DatabaseControll;
 
 class ORM {
-    protected string $_tablename = null;
+    protected ?string $_tablename = null;
     protected int $id = 0;
     private array $columns = [];
     private $where = '';
@@ -222,7 +222,7 @@ class ORM {
         // Loop through each public property of the model
         foreach ($reflectionClass->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
             $propertyName = $property->getName();
-            if ($propertyName != '_tablename') {
+            if ($propertyName != '_tablename' && !is_object($this->$propertyName)) {
                 $columns[] = $propertyName;
                 $values[] = ":$propertyName";
                 $parameters[$propertyName] = $this->$propertyName;

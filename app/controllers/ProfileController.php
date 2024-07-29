@@ -15,11 +15,9 @@ use Route;
 
 class ProfileController extends Controller {
     public function index(Request $request) {
-        $userModel = new UserModel();
-        $user = $userModel->select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
         
-        $noteModel = new NoteModel();
-        $notes = $noteModel->select()->where('user_id', '=', $user['id'])->get();
+        $notes = NoteModel::select()->where('user_id', '=', $user->id)->get();
 
         $fieldsModel = new FieldModel();
         $fields = $fieldsModel->select()->get();
@@ -34,8 +32,7 @@ class ProfileController extends Controller {
     }
 
     public function update(Request $request) {
-        $userModel = new UserModel();
-        $user = $userModel->select()->where('uid', '=', $request->session('user_uid'))->first(true);
+        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
 
         $postData = $request->post();
         $updateData = $this->gatherUserData($postData, $user);
@@ -142,9 +139,8 @@ class ProfileController extends Controller {
     }
 
     public function changeUserPass(Request $request) {
-        $userModel = new UserModel();
-        $user = $userModel->select()->where('uid', '=', $request->session('user_uid'))->first(true);
-        $data['user'] = get_object_vars($user);
+        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $data['user'] = $user;
 
 
         if (!CryptMethods::verifyPassword($request->post('old-password'), $user->password)) {
@@ -163,12 +159,11 @@ class ProfileController extends Controller {
         
         $request->unsetSession("auth");
         $request->unsetSession('user_uid');
-        return Route::getInstance()->redirect('login');
+        return Route::getInstance()->redirect('authpage');
     }
 
     public function deleteUser (Request $request) {
-        $userModel = new UserModel();
-        $user = $userModel->select()->where('uid', '=', $request->session('user_uid'))->first(true);
+        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
 
         $dbManager = new DatabaseManager();
         $dbManager->queueDelete($user);
@@ -176,6 +171,6 @@ class ProfileController extends Controller {
         
         $request->unsetSession("auth");
         $request->unsetSession('user_uid');
-        return Route::getInstance()->redirect('login');
+        return Route::getInstance()->redirect('authpage');
     }
 }

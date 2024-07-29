@@ -25,7 +25,7 @@ class AuthController extends Controller {
         ->first();
         
         if (!CryptMethods::verifyPassword($password, $user->password)) {
-            $data['errors'] = [
+            $data['errors'][] = [
                 "CODE" => 'login_error',
                 "MESSAGE" => "Password error"
             ];

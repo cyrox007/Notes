@@ -1,16 +1,16 @@
 <?php
 namespace App\Models;
-use Core\Model;
+use Core\ORM;
 
 
-class FieldModel extends Model {
-    protected $_tablename = "user_fields";
+class FieldModel extends ORM {
+    protected ?string $_tablename = "user_fields";
 
-    public $id;
-    public $field_name;
-    public $field_type;
-    public $field_label;
-    public $is_required;
-    public $created_at;
-    public $updated_at;
+    public int $id = 0;
+    public string $field_name = '';
+    public string $field_type = '';
+    public string $field_label = '';
+    public bool $is_required = false;
+    public ?string $created_at = '';
+    public ?string $updated_at = '';
 }

@@ -15,8 +15,12 @@ class NoteController extends Controller {
         ->where('uid', '=', $request->session('user_uid'))
         ->first();
 
+        $sort = $request->get('sort') ?: 'created_note';
+        $direction = $request->get('direction')?: 'desc';
+
         $userNotes = NoteModel::select('uid', 'notename', 'created_note', 'updated_note')
         ->where('user_id', '=', $user->id)
+        ->orderBy($sort, $direction)
         ->get();
         
         $allNotes = NoteModel::select(
@@ -24,6 +28,7 @@ class NoteController extends Controller {
             'author.username', 'author.uid'
         )
         ->innerJoin([UserModel::class, 'author'], 'notes.user_id', '=', 'author.id')
+        ->orderBy($sort, $direction)
         ->get();
         
         $data = [
@@ -99,13 +104,11 @@ class NoteController extends Controller {
     }
 
     function delete(Request $request, $uid) {  
-        $userModel = new UserModel();
-        $user = $userModel->select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
 
-        $noteModel = new NoteModel();
-        $note = $noteModel->select()->where('uid', '=', $uid)->first(true);
+        $note = NoteModel::select()->where('uid', '=', $uid)->first();
 
-        if ($note->user_id != $user['id'] || $user['role'] < 900) {
+        if ($note->user_id != $user->id || $user->role < 900) {
             return Route::getInstance()->redirect('notes', 'name');
         }
 

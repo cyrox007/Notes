@@ -4,7 +4,7 @@ namespace App\Models;
 use Core\ORM;
 
 class UserModel extends ORM {
-    protected $_tablename = "users";
+    protected ?string $_tablename = "users";
     
     public int $id = 0;
     public string $uid = '';

@@ -10,22 +10,19 @@ use Route;
 
 class AdminController extends Controller {
     public function index(Request $request) {
-        $userModel = new UserModel();
-        $fieldsModel = new FieldModel();
-        $user = $userModel->select()->where('uid', '=', $request->session('user_uid'))->first();
-        $fields = $fieldsModel->select()->get();
+        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $fields = FieldModel::select()->get();
         $data['user'] = $user;
         $data['customFields'] = $fields;
         return $this->render_template('admin-page/index', $data);
     }
 
     public function saveCustomFields(Request $request) {
-        $fieldsModel = new FieldModel();
         $incomingFields = $request->post('fields');
 
         // Fetch existing fields
         $existingFieldsArray = [];
-        $existingFields = $fieldsModel->select()->get(true);
+        $existingFields = FieldModel::select()->get(true);
         if ($existingFields) {
             foreach ($existingFields as $field) {
                 $existingFieldsArray[$field->id] = $field;

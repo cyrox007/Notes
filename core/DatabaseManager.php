@@ -30,7 +30,7 @@ class DatabaseManager {
         return $this;
     }
     
-    public function queueDelete(Model $model): self {
+    public function queueDelete(ORM $model): self {
         $updateData = $model->delete();
         $this->transactQueue[] = $updateData;
         return $this;
