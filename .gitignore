@@ -8,4 +8,4 @@ compile/*
 cache/*
 config/*
 .logs/*
-uploads/
+uploads/*
