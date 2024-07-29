@@ -22,16 +22,16 @@ spl_autoload_register(function ($class) {
 
 // Core files
 $coreFiles = [
-    '/core/config.php',
+    '/core/Config.php',
     '/core/DatabaseControll.php',
-    '/core/database.php',
+    '/core/DatabaseManager.php',
     '/core/ORM.php',
     '/core/model.php',
-    '/core/view.php',
-    '/core/request.php',
-    '/core/controller.php',
-    '/core/helper.php',
-    '/core/images.php'
+    '/core/View.php',
+    '/core/Request.php',
+    '/core/Controller.php',
+    '/core/Helper.php',
+    '/core/Images.php'
 ];
 
 foreach ($coreFiles as $file) {

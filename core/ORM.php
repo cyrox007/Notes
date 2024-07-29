@@ -10,7 +10,8 @@ use ReflectionProperty;
 use Core\DatabaseControll;
 
 class ORM {
-    protected $_tablename;
+    protected string $_tablename = null;
+    protected int $id = 0;
     private array $columns = [];
     private $where = '';
     private $params = [];

@@ -6,7 +6,7 @@ use Core\ORM;
 class UserModel extends ORM {
     protected $_tablename = "users";
     
-    public $id = 0;
+    public int $id = 0;
     public string $uid = '';
     public string $username = '';
     public string $email = '';
