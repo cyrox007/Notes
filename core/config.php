@@ -9,12 +9,12 @@ class Config {
     
     public function __construct() {
         self::$db_connection = [
+            'driver'       => getenv('DBDRIVER') ?: 'mysql',
             'hostname'     => getenv("DBHOST") ?: 'localhost',
             'port'         => getenv("DBPORT") ?: 3306,
             'username'     => getenv("DBUSER") ?: 'root',
             'password'     => getenv("DBPASS") ?: '',
-            'database'     => getenv("DBNAME") ?: 'workspace',
-            'DBDriver'     => 'MySQLi',
+            'database'     => getenv("DBNAME") ?: 'workspace'
         ];
     }
     
