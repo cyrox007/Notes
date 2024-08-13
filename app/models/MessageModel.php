@@ -2,17 +2,17 @@
 
 namespace App\Models;
 
-use Core\Model;
+use Core\ORM;
 
-class MessageModel extends Model {
-    protected $_tablename = "messages";
+class MessageModel extends ORM {
+    protected ?string $_tablename = "messages";
 
-    public $id;
-    public $uid;
-    public $from_user_id;
-    public $dialog_id;
-    public $message;
-    public $created_at;
-    public $updated_at;
-    public $message_status;
+    public int $id = 0;
+    public ?string $uid = null;
+    public int $from_user_id = 0;
+    public int $dialog_id = 0;
+    public ?string $message = '';
+    public ?string $created_at = '';
+    public ?string $updated_at = '';
+    public ?string $message_status = '';
 }

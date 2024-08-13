@@ -7,7 +7,7 @@ class UserModel extends ORM {
     protected ?string $_tablename = "users";
     
     public int $id = 0;
-    public string $uid = '';
+    public ?string $uid = '';
     public string $username = '';
     public string $email = '';
     public string $password = '';

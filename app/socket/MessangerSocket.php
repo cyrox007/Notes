@@ -11,27 +11,29 @@ use Workerman\Connection\TcpConnection;
 
 class MessangerSocket {
     public function load(array $conns, TcpConnection $conn, string $user_uid, string $dialog_uid) {
-        $dialogModel = new DialogModel();
-
-        $dialog = $dialogModel->select(['id'])->where('uid', '=', $dialog_uid)->first();
-        
-        $messageModel = new MessageModel();
-        $messages = $messageModel->select([
-            'uid',
-            'message', 
-            'dialog_id', 
-            'from_user_id', 
-            'created_at', 
-            'updated_at', 
-            'message_status'
-        ], 'msg')
-        ->where('dialog_id', '=', $dialog['dialogs_id'])
-        ->innerJoin('users', 'from_user_id', 'id', [
-            'uid',
-            'firstname',
-            'surname',
-            'user_image'
-        ], 'u')->order_by('msg_created_at')->get();
+        $dialog = DialogModel::select('id')->where('uid', '=', $dialog_uid)->first();
+        if (!$dialog) {
+            // обработка ошибки, например, отправка сообщения об ошибке клиенту
+            return;
+        }
+        //print_r($dialog);
+        $messages = MessageModel::select(
+            'messages.uid',
+            'messages.message', 
+            'messages.dialog_id', 
+            'messages.from_user_id', 
+            'messages.created_at', 
+            'messages.updated_at', 
+            'messages.message_status',
+            'users.uid',
+            'users.firstname',
+            'users.surname',
+            'users.user_image'
+        )
+        ->where('messages.dialog_id', '=', $dialog->id)
+        ->innerJoin([UserModel::class, 'users'], 'messages.from_user_id', '=', 'users.id')
+        ->orderBy('messages.created_at')
+        ->get();
         
         $conn->send(json_encode([
             'action' => 'get_messages',
@@ -109,11 +111,8 @@ class MessangerSocket {
         bool $files, 
         string $status
     ) {
-        $dialogModel = new DialogModel();
-        $userModel = new UserModel();
-
-        $dialog = $dialogModel->select()->where('uid', '=', $dialog_uid)->first(true);
-        $user = $userModel->select()->where('uid', '=', $user_uid)->first(true);
+        $dialog = DialogModel::select()->where('uid', '=', $dialog_uid)->first();
+        $user = UserModel::select()->where('uid', '=', $user_uid)->first();
 
         $newMessage = new MessageModel();
 
@@ -131,19 +130,18 @@ class MessangerSocket {
         $insertedIds = $dbManager->commit();
         
         // Получить добавленное сообщение
-        $addedMessage = $newMessage->select([
-            'message', 
-            'dialog_id', 
-            'from_user_id', 
-            'created_at', 
-            'updated_at', 
-            'message_status'
-        ], 'msg')->where('msg.id', '=', $insertedIds[0])
-        ->innerJoin('users', 'from_user_id', 'id', [
-            'firstname',
-            'surname',
-            'user_image'
-        ], 'u')
+        $addedMessage = $newMessage->select(
+            'messages.message', 
+            'messages.dialog_id', 
+            'messages.from_user_id', 
+            'messages.created_at', 
+            'messages.updated_at', 
+            'messages.message_status',
+            'users.firstname',
+            'users.surname',
+            'users.user_image'
+        )->where('messages.id', '=', $insertedIds[0])
+        ->innerJoin([UserModel::class, 'users'], 'messages.from_user_id', '=','users.id')
         ->first();
 
         $userToDialogsModel = new UserToDialogsModel();

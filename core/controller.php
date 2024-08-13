@@ -30,6 +30,8 @@ class Controller {
         $this->smarty->registerPlugin('function', 'session', [$this, 'getSession']);
         $this->smarty->registerPlugin('function', 'jsonParse', [$this, 'jsonParse']);
 
+        $this->smarty->registerPlugin('function', 'file_get_contents', [$this, 'smarty_function_file_get_contents']);
+
         // Добавляем CSRF проверку для всех POST-запросов
         $csrfMiddleware = new CSRFMiddleware();
         $csrfMiddleware->handle();
@@ -80,6 +82,9 @@ class Controller {
         $smarty->assign($params['assign'], json_decode($params['json'], true));
     }
 
+    public function smarty_function_file_get_contents($params, &$smarty) {
+        return file_get_contents($params['file']);
+    }
 
     protected function render_template(string $template, ?array $data = null) {
         $site_url = rtrim(getenv('SITEURL'), '/');  // Получение значения переменной окружения SITEURL и удаление лишних слешей с конца URL
