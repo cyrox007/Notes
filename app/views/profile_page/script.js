@@ -46,6 +46,42 @@ document.addEventListener('DOMContentLoaded', () => {
 			changePasswordBtn.disabled = false;
 		}
 	});
+	
+	// Кнопка "Написать сообщение" на странице профиля
+	const writeMessageBtn = document.querySelector('.profile__write-message-btn');
+	if (writeMessageBtn) {
+		writeMessageBtn.addEventListener('click', function() {
+			const interlocutorUid = this.dataset.userUid;
+			
+			// Создаем диалог через WebSocket
+			if (wspace.core && wspace.core.data && wspace.core.data.socket) {
+				wspace.core.data.socket.send(JSON.stringify({
+					action: 'MessangerSocket:create_dialog',
+					data: {
+						user_uid: user_uid,
+						interlocutor_uid: interlocutorUid
+					}
+				}));
+				
+				// Переходим в мессенджер
+				window.location.href = '/messenger/';
+			}
+		});
+	}
+	
+	// Обработка ответов от сервера о создании диалога
+	if (wspace.core && wspace.core.data && wspace.core.data.socket) {
+		wspace.core.data.socket.addEventListener('message', function(event) {
+			const serverData = JSON.parse(event.data);
+			
+			if (serverData.action === 'dialog_created' || serverData.action === 'dialog_exists') {
+				// Если мы на странице профиля и создали диалог, можно перенаправить
+				if (window.location.pathname.includes('/users/')) {
+					// Диалог создан или уже существует
+					console.log('Диалог:', serverData.dialog_uid || serverData.dialog?.uid);
+				}
+			}
+		});
+	}
 });
-
 {/literal}

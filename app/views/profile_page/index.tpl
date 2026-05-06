@@ -35,6 +35,15 @@
 						{$user['email']}
 					</p>
 				</div>
+				
+				{if $user['uid'] != $current_user_uid}
+				<div class="profile__actions" style="margin-top: 20px;">
+					<button class="profile__write-message-btn" data-user-uid="{$user['uid']}" style="background: #1CA1C1; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 14px;">
+						<i class="fa fa-envelope" aria-hidden="true"></i> Написать сообщение
+					</button>
+				</div>
+				{/if}
+				
 				<hr>
 				{assign var="customData" value=[]}
 				{if !empty($user.property)}
