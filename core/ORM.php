@@ -1,241 +1,370 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Core;
 
-use Exception;
 use PDO;
 use PDOException;
+use Exception;
 use ReflectionClass;
 use ReflectionProperty;
-use Core\DatabaseControll;
 
-class ORM {
+/**
+ * Уровни логирования для ORM (алиас на DatabaseManager\LogLevel)
+ */
+enum ORMLogLevel: string {
+    case DEBUG = 'DEBUG';
+    case INFO = 'INFO';
+    case WARNING = 'WARNING';
+    case ERROR = 'ERROR';
+}
+
+/**
+ * Оптимизированный ORM класс с подробным логированием
+ * 
+ * Основные возможности:
+ * - Кэширование соединений
+ * - Prepared statements с правильным bind
+ * - Поддержка транзакций через DatabaseManager
+ * - Улучшенная обработка JOIN'ов
+ * - Типизация параметров
+ * - Полное логирование всех операций
+ * 
+ * @phpstan-type JoinDefinition array{0: class-string, 1: string}
+ */
+abstract class ORM {
     protected ?string $_tablename = null;
     protected int $id = 0;
-    private array $columns = [];
-    private $where = '';
-    private $params = [];
-    private $limit = '';
-    private $offset = '';
-    private $orderBy = '';
-    private $joins = [];
-
-    public function __construct() {
-        
-    }
-
-    public static function select(...$cols): static {
-        $className = static::class;
-        $classInstance = new $className();
-        $classInstance->columns = $cols;
-        return $classInstance;
-    }
-
-    public function where(string $col, string $operator, string $value): static {
-        $placeholder = strpos($col, '.') !== false ? ':'.str_replace('.', "_", $col) : ":{$col}";
-        $this->where = "WHERE {$col} {$operator} {$placeholder}";
-        $this->params[$placeholder] = $value;
-        return $this;
-    }
-
-    public function whereAND(string $col, string $operator, string $value): static {
-        $placeholder = strpos($col, '.') !== false ? ':'.str_replace('.', "_", $col) : ":{$col}";
-        $this->where .= " AND {$col} {$operator} {$placeholder}";
-        $this->params[$placeholder] = $value;
-        return $this;
-    }
     
-    public function whereOR(string $col, string $operator, string $value): static {
-        $placeholder = strpos($col, '.') !== false ? ':'.str_replace('.', "_", $col) : ":{$col}";
-        $this->where .= " OR {$col} {$operator} {$placeholder}";
+    // Внутреннее состояние запроса
+    private array $columns = [];
+    private array $whereConditions = [];
+    private array $params = [];
+    private ?int $limit = null;
+    private ?int $offset = null;
+    private ?string $orderBy = null;
+    private array $joins = [];
+    
+    // Кэш для избежания повторных подключений
+    private static ?PDO $connectionCache = null;
+    
+    // Счетчик запросов для отладки
+    private static int $queryCounter = 0;
+
+    /**
+     * Конструктор
+     * @param array<string, mixed> $data
+     */
+    public function __construct(array $data = []) {
+        if (!empty($data)) {
+            $this->hydrate($data);
+        }
+    }
+
+    /**
+     * Логирование ORM операций
+     */
+    private function log(string $message, ORMLogLevel|string $level = ORMLogLevel::INFO): void {
+        $levelString = $level instanceof ORMLogLevel ? $level->value : $level;
+        $timestamp = date('Y-m-d H:i:s.v');
+        $logMessage = "[{$timestamp}] [ORM] [{$levelString}] {$message}";
+        error_log($logMessage);
+    }
+
+    /**
+     * Статический метод для начала выборки
+     * @return static
+     */
+    public static function select(string ...$cols): static {
+        $instance = new static();
+        $instance->columns = $cols;
+        $instance->log("[select] Начало выборки из {$instance->_tablename}, поля: " . implode(', ', $cols), ORMLogLevel::INFO);
+        return $instance;
+    }
+
+    /**
+     * Добавляет WHERE условие
+     */
+    public function where(string $col, string $operator, mixed $value): static {
+        $placeholder = $this->createPlaceholder($col);
+        $this->whereConditions[] = "WHERE {$col} {$operator} {$placeholder}";
         $this->params[$placeholder] = $value;
+        $this->log("[where] Добавлено условие: {$col} {$operator} ?", ORMLogLevel::DEBUG);
         return $this;
     }
 
+    /**
+     * Добавляет AND условие
+     */
+    public function whereAND(string $col, string $operator, mixed $value): static {
+        $placeholder = $this->createPlaceholder($col);
+        $this->whereConditions[] = "AND {$col} {$operator} {$placeholder}";
+        $this->params[$placeholder] = $value;
+        $this->log("[whereAND] Добавлено AND условие: {$col} {$operator} ?", ORMLogLevel::DEBUG);
+        return $this;
+    }
+
+    /**
+     * Добавляет OR условие
+     */
+    public function whereOR(string $col, string $operator, mixed $value): static {
+        $placeholder = $this->createPlaceholder($col);
+        $this->whereConditions[] = "OR {$col} {$operator} {$placeholder}";
+        $this->params[$placeholder] = $value;
+        $this->log("[whereOR] Добавлено OR условие: {$col} {$operator} ?", ORMLogLevel::DEBUG);
+        return $this;
+    }
+
+    /**
+     * Создает уникальный placeholder для параметра
+     */
+    private function createPlaceholder(string $col): string {
+        $baseName = strpos($col, '.') !== false ? str_replace('.', '_', $col) : $col;
+        return ':' . $baseName . '_' . count($this->params);
+    }
+
+    /**
+     * Добавляет INNER JOIN
+     * @param JoinDefinition $model
+     */
     public function innerJoin(array $model, string $on, string $operator, string $equals): static {
         [$modelClass, $modelName] = $model;
-        
-        $modelClassInctance = new $modelClass();
-        $tableName = $modelClassInctance->_tablename;
+        $tableName = (new $modelClass())->_tablename;
         $this->joins[$modelName] = "INNER JOIN {$tableName} AS {$modelName} ON {$on} {$operator} {$equals}";
+        $this->log("[innerJoin] Добавлен INNER JOIN: {$tableName} AS {$modelName}", ORMLogLevel::DEBUG);
         return $this;
     }
 
-    public function outerJoin(array $model, string $on, string $operator, string $equals): static {
-        [$modelClass, $modelName] = $model;
-        
-        $modelClassInctance = new $modelClass();
-        $tableName = $modelClassInctance->_tablename;
-        $this->joins[] = "OUTER JOIN {$tableName} AS {$modelName} ON {$on} {$operator} {$equals}";
-        return $this;
-    }
-    
+    /**
+     * Добавляет LEFT JOIN
+     * @param JoinDefinition $model
+     */
     public function leftJoin(array $model, string $on, string $operator, string $equals): static {
         [$modelClass, $modelName] = $model;
-        
-        $modelClassInctance = new $modelClass();
-        $tableName = $modelClassInctance->_tablename;
+        $tableName = (new $modelClass())->_tablename;
         $this->joins[] = "LEFT JOIN {$tableName} AS {$modelName} ON {$on} {$operator} {$equals}";
+        $this->log("[leftJoin] Добавлен LEFT JOIN: {$tableName} AS {$modelName}", ORMLogLevel::DEBUG);
         return $this;
     }
 
+    /**
+     * Устанавливает LIMIT
+     */
     public function limit(int $limit): static {
         $this->limit = $limit;
+        $this->log("[limit] Установлен LIMIT: {$limit}", ORMLogLevel::DEBUG);
         return $this;
     }
-    
+
+    /**
+     * Устанавливает OFFSET
+     */
     public function offset(int $offset): static {
         $this->offset = $offset;
-        return $this;
-    }
-    
-    public function orderBy(string $col, string $by = "ASC"): static {
-        $this->orderBy = "{$col} {$by}";
+        $this->log("[offset] Установлен OFFSET: {$offset}", ORMLogLevel::DEBUG);
         return $this;
     }
 
+    /**
+     * Устанавливает ORDER BY
+     */
+    public function orderBy(string $col, string $direction = 'ASC'): static {
+        $direction = strtoupper($direction) === 'DESC' ? 'DESC' : 'ASC';
+        $this->orderBy = "{$col} {$direction}";
+        $this->log("[orderBy] Установлен ORDER BY: {$col} {$direction}", ORMLogLevel::DEBUG);
+        return $this;
+    }
+
+    /**
+     * Выполняет SELECT запрос и возвращает массив результатов
+     * @return array<int, static>
+     */
     public function get(): array {
-        $db = DatabaseControll::connect();
-
-        $stmt = $db->prepare($this->queryBuilder());
-
-        foreach ($this->params as $key => $value) {
-            $stmt->bindValue($key, $value);
-        }
-
-        $stmt->execute();
-        $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        self::$queryCounter++;
+        $queryId = self::$queryCounter;
         
-        $finalRes = [];
-        foreach ($result as $row) {
-            $finalRes[] = $this->mapRow($row);
+        $sql = $this->buildQuery();
+        $this->log("[get] #{$queryId} Выполнение запроса к {$this->_tablename}", ORMLogLevel::INFO);
+        $this->log("[get] #{$queryId} SQL: " . $this->maskSql($sql), ORMLogLevel::DEBUG);
+        
+        $db = $this->getConnection();
+        $stmt = $db->prepare($sql);
+        
+        foreach ($this->params as $key => $value) {
+            $stmt->bindValue($key, $value, $this->getParamType($value));
         }
 
-        return $finalRes;
+        $startTime = microtime(true);
+        $stmt->execute();
+        $execTime = round((microtime(true) - $startTime) * 1000, 2);
+        
+        $results = array_map(
+            fn($row) => $this->mapRow($row),
+            $stmt->fetchAll(PDO::FETCH_ASSOC)
+        );
+        
+        $this->log("[get] #{$queryId} Получено записей: " . count($results) . ", время: {$execTime}мс", ORMLogLevel::INFO);
+        
+        return $results;
     }
 
+    /**
+     * Возвращает первую запись
+     * @return static|null
+     */
     public function first(): ?static {
-        $db = DatabaseControll::connect();
-    
-        $stmt = $db->prepare($this->queryBuilder());
+        self::$queryCounter++;
+        $queryId = self::$queryCounter;
+        
+        $sql = $this->buildQuery();
+        $this->log("[first] #{$queryId} Поиск первой записи в {$this->_tablename}", ORMLogLevel::INFO);
+        
+        $db = $this->getConnection();
+        $stmt = $db->prepare($sql);
         
         foreach ($this->params as $key => $value) {
-            $stmt->bindValue($key, $value);
+            $stmt->bindValue($key, $value, $this->getParamType($value));
         }
         
+        $startTime = microtime(true);
         $stmt->execute();
-        
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        $execTime = round((microtime(true) - $startTime) * 1000, 2);
         
         if ($result) {
+            $this->log("[first] #{$queryId} Запись найдена за {$execTime}мс", ORMLogLevel::INFO);
             return $this->mapRow($result);
         }
         
+        $this->log("[first] #{$queryId} Запись не найдена за {$execTime}мс", ORMLogLevel::DEBUG);
         return null;
     }
 
+    /**
+     * Возвращает количество записей
+     */
     public function count(): int {
-        $db = DatabaseControll::connect();
-    
-        $stmt = $db->prepare($this->queryBuilder());
-    
-        foreach ($this->params as $key => $value) {
-            $stmt->bindValue($key, $value);
+        self::$queryCounter++;
+        $queryId = self::$queryCounter;
+        
+        $countSql = "SELECT COUNT(*) FROM {$this->_tablename}";
+        
+        if (!empty($this->whereConditions)) {
+            $countSql .= ' ' . implode(' ', $this->whereConditions);
         }
-    
+        
+        $this->log("[count] #{$queryId} Подсчет записей в {$this->_tablename}", ORMLogLevel::INFO);
+        
+        $db = $this->getConnection();
+        $stmt = $db->prepare($countSql);
+        
+        foreach ($this->params as $key => $value) {
+            $stmt->bindValue($key, $value, $this->getParamType($value));
+        }
+        
+        $startTime = microtime(true);
         $stmt->execute();
-        $count = $stmt->rowCount();
+        $count = (int) $stmt->fetchColumn();
+        $execTime = round((microtime(true) - $startTime) * 1000, 2);
+        
+        $this->log("[count] #{$queryId} Найдено записей: {$count}, время: {$execTime}мс", ORMLogLevel::INFO);
         
         return $count;
     }
 
-    private function queryBuilder(): string {
-        if (empty($this->columns) && !empty($this->joins)) {
-            throw new Exception('Columns must be specified when using JOIN');
+    /**
+     * Строит SQL запрос
+     */
+    private function buildQuery(): string {
+        // Формируем список колонок
+        $columns = $this->columns;
+        if (!empty($columns) && !empty($this->joins)) {
+            $columns = array_map(function ($col) {
+                if (strpos($col, '.') !== false) {
+                    $alias = str_replace(['.', ' '], ['__', '_'], $col);
+                    return "{$col} AS {$alias}";
+                }
+                return $col;
+            }, $columns);
         }
         
-        $columns = array_map(function ($col) {
-            $alias = str_replace('.', '__', $col);
-            return "{$col} AS {$alias}";
-        }, $this->columns);
-        
-        $columns = empty($columns) ? '*' : implode(', ', $columns);
-        $sql = "SELECT {$columns} FROM {$this->_tablename}";
+        $columnStr = empty($columns) ? '*' : implode(', ', $columns);
+        $sql = "SELECT {$columnStr} FROM {$this->_tablename}";
 
+        // Добавляем JOIN'ы
         if (!empty($this->joins)) {
-            $sql.=' '. implode(' ', $this->joins);
+            $sql .= ' ' . implode(' ', $this->joins);
         }
 
-        if (!empty($this->where)) {
-            $sql .= ' ' . $this->where;
+        // Добавляем WHERE
+        if (!empty($this->whereConditions)) {
+            $sql .= ' ' . implode(' ', $this->whereConditions);
         }
 
-        if (!empty($this->orderBy)) {
+        // Добавляем ORDER BY
+        if ($this->orderBy !== null) {
             $sql .= ' ORDER BY ' . $this->orderBy;
         }
 
-        if (!empty($this->limit)) {
+        // Добавляем LIMIT и OFFSET
+        if ($this->limit !== null) {
             $sql .= ' LIMIT ' . $this->limit;
         }
 
-        if (!empty($this->offset)) {
+        if ($this->offset !== null) {
             $sql .= ' OFFSET ' . $this->offset;
         }
-        //var_dump($sql);
+
         return $sql;
     }
 
-
-    /* private function mapRow(array $row): static {
+    /**
+     * Маппинг строки результата в объект
+     */
+    private function mapRow(array $row): static {
         $object = new static();
+        
         foreach ($row as $column => $value) {
-            
             if (strpos($column, '__') !== false) {
-                if (strpos($column, $this->_tablename) === 0) {
-                    $columnName = str_replace($this->_tablename . '__', '', $column);
+                if (strpos($column, $this->_tablename . '__') === 0) {
+                    // Колонка из основной таблицы
+                    $columnName = substr($column, strlen($this->_tablename) + 2);
                     $object->$columnName = $value;
                 } else {
-                    [$table, $col] = explode('__', $column);
-                    //print_r(['val' => $value, 'key' => $object->$table->$col, [$table, $col]]);
+                    // Колонка из JOIN'нутой таблицы
+                    [$table, $col] = explode('__', $column, 2);
+                    if (!isset($object->$table)) {
+                        $object->$table = new \stdClass();
+                    }
                     $object->$table->$col = $value;
                 }
             } else {
                 $object->$column = $value;
             }
         }
-
-        return $object;
-    } */
-
-    private function mapRow(array $row): static {
-        $object = new static();
-        foreach ($row as $column => $value) {
-            if (strpos($column, '__') !== false) {
-                if (strpos($column, $this->_tablename) === 0) {
-                    $columnName = str_replace($this->_tablename . '__', '', $column);
-                    $object->$columnName = $value;
-                } else {
-                    [$table, $col] = explode('__', $column);
-                    if (!isset($object->$table)) {
-                        $object->$table = new \stdClass();
-                    }
-                    if (!is_null($col)) {
-                        $object->$table->$col = $value;
-                    }
-                }
-            } else {
-                $object->$column = $value;
-            }
-        }
+        
         return $object;
     }
 
+    /**
+     * Гидратация объекта данными
+     */
+    public function hydrate(array $data): static {
+        $this->log("[hydrate] Гидратация объекта " . static::class . " полями: " . implode(', ', array_keys($data)), 'DEBUG');
+        foreach ($data as $key => $value) {
+            if (property_exists($this, $key)) {
+                $this->$key = $value;
+            }
+        }
+        return $this;
+    }
+
+    /**
+     * Подготавливает данные для INSERT
+     */
     public function insert(): array {
-        $reflectionClass = new ReflectionClass($this);
-        $tablename = $this->_tablename;
-        
-        // Проверка наличия имени таблицы
-        if (!$tablename) {
+        if (!$this->_tablename) {
             throw new Exception("Table name is not defined in the model.");
         }
 
@@ -243,89 +372,185 @@ class ORM {
         $values = [];
         $parameters = [];
 
-        // Loop through each public property of the model
-        foreach ($reflectionClass->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
-            $propertyName = $property->getName();
-            if ($propertyName != '_tablename' && !is_object($this->$propertyName)) {
-                $columns[] = $propertyName;
-                $values[] = ":$propertyName";
-                $parameters[$propertyName] = $this->$propertyName;
+        $reflection = new ReflectionClass($this);
+        
+        foreach ($reflection->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
+            $name = $property->getName();
+            
+            // Пропускаем служебные поля и объекты
+            if ($name === '_tablename' || is_object($this->$name)) {
+                continue;
             }
+            
+            $columns[] = $name;
+            $values[] = ":{$name}";
+            $parameters[$name] = $this->$name;
         }
 
-        $columnNames = implode(',', $columns);
-        $valuePlaceholders = implode(',', $values);
-        $query = "INSERT INTO $tablename ($columnNames) VALUES ($valuePlaceholders)";
+        if (empty($columns)) {
+            throw new Exception("No fields to insert.");
+        }
 
-        // Логирование для дебага
-        error_log("Generated SQL Query: $query");
-        error_log("Parameters: " . print_r($parameters, true));
+        $query = sprintf(
+            "INSERT INTO %s (%s) VALUES (%s)",
+            $this->_tablename,
+            implode(',', $columns),
+            implode(',', $values)
+        );
+        
+        $this->log("[insert] Подготовлен INSERT в {$this->_tablename}: " . implode(', ', $columns));
 
-        return [
-            'query' => $query,
-            'parameters' => $parameters
-        ];
+        return ['query' => $query, 'parameters' => $parameters];
     }
 
-
+    /**
+     * Подготавливает данные для UPDATE
+     */
     public function update(): array {
-        $reflectionClass = new ReflectionClass($this);
-        $tablename = $this->_tablename;
-        
-        if (!$tablename) {
+        if (!$this->_tablename) {
             throw new Exception("Table name is not defined in the model.");
         }
 
         $updateFields = [];
         $parameters = [];
 
-        // Loop through each public property of the model
-        foreach ($reflectionClass->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
-            $propertyName = $property->getName();
-            if ($propertyName != '_tablename' && property_exists($this, $propertyName) && !is_object($this->$propertyName)) {
-                $updateFields[] = "$propertyName = :$propertyName";
-                $parameters[$propertyName] = $this->$propertyName;
+        $reflection = new ReflectionClass($this);
+        
+        foreach ($reflection->getProperties(ReflectionProperty::IS_PUBLIC) as $property) {
+            $name = $property->getName();
+            
+            // Пропускаем служебные поля и id (он идет в WHERE)
+            if ($name === '_tablename' || $name === 'id' || is_object($this->$name)) {
+                continue;
             }
+            
+            $updateFields[] = "{$name} = :{$name}";
+            $parameters[$name] = $this->$name;
         }
 
-        // Assuming there's an 'id' property to identify the record
+        if (empty($updateFields)) {
+            throw new Exception("No fields to update.");
+        }
+
         $parameters['id'] = $this->id;
+        
+        $query = sprintf(
+            "UPDATE %s SET %s WHERE id = :id",
+            $this->_tablename,
+            implode(', ', $updateFields)
+        );
+        
+        $this->log("[update] Подготовлен UPDATE в {$this->_tablename} WHERE id={$this->id}: " . implode(', ', array_keys($parameters)));
 
-        $updateFieldsStr = implode(', ', $updateFields);
-        $query = "UPDATE $tablename SET $updateFieldsStr WHERE id = :id";
+        return ['query' => $query, 'parameters' => $parameters];
+    }
 
-        // Логирование для дебага
-        error_log("Generated SQL Query: $query");
-        error_log("Parameters: " . print_r($parameters, true));
+    /**
+     * Подготавливает данные для DELETE
+     */
+    public function delete(): array {
+        if (!$this->_tablename) {
+            throw new Exception("Table name is not defined in the model.");
+        }
+        
+        $this->log("[delete] Подготовлен DELETE из {$this->_tablename} WHERE id={$this->id}");
 
         return [
-            'query' => $query,
-            'parameters' => $parameters
+            'query' => "DELETE FROM {$this->_tablename} WHERE id = :id",
+            'parameters' => ['id' => $this->id]
         ];
     }
 
-    public function delete(): array {
-        // Получение имени таблицы
-        $tablename = $this->_tablename;
-        
-        // Проверка наличия имени таблицы
-        if (!$tablename) {
-            throw new Exception("Table name is not defined in the model.");
+    /**
+     * Получает соединение с БД (с кэшированием)
+     */
+    private function getConnection(): PDO {
+        if (self::$connectionCache === null) {
+            $this->log("[getConnection] Создание нового соединения с БД");
+            self::$connectionCache = DatabaseControll::connect();
+        } else {
+            $this->log("[getConnection] Использование кэшированного соединения", 'DEBUG');
         }
+        return self::$connectionCache;
+    }
 
-        // Предполагаем, что свойство 'id' идентифицирует запись
-        $parameters = ['id' => $this->id];
+    /**
+     * Определяет тип параметра для bindValue
+     */
+    private function getParamType(mixed $value): int {
+        return match (true) {
+            is_int($value) => PDO::PARAM_INT,
+            is_bool($value) => PDO::PARAM_BOOL,
+            is_null($value) => PDO::PARAM_NULL,
+            default => PDO::PARAM_STR,
+        };
+    }
 
-        // Формирование SQL-запроса
-        $query = "DELETE FROM $tablename WHERE id = :id";
+    /**
+     * Сохраняет объект (INSERT или UPDATE)
+     */
+    public function save(): bool {
+        $operation = $this->id > 0 ? 'UPDATE' : 'INSERT';
+        $this->log("[save] Сохранение объекта " . static::class . " ({$operation})");
+        
+        $dbManager = DatabaseManager::getInstance();
+        
+        if ($this->id > 0) {
+            $data = $this->update();
+            $dbManager->queueUpdate($data['parameters'], $this->_tablename, $this->id);
+        } else {
+            $data = $this->insert();
+            $dbManager->queueInsert($data['parameters'], $this->_tablename);
+        }
+        
+        $result = $dbManager->commit();
+        
+        if ($result === false) {
+            $this->log("[save] Ошибка сохранения", 'ERROR');
+            return false;
+        }
+        
+        $this->log("[save] Успешное сохранение");
+        return true;
+    }
 
-        // Логирование для дебага
-        error_log("Generated SQL Query: $query");
-        error_log("Parameters: " . print_r($parameters, true));
-
-        return [
-            'query' => $query,
-            'parameters' => $parameters
-        ];
+    /**
+     * Удаляет объект
+     */
+    public function remove(): bool {
+        if ($this->id <= 0) {
+            $this->log("[remove] Нельзя удалить объект с id <= 0", 'WARNING');
+            return false;
+        }
+        
+        $this->log("[remove] Удаление объекта " . static::class . " с id={$this->id}");
+        
+        $dbManager = DatabaseManager::getInstance();
+        $dbManager->queueDelete($this->_tablename, $this->id);
+        
+        $result = $dbManager->commit();
+        
+        if ($result === false) {
+            $this->log("[remove] Ошибка удаления", 'ERROR');
+            return false;
+        }
+        
+        $this->log("[remove] Успешное удаление");
+        return true;
+    }
+    
+    /**
+     * Возвращает статистику запросов ORM
+     */
+    public static function getQueryStats(): int {
+        return self::$queryCounter;
+    }
+    
+    /**
+     * Маскирует SQL для логирования
+     */
+    private function maskSql(string $sql): string {
+        // Можно добавить дополнительную обработку для чувствительных данных
+        return $sql;
     }
 }

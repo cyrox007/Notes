@@ -125,8 +125,15 @@ class MessangerSocket {
         $newMessage->updated_at = $current_date;
         $newMessage->message_status = $status;
 
-        $dbManager = new DatabaseManager();
-        $dbManager->queueInsert($newMessage);
+        $dbManager = DatabaseManager::getInstance();
+        $dbManager->queueInsert([
+            'from_user_id' => $newMessage->from_user_id,
+            'dialog_id' => $newMessage->dialog_id,
+            'message' => $newMessage->message,
+            'created_at' => $newMessage->created_at,
+            'updated_at' => $newMessage->updated_at,
+            'message_status' => $newMessage->message_status
+        ], 'messages');
         $insertedIds = $dbManager->commit();
         
         // Получить добавленное сообщение
@@ -165,7 +172,7 @@ class MessangerSocket {
 		$messageModel = new MessageModel();
 		$userModel = new UserModel();
 		$userToDialogsModel = new UserToDialogsModel();
-		$dbManager = new DatabaseManager();
+		$dbManager = DatabaseManager::getInstance();
 
 		// Check if the msg_uid_array is empty
 		if (empty($msg_uid_array)) {
@@ -189,7 +196,9 @@ class MessangerSocket {
 		// Update the message status and queue the updates
 		foreach ($messages as $message) {
 			$message->message_status = $status;
-			$dbManager->queueUpdate($message);
+			$dbManager->queueUpdate([
+				'message_status' => $message->message_status
+			], 'messages', $message->id);
 		}
 
 		// Commit the updates to the database

@@ -54,8 +54,15 @@ class NoteController extends Controller {
         $newNote->updated_note = $created_at;
         $newNote->user_id = $user->id;
 
-        $dbManager = new DatabaseManager();
-        $dbManager->queueInsert($newNote);
+        $dbManager = DatabaseManager::getInstance();
+        $dbManager->queueInsert([
+            'uid' => $newNote->uid,
+            'notename' => $newNote->notename,
+            'content' => $newNote->content,
+            'created_note' => $newNote->created_note,
+            'updated_note' => $newNote->updated_note,
+            'user_id' => $newNote->user_id
+        ], 'notes');
         $dbManager->commit();
 
         return Route::getInstance()->redirect('edit_page', 'name', ['uid' => $uidNote]);
@@ -96,8 +103,11 @@ class NoteController extends Controller {
         $note->content = $request->post('content');
         $note->updated_note = date("Y-m-d H:i:s");
 
-        $dbManager = new DatabaseManager();
-        $dbManager->queueUpdate($note);
+        $dbManager = DatabaseManager::getInstance();
+        $dbManager->queueUpdate([
+            'content' => $note->content,
+            'updated_note' => $note->updated_note
+        ], 'notes', $note->id);
 
         $dbManager->commit();
         return Route::getInstance()->redirect('notes', 'name');
@@ -112,8 +122,8 @@ class NoteController extends Controller {
             return Route::getInstance()->redirect('notes', 'name');
         }
 
-        $dbManager = new DatabaseManager();
-        $dbManager->queueDelete($note);
+        $dbManager = DatabaseManager::getInstance();
+        $dbManager->queueDelete('notes', $note->id);
 
         $dbManager->commit();
         return Route::getInstance()->redirect('notes', 'name');
