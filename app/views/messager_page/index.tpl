@@ -3,83 +3,83 @@
 	Мессенджер
 {/block}
 {block name=body}
-	<main class="messager">
-		<div class="messager__container">
-			<div class="messager__contact">
-				<!-- DIALOG LIST VIEW -->
+	<section class="messenger">
+		<div class="messenger__dialog-list">
+			<header class="messenger__dialog-list__header">
+				<div class="messenger__dialog-list__header--btn">
+					<button>Новый диалог</button>
+				</div>
+				<div class="messenger__dialog-list__header--search">
+					<input type="search" name="" id="" placeholder="Search...">
+					<span><i class="fa fa-search" aria-hidden="true"></i></span>
+				</div>
+			</header>
+			<div class="messenger__dialog-list__items">
 				{if !$dialogues}
 					<div id="dialogues-empty" class="messager__contact_empty">
 						Диалогов нет. Создать?
 					</div>
 				{else}
-					{foreach $dialogues as $dialog}
-						<div class="messager__contact_item" user-id="{$dialog['u_uid']}" data-duid="{$dialog['d_uid']}">
-							<p class="messager__username">{$dialog['u_firstname']} {$dialog['u_surname']}</p>
+					{foreach $userToDialogs as $utd}
+						<div class="messenger__dialog-list__item" data-dialog_id="{$utd.dialogs.uid}">
+							<div class="messenger__dialog-list__item--img">
+								<img src="../../../assets/img/default_avatar.png" alt="Имя диалога">
+							</div>
+							<div class="messenger__dialog-list__item--body">
+								<div class="messenger__dialog-list__item--header">
+									<span id="userfullname">
+										<b>{$utd.users.u_firstname} {$utd.users.surname}</b>
+									</span>
+									<span>
+										14:30
+									</span>
+								</div>
+								<div class="messenger__dialog-list__item--msg">
+									<span>Alex: I would like to share my p ...</span>
+								</div>
+							</div>
 						</div>
 					{/foreach}
 				{/if}
-				<!-- DIALOG LIST VIEW END -->
-				<!-- CREATE DIALOG -->
-				<div class="messager__contact_list" id="view-users" style="display: none;">
-					<h2>Создание чата</h2>
-					<form action="/Messager/createDialog" method="post">
-						<input type="text" name="dialog-name" id="dialog-name" placeholder="Введите имя чата">
-						{foreach $users as $user}
-							<label class="messager__contact_link" for="{$user['uid']}">
-								<input type="checkbox" name="contact[]" id="{$user['uid']}" value="{$user['uid']}">
-								{$user['firstname']} {$user['surname']}
-							</label>
-						{/foreach}
-
-						<input type="submit" value="Создать чат">
-					</form>
-				</div>
-				<!-- CREATE DIALOG END -->
 			</div>
-			<!-- DIALOG WINDOW -->
-			<div id="messager-window" class="messager__messages" data-uid="">
-				<div class="messager__content" id="msg-content" style="display: none;">
-					<div class="messager__header" id="msg-header">Заголовок диалога <div id="unread-count"></div>
+		</div>
+		<div class="messenger__dialog-window" id="messager-window" data-uid="">
+			<div id="messager-disable" style="display: block;"></div>
+			<div id="messager-viewer" style="display: none; flex-direction:column;">
+				<header class="messenger__dialog-window__header" id="msg-header">
+					<div class="messenger__dialog-window__header--img">
+						<img src="../../../assets/img/default_avatar.png" alt="Имя диалога">
 					</div>
-					<div id="msg-view" class="messager__view"></div>
-					<div class="messager__send">
-						<span id="typingNotification" style="display:none">Печатает</span>
-						<div class="messager__send--file-block">
-							<p id="file-count"></p>
+					<div class="messenger__dialog-window__header--body">
+						<span><b id="userfullname">Имя диалога</b></span>
+					</div>
+				</header>
+
+				<div class="messenger__dialog-window__viewer">
+					<div class="messenger__dialog-window__messages" id="msg-view"></div>
+				</div>
+
+				<div class="messenger__dialog-window__control">
+					<div class="messenger__dialog-window__control_typing">
+						<span></span>
+					</div>
+					<div class="messenger__dialog-window__control_panel">
+						<div class="messenger__dialog-window__control--file" id="attach-file">
+							<i class="fa fa-paperclip" aria-hidden="true"></i>
 						</div>
-						<div class="messager__send--progress-bar-upload" id="progress-bar-upload">
-							{csrf_token}
-							<div id="progress"></div>
+						<div class="messenger__dialog-window__control--message">
+							<input name="message" id="message-field" placeholder="Введите сообщение...">
 						</div>
-						<div class="messager__send--input" style="flex-direction: column;">
-							<input class="messager__send--field" type="text" name="message" id="message-field"
-								placeholder="Напишите сообщение...">
-							
-						</div>
-						<div class="messager__send--buttons">
-							<div class="attach-file">
-								<button class="messager__send--btn" type="button" name="attach-file" id="attach-file">
-									<i class="fa fa-paperclip" aria-hidden="true"></i>
-								</button>
-							</div>
-							
-							<button class="messager__send--btn" type="button" name="record-media" id="record-media">
-								<i class="fa fa-microphone" aria-hidden="true"></i>
-							</button>
-							<button class="messager__send--btn" type="submit" name="send" id="message-send">
+						<div class="messenger__dialog-window__control--send">
+							<button id="message-send">
 								<i class="fa fa-paper-plane" aria-hidden="true"></i>
 							</button>
 						</div>
 					</div>
 				</div>
-
-				<div class="messager__empty" id="msg-empty" style="display: flex;">
-					Выберите чат или создайте новый
-				</div>
 			</div>
-			<!-- DIALOG WINDOW END -->
 		</div>
-	</main>
+	</section>
 	<script>
 		{include file="messager_page/script.js"}
 	</script>

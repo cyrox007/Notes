@@ -186,7 +186,7 @@ class ORM {
     }
 
 
-    private function mapRow(array $row): static {
+    /* private function mapRow(array $row): static {
         $object = new static();
         foreach ($row as $column => $value) {
             
@@ -196,6 +196,7 @@ class ORM {
                     $object->$columnName = $value;
                 } else {
                     [$table, $col] = explode('__', $column);
+                    //print_r(['val' => $value, 'key' => $object->$table->$col, [$table, $col]]);
                     $object->$table->$col = $value;
                 }
             } else {
@@ -203,6 +204,29 @@ class ORM {
             }
         }
 
+        return $object;
+    } */
+
+    private function mapRow(array $row): static {
+        $object = new static();
+        foreach ($row as $column => $value) {
+            if (strpos($column, '__') !== false) {
+                if (strpos($column, $this->_tablename) === 0) {
+                    $columnName = str_replace($this->_tablename . '__', '', $column);
+                    $object->$columnName = $value;
+                } else {
+                    [$table, $col] = explode('__', $column);
+                    if (!isset($object->$table)) {
+                        $object->$table = new \stdClass();
+                    }
+                    if (!is_null($col)) {
+                        $object->$table->$col = $value;
+                    }
+                }
+            } else {
+                $object->$column = $value;
+            }
+        }
         return $object;
     }
 

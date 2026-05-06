@@ -1,16 +1,16 @@
 <?php
 namespace App\Models;
 
-use Core\Model;
+use Core\ORM;
 
-class UserToDialogsModel extends Model {
-    protected $_tablename;
+class UserToDialogsModel extends ORM {
+    protected ?string $_tablename = 'user_to_dialogs';
 
-    public $id;
-    public string $dialog_id;
-    public string $user_id;
+    public int $id = 0;
+    public int $dialog_id = 0;
+    public int $user_id = 0;
 
-    public function __construct() {
+    /* public function __construct() {
         $this->_tablename = "user_to_dialogs";
-    }
+    } */
 }

@@ -1,20 +1,17 @@
 <?php
 namespace App\Models;
 
-use Core\Model;
+use Core\ORM;
 
-class DialogModel extends Model {
-    protected $_tablename;
+class DialogModel extends ORM {
+    protected ?string $_tablename  = "dialogs";
 
-    public $id;
-    public string $uid;
-    public string $dialogname;
-    public ?string $created_at;
-    public ?string $updated_at;
+    public int $id = 0;
+    public ?string $uid = '';
+    public ?string $dialogname = '';
+    public ?string $created_at = '';
+    public ?string $updated_at = '';
 
-    public function __construct() {
-        $this->_tablename = "dialogs";
-    }
     /* public $config;
 
     function __construct() {

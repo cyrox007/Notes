@@ -1,4 +1,5 @@
 {include file="core/common.css"}
+{include file="^elements/UI/FormInput/style.css"}
 {include file="^shared/sidebar/style.css"}
 {include file="^shared/header/style.css"}
 
