@@ -29,7 +29,7 @@ class AdminController extends Controller {
             }
         }
         
-        $dbManager = new DatabaseManager();
+        $dbManager = DatabaseManager::getInstance();
         foreach ($incomingFields as $fieldId => $fieldData) {
             if (strpos($fieldId, 'new_') === 0) {
                 $newField = new FieldModel();
@@ -37,7 +37,12 @@ class AdminController extends Controller {
                 $newField->field_label = $fieldData['field_label'];
                 $newField->field_type = $fieldData['field_type'];
                 $newField->is_required = ($fieldData['is_required'] == 'on') ? 1 : 0;
-                $dbManager->queueInsert($newField);
+                $dbManager->queueInsert([
+                    'field_name' => $newField->field_name,
+                    'field_label' => $newField->field_label,
+                    'field_type' => $newField->field_type,
+                    'is_required' => $newField->is_required
+                ], 'fields');
             } else {
                 if (isset($existingFieldsArray[$fieldId])) {
                     $existingField = $existingFieldsArray[$fieldId];
@@ -45,14 +50,19 @@ class AdminController extends Controller {
                     $existingField->field_label = $fieldData['field_label'];
                     $existingField->field_type = $fieldData['field_type'];
                     $existingField->is_required = ($fieldData['is_required'] == 'on') ? 1 : 0;
-                    $dbManager->queueUpdate($existingField);
+                    $dbManager->queueUpdate([
+                        'field_name' => $existingField->field_name,
+                        'field_label' => $existingField->field_label,
+                        'field_type' => $existingField->field_type,
+                        'is_required' => $existingField->is_required
+                    ], 'fields', $existingField->id);
                     unset($existingFieldsArray[$fieldId]);
                 }
             }
         }
         
         foreach ($existingFieldsArray as $fieldId => $field) { // нужно использовать оставшиеся данные
-            $dbManager->queueDelete($field);
+            $dbManager->queueDelete('fields', $field->id);
         }
 
         $dbManager->commit();

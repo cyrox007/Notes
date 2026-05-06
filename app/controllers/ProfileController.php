@@ -46,8 +46,8 @@ class ProfileController extends Controller {
 
         $this->updateUserData($user, $updateData);
 
-        $dbManager = new DatabaseManager();
-        $dbManager->queueUpdate($user);
+        $dbManager = DatabaseManager::getInstance();
+        $dbManager->queueUpdate((array)$user, $user->_tablename ?? 'users', $user->id);
         $dbManager->commit();
 
         return Route::getInstance()->redirect('profile');
@@ -153,8 +153,8 @@ class ProfileController extends Controller {
 
         $user->password = CryptMethods::createHashFromPassword($request->post('new-password'));
 
-        $dbManager = new DatabaseManager();
-        $dbManager->queueUpdate($user);
+        $dbManager = DatabaseManager::getInstance();
+        $dbManager->queueUpdate(['password' => $user->password], 'users', $user->id);
         $dbManager->commit();
         
         $request->unsetSession("auth");
@@ -165,8 +165,8 @@ class ProfileController extends Controller {
     public function deleteUser (Request $request) {
         $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
 
-        $dbManager = new DatabaseManager();
-        $dbManager->queueDelete($user);
+        $dbManager = DatabaseManager::getInstance();
+        $dbManager->queueDelete('users', $user->id);
         $dbManager->commit();
         
         $request->unsetSession("auth");
