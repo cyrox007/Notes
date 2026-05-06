@@ -1,13 +1,19 @@
 <?php
+
+declare(strict_types=1);
+
 namespace App\Middlewares;
 
 use Core\Request;
-use Route;
+use Core\Router;
 
-class LoginRequared {
-    public function handle(Request $request): bool {
-        $routeManager = Route::getInstance();
-        if (!$request->session("auth")) {
+class LoginRequared
+{
+    public function handle(Request $request): bool
+    {
+        $routeManager = Router::getInstance();
+        
+        if (!$request->session('auth')) {
             return $routeManager->redirect('authpage', 'name');
         }
 
