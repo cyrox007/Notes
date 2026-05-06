@@ -11,9 +11,47 @@ use Workerman\Connection\TcpConnection;
 use UUID;
 
 class MessangerSocket {
+    
+    /**
+     * Шифрование контента сообщения
+     */
+    private function encryptContent($content) {
+        $key = getenv('MSG_SECRET_KEY') ?: 'default_secret_key_change_me_in_production';
+        $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length('aes-256-cbc'));
+        $encrypted = openssl_encrypt($content, 'aes-256-cbc', $key, 0, $iv);
+        return base64_encode($iv . $encrypted);
+    }
+    
+    /**
+     * Расшифровка контента сообщения
+     */
+    private function decryptContent($data) {
+        $key = getenv('MSG_SECRET_KEY') ?: 'default_secret_key_change_me_in_production';
+        $data = base64_decode($data);
+        $ivLength = openssl_cipher_iv_length('aes-256-cbc');
+        $iv = substr($data, 0, $ivLength);
+        $encrypted = substr($data, $ivLength);
+        return openssl_decrypt($encrypted, 'aes-256-cbc', $key, 0, $iv);
+    }
+
     public function load(array $conns, TcpConnection $conn, string $user_uid, string $dialog_uid) {
-        $dialog = DialogModel::select('id')->where('uid', '=', $dialog_uid)->first();
+        $dialog = DialogModel::select('id', 'type')->where('uid', '=', $dialog_uid)->first();
         if (!$dialog) {
+            return;
+        }
+        
+        // Проверка доступа пользователя к диалогу
+        $user = UserModel::select('id')->where('uid', '=', $user_uid)->first();
+        $access = UserToDialogsModel::select()
+            ->where('dialog_id', '=', $dialog->id)
+            ->where('user_id', '=', $user->id)
+            ->first();
+            
+        if (!$access) {
+            $conn->send(json_encode([
+                'action' => 'error',
+                'message' => 'Доступ запрещен'
+            ]));
             return;
         }
         
@@ -27,88 +65,179 @@ class MessangerSocket {
             'messages.message_status',
             'messages.message_type',
             'messages.media_url',
+            'messages.is_deleted',
+            'messages.edited_at',
             'users.uid',
             'users.firstname',
             'users.surname',
             'users.user_image'
         )
         ->where('messages.dialog_id', '=', $dialog->id)
+        ->where('messages.is_deleted', '=', 0)
         ->innerJoin([UserModel::class, 'users'], 'messages.from_user_id', '=', 'users.id')
-        ->orderBy('messages.created_at')
+        ->orderBy('messages.created_at', 'ASC')
         ->get();
+        
+        // Расшифровка текстовых сообщений
+        foreach ($messages as &$msg) {
+            if ($msg['message_type'] === 'text' && !empty($msg['message'])) {
+                $msg['message'] = $this->decryptContent($msg['message']);
+            }
+        }
         
         $conn->send(json_encode([
             'action' => 'get_messages',
+            'dialog_uid' => $dialog_uid,
             'messages' => $messages
         ]));
         return;
     }
 
     public function get_dialogs(array $conns, TcpConnection $conn, string $user_uid) {
-        $user = UserModel::select()->where('uid', '=', $user_uid)->first();
+        $user = UserModel::select('id')->where('uid', '=', $user_uid)->first();
         if (!$user) {
             return;
         }
 
-        $userToDialogs = UserToDialogsModel::select(
+        $dialogs = DialogModel::select(
             'dialogs.uid',
             'dialogs.id as dialog_id',
-            'users.firstname',
-            'users.surname',
-            'users.user_image',
-            'users.uid as user_uid'
+            'dialogs.type',
+            'dialogs.name',
+            'dialogs.updated_at'
         )
-        ->innerJoin([DialogModel::class, 'dialogs'], 'user_to_dialogs.dialog_id', '=', 'dialogs.id')
-        ->innerJoin([UserModel::class, 'users'], 'user_to_dialogs.user_id', '!=', 'users.id')
+        ->innerJoin([UserToDialogsModel::class, 'user_to_dialogs'], 'dialogs.id', '=', 'user_to_dialogs.dialog_id')
         ->where('user_to_dialogs.user_id', '=', $user->id)
+        ->where('user_to_dialogs.is_deleted', '=', 0)
+        ->orderBy('dialogs.updated_at', 'DESC')
         ->get();
+        
+        // Дополняем информацией о собеседниках/участниках
+        foreach ($dialogs as &$dialog) {
+            // Считаем непрочитанные
+            $lastRead = UserToDialogsModel::select('last_read_message_id')
+                ->where('dialog_id', '=', $dialog['dialog_id'])
+                ->where('user_id', '=', $user->id)
+                ->first();
+            
+            $unreadCount = MessageModel::selectRaw('COUNT(*) as count')
+                ->where('dialog_id', '=', $dialog['dialog_id'])
+                ->where('from_user_id', '!=', $user->id)
+                ->where('id', '>', $lastRead->last_read_message_id ?? 0)
+                ->where('is_deleted', '=', 0)
+                ->first();
+            
+            $dialog['unread_count'] = $unreadCount->count ?? 0;
+            
+            if ($dialog['type'] === 'private') {
+                // Находим собеседника
+                $partner = UserToDialogsModel::select(
+                    'users.firstname',
+                    'users.surname',
+                    'users.user_image',
+                    'users.uid as user_uid'
+                )
+                ->innerJoin([UserModel::class, 'users'], 'user_to_dialogs.user_id', '=', 'users.id')
+                ->where('user_to_dialogs.dialog_id', '=', $dialog['dialog_id'])
+                ->where('user_to_dialogs.user_id', '!=', $user->id)
+                ->first();
+                
+                $dialog['partner'] = $partner;
+                $dialog['title'] = $partner ? ($partner['firstname'] . ' ' . $partner['surname']) : 'Неизвестный';
+                $dialog['avatar'] = $partner['user_image'] ?? null;
+            } else {
+                // Для группы - название или "Групповой чат"
+                $dialog['title'] = $dialog['name'] ?? 'Групповой чат';
+                $dialog['avatar'] = null;
+            }
+        }
 
         $conn->send(json_encode([
             'action' => 'get_dialogs',
-            'dialogs' => $userToDialogs
+            'dialogs' => $dialogs
         ]));
         return;
     }
 
-    public function create_dialog(array $conns, TcpConnection $conn, string $user_uid, string $interlocutor_uid) {
-        $user = UserModel::select()->where('uid', '=', $user_uid)->first();
-        $interlocutor = UserModel::select()->where('uid', '=', $interlocutor_uid)->first();
-
-        if (!$user || !$interlocutor) {
+    public function create_dialog(array $conns, TcpConnection $conn, string $user_uid, array $params) {
+        $user = UserModel::select('id')->where('uid', '=', $user_uid)->first();
+        if (!$user) {
             $conn->send(json_encode([
                 'action' => 'error',
-                'message' => 'Пользователи не найдены'
+                'message' => 'Пользователь не найден'
             ]));
             return;
         }
 
-        $existingDialog = UserToDialogsModel::select('dialogs.uid')
-            ->innerJoin([DialogModel::class, 'dialogs'], 'user_to_dialogs.dialog_id', '=', 'dialogs.id')
-            ->where('user_to_dialogs.user_id', '=', $user->id)
-            ->first();
+        $type = $params['type'] ?? 'private'; // private или group
+        $participantUids = $params['participants'] ?? []; // массив uid участников
+        $groupName = $params['name'] ?? null;
 
-        if ($existingDialog) {
+        if (empty($participantUids)) {
             $conn->send(json_encode([
-                'action' => 'dialog_exists',
-                'dialog_uid' => $existingDialog->uid
+                'action' => 'error',
+                'message' => 'Нет участников'
             ]));
             return;
+        }
+
+        // Получаем ID всех участников
+        $participants = [];
+        foreach ($participantUids as $puid) {
+            $p = UserModel::select('id')->where('uid', '=', $puid)->first();
+            if ($p) {
+                $participants[] = $p->id;
+            }
+        }
+
+        if (empty($participants)) {
+            $conn->send(json_encode([
+                'action' => 'error',
+                'message' => 'Участники не найдены'
+            ]));
+            return;
+        }
+
+        // Добавляем создателя если его нет в списке
+        if (!in_array($user->id, $participants)) {
+            $participants[] = $user->id;
+        }
+
+        // Для приватного чата (только 2 участника) проверяем существование
+        if ($type === 'private' && count($participants) == 2) {
+            sort($participants);
+            $existingDialog = DialogModel::select('dialogs.uid')
+                ->innerJoin([UserToDialogsModel::class, 'user_to_dialogs'], 'dialogs.id', '=', 'user_to_dialogs.dialog_id')
+                ->where('dialogs.type', '=', 'private')
+                ->whereIn('user_to_dialogs.user_id', $participants)
+                ->groupBy('dialogs.id')
+                ->havingRaw('COUNT(DISTINCT user_to_dialogs.user_id) = 2')
+                ->first();
+
+            if ($existingDialog) {
+                $conn->send(json_encode([
+                    'action' => 'dialog_exists',
+                    'dialog_uid' => $existingDialog->uid
+                ]));
+                return;
+            }
         }
 
         $dialogUid = UUID::v4();
         $current_date = date('Y-m-d H:i:s');
 
-        $newDialog = new DialogModel();
-        $newDialog->uid = $dialogUid;
-        $newDialog->created_at = $current_date;
-        $newDialog->updated_at = $current_date;
-
         $dbManager = DatabaseManager::getInstance();
+        
+        // Создаем диалог
         $dbManager->queueInsert([
-            'uid' => $newDialog->uid,
-            'created_at' => $newDialog->created_at,
-            'updated_at' => $newDialog->updated_at
+            'uid' => $dialogUid,
+            'type' => $type,
+            'name' => $groupName,
+            'created_by' => $user->id,
+            'created_at' => $current_date,
+            'updated_at' => $current_date
         ], 'dialogs');
+        
         $insertedIds = $dbManager->commit();
 
         if (empty($insertedIds)) {
@@ -121,38 +250,44 @@ class MessangerSocket {
 
         $dialogId = $insertedIds[0];
 
-        $dbManager->queueInsert([
-            'dialog_id' => $dialogId,
-            'user_id' => $user->id
-        ], 'user_to_dialogs');
-
-        $dbManager->queueInsert([
-            'dialog_id' => $dialogId,
-            'user_id' => $interlocutor->id
-        ], 'user_to_dialogs');
+        // Добавляем всех участников
+        foreach ($participants as $pid) {
+            $role = ($pid == $user->id) ? 'admin' : 'member';
+            $dbManager->queueInsert([
+                'dialog_id' => $dialogId,
+                'user_id' => $pid,
+                'role' => $role,
+                'joined_at' => $current_date
+            ], 'user_to_dialogs');
+        }
 
         $dbManager->commit();
 
+        // Отправляем результат создателю
         $conn->send(json_encode([
             'action' => 'dialog_created',
             'dialog' => [
                 'uid' => $dialogUid,
-                'interlocutor_firstname' => $interlocutor->firstname,
-                'interlocutor_surname' => $interlocutor->surname,
-                'interlocutor_uid' => $interlocutor->uid
+                'type' => $type,
+                'name' => $groupName,
+                'title' => $groupName ?? ($type === 'group' ? 'Групповой чат' : ''),
+                'participants' => $participantUids
             ]
         ]));
 
-        if (isset($conns[$interlocutor_uid])) {
-            $conns[$interlocutor_uid]->send(json_encode([
-                'action' => 'new_dialog',
-                'dialog' => [
-                    'uid' => $dialogUid,
-                    'interlocutor_firstname' => $user->firstname,
-                    'interlocutor_surname' => $user->surname,
-                    'interlocutor_uid' => $user->uid
-                ]
-            ]));
+        // Уведомляем остальных участников
+        foreach ($participantUids as $puid) {
+            if ($puid !== $user_uid && isset($conns[$puid])) {
+                $conns[$puid]->send(json_encode([
+                    'action' => 'new_dialog',
+                    'dialog' => [
+                        'uid' => $dialogUid,
+                        'type' => $type,
+                        'name' => $groupName,
+                        'created_by_uid' => $user_uid
+                    ]
+                ]));
+            }
         }
 
         return;
@@ -233,6 +368,20 @@ class MessangerSocket {
         if (!$dialog || !$user) {
             return;
         }
+        
+        // Проверка участия пользователя в диалоге
+        $access = UserToDialogsModel::select()
+            ->where('dialog_id', '=', $dialog->id)
+            ->where('user_id', '=', $user->id)
+            ->first();
+            
+        if (!$access) {
+            $conn->send(json_encode([
+                'action' => 'error',
+                'message' => 'Вы не участник этого чата'
+            ]));
+            return;
+        }
 
         $newMessage = new MessageModel();
 
@@ -242,12 +391,20 @@ class MessangerSocket {
         $newMessage->uid = $messageUid;
         $newMessage->from_user_id = $user->id;
         $newMessage->dialog_id = $dialog->id;
-        $newMessage->message = $message;
+        
+        // Шифруем только текстовые сообщения
+        if ($message_type === 'text') {
+            $newMessage->message = $this->encryptContent($message);
+        } else {
+            $newMessage->message = $message; // медиа или другие типы не шифруем (или шифруем отдельно)
+        }
+        
         $newMessage->created_at = $current_date;
         $newMessage->updated_at = $current_date;
         $newMessage->message_status = $status;
         $newMessage->message_type = $message_type;
         $newMessage->media_url = $media_url;
+        $newMessage->is_deleted = 0;
 
         $dbManager = DatabaseManager::getInstance();
         $dbManager->queueInsert([
@@ -259,7 +416,8 @@ class MessangerSocket {
             'updated_at' => $newMessage->updated_at,
             'message_status' => $newMessage->message_status,
             'message_type' => $newMessage->message_type,
-            'media_url' => $newMessage->media_url
+            'media_url' => $newMessage->media_url,
+            'is_deleted' => $newMessage->is_deleted
         ], 'messages');
         $insertedIds = $dbManager->commit();
         
@@ -273,6 +431,7 @@ class MessangerSocket {
             'messages.message_status',
             'messages.message_type',
             'messages.media_url',
+            'messages.is_deleted',
             'users.firstname',
             'users.surname',
             'users.user_image',
@@ -280,16 +439,30 @@ class MessangerSocket {
         )->where('messages.id', '=', $insertedIds[0])
         ->innerJoin([UserModel::class, 'users'], 'messages.from_user_id', '=','users.id')
         ->first();
+        
+        // Расшифровываем сообщение перед отправкой клиентам
+        if ($addedMessage['message_type'] === 'text' && !empty($addedMessage['message'])) {
+            $addedMessage['message'] = $this->decryptContent($addedMessage['message']);
+        }
 
+        // Обновляем время диалога
+        $dbManager->queueUpdate([
+            'updated_at' => $current_date
+        ], 'dialogs', $dialog->id);
+        $dbManager->commit();
+
+        // Получаем всех участников диалога для рассылки
         $userToDialogsModel = new UserToDialogsModel();
         $users = $userToDialogsModel::select(['id'], 'utd')
         ->where('dialog_id', '=', $dialog->id)
         ->innerJoin('users', 'user_id', 'id', ['uid'], 'u')
         ->get();
-        foreach ($users as $user) {
-            if (!empty($user['u_uid']) && isset($conns[$user['u_uid']])) {
-                $conns[$user['u_uid']]->send(json_encode([
+        
+        foreach ($users as $participant) {
+            if (!empty($participant['u_uid']) && isset($conns[$participant['u_uid']])) {
+                $conns[$participant['u_uid']]->send(json_encode([
                     'action' => 'send_message',
+                    'dialog_uid' => $dialog_uid,
                     'message' => $addedMessage
                 ]));
             }
@@ -316,10 +489,14 @@ class MessangerSocket {
             return;
         }
 
+        // Шифруем новый текст
+        $encryptedText = $this->encryptContent($new_text);
+
         $dbManager = DatabaseManager::getInstance();
         $dbManager->queueUpdate([
-            'message' => $new_text,
-            'updated_at' => date('Y-m-d H:i:s')
+            'message' => $encryptedText,
+            'updated_at' => date('Y-m-d H:i:s'),
+            'edited_at' => date('Y-m-d H:i:s')
         ], 'messages', $message->id);
         $dbManager->commit();
 
@@ -329,12 +506,12 @@ class MessangerSocket {
             ->innerJoin('users', 'user_id', 'id', ['uid'], 'u')
             ->get();
 
-        foreach ($users as $user) {
-            if (!empty($user['u_uid']) && isset($conns[$user['u_uid']])) {
-                $conns[$user['u_uid']]->send(json_encode([
+        foreach ($users as $participant) {
+            if (!empty($participant['u_uid']) && isset($conns[$participant['u_uid']])) {
+                $conns[$participant['u_uid']]->send(json_encode([
                     'action' => 'message_edited',
                     'message_uid' => $message_uid,
-                    'new_text' => $new_text,
+                    'new_text' => $new_text, // Отправляем расшифрованный текст
                     'updated_at' => date('Y-m-d H:i:s')
                 ]));
             }
@@ -354,13 +531,17 @@ class MessangerSocket {
 
         $dbManager = DatabaseManager::getInstance();
         
+        // Safe-удаление: помечаем как удаленное, но не стираем
         if ($for_all || $message->from_user_id == $user->id) {
             $dbManager->queueUpdate([
+                'is_deleted' => 1,
                 'message' => '[Сообщение удалено]',
                 'updated_at' => date('Y-m-d H:i:s'),
+                'deleted_at' => date('Y-m-d H:i:s'),
                 'message_status' => 'deleted'
             ], 'messages', $message->id);
         } else {
+            // Удаляем только для себя (пока просто помечаем статус)
             $dbManager->queueUpdate([
                 'updated_at' => date('Y-m-d H:i:s')
             ], 'messages', $message->id);
@@ -374,12 +555,13 @@ class MessangerSocket {
             ->innerJoin('users', 'user_id', 'id', ['uid'], 'u')
             ->get();
 
-        foreach ($users as $user) {
-            if (!empty($user['u_uid']) && isset($conns[$user['u_uid']])) {
-                $conns[$user['u_uid']]->send(json_encode([
+        foreach ($users as $participant) {
+            if (!empty($participant['u_uid']) && isset($conns[$participant['u_uid']])) {
+                $conns[$participant['u_uid']]->send(json_encode([
                     'action' => 'message_deleted',
                     'message_uid' => $message_uid,
-                    'for_all' => $for_all
+                    'for_all' => $for_all,
+                    'dialog_uid' => DialogModel::select('uid')->where('id', '=', $message->dialog_id)->first()->uid
                 ]));
             }
         }
