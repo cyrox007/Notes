@@ -7,11 +7,39 @@ namespace Core;
 use Smarty\Smarty;
 use App\Middlewares\CSRFMiddleware;
 
+/**
+ * Базовый класс контроллера
+ * 
+ * Предоставляет общую функциональность для всех контроллеров:
+ * - Инициализация Smarty шаблонизатора
+ * - Регистрация пользовательских функций для шаблонов
+ * - CSRF защита для всех POST-запросов
+ * - Методы рендеринга шаблонов и JSON ответов
+ * 
+ * @package Core
+ */
 class Controller
 {
+    /**
+     * @var Smarty Экземпляр шаблонизатора Smarty
+     */
     protected Smarty $smarty;
+    
+    /**
+     * @var Request Объект текущего запроса
+     */
     protected Request $request;
 
+    /**
+     * Конструктор контроллера
+     * 
+     * Инициализирует:
+     * - Буферизацию вывода
+     * - Объект запроса
+     * - Smarty шаблонизатор с настройками путей
+     * - Пользовательские функции для шаблонов
+     * - CSRF middleware для защиты POST-запросов
+     */
     public function __construct()
     {
         ob_start();
@@ -19,14 +47,16 @@ class Controller
 
         $this->smarty = new Smarty();
         
+        // Настройка путей Smarty
         $this->smarty->setTemplateDir(SITEPATH . '/app/views');
         $this->smarty->setConfigDir(SITEPATH . '/config');
         $this->smarty->setCompileDir(SITEPATH . '/compile');
         $this->smarty->setCacheDir(SITEPATH . '/cache');
 
+        // Автоматическое экранирование HTML для безопасности
         $this->smarty->setEscapeHtml(true);
         
-        // Регистрация пользовательской функции для получения маршрута
+        // Регистрация пользовательских функций для шаблонов
         $this->smarty->registerPlugin('function', 'route_path', [$this, 'getRoutePath']);
         $this->smarty->registerPlugin('function', 'csrf_token', [$this, 'getCSRFInputTag']);
         $this->smarty->registerPlugin('function', 'session', [$this, 'getSession']);
@@ -38,6 +68,13 @@ class Controller
         $csrfMiddleware->handle();
     }
 
+    /**
+     * Деструктор контроллера
+     * 
+     * Обрабатывает буферизированный вывод:
+     * - Строки выводятся напрямую
+     * - Массивы/объекты конвертируются в JSON ответ
+     */
     public function __destruct()
     {
         $output = ob_get_clean();
@@ -51,7 +88,14 @@ class Controller
     }
 
     /**
-     * @param array<string, mixed> $params
+     * Генерирует URL для именованного маршрута
+     * 
+     * Используется в шаблонах как {route_path name='route_name' param1='value1'}
+     * 
+     * @param array<string, mixed> $params Параметры из шаблона:
+     *   - name: имя маршрута (обязательно)
+     *   - другие ключи: параметры для подстановки в маршрут
+     * @return string Сгенерированный URL или пустая строка если маршрут не найден
      */
     public function getRoutePath(array $params): string
     {
@@ -66,6 +110,7 @@ class Controller
             return '';
         }
 
+        // Заменяем параметры вида {type:param} на их значения
         foreach ($params as $key => $value) {
             if ($key !== 'name') {
                 $pattern = sprintf('/{%s:%s}/', '[a-zA-Z]+', $key);
@@ -76,13 +121,26 @@ class Controller
         return $route;
     }
 
+    /**
+     * Возвращает HTML input поле с CSRF токеном
+     * 
+     * Используется в шаблонах как {csrf_token}
+     * 
+     * @return string HTML код скрытого input поля с CSRF токеном
+     */
     public function getCSRFInputTag(): string
     {
         return Helper::getCSRFInputTag();
     }
 
     /**
-     * @param array<string, mixed> $params
+     * Получает значение из сессии
+     * 
+     * Используется в шаблонах как {session key='user_uid'}
+     * 
+     * @param array<string, mixed> $params Параметры из шаблона:
+     *   - key: ключ сессионной переменной
+     * @return string|null Значение из сессии или null если не найдено
      */
     public function getSession(array $params): ?string
     {
@@ -90,8 +148,14 @@ class Controller
     }
 
     /**
-     * @param array<string, mixed> $params
-     * @param \Smarty\Smarty $smarty
+     * Парсит JSON строку и назначает результат в переменную шаблона
+     * 
+     * Используется в шаблонах как {jsonParse json=$jsonString assign='variable'}
+     * 
+     * @param array<string, mixed> $params Параметры из шаблона:
+     *   - json: JSON строка для парсинга
+     *   - assign: имя переменной для назначения результата
+     * @param Smarty $smarty Экземпляр Smarty для назначения переменной
      */
     public function jsonParse(array $params, Smarty &$smarty): void
     {
@@ -99,8 +163,14 @@ class Controller
     }
 
     /**
-     * @param array<string, mixed> $params
-     * @param \Smarty\Smarty $smarty
+     * Читает содержимое файла
+     * 
+     * Используется в шаблонах как {file_get_contents file='path/to/file'}
+     * 
+     * @param array<string, mixed> $params Параметры из шаблона:
+     *   - file: путь к файлу
+     * @param Smarty $smarty Экземпляр Smarty (не используется)
+     * @return string Содержимое файла или пустая строка при ошибке
      */
     public function smarty_function_file_get_contents(array $params, Smarty &$smarty): string
     {
@@ -108,7 +178,10 @@ class Controller
     }
 
     /**
-     * @param array<string, mixed> $data
+     * Рендерит шаблон с данными
+     * 
+     * @param string $template Имя шаблона без расширения .tpl
+     * @param array<string, mixed>|null $data Ассоциативный массив данных для передачи в шаблон
      */
     protected function render_template(string $template, ?array $data = null): void
     {
@@ -133,8 +206,10 @@ class Controller
     }
 
     /**
-     * @param mixed $data
-     * @return mixed
+     * Рекурсивно конвертирует объекты в массивы
+     * 
+     * @param mixed $data Данные для конвертации
+     * @return mixed Конвертированные данные
      */
     private function convertObjectsToArray(mixed $data): mixed
     {
@@ -152,7 +227,9 @@ class Controller
     }
 
     /**
-     * @param array<string, mixed> $data
+     * Отправляет JSON ответ
+     * 
+     * @param array<string, mixed> $data Данные для кодирования в JSON
      */
     protected function responseJson(array $data): void
     {

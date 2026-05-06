@@ -32,33 +32,171 @@ php ws_server/server.php start
 Так же для работы приложения необходима база данных SQLite, которую необходимо сформировать самостоятельно
 ## Работа с приложением
 ### Маршрутизация
-Шаршрутизация работает следующим образом. В файл `routerConfig.php` вызывается функция `Route::add();`, которая принимает три аргумента:
-* Метод запроса
-* Путь запроса
-* Массив:
-* * Класс контроллера
-* * Метод этого контроллера
-Пример:
-``` php
-use App\Controller\Main;
-$router->add('GET', '/', [Main::class, 'index']);
+
+**Важно:** Начиная с версии 0.6.4 маршрутизатор полностью переработан для соответствия современным стандартам PHP 8.x+.
+
+#### Базовое использование
+
+Маршрутизация настраивается в файле `core/routerConfig.php`. Для добавления маршрута используется метод `add()`:
+
+```php
+use App\Controllers\MainController;
+use Core\Router;
+
+$router = Router::getInstance();
+
+// Простой маршрут
+$router->add('GET', '/', [MainController::class, 'index'], [], 'main');
 ```
-**Изменено v0.6.3**
-На текущей стадии маршритизатор способен воспринять и передать специальные динамические параметры маршрута, в любом количестве. Таким образом если вам необходимо, создать такой маршрут, который будет обрабатывать запросы вида `/post/12`, для получения например детального просмотра поста из базы данных, то шаблон маршрута должен быть следующим.
-``` php
-$router->add('GET', '/post/{int:id}', [Post::class, 'show']);
+
+**Параметры метода `add()`:**
+1. `string $method` - HTTP метод запроса ('GET', 'POST', 'PUT', 'DELETE')
+2. `string $path` - путь запроса
+3. `array $controller` - массив из [класс контроллера, метод контроллера]
+4. `array $middlewares` - массив middleware классов (опционально)
+5. `string $name` - имя маршрута для использования в redirect и шаблонах (опционально)
+
+#### Динамические параметры
+
+Маршрутизатор поддерживает динамические параметры любого количества. Параметры указываются в фигурных скобках с указанием типа:
+
+```php
+// Параметр типа int (только числа)
+$router->add('GET', '/post/{int:id}', [PostController::class, 'show'], [], 'post_show');
+
+// Параметр типа str (слова, цифры, дефисы)
+$router->add('GET', '/article/{str:slug}', [ArticleController::class, 'view'], [], 'article_view');
+
+// Несколько параметров
+$router->add('GET', '/user/{int:userId}/note/{str:noteId}', [NoteController::class, 'view'], [], 'note_view');
 ```
-Обратите внимание, что параметр всегда заключается в фигурные скобки `{}`, внутри которых указывается тип данных (`int` - для числовых значений, `str` - для символьных), затем через двоеточие имя параметра.
-О том как получить значение этих параметров, будет сказано в следующем разделе.
-**Добавлено v0.6.4**
-Пример группировки маршрутов с префиксом:
-``` php
-$router->group('/auth', function ($addRoute) {
-    $addRoute('GET', '/login', [Auth::class, 'login'], [], "authpage");
-    $addRoute('POST', '/login', [Auth::class, 'sigin']);
-    $addRoute('POST', '/logout', [Auth::class, 'logout'], [LoginRequared::class], 'logout');
+
+**Типы параметров:**
+- `{int:paramName}` - только числовые значения (`\d+`)
+- `{str:paramName}` - символьные значения, включая дефисы (`[\w-]+`)
+
+Получение параметров в контроллере:
+```php
+namespace App\Controllers;
+
+use Core\Controller;
+use Core\Request;
+
+class PostController extends Controller
+{
+    public function show(Request $request, int $id): void
+    {
+        // $id содержит значение из маршрута
+        echo "Post ID: {$id}";
+    }
+}
+```
+
+#### Группировка маршрутов
+
+Для удобной организации маршрутов с общим префиксом используйте группировку:
+
+```php
+use App\Controllers\AuthController;
+use App\Middlewares\LoginRequared;
+use Core\Router;
+
+$router = Router::getInstance();
+
+$router->group('/auth', function (Router $router) {
+    $router->add('GET', '/login', [AuthController::class, 'login'], [], 'authpage');
+    $router->add('POST', '/login', [AuthController::class, 'signin']);
+    $router->add('POST', '/logout', [AuthController::class, 'logout'], [LoginRequared::class], 'logout');
 });
 ```
+
+Все маршруты внутри группы автоматически получают префикс `/auth`.
+
+#### Middleware
+
+Middleware позволяют выполнять код до обработки запроса контроллером (например, проверка авторизации):
+
+```php
+// Добавление middleware к маршруту
+$router->add('GET', '/profile', [ProfileController::class, 'index'], [LoginRequared::class], 'profile');
+
+// Несколько middleware
+$router->add('GET', '/admin', [AdminController::class, 'index'], [LoginRequared::class, IsAdmin::class], 'adminpanel');
+```
+
+Middleware класс должен иметь метод `handle(Request $request): bool`, возвращающий `true` для продолжения выполнения или `false` для остановки.
+
+#### Перенаправления
+
+Использование имен маршрутов для редиректов:
+
+```php
+use Core\Router;
+
+// Перенаправление по имени маршрута
+Router::getInstance()->redirect('main', 'name');
+
+// Перенаправление с параметрами
+Router::getInstance()->redirect('edit_page', 'name', ['uid' => $noteUid]);
+
+// Перенаправление по URL
+Router::getInstance()->redirect('https://example.com', 'url');
+```
+
+#### Получение маршрута в шаблонах
+
+В Smarty шаблонах можно использовать функцию `route_path` для генерации URL:
+
+```smarty
+<a href="{route_path name='notes'}">Заметки</a>
+<a href="{route_path name='edit_page' uid=$note.uid}">Редактировать</a>
+```
+
+#### Пример полной конфигурации
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use App\Controllers\MainController;
+use App\Controllers\AuthController;
+use App\Controllers\NoteController;
+use App\Middlewares\LoginRequared;
+use App\Middlewares\IsAdmin;
+use Core\Router;
+
+$router = Router::getInstance();
+
+// Публичные маршруты
+$router->add('GET', '/', [MainController::class, 'index'], [LoginRequared::class], 'main');
+
+$router->group('/auth', function (Router $router) {
+    $router->add('GET', '/login', [AuthController::class, 'login'], [], 'authpage');
+    $router->add('POST', '/login', [AuthController::class, 'signin']);
+    $router->add('POST', '/logout', [AuthController::class, 'logout'], [LoginRequared::class], 'logout');
+});
+
+// Защищенные маршруты
+$router->group('/notes', function (Router $router) {
+    $router->add('GET', '/', [NoteController::class, 'index'], [LoginRequared::class], 'notes');
+    $router->add('POST', '/', [NoteController::class, 'create'], [LoginRequared::class], 'note_create');
+    $router->add('GET', '/{str:uid}/edit', [NoteController::class, 'edit'], [], 'edit_page');
+    $router->add('POST', '/{str:uid}/edit', [NoteController::class, 'update'], [], 'update_note');
+    $router->add('GET', '/{str:uid}/delete', [NoteController::class, 'delete'], [LoginRequared::class], 'delete_note');
+});
+
+// Админ панель
+$router->group('/admin', function (Router $router) {
+    $router->add('GET', '/', [AdminController::class, 'index'], [LoginRequared::class, IsAdmin::class], 'adminpanel');
+});
+
+$router->dispatch();
+```
+
+#### Обработка 404
+
+Если маршрут не найден, автоматически отправляется ответ с кодом 404 и текстом "404 Page Not Found". Вы можете переопределить это поведение в методе `handle404()` класса Router.
 ### Контроллеры
 При запросе к приложению вызывается специальный класс контроллера, являющийся дочерним класса `Controller`.
 Контроллер отвечает за логику того или иного аспекта приложения, будь то, главная страница или страница авторизации или регистрации. После выполнения работы контроллера происходит загразка шаблона, с передачей всех необходимых параметров в него.
@@ -361,8 +499,342 @@ define('DB_CHARSET', 'utf8mb4');
 define('DB_DRIVER', 'sqlite');
 define('DB_PATH', '/path/to/database.sqlite');
 ```
-### Шаблонизатор 
-Шаблоны - это лицо вашего приложения. Шаблонизатор реализован таким образом, что при загрузке и выполнении логики любого действия контроллера можно вызвать в самом конце функцию представления. 
-В обновленной версии фреймворка изменился принцип вывода представления. Во первых есть два способа ответа контроллера на запрос. Это может быть как строка, в том числе сериализованная в формате JSON (за это отвечает втроеный метод `response_json`), во вторых - можно вызвать втроеный метод `render_template`, который теперь принимает только два аргумента вместо трех, как это было в прошлой версии: это путь и имя шаблона без расширения, и данные, которые нужно передать в шаблон.
-За отрисовку шаблона теперь отвечает шаблонизатор Smarty. На текущий момент это демократичное решение, которое позволит сгенерировать шаблон любой сложности и парсить его без проблем. 
+### Шаблонизатор (Smarty)
+
+**Важно:** Начиная с версии 0.6.4 шаблонизатор полностью переработан и использует Smarty с кастомными расширениями.
+
+#### Базовое использование
+
+За отрисовку шаблонов отвечает базовый класс `Controller`. В контроллере используйте метод `render_template()`:
+
+```php
+namespace App\Controllers;
+
+use Core\Controller;
+use Core\Request;
+
+class NoteController extends Controller
+{
+    public function index(Request $request): void
+    {
+        $data = [
+            'title' => 'Мои заметки',
+            'notes' => $this->getNotes(),
+            'user' => $request->session('user_uid')
+        ];
+        
+        // Рендерит шаблон app/views/notes_page/index.tpl
+        $this->render_template('notes_page/index', $data);
+    }
+}
+```
+
+**Параметры метода `render_template()`:**
+1. `string $template` - имя шаблона без расширения `.tpl` (путь относительно `app/views/`)
+2. `array|null $data` - ассоциативный массив данных для передачи в шаблон
+
+#### Пользовательские функции Smarty
+
+Контроллер автоматически регистрирует следующие функции для использования в шаблонах:
+
+##### route_path - генерация URL по имени маршрута
+
+```smarty
+{* Простая ссылка *}
+<a href="{route_path name='notes'}">Заметки</a>
+
+{* Ссылка с параметрами *}
+<a href="{route_path name='edit_page' uid=$note.uid}">Редактировать</a>
+
+{* Несколько параметров *}
+<a href="{route_path name='user_note' userId=$user.id noteId=$note.id}">
+    Заметка пользователя
+</a>
+```
+
+##### csrf_token - CSRF защита форм
+
+```smarty
+<form method="POST" action="{route_path name='note_create'}">
+    {csrf_token}
+    <input type="text" name="notename" placeholder="Название заметки">
+    <button type="submit">Создать</button>
+</form>
+```
+
+Генерирует: `<input type="hidden" name="_csrf_token" value="...">`
+
+##### session - доступ к данным сессии
+
+```smarty
+{* Получить значение из сессии *}
+<p>Привет, {session key='username'}!</p>
+
+{* Проверка авторизации *}
+{if session key='auth'}
+    <a href="{route_path name='logout'}">Выйти</a>
+{else}
+    <a href="{route_path name='authpage'}">Войти</a>
+{/if}
+```
+
+##### jsonParse - парсинг JSON в шаблоне
+
+```smarty
+{* Распарсить JSON строку и назначить в переменную *}
+{jsonParse json=$jsonString assign='parsedData'}
+
+{* Использовать распарсенные данные *}
+{foreach from=$parsedData item=item}
+    <p>{$item.name}</p>
+{/foreach}
+```
+
+##### file_get_contents - чтение файлов
+
+```smarty
+{* Читать содержимое файла *}
+<div class="content">
+    {file_get_contents file='app/uploads/content.txt'}
+</div>
+```
+
+#### Автоматическое экранирование
+
+Smarty настроен на автоматическое экранирование HTML для защиты от XSS-атак:
+
+```smarty
+{$userInput} {* Автоматически экранируется *}
+{$userInput|noescape} {* Не экранируется, если нужно вывести HTML *}
+```
+
+#### Конфигурация Smarty
+
+Пути конфигурируются в контроллере:
+- `setTemplateDir` - `SITEPATH . '/app/views'` - директория шаблонов
+- `setConfigDir` - `SITEPATH . '/config'` - директория конфигов
+- `setCompileDir` - `SITEPATH . '/compile'` - директория компиляции
+- `setCacheDir` - `SITEPATH . '/cache'` - директория кэша
+
+#### Пример полного шаблона
+
+```smarty
+{extends file="^shared/layout.tpl"}
+
+{block name="title"}{$title}{/block}
+
+{block name="content"}
+<div class="notes-container">
+    <h1>{$title}</h1>
+    
+    <form method="POST" action="{route_path name='note_create'}">
+        {csrf_token}
+        <input type="text" name="notename" placeholder="Название заметки" required>
+        <button type="submit">Создать заметку</button>
+    </form>
+    
+    <ul class="notes-list">
+        {foreach from=$notes item=note}
+        <li class="note-item">
+            <h3>{$note.notename}</h3>
+            <p>Создано: {$note.created_note}</p>
+            <a href="{route_path name='edit_page' uid=$note.uid}">
+                Редактировать
+            </a>
+            <a href="{route_path name='delete_note' uid=$note.uid}" 
+               onclick="return confirm('Удалить?')">
+                Удалить
+            </a>
+        </li>
+        {foreachelse}
+        <li>Заметок пока нет</li>
+        {/foreach}
+    </ul>
+</div>
+{/block}
+```
+
+#### Альтернативные способы ответа
+
+Кроме рендеринга шаблона, контроллер может вернуть:
+
+**JSON ответ:**
+```php
+public function apiGetNotes(): void
+{
+    $this->responseJson([
+        'status' => 'success',
+        'data' => $this->getNotes()
+    ]);
+}
+```
+
+**Строковый ответ (через echo):**
+```php
+public function healthCheck(): void
+{
+    echo "OK";
+}
+```
+
+**Массив/объект (автоматически конвертируется в JSON в деструкторе):**
+```php
+public function getData(): array
+{
+    return ['key' => 'value']; // Автоматически станет JSON
+}
+```
+### Двойное шифрование (Double Cryptography)
+
+**Важно:** Это основная фишка системы Notes, с которой начиналась разработка.
+
+#### Концепция
+
+Перед сохранением данных в базу данных они проходят **два уровня шифрования** разными алгоритмами и ключами:
+
+1. **Первый уровень**: AES-256-GCM с уникальным ключом (`UNIQUE_KEY`)
+2. **Второй уровень**: AES-256-CBC с вторичным ключом (`SECONDARY_KEY`)
+
+При чтении расшифровка происходит в обратном порядке.
+
+#### Настройка
+
+В `.env` файле должны быть указаны ключи шифрования:
+
+```env
+UNIQUE_KEY=your_32_byte_unique_key_here
+SECONDARY_KEY=your_secondary_key_here
+```
+
+Если `SECONDARY_KEY` не указан, он автоматически генерируется на основе `UNIQUE_KEY`.
+
+#### Использование в контроллерах
+
+**Шифрование заметки перед сохранением:**
+
+```php
+use App\Helpers\CryptMethods;
+use Core\DatabaseManager;
+
+class NoteController extends Controller
+{
+    public function create(Request $request): void
+    {
+        $content = $request->post('content');
+        
+        // Двойное шифрование содержимого заметки
+        $encryptedContent = CryptMethods::doubleEncrypt(
+            $content,
+            $noteUid // Контекст для уникального IV
+        );
+        
+        $dbManager = DatabaseManager::getInstance();
+        $dbManager->queueInsert([
+            'uid' => $noteUid,
+            'content' => $encryptedContent, // Сохраняем зашифрованное
+            'user_id' => $userId
+        ], 'notes');
+        $dbManager->commit();
+    }
+}
+```
+
+**Расшифровка при чтении:**
+
+```php
+public function view(string $uid): void
+{
+    $note = NoteModel::select()->where('uid', '=', $uid)->first();
+    
+    // Двойная расшифровка содержимого
+    $decryptedContent = CryptMethods::doubleDecrypt(
+        $note->content,
+        $uid // Тот же контекст что при шифровании
+    );
+    
+    $this->render_template('notes_page/view', [
+        'note' => $note,
+        'content' => $decryptedContent
+    ]);
+}
+```
+
+#### Методы класса CryptMethods
+
+##### doubleEncrypt - двойное шифрование
+
+```php
+/**
+ * @param string $data Данные для шифрования
+ * @param string|null $context Контекст для генерации уникального IV (например, UID записи)
+ * @return string Зашифрованные данные в base64
+ */
+$encrypted = CryptMethods::doubleEncrypt($data, $context);
+```
+
+##### doubleDecrypt - двойная расшифровка
+
+```php
+/**
+ * @param string $encryptedData Зашифрованные данные из БД
+ * @param string|null $context Контекст, использованный при шифровании
+ * @return string Расшифрованные данные
+ */
+$decrypted = CryptMethods::doubleDecrypt($encryptedData, $context);
+```
+
+##### createHashFromPassword / verifyPassword - хеширование паролей
+
+Для паролей используется многоуровневое хеширование:
+1. bcrypt
+2. SHA256 с UNIQUE_KEY и солью
+3. 1000 раундов SHA256
+
+```php
+// При регистрации
+$hashedPassword = CryptMethods::createHashFromPassword($password);
+
+// При входе
+if (CryptMethods::verifyPassword($inputPassword, $storedHash)) {
+    // Пароль верный
+}
+```
+
+##### quickEncrypt / quickDecrypt - быстрое шифрование
+
+Для временных данных или когда не требуется двойное шифрование:
+
+```php
+$encrypted = CryptMethods::quickEncrypt($data);
+$decrypted = CryptMethods::quickDecrypt($encrypted);
+```
+
+#### Применение
+
+**Заметки пользователей:**
+- Содержимое заметок шифруется перед сохранением в БД
+- Расшифровывается только при просмотре авторизованным пользователем
+- Даже при утечке БД данные остаются защищенными
+
+**Сообщения между пользователями:**
+- Сообщения в мессенджере шифруются двойным методом
+- Каждый диалог может иметь уникальный контекст для IV
+- Обеспечивает конфиденциальность переписки
+
+**Личные файлы:**
+- Метаданные и содержимое файлов могут быть зашифрованы
+- Ключи шифрования привязаны к пользователю
+
+#### Безопасность
+
+**Преимущества двойного шифрования:**
+- Даже если один алгоритм будет скомпрометирован, второй уровень защищает данные
+- Разные ключи для каждого уровня усложняют атаку
+- Уникальный IV для каждой записи предотвращает анализ паттернов
+
+**Важные замечания:**
+- Храните ключи шифрования в безопасном месте (.env вне веб-доступа)
+- Регулярно делайте бэкапы ключей
+- При потере ключей данные невозможно будет восстановить
+- Для сквозного шифрования в мессенджере рекомендуется использовать дополнительные методы (например, обмен ключами Diffie-Hellman)
 https://smarty-php.github.io/smarty/stable/
