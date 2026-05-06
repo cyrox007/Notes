@@ -6,7 +6,7 @@ use App\Models\FieldModel;
 use Core\Controller;
 use Core\DatabaseManager;
 use Core\Request;
-use Route;
+use Core\Router;
 
 class AdminController extends Controller {
     public function index(Request $request) {
@@ -66,6 +66,6 @@ class AdminController extends Controller {
         }
 
         $dbManager->commit();
-        return Route::getInstance()->redirect('adminpanel');
+        return Router::getInstance()->redirect('adminpanel');
     }
 }

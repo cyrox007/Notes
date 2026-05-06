@@ -6,7 +6,7 @@ use Core\Controller;
 use App\Helpers\CryptMethods;
 use App\Models\UserModel;
 use Core\Request;
-use Route;
+use Core\Router;
 
 class AuthController extends Controller {
     public function __construct() {
@@ -35,16 +35,16 @@ class AuthController extends Controller {
         $request->setSession('auth', true);
         $request->setSession('user_uid', $user->uid);
 
-        return Route::getInstance()->redirect('main', 'name'); 
+        return Router::getInstance()->redirect('main', 'name'); 
     } 
 
     function logout(Request $request) {
         if (empty($request->session('auth'))) {
-            return Route::getInstance()->redirect('main');
+            return Router::getInstance()->redirect('main');
         }
 
         $request->unsetSession("auth");
-        return Route::getInstance()->redirect('authpage', 'name');
+        return Router::getInstance()->redirect('authpage', 'name');
     }
 
     function action_registration() {

@@ -1,4 +1,7 @@
 <?php
+
+declare(strict_types=1);
+
 namespace App\Controllers;
 
 use App\Models\NoteModel;
@@ -6,52 +9,54 @@ use App\Models\UserModel;
 use Core\Controller;
 use Core\DatabaseManager;
 use Core\Request;
-use Route;
-use UUID;
+use Core\Router;
 
-class NoteController extends Controller {
-    public function index(Request $request) {
+class NoteController extends Controller
+{
+    public function index(Request $request): void
+    {
         $user = UserModel::select()
-        ->where('uid', '=', $request->session('user_uid'))
-        ->first();
+            ->where('uid', '=', $request->session('user_uid'))
+            ->first();
 
-        $sort = $request->get('sort') ?: 'created_note';
-        $direction = $request->get('direction')?: 'desc';
+        $sort = $request->get('sort') ?? 'created_note';
+        $direction = $request->get('direction') ?? 'desc';
 
         $userNotes = NoteModel::select('uid', 'notename', 'created_note', 'updated_note')
-        ->where('user_id', '=', $user->id)
-        ->orderBy($sort, $direction)
-        ->get();
+            ->where('user_id', '=', $user->id)
+            ->orderBy($sort, $direction)
+            ->get();
         
         $allNotes = NoteModel::select(
             'notes.uid', 'notes.notename', 'notes.created_note', 'notes.updated_note',
             'author.username', 'author.uid'
         )
-        ->innerJoin([UserModel::class, 'author'], 'notes.user_id', '=', 'author.id')
-        ->orderBy($sort, $direction)
-        ->get();
+            ->innerJoin([UserModel::class, 'author'], 'notes.user_id', '=', 'author.id')
+            ->orderBy($sort, $direction)
+            ->get();
         
         $data = [
             'personalNotes' => $userNotes,
             'allNotes' => $allNotes,
-            'user' => $user
+            'user' => $user,
         ]; 
         
         $this->render_template('notes_page/index', $data);
     }
 
-    public function create(Request $request) {
+    public function create(Request $request): void
+    {
         $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
 
-        $uidNote = UUID::guidv4();
-        $created_at = date("Y-m-d H:i:s");
+        $uidNote = bin2hex(random_bytes(16));
+        $createdAt = date('Y-m-d H:i:s');
         
         $newNote = new NoteModel();
         $newNote->uid = $uidNote;
         $newNote->notename = $request->post('notename');
         $newNote->content = '';
-        $newNote->created_note = $created_at;
-        $newNote->updated_note = $created_at;
+        $newNote->created_note = $createdAt;
+        $newNote->updated_note = $createdAt;
         $newNote->user_id = $user->id;
 
         $dbManager = DatabaseManager::getInstance();
@@ -61,14 +66,15 @@ class NoteController extends Controller {
             'content' => $newNote->content,
             'created_note' => $newNote->created_note,
             'updated_note' => $newNote->updated_note,
-            'user_id' => $newNote->user_id
+            'user_id' => $newNote->user_id,
         ], 'notes');
         $dbManager->commit();
 
-        return Route::getInstance()->redirect('edit_page', 'name', ['uid' => $uidNote]);
+        Router::getInstance()->redirect('edit_page', 'name', ['uid' => $uidNote]);
     }
 
-    public function edit(Request $request, string $uid) {
+    public function edit(Request $request, string $uid): void
+    {
         $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
         
         $note = NoteModel::select(
@@ -80,52 +86,60 @@ class NoteController extends Controller {
             ->where('notes.uid', '=', $uid)
             ->first();
         
-        if ($note->user_id != $user->id || $user->role < 900) {
-            return Route::getInstance()->redirect('notes', 'name');
+        if ($note->user_id !== $user->id || $user->role < 900) {
+            Router::getInstance()->redirect('notes', 'name');
+            return;
         }
         
         $data = [
             'user' => $user,
-            'note' => $note
+            'note' => $note,
         ];
-        return $this->render_template('notes_page/edit_view', $data);
+        
+        $this->render_template('notes_page/edit_view', $data);
     }
 
-    public function update(Request $request, $uid) {
+    public function update(Request $request, string $uid): void
+    {
         $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
 
         $note = NoteModel::select()->where('uid', '=', $uid)->first(true);
         
-        if ($note->user_id != $user->id || $user->role < 900) {
-            return Route::getInstance()->redirect('notes', 'name');
+        if ($note->user_id !== $user->id || $user->role < 900) {
+            Router::getInstance()->redirect('notes', 'name');
+            return;
         }
 
         $note->content = $request->post('content');
-        $note->updated_note = date("Y-m-d H:i:s");
+        $note->updated_note = date('Y-m-d H:i:s');
 
         $dbManager = DatabaseManager::getInstance();
         $dbManager->queueUpdate([
             'content' => $note->content,
-            'updated_note' => $note->updated_note
-        ], 'notes', $note->id);
+            'updated_note' => $note->updated_note,
+        ], 'notes', (int) $note->id);
 
         $dbManager->commit();
-        return Route::getInstance()->redirect('notes', 'name');
+        
+        Router::getInstance()->redirect('notes', 'name');
     }
 
-    function delete(Request $request, $uid) {  
+    public function delete(Request $request, string $uid): void
+    {
         $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
 
         $note = NoteModel::select()->where('uid', '=', $uid)->first();
 
-        if ($note->user_id != $user->id || $user->role < 900) {
-            return Route::getInstance()->redirect('notes', 'name');
+        if ($note->user_id !== $user->id || $user->role < 900) {
+            Router::getInstance()->redirect('notes', 'name');
+            return;
         }
 
         $dbManager = DatabaseManager::getInstance();
-        $dbManager->queueDelete('notes', $note->id);
+        $dbManager->queueDelete('notes', (int) $note->id);
 
         $dbManager->commit();
-        return Route::getInstance()->redirect('notes', 'name');
+        
+        Router::getInstance()->redirect('notes', 'name');
     }
 }

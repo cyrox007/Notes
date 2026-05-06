@@ -11,7 +11,7 @@ use Core\Request;
 use Core\Images;
 
 use Exception;
-use Route;
+use Core\Router;
 
 class ProfileController extends Controller {
     public function index(Request $request) {
@@ -50,7 +50,7 @@ class ProfileController extends Controller {
         $dbManager->queueUpdate((array)$user, $user->_tablename ?? 'users', $user->id);
         $dbManager->commit();
 
-        return Route::getInstance()->redirect('profile');
+        return Router::getInstance()->redirect('profile');
     }
 
     private function gatherUserData(array $postData, object $user): array {
@@ -159,7 +159,7 @@ class ProfileController extends Controller {
         
         $request->unsetSession("auth");
         $request->unsetSession('user_uid');
-        return Route::getInstance()->redirect('authpage');
+        return Router::getInstance()->redirect('authpage');
     }
 
     public function deleteUser (Request $request) {
@@ -171,6 +171,6 @@ class ProfileController extends Controller {
         
         $request->unsetSession("auth");
         $request->unsetSession('user_uid');
-        return Route::getInstance()->redirect('authpage');
+        return Router::getInstance()->redirect('authpage');
     }
 }
