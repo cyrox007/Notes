@@ -7,7 +7,7 @@
     <div class="login-page__box">
         <div class="login-page__title">
             <span>
-                {$smarty.env.SITENAME} {$smarty.env.VERSION}
+                {$sitename} {$version}
             </span>
         </div>
         <div class="login-page__card">

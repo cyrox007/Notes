@@ -190,7 +190,11 @@ class Controller
         
         $baseUrl = $siteUrl . '/' . $basePath;
         
+        // Назначаем базовые переменные для всех шаблонов
         $this->smarty->assign('base_url', $baseUrl);
+        $this->smarty->assign('sitename', getenv('SITENAME') ?: 'Workspace Organizer');
+        $this->smarty->assign('version', \Core\Version::VERSION);
+        $this->smarty->assign('product_name', \Core\Version::PRODUCT_NAME);
 
         if ($data !== null) {
             $data = $this->convertObjectsToArray($data);

@@ -54,12 +54,24 @@ class ProfileController extends Controller {
     }
 
     private function gatherUserData(array $postData, object $user): array {
+        // Валидация email
+        $email = filter_var($postData['set-user-email'], FILTER_VALIDATE_EMAIL);
+        if (!$email) {
+            throw new \Exception('Некорректный формат email адреса');
+        }
+        
+        // Валидация телефона (если указан)
+        $phone = preg_replace('/[^0-9+]/', '', $postData['set-user-phone']);
+        if (!empty($postData['set-user-phone']) && strlen($phone) < 10) {
+            throw new \Exception('Некорректный формат телефона');
+        }
+        
         return [
-            'firstname' => $postData['set-user-name'],
-            'patronymic' => $postData['set-user-patronymic'],
-            'surname' => $postData['set-user-surname'],
-            'phone' => $postData['set-user-phone'],
-            'email' => $postData['set-user-email'],
+            'firstname' => trim($postData['set-user-name']),
+            'patronymic' => trim($postData['set-user-patronymic']),
+            'surname' => trim($postData['set-user-surname']),
+            'phone' => $phone,
+            'email' => $email,
             'user_image' => $user->user_image
         ];
     }
@@ -142,16 +154,37 @@ class ProfileController extends Controller {
         $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
         $data['user'] = $user;
 
+        $newPassword = $request->post('new-password');
+        $repeatPassword = $request->post('repeat-new-password');
+        $oldPassword = $request->post('old-password');
 
-        if (!CryptMethods::verifyPassword($request->post('old-password'), $user->password)) {
-            $data['errors'] = [
-                "CODE" => 'login_error',
-                "MESSAGE" => "Password error"
+        // Проверка совпадения нового пароля с подтверждением
+        if ($newPassword !== $repeatPassword) {
+            $data['errors'][] = [
+                "CODE" => 'password_mismatch',
+                "MESSAGE" => "Новые пароли не совпадают"
             ];
             return $this->render_template('profile_page/index', $data);
         }
 
-        $user->password = CryptMethods::createHashFromPassword($request->post('new-password'));
+        // Проверка длины пароля
+        if (strlen($newPassword) < 6) {
+            $data['errors'][] = [
+                "CODE" => 'password_too_short',
+                "MESSAGE" => "Пароль должен быть не менее 6 символов"
+            ];
+            return $this->render_template('profile_page/index', $data);
+        }
+
+        if (!CryptMethods::verifyPassword($oldPassword, $user->password)) {
+            $data['errors'][] = [
+                "CODE" => 'login_error',
+                "MESSAGE" => "Неверный текущий пароль"
+            ];
+            return $this->render_template('profile_page/index', $data);
+        }
+
+        $user->password = CryptMethods::createHashFromPassword($newPassword);
 
         $dbManager = DatabaseManager::getInstance();
         $dbManager->queueUpdate(['password' => $user->password], 'users', $user->id);
@@ -162,8 +195,19 @@ class ProfileController extends Controller {
         return Router::getInstance()->redirect('authpage');
     }
 
-    public function deleteUser (Request $request) {
+    public function deleteUser(Request $request) {
         $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+
+        // Проверка подтверждения удаления (нужно передать confirmation параметр)
+        $confirmation = $request->post('confirm_delete');
+        if ($confirmation !== 'yes') {
+            $data['user'] = $user;
+            $data['errors'][] = [
+                "CODE" => 'delete_not_confirmed',
+                "MESSAGE" => "Удаление аккаунта не подтверждено"
+            ];
+            return $this->render_template('profile_page/index', $data);
+        }
 
         $dbManager = DatabaseManager::getInstance();
         $dbManager->queueDelete('users', $user->id);

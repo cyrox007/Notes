@@ -141,7 +141,7 @@
 						пароль</button>
 				</form>
 				<hr>
-				<form name="deleteUser" action="/Profile/deleteUser" method="post">
+				<form name="deleteUser" action="{route_path name='profile-delete'}" onsubmit="return confirm('Вы уверены?');" method="post">
 					<button class="profile__card-info--edit--delete" type="submit">Удалить аккаунт</button>
 				</form>
 			</div>

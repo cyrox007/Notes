@@ -7,7 +7,7 @@
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<meta name="description" content="My Workspace">
-	<title>{$smarty.env.SITENAME} {$smarty.env.VERSION} | {block name=title}{/block}</title>
+	<title>{$sitename} {$version} | {block name=title}{/block}</title>
 
 	<style>
 		{include file='styles.css'}

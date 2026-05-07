@@ -22,6 +22,8 @@ $router->group('/auth', function (Router $addRoute) {
     $addRoute->add('GET', '/login', [AuthController::class, 'login'], [], "authpage");
     $addRoute->add('POST', '/login', [AuthController::class, 'sigin']);
     $addRoute->add('POST', '/logout', [AuthController::class, 'logout'], [LoginRequared::class], 'logout');
+    $addRoute->add('GET', '/registration/{str:invite_code}', [AuthController::class, 'registration'], [], 'registration');
+    $addRoute->add('POST', '/registration', [AuthController::class, 'registration'], [], 'register_submit');
 });
 
 $router->group('/notes', function (Router $addRoute) {
@@ -82,7 +84,9 @@ $router->group('/messenger', function (Router $addRoute) {
 
 $router->group('/admin', function (Router $addRoute) {
    $addRoute->add('GET', '/', [AdminController::class, 'index'], [LoginRequared::class, IsAdmin::class], 'adminpanel'); 
-   $addRoute->add('POST', '/', [AdminController::class, 'saveCustomFields'], [LoginRequared::class, IsAdmin::class], 'save_custom_fields'); 
+   $addRoute->add('POST', '/', [AdminController::class, 'saveCustomFields'], [LoginRequared::class, IsAdmin::class], 'save_custom_fields');
+   $addRoute->add('POST', '/users/toggle-status', [AdminController::class, 'toggleUserStatus'], [LoginRequared::class, IsAdmin::class], 'admin_toggle_user');
+   $addRoute->add('POST', '/users/delete', [AdminController::class, 'deleteUser'], [LoginRequared::class, IsAdmin::class], 'admin_delete_user');
 });
 
 $router->dispatch(); 
