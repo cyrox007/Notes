@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Controllers\MainController;
 use App\Controllers\AuthController;
 use App\Controllers\NoteController;
+use App\Controllers\TaskController;
 use App\Controllers\ProfileController;
 use App\Controllers\FileController;
 use App\Controllers\Admin\AdminController;
@@ -29,6 +30,19 @@ $router->group('/notes', function (Router $addRoute) {
     $addRoute->add("GET", '/{str:uid}/edit', [NoteController::class, 'edit'], [], 'edit_page');
     $addRoute->add("POST", '/{str:uid}/edit', [NoteController::class, 'update'], [], 'update_note');
     $addRoute->add("GET", '/{str:uid}/delete', [NoteController::class, 'delete'], [LoginRequared::class], 'delete_note');
+});
+
+$router->group('/tasks', function (Router $addRoute) {
+    $addRoute->add("GET", '/', [TaskController::class, 'index'], [LoginRequared::class], 'tasks');
+    $addRoute->add("POST", '/', [TaskController::class, 'create'], [LoginRequared::class], 'task_create');
+    $addRoute->add("POST", '/{str:uid}/update', [TaskController::class, 'update'], [], 'update_task');
+    $addRoute->add("GET", '/{str:uid}/delete', [TaskController::class, 'delete'], [LoginRequared::class], 'delete_task');
+    $addRoute->add("POST", '/{str:taskUid}/subtask', [TaskController::class, 'addSubtask'], [LoginRequared::class], 'add_subtask');
+    $addRoute->add("POST", '/subtask/{int:subtaskId}/toggle', [TaskController::class, 'toggleSubtask'], [LoginRequared::class], 'toggle_subtask');
+    $addRoute->add("POST", '/subtask/{int:subtaskId}/delete', [TaskController::class, 'deleteSubtask'], [LoginRequared::class], 'delete_subtask');
+    $addRoute->add("POST", '/category', [TaskController::class, 'createCategory'], [LoginRequared::class], 'create_category');
+    $addRoute->add("POST", '/{str:taskUid}/category/{int:categoryId}', [TaskController::class, 'attachCategory'], [LoginRequared::class], 'attach_category');
+    $addRoute->add("DELETE", '/{str:taskUid}/category/{int:categoryId}', [TaskController::class, 'detachCategory'], [LoginRequared::class], 'detach_category');
 });
 
 $router->group('/profile', function (Router $addRoute) {

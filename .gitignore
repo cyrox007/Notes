@@ -1,3 +1,4 @@
+```gitignore
 ```
 # Compiled and build artifacts
 *.pyc
@@ -19,11 +20,33 @@ venv/
 .env.local
 .env.*
 
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Editors
+.vscode/
+.idea/
+
 # Build directories
 dist/
 build/
 target/
 .gradle/
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Database
+*.sql
+
+# OS generated files
+.DS_Store
+Thumbs.db
 
 # Logs and temp files
 *.log
