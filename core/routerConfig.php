@@ -7,6 +7,7 @@ use App\Controllers\AuthController;
 use App\Controllers\NoteController;
 use App\Controllers\TaskController;
 use App\Controllers\ProfileController;
+use App\Controllers\FileController;
 use App\Controllers\Admin\AdminController;
 use App\Controllers\MessagerController;
 use App\Middlewares\LoginRequared;
@@ -49,6 +50,29 @@ $router->group('/profile', function (Router $addRoute) {
    $addRoute->add('POST', '/', [ProfileController::class, 'update'], [LoginRequared::class], 'profile-set');
    $addRoute->add('POST', '/change-pass', [ProfileController::class, 'changeUserPass'], [LoginRequared::class], 'profile-password-set');
    $addRoute->add('POST', '/delete-user', [ProfileController::class, 'deleteUser'], [LoginRequared::class], 'profile-delete');
+});
+
+$router->group('/files', function (Router $addRoute) {
+    // Главная страница файлового менеджера
+    $addRoute->add('GET', '/', [FileController::class, 'index'], [LoginRequared::class], 'files');
+    
+    // Просмотр папки
+    $addRoute->add('GET', '/folder/{int:folderId}/', [FileController::class, 'folder'], [LoginRequared::class], 'files_folder');
+    
+    // Создание папки
+    $addRoute->add('POST', '/create-folder/', [FileController::class, 'createFolder'], [LoginRequared::class], 'files_create_folder');
+    
+    // Загрузка файла
+    $addRoute->add('POST', '/upload/', [FileController::class, 'uploadFile'], [LoginRequared::class], 'files_upload');
+    
+    // Удаление файла/папки
+    $addRoute->add('POST', '/delete/', [FileController::class, 'delete'], [LoginRequared::class], 'files_delete');
+    
+    // Переименование файла/папки
+    $addRoute->add('POST', '/rename/', [FileController::class, 'rename'], [LoginRequared::class], 'files_rename');
+    
+    // Получение файла
+    $addRoute->add('GET', '/get/{int:fileId}/', [FileController::class, 'getFile'], [LoginRequared::class], 'files_get');
 });
 
 $router->group('/messenger', function (Router $addRoute) {

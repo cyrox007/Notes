@@ -1,4 +1,5 @@
 ```gitignore
+```
 # Compiled and build artifacts
 *.pyc
 __pycache__/
@@ -29,7 +30,7 @@ venv/
 .vscode/
 .idea/
 
-# Build and distribution
+# Build directories
 dist/
 build/
 target/
@@ -46,4 +47,29 @@ htmlcov/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Cache directories
+.mypy_cache/
+.pytest_cache/
 ```
