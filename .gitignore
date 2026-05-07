@@ -1,6 +1,47 @@
-```
-# Environment variables
+```php
+# Compiled and build artifacts
+*.pyc
+*.class
+*.o
+*.obj
+*.out
+*.exe
+*.dll
+*.so
+*.a
+
+# Dependencies
+vendor/
+node_modules/
+composer.lock
+
+# Build and distribution
+dist/
+build/
+target/
+coverage/
+htmlcov/
+*.log
+
+# Environment
 .env
 .env.local
-*.env.*
+.env.*
+
+# Editors and IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Cache directories
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+.gradle/
 ```

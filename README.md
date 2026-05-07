@@ -94,14 +94,14 @@ openssl rand -hex 32
 mysql -u root -p messenger_db < database/messenger_schema.sql
 ```
 
-#### 2. Заметки (Notes 2.0) - `database/notes_schema.sql`
+#### 2. Заметки (Notes 2.0+) - `database/notes_schema.sql`
 
-Содержит таблицы для системы личных заметок с поддержкой медиа:
-- `notes` - личные заметки
-- `note_attachments` - медиа-вложения (фото, аудио, видео, файлы)
-- `shared_notes` - общий доступ к заметкам
-- `note_history` - история изменений
-- `note_tags` - теги для заметок
+Содержит таблицы для системы личных заметок с поддержкой медиа и голосовых сообщений:
+- `notes` - личные заметки (текст, шифрование AES-256-GCM/CBC)
+- `note_attachments` - медиа-вложения (фото, аудио, видео, файлы, голосовые)
+- `shared_notes` - общий доступ к заметкам через токены
+- `note_history` - история изменений (автоматически через триггеры)
+- `note_tags` - теги для организации заметок
 - `note_tag_relations` - связи заметок с тегами
 
 **Инициализация:**
@@ -298,12 +298,26 @@ $router->group('/auth', function (Router $router) {
 
 // Защищенные маршруты
 $router->group('/notes', function (Router $router) {
+    // Список заметок
     $router->add('GET', '/', [NoteController::class, 'index'], [LoginRequared::class], 'notes');
     $router->add('POST', '/', [NoteController::class, 'create'], [LoginRequared::class], 'note_create');
+    
+    // Редактирование заметки
     $router->add('GET', '/{str:uid}/edit', [NoteController::class, 'edit'], [], 'edit_page');
     $router->add('POST', '/{str:uid}/edit', [NoteController::class, 'update'], [], 'update_note');
     $router->add('GET', '/{str:uid}/delete', [NoteController::class, 'delete'], [LoginRequared::class], 'delete_note');
+    
+    // Загрузка вложений (медиа, аудио, голосовые)
+    $router->add('POST', '/upload/{str:uid}', [NoteController::class, 'uploadAttachment'], [LoginRequared::class], 'note_upload');
+    $router->add('POST', '/attachment/delete/{int:id}', [NoteController::class, 'deleteAttachment'], [LoginRequared::class], 'note_delete_attachment');
+    
+    // Шаринг заметок
+    $router->add('POST', '/share/{str:uid}', [NoteController::class, 'shareNote'], [LoginRequared::class], 'note_share');
+    $router->add('POST', '/unshare/{str:uid}', [NoteController::class, 'unshareNote'], [LoginRequared::class], 'note_unshare');
 });
+
+// Публичный доступ к заметкам по токену
+$router->add('GET', '/notes/shared/{str:token}', [NoteController::class, 'viewShared'], [], 'note_shared_view');
 
 // Админ панель
 $router->group('/admin', function (Router $router) {
@@ -1244,6 +1258,104 @@ openssl rand -hex 32
 
 4. **Аудит:**
    - Включите логирование всех операций с сообщениями
+   - История изменений заметок ведется автоматически через триггеры БД
+
+---
+
+## 📋 Новые функции Notes 2.0+
+
+### Поддерживаемые типы контента
+
+1. **Текстовые заметки** - шифруются двойным шифрованием (AES-256-GCM + AES-256-CBC)
+2. **Изображения** - JPEG, PNG, GIF, WebP с предпросмотром
+3. **Аудиофайлы** - MP3, WAV, OGG с плеером
+4. **Видеофайлы** - MP4, WebM, AVI с плеером
+5. **Голосовые заметки** - запись прямо из браузера через Web Audio API
+6. **Документы** - PDF, DOC, DOCX, TXT и другие файлы
+
+### Функциональность
+
+- ✅ **Загрузка файлов** - drag & drop или выбор через диалог
+- ✅ **Голосовая запись** - встроенный рекордер с предпросмотром
+- ✅ **Просмотр медиа** - встроенные плееры для аудио/видео
+- ✅ **Шаринг заметок** - создание ссылок с настройками доступа
+- ✅ **История изменений** - автоматическое сохранение через триггеры
+- ✅ **Теги** - организация заметок по категориям
+- ✅ **Safe-удаление** - восстановление удаленных заметок
+
+### API контроллера
+
+| Метод | URL | Описание |
+|-------|-----|----------|
+| GET | `/notes/` | Список заметок пользователя |
+| POST | `/notes/` | Создание новой заметки |
+| GET | `/notes/{uid}/edit` | Страница редактирования |
+| POST | `/notes/{uid}/edit` | Обновление текста заметки |
+| GET | `/notes/{uid}/delete` | Удаление заметки (safe) |
+| POST | `/notes/upload/{uid}` | Загрузка вложения (AJAX) |
+| POST | `/notes/attachment/delete/{id}` | Удаление вложения |
+| POST | `/notes/share/{uid}` | Создать ссылку для шаринга |
+| POST | `/notes/unshare/{uid}` | Деактивировать ссылку |
+| GET | `/notes/shared/{token}` | Публичный просмотр по токену |
+
+### Примеры использования
+
+#### Создание заметки с вложением
+
+```javascript
+// Загрузка изображения
+const formData = new FormData();
+formData.append('attachment', fileInput.files[0]);
+
+fetch('/notes/upload/' + noteUid, {
+    method: 'POST',
+    body: formData
+})
+.then(res => res.json())
+.then(data => {
+    if (data.success) {
+        console.log('Файл загружен:', data.attachment.file_name);
+    }
+});
+```
+
+#### Запись голосового сообщения
+
+```javascript
+// Использование MediaRecorder API
+const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+const recorder = new MediaRecorder(stream);
+
+recorder.ondataavailable = (e) => chunks.push(e.data);
+recorder.onstop = () => {
+    const blob = new Blob(chunks, { type: 'audio/webm' });
+    // Отправка blob на сервер
+};
+recorder.start();
+```
+
+#### Шаринг заметки
+
+```javascript
+// Создание ссылки с доступом на редактирование
+fetch('/notes/share/' + noteUid, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'access_type=edit&expires_in=24' // 24 часа
+})
+.then(res => res.json())
+.then(data => {
+    console.log('Ссылка:', data.share_url);
+});
+```
+
+---
+
+## 📚 Дополнительные ресурсы
+
+- [Документация по шифрованию](docs/encryption.md)
+- [Руководство по WebSocket](docs/websocket.md)
+- [API мессенджера](docs/messenger-api.md)
    - Регулярно проверяйте доступы к БД
    - Настройте алерты на подозрительную активность
 
