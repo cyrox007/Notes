@@ -1,47 +1,49 @@
-```php
+```gitignore
 # Compiled and build artifacts
 *.pyc
-*.class
+__pycache__/
 *.o
 *.obj
-*.out
+*.class
 *.exe
 *.dll
 *.so
 *.a
+*.out
 
 # Dependencies
-vendor/
 node_modules/
-composer.lock
+venv/
+.venv/
+.env
+.env.local
+.env.*
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Editors
+.vscode/
+.idea/
 
 # Build and distribution
 dist/
 build/
 target/
+.gradle/
+
+# Coverage
 coverage/
 htmlcov/
-*.log
+.coverage
 
-# Environment
-.env
-.env.local
-.env.*
+# Database
+*.sql
 
-# Editors and IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*.tmp
-
-# System files
+# OS generated files
 .DS_Store
 Thumbs.db
-
-# Cache directories
-__pycache__/
-.mypy_cache/
-.pytest_cache/
-.gradle/
 ```
