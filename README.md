@@ -66,7 +66,6 @@ PHP суперприложение для работы с:
 - Полная переработка ORM системы
 - Поддержка SELECT, JOIN, WHERE, GET, FIRST
 - Поддержка нескольких СУБД (MySQL, MariaDB, SQLite)
-- Миграции базы данных
 - Логирование SQL запросов
 - Connection pooling
 
