@@ -1,4 +1,3 @@
-```gitignore
 ```
 # Compiled and build artifacts
 *.pyc
@@ -30,36 +29,6 @@ venv/
 .vscode/
 .idea/
 
-# Build directories
-dist/
-build/
-target/
-.gradle/
-
-# Coverage
-coverage/
-htmlcov/
-.coverage
-
-# Database
-*.sql
-
-# OS generated files
-.DS_Store
-Thumbs.db
-
-# Logs and temp files
-*.log
-*.tmp
-*.swp
-*.swo
-
-# Editors
-.vscode/
-.idea/
-*.swp
-*.swo
-
 # System files
 .DS_Store
 Thumbs.db
@@ -68,6 +37,12 @@ Thumbs.db
 coverage/
 htmlcov/
 .coverage
+
+# Build directories
+dist/
+build/
+target/
+.gradle/
 
 # Cache directories
 .mypy_cache/

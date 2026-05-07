@@ -12,8 +12,13 @@ class AdminController extends Controller {
     public function index(Request $request) {
         $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
         $fields = FieldModel::select()->get();
+        
+        // Получаем список всех пользователей для админки
+        $users = UserModel::select()->get();
+        
         $data['user'] = $user;
         $data['customFields'] = $fields;
+        $data['users'] = $users;
         return $this->render_template('admin-page/index', $data);
     }
 
@@ -67,5 +72,68 @@ class AdminController extends Controller {
 
         $dbManager->commit();
         return Router::getInstance()->redirect('adminpanel');
+    }
+    
+    /**
+     * Управление пользователями: блокировка/разблокировка
+     */
+    public function toggleUserStatus(Request $request) {
+        $targetUserId = $request->post('user_id');
+        $newStatus = $request->post('new_status'); // 'active' или 'blocked'
+        
+        if (!$targetUserId) {
+            return $this->responseJson(['success' => false, 'message' => 'Не указан пользователь']);
+        }
+        
+        $user = UserModel::select()->where('id', '=', $targetUserId)->first();
+        if (!$user) {
+            return $this->responseJson(['success' => false, 'message' => 'Пользователь не найден']);
+        }
+        
+        // Определяем новую роль
+        $config = new \Core\Config();
+        $newRole = ($newStatus === 'blocked') ? 999 : $config->user_role_activate;
+        
+        $dbManager = DatabaseManager::getInstance();
+        $dbManager->queueUpdate(['role' => $newRole], 'users', $user->id);
+        $result = $dbManager->commit();
+        
+        if ($result !== false) {
+            return $this->responseJson(['success' => true, 'message' => 'Статус пользователя изменен']);
+        }
+        
+        return $this->responseJson(['success' => false, 'message' => 'Ошибка при обновлении статуса']);
+    }
+    
+    /**
+     * Удаление пользователя
+     */
+    public function deleteUser(Request $request) {
+        $targetUserId = $request->post('user_id');
+        
+        if (!$targetUserId) {
+            return $this->responseJson(['success' => false, 'message' => 'Не указан пользователь']);
+        }
+        
+        $user = UserModel::select()->where('id', '=', $targetUserId)->first();
+        if (!$user) {
+            return $this->responseJson(['success' => false, 'message' => 'Пользователь не найден']);
+        }
+        
+        // Нельзя удалить самого себя
+        $currentUser = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        if ($currentUser->id == $targetUserId) {
+            return $this->responseJson(['success' => false, 'message' => 'Нельзя удалить самого себя']);
+        }
+        
+        $dbManager = DatabaseManager::getInstance();
+        $dbManager->queueDelete('users', $user->id);
+        $result = $dbManager->commit();
+        
+        if ($result !== false) {
+            return $this->responseJson(['success' => true, 'message' => 'Пользователь удален']);
+        }
+        
+        return $this->responseJson(['success' => false, 'message' => 'Ошибка при удалении пользователя']);
     }
 }
