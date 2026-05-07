@@ -12,7 +12,12 @@ PHP суперприложение для работы с:
 
 ## Requirement
 * **PHP 8.3+** (требуется для строгой типизации, enum, constructor property promotion)
-* MySQL / MariaDB или SQLite
+* MySQL / MariaDB (рекомендуется версия 8.0+) или SQLite 3.x
+* Composer для управления зависимостями PHP
+* Расширения PHP: pdo_mysql, json, mbstring, openssl, fileinfo
+* Веб-сервер: Apache с mod_rewrite или Nginx
+* Node.js (опционально) для некоторых клиентских инструментов
+
 ## Условия для запуска
 Для работы системы требуется файл .htaccess со следующим содержимым
 ``` apache
@@ -29,7 +34,121 @@ composer install
 ``` bash
 php ws_server/server.php start
 ```
-Так же для работы приложения необходима база данных SQLite, которую необходимо сформировать самостоятельно
+
+## 🗄️ Инициализация базы данных
+
+### Требования к БД
+
+Приложение поддерживает две СУБД:
+- **MySQL/MariaDB** (рекомендуется для production)
+- **SQLite** (для разработки и тестирования)
+
+### Переменные окружения
+
+Перед запуском приложения необходимо настроить переменные окружения:
+
+1. Скопируйте файл `default.env` в `.env`:
+```bash
+cp default.env .env
+```
+
+2. Отредактируйте `.env` и установите свои значения:
+```env
+# База данных
+DBDRIVER=mysql
+DBHOST=localhost
+DBPORT=3306
+DBUSER=root
+DBPASS=your_secure_password_here
+DBNAME=messenger_db
+
+# Ключи шифрования (ОБЯЗАТЕЛЬНО!)
+MSG_SECRET_KEY=<сгенерируйте через openssl rand -hex 32>
+NOTE_SECRET_KEY=<сгенерируйте через openssl rand -hex 32>
+
+# Пути загрузки
+UPLOAD_DIR=/var/www/uploads/messenger
+NOTES_UPLOAD_DIR=/var/www/uploads/notes
+```
+
+3. Сгенерируйте ключи шифрования:
+```bash
+openssl rand -hex 32
+```
+
+### SQL скрипты инициализации
+
+В проекте имеются следующие SQL скрипты:
+
+#### 1. Мессенджер - `database/messenger_schema.sql`
+
+Содержит таблицы для системы обмена сообщениями:
+- `users` - пользователи
+- `dialogs` - диалоги (личные и групповые)
+- `dialog_users` - связи пользователей с диалогами
+- `messages` - сообщения
+- `message_statuses` - статусы прочтения сообщений
+
+**Инициализация:**
+```bash
+mysql -u root -p messenger_db < database/messenger_schema.sql
+```
+
+#### 2. Заметки (Notes 2.0+) - `database/notes_schema.sql`
+
+Содержит таблицы для системы личных заметок с поддержкой медиа и голосовых сообщений:
+- `notes` - личные заметки (текст, шифрование AES-256-GCM/CBC)
+- `note_attachments` - медиа-вложения (фото, аудио, видео, файлы, голосовые)
+- `shared_notes` - общий доступ к заметкам через токены
+- `note_history` - история изменений (автоматически через триггеры)
+- `note_tags` - теги для организации заметок
+- `note_tag_relations` - связи заметок с тегами
+
+**Инициализация:**
+```bash
+mysql -u root -p messenger_db < database/notes_schema.sql
+```
+
+#### Полная инициализация БД
+
+Для создания всех таблиц выполните:
+
+```bash
+# Создайте базу данных
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS messenger_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+
+# Импортируйте схемы
+mysql -u root -p messenger_db < database/messenger_schema.sql
+mysql -u root -p messenger_db < database/notes_schema.sql
+```
+
+### Структура таблиц модуля Notes
+
+Модуль заметок версии 2.0 поддерживает:
+
+**Типы контента:**
+- `text` - текстовые заметки (шифруются AES-256-CBC)
+- `image` - изображения (JPEG, PNG, GIF, WebP)
+- `audio` - аудиофайлы (MP3, WAV, OGG)
+- `video` - видеофайлы (MP4, WebM, AVI)
+- `voice` - голосовые заметки (WebM, MP3)
+- `file` - документы и другие файлы
+
+**Функциональность:**
+- Шифрование текстового контента
+- Загрузка и хранение медиа-вложений
+- Голосовые заметки с указанием длительности
+- Общий доступ через токены (можно делиться через мессенджер)
+- История изменений с возможностью отката
+- Система тегов для организации заметок
+- Safe-удаление с возможностью восстановления
+
+**Безопасность:**
+- Текстовый контент шифруется перед сохранением
+- Медиафайлы могут быть зашифрованы опционально
+- Файлы хранятся вне корневой директории веб-сервера
+- Токены доступа имеют срок действия
+
 ## Работа с приложением
 ### Маршрутизация
 
@@ -179,12 +298,26 @@ $router->group('/auth', function (Router $router) {
 
 // Защищенные маршруты
 $router->group('/notes', function (Router $router) {
+    // Список заметок
     $router->add('GET', '/', [NoteController::class, 'index'], [LoginRequared::class], 'notes');
     $router->add('POST', '/', [NoteController::class, 'create'], [LoginRequared::class], 'note_create');
+    
+    // Редактирование заметки
     $router->add('GET', '/{str:uid}/edit', [NoteController::class, 'edit'], [], 'edit_page');
     $router->add('POST', '/{str:uid}/edit', [NoteController::class, 'update'], [], 'update_note');
     $router->add('GET', '/{str:uid}/delete', [NoteController::class, 'delete'], [LoginRequared::class], 'delete_note');
+    
+    // Загрузка вложений (медиа, аудио, голосовые)
+    $router->add('POST', '/upload/{str:uid}', [NoteController::class, 'uploadAttachment'], [LoginRequared::class], 'note_upload');
+    $router->add('POST', '/attachment/delete/{int:id}', [NoteController::class, 'deleteAttachment'], [LoginRequared::class], 'note_delete_attachment');
+    
+    // Шаринг заметок
+    $router->add('POST', '/share/{str:uid}', [NoteController::class, 'shareNote'], [LoginRequared::class], 'note_share');
+    $router->add('POST', '/unshare/{str:uid}', [NoteController::class, 'unshareNote'], [LoginRequared::class], 'note_unshare');
 });
+
+// Публичный доступ к заметкам по токену
+$router->add('GET', '/notes/shared/{str:token}', [NoteController::class, 'viewShared'], [], 'note_shared_view');
 
 // Админ панель
 $router->group('/admin', function (Router $router) {
@@ -1047,11 +1180,60 @@ ws.send(JSON.stringify({
 │   ├── server.php       # Точка входа WS сервера
 │   └── MessagerController.php  # Логика мессенджера
 ├── database/            # SQL скрипты и миграции
-│   └── messenger_schema.sql
+│   ├── messenger_schema.sql    # Схема БД мессенджера
+│   └── notes_schema.sql        # Схема БД заметок (Notes 2.0)
 ├── assets/              # Статические файлы
 ├── .env                 # Переменные окружения (не коммитить!)
 ├── default.env          # Шаблон переменных окружения
+├── .gitignore           # Игнорируемые файлы Git
 └── README.md            # Документация
+```
+
+---
+
+## 🔐 Требования к базе данных и конфигурации
+
+### Обязательные таблицы
+
+#### Мессенджер (messenger_schema.sql):
+- `users` - пользователи системы
+- `dialogs` - диалоги (private/group)
+- `dialog_users` - участники диалогов
+- `messages` - сообщения с поддержкой типов: text, image, audio, video, file, voice
+- `message_statuses` - статусы доставки/прочтения
+
+#### Заметки (notes_schema.sql):
+- `notes` - личные заметки с шифрованием контента
+- `note_attachments` - медиа-вложения (фото, аудио, видео, голосовые)
+- `shared_notes` - общий доступ через токены
+- `note_history` - аудит изменений
+- `note_tags` - теги пользователей
+- `note_tag_relations` - связи заметок с тегами
+
+### Переменные окружения (.env)
+
+**Обязательные:**
+- `DBDRIVER` - драйвер БД (mysql/sqlite)
+- `DBHOST`, `DBPORT`, `DBUSER`, `DBPASS`, `DBNAME` - подключение к БД
+- `MSG_SECRET_KEY` - ключ шифрования сообщений (32 символа)
+- `NOTE_SECRET_KEY` - ключ шифрования заметок (32 символа)
+
+**Рекомендуемые:**
+- `UPLOAD_DIR` - путь загрузки файлов мессенджера
+- `NOTES_UPLOAD_DIR` - путь загрузки файлов заметок
+- `MAX_UPLOAD_SIZE` - максимальный размер файла (байты)
+- `MAX_NOTE_ATTACHMENTS` - макс. количество вложений на заметку
+- `WS_HOST`, `WS_PORT` - настройки WebSocket сервера
+- `LOG_LEVEL`, `LOG_FILE` - настройки логирования
+
+### Генерация ключей шифрования
+
+```bash
+# Для сообщений мессенджера
+openssl rand -hex 32
+
+# Для заметок
+openssl rand -hex 32
 ```
 
 ---
@@ -1076,5 +1258,109 @@ ws.send(JSON.stringify({
 
 4. **Аудит:**
    - Включите логирование всех операций с сообщениями
+   - История изменений заметок ведется автоматически через триггеры БД
+
+---
+
+## 📋 Новые функции Notes 2.0+
+
+### Поддерживаемые типы контента
+
+1. **Текстовые заметки** - шифруются двойным шифрованием (AES-256-GCM + AES-256-CBC)
+2. **Изображения** - JPEG, PNG, GIF, WebP с предпросмотром
+3. **Аудиофайлы** - MP3, WAV, OGG с плеером
+4. **Видеофайлы** - MP4, WebM, AVI с плеером
+5. **Голосовые заметки** - запись прямо из браузера через Web Audio API
+6. **Документы** - PDF, DOC, DOCX, TXT и другие файлы
+
+### Функциональность
+
+- ✅ **Загрузка файлов** - drag & drop или выбор через диалог
+- ✅ **Голосовая запись** - встроенный рекордер с предпросмотром
+- ✅ **Просмотр медиа** - встроенные плееры для аудио/видео
+- ✅ **Шаринг заметок** - создание ссылок с настройками доступа
+- ✅ **История изменений** - автоматическое сохранение через триггеры
+- ✅ **Теги** - организация заметок по категориям
+- ✅ **Safe-удаление** - восстановление удаленных заметок
+
+### API контроллера
+
+| Метод | URL | Описание |
+|-------|-----|----------|
+| GET | `/notes/` | Список заметок пользователя |
+| POST | `/notes/` | Создание новой заметки |
+| GET | `/notes/{uid}/edit` | Страница редактирования |
+| POST | `/notes/{uid}/edit` | Обновление текста заметки |
+| GET | `/notes/{uid}/delete` | Удаление заметки (safe) |
+| POST | `/notes/upload/{uid}` | Загрузка вложения (AJAX) |
+| POST | `/notes/attachment/delete/{id}` | Удаление вложения |
+| POST | `/notes/share/{uid}` | Создать ссылку для шаринга |
+| POST | `/notes/unshare/{uid}` | Деактивировать ссылку |
+| GET | `/notes/shared/{token}` | Публичный просмотр по токену |
+
+### Примеры использования
+
+#### Создание заметки с вложением
+
+```javascript
+// Загрузка изображения
+const formData = new FormData();
+formData.append('attachment', fileInput.files[0]);
+
+fetch('/notes/upload/' + noteUid, {
+    method: 'POST',
+    body: formData
+})
+.then(res => res.json())
+.then(data => {
+    if (data.success) {
+        console.log('Файл загружен:', data.attachment.file_name);
+    }
+});
+```
+
+#### Запись голосового сообщения
+
+```javascript
+// Использование MediaRecorder API
+const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+const recorder = new MediaRecorder(stream);
+
+recorder.ondataavailable = (e) => chunks.push(e.data);
+recorder.onstop = () => {
+    const blob = new Blob(chunks, { type: 'audio/webm' });
+    // Отправка blob на сервер
+};
+recorder.start();
+```
+
+#### Шаринг заметки
+
+```javascript
+// Создание ссылки с доступом на редактирование
+fetch('/notes/share/' + noteUid, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'access_type=edit&expires_in=24' // 24 часа
+})
+.then(res => res.json())
+.then(data => {
+    console.log('Ссылка:', data.share_url);
+});
+```
+
+---
+
+## 📚 Дополнительные ресурсы
+
+- [Документация по шифрованию](docs/encryption.md)
+- [Руководство по WebSocket](docs/websocket.md)
+- [API мессенджера](docs/messenger-api.md)
    - Регулярно проверяйте доступы к БД
    - Настройте алерты на подозрительную активность
+
+5. **Файлы заметок:**
+   - Храните загруженные файлы вне корневой директории веб-сервера
+   - Используйте защищенные директивы .htaccess для директорий загрузок
+   - Ограничьте MIME-типы разрешенных файлов
+   - Сканируйте загруженные файлы на наличие вредоносного кода
