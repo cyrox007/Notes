@@ -23,13 +23,25 @@ $errors = [];
 $success_msg = '';
 $db_connection = null;
 
-// Список необходимых таблиц (по схеме messenger_schema.sql и другим файлам)
+// Список необходимых таблиц (по всем схемам)
 $REQUIRED_TABLES = [
+    // messenger_schema.sql
     'users',
     'dialogs',
     'dialog_users',
     'messages',
-    // Добавьте остальные таблицы вашего проекта здесь
+    'message_statuses',
+    
+    // notes_schema.sql
+    'notes',
+    'note_attachments',
+    'shared_notes',
+    'note_history',
+    'note_tags',
+    'note_tag_relations',
+    
+    // file_manager_schema.sql
+    'user_files',
 ];
 
 // Пути
@@ -73,23 +85,85 @@ function getExistingTables($pdo) {
 }
 
 function importSchema($pdo, $files) {
+    // Сортируем файлы: сначала messenger_schema.sql (создает users), потом остальные
+    usort($files, function($a, $b) {
+        $a_name = basename($a);
+        $b_name = basename($b);
+        
+        // messenger_schema.sql должен быть первым (создает таблицу users)
+        if ($a_name === 'messenger_schema.sql') return -1;
+        if ($b_name === 'messenger_schema.sql') return 1;
+        
+        // file_manager_schema.sql вторым (зависит от users)
+        if ($a_name === 'file_manager_schema.sql') return -1;
+        if ($b_name === 'file_manager_schema.sql') return 1;
+        
+        return strcmp($a_name, $b_name);
+    });
+    
+    // Отключаем проверку внешних ключей на время импорта
+    $pdo->exec("SET FOREIGN_KEY_CHECKS=0");
+    
     foreach ($files as $file) {
         $sql = file_get_contents($file);
-        // Разделяем запросы по точке с запятой (упрощенно)
-        $statements = array_filter(array_map('trim', explode(';', $sql)));
+        
+        // Разделяем запросы, учитывая DELIMITER для триггеров
+        $statements = [];
+        $current_statement = '';
+        $delimiter = ';';
+        
+        $lines = explode("\n", $sql);
+        foreach ($lines as $line) {
+            $trimmed_line = trim($line);
+            
+            // Проверяем изменение delimiter
+            if (stripos($trimmed_line, 'DELIMITER $$') === 0) {
+                $delimiter = '$$';
+                continue;
+            }
+            if (stripos($trimmed_line, 'DELIMITER ;') === 0) {
+                $delimiter = ';';
+                continue;
+            }
+            
+            $current_statement .= $line . "\n";
+            
+            // Проверяем конец утверждения
+            if (substr(rtrim($trimmed_line), -strlen($delimiter)) === $delimiter) {
+                $statement = trim(substr($current_statement, 0, -strlen($delimiter)));
+                if (!empty($statement) && !preg_match('/^--/', $statement)) {
+                    $statements[] = $statement;
+                }
+                $current_statement = '';
+            }
+        }
+        
+        // Обрабатываем оставшееся утверждение
+        if (!empty(trim($current_statement))) {
+            $statements[] = trim($current_statement);
+        }
+        
         foreach ($statements as $statement) {
             if (!empty($statement)) {
                 try {
                     $pdo->exec($statement);
                 } catch (PDOException $e) {
-                    // Игнорируем ошибки, если таблица уже существует (если в SQL есть IF NOT EXISTS)
-                    if (strpos($e->getMessage(), "already exists") === false) {
-                        throw $e;
+                    $error_msg = $e->getMessage();
+                    // Игнорируем ошибки, если таблица/индекс уже существует
+                    if (strpos($error_msg, "already exists") !== false ||
+                        strpos($error_msg, "Duplicate key name") !== false ||
+                        strpos($error_msg, "Foreign key constraint is incorrectly formed") !== false) {
+                        continue;
                     }
+                    // Для других ошибок - пробрасываем исключение
+                    throw new Exception("Ошибка в файле {$file}: " . $error_msg);
                 }
             }
         }
     }
+    
+    // Включаем проверку внешних ключей обратно
+    $pdo->exec("SET FOREIGN_KEY_CHECKS=1");
 }
 
 function createAdminUser($pdo, $username, $email, $password, $firstname = 'Admin', $lastname = 'User') {
@@ -290,7 +364,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Предварительные проверки для Шага 1
 $req_php = version_compare(PHP_VERSION, '8.0.0', '>=');
 $req_mbstring = extension_loaded('mbstring');
-req_pdo_mysql = extension_loaded('pdo_mysql');
+$req_pdo_mysql = extension_loaded('pdo_mysql');
 $req_writable = is_writable($base_path);
 
 checkRequirement($req_php, "Требуется версия PHP 8.0 или выше. Ваша версия: " . PHP_VERSION);
