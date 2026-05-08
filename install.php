@@ -1,20 +1,13 @@
 <?php
 /**
  * Web Installer Script
- *
- * Функционал:
- * 1. Проверка требований (PHP, расширения, права).
- * 2. Настройка подключения к БД и тест соединения ("пинг").
- * 3. Проверка наличия таблиц и импорт схемы при необходимости.
- * 4. Создание файла конфигурации (.env).
- * 5. Создание первичного пользователя (Администратора).
+ * Версия с исправленным импортом через mysqli::multi_query
  */
 
-// Отключаем вывод ошибок в браузер, но логируем их (для безопасности)
+// Отключаем вывод ошибок в браузер, но логируем их
 ini_set('display_errors', 0);
 error_reporting(E_ALL);
 
-// Настройки сессии
 session_start();
 
 // --- КОНФИГУРАЦИЯ И ПЕРЕМЕННЫЕ ---
@@ -23,31 +16,25 @@ $errors = [];
 $success_msg = '';
 $db_connection = null;
 
-// Список необходимых таблиц (по схеме messenger_schema.sql и другим файлам)
 $REQUIRED_TABLES = [
-    // messenger_schema.sql
-    'users',
-    'dialogs',
-    'dialog_users',
-    'messages',
-    'message_statuses',
-
-    // notes_schema.sql
-    'notes',
-    'note_attachments',
-    'shared_notes',
-    'note_history',
-    'note_tags',
-    'note_tag_relations',
-
-    // file_manager_schema.sql
+    'users', 'dialogs', 'dialog_users', 'messages', 'message_statuses',
+    'notes', 'note_attachments', 'shared_notes', 'note_history', 'note_tags', 'note_tag_relations',
     'user_files',
 ];
 
-// Пути
 $base_path = __DIR__;
 $env_file = $base_path . '/.env';
-$schema_files = glob($base_path . '/database/*.sql'); // Ищем SQL файлы со схемой
+$schema_files = glob($base_path . '/database/*.sql');
+
+// Сортировка файлов: messenger -> notes -> file_manager
+usort($schema_files, function($a, $b) {
+    $order = ['messenger_schema.sql' => 1, 'notes_schema.sql' => 2, 'file_manager_schema.sql' => 3];
+    $a_name = basename($a);
+    $b_name = basename($b);
+    $a_val = $order[$a_name] ?? 99;
+    $b_val = $order[$b_name] ?? 99;
+    return $a_val - $b_val;
+});
 
 // --- ФУНКЦИИ ---
 
@@ -66,15 +53,24 @@ function generateRandomString($length = 32) {
 
 function testDbConnection($host, $port, $db, $user, $pass) {
     try {
-        $dsn = "mysql:host=$host;port=$port;dbname=$db;charset=utf8mb4";
+        $dsn = "mysql:host=$host;port=$port;charset=utf8mb4";
         $pdo = new PDO($dsn, $user, $pass, [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"
         ]);
-        // "Пингуем" базу простым запросом
+        
+        $stmt = $pdo->query("SHOW DATABASES LIKE '$db'");
+        if ($stmt->rowCount() === 0) {
+            return false;
+        }
+
+        $pdo->exec("USE `$db`");
         $pdo->query("SELECT 1");
+        
         return $pdo;
     } catch (PDOException $e) {
+        error_log("DB Connection Error: " . $e->getMessage());
         return false;
     }
 }
@@ -82,103 +78,89 @@ function testDbConnection($host, $port, $db, $user, $pass) {
 function getExistingTables($pdo) {
     $stmt = $pdo->query("SHOW TABLES");
     $tables = $stmt->fetchAll(PDO::FETCH_COLUMN, 0);
-    // Очищаем имена таблиц от обратных кавычек и префиксов БД
     return array_map(function($table) {
         return trim($table, '`');
     }, $tables);
 }
 
-function importSchema($pdo, $files) {
-    // Сортируем файлы: сначала messenger_schema.sql (создает users), потом notes_schema, потом file_manager
-    usort($files, function($a, $b) {
-        $a_name = basename($a);
-        $b_name = basename($b);
+/**
+ * Импорт схемы через mysqli::multi_query (поддерживает триггеры)
+ */
+function importSchemaRaw($host, $user, $pass, $db, $port, $files)
+{
+    // Включаем строгую отчетность для mysqli
+    mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
-        if ($a_name === 'messenger_schema.sql') return -1;
-        if ($b_name === 'messenger_schema.sql') return 1;
+    $mysqli = new mysqli($host, $user, $pass, $db, $port);
+    $mysqli->set_charset("utf8mb4");
 
-        // notes_schema.sql вторым (зависит от users)
-        if ($a_name === 'notes_schema.sql') return -1;
-        if ($b_name === 'notes_schema.sql') return 1;
+    // Отключаем проверки внешних ключей на время импорта
+    $mysqli->query("SET FOREIGN_KEY_CHECKS=0");
 
-        // file_manager_schema.sql третьим
-        if ($a_name === 'file_manager_schema.sql') return -1;
-        if ($b_name === 'file_manager_schema.sql') return 1;
+    // Увеличиваем время выполнения скрипта, так как импорт может быть долгим
+    set_time_limit(300); 
 
-        return strcmp($a_name, $b_name);
-    });
-
-    // Отключаем проверку внешних ключей на время импорта
-    $pdo->exec("SET FOREIGN_KEY_CHECKS=0");
+    $logFile = __DIR__ . '/install_debug.log';
+    file_put_contents($logFile, "\n=== Начало импорта через mysqli: " . date('Y-m-d H:i:s') . " ===\n", FILE_APPEND);
 
     foreach ($files as $file) {
+        $fileName = basename($file);
+        file_put_contents($logFile, "Обработка файла: {$fileName}\n", FILE_APPEND);
+
         $sql = file_get_contents($file);
+
+        if ($sql === false) {
+            throw new Exception("Не удалось прочитать файл: $file");
+        }
+
+        // --- ГЛАВНОЕ ИСПРАВЛЕНИЕ ---
         
-        // Разделяем запросы, учитывая DELIMITER для триггеров
-        $statements = [];
-        $current_statement = '';
-        $delimiter = ';';
+        // 1. Удаляем строки с DELIMITER (они нужны только для консольного клиента)
+        $sql = preg_replace('/^\s*DELIMITER\s+\S+\s*;?\s*$/im', '', $sql);
+        
+        // 2. Заменяем пользовательские разделители $$ на стандартные ;
+        // Это критично для триггеров, процедур и функций
+        $sql = str_replace('$$', ';', $sql);
+        
+        // 3. Удаляем лишние пустые строки, образовавшиеся после чистки
+        $sql = preg_replace('/\n\s*\n/', "\n", $sql);
+        
+        // --------------------------
 
-        $lines = explode("\n", $sql);
-        foreach ($lines as $line) {
-            $trimmed_line = trim($line);
-
-            // Проверяем изменение delimiter
-            if (stripos($trimmed_line, 'DELIMITER $$') === 0) {
-                $delimiter = '$$';
-                continue;
-            }
-            if (stripos($trimmed_line, 'DELIMITER ;') === 0) {
-                $delimiter = ';';
-                continue;
-            }
-
-            $current_statement .= $line . "\n";
-
-            // Проверяем конец утверждения (только если текущий разделитель совпадает с концом строки)
-            if (preg_match('/' . preg_quote($delimiter, '/') . '\s*$/', $trimmed_line)) {
-                $statement = trim(substr($current_statement, 0, -strlen($delimiter)));
-                if (!empty($statement) && !preg_match('/^--/', $statement)) {
-                    $statements[] = $statement;
-                }
-                $current_statement = '';
-            }
+        // Выполняем мульти-запрос
+        if (!$mysqli->multi_query($sql)) {
+            $error = "Ошибка импорта {$fileName}: " . $mysqli->error;
+            file_put_contents($logFile, "КРИТИЧЕСКАЯ ОШИБКА: {$error}\n", FILE_APPEND);
+            throw new Exception($error);
         }
 
-        // Обрабатываем оставшееся утверждение
-        if (!empty(trim($current_statement))) {
-            $statements[] = trim($current_statement);
-        }
-
-        foreach ($statements as $statement) {
-            if (!empty($statement)) {
-                try {
-                    $pdo->exec($statement);
-                } catch (PDOException $e) {
-                    $error_msg = $e->getMessage();
-                    // Игнорируем ошибки, если таблица/индекс уже существует или проблемы с FK
-                    if (strpos($error_msg, "already exists") !== false ||
-                        strpos($error_msg, "Duplicate key name") !== false ||
-                        strpos($error_msg, "Foreign key constraint") !== false ||
-                        strpos($error_msg, "doesn't exist") !== false) {
-                        continue;
-                    }
-                    // Для других ошибок - пробрасываем исключение
-                    throw new Exception("Ошибка в файле {$file}: " . $error_msg);
+        // Обязательно вычитываем все результаты, чтобы освободить соединение для следующего файла
+        $queryCount = 0;
+        do {
+            if ($result = $mysqli->store_result()) {
+                $result->free();
+                $queryCount++;
+            } else {
+                // Если результата нет (например, CREATE TABLE), но запрос успешен - это тоже шаг
+                if ($mysqli->affected_rows !== -1) { 
+                     // Просто продолжаем
                 }
             }
-        }
+        } while ($mysqli->more_results() && $mysqli->next_result());
+
+        file_put_contents($logFile, "Файл {$fileName} выполнен успешно (обработано блоков: {$queryCount})\n", FILE_APPEND);
     }
-    // Включаем проверку внешних ключей обратно
-    $pdo->exec("SET FOREIGN_KEY_CHECKS=1");
+
+    $mysqli->query("SET FOREIGN_KEY_CHECKS=1");
+    $mysqli->close();
+    
+    file_put_contents($logFile, "=== Импорт завершен успешно ===\n", FILE_APPEND);
 }
 
 function createAdminUser($pdo, $username, $email, $password, $firstname = 'Admin', $lastname = 'User') {
-    // Используем усложненное многоуровневое хеширование пароля как в основной системе
     require_once __DIR__ . '/app/handlers/CryptMethods.php';
 
     try {
-        // Создаем временные ключи шифрования если их нет (для установки)
         if (!getenv('UNIQUE_KEY')) {
             putenv('UNIQUE_KEY=' . bin2hex(random_bytes(32)));
         }
@@ -186,20 +168,16 @@ function createAdminUser($pdo, $username, $email, $password, $firstname = 'Admin
             putenv('SECONDARY_KEY=' . hash('sha256', getenv('UNIQUE_KEY') . '_secondary_salt', true));
         }
 
-        // Хешируем пароль используя фирменный метод системы
         $hash = \App\Helpers\CryptMethods::createHashFromPassword($password);
     } catch (\RuntimeException $e) {
-        // Если класс не найден или ключи не установлены, используем fallback
         error_log("CryptMethods error: " . $e->getMessage() . ". Using fallback hashing.");
         $hash = password_hash($password, PASSWORD_BCRYPT);
     }
 
     $created_at = date('Y-m-d H:i:s');
-    $role = 1; // Администратор
+    $role = 1;
     $is_active = 1;
 
-    // Структура таблицы users из messenger_schema.sql:
-    // username, email, password_hash, firstname, lastname, role, is_active
     $sql = "INSERT INTO users (username, email, password_hash, firstname, lastname, role, is_active, created_at)
             VALUES (:username, :email, :password_hash, :firstname, :lastname, :role, :is_active, :created_at)";
 
@@ -219,7 +197,6 @@ function createAdminUser($pdo, $username, $email, $password, $firstname = 'Admin
 function writeEnvFile($data) {
     global $env_file;
 
-    // Генерируем уникальные ключи шифрования если они не переданы
     if (empty($data['unique_key'])) {
         $data['unique_key'] = bin2hex(random_bytes(32));
     }
@@ -232,7 +209,7 @@ APP_ENV=production
 APP_DEBUG=false
 APP_KEY={$data['app_key']}
 
-# Ключи шифрования для многоуровневого хеширования паролей
+# Ключи шифрования
 UNIQUE_KEY={$data['unique_key']}
 SECONDARY_KEY={$data['secondary_key']}
 
@@ -253,39 +230,48 @@ ENV;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($step === 2) {
-        // Шаг 2: Проверка БД и запись конфига
         $db_host = $_POST['db_host'] ?? 'localhost';
         $db_port = $_POST['db_port'] ?? '3306';
         $db_name = $_POST['db_name'];
         $db_user = $_POST['db_user'];
         $db_pass = $_POST['db_pass'];
 
-        // 1. Тест соединения
         $db_connection = testDbConnection($db_host, $db_port, $db_name, $db_user, $db_pass);
 
         if (!$db_connection) {
             $errors[] = "Не удалось подключиться к базе данных. Проверьте логин, пароль и имя базы.";
         } else {
-            // 2. Проверка таблиц
             $existing_tables = getExistingTables($db_connection);
             $missing_tables = array_diff($REQUIRED_TABLES, $existing_tables);
 
             if (!empty($missing_tables)) {
-                // Таблиц нет или не всех -> пытаемся импортировать
                 if (empty($schema_files)) {
-                    $errors[] = "Отсутствуют необходимые таблицы, и не найдены файлы схемы (database/*.sql) для их создания.";
+                    $errors[] = "Отсутствуют необходимые таблицы, и не найдены файлы схемы (database/*.sql).";
                 } else {
                     try {
-                        importSchema($db_connection, $schema_files);
-                        $success_msg = "Схема базы данных успешно импортирована.";
-                        // Перепроверяем таблицы после импорта
-                        $existing_tables = getExistingTables($db_connection);
-                        $missing_tables = array_diff($REQUIRED_TABLES, $existing_tables);
+                        error_log("Начало импорта схемы. Файлы: " . implode(', ', array_map('basename', $schema_files)));
+                        
+                        // Вызов новой функции импорта
+                        importSchemaRaw(
+                            $db_host,
+                            $db_user,
+                            $db_pass,
+                            $db_name,
+                            $db_port,
+                            $schema_files
+                        );
 
-                        if (!empty($missing_tables)) {
-                            $errors[] = "После импорта все равно отсутствуют таблицы: " . implode(', ', $missing_tables);
+                        error_log("Импорт схемы завершен.");
+                        $success_msg = "Схема базы данных успешно импортирована.";
+                        
+                        $existing_tables = getExistingTables($db_connection);
+                        $missing_tables_after = array_diff($REQUIRED_TABLES, $existing_tables);
+
+                        if (!empty($missing_tables_after)) {
+                            $errors[] = "После импорта отсутствуют таблицы: " . implode(', ', $missing_tables_after);
                         }
                     } catch (Exception $e) {
+                        error_log("Ошибка при импорте схемы БД: " . $e->getMessage());
                         $errors[] = "Ошибка при импорте схемы БД: " . $e->getMessage();
                     }
                 }
@@ -293,7 +279,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $success_msg = "Все необходимые таблицы присутствуют в базе данных.";
             }
 
-            // Если ошибок нет, сохраняем конфиг
             if (empty($errors)) {
                 $env_data = [
                     'db_host' => $db_host,
@@ -308,18 +293,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ];
 
                 if (writeEnvFile($env_data)) {
-                    $_SESSION['db_config'] = $env_data; // Временно храним для следующего шага
-                    $_SESSION['pdo'] = $db_connection; // Передаем соединение (в реальном проде лучше пересоздавать)
-                    // Редирект на следующий шаг
+                    $_SESSION['db_config'] = $env_data;
                     header("Location: install.php?step=3");
                     exit;
                 } else {
-                    $errors[] = "Не удалось записать файл .env. Проверьте права на запись в корневую директорию.";
+                    $errors[] = "Не удалось записать файл .env.";
                 }
             }
         }
     } elseif ($step === 3) {
-        // Шаг 3: Создание админа
         $username = trim($_POST['admin_username'] ?? '');
         $email = trim($_POST['admin_email'] ?? '');
         $password = $_POST['admin_password'] ?? '';
@@ -328,56 +310,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $lastname = trim($_POST['admin_lastname'] ?? 'User');
 
         if (empty($username) || empty($email) || empty($password)) {
-            $errors[] = "Все поля обязательны для заполнения.";
+            $errors[] = "Все поля обязательны.";
         }
-
         if ($password !== $confirm_password) {
             $errors[] = "Пароли не совпадают.";
         }
-
         if (strlen($password) < 6) {
             $errors[] = "Пароль должен быть не менее 6 символов.";
         }
 
         if (empty($errors)) {
-            // Берем соединение из сессии или создаем заново из конфига (который уже записан)
-            // Для надежности пересоздадим подключение, так как сессия могла протухнуть или объект PDO не сериализуется корректно в некоторых настройках
             $cfg = $_SESSION['db_config'];
             $pdo = testDbConnection($cfg['db_host'], $cfg['db_port'], $cfg['db_name'], $cfg['db_user'], $cfg['db_pass']);
 
             if ($pdo) {
                 try {
                     if (createAdminUser($pdo, $username, $email, $password, $firstname, $lastname)) {
-                        // Установка завершена! Удаляем инсталлер или перенаправляем
-                        // $_SESSION['installed'] = true;
-                        $step = 4; // Финальный экран
+                        $step = 4;
                         $success_msg = "Администратор успешно создан! Система готова к работе.";
-
-                        // Опционально: можно предложить удалить этот файл
-                        // unlink(__FILE__);
                     } else {
-                        $errors[] = "Не удалось создать пользователя в базе данных.";
+                        $errors[] = "Не удалось создать пользователя.";
                     }
                 } catch (Exception $e) {
-                    $errors[] = "Ошибка БД при создании пользователя: " . $e->getMessage();
+                    $errors[] = "Ошибка БД: " . $e->getMessage();
                 }
             } else {
-                $errors[] = "Потеряно соединение с БД. Попробуйте начать заново.";
+                $errors[] = "Потеряно соединение с БД.";
             }
         }
     }
 }
 
-// Предварительные проверки для Шага 1
+// Предварительные проверки
 $req_php = version_compare(PHP_VERSION, '8.0.0', '>=');
 $req_mbstring = extension_loaded('mbstring');
 $req_pdo_mysql = extension_loaded('pdo_mysql');
+$req_mysqli = extension_loaded('mysqli'); // Важно для нового импортера
 $req_writable = is_writable($base_path);
 
-checkRequirement($req_php, "Требуется версия PHP 8.0 или выше. Ваша версия: " . PHP_VERSION);
-checkRequirement($req_mbstring, "Требуется расширение PHP: mbstring");
-checkRequirement($req_pdo_mysql, "Требуется расширение PHP: pdo_mysql");
-checkRequirement($req_writable, "Директория проекта должна иметь права на запись (chmod 755 или 777)");
+checkRequirement($req_php, "Требуется PHP 8.0+. Ваша: " . PHP_VERSION);
+checkRequirement($req_mbstring, "Требуется расширение mbstring");
+checkRequirement($req_pdo_mysql, "Требуется расширение pdo_mysql");
+checkRequirement($req_mysqli, "Требуется расширение mysqli (для импорта схемы)");
+checkRequirement($req_writable, "Нет прав на запись в директорию");
 
 ?>
 <!DOCTYPE html>
@@ -404,7 +379,6 @@ checkRequirement($req_writable, "Директория проекта должн�
         li { padding: 8px 0; border-bottom: 1px solid #eee; }
         li.ok { color: #27ae60; }
         li.fail { color: #c0392b; }
-        .hidden { display: none; }
         .footer { text-align: center; margin-top: 20px; font-size: 0.8em; color: #95a5a6; }
     </style>
 </head>
@@ -435,7 +409,6 @@ checkRequirement($req_writable, "Директория проекта должн�
         <div class="success"><?= htmlspecialchars($success_msg) ?></div>
     <?php endif; ?>
 
-    <!-- ШАГ 1: Проверка требований -->
     <?php if ($step === 1): ?>
         <h2>Проверка системных требований</h2>
         <ul>
@@ -448,8 +421,11 @@ checkRequirement($req_writable, "Директория проекта должн�
             <li class="<?= $req_pdo_mysql ? 'ok' : 'fail' ?>">
                 <?= $req_pdo_mysql ? '✔' : '✘' ?> Расширение pdo_mysql
             </li>
+            <li class="<?= $req_mysqli ? 'ok' : 'fail' ?>">
+                <?= $req_mysqli ? '✔' : '✘' ?> Расширение mysqli (критично)
+            </li>
             <li class="<?= $req_writable ? 'ok' : 'fail' ?>">
-                <?= $req_writable ? '✔' : '✘' ?> Права на запись в директорию
+                <?= $req_writable ? '✔' : '✘' ?> Права на запись
             </li>
         </ul>
 
@@ -459,13 +435,12 @@ checkRequirement($req_writable, "Директория проекта должн�
                 <button type="submit">Продолжить &rarr;</button>
             </form>
         <?php else: ?>
-            <p style="color: #c0392b;">Пожалуйста, исправьте ошибки выше и обновите страницу.</p>
+            <p style="color: #c0392b;">Исправьте ошибки и обновите страницу.</p>
         <?php endif; ?>
 
-    <!-- ШАГ 2: Настройка БД -->
     <?php elseif ($step === 2): ?>
         <h2>Настройка базы данных</h2>
-        <p>Введите данные для подключения. Система автоматически проверит соединение и создаст таблицы, если их нет.</p>
+        <p>Введите данные. Таблицы будут созданы автоматически.</p>
         <form method="post">
             <input type="hidden" name="step" value="2">
             <div class="form-group">
@@ -493,22 +468,20 @@ checkRequirement($req_writable, "Директория проекта должн�
         <br>
         <a href="?step=1" style="color: #7f8c8d; text-decoration: none;">&larr; Назад</a>
 
-    <!-- ШАГ 3: Создание админа -->
     <?php elseif ($step === 3): ?>
-        <h2>Создание суперпользователя</h2>
-        <p>Придумайте логин и пароль для первого администратора системы.</p>
+        <h2>Создание администратора</h2>
         <form method="post">
             <input type="hidden" name="step" value="3">
             <div class="form-group">
-                <label>Имя (First Name)</label>
+                <label>Имя</label>
                 <input type="text" name="admin_firstname" value="Admin" required>
             </div>
             <div class="form-group">
-                <label>Фамилия (Last Name)</label>
+                <label>Фамилия</label>
                 <input type="text" name="admin_lastname" value="User" required>
             </div>
             <div class="form-group">
-                <label>Логин (Username)</label>
+                <label>Логин</label>
                 <input type="text" name="admin_username" required placeholder="admin">
             </div>
             <div class="form-group">
@@ -528,26 +501,20 @@ checkRequirement($req_writable, "Директория проекта должн�
         <br>
         <a href="?step=2" style="color: #7f8c8d; text-decoration: none;">&larr; Назад</a>
 
-    <!-- ШАГ 4: Финиш -->
     <?php elseif ($step === 4): ?>
         <div style="text-align: center;">
             <div style="font-size: 60px; color: #27ae60;">🎉</div>
             <h2>Установка завершена!</h2>
             <p><?= htmlspecialchars($success_msg) ?></p>
             <p>Файл конфигурации <code>.env</code> создан.</p>
-
             <div style="background: #fff3cd; padding: 15px; border-radius: 4px; margin: 20px 0; text-align: left; font-size: 0.9em;">
-                <strong>⚠️ Важно для безопасности:</strong><br>
-                Пожалуйста, удалите файл <code>install.php</code> с сервера, чтобы никто не мог переустановить систему.
+                <strong>⚠️ Безопасность:</strong> Удалите файл <code>install.php</code>.
             </div>
-
             <a href="index.php" style="display: inline-block; background: #27ae60; color: white; padding: 12px 20px; text-decoration: none; border-radius: 4px; margin-top: 10px;">Перейти в систему</a>
         </div>
     <?php endif; ?>
 
-    <div class="footer">
-        System Installer v1.0
-    </div>
+    <div class="footer">System Installer v1.1 (mysqli fix)</div>
 </div>
 
 </body>
