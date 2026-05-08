@@ -6,7 +6,11 @@ if (file_exists(SITEPATH . '/vendor/autoload.php')) {
 
 // Include Dotenv (or equivalent logic)
 if (class_exists('Dotenv\Dotenv')) {
-    Dotenv\Dotenv::createUnsafeImmutable(SITEPATH)->load();
+    try {
+        Dotenv\Dotenv::createUnsafeImmutable(SITEPATH)->load();
+    } catch (\Dotenv\Exception\InvalidPathException $e) {
+        throw new \Exception("Environment configuration file (.env) not found. Please create a .env file in the project root directory.", 500);
+    }
 }
 
 // Register the autoload function

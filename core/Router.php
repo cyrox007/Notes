@@ -61,7 +61,7 @@ class Router
      * @param array<string, mixed> $matched
      * @return array<string, mixed>
      */
-    private function clearParams(array $matched): array
+    private function clearParams(array|null $matched): array
     {
         return array_filter(
             $matched,
@@ -108,6 +108,8 @@ class Router
 
         foreach ($this->routes as $route) {
             $pathPattern = $this->createPattern($route['path']);
+
+            $params = null;
 
             if (!$this->isMatchingRoute($pathPattern, $requestUrl, $route['method'], $requestMethod, $params)) {
                 continue;
@@ -156,7 +158,7 @@ class Router
     /**
      * @param array<string, mixed> $params
      */
-    private function isMatchingRoute(string $pathPattern, string $requestUrl, string $routeMethod, string $requestMethod, array &$params): bool
+    private function isMatchingRoute(string $pathPattern, string $requestUrl, string $routeMethod, string $requestMethod, array|null &$params): bool
     {
         return preg_match($pathPattern, $requestUrl, $params) === 1 && $routeMethod === $requestMethod;
     }
