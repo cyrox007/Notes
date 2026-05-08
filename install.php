@@ -195,30 +195,94 @@ function createAdminUser($pdo, $username, $email, $password, $firstname = 'Admin
 }
 
 function writeEnvFile($data) {
-    global $env_file;
+    global $env_file, $base_path;   
 
     if (empty($data['unique_key'])) {
         $data['unique_key'] = bin2hex(random_bytes(32));
     }
     if (empty($data['secondary_key'])) {
-        $data['secondary_key'] = hash('sha256', $data['unique_key'] . '_secondary_salt', true);
+        $data['secondary_key'] = hash('sha256', $data['unique_key'] . '_secondary_salt');
+    }
+    if (empty($data['msg_secret_key'])) {
+        $data['msg_secret_key'] = bin2hex(random_bytes(16)); // 32 символа для AES-256
+    }
+    if (empty($data['note_secret_key'])) {
+        $data['note_secret_key'] = bin2hex(random_bytes(16)); // 32 символа для AES-256
     }
 
-    $content = <<<ENV
-APP_ENV=production
-APP_DEBUG=false
-APP_KEY={$data['app_key']}
+    $upload_dir = $base_path . '/uploads/messenger';
+    $notes_upload_dir = $base_path . '/uploads/notes';
 
-# Ключи шифрования
+    $content = <<<ENV
+# ============================================
+# Файл переменных окружения
+# Сгенерировано установщиком
+# ============================================
+
+# --------------------------------------------
+# База данных
+# --------------------------------------------
+DBDRIVER=mysql
+DBHOST={$data['db_host']}
+DBPORT={$data['db_port']}
+DBUSER={$data['db_user']}
+DBPASS={$data['db_pass']}
+DBNAME={$data['db_name']}
+
+# --------------------------------------------
+# Шифрование сообщений мессенджера (ОБЯЗАТЕЛЬНО!)
+# Ключ должен быть 32 символа для AES-256
+# --------------------------------------------
+MSG_SECRET_KEY={$data['msg_secret_key']}
+
+# --------------------------------------------
+# Шифрование заметок (ОБЯЗАТЕЛЬНО для Notes 2.0+)
+# Ключ должен быть 32 символа для AES-256
+# --------------------------------------------
+NOTE_SECRET_KEY={$data['note_secret_key']}
+
+# --------------------------------------------
+# Дополнительные ключи шифрования (опционально)
+# --------------------------------------------
 UNIQUE_KEY={$data['unique_key']}
 SECONDARY_KEY={$data['secondary_key']}
 
-DB_CONNECTION=mysql
-DB_HOST={$data['db_host']}
-DB_PORT={$data['db_port']}
-DB_DATABASE={$data['db_name']}
-DB_USERNAME={$data['db_user']}
-DB_PASSWORD={$data['db_pass']}
+# --------------------------------------------
+# Пути загрузки файлов
+# --------------------------------------------
+UPLOAD_DIR={$upload_dir}
+NOTES_UPLOAD_DIR={$notes_upload_dir}
+
+# --------------------------------------------
+# Ограничения на загрузку файлов
+# --------------------------------------------
+MAX_UPLOAD_SIZE=10485760
+MAX_NOTE_ATTACHMENTS=10
+
+# --------------------------------------------
+# Настройки приложения
+# --------------------------------------------
+SITEURL=http://localhost
+BASE_PATH=/
+
+# --------------------------------------------
+# WebSocket сервер
+# --------------------------------------------
+WS_HOST=0.0.0.0
+WS_PORT=8080
+
+# --------------------------------------------
+# Логирование
+# --------------------------------------------
+LOG_LEVEL=DEBUG
+LOG_FILE=/var/log/messenger/app.log
+
+# --------------------------------------------
+# Безопасность
+# --------------------------------------------
+SESSION_LIFETIME=3600
+MAX_LOGIN_ATTEMPTS=5
+CSRF_ENABLED=true
 
 INSTALL_DATE={$data['install_date']}
 ENV;
@@ -288,8 +352,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'db_pass' => $db_pass,
                     'app_key' => generateRandomString(),
                     'unique_key' => bin2hex(random_bytes(32)),
-                    'secondary_key' => hash('sha256', bin2hex(random_bytes(32)) . '_secondary_salt', true),
-                    'install_date' => date('Y-m-d H:i:s')
+                    'secondary_key' => hash('sha256', bin2hex(random_bytes(32)) . '_secondary_salt'),
+                    'msg_secret_key' => bin2hex(random_bytes(16)), // 32 символа для AES-256
+                    'note_secret_key' => bin2hex(random_bytes(16)), // 32 символа для AES-256
+                    'install_date' => date('YmdHis')
                 ];
 
                 if (writeEnvFile($env_data)) {
@@ -510,7 +576,7 @@ checkRequirement($req_writable, "Нет прав на запись в дирек
             <div style="background: #fff3cd; padding: 15px; border-radius: 4px; margin: 20px 0; text-align: left; font-size: 0.9em;">
                 <strong>⚠️ Безопасность:</strong> Удалите файл <code>install.php</code>.
             </div>
-            <a href="index.php" style="display: inline-block; background: #27ae60; color: white; padding: 12px 20px; text-decoration: none; border-radius: 4px; margin-top: 10px;">Перейти в систему</a>
+            <a href="/" style="display: inline-block; background: #27ae60; color: white; padding: 12px 20px; text-decoration: none; border-radius: 4px; margin-top: 10px;">Перейти в систему</a>
         </div>
     <?php endif; ?>
 
