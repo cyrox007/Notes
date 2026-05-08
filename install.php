@@ -355,7 +355,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'secondary_key' => hash('sha256', bin2hex(random_bytes(32)) . '_secondary_salt'), // без true
                     'msg_secret_key' => bin2hex(random_bytes(16)), // 32 символа для AES-256
                     'note_secret_key' => bin2hex(random_bytes(16)), // 32 символа для AES-256
-                    'install_date' => date('Y-m-d H:i:s')
+                    'install_date' => date('YmdHis') // формат без пробелов для .env
                 ];
 
                 if (writeEnvFile($env_data)) {
