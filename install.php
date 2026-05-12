@@ -157,40 +157,63 @@ function importSchemaRaw($host, $user, $pass, $db, $port, $files)
     file_put_contents($logFile, "=== Импорт завершен успешно ===\n", FILE_APPEND);
 }
 
-function createAdminUser($pdo, $username, $email, $password, $firstname = 'Admin', $lastname = 'User') {
-    require_once __DIR__ . '/app/handlers/CryptMethods.php';
+function createAdminUser(
+    PDO $pdo,
+    string $username,
+    string $email,
+    string $password,
+    string $firstname = 'Admin',
+    string $lastname = 'User'
+): bool {
 
-    try {
-        if (!getenv('UNIQUE_KEY')) {
-            putenv('UNIQUE_KEY=' . bin2hex(random_bytes(32)));
-        }
-        if (!getenv('SECONDARY_KEY')) {
-            putenv('SECONDARY_KEY=' . hash('sha256', getenv('UNIQUE_KEY') . '_secondary_salt', true));
-        }
+    $passwordHash = password_hash(
+        $password,
+        PASSWORD_ARGON2ID,
+        [
+            'memory_cost' => PASSWORD_ARGON2_DEFAULT_MEMORY_COST,
+            'time_cost'   => PASSWORD_ARGON2_DEFAULT_TIME_COST,
+            'threads'     => PASSWORD_ARGON2_DEFAULT_THREADS,
+        ]
+    );
 
-        $hash = \App\Helpers\CryptMethods::createHashFromPassword($password);
-    } catch (\RuntimeException $e) {
-        error_log("CryptMethods error: " . $e->getMessage() . ". Using fallback hashing.");
-        $hash = password_hash($password, PASSWORD_BCRYPT);
+    if ($passwordHash === false) {
+        throw new RuntimeException('Password hashing failed');
     }
 
-    $created_at = date('Y-m-d H:i:s');
-    $role = 1;
-    $is_active = 1;
-
-    $sql = "INSERT INTO users (username, email, password_hash, firstname, lastname, role, is_active, created_at)
-            VALUES (:username, :email, :password_hash, :firstname, :lastname, :role, :is_active, :created_at)";
+    $sql = "
+        INSERT INTO users (
+            username,
+            email,
+            password_hash,
+            firstname,
+            lastname,
+            role,
+            is_active,
+            created_at
+        )
+        VALUES (
+            :username,
+            :email,
+            :password_hash,
+            :firstname,
+            :lastname,
+            :role,
+            :is_active,
+            :created_at
+        )
+    ";
 
     $stmt = $pdo->prepare($sql);
+
     return $stmt->execute([
-        ':username' => $username,
-        ':email' => $email,
-        ':password_hash' => $hash,
-        ':firstname' => $firstname,
-        ':lastname' => $lastname,
-        ':role' => $role,
-        ':is_active' => $is_active,
-        ':created_at' => $created_at
+        ':username'      => $username,
+        ':email'         => $email,
+        ':password_hash' => $passwordHash,
+        ':firstname'     => $firstname,
+        ':lastname'      => $lastname,
+        ':role'          => 1,
+        ':is_active'     => 1,
+        ':created_at'    => date('Y-m-d H:i:s'),
     ]);
 }
 
@@ -199,15 +222,6 @@ function writeEnvFile($data) {
 
     if (empty($data['unique_key'])) {
         $data['unique_key'] = bin2hex(random_bytes(32));
-    }
-    if (empty($data['secondary_key'])) {
-        $data['secondary_key'] = hash('sha256', $data['unique_key'] . '_secondary_salt');
-    }
-    if (empty($data['msg_secret_key'])) {
-        $data['msg_secret_key'] = bin2hex(random_bytes(16)); // 32 символа для AES-256
-    }
-    if (empty($data['note_secret_key'])) {
-        $data['note_secret_key'] = bin2hex(random_bytes(16)); // 32 символа для AES-256
     }
 
     $upload_dir = $base_path . '/uploads/messenger';
@@ -230,22 +244,9 @@ DBPASS={$data['db_pass']}
 DBNAME={$data['db_name']}
 
 # --------------------------------------------
-# Шифрование сообщений мессенджера (ОБЯЗАТЕЛЬНО!)
-# Ключ должен быть 32 символа для AES-256
-# --------------------------------------------
-MSG_SECRET_KEY={$data['msg_secret_key']}
-
-# --------------------------------------------
-# Шифрование заметок (ОБЯЗАТЕЛЬНО для Notes 2.0+)
-# Ключ должен быть 32 символа для AES-256
-# --------------------------------------------
-NOTE_SECRET_KEY={$data['note_secret_key']}
-
-# --------------------------------------------
 # Дополнительные ключи шифрования (опционально)
 # --------------------------------------------
 UNIQUE_KEY={$data['unique_key']}
-SECONDARY_KEY={$data['secondary_key']}
 
 # --------------------------------------------
 # Пути загрузки файлов
@@ -315,7 +316,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     try {
                         error_log("Начало импорта схемы. Файлы: " . implode(', ', array_map('basename', $schema_files)));
                         
-                        // Вызов новой функции импорта
                         importSchemaRaw(
                             $db_host,
                             $db_user,
@@ -344,6 +344,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             if (empty($errors)) {
+                // 1. Генерируем данные
                 $env_data = [
                     'db_host' => $db_host,
                     'db_port' => $db_port,
@@ -352,12 +353,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'db_pass' => $db_pass,
                     'app_key' => generateRandomString(),
                     'unique_key' => bin2hex(random_bytes(32)),
-                    'secondary_key' => hash('sha256', bin2hex(random_bytes(32)) . '_secondary_salt'),
-                    'msg_secret_key' => bin2hex(random_bytes(16)), // 32 символа для AES-256
-                    'note_secret_key' => bin2hex(random_bytes(16)), // 32 символа для AES-256
                     'install_date' => date('YmdHis')
                 ];
 
+                // 2. ВАЖНОЕ ИСПРАВЛЕНИЕ: Принудительно устанавливаем переменные окружения СЕЙЧАС
+                // Это нужно, чтобы шаг 3 (создание админа) видел эти ключи, хотя файл .env еще не прочитан заново
+                putenv("UNIQUE_KEY={$env_data['unique_key']}");
+                
+                // Дублируем в $_ENV на всякий случай, если код использует его напрямую
+                $_ENV['UNIQUE_KEY'] = $env_data['unique_key'];
+
+                // 3. Записываем файл на диск
                 if (writeEnvFile($env_data)) {
                     $_SESSION['db_config'] = $env_data;
                     header("Location: install.php?step=3");
@@ -413,12 +419,14 @@ $req_mbstring = extension_loaded('mbstring');
 $req_pdo_mysql = extension_loaded('pdo_mysql');
 $req_mysqli = extension_loaded('mysqli'); // Важно для нового импортера
 $req_writable = is_writable($base_path);
+$req_sodium = extension_loaded('sodium');
 
 checkRequirement($req_php, "Требуется PHP 8.0+. Ваша: " . PHP_VERSION);
 checkRequirement($req_mbstring, "Требуется расширение mbstring");
 checkRequirement($req_pdo_mysql, "Требуется расширение pdo_mysql");
 checkRequirement($req_mysqli, "Требуется расширение mysqli (для импорта схемы)");
 checkRequirement($req_writable, "Нет прав на запись в директорию");
+checkRequirement($req_sodium, "Требуется расширение sodium");
 
 ?>
 <!DOCTYPE html>
@@ -492,6 +500,10 @@ checkRequirement($req_writable, "Нет прав на запись в дирек
             </li>
             <li class="<?= $req_writable ? 'ok' : 'fail' ?>">
                 <?= $req_writable ? '✔' : '✘' ?> Права на запись
+            </li>
+            <li class="<?= $req_sodium ? 'ok' : 'fail' ?>">
+                <?= $req_sodium ? '✔' : '✘' ?>
+                Расширение sodium
             </li>
         </ul>
 

@@ -34,8 +34,10 @@ class AuthController extends Controller {
             ];
             return $this->render_template('login_page/login_view', $data);
         }
+
+        //var_dump( CryptMethods::verifyPassword($password, $user->password_hash) );
         
-        if (!CryptMethods::verifyPassword($password, $user->password)) {
+        if (!CryptMethods::verifyPassword($password, $user->password_hash)) {
             $data['errors'][] = [
                 "CODE" => 'login_error',
                 "MESSAGE" => "Неверный пароль"
@@ -44,7 +46,7 @@ class AuthController extends Controller {
         }
         
         $request->setSession('auth', true);
-        $request->setSession('user_uid', $user->uid);
+        //$request->setSession('user_uid', $user->uid);
 
         return Router::getInstance()->redirect('main', 'name'); 
     } 
@@ -82,7 +84,7 @@ class AuthController extends Controller {
             $user_password = CryptMethods::createHashFromPassword($request->post('password'));
             $user_firstname = $request->post('first_name');
             $user_patronymic = $request->post('patronymic');
-            $user_surname = $request->post('surname');
+            $user_lastname = $request->post('surname');
             $user_phone = $request->post('user_phone');
             $user_email = $request->post('email');
             $user_role = $this->config->user_role_activate ?? 888;
@@ -113,10 +115,10 @@ class AuthController extends Controller {
             $newUser->uid = \App\Helpers\UUID::v4();
             $newUser->username = $user_login;
             $newUser->email = $user_email;
-            $newUser->password = $user_password;
+            $newUser->password_hash = $user_password;
             $newUser->firstname = $user_firstname;
             $newUser->patronymic = $user_patronymic;
-            $newUser->surname = $user_surname;
+            $newUser->lastname = $user_lastname;
             $newUser->phone = $user_phone;
             $newUser->role = $user_role;
             $newUser->user_image = $user_photo;

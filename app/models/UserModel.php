@@ -7,19 +7,14 @@ class UserModel extends ORM {
     protected ?string $_tablename = "users";
     
     public int $id = 0;
-    public ?string $uid = '';
     public string $username = '';
     public string $email = '';
-    public string $password = '';
+    public string $password_hash = '';
     public string $firstname = '';
-    public string $surname = '';
-    public string $patronymic = '';
-    public string $phone = '';
-    public string $property = '';
+    public string $lastname = '';
+    public string $avatar = '';
     public int $role = 0;
-    public string $reg_date = '';
-    public string $service_token = '';
-    public string $user_status = '';
-    public string $user_image = '';
-    public int $socket_connection_id = 0;
+    public int $is_active = 0;
+    public string $created_at = '';
+    public string $updated_at = '';
 }
