@@ -46,7 +46,7 @@ class AuthController extends Controller {
         }
         
         $request->setSession('auth', true);
-        //$request->setSession('user_uid', $user->uid);
+        $request->setSession('user_id', $user->id);
 
         return Router::getInstance()->redirect('main', 'name'); 
     } 
