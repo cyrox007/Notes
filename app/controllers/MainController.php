@@ -13,7 +13,7 @@ class MainController extends Controller {
     }
     public function index(Request $request) {
         $user = UserModel::select()
-        ->where('uid', '=', $request->session('user_uid'))
+        ->where('id', '=', $request->session('user_uid'))
         ->first();
         
         if (!$user) {
