@@ -12,7 +12,7 @@ class UserModel extends ORM {
     public string $password_hash = '';
     public string $firstname = '';
     public string $lastname = '';
-    public string $avatar = '';
+    public ?string $avatar = null;
     public int $role = 0;
     public int $is_active = 0;
     public string $created_at = '';
