@@ -88,8 +88,21 @@ abstract class ORM {
      * Добавляет WHERE условие
      */
     public function where(string $col, string $operator, mixed $value): static {
-        $placeholder = $this->createPlaceholder($col);
         $prefix = empty($this->whereConditions) ? 'WHERE' : 'AND';
+        
+        // Специальная обработка для оператора IS с NULL
+        if (strtoupper($operator) === 'IS') {
+            if ($value === null) {
+                $this->whereConditions[] = "{$prefix} {$col} IS NULL";
+                $this->log("[where] Добавлено условие: {$col} IS NULL", ORMLogLevel::DEBUG);
+            } else {
+                $this->whereConditions[] = "{$prefix} {$col} IS NOT NULL";
+                $this->log("[where] Добавлено условие: {$col} IS NOT NULL", ORMLogLevel::DEBUG);
+            }
+            return $this;
+        }
+        
+        $placeholder = $this->createPlaceholder($col);
         $this->whereConditions[] = "{$prefix} {$col} {$operator} {$placeholder}";
         $this->params[$placeholder] = $value;
         $this->log("[where] Добавлено условие: {$col} {$operator} ?", ORMLogLevel::DEBUG);
