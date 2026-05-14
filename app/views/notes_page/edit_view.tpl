@@ -5,9 +5,9 @@
 {block name=body}
 <section class="note-header">
 	<h1 class="note__title">
-		{$note.notename}
+		{$note.notename|default:'Без названия'}
 	</h1>
-	<p class="note__info">Автор: {$note.author.username}</p>
+	<p class="note__info">Автор: {$note.author_username|default:'Неизвестно'}</p>
 	<p class="note__info">Дата создания: {$note.created_note}</p>
 	<p class="note__info">Дата редактирования: {$note.updated_note}</p>
 </section>
@@ -15,6 +15,9 @@
 <section class="note-content">
 	<form class="note__edit" action="{route_path name="update_note" uid=$note.uid}" method="post">
 		{csrf_token}
+		<div class="note__name-input">
+			<input type="text" name="notename" placeholder="Название заметки" value="{$note.notename|default:''}">
+		</div>
 		<div class="note__text">
 			<textarea name="content" class="textarea" placeholder="Введите текст заметки...">{$note.content}</textarea>
 		</div>

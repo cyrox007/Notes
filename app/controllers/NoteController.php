@@ -130,8 +130,15 @@ class NoteController extends Controller
             }
         }
         
-        // Получаем вложения
+        // Получаем вложения и добавляем дополнительные свойства для шаблона
         $attachments = $note->getAttachments();
+        if ($attachments) {
+            foreach ($attachments as &$attachment) {
+                $attachment->type = $attachment->file_type;
+                $attachment->formatted_size = $attachment->getFormattedSize();
+                $attachment->file_url = '/uploads/notes/' . $note->uid . '/' . basename($attachment->file_path);
+            }
+        }
         
         // Получаем информацию о шеринге
         $shareInfo = $note->getShareInfo();
@@ -148,7 +155,7 @@ class NoteController extends Controller
     }
 
     /**
-     * Обновление заметки (текстовый контент)
+     * Обновление заметки (текстовый контент и название)
      */
     public function update(Request $request, string $uid): void
     {
@@ -162,6 +169,7 @@ class NoteController extends Controller
         }
 
         $content = $request->post('content');
+        $notename = $request->post('notename');
         
         // Шифруем контент перед сохранением
         $encryptedContent = '';
@@ -176,12 +184,14 @@ class NoteController extends Controller
         
         $note->content = $encryptedContent;
         $note->content_type = 'text';
+        $note->notename = $notename ?? $note->notename;
         $note->updated_note = date('Y-m-d H:i:s');
 
         $dbManager = DatabaseManager::getInstance();
         $dbManager->queueUpdate([
             'content' => $note->content,
             'content_type' => $note->content_type,
+            'notename' => $note->notename,
             'updated_note' => $note->updated_note,
         ], 'notes', (int) $note->id);
 
