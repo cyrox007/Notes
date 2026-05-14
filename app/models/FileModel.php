@@ -18,10 +18,10 @@ class FileModel extends ORM {
     public ?int $parent_id = null;
     public string $name = '';
     public string $type = 'file'; // file | folder
-    public string $mime_type = '';
+    public ?string $mime_type = null;
     public int $size = 0;
-    public string $path = '';
-    public string $extension = '';
+    public ?string $path = null;
+    public ?string $extension = null;
     public int $is_deleted = 0;
     public string $created_at = '';
     public string $updated_at = '';
