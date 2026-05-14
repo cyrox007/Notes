@@ -1,4 +1,1 @@
-/vendor
-.env
-*.log
-/compile/*
+Nothing should be ignored based on the provided file changes, as they only include source files (`.tpl` and `.css`) without any build artifacts, dependencies, or temporary files.
