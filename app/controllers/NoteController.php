@@ -170,6 +170,9 @@ class NoteController extends Controller
 
         $content = $request->post('content');
         $notename = $request->post('notename');
+
+        // Обновляем название заметки
+        $note->notename = $notename;
         
         // Шифруем контент перед сохранением
         $encryptedContent = '';
