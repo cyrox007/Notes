@@ -85,11 +85,12 @@ abstract class ORM {
     }
 
     /**
-     * Добавляет WHERE условие
+     * Добавляет WHERE условие (первое условие в запросе)
      */
     public function where(string $col, string $operator, mixed $value): static {
         $placeholder = $this->createPlaceholder($col);
-        $this->whereConditions[] = "WHERE {$col} {$operator} {$placeholder}";
+        $prefix = empty($this->whereConditions) ? 'WHERE' : 'AND';
+        $this->whereConditions[] = "{$prefix} {$col} {$operator} {$placeholder}";
         $this->params[$placeholder] = $value;
         $this->log("[where] Добавлено условие: {$col} {$operator} ?", ORMLogLevel::DEBUG);
         return $this;
