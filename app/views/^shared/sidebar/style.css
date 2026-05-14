@@ -5,6 +5,9 @@
 }
 
 .sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
   max-width: 250px;
   width: 100%;
   /* Ширина сайдбара */
@@ -12,6 +15,8 @@
   /* Плавный переход при изменении ширины */
   background-color: var(--color-sidebar-bg);
   padding: 20px;
+  overflow-y: auto;
+  flex-shrink: 0;
 }
 .sidebar--collapsed {
   width: 60px;
