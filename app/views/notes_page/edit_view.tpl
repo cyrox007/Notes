@@ -42,23 +42,23 @@
 		{if $attachments}
 			{foreach $attachments as $attachment}
 				<div class="attachment-item" data-id="{$attachment.id}">
-					{if $attachment.isVoice()}
+					{if isset($attachment.type) && $attachment.type == 'voice'}
 						<div class="attachment-preview">
 							<span class="attachment-icon">🎤</span>
 							<audio controls>
-								<source src="{$attachment.getFileUrl()}" type="{$attachment.mime_type}">
+								<source src="{$attachment.file_url}" type="{$attachment.mime_type}">
 								Ваш браузер не поддерживает аудио
 							</audio>
 						</div>
 					{elseif $attachment.isImage()}
 						<div class="attachment-preview">
-							<img src="{$attachment.getFileUrl()}" alt="{$attachment.file_name}" style="max-width: 200px;">
+							<img src="{$attachment.file_url}" alt="{$attachment.file_name}" style="max-width: 200px;">
 						</div>
 					{elseif $attachment.isMedia()}
 						<div class="attachment-preview">
 							<span class="attachment-icon">🎬</span>
 							<video controls style="max-width: 300px;">
-								<source src="{$attachment.getFileUrl()}" type="{$attachment.mime_type}">
+								<source src="{$attachment.file_url}" type="{$attachment.mime_type}">
 								Ваш браузер не поддерживает видео
 							</video>
 						</div>
