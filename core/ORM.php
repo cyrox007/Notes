@@ -292,6 +292,11 @@ abstract class ORM {
         $columns = $this->columns;
         if (!empty($columns) && !empty($this->joins)) {
             $columns = array_map(function ($col) {
+                // Если колонка уже содержит AS, пропускаем её
+                if (stripos($col, ' AS ') !== false) {
+                    return $col;
+                }
+                // Если колонка содержит точку (table.column), добавляем алиас
                 if (strpos($col, '.') !== false) {
                     $alias = str_replace(['.', ' '], ['__', '_'], $col);
                     return "{$col} AS {$alias}";
