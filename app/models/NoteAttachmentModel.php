@@ -23,6 +23,8 @@ class NoteAttachmentModel extends ORM {
     public string $uploaded_at = '';
     public int $is_deleted = 0;
 
+    public ?NoteModel $note = null;
+
     /**
      * Получить URL файла для доступа
      */

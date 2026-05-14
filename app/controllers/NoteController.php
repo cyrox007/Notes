@@ -132,6 +132,13 @@ class NoteController extends Controller
         
         // Получаем вложения
         $attachments = $note->getAttachments();
+        if ($attachments) {
+            foreach ($attachments as &$attachment) {
+                $attachment->type = $attachment->file_type;
+                $attachment->formatted_size = $attachment->getFormattedSize();
+                $attachment->file_url = '/uploads/notes/' . $note->uid . '/' . basename($attachment->file_path);
+            }
+        }
         
         // Получаем информацию о шеринге
         $shareInfo = $note->getShareInfo();
@@ -162,6 +169,7 @@ class NoteController extends Controller
         }
 
         $content = $request->post('content');
+        $notename = $request->post('notename');
         
         // Шифруем контент перед сохранением
         $encryptedContent = '';
@@ -181,6 +189,7 @@ class NoteController extends Controller
         $dbManager = DatabaseManager::getInstance();
         $dbManager->queueUpdate([
             'content' => $note->content,
+            'notename' => $note->notename,
             'content_type' => $note->content_type,
             'updated_note' => $note->updated_note,
         ], 'notes', (int) $note->id);
