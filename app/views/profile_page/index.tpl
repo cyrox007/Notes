@@ -1,6 +1,6 @@
 {extends file="core/base.tpl"}
 {block name=title}
-	{$user['firstname']} {$user['surname']}
+	{$user['firstname']} {$user['lastname']}
 {/block}
 {block name=body}
 <section class="profile">
@@ -9,10 +9,10 @@
 			<p class="profile__user-login">
 				{$user['username']}
 			</p>
-			{if $user['user_image'] == 'default_img'}
-				{html_image file="{$base_url}/assets/img/default_avatar.png" alt="{$user['firstname']} {$user['surname']}" class="img-circle elevation-2"}
+			{if $user['avatar'] == 'default_img' || !$user['avatar']}
+				{html_image file="/assets/img/default_avatar.png" alt="{$user['firstname']} {$user['lastname']}" class="img-circle elevation-2"}
 			{else}
-				{html_image file="{$base_url}/{$user.user_image}" alt="{$user['firstname']} {$user['surname']}" class="img-circle elevation-2"}
+				{html_image file="/{$user.avatar}" alt="{$user['firstname']} {$user['lastname']}" class="img-circle elevation-2"}
 			{/if}
 
 			<button class="profile__edit_user-info">Редактировать</button>
@@ -22,23 +22,23 @@
 		<div class="profile__card-info">
 			<div class="profile__card-info--data visible">
 				<div class="profile__user-fio">
-					{$user['firstname']} {$user['patronymic']} {$user['surname']}
+					{$user['firstname']} {$user['lastname']}
 				</div>
 
-				<div class="profile__user-other-info">
+				{* <div class="profile__user-other-info">
 					<p class="profile__user-detals">Телефон:
 						{$user['phone']}
 					</p>
-				</div>
+				</div> *}
 				<div class="profile__user-other-info">
 					<p class="profile__user-detals">Email:
 						{$user['email']}
 					</p>
 				</div>
 				
-				{if $user['uid'] != $current_user_uid}
+				{if $user['id'] != $current_user_uid}
 				<div class="profile__actions" style="margin-top: 20px;">
-					<button class="profile__write-message-btn" data-user-uid="{$user['uid']}" style="background: #1CA1C1; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 14px;">
+					<button class="profile__write-message-btn" data-user-uid="{$user['id']}" style="background: #1CA1C1; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 14px;">
 						<i class="fa fa-envelope" aria-hidden="true"></i> Написать сообщение
 					</button>
 				</div>
@@ -69,21 +69,21 @@
 						<input class="profile__card-info--edit--set-input" type="text" name="set-user-name"
                				id="user-name" value="{$user.firstname|escape}" placeholder="Введите имя">
 					</div>
-					<div class="profile__card-info--edit--form-group">
+					{* <div class="profile__card-info--edit--form-group">
 						<label for="">Отчество: </label>
 						<input class="profile__card-info--edit--set-input" type="text" name="set-user-patronymic"
                				id="user-patronymic" value="{$user.patronymic|escape}" placeholder="Введите отчество">
-					</div>
+					</div> *}
 					<div class="profile__card-info--edit--form-group">
 						<label for="">Фамилия: </label>
 						<input class="profile__card-info--edit--set-input" type="text" name="set-user-surname"
-               				id="user-surname" value="{$user.surname|escape}" placeholder="Введите фамилию">
+               				id="user-surname" value="{$user.lastname|escape}" placeholder="Введите фамилию">
 					</div>
-					<div class="profile__card-info--edit--form-group">
+					{* <div class="profile__card-info--edit--form-group">
 						<label for="">Телефон: </label>
 						<input class="profile__card-info--edit--set-input" type="tel" name="set-user-phone"
                				id="user-phone" value="{$user.phone|escape}" placeholder="Введите телефон">
-					</div>
+					</div> *}
 					<div class="profile__card-info--edit--form-group">
 						<label for="">Телефон: </label>
 						<input class="profile__card-info--edit--set-input" type="email" name="set-user-email"

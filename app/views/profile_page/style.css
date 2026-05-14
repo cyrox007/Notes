@@ -1,8 +1,9 @@
 .profile {
   position: relative;
   width: 100%;
-  padding: 1rem 0;
+  padding: 2rem 0;
   display: flex;
+  gap: 20px;
 }
 @media screen and (max-width: 600px) {
   .profile {
@@ -14,6 +15,7 @@
   margin-left: 10px;
   display: flex;
   justify-content: center;
+  align-items: flex-start;
 }
 .profile__column-right {
   width: 100%;
@@ -23,10 +25,13 @@
   justify-content: center;
 }
 .profile__card-avatar {
-  padding: 15px;
+  padding: 20px;
   background: #fff;
-  border-radius: 5px;
-  border-top: 1px solid #0069d9;
+  border-radius: 8px;
+  border-top: 3px solid #0069d9;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  text-align: center;
+  min-width: 200px;
 }
 .profile__card-info {
   position: relative;
@@ -36,10 +41,11 @@
 .profile__card-info--data {
   position: absolute;
   width: 100%;
-  padding: 15px;
+  padding: 20px;
   background: #fff;
-  border-radius: 5px;
-  border-top: 1px solid #0069d9;
+  border-radius: 8px;
+  border-top: 3px solid #0069d9;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   transform: rotateY(180deg);
   backface-visibility: hidden;
   transition: transform 0.5s ease-in-out;
@@ -50,10 +56,11 @@
 .profile__card-info--edit {
   position: absolute;
   width: 100%;
-  padding: 15px;
+  padding: 20px;
   background: #fff;
-  border-radius: 5px;
-  border-top: 1px solid #0069d9;
+  border-radius: 8px;
+  border-top: 3px solid #0069d9;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   transform: rotateY(180deg);
   backface-visibility: hidden;
   transition: transform 0.5s ease-in-out;
@@ -61,31 +68,42 @@
 .profile__card-info--edit #close {
   cursor: pointer;
   position: absolute;
-  top: 0;
+  top: 10px;
   right: 15px;
-  font-size: 1.3rem;
+  font-size: 1.5rem;
+  color: #666;
+  transition: color 0.2s;
+}
+.profile__card-info--edit #close:hover {
+  color: #333;
 }
 .profile__card-info--edit.visible {
   transform: rotateY(360deg);
 }
 .profile__card-info--edit--form-group {
-  width: 60%;
+  width: 70%;
   display: flex;
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 10px;
+}
+@media screen and (max-width: 768px) {
+  .profile__card-info--edit--form-group {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 .profile__card-info--edit--form-group label {
-  font-size: 1rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #333;
+  min-width: 120px;
 }
 @media screen and (max-width: 500px) {
   .profile__card-info--edit--form-group label {
-    font-size: 0.8rem;
-  }
-}
-@media screen and (max-width: 500px) {
-  .profile__card-info--edit--form-group {
-    width: 100%;
+    font-size: 0.85rem;
   }
 }
 .profile__card-info--edit form {
@@ -95,78 +113,153 @@
   align-items: center;
 }
 .profile__card-info--edit--set-input {
-  height: 30px;
+  height: 38px;
   width: 70%;
-  margin: 0.5rem 0;
-  padding: 0.1rem 0.5rem;
+  margin: 0.3rem 0;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  transition: border-color 0.2s;
+}
+.profile__card-info--edit--set-input:focus {
+  outline: none;
+  border-color: #0069d9;
+}
+@media screen and (max-width: 768px) {
+  .profile__card-info--edit--set-input {
+    width: 100%;
+  }
 }
 .profile__card-info--edit--set-save {
   cursor: pointer;
-  height: 30px;
-  width: 50%;
-  margin: 0.5rem 0;
-  padding: 0.1rem 0.5rem;
+  height: 40px;
+  width: 60%;
+  margin: 1rem 0 0.5rem;
+  padding: 0.5rem 1rem;
   border: none;
   border-radius: 5px;
   background: var(--color-success);
   color: #fff;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: background 0.2s, transform 0.1s;
+}
+.profile__card-info--edit--set-save:hover {
+  background: #28a745;
+  transform: translateY(-1px);
+}
+.profile__card-info--edit--set-save:active {
+  transform: translateY(0);
 }
 .profile__card-info--edit--set-save:disabled {
   background: var(--color-grey);
+  cursor: not-allowed;
+  transform: none;
 }
 .profile__card-info--edit--delete {
   cursor: pointer;
-  height: 30px;
-  width: 50%;
-  margin: 0.5rem 0;
-  padding: 0.1rem 0.5rem;
+  height: 40px;
+  width: 60%;
+  margin: 1rem 0 0.5rem;
+  padding: 0.5rem 1rem;
   border: none;
   border-radius: 5px;
   background: var(--color-danger);
   color: #fff;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: background 0.2s, transform 0.1s;
+}
+.profile__card-info--edit--delete:hover {
+  background: #c82333;
+  transform: translateY(-1px);
+}
+.profile__card-info--edit--delete:active {
+  transform: translateY(0);
 }
 .profile__user-login {
   font-family: var(--text-font);
   text-align: center;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 15px;
 }
 .profile__user-fio {
   font-family: var(--text-font);
-  font-size: 1.5rem;
-  font-weight: 500;
-  border-bottom: 1px solid #869099;
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: #333;
+  border-bottom: 2px solid #0069d9;
+  padding-bottom: 10px;
+  margin-bottom: 15px;
 }
 @media screen and (max-width: 500px) {
   .profile__user-fio {
-    /* font-size: 1.1rem; */
+    font-size: 1.3rem;
   }
 }
 .profile__user-other-info {
-  /* padding: 15px 0; */
-  margin-top: 15px;
+  margin-top: 12px;
   font-family: var(--text-font);
   font-weight: 400;
-  /* font-size: 1.1rem; */
+  font-size: 1rem;
+  color: #555;
+}
+.profile__user-other-info p {
+  margin: 0;
 }
 @media screen and (max-width: 500px) {
   .profile__user-other-info {
-    font-size: 0.95rem;
+    font-size: 0.9rem;
   }
 }
 .profile__edit_user-info {
-  height: 25px;
+  height: 38px;
   width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
-  border-radius: 3px;
+  border-radius: 5px;
   background: #0069d9;
   color: #fff;
-  /* font-family: var(--text-font); */
-  font-size: 1rem;
-  font-weight: 100;
-  transition: background 0.3s ease-out;
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition: background 0.2s, transform 0.1s;
+  cursor: pointer;
+}
+.profile__edit_user-info:hover {
+  background: #0056b3;
+  transform: translateY(-1px);
+}
+.profile__edit_user-info:active {
+  transform: translateY(0);
 }
 .profile__edit_user-info.invisible-btn {
   background: #9aaec0;
+  cursor: default;
+}
+.profile__edit_user-info.invisible-btn:hover {
+  background: #9aaec0;
+  transform: none;
+}
+.profile__write-message-btn {
+  transition: background 0.2s, transform 0.1s !important;
+}
+.profile__write-message-btn:hover {
+  background: #178a9e !important;
+  transform: translateY(-1px);
+}
+.profile__write-message-btn:active {
+  transform: translateY(0) !important;
+}
+.profile__actions {
+  margin-top: 20px;
+}
+.profile hr {
+  border: none;
+  border-top: 1px solid #eee;
+  margin: 20px 0;
 }
