@@ -15,7 +15,7 @@ use Core\Router;
 
 class ProfileController extends Controller {
     public function index(Request $request) {
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
         
         $notes = NoteModel::select()->where('user_id', '=', $user->id)->get();
 
@@ -32,7 +32,7 @@ class ProfileController extends Controller {
     }
 
     public function update(Request $request) {
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
 
         $postData = $request->post();
         $updateData = $this->gatherUserData($postData, $user);
@@ -151,7 +151,7 @@ class ProfileController extends Controller {
     }
 
     public function changeUserPass(Request $request) {
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
         $data['user'] = $user;
 
         $newPassword = $request->post('new-password');
@@ -196,7 +196,7 @@ class ProfileController extends Controller {
     }
 
     public function deleteUser(Request $request) {
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
 
         // Проверка подтверждения удаления (нужно передать confirmation параметр)
         $confirmation = $request->post('confirm_delete');

@@ -23,7 +23,7 @@ class NoteController extends Controller
     public function index(Request $request): void
     {
         $user = UserModel::select()
-            ->where('uid', '=', $request->session('user_uid'))
+            ->where('uid', '=', $request->session('user_id'))
             ->first();
 
         $sort = $request->get('sort') ?? 'created_note';
@@ -43,7 +43,7 @@ class NoteController extends Controller
         if ($user->role >= 900) {
             $allNotes = NoteModel::select(
                 'notes.uid', 'notes.notename', 'notes.created_note', 'notes.updated_note', 'notes.content_type',
-                'author.username', 'author.uid'
+                'author.username AS author_username', 'author.uid AS author_uid'
             )
                 ->innerJoin([UserModel::class, 'author'], 'notes.user_id', '=', 'author.id')
                 ->where('notes.is_deleted', '=', 0)
@@ -65,7 +65,7 @@ class NoteController extends Controller
      */
     public function create(Request $request): void
     {
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
 
         $uidNote = bin2hex(random_bytes(16));
         $createdAt = date('Y-m-d H:i:s');
@@ -103,11 +103,13 @@ class NoteController extends Controller
      */
     public function edit(Request $request, string $uid): void
     {
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
         
         $note = NoteModel::select(
-            'notes.*',
-            'author.username', 'author.uid'
+            'notes.id', 'notes.uid', 'notes.user_id', 'notes.notename', 'notes.content', 
+            'notes.content_type', 'notes.is_encrypted', 'notes.created_note', 'notes.updated_note', 
+            'notes.is_deleted', 'notes.deleted_at',
+            'author.username AS author_username', 'author.uid AS author_uid'
         )
             ->innerJoin([UserModel::class, 'author'], 'notes.user_id', '=', 'author.id')
             ->where('notes.uid', '=', $uid)
@@ -150,7 +152,7 @@ class NoteController extends Controller
      */
     public function update(Request $request, string $uid): void
     {
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
 
         $note = NoteModel::select()->where('uid', '=', $uid)->first(true);
         
@@ -195,7 +197,7 @@ class NoteController extends Controller
     {
         header('Content-Type: application/json');
         
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
         
         $note = NoteModel::select()->where('uid', '=', $uid)->where('is_deleted', '=', 0)->first();
         
@@ -319,7 +321,7 @@ class NoteController extends Controller
     {
         header('Content-Type: application/json');
         
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
         
         $attachment = NoteAttachmentModel::select()
             ->innerJoin([NoteModel::class, 'note'], 'note_attachments.note_id', '=', 'note.id')
@@ -349,7 +351,7 @@ class NoteController extends Controller
      */
     public function delete(Request $request, string $uid): void
     {
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
 
         $note = NoteModel::select()->where('uid', '=', $uid)->first();
 
@@ -377,7 +379,7 @@ class NoteController extends Controller
     {
         header('Content-Type: application/json');
         
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
         
         $note = NoteModel::select()->where('uid', '=', $uid)->where('is_deleted', '=', 0)->first();
         
@@ -480,7 +482,7 @@ class NoteController extends Controller
     {
         header('Content-Type: application/json');
         
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
         
         $note = NoteModel::select()->where('uid', '=', $uid)->where('is_deleted', '=', 0)->first();
         
