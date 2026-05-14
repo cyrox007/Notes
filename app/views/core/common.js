@@ -1,5 +1,5 @@
 {literal}
-const user_uid = "{/literal}{$user['uid']}{literal}"
+const user_id = "{/literal}{$user['id']}{literal}"
 document.addEventListener("DOMContentLoaded", function () {
 	// Sidebar functionality
 	const sidebarControl = document.getElementById('sidebarControl');
@@ -19,7 +19,7 @@ document.addEventListener("DOMContentLoaded", function () {
     // Проверка существующего WebSocket подключения
     wspace.core = {
         data: {
-            socket: new WebSocket(`ws://localhost:27800?user_uid=${user_uid}`),
+            socket: new WebSocket(`ws://localhost:27800?user_id=${user_id}`),
             messagesArray: null, // Здесь будут храниться сообщения, которые придут от WS сервера
             userID: null,
         }
