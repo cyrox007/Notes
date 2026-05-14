@@ -4,6 +4,6 @@ RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule .* index.php [L]
 
 <IfModule mod_headers.c>
-    Header set Content-Security-Policy "default-src 'self'; connect-src 'self' http://notes.loc/ ws://localhost:27800/; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://notes.loc; style-src 'self' 'unsafe-inline' https://notes.loc https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self';"
-    Header set X-Content-Security-Policy "default-src 'self'; connect-src 'self' http://notes.loc/ ws://localhost:27800/; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://notes.loc; style-src 'self' 'unsafe-inline' https://notes.loc https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self';"
+    Header set Content-Security-Policy "default-src 'self'; connect-src 'self' http://notes.loc/ http://localhost:27800/ ws://localhost:27800/ ws://notes.loc:27800/; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://notes.loc https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://notes.loc https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https://notes.loc data:; media-src 'self' blob:;"
+    Header set X-Content-Security-Policy "default-src 'self'; connect-src 'self' http://notes.loc/ http://localhost:27800/ ws://localhost:27800/ ws://notes.loc:27800/; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://notes.loc https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://notes.loc https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https://notes.loc data:; media-src 'self' blob:;"
 </IfModule>

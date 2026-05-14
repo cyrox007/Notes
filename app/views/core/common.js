@@ -16,50 +16,57 @@ document.addEventListener("DOMContentLoaded", function () {
 		sidebar.classList.toggle('active');
 	});
 
-    // Проверка существующего WebSocket подключения
-    wspace.core = {
-        data: {
-            socket: new WebSocket(`ws://localhost:27800?user_id=${user_id}`),
-            messagesArray: null, // Здесь будут храниться сообщения, которые придут от WS сервера
-            userID: null,
-        }
-    };
-
-    const conn = wspace.core.data.socket;
-
-	const ping = () => {
-		conn.send(JSON.stringify({
-			action: "PingSocket:index",
-			data: { ping: "Pong" }
-		}));
-	};
-
-	conn.onopen = (event) => {
-		// Actions to perform when the connection is opened, if necessary
-	};
-
-	let messConn; // Declare messConn variable in the global scope
-
-	if (typeof MessengerConnect !== 'undefined') {
-		messConn = new MessengerConnect();
-	}
-
-	conn.onmessage = (event) => {
-		handleIncomingMessage(event);
-		if (window.location.pathname === "/messenger/") {
-			if (typeof messConn !== 'undefined') {
-				messConn.init();
-				messConn.listenWebSocket();
+	// Инициализация WebSocket только если сервер доступен (не блокирует остальной функционал)
+	try {
+		wspace.core = {
+			data: {
+				socket: new WebSocket(`ws://localhost:27800?user_uid=${user_id}`),
+				messagesArray: null,
+				userID: null,
 			}
-		}
-	};
+		};
 
-	const handleIncomingMessage = (event) => {
-		const serverData = JSON.parse(event.data);
-		if (serverData.action === "Ping") {
-			ping();
+		const conn = wspace.core.data.socket;
+
+		const ping = () => {
+			if (conn.readyState === WebSocket.OPEN) {
+				conn.send(JSON.stringify({
+					action: "PingSocket:index",
+					data: { ping: "Pong" }
+				}));
+			}
+		};
+
+		conn.onopen = (event) => {
+			// Connection opened
+		};
+
+		let messConn;
+
+		if (typeof MessengerConnect !== 'undefined') {
+			messConn = new MessengerConnect();
 		}
-	};
+
+		conn.onmessage = (event) => {
+			handleIncomingMessage(event);
+			if (window.location.pathname === "/messenger/") {
+				if (typeof messConn !== 'undefined') {
+					messConn.init();
+					messConn.listenWebSocket();
+				}
+			}
+		};
+
+		const handleIncomingMessage = (event) => {
+			const serverData = JSON.parse(event.data);
+			if (serverData.action === "Ping") {
+				ping();
+			}
+		};
+	} catch (e) {
+		console.warn('WebSocket не доступен, функционал мессенджера будет работать в ограниченном режиме');
+		wspace.core = { data: { socket: null, messagesArray: null, userID: null } };
+	}
 });
 
 {/literal}
