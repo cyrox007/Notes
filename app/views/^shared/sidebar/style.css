@@ -15,6 +15,7 @@
 	min-width: var(--sidebar-width);
 
 	min-height: 100vh;
+	height: auto;
 
 	background-color: var(--color-sidebar-bg);
 
