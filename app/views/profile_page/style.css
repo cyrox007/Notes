@@ -41,37 +41,56 @@
 .profile__card-info {
 	position: relative;
 	width: 100%;
-	perspective: 1000px;
 }
 
 .profile__card-info--data {
-	position: absolute;
+	position: relative;
 	width: 100%;
 	padding: 20px;
 	background: #fff;
 	border-radius: 8px;
 	border-top: 3px solid #0069d9;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-	transform: rotateY(180deg);
-	backface-visibility: hidden;
-	transition: transform 0.5s ease-in-out;
+
+	transition:
+		opacity .3s ease,
+		transform .3s ease;
+}
+
+.profile__card-info--data.hidden {
+	display: none;
+	opacity: 0;
+	transform: translateY(-10px);
 }
 
 .profile__card-info--data.visible {
-	transform: rotateY(0deg);
+	display: block;
+	opacity: 1;
+	transform: translateY(0);
 }
 
 .profile__card-info--edit {
-	position: absolute;
+	position: relative;
 	width: 100%;
 	padding: 20px;
 	background: #fff;
 	border-radius: 8px;
 	border-top: 3px solid #0069d9;
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-	transform: rotateY(180deg);
-	backface-visibility: hidden;
-	transition: transform 0.5s ease-in-out;
+
+	transition:
+		opacity .3s ease,
+		transform .3s ease;
+
+	display: none;
+	opacity: 0;
+	transform: translateY(10px);
+}
+
+.profile__card-info--edit.visible {
+	display: block;
+	opacity: 1;
+	transform: translateY(0);
 }
 
 .profile__card-info--edit #close {
@@ -82,18 +101,16 @@
 	font-size: 1.5rem;
 	color: #666;
 	transition: color 0.2s;
+	z-index: 10;
 }
 
 .profile__card-info--edit #close:hover {
 	color: #333;
 }
 
-.profile__card-info--edit.visible {
-	transform: rotateY(360deg);
-}
-
 .profile__card-info--edit--form-group {
-	width: 70%;
+	width: 100%;
+	max-width: 700px;
 	display: flex;
 	flex-direction: row;
 	justify-content: space-between;
@@ -131,7 +148,7 @@
 
 .profile__card-info--edit--set-input {
 	height: 38px;
-	width: 70%;
+	width: 100%;
 	margin: 0.3rem 0;
 	padding: 0.5rem 0.8rem;
 	border: 1px solid #ddd;
