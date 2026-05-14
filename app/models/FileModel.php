@@ -15,7 +15,7 @@ class FileModel extends ORM {
     public int $id = 0;
     public ?string $uid = '';
     public int $user_id = 0;
-    public int $parent_id = 0;
+    public ?int $parent_id = null;
     public string $name = '';
     public string $type = 'file'; // file | folder
     public string $mime_type = '';
