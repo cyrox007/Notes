@@ -31,7 +31,7 @@ class FileController extends Controller {
         // Получаем корневые файлы и папки пользователя
         $files = FileModel::select()
             ->where('user_id', '=', $user->id)
-            ->where('parent_id', '=', 0)
+            ->where('parent_id', 'IS', null)
             ->where('is_deleted', '=', 0)
             ->orderBy('type', 'DESC') // Сначала папки
             ->orderBy('name', 'ASC')
@@ -125,6 +125,9 @@ class FileController extends Controller {
                 echo json_encode(['success' => false, 'message' => 'Родительская папка не найдена']);
                 return;
             }
+        } else {
+            // Для корневой директории устанавливаем NULL вместо 0
+            $parentId = null;
         }
         
         try {
@@ -143,7 +146,20 @@ class FileController extends Controller {
             ];
             
             $dbManager->queueInsert($newFolder, 'user_files');
-            $dbManager->commit();
+            $result = $dbManager->commit();
+            
+            // Получаем ID созданной папки
+            if ($result && is_array($result) && !empty($result[0]['last_insert_id'])) {
+                $newFolder['id'] = $result[0]['last_insert_id'];
+            } else {
+                // Если не удалось получить ID, пробуем найти папку по uid
+                $createdFolder = FileModel::select()
+                    ->where('uid', '=', $newFolder['uid'])
+                    ->first();
+                if ($createdFolder) {
+                    $newFolder['id'] = $createdFolder->id;
+                }
+            }
             
             echo json_encode([
                 'success' => true,
@@ -187,6 +203,9 @@ class FileController extends Controller {
                 echo json_encode(['success' => false, 'message' => 'Папка не найдена']);
                 return;
             }
+        } else {
+            // Для корневой директории устанавливаем NULL вместо 0
+            $parentId = null;
         }
         
         // Безопасное имя файла

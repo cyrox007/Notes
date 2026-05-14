@@ -159,17 +159,84 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                location.reload();
+                // Добавляем новую папку в DOM без перезагрузки
+                const filesContainer = document.querySelector('.file-manager__grid');
+                if (filesContainer && data.folder && data.folder.id) {
+                    // Проверяем, есть ли элемент "Папка пуста" и удаляем его
+                    const emptyMessage = document.querySelector('.file-manager__empty');
+                    if (emptyMessage) {
+                        emptyMessage.remove();
+                    }
+                    
+                    const folderHtml = `
+                        <div class="file-manager__item" data-id="${data.folder.id}" data-type="folder" data-name="${escapeHtml(data.folder.name)}">
+                            <div class="file-manager__item-icon">
+                                <i class="fa fa-folder"></i>
+                            </div>
+                            <div class="file-manager__item-name">${escapeHtml(data.folder.name)}</div>
+                            <div class="file-manager__item-meta">Папка</div>
+                            <div class="file-manager__item-actions">
+                                <a href="/files/folder/${data.folder.id}/" class="file-manager__action-btn" title="Открыть">
+                                    <i class="fa fa-folder-open"></i>
+                                </a>
+                                <button class="file-manager__action-btn file-manager__action-btn--rename btn-rename" title="Переименовать">
+                                    <i class="fa fa-edit"></i>
+                                </button>
+                                <button class="file-manager__action-btn file-manager__action-btn--delete btn-delete" title="Удалить">
+                                    <i class="fa fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    filesContainer.insertAdjacentHTML('beforeend', folderHtml);
+                    
+                    // Переназначаем обработчики событий для новых кнопок
+                    const newItem = filesContainer.lastElementChild;
+                    newItem.querySelector('.btn-delete').addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        const item = this.closest('.file-manager__item');
+                        const id = item.dataset.id;
+                        const itemName = item.dataset.name;
+                        if (confirm(`Вы уверены, что хотите удалить "${itemName}"?`)) {
+                            deleteItem(id);
+                        }
+                    });
+                    
+                    newItem.querySelector('.btn-rename').addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        const item = this.closest('.file-manager__item');
+                        currentItemId = item.dataset.id;
+                        currentItemType = item.dataset.type;
+                        const itemName = item.dataset.name;
+                        renameInput.value = itemName;
+                        renameIdInput.value = currentItemId;
+                        modalRename.classList.add('show');
+                        renameInput.focus();
+                        renameInput.select();
+                    });
+                    
+                    modalCreateFolder.classList.remove('show');
+                } else {
+                    // Если не удалось добавить в DOM, перезагружаем страницу
+                    location.reload();
+                }
             } else {
                 alert(data.message || 'Ошибка при создании папки');
+                modalCreateFolder.classList.remove('show');
             }
-            modalCreateFolder.classList.remove('show');
         })
         .catch(error => {
             console.error('Error:', error);
             alert('Ошибка при создании папки');
             modalCreateFolder.classList.remove('show');
         });
+    }
+    
+    // Функция для экранирования HTML
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     function uploadFiles(files) {
