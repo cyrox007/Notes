@@ -23,7 +23,7 @@ class NoteController extends Controller
     public function index(Request $request): void
     {
         $user = UserModel::select()
-            ->where('uid', '=', $request->session('user_uid'))
+            ->where('id', '=', $request->session('user_id'))
             ->first();
 
         $sort = $request->get('sort') ?? 'created_note';
