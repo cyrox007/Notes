@@ -63,6 +63,12 @@ class Controller
         $this->smarty->registerPlugin('function', 'jsonParse', [$this, 'jsonParse']);
         $this->smarty->registerPlugin('function', 'file_get_contents', [$this, 'smarty_function_file_get_contents']);
 
+        // Регистрация PHP функций для использования в шаблонах
+        $this->smarty->registerPlugin('modifier', 'strpos', 'strpos');
+        $this->smarty->registerPlugin('modifier', 'round', 'round');
+        $this->smarty->registerPlugin('modifier', 'count', 'count');
+        $this->smarty->registerPlugin('modifier', 'in_array', 'in_array');
+
         // Добавляем CSRF проверку для всех POST-запросов
         $csrfMiddleware = new CSRFMiddleware();
         $csrfMiddleware->handle();
