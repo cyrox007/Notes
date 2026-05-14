@@ -1,12 +1,8 @@
 {extends file="core/base.tpl"}
 
-{block name="title"}Файловый менеджер{/block}
+{block name="title"}Файловый менеджер*{/block}
 
-{block name="styles"}
-	<link rel="stylesheet" href="/assets/css/file_manager/style.css">
-{/block}
-
-{block name="content"}
+{block name="body"}
 	<div class="file-manager">
 		<!-- Верхняя панель -->
 		<div class="file-manager__toolbar">
@@ -178,9 +174,6 @@
 			</div>
 		</div>
 	</div>
-{/block}
-
-{block name="scripts"}
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.14/ace.js"></script>
 	<script src="/assets/js/file_manager/script.js"></script>
 {/block}
