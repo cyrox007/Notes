@@ -89,7 +89,8 @@ abstract class ORM {
      */
     public function where(string $col, string $operator, mixed $value): static {
         $placeholder = $this->createPlaceholder($col);
-        $this->whereConditions[] = "WHERE {$col} {$operator} {$placeholder}";
+        $prefix = empty($this->whereConditions) ? 'WHERE' : 'AND';
+        $this->whereConditions[] = "{$prefix} {$col} {$operator} {$placeholder}";
         $this->params[$placeholder] = $value;
         $this->log("[where] Добавлено условие: {$col} {$operator} ?", ORMLogLevel::DEBUG);
         return $this;
@@ -312,14 +313,14 @@ abstract class ORM {
             $sql .= ' ' . implode(' ', $this->whereConditions);
         }
 
-        // Добавляем ORDER BY
-        if ($this->orderBy !== null) {
-            $sql .= ' ORDER BY ' . $this->orderBy;
-        }
-
         // Добавляем GROUP BY
         if ($this->groupBy !== null) {
             $sql .= ' GROUP BY ' . $this->groupBy;
+        }
+
+        // Добавляем ORDER BY
+        if ($this->orderBy !== null) {
+            $sql .= ' ORDER BY ' . $this->orderBy;
         }
 
         // Добавляем LIMIT и OFFSET
