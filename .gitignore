@@ -1,1 +1,60 @@
-Nothing should be ignored based on the provided file changes, as they only include source files (`.tpl` and `.css`) without any build artifacts, dependencies, or temporary files.
+```
+# Compiled and build artifacts
+*.pyc
+__pycache__/
+
+# Dependencies
+vendor/
+node_modules/
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Build directories
+dist/
+build/
+target/
+
+# Coverage reports
+coverage/
+htmlcov/
+.coverage
+
+# Python specific
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+
+# Web specific
+*.min.js
+*.min.css
+
+# Backup files
+*~
+*.bak
+*.orig
+
+# IDE specific
+.nyc_output/
+.mypy_cache/
+.pytest_cache/
+.hypothesis/
+
+# Original rules preserved
+```
