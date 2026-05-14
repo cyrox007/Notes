@@ -11,7 +11,7 @@
     <!-- Верхняя панель -->
     <div class="fm-toolbar">
         <div class="fm-breadcrumb">
-            {foreach from=$breadcrumb item=crumb index=i}
+            {foreach $breadcrumb as $i => $crumb}
                 {if $i > 0}<span class="separator">/</span>{/if}
                 <a href="{if $crumb.id == 0}/files/{else}/files/folder/{$crumb.id}/{/if}" 
                    class="breadcrumb-item {if $i == count($breadcrumb) - 1}active{/if}">
