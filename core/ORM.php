@@ -44,6 +44,7 @@ abstract class ORM {
     private ?int $limit = null;
     private ?int $offset = null;
     private ?string $orderBy = null;
+    private ?string $groupBy = null;
     private array $joins = [];
     
     // Кэш для избежания повторных подключений
@@ -177,6 +178,15 @@ abstract class ORM {
     }
 
     /**
+     * Устанавливает GROUP BY
+     */
+    public function groupBy(string $col): static {
+        $this->groupBy = $col;
+        $this->log("[groupBy] Установлен GROUP BY: {$col}", ORMLogLevel::DEBUG);
+        return $this;
+    }
+
+    /**
      * Выполняет SELECT запрос и возвращает массив результатов
      * @return array<int, static>
      */
@@ -305,6 +315,11 @@ abstract class ORM {
         // Добавляем ORDER BY
         if ($this->orderBy !== null) {
             $sql .= ' ORDER BY ' . $this->orderBy;
+        }
+
+        // Добавляем GROUP BY
+        if ($this->groupBy !== null) {
+            $sql .= ' GROUP BY ' . $this->groupBy;
         }
 
         // Добавляем LIMIT и OFFSET
