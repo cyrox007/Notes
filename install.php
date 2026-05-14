@@ -19,16 +19,16 @@ $db_connection = null;
 $REQUIRED_TABLES = [
     'users', 'dialogs', 'dialog_users', 'messages', 'message_statuses',
     'notes', 'note_attachments', 'shared_notes', 'note_history', 'note_tags', 'note_tag_relations',
-    'user_files',
+    'user_files', 'user_fields',
 ];
 
 $base_path = __DIR__;
 $env_file = $base_path . '/.env';
 $schema_files = glob($base_path . '/database/*.sql');
 
-// Сортировка файлов: messenger -> notes -> file_manager
+// Сортировка файлов: messenger -> notes -> file_manager -> user_fields
 usort($schema_files, function($a, $b) {
-    $order = ['messenger_schema.sql' => 1, 'notes_schema.sql' => 2, 'file_manager_schema.sql' => 3];
+    $order = ['messenger_schema.sql' => 1, 'notes_schema.sql' => 2, 'file_manager_schema.sql' => 3, 'user_fields_schema.sql' => 4];
     $a_name = basename($a);
     $b_name = basename($b);
     $a_val = $order[$a_name] ?? 99;
