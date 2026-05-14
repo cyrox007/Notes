@@ -404,7 +404,7 @@ class NoteController extends Controller
     {
         header('Content-Type: application/json');
         
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
         
         $note = NoteModel::select()->where('uid', '=', $uid)->where('is_deleted', '=', 0)->first();
         
@@ -507,7 +507,7 @@ class NoteController extends Controller
     {
         header('Content-Type: application/json');
         
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
         
         $note = NoteModel::select()->where('uid', '=', $uid)->where('is_deleted', '=', 0)->first();
         

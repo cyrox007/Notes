@@ -92,7 +92,7 @@ class TaskController extends Controller
      */
     public function create(Request $request): void
     {
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
 
         $uidTask = bin2hex(random_bytes(16));
         $createdAt = date('Y-m-d H:i:s');

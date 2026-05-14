@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		e.preventDefault();
 		btnEditProfile.classList.toggle('invisible-btn');
 		btnEditProfile.disabled = true;
+		cardInfo.classList.toggle('hidden');
 		cardInfo.classList.toggle('visible');
 		cardEdit.classList.toggle('visible');
 	});
@@ -22,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		e.preventDefault();
 		btnEditProfile.classList.toggle('invisible-btn');
 		btnEditProfile.disabled = false;
+		cardInfo.classList.toggle('hidden');
 		cardInfo.classList.toggle('visible');
 		cardEdit.classList.toggle('visible');
 	});
