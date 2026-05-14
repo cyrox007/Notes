@@ -50,11 +50,11 @@
 								Ваш браузер не поддерживает аудио
 							</audio>
 						</div>
-					{elseif $attachment.isImage()}
+					{elseif isset($attachment.type) && $attachment.type == 'image'}
 						<div class="attachment-preview">
 							<img src="{$attachment.file_url}" alt="{$attachment.file_name}" style="max-width: 200px;">
 						</div>
-					{elseif $attachment.isMedia()}
+					{elseif isset($attachment.type) && $attachment.type == 'media'}
 						<div class="attachment-preview">
 							<span class="attachment-icon">🎬</span>
 							<video controls style="max-width: 300px;">
@@ -70,7 +70,7 @@
 					{/if}
 					<div class="attachment-info">
 						<span class="attachment-name">{$attachment.file_name}</span>
-						<span class="attachment-size">{$attachment.getFormattedSize()}</span>
+						<span class="attachment-size">{$attachment.formatted_size}</span>
 						{if $attachment.duration}
 							<span class="attachment-duration">⏱ {$attachment.duration} сек</span>
 						{/if}
