@@ -12,7 +12,7 @@
 	<style>
 		{include file='styles.css'}
 	</style>
-	<link rel="stylesheet" href="{$base_url}/assets/font-awesome/css/font-awesome.min.css">
+	<link rel="stylesheet" href="/assets/font-awesome/css/font-awesome.min.css">
 	<link rel="icon" href="/favicon.ico" type="image/x-icon">
 	<link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
 	<script>

@@ -34,9 +34,12 @@ class CryptMethods
             return self::$masterKey;
         }
 
-        $key = $_ENV['UNIQUE_KEY']
-            ?? getenv('UNIQUE_KEY')
-            ?? '';
+        $key = $_ENV['UNIQUE_KEY'] ?? getenv('UNIQUE_KEY');
+
+        // Явно приводим к строке или используем пустую строку, если false
+        if ($key === false || $key === '') {
+            $key = '';
+        }
 
         if ($key === '') {
             throw new \RuntimeException('UNIQUE_KEY is missing');

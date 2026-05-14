@@ -99,7 +99,7 @@ body {
 
 .wrapper {
   display: flex;
-  height: 100vh; /* Занимает всю высоту экрана */
+  min-height: 100vh; /* Занимает всю высоту экрана */
   background-color: #edeef0;
 }
 .wrapper__content {

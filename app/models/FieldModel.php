@@ -10,7 +10,7 @@ class FieldModel extends ORM {
     public string $field_name = '';
     public string $field_type = '';
     public string $field_label = '';
-    public bool $is_required = false;
+    public int $is_required = 0;
     public ?string $created_at = '';
     public ?string $updated_at = '';
 }

@@ -73,7 +73,20 @@ class NoteController extends Controller
         $newNote = new NoteModel();
         $newNote->uid = $uidNote;
         $newNote->notename = $request->post('notename');
-        $newNote->content = '';
+        
+        // Шифруем контент перед сохранением (даже если он пустой)
+        $content = $request->post('content', '');
+        $encryptedContent = '';
+        if (!empty($content)) {
+            try {
+                $encryptedContent = CryptMethods::encrypt($content, $uidNote);
+            } catch (\Exception $e) {
+                // Если шифрование не удалось, сохраняем как есть (логировать ошибку)
+                $encryptedContent = $content;
+            }
+        }
+
+        $newNote->content = $encryptedContent;
         $newNote->content_type = 'text';
         $newNote->is_encrypted = 1;
         $newNote->is_deleted = 0;
@@ -170,6 +183,9 @@ class NoteController extends Controller
 
         $content = $request->post('content');
         $notename = $request->post('notename');
+
+        // Обновляем название заметки
+        $note->notename = $notename;
         
         // Шифруем контент перед сохранением
         $encryptedContent = '';

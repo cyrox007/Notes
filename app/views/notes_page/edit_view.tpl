@@ -37,7 +37,7 @@
 			<input type="hidden" name="is_voice" id="isVoice" value="false">
 			<button type="submit" class="btn btn-secondary">Загрузить файл</button>
 		</form>
-		<button id="recordVoiceBtn" class="btn btn-voice">🎤 Записать голосовое</button>
+		<button id="recordVoiceBtn" class="btn btn-voice"><i class="fa fa-microphone"></i> Записать голосовое</button>
 	</div>
 	
 	<!-- Список вложений -->
@@ -47,7 +47,7 @@
 				<div class="attachment-item" data-id="{$attachment.id}">
 					{if isset($attachment.type) && $attachment.type == 'voice'}
 						<div class="attachment-preview">
-							<span class="attachment-icon">🎤</span>
+							<span class="attachment-icon"><i class="fa fa-microphone"></i></span>
 							<audio controls>
 								<source src="{$attachment.file_url}" type="{$attachment.mime_type}">
 								Ваш браузер не поддерживает аудио
@@ -59,7 +59,7 @@
 						</div>
 					{elseif isset($attachment.type) && $attachment.type == 'media'}
 						<div class="attachment-preview">
-							<span class="attachment-icon">🎬</span>
+							<span class="attachment-icon"><i class="fa fa-film"></i></span>
 							<video controls style="max-width: 300px;">
 								<source src="{$attachment.file_url}" type="{$attachment.mime_type}">
 								Ваш браузер не поддерживает видео
@@ -67,7 +67,7 @@
 						</div>
 					{else}
 						<div class="attachment-preview">
-							<span class="attachment-icon">📄</span>
+							<span class="attachment-icon"><i class="fa fa-file"></i></span>
 							<span>{$attachment.file_name}</span>
 						</div>
 					{/if}
