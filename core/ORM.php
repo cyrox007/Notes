@@ -44,6 +44,7 @@ abstract class ORM {
     private ?int $limit = null;
     private ?int $offset = null;
     private ?string $orderBy = null;
+    private ?string $groupBy = null;
     private array $joins = [];
     
     // Кэш для избежания повторных подключений
@@ -88,7 +89,8 @@ abstract class ORM {
      */
     public function where(string $col, string $operator, mixed $value): static {
         $placeholder = $this->createPlaceholder($col);
-        $this->whereConditions[] = "WHERE {$col} {$operator} {$placeholder}";
+        $prefix = empty($this->whereConditions) ? 'WHERE' : 'AND';
+        $this->whereConditions[] = "{$prefix} {$col} {$operator} {$placeholder}";
         $this->params[$placeholder] = $value;
         $this->log("[where] Добавлено условие: {$col} {$operator} ?", ORMLogLevel::DEBUG);
         return $this;
@@ -173,6 +175,15 @@ abstract class ORM {
         $direction = strtoupper($direction) === 'DESC' ? 'DESC' : 'ASC';
         $this->orderBy = "{$col} {$direction}";
         $this->log("[orderBy] Установлен ORDER BY: {$col} {$direction}", ORMLogLevel::DEBUG);
+        return $this;
+    }
+
+    /**
+     * Устанавливает GROUP BY
+     */
+    public function groupBy(string $col): static {
+        $this->groupBy = $col;
+        $this->log("[groupBy] Установлен GROUP BY: {$col}", ORMLogLevel::DEBUG);
         return $this;
     }
 
@@ -281,6 +292,11 @@ abstract class ORM {
         $columns = $this->columns;
         if (!empty($columns) && !empty($this->joins)) {
             $columns = array_map(function ($col) {
+                // Если колонка уже содержит AS, пропускаем её
+                if (stripos($col, ' AS ') !== false) {
+                    return $col;
+                }
+                // Если колонка содержит точку (table.column), добавляем алиас
                 if (strpos($col, '.') !== false) {
                     $alias = str_replace(['.', ' '], ['__', '_'], $col);
                     return "{$col} AS {$alias}";
@@ -300,6 +316,11 @@ abstract class ORM {
         // Добавляем WHERE
         if (!empty($this->whereConditions)) {
             $sql .= ' ' . implode(' ', $this->whereConditions);
+        }
+
+        // Добавляем GROUP BY
+        if ($this->groupBy !== null) {
+            $sql .= ' GROUP BY ' . $this->groupBy;
         }
 
         // Добавляем ORDER BY

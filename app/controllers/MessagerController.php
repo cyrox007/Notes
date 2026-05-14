@@ -13,7 +13,7 @@ use UUID;
 class MessagerController extends Controller {
 	public function index(Request $request) {
 		$userModel = new UserModel();
-		$user = $userModel->select()->where('uid', '=', $request->session('user_uid'))->first(true);
+		$user = $userModel->select()->where('id', '=', $request->session('user_id'))->first(true);
 
 		$userToDialogs = UserToDialogsModel::select(
             'dialogs.uid',

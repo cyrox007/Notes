@@ -73,6 +73,20 @@ class Request {
         $data = $key === null? $this->files : ($this->files[$key]?? $default);
         return $data;
     }
+
+    /**
+     * Проверить наличие загруженного файла
+     */
+    public function hasFile(string $key): bool {
+        return isset($this->files[$key]) && $this->files[$key]['error'] === UPLOAD_ERR_OK;
+    }
+
+    /**
+     * Получить данные о загруженном файле
+     */
+    public function file(string $key, $default = null) {
+        return $this->hasFile($key) ? $this->files[$key] : $default;
+    }
     
     public function json($key = null, $default = null) {
         $data = $key === null ? $this->json : ($this->json[$key] ?? $default);

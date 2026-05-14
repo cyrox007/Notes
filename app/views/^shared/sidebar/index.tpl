@@ -1,7 +1,7 @@
 <aside class="sidebar">
 	<a href="/" class="sidebar__site-title">
 
-		{html_image file="assets/img/AdminLTELogo.png"
+		{html_image file="/assets/img/AdminLTELogo.png"
 		alt="AdminLTE Logo" class="brand-image img-circle elevation-3" style="opacity: .8"}
 		<span class="brand-text font-weight-light">{$sitename}</span>
 	</a>

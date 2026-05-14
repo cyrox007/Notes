@@ -5,9 +5,9 @@
 {block name=body}
 <section class="note-header">
 	<h1 class="note__title">
-		{$note.notename}
+		{$note.notename|default:'Без названия'}
 	</h1>
-	<p class="note__info">Автор: {$note.author.username}</p>
+	<p class="note__info">Автор: {$note.author_username|default:'Неизвестно'}</p>
 	<p class="note__info">Дата создания: {$note.created_note}</p>
 	<p class="note__info">Дата редактирования: {$note.updated_note}</p>
 </section>
@@ -15,6 +15,9 @@
 <section class="note-content">
 	<form class="note__edit" action="{route_path name="update_note" uid=$note.uid}" method="post">
 		{csrf_token}
+		<div class="note__name-input">
+			<input type="text" name="notename" placeholder="Название заметки" value="{$note.notename|default:''}">
+		</div>
 		<div class="note__text">
 			<textarea name="content" class="textarea" placeholder="Введите текст заметки...">{$note.content}</textarea>
 		</div>
@@ -42,23 +45,23 @@
 		{if $attachments}
 			{foreach $attachments as $attachment}
 				<div class="attachment-item" data-id="{$attachment.id}">
-					{if $attachment.isVoice()}
+					{if isset($attachment.type) && $attachment.type == 'voice'}
 						<div class="attachment-preview">
 							<span class="attachment-icon">🎤</span>
 							<audio controls>
-								<source src="{$attachment.getFileUrl()}" type="{$attachment.mime_type}">
+								<source src="{$attachment.file_url}" type="{$attachment.mime_type}">
 								Ваш браузер не поддерживает аудио
 							</audio>
 						</div>
-					{elseif $attachment.isImage()}
+					{elseif isset($attachment.type) && $attachment.type == 'image'}
 						<div class="attachment-preview">
-							<img src="{$attachment.getFileUrl()}" alt="{$attachment.file_name}" style="max-width: 200px;">
+							<img src="{$attachment.file_url}" alt="{$attachment.file_name}" style="max-width: 200px;">
 						</div>
-					{elseif $attachment.isMedia()}
+					{elseif isset($attachment.type) && $attachment.type == 'media'}
 						<div class="attachment-preview">
 							<span class="attachment-icon">🎬</span>
 							<video controls style="max-width: 300px;">
-								<source src="{$attachment.getFileUrl()}" type="{$attachment.mime_type}">
+								<source src="{$attachment.file_url}" type="{$attachment.mime_type}">
 								Ваш браузер не поддерживает видео
 							</video>
 						</div>
@@ -70,7 +73,7 @@
 					{/if}
 					<div class="attachment-info">
 						<span class="attachment-name">{$attachment.file_name}</span>
-						<span class="attachment-size">{$attachment.getFormattedSize()}</span>
+						<span class="attachment-size">{$attachment.formatted_size}</span>
 						{if $attachment.duration}
 							<span class="attachment-duration">⏱ {$attachment.duration} сек</span>
 						{/if}

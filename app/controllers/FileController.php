@@ -21,7 +21,7 @@ class FileController extends Controller {
      * Главная страница файлового менеджера
      */
     public function index(Request $request): void {
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
         
         if (!$user) {
             Router::getInstance()->redirect('authpage');
@@ -51,7 +51,7 @@ class FileController extends Controller {
      * Просмотр содержимого папки
      */
     public function folder(Request $request, int $folderId): void {
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
         
         if (!$user) {
             Router::getInstance()->redirect('authpage');
@@ -97,7 +97,7 @@ class FileController extends Controller {
      * Создание новой папки
      */
     public function createFolder(Request $request): void {
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
         
         if (!$user) {
             echo json_encode(['success' => false, 'message' => 'Unauthorized']);
@@ -160,7 +160,7 @@ class FileController extends Controller {
      * Загрузка файла
      */
     public function uploadFile(Request $request): void {
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
         
         if (!$user) {
             echo json_encode(['success' => false, 'message' => 'Unauthorized']);
@@ -200,7 +200,7 @@ class FileController extends Controller {
         
         // Путь для сохранения
         $uploadDir = getenv('UPLOAD_DIR') ?: 'uploads';
-        $userDir = SITEPATH . '/' . $uploadDir . '/' . $user->uid . '/files/';
+        $userDir = SITEPATH . '/' . $uploadDir . '/' . $user->id . '/files/';
         
         if (!is_dir($userDir)) {
             mkdir($userDir, 0755, true);
@@ -209,7 +209,7 @@ class FileController extends Controller {
         // Уникальное имя файла
         $uniqueName = uniqid() . '_' . $fileName;
         $filePath = $userDir . $uniqueName;
-        $relativePath = '/' . $uploadDir . '/' . $user->uid . '/files/' . $uniqueName;
+        $relativePath = '/' . $uploadDir . '/' . $user->id . '/files/' . $uniqueName;
         
         try {
             if (!move_uploaded_file($file['tmp_name'], $filePath)) {
@@ -251,7 +251,7 @@ class FileController extends Controller {
      * Удаление файла или папки
      */
     public function delete(Request $request): void {
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
         
         if (!$user) {
             echo json_encode(['success' => false, 'message' => 'Unauthorized']);
@@ -301,7 +301,7 @@ class FileController extends Controller {
      * Переименование файла или папки
      */
     public function rename(Request $request): void {
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
         
         if (!$user) {
             echo json_encode(['success' => false, 'message' => 'Unauthorized']);
@@ -342,7 +342,7 @@ class FileController extends Controller {
      * Получение файла для просмотра/скачивания
      */
     public function getFile(Request $request, int $fileId): void {
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
         
         if (!$user) {
             http_response_code(403);

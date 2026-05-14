@@ -15,7 +15,7 @@ use Core\Router;
 
 class ProfileController extends Controller {
     public function index(Request $request) {
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
         
         $notes = NoteModel::select()->where('user_id', '=', $user->id)->get();
 
@@ -32,7 +32,7 @@ class ProfileController extends Controller {
     }
 
     public function update(Request $request) {
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
 
         $postData = $request->post();
         $updateData = $this->gatherUserData($postData, $user);
@@ -127,7 +127,7 @@ class ProfileController extends Controller {
     
         // Generate path for saving (not including SITEPATH)
         $uploadDir = getenv('UPLOAD_DIR') ?: 'default/path'; // Fallback to default if UPLOAD_DIR isn't set
-        $relativePath = '/'.$uploadDir . '/' . $user->uid . '/avatars/' . $filename;
+        $relativePath = '/'.$uploadDir . '/' . $user->id . '/avatars/' . $filename;
         $savePath = SITEPATH . $relativePath;
     
         // Create directories if they do not exist
@@ -151,7 +151,7 @@ class ProfileController extends Controller {
     }
 
     public function changeUserPass(Request $request) {
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
         $data['user'] = $user;
 
         $newPassword = $request->post('new-password');
@@ -191,12 +191,12 @@ class ProfileController extends Controller {
         $dbManager->commit();
         
         $request->unsetSession("auth");
-        $request->unsetSession('user_uid');
+        $request->unsetSession('user_id');
         return Router::getInstance()->redirect('authpage');
     }
 
     public function deleteUser(Request $request) {
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
 
         // Проверка подтверждения удаления (нужно передать confirmation параметр)
         $confirmation = $request->post('confirm_delete');
@@ -214,7 +214,7 @@ class ProfileController extends Controller {
         $dbManager->commit();
         
         $request->unsetSession("auth");
-        $request->unsetSession('user_uid');
+        $request->unsetSession('user_id');
         return Router::getInstance()->redirect('authpage');
     }
 }

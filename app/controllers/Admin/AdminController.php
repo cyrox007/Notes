@@ -10,7 +10,7 @@ use Core\Router;
 
 class AdminController extends Controller {
     public function index(Request $request) {
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
         $fields = FieldModel::select()->get();
         
         // Получаем список всех пользователей для админки
@@ -121,7 +121,7 @@ class AdminController extends Controller {
         }
         
         // Нельзя удалить самого себя
-        $currentUser = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $currentUser = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
         if ($currentUser->id == $targetUserId) {
             return $this->responseJson(['success' => false, 'message' => 'Нельзя удалить самого себя']);
         }
