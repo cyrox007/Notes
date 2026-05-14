@@ -11,6 +11,9 @@ class Router
     /** @var array<int, array{path: string, method: string, controller: array{0: class-string, 1: non-empty-string}, middlewares: array<class-string>, name?: string}> */
     protected array $routes = [];
 
+    /** @var string|null */
+    private ?string $groupPrefix = null;
+
     private function __construct() {}
     
     private function __clone() {}
@@ -30,19 +33,36 @@ class Router
     }
 
     /**
-     * @param callable(self): void $callback
+     * Start a route group with a given prefix.
+     * Returns $this to allow method chaining.
+     *
+     * Usage:
+     * $router->group('/admin')
+     *       ->get('/', [AdminController::class, 'index'])
+     *       ->post('/save', [AdminController::class, 'save']);
      */
-    public function group(string $prefix, callable $callback): void
+    public function group(string $prefix): self
     {
         $basePath = $this->getBasePath();
-        $currentPrefix = $basePath . $prefix;
+        // Сохраняем префикс группы. Если уже был префикс (вложенность), добавляем к нему новый.
+        $currentPrefix = $this->groupPrefix !== null
+            ? $this->groupPrefix . $prefix
+            : $basePath . $prefix;
 
-        $addWithPrefix = function (string $method, string $path, array $handler, array $middlewares = [], string $name = '') use ($currentPrefix): void {
-            $fullPath = $this->normalizePath($currentPrefix . $path);
-            $this->add($method, $fullPath, $handler, $middlewares, $name);
-        };
+        $this->groupPrefix = $this->normalizePath($currentPrefix);
 
-        $callback($this);
+        return $this;
+    }
+
+    /**
+     * End the current group scope.
+     * Resets the group prefix to the base path (or previous level if nested groups were implemented differently).
+     * For simple flat grouping, we just reset to null so next add() uses base path.
+     */
+    public function endGroup(): self
+    {
+        $this->groupPrefix = null;
+        return $this;
     }
 
     private function createPattern(string $path): string
@@ -81,10 +101,15 @@ class Router
      * @param array{0: class-string, 1: non-empty-string} $controller
      * @param array<class-string> $middlewares
      */
-    public function add(string $method, string $path, array $controller, array $middlewares = [], string $name = ''): void
+    public function add(string $method, string $path, array $controller, array $middlewares = [], string $name = ''): self
     {
         $basePath = $this->getBasePath();
-        $path = $this->normalizePath($basePath . $path);
+        // Если активен префикс группы, используем его вместо basePath
+        if ($this->groupPrefix !== null) {
+            $path = $this->normalizePath($this->groupPrefix . $path);
+        } else {
+            $path = $this->normalizePath($basePath . $path);
+        }
         
         $route = [
             'path' => $path,
@@ -98,6 +123,8 @@ class Router
         }
 
         $this->routes[] = $route;
+
+        return $this;
     }
 
     public function dispatch(): void
