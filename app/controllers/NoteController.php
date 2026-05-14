@@ -326,7 +326,7 @@ class NoteController extends Controller
             ->where('note_attachments.id', '=', $attachmentId)
             ->first();
         
-        if (!$attachment || $attachment->user_id !== $user->id) {
+        if (!$attachment || $attachment->note->user_id !== $user->id) {
             http_response_code(403);
             echo json_encode(['success' => false, 'error' => 'Доступ запрещен']);
             return;
