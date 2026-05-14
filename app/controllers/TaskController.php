@@ -22,7 +22,7 @@ class TaskController extends Controller
     public function index(Request $request): void
     {
         $user = UserModel::select()
-            ->where('uid', '=', $request->session('user_uid'))
+            ->where('id', '=', $request->session('user_id'))
             ->first();
 
         $filter = $request->get('filter') ?? 'all';
@@ -128,7 +128,7 @@ class TaskController extends Controller
      */
     public function update(Request $request, string $uid): void
     {
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
 
         $task = TaskModel::select()->where('uid', '=', $uid)->first();
         
@@ -164,7 +164,7 @@ class TaskController extends Controller
      */
     public function delete(Request $request, string $uid): void
     {
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
 
         $task = TaskModel::select()->where('uid', '=', $uid)->first();
 
@@ -191,7 +191,7 @@ class TaskController extends Controller
     {
         header('Content-Type: application/json');
         
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
         
         $task = TaskModel::select()->where('uid', '=', $taskUid)->where('is_deleted', '=', 0)->first();
         
@@ -240,7 +240,7 @@ class TaskController extends Controller
     {
         header('Content-Type: application/json');
         
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
         
         $subtask = SubtaskModel::select()
             ->innerJoin([TaskModel::class, 'task'], 'subtasks.task_id', '=', 'tasks.id')
@@ -277,7 +277,7 @@ class TaskController extends Controller
     {
         header('Content-Type: application/json');
         
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
         
         $subtask = SubtaskModel::select()
             ->innerJoin([TaskModel::class, 'task'], 'subtasks.task_id', '=', 'tasks.id')
@@ -302,7 +302,7 @@ class TaskController extends Controller
      */
     public function createCategory(Request $request): void
     {
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
         
         $name = trim($request->post('name'));
         if (empty($name)) {
@@ -336,7 +336,7 @@ class TaskController extends Controller
     {
         header('Content-Type: application/json');
         
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
         
         $task = TaskModel::select()->where('uid', '=', $taskUid)->where('is_deleted', '=', 0)->first();
         
@@ -372,7 +372,7 @@ class TaskController extends Controller
     {
         header('Content-Type: application/json');
         
-        $user = UserModel::select()->where('uid', '=', $request->session('user_uid'))->first();
+        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
         
         $task = TaskModel::select()->where('uid', '=', $taskUid)->where('is_deleted', '=', 0)->first();
         
