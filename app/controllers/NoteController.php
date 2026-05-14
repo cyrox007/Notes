@@ -122,7 +122,7 @@ class NoteController extends Controller
         // Расшифровываем контент если он зашифрован
         if ($note->is_encrypted && !empty($note->content)) {
             try {
-                $note->content = CryptMethods::doubleDecrypt($note->content, $note->uid);
+                $note->content = CryptMethods::decrypt($note->content, $note->uid);
             } catch (\Exception $e) {
                 // Если расшифровка не удалась, оставляем как есть
             }
@@ -165,7 +165,7 @@ class NoteController extends Controller
         $encryptedContent = '';
         if (!empty($content)) {
             try {
-                $encryptedContent = CryptMethods::doubleEncrypt($content, $note->uid);
+                $encryptedContent = CryptMethods::encrypt($content, $note->uid);
             } catch (\Exception $e) {
                 // Если шифрование не удалось, сохраняем как есть (логировать ошибку)
                 $encryptedContent = $content;
@@ -444,7 +444,7 @@ class NoteController extends Controller
         $content = $share->note_content;
         if ($share->note_is_encrypted && !empty($content)) {
             try {
-                $content = CryptMethods::doubleDecrypt($content, $share->note_uid);
+                $content = CryptMethods::decrypt($content, $share->note_uid);
             } catch (\Exception $e) {
                 $content = '[Ошибка расшифровки]';
             }
