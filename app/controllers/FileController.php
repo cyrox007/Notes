@@ -227,8 +227,14 @@ class FileController extends Controller
 
         // Путь для сохранения
         $uploadDir = getenv('UPLOAD_DIR') ?: 'uploads';
-        $baseDir = SITEPATH;
-        $userDir = $baseDir . DIRECTORY_SEPARATOR . $uploadDir . DIRECTORY_SEPARATOR . $user->id . DIRECTORY_SEPARATOR . 'files' . DIRECTORY_SEPARATOR;
+        
+        // Если UPLOAD_DIR уже абсолютный путь, используем его напрямую
+        if (strpos($uploadDir, ':') !== false || strpos($uploadDir, '/') === 0 || strpos($uploadDir, '\\') === 0) {
+            $userDir = rtrim($uploadDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $user->id . DIRECTORY_SEPARATOR . 'files' . DIRECTORY_SEPARATOR;
+        } else {
+            // Иначе формируем путь относительно SITEPATH
+            $userDir = rtrim(SITEPATH, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $uploadDir . DIRECTORY_SEPARATOR . $user->id . DIRECTORY_SEPARATOR . 'files' . DIRECTORY_SEPARATOR;
+        }
 
         if (!is_dir($userDir)) {
             mkdir($userDir, 0755, true);
@@ -237,7 +243,8 @@ class FileController extends Controller
         // Уникальное имя файла
         $uniqueName = uniqid() . '_' . $fileName;
         $filePath = $userDir . $uniqueName;
-        $relativePath = DIRECTORY_SEPARATOR . $uploadDir . DIRECTORY_SEPARATOR . $user->id . DIRECTORY_SEPARATOR . 'files' . DIRECTORY_SEPARATOR . $uniqueName;
+        // Относительный путь для БД всегда с прямыми слешами
+        $relativePath = '/' . $uploadDir . '/' . $user->id . '/files/' . $uniqueName;
 
         try {
             if (!move_uploaded_file($file['tmp_name'], $filePath)) {
