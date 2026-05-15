@@ -3,7 +3,7 @@
 {block name="title"}Файловый менеджер*{/block}
 
 {block name="body"}
-	<div class="file-manager">
+	<div class="file-manager" {if $current_folder} data-current-folder-id="{$current_folder.id}" {/if}>
 		<!-- Верхняя панель -->
 		<div class="file-manager__toolbar">
 			<div class="file-manager__breadcrumb">
@@ -45,21 +45,25 @@
 								{if $file.type == 'folder'}
 									<i class="fa fa-folder"></i>
 								{else}
-									{assign var="icon" value="fa-file"}
+									{assign var="icon" value="fa-file-o"}
 									{if $file.mime_type|strpos:'image' !== false}
-										{assign var="icon" value="fa-file-image"}
+										{assign var="icon" value="fa-file-image-o"}
 									{elseif $file.mime_type|strpos:'audio' !== false}
-										{assign var="icon" value="fa-file-audio"}
+										{assign var="icon" value="fa-file-audio-o"}
 									{elseif $file.mime_type|strpos:'video' !== false}
-										{assign var="icon" value="fa-file-video"}
+										{assign var="icon" value="fa-file-video-o"}
 									{elseif $file.extension == 'pdf'}
-										{assign var="icon" value="fa-file-pdf"}
+										{assign var="icon" value="fa-file-pdf-o"}
 									{elseif $file.extension|in_array:['doc', 'docx']}
-										{assign var="icon" value="fa-file-word"}
+										{assign var="icon" value="fa-file-word-o"}
+									{elseif $file.extension|in_array:['ppt', 'pptx']}
+										{assign var="icon" value="fa-file-powerpoint-o"}
+									{elseif $file.extension|in_array:['zip', 'rar', '7z', 'tar', 'gz']}
+										{assign var="icon" value="fa-file-archive-o"}
 									{elseif $file.extension|in_array:['xls', 'xlsx']}
-										{assign var="icon" value="fa-file-excel"}
+										{assign var="icon" value="fa-file-excel-o"}
 									{elseif $file.extension|in_array:['php', 'js', 'py', 'java', 'cpp', 'c', 'html', 'css']}
-										{assign var="icon" value="fa-file-code"}
+										{assign var="icon" value="fa-file-code-o"}
 									{/if}
 									<i class="fa {$icon}"></i>
 								{/if}
