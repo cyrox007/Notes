@@ -39,53 +39,53 @@
 			{else}
 				<div class="file-manager__grid">
 					{foreach $files as $file}
-						<div class="file-manager__item" data-id="{$file->id}" data-type="{$file->type}" data-name="{$file->name}"
-							data-extension="{$file->extension}">
+						<div class="file-manager__item" data-id="{$file.id}" data-type="{$file.type}" data-name="{$file.name}"
+                                                        data-extension="{$file.extension}">
 							<div class="file-manager__item-icon">
-								{if $file->type == 'folder'}
+								{if $file.type == 'folder'}
 									<i class="fa fa-folder"></i>
 								{else}
 									{assign var="icon" value="fa-file"}
-									{if $file->mime_type|strpos:'image' !== false}
+									{if $file.mime_type|strpos:'image' !== false}
 										{assign var="icon" value="fa-file-image"}
-									{elseif $file->mime_type|strpos:'audio' !== false}
+									{elseif $file.mime_type|strpos:'audio' !== false}
 										{assign var="icon" value="fa-file-audio"}
-									{elseif $file->mime_type|strpos:'video' !== false}
+									{elseif $file.mime_type|strpos:'video' !== false}
 										{assign var="icon" value="fa-file-video"}
-									{elseif $file->extension == 'pdf'}
+									{elseif $file.extension == 'pdf'}
 										{assign var="icon" value="fa-file-pdf"}
-									{elseif $file->extension|in_array:['doc', 'docx']}
+									{elseif $file.extension|in_array:['doc', 'docx']}
 										{assign var="icon" value="fa-file-word"}
-									{elseif $file->extension|in_array:['xls', 'xlsx']}
+									{elseif $file.extension|in_array:['xls', 'xlsx']}
 										{assign var="icon" value="fa-file-excel"}
-									{elseif $file->extension|in_array:['php', 'js', 'py', 'java', 'cpp', 'c', 'html', 'css']}
+									{elseif $file.extension|in_array:['php', 'js', 'py', 'java', 'cpp', 'c', 'html', 'css']}
 										{assign var="icon" value="fa-file-code"}
 									{/if}
 									<i class="fa {$icon}"></i>
 								{/if}
 							</div>
-							<div class="file-manager__item-name">{$file->name}{if $file->type == 'file'}.{$file->extension}{/if}
+							<div class="file-manager__item-name">{$file.name}{if $file.type == 'file'}.{$file.extension}{/if}
 							</div>
 							<div class="file-manager__item-meta">
-								{if $file->type == 'file'}
-									{if $file->size < 1024}
-										{$file->size} Б
-									{elseif $file->size < 1048576}
-										{$file->size|round:2|round:1} КБ
+								{if $file.type == 'file'}
+									{if $file.size < 1024}
+										{$file.size} Б
+									{elseif $file.size < 1048576}
+										{$file.size|round:2|round:1} КБ
 									{else}
-										{$file->size|round:6|round:1} МБ
+										{$file.size|round:6|round:1} МБ
 									{/if}
 								{else}
 									Папка
 								{/if}
 							</div>
 							<div class="file-manager__item-actions">
-								{if $file->type == 'folder'}
-									<a href="/files/folder/{$file->id}/" class="file-manager__action-btn" title="Открыть">
+								{if $file.type == 'folder'}
+									<a href="/files/folder/{$file.id}/" class="file-manager__action-btn" title="Открыть">
 										<i class="fa fa-folder-open"></i>
 									</a>
 								{else}
-									<a href="/files/get/{$file->id}/" class="file-manager__action-btn" title="Открыть" target="_blank">
+									<a href="/files/get/{$file.id}/" class="file-manager__action-btn" title="Открыть" target="_blank">
 										<i class="fa fa-eye"></i>
 									</a>
 								{/if}
