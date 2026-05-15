@@ -225,8 +225,34 @@ class FileController extends Controller
         $finfo = new \finfo(FILEINFO_MIME_TYPE);
         $mimeType = $finfo->file($file['tmp_name']);
 
-        // Путь для сохранения
-        $uploadDir = getenv('UPLOAD_DIR') ?: 'uploads';
+        // Определяем тип файла на основе MIME и расширения
+        $fileType = 'file';
+        $extensionLower = strtolower($extension);
+        
+        // Проверка на изображение
+        if (strpos($mimeType, 'image/') === 0) {
+            $fileType = 'image';
+        }
+        // Проверка на аудио
+        elseif (strpos($mimeType, 'audio/') === 0 || in_array($extensionLower, ['mp3', 'wav', 'ogg', 'flac', 'm4a'])) {
+            $fileType = 'audio';
+        }
+        // Проверка на видео
+        elseif (strpos($mimeType, 'video/') === 0 || in_array($extensionLower, ['mp4', 'webm', 'avi', 'mov', 'mkv'])) {
+            $fileType = 'video';
+        }
+        // Проверка на документы
+        elseif (in_array($extensionLower, ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp']) 
+                || in_array($mimeType, ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'])) {
+            $fileType = 'document';
+        }
+        // Проверка на код/текст
+        elseif (in_array($extensionLower, ['php', 'js', 'py', 'java', 'cpp', 'c', 'html', 'css', 'json', 'xml', 'sql', 'txt', 'md'])) {
+            $fileType = 'code';
+        }
+
+        // Путь для сохранения - используем отдельную директорию для файлового менеджера
+        $uploadDir = 'uploads/file_manager';
         // Если UPLOAD_DIR уже абсолютный путь, используем его напрямую
         if (strpos($uploadDir, ':') !== false || strpos($uploadDir, '/') === 0 || strpos($uploadDir, '\\') === 0) {
             $userDir = rtrim($uploadDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $user->id . DIRECTORY_SEPARATOR . 'files' . DIRECTORY_SEPARATOR;
@@ -257,7 +283,7 @@ class FileController extends Controller
                 'user_id' => $user->id,
                 'parent_id' => $parentId,
                 'name' => $nameWithoutExt,
-                'type' => 'file',
+                'type' => $fileType,
                 'mime_type' => $mimeType,
                 'size' => $file['size'],
                 'path' => $relativePath,

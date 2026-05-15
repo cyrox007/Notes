@@ -3,7 +3,7 @@
 {block name="title"}Файловый менеджер*{/block}
 
 {block name="body"}
-	<div class="file-manager">
+	<div class="file-manager"{if $current_folder} data-current-folder-id="{$current_folder.id}"{/if}>
 		<!-- Верхняя панель -->
 		<div class="file-manager__toolbar">
 			<div class="file-manager__breadcrumb">

@@ -18,6 +18,12 @@ document.addEventListener('DOMContentLoaded', function () {
     let currentFolderId = 0;
     let currentItemId = null;
 
+    // Инициализируем currentFolderId из данных шаблона (если мы внутри папки)
+    const currentFolderElement = document.querySelector('.file-manager');
+    if (currentFolderElement && currentFolderElement.dataset.currentFolderId) {
+        currentFolderId = parseInt(currentFolderElement.dataset.currentFolderId) || 0;
+    }
+
     // Ace Editor instance
     let editor = null;
 
