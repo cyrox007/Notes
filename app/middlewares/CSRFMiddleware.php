@@ -27,6 +27,14 @@ class CSRFMiddleware
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             return true;
         }
+
+        
+        // Разрешаем AJAX-запросы с заголовком X-Requested-With
+        // Это стандартный заголовок который добавляют большинство JS библиотек
+        if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) &&
+            strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+            return true;
+        }
         
         $token = $_POST['csrf_token'] ?? null;
         

@@ -83,11 +83,25 @@ class Router
      */
     private function clearParams(array|null $matched): array
     {
-        return array_filter(
+        if ($matched === null) {
+            return [];
+        }
+
+        $filtered = array_filter(
             $matched,
             static fn ($key): bool => !is_int($key),
             ARRAY_FILTER_USE_KEY
         );
+
+        
+        // Преобразуем параметры к соответствующим типам
+        foreach ($filtered as $key => $value) {
+            if (is_string($value) && ctype_digit($value)) {
+                $filtered[$key] = (int) $value;
+            }
+        }
+
+        return $filtered;
     }
 
     private function normalizePath(string $path): string

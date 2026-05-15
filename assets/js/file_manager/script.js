@@ -56,13 +56,74 @@ document.addEventListener('DOMContentLoaded', function() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
+                'X-Requested-With': 'XMLHttpRequest'
             },
             body: `name=${encodeURIComponent(folderName)}&parent_id=${currentFolderId}`
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                location.reload();
+                // Добавляем новую папку в DOM без перезагрузки
+                const filesContainer = document.querySelector('.file-manager__grid');
+                if (filesContainer && data.folder && data.folder.id) {
+                    // Проверяем, есть ли элемент "Папка пуста" и удаляем его
+                    const emptyMessage = document.querySelector('.file-manager__empty');
+                    if (emptyMessage) {
+                        emptyMessage.remove();
+                    }
+
+                    const folderHtml = `
+                        <div class="file-manager__item" data-id="${data.folder.id}" data-type="folder" data-name="${escapeHtml(data.folder.name)}">
+                            <div class="file-manager__item-icon">
+                                <i class="fa fa-folder"></i>
+                            </div>
+                            <div class="file-manager__item-name">${escapeHtml(data.folder.name)}</div>
+                            <div class="file-manager__item-meta">Папка</div>
+                            <div class="file-manager__item-actions">
+                                <a href="/files/folder/${data.folder.id}/" class="file-manager__action-btn" title="Открыть">
+                                    <i class="fa fa-folder-open"></i>
+                                </a>
+                                <button class="file-manager__action-btn file-manager__action-btn--rename btn-rename" title="Переименовать">
+                                    <i class="fa fa-edit"></i>
+                                </button>
+                                <button class="file-manager__action-btn file-manager__action-btn--delete btn-delete" title="Удалить">
+                                    <i class="fa fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    filesContainer.insertAdjacentHTML('beforeend', folderHtml);
+
+                    // Переназначаем обработчики событий для новых кнопок
+                    const newItem = filesContainer.lastElementChild;
+                    newItem.querySelector('.btn-delete').addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        const item = this.closest('.file-manager__item');
+                        const id = item.dataset.id;
+                        const itemName = item.dataset.name;
+                        if (confirm(`Вы уверены, что хотите удалить "${itemName}"?`)) {
+                            deleteItem(id);
+                        }
+                    });
+
+                    newItem.querySelector('.btn-rename').addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        const item = this.closest('.file-manager__item');
+                        currentItemId = item.dataset.id;
+                        currentItemType = item.dataset.type;
+                        const itemName = item.dataset.name;
+                        renameInput.value = itemName;
+                        renameIdInput.value = currentItemId;
+                        modalRename.classList.add('show');
+                        renameInput.focus();
+                        renameInput.select();
+                    });
+
+                    modalCreateFolder.classList.remove('show');
+                } else {
+                    // Если не удалось добавить в DOM, перезагружаем страницу
+                    location.reload();
+                }
             } else {
                 alert(data.message || 'Ошибка при создании папки');
             }
@@ -101,6 +162,9 @@ document.addEventListener('DOMContentLoaded', function() {
             
             fetch('/files/upload/', {
                 method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
                 body: formData
             })
             .then(response => response.json())
@@ -125,7 +189,8 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.btn-delete').forEach(btn => {
         btn.addEventListener('click', function(e) {
             e.stopPropagation();
-            const item = this.closest('.fm-item');
+            const item = this.closest('.file-manager__item');
+            if (!item) return;
             const fileId = item.dataset.id;
             const fileName = item.dataset.name;
             
@@ -134,6 +199,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-Requested-With': 'XMLHttpRequest'
                     },
                     body: `id=${fileId}`
                 })
@@ -158,7 +224,8 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.btn-rename').forEach(btn => {
         btn.addEventListener('click', function(e) {
             e.stopPropagation();
-            const item = this.closest('.fm-item');
+            const item = this.closest('.file-manager__item');
+            if (!item) return;
             currentItemId = item.dataset.id;
             const itemName = item.dataset.name;
             
@@ -183,6 +250,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-Requested-With': 'XMLHttpRequest'
                 },
                 body: `id=${currentItemId}&name=${encodeURIComponent(newName)}`
             })
@@ -205,7 +273,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // ==================== Media Player ====================
     
-    document.querySelectorAll('.fm-item[data-type="file"]').forEach(item => {
+    document.querySelectorAll('.file-manager__item[data-type="file"]').forEach(item => {
         item.addEventListener('dblclick', function() {
             const fileId = this.dataset.id;
             const fileName = this.dataset.name;

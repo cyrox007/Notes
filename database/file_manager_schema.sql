@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS `user_files` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `uid` VARCHAR(64) UNIQUE DEFAULT NULL COMMENT 'Уникальный идентификатор файла',
     `user_id` INT NOT NULL COMMENT 'Владелец файла',
-    `parent_id` INT DEFAULT 0 COMMENT 'ID родительской папки (0 = корень)',
+    `parent_id` INT DEFAULT NULL COMMENT 'ID родительской папки (NULL = корень)',
     `name` VARCHAR(255) NOT NULL COMMENT 'Имя файла или папки',
     `type` ENUM('file', 'folder') NOT NULL DEFAULT 'file' COMMENT 'Тип: файл или папка',
     `mime_type` VARCHAR(100) DEFAULT NULL COMMENT 'MIME тип файла',
