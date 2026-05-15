@@ -20,6 +20,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // Ace Editor instance
     let editor = null;
     
+    // Helper function to escape HTML
+    function escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
     // Initialize Ace Editor
     if (typeof ace !== 'undefined') {
         editor = ace.edit("code-editor");
