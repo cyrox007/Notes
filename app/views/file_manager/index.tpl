@@ -40,7 +40,7 @@
 				<div class="file-manager__grid">
 					{foreach $files as $file}
 						<div class="file-manager__item" data-id="{$file.id}" data-type="{$file.type}" data-name="{$file.name}"
-                                                        data-extension="{$file.extension}">
+							data-extension="{$file.extension}">
 							<div class="file-manager__item-icon">
 								{if $file.type == 'folder'}
 									<i class="fa fa-folder"></i>
@@ -171,6 +171,24 @@
 			<div class="file-manager__modal-footer">
 				<button class="file-manager__btn file-manager__btn--secondary" id="btn-run-code">Запустить</button>
 				<button class="file-manager__btn file-manager__btn--primary" id="btn-save-code">Сохранить</button>
+			</div>
+		</div>
+	</div>
+
+	<!-- Upload Progress Modal -->
+	<div id="modal-upload-progress" class="file-manager__modal">
+		<div class="file-manager__modal-content">
+			<div class="file-manager__modal-header">
+				<h3>Загрузка файла</h3>
+			</div>
+			<div class="file-manager__modal-body">
+				<div class="upload-progress-item" id="upload-progress-container">
+					<div class="upload-file-name" id="upload-file-name">Файл...</div>
+					<div class="progress-bar">
+						<div class="progress-bar-fill" id="progress-bar-fill"></div>
+					</div>
+					<div class="progress-percent" id="progress-percent">0%</div>
+				</div>
 			</div>
 		</div>
 	</div>
