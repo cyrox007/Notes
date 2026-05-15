@@ -174,6 +174,24 @@
 			</div>
 		</div>
 	</div>
+
+	<!-- Upload Progress Modal -->
+	<div id="modal-upload-progress" class="file-manager__modal">
+		<div class="file-manager__modal-content">
+			<div class="file-manager__modal-header">
+				<h3>Загрузка файла</h3>
+			</div>
+			<div class="file-manager__modal-body">
+				<div class="upload-progress-item" id="upload-progress-container">
+					<div class="upload-file-name" id="upload-file-name">Файл...</div>
+					<div class="progress-bar">
+						<div class="progress-bar-fill" id="progress-bar-fill"></div>
+					</div>
+					<div class="progress-percent" id="progress-percent">0%</div>
+				</div>
+			</div>
+		</div>
+	</div>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.14/ace.js"></script>
 	<script src="/assets/js/file_manager/script.js"></script>
 {/block}

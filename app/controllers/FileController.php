@@ -227,7 +227,8 @@ class FileController extends Controller
 
         // Путь для сохранения
         $uploadDir = getenv('UPLOAD_DIR') ?: 'uploads';
-        $userDir = SITEPATH . DIRECTORY_SEPARATOR . $uploadDir . DIRECTORY_SEPARATOR . $user->id . DIRECTORY_SEPARATOR . 'files' . DIRECTORY_SEPARATOR;
+        $baseDir = SITEPATH;
+        $userDir = $baseDir . DIRECTORY_SEPARATOR . $uploadDir . DIRECTORY_SEPARATOR . $user->id . DIRECTORY_SEPARATOR . 'files' . DIRECTORY_SEPARATOR;
 
         if (!is_dir($userDir)) {
             mkdir($userDir, 0755, true);

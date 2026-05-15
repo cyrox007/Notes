@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const modalRename = document.getElementById('modal-rename');
     const modalPlayer = document.getElementById('media-player-modal');
     const modalEditor = document.getElementById('code-editor-modal');
+    const modalUploadProgress = document.getElementById('modal-upload-progress');
     
     // Current folder context
     let currentFolderId = 0;
@@ -163,30 +164,66 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function uploadFiles(files) {
+        const modalUploadProgress = document.getElementById('modal-upload-progress');
+        const progressBarFill = document.getElementById('progress-bar-fill');
+        const progressPercent = document.getElementById('progress-percent');
+        const uploadFileName = document.getElementById('upload-file-name');
+        
         Array.from(files).forEach(file => {
             const formData = new FormData();
             formData.append('file', file);
             formData.append('parent_id', currentFolderId);
             
-            fetch('/files/upload/', {
-                method: 'POST',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert(data.message || 'Ошибка при загрузке файла: ' + file.name);
+            // Показываем модальное окно прогресса
+            uploadFileName.textContent = file.name;
+            progressBarFill.style.width = '0%';
+            progressPercent.textContent = '0%';
+            showModal(modalUploadProgress);
+            
+            const xhr = new XMLHttpRequest();
+            
+            xhr.open('POST', '/files/upload/', true);
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+            
+            // Отслеживаем прогресс загрузки
+            xhr.upload.onprogress = function(e) {
+                if (e.lengthComputable) {
+                    const percentComplete = Math.round((e.loaded / e.total) * 100);
+                    progressBarFill.style.width = percentComplete + '%';
+                    progressPercent.textContent = percentComplete + '%';
                 }
-            })
-            .catch(error => {
-                console.error('Error:', error);
+            };
+            
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        if (data.success) {
+                            // Успешная загрузка - перезагружаем страницу
+                            setTimeout(function() {
+                                hideModal(modalUploadProgress);
+                                location.reload();
+                            }, 500);
+                        } else {
+                            hideModal(modalUploadProgress);
+                            alert(data.message || 'Ошибка при загрузке файла: ' + file.name);
+                        }
+                    } catch (e) {
+                        hideModal(modalUploadProgress);
+                        alert('Ошибка при загрузке файла: ' + file.name);
+                    }
+                } else {
+                    hideModal(modalUploadProgress);
+                    alert('Ошибка при загрузке файла: ' + file.name);
+                }
+            };
+            
+            xhr.onerror = function() {
+                hideModal(modalUploadProgress);
                 alert('Ошибка при загрузке файла: ' + file.name);
-            });
+            };
+            
+            xhr.send(formData);
         });
         
         fileInput.value = '';
@@ -497,16 +534,16 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Close modals
-    document.querySelectorAll('.fm-modal-close, .modal-cancel').forEach(btn => {
+    document.querySelectorAll('.file-manager__modal-close, .modal-cancel').forEach(btn => {
         btn.addEventListener('click', function() {
-            const modal = this.closest('.fm-modal');
+            const modal = this.closest('.file-manager__modal');
             hideModal(modal);
         });
     });
     
     // Close modal on outside click
     window.addEventListener('click', function(e) {
-        if (e.target.classList.contains('fm-modal')) {
+        if (e.target.classList.contains('file-manager__modal')) {
             hideModal(e.target);
         }
     });
