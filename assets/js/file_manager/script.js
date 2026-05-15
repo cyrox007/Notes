@@ -189,7 +189,8 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.btn-delete').forEach(btn => {
         btn.addEventListener('click', function(e) {
             e.stopPropagation();
-            const item = this.closest('.fm-item');
+            const item = this.closest('.file-manager__item');
+            if (!item) return;
             const fileId = item.dataset.id;
             const fileName = item.dataset.name;
             
@@ -223,7 +224,8 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.btn-rename').forEach(btn => {
         btn.addEventListener('click', function(e) {
             e.stopPropagation();
-            const item = this.closest('.fm-item');
+            const item = this.closest('.file-manager__item');
+            if (!item) return;
             currentItemId = item.dataset.id;
             const itemName = item.dataset.name;
             
@@ -271,7 +273,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // ==================== Media Player ====================
     
-    document.querySelectorAll('.fm-item[data-type="file"]').forEach(item => {
+    document.querySelectorAll('.file-manager__item[data-type="file"]').forEach(item => {
         item.addEventListener('dblclick', function() {
             const fileId = this.dataset.id;
             const fileName = this.dataset.name;
