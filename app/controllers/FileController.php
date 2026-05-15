@@ -50,7 +50,7 @@ class FileController extends Controller {
     /**
      * Просмотр содержимого папки
      */
-    public function folder(Request $request, int $folderId): void {
+    public function folder(Request $request, int $folderId = 0): void {
         $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
         
         if (!$user) {
