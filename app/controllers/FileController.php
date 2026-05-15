@@ -227,7 +227,7 @@ class FileController extends Controller
 
         // Путь для сохранения
         $uploadDir = getenv('UPLOAD_DIR') ?: 'uploads';
-        $userDir = SITEPATH . '/' . $uploadDir . '/' . $user->id . '/files/';
+        $userDir = SITEPATH . DIRECTORY_SEPARATOR . $uploadDir . DIRECTORY_SEPARATOR . $user->id . DIRECTORY_SEPARATOR . 'files' . DIRECTORY_SEPARATOR;
 
         if (!is_dir($userDir)) {
             mkdir($userDir, 0755, true);
@@ -236,7 +236,7 @@ class FileController extends Controller
         // Уникальное имя файла
         $uniqueName = uniqid() . '_' . $fileName;
         $filePath = $userDir . $uniqueName;
-        $relativePath = '/' . $uploadDir . '/' . $user->id . '/files/' . $uniqueName;
+        $relativePath = DIRECTORY_SEPARATOR . $uploadDir . DIRECTORY_SEPARATOR . $user->id . DIRECTORY_SEPARATOR . 'files' . DIRECTORY_SEPARATOR . $uniqueName;
 
         try {
             if (!move_uploaded_file($file['tmp_name'], $filePath)) {
