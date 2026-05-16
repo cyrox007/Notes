@@ -421,7 +421,7 @@ class FileController extends Controller
             ->where('is_deleted', '=', 0)
             ->first();
 
-        if (!$file || $file->type !== 'file') {
+        if (!$file || $file->type === 'folder') {
             http_response_code(404);
             echo 'File not found';
             return;

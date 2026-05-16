@@ -18,7 +18,7 @@
 
 			<div class="file-manager__actions">
 				<button id="btn-create-folder" class="file-manager__btn file-manager__btn--primary">
-					<i class="fa fa-folder-plus"></i> Новая папка
+					<i class="fa fa-folder"></i> Новая папка
 				</button>
 				<button id="btn-upload-file" class="file-manager__btn file-manager__btn--success">
 					<i class="fa fa-upload"></i> Загрузить файл
@@ -196,6 +196,6 @@
 			</div>
 		</div>
 	</div>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.14/ace.js"></script>
+	{* <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.14/ace.js"></script> *}
 	<script src="/assets/js/file_manager/script.js"></script>
 {/block}
