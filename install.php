@@ -224,8 +224,9 @@ function writeEnvFile($data) {
         $data['unique_key'] = bin2hex(random_bytes(32));
     }
 
-    $upload_dir = $base_path . '/uploads/messenger';
+    $upload_dir = $base_path . '/uploads/file_manager';
     $notes_upload_dir = $base_path . '/uploads/notes';
+    $messenger_upload_dir = $base_path . '/uploads/messenger';
 
     $content = <<<ENV
 # ============================================
@@ -253,6 +254,7 @@ UNIQUE_KEY={$data['unique_key']}
 # --------------------------------------------
 UPLOAD_DIR={$upload_dir}
 NOTES_UPLOAD_DIR={$notes_upload_dir}
+MESSENGER_UPLOAD_DIR={$messenger_upload_dir}
 
 # --------------------------------------------
 # Ограничения на загрузку файлов
