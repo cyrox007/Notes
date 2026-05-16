@@ -15,10 +15,12 @@
 	<link rel="stylesheet" href="/assets/font-awesome/css/font-awesome.min.css">
 	<link rel="icon" href="/favicon.ico" type="image/x-icon">
 	<link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+	<link rel="stylesheet" href="/assets/css/messenger.css">
 	<script>
 		wspace = {};
 		{include file="core/common.js"}
 	</script>
+	<script src="/assets/js/messenger.js"></script>
 </head>
 
 <body>

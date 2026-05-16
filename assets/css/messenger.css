@@ -1,0 +1,488 @@
+.messenger {
+  /* display: inline-block; */
+  position: relative;
+  width: 100%;
+  max-height: 100%;
+  height: 100%;
+  display: flex;
+  overflow: hidden;
+  background: transparent;
+  color: #475466;
+}
+.messenger__dialog-list {
+  position: relative;
+  max-width: 350px;
+  width: 100%;
+  height: 100%;
+  background-color: #ebedf0;
+}
+.messenger__dialog-list__header {
+  width: 100%;
+  height: 125px;
+  padding: 0px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: center;
+  border: 0px solid #DADEE0;
+  border-width: 0px 1px 1px 0px;
+}
+.messenger__dialog-list__header--btn {
+  width: 100%;
+  text-align: right;
+}
+.messenger__dialog-list__header--btn button {
+  background: #1CA1C1;
+  color: #FFFFFF;
+  font-size: 16px;
+  border: none;
+  border-radius: 2px;
+  padding: 8px;
+}
+.messenger__dialog-list__header--search {
+  position: relative;
+  width: 100%;
+  text-align: center;
+}
+.messenger__dialog-list__header--search input {
+  height: 32px;
+  width: 100%;
+  padding: 0 12px;
+  padding-right: 27px;
+  background: transparent;
+  border: 1px solid #DADEE0;
+  border-color: #CCD7E6;
+  color: #475466;
+}
+.messenger__dialog-list__header--search span {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: auto;
+  width: 32px;
+  height: 32px;
+  color: #94A1B3;
+  cursor: pointer;
+}
+.messenger__dialog-list__header--search span i {
+  font-size: 20px;
+}
+.messenger__dialog-list__items {
+  display: flex;
+  flex-direction: column;
+}
+.messenger__dialog-list__item {
+  width: auto;
+  height: 76px;
+  padding: 14px 24px 14px 21px;
+  display: flex;
+  cursor: pointer;
+  background-color: transparent;
+  border: 1px solid transparent;
+  border-left: 3px solid transparent;
+  border-bottom-color: #CCD7E6;
+  transition: background-color 0.5s ease, border 0.5s ease;
+}
+.messenger__dialog-list__item:hover {
+  background-color: white;
+}
+.messenger__dialog-list__item.selected {
+  background-color: white;
+  border-left-color: #1CA1C1;
+}
+.messenger__dialog-list__item--img {
+  width: 48px;
+  height: 48px;
+}
+.messenger__dialog-list__item--img img {
+  width: 100%;
+  height: auto;
+}
+.messenger__dialog-list__item--body {
+  margin-left: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.messenger__dialog-list__item--header {
+  display: flex;
+  justify-content: space-between;
+}
+.messenger__dialog-window {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: white;
+}
+.messenger__dialog-window__header {
+  width: 100%;
+  height: 68px;
+  padding: 12px 25px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  border-bottom: 1px solid #CCD7E6;
+}
+.messenger__dialog-window__header--img {
+  width: 44px;
+  height: 44px;
+}
+.messenger__dialog-window__header--img img {
+  width: 100%;
+  height: auto;
+}
+.messenger__dialog-window__header--body {
+  margin-left: 11px;
+}
+.messenger__dialog-window__viewer {
+  flex: 1;
+}
+.messenger__dialog-window__messages {
+  display: flex;
+  flex-direction: column;
+  overflow: scroll;
+  height: calc(100vh - 71px - 68px - 64px - 54px);
+  max-height: calc(100vh - 50px);
+}
+.messenger__dialog-window__message {
+  width: 100%;
+  display: flex;
+  justify-content: start;
+  padding: 5px 15px;
+  margin-top: 24px;
+}
+.messenger__dialog-window__message_wrapper {
+  width: 80%;
+  display: flex;
+  flex-direction: row;
+}
+.messenger__dialog-window__message--img {
+  min-width: 40px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+}
+.messenger__dialog-window__message--img img {
+  width: 100%;
+  height: auto;
+}
+.messenger__dialog-window__message--data {
+  width: 100%;
+  margin-left: 15px;
+  margin-right: 0;
+  padding: 10px 20px 20px;
+  border-radius: 8px;
+  background-color: #F4F5F9;
+}
+.messenger__dialog-window__message--data_header {
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+}
+.messenger__dialog-window__message--data_content {
+  margin-top: 8px;
+}
+.messenger__dialog-window__message[data-status=unread] {
+  background-color: #F4F5F9;
+}
+.messenger__dialog-window__message[data-direction=me] {
+  justify-content: end;
+}
+.messenger__dialog-window__message[data-direction=me] > .messenger__dialog-window__message_wrapper {
+  flex-direction: row-reverse;
+}
+.messenger__dialog-window__message[data-direction=me] > .messenger__dialog-window__message_wrapper .messenger__dialog-window__message--data {
+  margin-left: 0;
+  margin-right: 15px;
+}
+.messenger__dialog-window__control {
+  max-height: 71px;
+  display: flex;
+  flex-direction: column;
+  padding: 15px;
+  border-top: 1px solid #CCD7E6;
+}
+.messenger__dialog-window__control_panel {
+  display: flex;
+}
+.messenger__dialog-window__control--file {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+  font-size: 26px;
+  cursor: pointer;
+}
+.messenger__dialog-window__control--message {
+  height: 40px;
+  width: 100%;
+}
+.messenger__dialog-window__control--message input {
+  width: 100%;
+  height: 100%;
+  padding: 9px 13px;
+  border: 1px solid #ebeef1;
+  border-radius: 4px;
+}
+.messenger__dialog-window__control--send {
+  width: 40px;
+  height: 40px;
+  margin-left: 8px;
+  cursor: pointer;
+}
+.messenger__dialog-window__control--send button {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  background: none;
+  border: none;
+}
+
+/* Стили для модального окна создания диалога */
+.new-dialog-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.new-dialog-modal-content {
+  background-color: white;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 80vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.new-dialog-modal-header {
+  padding: 20px;
+  border-bottom: 1px solid #CCD7E6;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.new-dialog-modal-header h3 {
+  margin: 0;
+  color: #475466;
+}
+
+.close-modal {
+  font-size: 24px;
+  cursor: pointer;
+  color: #94A1B3;
+}
+
+.close-modal:hover {
+  color: #475466;
+}
+
+.new-dialog-modal-body {
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.search-user-input {
+  width: 100%;
+  padding: 10px 15px;
+  border: 1px solid #CCD7E6;
+  border-radius: 4px;
+  margin-bottom: 15px;
+  font-size: 14px;
+}
+
+.users-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.user-item {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid #ebedf0;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.user-item:hover {
+  background-color: #f5f5f5;
+}
+
+.user-item img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  margin-right: 15px;
+  object-fit: cover;
+}
+
+.user-item span {
+  flex: 1;
+  color: #475466;
+}
+
+.dialog-exists {
+  color: #94A1B3;
+  font-size: 12px;
+}
+
+.create-dialog-btn {
+  background: #1CA1C1;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.create-dialog-btn:hover {
+  background: #158ba8;
+}
+
+/* Стили для пустого состояния списка диалогов */
+.messenger__empty {
+  padding: 20px;
+  text-align: center;
+  color: #94A1B3;
+}
+
+/* Улучшенная прокрутка сообщений */
+.messenger__dialog-window__messages {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Анимация появления сообщений */
+.messenger__dialog-window__message {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Стили для индикатора набора текста */
+.messenger__dialog-window__control_typing span {
+  color: #94A1B3;
+  font-size: 13px;
+  font-style: italic;
+}
+
+/* Стили для placeholder экрана */
+.messenger__placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background-color: #f8f9fa;
+}
+
+.messenger__placeholder-content {
+  text-align: center;
+  color: #94A1B3;
+}
+
+.messenger__placeholder-content i {
+  font-size: 64px;
+  margin-bottom: 16px;
+  display: block;
+}
+
+.messenger__placeholder-content p {
+  font-size: 16px;
+  margin: 0;
+}
+
+.messenger__viewer {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+}
+
+/* Улучшенные стили для заголовка чата */
+.chat-status {
+  font-size: 12px;
+  color: #94A1B3;
+  display: block;
+  margin-top: 4px;
+}
+
+.chat-status.online {
+  color: #28a745;
+}
+
+.chat-status.offline {
+  color: #94A1B3;
+}
+
+/* Улучшенная прокрутка */
+.messenger__dialog-window__messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.messenger__dialog-window__messages::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.messenger__dialog-window__messages::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.messenger__dialog-window__messages::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+  .messenger__dialog-list {
+    max-width: 100%;
+  }
+  
+  .messenger__dialog-window {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+  }
+  
+  .messenger__dialog-window.active {
+    transform: translateX(0);
+  }
+}
