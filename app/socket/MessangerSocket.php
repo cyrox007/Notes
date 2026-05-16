@@ -69,7 +69,7 @@ class MessangerSocket {
             'messages.edited_at',
             'users.uid',
             'users.firstname',
-            'users.surname',
+            'users.lastname',
             'users.user_image'
         )
         ->where('messages.dialog_id', '=', $dialog->id)
@@ -106,9 +106,9 @@ class MessangerSocket {
             'dialogs.name',
             'dialogs.updated_at'
         )
-        ->innerJoin([UserToDialogsModel::class, 'user_to_dialogs'], 'dialogs.id', '=', 'user_to_dialogs.dialog_id')
-        ->where('user_to_dialogs.user_id', '=', $user->id)
-        ->where('user_to_dialogs.is_deleted', '=', 0)
+        ->innerJoin([UserToDialogsModel::class, 'dialog_users'], 'dialogs.id', '=', 'dialog_users.dialog_id')
+        ->where('dialog_users.user_id', '=', $user->id)
+        ->where('dialog_users.is_deleted', '=', 0)
         ->orderBy('dialogs.updated_at', 'DESC')
         ->get();
         
@@ -133,17 +133,17 @@ class MessangerSocket {
                 // Находим собеседника
                 $partner = UserToDialogsModel::select(
                     'users.firstname',
-                    'users.surname',
+                    'users.lastname',
                     'users.user_image',
                     'users.uid as user_uid'
                 )
-                ->innerJoin([UserModel::class, 'users'], 'user_to_dialogs.user_id', '=', 'users.id')
-                ->where('user_to_dialogs.dialog_id', '=', $dialog['dialog_id'])
-                ->where('user_to_dialogs.user_id', '!=', $user->id)
+                ->innerJoin([UserModel::class, 'users'], 'dialog_users.user_id', '=', 'users.id')
+                ->where('dialog_users.dialog_id', '=', $dialog['dialog_id'])
+                ->where('dialog_users.user_id', '!=', $user->id)
                 ->first();
                 
                 $dialog['partner'] = $partner;
-                $dialog['title'] = $partner ? ($partner['firstname'] . ' ' . $partner['surname']) : 'Неизвестный';
+                $dialog['title'] = $partner ? ($partner['firstname'] . ' ' . $partner['lastname']) : 'Неизвестный';
                 $dialog['avatar'] = $partner['user_image'] ?? null;
             } else {
                 // Для группы - название или "Групповой чат"
@@ -207,11 +207,11 @@ class MessangerSocket {
         if ($type === 'private' && count($participants) == 2) {
             sort($participants);
             $existingDialog = DialogModel::select('dialogs.uid')
-                ->innerJoin([UserToDialogsModel::class, 'user_to_dialogs'], 'dialogs.id', '=', 'user_to_dialogs.dialog_id')
+                ->innerJoin([UserToDialogsModel::class, 'dialog_users'], 'dialogs.id', '=', 'dialog_users.dialog_id')
                 ->where('dialogs.type', '=', 'private')
-                ->whereIn('user_to_dialogs.user_id', $participants)
+                ->whereIn('dialog_users.user_id', $participants)
                 ->groupBy('dialogs.id')
-                ->havingRaw('COUNT(DISTINCT user_to_dialogs.user_id) = 2')
+                ->havingRaw('COUNT(DISTINCT dialog_users.user_id) = 2')
                 ->first();
 
             if ($existingDialog) {
@@ -258,7 +258,7 @@ class MessangerSocket {
                 'user_id' => $pid,
                 'role' => $role,
                 'joined_at' => $current_date
-            ], 'user_to_dialogs');
+            ], 'dialog_users');
         }
 
         $dbManager->commit();
@@ -433,7 +433,7 @@ class MessangerSocket {
             'messages.media_url',
             'messages.is_deleted',
             'users.firstname',
-            'users.surname',
+            'users.lastname',
             'users.user_image',
             'users.uid as user_uid'
         )->where('messages.id', '=', $insertedIds[0])

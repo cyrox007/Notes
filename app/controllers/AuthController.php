@@ -81,11 +81,9 @@ class AuthController extends Controller {
         if($_SERVER['REQUEST_METHOD'] == 'POST') {
             // Собираем данные
             $user_login = $request->post('login');
-            $user_password = CryptMethods::createHashFromPassword($request->post('password'));
+            $user_password = CryptMethods::hashPassword($request->post('password'));
             $user_firstname = $request->post('first_name');
-            $user_patronymic = $request->post('patronymic');
-            $user_lastname = $request->post('surname');
-            $user_phone = $request->post('user_phone');
+            $user_lastname = $request->post('lastname');
             $user_email = $request->post('email');
             $user_role = $this->config->user_role_activate ?? 888;
             $user_photo = 'default_img';
@@ -112,17 +110,14 @@ class AuthController extends Controller {
 
             // Создаем нового пользователя
             $newUser = new UserModel();
-            $newUser->uid = \App\Helpers\UUID::v4();
             $newUser->username = $user_login;
             $newUser->email = $user_email;
             $newUser->password_hash = $user_password;
             $newUser->firstname = $user_firstname;
-            $newUser->patronymic = $user_patronymic;
             $newUser->lastname = $user_lastname;
-            $newUser->phone = $user_phone;
             $newUser->role = $user_role;
-            $newUser->user_image = $user_photo;
-            $newUser->property = json_encode([]);
+            $newUser->avatar = $user_photo;
+            //$newUser->property = json_encode([]);
             
             $dbManager = DatabaseManager::getInstance();
             $dbManager->queueInsert((array)$newUser, 'users');

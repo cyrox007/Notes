@@ -69,7 +69,7 @@ class ProfileController extends Controller {
         return [
             'firstname' => trim($postData['set-user-name']),
             'patronymic' => trim($postData['set-user-patronymic']),
-            'surname' => trim($postData['set-user-surname']),
+            'lastname' => trim($postData['set-user-surname']),
             'phone' => $phone,
             'email' => $email,
             'user_image' => $user->user_image

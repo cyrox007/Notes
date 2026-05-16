@@ -4,7 +4,7 @@ namespace App\Models;
 use Core\ORM;
 
 class UserToDialogsModel extends ORM {
-    protected ?string $_tablename = 'user_to_dialogs';
+    protected ?string $_tablename = 'dialog_users';
 
     public int $id = 0;
     public int $dialog_id = 0;

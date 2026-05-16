@@ -18,11 +18,11 @@ class MessagerController extends Controller {
 		$userToDialogs = UserToDialogsModel::select(
             'dialogs.uid',
             'users.firstname',
-            'users.surname'
+            'users.lastname'
         )
-        ->innerJoin([DialogModel::class, 'dialogs'], 'user_to_dialogs.dialog_id', '=', 'dialogs.id')  // Получаем данные из таблицы dialogs
-        ->innerJoin([UserModel::class, 'users'], 'user_to_dialogs.user_id', '!=', 'users.id')  // вытаскиваем данные о пользователе
-        ->where('user_to_dialogs.user_id', '=', $user->id)
+        ->innerJoin([DialogModel::class, 'dialogs'], 'dialog_users.dialog_id', '=', 'dialogs.id')  // Получаем данные из таблицы dialogs
+        ->innerJoin([UserModel::class, 'users'], 'dialog_users.user_id', '=', 'users.id')  // вытаскиваем данные о пользователе
+        ->where('dialog_users.user_id', '=', $user->id)
         ->get();
 
 		$allUsers = $userModel->select()->where('id', '!=', $user->id)->get();
