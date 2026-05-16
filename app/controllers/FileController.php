@@ -343,7 +343,7 @@ class FileController extends Controller
 
             // Если это файл, удаляем физически
             if ($file->type === 'file' && !empty($file->path)) {
-                $fullPath = SITEPATH . $file->path;
+                $fullPath = rtrim(SITEPATH, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . ltrim($file->path, DIRECTORY_SEPARATOR);
                 if (file_exists($fullPath)) {
                     unlink($fullPath);
                 }
@@ -427,7 +427,7 @@ class FileController extends Controller
             return;
         }
 
-        $fullPath = SITEPATH . $file->path;
+        $fullPath = rtrim(SITEPATH, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . ltrim($file->path, DIRECTORY_SEPARATOR);
 
         if (!file_exists($fullPath)) {
             http_response_code(404);
