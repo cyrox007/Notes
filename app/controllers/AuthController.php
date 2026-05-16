@@ -84,7 +84,7 @@ class AuthController extends Controller {
             $user_password = CryptMethods::createHashFromPassword($request->post('password'));
             $user_firstname = $request->post('first_name');
             $user_patronymic = $request->post('patronymic');
-            $user_lastname = $request->post('surname');
+            $user_lastname = $request->post('last_name');
             $user_phone = $request->post('user_phone');
             $user_email = $request->post('email');
             $user_role = $this->config->user_role_activate ?? 888;
