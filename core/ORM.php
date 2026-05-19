@@ -142,7 +142,15 @@ abstract class ORM {
      * Добавляет INNER JOIN
      * @param JoinDefinition $model
      */
-    public function innerJoin(array $model, string $on, string $operator, string $equals): static {
+    public function innerJoin(array|string $model, string $on, string $operator, string $equals, array $selectColumns = [], ?string $tableAlias = null): static {
+        if (is_array($model)) {
+            [$modelClass, $modelName] = $model;
+            $tableName = (new $modelClass())->_tablename;
+        } else {
+            // Если передана строка (имя таблицы), используем её напрямую
+            $tableName = $model;
+            $modelName = $tableAlias ?? $model;
+        }
         [$modelClass, $modelName] = $model;
         $tableName = (new $modelClass())->_tablename;
         $this->joins[$modelName] = "INNER JOIN {$tableName} AS {$modelName} ON {$on} {$operator} {$equals}";
@@ -585,5 +593,58 @@ abstract class ORM {
     private function maskSql(string $sql): string {
         // Можно добавить дополнительную обработку для чувствительных данных
         return $sql;
+    }
+    
+    /**
+     * Выполняет SELECT с raw SQL выражением (например, COUNT(*))
+     * @param string $expression Raw SQL выражение (например, 'COUNT(*) as count')
+     * @return static
+     */
+    public static function selectRaw(string $expression): static {
+        $instance = new static();
+        $instance->columns = [$expression];
+        $instance->log("[selectRaw] Начало выборки из {$instance->_tablename}, выражение: {$expression}", ORMLogLevel::INFO);
+        return $instance;
+    }
+
+    /**
+     * Добавляет WHERE IN условие
+     * @param string $col Название колонки
+     * @param array<int|string> $values Массив значений для IN
+     * @return static
+     */
+    public function whereIn(string $col, array $values): static {
+        if (empty($values)) {
+            $prefix = empty($this->whereConditions) ? 'WHERE' : 'AND';
+            $this->whereConditions[] = "{$prefix} 1=0";
+            $this->log("[whereIn] Пустой массив значений, добавлено условие 1=0", ORMLogLevel::DEBUG);
+            return $this;
+        }
+
+        $placeholders = [];
+        foreach ($values as $index => $value) {
+            $placeholder = ":{$col}_in_{$index}_" . count($this->params);
+            $placeholders[] = $placeholder;
+            $this->params[$placeholder] = $value;
+        }
+
+        $prefix = empty($this->whereConditions) ? 'WHERE' : 'AND';
+        $this->whereConditions[] = "{$prefix} {$col} IN (" . implode(', ', $placeholders) . ")";
+        $this->log("[whereIn] Добавлено условие: {$col} IN (...)", ORMLogLevel::DEBUG);
+        return $this;
+    }
+
+    /**
+     * Добавляет HAVING с raw SQL выражением
+     * @param string $expression Raw SQL выражение для HAVING
+     * @return static
+     */
+    public function havingRaw(string $expression): static {
+        $this->groupBy = $this->groupBy ?? '';
+        // Сохраняем having выражение отдельно, оно будет добавлено в buildQuery после GROUP BY
+        // Для простоты добавляем его прямо в whereConditions с префиксом HAVING
+        $this->whereConditions[] = "HAVING {$expression}";
+        $this->log("[havingRaw] Добавлено HAVING условие: {$expression}", ORMLogLevel::DEBUG);
+        return $this;
     }
 }
