@@ -21,12 +21,7 @@ composer.lock
 .vscode/
 .idea/
 
-# Backup and swap files
-*~
-*.bak
-*.orig
-
-# OS specific
+# OS generated files
 .DS_Store
 Thumbs.db
 ```
