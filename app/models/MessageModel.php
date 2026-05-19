@@ -15,4 +15,8 @@ class MessageModel extends ORM {
     public ?string $created_at = '';
     public ?string $updated_at = '';
     public ?string $message_status = '';
+    public ?string $message_type = 'text';
+    public ?string $media_url = '';
+    public int $is_deleted = 0;
+    public ?string $edited_at = null;
 }
