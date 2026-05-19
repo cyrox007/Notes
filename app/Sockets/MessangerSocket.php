@@ -465,6 +465,19 @@ class MessangerSocket {
                     'dialog_uid' => $dialog_uid,
                     'message' => $addedMessage
                 ]));
+                
+                // Отправляем уведомление о новом сообщении для браузерных нотификаций
+                if ($participant['u_uid'] !== $user_uid) {
+                    $conns[$participant['u_uid']]->send(json_encode([
+                        'action' => 'new_message',
+                        'data' => [
+                            'from_id' => $user_uid,
+                            'dialog_uid' => $dialog_uid,
+                            'text' => $content,
+                            'created_at' => $current_date
+                        ]
+                    ], JSON_UNESCAPED_UNICODE));
+                }
             }
         }
         return;
@@ -621,6 +634,27 @@ class MessangerSocket {
         }
 
         $conn->send($notification);
+    }
+
+    /**
+     * Получение количества непрочитанных сообщений
+     */
+    public function get_unread_count(array $conns, TcpConnection $conn, string $user_uid) {
+        $messageModel = new MessageModel();
+        
+        // Получаем количество непрочитанных сообщений для пользователя
+        $unreadCount = $messageModel->select()
+            ->where('message_status', '=', 'sent')
+            ->andWhere('to_id', '=', $user_uid)
+            ->count();
+        
+        $conn->send(json_encode([
+            'action' => 'unread_update',
+            'data' => [
+                'count' => (int)$unreadCount,
+                'user_id' => $user_uid
+            ]
+        ], JSON_UNESCAPED_UNICODE));
     }
 
 }

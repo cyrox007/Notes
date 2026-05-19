@@ -206,8 +206,25 @@ function playNotificationSound() {
 	// audio.play().catch(e => console.log('Sound play failed:', e));
 }
 
-// Запрашиваем разрешение на уведомления при загрузке
+// Запрашиваем разрешение на уведомления только по действию пользователя (исправление ошибки Firefox)
+// Браузеры требуют пользовательского жеста для запроса разрешений
 if (typeof Notification !== 'undefined' && Notification.permission === "default") {
-	Notification.requestPermission();
+    // Создаем функцию для запроса разрешений, которую можно вызвать по клику
+    window.requestNotificationPermission = function() {
+        Notification.requestPermission().then(permission => {
+            console.log('Notification permission:', permission);
+        });
+    };
+    
+    // Добавляем кнопку для запроса разрешений если есть элемент с id 'notification-permission-btn'
+    document.addEventListener('DOMContentLoaded', function() {
+        const btn = document.getElementById('notification-permission-btn');
+        if (btn) {
+            btn.addEventListener('click', function() {
+                window.requestNotificationPermission();
+                btn.style.display = 'none';
+            });
+        }
+    });
 }
 {/literal}

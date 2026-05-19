@@ -3,6 +3,11 @@
 	Мессенджер
 {/block}
 {block name=body}
+	<!-- Кнопка запроса разрешений на уведомления (скрыта по умолчанию) -->
+	<button id="notification-permission-btn" class="notification-permission-btn" style="display: none;" title="Разрешить уведомления">
+		<i class="fa fa-bell"></i> Включить уведомления
+	</button>
+
 	<section class="messenger">
 		<div class="messenger__dialog-list">
 			<header class="messenger__dialog-list__header">
@@ -109,6 +114,14 @@
 		};
 
 		document.addEventListener('DOMContentLoaded', function () {
+			// Показываем кнопку запроса разрешений если уведомления не разрешены
+			if (typeof Notification !== 'undefined' && Notification.permission === "default") {
+				const permBtn = document.getElementById('notification-permission-btn');
+				if (permBtn) {
+					permBtn.style.display = 'block';
+				}
+			}
+			
 			// Инициализация мессенджера если WebSocket доступен
 			if (wspace.core && wspace.core.data && wspace.core.data.socket) {
 				var messenger = new MessengerConnect();
