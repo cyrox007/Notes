@@ -1,4 +1,4 @@
-{ literal }
+{literal}
 const user_id = "{/literal}{$user['id']}{literal}";
 
 // Глобальный объект для хранения состояния WebSocket
@@ -227,4 +227,4 @@ if (typeof Notification !== 'undefined' && Notification.permission === "default"
 	});
 }
 
-{/literal }
+{/literal}

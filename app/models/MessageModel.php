@@ -9,14 +9,15 @@ class MessageModel extends ORM {
 
     public int $id = 0;
     public ?string $uid = null;
-    public int $from_user_id = 0;
     public int $dialog_id = 0;
-    public ?string $message = '';
-    public ?string $created_at = '';
-    public ?string $updated_at = '';
-    public ?string $message_status = '';
-    public ?string $message_type = 'text';
-    public ?string $media_url = '';
+    public int $sender_id = 0;
+    public ?string $content = '';
+    public ?string $content_type = 'text';
+    public ?string $meta_data = null;
+    public ?string $message_status = 'sent';
     public int $is_deleted = 0;
     public ?string $edited_at = null;
+    public ?string $deleted_at = null;
+    public ?string $created_at = '';
+    public ?string $updated_at = '';
 }
