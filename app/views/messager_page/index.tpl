@@ -1,8 +1,12 @@
 {extends file='core/base.tpl'}
-{block name=title}
+{block name="title"}
 	Мессенджер
 {/block}
-{block name=body}
+{block name="body"}
+	<!-- Кнопка запроса разрешений на уведомления (скрыта по умолчанию) -->
+	<button id="notification-permission-btn" class="notification-permission-btn" style="display: none;" title="Разрешить уведомления">
+			<i class="fa fa-bell"></i> Включить уведомления
+	</button>
 	<section class="messenger">
 		<div class="messenger__dialog-list">
 			<header class="messenger__dialog-list__header">
@@ -80,7 +84,5 @@
 			</div>
 		</div>
 	</section>
-	<script>
-		{include file="messager_page/script.js"}
-	</script>
+	<script src="/assets/js/messenger/script.js"></script>
 {/block}

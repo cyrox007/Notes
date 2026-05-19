@@ -442,3 +442,89 @@
 	font-size: 13px;
 	font-style: italic;
 }
+
+/* Стили для placeholder экрана */
+.messenger__placeholder {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: 100%;
+	background-color: #f8f9fa;
+}
+
+.messenger__placeholder-content {
+	text-align: center;
+	color: #94A1B3;
+}
+
+.messenger__placeholder-content i {
+	font-size: 64px;
+	margin-bottom: 16px;
+	display: block;
+}
+
+.messenger__placeholder-content p {
+	font-size: 16px;
+	margin: 0;
+}
+
+.messenger__viewer {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	height: 100%;
+}
+
+/* Улучшенные стили для заголовка чата */
+.chat-status {
+	font-size: 12px;
+	color: #94A1B3;
+	display: block;
+	margin-top: 4px;
+}
+
+.chat-status.online {
+	color: #28a745;
+}
+
+.chat-status.offline {
+	color: #94A1B3;
+}
+
+/* Улучшенная прокрутка */
+.messenger__dialog-window__messages::-webkit-scrollbar {
+	width: 6px;
+}
+
+.messenger__dialog-window__messages::-webkit-scrollbar-track {
+	background: #f1f1f1;
+}
+
+.messenger__dialog-window__messages::-webkit-scrollbar-thumb {
+	background: #c1c1c1;
+	border-radius: 3px;
+}
+
+.messenger__dialog-window__messages::-webkit-scrollbar-thumb:hover {
+	background: #a8a8a8;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+	.messenger__dialog-list {
+		max-width: 100%;
+	}
+
+	.messenger__dialog-window {
+		position: absolute;
+		top: 0;
+		left: 0;
+		transform: translateX(100%);
+		transition: transform 0.3s ease;
+	}
+
+	.messenger__dialog-window.active {
+		transform: translateX(0);
+	}
+}
