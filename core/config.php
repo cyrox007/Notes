@@ -19,7 +19,9 @@ class Config {
         ];
 
         // Инициализация базовых значений конфигурации
-        self::$configValues['SITEURL'] = ((!empty($_SERVER['HTTPS'])) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        self::$configValues['SITEURL'] = $protocol . '://' . $host;
     }
 
     /**
@@ -53,7 +55,9 @@ class Config {
     // хранит адрес сайта
     // вынести в отдельный класс хелпер
     public function base_url() {
-        return ((!empty($_SERVER['HTTPS'])) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        return $protocol . '://' . $host . '/';
     }
 }
 

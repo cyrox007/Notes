@@ -1,4 +1,4 @@
-<?php
+<?php 
 
 class MessagerController {
     private $db;
@@ -34,7 +34,7 @@ class MessagerController {
     public function getDialogs($userId) {
         $stmt = $this->db->prepare("
             SELECT d.*, du.role as my_role, du.last_read_message_id,
-                   (SELECT COUNT(*) FROM messages m 
+                   (SELECT COUNT(*) FROM messages m
                     WHERE m.dialog_id = d.id AND m.sender_id != ? AND m.id > du.last_read_message_id AND m.is_deleted = 0) as unread_count
             FROM dialogs d
             JOIN dialog_users du ON d.id = du.dialog_id
@@ -49,7 +49,7 @@ class MessagerController {
             if ($dialog['type'] === 'private') {
                 // Находим собеседника
                 $stmtUser = $this->db->prepare("
-                    SELECT u.id, u.firstname, u.lastname, u.avatar 
+                    SELECT u.id, u.firstname, u.lastname, u.avatar
                     FROM dialog_users du
                     JOIN users u ON u.id = du.user_id
                     WHERE du.dialog_id = ? AND du.user_id != ?
@@ -76,7 +76,7 @@ class MessagerController {
     public function createDialog($creatorId, $data) {
         $type = $data['type'] ?? 'private';
         $users = $data['users'] ?? [];
-        
+
         if (empty($users)) {
             return ['success' => false, 'message' => 'Нет участников'];
         }
@@ -101,7 +101,7 @@ class MessagerController {
             $this->db->beginTransaction();
 
             $stmt = $this->db->prepare("
-                INSERT INTO dialogs (type, name, created_by, updated_at, created_at) 
+                INSERT INTO dialogs (type, name, created_by, updated_at, created_at)
                 VALUES (?, ?, ?, NOW(), NOW())
             ");
             $stmt->execute([$type, $data['name'] ?? null, $creatorId]);
@@ -109,7 +109,7 @@ class MessagerController {
 
             // Добавляем участников
             $stmtUser = $this->db->prepare("
-                INSERT INTO dialog_users (dialog_id, user_id, role, joined_at) 
+                INSERT INTO dialog_users (dialog_id, user_id, role, joined_at)
                 VALUES (?, ?, ?, NOW())
             ");
 
@@ -140,7 +140,7 @@ class MessagerController {
         }
 
         $stmt = $this->db->prepare("
-            SELECT m.*, u.firstname, u.lastname, u.avatar 
+            SELECT m.*, u.firstname, u.lastname, u.avatar
             FROM messages m
             JOIN users u ON m.sender_id = u.id
             WHERE m.dialog_id = ? AND m.is_deleted = 0
@@ -175,10 +175,10 @@ class MessagerController {
         $encryptedContent = ($type === 'text') ? $this->encryptContent($content) : $content;
 
         $stmt = $this->db->prepare("
-            INSERT INTO messages (dialog_id, sender_id, content, content_type, meta_data, created_at) 
+            INSERT INTO messages (dialog_id, sender_id, content, content_type, meta_data, created_at)
             VALUES (?, ?, ?, ?, ?, NOW())
         ");
-        
+
         $meta = json_encode($extra);
         $stmt->execute([$dialogId, $senderId, $encryptedContent, $type, $meta]);
         $messageId = $this->db->lastInsertId();
@@ -196,8 +196,8 @@ class MessagerController {
         $targetUsers = $stmtUsers->fetchAll(PDO::FETCH_COLUMN);
 
         return [
-            'success' => true, 
-            'message' => $newMessage, 
+            'success' => true,
+            'message' => $newMessage,
             'targets' => $targetUsers
         ];
     }
@@ -252,13 +252,13 @@ class MessagerController {
 
         return ['success' => true, 'targets' => $targets, 'message_id' => $messageId];
     }
-    
+
     /**
      * Обновление статуса прочтения
      */
     public function markAsRead($dialogId, $userId, $maxMessageId) {
         $stmt = $this->db->prepare("
-            UPDATE dialog_users SET last_read_message_id = ? 
+            UPDATE dialog_users SET last_read_message_id = ?
             WHERE dialog_id = ? AND user_id = ?
         ");
         $stmt->execute([$maxMessageId, $dialogId, $userId]);
@@ -270,8 +270,8 @@ class MessagerController {
      */
     public function searchUsers($query, $excludeId) {
         $stmt = $this->db->prepare("
-            SELECT id, firstname, lastname, avatar 
-            FROM users 
+            SELECT id, firstname, lastname, avatar
+            FROM users
             WHERE (firstname LIKE ? OR lastname LIKE ? OR CONCAT(firstname, ' ', lastname) LIKE ?)
             AND id != ?
             LIMIT 10
