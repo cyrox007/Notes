@@ -34,4 +34,14 @@ class UUID
         // Output the 36 character UUID.
         return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
     }
+
+    /**
+     * Алиас для guidv4() - генерирует UUID версии 4
+     * 
+     * @return string UUID формата xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+     */
+    public static function v4(): string
+    {
+        return self::guidv4();
+    }
 }

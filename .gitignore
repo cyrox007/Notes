@@ -1,5 +1,32 @@
-/vendor
-.env
+```
+# Compiled and build artifacts
+*.pyc
+__pycache__/
+
+# Dependencies
+vendor/
+composer.lock
+
+# Logs and temp files
 *.log
-/compile/*
-/uploads/*
+*.tmp
+*.swp
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# Backup and swap files
+*~
+*.bak
+*.orig
+
+# OS specific
+.DS_Store
+Thumbs.db
+```

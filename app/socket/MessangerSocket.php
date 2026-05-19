@@ -301,10 +301,10 @@ class MessangerSocket {
         $user = $userModel->select()->where('uid', '=', $user_uid)->first(true);
 
         $userToDialogsModel = new UserToDialogsModel();
-        $userToDialogs = $userToDialogsModel->select()
+        $userToDialogs = UserToDialogsModel::select('dialog_users.id', 'users.uid as users_uid')
             ->where('dialog_id', '=', $dialog->id)
             ->where('user_id', '!=', $user->id)
-            ->innerJoin('users', 'user_id', 'id', ['uid'])
+            ->innerJoin([UserModel::class, 'users'], 'dialog_users.user_id', '=', 'users.id')
             ->get();
 
         $notification = json_encode([
@@ -330,10 +330,10 @@ class MessangerSocket {
         $user = $userModel->select()->where('uid', '=', $user_uid)->first(true);
     
         $userToDialogsModel = new UserToDialogsModel();
-        $userToDialogs = $userToDialogsModel->select()
+        $userToDialogs = UserToDialogsModel::select('dialog_users.id', 'users.uid as users_uid')
             ->where('dialog_id', '=', $dialog->id)
             ->where('user_id', '!=', $user->id)
-            ->innerJoin('users', 'user_id', 'id', ['uid'])
+            ->innerJoin([UserModel::class, 'users'], 'dialog_users.user_id', '=', 'users.id')
             ->get();
     
         $notification = json_encode([
@@ -453,9 +453,9 @@ class MessangerSocket {
 
         // Получаем всех участников диалога для рассылки
         $userToDialogsModel = new UserToDialogsModel();
-        $users = $userToDialogsModel::select(['id'], 'utd')
+        $users = UserToDialogsModel::select('dialog_users.id', 'users.uid as u_uid')
         ->where('dialog_id', '=', $dialog->id)
-        ->innerJoin('users', 'user_id', 'id', ['uid'], 'u')
+        ->innerJoin([UserModel::class, 'users'], 'dialog_users.user_id', '=', 'users.id')
         ->get();
         
         foreach ($users as $participant) {
@@ -501,9 +501,9 @@ class MessangerSocket {
         $dbManager->commit();
 
         $userToDialogsModel = new UserToDialogsModel();
-        $users = $userToDialogsModel->select(['id'], 'utd')
+        $users = UserToDialogsModel::select('dialog_users.id', 'users.uid as u_uid')
             ->where('dialog_id', '=', $message->dialog_id)
-            ->innerJoin('users', 'user_id', 'id', ['uid'], 'u')
+            ->innerJoin([UserModel::class, 'users'], 'dialog_users.user_id', '=', 'users.id')
             ->get();
 
         foreach ($users as $participant) {
@@ -550,9 +550,9 @@ class MessangerSocket {
         $dbManager->commit();
 
         $userToDialogsModel = new UserToDialogsModel();
-        $users = $userToDialogsModel->select(['id'], 'utd')
+        $users = UserToDialogsModel::select('dialog_users.id', 'users.uid as u_uid')
             ->where('dialog_id', '=', $message->dialog_id)
-            ->innerJoin('users', 'user_id', 'id', ['uid'], 'u')
+            ->innerJoin([UserModel::class, 'users'], 'dialog_users.user_id', '=', 'users.id')
             ->get();
 
         foreach ($users as $participant) {
