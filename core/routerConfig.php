@@ -9,6 +9,7 @@ use App\Controllers\TaskController;
 use App\Controllers\ProfileController;
 use App\Controllers\FileController;
 use App\Controllers\Admin\AdminController;
+use App\Controllers\Admin\SettingsController;
 use App\Controllers\MessagerController;
 use App\Middlewares\LoginRequared;
 use App\Middlewares\IsAdmin;
@@ -87,6 +88,13 @@ $router->group('/admin')
    ->add('POST', '/', [AdminController::class, 'saveCustomFields'], [LoginRequared::class, IsAdmin::class], 'save_custom_fields')
    ->add('POST', '/users/toggle-status', [AdminController::class, 'toggleUserStatus'], [LoginRequared::class, IsAdmin::class], 'admin_toggle_user')
    ->add('POST', '/users/delete', [AdminController::class, 'deleteUser'], [LoginRequared::class, IsAdmin::class], 'admin_delete_user')
+   ->endGroup();
+
+$router->group('/admin/settings')
+   ->add('GET', '/', [SettingsController::class, 'index'], [LoginRequared::class, IsAdmin::class], 'admin_settings')
+   ->add('POST', '/save', [SettingsController::class, 'save'], [LoginRequared::class, IsAdmin::class], 'admin_settings_save')
+   ->add('GET', '/storage-usage', [SettingsController::class, 'storageUsage'], [LoginRequared::class, IsAdmin::class], 'admin_settings_storage_usage')
+   ->add('POST', '/recalculate-storage', [SettingsController::class, 'recalculateUserStorage'], [LoginRequared::class, IsAdmin::class], 'admin_settings_recalculate_storage')
    ->endGroup();
 
 $router->dispatch(); 

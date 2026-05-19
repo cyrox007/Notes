@@ -55,6 +55,40 @@
   transform: translateY(5px);
 }
 
+.navbar__messenger-link {
+  position: relative;
+}
+
+.messenger-badge {
+  position: absolute;
+  top: 5px;
+  right: -5px;
+  background-color: #ff4444;
+  color: white;
+  border-radius: 50%;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: bold;
+  min-width: 18px;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.notification-popup__close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 5px;
+  margin-left: 10px;
+  color: var(--color-grey);
+  font-size: 18px;
+  transition: color 0.2s;
+}
+
+.notification-popup__close:hover {
+  color: var(--color-dark);
+}
+
 .notification-popup {
   position: fixed;
   z-index: 9999;
@@ -62,43 +96,77 @@
   right: 20px;
   background-color: var(--color-white);
   border-radius: 4px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  padding: 10px;
-  animation: slideIn 0.5s ease-in-out;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  padding: 15px;
+  min-width: 300px;
+  max-width: 400px;
+  display: none;
+  opacity: 0;
+  transition: all 0.3s ease-in-out;
+}
+
+.notification-popup--visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .notification-popup__content {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  align-items: flex-start;
+  gap: 12px;
 }
 
 .notification-popup__image img {
-  width: 40px;
-  height: 40px;
+  width: 50px;
+  height: 50px;
   border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.notification-popup__info {
+  flex: 1;
+  min-width: 0;
 }
 
 .notification-popup__name {
   font-weight: bold;
   color: var(--color-dark);
+  margin-bottom: 4px;
+  font-size: 15px;
 }
 
 .notification-popup__message {
-  max-width: 200px;
+  color: var(--color-grey);
+  font-size: 14px;
+  line-height: 1.4;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--color-grey);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  white-space: normal;
 }
 
 @keyframes slideIn {
   0% {
-    transform: translateY(100%);
+    transform: translateX(100%);
     opacity: 0;
   }
   100% {
-    transform: translateY(0);
+    transform: translateX(0);
     opacity: 1;
+  }
+}
+
+@keyframes slideOut {
+  0% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(100%);
+    opacity: 0;
   }
 }
