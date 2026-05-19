@@ -1,6 +1,10 @@
 <nav class="navbar">
 	<a href="#" id="sidebarControl" class="navbar__link"><span></span></a>
 	<a href="/" class="navbar__link">Главная</a>
+	<a href="/messenger/" class="navbar__link navbar__messenger-link" title="Мессенджер">
+		<i class="fa fa-comments"></i>
+		<span class="messenger-badge" style="display: none;">0</span>
+	</a>
 	{if $user['role'] >= 900}
 		<a class="navbar__link" href="{route_path name="adminpanel"}">Админпанель</a>
 	{/if}
@@ -12,14 +16,19 @@
 	{/if}
 	
 </nav>
-<div class="notification-popup">
+
+<!-- Всплывающее уведомление о новых сообщениях -->
+<div class="notification-popup" id="notification-popup">
 	<div class="notification-popup__content">
 		<div class="notification-popup__image">
-			<img src="https://notes.loc//uploads/3b679581-4939-47c5-b63e-df76998eb9a9/avatars/27f81de1468c2655ba623069948290b6.jpg" alt="Sender Image">
+			<img src="/assets/img/default_avatar.png" alt="Sender Image">
 		</div>
 		<div class="notification-popup__info">
-			<div class="notification-popup__name">Sender Name</div>
-			<div class="notification-popup__message">Lorem ipsum dolor sit amet, consectetur adipiscing elit.</div>
+			<div class="notification-popup__name">Новое сообщение</div>
+			<div class="notification-popup__message">У вас новое сообщение</div>
 		</div>
+		<button class="notification-popup__close" onclick="hidePopupNotification()">
+			<i class="fa fa-times"></i>
+		</button>
 	</div>
 </div>
