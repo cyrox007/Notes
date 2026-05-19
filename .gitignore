@@ -1,5 +1,1 @@
-/vendor
-.env
-*.log
-/compile/*
-/uploads/*
+Nothing needs to be added to the .gitignore file based on the provided changes. The modification of 'install.php' is a source code file that should not be ignored.

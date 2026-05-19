@@ -13,6 +13,10 @@
         this.socket = null;
         this.userId = null;
         this.isInitialized = false;
+        this.typingTimeout = null;
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 5;
+        this.reconnectDelay = 3000;
     }
 
     /**
@@ -23,6 +27,49 @@
         this.userId = userId;
         this.isInitialized = true;
         console.log('Messenger initialized for user:', userId);
+        this.listenWebSocket();
+    };
+
+    /**
+     * Подключение к WebSocket серверу
+     */
+    Messenger.prototype.connect = function(wsUrl) {
+        const self = this;
+        this.socket = new WebSocket(wsUrl + '?user_uid=' + this.userId);
+        
+        this.socket.onopen = function() {
+            console.log('WebSocket connected');
+            self.reconnectAttempts = 0;
+            self.getDialogs();
+        };
+        
+        this.socket.onclose = function(event) {
+            console.log('WebSocket disconnected', event.code, event.reason);
+            self.attemptReconnect(wsUrl);
+        };
+        
+        this.socket.onerror = function(error) {
+            console.error('WebSocket error:', error);
+        };
+    };
+
+    /**
+     * Попытка переподключения
+     */
+    Messenger.prototype.attemptReconnect = function(wsUrl) {
+        const self = this;
+        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+            this.reconnectAttempts++;
+            console.log('Attempting to reconnect... (' + this.reconnectAttempts + '/' + this.maxReconnectAttempts + ')');
+            setTimeout(function() {
+                self.connect(wsUrl);
+            }, this.reconnectDelay * this.reconnectAttempts);
+        } else {
+            console.error('Max reconnect attempts reached');
+            if (typeof window.showConnectionError === 'function') {
+                window.showConnectionError();
+            }
+        }
     };
 
     /**
@@ -33,7 +80,7 @@
             console.warn('Messenger not initialized');
             return;
         }
-        this.sendMessageToSocket('get_dialogs', {});
+        this.sendMessageToSocket('MessengerSocket:getDialogs', {});
     };
 
     /**
@@ -55,24 +102,45 @@
     /**
      * Отправка сообщения
      */
-    Messenger.prototype.sendMessage = function(userId, dialogId, text) {
+    Messenger.prototype.sendMessage = function(dialogId, content, contentType, metaData) {
+        if (!dialogId) {
+            console.error('Dialog ID is required');
+            return;
+        }
+        
         let data = {
-            from_id: userId,
-            chat_id: dialogId,
-            text: text,
+            dialog_id: dialogId,
+            content: content || '',
+            content_type: contentType || 'text',
+            meta_data: metaData || {}
         };
-        this.sendMessageToSocket('send_message', data);
+        
+        this.sendMessageToSocket('MessengerSocket:sendMessage', data);
+    };
+
+    /**
+     * Отправка медиа-файла
+     */
+    Messenger.prototype.sendMedia = function(dialogId, fileData, fileName, fileType, fileSize) {
+        let data = {
+            dialog_id: dialogId,
+            file_data: fileData,
+            file_name: fileName,
+            file_type: fileType,
+            file_size: fileSize
+        };
+        this.sendMessageToSocket('MessengerSocket:sendMedia', data);
     };
 
     /**
      * Редактирование сообщения
      */
-    Messenger.prototype.editMessage = function(messageId, text) {
+    Messenger.prototype.editMessage = function(messageId, content) {
         let data = {
             message_id: messageId,
-            text: text,
+            content: content
         };
-        this.sendMessageToSocket('edit_message', data);
+        this.sendMessageToSocket('MessengerSocket:editMessage', data);
     };
 
     /**
@@ -80,28 +148,85 @@
      */
     Messenger.prototype.deleteMessage = function(messageId) {
         let data = {
-            message_id: messageId,
+            message_id: messageId
         };
-        this.sendMessageToSocket('delete_message', data);
+        this.sendMessageToSocket('MessengerSocket:deleteMessage', data);
+    };
+
+    /**
+     * Загрузка истории сообщений
+     */
+    Messenger.prototype.loadHistory = function(dialogId, limit, offset) {
+        let data = {
+            dialog_id: dialogId,
+            limit: limit || 50,
+            offset: offset || 0
+        };
+        this.sendMessageToSocket('MessengerSocket:loadHistory', data);
+    };
+
+    /**
+     * Отправка статуса прочтения
+     */
+    Messenger.prototype.markAsRead = function(dialogId, lastMessageId) {
+        let data = {
+            dialog_id: dialogId,
+            last_message_id: lastMessageId || 0
+        };
+        this.sendMessageToSocket('MessengerSocket:markAsRead', data);
     };
 
     /**
      * Отправка статуса печати
      */
-    Messenger.prototype.sendChatAction = function(userId, dialogId, action) {
+    Messenger.prototype.sendTyping = function(dialogId) {
         let data = {
-            from_id: userId,
-            chat_id: dialogId,
-            action: action || 'typing',
+            dialog_id: dialogId
         };
-        this.sendMessageToSocket('send_chat_action', data);
+        this.sendMessageToSocket('MessengerSocket:typing', data);
     };
 
     /**
-     * Загрузка сообщений диалога
+     * Создание диалога
      */
-    Messenger.prototype.loadMessages = function(dialogId) {
-        this.sendMessageToSocket('get_messages', { dialog_id: dialogId });
+    Messenger.prototype.createDialog = function(type, participants, name) {
+        let data = {
+            type: type || 'private',
+            participants: participants || [],
+            name: name || null
+        };
+        this.sendMessageToSocket('MessengerSocket:createDialog', data);
+    };
+
+    /**
+     * Выход из диалога
+     */
+    Messenger.prototype.leaveDialog = function(dialogId) {
+        let data = {
+            dialog_id: dialogId
+        };
+        this.sendMessageToSocket('MessengerSocket:leaveDialog', data);
+    };
+
+    /**
+     * Добавление участника в диалог
+     */
+    Messenger.prototype.addParticipant = function(dialogId, userId) {
+        let data = {
+            dialog_id: dialogId,
+            user_id: userId
+        };
+        this.sendMessageToSocket('MessengerSocket:addParticipant', data);
+    };
+
+    /**
+     * Поиск пользователей
+     */
+    Messenger.prototype.searchUsers = function(query) {
+        let data = {
+            query: query || ''
+        };
+        this.sendMessageToSocket('MessengerSocket:searchUsers', data);
     };
 
     /**
@@ -116,41 +241,93 @@
         const self = this;
 
         this.socket.onmessage = function(event) {
-            const serverData = JSON.parse(event.data);
-
-            switch (serverData.action) {
-                case 'get_messages':
-                    self.handleGetMessages(serverData);
-                    break;
-                case 'get_message':
-                    self.handleNewMessage(serverData);
-                    break;
-                case 'get_dialogs':
-                    self.handleGetDialogs(serverData);
-                    break;
-                case 'user_typing':
-                    self.handleUserTyping(serverData);
-                    break;
-                case 'typing_stop':
-                    self.handleTypingStop(serverData);
-                    break;
-                case 'update_message_status':
-                    self.handleMessageStatusUpdate(serverData);
-                    break;
-                default:
-                    console.log('Unknown action:', serverData.action);
+            try {
+                const serverData = JSON.parse(event.data);
+                self.handleServerMessage(serverData);
+            } catch (e) {
+                console.error('Error parsing WebSocket message:', e);
             }
         };
     };
 
     /**
-     * Обработка получения списка сообщений
+     * Обработка сообщений от сервера
      */
-    Messenger.prototype.handleGetMessages = function(data) {
-        console.log('Messages received:', data);
-        // TODO: Рендеринг сообщений в интерфейсе
-        if (typeof window.renderMessages === 'function') {
-            window.renderMessages(data.data);
+    Messenger.prototype.handleServerMessage = function(data) {
+        switch (data.action) {
+            case 'success':
+                this.handleSuccess(data);
+                break;
+            case 'error':
+                this.handleError(data);
+                break;
+            case 'newMessage':
+                this.handleNewMessage(data);
+                break;
+            case 'messageEdited':
+                this.handleMessageEdited(data);
+                break;
+            case 'messageDeleted':
+                this.handleMessageDeleted(data);
+                break;
+            case 'messagesRead':
+                this.handleMessagesRead(data);
+                break;
+            case 'userTyping':
+                this.handleUserTyping(data);
+                break;
+            case 'newDialog':
+                this.handleNewDialog(data);
+                break;
+            case 'userLeftDialog':
+                this.handleUserLeftDialog(data);
+                break;
+            case 'participantAdded':
+                this.handleParticipantAdded(data);
+                break;
+            case 'Authorized':
+                console.log('Authorized on WebSocket server');
+                break;
+            case 'Ping':
+                this.handlePing();
+                break;
+            default:
+                console.log('Unknown action:', data.action);
+        }
+    };
+
+    /**
+     * Обработка успешного ответа
+     */
+    Messenger.prototype.handleSuccess = function(data) {
+        console.log('Success:', data.message, data.data);
+        
+        if (data.data && data.data.dialogs) {
+            if (typeof window.renderDialogs === 'function') {
+                window.renderDialogs(data.data.dialogs);
+            }
+        }
+        
+        if (data.data && data.data.messages) {
+            if (typeof window.renderMessages === 'function') {
+                window.renderMessages(data.data.messages);
+            }
+        }
+        
+        if (data.data && data.data.users) {
+            if (typeof window.renderSearchResults === 'function') {
+                window.renderSearchResults(data.data.users);
+            }
+        }
+    };
+
+    /**
+     * Обработка ошибки
+     */
+    Messenger.prototype.handleError = function(data) {
+        console.error('Error:', data.message);
+        if (typeof window.showError === 'function') {
+            window.showError(data.message);
         }
     };
 
@@ -158,21 +335,42 @@
      * Обработка нового сообщения
      */
     Messenger.prototype.handleNewMessage = function(data) {
-        console.log('New message received:', data);
-        // TODO: Добавление сообщения в интерфейс
+        console.log('New message received:', data.data);
         if (typeof window.appendMessage === 'function') {
             window.appendMessage(data.data);
+        }
+        if (typeof window.updateDialogLastMessage === 'function') {
+            window.updateDialogLastMessage(data.data);
         }
     };
 
     /**
-     * Обработка получения списка диалогов
+     * Обработка редактирования сообщения
      */
-    Messenger.prototype.handleGetDialogs = function(data) {
-        console.log('Dialogs received:', data);
-        // TODO: Рендеринг списка диалогов
-        if (typeof window.renderDialogs === 'function') {
-            window.renderDialogs(data.data);
+    Messenger.prototype.handleMessageEdited = function(data) {
+        console.log('Message edited:', data.data);
+        if (typeof window.updateMessage === 'function') {
+            window.updateMessage(data.data);
+        }
+    };
+
+    /**
+     * Обработка удаления сообщения
+     */
+    Messenger.prototype.handleMessageDeleted = function(data) {
+        console.log('Message deleted:', data.data);
+        if (typeof window.removeMessage === 'function') {
+            window.removeMessage(data.data.message_id);
+        }
+    };
+
+    /**
+     * Обработка прочтения сообщений
+     */
+    Messenger.prototype.handleMessagesRead = function(data) {
+        console.log('Messages read:', data.data);
+        if (typeof window.updateReadStatus === 'function') {
+            window.updateReadStatus(data.data);
         }
     };
 
@@ -180,30 +378,53 @@
      * Обработка статуса печати пользователя
      */
     Messenger.prototype.handleUserTyping = function(data) {
-        console.log('User typing:', data);
+        console.log('User typing:', data.data);
         if (typeof window.showTypingIndicator === 'function') {
             window.showTypingIndicator(data.data);
         }
     };
 
     /**
-     * Обработка завершения печати
+     * Обработка нового диалога
      */
-    Messenger.prototype.handleTypingStop = function(data) {
-        console.log('Typing stopped:', data);
-        if (typeof window.hideTypingIndicator === 'function') {
-            window.hideTypingIndicator(data.data);
+    Messenger.prototype.handleNewDialog = function(data) {
+        console.log('New dialog:', data.data);
+        if (typeof window.addDialog === 'function') {
+            window.addDialog(data.data);
+        }
+        if (typeof window.refreshDialogs === 'function') {
+            window.refreshDialogs();
         }
     };
 
     /**
-     * Обработка обновления статуса сообщения
+     * Обработка выхода пользователя из диалога
      */
-    Messenger.prototype.handleMessageStatusUpdate = function(data) {
-        console.log('Message status updated:', data);
-        if (typeof window.updateMessageStatus === 'function') {
-            window.updateMessageStatus(data.data);
+    Messenger.prototype.handleUserLeftDialog = function(data) {
+        console.log('User left dialog:', data.data);
+        if (typeof window.showUserLeftNotification === 'function') {
+            window.showUserLeftNotification(data.data);
         }
+    };
+
+    /**
+     * Обработка добавления участника
+     */
+    Messenger.prototype.handleParticipantAdded = function(data) {
+        console.log('Participant added:', data.data);
+        if (typeof window.showParticipantAddedNotification === 'function') {
+            window.showParticipantAddedNotification(data.data);
+        }
+    };
+
+    /**
+     * Обработка Ping
+     */
+    Messenger.prototype.handlePing = function() {
+        this.socket.send(JSON.stringify({
+            action: 'Ping:Pong',
+            data: 'Pong'
+        }));
     };
 
     // Экспортируем в глобальную область видимости

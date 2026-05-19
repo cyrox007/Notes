@@ -176,6 +176,9 @@ function handleNewMessageNotification(data) {
 	wspace.core.data.unreadCount++;
 	updateUnreadCount({ count: wspace.core.data.unreadCount });
 
+	// Показываем всплывающее уведомление в интерфейсе
+	showPopupNotification(data);
+
 	// Показываем браузерное уведомление если разрешено
 	if (Notification.permission === "granted") {
 		new Notification("Новое сообщение", {
@@ -196,6 +199,59 @@ function handleNewMessageNotification(data) {
 	// Воспроизводим звук уведомления (опционально)
 	playNotificationSound();
 }
+
+/**
+ * Показ всплывающего уведомления в интерфейсе
+ */
+function showPopupNotification(data) {
+	const popup = document.querySelector('.notification-popup');
+	if (!popup) return;
+
+	// Заполняем данные
+	const img = popup.querySelector('.notification-popup__image img');
+	const nameEl = popup.querySelector('.notification-popup__name');
+	const msgEl = popup.querySelector('.notification-popup__message');
+
+	if (img && data.sender_avatar) {
+		img.src = data.sender_avatar;
+	}
+	if (nameEl && data.sender_name) {
+		nameEl.textContent = data.sender_name;
+	}
+	if (msgEl && data.text) {
+		msgEl.textContent = data.text;
+	}
+
+	// Показываем уведомление с анимацией
+	popup.classList.add('notification-popup--visible');
+	popup.style.display = 'block';
+
+	// Авто-скрытие через 5 секунд
+	if (wspace.core.data.notificationTimeout) {
+		clearTimeout(wspace.core.data.notificationTimeout);
+	}
+
+	wspace.core.data.notificationTimeout = setTimeout(() => {
+		hidePopupNotification();
+	}, 5000);
+}
+
+/**
+ * Скрытие всплывающего уведомления
+ */
+function hidePopupNotification() {
+	const popup = document.querySelector('.notification-popup');
+	if (!popup) return;
+
+	popup.classList.remove('notification-popup--visible');
+	
+	setTimeout(() => {
+		popup.style.display = 'none';
+	}, 300); // Ждем завершения анимации
+}
+
+// Делаем функцию доступной глобально для onclick в HTML
+window.hidePopupNotification = hidePopupNotification;
 
 /**
  * Воспроизведение звука уведомления
