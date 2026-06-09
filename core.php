@@ -50,7 +50,7 @@ foreach ($coreFiles as $file) {
 $directories = [
     '/app/models/',
     '/app/controllers/',
-    '/app/socket/',
+    '/app/sockets/',
     '/app/handlers/',
     '/app/middlewares/'
 ];
@@ -85,3 +85,5 @@ function loadDirectoryFiles(string $directory): void {
         }
     }
 }
+
+
