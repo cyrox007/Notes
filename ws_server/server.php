@@ -37,6 +37,7 @@ $allowedRoutes = [
         'stop_typing',
     ],
     'DialogStateSocket' => [
+        'list',
         'pin',
         'archive',
         'mute',
