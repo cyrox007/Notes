@@ -1,0 +1,225 @@
+name: Profile user contract
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [profile-user-hardening]
+
+permissions:
+  contents: read
+
+jobs:
+  profile-user:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: notes_profile_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_mysql, mysqli, sodium, fileinfo, gd
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Profile syntax and wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l app/controllers/ProfileController.php
+          php -l app/services/UserAvatarService.php
+          php -l core/routerConfig.php
+          php -l ws_server/server.php
+          sed '/^{literal}$/d;/^{\/literal}$/d' app/views/profile_page/script.js > /tmp/profile.js
+          node --check /tmp/profile.js
+          grep -Fq "'/avatar/{str:uid}'" core/routerConfig.php
+          grep -Fq "'/avatar/delete'" core/routerConfig.php
+          grep -Fq 'PROFILE_AVATAR_MAX_SIZE=2097152' default.env
+          grep -Fq "group_owner_transfer_required" app/controllers/ProfileController.php
+          grep -Fq 'Config::canAuthenticate' ws_server/server.php
+          ! grep -Fq '/uploads/users/' app/controllers/ProfileController.php
+          ! grep -Fq 'profile__write-message-btn' app/views/profile_page/index.tpl
+
+      - name: Prepare profile schema and fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot notes_profile_test < database/messenger_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_profile_test < database/user_fields_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_profile_test < database/notes_schema.sql
+          php <<'PHP'
+          <?php
+          $image = imagecreatetruecolor(16, 16);
+          imagefill($image, 0, 0, imagecolorallocate($image, 40, 100, 180));
+          imagepng($image, '/tmp/profile-avatar.png');
+          imagedestroy($image);
+          file_put_contents('/tmp/profile-not-image.png', 'not an image');
+          PHP
+          HASH="$(php -r 'echo password_hash("profile-ci-password", PASSWORD_ARGON2ID);')"
+          mysql -h 127.0.0.1 -uroot -proot notes_profile_test <<SQL
+          INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active)
+          VALUES
+            ('a1000000-0000-4000-8000-000000000001','profile-alice','alice-profile@example.test','$HASH','Alice','Profile',888,1),
+            ('a1000000-0000-4000-8000-000000000002','profile-bob','bob-profile@example.test','$HASH','Bob','Profile',888,1);
+          SET @alice=(SELECT id FROM users WHERE username='profile-alice');
+          SET @bob=(SELECT id FROM users WHERE username='profile-bob');
+          INSERT INTO dialogs (uid,type,name,created_by) VALUES ('a2000000-0000-4000-8000-000000000001','group','Owned group',@alice);
+          SET @dialog=(SELECT id FROM dialogs WHERE uid='a2000000-0000-4000-8000-000000000001');
+          INSERT INTO user_to_dialogs (dialog_id,user_id,role) VALUES (@dialog,@alice,'owner'),(@dialog,@bob,'member');
+          INSERT INTO notes (uid,user_id,notename,content,is_encrypted,created_note,updated_note)
+          VALUES ('a3000000000000000000000000000001',@alice,'Keep me','profile-ci-placeholder',0,NOW(),NOW());
+          SQL
+
+      - name: Real multipart private avatar upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/notes-profile-private
+          cat > /tmp/profile-avatar-harness.php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          if (!defined('SITEPATH')) define('SITEPATH', getcwd());
+          putenv('DBDRIVER=mysql');
+          putenv('DBHOST=127.0.0.1');
+          putenv('DBPORT=3306');
+          putenv('DBUSER=root');
+          putenv('DBPASS=root');
+          putenv('DBNAME=notes_profile_test');
+          putenv('PRIVATE_STORAGE_PATH=/tmp/notes-profile-private');
+          putenv('PROFILE_AVATAR_MAX_SIZE=2097152');
+          require SITEPATH . '/core/config.php';
+          require SITEPATH . '/core/DatabaseManager.php';
+          require SITEPATH . '/core/images.php';
+          require SITEPATH . '/app/services/UserAvatarService.php';
+          header('Content-Type: application/json');
+          try {
+              $db = \Core\DatabaseManager::getInstance();
+              $user = $db->fetchOne('SELECT id,uid FROM users WHERE username="profile-alice"');
+              $url = (new \App\Services\UserAvatarService($db))->upload((int) $user['id'], (string) $user['uid'], $_FILES['avatar'] ?? []);
+              $db->execute('UPDATE users SET avatar=:avatar WHERE id=:id', [':avatar'=>$url, ':id'=>(int)$user['id']]);
+              echo json_encode(['success'=>true,'url'=>$url], JSON_THROW_ON_ERROR);
+          } catch (InvalidArgumentException $e) {
+              http_response_code(422);
+              echo json_encode(['success'=>false,'message'=>$e->getMessage()], JSON_THROW_ON_ERROR);
+          } catch (Throwable $e) {
+              http_response_code(500);
+              echo json_encode(['success'=>false,'message'=>$e->getMessage()], JSON_THROW_ON_ERROR);
+          }
+          PHP
+
+          php -S 127.0.0.1:18082 /tmp/profile-avatar-harness.php >/tmp/profile-avatar-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true; cat /tmp/profile-avatar-server.log' EXIT
+          for i in {1..20}; do
+            if curl -sS http://127.0.0.1:18082/ >/dev/null 2>&1; then break; fi
+            sleep 0.25
+          done
+
+          curl -sS -f -F 'avatar=@/tmp/profile-avatar.png;type=image/png' http://127.0.0.1:18082/ > /tmp/profile-avatar.json
+          php -r '$d=json_decode(file_get_contents("/tmp/profile-avatar.json"),true,512,JSON_THROW_ON_ERROR); if (($d["success"]??false)!==true || !str_starts_with($d["url"]??"", "/profile/avatar/")) throw new RuntimeException("avatar upload failed");'
+          ALICE_ID="$(mysql -N -h 127.0.0.1 -uroot -proot notes_profile_test -e "SELECT id FROM users WHERE username='profile-alice'")"
+          test -f "/tmp/notes-profile-private/users/${ALICE_ID}/avatar/avatar.jpg"
+          test "$(stat -c '%a' "/tmp/notes-profile-private/users/${ALICE_ID}/avatar/avatar.jpg")" = "600"
+          AVATAR_DB="$(mysql -N -h 127.0.0.1 -uroot -proot notes_profile_test -e "SELECT avatar FROM users WHERE id=${ALICE_ID}")"
+          case "$AVATAR_DB" in /profile/avatar/*) ;; *) exit 1 ;; esac
+
+          STATUS="$(curl -sS -o /tmp/profile-invalid.json -w '%{http_code}' -F 'avatar=@/tmp/profile-not-image.png;type=image/png' http://127.0.0.1:18082/)"
+          test "$STATUS" = "422"
+
+      - name: Group owner cannot deactivate account
+        shell: bash
+        run: |
+          set -euo pipefail
+          DBHOST=127.0.0.1 DBPORT=3306 DBUSER=root DBPASS=root DBNAME=notes_profile_test \
+          PRIVATE_STORAGE_PATH=/tmp/notes-profile-private SITEURL=http://localhost BASE_PATH=/ \
+          php <<'PHP' >/tmp/profile-owner-guard.html
+          <?php
+          declare(strict_types=1);
+          if (!defined('SITEPATH')) define('SITEPATH', getcwd());
+          $_SERVER['HTTP_HOST'] = 'localhost';
+          require SITEPATH . '/vendor/autoload.php';
+          require SITEPATH . '/core/config.php';
+          require SITEPATH . '/core/DatabaseManager.php';
+          require SITEPATH . '/core/Router.php';
+          require SITEPATH . '/core/request.php';
+          require SITEPATH . '/core/helper.php';
+          require SITEPATH . '/app/middlewares/CSRFMiddleware.php';
+          require SITEPATH . '/core/Version.php';
+          require SITEPATH . '/core/controller.php';
+          require SITEPATH . '/core/images.php';
+          require SITEPATH . '/app/handlers/CryptMethods.php';
+          require SITEPATH . '/app/services/UserAvatarService.php';
+          require SITEPATH . '/app/controllers/ProfileController.php';
+          $_SERVER['REQUEST_METHOD']='GET';
+          if (session_status() === PHP_SESSION_NONE) session_start();
+          $_SESSION['user_id']=(int)\Core\DatabaseManager::getInstance()->fetchValue('SELECT id FROM users WHERE username="profile-alice"');
+          $_POST=['confirm_delete'=>'yes','current_password'=>'profile-ci-password'];
+          $request = new \Core\Request();
+          $controller = new \App\Controllers\ProfileController();
+          $controller->deleteUser($request);
+          if (http_response_code() !== 409) throw new RuntimeException('Owner guard did not return 409');
+          PHP
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_profile_test -e "SELECT is_active FROM users WHERE username='profile-alice'")" = "1"
+          grep -Fq 'передайте владение группой' /tmp/profile-owner-guard.html
+
+      - name: Deactivation preserves related data
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot notes_profile_test -e "UPDATE user_to_dialogs SET role='admin' WHERE user_id=(SELECT id FROM users WHERE username='profile-alice') AND role='owner'; UPDATE user_to_dialogs SET role='owner' WHERE user_id=(SELECT id FROM users WHERE username='profile-bob');"
+          set +e
+          DBHOST=127.0.0.1 DBPORT=3306 DBUSER=root DBPASS=root DBNAME=notes_profile_test \
+          PRIVATE_STORAGE_PATH=/tmp/notes-profile-private SITEURL=http://localhost BASE_PATH=/ \
+          php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          if (!defined('SITEPATH')) define('SITEPATH', getcwd());
+          $_SERVER['HTTP_HOST'] = 'localhost';
+          require SITEPATH . '/vendor/autoload.php';
+          require SITEPATH . '/core/config.php';
+          require SITEPATH . '/core/DatabaseManager.php';
+          require SITEPATH . '/core/Router.php';
+          require SITEPATH . '/core/request.php';
+          require SITEPATH . '/core/helper.php';
+          require SITEPATH . '/app/middlewares/CSRFMiddleware.php';
+          require SITEPATH . '/core/Version.php';
+          require SITEPATH . '/core/controller.php';
+          require SITEPATH . '/core/images.php';
+          require SITEPATH . '/app/handlers/CryptMethods.php';
+          require SITEPATH . '/app/services/UserAvatarService.php';
+          require SITEPATH . '/app/controllers/ProfileController.php';
+          $_SERVER['REQUEST_METHOD']='GET';
+          $db=\Core\DatabaseManager::getInstance();
+          if (session_status() === PHP_SESSION_NONE) session_start();
+          $_SESSION['user_id']=(int)$db->fetchValue('SELECT id FROM users WHERE username="profile-alice"');
+          $_POST=['confirm_delete'=>'yes','current_password'=>'profile-ci-password'];
+          \Core\Router::getInstance()->add('GET','/auth/login',[\App\Controllers\ProfileController::class,'index'],[],'authpage');
+          (new \App\Controllers\ProfileController())->deleteUser(new \Core\Request());
+          PHP
+          STATUS=$?
+          set -e
+          test "$STATUS" = "0"
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_profile_test -e "SELECT CONCAT(is_active,':',role,':',IFNULL(avatar,'NULL')) FROM users WHERE username='profile-alice'")" = "0:899:NULL"
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_profile_test -e "SELECT COUNT(*) FROM notes n JOIN users u ON u.id=n.user_id WHERE u.username='profile-alice'")" = "1"
+          ALICE_ID="$(mysql -N -h 127.0.0.1 -uroot -proot notes_profile_test -e "SELECT id FROM users WHERE username='profile-alice'")"
+          test ! -f "/tmp/notes-profile-private/users/${ALICE_ID}/avatar/avatar.jpg"
