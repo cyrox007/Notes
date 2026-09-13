@@ -1,9 +1,35 @@
+Options -Indexes
+
 RewriteEngine On
+
+# После успешной установки .env существует: повторный запуск web-installer запрещён.
+RewriteCond %{DOCUMENT_ROOT}/.env -f
+RewriteRule ^install\.php$ - [F,L]
+
+# Служебные каталоги никогда не должны отдаваться из web-root.
+RewriteRule ^(?:database|\.logs|vendor)(?:/|$) - [F,L,NC]
+
+# Не отдаём конфигурацию и служебные файлы напрямую.
+<IfModule mod_authz_core.c>
+    <FilesMatch "^(?:\.env(?:\..*)?|composer\.(?:json|lock)|\.gitignore)$">
+        Require all denied
+    </FilesMatch>
+</IfModule>
+<IfModule !mod_authz_core.c>
+    <FilesMatch "^(?:\.env(?:\..*)?|composer\.(?:json|lock)|\.gitignore)$">
+        Order allow,deny
+        Deny from all
+    </FilesMatch>
+</IfModule>
+
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule .* index.php [L]
 
 <IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set X-Frame-Options "SAMEORIGIN"
     Header set Content-Security-Policy "default-src 'self'; connect-src 'self' http://notes.loc/ http://localhost:27800/ ws://localhost:27800/ ws://notes.loc:27800/; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://notes.loc https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://notes.loc https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https://notes.loc data:; media-src 'self' blob:;"
     Header set X-Content-Security-Policy "default-src 'self'; connect-src 'self' http://notes.loc/ http://localhost:27800/ ws://localhost:27800/ ws://notes.loc:27800/; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://notes.loc https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://notes.loc https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https://notes.loc data:; media-src 'self' blob:;"
 </IfModule>
