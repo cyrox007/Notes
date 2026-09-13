@@ -1,6 +1,6 @@
 # Workspace Organizer — документация ядра
 
-Актуально для `0.10.0-alpha`, 13.09.2026.
+Актуально для `0.11.0-alpha`, 13.09.2026.
 
 ## 1. Bootstrap
 
@@ -79,7 +79,7 @@ Template helpers:
 - `AuthRateLimit` — login/registration fixed-window limit;
 - `UploadRateLimit` — upload endpoint limit.
 
-Rate limiter state хранится под `PRIVATE_STORAGE_PATH/rate-limit`, файл блокируется `flock`, directory/file permissions — private.
+По умолчанию rate limiter state хранится под `PRIVATE_STORAGE_PATH/rate-limit`, файл блокируется `flock`, directory/file permissions — private. Для нескольких web-узлов используется отдельный общий `RATE_LIMIT_STORAGE_PATH` на POSIX volume с рабочими advisory locks.
 
 Middleware определяет класс доступа к endpoint, но не заменяет resource ACL. Note/File/Dialog/Message/Task ownership проверяется в Controller/Service.
 
@@ -157,6 +157,8 @@ php bin/migrate_crypto.php --scope=all --limit=1000
 
 Unknown legacy Notes payload не должен автоматически трактоваться как plaintext.
 
+`WS_TICKET_SECRET` можно ротировать с coordinated restart HTTP/WS процессов; ранее выданные socket tickets после смены секрета перестают проходить проверку. `UNIQUE_KEY` и `MSG_SECRET_KEY` нельзя заменять напрямую в `.env`: для них требуется отдельный old-key -> new-key re-encryption process с верификацией.
+
 ## 9. Private storage
 
 ```env
@@ -171,7 +173,9 @@ PRIVATE_STORAGE_PATH/
 ├── messenger/
 ├── notes/
 ├── users/
-└── rate-limit/
+├── rate-limit/
+├── logs/
+└── legacy/
 ```
 
 Инварианты:
@@ -211,6 +215,8 @@ Security contract:
 
 Socket handler должен оставаться transport layer; authorization/business logic живёт в Service.
 
+Production-like E2E поднимает настоящий Workerman за TLS Nginx reverse proxy и проверяет две независимые Chromium-сессии, authenticated WSS и realtime message fan-out.
+
 ## 12. UI architecture
 
 UI остаётся server-rendered Smarty без Node build pipeline.
@@ -244,7 +250,7 @@ UPLOAD_RATE_LIMIT_ATTEMPTS=60
 UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60
 ```
 
-Application file-backed limiter — single-node/shared-filesystem baseline. Multi-node production должен добавить shared edge/backend limiter.
+Single-node deployment использует private file-backed limiter. Multi-node deployment задаёт `DEPLOYMENT_NODE_COUNT>1` и отдельный shared `RATE_LIMIT_STORAGE_PATH`; healthcheck отклоняет multi-node config с локальным storage. `X-Real-IP`/`X-Forwarded-For` доверяются только если immediate proxy входит в `TRUSTED_PROXY_IPS`.
 
 ## 14. Healthcheck
 
@@ -253,7 +259,7 @@ php bin/healthcheck.php
 php bin/healthcheck.php --json
 ```
 
-Проверяются PHP version/extensions, required secrets, private storage, SITEURL/WSS consistency, DB connection и 20-table schema contract.
+Проверяются PHP version/extensions, required secrets, private storage, SITEURL/WSS consistency, deployment node count, rate-limit storage, trusted proxy allowlist, DB connection и 20-table schema contract.
 
 Healthcheck — deployment gate, а не замена application monitoring.
 
@@ -288,4 +294,6 @@ Healthcheck — deployment gate, а не замена application monitoring.
 
 ## 17. Production operations
 
-Deployment, backup/restore, reverse proxy, WSS, rate limiting, healthcheck, scheduled cleanup и observability описаны в [`PRODUCTION.md`](PRODUCTION.md).
+Deployment, reverse proxy, WSS, healthcheck и release checklist описаны в [`PRODUCTION.md`](PRODUCTION.md). Backup/restore drill, shared rate limiting, trusted proxy contract и key-rotation procedures описаны в [`OPERATIONS.md`](OPERATIONS.md).
+
+После merge в `master` отдельный `Master release gate` повторно проверяет уже объединённый commit: Composer audit, PHP/JS syntax, canonical DB schemas, production healthcheck, version contract и upload-ready hosting bundle.
