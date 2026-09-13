@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS `user_to_dialogs` (
     `user_id` INT NOT NULL,
     `role` ENUM('owner', 'admin', 'member') NOT NULL DEFAULT 'member',
     `joined_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `last_delivered_message_id` BIGINT UNSIGNED DEFAULT NULL,
     `last_read_message_id` BIGINT UNSIGNED DEFAULT NULL,
     `is_deleted` TINYINT(1) NOT NULL DEFAULT 0,
     `archived_at` DATETIME DEFAULT NULL,
