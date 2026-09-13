@@ -26,15 +26,15 @@ $worker = new Worker(sprintf('websocket://%s:%d', $host, $port));
 $allowedRoutes = [
     'PingSocket' => ['index'],
     'MessangerSocket' => [
-        'load',
         'get_dialogs',
+        'load',
         'create_dialog',
-        'user_typing',
-        'stop_typing',
         'message_send',
         'edit_message',
         'delete_message',
-        'update_message_status',
+        'mark_read',
+        'user_typing',
+        'stop_typing',
     ],
 ];
 
@@ -56,7 +56,6 @@ $worker->onConnect = function (TcpConnection $connection) use (&$connections, $a
         }
 
         $ticket = (string) ($_GET['ticket'] ?? '');
-
         try {
             $userId = SocketTicket::validate($ticket);
         } catch (\Throwable $e) {
@@ -83,7 +82,8 @@ $worker->onConnect = function (TcpConnection $connection) use (&$connections, $a
 
         $connection->send(json_encode([
             'action' => 'Authorized',
-        ], JSON_UNESCAPED_UNICODE));
+            'user_uid' => $connection->uid,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     };
 };
 
@@ -140,25 +140,17 @@ $worker->onMessage = function (TcpConnection $connection, string $message) use (
         return;
     }
 
-    $params = $data['data'] ?? [];
-    if (!is_array($params)) {
+    $payload = $data['data'] ?? [];
+    if (!is_array($payload)) {
         return;
     }
 
-    if ($className === 'MessangerSocket') {
-        unset($params['user_uid']);
-        $params = ['user_uid' => $connection->uid] + $params;
-
-        if ($methodName === 'delete_message') {
-            $params['for_all'] = false;
-        }
-    }
+    // Client identity is never accepted from the message body.
+    unset($payload['user_uid'], $payload['user_id'], $payload['from_user_id']);
 
     try {
         $handler = new $fullClassName();
-        $handler->$methodName($connections, $connection, ...$params);
-    } catch (\ArgumentCountError | \TypeError $e) {
-        error_log(sprintf('Invalid WebSocket payload for %s: %s', $action, $e->getMessage()));
+        $handler->$methodName($connections, $connection, (string) $connection->uid, $payload);
     } catch (\Throwable $e) {
         error_log(sprintf('WebSocket handler failure for %s: %s', $action, $e->getMessage()));
     }
