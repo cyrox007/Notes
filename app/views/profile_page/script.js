@@ -1,89 +1,53 @@
 {literal}
 document.addEventListener('DOMContentLoaded', () => {
-	let btnEditProfile = document.querySelector('.profile__edit_user-info');
-	let cardInfo = document.querySelector('.profile__card-info--data');
-	let cardEdit = document.querySelector('.profile__card-info--edit');
+    const btnEditProfile = document.querySelector('.profile__edit_user-info');
+    const cardInfo = document.querySelector('.profile__card-info--data');
+    const cardEdit = document.querySelector('.profile__card-info--edit');
+    const closeEdit = document.getElementById('close');
 
-	btnEditProfile.addEventListener('click', (e) => {
-		e.preventDefault();
-		btnEditProfile.classList.toggle('invisible-btn');
-		btnEditProfile.disabled = true;
-		cardInfo.classList.toggle('hidden');
-		cardInfo.classList.toggle('visible');
-		cardEdit.classList.toggle('visible');
-	});
+    const showEdit = () => {
+        if (!btnEditProfile || !cardInfo || !cardEdit) return;
+        btnEditProfile.classList.add('invisible-btn');
+        btnEditProfile.disabled = true;
+        cardInfo.classList.add('hidden');
+        cardInfo.classList.remove('visible');
+        cardEdit.classList.add('visible');
+    };
 
-	let closeEdit = document.getElementById('close');
-	if (!closeEdit) {
-		console.error("Element with id 'close' not found.");
-		return;
-	}
+    const hideEdit = () => {
+        if (!btnEditProfile || !cardInfo || !cardEdit) return;
+        btnEditProfile.classList.remove('invisible-btn');
+        btnEditProfile.disabled = false;
+        cardInfo.classList.remove('hidden');
+        cardInfo.classList.add('visible');
+        cardEdit.classList.remove('visible');
+    };
 
-	closeEdit.addEventListener('click', (e) => {
-		e.preventDefault();
-		btnEditProfile.classList.toggle('invisible-btn');
-		btnEditProfile.disabled = false;
-		cardInfo.classList.toggle('hidden');
-		cardInfo.classList.toggle('visible');
-		cardEdit.classList.toggle('visible');
-	});
+    btnEditProfile?.addEventListener('click', (event) => {
+        event.preventDefault();
+        showEdit();
+    });
 
-	let fieldNewPassword = document.getElementById('new-password');
-	if (!fieldNewPassword) {return;}
-	let fieldRepeatPassword = document.getElementById('repeat-new-password');
-	if (!fieldRepeatPassword) {return;}
-	let errorRepeatMsg = document.getElementById('error-repeat');
-	if (!errorRepeatMsg) {return;}
+    closeEdit?.addEventListener('click', (event) => {
+        event.preventDefault();
+        hideEdit();
+    });
 
-	let changePasswordBtn = document.getElementById('change-password-btn');
-	if (!changePasswordBtn) {return;}
-	changePasswordBtn.disabled = true;
+    const fieldNewPassword = document.getElementById('new-password');
+    const fieldRepeatPassword = document.getElementById('repeat-new-password');
+    const errorRepeatMsg = document.getElementById('error-repeat');
+    const changePasswordBtn = document.getElementById('change-password-btn');
 
-	fieldRepeatPassword.addEventListener('input', () => {
-		if (fieldNewPassword.value != fieldRepeatPassword.value) {
-			errorRepeatMsg.innerText = "Пароли не совпадают";
-			changePasswordBtn.disabled = true;
-		} else {
-			errorRepeatMsg.innerText = "";
-			changePasswordBtn.disabled = false;
-		}
-	});
-	
-	// Кнопка "Написать сообщение" на странице профиля
-	const writeMessageBtn = document.querySelector('.profile__write-message-btn');
-	if (writeMessageBtn) {
-		writeMessageBtn.addEventListener('click', function() {
-			const interlocutorUid = this.dataset.userUid;
-			
-			// Создаем диалог через WebSocket
-			if (wspace.core && wspace.core.data && wspace.core.data.socket) {
-				wspace.core.data.socket.send(JSON.stringify({
-					action: 'MessangerSocket:create_dialog',
-					data: {
-						user_uid: user_uid,
-						interlocutor_uid: interlocutorUid
-					}
-				}));
-				
-				// Переходим в мессенджер
-				window.location.href = '/messenger/';
-			}
-		});
-	}
-	
-	// Обработка ответов от сервера о создании диалога
-	if (wspace.core && wspace.core.data && wspace.core.data.socket) {
-		wspace.core.data.socket.addEventListener('message', function(event) {
-			const serverData = JSON.parse(event.data);
-			
-			if (serverData.action === 'dialog_created' || serverData.action === 'dialog_exists') {
-				// Если мы на странице профиля и создали диалог, можно перенаправить
-				if (window.location.pathname.includes('/users/')) {
-					// Диалог создан или уже существует
-					console.log('Диалог:', serverData.dialog_uid || serverData.dialog?.uid);
-				}
-			}
-		});
-	}
+    const validatePasswordConfirmation = () => {
+        if (!fieldNewPassword || !fieldRepeatPassword || !errorRepeatMsg || !changePasswordBtn) return;
+        const hasValues = fieldNewPassword.value.length > 0 && fieldRepeatPassword.value.length > 0;
+        const matches = hasValues && fieldNewPassword.value === fieldRepeatPassword.value;
+        errorRepeatMsg.innerText = hasValues && !matches ? 'Пароли не совпадают' : '';
+        changePasswordBtn.disabled = !matches;
+    };
+
+    fieldNewPassword?.addEventListener('input', validatePasswordConfirmation);
+    fieldRepeatPassword?.addEventListener('input', validatePasswordConfirmation);
+    validatePasswordConfirmation();
 });
 {/literal}
