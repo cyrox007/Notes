@@ -5,6 +5,7 @@ use Core\Controller;
 
 use App\Helpers\CryptMethods;
 use App\Models\UserModel;
+use Core\Config;
 use Core\Request;
 use Core\Router;
 use Core\DatabaseManager;
@@ -34,8 +35,6 @@ class AuthController extends Controller {
             ];
             return $this->render_template('login_page/login_view', $data);
         }
-
-        //var_dump( CryptMethods::verifyPassword($password, $user->password_hash) );
         
         if (!CryptMethods::verifyPassword($password, $user->password_hash)) {
             $data['errors'][] = [
@@ -44,30 +43,44 @@ class AuthController extends Controller {
             ];
             return $this->render_template('login_page/login_view', $data);
         }
+
+        if (!Config::canAuthenticate((int)$user->role)) {
+            $data['errors'][] = [
+                "CODE" => 'login_error',
+                "MESSAGE" => "Учетная запись недоступна"
+            ];
+            return $this->render_template('login_page/login_view', $data);
+        }
         
+        session_regenerate_id(true);
         $request->setSession('auth', true);
         $request->setSession('user_id', $user->id);
+        $request->setSession('user_uid', $user->uid);
 
         return Router::getInstance()->redirect('main', 'name'); 
     } 
 
     function logout(Request $request) {
         if (empty($request->session('auth'))) {
-            return Router::getInstance()->redirect('main');
+            return Router::getInstance()->redirect('authpage', 'name');
         }
 
         $request->unsetSession("auth");
+        $request->unsetSession("user_id");
+        $request->unsetSession("user_uid");
+        session_regenerate_id(true);
         return Router::getInstance()->redirect('authpage', 'name');
     }
 
-    function registration(Request $request) {
+    function registration(Request $request, ?string $inviteCode = null) {
         $base_url = rtrim(getenv('SITEURL'), '/') . '/' . ltrim(getenv('BASE_PATH'), '/');
+        $inviteCode = $inviteCode ?: $request->post('invite_code');
         $data = [
             'style' => $base_url . 'assets/css/style.css',
             'reg-script' => $base_url . 'assets/js/reg-script.js',
             'title' => 'Регистрация',
             'error' => '',
-            'invite_code' => $request->route('invite_code')
+            'invite_code' => $inviteCode
         ];
 
         // Если пришли без кода приглашения
@@ -81,19 +94,19 @@ class AuthController extends Controller {
         if($_SERVER['REQUEST_METHOD'] == 'POST') {
             // Собираем данные
             $user_login = $request->post('login');
-            $user_password = CryptMethods::createHashFromPassword($request->post('password'));
+            $user_password = CryptMethods::hashPassword($request->post('password'));
             $user_firstname = $request->post('first_name');
             $user_patronymic = $request->post('patronymic');
             $user_lastname = $request->post('surname');
             $user_phone = $request->post('user_phone');
             $user_email = $request->post('email');
-            $user_role = $this->config->user_role_activate ?? 888;
+            $user_role = Config::USER_ROLE_USER;
             $user_photo = 'default_img';
             
             // Проверяем изображение
             if (!empty($_FILES['userphoto']['tmp_name']) && in_array($_FILES['userphoto']['type'], ['image/jpeg', 'image/png', 'image/webp'])) {
                 // TODO: Реализовать сохранение аватара через Images handler
-                $user_photo = 'app/uploads/us_avatars/' . uniqid() . '_' . $_FILES['userphoto']['name'];
+                $user_photo = 'default_img';
             }
 
             // Проверяем занятость логина и email
@@ -112,7 +125,7 @@ class AuthController extends Controller {
 
             // Создаем нового пользователя
             $newUser = new UserModel();
-            $newUser->uid = \App\Helpers\UUID::v4();
+            $newUser->uid = \UUID::guidv4();
             $newUser->username = $user_login;
             $newUser->email = $user_email;
             $newUser->password_hash = $user_password;
