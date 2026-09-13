@@ -1,0 +1,119 @@
+.messenger-message {
+    position: relative;
+}
+
+.messenger-reactions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.messenger-reaction-chip {
+    min-height: 25px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border: 1px solid var(--msg-border);
+    border-radius: 999px;
+    color: var(--msg-muted);
+    background: rgba(255, 255, 255, .72);
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+}
+
+.messenger-reaction-chip:hover,
+.messenger-reaction-chip:focus-visible {
+    border-color: rgba(57, 119, 213, .35);
+    color: var(--msg-accent);
+    outline: none;
+}
+
+.messenger-reaction-chip[data-active="true"] {
+    border-color: rgba(57, 119, 213, .32);
+    color: var(--msg-accent);
+    background: var(--msg-accent-soft);
+}
+
+.messenger-reaction-chip__emoji {
+    font-size: 15px;
+    line-height: 1;
+}
+
+.messenger-reaction-chip__count {
+    min-width: 8px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+.messenger-reaction-picker {
+    position: absolute;
+    z-index: 12;
+    top: -42px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 5px;
+    border: 1px solid var(--msg-border);
+    border-radius: 999px;
+    background: #fff;
+    box-shadow: 0 8px 28px rgba(20, 36, 58, .18);
+}
+
+.messenger-message--own .messenger-reaction-picker {
+    right: 44px;
+}
+
+.messenger-message--other .messenger-reaction-picker {
+    left: 44px;
+}
+
+.messenger-reaction-picker[hidden] {
+    display: none;
+}
+
+.messenger-reaction-picker__item {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    cursor: pointer;
+    font: inherit;
+    font-size: 21px;
+    line-height: 1;
+    transition: transform .12s ease, background .12s ease;
+}
+
+.messenger-reaction-picker__item:hover,
+.messenger-reaction-picker__item:focus-visible {
+    background: #f2f5f8;
+    outline: none;
+    transform: scale(1.14);
+}
+
+@media (max-width: 640px) {
+    .messenger-reaction-picker {
+        top: -40px;
+        max-width: calc(100vw - 34px);
+    }
+
+    .messenger-message--own .messenger-reaction-picker {
+        right: 12px;
+    }
+
+    .messenger-message--other .messenger-reaction-picker {
+        left: 12px;
+    }
+
+    .messenger-reaction-picker__item {
+        width: 32px;
+        height: 32px;
+        font-size: 19px;
+    }
+}
