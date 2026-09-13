@@ -6,7 +6,13 @@
 <style>
 {include file='messager_page/style.css'}
 .messenger-chat__actions { display:flex; gap:.35rem; margin-left:auto; }
-.messenger-chat__actions .messenger-icon-button[data-active="true"] { background:rgba(127,127,127,.16); }
+.messenger-chat__actions .messenger-icon-button[data-active="true"] { color:var(--msg-accent); background:var(--msg-accent-soft); }
+.messenger-folder-tabs { display:flex; gap:6px; padding:0 12px 10px; }
+.messenger-folder-tab { flex:1; min-width:0; display:flex; align-items:center; justify-content:center; gap:6px; height:34px; padding:0 10px; border:0; border-radius:9px; background:transparent; color:var(--msg-muted); cursor:pointer; font:inherit; font-size:13px; }
+.messenger-folder-tab:hover { background:#f5f7fa; }
+.messenger-folder-tab[aria-selected="true"] { color:var(--msg-accent); background:var(--msg-accent-soft); font-weight:600; }
+.messenger-folder-tab__count { min-width:18px; height:18px; display:inline-grid; place-items:center; padding:0 5px; border-radius:999px; background:rgba(127,127,127,.13); font-size:11px; }
+.messenger-dialog-state-icons { display:inline-flex; align-items:center; gap:5px; flex:0 0 auto; color:var(--msg-muted); font-size:11px; }
 </style>
 
 <section
@@ -34,11 +40,24 @@
             <input id="dialog-search" type="search" autocomplete="off" placeholder="Поиск чатов">
         </div>
 
+        <div class="messenger-folder-tabs" role="tablist" aria-label="Папки чатов">
+            <button class="messenger-folder-tab" id="chat-folder-active" type="button" role="tab" aria-selected="true">
+                <i class="fa fa-comments-o" aria-hidden="true"></i>
+                <span>Чаты</span>
+                <span class="messenger-folder-tab__count" id="chat-folder-active-count">0</span>
+            </button>
+            <button class="messenger-folder-tab" id="chat-folder-archive" type="button" role="tab" aria-selected="false">
+                <i class="fa fa-archive" aria-hidden="true"></i>
+                <span>Архив</span>
+                <span class="messenger-folder-tab__count" id="chat-folder-archive-count">0</span>
+            </button>
+        </div>
+
         <div class="messenger-dialogs" id="dialog-list" aria-live="polite"></div>
         <div class="messenger-list__empty" id="dialog-list-empty" hidden>
             <i class="fa fa-comments-o" aria-hidden="true"></i>
-            <strong>Диалогов пока нет</strong>
-            <span>Создайте первый чат с коллегой.</span>
+            <strong id="dialog-list-empty-title">Диалогов пока нет</strong>
+            <span id="dialog-list-empty-text">Создайте первый чат с коллегой.</span>
         </div>
     </aside>
 
@@ -59,12 +78,15 @@
                     <strong id="chat-title">Диалог</strong>
                     <span id="chat-subtitle">&nbsp;</span>
                 </div>
-                <div class="messenger-chat__actions">
+                <div class="messenger-chat__actions" aria-label="Действия с чатом">
                     <button class="messenger-icon-button" id="chat-pin-button" type="button" title="Закрепить чат" aria-label="Закрепить чат">
                         <i class="fa fa-thumb-tack" aria-hidden="true"></i>
                     </button>
                     <button class="messenger-icon-button" id="chat-mute-button" type="button" title="Выключить уведомления на час" aria-label="Выключить уведомления на час">
                         <i class="fa fa-bell-slash-o" aria-hidden="true"></i>
+                    </button>
+                    <button class="messenger-icon-button" id="chat-archive-button" type="button" title="Архивировать чат" aria-label="Архивировать чат">
+                        <i class="fa fa-archive" aria-hidden="true"></i>
                     </button>
                 </div>
             </header>
