@@ -148,6 +148,10 @@ $worker->onMessage = function (TcpConnection $connection, string $message) use (
     if ($className === 'MessangerSocket') {
         unset($params['user_uid']);
         $params = ['user_uid' => $connection->uid] + $params;
+
+        if ($methodName === 'delete_message') {
+            $params['for_all'] = false;
+        }
     }
 
     try {
