@@ -20,7 +20,9 @@ final class DialogStateSocket
     {
         $this->guard($connection, function () use ($connection, $userUid, $payload): void {
             $dialogUid = $this->dialogUid($payload);
-            $result = $this->states->setPinned($userUid, $dialogUid, (bool) ($payload['pinned'] ?? true));
+            $result = array_key_exists('pinned', $payload)
+                ? $this->states->setPinned($userUid, $dialogUid, filter_var($payload['pinned'], FILTER_VALIDATE_BOOLEAN))
+                : $this->states->togglePinned($userUid, $dialogUid);
             $this->send($connection, ['action' => 'dialog_state', 'state' => 'pinned', ...$result]);
         });
     }
@@ -29,7 +31,9 @@ final class DialogStateSocket
     {
         $this->guard($connection, function () use ($connection, $userUid, $payload): void {
             $dialogUid = $this->dialogUid($payload);
-            $result = $this->states->setArchived($userUid, $dialogUid, (bool) ($payload['archived'] ?? true));
+            $result = array_key_exists('archived', $payload)
+                ? $this->states->setArchived($userUid, $dialogUid, filter_var($payload['archived'], FILTER_VALIDATE_BOOLEAN))
+                : $this->states->toggleArchived($userUid, $dialogUid);
             $this->send($connection, ['action' => 'dialog_state', 'state' => 'archived', ...$result]);
         });
     }
@@ -38,10 +42,12 @@ final class DialogStateSocket
     {
         $this->guard($connection, function () use ($connection, $userUid, $payload): void {
             $dialogUid = $this->dialogUid($payload);
-            $seconds = array_key_exists('seconds', $payload) && $payload['seconds'] !== null
-                ? (int) $payload['seconds']
-                : null;
-            $result = $this->states->setMuted($userUid, $dialogUid, $seconds);
+            if (array_key_exists('seconds', $payload)) {
+                $seconds = $payload['seconds'] === null ? null : (int) $payload['seconds'];
+                $result = $this->states->setMuted($userUid, $dialogUid, $seconds);
+            } else {
+                $result = $this->states->toggleMuted($userUid, $dialogUid);
+            }
             $this->send($connection, ['action' => 'dialog_state', 'state' => 'muted', ...$result]);
         });
     }
