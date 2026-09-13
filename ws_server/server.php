@@ -65,6 +65,11 @@ $allowedRoutes = [
         'messages',
         'dialogs',
     ],
+    'ForwardSocket' => [
+        'saved',
+        'save_message',
+        'forward',
+    ],
 ];
 
 $allowedOrigins = array_values(array_filter(array_map(
