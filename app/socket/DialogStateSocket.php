@@ -16,6 +16,16 @@ final class DialogStateSocket
         $this->states ??= new MessengerDialogStateService();
     }
 
+    public function list(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
+    {
+        $this->guard($connection, function () use ($connection, $userUid): void {
+            $this->send($connection, [
+                'action' => 'dialog_states',
+                'states' => $this->states->listStates($userUid),
+            ]);
+        });
+    }
+
     public function pin(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
     {
         $this->guard($connection, function () use ($connection, $userUid, $payload): void {
