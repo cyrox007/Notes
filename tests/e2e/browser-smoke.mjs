@@ -43,6 +43,13 @@ async function assertModuleLoads(page, path, selector) {
   await page.locator(selector).waitFor({ state: 'visible', timeout: 15000 });
 }
 
+async function waitForMessageBubble(page, message) {
+  await page.locator('#message-list').getByText(message, { exact: true }).waitFor({
+    state: 'visible',
+    timeout: 15000,
+  });
+}
+
 try {
   const alice = await createSession(aliceUser, alicePassword);
   const bob = await createSession(bobUser, bobPassword);
@@ -74,13 +81,13 @@ try {
   const message = `Browser WSS E2E ${Date.now()}`;
   await alice.page.locator('#message-input').fill(message);
   await alice.page.locator('#message-send-button').click();
-  await alice.page.getByText(message, { exact: true }).waitFor({ timeout: 15000 });
+  await waitForMessageBubble(alice.page, message);
 
   // Bob receives the new dialog over WSS, opens it and sees the same message.
   const bobDialog = bob.page.locator('.messenger-dialog-item').first();
   await bobDialog.waitFor({ state: 'visible', timeout: 15000 });
   await bobDialog.click();
-  await bob.page.getByText(message, { exact: true }).waitFor({ timeout: 15000 });
+  await waitForMessageBubble(bob.page, message);
 
   if (alice.pageErrors.length > 0) throw alice.pageErrors[0];
   if (bob.pageErrors.length > 0) throw bob.pageErrors[0];
