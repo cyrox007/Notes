@@ -66,7 +66,7 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot notes_fresh_test < database/user_fields_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_fresh_test < database/tasks_schema.sql
           COUNT="$(mysql -N -h 127.0.0.1 -uroot -proot notes_fresh_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('users','dialogs','user_to_dialogs','messages','message_user_deletions','messenger_attachments','message_reactions','notes','note_attachments','shared_notes','note_history','note_tags','note_tag_relations','user_files','user_fields','tasks','subtasks','task_categories','task_category_relations','task_reminders')")"
-          test "$COUNT" = "21"
+          test "$COUNT" = "20"
 
       - name: Prepare legacy database fixture
         shell: bash
