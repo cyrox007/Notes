@@ -5,7 +5,7 @@ if (file_exists(SITEPATH . '/vendor/autoload.php')) {
 }
 
 // Include Dotenv (or equivalent logic)
-if (class_exists('Dotenv\Dotenv')) {
+if (class_exists('Dotenv\\Dotenv')) {
     try {
         Dotenv\Dotenv::createUnsafeImmutable(SITEPATH)->load();
     } catch (\Dotenv\Exception\InvalidPathException $e) {
@@ -16,7 +16,7 @@ if (class_exists('Dotenv\Dotenv')) {
 // Register the autoload function
 spl_autoload_register(function ($class) {
     $classPath = SITEPATH . '/' . str_replace('\\', '/', $class) . '.php';
-    
+
     if (file_exists($classPath)) {
         require_once $classPath;
     } else {
@@ -49,6 +49,7 @@ foreach ($coreFiles as $file) {
 
 $directories = [
     '/app/models/',
+    '/app/services/',
     '/app/controllers/',
     '/app/socket/',
     '/app/handlers/',
@@ -61,7 +62,10 @@ array_walk($directories, function ($directory) {
     if (is_dir($path)) {
         loadDirectoryFiles($path);
     } else {
-        error_log("Directory {$path} does not exist.");
+        // Services are optional for older installs; all other directories are expected.
+        if ($directory !== '/app/services/') {
+            error_log("Directory {$path} does not exist.");
+        }
     }
 });
 
@@ -78,10 +82,8 @@ function loadDirectoryFiles(string $directory): void {
     );
 
     foreach ($files as $file) {
-        // Если файл, а не директория
         if ($file->isFile() && $file->getExtension() === 'php') {
             require_once $file->getRealPath();
-            //error_log("Loaded file: " . $file->getRealPath());  // Логирование загружаемых файлов
         }
     }
 }
