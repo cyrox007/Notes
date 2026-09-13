@@ -15,6 +15,7 @@ class UserToDialogsModel extends ORM
     public int $user_id = 0;
     public string $role = 'member';
     public string $joined_at = '';
+    public ?int $last_delivered_message_id = null;
     public ?int $last_read_message_id = null;
     public int $is_deleted = 0;
     public ?string $archived_at = null;
