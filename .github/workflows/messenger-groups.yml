@@ -47,7 +47,10 @@ jobs:
         run: |
           set -euo pipefail
           php -l app/services/MessengerGroupService.php
+          php -l app/services/MessengerGroupAvatarService.php
+          php -l app/controllers/MessengerGroupController.php
           php -l app/socket/GroupSocket.php
+          php -l core/routerConfig.php
           php -l ws_server/server.php
 
       - name: Group JavaScript syntax
@@ -70,6 +73,9 @@ jobs:
           set -euo pipefail
           php <<'PHP'
           <?php
+          if (!defined('SITEPATH')) {
+              define('SITEPATH', getcwd());
+          }
           $_SERVER['HTTP_HOST'] = 'localhost';
           putenv('DBDRIVER=mysql');
           putenv('DBHOST=127.0.0.1');
@@ -78,6 +84,7 @@ jobs:
           putenv('DBPASS=root');
           putenv('DBNAME=notes_groups_test');
           putenv('MSG_SECRET_KEY=ci-message-secret-0123456789abcdef0123456789abcdef');
+          putenv('PRIVATE_STORAGE_PATH=/tmp/notes-group-private');
 
           require __DIR__ . '/core/config.php';
           require __DIR__ . '/core/DatabaseManager.php';
@@ -85,6 +92,7 @@ jobs:
           require __DIR__ . '/app/handlers/MessengerCrypto.php';
           require __DIR__ . '/app/services/MessengerService.php';
           require __DIR__ . '/app/services/MessengerGroupService.php';
+          require __DIR__ . '/app/services/MessengerGroupAvatarService.php';
 
           $db = \Core\DatabaseManager::getInstance();
           $now = date('Y-m-d H:i:s');
@@ -117,11 +125,62 @@ jobs:
 
           $messenger = new \App\Services\MessengerService($db);
           $groups = new \App\Services\MessengerGroupService($db);
+          $avatars = new \App\Services\MessengerGroupAvatarService($db);
           $dialog = $messenger->createDialog($alice, 'group', [$bob], 'Core Team');
 
           $aliceInfo = $groups->info($alice, $dialog['uid']);
           if (($aliceInfo['current_role'] ?? null) !== 'owner' || count($aliceInfo['members'] ?? []) !== 2) {
               throw new RuntimeException('Initial group roles are invalid');
+          }
+
+          $aliceId = (int) $db->fetchValue('SELECT id FROM users WHERE uid = :uid', [':uid' => $alice]);
+          $bobId = (int) $db->fetchValue('SELECT id FROM users WHERE uid = :uid', [':uid' => $bob]);
+          $charlieId = (int) $db->fetchValue('SELECT id FROM users WHERE uid = :uid', [':uid' => $charlie]);
+          $dialogId = (int) $db->fetchValue('SELECT id FROM dialogs WHERE uid = :uid', [':uid' => $dialog['uid']]);
+
+          $avatarToken = str_repeat('a', 48) . '.png';
+          $avatarDir = '/tmp/notes-group-private/messenger/group_avatars/' . $dialogId;
+          if (!is_dir($avatarDir) && !mkdir($avatarDir, 0700, true) && !is_dir($avatarDir)) {
+              throw new RuntimeException('Cannot prepare group avatar fixture directory');
+          }
+          $avatarPath = $avatarDir . '/' . $avatarToken;
+          file_put_contents($avatarPath, 'avatar fixture');
+          $db->execute(
+              'UPDATE dialogs SET avatar = :avatar WHERE id = :dialog_id',
+              [':avatar' => $avatarToken, ':dialog_id' => $dialogId]
+          );
+
+          $memberAvatar = $avatars->download($bobId, $dialog['uid']);
+          if (($memberAvatar['path'] ?? null) !== $avatarPath) {
+              throw new RuntimeException('Group member cannot access protected avatar');
+          }
+
+          $outsiderBlocked = false;
+          try {
+              $avatars->download($charlieId, $dialog['uid']);
+          } catch (DomainException) {
+              $outsiderBlocked = true;
+          }
+          if (!$outsiderBlocked) {
+              throw new RuntimeException('Non-member can access group avatar');
+          }
+
+          $memberBlocked = false;
+          try {
+              $avatars->remove($bobId, $dialog['uid']);
+          } catch (DomainException) {
+              $memberBlocked = true;
+          }
+          if (!$memberBlocked) {
+              throw new RuntimeException('Member can remove group avatar');
+          }
+
+          $avatars->remove($aliceId, $dialog['uid']);
+          if (is_file($avatarPath)) {
+              throw new RuntimeException('Owner avatar removal left private file on disk');
+          }
+          if ($db->fetchValue('SELECT avatar FROM dialogs WHERE id = :id', [':id' => $dialogId]) !== null) {
+              throw new RuntimeException('Owner avatar removal did not clear dialog avatar');
           }
 
           $blocked = false;
