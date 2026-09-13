@@ -1,0 +1,156 @@
+name: Master release gate
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: workspace_release_gate
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout merged source
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
+          coverage: none
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate and install PHP dependencies
+        run: |
+          set -euo pipefail
+          composer validate --no-check-publish
+          composer install --no-interaction --prefer-dist --no-progress
+          composer audit --no-interaction
+
+      - name: Lint all PHP sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          find . -type f -name '*.php' -not -path './vendor/*' -print0 \
+            | xargs -0 -n1 php -l
+
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          while IFS= read -r -d '' source; do
+            node --check "$source"
+          done < <(find assets/js tests/e2e -type f \( -name '*.js' -o -name '*.mjs' \) -print0)
+
+          for source in app/views/messager_page/*.js; do
+            target="/tmp/$(basename "$source")"
+            sed '/^{literal}$/d;/^{\/literal}$/d' "$source" > "$target"
+            node --check "$target"
+          done
+
+      - name: Import canonical database contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          for schema in \
+            database/messenger_schema.sql \
+            database/notes_schema.sql \
+            database/file_manager_schema.sql \
+            database/user_fields_schema.sql \
+            database/tasks_schema.sql
+          do
+            mysql -h 127.0.0.1 -uroot -proot workspace_release_gate < "$schema"
+          done
+
+          count="$(mysql -N -h 127.0.0.1 -uroot -proot workspace_release_gate -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE();")"
+          test "$count" -ge 20
+
+      - name: Run production healthcheck
+        shell: bash
+        env:
+          DBDRIVER: mysql
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: workspace_release_gate
+          SITEURL: https://workspace.example.test
+          WS_PUBLIC_URL: wss://workspace.example.test/ws
+          WS_ALLOWED_ORIGINS: https://workspace.example.test
+          UNIQUE_KEY: release-gate-unique-key-0123456789abcdef0123456789abcdef
+          MSG_SECRET_KEY: release-gate-message-key-0123456789abcdef0123456789abcdef
+          WS_TICKET_SECRET: release-gate-ticket-key-0123456789abcdef0123456789abcdef
+          PRIVATE_STORAGE_PATH: /tmp/workspace-release-private
+          DEPLOYMENT_NODE_COUNT: '1'
+        run: |
+          set -euo pipefail
+          rm -rf "$PRIVATE_STORAGE_PATH"
+          install -d -m 700 "$PRIVATE_STORAGE_PATH"
+          for directory in file_manager messenger notes users rate-limit logs legacy; do
+            install -d -m 700 "$PRIVATE_STORAGE_PATH/$directory"
+          done
+          php bin/healthcheck.php
+
+      - name: Verify release version contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")"
+          test -n "$version"
+          grep -Fq "**Версия:** \`$version\`" README.md
+          grep -Fq "## $version" CHANGELOG.md
+          echo "Release version contract: $version"
+
+      - name: Verify upload-ready hosting bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-progress
+          bundle=/tmp/workspace-hosting-bundle
+          rm -rf "$bundle"
+          mkdir -p "$bundle"
+          rsync -a ./ "$bundle/" \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='.env' \
+            --exclude='cache/*' \
+            --exclude='compile/*'
+
+          test -f "$bundle/vendor/autoload.php"
+          test -f "$bundle/install.php"
+          test -f "$bundle/default.env"
+          test -f "$bundle/database/messenger_schema.sql"
+          test ! -e "$bundle/.env"
+          test ! -d "$bundle/.git"
+          test ! -d "$bundle/.github"
+
+          if find "$bundle" -type f -name '.env' -print -quit | grep -q .; then
+            echo 'Hosting bundle unexpectedly contains .env' >&2
+            exit 1
+          fi
