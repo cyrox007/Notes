@@ -1,70 +1,66 @@
 # Workspace Organizer
 
 **Версия:** `0.10.0-alpha`  
-**Дата актуализации:** 13 сентября 2026  
+**Актуально на:** 13 сентября 2026  
 **Статус:** active alpha / production hardening
 
-Workspace Organizer — PHP-приложение для внутреннего рабочего пространства: зашифрованные заметки, задачи, личные файлы, профиль, администрирование и real-time Messenger.
+Workspace Organizer — внутреннее PHP-приложение для корпоративной работы: заметки, задачи, личные файлы, профиль, администрирование и real-time Messenger.
 
-После security/contract hardening проект больше не опирается на старые несовместимые схемы Messenger/Tasks/Profile. Fresh install, versioned DB upgrade path и миграция legacy ciphertext имеют отдельные проверяемые контракты.
+После PR #45–#55 основные security- и schema-contract блокеры исходного аудита закрыты: Messenger, Notes, Tasks, Profile, fresh install, versioned DB upgrade и legacy crypto migration имеют отдельные проверяемые контракты. Текущий этап — UI/UX и production-readiness.
 
 ## Возможности
 
-- **Notes** — зашифрованный текст, private attachments, голосовые вложения, view-only sharing по токену.
-- **Tasks** — статусы, приоритеты, сроки, категории, подзадачи, фильтрация и серверный sort allowlist.
-- **File Manager** — личные папки и файлы вне document root с авторизованной выдачей.
+- **Notes** — XChaCha20-Poly1305 для текста, private attachments, голосовые вложения, view-only sharing по токену.
+- **Tasks** — статусы, приоритеты, сроки, категории, подзадачи, фильтры и server-side sort allowlist.
+- **File Manager** — личные папки/файлы вне document root, protected download, media и read-only text preview.
 - **Messenger v2** — private/group chats, Saved Messages, forwarding, media, voice, reply/edit/delete, delivery/read receipts, reactions, encrypted search, pin/mute/archive, group roles/avatars и multi-device realtime.
 - **Profile** — canonical user contract, private avatar, изменение данных/пароля и безопасная деактивация аккаунта.
 - **Admin panel** — управление пользователями и custom profile fields.
-- **Responsive UI** — общий design system, mobile navigation drawer, единая типографика/формы/карточки, keyboard focus и reduced-motion support.
+- **Responsive UI** — единый design system, desktop/mobile navigation, dashboard, обновлённые формы/карточки/модалки, keyboard focus и reduced-motion support.
 
-## Важная модель безопасности
+## Security model
 
-- Пароли хешируются через `password_hash` / Argon2id.
-- Notes text шифруется через `UNIQUE_KEY` + XChaCha20-Poly1305 с UID заметки как AAD.
-- Messenger text/captions шифруются отдельным `MSG_SECRET_KEY` и versioned XChaCha20-Poly1305 payload.
-- Crypto failures для новых encrypted данных работают fail-closed.
-- WebSocket identity определяется короткоживущим подписанным ticket на сервере, а не UID из браузера.
-- WebSocket origins/actions находятся в allowlist.
-- File Manager, Messenger media, Notes attachments и user avatars находятся в `PRIVATE_STORAGE_PATH`, а не в public uploads.
-- Upload MIME определяется сервером (`finfo`) и сверяется с allowlist.
-- Unsafe HTTP actions проходят CSRF policy.
-- Login/registration и upload endpoints имеют встроенный request rate limit.
-- Регистрация закрыта, пока явно не задан `REGISTRATION_INVITE_CODE`.
+Ключевые свойства текущего contract:
 
-> **Не E2E:** Messenger использует server-side encryption at rest. Сервер способен расшифровать сообщения и поэтому это не end-to-end encryption.
+- passwords — `password_hash` / Argon2id;
+- Notes text — `UNIQUE_KEY` + XChaCha20-Poly1305, UID заметки используется как AAD;
+- Messenger text/captions — отдельный `MSG_SECRET_KEY` + versioned XChaCha20-Poly1305 payload;
+- crypto failures для новых encrypted данных — fail-closed;
+- WebSocket identity — подписанный server-issued ticket, client UID не считается доверенным;
+- WebSocket origins/actions — allowlist;
+- File Manager, Messenger media, Notes attachments и user avatars — `PRIVATE_STORAGE_PATH` вне document root;
+- upload MIME — server-side `finfo` + allowlist;
+- unsafe HTTP actions — CSRF policy;
+- login/registration и upload endpoints — request rate limiting;
+- web-registration закрыта без `REGISTRATION_INVITE_CODE`;
+- inactive/blocked user повторно проверяется на HTTP и WebSocket paths.
 
-> **Attachments:** Messenger/Notes/File Manager attachment bytes и avatars защищены private filesystem + ACL. Они не считаются отдельно зашифрованными at-rest, если конкретный storage path явно не реализует такое шифрование. Для новых Notes attachments `is_encrypted=0` намеренно отражает реальность.
+> Messenger использует **server-side encryption at rest**, а не end-to-end encryption. Сервер способен расшифровать сообщения.
+
+> Attachment bytes и avatars защищаются private filesystem + ACL. Они не считаются отдельно зашифрованными at-rest, если конкретный storage flow явно не реализует такое шифрование. Для новых Notes attachments `is_encrypted=0` намеренно отражает реальность.
 
 ## Требования
 
 - PHP `8.3+`;
-- MySQL `8.x` (основной проверяемый CI path; совместимость с MariaDB требует отдельной проверки);
+- MySQL `8.x` — основной проверяемый CI path;
 - Composer;
-- PHP extensions: `mysqli`, `pdo_mysql`, `mbstring`, `json`, `fileinfo`, `sodium`; `gd` нужен для image/avatar flows;
-- Apache + mod_rewrite или Nginx с эквивалентным front-controller routing;
-- writable private directory вне document root;
-- HTTPS/WSS для production.
+- PHP extensions: `mysqli`, `pdo_mysql`, `mbstring`, `json`, `fileinfo`, `sodium`; `gd` нужен для avatar/image flows;
+- Apache + `mod_rewrite` либо Nginx с эквивалентным front-controller routing;
+- writable private storage вне document root;
+- HTTPS + WSS для production.
 
-## Быстрый fresh install
+## Fresh install
 
 ### 1. Dependencies
 
 ```bash
 composer install --no-dev --optimize-autoloader
-```
-
-Для development/CI допускается обычный:
-
-```bash
-composer install
-```
-
-### 2. Environment
-
-```bash
 cp default.env .env
 ```
+
+Для development/CI можно использовать обычный `composer install`.
+
+### 2. Environment
 
 Минимальный production-набор:
 
@@ -88,13 +84,13 @@ WS_PUBLIC_URL=wss://workspace.example.com/ws
 WS_ALLOWED_ORIGINS=https://workspace.example.com
 ```
 
-Секреты удобно генерировать так:
+Генерация случайного секрета:
 
 ```bash
 openssl rand -hex 32
 ```
 
-Никогда не коммитьте `.env` и не используйте одинаковые ключи для prod/stage/dev.
+Не коммитьте `.env` и не используйте одинаковые secrets между prod/stage/dev.
 
 ### 3. Private storage
 
@@ -109,41 +105,39 @@ openssl rand -hex 32
 └── rate-limit/
 ```
 
-Корневой каталог должен принадлежать пользователю PHP-FPM/веб-процесса и **не должен** быть static location веб-сервера. Чувствительные файлы создаются с private permissions; rate-limit state хранится с режимом `0600`.
+Этот каталог должен принадлежать PHP/web process и **не должен** быть static location веб-сервера.
 
-### 4. Canonical database schema
+### 4. Database
 
-Для новой пустой БД применяются все пять схем:
+Canonical fresh schemas:
 
-```bash
-mysql -u root -p workspace < database/messenger_schema.sql
-mysql -u root -p workspace < database/notes_schema.sql
-mysql -u root -p workspace < database/file_manager_schema.sql
-mysql -u root -p workspace < database/user_fields_schema.sql
-mysql -u root -p workspace < database/tasks_schema.sql
+```text
+database/messenger_schema.sql
+database/notes_schema.sql
+database/file_manager_schema.sql
+database/user_fields_schema.sql
+database/tasks_schema.sql
 ```
 
-Fresh contract включает 20 обязательных таблиц: users/Messenger, Notes, File Manager, custom fields и Tasks.
-
-Web-installer `install.php` предназначен только для **новой/пустой** БД. Если он обнаруживает неполную legacy DB, он не пытается «достроить» её поверх существующих данных и направляет на CLI migration path.
+Fresh contract включает 20 обязательных таблиц. `install.php` предназначен только для новой/пустой БД; существующие установки обновляются versioned migrations.
 
 После успешной установки наличие `.env` блокирует повторный запуск web-installer.
 
-### 5. Регистрация пользователей
+### 5. Registration
 
-По умолчанию web-registration закрыта. Чтобы разрешить создание аккаунтов по invite URL, задайте длинный случайный секрет:
+По умолчанию web-registration закрыта. Для invite registration задайте:
 
 ```env
 REGISTRATION_INVITE_CODE=<long-random-invite-secret>
 ```
 
-Ссылка:
+После этого используется URL:
 
 ```text
 /auth/registration/<REGISTRATION_INVITE_CODE>
 ```
 
-Пустое или неверное значение возвращает `404`. Созданный установщиком administrator не зависит от web-registration.
+Неверный или незаданный invite возвращает `404`.
 
 ### 6. WebSocket
 
@@ -153,99 +147,61 @@ Development:
 php ws_server/server.php start
 ```
 
-Production: запускайте Workerman через systemd/supervisor/container orchestration и публикуйте только через WSS reverse proxy.
+Production: запускайте Workerman через systemd/supervisor/container orchestration и публикуйте браузеру только через WSS reverse proxy.
 
-## Обновление существующей установки
+## Upgrade existing DB
 
-Перед любым обновлением:
+До обновления сделайте backup БД, `PRIVATE_STORAGE_PATH` и действующих crypto keys.
 
-1. Сделайте backup БД.
-2. Сделайте backup `PRIVATE_STORAGE_PATH`.
-3. Сохраните действующие crypto keys.
-4. Выполните dry-run миграций на staging.
-5. Проверьте runtime healthcheck.
-6. После этого обновляйте production.
-
-### Versioned DB migrations
-
-Проверить состояние:
+Проверка migration state:
 
 ```bash
 php bin/migrate.php --status
 ```
 
-Показать pending migrations без изменений:
+Dry-run:
 
 ```bash
 php bin/migrate.php --dry-run
 ```
 
-Применить:
+Apply:
 
 ```bash
 php bin/migrate.php
 ```
 
-`schema_migrations` хранит имя и SHA-256 checksum каждого применённого файла. Изменение уже применённой migration приводит к fail-closed ошибке — создавайте новый migration-файл вместо редактирования истории.
+`schema_migrations` сохраняет filename + SHA-256 checksum. Уже применённые migration-файлы нельзя переписывать задним числом — создавайте новый migration.
 
 ### Legacy crypto migration
 
-После DB migration сначала запускайте dry-run:
+Сначала dry-run:
 
 ```bash
 php bin/migrate_crypto.php --scope=all --dry-run --limit=1000
 ```
 
-Затем миграцию партиями:
+Затем bounded/resumable migration:
 
 ```bash
 php bin/migrate_crypto.php --scope=all --limit=1000
-```
-
-Продолжение после определённого primary-key ID:
-
-```bash
 php bin/migrate_crypto.php --scope=messenger --limit=1000 --after-id=5000
 ```
 
-Опция:
+`--allow-plaintext-notes` используйте только для вручную подтверждённых legacy Notes, которые исторически были помечены encrypted, но фактически содержали plaintext.
 
-```text
---allow-plaintext-notes
-```
-
-нужна только для явно подтверждённых legacy Notes, которые исторически были помечены encrypted, но фактически содержат plaintext. Не включайте её без предварительного dry-run/backup.
-
-После успешного перевода старых Messenger ciphertext удалите временный `MSG_LEGACY_SECRET_KEY`.
+После успешной миграции legacy Messenger ciphertext удалите временный `MSG_LEGACY_SECRET_KEY`.
 
 ## Production healthcheck
 
-Новый CLI smoke-check:
-
 ```bash
 php bin/healthcheck.php
-```
-
-или JSON для monitoring:
-
-```bash
 php bin/healthcheck.php --json
 ```
 
-Он проверяет:
-
-- PHP version и обязательные extensions;
-- наличие активных crypto/WebSocket secrets;
-- доступность и writable state private storage;
-- корректность `SITEURL` / `WS_PUBLIC_URL` (`https` требует `wss`);
-- соединение с БД;
-- присутствие 20 таблиц current schema contract.
-
-Ненулевой exit code означает, что deployment нельзя считать healthy.
+Healthcheck проверяет PHP/extensions, secrets, private storage, HTTPS/WSS consistency, DB connection и current schema contract. Ненулевой exit code означает, что deployment нельзя считать healthy.
 
 ## Rate limiting
-
-Встроенные лимиты:
 
 ```env
 MAX_LOGIN_ATTEMPTS=5
@@ -254,23 +210,42 @@ UPLOAD_RATE_LIMIT_ATTEMPTS=60
 UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60
 ```
 
-Состояние хранится под `PRIVATE_STORAGE_PATH/rate-limit` с `flock`. Это корректный baseline для одного приложения/узла либо нескольких процессов с общим filesystem.
+Baseline limiter хранит state под `PRIVATE_STORAGE_PATH/rate-limit`, использует `flock` и подходит для одного узла либо процессов с общим filesystem. Для multi-node deployment используйте shared limiter на reverse proxy/API gateway/Redis/WAF.
 
-Для горизонтально масштабированной установки с разными локальными дисками дополнительно используйте shared limiter (Redis/API gateway/reverse proxy/WAF). Не доверяйте `X-Forwarded-For`, пока доверенные proxy явно не настроены.
+## HTTP / CSP baseline
 
-## HTTP/CSP baseline
-
-Apache `.htaccess`:
+Repository `.htaccess`:
 
 - запрещает directory listing;
-- блокирует `database`, `.logs`, `vendor`, `.env`, Composer metadata;
+- закрывает `database`, `.logs`, `vendor`, `.env` и Composer metadata;
 - блокирует `install.php` после появления `.env`;
 - задаёт `nosniff`, Referrer Policy, SAMEORIGIN, Permissions Policy и COOP;
-- CSP запрещает objects, ограничивает forms/base/frame ancestors текущим origin;
-- разрешает `ws:`/`wss:` для realtime;
-- сохраняет `cdnjs.cloudflare.com` только потому, что File Manager пока использует внешний Ace editor.
+- CSP запрещает objects, ограничивает base/forms/frame ancestors;
+- внешние JS CDN не требуются;
+- `unsafe-eval` удалён после отказа от браузерного code runner в File Manager.
 
-HSTS намеренно не включён в repository `.htaccess`: его следует задавать на production TLS reverse proxy только после подтверждения постоянного HTTPS.
+Пока остаётся `unsafe-inline`, потому что часть legacy Smarty templates содержит inline script/style blocks. Это известный CSP-hardening debt, а не разрешение для новых inline-скриптов.
+
+HSTS намеренно задаётся на production TLS reverse proxy, а не в repository `.htaccess`.
+
+## UI / UX refresh
+
+Интерфейс остаётся server-rendered Smarty без отдельного frontend build pipeline.
+
+Текущий product UI layer включает:
+
+- системный font stack без Google Fonts;
+- единые tokens для colors/surfaces/borders/radii/shadows;
+- новый responsive sidebar: desktop collapse + mobile drawer/overlay;
+- current-route navigation state;
+- обновлённый top bar/footer и dashboard;
+- унифицированные Notes/Tasks/Profile/File Manager/Admin surfaces;
+- Messenger визуально интегрирован в общий shell без изменения realtime logic;
+- обновлённые login/register screens;
+- keyboard focus, skip-link, aria-live region и доступные labels;
+- `prefers-reduced-motion`;
+- touch/mobile actions не зависят только от hover;
+- File Manager code execution удалён; текстовые/code-файлы открываются только в read-only preview.
 
 ## Основные URL
 
@@ -287,162 +262,84 @@ HSTS намеренно не включён в repository `.htaccess`: его с
 
 Полный route contract: `core/routerConfig.php`.
 
-## UI / UX
+## Module notes
 
-Текущий интерфейс использует server-rendered Smarty без отдельного frontend build pipeline.
+### Notes
 
-Product UI layer:
+- server-side sort allowlist;
+- owner-only edit/delete;
+- private attachment upload/download/delete;
+- public view-only share token;
+- shared attachment ACL;
+- encrypted text fail-closed.
 
-- системный font stack без Google Fonts;
-- единые tokens для цвета, surface, border, radius и shadow;
-- responsive sidebar: desktop collapse + mobile drawer;
-- active navigation state по текущему route;
-- sticky top toolbar;
-- обновлённые dashboard/auth/Notes/Tasks/Profile/File Manager/Admin surfaces;
-- Messenger подключён к общим tokens без переписывания его realtime component logic;
-- keyboard focus, skip-link, aria-live notification region;
-- `prefers-reduced-motion` support;
-- touch devices не зависят исключительно от hover для file/message actions.
+### Tasks
 
-Внешний Ace editor File Manager пока загружается с cdnjs. Для полностью self-contained/offline deployment его следует vendoring-нуть локально отдельным изменением.
+`database/tasks_schema.sql` входит в canonical install. Поддерживаются statuses/priorities/due dates/subtasks/categories и server-side filter/sort allowlists.
 
-## Notes
+### Messenger v2
 
-Основной flow:
+Current contract включает private/group dialogs, Saved Messages, forwarding, media/voice, replies/edit/delete, delivered/read cursors, reactions, multi-device fanout, pin/mute/archive, group ownership/admin roles/avatars, orphan cleanup и bounded encrypted search.
 
-```text
-POST /notes/                         создать заметку
-GET  /notes/{uid}/edit               открыть редактор
-POST /notes/{uid}/edit               сохранить
-POST /notes/{uid}/delete             soft-delete
-POST /notes/upload/{uid}             attachment upload
-GET  /notes/attachment/{fileUid}     owner download
-POST /notes/attachment/delete/{id}   attachment delete
-POST /notes/share/{uid}              создать public view share
-POST /notes/unshare/{uid}            отключить share
-GET  /notes/shared/{token}           public view
-```
+Encrypted search не хранит plaintext index: он расшифровывает только ограниченное число последних доступных сообщений (`MESSENGER_SEARCH_SCAN_LIMIT`, default `1000`).
 
-Notes sort fields выбираются только из серверного allowlist.
+### Profile
 
-## Tasks
+Private avatar выдаётся через authenticated endpoint. Self-delete заменён на deactivation (`is_active=0`), данные не каскадно удаляются; group owner должен сначала передать ownership.
 
-Canonical `tasks_schema.sql` является частью fresh install. Tasks поддерживают:
+## Scheduled maintenance
 
-- pending / in_progress / completed / cancelled;
-- low / medium / high / urgent priority;
-- due dates и overdue filter;
-- subtasks;
-- user/global categories;
-- category relations;
-- серверный filter/sort allowlist.
-
-## Messenger v2
-
-На current `master`/release contract входят:
-
-- socket-ticket auth, origin/action allowlists;
-- private/group dialogs;
-- Saved Messages;
-- forwarding text/media с независимыми media copies;
-- reply/edit/delete-for-me/delete-for-all;
-- delivered/read cursors;
-- private media + byte-range streaming;
-- voice recording/player;
-- realtime reactions;
-- multi-device fanout;
-- pin/mute/archive;
-- owner/admin/member group management;
-- private group avatars;
-- media replies и orphan cleanup;
-- bounded encrypted search.
-
-### Ограничение encrypted search
-
-Поиск не хранит plaintext index: он расшифровывает ограниченное число последних доступных сообщений (`MESSENGER_SEARCH_SCAN_LIMIT`, default `1000`). Это осознанный privacy/complexity trade-off, а не полнотекстовый индекс всей истории.
-
-## Profile / account lifecycle
-
-- canonical `users` fields;
-- private user avatar с authenticated delivery;
-- email normalization/uniqueness;
-- смена пароля требует текущий пароль;
-- account self-delete заменён на деактивацию (`is_active=0`), связанные Notes/данные сохраняются;
-- владелец активной группы должен передать ownership перед деактивацией;
-- WebSocket повторно проверяет active/role state.
-
-## Cleanup / scheduled maintenance
-
-Messenger orphan media:
+Messenger orphan cleanup:
 
 ```bash
 php bin/cleanup_messenger_orphans.php
 ```
 
-Запускайте по cron/systemd timer, например каждые 15–60 минут.
+Рекомендуемый cron/systemd timer: каждые 15–60 минут.
 
-Также регулярно контролируйте:
-
-- размер private storage;
-- права каталогов/файлов;
-- backup/restore test;
-- состояние DB migrations;
-- удаление временных legacy keys после завершения migration;
-- application/web/proxy logs.
+Также контролируйте disk space, права private storage, migration state, logs, backup/restore tests и удаление временных legacy keys.
 
 ## CI
 
-GitHub Actions покрывают:
+GitHub Actions покрывают security baseline, PHP/Composer, clean schemas, DB upgrade, crypto migration, Notes/Tasks/Profile contracts и Messenger groups/media/search/voice/reactions/forwarding. Текущий product-readiness workflow дополнительно проверяет UI wiring, Linux bootstrap paths, rate limit middleware, CSP и healthcheck contract.
 
-- security baseline;
-- Composer validate/install/audit и PHP syntax;
-- crypto fail-closed/migration scenarios;
-- clean canonical schemas;
-- Notes private storage;
-- Tasks contract;
-- Profile/user lifecycle;
-- installer + versioned DB upgrade;
-- Messenger groups/media/search/voice/reactions/forwarding;
-- product UI/static contract;
-- file-backed rate limiter integration;
-- production healthcheck на MySQL 8.4.
-
-Security-sensitive функции должны иметь integration/runtime test, а не только lint/grep.
-
-## Что ещё не следует считать решённым
-
-Проект всё ещё имеет статус **alpha**. Перед публичным/критичным production deployment остаются инфраструктурные задачи:
-
-- полноценный browser/WSS end-to-end smoke в реальном reverse-proxy окружении;
-- централизованный rate limiter для multi-node deployment;
-- централизованные metrics/alerts/log aggregation;
-- документированный и регулярно проверяемый disaster recovery/restore процесс;
-- процедура key rotation с контролируемым re-encryption;
-- при необходимости — scalable blind-index/search architecture вместо bounded decrypt scan;
-- vendoring Ace editor, если запрещены внешние CDN.
+Полноценный browser + WSS smoke через production reverse proxy остаётся отдельным pre-release deployment test; repository CI не выдаёт его за уже выполненный.
 
 ## Документация
 
 - [`CHANGELOG.md`](CHANGELOG.md) — история и Unreleased.
-- [`docs/CORE.md`](docs/CORE.md) — Router/Request/DB/Crypto/WebSocket/private storage architecture.
+- [`docs/CORE.md`](docs/CORE.md) — архитектура ядра.
 - [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) — пользовательские сценарии.
+- [`docs/PRODUCTION.md`](docs/PRODUCTION.md) — deployment, backup/restore, WSS, rate limiting и operations checklist.
 - [`TASKS_MODULE_README.md`](TASKS_MODULE_README.md) — дополнительная документация Tasks.
 - [`default.env`](default.env) — environment variables и security comments.
 
+## Что остаётся до production release
+
+Проект всё ещё **alpha**. Главные оставшиеся инфраструктурные задачи:
+
+- browser/WSS E2E в реальном reverse-proxy окружении;
+- shared rate limiter при multi-node deployment;
+- централизованные metrics/alerts/log aggregation;
+- регулярный disaster-recovery restore drill;
+- процедура key rotation с контролируемым re-encryption;
+- при росте Messenger — scalable encrypted-search architecture вместо bounded decrypt scan;
+- постепенный вынос inline Smarty JS/CSS для CSP без `unsafe-inline`.
+
 ## Production checklist
 
-Перед выкладкой убедитесь, что:
+Перед выкладкой:
 
-- `composer install --no-dev --optimize-autoloader` завершился успешно;
-- `.env` не доступен через HTTP;
-- `UNIQUE_KEY`, `MSG_SECRET_KEY`, `WS_TICKET_SECRET` уникальны и >= 32 случайных символов;
-- `PRIVATE_STORAGE_PATH` находится вне document root;
-- HTTPS + WSS настроены на reverse proxy;
-- `WS_ALLOWED_ORIGINS` содержит только реальные trusted origins;
-- `php bin/migrate.php --status` показывает ожидаемое состояние;
-- legacy crypto migration выполнена/проверена при необходимости;
-- `php bin/healthcheck.php` возвращает `Healthcheck: OK`;
-- backup БД и private storage создан и restore проверен;
-- orphan cleanup запланирован;
-- registration invite/rate limits настроены осознанно;
-- логи/мониторинг и disk-space alerts подключены.
+1. `composer install --no-dev --optimize-autoloader` проходит без ошибок.
+2. `.env` и service directories недоступны по HTTP.
+3. `UNIQUE_KEY`, `MSG_SECRET_KEY`, `WS_TICKET_SECRET` уникальны и случайны.
+4. `PRIVATE_STORAGE_PATH` находится вне document root.
+5. HTTPS + same-site WSS reverse proxy настроены.
+6. `WS_ALLOWED_ORIGINS` содержит только trusted origins.
+7. `php bin/migrate.php --status` показывает ожидаемое состояние.
+8. Legacy crypto migration выполнена/проверена, если нужна.
+9. `php bin/healthcheck.php` возвращает `Healthcheck: OK`.
+10. Backup БД/private storage создан и restore реально проверен.
+11. Orphan cleanup запланирован.
+12. Registration invite/rate limits настроены осознанно.
+13. Logs, metrics и disk-space alerts подключены.
