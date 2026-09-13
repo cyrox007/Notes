@@ -1,7 +1,11 @@
 {literal}
-const user_id = "{/literal}{$user['id']|default:0}{literal}";
 const socketTicket = "{/literal}{$socket_ticket|default:''|escape:'javascript'}{literal}";
 const socketUrl = "{/literal}{$socket_url|default:''|escape:'javascript'}{literal}";
+
+wspace.socketConfig = {
+    ticket: socketTicket,
+    url: socketUrl
+};
 
 (function bootstrapSecurity() {
     const unsafeMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -35,7 +39,9 @@ const socketUrl = "{/literal}{$socket_url|default:''|escape:'javascript'}{litera
             const requestUrl = typeof Request !== 'undefined' && input instanceof Request ? input.url : String(input);
 
             if (csrfToken && unsafeMethods.has(requestMethod) && isSameOrigin(requestUrl)) {
-                const headers = new Headers(init.headers || (typeof Request !== 'undefined' && input instanceof Request ? input.headers : undefined));
+                const headers = new Headers(
+                    init.headers || (typeof Request !== 'undefined' && input instanceof Request ? input.headers : undefined)
+                );
                 if (!headers.has('X-CSRF-Token')) {
                     headers.set('X-CSRF-Token', csrfToken);
                 }
@@ -89,61 +95,17 @@ const socketUrl = "{/literal}{$socket_url|default:''|escape:'javascript'}{litera
     }, true);
 })();
 
-document.addEventListener("DOMContentLoaded", function () {
+document.addEventListener('DOMContentLoaded', function () {
     const sidebarControl = document.getElementById('sidebarControl');
     const sidebar = document.querySelector('.sidebar');
     const content = document.querySelector('.wrapper__content');
 
     if (sidebarControl && sidebar && content) {
-        sidebarControl.addEventListener('click', (e) => {
-            e.preventDefault();
+        sidebarControl.addEventListener('click', (event) => {
+            event.preventDefault();
             content.classList.toggle('sidebar--active');
             sidebar.classList.toggle('active');
         });
-    }
-
-    wspace.core = { data: { socket: null, messagesArray: null, userID: null } };
-
-    if (!socketTicket || !socketUrl) {
-        return;
-    }
-
-    try {
-        const separator = socketUrl.includes('?') ? '&' : '?';
-        const conn = new WebSocket(`${socketUrl}${separator}ticket=${encodeURIComponent(socketTicket)}`);
-        wspace.core.data.socket = conn;
-
-        const ping = () => {
-            if (conn.readyState === WebSocket.OPEN) {
-                conn.send(JSON.stringify({
-                    action: "PingSocket:index",
-                    data: { ping: "Pong" }
-                }));
-            }
-        };
-
-        let messConn;
-        if (typeof MessengerConnect !== 'undefined') {
-            messConn = new MessengerConnect();
-        }
-
-        conn.onmessage = (event) => {
-            const serverData = JSON.parse(event.data);
-            if (serverData.action === "Ping") {
-                ping();
-            }
-
-            if (window.location.pathname.includes('/messenger') && typeof messConn !== 'undefined') {
-                messConn.init();
-                messConn.listenWebSocket();
-            }
-        };
-
-        conn.onerror = () => {
-            console.warn('WebSocket connection failed');
-        };
-    } catch (e) {
-        console.warn('WebSocket is unavailable');
     }
 });
 
