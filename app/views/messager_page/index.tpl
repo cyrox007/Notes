@@ -7,6 +7,7 @@
 {include file='messager_page/style.css'}
 {include file='messager_page/media.css'}
 {include file='messager_page/group.css'}
+{include file='messager_page/search.css'}
 .messenger-chat__actions { display:flex; gap:.35rem; margin-left:auto; }
 .messenger-chat__actions .messenger-icon-button[data-active="true"] { color:var(--msg-accent); background:var(--msg-accent-soft); }
 .messenger-folder-tabs { display:flex; gap:6px; padding:0 12px 10px; }
@@ -276,4 +277,5 @@
 <script>{include file='messager_page/receipts.js'}</script>
 <script>{include file='messager_page/media.js'}</script>
 <script>{include file='messager_page/group.js'}</script>
+<script>{include file='messager_page/search.js'}</script>
 {/block}
