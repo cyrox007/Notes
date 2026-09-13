@@ -23,10 +23,28 @@ final class StorageQuotaLimit
             return true;
         }
 
+        $service = new StorageQuotaService();
+        $locked = false;
         try {
-            (new StorageQuotaService())->assertCanStore($userId, $size);
+            $service->acquireUploadLock($userId);
+            $locked = true;
+            $service->assertCanStore($userId, $size);
+            register_shutdown_function(static function () use ($service, $userId): void {
+                try {
+                    $service->releaseUploadLock($userId);
+                } catch (Throwable $e) {
+                    error_log('Storage quota lock release failed: ' . $e->getMessage());
+                }
+            });
             return true;
         } catch (Throwable $e) {
+            if ($locked) {
+                try {
+                    $service->releaseUploadLock($userId);
+                } catch (Throwable $releaseError) {
+                    error_log('Storage quota lock release failed: ' . $releaseError->getMessage());
+                }
+            }
             $status = (int) $e->getCode();
             if ($status < 400 || $status > 599) {
                 $status = 500;
@@ -35,7 +53,7 @@ final class StorageQuotaLimit
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode([
                 'success' => false,
-                'message' => $status === 413 ? $e->getMessage() : 'Не удалось проверить доступное место',
+                'message' => in_array($status, [413, 503], true) ? $e->getMessage() : 'Не удалось проверить доступное место',
             ], JSON_UNESCAPED_UNICODE);
             return false;
         }
