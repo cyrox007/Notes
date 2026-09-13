@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS `users` (
 CREATE TABLE IF NOT EXISTS `dialogs` (
     `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     `uid` CHAR(36) NOT NULL,
-    `type` ENUM('private', 'group') NOT NULL DEFAULT 'private',
+    `type` ENUM('private', 'group', 'saved') NOT NULL DEFAULT 'private',
     `name` VARCHAR(120) DEFAULT NULL,
     `avatar` VARCHAR(255) DEFAULT NULL,
     `created_by` INT DEFAULT NULL,
