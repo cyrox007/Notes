@@ -4,532 +4,275 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
-use App\Models\NoteModel;
-use App\Models\UserModel;
-use App\Models\NoteAttachmentModel;
-use App\Models\SharedNoteModel;
 use App\Helpers\CryptMethods;
+use App\Models\UserModel;
+use Core\Config;
 use Core\Controller;
 use Core\DatabaseManager;
 use Core\Request;
 use Core\Router;
-use Core\Config;
+use InvalidArgumentException;
+use RuntimeException;
 
-class NoteController extends Controller
+final class NoteController extends Controller
 {
-    /**
-     * Главная страница заметок - список всех заметок пользователя
-     */
+    /** @var array<string,string> */
+    private const SORT_COLUMNS = [
+        'notename' => 'notes.notename',
+        'created_note' => 'notes.created_note',
+        'updated_note' => 'notes.updated_note',
+    ];
+
     public function index(Request $request): void
     {
-        $user = UserModel::select()
-            ->where('id', '=', $request->session('user_id'))
-            ->first();
+        $user = $this->currentUser($request);
+        $sortKey = (string) $request->get('sort', 'created_note');
+        $sort = self::SORT_COLUMNS[$sortKey] ?? self::SORT_COLUMNS['created_note'];
+        $direction = strtolower((string) $request->get('direction', 'desc')) === 'asc' ? 'ASC' : 'DESC';
+        $db = DatabaseManager::getInstance();
 
-        $sort = $request->get('sort') ?? 'created_note';
-        $direction = $request->get('direction') ?? 'desc';
+        $personalNotes = $db->fetchAll(
+            'SELECT uid,notename,created_note,updated_note,content_type
+             FROM notes
+             WHERE user_id = :user_id AND is_deleted = 0
+             ORDER BY ' . $sort . ' ' . $direction,
+            [':user_id' => (int) $user->id]
+        );
 
-        // Получаем личные заметки пользователя с информацией о вложениях
-        $userNotes = NoteModel::select('notes.uid', 'notes.notename', 'notes.created_note', 'notes.updated_note', 'notes.content_type')
-            ->leftJoin([NoteAttachmentModel::class, 'attachments'], 'notes.id', '=', 'attachments.note_id')
-            ->where('notes.user_id', '=', $user->id)
-            ->where('notes.is_deleted', '=', 0)
-            ->groupBy('notes.id')
-            ->orderBy($sort, $direction)
-            ->get();
-        
-        // Для админов - все заметки
+        $isAdmin = Config::isAdminRole((int) $user->role);
         $allNotes = [];
-        if ($user->role >= 900) {
-            $allNotes = NoteModel::select(
-                'notes.uid', 'notes.notename', 'notes.created_note', 'notes.updated_note', 'notes.content_type',
-                'author.username', 'author.id'
-            )
-                ->innerJoin([UserModel::class, 'author'], 'notes.user_id', '=', 'author.id')
-                ->where('notes.is_deleted', '=', 0)
-                ->orderBy($sort, $direction)
-                ->get();
+        if ($isAdmin) {
+            $allNotes = $db->fetchAll(
+                'SELECT
+                    notes.uid,notes.notename,notes.created_note,notes.updated_note,notes.content_type,
+                    author.username AS author_username,author.id AS author_id
+                 FROM notes
+                 INNER JOIN users author ON author.id = notes.user_id
+                 WHERE notes.is_deleted = 0
+                 ORDER BY ' . $sort . ' ' . $direction,
+                []
+            );
         }
-        
-        $data = [
-            'personalNotes' => $userNotes,
+
+        $this->render_template('notes_page/index', [
+            'personalNotes' => $personalNotes,
             'allNotes' => $allNotes,
             'user' => $user,
-        ]; 
-        
-        $this->render_template('notes_page/index', $data);
+            'isAdmin' => $isAdmin,
+        ]);
     }
 
-    /**
-     * Создание новой заметки
-     */
     public function create(Request $request): void
     {
-        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
+        $user = $this->currentUser($request);
+        $uid = bin2hex(random_bytes(16));
+        $name = $this->noteName((string) $request->post('notename', ''));
+        $content = (string) $request->post('content', '');
+        $this->assertContentLength($content);
 
-        $uidNote = bin2hex(random_bytes(16));
-        $createdAt = date('Y-m-d H:i:s');
-        
-        $newNote = new NoteModel();
-        $newNote->uid = $uidNote;
-        $newNote->notename = $request->post('notename');
-        
-        // Шифруем контент перед сохранением (даже если он пустой)
-        $content = $request->post('content', '');
-        $encryptedContent = '';
-        if (!empty($content)) {
-            try {
-                $encryptedContent = CryptMethods::encrypt($content, $uidNote);
-            } catch (\Exception $e) {
-                // Если шифрование не удалось, сохраняем как есть (логировать ошибку)
-                $encryptedContent = $content;
-            }
+        try {
+            $encrypted = CryptMethods::encrypt($content, $uid);
+        } catch (\Throwable $e) {
+            error_log('Note encryption failed on create: ' . $e->getMessage());
+            throw new RuntimeException('Не удалось безопасно сохранить заметку');
         }
 
-        $newNote->content = $encryptedContent;
-        $newNote->content_type = 'text';
-        $newNote->is_encrypted = 1;
-        $newNote->is_deleted = 0;
-        $newNote->created_note = $createdAt;
-        $newNote->updated_note = $createdAt;
-        $newNote->user_id = $user->id;
+        $now = date('Y-m-d H:i:s');
+        DatabaseManager::getInstance()->execute(
+            'INSERT INTO notes (
+                uid,user_id,notename,content,content_type,is_encrypted,
+                created_note,updated_note,is_deleted,deleted_at
+             ) VALUES (
+                :uid,:user_id,:notename,:content,"text",1,
+                :created_note,:updated_note,0,NULL
+             )',
+            [
+                ':uid' => $uid,
+                ':user_id' => (int) $user->id,
+                ':notename' => $name,
+                ':content' => $encrypted,
+                ':created_note' => $now,
+                ':updated_note' => $now,
+            ]
+        );
 
-        $dbManager = DatabaseManager::getInstance();
-        $dbManager->queueInsert([
-            'uid' => $newNote->uid,
-            'notename' => $newNote->notename,
-            'content' => $newNote->content,
-            'content_type' => $newNote->content_type,
-            'is_encrypted' => $newNote->is_encrypted,
-            'is_deleted' => $newNote->is_deleted,
-            'created_note' => $newNote->created_note,
-            'updated_note' => $newNote->updated_note,
-            'user_id' => $newNote->user_id,
-        ], 'notes');
-        $dbManager->commit();
-
-        Router::getInstance()->redirect('edit_page', 'name', ['uid' => $uidNote]);
+        Router::getInstance()->redirect('edit_page', 'name', ['uid' => $uid]);
     }
 
-    /**
-     * Страница редактирования заметки
-     */
     public function edit(Request $request, string $uid): void
     {
-        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
-        
-        $note = NoteModel::select(
-            'notes.id', 'notes.uid', 'notes.user_id', 'notes.notename', 'notes.content',
-            'notes.content_type', 'notes.is_encrypted', 'notes.created_note', 'notes.updated_note',
-            'notes.is_deleted', 'notes.deleted_at',
-            'author.username AS author_username', 'author.id AS author_id'
-        )
-            ->innerJoin([UserModel::class, 'author'], 'notes.user_id', '=', 'author.id')
-            ->where('notes.uid', '=', $uid)
-            ->where('notes.is_deleted', '=', 0)
-            ->first();
-        
-        if (!$note || $note->user_id !== $user->id) {
+        $user = $this->currentUser($request);
+        $db = DatabaseManager::getInstance();
+        $note = $db->fetchOne(
+            'SELECT
+                n.id,n.uid,n.user_id,n.notename,n.content,n.content_type,n.is_encrypted,
+                n.created_note,n.updated_note,n.is_deleted,n.deleted_at,
+                u.username AS author_username,u.id AS author_id
+             FROM notes n
+             INNER JOIN users u ON u.id = n.user_id
+             WHERE n.uid = :uid AND n.user_id = :user_id AND n.is_deleted = 0
+             LIMIT 1',
+            [':uid' => $uid, ':user_id' => (int) $user->id]
+        );
+        if (!$note) {
             Router::getInstance()->redirect('notes', 'name');
             return;
         }
-        
-        // Расшифровываем контент если он зашифрован
-        if ($note->is_encrypted && !empty($note->content)) {
+
+        if ((int) $note['is_encrypted'] === 1) {
             try {
-                $note->content = CryptMethods::decrypt($note->content, $note->uid);
-            } catch (\Exception $e) {
-                // Если расшифровка не удалась, оставляем как есть
+                $note['content'] = CryptMethods::decrypt((string) $note['content'], (string) $note['uid']);
+            } catch (\Throwable $e) {
+                error_log('Note decrypt failed for ' . $uid . ': ' . $e->getMessage());
+                http_response_code(500);
+                echo 'Содержимое заметки временно недоступно';
+                return;
             }
         }
-        
-        // Получаем вложения
-        $attachments = $note->getAttachments();
-        if ($attachments) {
-            foreach ($attachments as &$attachment) {
-                $attachment->type = $attachment->file_type;
-                $attachment->formatted_size = $attachment->getFormattedSize();
-                $attachment->file_url = '/uploads/notes/' . $note->uid . '/' . basename($attachment->file_path);
-            }
+
+        $attachments = $db->fetchAll(
+            'SELECT id,file_uid,file_name,file_type,mime_type,file_size,duration,uploaded_at
+             FROM note_attachments
+             WHERE note_id = :note_id AND is_deleted = 0
+             ORDER BY id ASC',
+            [':note_id' => (int) $note['id']]
+        );
+        foreach ($attachments as &$attachment) {
+            $attachment['formatted_size'] = $this->formatBytes((int) ($attachment['file_size'] ?? 0));
         }
-        
-        // Получаем информацию о шеринге
-        $shareInfo = $note->getShareInfo();
-        
-        $data = [
+        unset($attachment);
+
+        $shareInfo = $db->fetchOne(
+            'SELECT share_token,access_type,expires_at,shared_at
+             FROM shared_notes
+             WHERE note_id = :note_id
+               AND owner_id = :owner_id
+               AND shared_with_user_id IS NULL
+               AND is_active = 1
+               AND (expires_at IS NULL OR expires_at >= :now)
+             ORDER BY id DESC
+             LIMIT 1',
+            [
+                ':note_id' => (int) $note['id'],
+                ':owner_id' => (int) $user->id,
+                ':now' => date('Y-m-d H:i:s'),
+            ]
+        );
+
+        $siteUrl = getenv('SITEURL');
+        $siteUrl = is_string($siteUrl) && trim($siteUrl) !== ''
+            ? rtrim(trim($siteUrl), '/')
+            : rtrim((string) Config::get('SITEURL'), '/');
+
+        $this->render_template('notes_page/edit_view', [
             'user' => $user,
             'note' => $note,
             'attachments' => $attachments,
-            'shareInfo' => $shareInfo,
-            'shareUrl' => $shareInfo ? Config::get('SITEURL') . '/notes/shared/' . $shareInfo['share_token'] : null,
-        ];
-        
-        $this->render_template('notes_page/edit_view', $data);
+            'shareInfo' => $shareInfo ?: null,
+            'shareUrl' => $shareInfo ? $siteUrl . '/notes/shared/' . $shareInfo['share_token'] : null,
+        ]);
     }
 
-    /**
-     * Обновление заметки (текстовый контент)
-     */
     public function update(Request $request, string $uid): void
     {
-        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
-
-        $note = NoteModel::select()->where('uid', '=', $uid)->first(true);
-        
-        if (!$note || $note->user_id !== $user->id) {
+        $user = $this->currentUser($request);
+        $db = DatabaseManager::getInstance();
+        $note = $db->fetchOne(
+            'SELECT id,uid FROM notes
+             WHERE uid = :uid AND user_id = :user_id AND is_deleted = 0
+             LIMIT 1',
+            [':uid' => $uid, ':user_id' => (int) $user->id]
+        );
+        if (!$note) {
             Router::getInstance()->redirect('notes', 'name');
             return;
         }
 
-        $content = $request->post('content');
-        $notename = $request->post('notename');
-
-        // Обновляем название заметки
-        $note->notename = $notename;
-        
-        // Шифруем контент перед сохранением
-        $encryptedContent = '';
-        if (!empty($content)) {
-            try {
-                $encryptedContent = CryptMethods::encrypt($content, $note->uid);
-            } catch (\Exception $e) {
-                // Если шифрование не удалось, сохраняем как есть (логировать ошибку)
-                $encryptedContent = $content;
-            }
+        $name = $this->noteName((string) $request->post('notename', ''));
+        $content = (string) $request->post('content', '');
+        $this->assertContentLength($content);
+        try {
+            $encrypted = CryptMethods::encrypt($content, (string) $note['uid']);
+        } catch (\Throwable $e) {
+            error_log('Note encryption failed on update for ' . $uid . ': ' . $e->getMessage());
+            throw new RuntimeException('Не удалось безопасно сохранить заметку');
         }
-        
-        $note->content = $encryptedContent;
-        $note->content_type = 'text';
-        $note->updated_note = date('Y-m-d H:i:s');
 
-        $dbManager = DatabaseManager::getInstance();
-        $dbManager->queueUpdate([
-            'content' => $note->content,
-            'notename' => $note->notename,
-            'content_type' => $note->content_type,
-            'updated_note' => $note->updated_note,
-        ], 'notes', (int) $note->id);
+        $db->execute(
+            'UPDATE notes
+             SET notename = :notename,
+                 content = :content,
+                 content_type = "text",
+                 is_encrypted = 1,
+                 updated_note = :updated_note
+             WHERE id = :id AND user_id = :user_id AND is_deleted = 0',
+            [
+                ':notename' => $name,
+                ':content' => $encrypted,
+                ':updated_note' => date('Y-m-d H:i:s'),
+                ':id' => (int) $note['id'],
+                ':user_id' => (int) $user->id,
+            ]
+        );
 
-        $dbManager->commit();
-        
         Router::getInstance()->redirect('notes', 'name');
     }
 
-    /**
-     * Загрузка файла/медиа/голосового сообщения в заметку
-     */
-    public function uploadAttachment(Request $request, string $uid): void
-    {
-        header('Content-Type: application/json');
-        
-        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
-        
-        $note = NoteModel::select()->where('uid', '=', $uid)->where('is_deleted', '=', 0)->first();
-        
-        if (!$note || $note->user_id !== $user->id) {
-            http_response_code(403);
-            echo json_encode(['success' => false, 'error' => 'Доступ запрещен']);
-            return;
-        }
-        
-        // Проверка файла
-        if (!$request->hasFile('attachment')) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'error' => 'Файл не найден']);
-            return;
-        }
-        
-        $file = $request->file('attachment');
-        
-        // Проверка размера
-        $maxSize = (int) getenv('MAX_UPLOAD_SIZE') ?: 10485760;
-        if ($file['size'] > $maxSize) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'error' => 'Файл слишком большой']);
-            return;
-        }
-        
-        // Определение типа файла
-        $mimeType = $file['type'];
-        $fileType = 'document';
-        
-        if (strpos($mimeType, 'image/') === 0) {
-            $fileType = 'image';
-        } elseif (strpos($mimeType, 'audio/') === 0) {
-            $fileType = 'audio';
-        } elseif (strpos($mimeType, 'video/') === 0) {
-            $fileType = 'video';
-        }
-        
-        // Проверка на голосовое сообщение (специальный тип или из формы)
-        if ($request->post('is_voice') === 'true' || strpos($file['name'], 'voice_') === 0) {
-            $fileType = 'voice';
-        }
-        
-        // Генерация уникального имени
-        $fileUid = bin2hex(random_bytes(16));
-        $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
-        $safeName = $fileUid . '.' . $extension;
-        
-        // Путь загрузки
-        $uploadDir = getenv('NOTES_UPLOAD_DIR') ?: '/var/www/uploads/notes';
-        $noteDir = $uploadDir . '/' . $note->uid;
-        
-        if (!is_dir($noteDir)) {
-            mkdir($noteDir, 0755, true);
-        }
-        
-        $filePath = $noteDir . '/' . $safeName;
-        
-        // Перемещение файла
-        if (!move_uploaded_file($file['tmp_name'], $filePath)) {
-            http_response_code(500);
-            echo json_encode(['success' => false, 'error' => 'Ошибка загрузки файла']);
-            return;
-        }
-        
-        // Получение длительности для аудио/видео/голоса
-        $duration = null;
-        if (in_array($fileType, ['audio', 'video', 'voice'])) {
-            // Можно использовать getID3 или ffmpeg для получения длительности
-            // Пока оставляем null
-        }
-        
-        // Сохранение в БД
-        $attachment = new NoteAttachmentModel();
-        $attachment->note_id = $note->id;
-        $attachment->file_uid = $fileUid;
-        $attachment->file_name = $file['name'];
-        $attachment->file_path = $filePath;
-        $attachment->file_type = $fileType;
-        $attachment->mime_type = $mimeType;
-        $attachment->file_size = $file['size'];
-        $attachment->duration = $duration;
-        $attachment->is_encrypted = 1;
-        $attachment->uploaded_at = date('Y-m-d H:i:s');
-        $attachment->is_deleted = 0;
-        
-        $dbManager = DatabaseManager::getInstance();
-        $dbManager->queueInsert([
-            'note_id' => $attachment->note_id,
-            'file_uid' => $attachment->file_uid,
-            'file_name' => $attachment->file_name,
-            'file_path' => $attachment->file_path,
-            'file_type' => $attachment->file_type,
-            'mime_type' => $attachment->mime_type,
-            'file_size' => $attachment->file_size,
-            'duration' => $attachment->duration,
-            'is_encrypted' => $attachment->is_encrypted,
-            'uploaded_at' => $attachment->uploaded_at,
-            'is_deleted' => $attachment->is_deleted,
-        ], 'note_attachments');
-        $dbManager->commit();
-        
-        echo json_encode([
-            'success' => true,
-            'attachment' => [
-                'id' => $attachment->id,
-                'file_name' => $attachment->file_name,
-                'file_type' => $attachment->file_type,
-                'file_size' => $attachment->getFormattedSize(),
-                'file_url' => '/uploads/notes/' . $note->uid . '/' . $safeName,
-                'is_voice' => $attachment->isVoice(),
-                'is_image' => $attachment->isImage(),
-            ]
-        ]);
-    }
-
-    /**
-     * Удаление вложения
-     */
-    public function deleteAttachment(Request $request, int $attachmentId): void
-    {
-        header('Content-Type: application/json');
-        
-        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
-        
-        $attachment = NoteAttachmentModel::select()
-            ->innerJoin([NoteModel::class, 'note'], 'note_attachments.note_id', '=', 'note.id')
-            ->where('note_attachments.id', '=', $attachmentId)
-            ->first();
-        
-        if (!$attachment || $attachment->note->user_id !== $user->id) {
-            http_response_code(403);
-            echo json_encode(['success' => false, 'error' => 'Доступ запрещен']);
-            return;
-        }
-        
-        // Safe-удаление
-        $dbManager = DatabaseManager::getInstance();
-        $dbManager->queueUpdate([
-            'is_deleted' => 1,
-        ], 'note_attachments', $attachmentId);
-        $dbManager->commit();
-        
-        // Физическое удаление файла можно выполнить позже по крону
-        
-        echo json_encode(['success' => true]);
-    }
-
-    /**
-     * Удаление заметки
-     */
     public function delete(Request $request, string $uid): void
     {
-        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
-
-        $note = NoteModel::select()->where('uid', '=', $uid)->first();
-
-        if (!$note || $note->user_id !== $user->id) {
-            Router::getInstance()->redirect('notes', 'name');
-            return;
-        }
-
-        // Safe-удаление
-        $dbManager = DatabaseManager::getInstance();
-        $dbManager->queueUpdate([
-            'is_deleted' => 1,
-            'deleted_at' => date('Y-m-d H:i:s'),
-        ], 'notes', (int) $note->id);
-
-        $dbManager->commit();
-        
+        $user = $this->currentUser($request);
+        DatabaseManager::getInstance()->execute(
+            'UPDATE notes
+             SET is_deleted = 1, deleted_at = :deleted_at
+             WHERE uid = :uid AND user_id = :user_id AND is_deleted = 0',
+            [
+                ':deleted_at' => date('Y-m-d H:i:s'),
+                ':uid' => $uid,
+                ':user_id' => (int) $user->id,
+            ]
+        );
         Router::getInstance()->redirect('notes', 'name');
     }
 
-    /**
-     * Создать ссылку для шаринга заметки
-     */
-    public function shareNote(Request $request, string $uid): void
+    private function currentUser(Request $request): UserModel
     {
-        header('Content-Type: application/json');
-        
-        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
-        
-        $note = NoteModel::select()->where('uid', '=', $uid)->where('is_deleted', '=', 0)->first();
-        
-        if (!$note || $note->user_id !== $user->id) {
-            http_response_code(403);
-            echo json_encode(['success' => false, 'error' => 'Доступ запрещен']);
-            return;
+        $id = (int) $request->session('user_id', 0);
+        $user = $id > 0
+            ? UserModel::select('id', 'uid', 'username', 'firstname', 'lastname', 'role', 'is_active')
+                ->where('id', '=', $id)
+                ->where('is_active', '=', 1)
+                ->first()
+            : null;
+        if (!$user) {
+            throw new RuntimeException('Пользователь не найден или заблокирован');
         }
-        
-        $accessType = $request->post('access_type') ?? 'view';
-        $expiresIn = (int) $request->post('expires_in') ?? 0; // в часах, 0 = бессрочно
-        
-        // Генерация токена
-        $shareToken = bin2hex(random_bytes(32));
-        $expiresAt = $expiresIn > 0 ? date('Y-m-d H:i:s', time() + $expiresIn * 3600) : null;
-        
-        $dbManager = DatabaseManager::getInstance();
-        $dbManager->queueInsert([
-            'note_id' => $note->id,
-            'owner_id' => $user->id,
-            'shared_with_user_id' => null, // публичная ссылка
-            'share_token' => $shareToken,
-            'access_type' => $accessType,
-            'expires_at' => $expiresAt,
-            'shared_at' => date('Y-m-d H:i:s'),
-            'is_active' => 1,
-        ], 'shared_notes');
-        $dbManager->commit();
-        
-        $shareUrl = Config::get('SITEURL') . '/notes/shared/' . $shareToken;
-        
-        echo json_encode([
-            'success' => true,
-            'share_url' => $shareUrl,
-            'access_type' => $accessType,
-            'expires_at' => $expiresAt,
-        ]);
+        return $user;
     }
 
-    /**
-     * Просмотр заметки по ссылке шаринга
-     */
-    public function viewShared(Request $request, string $token): void
+    private function noteName(string $name): string
     {
-        $share = SharedNoteModel::select()
-            ->innerJoin([NoteModel::class, 'note'], 'shared_notes.note_id', '=', 'note.id')
-            ->innerJoin([UserModel::class, 'owner'], 'note.user_id', '=', 'owner.id')
-            ->where('shared_notes.share_token', '=', $token)
-            ->where('shared_notes.is_active', '=', 1)
-            ->first();
-        
-        if (!$share) {
-            http_response_code(404);
-            die('Заметка не найдена или ссылка неактивна');
-        }
-        
-        // Проверка срока действия
-        if ($share->expires_at && strtotime($share->expires_at) < time()) {
-            http_response_code(410);
-            die('Срок действия ссылки истек');
-        }
-        
-        // Расшифровка контента
-        $content = $share->note__content ?? '';
-        if (($share->note__is_encrypted ?? 0) && !empty($content)) {
-            try {
-                $content = CryptMethods::decrypt($content, $share->note__uid ?? '');
-            } catch (\Exception $e) {
-                $content = '[Ошибка расшифровки]';
-            }
-        }
-        
-        // Получение вложений
-        $attachments = NoteAttachmentModel::select()
-            ->where('note_id', '=', $share->note_id)
-            ->where('is_deleted', '=', 0)
-            ->get();
-        
-        $data = [
-            'note' => [
-                'notename' => $share->note__notename ?? '',
-                'content' => $content,
-                'content_type' => $share->note__content_type ?? '',
-                'created_note' => $share->note__created_note ?? '',
-                'updated_note' => $share->note__updated_note ?? '',
-                'owner' => $share->owner__username ?? '',
-            ],
-            'attachments' => $attachments ?: [],
-            'canEdit' => ($share->access_type ?? '') === 'edit',
-            'shareExpired' => false,
-        ];
-        
-        $this->render_template('notes_page/shared_view', $data);
+        $name = trim((string) preg_replace('/\s+/u', ' ', $name));
+        if ($name === '') return 'Без названия';
+        if (mb_strlen($name) > 255) throw new InvalidArgumentException('Название заметки слишком длинное');
+        return $name;
     }
 
-    /**
-     * Деактивировать ссылку шаринга
-     */
-    public function unshareNote(Request $request, string $uid): void
+    private function assertContentLength(string $content): void
     {
-        header('Content-Type: application/json');
-        
-        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
-        
-        $note = NoteModel::select()->where('uid', '=', $uid)->where('is_deleted', '=', 0)->first();
-        
-        if (!$note || $note->user_id !== $user->id) {
-            http_response_code(403);
-            echo json_encode(['success' => false, 'error' => 'Доступ запрещен']);
-            return;
+        if (strlen($content) > 60000) {
+            throw new InvalidArgumentException('Текст заметки слишком большой');
         }
-        
-        $dbManager = DatabaseManager::getInstance();
-        $shareRecord = SharedNoteModel::select()
-            ->where('note_id', '=', (int) $note->id)
-            ->where('owner_id', '=', $user->id)
-            ->first();
+    }
 
-        if ($shareRecord) {
-            $dbManager->queueUpdate([
-                'is_active' => 0,
-            ], 'shared_notes', (int) $shareRecord->id);
+    private function formatBytes(int $bytes): string
+    {
+        $units = ['B', 'KB', 'MB', 'GB'];
+        $value = max(0, $bytes);
+        $unit = 0;
+        while ($value >= 1024 && $unit < count($units) - 1) {
+            $value /= 1024;
+            $unit++;
         }
-        $dbManager->commit();
-        
-        echo json_encode(['success' => true]);
+        return round($value, 2) . ' ' . $units[$unit];
     }
 }

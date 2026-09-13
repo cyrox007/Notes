@@ -65,6 +65,11 @@ $allowedRoutes = [
         'messages',
         'dialogs',
     ],
+    'ForwardSocket' => [
+        'saved',
+        'save_message',
+        'forward',
+    ],
     'ReactionSocket' => [
         'list',
         'toggle',

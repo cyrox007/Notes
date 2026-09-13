@@ -6,6 +6,7 @@
 <style>
 {include file='messager_page/style.css'}
 {include file='messager_page/media.css'}
+{include file='messager_page/forwarding.css'}
 {include file='messager_page/reactions.css'}
 {include file='messager_page/voice.css'}
 {include file='messager_page/group.css'}
@@ -278,6 +279,7 @@
 <script>{include file='messager_page/dialog-actions.js'}</script>
 <script>{include file='messager_page/receipts.js'}</script>
 <script>{include file='messager_page/media.js'}</script>
+<script>{include file='messager_page/forwarding.js'}</script>
 <script>{include file='messager_page/reactions.js'}</script>
 <script>{include file='messager_page/voice.js'}</script>
 <script>{include file='messager_page/group.js'}</script>

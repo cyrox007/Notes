@@ -1,0 +1,273 @@
+name: Notes private storage
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [notes-storage-hardening-docs]
+
+permissions:
+  contents: read
+
+jobs:
+  notes-private-storage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: notes_private_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_mysql, mysqli, sodium, fileinfo
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: PHP and template contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l app/controllers/NoteController.php
+          php -l app/controllers/NoteAttachmentController.php
+          php -l app/controllers/NoteShareController.php
+          php -l app/models/NoteAttachmentModel.php
+          php -l core/routerConfig.php
+          php -l core/Version.php
+
+          echo 'Checking legacy public Notes paths'
+          ! grep -R -n '/uploads/notes' app/controllers/NoteController.php app/controllers/NoteAttachmentController.php app/views/notes_page
+          echo 'Checking legacy numeric role comparisons'
+          ! grep -R -nE 'role[^\n]*(>=|<=|>|<)[[:space:]]*(900|899|888|111|1)' app/controllers/NoteController.php app/views/notes_page/index.tpl
+          echo 'Checking routes and documentation contract'
+          grep -Fq "'/attachment/{str:fileUid}'" core/routerConfig.php
+          grep -Fq "'/shared/{str:token}/attachment/{str:fileUid}'" core/routerConfig.php
+          grep -Fq 'PRIVATE_STORAGE_PATH/notes' README.md
+          grep -Fq '0.10.0-alpha' README.md
+          grep -Fq 'docs/CORE.md' README.md
+          grep -Fq 'docs/USER_GUIDE.md' README.md
+
+      - name: Prepare schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot notes_private_test < database/messenger_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_private_test < database/notes_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_private_test < database/migrations/20260913_notes_private_attachments.sql
+          DEFAULT_VALUE="$(mysql -N -h 127.0.0.1 -uroot -proot notes_private_test -e \
+            "SELECT COLUMN_DEFAULT FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='note_attachments' AND column_name='is_encrypted'")"
+          test "$DEFAULT_VALUE" = "0"
+
+      - name: Prepare users and note
+        shell: bash
+        run: |
+          set -euo pipefail
+          php <<'PHP'
+          <?php
+          if (!defined('SITEPATH')) define('SITEPATH', getcwd());
+          $_SERVER['HTTP_HOST'] = 'localhost';
+          putenv('DBDRIVER=mysql');
+          putenv('DBHOST=127.0.0.1');
+          putenv('DBPORT=3306');
+          putenv('DBUSER=root');
+          putenv('DBPASS=root');
+          putenv('DBNAME=notes_private_test');
+          putenv('PRIVATE_STORAGE_PATH=/tmp/notes-private-ci');
+          require __DIR__ . '/core/config.php';
+          require __DIR__ . '/core/DatabaseManager.php';
+          $db = \Core\DatabaseManager::getInstance();
+          $now = date('Y-m-d H:i:s');
+          $hash = password_hash('ci-password', PASSWORD_ARGON2ID);
+          foreach ([
+              ['90000000-0000-4000-8000-000000000001','notes-owner','Owner','Notes'],
+              ['90000000-0000-4000-8000-000000000002','notes-outsider','Outside','Notes'],
+          ] as [$uid,$username,$firstname,$lastname]) {
+              $db->execute(
+                  'INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active,created_at,updated_at)
+                   VALUES (:uid,:username,:email,:hash,:firstname,:lastname,888,1,:created_at,:updated_at)',
+                  [':uid'=>$uid,':username'=>$username,':email'=>$username.'@example.test',':hash'=>$hash,
+                   ':firstname'=>$firstname,':lastname'=>$lastname,':created_at'=>$now,':updated_at'=>$now]
+              );
+          }
+          $ownerId = (int) $db->fetchValue('SELECT id FROM users WHERE uid=:uid', [':uid'=>'90000000-0000-4000-8000-000000000001']);
+          $outsideId = (int) $db->fetchValue('SELECT id FROM users WHERE uid=:uid', [':uid'=>'90000000-0000-4000-8000-000000000002']);
+          $noteUid = '90000000000000000000000000000010';
+          $db->execute(
+              'INSERT INTO notes (uid,user_id,notename,content,content_type,is_encrypted,created_note,updated_note,is_deleted)
+               VALUES (:uid,:user_id,"Private attachment test","","text",0,:created_at,:updated_at,0)',
+              [':uid'=>$noteUid,':user_id'=>$ownerId,':created_at'=>$now,':updated_at'=>$now]
+          );
+          file_put_contents('/tmp/notes-owner-id', (string) $ownerId);
+          file_put_contents('/tmp/notes-outside-id', (string) $outsideId);
+          file_put_contents('/tmp/notes-note-uid', $noteUid);
+          PHP
+          cat > /tmp/private-note.pdf <<'PDF'
+          %PDF-1.4
+          1 0 obj
+          << /Type /Catalog >>
+          endobj
+          %%EOF
+          PDF
+          printf '<script>alert(1)</script>\n' > /tmp/fake.pdf
+
+      - name: Real multipart upload and ACL streaming
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/notes-harness.php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          if (!defined('SITEPATH')) define('SITEPATH', getcwd());
+          $_SERVER['HTTP_HOST'] = 'localhost';
+          putenv('DBDRIVER=mysql');
+          putenv('DBHOST=127.0.0.1');
+          putenv('DBPORT=3306');
+          putenv('DBUSER=root');
+          putenv('DBPASS=root');
+          putenv('DBNAME=notes_private_test');
+          putenv('PRIVATE_STORAGE_PATH=/tmp/notes-private-ci');
+          putenv('NOTES_MAX_UPLOAD_SIZE=10485760');
+          putenv('MAX_NOTE_ATTACHMENTS=10');
+          require SITEPATH . '/vendor/autoload.php';
+          require SITEPATH . '/core/config.php';
+          require SITEPATH . '/core/DatabaseManager.php';
+          require SITEPATH . '/core/request.php';
+          require SITEPATH . '/core/controller.php';
+          require SITEPATH . '/app/controllers/NoteAttachmentController.php';
+
+          final class HarnessRequest extends \Core\Request {
+              public function __construct(private int $userId = 0, private array $postData = []) {}
+              public function session($key = null, $default = null) {
+                  $data = ['user_id' => $this->userId];
+                  return $key === null ? $data : ($data[$key] ?? $default);
+              }
+              public function post($key = null, $default = null) {
+                  return $key === null ? $this->postData : ($this->postData[$key] ?? $default);
+              }
+          }
+
+          $controller = (new ReflectionClass(\App\Controllers\NoteAttachmentController::class))->newInstanceWithoutConstructor();
+          $mode = (string) ($_GET['mode'] ?? '');
+          $ownerId = (int) file_get_contents('/tmp/notes-owner-id');
+          if ($mode === 'upload') {
+              $controller->upload(new HarnessRequest($ownerId, $_POST), (string) ($_POST['note_uid'] ?? ''));
+              return;
+          }
+          if ($mode === 'owner') {
+              $controller->download(new HarnessRequest((int) ($_GET['user_id'] ?? 0)), (string) ($_GET['file_uid'] ?? ''));
+              return;
+          }
+          if ($mode === 'shared') {
+              $controller->sharedDownload(new HarnessRequest(), (string) ($_GET['token'] ?? ''), (string) ($_GET['file_uid'] ?? ''));
+              return;
+          }
+          http_response_code(404);
+          PHP
+
+          php -S 127.0.0.1:18082 /tmp/notes-harness.php >/tmp/notes-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true; cat /tmp/notes-server.log' EXIT
+          for i in {1..20}; do
+            curl -sS 'http://127.0.0.1:18082/?mode=missing' >/dev/null 2>&1 && break
+            sleep 0.25
+          done
+
+          NOTE_UID="$(cat /tmp/notes-note-uid)"
+          curl -sS -f \
+            -F "note_uid=${NOTE_UID}" \
+            -F 'is_voice=false' \
+            -F 'attachment=@/tmp/private-note.pdf;type=application/pdf' \
+            'http://127.0.0.1:18082/?mode=upload' > /tmp/note-upload.json
+
+          php -r '
+            $data=json_decode(file_get_contents("/tmp/note-upload.json"), true, 512, JSON_THROW_ON_ERROR);
+            if (($data["success"] ?? false) !== true) throw new RuntimeException("Notes upload failed");
+            if (($data["attachment"]["file_url"] ?? "") !== "/notes/attachment/" . ($data["attachment"]["file_uid"] ?? "")) throw new RuntimeException("Public storage URL leaked");
+            file_put_contents("/tmp/note-file-uid", (string) $data["attachment"]["file_uid"]);
+          '
+
+          INVALID_STATUS="$(curl -sS -o /tmp/note-invalid.json -w '%{http_code}' \
+            -F "note_uid=${NOTE_UID}" \
+            -F 'is_voice=false' \
+            -F 'attachment=@/tmp/fake.pdf;type=application/pdf' \
+            'http://127.0.0.1:18082/?mode=upload')"
+          test "$INVALID_STATUS" = "422"
+
+          FILE_UID="$(cat /tmp/note-file-uid)"
+          OWNER_ID="$(cat /tmp/notes-owner-id)"
+          OUTSIDE_ID="$(cat /tmp/notes-outside-id)"
+
+          mysql -N -h 127.0.0.1 -uroot -proot notes_private_test \
+            -e "SELECT CONCAT(is_encrypted,'|',file_path,'|',mime_type) FROM note_attachments WHERE file_uid='${FILE_UID}'" > /tmp/note-row.txt
+          grep -q '^0|/tmp/notes-private-ci/notes/' /tmp/note-row.txt
+          grep -q '|application/pdf$' /tmp/note-row.txt
+
+          curl -sS -f "http://127.0.0.1:18082/?mode=owner&user_id=${OWNER_ID}&file_uid=${FILE_UID}" > /tmp/owner.pdf
+          cmp /tmp/private-note.pdf /tmp/owner.pdf
+
+          OUTSIDE_STATUS="$(curl -sS -o /tmp/outside.bin -w '%{http_code}' \
+            "http://127.0.0.1:18082/?mode=owner&user_id=${OUTSIDE_ID}&file_uid=${FILE_UID}")"
+          test "$OUTSIDE_STATUS" = "404"
+
+          NOTE_ID="$(mysql -N -h 127.0.0.1 -uroot -proot notes_private_test -e "SELECT id FROM notes WHERE uid='${NOTE_UID}'")"
+          PUBLIC_TOKEN='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+          mysql -h 127.0.0.1 -uroot -proot notes_private_test -e \
+            "INSERT INTO shared_notes (note_id,owner_id,shared_with_user_id,share_token,access_type,expires_at,shared_at,is_active) VALUES (${NOTE_ID},${OWNER_ID},NULL,'${PUBLIC_TOKEN}','view',DATE_ADD(NOW(),INTERVAL 1 HOUR),NOW(),1)"
+          curl -sS -f "http://127.0.0.1:18082/?mode=shared&token=${PUBLIC_TOKEN}&file_uid=${FILE_UID}" > /tmp/shared.pdf
+          cmp /tmp/private-note.pdf /tmp/shared.pdf
+
+          PRIVATE_TOKEN='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+          mysql -h 127.0.0.1 -uroot -proot notes_private_test -e \
+            "INSERT INTO shared_notes (note_id,owner_id,shared_with_user_id,share_token,access_type,expires_at,shared_at,is_active) VALUES (${NOTE_ID},${OWNER_ID},${OUTSIDE_ID},'${PRIVATE_TOKEN}','view',DATE_ADD(NOW(),INTERVAL 1 HOUR),NOW(),1)"
+          PRIVATE_STATUS="$(curl -sS -o /tmp/private-share.bin -w '%{http_code}' \
+            "http://127.0.0.1:18082/?mode=shared&token=${PRIVATE_TOKEN}&file_uid=${FILE_UID}")"
+          test "$PRIVATE_STATUS" = "404"
+
+          EXPIRED_TOKEN='cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc'
+          mysql -h 127.0.0.1 -uroot -proot notes_private_test -e \
+            "INSERT INTO shared_notes (note_id,owner_id,shared_with_user_id,share_token,access_type,expires_at,shared_at,is_active) VALUES (${NOTE_ID},${OWNER_ID},NULL,'${EXPIRED_TOKEN}','view',DATE_SUB(NOW(),INTERVAL 1 HOUR),NOW(),1)"
+          EXPIRED_STATUS="$(curl -sS -o /tmp/expired-share.bin -w '%{http_code}' \
+            "http://127.0.0.1:18082/?mode=shared&token=${EXPIRED_TOKEN}&file_uid=${FILE_UID}")"
+          test "$EXPIRED_STATUS" = "404"
+
+          mysql -h 127.0.0.1 -uroot -proot notes_private_test -e \
+            "UPDATE shared_notes SET is_active=0 WHERE share_token='${PUBLIC_TOKEN}'"
+          DISABLED_STATUS="$(curl -sS -o /tmp/disabled.bin -w '%{http_code}' \
+            "http://127.0.0.1:18082/?mode=shared&token=${PUBLIC_TOKEN}&file_uid=${FILE_UID}")"
+          test "$DISABLED_STATUS" = "404"
+
+      - name: Crypto contract smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          UNIQUE_KEY='ci-note-secret-0123456789abcdef0123456789abcdef' php <<'PHP'
+          <?php
+          require __DIR__ . '/app/handlers/CryptMethods.php';
+          $uid = '90000000000000000000000000000010';
+          $payload = \App\Helpers\CryptMethods::encrypt('private note', $uid);
+          if (\App\Helpers\CryptMethods::decrypt($payload, $uid) !== 'private note') {
+              throw new RuntimeException('Notes crypto roundtrip failed');
+          }
+          $rejected = false;
+          try { \App\Helpers\CryptMethods::decrypt($payload, 'wrong-uid'); }
+          catch (Throwable) { $rejected = true; }
+          if (!$rejected) throw new RuntimeException('Notes crypto accepted wrong AAD');
+          PHP
