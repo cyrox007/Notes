@@ -64,9 +64,9 @@ jobs:
           ! grep -Fq "'/core/RouterConfig.php'" index.php
           ! grep -Fq 'fonts.googleapis.com' index.php
           ! grep -Fq "display_errors', 1" index.php
-          grep -Fq 'Workerman\\Protocols\\Websocket' ws_server/server.php
+          grep -Fq 'Workerman\Protocols\Websocket' ws_server/server.php
           grep -Fq "new Worker(sprintf('tcp://%s:%d'" ws_server/server.php
-          grep -Fq 'getenv('"'"'SITEURL'"'"')' core/config.php
+          grep -Fq "getenv('SITEURL')" core/config.php
 
       - name: Prepare canonical database
         shell: bash
