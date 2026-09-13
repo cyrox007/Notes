@@ -66,6 +66,7 @@ $router->group('/files')
 
 $router->group('/messenger')
     ->add('GET', '/', [MessagerController::class, 'index'], [LoginRequared::class], 'messenger')
+    ->add('POST', '/socket-ticket', [MessagerController::class, 'socketTicket'], [LoginRequared::class], 'messenger_socket_ticket')
     ->add('POST', '/send_files', [MessagerController::class, 'uploadFile'], [LoginRequared::class])
     ->endGroup();
 
