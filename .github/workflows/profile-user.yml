@@ -156,6 +156,7 @@ jobs:
           <?php
           declare(strict_types=1);
           if (!defined('SITEPATH')) define('SITEPATH', getcwd());
+          $_SERVER['HTTP_HOST'] = 'localhost';
           require SITEPATH . '/vendor/autoload.php';
           require SITEPATH . '/core/config.php';
           require SITEPATH . '/core/DatabaseManager.php';
@@ -166,7 +167,7 @@ jobs:
           require SITEPATH . '/core/Version.php';
           require SITEPATH . '/core/controller.php';
           require SITEPATH . '/core/images.php';
-          require SITEPATH . '/app/helpers/CryptMethods.php';
+          require SITEPATH . '/app/handlers/CryptMethods.php';
           require SITEPATH . '/app/services/UserAvatarService.php';
           require SITEPATH . '/app/controllers/ProfileController.php';
           $_SERVER['REQUEST_METHOD']='GET';
@@ -192,6 +193,7 @@ jobs:
           <?php
           declare(strict_types=1);
           if (!defined('SITEPATH')) define('SITEPATH', getcwd());
+          $_SERVER['HTTP_HOST'] = 'localhost';
           require SITEPATH . '/vendor/autoload.php';
           require SITEPATH . '/core/config.php';
           require SITEPATH . '/core/DatabaseManager.php';
@@ -202,7 +204,7 @@ jobs:
           require SITEPATH . '/core/Version.php';
           require SITEPATH . '/core/controller.php';
           require SITEPATH . '/core/images.php';
-          require SITEPATH . '/app/helpers/CryptMethods.php';
+          require SITEPATH . '/app/handlers/CryptMethods.php';
           require SITEPATH . '/app/services/UserAvatarService.php';
           require SITEPATH . '/app/controllers/ProfileController.php';
           $_SERVER['REQUEST_METHOD']='GET';
