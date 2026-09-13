@@ -36,6 +36,11 @@ $allowedRoutes = [
         'user_typing',
         'stop_typing',
     ],
+    'DialogStateSocket' => [
+        'pin',
+        'archive',
+        'mute',
+    ],
 ];
 
 $allowedOrigins = array_values(array_filter(array_map(
@@ -69,8 +74,8 @@ $worker->onConnect = function (TcpConnection $connection) use (&$connections, $a
             return;
         }
 
-        $user = UserModel::select('uid')->where('id', '=', $userId)->first();
-        if (!$user || empty($user->uid)) {
+        $user = UserModel::select('uid', 'is_active')->where('id', '=', $userId)->first();
+        if (!$user || empty($user->uid) || (int) $user->is_active !== 1) {
             $connection->close();
             return;
         }
@@ -145,7 +150,6 @@ $worker->onMessage = function (TcpConnection $connection, string $message) use (
         return;
     }
 
-    // Client identity is never accepted from the message body.
     unset($payload['user_uid'], $payload['user_id'], $payload['from_user_id']);
 
     try {
