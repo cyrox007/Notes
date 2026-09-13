@@ -4,7 +4,11 @@ namespace App\Models;
 use Core\ORM;
 
 /**
- * Модель вложений заметок (медиа, аудио, файлы)
+ * Модель вложений заметок.
+ *
+ * Файлы хранятся вне document root и выдаются через авторизованный
+ * /notes/attachment/{file_uid}. Значение is_encrypted описывает реальное
+ * шифрование байтов файла; новые вложения пока не шифруются и имеют 0.
  */
 class NoteAttachmentModel extends ORM {
     protected ?string $_tablename = "note_attachments";
@@ -17,55 +21,40 @@ class NoteAttachmentModel extends ORM {
     public string $file_type = ''; // image, audio, video, document, voice
     public string $mime_type = '';
     public int $file_size = 0;
-    public ?int $duration = null; // длительность для audio/video/voice
-    public int $is_encrypted = 1;
+    public ?int $duration = null;
+    public int $is_encrypted = 0;
     public ?string $encryption_key_ref = null;
     public string $uploaded_at = '';
     public int $is_deleted = 0;
 
     public ?NoteModel $note = null;
 
-    /**
-     * Получить URL файла для доступа
-     */
     public function getFileUrl(): string {
-        return '/uploads/notes/' . $this->file_uid . '/' . $this->file_name;
+        return '/notes/attachment/' . rawurlencode($this->file_uid);
     }
 
-    /**
-     * Проверить является ли файл голосовым сообщением
-     */
     public function isVoice(): bool {
         return $this->file_type === 'voice';
     }
 
-    /**
-     * Проверить является ли файл изображением
-     */
     public function isImage(): bool {
         return $this->file_type === 'image';
     }
 
-    /**
-     * Проверить является ли файл аудио/видео
-     */
     public function isMedia(): bool {
-        return in_array($this->file_type, ['audio', 'video']);
+        return in_array($this->file_type, ['audio', 'video'], true);
     }
 
-    /**
-     * Получить размер файла в читаемом формате
-     */
     public function getFormattedSize(): string {
         $units = ['B', 'KB', 'MB', 'GB'];
         $size = $this->file_size;
         $unit = 0;
-        
+
         while ($size >= 1024 && $unit < count($units) - 1) {
             $size /= 1024;
             $unit++;
         }
-        
+
         return round($size, 2) . ' ' . $units[$unit];
     }
 }
