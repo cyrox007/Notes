@@ -57,7 +57,17 @@ final class MessengerSearchService
     ): array {
         $needle = $this->query($query);
         $limit = max(1, min(self::MAX_RESULTS, $limit));
-        $user = $this->messenger->getUserByUid($userUid);
+        $user = $this->db->fetchOne(
+            'SELECT id
+             FROM users
+             WHERE uid = :uid AND is_active = 1
+             LIMIT 1',
+            [':uid' => $userUid]
+        );
+        if (!$user) {
+            throw new DomainException('Пользователь не найден или заблокирован');
+        }
+
         $viewerId = (int) $user['id'];
         $scanLimit = $this->scanLimit();
 
