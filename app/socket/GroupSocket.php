@@ -31,6 +31,27 @@ final class GroupSocket
         });
     }
 
+    public function refresh(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
+    {
+        $this->guard($connection, function () use ($connections, $userUid, $payload): void {
+            $dialogUid = $this->requiredString($payload, 'dialog_uid');
+            $snapshot = $this->groups->info($userUid, $dialogUid);
+            if (!in_array((string) ($snapshot['current_role'] ?? ''), ['owner', 'admin'], true)) {
+                throw new DomainException('Недостаточно прав для обновления профиля группы');
+            }
+
+            $this->broadcastKnown(
+                $connections,
+                $this->messenger->participantUids($userUid, $dialogUid),
+                [
+                    'action' => 'group_changed',
+                    'dialog_uid' => $dialogUid,
+                    'reason' => 'profile_updated',
+                ]
+            );
+        });
+    }
+
     public function rename(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
     {
         $this->mutate($connections, $connection, $userUid, $payload, 'renamed', function (string $dialogUid) use ($userUid, $payload): void {
