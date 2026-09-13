@@ -25,8 +25,9 @@ final class MediaSocket
         $this->guard($connection, function () use ($connections, $userUid, $payload): void {
             $attachmentUid = $this->requiredString($payload, 'attachment_uid');
             $caption = isset($payload['caption']) ? (string) $payload['caption'] : '';
+            $replyToUid = isset($payload['reply_to_uid']) ? trim((string) $payload['reply_to_uid']) : null;
 
-            $message = $this->media->send($userUid, $attachmentUid, $caption);
+            $message = $this->media->send($userUid, $attachmentUid, $caption, $replyToUid);
             $dialogUid = (string) $message['dialog_uid'];
             unset($message['dialog_uid']);
 
