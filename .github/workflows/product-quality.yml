@@ -46,39 +46,89 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          php -l app/controllers/AuthController.php
-          php -l app/middlewares/AuthRateLimit.php
-          php -l app/middlewares/UploadRateLimit.php
-          php -l app/services/RequestRateLimiter.php
-          php -l core/routerConfig.php
-          php -l bin/healthcheck.php
-          php -l install.php
+          for source in \
+            core.php \
+            app/controllers/AuthController.php \
+            app/middlewares/AuthRateLimit.php \
+            app/middlewares/UploadRateLimit.php \
+            app/services/RequestRateLimiter.php \
+            core/routerConfig.php \
+            bin/healthcheck.php \
+            install.php
+          do
+            php -l "$source"
+          done
 
       - name: JavaScript syntax
         shell: bash
         run: |
           set -euo pipefail
           node --check assets/js/reg-script.js
-          sed '/^{literal}$/d;/^{\/literal}$/d' app/views/core/common.js > /tmp/workspace-common.js
+          node --check assets/js/file_manager/script.js
+
+          sed \
+            -e '/^{literal}$/d' \
+            -e '/^{\/literal}$/d' \
+            -e 's#^const socketTicket = .*#const socketTicket = "";#' \
+            -e 's#^const socketUrl = .*#const socketUrl = "";#' \
+            app/views/core/common.js > /tmp/workspace-common.js
           node --check /tmp/workspace-common.js
 
-      - name: UI contract
+      - name: UI and accessibility contract
         shell: bash
         run: |
           set -euo pipefail
           grep -Fq 'core/theme-refresh.css' app/views/styles.css
           grep -Fq 'core/accessibility.css' app/views/styles.css
           grep -Fq 'id="main-content"' app/views/core/base.tpl
+          grep -Fq 'class="skip-link"' app/views/core/base.tpl
           grep -Fq 'id="workspaceSidebar"' app/views/^shared/sidebar/index.tpl
-          grep -Fq 'notification-region' app/views/^shared/header/index.tpl
+          grep -Fq "backdrop.className = 'sidebar-backdrop'" app/views/core/common.js
+          grep -Fq "setAttribute('aria-current', 'page')" app/views/core/common.js
+          grep -Fq 'aria-live="polite"' app/views/^shared/header/index.tpl
           grep -Fq 'workspace-home__grid' app/views/main_page/index.tpl
+          grep -Fq 'autocomplete="username"' app/views/login_page/login_view.tpl
           grep -Fq 'autocomplete="current-password"' app/views/login_page/login_view.tpl
           grep -Fq 'autocomplete="new-password"' app/views/login_page/register_view.tpl
-          ! grep -R -Fq 'fonts.googleapis.com' app/views assets/css
-          ! grep -R -Fq 'fonts.gstatic.com' app/views assets/css
+          grep -Fq 'minlength="10"' app/views/login_page/register_view.tpl
+          ! grep -Fq 'name="userphoto"' app/views/login_page/register_view.tpl
+          ! grep -R -E 'fonts\.googleapis\.com|fonts\.gstatic\.com' app/views assets/css
           ! grep -Fq 'notes.loc' app/views/^shared/header/index.tpl
 
-      - name: Security wiring
+      - name: File Manager safe preview contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'text-preview-modal' app/views/file_manager/index.tpl
+          grep -Fq 'read-only' assets/js/file_manager/script.js
+          ! grep -Fq 'cdnjs.cloudflare.com' app/views/file_manager/index.tpl
+          ! grep -Fq 'ace.js' app/views/file_manager/index.tpl
+          ! grep -Fq 'runCodeInSandbox' assets/js/file_manager/script.js
+          ! grep -Fq 'btn-run-code' app/views/file_manager/index.tpl
+          ! grep -Fq 'btn-save-code' app/views/file_manager/index.tpl
+
+      - name: Linux bootstrap path contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in \
+            core/config.php \
+            core/Version.php \
+            core/DatabaseControll.php \
+            core/DatabaseManager.php \
+            core/ORM.php \
+            core/model.php \
+            core/view.php \
+            core/request.php \
+            core/controller.php \
+            core/helper.php \
+            core/images.php
+          do
+            test -f "$path"
+            grep -Fq "/$path" core.php
+          done
+
+      - name: Security wiring and headers
         shell: bash
         run: |
           set -euo pipefail
@@ -89,6 +139,9 @@ jobs:
           grep -Fq 'UPLOAD_RATE_LIMIT_ATTEMPTS=60' default.env
           grep -Fq "object-src 'none'" .htaccess
           grep -Fq 'Permissions-Policy' .htaccess
+          grep -Fq 'Cross-Origin-Opener-Policy' .htaccess
+          ! grep -Fq "'unsafe-eval'" .htaccess
+          ! grep -Fq 'cdnjs.cloudflare.com' .htaccess
           ! grep -Fq 'notes.loc' .htaccess
 
       - name: Rate limiter integration
@@ -101,14 +154,23 @@ jobs:
           declare(strict_types=1);
           require getcwd() . '/app/services/RequestRateLimiter.php';
           use App\Services\RequestRateLimiter;
+
           $first = RequestRateLimiter::consume('ci', 'client-a', 2, 60);
           $second = RequestRateLimiter::consume('ci', 'client-a', 2, 60);
           $third = RequestRateLimiter::consume('ci', 'client-a', 2, 60);
           if (!$first['allowed'] || !$second['allowed'] || $third['allowed']) {
               throw new RuntimeException('Rate limiter window contract failed');
           }
-          $files = glob('/tmp/workspace-rate-limit-test/rate-limit/*.json') ?: [];
-          if (count($files) !== 1 || (fileperms($files[0]) & 0777) !== 0600) {
+          if ($third['remaining'] !== 0 || $third['retry_after'] < 1) {
+              throw new RuntimeException('Rate limiter metadata contract failed');
+          }
+
+          $directory = '/tmp/workspace-rate-limit-test/rate-limit';
+          $files = glob($directory . '/*.json') ?: [];
+          if (count($files) !== 1) {
+              throw new RuntimeException('Expected one rate limiter state file');
+          }
+          if ((fileperms($directory) & 0777) !== 0700 || (fileperms($files[0]) & 0777) !== 0600) {
               throw new RuntimeException('Rate limiter private-state permissions failed');
           }
           PHP
@@ -143,3 +205,17 @@ jobs:
           chmod 700 "$PRIVATE_STORAGE_PATH"
           php bin/healthcheck.php --json | tee /tmp/healthcheck.json
           grep -Fq '"status": "ok"' /tmp/healthcheck.json
+
+      - name: Documentation freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'database/tasks_schema.sql' README.md
+          grep -Fq 'php bin/migrate.php' README.md
+          grep -Fq 'php bin/migrate_crypto.php' README.md
+          grep -Fq 'Saved Messages' README.md
+          grep -Fq 'docs/PRODUCTION.md' README.md
+          grep -Fq 'File Manager code execution удалён' README.md
+          test -s docs/PRODUCTION.md
+          grep -Fq 'read-only preview' docs/USER_GUIDE.md
+          grep -Fq 'versioned runner' docs/CORE.md
