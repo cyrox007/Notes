@@ -75,6 +75,63 @@ recordHealth(
     $privateReal ?: 'unresolved'
 );
 
+$nodeCountRaw = envValue('DEPLOYMENT_NODE_COUNT');
+$nodeCount = $nodeCountRaw === '' ? 1 : (int) $nodeCountRaw;
+recordHealth(
+    $checks,
+    $failed,
+    'deployment_node_count',
+    $nodeCount >= 1,
+    $nodeCountRaw === '' ? '1 (default)' : $nodeCountRaw
+);
+
+$rateLimitStorage = envValue('RATE_LIMIT_STORAGE_PATH');
+$rateLimitReal = $rateLimitStorage !== '' ? realpath($rateLimitStorage) : false;
+$rateLimitUsesPrivate = $rateLimitStorage === '';
+$rateLimitResolved = $rateLimitUsesPrivate ? $privateReal : $rateLimitReal;
+$rateLimitOk = is_string($rateLimitResolved) && is_dir($rateLimitResolved) && is_writable($rateLimitResolved);
+if ($nodeCount > 1 && $rateLimitUsesPrivate) {
+    $rateLimitOk = false;
+}
+recordHealth(
+    $checks,
+    $failed,
+    'rate_limit_storage',
+    $rateLimitOk,
+    $nodeCount > 1 && $rateLimitUsesPrivate
+        ? 'multi-node requires explicit shared RATE_LIMIT_STORAGE_PATH'
+        : ($rateLimitUsesPrivate ? 'PRIVATE_STORAGE_PATH (single-node default)' : $rateLimitStorage)
+);
+
+if (!$rateLimitUsesPrivate) {
+    $rateLimitOutsideApp = is_string($rateLimitReal)
+        && is_string($appReal)
+        && !pathIsInside($rateLimitReal, $appReal);
+    recordHealth(
+        $checks,
+        $failed,
+        'rate_limit_storage_outside_app_root',
+        $rateLimitOutsideApp,
+        $rateLimitReal ?: 'unresolved'
+    );
+}
+
+$trustedProxyValues = array_values(array_filter(array_map('trim', explode(',', envValue('TRUSTED_PROXY_IPS')))));
+$trustedProxyOk = true;
+foreach ($trustedProxyValues as $proxyIp) {
+    if (filter_var($proxyIp, FILTER_VALIDATE_IP) === false) {
+        $trustedProxyOk = false;
+        break;
+    }
+}
+recordHealth(
+    $checks,
+    $failed,
+    'trusted_proxy_ips',
+    $trustedProxyOk,
+    $trustedProxyValues === [] ? 'none configured' : implode(', ', $trustedProxyValues)
+);
+
 $siteUrl = envValue('SITEURL');
 $siteScheme = strtolower((string) parse_url($siteUrl, PHP_URL_SCHEME));
 recordHealth($checks, $failed, 'site_url', in_array($siteScheme, ['http', 'https'], true), $siteUrl ?: 'missing');

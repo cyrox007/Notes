@@ -22,7 +22,7 @@ final class RequestRateLimiter
         @chmod($directory, 0700);
 
         $safeBucket = preg_replace('/[^a-z0-9_-]+/i', '-', $bucket) ?: 'request';
-        $key = hash('sha256', $safeBucket . "\0" . $subject);
+        $key = hash('sha256', $safeBucket . "\0" . $subject . "\0" . $windowSeconds);
         $path = $directory . '/' . $safeBucket . '-' . $key . '.json';
         $handle = fopen($path, 'c+');
         if ($handle === false) {
@@ -77,12 +77,33 @@ final class RequestRateLimiter
     public static function clientSubject(string $scope): string
     {
         $remoteAddress = trim((string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
+        $trustedProxies = array_values(array_filter(array_map(
+            static fn (string $value): string => trim($value),
+            explode(',', (string) (getenv('TRUSTED_PROXY_IPS') ?: ''))
+        )));
+
+        if ($remoteAddress !== '' && in_array($remoteAddress, $trustedProxies, true)) {
+            $candidate = trim((string) ($_SERVER['HTTP_X_REAL_IP'] ?? ''));
+            if ($candidate === '') {
+                $forwarded = trim((string) ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? ''));
+                $candidate = trim(explode(',', $forwarded)[0] ?? '');
+            }
+            if ($candidate !== '' && filter_var($candidate, FILTER_VALIDATE_IP) !== false) {
+                $remoteAddress = $candidate;
+            }
+        }
+
         $path = (string) (parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH) ?: '/');
-        return $scope . '|' . $remoteAddress . '|' . $path;
+        return $scope . '|' . ($remoteAddress !== '' ? $remoteAddress : 'unknown') . '|' . $path;
     }
 
     private static function storageRoot(): string
     {
+        $configured = getenv('RATE_LIMIT_STORAGE_PATH');
+        if (is_string($configured) && trim($configured) !== '') {
+            return rtrim(trim($configured), '/\\');
+        }
+
         $configured = getenv('PRIVATE_STORAGE_PATH');
         if (is_string($configured) && trim($configured) !== '') {
             return rtrim(trim($configured), '/\\');
