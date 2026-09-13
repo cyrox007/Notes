@@ -61,6 +61,8 @@ $router->group('/tasks')
 $router->group('/profile')
    ->add('GET', '/', [ProfileController::class, 'index'], [LoginRequared::class], 'profile')
    ->add('POST', '/', [ProfileController::class, 'update'], [LoginRequared::class], 'profile-set')
+   ->add('GET', '/avatar/{str:uid}', [ProfileController::class, 'avatar'], [LoginRequared::class], 'profile-avatar')
+   ->add('POST', '/avatar/delete', [ProfileController::class, 'removeAvatar'], [LoginRequared::class], 'profile-avatar-delete')
    ->add('POST', '/change-pass', [ProfileController::class, 'changeUserPass'], [LoginRequared::class], 'profile-password-set')
    ->add('POST', '/delete-user', [ProfileController::class, 'deleteUser'], [LoginRequared::class], 'profile-delete')
    ->endGroup();
