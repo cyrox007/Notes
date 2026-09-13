@@ -132,8 +132,12 @@ final class MessengerMediaService
     }
 
     /** @return array<string,mixed> */
-    public function send(string $userUid, string $attachmentUid, string $caption = ''): array
-    {
+    public function send(
+        string $userUid,
+        string $attachmentUid,
+        string $caption = '',
+        ?string $replyToUid = null
+    ): array {
         $caption = trim($caption);
         if (mb_strlen($caption) > self::MAX_CAPTION_LENGTH) {
             throw new InvalidArgumentException('Подпись к файлу слишком длинная');
@@ -185,6 +189,49 @@ final class MessengerMediaService
                 throw new RuntimeException('Файл вложения отсутствует в защищённом хранилище');
             }
 
+            $replyToId = null;
+            $replyPayload = null;
+            $replyToUid = $replyToUid !== null ? trim($replyToUid) : null;
+            if ($replyToUid !== null && $replyToUid !== '') {
+                $reply = $this->db->fetchOne(
+                    'SELECT
+                        m.id, m.uid, m.message, m.message_type,
+                        u.uid AS user_uid, u.firstname, u.lastname
+                     FROM messages m
+                     INNER JOIN users u ON u.id = m.from_user_id
+                     WHERE m.uid = :reply_uid
+                       AND m.dialog_id = :dialog_id
+                       AND m.is_deleted = 0
+                     LIMIT 1',
+                    [
+                        ':reply_uid' => $replyToUid,
+                        ':dialog_id' => (int) $attachment['dialog_id'],
+                    ]
+                );
+                if (!$reply) {
+                    throw new InvalidArgumentException('Сообщение для ответа не найдено в этом диалоге');
+                }
+
+                $replyToId = (int) $reply['id'];
+                $replyText = $this->mediaLabel((string) ($reply['message_type'] ?? 'text'));
+                if (($reply['message_type'] ?? 'text') === 'text') {
+                    try {
+                        $replyText = MessengerCrypto::decrypt((string) $reply['message'], (string) $reply['uid']);
+                    } catch (\Throwable) {
+                        $replyText = '[Сообщение недоступно]';
+                    }
+                }
+                $replyPayload = [
+                    'uid' => (string) $reply['uid'],
+                    'message' => $replyText,
+                    'user_uid' => (string) ($reply['user_uid'] ?? ''),
+                    'user_name' => trim(
+                        (string) ($reply['firstname'] ?? '') . ' ' .
+                        (string) ($reply['lastname'] ?? '')
+                    ),
+                ];
+            }
+
             $messageUid = UUID::v4();
             $now = date('Y-m-d H:i:s');
             $metadata = [
@@ -201,7 +248,7 @@ final class MessengerMediaService
                     message, message_type, media_url, meta_data,
                     message_status, is_deleted, created_at, updated_at
                  ) VALUES (
-                    :uid, :dialog_id, :from_user_id, NULL,
+                    :uid, :dialog_id, :from_user_id, :reply_to_message_id,
                     :message, :message_type, :media_url, :meta_data,
                     :message_status, 0, :created_at, :updated_at
                  )',
@@ -209,6 +256,7 @@ final class MessengerMediaService
                     ':uid' => $messageUid,
                     ':dialog_id' => (int) $attachment['dialog_id'],
                     ':from_user_id' => (int) $user['id'],
+                    ':reply_to_message_id' => $replyToId,
                     ':message' => MessengerCrypto::encrypt($caption, $messageUid),
                     ':message_type' => (string) $attachment['media_kind'],
                     ':media_url' => $this->mediaUrl((string) $attachment['uid']),
@@ -253,7 +301,7 @@ final class MessengerMediaService
                     'lastname' => (string) ($user['lastname'] ?? ''),
                     'avatar' => $user['avatar'] ?? null,
                 ],
-                'reply' => null,
+                'reply' => $replyPayload,
                 'dialog_uid' => (string) $attachment['dialog_uid'],
             ];
         } catch (\Throwable $e) {
@@ -369,6 +417,19 @@ final class MessengerMediaService
         if (str_starts_with($mimeType, 'audio/')) return $voice ? 'voice' : 'audio';
         if (str_starts_with($mimeType, 'video/')) return 'video';
         return 'file';
+    }
+
+    private function mediaLabel(string $type): string
+    {
+        return match ($type) {
+            'image' => '🖼 Изображение',
+            'audio' => '🎵 Аудио',
+            'video' => '🎬 Видео',
+            'voice' => '🎙 Голосовое сообщение',
+            'file' => '📎 Файл',
+            'service' => 'Системное сообщение',
+            default => 'Сообщение',
+        };
     }
 
     private function mediaUrl(string $attachmentUid): string
