@@ -1,0 +1,145 @@
+name: Product UI and production quality
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [product-ui-production-refresh]
+
+permissions:
+  contents: read
+
+jobs:
+  product-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: notes_product_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: PHP syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l app/controllers/AuthController.php
+          php -l app/middlewares/AuthRateLimit.php
+          php -l app/middlewares/UploadRateLimit.php
+          php -l app/services/RequestRateLimiter.php
+          php -l core/routerConfig.php
+          php -l bin/healthcheck.php
+          php -l install.php
+
+      - name: JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check assets/js/reg-script.js
+          sed '/^{literal}$/d;/^{\/literal}$/d' app/views/core/common.js > /tmp/workspace-common.js
+          node --check /tmp/workspace-common.js
+
+      - name: UI contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'core/theme-refresh.css' app/views/styles.css
+          grep -Fq 'core/accessibility.css' app/views/styles.css
+          grep -Fq 'id="main-content"' app/views/core/base.tpl
+          grep -Fq 'id="workspaceSidebar"' app/views/^shared/sidebar/index.tpl
+          grep -Fq 'notification-region' app/views/^shared/header/index.tpl
+          grep -Fq 'workspace-home__grid' app/views/main_page/index.tpl
+          grep -Fq 'autocomplete="current-password"' app/views/login_page/login_view.tpl
+          grep -Fq 'autocomplete="new-password"' app/views/login_page/register_view.tpl
+          ! grep -R -Fq 'fonts.googleapis.com' app/views assets/css
+          ! grep -R -Fq 'fonts.gstatic.com' app/views assets/css
+          ! grep -Fq 'notes.loc' app/views/^shared/header/index.tpl
+
+      - name: Security wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'AuthRateLimit::class' core/routerConfig.php
+          grep -Fq 'UploadRateLimit::class' core/routerConfig.php
+          grep -Fq 'REGISTRATION_INVITE_CODE' app/controllers/AuthController.php
+          grep -Fq 'AUTH_RATE_LIMIT_WINDOW_SECONDS=300' default.env
+          grep -Fq 'UPLOAD_RATE_LIMIT_ATTEMPTS=60' default.env
+          grep -Fq "object-src 'none'" .htaccess
+          grep -Fq 'Permissions-Policy' .htaccess
+          ! grep -Fq 'notes.loc' .htaccess
+
+      - name: Rate limiter integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/workspace-rate-limit-test
+          PRIVATE_STORAGE_PATH=/tmp/workspace-rate-limit-test php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          require getcwd() . '/app/services/RequestRateLimiter.php';
+          use App\Services\RequestRateLimiter;
+          $first = RequestRateLimiter::consume('ci', 'client-a', 2, 60);
+          $second = RequestRateLimiter::consume('ci', 'client-a', 2, 60);
+          $third = RequestRateLimiter::consume('ci', 'client-a', 2, 60);
+          if (!$first['allowed'] || !$second['allowed'] || $third['allowed']) {
+              throw new RuntimeException('Rate limiter window contract failed');
+          }
+          $files = glob('/tmp/workspace-rate-limit-test/rate-limit/*.json') ?: [];
+          if (count($files) !== 1 || (fileperms($files[0]) & 0777) !== 0600) {
+              throw new RuntimeException('Rate limiter private-state permissions failed');
+          }
+          PHP
+
+      - name: Prepare canonical database
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/messenger_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/notes_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/file_manager_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/user_fields_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/tasks_schema.sql
+
+      - name: Production healthcheck
+        shell: bash
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: notes_product_test
+          UNIQUE_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          MSG_SECRET_KEY: abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
+          WS_TICKET_SECRET: 00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
+          PRIVATE_STORAGE_PATH: /tmp/workspace-health-private
+          SITEURL: https://workspace.example.test
+          WS_PUBLIC_URL: wss://workspace.example.test/ws
+        run: |
+          set -euo pipefail
+          mkdir -p "$PRIVATE_STORAGE_PATH"
+          chmod 700 "$PRIVATE_STORAGE_PATH"
+          php bin/healthcheck.php --json | tee /tmp/healthcheck.json
+          grep -Fq '"status": "ok"' /tmp/healthcheck.json
