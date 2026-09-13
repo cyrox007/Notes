@@ -1,0 +1,207 @@
+name: Production operations
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [production-operations]
+
+permissions:
+  contents: read
+
+jobs:
+  operations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: notes_operations
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
+          coverage: none
+
+      - name: Install production dependencies
+        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress
+
+      - name: Syntax and documentation contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l app/services/RequestRateLimiter.php
+          php -l bin/healthcheck.php
+          grep -Fq 'RATE_LIMIT_STORAGE_PATH' default.env
+          grep -Fq 'TRUSTED_PROXY_IPS' default.env
+          grep -Fq 'DEPLOYMENT_NODE_COUNT' default.env
+          grep -Fq 'Не меняйте эти значения напрямую' docs/OPERATIONS.md
+          grep -Fq 'restore drill' docs/OPERATIONS.md
+
+      - name: Prepare canonical database
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot notes_operations < database/messenger_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_operations < database/notes_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_operations < database/file_manager_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_operations < database/user_fields_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_operations < database/tasks_schema.sql
+
+      - name: Prepare operations environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/workspace-ops-private /tmp/workspace-ops-rate-limit /tmp/workspace-ops-restore
+          mkdir -p /tmp/workspace-ops-private/{notes,messenger,file_manager,users,logs}
+          mkdir -p /tmp/workspace-ops-rate-limit /tmp/workspace-ops-restore
+          chmod 700 /tmp/workspace-ops-private /tmp/workspace-ops-rate-limit /tmp/workspace-ops-restore
+          cat > .env <<'ENV'
+          DBDRIVER=mysql
+          DBHOST=127.0.0.1
+          DBPORT=3306
+          DBUSER=root
+          DBPASS=root
+          DBNAME=notes_operations
+          UNIQUE_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          MSG_SECRET_KEY=abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
+          WS_TICKET_SECRET=00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
+          PRIVATE_STORAGE_PATH=/tmp/workspace-ops-private
+          RATE_LIMIT_STORAGE_PATH=/tmp/workspace-ops-rate-limit
+          DEPLOYMENT_NODE_COUNT=2
+          TRUSTED_PROXY_IPS=127.0.0.1,10.0.0.10
+          SITEURL=https://workspace.example.test
+          BASE_PATH=/
+          WS_PUBLIC_URL=wss://workspace.example.test/ws
+          WS_ALLOWED_ORIGINS=https://workspace.example.test
+          LOG_LEVEL=INFO
+          LOG_FILE=/tmp/workspace-ops-private/logs/app.log
+          ENV
+          chmod 600 .env
+
+      - name: Shared rate limiter and trusted proxy semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          require 'app/services/RequestRateLimiter.php';
+          use App\Services\RequestRateLimiter;
+
+          putenv('RATE_LIMIT_STORAGE_PATH=/tmp/workspace-ops-rate-limit');
+          putenv('TRUSTED_PROXY_IPS=127.0.0.1');
+          $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
+          $_SERVER['HTTP_X_REAL_IP'] = '203.0.113.7';
+          $_SERVER['REQUEST_URI'] = '/auth/login';
+          if (RequestRateLimiter::clientSubject('auth') !== 'auth|203.0.113.7|/auth/login') {
+              throw new RuntimeException('trusted proxy subject mismatch');
+          }
+
+          $_SERVER['REMOTE_ADDR'] = '198.51.100.50';
+          $_SERVER['HTTP_X_REAL_IP'] = '203.0.113.8';
+          if (RequestRateLimiter::clientSubject('auth') !== 'auth|198.51.100.50|/auth/login') {
+              throw new RuntimeException('untrusted proxy header was accepted');
+          }
+
+          $one = RequestRateLimiter::consume('ops-test', 'same-client', 2, 60);
+          $two = RequestRateLimiter::consume('ops-test', 'same-client', 2, 60);
+          $three = RequestRateLimiter::consume('ops-test', 'same-client', 2, 60);
+          if (!$one['allowed'] || !$two['allowed'] || $three['allowed'] || $three['remaining'] !== 0) {
+              throw new RuntimeException('shared rate limiter counter semantics failed');
+          }
+          PHP
+          test "$(find /tmp/workspace-ops-rate-limit/rate-limit -type f | wc -l)" -ge 1
+
+      - name: Multi-node healthcheck
+        shell: bash
+        run: |
+          set -euo pipefail
+          php bin/healthcheck.php --json > /tmp/health.json
+          php -r '$d=json_decode(file_get_contents("/tmp/health.json"),true,512,JSON_THROW_ON_ERROR); if (($d["status"] ?? "") !== "ok") { fwrite(STDERR,file_get_contents("/tmp/health.json")); exit(1); }'
+          grep -Fq 'rate_limit_storage' /tmp/health.json
+          grep -Fq 'trusted_proxy_ips' /tmp/health.json
+
+      - name: Healthcheck rejects local multi-node limiter
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .env /tmp/ops-good.env
+          sed -i 's#^RATE_LIMIT_STORAGE_PATH=.*#RATE_LIMIT_STORAGE_PATH=#' .env
+          if php bin/healthcheck.php --json > /tmp/health-bad.json 2>&1; then
+            echo 'healthcheck unexpectedly accepted multi-node local limiter'
+            cat /tmp/health-bad.json
+            exit 1
+          fi
+          grep -Fq 'multi-node requires explicit shared RATE_LIMIT_STORAGE_PATH' /tmp/health-bad.json
+          mv /tmp/ops-good.env .env
+
+      - name: Database backup and restore drill
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot notes_operations -e "INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active,created_at,updated_at) VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','ops_restore','ops@example.test','fixture','Ops','Restore',888,1,NOW(),NOW());"
+          mysqldump -h 127.0.0.1 -uroot -proot --single-transaction --quick --triggers --hex-blob notes_operations > /tmp/notes-operations.sql
+          test -s /tmp/notes-operations.sql
+          sha256sum /tmp/notes-operations.sql > /tmp/notes-operations.sql.sha256
+          sha256sum -c /tmp/notes-operations.sql.sha256
+          mysql -h 127.0.0.1 -uroot -proot -e 'DROP DATABASE IF EXISTS notes_operations_restore; CREATE DATABASE notes_operations_restore CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;'
+          mysql -h 127.0.0.1 -uroot -proot notes_operations_restore < /tmp/notes-operations.sql
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_operations_restore -e "SELECT COUNT(*) FROM users WHERE username='ops_restore';")" = '1'
+          TABLES=$(mysql -N -h 127.0.0.1 -uroot -proot notes_operations_restore -e 'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE();')
+          test "$TABLES" -ge 20
+
+      - name: Private storage backup and restore drill
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'note-fixture\n' > /tmp/workspace-ops-private/notes/note.bin
+          printf 'message-fixture\n' > /tmp/workspace-ops-private/messenger/message.bin
+          printf 'file-fixture\n' > /tmp/workspace-ops-private/file_manager/file.bin
+          printf 'avatar-fixture\n' > /tmp/workspace-ops-private/users/avatar.bin
+          tar -czf /tmp/workspace-private-data.tar.gz -C /tmp/workspace-ops-private notes messenger file_manager users
+          sha256sum /tmp/workspace-private-data.tar.gz > /tmp/workspace-private-data.tar.gz.sha256
+          sha256sum -c /tmp/workspace-private-data.tar.gz.sha256
+          tar -xzf /tmp/workspace-private-data.tar.gz -C /tmp/workspace-ops-restore
+          cmp /tmp/workspace-ops-private/notes/note.bin /tmp/workspace-ops-restore/notes/note.bin
+          cmp /tmp/workspace-ops-private/messenger/message.bin /tmp/workspace-ops-restore/messenger/message.bin
+          cmp /tmp/workspace-ops-private/file_manager/file.bin /tmp/workspace-ops-restore/file_manager/file.bin
+          cmp /tmp/workspace-ops-private/users/avatar.bin /tmp/workspace-ops-restore/users/avatar.bin
+          ! tar -tzf /tmp/workspace-private-data.tar.gz | grep -Fq '.env'
+
+      - name: WebSocket ticket rotation semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          require 'app/handlers/SocketTicket.php';
+          use App\Handlers\SocketTicket;
+
+          putenv('WS_TICKET_SECRET=00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff');
+          $ticket = SocketTicket::issue(42, 60);
+          if (SocketTicket::validate($ticket) !== 42) {
+              throw new RuntimeException('ticket did not validate before rotation');
+          }
+          putenv('WS_TICKET_SECRET=ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100');
+          if (SocketTicket::validate($ticket) !== null) {
+              throw new RuntimeException('old ticket survived WS secret rotation');
+          }
+          PHP
