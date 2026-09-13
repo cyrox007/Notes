@@ -171,6 +171,7 @@ $requiredTables = [
     'notes', 'note_attachments', 'shared_notes', 'note_history', 'note_tags', 'note_tag_relations',
     'user_files', 'user_fields',
     'tasks', 'subtasks', 'task_categories', 'task_category_relations', 'task_reminders',
+    'system_settings', 'user_storage_quotas',
 ];
 
 try {
@@ -209,6 +210,20 @@ try {
         $missing === [],
         $missing === [] ? count($requiredTables) . ' required tables present' : 'missing: ' . implode(', ', $missing)
     );
+
+    if ($missing === []) {
+        $quotaSeed = $db->query(
+            "SELECT setting_value FROM system_settings WHERE setting_key='file_manager_default_quota_bytes' LIMIT 1"
+        )->fetch_row();
+        $quotaSeedOk = isset($quotaSeed[0]) && ctype_digit((string) $quotaSeed[0]) && (int) $quotaSeed[0] >= 10485760;
+        recordHealth(
+            $checks,
+            $failed,
+            'storage_quota_setting',
+            $quotaSeedOk,
+            $quotaSeedOk ? (string) $quotaSeed[0] . ' bytes default' : 'missing/invalid default quota'
+        );
+    }
     $db->close();
 } catch (Throwable $e) {
     recordHealth($checks, $failed, 'database_connection', false, $e->getMessage());
