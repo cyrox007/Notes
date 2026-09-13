@@ -5,6 +5,7 @@
 {block name=body}
 <style>
 {include file='messager_page/style.css'}
+{include file='messager_page/media.css'}
 .messenger-chat__actions { display:flex; gap:.35rem; margin-left:auto; }
 .messenger-chat__actions .messenger-icon-button[data-active="true"] { color:var(--msg-accent); background:var(--msg-accent-soft); }
 .messenger-folder-tabs { display:flex; gap:6px; padding:0 12px 10px; }
@@ -71,7 +72,7 @@
             <span>Или создайте новый чат — переписка появится здесь.</span>
         </div>
 
-        <div class="messenger-chat__active" id="chat-active" hidden>
+        <div class="messenger-chat__active" id="chat-active" hidden data-dragging="false">
             <header class="messenger-chat__header">
                 <button class="messenger-icon-button messenger-chat__back" id="chat-back-button" type="button" aria-label="Назад к диалогам">
                     <i class="fa fa-arrow-left" aria-hidden="true"></i>
@@ -116,10 +117,24 @@
                 </button>
             </div>
 
+            <div class="messenger-upload-status" id="messenger-upload-status" hidden aria-live="polite">
+                <span id="messenger-upload-text">Загрузка вложения…</span>
+                <span id="messenger-upload-percent">0%</span>
+                <progress id="messenger-upload-progress" max="100" value="0"></progress>
+            </div>
+
             <footer class="messenger-composer">
-                <button class="messenger-icon-button" type="button" disabled title="Вложения подключим после private-storage migration" aria-label="Прикрепить файл">
+                <button class="messenger-icon-button" id="message-attach-button" type="button" title="Прикрепить файл" aria-label="Прикрепить файл">
                     <i class="fa fa-paperclip" aria-hidden="true"></i>
                 </button>
+                <input
+                    class="messenger-file-input"
+                    id="message-file-input"
+                    type="file"
+                    multiple
+                    accept="image/jpeg,image/png,image/gif,image/webp,audio/*,video/mp4,video/webm,video/quicktime,.pdf,.txt,.md,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp"
+                    aria-label="Выбрать вложение"
+                >
                 <textarea
                     id="message-input"
                     rows="1"
@@ -187,4 +202,5 @@
 <script>{include file='messager_page/script.js'}</script>
 <script>{include file='messager_page/dialog-actions.js'}</script>
 <script>{include file='messager_page/receipts.js'}</script>
+<script>{include file='messager_page/media.js'}</script>
 {/block}
