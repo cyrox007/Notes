@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Sockets;
 
+use App\Models\DialogModel;
 use App\Services\MessengerService;
 use DomainException;
 use InvalidArgumentException;
@@ -69,7 +70,6 @@ final class MessangerSocket
                 'prepend' => $beforeId !== null,
             ]);
 
-            // Initial/latest page advances the read cursor. Loading older history does not.
             if ($beforeId === null && $result['messages'] !== []) {
                 $lastMessage = end($result['messages']);
                 $read = $this->messenger->markRead(
@@ -145,11 +145,18 @@ final class MessangerSocket
         array $payload = []
     ): void {
         $this->guard($connection, function () use ($connections, $userUid, $payload): void {
-            $dialogUid = $this->requiredString($payload, 'dialog_uid');
             $messageUid = $this->requiredString($payload, 'message_uid');
             $newText = $this->requiredString($payload, 'new_text', allowWhitespace: true);
-
             $message = $this->messenger->editMessage($userUid, $messageUid, $newText);
+
+            $dialog = DialogModel::select('uid')
+                ->where('id', '=', (int) $message['dialog_id'])
+                ->first();
+            if (!$dialog || empty($dialog->uid)) {
+                throw new DomainException('Диалог сообщения не найден');
+            }
+
+            $dialogUid = (string) $dialog->uid;
             $this->broadcast($connections, $userUid, $dialogUid, [
                 'action' => 'message_edited',
                 'dialog_uid' => $dialogUid,
@@ -177,7 +184,6 @@ final class MessangerSocket
                 return;
             }
 
-            // Delete-for-me is intentionally private to the caller.
             $this->send($connection, [
                 'action' => 'message_deleted',
                 ...$result,
