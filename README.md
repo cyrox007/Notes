@@ -105,6 +105,8 @@ openssl rand -hex 32
 └── rate-limit/
 ```
 
+Canonical root вложений Notes — `PRIVATE_STORAGE_PATH/notes/`; browser никогда не получает этот physical path как URL.
+
 Этот каталог должен принадлежать PHP/web process и **не должен** быть static location веб-сервера.
 
 ### 4. Database
@@ -199,7 +201,7 @@ php bin/healthcheck.php
 php bin/healthcheck.php --json
 ```
 
-Healthcheck проверяет PHP/extensions, secrets, private storage, HTTPS/WSS consistency, DB connection и current schema contract. Ненулевой exit code означает, что deployment нельзя считать healthy.
+Healthcheck проверяет PHP/extensions, secrets, private storage и его размещение вне application root, HTTPS/WSS/origin consistency, DB connection и current schema contract. Ненулевой exit code означает, что deployment нельзя считать healthy.
 
 ## Rate limiting
 
@@ -217,7 +219,7 @@ Baseline limiter хранит state под `PRIVATE_STORAGE_PATH/rate-limit`, и
 Repository `.htaccess`:
 
 - запрещает directory listing;
-- закрывает `database`, `.logs`, `vendor`, `.env` и Composer metadata;
+- закрывает от прямой HTTP-выдачи `app`, `bin`, `core`, `database`, `docs`, `vendor`, `ws_server`, `.github`, `.git`, `.logs`, `.env/default.env` и repository metadata;
 - блокирует `install.php` после появления `.env`;
 - задаёт `nosniff`, Referrer Policy, SAMEORIGIN, Permissions Policy и COOP;
 - CSP запрещает objects, ограничивает base/forms/frame ancestors;
@@ -301,7 +303,7 @@ php bin/cleanup_messenger_orphans.php
 
 ## CI
 
-GitHub Actions покрывают security baseline, PHP/Composer, clean schemas, DB upgrade, crypto migration, Notes/Tasks/Profile contracts и Messenger groups/media/search/voice/reactions/forwarding. Текущий product-readiness workflow дополнительно проверяет UI wiring, Linux bootstrap paths, rate limit middleware, CSP и healthcheck contract.
+GitHub Actions покрывают security baseline, PHP/Composer, clean schemas, DB upgrade, crypto migration, Notes/Tasks/Profile contracts и Messenger groups/media/search/voice/reactions/forwarding. Workflow `Product UI and production quality` дополнительно проверяет UI/accessibility wiring, File Manager safe preview, Linux bootstrap paths, rate limit middleware, CSP/web-root protection, healthcheck contract и freshness документации.
 
 Полноценный browser + WSS smoke через production reverse proxy остаётся отдельным pre-release deployment test; repository CI не выдаёт его за уже выполненный.
 
@@ -331,9 +333,9 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 Перед выкладкой:
 
 1. `composer install --no-dev --optimize-autoloader` проходит без ошибок.
-2. `.env` и service directories недоступны по HTTP.
+2. `.env`, application source и service directories недоступны по HTTP.
 3. `UNIQUE_KEY`, `MSG_SECRET_KEY`, `WS_TICKET_SECRET` уникальны и случайны.
-4. `PRIVATE_STORAGE_PATH` находится вне document root.
+4. `PRIVATE_STORAGE_PATH` находится вне document/application root.
 5. HTTPS + same-site WSS reverse proxy настроены.
 6. `WS_ALLOWED_ORIGINS` содержит только trusted origins.
 7. `php bin/migrate.php --status` показывает ожидаемое состояние.
