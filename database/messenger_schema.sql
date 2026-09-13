@@ -123,10 +123,12 @@ CREATE TABLE IF NOT EXISTS `message_reactions` (
     `message_id` BIGINT UNSIGNED NOT NULL,
     `user_id` INT NOT NULL,
     `reaction_code` VARCHAR(24) NOT NULL,
+    `is_active` TINYINT(1) NOT NULL DEFAULT 1,
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY `uq_message_reaction_user` (`message_id`, `user_id`, `reaction_code`),
-    KEY `idx_message_reaction_message` (`message_id`, `reaction_code`),
-    KEY `idx_message_reaction_user` (`user_id`, `message_id`),
+    KEY `idx_message_reaction_message` (`message_id`, `reaction_code`, `is_active`),
+    KEY `idx_message_reaction_user` (`user_id`, `message_id`, `is_active`),
     CONSTRAINT `fk_message_reaction_message`
         FOREIGN KEY (`message_id`) REFERENCES `messages` (`id`) ON DELETE CASCADE,
     CONSTRAINT `fk_message_reaction_user`
