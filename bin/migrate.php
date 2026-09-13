@@ -37,6 +37,7 @@ $manifest = [
     '20260913_notes_private_attachments.sql',
     '20260913_user_fields_contract.sql',
     '20260913_tasks_contract.sql',
+    '20260913_system_settings_storage_quota.sql',
 ];
 
 $currentTables = [
@@ -45,6 +46,7 @@ $currentTables = [
     'notes', 'note_attachments', 'shared_notes', 'note_history', 'note_tags', 'note_tag_relations',
     'user_files', 'user_fields',
     'tasks', 'subtasks', 'task_categories', 'task_category_relations', 'task_reminders',
+    'system_settings', 'user_storage_quotas',
 ];
 
 function envRequired(string $name): string
@@ -223,6 +225,8 @@ function verifyCurrentContract(mysqli $db, array $tables): void
         'user_to_dialogs' => ['role', 'last_read_message_id', 'last_delivered_message_id', 'is_deleted'],
         'messages' => ['from_user_id', 'message', 'message_type', 'reply_to_message_id', 'meta_data'],
         'note_attachments' => ['file_uid', 'file_path', 'mime_type', 'is_encrypted'],
+        'system_settings' => ['setting_key', 'setting_value', 'setting_type', 'is_editable'],
+        'user_storage_quotas' => ['user_id', 'quota_bytes'],
     ];
     foreach ($requiredColumns as $table => $columns) {
         foreach ($columns as $column) {
