@@ -1,241 +1,178 @@
-# Модуль "Ежедневник/Задачи" (Task Manager)
+# Модуль «Ежедневник / Задачи»
 
-## Обзор
+Документ описывает актуальный контракт Tasks для Workspace Organizer. Модуль предназначен для персональных задач пользователя: статусы, приоритеты, сроки, подзадачи и категории.
 
-Модуль представляет собой систему управления задачами и ежедневник пользователя с возможностью:
-- Создания, редактирования и удаления задач
-- Управления статусами и приоритетами задач
-- Работы с подзадачами (чек-листы)
-- Категоризации задач
-- Фильтрации и сортировки
-- Отслеживания сроков выполнения
+## Возможности
 
-## Структура базы данных
+- создание, редактирование и soft-delete задач;
+- статусы `pending`, `in_progress`, `completed`, `cancelled`;
+- приоритеты `low`, `medium`, `high`, `urgent`;
+- срок выполнения и признак просрочки;
+- фильтры «все / сегодня / неделя / просроченные / по статусу»;
+- безопасная сортировка по явному allowlist;
+- checklist-подзадачи;
+- личные и системные категории;
+- статистика по всем активным задачам пользователя.
 
-Все таблицы описаны в файле `database/tasks_schema.sql`:
+## База данных
 
-1. **tasks** - основные задачи пользователей
-2. **task_categories** - категории задач (личные и системные)
-3. **task_category_relations** - связь задач с категориями
-4. **subtasks** - подзадачи (чек-листы)
-5. **task_reminders** - напоминания о задачах
-6. **task_history** - история изменений задач
+Canonical fresh-install schema: `database/tasks_schema.sql`.
 
-### Установка БД
+Перед Tasks schema должна существовать canonical таблица `users`, которую на fresh install создаёт `database/messenger_schema.sql`.
 
 ```bash
-mysql -u username -p database_name < database/tasks_schema.sql
+mysql -u root -p workspace < database/messenger_schema.sql
+mysql -u root -p workspace < database/tasks_schema.sql
 ```
 
-## Архитектура MVC
+Tasks schema содержит пять реально используемых таблиц:
 
-### Models (app/models/)
+| Таблица | Назначение |
+|---|---|
+| `tasks` | задачи пользователя |
+| `subtasks` | checklist задачи |
+| `task_categories` | личные и системные категории |
+| `task_category_relations` | many-to-many task/category |
+| `task_reminders` | база для будущего механизма напоминаний |
 
-- **TaskModel.php** - основная модель задачи
-  - Статусы: pending, in_progress, completed, cancelled
-  - Приоритеты: low, medium, high, urgent
-  - Методы: getCategories(), getSubtasks(), getReminders(), complete(), isOverdue()
+`task_category_relations` имеет UNIQUE `(task_id, category_id)`, поэтому повторное назначение категории идемпотентно.
 
-- **TaskCategoryModel.php** - модель категории задач
-- **TaskCategoryRelationModel.php** - модель связи задача-категория
-- **SubtaskModel.php** - модель подзадачи
-- **TaskReminderModel.php** - модель напоминания
+> `task_history` в текущем приложении не реализован и не входит в canonical schema. Напоминания имеют таблицу/модель, но пользовательский scheduler/notification flow пока не подключён.
 
-### Controllers (app/controllers/)
+## Модели
 
-**TaskController.php** - основной контроллер модуля:
+- `TaskModel` — задача и legacy helper-методы домена;
+- `SubtaskModel` — подзадача;
+- `TaskCategoryModel` — категория;
+- `TaskCategoryRelationModel` — связь задачи с категорией;
+- `TaskReminderModel` — данные будущих напоминаний.
 
-| Метод | Route | Описание |
-|-------|-------|----------|
-| index() | GET /tasks | Список задач с фильтрацией |
-| create() | POST /tasks | Создание новой задачи |
-| update() | POST /tasks/{uid}/update | Обновление задачи |
-| delete() | GET /tasks/{uid}/delete | Удаление задачи |
-| addSubtask() | POST /tasks/{uid}/subtask | Добавление подзадачи |
-| toggleSubtask() | POST /tasks/subtask/{id}/toggle | Переключение статуса подзадачи |
-| deleteSubtask() | POST /tasks/subtask/{id}/delete | Удаление подзадачи |
-| createCategory() | POST /tasks/category | Создание категории |
-| attachCategory() | POST /tasks/{uid}/category/{id} | Привязка категории |
-| detachCategory() | DELETE /tasks/{uid}/category/{id} | Отвязка категории |
+UI не зависит от вызова методов ORM-объекта из Smarty. `TaskController` формирует явный view-model: `priority_color`, `status_label`, `is_overdue`, `completion_percentage`, `categories`, `subtasks`.
 
-### Views (app/views/)
+## HTTP routes
 
-- **tasks_page/index.tpl** - главная страница списка задач
-- **tasks_page/style.css** - стили модуля
-- **^elements/task_item/index.tpl** - шаблон элемента задачи
+Маршруты объявлены в `core/routerConfig.php` и защищены `LoginRequared`.
 
-## Функционал
+| Метод | Route | Назначение |
+|---|---|---|
+| GET | `/tasks/` | список, фильтры, статистика |
+| POST | `/tasks/` | создать задачу |
+| POST | `/tasks/{uid}/update` | изменить поля/статус |
+| POST | `/tasks/{uid}/delete` | soft-delete задачи |
+| POST | `/tasks/{taskUid}/subtask` | добавить подзадачу |
+| POST | `/tasks/subtask/{id}/toggle` | переключить подзадачу |
+| POST | `/tasks/subtask/{id}/delete` | удалить подзадачу |
+| POST | `/tasks/category` | создать личную категорию |
+| POST | `/tasks/{taskUid}/category/{id}` | назначить категорию |
+| DELETE | `/tasks/{taskUid}/category/{id}` | снять категорию |
 
-### Статусы задач
+State-changing запросы проходят общую CSRF-защиту. `core/common.js` автоматически добавляет `X-CSRF-Token` к same-origin `fetch`/XHR; обычные формы содержат `{csrf_token}`.
 
-- **pending** - ожидает выполнения
-- **in_progress** - в процессе выполнения  
-- **completed** - завершена
-- **cancelled** - отменена
+## ACL
 
-### Приоритеты
+Задача всегда принадлежит одному `user_id`.
 
-- **low** - низкий (серый)
-- **medium** - средний (синий)
-- **high** - высокий (оранжевый)
-- **urgent** - срочный (красный)
+Пользователь может:
+- видеть и менять только свои задачи;
+- добавлять/переключать/удалять подзадачи только внутри своих задач;
+- создавать личные категории;
+- назначать своим задачам только собственные категории или системные категории с `user_id IS NULL`;
+- не может использовать чужую персональную категорию, даже зная её ID.
 
-### Фильтры
+Проверка ACL выполняется на сервере. Значения из DOM, URL или JavaScript не считаются подтверждением права доступа.
 
-- **all** - все задачи
-- **today** - задачи на сегодня
-- **week** - задачи на неделю
-- **pending** - ожидающие
-- **in_progress** - в процессе
-- **overdue** - просроченные
-- **completed** - завершенные
+## Валидация
+
+Controller использует явные allowlist:
+
+- status: `pending`, `in_progress`, `completed`, `cancelled`;
+- priority: `low`, `medium`, `high`, `urgent`;
+- sort: `created_at`, `updated_at`, `title`, `due_date`, `priority`, `status`;
+- direction: только ASC/DESC;
+- category color: только `#RRGGBB`;
+- category icon: только `fa-*` безопасного формата.
+
+Название задачи — до 255 символов, описание — до 10 000, название категории — до 120, название подзадачи — до 255.
+
+`datetime-local` нормализуется на сервере в MySQL `DATETIME`. При переходе задачи в `completed` выставляется `completed_at`; при возврате в другой статус `completed_at` очищается.
+
+## Пользовательская инструкция
+
+### Создать задачу
+
+1. Откройте **Ежедневник** (`/tasks/`).
+2. Нажмите **+ Новая задача**.
+3. Введите название, при необходимости описание, приоритет и срок.
+4. Нажмите **Создать задачу**.
+
+### Изменить статус
+
+Статус можно поменять селектором в карточке. Checkbox слева быстро переводит задачу в `completed`; снятие отметки возвращает её в `pending`.
+
+### Редактировать задачу
+
+Нажмите кнопку с карандашом. В карточке откроется форма редактирования названия, описания, статуса, приоритета и срока. Сохранение выполняется через `POST /tasks/{uid}/update`.
 
 ### Подзадачи
 
-Каждая задача может содержать неограниченное количество подзадач в формате чек-листа. 
-При completion всех подзадач отображается прогресс 100%.
+Нажмите **+ Добавить** в блоке подзадач, введите название. Подзадачу можно отметить выполненной или удалить. Процент выполнения считается по текущему checklist.
 
 ### Категории
 
-Система поддерживает:
-- **Системные категории** (user_id = NULL): Работа, Личное, Покупки, Здоровье, Обучение, Дом
-- **Пользовательские категории**: создаются каждым пользователем индивидуально
+Новая категория создаётся на странице задач: имя, цвет и одна из разрешённых иконок. Затем выберите категорию в карточке задачи и нажмите **Добавить категорию**. Кнопка `×` на badge снимает категорию с задачи.
 
-## Роутинг
+### Фильтры и сортировка
 
-В файле `core/routerConfig.php` добавлена группа маршрутов `/tasks`:
+Фильтры не меняют статистические карточки: статистика показывает состояние всех активных задач пользователя. Список можно отдельно сортировать по созданию, изменению, сроку, приоритету, статусу или названию.
 
-```php
-$router->group('/tasks', function (Router $addRoute) {
-    $addRoute->add("GET", '/', [TaskController::class, 'index'], [LoginRequared::class], 'tasks');
-    $addRoute->add("POST", '/', [TaskController::class, 'create'], [LoginRequared::class], 'task_create');
-    // ... другие маршруты
-});
+## JSON contract для интерактивных действий
+
+AJAX-запросы отправляют `Accept: application/json` и `X-Requested-With: XMLHttpRequest`.
+
+Успех:
+
+```json
+{"success": true}
 ```
 
-## API Endpoints
+Ошибка ACL/валидации:
 
-### JSON API
-
-Некоторые методы возвращают JSON ответы:
-
-**Добавление подзадачи:**
+```json
+{"success": false, "error": "Описание ошибки"}
 ```
-POST /tasks/{taskUid}/subtask
+
+Например, quick status update:
+
+```text
+POST /tasks/11111111111111111111111111111111/update
 Content-Type: application/x-www-form-urlencoded
+Accept: application/json
 
-title=Название подзадачи
-
-Response:
-{
-    "success": true,
-    "subtask": {
-        "id": 123,
-        "title": "Название подзадачи",
-        "is_completed": 0
-    }
-}
+status=completed
 ```
 
-**Переключение подзадачи:**
-```
-POST /tasks/subtask/{subtaskId}/toggle
+## CI
 
-Response:
-{
-    "success": true,
-    "is_completed": 1
-}
-```
+Workflow `.github/workflows/tasks-contract.yml` проверяет:
 
-**Привязка категории:**
-```
-POST /tasks/{taskUid}/category/{categoryId}
+- PHP syntax и отсутствие старого undefined `$task` ACL;
+- clean import `messenger_schema.sql + tasks_schema.sql`;
+- наличие всех canonical Tasks tables;
+- UNIQUE relation task/category;
+- owner/outsider update ACL;
+- корректную установку/очистку `completed_at`;
+- owner/outsider ACL для subtasks;
+- запрет назначения чужой категории;
+- доступ к системной категории;
+- идемпотентность повторного attach.
 
-Response:
-{
-    "success": true
-}
-```
+## Ограничения текущей версии
 
-## Стили
+Пока не реализованы scheduler/уведомления для `task_reminders`, рекуррентные задачи, совместные задачи, комментарии, task attachments и календарный view. Эти функции не следует считать частью текущего контракта только из-за наличия таблицы/модели-заготовки.
 
-CSS файл `app/views/tasks_page/style.css` включает:
+## Требования
 
-- Адаптивную верстку (mobile-first)
-- Цветовую индикацию приоритетов
-- Статистические карточки
-- Модальное окно создания задачи
-- Стили для подзадач и категорий
-
-## Безопасность
-
-- Все маршруты защищены middleware `LoginRequared`
-- Проверка прав доступа к задачам (user_id)
-- Safe-удаление (флаг is_deleted вместо физического удаления)
-- CSRF токены в формах
-
-## Расширение функционала
-
-### Возможные улучшения:
-
-1. **Напоминания** - реализовать отправку уведомлений (email, push)
-2. **Рекуррентные задачи** - повторяющиеся задачи (ежедневно, еженедельно)
-3. **Комментарии** - обсуждение задач
-4. **Файлы** - прикрепление файлов к задачам
-5. **Совместный доступ** - шеринг задач между пользователями
-6. **Календарь** - view задач в календарном формате
-7. **Теги** - гибкая система тегирования
-8. **Экспорт** - экспорт задач в CSV/PDF
-
-## Пример использования
-
-### Создание задачи через форму
-
-```html
-<form action="/tasks/" method="post">
-    <input type="text" name="title" required>
-    <textarea name="description"></textarea>
-    <select name="priority">
-        <option value="low">Низкий</option>
-        <option value="medium" selected>Средний</option>
-        <option value="high">Высокий</option>
-        <option value="urgent">Срочный</option>
-    </select>
-    <input type="datetime-local" name="due_date">
-    <button type="submit">Создать</button>
-</form>
-```
-
-### Получение задач в коде
-
-```php
-use App\Models\TaskModel;
-
-// Получить все активные задачи пользователя
-$tasks = TaskModel::select()
-    ->where('user_id', '=', $userId)
-    ->where('is_deleted', '=', 0)
-    ->orderBy('due_date', 'ASC')
-    ->get();
-
-foreach ($tasks as $task) {
-    if ($task->isOverdue()) {
-        echo "Задача просрочена: " . $task->title;
-    }
-    
-    $subtasks = $task->getSubtasks();
-    $percentage = $task->getCompletionPercentage();
-}
-```
-
-## Зависимости
-
-- PHP 7.4+
-- MySQL 5.7+
-- FontAwesome (для иконок)
-- Smarty (для шаблонов)
-
-## Лицензия
-
-Модуль является частью основной системы и распространяется на тех же условиях.
+- PHP 8.3+;
+- MySQL 8.x / совместимая MariaDB;
+- Composer dependencies проекта;
+- Smarty и общий Workspace Organizer core.
