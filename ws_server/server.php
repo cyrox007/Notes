@@ -43,6 +43,10 @@ $allowedRoutes = [
         'archive',
         'mute',
     ],
+    'ReceiptSocket' => [
+        'list',
+        'delivered',
+    ],
 ];
 
 $allowedOrigins = array_values(array_filter(array_map(
