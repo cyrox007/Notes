@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [master]
   push:
-    branches: [audit-hardening]
+    branches: [messenger-v2-next]
 
 permissions:
   contents: read
@@ -61,8 +61,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sed '/^{literal}$/d;/^{\/literal}$/d' app/views/messager_page/script.js > /tmp/messenger.js
-          node --check /tmp/messenger.js
+          for source in \
+            app/views/messager_page/script.js \
+            app/views/messager_page/dialog-actions.js \
+            app/views/messager_page/receipts.js
+          do
+            target="/tmp/$(basename "$source")"
+            sed '/^{literal}$/d;/^{\/literal}$/d' "$source" > "$target"
+            node --check "$target"
+          done
 
       - name: Messenger clean-install schema smoke test
         shell: bash
@@ -70,6 +77,7 @@ jobs:
           set -euo pipefail
           mysql -h 127.0.0.1 -uroot -proot notes_test < database/messenger_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_test < database/notes_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_test < database/migrations/20260913_messenger_delivery_receipts.sql
 
           mysql -N -h 127.0.0.1 -uroot -proot notes_test <<'SQL' > /tmp/messenger-contract.txt
           SELECT COUNT(*) FROM information_schema.tables
@@ -80,7 +88,7 @@ jobs:
             AND column_name IN ('uid','dialog_id','from_user_id','reply_to_message_id','message','message_type','message_status','media_url','meta_data');
           SELECT COUNT(*) FROM information_schema.columns
           WHERE table_schema = DATABASE() AND table_name = 'user_to_dialogs'
-            AND column_name IN ('last_read_message_id','archived_at','muted_until','pinned_at');
+            AND column_name IN ('last_delivered_message_id','last_read_message_id','archived_at','muted_until','pinned_at');
           SELECT COUNT(*) FROM information_schema.columns
           WHERE table_schema = DATABASE() AND table_name = 'users'
             AND column_name IN ('uid','firstname','lastname','avatar');
@@ -89,7 +97,7 @@ jobs:
           mapfile -t contract < /tmp/messenger-contract.txt
           test "${contract[0]}" = "5"
           test "${contract[1]}" = "9"
-          test "${contract[2]}" = "4"
+          test "${contract[2]}" = "5"
           test "${contract[3]}" = "4"
 
       - name: Messenger service integration test
@@ -112,6 +120,7 @@ jobs:
           require __DIR__ . '/app/handlers/UUID.php';
           require __DIR__ . '/app/handlers/MessengerCrypto.php';
           require __DIR__ . '/app/services/MessengerService.php';
+          require __DIR__ . '/app/services/MessengerReceiptService.php';
 
           $db = \Core\DatabaseManager::getInstance();
           $now = date('Y-m-d H:i:s');
@@ -140,6 +149,7 @@ jobs:
           }
 
           $service = new \App\Services\MessengerService($db);
+          $receipts = new \App\Services\MessengerReceiptService($db);
           $dialog = $service->createDialog($aliceUid, 'private', [$bobUid]);
           if (($dialog['type'] ?? null) !== 'private') {
               throw new RuntimeException('Private dialog was not created');
@@ -149,6 +159,19 @@ jobs:
           $bobPage = $service->getMessages($bobUid, $dialog['uid']);
           if (count($bobPage['messages']) !== 1 || $bobPage['messages'][0]['message'] !== 'hello Bob') {
               throw new RuntimeException('Bob cannot read Alice message');
+          }
+
+          $delivered = $receipts->markDelivered($bobUid, $dialog['uid'], $hello['uid']);
+          if ((int) $delivered['last_delivered_message_id'] < (int) $hello['id']) {
+              throw new RuntimeException('Delivery cursor did not advance');
+          }
+          $receiptRows = $receipts->listCursors($aliceUid, $dialog['uid']);
+          $bobReceipt = array_values(array_filter(
+              $receiptRows,
+              fn(array $row): bool => $row['user_uid'] === $bobUid
+          ))[0] ?? null;
+          if (!$bobReceipt || (int) $bobReceipt['last_delivered_message_id'] < (int) $hello['id']) {
+              throw new RuntimeException('Delivery cursor is not visible to the sender');
           }
 
           $reply = $service->sendMessage($bobUid, $dialog['uid'], 'hello Alice', $hello['uid']);
