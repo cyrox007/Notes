@@ -42,8 +42,11 @@ jobs:
           php -l app/middlewares/StorageQuotaLimit.php
           php -l app/controllers/Admin/SettingsController.php
           php -l bin/migrate.php
+          php -l bin/healthcheck.php
           grep -Fq 'StorageQuotaLimit::class' core/routerConfig.php
           grep -Fq "'20260913_system_settings_storage_quota.sql'" bin/migrate.php
+          grep -Fq 'GET_LOCK' app/services/StorageQuotaService.php
+          grep -Fq 'RELEASE_LOCK' app/services/StorageQuotaService.php
           grep -Fq "route_path name='admin_settings'" app/views/admin-page/index.tpl
           grep -Fq "route_path name='admin_settings_user_quota'" app/views/admin-page/settings.tpl
       - name: Prepare canonical schema
@@ -99,6 +102,15 @@ jobs:
           $blocked = false;
           try { $service->assertCanStore(2, 11 * 1024 * 1024); } catch (DomainException $e) { $blocked = $e->getCode() === 413; }
           if (!$blocked) throw new RuntimeException('Quota overflow was not rejected');
+
+          $service->acquireUploadLock(2);
+          $other = new mysqli('127.0.0.1', 'root', 'root', 'settings_quota_test', 3306);
+          $other->set_charset('utf8mb4');
+          $lockResult = $other->query("SELECT GET_LOCK('workspace-storage-quota-user-2',0)")->fetch_row();
+          if ((int) ($lockResult[0] ?? -1) !== 0) throw new RuntimeException('Concurrent quota lock was not exclusive');
+          $other->close();
+          $service->releaseUploadLock(2);
+
           $service->setUserQuota(1, 2, null);
           if ($service->effectiveQuotaBytes(2) !== 20 * 1024 * 1024) throw new RuntimeException('Override reset failed');
           $denied = false;
