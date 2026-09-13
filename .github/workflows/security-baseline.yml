@@ -92,6 +92,100 @@ jobs:
           test "${contract[2]}" = "4"
           test "${contract[3]}" = "4"
 
+      - name: Messenger service integration test
+        shell: bash
+        run: |
+          set -euo pipefail
+          php <<'PHP'
+          <?php
+          $_SERVER['HTTP_HOST'] = 'localhost';
+          putenv('DBDRIVER=mysql');
+          putenv('DBHOST=127.0.0.1');
+          putenv('DBPORT=3306');
+          putenv('DBUSER=root');
+          putenv('DBPASS=root');
+          putenv('DBNAME=notes_test');
+          putenv('MSG_SECRET_KEY=ci-message-secret-0123456789abcdef0123456789abcdef');
+
+          require __DIR__ . '/core/config.php';
+          require __DIR__ . '/core/DatabaseManager.php';
+          require __DIR__ . '/app/handlers/UUID.php';
+          require __DIR__ . '/app/handlers/MessengerCrypto.php';
+          require __DIR__ . '/app/services/MessengerService.php';
+
+          $db = \Core\DatabaseManager::getInstance();
+          $now = date('Y-m-d H:i:s');
+          $password = password_hash('ci-password', PASSWORD_ARGON2ID);
+          $aliceUid = '10000000-0000-4000-8000-000000000001';
+          $bobUid = '10000000-0000-4000-8000-000000000002';
+
+          foreach ([
+              [$aliceUid, 'alice', 'Alice', 'Tester'],
+              [$bobUid, 'bob', 'Bob', 'Tester'],
+          ] as [$uid, $username, $firstname, $lastname]) {
+              $db->execute(
+                  'INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active,created_at,updated_at)
+                   VALUES (:uid,:username,:email,:password_hash,:firstname,:lastname,888,1,:created_at,:updated_at)',
+                  [
+                      ':uid' => $uid,
+                      ':username' => $username,
+                      ':email' => $username . '@example.test',
+                      ':password_hash' => $password,
+                      ':firstname' => $firstname,
+                      ':lastname' => $lastname,
+                      ':created_at' => $now,
+                      ':updated_at' => $now,
+                  ]
+              );
+          }
+
+          $service = new \App\Services\MessengerService($db);
+          $dialog = $service->createDialog($aliceUid, 'private', [$bobUid]);
+          if (($dialog['type'] ?? null) !== 'private') {
+              throw new RuntimeException('Private dialog was not created');
+          }
+
+          $hello = $service->sendMessage($aliceUid, $dialog['uid'], 'hello Bob');
+          $bobPage = $service->getMessages($bobUid, $dialog['uid']);
+          if (count($bobPage['messages']) !== 1 || $bobPage['messages'][0]['message'] !== 'hello Bob') {
+              throw new RuntimeException('Bob cannot read Alice message');
+          }
+
+          $reply = $service->sendMessage($bobUid, $dialog['uid'], 'hello Alice', $hello['uid']);
+          if (($reply['reply']['uid'] ?? null) !== $hello['uid']) {
+              throw new RuntimeException('Reply relation is broken');
+          }
+
+          $edited = $service->editMessage($aliceUid, $hello['uid'], 'hello Bob edited');
+          if ($edited['message'] !== 'hello Bob edited' || empty($edited['edited_at'])) {
+              throw new RuntimeException('Message edit is broken');
+          }
+
+          $service->markRead($bobUid, $dialog['uid'], $reply['uid']);
+          $bobDialogs = $service->listDialogs($bobUid);
+          if ((int) ($bobDialogs[0]['unread_count'] ?? -1) !== 0) {
+              throw new RuntimeException('Read cursor did not clear unread counter');
+          }
+
+          $service->deleteMessage($bobUid, $hello['uid'], false);
+          $bobAfterDelete = $service->getMessages($bobUid, $dialog['uid']);
+          if (array_filter($bobAfterDelete['messages'], fn(array $m): bool => $m['uid'] === $hello['uid'])) {
+              throw new RuntimeException('Delete-for-me did not hide the message');
+          }
+          $aliceAfterBobDelete = $service->getMessages($aliceUid, $dialog['uid']);
+          if (!array_filter($aliceAfterBobDelete['messages'], fn(array $m): bool => $m['uid'] === $hello['uid'])) {
+              throw new RuntimeException('Delete-for-me incorrectly deleted message for other participant');
+          }
+
+          $service->deleteMessage($aliceUid, $hello['uid'], true);
+          $aliceAfterGlobalDelete = $service->getMessages($aliceUid, $dialog['uid']);
+          if (array_filter($aliceAfterGlobalDelete['messages'], fn(array $m): bool => $m['uid'] === $hello['uid'])) {
+              throw new RuntimeException('Delete-for-all did not remove message');
+          }
+
+          echo "messenger service integration passed\n";
+          PHP
+
       - name: Crypto fail-closed smoke test
         if: always()
         shell: bash
