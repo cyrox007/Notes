@@ -18,6 +18,21 @@ final class SearchSocket
         $this->search ??= new MessengerSearchService();
     }
 
+    public function all(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
+    {
+        $this->guard($connection, function () use ($connection, $userUid, $payload): void {
+            $this->throttle($connection);
+            $query = trim((string) ($payload['query'] ?? ''));
+
+            $this->send($connection, [
+                'action' => 'search_all',
+                'query' => $query,
+                'dialogs' => $this->search->dialogs($userUid, $query, 15),
+                'messages' => $this->search->messages($userUid, $query, null, 30),
+            ]);
+        });
+    }
+
     public function messages(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
     {
         $this->guard($connection, function () use ($connection, $userUid, $payload): void {
