@@ -56,12 +56,17 @@ jobs:
         run: |
           set -euo pipefail
           php -l index.php
+          php -l core/config.php
+          php -l ws_server/server.php
           php -l tests/e2e/router.php
           node --check tests/e2e/browser-smoke.mjs
           grep -Fq "'/core/routerConfig.php'" index.php
           ! grep -Fq "'/core/RouterConfig.php'" index.php
           ! grep -Fq 'fonts.googleapis.com' index.php
           ! grep -Fq "display_errors', 1" index.php
+          grep -Fq 'Workerman\\Protocols\\Websocket' ws_server/server.php
+          grep -Fq "new Worker(sprintf('tcp://%s:%d'" ws_server/server.php
+          grep -Fq 'getenv('"'"'SITEURL'"'"')' core/config.php
 
       - name: Prepare canonical database
         shell: bash
@@ -178,18 +183,28 @@ jobs:
           set -euo pipefail
           php -S 127.0.0.1:8080 tests/e2e/router.php >/tmp/workspace-http.log 2>&1 &
           echo $! >/tmp/workspace-http.pid
-          php ws_server/server.php start >/tmp/workspace-ws.log 2>&1 &
-          echo $! >/tmp/workspace-ws.pid
 
+          php ws_server/server.php start -d >/tmp/workspace-ws-start.log 2>&1
+
+          HTTP_READY=0
+          WS_READY=0
           for i in {1..30}; do
-            if curl -fsS http://127.0.0.1:8080/auth/login >/dev/null 2>&1 && (echo >/dev/tcp/127.0.0.1/27800) >/dev/null 2>&1; then
+            if curl -fsS http://127.0.0.1:8080/auth/login >/dev/null 2>&1; then
+              HTTP_READY=1
+            fi
+            if (echo >/dev/tcp/127.0.0.1/27800) >/dev/null 2>&1; then
+              WS_READY=1
+            fi
+            if [[ "$HTTP_READY" == '1' && "$WS_READY" == '1' ]]; then
               exit 0
             fi
             sleep 1
           done
-          echo 'PHP or Workerman did not become ready'
+
+          echo "HTTP_READY=$HTTP_READY WS_READY=$WS_READY"
           cat /tmp/workspace-http.log || true
-          cat /tmp/workspace-ws.log || true
+          cat /tmp/workspace-ws-start.log || true
+          cat /tmp/workspace-browser-private/logs/app.log || true
           exit 1
 
       - name: Start HTTPS/WSS Nginx proxy
@@ -267,9 +282,23 @@ jobs:
         run: |
           echo '--- PHP ---'
           cat /tmp/workspace-http.log || true
-          echo '--- Workerman ---'
-          cat /tmp/workspace-ws.log || true
+          echo '--- Workerman start ---'
+          cat /tmp/workspace-ws-start.log || true
+          echo '--- Application / Workerman log ---'
+          cat /tmp/workspace-browser-private/logs/app.log || true
           echo '--- Nginx error ---'
           cat /tmp/workspace-e2e-nginx-error.log || true
           echo '--- Nginx access ---'
           tail -n 100 /tmp/workspace-e2e-nginx-access.log || true
+
+      - name: Stop local processes
+        if: always()
+        shell: bash
+        run: |
+          php ws_server/server.php stop >/dev/null 2>&1 || true
+          if [[ -f /tmp/workspace-e2e-nginx.conf ]]; then
+            sudo nginx -c /tmp/workspace-e2e-nginx.conf -s stop >/dev/null 2>&1 || true
+          fi
+          if [[ -f /tmp/workspace-http.pid ]]; then
+            kill "$(cat /tmp/workspace-http.pid)" >/dev/null 2>&1 || true
+          fi
