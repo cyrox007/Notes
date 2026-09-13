@@ -18,8 +18,11 @@
         <a class="notes__btn--edit" href="{route_path name="edit_page" uid=$note.uid}" title="Редактировать">
             <i class="fa fa-pencil" aria-hidden="true"></i>
         </a>
-        <a class="notes__btn--delete" href="{route_path name="delete_note" uid=$note.uid}" title="Удалить" onclick="return confirm('Вы уверены, что хотите удалить эту заметку?')">
-            <i class="fa fa-trash-o" aria-hidden="true"></i>
-        </a>
+        <form action="{route_path name='delete_note' uid=$note.uid}" method="post" class="notes__delete-form" onsubmit="return confirm('Вы уверены, что хотите удалить эту заметку?')">
+            {csrf_token}
+            <button class="notes__btn--delete" type="submit" title="Удалить">
+                <i class="fa fa-trash-o" aria-hidden="true"></i>
+            </button>
+        </form>
     </div>
 </div>
