@@ -168,13 +168,14 @@
                 app.showToast('Сначала выберите диалог');
                 return;
             }
-            if (app.editing || app.replyTo) {
-                app.showToast('Сначала завершите редактирование или ответ');
+            if (app.editing) {
+                app.showToast('Сначала завершите редактирование сообщения');
                 return;
             }
 
             const initialDialogUid = app.currentDialog.uid;
             const caption = (app.el.input?.value || '').trim();
+            const replyToUid = app.replyTo?.uid || null;
             setUploadState(true, `Подготовка ${list.length === 1 ? 'файла' : 'файлов'}…`, 0);
 
             try {
@@ -187,7 +188,8 @@
                     const attachment = await uploadBinary(file);
                     const sent = app.sendEvent('MediaSocket:send', {
                         attachment_uid: attachment.uid,
-                        caption: index === 0 ? caption : ''
+                        caption: index === 0 ? caption : '',
+                        reply_to_uid: index === 0 ? replyToUid : null
                     });
                     if (!sent) {
                         throw new Error('Файл загружен, но нет соединения для отправки сообщения');
@@ -197,6 +199,9 @@
                 if (caption && app.el.input) {
                     app.el.input.value = '';
                     app.autosizeComposer();
+                }
+                if (replyToUid) {
+                    app.clearComposeContext();
                 }
                 app.stopTyping();
                 app.showToast(list.length === 1 ? 'Вложение отправляется' : `Отправляется файлов: ${list.length}`);
