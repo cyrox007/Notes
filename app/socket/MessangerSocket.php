@@ -30,13 +30,13 @@ final class MessangerSocket
                 $onlineCount = 0;
                 foreach ($dialog['participants'] ?? [] as $participant) {
                     $participantUid = (string) ($participant['uid'] ?? '');
-                    if ($participantUid !== '' && isset($connections[$participantUid])) {
+                    if ($participantUid !== '' && !empty($connections[$participantUid])) {
                         $onlineCount++;
                     }
                 }
                 $dialog['online_count'] = $onlineCount;
                 if (!empty($dialog['partner']['uid'])) {
-                    $dialog['partner']['online'] = isset($connections[$dialog['partner']['uid']]);
+                    $dialog['partner']['online'] = !empty($connections[$dialog['partner']['uid']]);
                 }
             }
             unset($dialog);
@@ -105,12 +105,12 @@ final class MessangerSocket
             ]);
 
             foreach ($this->messenger->participantUids($userUid, $dialogUid) as $participantUid) {
-                if ($participantUid === $userUid || !isset($connections[$participantUid])) {
+                if ($participantUid === $userUid || empty($connections[$participantUid])) {
                     continue;
                 }
 
                 $participantDialog = $this->messenger->getDialogInfo($participantUid, $dialogUid);
-                $this->send($connections[$participantUid], [
+                $this->sendToUser($connections, $participantUid, [
                     'action' => 'new_dialog',
                     'dialog' => $participantDialog,
                 ]);
@@ -255,8 +255,15 @@ final class MessangerSocket
             if ($excludeUserUid !== null && $participantUid === $excludeUserUid) {
                 continue;
             }
-            if (isset($connections[$participantUid])) {
-                $this->send($connections[$participantUid], $payload);
+            $this->sendToUser($connections, $participantUid, $payload);
+        }
+    }
+
+    private function sendToUser(array $connections, string $userUid, array $payload): void
+    {
+        foreach ($connections[$userUid] ?? [] as $userConnection) {
+            if ($userConnection instanceof TcpConnection) {
+                $this->send($userConnection, $payload);
             }
         }
     }
