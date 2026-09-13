@@ -1,7 +1,7 @@
 <nav class="navbar">
 	<a href="#" id="sidebarControl" class="navbar__link"><span></span></a>
 	<a href="/" class="navbar__link">Главная</a>
-	{if $user['role'] >= 900}
+	{if $user['role'] == 1 || $user['role'] == 111}
 		<a class="navbar__link" href="{route_path name="adminpanel"}">Админпанель</a>
 	{/if}
 	{if session key="auth"}
