@@ -28,5 +28,5 @@ CREATE TABLE IF NOT EXISTS `user_storage_quotas` (
 INSERT INTO `system_settings`
     (`setting_key`,`setting_value`,`setting_type`,`category`,`description`,`is_editable`)
 VALUES
-    ('file_manager_default_quota_bytes','1073741824','integer','file_manager','Лимит хранилища файлового менеджера по умолчанию на одного пользователя',1)
+    ('file_manager_default_quota_bytes','1073741824','integer','file_manager','Default File Manager storage quota per user in bytes',1)
 ON DUPLICATE KEY UPDATE `setting_key` = VALUES(`setting_key`);
