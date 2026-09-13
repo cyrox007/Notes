@@ -1,0 +1,237 @@
+name: Messenger media cleanup
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [messenger-groups]
+
+permissions:
+  contents: read
+
+jobs:
+  orphan-cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: notes_cleanup_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_mysql, mysqli, sodium, fileinfo
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Cleanup PHP syntax
+        run: |
+          php -l app/services/MessengerMediaCleanupService.php
+          php -l bin/cleanup_messenger_orphans.php
+
+      - name: Prepare schema
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot notes_cleanup_test < database/messenger_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_cleanup_test < database/migrations/20260913_messenger_attachments.sql
+
+      - name: Orphan cleanup integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          php <<'PHP'
+          <?php
+          if (!defined('SITEPATH')) {
+              define('SITEPATH', getcwd());
+          }
+
+          $_SERVER['HTTP_HOST'] = 'localhost';
+          putenv('DBDRIVER=mysql');
+          putenv('DBHOST=127.0.0.1');
+          putenv('DBPORT=3306');
+          putenv('DBUSER=root');
+          putenv('DBPASS=root');
+          putenv('DBNAME=notes_cleanup_test');
+          putenv('PRIVATE_STORAGE_PATH=/tmp/notes-private-cleanup');
+
+          require __DIR__ . '/core/config.php';
+          require __DIR__ . '/core/DatabaseManager.php';
+          require __DIR__ . '/app/services/MessengerMediaCleanupService.php';
+
+          $db = \Core\DatabaseManager::getInstance();
+          $now = date('Y-m-d H:i:s');
+          $old = date('Y-m-d H:i:s', time() - 7200);
+          $password = password_hash('ci-password', PASSWORD_ARGON2ID);
+          $userUid = '40000000-0000-4000-8000-000000000001';
+          $dialogUid = '40000000-0000-4000-8000-000000000002';
+          $messageUid = '40000000-0000-4000-8000-000000000003';
+
+          $db->execute(
+              'INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active,created_at,updated_at)
+               VALUES (:uid,:username,:email,:password_hash,:firstname,:lastname,888,1,:created_at,:updated_at)',
+              [
+                  ':uid' => $userUid,
+                  ':username' => 'cleanup-user',
+                  ':email' => 'cleanup@example.test',
+                  ':password_hash' => $password,
+                  ':firstname' => 'Cleanup',
+                  ':lastname' => 'Tester',
+                  ':created_at' => $now,
+                  ':updated_at' => $now,
+              ]
+          );
+          $userId = (int) $db->getPdo()->lastInsertId();
+
+          $db->execute(
+              'INSERT INTO dialogs (uid,type,name,created_by,created_at,updated_at)
+               VALUES (:uid,:type,:name,:created_by,:created_at,:updated_at)',
+              [
+                  ':uid' => $dialogUid,
+                  ':type' => 'private',
+                  ':name' => null,
+                  ':created_by' => $userId,
+                  ':created_at' => $now,
+                  ':updated_at' => $now,
+              ]
+          );
+          $dialogId = (int) $db->getPdo()->lastInsertId();
+
+          $db->execute(
+              'INSERT INTO user_to_dialogs (dialog_id,user_id,role,joined_at,is_deleted)
+               VALUES (:dialog_id,:user_id,:role,:joined_at,0)',
+              [
+                  ':dialog_id' => $dialogId,
+                  ':user_id' => $userId,
+                  ':role' => 'owner',
+                  ':joined_at' => $now,
+              ]
+          );
+
+          $db->execute(
+              'INSERT INTO messages (
+                  uid,dialog_id,from_user_id,message,message_type,message_status,is_deleted,created_at,updated_at
+               ) VALUES (
+                  :uid,:dialog_id,:from_user_id,:message,:message_type,:message_status,0,:created_at,:updated_at
+               )',
+              [
+                  ':uid' => $messageUid,
+                  ':dialog_id' => $dialogId,
+                  ':from_user_id' => $userId,
+                  ':message' => 'bound fixture',
+                  ':message_type' => 'file',
+                  ':message_status' => 'sent',
+                  ':created_at' => $old,
+                  ':updated_at' => $old,
+              ]
+          );
+          $messageId = (int) $db->getPdo()->lastInsertId();
+
+          $storageDir = '/tmp/notes-private-cleanup/messenger/' . $dialogId . '/' . $userId;
+          if (!is_dir($storageDir) && !mkdir($storageDir, 0700, true) && !is_dir($storageDir)) {
+              throw new RuntimeException('Cannot prepare cleanup fixture directory');
+          }
+
+          $stalePath = $storageDir . '/stale.pdf';
+          $freshPath = $storageDir . '/fresh.pdf';
+          $boundPath = $storageDir . '/bound.pdf';
+          $outsidePath = '/tmp/messenger-cleanup-outside.pdf';
+          foreach ([$stalePath, $freshPath, $boundPath, $outsidePath] as $path) {
+              file_put_contents($path, "%PDF-1.4\nfixture\n");
+          }
+
+          $fixtures = [
+              ['41000000-0000-4000-8000-000000000001', null, $stalePath, $old],
+              ['41000000-0000-4000-8000-000000000002', null, $freshPath, $now],
+              ['41000000-0000-4000-8000-000000000003', $messageId, $boundPath, $old],
+              ['41000000-0000-4000-8000-000000000004', null, $outsidePath, $old],
+          ];
+
+          foreach ($fixtures as [$uid, $boundMessageId, $path, $createdAt]) {
+              $db->execute(
+                  'INSERT INTO messenger_attachments (
+                      uid,dialog_id,uploader_user_id,message_id,original_name,stored_path,
+                      mime_type,extension,media_kind,size,created_at,is_deleted
+                   ) VALUES (
+                      :uid,:dialog_id,:uploader_user_id,:message_id,:original_name,:stored_path,
+                      :mime_type,:extension,:media_kind,:size,:created_at,0
+                   )',
+                  [
+                      ':uid' => $uid,
+                      ':dialog_id' => $dialogId,
+                      ':uploader_user_id' => $userId,
+                      ':message_id' => $boundMessageId,
+                      ':original_name' => basename($path),
+                      ':stored_path' => $path,
+                      ':mime_type' => 'application/pdf',
+                      ':extension' => 'pdf',
+                      ':media_kind' => 'file',
+                      ':size' => filesize($path),
+                      ':created_at' => $createdAt,
+                  ]
+              );
+          }
+
+          $result = (new \App\Services\MessengerMediaCleanupService($db))->cleanup(3600, 20);
+          if (($result['scanned'] ?? -1) !== 2) {
+              throw new RuntimeException('Cleanup did not select exactly the two stale unbound fixtures');
+          }
+          if (($result['files_deleted'] ?? -1) !== 1 || ($result['files_missing'] ?? -1) !== 1) {
+              throw new RuntimeException('Cleanup filesystem result is inconsistent');
+          }
+          if (is_file($stalePath)) {
+              throw new RuntimeException('Stale orphan file was not deleted');
+          }
+          if (!is_file($freshPath)) {
+              throw new RuntimeException('Fresh orphan was deleted too early');
+          }
+          if (!is_file($boundPath)) {
+              throw new RuntimeException('Bound attachment was deleted');
+          }
+          if (!is_file($outsidePath)) {
+              throw new RuntimeException('Cleanup deleted a file outside private messenger storage');
+          }
+
+          $states = $db->fetchAll(
+              'SELECT uid,is_deleted,message_id FROM messenger_attachments ORDER BY uid ASC'
+          );
+          $byUid = [];
+          foreach ($states as $state) {
+              $byUid[$state['uid']] = $state;
+          }
+
+          if ((int) ($byUid['41000000-0000-4000-8000-000000000001']['is_deleted'] ?? 0) !== 1) {
+              throw new RuntimeException('Stale orphan row was not marked deleted');
+          }
+          if ((int) ($byUid['41000000-0000-4000-8000-000000000002']['is_deleted'] ?? 1) !== 0) {
+              throw new RuntimeException('Fresh orphan row was marked deleted');
+          }
+          if ((int) ($byUid['41000000-0000-4000-8000-000000000003']['is_deleted'] ?? 1) !== 0) {
+              throw new RuntimeException('Bound attachment row was marked deleted');
+          }
+          if ((int) ($byUid['41000000-0000-4000-8000-000000000004']['is_deleted'] ?? 0) !== 1) {
+              throw new RuntimeException('Invalid outside-path orphan row was not retired');
+          }
+
+          @unlink($freshPath);
+          @unlink($boundPath);
+          @unlink($outsidePath);
+          echo "messenger orphan cleanup integration passed\n";
+          PHP
