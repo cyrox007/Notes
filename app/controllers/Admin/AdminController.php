@@ -31,10 +31,31 @@ final class AdminController extends Controller
         $flash = $request->session('admin_flash');
         $request->unsetSession('admin_flash');
 
+        $users = DatabaseManager::getInstance()->fetchAll(
+            'SELECT id,uid,username,email,firstname,lastname,role,is_active,created_at '
+            . 'FROM users ORDER BY id ASC'
+        );
+        foreach ($users as &$listedUser) {
+            $role = (int) $listedUser['role'];
+            $isActive = (int) $listedUser['is_active'] === 1;
+            $listedUser['role_label'] = $this->roleLabel($role);
+            $listedUser['status_code'] = !$isActive || $role === Config::USER_ROLE_INACTIVE
+                ? 'inactive'
+                : ($role === Config::USER_ROLE_BLOCKED ? 'blocked' : 'active');
+            $listedUser['status_label'] = match ($listedUser['status_code']) {
+                'inactive' => 'Деактивирован',
+                'blocked' => 'Заблокирован',
+                default => 'Активен',
+            };
+            $listedUser['can_manage'] = (int) $listedUser['id'] !== (int) $user->id
+                && !Config::isAdminRole($role);
+        }
+        unset($listedUser);
+
         $this->render_template('admin-page/index', [
             'user' => $user,
-            'customFields' => FieldModel::select()->get(),
-            'users' => UserModel::select()->get(),
+            'customFields' => FieldModel::select()->orderBy('id', 'ASC')->get(),
+            'users' => $users,
             'admin_flash' => is_array($flash) ? $flash : null,
         ]);
     }
@@ -103,7 +124,7 @@ final class AdminController extends Controller
                 foreach ($validated as $field) {
                     if ($field['id'] === null) {
                         $db->execute(
-                            'INSERT INTO user_fields (field_name,field_type,field_label,is_required,created_at,updated_at)\n'
+                            'INSERT INTO user_fields (field_name,field_type,field_label,is_required,created_at,updated_at) '
                             . 'VALUES (:field_name,:field_type,:field_label,:is_required,:created_at,:updated_at)',
                             [
                                 ':field_name' => $field['field_name'],
@@ -123,10 +144,9 @@ final class AdminController extends Controller
                     }
                     $keptIds[$fieldId] = true;
                     $db->execute(
-                        'UPDATE user_fields\n'
-                        . 'SET field_name = :field_name, field_type = :field_type, field_label = :field_label,\n'
-                        . '    is_required = :is_required, updated_at = :updated_at\n'
-                        . 'WHERE id = :id',
+                        'UPDATE user_fields '
+                        . 'SET field_name = :field_name, field_type = :field_type, field_label = :field_label, '
+                        . 'is_required = :is_required, updated_at = :updated_at WHERE id = :id',
                         [
                             ':field_name' => $field['field_name'],
                             ':field_type' => $field['field_type'],
@@ -253,10 +273,10 @@ final class AdminController extends Controller
         }
 
         $ownedGroup = $db->fetchOne(
-            "SELECT d.uid, COALESCE(NULLIF(d.name, ''), 'Без названия') AS name\n"
-            . 'FROM user_to_dialogs utd\n'
-            . 'JOIN dialogs d ON d.id = utd.dialog_id\n'
-            . "WHERE utd.user_id = :user_id AND utd.role = 'owner' AND utd.is_deleted = 0 AND d.type = 'group'\n"
+            "SELECT d.uid, COALESCE(NULLIF(d.name, ''), 'Без названия') AS name "
+            . 'FROM user_to_dialogs utd '
+            . 'JOIN dialogs d ON d.id = utd.dialog_id '
+            . "WHERE utd.user_id = :user_id AND utd.role = 'owner' AND utd.is_deleted = 0 AND d.type = 'group' "
             . 'LIMIT 1',
             [':user_id' => $targetUserId]
         );
@@ -271,8 +291,7 @@ final class AdminController extends Controller
         }
 
         $db->execute(
-            'UPDATE users\n'
-            . 'SET is_active = 0, role = :inactive_role, avatar = NULL, updated_at = :updated_at\n'
+            'UPDATE users SET is_active = 0, role = :inactive_role, avatar = NULL, updated_at = :updated_at '
             . 'WHERE id = :id AND is_active = 1',
             [
                 ':inactive_role' => Config::USER_ROLE_INACTIVE,
@@ -288,6 +307,18 @@ final class AdminController extends Controller
         }
 
         $this->respondAdminAction($request, true, 'Пользователь деактивирован, связанные данные сохранены');
+    }
+
+    private function roleLabel(int $role): string
+    {
+        return match ($role) {
+            Config::USER_ROLE_SUPERADMIN => 'Суперадминистратор',
+            Config::USER_ROLE_ADMIN => 'Администратор',
+            Config::USER_ROLE_BLOCKED => 'Пользователь',
+            Config::USER_ROLE_INACTIVE => 'Пользователь',
+            Config::USER_ROLE_USER => 'Пользователь',
+            default => 'Неизвестная роль',
+        };
     }
 
     private function respondAdminAction(Request $request, bool $success, string $message, int $status = 200): void
