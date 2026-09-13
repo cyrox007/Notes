@@ -50,6 +50,15 @@ $allowedRoutes = [
     'MediaSocket' => [
         'send',
     ],
+    'GroupSocket' => [
+        'info',
+        'rename',
+        'add_members',
+        'remove_member',
+        'set_role',
+        'transfer_owner',
+        'leave',
+    ],
 ];
 
 $allowedOrigins = array_values(array_filter(array_map(
