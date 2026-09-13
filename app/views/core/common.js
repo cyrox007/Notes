@@ -1,5 +1,7 @@
 {literal}
 const user_id = "{/literal}{$user['id']|default:0}{literal}";
+const socketTicket = "{/literal}{$socket_ticket|default:''|escape:'javascript'}{literal}";
+const socketUrl = "{/literal}{$socket_url|default:''|escape:'javascript'}{literal}";
 
 (function bootstrapSecurity() {
     const unsafeMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -26,7 +28,6 @@ const user_id = "{/literal}{$user['id']|default:0}{literal}";
 
     if (typeof window.fetch === 'function') {
         const nativeFetch = window.fetch.bind(window);
-
         window.fetch = function securedFetch(input, init = {}) {
             const requestMethod = String(
                 init.method || (typeof Request !== 'undefined' && input instanceof Request ? input.method : 'GET')
@@ -63,12 +64,10 @@ const user_id = "{/literal}{$user['id']|default:0}{literal}";
             ) {
                 this.setRequestHeader('X-CSRF-Token', csrfToken);
             }
-
             return nativeSend.call(this, body);
         };
     }
 
-    // Защищаем и обычные HTML-формы, даже если конкретный шаблон забыл {csrf_token}.
     document.addEventListener('submit', function addCsrfToForm(event) {
         const form = event.target;
         if (!(form instanceof HTMLFormElement)) {
@@ -91,7 +90,6 @@ const user_id = "{/literal}{$user['id']|default:0}{literal}";
 })();
 
 document.addEventListener("DOMContentLoaded", function () {
-    // Sidebar functionality
     const sidebarControl = document.getElementById('sidebarControl');
     const sidebar = document.querySelector('.sidebar');
     const content = document.querySelector('.wrapper__content');
@@ -104,18 +102,16 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    // WebSocket остаётся временно совместимым со старым протоколом.
-    // Аутентификация сокета будет заменена отдельным security-этапом.
-    try {
-        wspace.core = {
-            data: {
-                socket: new WebSocket(`ws://localhost:27800?user_uid=${user_id}`),
-                messagesArray: null,
-                userID: null,
-            }
-        };
+    wspace.core = { data: { socket: null, messagesArray: null, userID: null } };
 
-        const conn = wspace.core.data.socket;
+    if (!socketTicket || !socketUrl) {
+        return;
+    }
+
+    try {
+        const separator = socketUrl.includes('?') ? '&' : '?';
+        const conn = new WebSocket(`${socketUrl}${separator}ticket=${encodeURIComponent(socketTicket)}`);
+        wspace.core.data.socket = conn;
 
         const ping = () => {
             if (conn.readyState === WebSocket.OPEN) {
@@ -127,28 +123,27 @@ document.addEventListener("DOMContentLoaded", function () {
         };
 
         let messConn;
-
         if (typeof MessengerConnect !== 'undefined') {
             messConn = new MessengerConnect();
         }
 
         conn.onmessage = (event) => {
-            handleIncomingMessage(event);
-            if (window.location.pathname === "/messenger/" && typeof messConn !== 'undefined') {
+            const serverData = JSON.parse(event.data);
+            if (serverData.action === "Ping") {
+                ping();
+            }
+
+            if (window.location.pathname.includes('/messenger') && typeof messConn !== 'undefined') {
                 messConn.init();
                 messConn.listenWebSocket();
             }
         };
 
-        const handleIncomingMessage = (event) => {
-            const serverData = JSON.parse(event.data);
-            if (serverData.action === "Ping") {
-                ping();
-            }
+        conn.onerror = () => {
+            console.warn('WebSocket connection failed');
         };
     } catch (e) {
-        console.warn('WebSocket не доступен, функционал мессенджера будет работать в ограниченном режиме');
-        wspace.core = { data: { socket: null, messagesArray: null, userID: null } };
+        console.warn('WebSocket is unavailable');
     }
 });
 
