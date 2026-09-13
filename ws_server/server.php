@@ -17,6 +17,7 @@ use Workerman\Connection\TcpConnection;
 use Workerman\Lib\Timer;
 use Workerman\Worker;
 
+/** @var array<string,array<int,TcpConnection>> $connections */
 $connections = [];
 $host = trim((string) (getenv('WS_HOST') ?: '0.0.0.0'));
 $port = (int) (getenv('WS_PORT') ?: 27800);
@@ -84,7 +85,8 @@ $worker->onConnect = function (TcpConnection $connection) use (&$connections, $a
         $connection->uid = (string) $user->uid;
         $connection->userId = $userId;
         $connection->authenticated = true;
-        $connections[$connection->uid] = $connection;
+        $connectionKey = spl_object_id($connection);
+        $connections[$connection->uid][$connectionKey] = $connection;
 
         $connection->send(json_encode([
             'action' => 'Authorized',
@@ -98,22 +100,30 @@ $worker->onClose = function (TcpConnection $connection) use (&$connections): voi
         return;
     }
 
-    if (($connections[$connection->uid] ?? null) === $connection) {
-        unset($connections[$connection->uid]);
+    $uid = (string) $connection->uid;
+    unset($connections[$uid][spl_object_id($connection)]);
+    if (empty($connections[$uid])) {
+        unset($connections[$uid]);
     }
 };
 
 $worker->onWorkerStart = function () use (&$connections): void {
     Timer::add(5, function () use (&$connections): void {
-        foreach ($connections as $uid => $connection) {
-            if ($connection->pingWithoutResponseCount >= 3) {
-                unset($connections[$uid]);
-                $connection->destroy();
-                continue;
+        foreach (array_keys($connections) as $uid) {
+            foreach ($connections[$uid] ?? [] as $connectionKey => $connection) {
+                if ($connection->pingWithoutResponseCount >= 3) {
+                    unset($connections[$uid][$connectionKey]);
+                    $connection->destroy();
+                    continue;
+                }
+
+                $connection->send(json_encode(['action' => 'Ping']));
+                $connection->pingWithoutResponseCount++;
             }
 
-            $connection->send(json_encode(['action' => 'Ping']));
-            $connection->pingWithoutResponseCount++;
+            if (empty($connections[$uid])) {
+                unset($connections[$uid]);
+            }
         }
     });
 };
