@@ -1,0 +1,241 @@
+name: Messenger voice recording
+
+on:
+  pull_request:
+    branches: [messenger-groups, master]
+  push:
+    branches: [messenger-voice]
+
+permissions:
+  contents: read
+
+jobs:
+  voice-recording:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: notes_voice_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_mysql, mysqli, sodium, fileinfo
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Voice PHP and JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l app/services/MessengerVoiceService.php
+          php -l app/controllers/MessengerVoiceController.php
+          php -l core/routerConfig.php
+          sed '/^{literal}$/d;/^{\/literal}$/d' app/views/messager_page/voice.js > /tmp/messenger-voice.js
+          node --check /tmp/messenger-voice.js
+          grep -q "'/voice-upload'" core/routerConfig.php
+          grep -q "messager_page/voice.js" app/views/messager_page/index.tpl
+
+      - name: Prepare schema and voice fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot notes_voice_test < database/messenger_schema.sql
+          python3 - <<'PY'
+          import wave
+          with wave.open('/tmp/voice.wav', 'wb') as wav:
+              wav.setnchannels(1)
+              wav.setsampwidth(2)
+              wav.setframerate(8000)
+              wav.writeframes(b'\x00\x00' * 8000)
+          PY
+          printf 'not audio\n' > /tmp/not-audio.wav
+
+      - name: Prepare users and dialog
+        shell: bash
+        run: |
+          set -euo pipefail
+          php <<'PHP'
+          <?php
+          if (!defined('SITEPATH')) define('SITEPATH', getcwd());
+          $_SERVER['HTTP_HOST'] = 'localhost';
+          putenv('DBDRIVER=mysql');
+          putenv('DBHOST=127.0.0.1');
+          putenv('DBPORT=3306');
+          putenv('DBUSER=root');
+          putenv('DBPASS=root');
+          putenv('DBNAME=notes_voice_test');
+          putenv('MSG_SECRET_KEY=ci-message-secret-0123456789abcdef0123456789abcdef');
+          putenv('PRIVATE_STORAGE_PATH=/tmp/notes-voice-private');
+          putenv('MESSENGER_MAX_VOICE_SIZE=5242880');
+
+          require __DIR__ . '/core/config.php';
+          require __DIR__ . '/core/DatabaseManager.php';
+          require __DIR__ . '/app/handlers/UUID.php';
+          require __DIR__ . '/app/handlers/MessengerCrypto.php';
+          require __DIR__ . '/app/services/MessengerService.php';
+
+          $db = \Core\DatabaseManager::getInstance();
+          $now = date('Y-m-d H:i:s');
+          $password = password_hash('ci-password', PASSWORD_ARGON2ID);
+          $alice = '60000000-0000-4000-8000-000000000001';
+          $bob = '60000000-0000-4000-8000-000000000002';
+          foreach ([
+              [$alice, 'voice-alice', 'Alice', 'Voice'],
+              [$bob, 'voice-bob', 'Bob', 'Voice'],
+          ] as [$uid, $username, $firstname, $lastname]) {
+              $db->execute(
+                  'INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active,created_at,updated_at)
+                   VALUES (:uid,:username,:email,:password_hash,:firstname,:lastname,888,1,:created_at,:updated_at)',
+                  [
+                      ':uid' => $uid,
+                      ':username' => $username,
+                      ':email' => $username . '@example.test',
+                      ':password_hash' => $password,
+                      ':firstname' => $firstname,
+                      ':lastname' => $lastname,
+                      ':created_at' => $now,
+                      ':updated_at' => $now,
+                  ]
+              );
+          }
+          $messenger = new \App\Services\MessengerService($db);
+          $dialog = $messenger->createDialog($alice, 'private', [$bob]);
+          file_put_contents('/tmp/voice-dialog-uid', (string) $dialog['uid']);
+          file_put_contents('/tmp/voice-alice-id', (string) $db->fetchValue('SELECT id FROM users WHERE uid = :uid', [':uid' => $alice]));
+          file_put_contents('/tmp/voice-bob-id', (string) $db->fetchValue('SELECT id FROM users WHERE uid = :uid', [':uid' => $bob]));
+          PHP
+
+      - name: Real multipart voice upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/voice-upload-harness.php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          if (!defined('SITEPATH')) define('SITEPATH', getcwd());
+          $_SERVER['HTTP_HOST'] = 'localhost';
+          putenv('DBDRIVER=mysql');
+          putenv('DBHOST=127.0.0.1');
+          putenv('DBPORT=3306');
+          putenv('DBUSER=root');
+          putenv('DBPASS=root');
+          putenv('DBNAME=notes_voice_test');
+          putenv('PRIVATE_STORAGE_PATH=/tmp/notes-voice-private');
+          putenv('MESSENGER_MAX_VOICE_SIZE=5242880');
+          require SITEPATH . '/core/config.php';
+          require SITEPATH . '/core/DatabaseManager.php';
+          require SITEPATH . '/app/handlers/UUID.php';
+          require SITEPATH . '/app/services/MessengerVoiceService.php';
+          header('Content-Type: application/json');
+          try {
+              $attachment = (new \App\Services\MessengerVoiceService())->upload(
+                  (int) file_get_contents('/tmp/voice-alice-id'),
+                  (string) ($_POST['dialog_uid'] ?? ''),
+                  $_FILES['voice'] ?? []
+              );
+              echo json_encode(['success' => true, 'attachment' => $attachment], JSON_THROW_ON_ERROR);
+          } catch (InvalidArgumentException $e) {
+              http_response_code(422);
+              echo json_encode(['success' => false, 'message' => $e->getMessage()], JSON_THROW_ON_ERROR);
+          } catch (Throwable $e) {
+              http_response_code(500);
+              echo json_encode(['success' => false, 'message' => $e->getMessage()], JSON_THROW_ON_ERROR);
+          }
+          PHP
+
+          php -S 127.0.0.1:18081 /tmp/voice-upload-harness.php >/tmp/voice-php-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true; cat /tmp/voice-php-server.log' EXIT
+          for i in {1..20}; do
+            if curl -sS http://127.0.0.1:18081/ >/dev/null 2>&1; then break; fi
+            sleep 0.25
+          done
+
+          DIALOG_UID="$(cat /tmp/voice-dialog-uid)"
+          curl -sS -f \
+            -F "dialog_uid=${DIALOG_UID}" \
+            -F "voice=@/tmp/voice.wav;type=audio/wav" \
+            http://127.0.0.1:18081/ > /tmp/voice-upload.json
+
+          php -r '
+            $data=json_decode(file_get_contents("/tmp/voice-upload.json"), true, 512, JSON_THROW_ON_ERROR);
+            if (($data["success"] ?? false) !== true) throw new RuntimeException("Voice upload failed");
+            if (($data["attachment"]["media_kind"] ?? null) !== "voice") throw new RuntimeException("Voice was not classified as voice");
+            if (($data["attachment"]["extension"] ?? null) !== "wav") throw new RuntimeException("Unexpected voice extension");
+            file_put_contents("/tmp/voice-attachment-uid", (string) $data["attachment"]["uid"]);
+          '
+
+          STATUS="$(curl -sS -o /tmp/invalid-voice.json -w '%{http_code}' \
+            -F "dialog_uid=${DIALOG_UID}" \
+            -F "voice=@/tmp/not-audio.wav;type=audio/wav" \
+            http://127.0.0.1:18081/)"
+          test "$STATUS" = "422"
+
+      - name: Voice message integration and ACL
+        shell: bash
+        run: |
+          set -euo pipefail
+          php <<'PHP'
+          <?php
+          if (!defined('SITEPATH')) define('SITEPATH', getcwd());
+          $_SERVER['HTTP_HOST'] = 'localhost';
+          putenv('DBDRIVER=mysql');
+          putenv('DBHOST=127.0.0.1');
+          putenv('DBPORT=3306');
+          putenv('DBUSER=root');
+          putenv('DBPASS=root');
+          putenv('DBNAME=notes_voice_test');
+          putenv('MSG_SECRET_KEY=ci-message-secret-0123456789abcdef0123456789abcdef');
+          putenv('PRIVATE_STORAGE_PATH=/tmp/notes-voice-private');
+          require __DIR__ . '/core/config.php';
+          require __DIR__ . '/core/DatabaseManager.php';
+          require __DIR__ . '/app/handlers/UUID.php';
+          require __DIR__ . '/app/handlers/MessengerCrypto.php';
+          require __DIR__ . '/app/services/MessengerMediaService.php';
+
+          $db = \Core\DatabaseManager::getInstance();
+          $attachmentUid = trim((string) file_get_contents('/tmp/voice-attachment-uid'));
+          $alice = '60000000-0000-4000-8000-000000000001';
+          $bobId = (int) file_get_contents('/tmp/voice-bob-id');
+
+          $row = $db->fetchOne(
+              'SELECT media_kind, stored_path, message_id FROM messenger_attachments WHERE uid = :uid',
+              [':uid' => $attachmentUid]
+          );
+          if (!$row || ($row['media_kind'] ?? null) !== 'voice' || !is_file((string) $row['stored_path'])) {
+              throw new RuntimeException('Voice attachment is not stored in private storage');
+          }
+          if (!str_starts_with(realpath((string) $row['stored_path']) ?: '', '/tmp/notes-voice-private/messenger/')) {
+              throw new RuntimeException('Voice escaped private messenger storage');
+          }
+
+          $media = new \App\Services\MessengerMediaService($db);
+          $message = $media->send($alice, $attachmentUid, '');
+          if (($message['message_type'] ?? null) !== 'voice') {
+              throw new RuntimeException('Voice attachment did not become voice message');
+          }
+          $download = $media->download($bobId, $attachmentUid);
+          if (($download['media_kind'] ?? null) !== 'voice' || !is_file((string) $download['path'])) {
+              throw new RuntimeException('Dialog participant cannot stream voice message');
+          }
+          echo "voice recording integration passed\n";
+          PHP

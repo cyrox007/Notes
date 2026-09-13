@@ -1,0 +1,221 @@
+name: Messenger reactions
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [messenger-reactions]
+
+permissions:
+  contents: read
+
+jobs:
+  reactions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: notes_reactions_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_mysql, mysqli, sodium, fileinfo
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Reaction syntax and wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l app/services/MessengerReactionService.php
+          php -l app/socket/ReactionSocket.php
+          php -l ws_server/server.php
+          sed '/^{literal}$/d;/^{\/literal}$/d' app/views/messager_page/reactions.js > /tmp/messenger-reactions.js
+          node --check /tmp/messenger-reactions.js
+          grep -q "ReactionSocket" ws_server/server.php
+          grep -q "messager_page/reactions.js" app/views/messager_page/index.tpl
+          grep -q "messager_page/reactions.css" app/views/messager_page/index.tpl
+
+      - name: Prepare reaction schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot notes_reactions_test < database/messenger_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_reactions_test < database/migrations/20260913_messenger_reactions.sql
+          mysql -N -h 127.0.0.1 -uroot -proot notes_reactions_test <<'SQL' > /tmp/reaction-contract.txt
+          SELECT COUNT(*) FROM information_schema.tables
+          WHERE table_schema = DATABASE() AND table_name = 'message_reactions';
+          SELECT COUNT(*) FROM information_schema.columns
+          WHERE table_schema = DATABASE() AND table_name = 'message_reactions'
+            AND column_name IN ('message_id','user_id','reaction_code','is_active','created_at','updated_at');
+          SQL
+          mapfile -t contract < /tmp/reaction-contract.txt
+          test "${contract[0]}" = "1"
+          test "${contract[1]}" = "6"
+
+      - name: Reaction authorization integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          php <<'PHP'
+          <?php
+          if (!defined('SITEPATH')) define('SITEPATH', getcwd());
+          $_SERVER['HTTP_HOST'] = 'localhost';
+          putenv('DBDRIVER=mysql');
+          putenv('DBHOST=127.0.0.1');
+          putenv('DBPORT=3306');
+          putenv('DBUSER=root');
+          putenv('DBPASS=root');
+          putenv('DBNAME=notes_reactions_test');
+          putenv('MSG_SECRET_KEY=ci-message-secret-0123456789abcdef0123456789abcdef');
+
+          require __DIR__ . '/core/config.php';
+          require __DIR__ . '/core/DatabaseManager.php';
+          require __DIR__ . '/app/handlers/UUID.php';
+          require __DIR__ . '/app/handlers/MessengerCrypto.php';
+          require __DIR__ . '/app/services/MessengerService.php';
+          require __DIR__ . '/app/services/MessengerReactionService.php';
+
+          $db = \Core\DatabaseManager::getInstance();
+          $now = date('Y-m-d H:i:s');
+          $password = password_hash('ci-password', PASSWORD_ARGON2ID);
+          $alice = '70000000-0000-4000-8000-000000000001';
+          $bob = '70000000-0000-4000-8000-000000000002';
+          $charlie = '70000000-0000-4000-8000-000000000003';
+
+          foreach ([
+              [$alice, 'react-alice', 'Alice', 'React'],
+              [$bob, 'react-bob', 'Bob', 'React'],
+              [$charlie, 'react-charlie', 'Charlie', 'Outside'],
+          ] as [$uid, $username, $firstname, $lastname]) {
+              $db->execute(
+                  'INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active,created_at,updated_at)
+                   VALUES (:uid,:username,:email,:password_hash,:firstname,:lastname,888,1,:created_at,:updated_at)',
+                  [
+                      ':uid' => $uid,
+                      ':username' => $username,
+                      ':email' => $username . '@example.test',
+                      ':password_hash' => $password,
+                      ':firstname' => $firstname,
+                      ':lastname' => $lastname,
+                      ':created_at' => $now,
+                      ':updated_at' => $now,
+                  ]
+              );
+          }
+
+          $messenger = new \App\Services\MessengerService($db);
+          $reactions = new \App\Services\MessengerReactionService($db);
+          $dialog = $messenger->createDialog($alice, 'private', [$bob]);
+          $message = $messenger->sendMessage($alice, $dialog['uid'], 'react to me');
+
+          $initial = $reactions->listForUser($bob, [$message['uid']]);
+          if (!array_key_exists($message['uid'], $initial) || $initial[$message['uid']] !== []) {
+              throw new RuntimeException('Visible message did not return empty initial reaction state');
+          }
+
+          $aliceLike = $reactions->toggle($alice, $message['uid'], 'like');
+          $aliceLikeState = $aliceLike['reactions'][0] ?? null;
+          if (
+              !$aliceLikeState
+              || $aliceLikeState['code'] !== 'like'
+              || $aliceLikeState['count'] !== 1
+              || $aliceLikeState['reacted_by_me'] !== true
+          ) {
+              throw new RuntimeException('Alice like state is invalid');
+          }
+
+          $bobSeesAlice = $reactions->summaryForUser($bob, $message['uid']);
+          if (
+              count($bobSeesAlice ?? []) !== 1
+              || ($bobSeesAlice[0]['count'] ?? null) !== 1
+              || ($bobSeesAlice[0]['reacted_by_me'] ?? null) !== false
+          ) {
+              throw new RuntimeException('Bob received incorrect personalized reaction state');
+          }
+
+          $bobLike = $reactions->toggle($bob, $message['uid'], 'like');
+          if (
+              ($bobLike['reactions'][0]['count'] ?? null) !== 2
+              || ($bobLike['reactions'][0]['reacted_by_me'] ?? null) !== true
+          ) {
+              throw new RuntimeException('Bob like did not aggregate to two reactions');
+          }
+
+          $bobUnlike = $reactions->toggle($bob, $message['uid'], 'like');
+          if (
+              ($bobUnlike['reactions'][0]['count'] ?? null) !== 1
+              || ($bobUnlike['reactions'][0]['reacted_by_me'] ?? null) !== false
+          ) {
+              throw new RuntimeException('Atomic reaction toggle did not deactivate Bob like');
+          }
+
+          $bobHeart = $reactions->toggle($bob, $message['uid'], 'heart');
+          if (count($bobHeart['reactions']) !== 2) {
+              throw new RuntimeException('Multiple reaction codes were not aggregated');
+          }
+
+          $likeRow = $db->fetchOne(
+              'SELECT mr.is_active FROM message_reactions mr
+               INNER JOIN users u ON u.id = mr.user_id
+               WHERE u.uid = :user_uid AND mr.reaction_code = "like" LIMIT 1',
+              [':user_uid' => $bob]
+          );
+          if (!$likeRow || (int) $likeRow['is_active'] !== 0) {
+              throw new RuntimeException('Toggle physically deleted or failed to deactivate reaction row');
+          }
+
+          $invalidBlocked = false;
+          try {
+              $reactions->toggle($alice, $message['uid'], '<script>');
+          } catch (InvalidArgumentException) {
+              $invalidBlocked = true;
+          }
+          if (!$invalidBlocked) {
+              throw new RuntimeException('Arbitrary reaction code was accepted');
+          }
+
+          $outsideBlocked = false;
+          try {
+              $reactions->toggle($charlie, $message['uid'], 'fire');
+          } catch (DomainException) {
+              $outsideBlocked = true;
+          }
+          if (!$outsideBlocked) {
+              throw new RuntimeException('Outsider could react to inaccessible message');
+          }
+
+          $messenger->deleteMessage($bob, $message['uid'], false);
+          if ($reactions->summaryForUser($bob, $message['uid']) !== null) {
+              throw new RuntimeException('Delete-for-me message remained visible in reaction state');
+          }
+          $aliceStillSees = $reactions->summaryForUser($alice, $message['uid']);
+          if (count($aliceStillSees ?? []) !== 2) {
+              throw new RuntimeException('Delete-for-me incorrectly removed reactions for other participant');
+          }
+
+          if (in_array($bob, $reactions->participantUids($message['uid']), true) !== true) {
+              throw new RuntimeException('Active dialog participant list is inconsistent');
+          }
+
+          echo "reaction authorization integration passed\n";
+          PHP
