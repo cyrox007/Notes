@@ -7,6 +7,7 @@
 {include file='messager_page/style.css'}
 {include file='messager_page/media.css'}
 {include file='messager_page/forwarding.css'}
+{include file='messager_page/reactions.css'}
 {include file='messager_page/voice.css'}
 {include file='messager_page/group.css'}
 {include file='messager_page/search.css'}
