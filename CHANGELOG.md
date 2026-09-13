@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+- Следующие изменения после `0.11.0-alpha` фиксируются здесь.
+
+## 0.11.0-alpha — 2026-09-13
+
 ### Product UI / UX
 - Добавлен единый product design layer для dashboard, Notes, Tasks, Profile, File Manager, Admin и общей оболочки Messenger.
 - Sidebar переработан: desktop collapse, mobile drawer/overlay, current-route state и более крупные touch targets.
@@ -16,22 +20,29 @@
 - Custom profile fields в Admin синхронизированы с canonical `user_fields` schema и получили серверную валидацию имён/типов/длины.
 
 ### Production / Core hardening
-- Исправлены case-sensitive bootstrap paths `core.php` для Linux filesystem.
+- Исправлены case-sensitive bootstrap paths `core.php` и front-controller для Linux filesystem.
 - Добавлен CLI `bin/healthcheck.php` для PHP/extensions/secrets/private storage/DB/schema checks.
 - Добавлен file-backed request rate limiter с `flock` и private state под `PRIVATE_STORAGE_PATH/rate-limit`.
 - Login/registration защищены `AuthRateLimit`, upload endpoints — `UploadRateLimit`.
+- Multi-node deployment поддерживает явный shared `RATE_LIMIT_STORAGE_PATH`; healthcheck запрещает случайный local-only limiter при `DEPLOYMENT_NODE_COUNT>1`.
+- Forwarded client IP headers доверяются только от адресов из `TRUSTED_PROXY_IPS`.
 - Web-registration закрыта без явного `REGISTRATION_INVITE_CODE`.
 - Registration validation синхронизирована с canonical user contract.
 - CSP очищена от dev-domain/Google Fonts/external JS CDN; `unsafe-eval` удалён после отказа от browser code runner.
 - Добавлены Permissions Policy и COOP; `unsafe-inline` пока остаётся как известный legacy Smarty CSP debt.
-- Добавлена production/deployment документация `docs/PRODUCTION.md`.
+- Добавлена production/deployment документация `docs/PRODUCTION.md` и operations runbook `docs/OPERATIONS.md`.
 - Admin physical user delete заменён на deactivation contract: строка пользователя и связанные Notes/Tasks/Messenger данные сохраняются.
 - Admin lifecycle вынесен в `AdminUserService` с повторной проверкой active administrator role, запретом self/admin targets и защитой group owner до transfer ownership.
-- Reactivation теперь восстанавливает одновременно `role` и `is_active`, поэтому деактивированный аккаунт действительно снова может войти после явной активации.
+- Reactivation восстанавливает одновременно `role` и `is_active`.
 - Web-installer переработан в hosting-first fresh-install wizard: PHP/extensions/vendor preflight, автоопределение домена и `BASE_PATH`, private storage вне document root, automatic schema import, secrets и первый superadmin без ручного SQL/`.env`.
 - `.env` создаётся только после успешной финализации первого администратора, поэтому оборванный fresh install можно безопасно повторить.
+- Canonical Notes schema очищена от mysql-client-only `DELIMITER`, чтобы одинаково импортироваться web-installer, mysql CLI и phpMyAdmin.
 - Добавлен реальный HTTP/MySQL installer smoke для размещения в `public_html/workspace`, включая CSRF/cookies, 20-table contract, healthcheck и installer lock после установки.
 - Добавлен upload-ready hosting bundle с production `vendor/`; tag `v*` публикует ZIP как GitHub Release asset, поэтому Composer не требуется на конечном shared hosting.
+- Добавлен реальный Chromium HTTPS/WSS E2E через TLS Nginx + PHP + Workerman + MySQL: две пользовательские сессии, authenticated WSS и realtime Alice→Bob сообщение без reload.
+- Добавлен CI restore drill: MySQL dump/checksum/restore и private-storage archive/checksum/restore.
+- Документирована безопасная rotation `WS_TICKET_SECRET`; `UNIQUE_KEY`/`MSG_SECRET_KEY` запрещено заменять без отдельного re-encryption процесса.
+- Добавлен `Master release gate`, который запускается после merge/push в `master` и проверяет уже объединённый commit: Composer audit, PHP/JS lint, canonical schemas, production healthcheck, version contract и upload-ready hosting bundle.
 
 ### Merged hardening after initial 0.10 baseline
 - **PR #50:** Messenger forwarding и «Сохранённые сообщения», независимые forwarded media copies и минимизированные forwarding metadata.
@@ -41,6 +52,9 @@
 - **PR #54:** versioned DB migration runner, checksums, fresh-vs-upgrade installer contract и legacy DB integration test.
 - **PR #55:** resumable fail-closed legacy Messenger/Notes ciphertext migration CLI.
 - **PR #56:** product-wide UI/UX refresh, production headers/rate limits/healthcheck и canonical Admin lifecycle.
+- **PR #57:** zero-CLI hosting installer, hosting-like HTTP smoke и upload-ready release bundle.
+- **PR #58:** production-like browser HTTPS/WSS E2E и runtime bootstrap fixes найденные настоящим Chromium smoke.
+- **PR #59:** operations hardening, shared limiter safeguards, trusted proxies, backup/restore drill и key-rotation runbook.
 
 ## 0.10.0-alpha — 2026-09-13
 
