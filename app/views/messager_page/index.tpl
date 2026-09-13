@@ -277,6 +277,7 @@
 <script>{include file='messager_page/dialog-actions.js'}</script>
 <script>{include file='messager_page/receipts.js'}</script>
 <script>{include file='messager_page/media.js'}</script>
+<script>{include file='messager_page/reactions.js'}</script>
 <script>{include file='messager_page/voice.js'}</script>
 <script>{include file='messager_page/group.js'}</script>
 <script>{include file='messager_page/search.js'}</script>
