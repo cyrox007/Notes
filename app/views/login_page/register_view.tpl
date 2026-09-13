@@ -11,12 +11,12 @@
             </span>
         </a>
 
-        <form action="{route_path name='register_submit'}" method="post" enctype="multipart/form-data" id="registration-form">
+        <form action="{route_path name='register_submit'}" method="post" id="registration-form">
             {csrf_token}
             <input type="hidden" name="invite_code" value="{$invite_code}">
 
             <h1 class="page-title-login">Регистрация пользователя</h1>
-            <p class="register-page__subtitle">Заполните профиль. Пароль должен содержать не менее 10 символов.</p>
+            <p class="register-page__subtitle">Заполните профиль. Пароль должен содержать не менее 10 символов. Аватар можно добавить после входа.</p>
 
             {if $errors}
                 <div class="error-messages" role="alert">
@@ -39,7 +39,7 @@
 
             <div class="form-group">
                 <label for="password">Пароль *</label>
-                <input type="password" name="password" id="password" placeholder="Минимум 10 символов" autocomplete="new-password" minlength="10" required>
+                <input type="password" name="password" id="password" placeholder="Минимум 10 символов" autocomplete="new-password" minlength="10" maxlength="200" required>
                 <span id="password_hint" class="form-hint">Не используйте пароль от другого сервиса.</span>
             </div>
 
@@ -63,12 +63,6 @@
             <div class="form-group">
                 <label for="user_phone">Телефон</label>
                 <input type="tel" name="user_phone" id="user_phone" placeholder="+49 ..." autocomplete="tel" maxlength="32">
-            </div>
-
-            <div class="form-group">
-                <label for="userphoto">Фото профиля</label>
-                <input type="file" name="userphoto" id="userphoto" accept="image/jpeg,image/png,image/webp">
-                <span class="form-hint">JPEG, PNG или WebP. После регистрации аватар можно изменить в профиле.</span>
             </div>
 
             <button id="btn-reg" type="submit">Создать аккаунт</button>
