@@ -1,160 +1,144 @@
 <?php
-/**
- * Web Installer Script
- * Версия с исправленным импортом через mysqli::multi_query
- */
 
-// Отключаем вывод ошибок в браузер, но логируем их
-ini_set('display_errors', 0);
+declare(strict_types=1);
+
+ini_set('display_errors', '0');
 error_reporting(E_ALL);
-
 session_start();
 
-// --- КОНФИГУРАЦИЯ И ПЕРЕМЕННЫЕ ---
-$step = isset($_GET['step']) ? (int)$_GET['step'] : 1;
-$errors = [];
-$success_msg = '';
-$db_connection = null;
+$basePath = __DIR__;
+$envFile = $basePath . '/.env';
 
-$REQUIRED_TABLES = [
-    'users', 'dialogs', 'dialog_users', 'messages', 'message_statuses',
-    'notes', 'note_attachments', 'shared_notes', 'note_history', 'note_tags', 'note_tag_relations',
-    'user_files', 'user_fields',
+if (is_file($envFile) && empty($_SESSION['notes_install_in_progress'])) {
+    http_response_code(404);
+    exit('Installer is locked.');
+}
+
+$_SESSION['notes_install_in_progress'] = true;
+$_SESSION['notes_install_csrf'] ??= bin2hex(random_bytes(32));
+
+$step = isset($_GET['step']) ? max(1, min(4, (int) $_GET['step'])) : 1;
+$errors = [];
+$successMessage = '';
+$installationCompleted = false;
+
+$requiredTables = [
+    'users',
+    'dialogs',
+    'user_to_dialogs',
+    'messages',
+    'message_user_deletions',
+    'notes',
+    'note_attachments',
+    'shared_notes',
+    'note_history',
+    'note_tags',
+    'note_tag_relations',
+    'user_files',
+    'user_fields',
 ];
 
-$base_path = __DIR__;
-$env_file = $base_path . '/.env';
-$schema_files = glob($base_path . '/database/*.sql');
+$schemaFiles = glob($basePath . '/database/*.sql') ?: [];
+usort($schemaFiles, static function (string $a, string $b): int {
+    $order = [
+        'messenger_schema.sql' => 1,
+        'notes_schema.sql' => 2,
+        'file_manager_schema.sql' => 3,
+        'user_fields_schema.sql' => 4,
+    ];
 
-// Сортировка файлов: messenger -> notes -> file_manager -> user_fields
-usort($schema_files, function($a, $b) {
-    $order = ['messenger_schema.sql' => 1, 'notes_schema.sql' => 2, 'file_manager_schema.sql' => 3, 'user_fields_schema.sql' => 4];
-    $a_name = basename($a);
-    $b_name = basename($b);
-    $a_val = $order[$a_name] ?? 99;
-    $b_val = $order[$b_name] ?? 99;
-    return $a_val - $b_val;
+    return ($order[basename($a)] ?? 99) <=> ($order[basename($b)] ?? 99);
 });
 
-// --- ФУНКЦИИ ---
+function uuidV4(): string
+{
+    $data = random_bytes(16);
+    $data[6] = chr((ord($data[6]) & 0x0f) | 0x40);
+    $data[8] = chr((ord($data[8]) & 0x3f) | 0x80);
 
-function checkRequirement($condition, $message) {
-    global $errors;
-    if (!$condition) {
-        $errors[] = $message;
-        return false;
-    }
-    return true;
+    return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
 }
 
-function generateRandomString($length = 32) {
-    return bin2hex(random_bytes($length));
+function randomSecret(): string
+{
+    return bin2hex(random_bytes(32));
 }
 
-function testDbConnection($host, $port, $db, $user, $pass) {
-    try {
-        $dsn = "mysql:host=$host;port=$port;charset=utf8mb4";
-        $pdo = new PDO($dsn, $user, $pass, [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::MYSQL_ATTR_INIT_COMMAND => "SET NAMES utf8mb4"
-        ]);
-        
-        $stmt = $pdo->query("SHOW DATABASES LIKE '$db'");
-        if ($stmt->rowCount() === 0) {
-            return false;
-        }
+function verifyInstallerCsrf(): void
+{
+    $expected = (string) ($_SESSION['notes_install_csrf'] ?? '');
+    $provided = (string) ($_POST['csrf_token'] ?? '');
 
-        $pdo->exec("USE `$db`");
-        $pdo->query("SELECT 1");
-        
-        return $pdo;
-    } catch (PDOException $e) {
-        error_log("DB Connection Error: " . $e->getMessage());
-        return false;
+    if ($expected === '' || $provided === '' || !hash_equals($expected, $provided)) {
+        http_response_code(419);
+        exit('Invalid installer CSRF token.');
     }
 }
 
-function getExistingTables($pdo) {
-    $stmt = $pdo->query("SHOW TABLES");
-    $tables = $stmt->fetchAll(PDO::FETCH_COLUMN, 0);
-    return array_map(function($table) {
-        return trim($table, '`');
-    }, $tables);
+function connectDatabase(string $host, int $port, string $database, string $username, string $password): PDO
+{
+    $dsn = sprintf(
+        'mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4',
+        $host,
+        $port,
+        $database
+    );
+
+    return new PDO($dsn, $username, $password, [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_EMULATE_PREPARES => false,
+        PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES utf8mb4',
+    ]);
+}
+
+/** @return list<string> */
+function existingTables(PDO $pdo): array
+{
+    return array_map(
+        static fn ($table): string => trim((string) $table, '`'),
+        $pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN)
+    );
 }
 
 /**
- * Импорт схемы через mysqli::multi_query (поддерживает триггеры)
+ * Fresh-install schema loader. DELIMITER lines belong to the CLI client and are
+ * removed before mysqli::multi_query sends statements to MySQL.
  */
-function importSchemaRaw($host, $user, $pass, $db, $port, $files)
-{
-    // Включаем строгую отчетность для mysqli
+function importSchemas(
+    string $host,
+    int $port,
+    string $database,
+    string $username,
+    string $password,
+    array $files
+): void {
     mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+    $mysqli = new mysqli($host, $username, $password, $database, $port);
+    $mysqli->set_charset('utf8mb4');
+    $mysqli->query('SET FOREIGN_KEY_CHECKS=0');
 
-    $mysqli = new mysqli($host, $user, $pass, $db, $port);
-    $mysqli->set_charset("utf8mb4");
-
-    // Отключаем проверки внешних ключей на время импорта
-    $mysqli->query("SET FOREIGN_KEY_CHECKS=0");
-
-    // Увеличиваем время выполнения скрипта, так как импорт может быть долгим
-    set_time_limit(300); 
-
-    $logFile = __DIR__ . '/install_debug.log';
-    file_put_contents($logFile, "\n=== Начало импорта через mysqli: " . date('Y-m-d H:i:s') . " ===\n", FILE_APPEND);
-
-    foreach ($files as $file) {
-        $fileName = basename($file);
-        file_put_contents($logFile, "Обработка файла: {$fileName}\n", FILE_APPEND);
-
-        $sql = file_get_contents($file);
-
-        if ($sql === false) {
-            throw new Exception("Не удалось прочитать файл: $file");
-        }
-
-        // --- ГЛАВНОЕ ИСПРАВЛЕНИЕ ---
-        
-        // 1. Удаляем строки с DELIMITER (они нужны только для консольного клиента)
-        $sql = preg_replace('/^\s*DELIMITER\s+\S+\s*;?\s*$/im', '', $sql);
-        
-        // 2. Заменяем пользовательские разделители $$ на стандартные ;
-        // Это критично для триггеров, процедур и функций
-        $sql = str_replace('$$', ';', $sql);
-        
-        // 3. Удаляем лишние пустые строки, образовавшиеся после чистки
-        $sql = preg_replace('/\n\s*\n/', "\n", $sql);
-        
-        // --------------------------
-
-        // Выполняем мульти-запрос
-        if (!$mysqli->multi_query($sql)) {
-            $error = "Ошибка импорта {$fileName}: " . $mysqli->error;
-            file_put_contents($logFile, "КРИТИЧЕСКАЯ ОШИБКА: {$error}\n", FILE_APPEND);
-            throw new Exception($error);
-        }
-
-        // Обязательно вычитываем все результаты, чтобы освободить соединение для следующего файла
-        $queryCount = 0;
-        do {
-            if ($result = $mysqli->store_result()) {
-                $result->free();
-                $queryCount++;
-            } else {
-                // Если результата нет (например, CREATE TABLE), но запрос успешен - это тоже шаг
-                if ($mysqli->affected_rows !== -1) { 
-                     // Просто продолжаем
-                }
+    try {
+        foreach ($files as $file) {
+            $sql = file_get_contents($file);
+            if ($sql === false) {
+                throw new RuntimeException('Не удалось прочитать схему: ' . basename($file));
             }
-        } while ($mysqli->more_results() && $mysqli->next_result());
 
-        file_put_contents($logFile, "Файл {$fileName} выполнен успешно (обработано блоков: {$queryCount})\n", FILE_APPEND);
+            $sql = preg_replace('/^\s*DELIMITER\s+\S+\s*;?\s*$/im', '', $sql) ?? $sql;
+            $sql = str_replace('$$', ';', $sql);
+
+            $mysqli->multi_query($sql);
+            do {
+                if ($result = $mysqli->store_result()) {
+                    $result->free();
+                }
+            } while ($mysqli->more_results() && $mysqli->next_result());
+        }
+    } finally {
+        $mysqli->query('SET FOREIGN_KEY_CHECKS=1');
+        $mysqli->close();
     }
-
-    $mysqli->query("SET FOREIGN_KEY_CHECKS=1");
-    $mysqli->close();
-    
-    file_put_contents($logFile, "=== Импорт завершен успешно ===\n", FILE_APPEND);
 }
 
 function createAdminUser(
@@ -162,81 +146,45 @@ function createAdminUser(
     string $username,
     string $email,
     string $password,
-    string $firstname = 'Admin',
-    string $lastname = 'User'
-): bool {
-
-    $passwordHash = password_hash(
-        $password,
-        PASSWORD_ARGON2ID,
-        [
-            'memory_cost' => PASSWORD_ARGON2_DEFAULT_MEMORY_COST,
-            'time_cost'   => PASSWORD_ARGON2_DEFAULT_TIME_COST,
-            'threads'     => PASSWORD_ARGON2_DEFAULT_THREADS,
-        ]
-    );
-
+    string $firstname,
+    string $lastname
+): void {
+    $passwordHash = password_hash($password, PASSWORD_ARGON2ID);
     if ($passwordHash === false) {
-        throw new RuntimeException('Password hashing failed');
+        throw new RuntimeException('Не удалось создать хеш пароля');
     }
 
-    $sql = "
-        INSERT INTO users (
-            username,
-            email,
-            password_hash,
-            firstname,
-            lastname,
-            role,
-            is_active,
-            created_at
-        )
-        VALUES (
-            :username,
-            :email,
-            :password_hash,
-            :firstname,
-            :lastname,
-            :role,
-            :is_active,
-            :created_at
-        )
-    ";
+    $stmt = $pdo->prepare(
+        'INSERT INTO users (
+            uid, username, email, password_hash, firstname, lastname,
+            role, is_active, created_at, updated_at
+         ) VALUES (
+            :uid, :username, :email, :password_hash, :firstname, :lastname,
+            1, 1, :created_at, :updated_at
+         )'
+    );
 
-    $stmt = $pdo->prepare($sql);
-
-    return $stmt->execute([
-        ':username'      => $username,
-        ':email'         => $email,
+    $now = date('Y-m-d H:i:s');
+    $stmt->execute([
+        ':uid' => uuidV4(),
+        ':username' => $username,
+        ':email' => $email,
         ':password_hash' => $passwordHash,
-        ':firstname'     => $firstname,
-        ':lastname'      => $lastname,
-        ':role'          => 1,
-        ':is_active'     => 1,
-        ':created_at'    => date('Y-m-d H:i:s'),
+        ':firstname' => $firstname,
+        ':lastname' => $lastname,
+        ':created_at' => $now,
+        ':updated_at' => $now,
     ]);
 }
 
-function writeEnvFile($data) {
-    global $env_file, $base_path;   
-
-    if (empty($data['unique_key'])) {
-        $data['unique_key'] = bin2hex(random_bytes(32));
-    }
-
-    $upload_dir = $base_path . '/uploads/file_manager';
-    $notes_upload_dir = $base_path . '/uploads/notes';
-    $messenger_upload_dir = $base_path . '/uploads/messenger';
+function writeEnvironmentFile(string $file, string $basePath, array $data): void
+{
+    $privateStorage = dirname($basePath) . '/notes-private-storage';
+    $siteUrl = 'http://localhost';
+    $wsUrl = 'ws://localhost:27800';
 
     $content = <<<ENV
-# ============================================
-# Файл переменных окружения
-# Сгенерировано установщиком
-# ============================================
-
-# --------------------------------------------
-# База данных
-# --------------------------------------------
+# Generated by Notes installer
 DBDRIVER=mysql
 DBHOST={$data['db_host']}
 DBPORT={$data['db_port']}
@@ -244,358 +192,260 @@ DBUSER={$data['db_user']}
 DBPASS={$data['db_pass']}
 DBNAME={$data['db_name']}
 
-# --------------------------------------------
-# Дополнительные ключи шифрования (опционально)
-# --------------------------------------------
 UNIQUE_KEY={$data['unique_key']}
+MSG_SECRET_KEY={$data['message_key']}
+WS_TICKET_SECRET={$data['ws_ticket_secret']}
 
-# --------------------------------------------
-# Пути загрузки файлов
-# --------------------------------------------
-UPLOAD_DIR={$upload_dir}
-NOTES_UPLOAD_DIR={$notes_upload_dir}
-MESSENGER_UPLOAD_DIR={$messenger_upload_dir}
-
-# --------------------------------------------
-# Ограничения на загрузку файлов
-# --------------------------------------------
+PRIVATE_STORAGE_PATH={$privateStorage}
+UPLOAD_DIR={$basePath}/uploads/file_manager
+NOTES_UPLOAD_DIR={$basePath}/uploads/notes
+MESSENGER_UPLOAD_DIR={$basePath}/uploads/messenger
 MAX_UPLOAD_SIZE=10485760
 MAX_NOTE_ATTACHMENTS=10
 
-# --------------------------------------------
-# Настройки приложения
-# --------------------------------------------
-SITEURL=http://localhost
+SITEURL={$siteUrl}
 BASE_PATH=/
 
-# --------------------------------------------
-# WebSocket сервер
-# --------------------------------------------
 WS_HOST=0.0.0.0
-WS_PORT=8080
+WS_PORT=27800
+WS_PUBLIC_URL={$wsUrl}
+WS_ALLOWED_ORIGINS={$siteUrl}
 
-# --------------------------------------------
-# Логирование
-# --------------------------------------------
 LOG_LEVEL=DEBUG
-LOG_FILE=/var/log/messenger/app.log
-
-# --------------------------------------------
-# Безопасность
-# --------------------------------------------
+LOG_FILE={$basePath}/.logs/app.log
 SESSION_LIFETIME=3600
 MAX_LOGIN_ATTEMPTS=5
 CSRF_ENABLED=true
-
 INSTALL_DATE={$data['install_date']}
 ENV;
 
-    return file_put_contents($env_file, $content);
+    if (file_put_contents($file, $content, LOCK_EX) === false) {
+        throw new RuntimeException('Не удалось записать .env');
+    }
+
+    @chmod($file, 0600);
 }
 
-// --- ОБРАБОТКА ШАГОВ ---
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if ($step === 2) {
-        $db_host = $_POST['db_host'] ?? 'localhost';
-        $db_port = $_POST['db_port'] ?? '3306';
-        $db_name = $_POST['db_name'];
-        $db_user = $_POST['db_user'];
-        $db_pass = $_POST['db_pass'];
+    verifyInstallerCsrf();
+    $postedStep = (int) ($_POST['step'] ?? 0);
 
-        $db_connection = testDbConnection($db_host, $db_port, $db_name, $db_user, $db_pass);
+    if ($postedStep === 2) {
+        $host = trim((string) ($_POST['db_host'] ?? 'localhost'));
+        $port = (int) ($_POST['db_port'] ?? 3306);
+        $database = trim((string) ($_POST['db_name'] ?? ''));
+        $username = trim((string) ($_POST['db_user'] ?? ''));
+        $password = (string) ($_POST['db_pass'] ?? '');
 
-        if (!$db_connection) {
-            $errors[] = "Не удалось подключиться к базе данных. Проверьте логин, пароль и имя базы.";
+        if ($host === '' || $database === '' || $username === '' || $port < 1 || $port > 65535) {
+            $errors[] = 'Некорректные параметры базы данных.';
         } else {
-            $existing_tables = getExistingTables($db_connection);
-            $missing_tables = array_diff($REQUIRED_TABLES, $existing_tables);
+            try {
+                $pdo = connectDatabase($host, $port, $database, $username, $password);
+                $missing = array_diff($requiredTables, existingTables($pdo));
 
-            if (!empty($missing_tables)) {
-                if (empty($schema_files)) {
-                    $errors[] = "Отсутствуют необходимые таблицы, и не найдены файлы схемы (database/*.sql).";
-                } else {
-                    try {
-                        error_log("Начало импорта схемы. Файлы: " . implode(', ', array_map('basename', $schema_files)));
-                        
-                        importSchemaRaw(
-                            $db_host,
-                            $db_user,
-                            $db_pass,
-                            $db_name,
-                            $db_port,
-                            $schema_files
-                        );
-
-                        error_log("Импорт схемы завершен.");
-                        $success_msg = "Схема базы данных успешно импортирована.";
-                        
-                        $existing_tables = getExistingTables($db_connection);
-                        $missing_tables_after = array_diff($REQUIRED_TABLES, $existing_tables);
-
-                        if (!empty($missing_tables_after)) {
-                            $errors[] = "После импорта отсутствуют таблицы: " . implode(', ', $missing_tables_after);
-                        }
-                    } catch (Exception $e) {
-                        error_log("Ошибка при импорте схемы БД: " . $e->getMessage());
-                        $errors[] = "Ошибка при импорте схемы БД: " . $e->getMessage();
+                if ($missing !== []) {
+                    if ($schemaFiles === []) {
+                        throw new RuntimeException('Файлы database/*.sql не найдены.');
                     }
+                    importSchemas($host, $port, $database, $username, $password, $schemaFiles);
                 }
-            } else {
-                $success_msg = "Все необходимые таблицы присутствуют в базе данных.";
-            }
 
-            if (empty($errors)) {
-                // 1. Генерируем данные
-                $env_data = [
-                    'db_host' => $db_host,
-                    'db_port' => $db_port,
-                    'db_name' => $db_name,
-                    'db_user' => $db_user,
-                    'db_pass' => $db_pass,
-                    'app_key' => generateRandomString(),
-                    'unique_key' => bin2hex(random_bytes(32)),
-                    'install_date' => date('YmdHis')
+                $remaining = array_diff($requiredTables, existingTables($pdo));
+                if ($remaining !== []) {
+                    throw new RuntimeException(
+                        'После импорта отсутствуют таблицы: ' . implode(', ', $remaining)
+                    );
+                }
+
+                $envData = [
+                    'db_host' => $host,
+                    'db_port' => $port,
+                    'db_name' => $database,
+                    'db_user' => $username,
+                    'db_pass' => $password,
+                    'unique_key' => randomSecret(),
+                    'message_key' => randomSecret(),
+                    'ws_ticket_secret' => randomSecret(),
+                    'install_date' => date('YmdHis'),
                 ];
 
-                // 2. ВАЖНОЕ ИСПРАВЛЕНИЕ: Принудительно устанавливаем переменные окружения СЕЙЧАС
-                // Это нужно, чтобы шаг 3 (создание админа) видел эти ключи, хотя файл .env еще не прочитан заново
-                putenv("UNIQUE_KEY={$env_data['unique_key']}");
-                
-                // Дублируем в $_ENV на всякий случай, если код использует его напрямую
-                $_ENV['UNIQUE_KEY'] = $env_data['unique_key'];
-
-                // 3. Записываем файл на диск
-                if (writeEnvFile($env_data)) {
-                    $_SESSION['db_config'] = $env_data;
-                    header("Location: install.php?step=3");
-                    exit;
-                } else {
-                    $errors[] = "Не удалось записать файл .env.";
-                }
+                writeEnvironmentFile($envFile, $basePath, $envData);
+                $_SESSION['notes_install_db'] = $envData;
+                header('Location: install.php?step=3');
+                exit;
+            } catch (Throwable $e) {
+                error_log('Installer database step failed: ' . $e->getMessage());
+                $errors[] = 'Не удалось подготовить базу данных: ' . $e->getMessage();
             }
         }
-    } elseif ($step === 3) {
-        $username = trim($_POST['admin_username'] ?? '');
-        $email = trim($_POST['admin_email'] ?? '');
-        $password = $_POST['admin_password'] ?? '';
-        $confirm_password = $_POST['admin_password_confirm'] ?? '';
-        $firstname = trim($_POST['admin_firstname'] ?? 'Admin');
-        $lastname = trim($_POST['admin_lastname'] ?? 'User');
+        $step = 2;
+    } elseif ($postedStep === 3) {
+        $username = trim((string) ($_POST['admin_username'] ?? ''));
+        $email = trim((string) ($_POST['admin_email'] ?? ''));
+        $password = (string) ($_POST['admin_password'] ?? '');
+        $confirmation = (string) ($_POST['admin_password_confirm'] ?? '');
+        $firstname = trim((string) ($_POST['admin_firstname'] ?? 'Admin'));
+        $lastname = trim((string) ($_POST['admin_lastname'] ?? 'User'));
 
-        if (empty($username) || empty($email) || empty($password)) {
-            $errors[] = "Все поля обязательны.";
+        if ($username === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || $firstname === '' || $lastname === '') {
+            $errors[] = 'Заполните данные администратора корректно.';
         }
-        if ($password !== $confirm_password) {
-            $errors[] = "Пароли не совпадают.";
+        if (strlen($password) < 10) {
+            $errors[] = 'Пароль должен содержать не менее 10 символов.';
         }
-        if (strlen($password) < 6) {
-            $errors[] = "Пароль должен быть не менее 6 символов.";
+        if ($password !== $confirmation) {
+            $errors[] = 'Пароли не совпадают.';
         }
 
-        if (empty($errors)) {
-            $cfg = $_SESSION['db_config'];
-            $pdo = testDbConnection($cfg['db_host'], $cfg['db_port'], $cfg['db_name'], $cfg['db_user'], $cfg['db_pass']);
+        $db = $_SESSION['notes_install_db'] ?? null;
+        if (!is_array($db)) {
+            $errors[] = 'Сессия установки потеряна. Вернитесь к настройке базы данных.';
+        }
 
-            if ($pdo) {
-                try {
-                    if (createAdminUser($pdo, $username, $email, $password, $firstname, $lastname)) {
-                        $step = 4;
-                        $success_msg = "Администратор успешно создан! Система готова к работе.";
-                    } else {
-                        $errors[] = "Не удалось создать пользователя.";
-                    }
-                } catch (Exception $e) {
-                    $errors[] = "Ошибка БД: " . $e->getMessage();
+        if ($errors === []) {
+            try {
+                $pdo = connectDatabase(
+                    (string) $db['db_host'],
+                    (int) $db['db_port'],
+                    (string) $db['db_name'],
+                    (string) $db['db_user'],
+                    (string) $db['db_pass']
+                );
+
+                $exists = $pdo->prepare('SELECT id FROM users WHERE username = :username OR email = :email LIMIT 1');
+                $exists->execute([':username' => $username, ':email' => $email]);
+                if ($exists->fetch()) {
+                    throw new RuntimeException('Пользователь с таким логином или email уже существует.');
                 }
-            } else {
-                $errors[] = "Потеряно соединение с БД.";
+
+                createAdminUser($pdo, $username, $email, $password, $firstname, $lastname);
+                $step = 4;
+                $installationCompleted = true;
+                $successMessage = 'Администратор создан. Основная схема Messenger v2 установлена.';
+            } catch (Throwable $e) {
+                error_log('Installer admin step failed: ' . $e->getMessage());
+                $errors[] = 'Не удалось создать администратора: ' . $e->getMessage();
+                $step = 3;
             }
+        } else {
+            $step = 3;
         }
     }
 }
 
-// Предварительные проверки
-$req_php = version_compare(PHP_VERSION, '8.0.0', '>=');
-$req_mbstring = extension_loaded('mbstring');
-$req_pdo_mysql = extension_loaded('pdo_mysql');
-$req_mysqli = extension_loaded('mysqli'); // Важно для нового импортера
-$req_writable = is_writable($base_path);
-$req_sodium = extension_loaded('sodium');
+$requirements = [
+    'PHP 8.1+' => version_compare(PHP_VERSION, '8.1.0', '>='),
+    'mbstring' => extension_loaded('mbstring'),
+    'pdo_mysql' => extension_loaded('pdo_mysql'),
+    'mysqli' => extension_loaded('mysqli'),
+    'sodium' => extension_loaded('sodium'),
+    'random_bytes' => function_exists('random_bytes'),
+    'Запись в корень проекта' => is_writable($basePath),
+];
 
-checkRequirement($req_php, "Требуется PHP 8.0+. Ваша: " . PHP_VERSION);
-checkRequirement($req_mbstring, "Требуется расширение mbstring");
-checkRequirement($req_pdo_mysql, "Требуется расширение pdo_mysql");
-checkRequirement($req_mysqli, "Требуется расширение mysqli (для импорта схемы)");
-checkRequirement($req_writable, "Нет прав на запись в директорию");
-checkRequirement($req_sodium, "Требуется расширение sodium");
+if ($step === 1) {
+    foreach ($requirements as $label => $ok) {
+        if (!$ok) {
+            $errors[] = 'Не выполнено требование: ' . $label;
+        }
+    }
+}
 
+$csrf = htmlspecialchars((string) $_SESSION['notes_install_csrf'], ENT_QUOTES, 'UTF-8');
 ?>
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Установка системы</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Установка Notes</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f4f6f9; color: #333; line-height: 1.6; padding: 20px; }
-        .container { max-width: 600px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        h1 { text-align: center; color: #2c3e50; margin-bottom: 30px; }
-        h2 { border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 0; }
-        .step-indicator { display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 0.9em; color: #7f8c8d; }
-        .step-indicator span.active { color: #3498db; font-weight: bold; }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: 600; }
-        input[type="text"], input[type="password"], input[type="email"], input[type="number"] { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
-        button { background: #3498db; color: white; border: none; padding: 12px 20px; border-radius: 4px; cursor: pointer; width: 100%; font-size: 16px; transition: background 0.3s; }
-        button:hover { background: #2980b9; }
-        .error { background: #ffebee; color: #c62828; padding: 10px; border-radius: 4px; margin-bottom: 15px; border-left: 4px solid #c62828; }
-        .success { background: #e8f5e9; color: #2e7d32; padding: 10px; border-radius: 4px; margin-bottom: 15px; border-left: 4px solid #2e7d32; }
-        ul { list-style-type: none; padding: 0; }
-        li { padding: 8px 0; border-bottom: 1px solid #eee; }
-        li.ok { color: #27ae60; }
-        li.fail { color: #c0392b; }
-        .footer { text-align: center; margin-top: 20px; font-size: 0.8em; color: #95a5a6; }
+        :root { color-scheme: light; font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+        body { margin:0; padding:24px; color:#26313d; background:#f2f4f7; }
+        .card { width:min(640px,100%); box-sizing:border-box; margin:24px auto; padding:28px; background:#fff; border:1px solid #e0e5eb; border-radius:14px; box-shadow:0 12px 35px rgba(27,39,52,.08); }
+        h1 { margin:0 0 8px; font-size:26px; } h2 { margin:24px 0 14px; font-size:19px; }
+        p { color:#687481; } .steps { display:flex; gap:8px; margin:20px 0; }
+        .steps span { flex:1; height:5px; background:#e6e9ed; border-radius:99px; }
+        .steps span.active { background:#3977d5; }
+        .notice { margin:14px 0; padding:11px 13px; border-radius:9px; }
+        .error { color:#922f2f; background:#fff0f0; border:1px solid #f2cccc; }
+        .success { color:#23663f; background:#edf9f1; border:1px solid #cbe9d6; }
+        label { display:block; margin:13px 0; font-size:13px; font-weight:600; }
+        input { width:100%; box-sizing:border-box; margin-top:5px; padding:10px 11px; font:inherit; border:1px solid #ced5dd; border-radius:8px; }
+        button,.button { display:inline-block; box-sizing:border-box; padding:10px 15px; color:#fff; background:#3977d5; border:0; border-radius:8px; text-decoration:none; cursor:pointer; font:inherit; }
+        button { width:100%; margin-top:10px; }
+        ul { padding-left:20px; } li { margin:7px 0; } .ok { color:#277449; } .fail { color:#ad3e3e; }
+        code { padding:2px 5px; background:#f2f4f7; border-radius:4px; }
     </style>
 </head>
 <body>
+<main class="card">
+    <h1>Notes — мастер установки</h1>
+    <p>Создаёт каноническую схему приложения и отдельные секреты для заметок, Messenger v2 и WebSocket.</p>
 
-<div class="container">
-    <h1>🚀 Мастер установки</h1>
-
-    <div class="step-indicator">
-        <span class="<?= $step === 1 ? 'active' : '' ?>">1. Требования</span>
-        <span class="<?= $step === 2 ? 'active' : '' ?>">2. База данных</span>
-        <span class="<?= $step === 3 ? 'active' : '' ?>">3. Администратор</span>
-        <span class="<?= $step === 4 ? 'active' : '' ?>">4. Готово</span>
+    <div class="steps" aria-label="Шаг <?= $step ?> из 4">
+        <?php for ($i = 1; $i <= 4; $i++): ?>
+            <span class="<?= $i <= $step ? 'active' : '' ?>"></span>
+        <?php endfor; ?>
     </div>
 
-    <?php if (!empty($errors)): ?>
-        <div class="error">
-            <strong>Внимание!</strong><br>
-            <ul style="margin: 5px 0 0 20px;">
-                <?php foreach ($errors as $err): ?>
-                    <li><?= htmlspecialchars($err) ?></li>
-                <?php endforeach; ?>
-            </ul>
-        </div>
-    <?php endif; ?>
+    <?php foreach ($errors as $error): ?>
+        <div class="notice error"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></div>
+    <?php endforeach; ?>
 
-    <?php if ($success_msg && $step !== 4): ?>
-        <div class="success"><?= htmlspecialchars($success_msg) ?></div>
+    <?php if ($successMessage !== ''): ?>
+        <div class="notice success"><?= htmlspecialchars($successMessage, ENT_QUOTES, 'UTF-8') ?></div>
     <?php endif; ?>
 
     <?php if ($step === 1): ?>
-        <h2>Проверка системных требований</h2>
+        <h2>1. Проверка окружения</h2>
         <ul>
-            <li class="<?= $req_php ? 'ok' : 'fail' ?>">
-                <?= $req_php ? '✔' : '✘' ?> Версия PHP >= 8.0 (Текущая: <?= PHP_VERSION ?>)
-            </li>
-            <li class="<?= $req_mbstring ? 'ok' : 'fail' ?>">
-                <?= $req_mbstring ? '✔' : '✘' ?> Расширение mbstring
-            </li>
-            <li class="<?= $req_pdo_mysql ? 'ok' : 'fail' ?>">
-                <?= $req_pdo_mysql ? '✔' : '✘' ?> Расширение pdo_mysql
-            </li>
-            <li class="<?= $req_mysqli ? 'ok' : 'fail' ?>">
-                <?= $req_mysqli ? '✔' : '✘' ?> Расширение mysqli (критично)
-            </li>
-            <li class="<?= $req_writable ? 'ok' : 'fail' ?>">
-                <?= $req_writable ? '✔' : '✘' ?> Права на запись
-            </li>
-            <li class="<?= $req_sodium ? 'ok' : 'fail' ?>">
-                <?= $req_sodium ? '✔' : '✘' ?>
-                Расширение sodium
-            </li>
+            <?php foreach ($requirements as $label => $ok): ?>
+                <li class="<?= $ok ? 'ok' : 'fail' ?>"><?= $ok ? '✓' : '✕' ?> <?= htmlspecialchars($label) ?></li>
+            <?php endforeach; ?>
         </ul>
-
-        <?php if (empty($errors)): ?>
-            <form method="get">
-                <input type="hidden" name="step" value="2">
-                <button type="submit">Продолжить &rarr;</button>
-            </form>
-        <?php else: ?>
-            <p style="color: #c0392b;">Исправьте ошибки и обновите страницу.</p>
+        <?php if ($errors === []): ?>
+            <a class="button" href="?step=2">Продолжить</a>
         <?php endif; ?>
 
     <?php elseif ($step === 2): ?>
-        <h2>Настройка базы данных</h2>
-        <p>Введите данные. Таблицы будут созданы автоматически.</p>
+        <h2>2. База данных</h2>
         <form method="post">
+            <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
             <input type="hidden" name="step" value="2">
-            <div class="form-group">
-                <label>Хост БД</label>
-                <input type="text" name="db_host" value="localhost" required>
-            </div>
-            <div class="form-group">
-                <label>Порт</label>
-                <input type="number" name="db_port" value="3306" required>
-            </div>
-            <div class="form-group">
-                <label>Имя базы данных</label>
-                <input type="text" name="db_name" required placeholder="my_database">
-            </div>
-            <div class="form-group">
-                <label>Пользователь БД</label>
-                <input type="text" name="db_user" required placeholder="root">
-            </div>
-            <div class="form-group">
-                <label>Пароль БД</label>
-                <input type="password" name="db_pass" placeholder="******">
-            </div>
-            <button type="submit">Проверить и установить</button>
+            <label>Хост<input name="db_host" value="localhost" required></label>
+            <label>Порт<input name="db_port" type="number" value="3306" min="1" max="65535" required></label>
+            <label>Имя базы<input name="db_name" required></label>
+            <label>Пользователь<input name="db_user" required></label>
+            <label>Пароль<input name="db_pass" type="password"></label>
+            <button type="submit">Импортировать схемы и продолжить</button>
         </form>
-        <br>
-        <a href="?step=1" style="color: #7f8c8d; text-decoration: none;">&larr; Назад</a>
 
     <?php elseif ($step === 3): ?>
-        <h2>Создание администратора</h2>
+        <h2>3. Администратор</h2>
         <form method="post">
+            <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
             <input type="hidden" name="step" value="3">
-            <div class="form-group">
-                <label>Имя</label>
-                <input type="text" name="admin_firstname" value="Admin" required>
-            </div>
-            <div class="form-group">
-                <label>Фамилия</label>
-                <input type="text" name="admin_lastname" value="User" required>
-            </div>
-            <div class="form-group">
-                <label>Логин</label>
-                <input type="text" name="admin_username" required placeholder="admin">
-            </div>
-            <div class="form-group">
-                <label>Email</label>
-                <input type="email" name="admin_email" required>
-            </div>
-            <div class="form-group">
-                <label>Пароль</label>
-                <input type="password" name="admin_password" required minlength="6">
-            </div>
-            <div class="form-group">
-                <label>Подтверждение пароля</label>
-                <input type="password" name="admin_password_confirm" required>
-            </div>
+            <label>Имя<input name="admin_firstname" value="Admin" required></label>
+            <label>Фамилия<input name="admin_lastname" value="User" required></label>
+            <label>Логин<input name="admin_username" required></label>
+            <label>Email<input name="admin_email" type="email" required></label>
+            <label>Пароль<input name="admin_password" type="password" minlength="10" required></label>
+            <label>Повтор пароля<input name="admin_password_confirm" type="password" minlength="10" required></label>
             <button type="submit">Завершить установку</button>
         </form>
-        <br>
-        <a href="?step=2" style="color: #7f8c8d; text-decoration: none;">&larr; Назад</a>
 
-    <?php elseif ($step === 4): ?>
-        <div style="text-align: center;">
-            <div style="font-size: 60px; color: #27ae60;">🎉</div>
-            <h2>Установка завершена!</h2>
-            <p><?= htmlspecialchars($success_msg) ?></p>
-            <p>Файл конфигурации <code>.env</code> создан.</p>
-            <div style="background: #fff3cd; padding: 15px; border-radius: 4px; margin: 20px 0; text-align: left; font-size: 0.9em;">
-                <strong>⚠️ Безопасность:</strong> Удалите файл <code>install.php</code>.
-            </div>
-            <a href="/" style="display: inline-block; background: #27ae60; color: white; padding: 12px 20px; text-decoration: none; border-radius: 4px; margin-top: 10px;">Перейти в систему</a>
-        </div>
+    <?php else: ?>
+        <h2>4. Готово</h2>
+        <p>Файл <code>.env</code> создан, installer после завершения блокируется автоматически.</p>
+        <p>Перед публикацией настройте <code>SITEURL</code>, <code>WS_PUBLIC_URL</code> и <code>WS_ALLOWED_ORIGINS</code> под реальный домен.</p>
+        <a class="button" href="/">Открыть Notes</a>
     <?php endif; ?>
-
-    <div class="footer">System Installer v1.1 (mysqli fix)</div>
-</div>
-
+</main>
 </body>
 </html>
+<?php
+if ($installationCompleted) {
+    unset($_SESSION['notes_install_in_progress'], $_SESSION['notes_install_db'], $_SESSION['notes_install_csrf']);
+}
