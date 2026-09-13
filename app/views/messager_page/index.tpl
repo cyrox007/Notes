@@ -13,6 +13,9 @@
 .messenger-folder-tab[aria-selected="true"] { color:var(--msg-accent); background:var(--msg-accent-soft); font-weight:600; }
 .messenger-folder-tab__count { min-width:18px; height:18px; display:inline-grid; place-items:center; padding:0 5px; border-radius:999px; background:rgba(127,127,127,.13); font-size:11px; }
 .messenger-dialog-state-icons { display:inline-flex; align-items:center; gap:5px; flex:0 0 auto; color:var(--msg-muted); font-size:11px; }
+.messenger-message__status[data-state="sent"] { color:var(--msg-muted); }
+.messenger-message__status[data-state="delivered"] { color:#64748b; }
+.messenger-message__status[data-state="read"] { color:var(--msg-accent); }
 </style>
 
 <section
@@ -183,4 +186,5 @@
 
 <script>{include file='messager_page/script.js'}</script>
 <script>{include file='messager_page/dialog-actions.js'}</script>
+<script>{include file='messager_page/receipts.js'}</script>
 {/block}
