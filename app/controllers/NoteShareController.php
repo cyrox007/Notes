@@ -48,7 +48,8 @@ final class NoteShareController extends Controller
                 $db->execute(
                     'UPDATE shared_notes
                      SET is_active = 0
-                     WHERE note_id = :note_id AND owner_id = :owner_id AND shared_with_user_id IS NULL AND is_active = 1',
+                     WHERE note_id = :note_id AND owner_id = :owner_id
+                       AND shared_with_user_id IS NULL AND is_active = 1',
                     [':note_id' => (int) $note['id'], ':owner_id' => $userId]
                 );
                 $db->execute(
@@ -71,7 +72,10 @@ final class NoteShareController extends Controller
                 throw $e;
             }
 
-            $siteUrl = rtrim((string) Config::get('SITEURL'), '/');
+            $configuredUrl = getenv('SITEURL');
+            $siteUrl = is_string($configuredUrl) && trim($configuredUrl) !== ''
+                ? rtrim(trim($configuredUrl), '/')
+                : rtrim((string) Config::get('SITEURL'), '/');
             echo json_encode([
                 'success' => true,
                 'share_url' => $siteUrl . '/notes/shared/' . $token,
@@ -106,7 +110,8 @@ final class NoteShareController extends Controller
             $db->execute(
                 'UPDATE shared_notes
                  SET is_active = 0
-                 WHERE note_id = :note_id AND owner_id = :owner_id AND is_active = 1',
+                 WHERE note_id = :note_id AND owner_id = :owner_id
+                   AND shared_with_user_id IS NULL AND is_active = 1',
                 [':note_id' => (int) $note['id'], ':owner_id' => $userId]
             );
             echo json_encode(['success' => true], JSON_UNESCAPED_UNICODE);
@@ -130,6 +135,7 @@ final class NoteShareController extends Controller
              INNER JOIN notes n ON n.id = s.note_id AND n.is_deleted = 0
              INNER JOIN users u ON u.id = n.user_id AND u.is_active = 1
              WHERE s.share_token = :token
+               AND s.shared_with_user_id IS NULL
                AND s.is_active = 1
                AND (s.expires_at IS NULL OR s.expires_at >= :now)
              LIMIT 1',
