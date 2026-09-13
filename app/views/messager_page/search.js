@@ -173,7 +173,8 @@
         };
 
         const locateMessage = (message) => {
-            if (!message?.dialog_uid || !message?.uid || !Number(message.id)) return;
+            const messageId = Number(message?.id || 0);
+            if (!message?.dialog_uid || !message?.uid || !messageId) return;
             if (!app.dialogMap.has(message.dialog_uid)) {
                 app.showToast('Диалог больше недоступен');
                 return;
@@ -181,14 +182,12 @@
 
             pendingLocate = {
                 dialog_uid: message.dialog_uid,
-                message_uid: message.uid
+                message_uid: message.uid,
+                message_id: messageId,
+                targeted_load_requested: false
             };
             dialog.close();
             app.openDialog(message.dialog_uid);
-            app.sendEvent('MessangerSocket:load', {
-                dialog_uid: message.dialog_uid,
-                before_id: Number(message.id) + 1
-            });
         };
 
         const renderDialogResult = (item) => {
@@ -283,11 +282,21 @@
                     pendingLocate
                     && pendingLocate.dialog_uid === data.dialog_uid
                     && app.currentDialog?.uid === data.dialog_uid
-                    && app.messages.some((message) => message.uid === pendingLocate.message_uid)
                 ) {
-                    const uid = pendingLocate.message_uid;
-                    pendingLocate = null;
-                    requestAnimationFrame(() => app.scrollToMessage(uid));
+                    if (app.messages.some((message) => message.uid === pendingLocate.message_uid)) {
+                        const uid = pendingLocate.message_uid;
+                        pendingLocate = null;
+                        requestAnimationFrame(() => app.scrollToMessage(uid));
+                    } else if (!pendingLocate.targeted_load_requested) {
+                        pendingLocate.targeted_load_requested = true;
+                        app.sendEvent('MessangerSocket:load', {
+                            dialog_uid: pendingLocate.dialog_uid,
+                            before_id: pendingLocate.message_id + 1
+                        });
+                    } else {
+                        pendingLocate = null;
+                        app.showToast('Сообщение больше недоступно');
+                    }
                 }
                 return result;
             }
