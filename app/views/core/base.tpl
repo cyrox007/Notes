@@ -15,6 +15,7 @@
 	<link rel="stylesheet" href="/assets/font-awesome/css/font-awesome.min.css">
 	<link rel="icon" href="/favicon.ico" type="image/x-icon">
 	<link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+	<template id="csrf-token-template">{csrf_token}</template>
 	<script>
 		wspace = {};
 		{include file="core/common.js"}
