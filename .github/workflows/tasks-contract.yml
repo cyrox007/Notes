@@ -53,6 +53,7 @@ jobs:
           php -l app/models/TaskCategoryRelationModel.php
           php -l app/models/TaskReminderModel.php
           php -l core/routerConfig.php
+          php -l install.php
           grep -Fq 'SORT_COLUMNS' app/controllers/TaskController.php
           grep -Fq 'INSERT IGNORE INTO task_category_relations' app/controllers/TaskController.php
           ! grep -Fq '$task->user_id' app/controllers/TaskController.php
@@ -61,6 +62,7 @@ jobs:
           grep -Fq 'task-complete-toggle' app/views/tasks_page/index.tpl
           grep -Fq 'subtask-toggle' app/views/tasks_page/index.tpl
           grep -Fq 'attach-category-btn' app/views/tasks_page/index.tpl
+          grep -Fq 'tasks_page/style.css' app/views/styles.css
 
       - name: Clean schema
         shell: bash
@@ -91,10 +93,8 @@ jobs:
           require SITEPATH . '/vendor/autoload.php';
           require SITEPATH . '/core/config.php';
           require SITEPATH . '/core/DatabaseManager.php';
-          require SITEPATH . '/core/ORM.php';
           require SITEPATH . '/core/request.php';
           require SITEPATH . '/core/controller.php';
-          require SITEPATH . '/app/models/UserModel.php';
           require SITEPATH . '/app/controllers/TaskController.php';
 
           final class TaskHarnessRequest extends \Core\Request {
@@ -161,6 +161,16 @@ jobs:
           $result = callJson($controller, 'update', new TaskHarnessRequest($alice, ['status'=>'pending'], $jsonServer), [$taskUid]);
           $row = $db->fetchOne('SELECT status,completed_at FROM tasks WHERE uid=:uid', [':uid'=>$taskUid]);
           if (($row['status'] ?? '') !== 'pending' || $row['completed_at'] !== null) throw new RuntimeException('completed_at was not cleared');
+
+          $result = callJson($controller, 'update', new TaskHarnessRequest($alice, ['due_date'=>'2026-09-14T15:45'], $jsonServer), [$taskUid]);
+          if (($result['success'] ?? false) !== true) throw new RuntimeException('datetime-local update failed');
+          $dueDate = (string) $db->fetchValue('SELECT due_date FROM tasks WHERE uid=:uid', [':uid'=>$taskUid]);
+          if ($dueDate !== '2026-09-14 15:45:00') throw new RuntimeException('datetime-local was not normalized: ' . $dueDate);
+
+          $result = callJson($controller, 'update', new TaskHarnessRequest($alice, ['status'=>'hacked'], $jsonServer), [$taskUid]);
+          if (($result['success'] ?? true) !== false || $result['_status'] !== 422) throw new RuntimeException('Invalid status was accepted');
+          $status = (string) $db->fetchValue('SELECT status FROM tasks WHERE uid=:uid', [':uid'=>$taskUid]);
+          if ($status !== 'pending') throw new RuntimeException('Invalid status changed persisted state');
 
           $result = callJson($controller, 'update', new TaskHarnessRequest($bob, ['status'=>'completed'], $jsonServer), [$taskUid]);
           if (($result['success'] ?? true) !== false || $result['_status'] !== 404) throw new RuntimeException('Outsider updated task');
