@@ -6,7 +6,6 @@ namespace App\Controllers;
 
 use App\Helpers\CryptMethods;
 use App\Models\UserModel;
-use App\Services\RequestRateLimiter;
 use Core\Config;
 use Core\Controller;
 use Core\DatabaseManager;
@@ -24,16 +23,6 @@ class AuthController extends Controller
     {
         $login = trim((string) $request->post('login'));
         $password = (string) $request->post('password');
-
-        if (!$this->allowRequest('auth-login', strtolower($login), $this->envInt('AUTH_LOGIN_RATE_LIMIT', 10), $this->envInt('AUTH_LOGIN_RATE_WINDOW', 300))) {
-            $this->render_template('login_page/login_view', [
-                'errors' => [[
-                    'CODE' => 'rate_limit',
-                    'MESSAGE' => 'Слишком много попыток входа. Повторите позже.',
-                ]],
-            ]);
-            return;
-        }
 
         $user = UserModel::select()->where('username', '=', $login)->first();
         if (!$user || !CryptMethods::verifyPassword($password, $user->password_hash)) {
@@ -75,8 +64,16 @@ class AuthController extends Controller
 
     public function registration(Request $request, ?string $inviteCode = null): void
     {
+        $configuredInvite = trim((string) (getenv('REGISTRATION_INVITE_CODE') ?: ''));
+        $inviteCode = trim($inviteCode ?: (string) $request->post('invite_code'));
+        if ($configuredInvite === '' || $inviteCode === '' || !hash_equals($configuredInvite, $inviteCode)) {
+            http_response_code(404);
+            header('Content-Type: text/plain; charset=utf-8');
+            echo 'Регистрация недоступна';
+            return;
+        }
+
         $baseUrl = rtrim((string) getenv('SITEURL'), '/') . '/' . ltrim((string) getenv('BASE_PATH'), '/');
-        $inviteCode = $inviteCode ?: (string) $request->post('invite_code');
         $data = [
             'style' => $baseUrl . 'assets/css/style.css',
             'reg-script' => $baseUrl . 'assets/js/reg-script.js',
@@ -85,21 +82,7 @@ class AuthController extends Controller
             'invite_code' => $inviteCode,
         ];
 
-        if ($inviteCode === '') {
-            Router::getInstance()->redirect('authpage');
-            return;
-        }
-
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            $this->render_template('login_page/register_view', $data);
-            return;
-        }
-
-        if (!$this->allowRequest('auth-registration', $inviteCode, $this->envInt('AUTH_REGISTER_RATE_LIMIT', 5), $this->envInt('AUTH_REGISTER_RATE_WINDOW', 600))) {
-            $data['errors'][] = [
-                'CODE' => 'rate_limit',
-                'MESSAGE' => 'Слишком много попыток регистрации. Повторите позже.',
-            ];
             $this->render_template('login_page/register_view', $data);
             return;
         }
@@ -110,24 +93,21 @@ class AuthController extends Controller
         $patronymic = trim((string) $request->post('patronymic'));
         $lastname = trim((string) $request->post('surname'));
         $phone = trim((string) $request->post('user_phone'));
-        $email = trim((string) $request->post('email'));
+        $email = mb_strtolower(trim((string) $request->post('email')));
 
-        if (
-            $username === ''
-            || mb_strlen($username) > 100
-            || mb_strlen($password) < 10
-            || mb_strlen($password) > 200
-            || $firstname === ''
-            || mb_strlen($firstname) > 100
-            || mb_strlen($lastname) > 100
-            || mb_strlen($patronymic) > 100
-            || mb_strlen($phone) > 50
-            || !filter_var($email, FILTER_VALIDATE_EMAIL)
-            || mb_strlen($email) > 255
-        ) {
+        $validationError = $this->registrationValidationError(
+            $username,
+            $password,
+            $firstname,
+            $patronymic,
+            $lastname,
+            $phone,
+            $email
+        );
+        if ($validationError !== null) {
             $data['errors'][] = [
                 'CODE' => 'registration_error',
-                'MESSAGE' => 'Проверьте обязательные поля. Пароль должен содержать не менее 10 символов.',
+                'MESSAGE' => $validationError,
             ];
             $this->render_template('login_page/register_view', $data);
             return;
@@ -150,7 +130,7 @@ class AuthController extends Controller
         DatabaseManager::getInstance()->queueInsert([
             'uid' => \UUID::v4(),
             'username' => $username,
-            'email' => strtolower($email),
+            'email' => $email,
             'password_hash' => CryptMethods::hashPassword($password),
             'firstname' => $firstname,
             'patronymic' => $patronymic !== '' ? $patronymic : null,
@@ -168,31 +148,36 @@ class AuthController extends Controller
         Router::getInstance()->redirect('authpage');
     }
 
-    private function allowRequest(string $bucket, string $identity, int $limit, int $windowSeconds): bool
-    {
-        try {
-            $subject = RequestRateLimiter::clientSubject($bucket) . '|' . $identity;
-            $state = RequestRateLimiter::consume($bucket, $subject, $limit, $windowSeconds);
-            if (!$state['allowed']) {
-                http_response_code(429);
-                header('Retry-After: ' . $state['retry_after']);
-                return false;
-            }
-            return true;
-        } catch (\Throwable $e) {
-            // Authentication must remain available if the limiter storage has an operational issue.
-            // Log the condition so production monitoring can detect it.
-            error_log('Rate limiter failure for ' . $bucket . ': ' . $e->getMessage());
-            return true;
+    private function registrationValidationError(
+        string $username,
+        string $password,
+        string $firstname,
+        string $patronymic,
+        string $lastname,
+        string $phone,
+        string $email
+    ): ?string {
+        if (!preg_match('/^[A-Za-z0-9._-]{3,50}$/', $username)) {
+            return 'Логин должен содержать 3–50 латинских букв, цифр, точек, дефисов или подчёркиваний';
         }
-    }
-
-    private function envInt(string $key, int $default): int
-    {
-        $value = getenv($key);
-        if (!is_string($value) || !ctype_digit($value)) {
-            return $default;
+        if (strlen($password) < 10 || strlen($password) > 200) {
+            return 'Пароль должен содержать от 10 до 200 символов';
         }
-        return max(1, (int) $value);
+        if ($firstname === '' || mb_strlen($firstname) > 80) {
+            return 'Укажите корректное имя длиной до 80 символов';
+        }
+        if ($lastname === '' || mb_strlen($lastname) > 80) {
+            return 'Укажите корректную фамилию длиной до 80 символов';
+        }
+        if ($patronymic !== '' && mb_strlen($patronymic) > 80) {
+            return 'Отчество слишком длинное';
+        }
+        if ($phone !== '' && mb_strlen($phone) > 32) {
+            return 'Телефон слишком длинный';
+        }
+        if (mb_strlen($email) > 190 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return 'Укажите корректный email';
+        }
+        return null;
     }
 }
