@@ -15,6 +15,33 @@ final class MessengerDialogStateService
         $this->db ??= DatabaseManager::getInstance();
     }
 
+    /** @return list<array<string,mixed>> */
+    public function listStates(string $userUid): array
+    {
+        $rows = $this->db->fetchAll(
+            'SELECT
+                d.uid AS dialog_uid,
+                utd.pinned_at,
+                utd.archived_at,
+                utd.muted_until
+             FROM users u
+             INNER JOIN user_to_dialogs utd ON utd.user_id = u.id AND utd.is_deleted = 0
+             INNER JOIN dialogs d ON d.id = utd.dialog_id
+             WHERE u.uid = :user_uid AND u.is_active = 1',
+            [':user_uid' => $userUid]
+        );
+
+        $now = time();
+        foreach ($rows as &$row) {
+            $row['pinned'] = !empty($row['pinned_at']);
+            $row['archived'] = !empty($row['archived_at']);
+            $row['muted'] = !empty($row['muted_until']) && strtotime((string) $row['muted_until']) > $now;
+        }
+        unset($row);
+
+        return $rows;
+    }
+
     /** @return array<string,mixed> */
     public function togglePinned(string $userUid, string $dialogUid): array
     {
