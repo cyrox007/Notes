@@ -35,6 +35,7 @@ jobs:
         run: composer audit --no-interaction
 
       - name: Lint PHP sources
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
