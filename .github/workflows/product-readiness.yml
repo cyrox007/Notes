@@ -71,9 +71,10 @@ jobs:
           grep -Fq '{include file="core/accessibility.css"}' app/views/styles.css
           ! grep -R -E 'fonts\.googleapis\.com|fonts\.gstatic\.com' app/views/core assets/css/auth_page
 
-          grep -Fq 'sidebarBackdrop' app/views/core/common.js
-          grep -Fq 'aria-current="page"' app/views/^shared/sidebar/index.tpl
-          grep -Fq 'aria-live="polite"' app/views/core/base.tpl
+          grep -Fq "backdrop.className = 'sidebar-backdrop'" app/views/core/common.js
+          grep -Fq "setAttribute('aria-current', 'page')" app/views/core/common.js
+          grep -Fq 'aria-live="polite"' app/views/^shared/header/index.tpl
+          grep -Fq 'class="skip-link"' app/views/core/base.tpl
           grep -Fq 'autocomplete="username"' app/views/login_page/login_view.tpl
           grep -Fq 'autocomplete="current-password"' app/views/login_page/login_view.tpl
           grep -Fq 'minlength="10"' app/views/login_page/register_view.tpl
