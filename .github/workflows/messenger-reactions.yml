@@ -175,7 +175,7 @@ jobs:
           }
 
           $likeRow = $db->fetchOne(
-              'SELECT is_active FROM message_reactions mr
+              'SELECT mr.is_active FROM message_reactions mr
                INNER JOIN users u ON u.id = mr.user_id
                WHERE u.uid = :user_uid AND mr.reaction_code = "like" LIMIT 1',
               [':user_uid' => $bob]
