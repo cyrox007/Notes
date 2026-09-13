@@ -1,0 +1,215 @@
+name: Messenger group permissions
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [messenger-groups]
+
+permissions:
+  contents: read
+
+jobs:
+  group-permissions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: notes_groups_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_mysql, mysqli, sodium, fileinfo
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Group PHP syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l app/services/MessengerGroupService.php
+          php -l app/socket/GroupSocket.php
+          php -l ws_server/server.php
+
+      - name: Group JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed '/^{literal}$/d;/^{\/literal}$/d' app/views/messager_page/group.js > /tmp/messenger-group.js
+          node --check /tmp/messenger-group.js
+
+      - name: Prepare messenger schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot notes_groups_test < database/messenger_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_groups_test < database/migrations/20260913_messenger_delivery_receipts.sql
+
+      - name: Group authorization integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          php <<'PHP'
+          <?php
+          $_SERVER['HTTP_HOST'] = 'localhost';
+          putenv('DBDRIVER=mysql');
+          putenv('DBHOST=127.0.0.1');
+          putenv('DBPORT=3306');
+          putenv('DBUSER=root');
+          putenv('DBPASS=root');
+          putenv('DBNAME=notes_groups_test');
+          putenv('MSG_SECRET_KEY=ci-message-secret-0123456789abcdef0123456789abcdef');
+
+          require __DIR__ . '/core/config.php';
+          require __DIR__ . '/core/DatabaseManager.php';
+          require __DIR__ . '/app/handlers/UUID.php';
+          require __DIR__ . '/app/handlers/MessengerCrypto.php';
+          require __DIR__ . '/app/services/MessengerService.php';
+          require __DIR__ . '/app/services/MessengerGroupService.php';
+
+          $db = \Core\DatabaseManager::getInstance();
+          $now = date('Y-m-d H:i:s');
+          $password = password_hash('ci-password', PASSWORD_ARGON2ID);
+
+          $alice = '30000000-0000-4000-8000-000000000001';
+          $bob = '30000000-0000-4000-8000-000000000002';
+          $charlie = '30000000-0000-4000-8000-000000000003';
+
+          foreach ([
+              [$alice, 'alice-g', 'Alice', 'Owner'],
+              [$bob, 'bob-g', 'Bob', 'Member'],
+              [$charlie, 'charlie-g', 'Charlie', 'Admin'],
+          ] as [$uid, $username, $firstname, $lastname]) {
+              $db->execute(
+                  'INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active,created_at,updated_at)
+                   VALUES (:uid,:username,:email,:password_hash,:firstname,:lastname,888,1,:created_at,:updated_at)',
+                  [
+                      ':uid' => $uid,
+                      ':username' => $username,
+                      ':email' => $username . '@example.test',
+                      ':password_hash' => $password,
+                      ':firstname' => $firstname,
+                      ':lastname' => $lastname,
+                      ':created_at' => $now,
+                      ':updated_at' => $now,
+                  ]
+              );
+          }
+
+          $messenger = new \App\Services\MessengerService($db);
+          $groups = new \App\Services\MessengerGroupService($db);
+          $dialog = $messenger->createDialog($alice, 'group', [$bob], 'Core Team');
+
+          $aliceInfo = $groups->info($alice, $dialog['uid']);
+          if (($aliceInfo['current_role'] ?? null) !== 'owner' || count($aliceInfo['members'] ?? []) !== 2) {
+              throw new RuntimeException('Initial group roles are invalid');
+          }
+
+          $blocked = false;
+          try {
+              $groups->rename($bob, $dialog['uid'], 'Member takeover');
+          } catch (DomainException) {
+              $blocked = true;
+          }
+          if (!$blocked) {
+              throw new RuntimeException('Member can rename the group');
+          }
+
+          $blocked = false;
+          try {
+              $groups->setRole($bob, $dialog['uid'], $bob, 'admin');
+          } catch (DomainException) {
+              $blocked = true;
+          }
+          if (!$blocked) {
+              throw new RuntimeException('Member can promote himself');
+          }
+
+          $blocked = false;
+          try {
+              $groups->leave($alice, $dialog['uid']);
+          } catch (DomainException) {
+              $blocked = true;
+          }
+          if (!$blocked) {
+              throw new RuntimeException('Owner can leave before transferring ownership');
+          }
+
+          $groups->addMembers($alice, $dialog['uid'], [$charlie]);
+          $groups->setRole($alice, $dialog['uid'], $charlie, 'admin');
+          $charlieInfo = $groups->info($charlie, $dialog['uid']);
+          if (($charlieInfo['current_role'] ?? null) !== 'admin') {
+              throw new RuntimeException('Owner could not promote admin');
+          }
+
+          $blocked = false;
+          try {
+              $groups->removeMember($charlie, $dialog['uid'], $alice);
+          } catch (DomainException) {
+              $blocked = true;
+          }
+          if (!$blocked) {
+              throw new RuntimeException('Admin can remove owner');
+          }
+
+          $groups->rename($charlie, $dialog['uid'], 'Managed Team');
+          if (($groups->info($alice, $dialog['uid'])['name'] ?? null) !== 'Managed Team') {
+              throw new RuntimeException('Admin rename did not persist');
+          }
+
+          $groups->removeMember($charlie, $dialog['uid'], $bob);
+          $bobBlocked = false;
+          try {
+              $groups->info($bob, $dialog['uid']);
+          } catch (DomainException) {
+              $bobBlocked = true;
+          }
+          if (!$bobBlocked) {
+              throw new RuntimeException('Removed member retained group access');
+          }
+
+          $groups->transferOwner($alice, $dialog['uid'], $charlie);
+          if (($groups->info($charlie, $dialog['uid'])['current_role'] ?? null) !== 'owner') {
+              throw new RuntimeException('Ownership transfer failed');
+          }
+          if (($groups->info($alice, $dialog['uid'])['current_role'] ?? null) !== 'admin') {
+              throw new RuntimeException('Previous owner was not demoted to admin');
+          }
+
+          $groups->leave($alice, $dialog['uid']);
+          $aliceBlocked = false;
+          try {
+              $groups->info($alice, $dialog['uid']);
+          } catch (DomainException) {
+              $aliceBlocked = true;
+          }
+          if (!$aliceBlocked) {
+              throw new RuntimeException('Former owner retained access after leaving');
+          }
+
+          $final = $groups->info($charlie, $dialog['uid']);
+          if (count($final['members'] ?? []) !== 1 || ($final['members'][0]['uid'] ?? null) !== $charlie) {
+              throw new RuntimeException('Final membership is inconsistent');
+          }
+
+          echo "group authorization integration passed\n";
+          PHP
