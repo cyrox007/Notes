@@ -5,6 +5,8 @@ declare(strict_types=1);
 use App\Controllers\MainController;
 use App\Controllers\AuthController;
 use App\Controllers\NoteController;
+use App\Controllers\NoteAttachmentController;
+use App\Controllers\NoteShareController;
 use App\Controllers\TaskController;
 use App\Controllers\ProfileController;
 use App\Controllers\FileController;
@@ -34,6 +36,13 @@ $router->group('/notes')
     ->add('GET', '/{str:uid}/edit', [NoteController::class, 'edit'], [LoginRequared::class], 'edit_page')
     ->add('POST', '/{str:uid}/edit', [NoteController::class, 'update'], [LoginRequared::class], 'update_note')
     ->add('POST', '/{str:uid}/delete', [NoteController::class, 'delete'], [LoginRequared::class], 'delete_note')
+    ->add('POST', '/upload/{str:uid}', [NoteAttachmentController::class, 'upload'], [LoginRequared::class], 'note_attachment_upload')
+    ->add('POST', '/attachment/delete/{int:attachmentId}', [NoteAttachmentController::class, 'delete'], [LoginRequared::class], 'note_attachment_delete')
+    ->add('GET', '/attachment/{str:fileUid}', [NoteAttachmentController::class, 'download'], [LoginRequared::class], 'note_attachment_download')
+    ->add('POST', '/share/{str:uid}', [NoteShareController::class, 'create'], [LoginRequared::class], 'note_share')
+    ->add('POST', '/unshare/{str:uid}', [NoteShareController::class, 'unshare'], [LoginRequared::class], 'note_unshare')
+    ->add('GET', '/shared/{str:token}', [NoteShareController::class, 'view'], [], 'note_shared_view')
+    ->add('GET', '/shared/{str:token}/attachment/{str:fileUid}', [NoteAttachmentController::class, 'sharedDownload'], [], 'note_shared_attachment')
     ->endGroup();
 
 $router->group('/tasks')
