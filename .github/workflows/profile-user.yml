@@ -86,8 +86,8 @@ jobs:
           INSERT INTO dialogs (uid,type,name,created_by) VALUES ('a2000000-0000-4000-8000-000000000001','group','Owned group',@alice);
           SET @dialog=(SELECT id FROM dialogs WHERE uid='a2000000-0000-4000-8000-000000000001');
           INSERT INTO user_to_dialogs (dialog_id,user_id,role) VALUES (@dialog,@alice,'owner'),(@dialog,@bob,'member');
-          INSERT INTO notes (uid,user_id,title,content,created_at,updated_at)
-          VALUES ('a3000000000000000000000000000001',@alice,'Keep me','encrypted-placeholder',NOW(),NOW());
+          INSERT INTO notes (uid,user_id,notename,content,is_encrypted,created_note,updated_note)
+          VALUES ('a3000000000000000000000000000001',@alice,'Keep me','profile-ci-placeholder',0,NOW(),NOW());
           SQL
 
       - name: Real multipart private avatar upload
