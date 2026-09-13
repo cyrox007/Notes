@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Helpers\CryptMethods;
 use App\Models\UserModel;
+use App\Services\RequestRateLimiter;
 use Core\Config;
 use Core\Controller;
 use Core\DatabaseManager;
@@ -23,6 +24,16 @@ class AuthController extends Controller
     {
         $login = trim((string) $request->post('login'));
         $password = (string) $request->post('password');
+
+        if (!$this->allowRequest('auth-login', strtolower($login), $this->envInt('AUTH_LOGIN_RATE_LIMIT', 10), $this->envInt('AUTH_LOGIN_RATE_WINDOW', 300))) {
+            $this->render_template('login_page/login_view', [
+                'errors' => [[
+                    'CODE' => 'rate_limit',
+                    'MESSAGE' => 'Слишком много попыток входа. Повторите позже.',
+                ]],
+            ]);
+            return;
+        }
 
         $user = UserModel::select()->where('username', '=', $login)->first();
         if (!$user || !CryptMethods::verifyPassword($password, $user->password_hash)) {
@@ -84,6 +95,15 @@ class AuthController extends Controller
             return;
         }
 
+        if (!$this->allowRequest('auth-registration', $inviteCode, $this->envInt('AUTH_REGISTER_RATE_LIMIT', 5), $this->envInt('AUTH_REGISTER_RATE_WINDOW', 600))) {
+            $data['errors'][] = [
+                'CODE' => 'rate_limit',
+                'MESSAGE' => 'Слишком много попыток регистрации. Повторите позже.',
+            ];
+            $this->render_template('login_page/register_view', $data);
+            return;
+        }
+
         $username = trim((string) $request->post('login'));
         $password = (string) $request->post('password');
         $firstname = trim((string) $request->post('first_name'));
@@ -92,10 +112,22 @@ class AuthController extends Controller
         $phone = trim((string) $request->post('user_phone'));
         $email = trim((string) $request->post('email'));
 
-        if ($username === '' || $password === '' || $firstname === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        if (
+            $username === ''
+            || mb_strlen($username) > 100
+            || mb_strlen($password) < 10
+            || mb_strlen($password) > 200
+            || $firstname === ''
+            || mb_strlen($firstname) > 100
+            || mb_strlen($lastname) > 100
+            || mb_strlen($patronymic) > 100
+            || mb_strlen($phone) > 50
+            || !filter_var($email, FILTER_VALIDATE_EMAIL)
+            || mb_strlen($email) > 255
+        ) {
             $data['errors'][] = [
                 'CODE' => 'registration_error',
-                'MESSAGE' => 'Заполните обязательные поля корректно',
+                'MESSAGE' => 'Проверьте обязательные поля. Пароль должен содержать не менее 10 символов.',
             ];
             $this->render_template('login_page/register_view', $data);
             return;
@@ -118,7 +150,7 @@ class AuthController extends Controller
         DatabaseManager::getInstance()->queueInsert([
             'uid' => \UUID::v4(),
             'username' => $username,
-            'email' => $email,
+            'email' => strtolower($email),
             'password_hash' => CryptMethods::hashPassword($password),
             'firstname' => $firstname,
             'patronymic' => $patronymic !== '' ? $patronymic : null,
@@ -134,5 +166,33 @@ class AuthController extends Controller
         DatabaseManager::getInstance()->commit();
 
         Router::getInstance()->redirect('authpage');
+    }
+
+    private function allowRequest(string $bucket, string $identity, int $limit, int $windowSeconds): bool
+    {
+        try {
+            $subject = RequestRateLimiter::clientSubject($bucket) . '|' . $identity;
+            $state = RequestRateLimiter::consume($bucket, $subject, $limit, $windowSeconds);
+            if (!$state['allowed']) {
+                http_response_code(429);
+                header('Retry-After: ' . $state['retry_after']);
+                return false;
+            }
+            return true;
+        } catch (\Throwable $e) {
+            // Authentication must remain available if the limiter storage has an operational issue.
+            // Log the condition so production monitoring can detect it.
+            error_log('Rate limiter failure for ' . $bucket . ': ' . $e->getMessage());
+            return true;
+        }
+    }
+
+    private function envInt(string $key, int $default): int
+    {
+        $value = getenv($key);
+        if (!is_string($value) || !ctype_digit($value)) {
+            return $default;
+        }
+        return max(1, (int) $value);
     }
 }
