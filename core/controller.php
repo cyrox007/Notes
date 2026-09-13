@@ -21,7 +21,7 @@ use App\Middlewares\CSRFMiddleware;
 class Controller
 {
     /**
-     * @var Smarty Экземпляр шаблонизатора Smarty
+     * @var Smarty Экземпляр шаблонизатора
      */
     protected Smarty $smarty;
     
@@ -156,8 +156,6 @@ class Controller
     /**
      * Парсит JSON строку и назначает результат в переменную шаблона
      * 
-     * Используется в шаблонах как {jsonParse json=$jsonString assign='variable'}
-     * 
      * @param array<string, mixed> $params Параметры из шаблона:
      *   - json: JSON строка для парсинга
      *   - assign: имя переменной для назначения результата
@@ -191,12 +189,13 @@ class Controller
      */
     protected function render_template(string $template, ?array $data = null): void
     {
-        $siteUrl = rtrim(getenv('SITEURL'), '/');
-        $basePath = ltrim(getenv('BASE_PATH'), '/');
+        $siteUrl = rtrim((string) getenv('SITEURL'), '/');
+        $basePath = trim((string) getenv('BASE_PATH'), '/');
+        $baseUrl = $siteUrl . ($basePath !== '' ? '/' . $basePath : '');
         
-        $baseUrl = $siteUrl . '/' . $basePath;
-        
-        // Назначаем базовые переменные для всех шаблонов
+        // Назначаем базовые переменные для всех шаблонов. base_url никогда не
+        // заканчивается '/', поэтому шаблоны могут безопасно добавлять /assets,
+        // /profile и другие пути как для корня, так и для subdirectory install.
         $this->smarty->assign('base_url', $baseUrl);
         $this->smarty->assign('sitename', getenv('SITENAME') ?: 'Workspace Organizer');
         $this->smarty->assign('version', \Core\Version::VERSION);
@@ -219,7 +218,7 @@ class Controller
      * Рекурсивно конвертирует объекты в массивы
      * 
      * @param mixed $data Данные для конвертации
-     * @return mixed Конвертированные данные
+     * @return mixed
      */
     private function convertObjectsToArray(mixed $data): mixed
     {
@@ -239,7 +238,7 @@ class Controller
     /**
      * Отправляет JSON ответ
      * 
-     * @param array<string, mixed> $data Данные для кодирования в JSON
+     * @param array<string, mixed> $data Данные для кодирования
      */
     protected function responseJson(array $data): void
     {

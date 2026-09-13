@@ -1,65 +1,66 @@
 <?php
+
+declare(strict_types=1);
+
 namespace Core;
 
-class Config {
-    // БД
-    //public $db_name = "wspace.db"; // передаем имя БД и даже относительный путь к ней относительно точки входа
-
+class Config
+{
     public static $db_connection;
-    private static $configValues = [];
+    private static array $configValues = [];
 
     /**
-     * Роли пользователя.
-     *
-     * Важно: порядок чисел больше не используется как признак привилегий.
-     * Проверки должны выполняться только через isAdminRole()/canAuthenticate().
+     * Role numbers are identifiers, not an ordering. Authorization checks must
+     * use the explicit allowlists below.
      */
     public const USER_ROLE_SUPERADMIN = 1;
     public const USER_ROLE_ADMIN = 111;
     public const USER_ROLE_USER = 888;
     public const USER_ROLE_INACTIVE = 899;
     public const USER_ROLE_BLOCKED = 999;
-    
-    public function __construct() {
+
+    public function __construct()
+    {
         self::$db_connection = [
-            'driver'       => getenv('DBDRIVER') ?: 'mysql',
-            'hostname'     => getenv("DBHOST") ?: 'localhost',
-            'port'         => getenv("DBPORT") ?: 3306,
-            'username'     => getenv("DBUSER") ?: 'root',
-            'password'     => getenv("DBPASS") ?: '',
-            'database'     => getenv("DBNAME") ?: 'workspace'
+            'driver' => getenv('DBDRIVER') ?: 'mysql',
+            'hostname' => getenv('DBHOST') ?: 'localhost',
+            'port' => getenv('DBPORT') ?: 3306,
+            'username' => getenv('DBUSER') ?: 'root',
+            'password' => getenv('DBPASS') ?: '',
+            'database' => getenv('DBNAME') ?: 'workspace',
         ];
 
-        // Инициализация базовых значений конфигурации
-        self::$configValues['SITEURL'] = ((!empty($_SERVER['HTTPS'])) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
+        // HTTP workers, CLI migrations and Workerman all bootstrap Config. Prefer
+        // the canonical configured origin; only infer from the request as a
+        // development fallback when SITEURL is not present.
+        $configuredSiteUrl = trim((string) (getenv('SITEURL') ?: ''));
+        if ($configuredSiteUrl !== '') {
+            self::$configValues['SITEURL'] = rtrim($configuredSiteUrl, '/');
+        } else {
+            $https = strtolower((string) ($_SERVER['HTTPS'] ?? ''));
+            $scheme = in_array($https, ['on', '1', 'true'], true) ? 'https' : 'http';
+            $host = trim((string) ($_SERVER['HTTP_HOST'] ?? 'localhost')) ?: 'localhost';
+            self::$configValues['SITEURL'] = $scheme . '://' . $host;
+        }
     }
 
-    /**
-     * Получить значение конфигурации
-     */
-    public static function get(string $key, $default = null) {
+    public static function get(string $key, mixed $default = null): mixed
+    {
         return self::$configValues[$key] ?? $default;
     }
 
-    /**
-     * Установить значение конфигурации
-     */
-    public static function set(string $key, $value): void {
+    public static function set(string $key, mixed $value): void
+    {
         self::$configValues[$key] = $value;
     }
 
-    /**
-     * Административная роль определяется allowlist-ом, а не сравнением чисел.
-     */
-    public static function isAdminRole(int $role): bool {
+    public static function isAdminRole(int $role): bool
+    {
         return in_array($role, [self::USER_ROLE_SUPERADMIN, self::USER_ROLE_ADMIN], true);
     }
 
-    /**
-     * Вход разрешён только явно активным ролям. Неизвестные, inactive и blocked
-     * значения по умолчанию не получают доступ.
-     */
-    public static function canAuthenticate(int $role): bool {
+    public static function canAuthenticate(int $role): bool
+    {
         return in_array(
             $role,
             [self::USER_ROLE_SUPERADMIN, self::USER_ROLE_ADMIN, self::USER_ROLE_USER],
@@ -67,17 +68,16 @@ class Config {
         );
     }
 
-    // Обратная совместимость со старым API конфигурации.
+    // Backwards compatibility with older code paths.
     public $user_role_superadmin = self::USER_ROLE_SUPERADMIN;
     public $user_role_admin = self::USER_ROLE_ADMIN;
     public $user_role_activate = self::USER_ROLE_USER;
     public $user_role_inactive = self::USER_ROLE_INACTIVE;
     public $user_role_blocked = self::USER_ROLE_BLOCKED;
 
-    // хранит адрес сайта
-    // вынести в отдельный класс хелпер
-    public function base_url() {
-        return ((!empty($_SERVER['HTTPS'])) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . '/';
+    public function base_url(): string
+    {
+        return rtrim((string) self::get('SITEURL', 'http://localhost'), '/') . '/';
     }
 }
 

@@ -7,15 +7,24 @@ if (!defined('SITEPATH')) {
     define('SITEPATH', dirname(__FILE__) . '/..');
 }
 error_reporting(E_ALL);
-ini_set('error_log', SITEPATH . '/.logs/php-errors.log');
+ini_set('error_log', sys_get_temp_dir() . '/workspace-organizer-ws-startup.log');
 
 require_once SITEPATH . '/core.php';
+
+$configuredLog = trim((string) (getenv('LOG_FILE') ?: ''));
+if ($configuredLog !== '') {
+    $logDirectory = dirname($configuredLog);
+    if ((is_dir($logDirectory) || @mkdir($logDirectory, 0700, true)) && is_writable($logDirectory)) {
+        ini_set('error_log', $configuredLog);
+    }
+}
 
 use App\Handlers\SocketTicket;
 use App\Models\UserModel;
 use Core\Config;
 use Workerman\Connection\TcpConnection;
 use Workerman\Lib\Timer;
+use Workerman\Protocols\Websocket;
 use Workerman\Worker;
 
 /** @var array<string,array<int,TcpConnection>> $connections */
@@ -23,7 +32,12 @@ $connections = [];
 $host = trim((string) (getenv('WS_HOST') ?: '0.0.0.0'));
 $port = (int) (getenv('WS_PORT') ?: 27800);
 
-$worker = new Worker(sprintf('websocket://%s:%d', $host, $port));
+// Use an explicit TCP listener + Workerman protocol class instead of relying on
+// URI-scheme protocol probing. This is deterministic alongside the application's
+// legacy autoloader and behaves the same under CLI, supervisor and containers.
+$worker = new Worker(sprintf('tcp://%s:%d', $host, $port));
+$worker->name = 'workspace-messenger';
+$worker->protocol = Websocket::class;
 
 $allowedRoutes = [
     'PingSocket' => ['index'],

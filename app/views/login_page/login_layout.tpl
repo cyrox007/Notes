@@ -8,16 +8,12 @@
     <meta name="description" content="Workspace Organizer — защищённое рабочее пространство">
     <meta name="color-scheme" content="light">
     <title>{$sitename|default:'Workspace Organizer'} — {block name=title}{/block}</title>
-    <style>
-        {include file='assets/css/auth_page/style.css'}
-    </style>
-    <link rel="stylesheet" href="/assets/font-awesome/css/font-awesome.min.css">
-    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="{$base_url|escape}/assets/css/auth_page/style.css">
+    <link rel="stylesheet" href="{$base_url|escape}/assets/font-awesome/css/font-awesome.min.css">
+    <link rel="icon" href="{$base_url|escape}/favicon.ico" type="image/x-icon">
 </head>
 <body>
     {block name=body}{/block}
-    <script>
-        {include file='assets/js/reg-script.js'}
-    </script>
+    <script src="{$base_url|escape}/assets/js/reg-script.js" defer></script>
 </body>
 </html>

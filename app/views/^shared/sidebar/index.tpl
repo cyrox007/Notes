@@ -8,12 +8,13 @@
 	</a>
 
 	<div class="sidebar__content">
+		{assign var=userAvatar value=$user['avatar']|default:''}
 		<a href="{route_path name='profile'}" class="sidebar__user-panel" title="Открыть профиль">
 			<div class="sidebar__user-image">
-				{if !$user['avatar'] || $user['avatar'] == 'default_img'}
+				{if !$userAvatar || $userAvatar == 'default_img'}
 					{html_image file="/assets/img/default_avatar.png" alt="{$user['firstname']} {$user['lastname']}"}
 				{else}
-					{html_image file="/{$user.avatar|regex_replace:'#/+#':'/'}" alt="{$user['firstname']} {$user['lastname']}"}
+					{html_image file="/{$userAvatar|regex_replace:'#/+#':'/'}" alt="{$user['firstname']} {$user['lastname']}"}
 				{/if}
 			</div>
 			<div class="sidebar__user-info">

@@ -1,126 +1,54 @@
 <?php
-ini_set('display_errors', 1);
-if (!defined('SITEPATH')) {
-    define('SITEPATH', dirname(__FILE__));
-}
-error_reporting(E_ALL);
-ini_set('error_log', SITEPATH . '/.logs/php-errors.log');
 
-function handleStartupError($message, $title = 'System Error') {
+declare(strict_types=1);
+
+ini_set('display_errors', '0');
+error_reporting(E_ALL);
+
+if (!defined('SITEPATH')) {
+    define('SITEPATH', __DIR__);
+}
+
+// Startup failures can happen before .env is loaded. Keep this fallback outside
+// the public application tree; configured application logging takes over later.
+ini_set('error_log', sys_get_temp_dir() . '/workspace-organizer-startup.log');
+
+function handleStartupError(string $message, string $title = 'System Error'): never
+{
     http_response_code(500);
+    header('Content-Type: text/html; charset=utf-8');
+    header('Cache-Control: no-store');
+
+    $safeTitle = htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $safeMessage = htmlspecialchars($message, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
     echo <<<HTML
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{$title}</title>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="robots" content="noindex,nofollow">
+    <title>{$safeTitle}</title>
     <style>
-        :root {
-            --color-danger: #DC3545;
-            --color-warning: #FFC107;
-            --color-light: #f8f9fa;
-            --color-dark: #343a40;
-        }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Montserrat', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-        .error-container {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            max-width: 500px;
-            width: 100%;
-            overflow: hidden;
-            animation: slideIn 0.5s ease-out;
-        }
-        @keyframes slideIn {
-            from { transform: translateY(-30px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-        .error-header {
-            background: var(--color-danger);
-            color: white;
-            padding: 30px;
-            text-align: center;
-        }
-        .error-icon {
-            font-size: 48px;
-            margin-bottom: 10px;
-        }
-        .error-title {
-            font-size: 24px;
-            font-weight: 600;
-            margin-bottom: 5px;
-        }
-        .error-subtitle {
-            font-size: 14px;
-            opacity: 0.9;
-        }
-        .error-body {
-            padding: 30px;
-            background: var(--color-light);
-        }
-        .error-message {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            border-left: 4px solid var(--color-warning);
-            color: var(--color-dark);
-            font-size: 14px;
-            line-height: 1.6;
-            margin-bottom: 20px;
-        }
-        .error-hint {
-            background: #fff3cd;
-            border: 1px solid #ffc107;
-            padding: 15px;
-            border-radius: 6px;
-            font-size: 13px;
-            color: #856404;
-        }
-        .error-hint strong {
-            display: block;
-            margin-bottom: 8px;
-            color: #664d03;
-        }
-        .error-code {
-            font-family: 'Courier New', monospace;
-            background: #f1f3f5;
-            padding: 10px;
-            border-radius: 4px;
-            font-size: 12px;
-            color: #e03131;
-            word-break: break-all;
-        }
+        :root { color-scheme: light; font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+        * { box-sizing: border-box; }
+        body { margin:0; min-height:100vh; display:grid; place-items:center; padding:24px; background:#f4f6f9; color:#1f2937; }
+        .error-card { width:min(620px,100%); padding:28px; background:#fff; border:1px solid #dce2e9; border-radius:16px; box-shadow:0 18px 48px rgba(31,41,55,.10); }
+        .error-mark { width:48px; height:48px; display:grid; place-items:center; border-radius:12px; background:#fff1f1; color:#b42318; font-size:24px; }
+        h1 { margin:18px 0 8px; font-size:24px; } p { margin:0; line-height:1.6; color:#667085; }
+        .message { margin-top:18px; padding:14px 16px; background:#f8fafc; border:1px solid #e4e7ec; border-radius:10px; color:#344054; word-break:break-word; }
+        .hint { margin-top:16px; font-size:14px; }
     </style>
 </head>
 <body>
-    <div class="error-container">
-        <div class="error-header">
-            <div class="error-icon">⚠️</div>
-            <div class="error-title">{$title}</div>
-            <div class="error-subtitle">System Configuration Error</div>
-        </div>
-        <div class="error-body">
-            <div class="error-message">
-                {$message}
-            </div>
-            <div class="error-hint">
-                <strong>💡 How to fix:</strong>
-                Follow the instructions above to resolve this issue.
-                If the problem persists, check the PHP error logs.
-            </div>
-        </div>
-    </div>
+    <main class="error-card" role="alert">
+        <div class="error-mark" aria-hidden="true">!</div>
+        <h1>{$safeTitle}</h1>
+        <p>Приложение не смогло завершить запуск.</p>
+        <div class="message">{$safeMessage}</div>
+        <p class="hint">Проверьте конфигурацию окружения и server error log. Для fresh install откройте <code>/install.php</code>.</p>
+    </main>
 </body>
 </html>
 HTML;
@@ -129,13 +57,10 @@ HTML;
 
 try {
     require_once SITEPATH . '/core.php';
-} catch (\Exception $e) {
-    handleStartupError(
-        '<strong>' . htmlspecialchars($e->getMessage()) . '</strong>',
-        'Configuration Error'
-    );
+} catch (Throwable $e) {
+    error_log('Workspace bootstrap failed: ' . $e->getMessage());
+    handleStartupError($e->getMessage(), 'Configuration Error');
 }
 
-// Маршрутизатор
 require_once SITEPATH . '/core/Router.php';
-require_once SITEPATH . '/core/RouterConfig.php';
+require_once SITEPATH . '/core/routerConfig.php';
