@@ -56,11 +56,20 @@ jobs:
           find . -type f -name '*.php' -not -path './vendor/*' -print0 \
             | xargs -0 -n1 php -l
 
+      - name: Messenger JavaScript syntax
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed '/^{literal}$/d;/^{\/literal}$/d' app/views/messager_page/script.js > /tmp/messenger.js
+          node --check /tmp/messenger.js
+
       - name: Messenger clean-install schema smoke test
         shell: bash
         run: |
           set -euo pipefail
           mysql -h 127.0.0.1 -uroot -proot notes_test < database/messenger_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_test < database/notes_schema.sql
 
           mysql -N -h 127.0.0.1 -uroot -proot notes_test <<'SQL' > /tmp/messenger-contract.txt
           SELECT COUNT(*) FROM information_schema.tables
@@ -72,12 +81,16 @@ jobs:
           SELECT COUNT(*) FROM information_schema.columns
           WHERE table_schema = DATABASE() AND table_name = 'user_to_dialogs'
             AND column_name IN ('last_read_message_id','archived_at','muted_until','pinned_at');
+          SELECT COUNT(*) FROM information_schema.columns
+          WHERE table_schema = DATABASE() AND table_name = 'users'
+            AND column_name IN ('uid','firstname','lastname','avatar');
           SQL
 
           mapfile -t contract < /tmp/messenger-contract.txt
           test "${contract[0]}" = "5"
           test "${contract[1]}" = "9"
           test "${contract[2]}" = "4"
+          test "${contract[3]}" = "4"
 
       - name: Crypto fail-closed smoke test
         if: always()
@@ -90,7 +103,7 @@ jobs:
           putenv('MSG_SECRET_KEY=ci-message-secret-0123456789abcdef0123456789abcdef');
 
           require __DIR__ . '/app/handlers/CryptMethods.php';
-          require __DIR__ . '/app/handlers/MessageCryptoCompat.php';
+          require __DIR__ . '/app/handlers/MessengerCrypto.php';
 
           $note = 'secret note';
           $notePayload = \App\Helpers\CryptMethods::encrypt($note, 'note-uid');
@@ -98,21 +111,36 @@ jobs:
               throw new RuntimeException('Note crypto round-trip failed');
           }
 
-          $aadRejected = false;
+          $noteAadRejected = false;
           try {
               \App\Helpers\CryptMethods::decrypt($notePayload, 'wrong-note-uid');
           } catch (Throwable $e) {
-              $aadRejected = true;
+              $noteAadRejected = true;
           }
-          if (!$aadRejected) {
+          if (!$noteAadRejected) {
               throw new RuntimeException('Note crypto did not reject invalid AAD');
           }
 
-          $iv = \App\Sockets\openssl_random_pseudo_bytes(16);
-          $messagePayload = \App\Sockets\openssl_encrypt('secret message', 'aes-256-cbc', 'ignored', 0, $iv);
-          $messagePlaintext = \App\Sockets\openssl_decrypt($messagePayload, 'aes-256-cbc', 'ignored', 0, $iv);
-          if ($messagePlaintext !== 'secret message') {
+          $messageUid = '11111111-2222-4333-8444-555555555555';
+          $messagePayload = \App\Helpers\MessengerCrypto::encrypt('secret message', $messageUid);
+          if (!str_starts_with($messagePayload, 'v2:')) {
+              throw new RuntimeException('Messenger crypto payload is not versioned');
+          }
+          if (\App\Helpers\MessengerCrypto::decrypt($messagePayload, $messageUid) !== 'secret message') {
               throw new RuntimeException('Messenger crypto round-trip failed');
+          }
+
+          $messageAadRejected = false;
+          try {
+              \App\Helpers\MessengerCrypto::decrypt(
+                  $messagePayload,
+                  'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'
+              );
+          } catch (Throwable $e) {
+              $messageAadRejected = true;
+          }
+          if (!$messageAadRejected) {
+              throw new RuntimeException('Messenger crypto did not reject a different message UID');
           }
 
           echo "crypto smoke test passed\n";
