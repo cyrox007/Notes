@@ -125,6 +125,13 @@ final class NoteShareController extends Controller
 
     public function view(Request $request, string $token): void
     {
+        // The bearer token lives in the URL. Prevent browsers/proxies from caching
+        // the shared page or leaking the token through a Referer header.
+        header('Cache-Control: no-store, max-age=0');
+        header('Pragma: no-cache');
+        header('Referrer-Policy: no-referrer');
+        header('X-Content-Type-Options: nosniff');
+
         $db = DatabaseManager::getInstance();
         $share = $db->fetchOne(
             'SELECT
