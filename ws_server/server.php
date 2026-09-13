@@ -47,6 +47,9 @@ $allowedRoutes = [
         'list',
         'delivered',
     ],
+    'MediaSocket' => [
+        'send',
+    ],
 ];
 
 $allowedOrigins = array_values(array_filter(array_map(

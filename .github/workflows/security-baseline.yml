@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [master]
   push:
-    branches: [audit-hardening]
+    branches: [messenger-v2-next]
 
 permissions:
   contents: read
@@ -61,8 +61,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sed '/^{literal}$/d;/^{\/literal}$/d' app/views/messager_page/script.js > /tmp/messenger.js
-          node --check /tmp/messenger.js
+          for source in \
+            app/views/messager_page/script.js \
+            app/views/messager_page/dialog-actions.js \
+            app/views/messager_page/receipts.js \
+            app/views/messager_page/media.js
+          do
+            target="/tmp/$(basename "$source")"
+            sed '/^{literal}$/d;/^{\/literal}$/d' "$source" > "$target"
+            node --check "$target"
+          done
 
       - name: Messenger clean-install schema smoke test
         shell: bash
@@ -70,27 +78,33 @@ jobs:
           set -euo pipefail
           mysql -h 127.0.0.1 -uroot -proot notes_test < database/messenger_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_test < database/notes_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_test < database/migrations/20260913_messenger_delivery_receipts.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_test < database/migrations/20260913_messenger_attachments.sql
 
           mysql -N -h 127.0.0.1 -uroot -proot notes_test <<'SQL' > /tmp/messenger-contract.txt
           SELECT COUNT(*) FROM information_schema.tables
           WHERE table_schema = DATABASE()
-            AND table_name IN ('users','dialogs','user_to_dialogs','messages','message_user_deletions');
+            AND table_name IN ('users','dialogs','user_to_dialogs','messages','messenger_attachments','message_user_deletions');
           SELECT COUNT(*) FROM information_schema.columns
           WHERE table_schema = DATABASE() AND table_name = 'messages'
             AND column_name IN ('uid','dialog_id','from_user_id','reply_to_message_id','message','message_type','message_status','media_url','meta_data');
           SELECT COUNT(*) FROM information_schema.columns
           WHERE table_schema = DATABASE() AND table_name = 'user_to_dialogs'
-            AND column_name IN ('last_read_message_id','archived_at','muted_until','pinned_at');
+            AND column_name IN ('last_delivered_message_id','last_read_message_id','archived_at','muted_until','pinned_at');
           SELECT COUNT(*) FROM information_schema.columns
           WHERE table_schema = DATABASE() AND table_name = 'users'
             AND column_name IN ('uid','firstname','lastname','avatar');
+          SELECT COUNT(*) FROM information_schema.columns
+          WHERE table_schema = DATABASE() AND table_name = 'messenger_attachments'
+            AND column_name IN ('uid','dialog_id','uploader_user_id','message_id','stored_path','mime_type','media_kind','size');
           SQL
 
           mapfile -t contract < /tmp/messenger-contract.txt
-          test "${contract[0]}" = "5"
+          test "${contract[0]}" = "6"
           test "${contract[1]}" = "9"
-          test "${contract[2]}" = "4"
+          test "${contract[2]}" = "5"
           test "${contract[3]}" = "4"
+          test "${contract[4]}" = "8"
 
       - name: Messenger service integration test
         shell: bash
@@ -106,22 +120,27 @@ jobs:
           putenv('DBPASS=root');
           putenv('DBNAME=notes_test');
           putenv('MSG_SECRET_KEY=ci-message-secret-0123456789abcdef0123456789abcdef');
+          putenv('PRIVATE_STORAGE_PATH=/tmp/notes-private');
 
           require __DIR__ . '/core/config.php';
           require __DIR__ . '/core/DatabaseManager.php';
           require __DIR__ . '/app/handlers/UUID.php';
           require __DIR__ . '/app/handlers/MessengerCrypto.php';
           require __DIR__ . '/app/services/MessengerService.php';
+          require __DIR__ . '/app/services/MessengerReceiptService.php';
+          require __DIR__ . '/app/services/MessengerMediaService.php';
 
           $db = \Core\DatabaseManager::getInstance();
           $now = date('Y-m-d H:i:s');
           $password = password_hash('ci-password', PASSWORD_ARGON2ID);
           $aliceUid = '10000000-0000-4000-8000-000000000001';
           $bobUid = '10000000-0000-4000-8000-000000000002';
+          $charlieUid = '10000000-0000-4000-8000-000000000003';
 
           foreach ([
               [$aliceUid, 'alice', 'Alice', 'Tester'],
               [$bobUid, 'bob', 'Bob', 'Tester'],
+              [$charlieUid, 'charlie', 'Charlie', 'Outside'],
           ] as [$uid, $username, $firstname, $lastname]) {
               $db->execute(
                   'INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active,created_at,updated_at)
@@ -140,6 +159,8 @@ jobs:
           }
 
           $service = new \App\Services\MessengerService($db);
+          $receipts = new \App\Services\MessengerReceiptService($db);
+          $media = new \App\Services\MessengerMediaService($db);
           $dialog = $service->createDialog($aliceUid, 'private', [$bobUid]);
           if (($dialog['type'] ?? null) !== 'private') {
               throw new RuntimeException('Private dialog was not created');
@@ -149,6 +170,95 @@ jobs:
           $bobPage = $service->getMessages($bobUid, $dialog['uid']);
           if (count($bobPage['messages']) !== 1 || $bobPage['messages'][0]['message'] !== 'hello Bob') {
               throw new RuntimeException('Bob cannot read Alice message');
+          }
+
+          $delivered = $receipts->markDelivered($bobUid, $dialog['uid'], $hello['uid']);
+          if ((int) $delivered['last_delivered_message_id'] < (int) $hello['id']) {
+              throw new RuntimeException('Delivery cursor did not advance');
+          }
+          $receiptRows = $receipts->listCursors($aliceUid, $dialog['uid']);
+          $bobReceipt = array_values(array_filter(
+              $receiptRows,
+              fn(array $row): bool => $row['user_uid'] === $bobUid
+          ))[0] ?? null;
+          if (!$bobReceipt || (int) $bobReceipt['last_delivered_message_id'] < (int) $hello['id']) {
+              throw new RuntimeException('Delivery cursor is not visible to the sender');
+          }
+
+          $dialogId = (int) $db->fetchValue(
+              'SELECT id FROM dialogs WHERE uid = :uid LIMIT 1',
+              [':uid' => $dialog['uid']]
+          );
+          $aliceId = (int) $db->fetchValue(
+              'SELECT id FROM users WHERE uid = :uid LIMIT 1',
+              [':uid' => $aliceUid]
+          );
+          $bobId = (int) $db->fetchValue(
+              'SELECT id FROM users WHERE uid = :uid LIMIT 1',
+              [':uid' => $bobUid]
+          );
+          $charlieId = (int) $db->fetchValue(
+              'SELECT id FROM users WHERE uid = :uid LIMIT 1',
+              [':uid' => $charlieUid]
+          );
+          $attachmentUid = '20000000-0000-4000-8000-000000000001';
+          $mediaDir = '/tmp/notes-private/messenger/' . $dialogId . '/' . $aliceId;
+          if (!is_dir($mediaDir) && !mkdir($mediaDir, 0700, true) && !is_dir($mediaDir)) {
+              throw new RuntimeException('Cannot prepare media fixture directory');
+          }
+          $mediaPath = $mediaDir . '/fixture.pdf';
+          file_put_contents($mediaPath, "%PDF-1.4\nfixture\n");
+          chmod($mediaPath, 0600);
+
+          $db->execute(
+              'INSERT INTO messenger_attachments (
+                  uid,dialog_id,uploader_user_id,message_id,original_name,stored_path,
+                  mime_type,extension,media_kind,size,created_at,is_deleted
+               ) VALUES (
+                  :uid,:dialog_id,:uploader_user_id,NULL,:original_name,:stored_path,
+                  :mime_type,:extension,:media_kind,:size,:created_at,0
+               )',
+              [
+                  ':uid' => $attachmentUid,
+                  ':dialog_id' => $dialogId,
+                  ':uploader_user_id' => $aliceId,
+                  ':original_name' => 'report.pdf',
+                  ':stored_path' => $mediaPath,
+                  ':mime_type' => 'application/pdf',
+                  ':extension' => 'pdf',
+                  ':media_kind' => 'file',
+                  ':size' => filesize($mediaPath),
+                  ':created_at' => $now,
+              ]
+          );
+
+          $mediaMessage = $media->send($aliceUid, $attachmentUid, 'quarterly report');
+          if (
+              ($mediaMessage['message_type'] ?? null) !== 'file'
+              || ($mediaMessage['meta_data']['name'] ?? null) !== 'report.pdf'
+              || ($mediaMessage['message'] ?? null) !== 'quarterly report'
+          ) {
+              throw new RuntimeException('Media message was not created correctly');
+          }
+          $boundMessageId = (int) $db->fetchValue(
+              'SELECT message_id FROM messenger_attachments WHERE uid = :uid',
+              [':uid' => $attachmentUid]
+          );
+          if ($boundMessageId !== (int) $mediaMessage['id']) {
+              throw new RuntimeException('Attachment was not bound to media message');
+          }
+          $bobDownload = $media->download($bobId, $attachmentUid);
+          if (($bobDownload['original_name'] ?? null) !== 'report.pdf') {
+              throw new RuntimeException('Dialog participant cannot access attachment');
+          }
+          $outsideBlocked = false;
+          try {
+              $media->download($charlieId, $attachmentUid);
+          } catch (DomainException) {
+              $outsideBlocked = true;
+          }
+          if (!$outsideBlocked) {
+              throw new RuntimeException('Non-member can access messenger attachment');
           }
 
           $reply = $service->sendMessage($bobUid, $dialog['uid'], 'hello Alice', $hello['uid']);

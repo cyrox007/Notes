@@ -6,8 +6,12 @@ namespace App\Controllers;
 
 use App\Handlers\SocketTicket;
 use App\Models\UserModel;
+use App\Services\MessengerMediaService;
 use Core\Controller;
 use Core\Request;
+use DomainException;
+use InvalidArgumentException;
+use RuntimeException;
 
 final class MessagerController extends Controller
 {
@@ -60,10 +64,6 @@ final class MessagerController extends Controller
 
     /**
      * Issue a short-lived ticket from the authenticated HTTP session.
-     *
-     * Reconnects must never reuse a ticket embedded in a page indefinitely.
-     * This endpoint is POST-only, protected by LoginRequared + global CSRF,
-     * and does not accept a user id from the browser.
      */
     public function socketTicket(Request $request): void
     {
@@ -107,16 +107,169 @@ final class MessagerController extends Controller
     }
 
     /**
-     * Attachment transport is intentionally disabled until it is moved to the
-     * same private-storage policy as FileController. The UI does not advertise
-     * a fake working upload action.
+     * Upload binary contents over HTTP into private storage.
+     * Creating/broadcasting the chat message is a separate WebSocket action.
      */
     public function uploadFile(Request $request): void
     {
-        http_response_code(501);
+        $userId = (int) $request->session('user_id', 0);
+        $dialogUid = trim((string) $request->post('dialog_uid', ''));
+        $file = $request->file('file');
+
+        if ($userId <= 0) {
+            $this->jsonError('Требуется авторизация', 401);
+            return;
+        }
+        if ($dialogUid === '' || !is_array($file)) {
+            $this->jsonError('Не выбран диалог или файл', 422);
+            return;
+        }
+
+        try {
+            $attachment = (new MessengerMediaService())->upload(
+                $userId,
+                $dialogUid,
+                $file,
+                filter_var($request->post('voice', false), FILTER_VALIDATE_BOOLEAN)
+            );
+            $this->responseJson([
+                'success' => true,
+                'attachment' => $attachment,
+            ]);
+        } catch (DomainException $e) {
+            $this->jsonError($e->getMessage(), 403);
+        } catch (InvalidArgumentException $e) {
+            $this->jsonError($e->getMessage(), 422);
+        } catch (RuntimeException $e) {
+            error_log('Messenger upload failure: ' . $e->getMessage());
+            $this->jsonError('Не удалось сохранить вложение', 500);
+        } catch (\Throwable $e) {
+            error_log('Unexpected messenger upload failure: ' . $e->getMessage());
+            $this->jsonError('Ошибка загрузки вложения', 500);
+        }
+    }
+
+    /**
+     * Stream an attachment only to an authenticated current dialog member.
+     * Supports a single HTTP byte range so audio/video seeking works normally.
+     */
+    public function media(Request $request, string $uid): void
+    {
+        $userId = (int) $request->session('user_id', 0);
+        if ($userId <= 0) {
+            http_response_code(401);
+            return;
+        }
+
+        try {
+            $attachment = (new MessengerMediaService())->download($userId, $uid);
+        } catch (DomainException) {
+            http_response_code(404);
+            return;
+        } catch (\Throwable $e) {
+            error_log('Messenger media access failure: ' . $e->getMessage());
+            http_response_code(404);
+            return;
+        }
+
+        $path = (string) $attachment['path'];
+        $size = (int) filesize($path);
+        if ($size <= 0) {
+            http_response_code(404);
+            return;
+        }
+
+        $start = 0;
+        $end = $size - 1;
+        $status = 200;
+        $range = (string) ($_SERVER['HTTP_RANGE'] ?? '');
+
+        if ($range !== '' && preg_match('/^bytes=(\d*)-(\d*)$/', trim($range), $matches) === 1) {
+            $startPart = $matches[1];
+            $endPart = $matches[2];
+
+            if ($startPart === '' && $endPart !== '') {
+                $suffixLength = (int) $endPart;
+                if ($suffixLength <= 0) {
+                    $this->rangeNotSatisfiable($size);
+                    return;
+                }
+                $start = max(0, $size - $suffixLength);
+            } elseif ($startPart !== '') {
+                $start = (int) $startPart;
+            } else {
+                $this->rangeNotSatisfiable($size);
+                return;
+            }
+
+            if ($endPart !== '' && $startPart !== '') {
+                $end = min((int) $endPart, $size - 1);
+            }
+
+            if ($start < 0 || $start >= $size || $end < $start) {
+                $this->rangeNotSatisfiable($size);
+                return;
+            }
+            $status = 206;
+        }
+
+        $length = $end - $start + 1;
+        $inline = in_array((string) $attachment['media_kind'], ['image', 'audio', 'video', 'voice'], true);
+        $originalName = (string) $attachment['original_name'];
+        $fallbackName = preg_replace('/[^A-Za-z0-9._-]+/', '_', $originalName) ?: 'attachment';
+
+        http_response_code($status);
+        header('X-Content-Type-Options: nosniff');
+        header('Accept-Ranges: bytes');
+        header('Cache-Control: private, no-store, max-age=0');
+        header('Content-Type: ' . (string) $attachment['mime_type']);
+        header('Content-Length: ' . $length);
+        header(
+            'Content-Disposition: ' . ($inline ? 'inline' : 'attachment')
+            . '; filename="' . $fallbackName . '"'
+            . "; filename*=UTF-8''" . rawurlencode($originalName)
+        );
+        if ($status === 206) {
+            header(sprintf('Content-Range: bytes %d-%d/%d', $start, $end, $size));
+        }
+
+        $handle = fopen($path, 'rb');
+        if ($handle === false) {
+            http_response_code(500);
+            return;
+        }
+
+        try {
+            if ($start > 0) {
+                fseek($handle, $start);
+            }
+            $remaining = $length;
+            while ($remaining > 0 && !feof($handle)) {
+                $chunk = fread($handle, min(8192, $remaining));
+                if ($chunk === false || $chunk === '') {
+                    break;
+                }
+                echo $chunk;
+                $remaining -= strlen($chunk);
+            }
+        } finally {
+            fclose($handle);
+        }
+        exit;
+    }
+
+    private function rangeNotSatisfiable(int $size): void
+    {
+        http_response_code(416);
+        header('Content-Range: bytes */' . $size);
+    }
+
+    private function jsonError(string $message, int $status): void
+    {
+        http_response_code($status);
         $this->responseJson([
-            'status' => 'error',
-            'message' => 'Вложения будут подключены после private-storage migration',
+            'success' => false,
+            'message' => $message,
         ]);
     }
 }
