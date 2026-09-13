@@ -41,3 +41,54 @@ jobs:
           set -euo pipefail
           find . -type f -name '*.php' -not -path './vendor/*' -print0 \
             | xargs -0 -n1 php -l
+
+      - name: Crypto fail-closed smoke test
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          php <<'PHP'
+          <?php
+          putenv('UNIQUE_KEY=ci-note-secret-0123456789abcdef0123456789abcdef');
+          putenv('MSG_SECRET_KEY=ci-message-secret-0123456789abcdef0123456789abcdef');
+
+          require __DIR__ . '/app/handlers/CryptMethods.php';
+          require __DIR__ . '/app/handlers/MessageCryptoCompat.php';
+
+          $note = 'secret note';
+          $notePayload = \App\Helpers\CryptMethods::encrypt($note, 'note-uid');
+          if (\App\Helpers\CryptMethods::decrypt($notePayload, 'note-uid') !== $note) {
+              throw new RuntimeException('Note crypto round-trip failed');
+          }
+
+          $aadRejected = false;
+          try {
+              \App\Helpers\CryptMethods::decrypt($notePayload, 'wrong-note-uid');
+          } catch (Throwable $e) {
+              $aadRejected = true;
+          }
+          if (!$aadRejected) {
+              throw new RuntimeException('Note crypto did not reject invalid AAD');
+          }
+
+          $iv = \App\Sockets\openssl_random_pseudo_bytes(16);
+          $messagePayload = \App\Sockets\openssl_encrypt(
+              'secret message',
+              'aes-256-cbc',
+              'ignored',
+              0,
+              $iv
+          );
+          $messagePlaintext = \App\Sockets\openssl_decrypt(
+              $messagePayload,
+              'aes-256-cbc',
+              'ignored',
+              0,
+              $iv
+          );
+          if ($messagePlaintext !== 'secret message') {
+              throw new RuntimeException('Messenger crypto round-trip failed');
+          }
+
+          echo "crypto smoke test passed\n";
+          PHP
