@@ -129,7 +129,7 @@ final class ProfileController extends Controller
             $errors[] = ['CODE' => 'password_mismatch', 'MESSAGE' => 'Новые пароли не совпадают'];
         } elseif (strlen($newPassword) < 10) {
             $errors[] = ['CODE' => 'password_too_short', 'MESSAGE' => 'Пароль должен быть не менее 10 символов'];
-        } elseif (hash_equals($oldPassword, $newPassword)) {
+        } elseif ($oldPassword === $newPassword) {
             $errors[] = ['CODE' => 'password_not_changed', 'MESSAGE' => 'Новый пароль должен отличаться от текущего'];
         }
 
@@ -218,7 +218,7 @@ final class ProfileController extends Controller
 
     public function avatar(Request $request, string $uid): void
     {
-        new UserAvatarService(DatabaseManager::getInstance())->stream($uid);
+        (new UserAvatarService(DatabaseManager::getInstance()))->stream($uid);
     }
 
     private function currentUser(Request $request, bool $withPassword = false): object
