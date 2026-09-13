@@ -61,6 +61,7 @@ $allowedRoutes = [
         'leave',
     ],
     'SearchSocket' => [
+        'all',
         'messages',
         'dialogs',
     ],
