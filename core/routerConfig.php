@@ -11,6 +11,7 @@ use App\Controllers\TaskController;
 use App\Controllers\ProfileController;
 use App\Controllers\FileController;
 use App\Controllers\Admin\AdminController;
+use App\Controllers\Admin\SettingsController;
 use App\Controllers\MessagerController;
 use App\Controllers\MessengerGroupController;
 use App\Controllers\MessengerVoiceController;
@@ -18,6 +19,7 @@ use App\Middlewares\LoginRequared;
 use App\Middlewares\IsAdmin;
 use App\Middlewares\AuthRateLimit;
 use App\Middlewares\UploadRateLimit;
+use App\Middlewares\StorageQuotaLimit;
 use Core\Router;
 
 $router = Router::getInstance();
@@ -73,7 +75,7 @@ $router->group('/files')
     ->add('GET', '/', [FileController::class, 'index'], [LoginRequared::class], 'files')
     ->add('GET', '/folder/{int:folderId}/', [FileController::class, 'folder'], [LoginRequared::class], 'files_folder')
     ->add('POST', '/create-folder/', [FileController::class, 'createFolder'], [LoginRequared::class], 'files_create_folder')
-    ->add('POST', '/upload/', [FileController::class, 'uploadFile'], [LoginRequared::class, UploadRateLimit::class], 'files_upload')
+    ->add('POST', '/upload/', [FileController::class, 'uploadFile'], [LoginRequared::class, UploadRateLimit::class, StorageQuotaLimit::class], 'files_upload')
     ->add('POST', '/delete/', [FileController::class, 'delete'], [LoginRequared::class], 'files_delete')
     ->add('POST', '/rename/', [FileController::class, 'rename'], [LoginRequared::class], 'files_rename')
     ->add('GET', '/get/{int:fileId}/', [FileController::class, 'getFile'], [LoginRequared::class], 'files_get')
@@ -95,6 +97,9 @@ $router->group('/admin')
    ->add('POST', '/', [AdminController::class, 'saveCustomFields'], [LoginRequared::class, IsAdmin::class], 'save_custom_fields')
    ->add('POST', '/users/toggle-status', [AdminController::class, 'toggleUserStatus'], [LoginRequared::class, IsAdmin::class], 'admin_toggle_user')
    ->add('POST', '/users/delete', [AdminController::class, 'deleteUser'], [LoginRequared::class, IsAdmin::class], 'admin_delete_user')
+   ->add('GET', '/settings', [SettingsController::class, 'index'], [LoginRequared::class, IsAdmin::class], 'admin_settings')
+   ->add('POST', '/settings/default-quota', [SettingsController::class, 'saveDefaultQuota'], [LoginRequared::class, IsAdmin::class], 'admin_settings_default_quota')
+   ->add('POST', '/settings/user-quota', [SettingsController::class, 'saveUserQuota'], [LoginRequared::class, IsAdmin::class], 'admin_settings_user_quota')
    ->endGroup();
 
 $router->dispatch();
