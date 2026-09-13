@@ -52,6 +52,7 @@ $allowedRoutes = [
     ],
     'GroupSocket' => [
         'info',
+        'refresh',
         'rename',
         'add_members',
         'remove_member',
