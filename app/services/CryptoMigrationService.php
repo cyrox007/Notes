@@ -17,25 +17,26 @@ final class CryptoMigrationService
         $this->db ??= DatabaseManager::getInstance();
     }
 
-    /** @return array{scanned:int,current:int,migrated:int,would_migrate:int,failed:int,failures:list<string>} */
-    public function migrateMessenger(bool $dryRun = false, int $limit = 1000): array
+    /** @return array{scanned:int,current:int,migrated:int,would_migrate:int,failed:int,last_id:int,failures:list<string>} */
+    public function migrateMessenger(bool $dryRun = false, int $limit = 1000, int $afterId = 0): array
     {
         $limit = max(1, min(10000, $limit));
+        $afterId = max(0, $afterId);
         $rows = $this->db->fetchAll(
             'SELECT id,uid,message FROM messages '
-            . "WHERE message IS NOT NULL AND message <> '' ORDER BY id ASC LIMIT {$limit}"
+            . "WHERE id > {$afterId} AND message IS NOT NULL AND message <> '' ORDER BY id ASC LIMIT {$limit}"
         );
 
-        $stats = $this->stats();
+        $stats = $this->stats($afterId);
         foreach ($rows as $row) {
             $stats['scanned']++;
             $id = (int) $row['id'];
+            $stats['last_id'] = $id;
             $uid = (string) $row['uid'];
             $payload = (string) $row['message'];
 
             try {
                 if (str_starts_with($payload, 'v2:')) {
-                    // Authenticate current ciphertext instead of trusting the prefix.
                     MessengerCrypto::decrypt($payload, $uid);
                     $stats['current']++;
                     continue;
@@ -71,19 +72,25 @@ final class CryptoMigrationService
         return $stats;
     }
 
-    /** @return array{scanned:int,current:int,migrated:int,would_migrate:int,failed:int,failures:list<string>} */
-    public function migrateNotes(bool $dryRun = false, int $limit = 1000, bool $allowUnknownPlaintext = false): array
-    {
+    /** @return array{scanned:int,current:int,migrated:int,would_migrate:int,failed:int,last_id:int,failures:list<string>} */
+    public function migrateNotes(
+        bool $dryRun = false,
+        int $limit = 1000,
+        bool $allowUnknownPlaintext = false,
+        int $afterId = 0
+    ): array {
         $limit = max(1, min(10000, $limit));
+        $afterId = max(0, $afterId);
         $rows = $this->db->fetchAll(
             'SELECT id,uid,content,is_encrypted FROM notes '
-            . "WHERE content IS NOT NULL AND content <> '' ORDER BY id ASC LIMIT {$limit}"
+            . "WHERE id > {$afterId} AND content IS NOT NULL AND content <> '' ORDER BY id ASC LIMIT {$limit}"
         );
 
-        $stats = $this->stats();
+        $stats = $this->stats($afterId);
         foreach ($rows as $row) {
             $stats['scanned']++;
             $id = (int) $row['id'];
+            $stats['last_id'] = $id;
             $uid = (string) $row['uid'];
             $payload = (string) $row['content'];
             $encryptedFlag = (int) $row['is_encrypted'];
@@ -155,7 +162,6 @@ final class CryptoMigrationService
             return false;
         }
 
-        // Authenticate the payload and its AAD before classifying it as current.
         CryptMethods::decrypt($payload, $uid);
         return true;
     }
@@ -229,8 +235,8 @@ final class CryptoMigrationService
         return $plaintext;
     }
 
-    /** @return array{scanned:int,current:int,migrated:int,would_migrate:int,failed:int,failures:list<string>} */
-    private function stats(): array
+    /** @return array{scanned:int,current:int,migrated:int,would_migrate:int,failed:int,last_id:int,failures:list<string>} */
+    private function stats(int $afterId): array
     {
         return [
             'scanned' => 0,
@@ -238,6 +244,7 @@ final class CryptoMigrationService
             'migrated' => 0,
             'would_migrate' => 0,
             'failed' => 0,
+            'last_id' => $afterId,
             'failures' => [],
         ];
     }
