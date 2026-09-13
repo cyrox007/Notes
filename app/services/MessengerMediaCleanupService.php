@@ -16,7 +16,7 @@ final class MessengerMediaCleanupService
         $this->db ??= DatabaseManager::getInstance();
     }
 
-    /** @return array{scanned:int,marked_deleted:int,files_deleted:int,files_missing:int} */
+    /** @return array{scanned:int,marked_deleted:int,files_deleted:int,files_missing:int,files_failed:int} */
     public function cleanup(?int $ttlSeconds = null, int $limit = 250): array
     {
         $ttlSeconds ??= $this->configuredTtl();
@@ -40,6 +40,7 @@ final class MessengerMediaCleanupService
             'marked_deleted' => 0,
             'files_deleted' => 0,
             'files_missing' => 0,
+            'files_failed' => 0,
         ];
 
         foreach ($rows as $row) {
@@ -47,7 +48,6 @@ final class MessengerMediaCleanupService
             $storedPath = (string) ($row['stored_path'] ?? '');
             $path = $this->resolveStoredPath($storedPath);
 
-            $this->db->beginTransaction();
             try {
                 $affected = $this->db->execute(
                     'UPDATE messenger_attachments
@@ -55,28 +55,48 @@ final class MessengerMediaCleanupService
                      WHERE id = :id AND message_id IS NULL AND is_deleted = 0',
                     [':id' => $id]
                 );
-                $this->db->endTransaction(true);
             } catch (\Throwable $e) {
-                $this->db->endTransaction(false);
                 error_log('Messenger orphan cleanup DB failure for attachment ' . $id . ': ' . $e->getMessage());
                 continue;
             }
 
+            // Re-check in SQL closes the race with MediaSocket::send(): if a file
+            // became bound after the SELECT above, rowCount is zero and we leave it alone.
             if (!$affected) {
                 continue;
             }
 
-            $result['marked_deleted']++;
             if ($path === null || !is_file($path)) {
+                $result['marked_deleted']++;
                 $result['files_missing']++;
                 continue;
             }
 
             if (@unlink($path)) {
+                $result['marked_deleted']++;
                 $result['files_deleted']++;
-            } else {
-                error_log('Messenger orphan cleanup could not delete file: ' . $path);
+                continue;
             }
+
+            // Keep the orphan eligible for a later cleanup retry if filesystem
+            // deletion failed. The message_id predicate prevents resurrection of
+            // an attachment that somehow became bound concurrently.
+            try {
+                $this->db->execute(
+                    'UPDATE messenger_attachments
+                     SET is_deleted = 0
+                     WHERE id = :id AND message_id IS NULL AND is_deleted = 1',
+                    [':id' => $id]
+                );
+            } catch (\Throwable $restoreError) {
+                error_log(
+                    'Messenger orphan cleanup could not restore attachment ' . $id .
+                    ' after unlink failure: ' . $restoreError->getMessage()
+                );
+            }
+
+            $result['files_failed']++;
+            error_log('Messenger orphan cleanup could not delete file: ' . $path);
         }
 
         return $result;
