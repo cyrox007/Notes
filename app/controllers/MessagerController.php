@@ -1,31 +1,38 @@
 <?php
+
+declare(strict_types=1);
+
 namespace App\Controllers;
 
 use App\Handlers\SocketTicket;
-use App\Models\DialogModel;
 use App\Models\UserModel;
-use App\Models\UserToDialogsModel;
 use Core\Controller;
 use Core\Request;
 
-class MessagerController extends Controller
+final class MessagerController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request): void
     {
-        $userModel = new UserModel();
-        $user = $userModel->select()->where('id', '=', $request->session('user_id'))->first(true);
+        $user = UserModel::select()
+            ->where('id', '=', (int) $request->session('user_id'))
+            ->first();
 
-        $userToDialogs = UserToDialogsModel::select(
-            'dialogs.uid',
-            'users.firstname',
-            'users.surname'
+        if (!$user) {
+            http_response_code(401);
+            return;
+        }
+
+        $contacts = UserModel::select(
+            'uid',
+            'username',
+            'firstname',
+            'lastname',
+            'avatar'
         )
-            ->innerJoin([DialogModel::class, 'dialogs'], 'user_to_dialogs.dialog_id', '=', 'dialogs.id')
-            ->innerJoin([UserModel::class, 'users'], 'user_to_dialogs.user_id', '!=', 'users.id')
-            ->where('user_to_dialogs.user_id', '=', $user->id)
+            ->where('id', '!=', (int) $user->id)
+            ->where('is_active', '=', 1)
+            ->orderBy('firstname', 'ASC')
             ->get();
-
-        $allUsers = $userModel->select()->where('id', '!=', $user->id)->get();
 
         $socketTicket = '';
         try {
@@ -45,16 +52,23 @@ class MessagerController extends Controller
 
         $this->render_template('messager_page/index', [
             'user' => get_object_vars($user),
-            'userToDialogs' => $userToDialogs,
-            'users' => $allUsers,
+            'contacts' => $contacts,
             'socket_ticket' => $socketTicket,
             'socket_url' => $socketUrl,
         ]);
     }
 
-    public function uploadFile(Request $request)
+    /**
+     * Attachment transport is intentionally disabled until it is moved to the
+     * same private-storage policy as FileController. The UI does not advertise
+     * a fake working upload action.
+     */
+    public function uploadFile(Request $request): void
     {
-        error_log(json_encode($request->files('files')));
-        $this->responseJson(['status' => 'ok']);
+        http_response_code(501);
+        $this->responseJson([
+            'status' => 'error',
+            'message' => 'Вложения будут подключены после private-storage migration',
+        ]);
     }
 }
