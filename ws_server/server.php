@@ -60,6 +60,10 @@ $allowedRoutes = [
         'transfer_owner',
         'leave',
     ],
+    'SearchSocket' => [
+        'messages',
+        'dialogs',
+    ],
 ];
 
 $allowedOrigins = array_values(array_filter(array_map(
