@@ -13,6 +13,7 @@ require_once SITEPATH . '/core.php';
 
 use App\Handlers\SocketTicket;
 use App\Models\UserModel;
+use Core\Config;
 use Workerman\Connection\TcpConnection;
 use Workerman\Lib\Timer;
 use Workerman\Worker;
@@ -81,6 +82,18 @@ $allowedOrigins = array_values(array_filter(array_map(
     explode(',', (string) (getenv('WS_ALLOWED_ORIGINS') ?: getenv('SITEURL') ?: ''))
 )));
 
+$removeConnection = static function (TcpConnection $connection) use (&$connections): void {
+    if (!isset($connection->uid)) {
+        return;
+    }
+
+    $uid = (string) $connection->uid;
+    unset($connections[$uid][spl_object_id($connection)]);
+    if (empty($connections[$uid])) {
+        unset($connections[$uid]);
+    }
+};
+
 $worker->onConnect = function (TcpConnection $connection) use (&$connections, $allowedOrigins): void {
     $connection->authenticated = false;
     $connection->pingWithoutResponseCount = 0;
@@ -107,8 +120,13 @@ $worker->onConnect = function (TcpConnection $connection) use (&$connections, $a
             return;
         }
 
-        $user = UserModel::select('uid', 'is_active')->where('id', '=', $userId)->first();
-        if (!$user || empty($user->uid) || (int) $user->is_active !== 1) {
+        $user = UserModel::select('uid', 'role', 'is_active')->where('id', '=', $userId)->first();
+        if (
+            !$user
+            || empty($user->uid)
+            || (int) $user->is_active !== 1
+            || !Config::canAuthenticate((int) $user->role)
+        ) {
             $connection->close();
             return;
         }
@@ -126,16 +144,8 @@ $worker->onConnect = function (TcpConnection $connection) use (&$connections, $a
     };
 };
 
-$worker->onClose = function (TcpConnection $connection) use (&$connections): void {
-    if (!isset($connection->uid)) {
-        return;
-    }
-
-    $uid = (string) $connection->uid;
-    unset($connections[$uid][spl_object_id($connection)]);
-    if (empty($connections[$uid])) {
-        unset($connections[$uid]);
-    }
+$worker->onClose = function (TcpConnection $connection) use ($removeConnection): void {
+    $removeConnection($connection);
 };
 
 $worker->onWorkerStart = function () use (&$connections): void {
@@ -159,8 +169,19 @@ $worker->onWorkerStart = function () use (&$connections): void {
     });
 };
 
-$worker->onMessage = function (TcpConnection $connection, string $message) use (&$connections, $allowedRoutes): void {
-    if (($connection->authenticated ?? false) !== true || !isset($connection->uid)) {
+$worker->onMessage = function (TcpConnection $connection, string $message) use (&$connections, $allowedRoutes, $removeConnection): void {
+    if (($connection->authenticated ?? false) !== true || !isset($connection->uid, $connection->userId)) {
+        $connection->close();
+        return;
+    }
+
+    $currentUser = UserModel::select('role', 'is_active')->where('id', '=', (int) $connection->userId)->first();
+    if (
+        !$currentUser
+        || (int) $currentUser->is_active !== 1
+        || !Config::canAuthenticate((int) $currentUser->role)
+    ) {
+        $removeConnection($connection);
         $connection->close();
         return;
     }
