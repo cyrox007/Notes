@@ -83,13 +83,15 @@ jobs:
             database/notes_schema.sql \
             database/file_manager_schema.sql \
             database/user_fields_schema.sql \
-            database/tasks_schema.sql
+            database/tasks_schema.sql \
+            database/settings_schema.sql
           do
             mysql -h 127.0.0.1 -uroot -proot workspace_release_gate < "$schema"
           done
 
           count="$(mysql -N -h 127.0.0.1 -uroot -proot workspace_release_gate -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE();")"
-          test "$count" -ge 20
+          test "$count" -ge 22
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot workspace_release_gate -e "SELECT setting_value FROM system_settings WHERE setting_key='file_manager_default_quota_bytes'")" = '1073741824'
 
       - name: Run production healthcheck
         shell: bash
@@ -146,6 +148,7 @@ jobs:
           test -f "$bundle/install.php"
           test -f "$bundle/default.env"
           test -f "$bundle/database/messenger_schema.sql"
+          test -f "$bundle/database/settings_schema.sql"
           test ! -e "$bundle/.env"
           test ! -d "$bundle/.git"
           test ! -d "$bundle/.github"
