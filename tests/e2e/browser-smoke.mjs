@@ -60,12 +60,15 @@ try {
   await alice.page.locator('#messenger-connection[data-state="online"]').waitFor({ timeout: 20000 });
   await bob.page.locator('#messenger-connection[data-state="online"]').waitFor({ timeout: 20000 });
 
-  // Create a private dialog entirely through the browser UI.
+  // Create a private dialog entirely through the new-chat modal. Contacts also
+  // exist in the group-management dialog, so keep every selector modal-scoped.
   await alice.page.locator('#new-chat-button').click();
-  const bobCheckbox = alice.page.locator(`.messenger-contact__checkbox[value="${bobUid}"]`);
+  const newChatDialog = alice.page.locator('#new-chat-dialog');
+  await newChatDialog.waitFor({ state: 'visible', timeout: 10000 });
+  const bobCheckbox = newChatDialog.locator(`.messenger-contact__checkbox[value="${bobUid}"]`);
   await bobCheckbox.waitFor({ state: 'visible' });
   await bobCheckbox.check();
-  await alice.page.locator('#create-chat-button').click();
+  await newChatDialog.locator('#create-chat-button').click();
   await alice.page.locator('#chat-active').waitFor({ state: 'visible', timeout: 15000 });
 
   const message = `Browser WSS E2E ${Date.now()}`;
