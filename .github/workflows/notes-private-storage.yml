@@ -61,7 +61,8 @@ jobs:
           grep -Fq "'/attachment/{str:fileUid}'" core/routerConfig.php
           grep -Fq "'/shared/{str:token}/attachment/{str:fileUid}'" core/routerConfig.php
           grep -Fq 'PRIVATE_STORAGE_PATH/notes' README.md
-          grep -Fq '0.10.0-alpha' README.md
+          VERSION="$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")"
+          grep -Fq "**Версия:** \`$VERSION\`" README.md
           grep -Fq 'docs/CORE.md' README.md
           grep -Fq 'docs/USER_GUIDE.md' README.md
 
