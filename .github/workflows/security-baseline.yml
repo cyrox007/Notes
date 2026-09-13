@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [master]
   push:
-    branches: [messenger-v2-next]
+    branches: [messenger-v2-next, messenger-groups]
 
 permissions:
   contents: read
@@ -65,7 +65,8 @@ jobs:
             app/views/messager_page/script.js \
             app/views/messager_page/dialog-actions.js \
             app/views/messager_page/receipts.js \
-            app/views/messager_page/media.js
+            app/views/messager_page/media.js \
+            app/views/messager_page/group.js
           do
             target="/tmp/$(basename "$source")"
             sed '/^{literal}$/d;/^{\/literal}$/d' "$source" > "$target"
@@ -232,13 +233,21 @@ jobs:
               ]
           );
 
-          $mediaMessage = $media->send($aliceUid, $attachmentUid, 'quarterly report');
+          $mediaMessage = $media->send($aliceUid, $attachmentUid, 'quarterly report', $hello['uid']);
           if (
               ($mediaMessage['message_type'] ?? null) !== 'file'
               || ($mediaMessage['meta_data']['name'] ?? null) !== 'report.pdf'
               || ($mediaMessage['message'] ?? null) !== 'quarterly report'
+              || ($mediaMessage['reply']['uid'] ?? null) !== $hello['uid']
           ) {
-              throw new RuntimeException('Media message was not created correctly');
+              throw new RuntimeException('Media message or media reply relation was not created correctly');
+          }
+          $replyToId = (int) $db->fetchValue(
+              'SELECT reply_to_message_id FROM messages WHERE id = :id',
+              [':id' => (int) $mediaMessage['id']]
+          );
+          if ($replyToId !== (int) $hello['id']) {
+              throw new RuntimeException('Media reply_to_message_id was not persisted');
           }
           $boundMessageId = (int) $db->fetchValue(
               'SELECT message_id FROM messenger_attachments WHERE uid = :uid',

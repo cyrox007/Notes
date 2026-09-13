@@ -10,6 +10,7 @@ use App\Controllers\ProfileController;
 use App\Controllers\FileController;
 use App\Controllers\Admin\AdminController;
 use App\Controllers\MessagerController;
+use App\Controllers\MessengerGroupController;
 use App\Middlewares\LoginRequared;
 use App\Middlewares\IsAdmin;
 use Core\Router;
@@ -69,6 +70,9 @@ $router->group('/messenger')
     ->add('POST', '/socket-ticket', [MessagerController::class, 'socketTicket'], [LoginRequared::class], 'messenger_socket_ticket')
     ->add('POST', '/upload', [MessagerController::class, 'uploadFile'], [LoginRequared::class], 'messenger_upload')
     ->add('GET', '/media/{str:uid}', [MessagerController::class, 'media'], [LoginRequared::class], 'messenger_media')
+    ->add('GET', '/group-avatar/{str:uid}', [MessengerGroupController::class, 'avatar'], [LoginRequared::class], 'messenger_group_avatar')
+    ->add('POST', '/group-avatar/{str:uid}', [MessengerGroupController::class, 'uploadAvatar'], [LoginRequared::class], 'messenger_group_avatar_upload')
+    ->add('POST', '/group-avatar/{str:uid}/delete', [MessengerGroupController::class, 'removeAvatar'], [LoginRequared::class], 'messenger_group_avatar_delete')
     ->endGroup();
 
 $router->group('/admin')
