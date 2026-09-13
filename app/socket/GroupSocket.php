@@ -119,10 +119,11 @@ final class GroupSocket
         $dialogUid = $this->requiredString($payload, 'dialog_uid');
         $before = $this->messenger->participantUids($userUid, $dialogUid);
 
-        $this->guard($connection, function () use ($connections, $dialogUid, $before, $reason, $callback): void {
+        $this->guard($connection, function () use ($connections, $userUid, $dialogUid, $before, $reason, $callback): void {
             $callback($dialogUid);
-            $after = array_values(array_unique($before));
-            $this->broadcastKnown($connections, $after, [
+            $after = $this->messenger->participantUids($userUid, $dialogUid);
+            $recipients = array_values(array_unique(array_merge($before, $after)));
+            $this->broadcastKnown($connections, $recipients, [
                 'action' => 'group_changed',
                 'dialog_uid' => $dialogUid,
                 'reason' => $reason,
