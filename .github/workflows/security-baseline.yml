@@ -12,7 +12,21 @@ permissions:
 jobs:
   php-quality-gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: notes_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
 
     steps:
       - name: Checkout
@@ -41,6 +55,29 @@ jobs:
           set -euo pipefail
           find . -type f -name '*.php' -not -path './vendor/*' -print0 \
             | xargs -0 -n1 php -l
+
+      - name: Messenger clean-install schema smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot notes_test < database/messenger_schema.sql
+
+          mysql -N -h 127.0.0.1 -uroot -proot notes_test <<'SQL' > /tmp/messenger-contract.txt
+          SELECT COUNT(*) FROM information_schema.tables
+          WHERE table_schema = DATABASE()
+            AND table_name IN ('users','dialogs','user_to_dialogs','messages','message_user_deletions');
+          SELECT COUNT(*) FROM information_schema.columns
+          WHERE table_schema = DATABASE() AND table_name = 'messages'
+            AND column_name IN ('uid','dialog_id','from_user_id','reply_to_message_id','message','message_type','message_status','media_url','meta_data');
+          SELECT COUNT(*) FROM information_schema.columns
+          WHERE table_schema = DATABASE() AND table_name = 'user_to_dialogs'
+            AND column_name IN ('last_read_message_id','archived_at','muted_until','pinned_at');
+          SQL
+
+          mapfile -t contract < /tmp/messenger-contract.txt
+          test "${contract[0]}" = "5"
+          test "${contract[1]}" = "9"
+          test "${contract[2]}" = "4"
 
       - name: Crypto fail-closed smoke test
         if: always()
@@ -72,20 +109,8 @@ jobs:
           }
 
           $iv = \App\Sockets\openssl_random_pseudo_bytes(16);
-          $messagePayload = \App\Sockets\openssl_encrypt(
-              'secret message',
-              'aes-256-cbc',
-              'ignored',
-              0,
-              $iv
-          );
-          $messagePlaintext = \App\Sockets\openssl_decrypt(
-              $messagePayload,
-              'aes-256-cbc',
-              'ignored',
-              0,
-              $iv
-          );
+          $messagePayload = \App\Sockets\openssl_encrypt('secret message', 'aes-256-cbc', 'ignored', 0, $iv);
+          $messagePlaintext = \App\Sockets\openssl_decrypt($messagePayload, 'aes-256-cbc', 'ignored', 0, $iv);
           if ($messagePlaintext !== 'secret message') {
               throw new RuntimeException('Messenger crypto round-trip failed');
           }
