@@ -140,6 +140,8 @@ jobs:
           grep -Fq "object-src 'none'" .htaccess
           grep -Fq 'Permissions-Policy' .htaccess
           grep -Fq 'Cross-Origin-Opener-Policy' .htaccess
+          grep -Fq '(?:app|bin|core|database|docs|vendor|ws_server' .htaccess
+          grep -Fq 'default\.env' .htaccess
           ! grep -Fq "'unsafe-eval'" .htaccess
           ! grep -Fq 'cdnjs.cloudflare.com' .htaccess
           ! grep -Fq 'notes.loc' .htaccess
@@ -199,12 +201,15 @@ jobs:
           PRIVATE_STORAGE_PATH: /tmp/workspace-health-private
           SITEURL: https://workspace.example.test
           WS_PUBLIC_URL: wss://workspace.example.test/ws
+          WS_ALLOWED_ORIGINS: https://workspace.example.test
         run: |
           set -euo pipefail
           mkdir -p "$PRIVATE_STORAGE_PATH"
           chmod 700 "$PRIVATE_STORAGE_PATH"
           php bin/healthcheck.php --json | tee /tmp/healthcheck.json
           grep -Fq '"status": "ok"' /tmp/healthcheck.json
+          grep -Fq 'private_storage_outside_app_root' /tmp/healthcheck.json
+          grep -Fq 'websocket_allowed_origins' /tmp/healthcheck.json
 
       - name: Documentation freshness
         shell: bash
