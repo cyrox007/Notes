@@ -3,7 +3,9 @@ Options -Indexes
 RewriteEngine On
 
 # После успешной установки .env существует: повторный запуск web-installer запрещён.
-RewriteCond %{DOCUMENT_ROOT}/.env -f
+# Используем директорию самого install.php, поэтому правило работает и при BASE_PATH/subdirectory deploy.
+RewriteCond %{REQUEST_FILENAME} ^(.*/)install\.php$
+RewriteCond %1.env -f
 RewriteRule ^install\.php$ - [F,L]
 
 # Служебные каталоги никогда не должны отдаваться из web-root.
