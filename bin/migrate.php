@@ -130,11 +130,19 @@ function parseMigrationStatements(string $sql): array
     $lines = preg_split('/\R/', $sql) ?: [];
 
     foreach ($lines as $line) {
+        if (preg_match('/^\s*--/', $line) === 1) {
+            continue;
+        }
+
         if (preg_match('/^\s*DELIMITER\s+(\S+)\s*$/i', $line, $match) === 1) {
             if (trim($buffer) !== '') {
                 throw new RuntimeException('Malformed migration: DELIMITER changed before statement ended');
             }
             $delimiter = $match[1];
+            continue;
+        }
+
+        if (trim($line) === '' && trim($buffer) === '') {
             continue;
         }
 
@@ -146,22 +154,13 @@ function parseMigrationStatements(string $sql): array
 
         $statement = trim(substr($trimmed, 0, -strlen($delimiter)));
         $buffer = '';
-        if ($statement !== '' && preg_match('/^--(?:\s|$)/', $statement) !== 1) {
+        if ($statement !== '') {
             $statements[] = $statement;
-        } elseif ($statement !== '') {
-            // A leading comment can be followed by SQL in the same buffered statement.
-            $withoutComments = preg_replace('/^\s*--.*(?:\R|$)/m', '', $statement) ?? $statement;
-            if (trim($withoutComments) !== '') {
-                $statements[] = trim($withoutComments);
-            }
         }
     }
 
     if (trim($buffer) !== '') {
-        $withoutComments = preg_replace('/^\s*--.*(?:\R|$)/m', '', trim($buffer)) ?? trim($buffer);
-        if (trim($withoutComments) !== '') {
-            throw new RuntimeException('Malformed migration: unterminated SQL statement');
-        }
+        throw new RuntimeException('Malformed migration: unterminated SQL statement');
     }
 
     return $statements;
@@ -241,11 +240,13 @@ function verifyCurrentContract(mysqli $db, array $tables): void
         }
     }
 
-    $type = $db->query(
+    $typeResult = $db->query(
         "SELECT column_type FROM information_schema.columns
          WHERE table_schema = DATABASE() AND table_name = 'dialogs' AND column_name = 'type' LIMIT 1"
-    )->fetch_assoc()['column_type'] ?? '';
-    if (!str_contains((string) $type, "'saved'")) {
+    );
+    $typeRow = $typeResult->fetch_assoc();
+    $type = (string) ($typeRow['column_type'] ?? '');
+    if (!str_contains($type, "'saved'")) {
         throw new RuntimeException('Database contract is incomplete; dialogs.type does not support saved');
     }
 }
