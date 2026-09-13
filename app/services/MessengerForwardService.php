@@ -67,6 +67,10 @@ final class MessengerForwardService
                 }
 
                 $sourceAttachment = $this->media->download((int) $actor['id'], $sourceAttachmentUid);
+                if ((int) ($sourceAttachment['message_id'] ?? 0) !== (int) $source['id']) {
+                    throw new InvalidArgumentException('Вложение не связано с пересылаемым сообщением');
+                }
+
                 $newAttachmentUid = UUID::v4();
                 $extension = strtolower((string) ($sourceAttachment['extension'] ?? ''));
                 if ($extension === '' || preg_match('/^[a-z0-9]{1,16}$/', $extension) !== 1) {
@@ -216,11 +220,9 @@ final class MessengerForwardService
         $row = $this->db->fetchOne(
             'SELECT
                 m.id, m.uid, m.dialog_id, m.message, m.message_type, m.meta_data,
-                d.uid AS source_dialog_uid,
-                u.uid AS source_user_uid, u.username AS source_username,
+                u.username AS source_username,
                 u.firstname AS source_firstname, u.lastname AS source_lastname
              FROM messages m
-             INNER JOIN dialogs d ON d.id = m.dialog_id
              INNER JOIN users u ON u.id = m.from_user_id
              INNER JOIN user_to_dialogs utd
                 ON utd.dialog_id = m.dialog_id
@@ -288,11 +290,7 @@ final class MessengerForwardService
     {
         $existing = $sourceMeta['forwarded_from'] ?? null;
         if (is_array($existing) && !empty($existing['user_name'])) {
-            return [
-                'message_uid' => (string) ($existing['message_uid'] ?? $source['uid']),
-                'user_uid' => (string) ($existing['user_uid'] ?? ''),
-                'user_name' => mb_substr((string) $existing['user_name'], 0, 160),
-            ];
+            return ['user_name' => mb_substr((string) $existing['user_name'], 0, 160)];
         }
 
         $name = trim(
@@ -302,11 +300,7 @@ final class MessengerForwardService
         if ($name === '') {
             $name = (string) ($source['source_username'] ?? 'Пользователь');
         }
-        return [
-            'message_uid' => (string) $source['uid'],
-            'user_uid' => (string) ($source['source_user_uid'] ?? ''),
-            'user_name' => mb_substr($name, 0, 160),
-        ];
+        return ['user_name' => mb_substr($name, 0, 160)];
     }
 
     private function privateStorageRoot(): string
