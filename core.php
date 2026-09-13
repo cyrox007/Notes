@@ -24,26 +24,27 @@ spl_autoload_register(function ($class) {
     }
 });
 
-// Core files
+// Core files. Paths intentionally match repository casing because production Linux
+// filesystems are case-sensitive.
 $coreFiles = [
-    '/core/Config.php',
+    '/core/config.php',
     '/core/Version.php',
     '/core/DatabaseControll.php',
     '/core/DatabaseManager.php',
     '/core/ORM.php',
     '/core/model.php',
-    '/core/View.php',
-    '/core/Request.php',
-    '/core/Controller.php',
-    '/core/Helper.php',
-    '/core/Images.php'
+    '/core/view.php',
+    '/core/request.php',
+    '/core/controller.php',
+    '/core/helper.php',
+    '/core/images.php'
 ];
 
 foreach ($coreFiles as $file) {
     if (file_exists(SITEPATH . $file)) {
         require_once SITEPATH . $file;
     } else {
-        die("Core file {$file} is missing.");
+        throw new RuntimeException("Core file {$file} is missing.");
     }
 }
 

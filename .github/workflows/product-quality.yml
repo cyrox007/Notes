@@ -1,0 +1,378 @@
+name: Product UI and production quality
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [product-ui-production-refresh]
+
+permissions:
+  contents: read
+
+jobs:
+  product-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: notes_product_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: PHP syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          for source in \
+            core.php \
+            app/controllers/AuthController.php \
+            app/controllers/Admin/AdminController.php \
+            app/services/AdminUserService.php \
+            app/middlewares/AuthRateLimit.php \
+            app/middlewares/UploadRateLimit.php \
+            app/services/RequestRateLimiter.php \
+            core/routerConfig.php \
+            bin/healthcheck.php \
+            install.php
+          do
+            php -l "$source"
+          done
+
+      - name: JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check assets/js/reg-script.js
+          node --check assets/js/file_manager/script.js
+          node --check assets/js/admin-page.js
+
+          sed \
+            -e '/^{literal}$/d' \
+            -e '/^{\/literal}$/d' \
+            -e 's#^const socketTicket = .*#const socketTicket = "";#' \
+            -e 's#^const socketUrl = .*#const socketUrl = "";#' \
+            app/views/core/common.js > /tmp/workspace-common.js
+          node --check /tmp/workspace-common.js
+
+      - name: UI and accessibility contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'core/theme-refresh.css' app/views/styles.css
+          grep -Fq 'core/accessibility.css' app/views/styles.css
+          grep -Fq 'id="main-content"' app/views/core/base.tpl
+          grep -Fq 'class="skip-link"' app/views/core/base.tpl
+          grep -Fq 'id="workspaceSidebar"' app/views/^shared/sidebar/index.tpl
+          grep -Fq "backdrop.className = 'sidebar-backdrop'" app/views/core/common.js
+          grep -Fq "setAttribute('aria-current', 'page')" app/views/core/common.js
+          grep -Fq 'aria-live="polite"' app/views/^shared/header/index.tpl
+          grep -Fq 'workspace-home__grid' app/views/main_page/index.tpl
+          grep -Fq 'autocomplete="username"' app/views/login_page/login_view.tpl
+          grep -Fq 'autocomplete="current-password"' app/views/login_page/login_view.tpl
+          grep -Fq 'autocomplete="new-password"' app/views/login_page/register_view.tpl
+          grep -Fq 'minlength="10"' app/views/login_page/register_view.tpl
+          ! grep -Fq 'name="userphoto"' app/views/login_page/register_view.tpl
+          ! grep -R -E 'fonts\.googleapis\.com|fonts\.gstatic\.com' app/views assets/css
+          ! grep -Fq 'notes.loc' app/views/^shared/header/index.tpl
+
+      - name: File Manager safe preview contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'text-preview-modal' app/views/file_manager/index.tpl
+          grep -Fq 'read-only' assets/js/file_manager/script.js
+          ! grep -Fq 'cdnjs.cloudflare.com' app/views/file_manager/index.tpl
+          ! grep -Fq 'ace.js' app/views/file_manager/index.tpl
+          ! grep -Fq 'runCodeInSandbox' assets/js/file_manager/script.js
+          ! grep -Fq 'btn-run-code' app/views/file_manager/index.tpl
+          ! grep -Fq 'btn-save-code' app/views/file_manager/index.tpl
+
+      - name: Admin lifecycle and custom field static contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'AdminUserService' app/controllers/Admin/AdminController.php
+          grep -Fq 'INSERT INTO user_fields' app/controllers/Admin/AdminController.php
+          grep -Fq 'UPDATE user_fields' app/controllers/Admin/AdminController.php
+          ! grep -Eq "queue(Insert|Update|Delete).*['\"]fields['\"]" app/controllers/Admin/AdminController.php
+          ! grep -Fq 'DELETE FROM users' app/controllers/Admin/AdminController.php
+          ! grep -Fq 'DELETE FROM users' app/services/AdminUserService.php
+          grep -Fq 'UPDATE users SET is_active = 0' app/services/AdminUserService.php
+          grep -Fq "d.type = 'group'" app/services/AdminUserService.php
+          grep -Fq "route_path name='admin_toggle_user'" app/views/admin-page/index.tpl
+          grep -Fq "route_path name='admin_delete_user'" app/views/admin-page/index.tpl
+          grep -Fq 'data-confirm-deactivate' app/views/admin-page/index.tpl
+          ! grep -Fq 'onclick=' app/views/admin-page/index.tpl
+
+      - name: Linux bootstrap path contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in \
+            core/config.php \
+            core/Version.php \
+            core/DatabaseControll.php \
+            core/DatabaseManager.php \
+            core/ORM.php \
+            core/model.php \
+            core/view.php \
+            core/request.php \
+            core/controller.php \
+            core/helper.php \
+            core/images.php
+          do
+            test -f "$path"
+            grep -Fq "/$path" core.php
+          done
+
+      - name: Security wiring and headers
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'AuthRateLimit::class' core/routerConfig.php
+          grep -Fq 'UploadRateLimit::class' core/routerConfig.php
+          grep -Fq 'REGISTRATION_INVITE_CODE' app/controllers/AuthController.php
+          grep -Fq 'AUTH_RATE_LIMIT_WINDOW_SECONDS=300' default.env
+          grep -Fq 'UPLOAD_RATE_LIMIT_ATTEMPTS=60' default.env
+          grep -Fq "object-src 'none'" .htaccess
+          grep -Fq 'Permissions-Policy' .htaccess
+          grep -Fq 'Cross-Origin-Opener-Policy' .htaccess
+          grep -Fq '(?:app|bin|core|database|docs|vendor|ws_server' .htaccess
+          grep -Fq 'default\.env' .htaccess
+          ! grep -Fq "'unsafe-eval'" .htaccess
+          ! grep -Fq 'cdnjs.cloudflare.com' .htaccess
+          ! grep -Fq 'notes.loc' .htaccess
+
+      - name: Rate limiter integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/workspace-rate-limit-test
+          PRIVATE_STORAGE_PATH=/tmp/workspace-rate-limit-test php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          require getcwd() . '/app/services/RequestRateLimiter.php';
+          use App\Services\RequestRateLimiter;
+
+          $first = RequestRateLimiter::consume('ci', 'client-a', 2, 60);
+          $second = RequestRateLimiter::consume('ci', 'client-a', 2, 60);
+          $third = RequestRateLimiter::consume('ci', 'client-a', 2, 60);
+          if (!$first['allowed'] || !$second['allowed'] || $third['allowed']) {
+              throw new RuntimeException('Rate limiter window contract failed');
+          }
+          if ($third['remaining'] !== 0 || $third['retry_after'] < 1) {
+              throw new RuntimeException('Rate limiter metadata contract failed');
+          }
+
+          $directory = '/tmp/workspace-rate-limit-test/rate-limit';
+          $files = glob($directory . '/*.json') ?: [];
+          if (count($files) !== 1) {
+              throw new RuntimeException('Expected one rate limiter state file');
+          }
+          if ((fileperms($directory) & 0777) !== 0700 || (fileperms($files[0]) & 0777) !== 0600) {
+              throw new RuntimeException('Rate limiter private-state permissions failed');
+          }
+          PHP
+
+      - name: Prepare canonical database
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/messenger_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/notes_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/file_manager_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/user_fields_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/tasks_schema.sql
+
+      - name: Admin lifecycle integration
+        shell: bash
+        env:
+          DBDRIVER: mysql
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: notes_product_test
+          PRIVATE_STORAGE_PATH: /tmp/admin-lifecycle-private
+        run: |
+          set -euo pipefail
+          rm -rf "$PRIVATE_STORAGE_PATH"
+          mkdir -m 700 -p "$PRIVATE_STORAGE_PATH"
+          php <<'PHP'
+          <?php
+          declare(strict_types=1);
+
+          $_SERVER['HTTP_HOST'] = 'localhost';
+          require getcwd() . '/core/config.php';
+          require getcwd() . '/core/DatabaseManager.php';
+          require getcwd() . '/app/services/UserAvatarService.php';
+          require getcwd() . '/app/services/AdminUserService.php';
+
+          use App\Services\AdminUserService;
+          use Core\Config;
+          use Core\DatabaseManager;
+          use DomainException;
+
+          $db = DatabaseManager::getInstance();
+          $password = password_hash('ci-password', PASSWORD_ARGON2ID);
+          $now = date('Y-m-d H:i:s');
+
+          $fixtures = [
+              ['30000000-0000-4000-8000-000000000001', 'admin-ci', 'admin-ci@example.test', Config::USER_ROLE_ADMIN],
+              ['30000000-0000-4000-8000-000000000002', 'user-ci', 'user-ci@example.test', Config::USER_ROLE_USER],
+              ['30000000-0000-4000-8000-000000000003', 'owner-ci', 'owner-ci@example.test', Config::USER_ROLE_USER],
+              ['30000000-0000-4000-8000-000000000004', 'admin2-ci', 'admin2-ci@example.test', Config::USER_ROLE_ADMIN],
+          ];
+          $ids = [];
+          foreach ($fixtures as [$uid, $username, $email, $role]) {
+              $db->execute(
+                  'INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active,created_at,updated_at) '
+                  . 'VALUES (:uid,:username,:email,:password_hash,:firstname,:lastname,:role,1,:created_at,:updated_at)',
+                  [
+                      ':uid' => $uid,
+                      ':username' => $username,
+                      ':email' => $email,
+                      ':password_hash' => $password,
+                      ':firstname' => ucfirst($username),
+                      ':lastname' => 'CI',
+                      ':role' => $role,
+                      ':created_at' => $now,
+                      ':updated_at' => $now,
+                  ]
+              );
+              $ids[$username] = (int) $db->fetchValue('SELECT id FROM users WHERE uid = :uid', [':uid' => $uid]);
+          }
+
+          $service = new AdminUserService($db);
+          $listed = $service->listUsers($ids['admin-ci']);
+          if (count($listed) < 4) {
+              throw new RuntimeException('Admin user listing contract failed');
+          }
+
+          $service->setStatus($ids['admin-ci'], $ids['user-ci'], 'blocked');
+          $state = $db->fetchOne('SELECT role,is_active FROM users WHERE id = :id', [':id' => $ids['user-ci']]);
+          if ((int) $state['role'] !== Config::USER_ROLE_BLOCKED || (int) $state['is_active'] !== 1) {
+              throw new RuntimeException('Admin block contract failed');
+          }
+
+          $service->setStatus($ids['admin-ci'], $ids['user-ci'], 'active');
+          $service->deactivate($ids['admin-ci'], $ids['user-ci']);
+          $state = $db->fetchOne('SELECT role,is_active FROM users WHERE id = :id', [':id' => $ids['user-ci']]);
+          if (!$state || (int) $state['role'] !== Config::USER_ROLE_INACTIVE || (int) $state['is_active'] !== 0) {
+              throw new RuntimeException('Admin deactivation must preserve the user row and mark it inactive');
+          }
+
+          $service->setStatus($ids['admin-ci'], $ids['user-ci'], 'active');
+          $state = $db->fetchOne('SELECT role,is_active FROM users WHERE id = :id', [':id' => $ids['user-ci']]);
+          if ((int) $state['role'] !== Config::USER_ROLE_USER || (int) $state['is_active'] !== 1) {
+              throw new RuntimeException('Admin reactivation contract failed');
+          }
+
+          try {
+              $service->setStatus($ids['admin-ci'], $ids['admin2-ci'], 'blocked');
+              throw new RuntimeException('Administrator target must be protected');
+          } catch (DomainException $e) {
+              if ((int) $e->getCode() !== 403) {
+                  throw $e;
+              }
+          }
+
+          try {
+              $service->setStatus($ids['user-ci'], $ids['owner-ci'], 'blocked');
+              throw new RuntimeException('Non-admin actor must be rejected');
+          } catch (DomainException $e) {
+              if ((int) $e->getCode() !== 403) {
+                  throw $e;
+              }
+          }
+
+          $db->execute(
+              "INSERT INTO dialogs (uid,type,name,created_by,created_at,updated_at) VALUES "
+              . "('40000000-0000-4000-8000-000000000001','group','CI group',:created_by,:created_at,:updated_at)",
+              [':created_by' => $ids['owner-ci'], ':created_at' => $now, ':updated_at' => $now]
+          );
+          $dialogId = (int) $db->fetchValue(
+              "SELECT id FROM dialogs WHERE uid = '40000000-0000-4000-8000-000000000001'"
+          );
+          $db->execute(
+              "INSERT INTO user_to_dialogs (dialog_id,user_id,role,joined_at,is_deleted) VALUES (:dialog_id,:user_id,'owner',:joined_at,0)",
+              [':dialog_id' => $dialogId, ':user_id' => $ids['owner-ci'], ':joined_at' => $now]
+          );
+
+          try {
+              $service->deactivate($ids['admin-ci'], $ids['owner-ci']);
+              throw new RuntimeException('Group owner deactivation must require ownership transfer');
+          } catch (DomainException $e) {
+              if ((int) $e->getCode() !== 409) {
+                  throw $e;
+              }
+          }
+          $ownerActive = (int) $db->fetchValue('SELECT is_active FROM users WHERE id = :id', [':id' => $ids['owner-ci']]);
+          if ($ownerActive !== 1) {
+              throw new RuntimeException('Rejected group owner deactivation changed account state');
+          }
+
+          echo "Admin lifecycle contract OK\n";
+          PHP
+
+      - name: Production healthcheck
+        shell: bash
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: notes_product_test
+          UNIQUE_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          MSG_SECRET_KEY: abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
+          WS_TICKET_SECRET: 00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
+          PRIVATE_STORAGE_PATH: /tmp/workspace-health-private
+          SITEURL: https://workspace.example.test
+          WS_PUBLIC_URL: wss://workspace.example.test/ws
+          WS_ALLOWED_ORIGINS: https://workspace.example.test
+        run: |
+          set -euo pipefail
+          mkdir -p "$PRIVATE_STORAGE_PATH"
+          chmod 700 "$PRIVATE_STORAGE_PATH"
+          php bin/healthcheck.php --json | tee /tmp/healthcheck.json
+          grep -Fq '"status": "ok"' /tmp/healthcheck.json
+          grep -Fq 'private_storage_outside_app_root' /tmp/healthcheck.json
+          grep -Fq 'websocket_allowed_origins' /tmp/healthcheck.json
+
+      - name: Documentation freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'database/tasks_schema.sql' README.md
+          grep -Fq 'php bin/migrate.php' README.md
+          grep -Fq 'php bin/migrate_crypto.php' README.md
+          grep -Fq 'Saved Messages' README.md
+          grep -Fq 'PRIVATE_STORAGE_PATH/notes' README.md
+          grep -Fq 'docs/PRODUCTION.md' README.md
+          grep -Fq 'File Manager code execution удалён' README.md
+          test -s docs/PRODUCTION.md
+          grep -Fq 'read-only preview' docs/USER_GUIDE.md
+          grep -Fq 'versioned runner' docs/CORE.md

@@ -1,170 +1,227 @@
-<?php 
+<?php
+
+declare(strict_types=1);
+
 namespace App\Controllers\Admin;
 
-use App\Models\UserModel;
 use App\Models\FieldModel;
-use Core\Config;
+use App\Models\UserModel;
+use App\Services\AdminUserService;
 use Core\Controller;
 use Core\DatabaseManager;
 use Core\Request;
 use Core\Router;
+use DomainException;
+use InvalidArgumentException;
+use Throwable;
 
-class AdminController extends Controller {
-    public function index(Request $request) {
-        $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
-        $fields = FieldModel::select()->get();
-        $users = UserModel::select()->get();
-        
-        $data['user'] = $user;
-        $data['customFields'] = $fields;
-        $data['users'] = $users;
-        return $this->render_template('admin-page/index', $data);
-    }
+final class AdminController extends Controller
+{
+    private const FIELD_TYPES = ['text', 'textarea', 'number', 'date', 'select', 'checkbox'];
+    private const MAX_CUSTOM_FIELDS = 50;
 
-    public function saveCustomFields(Request $request) {
-        $incomingFields = $request->post('fields') ?? [];
-
-        $existingFieldsArray = [];
-        $existingFields = FieldModel::select()->get(true);
-        if ($existingFields) {
-            foreach ($existingFields as $field) {
-                $existingFieldsArray[$field->id] = $field;
-            }
-        }
-        
-        $dbManager = DatabaseManager::getInstance();
-        foreach ($incomingFields as $fieldId => $fieldData) {
-            if (strpos((string)$fieldId, 'new_') === 0) {
-                $newField = new FieldModel();
-                $newField->field_name = $fieldData['field_name'];
-                $newField->field_label = $fieldData['field_label'];
-                $newField->field_type = $fieldData['field_type'];
-                $newField->is_required = ($fieldData['is_required'] ?? null) === 'on' ? 1 : 0;
-                $dbManager->queueInsert([
-                    'field_name' => $newField->field_name,
-                    'field_label' => $newField->field_label,
-                    'field_type' => $newField->field_type,
-                    'is_required' => $newField->is_required
-                ], 'fields');
-            } else {
-                if (isset($existingFieldsArray[$fieldId])) {
-                    $existingField = $existingFieldsArray[$fieldId];
-                    $existingField->field_name = $fieldData['field_name'];
-                    $existingField->field_label = $fieldData['field_label'];
-                    $existingField->field_type = $fieldData['field_type'];
-                    $existingField->is_required = ($fieldData['is_required'] ?? null) === 'on' ? 1 : 0;
-                    $dbManager->queueUpdate([
-                        'field_name' => $existingField->field_name,
-                        'field_label' => $existingField->field_label,
-                        'field_type' => $existingField->field_type,
-                        'is_required' => $existingField->is_required
-                    ], 'fields', $existingField->id);
-                    unset($existingFieldsArray[$fieldId]);
-                }
-            }
-        }
-        
-        foreach ($existingFieldsArray as $field) {
-            $dbManager->queueDelete('fields', $field->id);
-        }
-
-        $dbManager->commit();
-        return Router::getInstance()->redirect('adminpanel');
-    }
-    
-    /**
-     * Управление пользователями: блокировка/разблокировка.
-     * До выделения отдельного status-поля административные роли не переключаются
-     * этим методом, чтобы разблокировка не превращала администратора в обычного пользователя.
-     */
-    public function toggleUserStatus(Request $request) {
-        $targetUserId = (int) $request->post('user_id', 0);
-        $newStatus = (string) $request->post('new_status', '');
-        
-        if ($targetUserId <= 0 || !in_array($newStatus, ['active', 'blocked'], true)) {
-            $this->responseJson(['success' => false, 'message' => 'Некорректные параметры']);
-            return;
-        }
-        
-        $user = UserModel::select()->where('id', '=', $targetUserId)->first();
+    public function index(Request $request): void
+    {
+        $actorId = (int) $request->session('user_id', 0);
+        $user = UserModel::select()->where('id', '=', $actorId)->first();
         if (!$user) {
-            $this->responseJson(['success' => false, 'message' => 'Пользователь не найден']);
-            return;
-        }
-
-        $currentUserId = (int) $request->session('user_id', 0);
-        if ($currentUserId === $targetUserId) {
-            $this->responseJson(['success' => false, 'message' => 'Нельзя изменить собственный статус']);
-            return;
-        }
-
-        if (Config::isAdminRole((int) $user->role)) {
-            $this->responseJson([
-                'success' => false,
-                'message' => 'Статус администратора нельзя менять этой операцией'
-            ]);
-            return;
-        }
-        
-        $newRole = $newStatus === 'blocked'
-            ? Config::USER_ROLE_BLOCKED
-            : Config::USER_ROLE_USER;
-        
-        $dbManager = DatabaseManager::getInstance();
-        $dbManager->queueUpdate(['role' => $newRole], 'users', $user->id);
-        $result = $dbManager->commit();
-        
-        if ($result !== false) {
-            $this->responseJson(['success' => true, 'message' => 'Статус пользователя изменен']);
-            return;
-        }
-        
-        $this->responseJson(['success' => false, 'message' => 'Ошибка при обновлении статуса']);
-    }
-    
-    /**
-     * Удаление пользователя
-     */
-    public function deleteUser(Request $request) {
-        $targetUserId = (int) $request->post('user_id', 0);
-        
-        if ($targetUserId <= 0) {
-            $this->responseJson(['success' => false, 'message' => 'Не указан пользователь']);
-            return;
-        }
-        
-        $user = UserModel::select()->where('id', '=', $targetUserId)->first();
-        if (!$user) {
-            $this->responseJson(['success' => false, 'message' => 'Пользователь не найден']);
-            return;
-        }
-        
-        $currentUser = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
-        if (!$currentUser) {
             http_response_code(401);
-            $this->responseJson(['success' => false, 'message' => 'Требуется авторизация']);
             return;
         }
 
-        if ((int)$currentUser->id === $targetUserId) {
-            $this->responseJson(['success' => false, 'message' => 'Нельзя удалить самого себя']);
+        try {
+            $users = (new AdminUserService())->listUsers($actorId);
+        } catch (DomainException $e) {
+            http_response_code($this->exceptionStatus($e, 403));
             return;
         }
 
-        if ((int)$user->role === Config::USER_ROLE_SUPERADMIN) {
-            $this->responseJson(['success' => false, 'message' => 'Суперадминистратора удалить нельзя']);
+        $flash = $request->session('admin_flash');
+        $request->unsetSession('admin_flash');
+
+        $this->render_template('admin-page/index', [
+            'user' => $user,
+            'customFields' => FieldModel::select()->orderBy('id', 'ASC')->get(),
+            'users' => $users,
+            'admin_flash' => is_array($flash) ? $flash : null,
+        ]);
+    }
+
+    public function saveCustomFields(Request $request): void
+    {
+        try {
+            $incoming = $request->post('fields', []);
+            if (!is_array($incoming)) {
+                throw new InvalidArgumentException('Некорректный формат пользовательских полей');
+            }
+            if (count($incoming) > self::MAX_CUSTOM_FIELDS) {
+                throw new InvalidArgumentException('Можно создать не более ' . self::MAX_CUSTOM_FIELDS . ' пользовательских полей');
+            }
+
+            $validated = [];
+            $seenNames = [];
+            foreach ($incoming as $fieldKey => $fieldData) {
+                if (!is_array($fieldData)) {
+                    throw new InvalidArgumentException('Некорректное описание пользовательского поля');
+                }
+
+                $isNew = str_starts_with((string) $fieldKey, 'new_');
+                if (!$isNew && preg_match('/^[1-9][0-9]*$/', (string) $fieldKey) !== 1) {
+                    throw new InvalidArgumentException('Некорректный идентификатор пользовательского поля');
+                }
+
+                $name = strtolower(trim((string) ($fieldData['field_name'] ?? '')));
+                $label = trim((string) ($fieldData['field_label'] ?? ''));
+                $type = strtolower(trim((string) ($fieldData['field_type'] ?? '')));
+                $required = ($fieldData['is_required'] ?? null) === 'on' ? 1 : 0;
+
+                if (preg_match('/^[a-z][a-z0-9_]{0,49}$/', $name) !== 1) {
+                    throw new InvalidArgumentException('Техническое имя поля: 1–50 символов, латиница, цифры и _, начиная с буквы');
+                }
+                if ($label === '' || mb_strlen($label) > 100) {
+                    throw new InvalidArgumentException('Метка поля должна содержать от 1 до 100 символов');
+                }
+                if (!in_array($type, self::FIELD_TYPES, true)) {
+                    throw new InvalidArgumentException('Недопустимый тип пользовательского поля');
+                }
+                if (isset($seenNames[$name])) {
+                    throw new InvalidArgumentException('Технические имена пользовательских полей должны быть уникальными');
+                }
+                $seenNames[$name] = true;
+
+                $validated[] = [
+                    'id' => $isNew ? null : (int) $fieldKey,
+                    'field_name' => $name,
+                    'field_label' => $label,
+                    'field_type' => $type,
+                    'is_required' => $required,
+                ];
+            }
+
+            $db = DatabaseManager::getInstance();
+            $db->beginTransaction();
+            try {
+                $existingRows = $db->fetchAll('SELECT id FROM user_fields FOR UPDATE');
+                $existingIds = [];
+                foreach ($existingRows as $row) {
+                    $existingIds[(int) $row['id']] = true;
+                }
+
+                $keptIds = [];
+                foreach ($validated as $field) {
+                    if ($field['id'] === null) {
+                        $db->execute(
+                            'INSERT INTO user_fields (field_name,field_type,field_label,is_required,created_at,updated_at) '
+                            . 'VALUES (:field_name,:field_type,:field_label,:is_required,:created_at,:updated_at)',
+                            [
+                                ':field_name' => $field['field_name'],
+                                ':field_type' => $field['field_type'],
+                                ':field_label' => $field['field_label'],
+                                ':is_required' => $field['is_required'],
+                                ':created_at' => date('Y-m-d H:i:s'),
+                                ':updated_at' => date('Y-m-d H:i:s'),
+                            ]
+                        );
+                        continue;
+                    }
+
+                    $fieldId = (int) $field['id'];
+                    if (!isset($existingIds[$fieldId])) {
+                        throw new InvalidArgumentException('Одно из пользовательских полей больше не существует');
+                    }
+                    $keptIds[$fieldId] = true;
+                    $db->execute(
+                        'UPDATE user_fields '
+                        . 'SET field_name = :field_name, field_type = :field_type, field_label = :field_label, '
+                        . 'is_required = :is_required, updated_at = :updated_at WHERE id = :id',
+                        [
+                            ':field_name' => $field['field_name'],
+                            ':field_type' => $field['field_type'],
+                            ':field_label' => $field['field_label'],
+                            ':is_required' => $field['is_required'],
+                            ':updated_at' => date('Y-m-d H:i:s'),
+                            ':id' => $fieldId,
+                        ]
+                    );
+                }
+
+                foreach (array_keys($existingIds) as $existingId) {
+                    if (!isset($keptIds[$existingId])) {
+                        $db->execute('DELETE FROM user_fields WHERE id = :id', [':id' => $existingId]);
+                    }
+                }
+
+                $db->endTransaction(true);
+            } catch (Throwable $e) {
+                $db->endTransaction(false);
+                throw $e;
+            }
+
+            $this->respondAdminAction($request, true, 'Пользовательские поля сохранены');
+        } catch (InvalidArgumentException $e) {
+            $this->respondAdminAction($request, false, $e->getMessage(), 422);
+        } catch (Throwable $e) {
+            error_log('Admin custom fields update failed: ' . $e->getMessage());
+            $this->respondAdminAction($request, false, 'Не удалось сохранить пользовательские поля', 500);
+        }
+    }
+
+    public function toggleUserStatus(Request $request): void
+    {
+        try {
+            $message = (new AdminUserService())->setStatus(
+                (int) $request->session('user_id', 0),
+                (int) $request->post('user_id', 0),
+                (string) $request->post('new_status', '')
+            );
+            $this->respondAdminAction($request, true, $message);
+        } catch (InvalidArgumentException|DomainException $e) {
+            $this->respondAdminAction($request, false, $e->getMessage(), $this->exceptionStatus($e, 422));
+        } catch (Throwable $e) {
+            error_log('Admin status update failed: ' . $e->getMessage());
+            $this->respondAdminAction($request, false, 'Не удалось изменить статус пользователя', 500);
+        }
+    }
+
+    /**
+     * Legacy endpoint name kept for route compatibility. The operation is a safe
+     * account deactivation: related Notes/Tasks/Messenger data are preserved.
+     */
+    public function deleteUser(Request $request): void
+    {
+        try {
+            $message = (new AdminUserService())->deactivate(
+                (int) $request->session('user_id', 0),
+                (int) $request->post('user_id', 0)
+            );
+            $this->respondAdminAction($request, true, $message);
+        } catch (InvalidArgumentException|DomainException $e) {
+            $this->respondAdminAction($request, false, $e->getMessage(), $this->exceptionStatus($e, 422));
+        } catch (Throwable $e) {
+            error_log('Admin deactivation failed: ' . $e->getMessage());
+            $this->respondAdminAction($request, false, 'Не удалось деактивировать пользователя', 500);
+        }
+    }
+
+    private function exceptionStatus(Throwable $e, int $fallback): int
+    {
+        $code = (int) $e->getCode();
+        return $code >= 400 && $code <= 599 ? $code : $fallback;
+    }
+
+    private function respondAdminAction(Request $request, bool $success, string $message, int $status = 200): void
+    {
+        $isAjax = strtolower((string) $request->server('HTTP_X_REQUESTED_WITH', '')) === 'xmlhttprequest';
+        if ($isAjax) {
+            http_response_code($status);
+            $this->responseJson(['success' => $success, 'message' => $message]);
             return;
         }
-        
-        $dbManager = DatabaseManager::getInstance();
-        $dbManager->queueDelete('users', $user->id);
-        $result = $dbManager->commit();
-        
-        if ($result !== false) {
-            $this->responseJson(['success' => true, 'message' => 'Пользователь удален']);
-            return;
-        }
-        
-        $this->responseJson(['success' => false, 'message' => 'Ошибка при удалении пользователя']);
+
+        $request->setSession('admin_flash', [
+            'type' => $success ? 'success' : 'error',
+            'message' => $message,
+        ]);
+        Router::getInstance()->redirect('adminpanel');
     }
 }

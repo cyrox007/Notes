@@ -64,8 +64,16 @@ class AuthController extends Controller
 
     public function registration(Request $request, ?string $inviteCode = null): void
     {
+        $configuredInvite = trim((string) (getenv('REGISTRATION_INVITE_CODE') ?: ''));
+        $inviteCode = trim($inviteCode ?: (string) $request->post('invite_code'));
+        if ($configuredInvite === '' || $inviteCode === '' || !hash_equals($configuredInvite, $inviteCode)) {
+            http_response_code(404);
+            header('Content-Type: text/plain; charset=utf-8');
+            echo 'Регистрация недоступна';
+            return;
+        }
+
         $baseUrl = rtrim((string) getenv('SITEURL'), '/') . '/' . ltrim((string) getenv('BASE_PATH'), '/');
-        $inviteCode = $inviteCode ?: (string) $request->post('invite_code');
         $data = [
             'style' => $baseUrl . 'assets/css/style.css',
             'reg-script' => $baseUrl . 'assets/js/reg-script.js',
@@ -73,11 +81,6 @@ class AuthController extends Controller
             'error' => '',
             'invite_code' => $inviteCode,
         ];
-
-        if ($inviteCode === '') {
-            Router::getInstance()->redirect('authpage');
-            return;
-        }
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             $this->render_template('login_page/register_view', $data);
@@ -90,12 +93,21 @@ class AuthController extends Controller
         $patronymic = trim((string) $request->post('patronymic'));
         $lastname = trim((string) $request->post('surname'));
         $phone = trim((string) $request->post('user_phone'));
-        $email = trim((string) $request->post('email'));
+        $email = mb_strtolower(trim((string) $request->post('email')));
 
-        if ($username === '' || $password === '' || $firstname === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $validationError = $this->registrationValidationError(
+            $username,
+            $password,
+            $firstname,
+            $patronymic,
+            $lastname,
+            $phone,
+            $email
+        );
+        if ($validationError !== null) {
             $data['errors'][] = [
                 'CODE' => 'registration_error',
-                'MESSAGE' => 'Заполните обязательные поля корректно',
+                'MESSAGE' => $validationError,
             ];
             $this->render_template('login_page/register_view', $data);
             return;
@@ -134,5 +146,38 @@ class AuthController extends Controller
         DatabaseManager::getInstance()->commit();
 
         Router::getInstance()->redirect('authpage');
+    }
+
+    private function registrationValidationError(
+        string $username,
+        string $password,
+        string $firstname,
+        string $patronymic,
+        string $lastname,
+        string $phone,
+        string $email
+    ): ?string {
+        if (!preg_match('/^[A-Za-z0-9._-]{3,50}$/', $username)) {
+            return 'Логин должен содержать 3–50 латинских букв, цифр, точек, дефисов или подчёркиваний';
+        }
+        if (strlen($password) < 10 || strlen($password) > 200) {
+            return 'Пароль должен содержать от 10 до 200 символов';
+        }
+        if ($firstname === '' || mb_strlen($firstname) > 80) {
+            return 'Укажите корректное имя длиной до 80 символов';
+        }
+        if ($lastname === '' || mb_strlen($lastname) > 80) {
+            return 'Укажите корректную фамилию длиной до 80 символов';
+        }
+        if ($patronymic !== '' && mb_strlen($patronymic) > 80) {
+            return 'Отчество слишком длинное';
+        }
+        if ($phone !== '' && mb_strlen($phone) > 32) {
+            return 'Телефон слишком длинный';
+        }
+        if (mb_strlen($email) > 190 || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return 'Укажите корректный email';
+        }
+        return null;
     }
 }

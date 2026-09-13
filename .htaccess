@@ -8,17 +8,18 @@ RewriteCond %{REQUEST_FILENAME} ^(.*/)install\.php$
 RewriteCond %1.env -f
 RewriteRule ^install\.php$ - [F,L]
 
-# Служебные каталоги никогда не должны отдаваться из web-root.
-RewriteRule ^(?:database|\.logs|vendor)(?:/|$) - [F,L,NC]
+# Исходный код, служебные каталоги, миграции и CI metadata никогда не должны
+# отдаваться как static files из project web-root.
+RewriteRule ^(?:app|bin|core|database|docs|vendor|ws_server|\.github|\.git|\.logs)(?:/|$) - [F,L,NC]
 
-# Не отдаём конфигурацию и служебные файлы напрямую.
+# Не отдаём конфигурацию и repository metadata напрямую.
 <IfModule mod_authz_core.c>
-    <FilesMatch "^(?:\.env(?:\..*)?|composer\.(?:json|lock)|\.gitignore)$">
+    <FilesMatch "^(?:\.env(?:\..*)?|default\.env|composer\.(?:json|lock)|\.gitignore|README\.md|CHANGELOG\.md|TASKS_MODULE_README\.md)$">
         Require all denied
     </FilesMatch>
 </IfModule>
 <IfModule !mod_authz_core.c>
-    <FilesMatch "^(?:\.env(?:\..*)?|composer\.(?:json|lock)|\.gitignore)$">
+    <FilesMatch "^(?:\.env(?:\..*)?|default\.env|composer\.(?:json|lock)|\.gitignore|README\.md|CHANGELOG\.md|TASKS_MODULE_README\.md)$">
         Order allow,deny
         Deny from all
     </FilesMatch>
@@ -32,6 +33,7 @@ RewriteRule .* index.php [L]
     Header always set X-Content-Type-Options "nosniff"
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
     Header always set X-Frame-Options "SAMEORIGIN"
-    Header set Content-Security-Policy "default-src 'self'; connect-src 'self' http://notes.loc/ http://localhost:27800/ ws://localhost:27800/ ws://notes.loc:27800/; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://notes.loc https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://notes.loc https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https://notes.loc data:; media-src 'self' blob:;"
-    Header set X-Content-Security-Policy "default-src 'self'; connect-src 'self' http://notes.loc/ http://localhost:27800/ ws://localhost:27800/ ws://notes.loc:27800/; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://notes.loc https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://notes.loc https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https://notes.loc data:; media-src 'self' blob:;"
+    Header always set Permissions-Policy "camera=(), geolocation=(), microphone=(self), payment=(), usb=()"
+    Header always set Cross-Origin-Opener-Policy "same-origin"
+    Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; connect-src 'self' ws: wss:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; media-src 'self' blob:; worker-src 'self' blob:"
 </IfModule>

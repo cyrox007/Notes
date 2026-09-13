@@ -1,49 +1,47 @@
 {extends file="core/base.tpl"}
 
-{block name="title"}Файловый менеджер*{/block}
+{block name="title"}Файловый менеджер{/block}
 
 {block name="body"}
 	<div class="file-manager" {if $current_folder} data-current-folder-id="{$current_folder.id}" {/if}>
-		<!-- Верхняя панель -->
 		<div class="file-manager__toolbar">
-			<div class="file-manager__breadcrumb">
+			<div class="file-manager__breadcrumb" aria-label="Путь к папке">
 				{foreach $breadcrumb as $i => $crumb}
-					{if $i > 0}<span class="file-manager__separator">/</span>{/if}
+					{if $i > 0}<span class="file-manager__separator" aria-hidden="true">/</span>{/if}
 					<a href="{if $crumb.id == 0}/files/{else}/files/folder/{$crumb.id}/{/if}"
-						class="file-manager__breadcrumb-item{if $i == count($breadcrumb) - 1} file-manager__breadcrumb-item--active{/if}">
+						class="file-manager__breadcrumb-item{if $i == count($breadcrumb) - 1} file-manager__breadcrumb-item--active{/if}"
+						{if $i == count($breadcrumb) - 1}aria-current="page"{/if}>
 						{$crumb.name}
 					</a>
 				{/foreach}
 			</div>
 
 			<div class="file-manager__actions">
-				<button id="btn-create-folder" class="file-manager__btn file-manager__btn--primary">
-					<i class="fa fa-folder-plus"></i> Новая папка
+				<button id="btn-create-folder" type="button" class="file-manager__btn file-manager__btn--primary">
+					<i class="fa fa-folder-o" aria-hidden="true"></i> Новая папка
 				</button>
-				<button id="btn-upload-file" class="file-manager__btn file-manager__btn--success">
-					<i class="fa fa-upload"></i> Загрузить файл
+				<button id="btn-upload-file" type="button" class="file-manager__btn file-manager__btn--success">
+					<i class="fa fa-upload" aria-hidden="true"></i> Загрузить файл
 				</button>
-				<input type="file" id="file-input" style="display: none;" multiple>
+				<input type="file" id="file-input" hidden multiple>
 			</div>
 		</div>
 
-		<!-- Список файлов -->
-		<div class="file-manager__content">
+		<div class="file-manager__content" aria-live="polite">
 			{if empty($files)}
 				<div class="file-manager__empty">
-					<i class="fa fa-folder-open"></i>
-					<p>Папка пуста</p>
-					<p style="margin-top: 10px; font-size: 14px; color: #999;">Создайте папку или загрузите файл, чтобы начать
-					</p>
+					<i class="fa fa-folder-open-o" aria-hidden="true"></i>
+					<strong>Папка пуста</strong>
+					<p>Создайте папку или загрузите файл, чтобы начать.</p>
 				</div>
 			{else}
 				<div class="file-manager__grid">
 					{foreach $files as $file}
 						<div class="file-manager__item" data-id="{$file.id}" data-type="{$file.type}" data-name="{$file.name}"
-							data-extension="{$file.extension}">
+							data-extension="{$file.extension}" tabindex="0">
 							<div class="file-manager__item-icon">
 								{if $file.type == 'folder'}
-									<i class="fa fa-folder"></i>
+									<i class="fa fa-folder" aria-hidden="true"></i>
 								{else}
 									{assign var="icon" value="fa-file-o"}
 									{if $file.mime_type|strpos:'image' !== false}
@@ -62,14 +60,13 @@
 										{assign var="icon" value="fa-file-archive-o"}
 									{elseif $file.extension|in_array:['xls', 'xlsx']}
 										{assign var="icon" value="fa-file-excel-o"}
-									{elseif $file.extension|in_array:['php', 'js', 'py', 'java', 'cpp', 'c', 'html', 'css']}
+									{elseif $file.extension|in_array:['php', 'js', 'py', 'java', 'cpp', 'c', 'html', 'css', 'json', 'xml', 'sql', 'md', 'txt']}
 										{assign var="icon" value="fa-file-code-o"}
 									{/if}
-									<i class="fa {$icon}"></i>
+									<i class="fa {$icon}" aria-hidden="true"></i>
 								{/if}
 							</div>
-							<div class="file-manager__item-name">{$file.name}{if $file.type == 'file'}.{$file.extension}{/if}
-							</div>
+							<div class="file-manager__item-name">{$file.name}{if $file.type == 'file'}.{$file.extension}{/if}</div>
 							<div class="file-manager__item-meta">
 								{if $file.type == 'file'}
 									{if $file.size < 1024}
@@ -85,21 +82,19 @@
 							</div>
 							<div class="file-manager__item-actions">
 								{if $file.type == 'folder'}
-									<a href="/files/folder/{$file.id}/" class="file-manager__action-btn" title="Открыть">
-										<i class="fa fa-folder-open"></i>
+									<a href="/files/folder/{$file.id}/" class="file-manager__action-btn" title="Открыть" aria-label="Открыть {$file.name}">
+										<i class="fa fa-folder-open-o" aria-hidden="true"></i>
 									</a>
 								{else}
-									<a href="/files/get/{$file.id}/" class="file-manager__action-btn" title="Открыть" target="_blank">
-										<i class="fa fa-eye"></i>
+									<a href="/files/get/{$file.id}/" class="file-manager__action-btn" title="Открыть" aria-label="Открыть {$file.name}" target="_blank" rel="noopener">
+										<i class="fa fa-eye" aria-hidden="true"></i>
 									</a>
 								{/if}
-								<button class="file-manager__action-btn file-manager__action-btn--rename btn-rename"
-									title="Переименовать">
-									<i class="fa fa-edit"></i>
+								<button type="button" class="file-manager__action-btn file-manager__action-btn--rename btn-rename" title="Переименовать" aria-label="Переименовать {$file.name}">
+									<i class="fa fa-pencil" aria-hidden="true"></i>
 								</button>
-								<button class="file-manager__action-btn file-manager__action-btn--delete btn-delete"
-									title="Удалить">
-									<i class="fa fa-trash"></i>
+								<button type="button" class="file-manager__action-btn file-manager__action-btn--delete btn-delete" title="Удалить" aria-label="Удалить {$file.name}">
+									<i class="fa fa-trash" aria-hidden="true"></i>
 								</button>
 							</div>
 						</div>
@@ -109,47 +104,46 @@
 		</div>
 	</div>
 
-	<!-- Модальное окно создания папки -->
-	<div id="modal-create-folder" class="file-manager__modal">
+	<div id="modal-create-folder" class="file-manager__modal" role="dialog" aria-modal="true" aria-labelledby="create-folder-title">
 		<div class="file-manager__modal-content">
 			<div class="file-manager__modal-header">
-				<h3>Новая папка</h3>
-				<button class="file-manager__modal-close">&times;</button>
+				<h3 id="create-folder-title">Новая папка</h3>
+				<button type="button" class="file-manager__modal-close" aria-label="Закрыть">&times;</button>
 			</div>
 			<div class="file-manager__modal-body">
-				<input type="text" id="folder-name-input" placeholder="Название папки" autofocus>
+				<label class="visually-hidden" for="folder-name-input">Название папки</label>
+				<input type="text" id="folder-name-input" maxlength="190" placeholder="Название папки">
 			</div>
 			<div class="file-manager__modal-footer">
-				<button class="file-manager__btn file-manager__btn--secondary modal-cancel">Отмена</button>
-				<button class="file-manager__btn file-manager__btn--primary modal-ok">Создать</button>
+				<button type="button" class="file-manager__btn file-manager__btn--secondary modal-cancel">Отмена</button>
+				<button type="button" class="file-manager__btn file-manager__btn--primary modal-ok">Создать</button>
 			</div>
 		</div>
 	</div>
 
-	<!-- Модальное окно переименования -->
-	<div id="modal-rename" class="file-manager__modal">
+	<div id="modal-rename" class="file-manager__modal" role="dialog" aria-modal="true" aria-labelledby="rename-title">
 		<div class="file-manager__modal-content">
 			<div class="file-manager__modal-header">
-				<h3>Переименовать</h3>
-				<button class="file-manager__modal-close">&times;</button>
+				<h3 id="rename-title">Переименовать</h3>
+				<button type="button" class="file-manager__modal-close" aria-label="Закрыть">&times;</button>
 			</div>
 			<div class="file-manager__modal-body">
-				<input type="text" id="rename-input" placeholder="Новое название">
+				<label class="visually-hidden" for="rename-input">Новое название</label>
+				<input type="text" id="rename-input" maxlength="190" placeholder="Новое название">
 				<input type="hidden" id="rename-id">
 			</div>
 			<div class="file-manager__modal-footer">
-				<button class="file-manager__btn file-manager__btn--secondary modal-cancel">Отмена</button>
-				<button class="file-manager__btn file-manager__btn--primary modal-ok">Переименовать</button>
+				<button type="button" class="file-manager__btn file-manager__btn--secondary modal-cancel">Отмена</button>
+				<button type="button" class="file-manager__btn file-manager__btn--primary modal-ok">Переименовать</button>
 			</div>
 		</div>
 	</div>
 
-	<!-- Медиа плеер -->
-	<div id="media-player-modal" class="file-manager__modal">
+	<div id="media-player-modal" class="file-manager__modal" role="dialog" aria-modal="true" aria-labelledby="player-title">
 		<div class="file-manager__modal-content file-manager__modal-content--large">
 			<div class="file-manager__modal-header">
-				<h3 id="player-title">Плеер</h3>
-				<button class="file-manager__modal-close">&times;</button>
+				<h3 id="player-title">Просмотр файла</h3>
+				<button type="button" class="file-manager__modal-close" aria-label="Закрыть">&times;</button>
 			</div>
 			<div class="file-manager__modal-body">
 				<div id="player-container"></div>
@@ -157,38 +151,30 @@
 		</div>
 	</div>
 
-	<!-- Code Editor Modal -->
-	<div id="code-editor-modal" class="file-manager__modal">
+	<div id="text-preview-modal" class="file-manager__modal" role="dialog" aria-modal="true" aria-labelledby="text-preview-title">
 		<div class="file-manager__modal-content file-manager__modal-content--xl">
 			<div class="file-manager__modal-header">
-				<h3 id="editor-title">Редактор кода</h3>
-				<button class="file-manager__modal-close">&times;</button>
+				<h3 id="text-preview-title">Просмотр текста</h3>
+				<button type="button" class="file-manager__modal-close" aria-label="Закрыть">&times;</button>
 			</div>
 			<div class="file-manager__modal-body">
-				<div id="editor-container">
-					<textarea id="code-editor"></textarea>
-				</div>
+				<pre id="text-preview-content" class="file-manager__text-preview" tabindex="0"></pre>
 				<div class="file-manager__editor-info">
-					<small>⚠️ Код выполняется в изолированной среде (песочнице)</small>
+					<small>Режим только для чтения. Код на странице не выполняется.</small>
 				</div>
-			</div>
-			<div class="file-manager__modal-footer">
-				<button class="file-manager__btn file-manager__btn--secondary" id="btn-run-code">Запустить</button>
-				<button class="file-manager__btn file-manager__btn--primary" id="btn-save-code">Сохранить</button>
 			</div>
 		</div>
 	</div>
 
-	<!-- Upload Progress Modal -->
-	<div id="modal-upload-progress" class="file-manager__modal">
+	<div id="modal-upload-progress" class="file-manager__modal" role="dialog" aria-modal="true" aria-labelledby="upload-title">
 		<div class="file-manager__modal-content">
 			<div class="file-manager__modal-header">
-				<h3>Загрузка файла</h3>
+				<h3 id="upload-title">Загрузка файла</h3>
 			</div>
 			<div class="file-manager__modal-body">
 				<div class="upload-progress-item" id="upload-progress-container">
 					<div class="upload-file-name" id="upload-file-name">Файл...</div>
-					<div class="progress-bar">
+					<div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
 						<div class="progress-bar-fill" id="progress-bar-fill"></div>
 					</div>
 					<div class="progress-percent" id="progress-percent">0%</div>
@@ -196,6 +182,5 @@
 			</div>
 		</div>
 	</div>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.14/ace.js"></script>
 	<script src="/assets/js/file_manager/script.js"></script>
 {/block}

@@ -1,569 +1,390 @@
 /**
- * File Manager JavaScript
- * Handles file operations, media player, and code editor
+ * File Manager browser behavior.
+ * User files are opened only through the protected /files/get/{id}/ endpoint.
+ * Text/code preview is read-only: the browser never evaluates file contents.
  */
 
 document.addEventListener('DOMContentLoaded', function () {
-    // Elements
+    const root = document.querySelector('.file-manager');
+    if (!root) return;
+
     const btnCreateFolder = document.getElementById('btn-create-folder');
     const btnUploadFile = document.getElementById('btn-upload-file');
     const fileInput = document.getElementById('file-input');
     const modalCreateFolder = document.getElementById('modal-create-folder');
     const modalRename = document.getElementById('modal-rename');
     const modalPlayer = document.getElementById('media-player-modal');
-    const modalEditor = document.getElementById('code-editor-modal');
+    const modalTextPreview = document.getElementById('text-preview-modal');
     const modalUploadProgress = document.getElementById('modal-upload-progress');
+    const folderNameInput = document.getElementById('folder-name-input');
+    const renameInput = document.getElementById('rename-input');
+    const renameIdInput = document.getElementById('rename-id');
+    const progressBar = modalUploadProgress ? modalUploadProgress.querySelector('.progress-bar') : null;
+    const progressBarFill = document.getElementById('progress-bar-fill');
+    const progressPercent = document.getElementById('progress-percent');
+    const uploadFileName = document.getElementById('upload-file-name');
 
-    // Current folder context
-    let currentFolderId = 0;
+    const currentFolderId = Number.parseInt(root.dataset.currentFolderId || '0', 10) || 0;
     let currentItemId = null;
-    
-    // Инициализируем currentFolderId из данных шаблона (если мы внутри папки)
-    const currentFolderElement = document.querySelector('.file-manager');
-    if (currentFolderElement && currentFolderElement.dataset.currentFolderId) {
-        currentFolderId = parseInt(currentFolderElement.dataset.currentFolderId) || 0;
-    }
-    
-    // Ace Editor instance
-    let editor = null;
+    let lastFocusedElement = null;
 
+    const imageExtensions = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp']);
+    const audioExtensions = new Set(['mp3', 'wav', 'ogg', 'flac', 'm4a']);
+    const videoExtensions = new Set(['mp4', 'webm', 'avi', 'mov', 'mkv']);
+    const textExtensions = new Set(['txt', 'md', 'php', 'js', 'py', 'java', 'cpp', 'c', 'html', 'css', 'json', 'xml', 'sql']);
 
-    // Helper function to escape HTML
-    function escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
-    // Initialize Ace Editor
-    if (typeof ace !== 'undefined') {
-        editor = ace.edit("code-editor");
-        editor.setTheme("ace/theme/monokai");
-        editor.session.setMode("ace/mode/javascript");
-        editor.setFontSize(14);
-    }
-
-    // ==================== Folder Creation ====================
-
-    if (btnCreateFolder) {
-        btnCreateFolder.addEventListener('click', function () {
-            showModal(modalCreateFolder);
-            document.getElementById('folder-name-input').focus();
-        });
-    }
-
-    // Modal OK button for create folder
-    const createFolderOk = modalCreateFolder.querySelector('.modal-ok');
-    if (createFolderOk) {
-        createFolderOk.addEventListener('click', createFolder);
-    }
-
-    function createFolder() {
-        const nameInput = document.getElementById('folder-name-input');
-        const folderName = nameInput.value.trim();
-
-        if (!folderName) {
-            alert('Введите название папки');
-            return;
+    function showModal(modal) {
+        if (!modal) return;
+        lastFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        modal.classList.add('show');
+        document.body.classList.add('file-manager-modal-open');
+        const focusTarget = modal.querySelector('input:not([type="hidden"]), button, [tabindex="0"]');
+        if (focusTarget instanceof HTMLElement) {
+            window.setTimeout(() => focusTarget.focus(), 0);
         }
+    }
 
-        fetch('/files/create-folder/', {
+    function hideModal(modal) {
+        if (!modal) return;
+        modal.classList.remove('show');
+        if (!document.querySelector('.file-manager__modal.show')) {
+            document.body.classList.remove('file-manager-modal-open');
+        }
+        if (lastFocusedElement && document.contains(lastFocusedElement)) {
+            lastFocusedElement.focus();
+        }
+    }
+
+    function showError(message) {
+        window.alert(message || 'Не удалось выполнить операцию');
+    }
+
+    function parseJsonResponse(response) {
+        return response.json().catch(() => ({ success: false, message: `Ошибка сервера (${response.status})` }));
+    }
+
+    function postForm(url, values) {
+        const body = new URLSearchParams();
+        Object.entries(values).forEach(([key, value]) => body.set(key, String(value)));
+        return fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'X-Requested-With': 'XMLHttpRequest'
             },
-            body: `name=${encodeURIComponent(folderName)}&parent_id=${currentFolderId}`
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Добавляем новую папку в DOM без перезагрузки
-                    const filesContainer = document.querySelector('.file-manager__grid');
-                    if (filesContainer && data.folder && data.folder.id) {
-                        // Проверяем, есть ли элемент "Папка пуста" и удаляем его
-                        const emptyMessage = document.querySelector('.file-manager__empty');
-                        if (emptyMessage) {
-                            emptyMessage.remove();
-                        }
+            body: body.toString()
+        }).then(parseJsonResponse);
+    }
 
-                        const folderHtml = `
-                        <div class="file-manager__item" data-id="${data.folder.id}" data-type="folder" data-name="${escapeHtml(data.folder.name)}">
-                            <div class="file-manager__item-icon">
-                                <i class="fa fa-folder"></i>
-                            </div>
-                            <div class="file-manager__item-name">${escapeHtml(data.folder.name)}</div>
-                            <div class="file-manager__item-meta">Папка</div>
-                            <div class="file-manager__item-actions">
-                                <a href="/files/folder/${data.folder.id}/" class="file-manager__action-btn" title="Открыть">
-                                    <i class="fa fa-folder-open"></i>
-                                </a>
-                                <button class="file-manager__action-btn file-manager__action-btn--rename btn-rename" title="Переименовать">
-                                    <i class="fa fa-edit"></i>
-                                </button>
-                                <button class="file-manager__action-btn file-manager__action-btn--delete btn-delete" title="Удалить">
-                                    <i class="fa fa-trash"></i>
-                                </button>
-                            </div>
-                        </div>
-                    `;
-                        filesContainer.insertAdjacentHTML('beforeend', folderHtml);
+    function itemForElement(element) {
+        return element instanceof Element ? element.closest('.file-manager__item') : null;
+    }
 
-                        // Переназначаем обработчики событий для новых кнопок
-                        const newItem = filesContainer.lastElementChild;
-                        newItem.querySelector('.btn-delete').addEventListener('click', function (e) {
-                            e.stopPropagation();
-                            const item = this.closest('.file-manager__item');
-                            const id = item.dataset.id;
-                            const itemName = item.dataset.name;
-                            if (confirm(`Вы уверены, что хотите удалить "${itemName}"?`)) {
-                                deleteItem(id);
-                            }
-                        });
+    function fileUrl(id) {
+        return `/files/get/${encodeURIComponent(String(id))}/`;
+    }
 
-                        newItem.querySelector('.btn-rename').addEventListener('click', function (e) {
-                            e.stopPropagation();
-                            const item = this.closest('.file-manager__item');
-                            currentItemId = item.dataset.id;
-                            currentItemType = item.dataset.type;
-                            const itemName = item.dataset.name;
-                            renameInput.value = itemName;
-                            renameIdInput.value = currentItemId;
-                            modalRename.classList.add('show');
-                            renameInput.focus();
-                            renameInput.select();
-                        });
+    async function createFolder() {
+        const folderName = folderNameInput ? folderNameInput.value.trim() : '';
+        if (!folderName) {
+            showError('Введите название папки');
+            folderNameInput?.focus();
+            return;
+        }
 
-                        modalCreateFolder.classList.remove('show');
-                    } else {
-                        // Если не удалось добавить в DOM, перезагружаем страницу
-                        location.reload();
-                    }
-                } else {
-                    alert(data.message || 'Ошибка при создании папки');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Ошибка при создании папки');
+        try {
+            const data = await postForm('/files/create-folder/', {
+                name: folderName,
+                parent_id: currentFolderId
             });
-
-        hideModal(modalCreateFolder);
-        nameInput.value = '';
+            if (!data.success) {
+                showError(data.message || 'Ошибка при создании папки');
+                return;
+            }
+            hideModal(modalCreateFolder);
+            window.location.reload();
+        } catch (error) {
+            console.error('Create folder failed:', error);
+            showError('Ошибка при создании папки');
+        }
     }
 
-    // ==================== File Upload ====================
+    async function renameItem() {
+        const newName = renameInput ? renameInput.value.trim() : '';
+        if (!currentItemId || !newName) {
+            showError('Введите название');
+            renameInput?.focus();
+            return;
+        }
 
-    if (btnUploadFile) {
-        btnUploadFile.addEventListener('click', function () {
-            fileInput.click();
-        });
+        try {
+            const data = await postForm('/files/rename/', {
+                id: currentItemId,
+                name: newName
+            });
+            if (!data.success) {
+                showError(data.message || 'Ошибка при переименовании');
+                return;
+            }
+            hideModal(modalRename);
+            window.location.reload();
+        } catch (error) {
+            console.error('Rename failed:', error);
+            showError('Ошибка при переименовании');
+        }
     }
 
-    if (fileInput) {
-        fileInput.addEventListener('change', function (e) {
-            const files = e.target.files;
-            if (files.length === 0) return;
+    async function deleteItem(item) {
+        const id = item?.dataset.id;
+        const name = item?.dataset.name || 'элемент';
+        if (!id) return;
+        if (!window.confirm(`Удалить «${name}»?`)) return;
 
-            uploadFiles(files);
-        });
+        try {
+            const data = await postForm('/files/delete/', { id });
+            if (!data.success) {
+                showError(data.message || 'Ошибка при удалении');
+                return;
+            }
+            item.remove();
+            if (!root.querySelector('.file-manager__item')) {
+                window.location.reload();
+            }
+        } catch (error) {
+            console.error('Delete failed:', error);
+            showError('Ошибка при удалении');
+        }
     }
 
-    function uploadFiles(files) {
-        const modalUploadProgress = document.getElementById('modal-upload-progress');
-        const progressBarFill = document.getElementById('progress-bar-fill');
-        const progressPercent = document.getElementById('progress-percent');
-        const uploadFileName = document.getElementById('upload-file-name');
-        Array.from(files).forEach(file => {
+    function resetProgress(fileName) {
+        if (uploadFileName) uploadFileName.textContent = fileName;
+        if (progressBarFill) progressBarFill.style.width = '0%';
+        if (progressPercent) progressPercent.textContent = '0%';
+        if (progressBar) progressBar.setAttribute('aria-valuenow', '0');
+    }
+
+    function uploadSingleFile(file) {
+        return new Promise((resolve, reject) => {
             const formData = new FormData();
             formData.append('file', file);
-            formData.append('parent_id', currentFolderId);
+            formData.append('parent_id', String(currentFolderId));
 
-            // Показываем модальное окно прогресса
-            uploadFileName.textContent = file.name;
-            progressBarFill.style.width = '0%';
-            progressPercent.textContent = '0%';
+            resetProgress(file.name);
             showModal(modalUploadProgress);
 
             const xhr = new XMLHttpRequest();
-
             xhr.open('POST', '/files/upload/', true);
             xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
 
-            // Отслеживаем прогресс загрузки
-            xhr.upload.onprogress = function (e) {
-                if (e.lengthComputable) {
-                    const percentComplete = Math.round((e.loaded / e.total) * 100);
-                    progressBarFill.style.width = percentComplete + '%';
-                    progressPercent.textContent = percentComplete + '%';
-                }
+            xhr.upload.onprogress = function (event) {
+                if (!event.lengthComputable) return;
+                const percent = Math.round((event.loaded / event.total) * 100);
+                if (progressBarFill) progressBarFill.style.width = `${percent}%`;
+                if (progressPercent) progressPercent.textContent = `${percent}%`;
+                if (progressBar) progressBar.setAttribute('aria-valuenow', String(percent));
             };
 
             xhr.onload = function () {
-                if (xhr.status === 200) {
-                    try {
-                        const data = JSON.parse(xhr.responseText);
-                        if (data.success) {
-                            // Успешная загрузка - перезагружаем страницу
-                            setTimeout(function () {
-                                hideModal(modalUploadProgress);
-                                location.reload();
-                            }, 500);
-                        } else {
-                            hideModal(modalUploadProgress);
-                            alert(data.message || 'Ошибка при загрузке файла: ' + file.name);
-                        }
-                    } catch (e) {
-                        hideModal(modalUploadProgress);
-                        alert('Ошибка при загрузке файла: ' + file.name);
-                    }
+                let data;
+                try {
+                    data = JSON.parse(xhr.responseText || '{}');
+                } catch (error) {
+                    reject(new Error('Сервер вернул некорректный ответ'));
+                    return;
+                }
+                if (xhr.status >= 200 && xhr.status < 300 && data.success) {
+                    resolve(data);
                 } else {
-                    hideModal(modalUploadProgress);
-                    alert('Ошибка при загрузке файла: ' + file.name);
+                    reject(new Error(data.message || `Ошибка загрузки (${xhr.status})`));
                 }
             };
-
-            xhr.onerror = function () {
-                hideModal(modalUploadProgress);
-                alert('Ошибка при загрузке файла: ' + file.name);
-            };
-
+            xhr.onerror = () => reject(new Error('Ошибка сети при загрузке'));
             xhr.send(formData);
         });
-
-        fileInput.value = '';
     }
 
-    // ==================== Delete ====================
-
-    document.querySelectorAll('.btn-delete').forEach(btn => {
-        btn.addEventListener('click', function (e) {
-            e.stopPropagation();
-            const item = this.closest('.file-manager__item');
-            if (!item) return;
-            const fileId = item.dataset.id;
-            const fileName = item.dataset.name;
-
-            if (confirm(`Вы уверены, что хотите удалить "${fileName}"?`)) {
-                fetch('/files/delete/', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'X-Requested-With': 'XMLHttpRequest'
-                    },
-                    body: `id=${fileId}`
-                })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            item.remove();
-                        } else {
-                            alert(data.message || 'Ошибка при удалении');
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        alert('Ошибка при удалении');
-                    });
+    async function uploadFiles(files) {
+        try {
+            for (const file of Array.from(files)) {
+                await uploadSingleFile(file);
             }
-        });
-    });
-
-    // ==================== Rename ====================
-
-    document.querySelectorAll('.btn-rename').forEach(btn => {
-        btn.addEventListener('click', function (e) {
-            e.stopPropagation();
-            const item = this.closest('.file-manager__item');
-            if (!item) return;
-            currentItemId = item.dataset.id;
-            const itemName = item.dataset.name;
-
-            document.getElementById('rename-input').value = itemName;
-            document.getElementById('rename-id').value = currentItemId;
-            showModal(modalRename);
-            document.getElementById('rename-input').focus();
-        });
-    });
-
-    const renameOk = modalRename.querySelector('.modal-ok');
-    if (renameOk) {
-        renameOk.addEventListener('click', function () {
-            const newName = document.getElementById('rename-input').value.trim();
-
-            if (!newName) {
-                alert('Введите название');
-                return;
-            }
-
-            fetch('/files/rename/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: `id=${currentItemId}&name=${encodeURIComponent(newName)}`
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        location.reload();
-                    } else {
-                        alert(data.message || 'Ошибка при переименовании');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('Ошибка при переименовании');
-                });
-
-            hideModal(modalRename);
-        });
+            hideModal(modalUploadProgress);
+            window.location.reload();
+        } catch (error) {
+            hideModal(modalUploadProgress);
+            console.error('Upload failed:', error);
+            showError(error instanceof Error ? error.message : 'Ошибка при загрузке файла');
+        } finally {
+            if (fileInput) fileInput.value = '';
+        }
     }
 
-    // ==================== Media Player ====================
-
-    document.querySelectorAll('.file-manager__item[data-type="file"]').forEach(item => {
-        item.addEventListener('dblclick', function () {
-            const fileId = this.dataset.id;
-            const fileName = this.dataset.name;
-            const extension = this.dataset.extension;
-
-            // Check if it's a media file
-            const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(extension.toLowerCase());
-            const isAudio = ['mp3', 'wav', 'ogg', 'flac', 'm4a'].includes(extension.toLowerCase());
-            const isVideo = ['mp4', 'webm', 'avi', 'mov', 'mkv'].includes(extension.toLowerCase());
-            const isCode = ['php', 'js', 'py', 'java', 'cpp', 'c', 'html', 'css', 'json', 'xml', 'sql'].includes(extension.toLowerCase());
-
-            if (isImage || isAudio || isVideo) {
-                openMediaPlayer(fileId, fileName, extension, isImage, isAudio, isVideo);
-            } else if (isCode) {
-                openCodeEditor(fileId, fileName, extension);
-            }
-        });
-    });
-
-    function openMediaPlayer(fileId, fileName, extension, isImage, isAudio, isVideo) {
+    function openMediaPlayer(item) {
+        if (!modalPlayer) return;
+        const id = item.dataset.id;
+        const name = item.dataset.name || 'Файл';
+        const extension = (item.dataset.extension || '').toLowerCase();
         const container = document.getElementById('player-container');
         const title = document.getElementById('player-title');
-        const fileUrl = `/files/get/${fileId}/`;
+        if (!id || !container || !title) return;
 
-        container.innerHTML = '';
+        container.replaceChildren();
+        const url = fileUrl(id);
+        let media = null;
 
-        if (isImage) {
-            title.textContent = `Просмотр: ${fileName}.${extension}`;
-            const img = document.createElement('img');
-            img.src = fileUrl;
-            img.alt = fileName;
-            container.appendChild(img);
-        } else if (isAudio) {
-            title.textContent = `Аудио: ${fileName}.${extension}`;
+        if (imageExtensions.has(extension)) {
+            const image = document.createElement('img');
+            image.src = url;
+            image.alt = name;
+            image.loading = 'lazy';
+            media = image;
+            title.textContent = `Просмотр: ${name}.${extension}`;
+        } else if (audioExtensions.has(extension)) {
             const audio = document.createElement('audio');
-            audio.src = fileUrl;
+            audio.src = url;
             audio.controls = true;
-            audio.autoplay = true;
-            container.appendChild(audio);
-        } else if (isVideo) {
-            title.textContent = `Видео: ${fileName}.${extension}`;
+            audio.preload = 'metadata';
+            media = audio;
+            title.textContent = `Аудио: ${name}.${extension}`;
+        } else if (videoExtensions.has(extension)) {
             const video = document.createElement('video');
-            video.src = fileUrl;
+            video.src = url;
             video.controls = true;
-            video.autoplay = true;
-            video.style.maxHeight = '500px';
-            container.appendChild(video);
+            video.preload = 'metadata';
+            video.playsInline = true;
+            media = video;
+            title.textContent = `Видео: ${name}.${extension}`;
         }
 
+        if (!media) return;
+        container.appendChild(media);
         showModal(modalPlayer);
     }
 
-    // ==================== Code Editor ====================
+    async function openTextPreview(item) {
+        if (!modalTextPreview) return;
+        const id = item.dataset.id;
+        const name = item.dataset.name || 'Файл';
+        const extension = (item.dataset.extension || '').toLowerCase();
+        const title = document.getElementById('text-preview-title');
+        const content = document.getElementById('text-preview-content');
+        if (!id || !title || !content) return;
 
-    function openCodeEditor(fileId, fileName, extension) {
-        const title = document.getElementById('editor-title');
-        title.textContent = `Редактор: ${fileName}.${extension}`;
+        title.textContent = `Просмотр: ${name}.${extension}`;
+        content.textContent = 'Загрузка…';
+        showModal(modalTextPreview);
 
-        // Set editor mode based on extension
-        if (editor) {
-            const modeMap = {
-                'php': 'ace/mode/php',
-                'js': 'ace/mode/javascript',
-                'py': 'ace/mode/python',
-                'java': 'ace/mode/java',
-                'cpp': 'ace/mode/c_cpp',
-                'c': 'ace/mode/c_cpp',
-                'html': 'ace/mode/html',
-                'css': 'ace/mode/css',
-                'json': 'ace/mode/json',
-                'xml': 'ace/mode/xml',
-                'sql': 'ace/mode/sql'
-            };
-
-            const mode = modeMap[extension.toLowerCase()] || 'ace/mode/text';
-            editor.session.setMode(mode);
-
-            // Load file content
-            fetch(`/files/get/${fileId}/`)
-                .then(response => response.text())
-                .then(content => {
-                    editor.setValue(content, -1);
-                })
-                .catch(error => {
-                    console.error('Error loading file:', error);
-                    editor.setValue('// Error loading file content', -1);
-                });
-        }
-
-        // Store current file ID for save
-        modalEditor.dataset.fileId = fileId;
-
-        showModal(modalEditor);
-
-        // Resize editor after modal is shown
-        setTimeout(() => {
-            if (editor) editor.resize();
-        }, 100);
-    }
-
-    // Run code button
-    const btnRunCode = document.getElementById('btn-run-code');
-    if (btnRunCode && editor) {
-        btnRunCode.addEventListener('click', function () {
-            const code = editor.getValue();
-            runCodeInSandbox(code);
-        });
-    }
-
-    // Save code button
-    const btnSaveCode = document.getElementById('btn-save-code');
-    if (btnSaveCode) {
-        btnSaveCode.addEventListener('click', function () {
-            if (!editor || !modalEditor.dataset.fileId) return;
-
-            const content = editor.getValue();
-            const fileId = modalEditor.dataset.fileId;
-
-            // For now, just show a message - actual save would require backend endpoint
-            alert('Функция сохранения будет доступна в следующей версии.\n\nКод можно скопировать вручную.');
-
-            // Copy to clipboard
-            navigator.clipboard.writeText(content).then(() => {
-                alert('Код скопирован в буфер обмена');
-            }).catch(err => {
-                console.error('Failed to copy:', err);
+        try {
+            const response = await fetch(fileUrl(id), {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
             });
-        });
-    }
-
-    function runCodeInSandbox(code) {
-        // Create a sandboxed iframe for code execution
-        const sandbox = document.createElement('iframe');
-        sandbox.style.display = 'none';
-        sandbox.sandbox = 'allow-scripts';
-        document.body.appendChild(sandbox);
-
-        // Create HTML for the sandbox
-        const html = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <style>
-                    body { font-family: monospace; padding: 20px; background: #1e1e1e; color: #d4d4d4; }
-                    .output { background: #2d2d2d; padding: 10px; border-radius: 4px; margin-top: 10px; }
-                    .error { color: #f48771; }
-                    .log { color: #569cd6; }
-                </style>
-            </head>
-            <body>
-                <div class="output" id="output"></div>
-                <script>
-                    // Override console methods
-                    const output = document.getElementById('output');
-                    const originalLog = console.log;
-                    const originalError = console.error;
-                    const originalWarn = console.warn;
-                    
-                    console.log = function(...args) {
-                        originalLog.apply(console, args);
-                        output.innerHTML += '<div class="log">' + args.join(' ') + '</div>';
-                    };
-                    
-                    console.error = function(...args) {
-                        originalError.apply(console, args);
-                        output.innerHTML += '<div class="error">' + args.join(' ') + '</div>';
-                    };
-                    
-                    console.warn = function(...args) {
-                        originalWarn.apply(console, args);
-                        output.innerHTML += '<div class="warn">' + args.join(' ') + '</div>';
-                    };
-                    
-                    try {
-                        ${code}
-                    } catch (e) {
-                        console.error('Error: ' + e.message);
-                    }
-                <\/script>
-            </body>
-            </html>
-        `;
-
-        sandbox.srcdoc = html;
-
-        // Show results in a new modal or alert
-        setTimeout(() => {
-            const doc = sandbox.contentDocument;
-            if (doc) {
-                const output = doc.getElementById('output');
-                if (output && output.innerHTML.trim()) {
-                    alert('Результат выполнения:\n\n' + output.innerText);
-                } else {
-                    alert('Код выполнен (нет вывода в консоль)');
-                }
-            }
-            document.body.removeChild(sandbox);
-        }, 500);
-    }
-
-    // ==================== Modal Helpers ====================
-
-    function showModal(modal) {
-        if (modal) {
-            modal.classList.add('show');
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const text = await response.text();
+            content.textContent = text.length > 500000
+                ? `${text.slice(0, 500000)}\n\n… предпросмотр ограничен 500 000 символами`
+                : text;
+        } catch (error) {
+            console.error('Text preview failed:', error);
+            content.textContent = 'Не удалось загрузить содержимое файла.';
         }
     }
 
-    function hideModal(modal) {
-        if (modal) {
-            modal.classList.remove('show');
+    function openItem(item) {
+        const type = item.dataset.type;
+        const id = item.dataset.id;
+        const extension = (item.dataset.extension || '').toLowerCase();
+        if (!id) return;
+
+        if (type === 'folder') {
+            window.location.href = `/files/folder/${encodeURIComponent(id)}/`;
+            return;
+        }
+        if (imageExtensions.has(extension) || audioExtensions.has(extension) || videoExtensions.has(extension)) {
+            openMediaPlayer(item);
+            return;
+        }
+        if (textExtensions.has(extension)) {
+            openTextPreview(item);
         }
     }
 
-    // Close modals
-    document.querySelectorAll('.file-manager__modal-close, .modal-cancel').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const modal = this.closest('.file-manager__modal');
-            hideModal(modal);
-        });
+    btnCreateFolder?.addEventListener('click', () => showModal(modalCreateFolder));
+    btnUploadFile?.addEventListener('click', () => fileInput?.click());
+    fileInput?.addEventListener('change', (event) => {
+        const files = event.target.files;
+        if (files && files.length > 0) uploadFiles(files);
     });
 
-    // Close modal on outside click
-    window.addEventListener('click', function(e) {
-        if (e.target.classList.contains('file-manager__modal')) {
-            hideModal(e.target);
+    modalCreateFolder?.querySelector('.modal-ok')?.addEventListener('click', createFolder);
+    modalRename?.querySelector('.modal-ok')?.addEventListener('click', renameItem);
+
+    root.addEventListener('click', function (event) {
+        const deleteButton = event.target.closest('.btn-delete');
+        if (deleteButton) {
+            event.preventDefault();
+            event.stopPropagation();
+            deleteItem(itemForElement(deleteButton));
+            return;
+        }
+
+        const renameButton = event.target.closest('.btn-rename');
+        if (renameButton) {
+            event.preventDefault();
+            event.stopPropagation();
+            const item = itemForElement(renameButton);
+            if (!item || !renameInput || !renameIdInput) return;
+            currentItemId = item.dataset.id || null;
+            renameInput.value = item.dataset.name || '';
+            renameIdInput.value = currentItemId || '';
+            showModal(modalRename);
+            window.setTimeout(() => renameInput.select(), 0);
         }
     });
 
-    // Handle Enter key in modals
-    modalCreateFolder.addEventListener('keypress', function (e) {
-        if (e.key === 'Enter') {
+    root.addEventListener('dblclick', function (event) {
+        if (event.target.closest('.file-manager__item-actions')) return;
+        const item = itemForElement(event.target);
+        if (item) openItem(item);
+    });
+
+    root.addEventListener('keydown', function (event) {
+        if (event.key !== 'Enter') return;
+        const item = itemForElement(event.target);
+        if (!item || event.target.closest('.file-manager__item-actions')) return;
+        event.preventDefault();
+        openItem(item);
+    });
+
+    document.querySelectorAll('.file-manager__modal-close, .modal-cancel').forEach((button) => {
+        button.addEventListener('click', function () {
+            hideModal(this.closest('.file-manager__modal'));
+        });
+    });
+
+    document.querySelectorAll('.file-manager__modal').forEach((modal) => {
+        modal.addEventListener('mousedown', function (event) {
+            if (event.target === modal) hideModal(modal);
+        });
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+            const openModal = document.querySelector('.file-manager__modal.show');
+            if (openModal) hideModal(openModal);
+        }
+    });
+
+    folderNameInput?.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
             createFolder();
         }
     });
 
-    modalRename.addEventListener('keypress', function (e) {
-        if (e.key === 'Enter') {
-            modalRename.querySelector('.modal-ok').click();
+    renameInput?.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            renameItem();
         }
     });
 });

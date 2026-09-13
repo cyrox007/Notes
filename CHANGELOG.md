@@ -1,23 +1,41 @@
 # История версий Workspace Organizer
 
-Формат основан на принципах Keep a Changelog. Пока проект находится в alpha, обратная совместимость между промежуточными версиями не гарантируется; миграции БД из `database/migrations/` являются частью обновления.
+Формат основан на принципах Keep a Changelog. Пока проект находится в alpha, обратная совместимость между промежуточными версиями не гарантируется; database migrations являются частью обновления.
 
 ## Unreleased
 
-### Notes hardening
-- Вложения заметок переводятся из публичных `/uploads/notes` в `PRIVATE_STORAGE_PATH/notes`.
-- MIME определяется сервером через `finfo` и сверяется с расширением по allowlist.
-- Добавляются owner/share ACL endpoints для загрузки, чтения и удаления вложений.
-- Public share получает отдельную token-bound выдачу вложений.
-- `note_attachments.is_encrypted` теперь отражает реальность: новые файлы пока не шифруются побайтно и записываются с `0`; защита обеспечивается private filesystem + ACL.
-- Публичный share UI ограничивается реально поддерживаемым режимом `view`.
-- Восстанавливаются отсутствовавшие Notes attachment/share routes.
+### Product UI / UX
+- Добавлен единый product design layer для dashboard, Notes, Tasks, Profile, File Manager, Admin и общей оболочки Messenger.
+- Sidebar переработан: desktop collapse, mobile drawer/overlay, current-route state и более крупные touch targets.
+- Обновлены header/footer, login и registration screens.
+- Удалены Google Fonts; интерфейс использует системный font stack.
+- Добавлены focus-visible, skip-link/доступные labels, aria-live states и `prefers-reduced-motion`.
+- File Manager больше не выполняет пользовательский code content: незавершённый Ace/code-run flow удалён, текст/code открывается только read-only preview.
+- Исправлены runtime-баги динамических File Manager actions после создания папки.
+- Admin panel получил полноценную таблицу аккаунтов со статусами, блокировкой/активацией и безопасной деактивацией.
+- Custom profile fields в Admin синхронизированы с canonical `user_fields` schema и получили серверную валидацию имён/типов/длины.
 
-### Messenger — PR #50
-- Forwarding сообщений и медиа между доступными чатами.
-- Независимое копирование forwarded media в private storage целевого диалога.
-- «Сохранённые сообщения» как отдельный приватный single-user dialog.
-- Минимизированные forwarding metadata без раскрытия внутренних user/message UID.
+### Production / Core hardening
+- Исправлены case-sensitive bootstrap paths `core.php` для Linux filesystem.
+- Добавлен CLI `bin/healthcheck.php` для PHP/extensions/secrets/private storage/DB/schema checks.
+- Добавлен file-backed request rate limiter с `flock` и private state под `PRIVATE_STORAGE_PATH/rate-limit`.
+- Login/registration защищены `AuthRateLimit`, upload endpoints — `UploadRateLimit`.
+- Web-registration закрыта без явного `REGISTRATION_INVITE_CODE`.
+- Registration validation синхронизирована с canonical user contract.
+- CSP очищена от dev-domain/Google Fonts/external JS CDN; `unsafe-eval` удалён после отказа от browser code runner.
+- Добавлены Permissions Policy и COOP; `unsafe-inline` пока остаётся как известный legacy Smarty CSP debt.
+- Добавлена production/deployment документация `docs/PRODUCTION.md`.
+- Admin physical user delete заменён на deactivation contract: строка пользователя и связанные Notes/Tasks/Messenger данные сохраняются.
+- Admin lifecycle вынесен в `AdminUserService` с повторной проверкой active administrator role, запретом self/admin targets и защитой group owner до transfer ownership.
+- Reactivation теперь восстанавливает одновременно `role` и `is_active`, поэтому деактивированный аккаунт действительно снова может войти после явной активации.
+
+### Merged hardening after initial 0.10 baseline
+- **PR #50:** Messenger forwarding и «Сохранённые сообщения», независимые forwarded media copies и минимизированные forwarding metadata.
+- **PR #51:** Notes private attachments/share ACL, truthful attachment encryption flag и актуализированная документация.
+- **PR #52:** canonical Tasks schema, ACL/validation contract, рабочие subtasks/categories/UI и Tasks integration CI.
+- **PR #53:** private user avatars, canonical Profile contract и safe account deactivation вместо physical user delete.
+- **PR #54:** versioned DB migration runner, checksums, fresh-vs-upgrade installer contract и legacy DB integration test.
+- **PR #55:** resumable fail-closed legacy Messenger/Notes ciphertext migration CLI.
 
 ## 0.10.0-alpha — 2026-09-13
 
