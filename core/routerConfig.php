@@ -16,6 +16,8 @@ use App\Controllers\MessengerGroupController;
 use App\Controllers\MessengerVoiceController;
 use App\Middlewares\LoginRequared;
 use App\Middlewares\IsAdmin;
+use App\Middlewares\AuthRateLimit;
+use App\Middlewares\UploadRateLimit;
 use Core\Router;
 
 $router = Router::getInstance();
@@ -24,10 +26,10 @@ $router->add('GET', '/', [MainController::class, 'index'], [LoginRequared::class
 
 $router->group('/auth')
     ->add('GET', '/login', [AuthController::class, 'login'], [], 'authpage')
-    ->add('POST', '/login', [AuthController::class, 'sigin'])
+    ->add('POST', '/login', [AuthController::class, 'sigin'], [AuthRateLimit::class])
     ->add('POST', '/logout', [AuthController::class, 'logout'], [LoginRequared::class], 'logout')
     ->add('GET', '/registration/{str:invite_code}', [AuthController::class, 'registration'], [], 'registration')
-    ->add('POST', '/registration', [AuthController::class, 'registration'], [], 'register_submit')
+    ->add('POST', '/registration', [AuthController::class, 'registration'], [AuthRateLimit::class], 'register_submit')
     ->endGroup();
 
 $router->group('/notes')
@@ -36,7 +38,7 @@ $router->group('/notes')
     ->add('GET', '/{str:uid}/edit', [NoteController::class, 'edit'], [LoginRequared::class], 'edit_page')
     ->add('POST', '/{str:uid}/edit', [NoteController::class, 'update'], [LoginRequared::class], 'update_note')
     ->add('POST', '/{str:uid}/delete', [NoteController::class, 'delete'], [LoginRequared::class], 'delete_note')
-    ->add('POST', '/upload/{str:uid}', [NoteAttachmentController::class, 'upload'], [LoginRequared::class], 'note_attachment_upload')
+    ->add('POST', '/upload/{str:uid}', [NoteAttachmentController::class, 'upload'], [LoginRequared::class, UploadRateLimit::class], 'note_attachment_upload')
     ->add('POST', '/attachment/delete/{int:attachmentId}', [NoteAttachmentController::class, 'delete'], [LoginRequared::class], 'note_attachment_delete')
     ->add('GET', '/attachment/{str:fileUid}', [NoteAttachmentController::class, 'download'], [LoginRequared::class], 'note_attachment_download')
     ->add('POST', '/share/{str:uid}', [NoteShareController::class, 'create'], [LoginRequared::class], 'note_share')
@@ -71,7 +73,7 @@ $router->group('/files')
     ->add('GET', '/', [FileController::class, 'index'], [LoginRequared::class], 'files')
     ->add('GET', '/folder/{int:folderId}/', [FileController::class, 'folder'], [LoginRequared::class], 'files_folder')
     ->add('POST', '/create-folder/', [FileController::class, 'createFolder'], [LoginRequared::class], 'files_create_folder')
-    ->add('POST', '/upload/', [FileController::class, 'uploadFile'], [LoginRequared::class], 'files_upload')
+    ->add('POST', '/upload/', [FileController::class, 'uploadFile'], [LoginRequared::class, UploadRateLimit::class], 'files_upload')
     ->add('POST', '/delete/', [FileController::class, 'delete'], [LoginRequared::class], 'files_delete')
     ->add('POST', '/rename/', [FileController::class, 'rename'], [LoginRequared::class], 'files_rename')
     ->add('GET', '/get/{int:fileId}/', [FileController::class, 'getFile'], [LoginRequared::class], 'files_get')
@@ -80,11 +82,11 @@ $router->group('/files')
 $router->group('/messenger')
     ->add('GET', '/', [MessagerController::class, 'index'], [LoginRequared::class], 'messenger')
     ->add('POST', '/socket-ticket', [MessagerController::class, 'socketTicket'], [LoginRequared::class], 'messenger_socket_ticket')
-    ->add('POST', '/upload', [MessagerController::class, 'uploadFile'], [LoginRequared::class], 'messenger_upload')
-    ->add('POST', '/voice-upload', [MessengerVoiceController::class, 'upload'], [LoginRequared::class], 'messenger_voice_upload')
+    ->add('POST', '/upload', [MessagerController::class, 'uploadFile'], [LoginRequared::class, UploadRateLimit::class], 'messenger_upload')
+    ->add('POST', '/voice-upload', [MessengerVoiceController::class, 'upload'], [LoginRequared::class, UploadRateLimit::class], 'messenger_voice_upload')
     ->add('GET', '/media/{str:uid}', [MessagerController::class, 'media'], [LoginRequared::class], 'messenger_media')
     ->add('GET', '/group-avatar/{str:uid}', [MessengerGroupController::class, 'avatar'], [LoginRequared::class], 'messenger_group_avatar')
-    ->add('POST', '/group-avatar/{str:uid}', [MessengerGroupController::class, 'uploadAvatar'], [LoginRequared::class], 'messenger_group_avatar_upload')
+    ->add('POST', '/group-avatar/{str:uid}', [MessengerGroupController::class, 'uploadAvatar'], [LoginRequared::class, UploadRateLimit::class], 'messenger_group_avatar_upload')
     ->add('POST', '/group-avatar/{str:uid}/delete', [MessengerGroupController::class, 'removeAvatar'], [LoginRequared::class], 'messenger_group_avatar_delete')
     ->endGroup();
 
