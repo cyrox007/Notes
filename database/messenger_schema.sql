@@ -5,7 +5,7 @@
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS `users` (
-    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
     `uid` CHAR(36) NOT NULL,
     `username` VARCHAR(50) NOT NULL,
     `email` VARCHAR(190) NOT NULL,
@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS `dialogs` (
     `type` ENUM('private', 'group') NOT NULL DEFAULT 'private',
     `name` VARCHAR(120) DEFAULT NULL,
     `avatar` VARCHAR(255) DEFAULT NULL,
-    `created_by` INT UNSIGNED DEFAULT NULL,
+    `created_by` INT DEFAULT NULL,
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY `uq_dialogs_uid` (`uid`),
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS `dialogs` (
 CREATE TABLE IF NOT EXISTS `user_to_dialogs` (
     `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     `dialog_id` BIGINT UNSIGNED NOT NULL,
-    `user_id` INT UNSIGNED NOT NULL,
+    `user_id` INT NOT NULL,
     `role` ENUM('owner', 'admin', 'member') NOT NULL DEFAULT 'member',
     `joined_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `last_read_message_id` BIGINT UNSIGNED DEFAULT NULL,
@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS `messages` (
     `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     `uid` CHAR(36) NOT NULL,
     `dialog_id` BIGINT UNSIGNED NOT NULL,
-    `from_user_id` INT UNSIGNED NOT NULL,
+    `from_user_id` INT NOT NULL,
     `reply_to_message_id` BIGINT UNSIGNED DEFAULT NULL,
     `message` LONGTEXT NOT NULL COMMENT 'Encrypted versioned payload for textual content',
     `message_type` ENUM('text', 'image', 'audio', 'video', 'file', 'voice', 'service') NOT NULL DEFAULT 'text',
@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS `messages` (
 -- Telegram-style "delete only for me" without mutating the message for others.
 CREATE TABLE IF NOT EXISTS `message_user_deletions` (
     `message_id` BIGINT UNSIGNED NOT NULL,
-    `user_id` INT UNSIGNED NOT NULL,
+    `user_id` INT NOT NULL,
     `deleted_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`message_id`, `user_id`),
     KEY `idx_message_user_deletions_user` (`user_id`, `message_id`),
