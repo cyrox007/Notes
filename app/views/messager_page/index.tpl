@@ -127,8 +127,8 @@
                     data-contact-search="{$contact.firstname|escape} {$contact.lastname|escape} {$contact.username|escape}"
                 >
                     <input class="messenger-contact__checkbox" type="checkbox" value="{$contact.uid|escape}">
-                    <span class="messenger-avatar messenger-avatar--small">
-                        {if $contact.firstname}{$contact.firstname|substr:0:1|upper|escape}{else}?{/if}
+                    <span class="messenger-avatar messenger-avatar--small" aria-hidden="true">
+                        <i class="fa fa-user"></i>
                     </span>
                     <span class="messenger-contact__identity">
                         <strong>{$contact.firstname|escape} {$contact.lastname|escape}</strong>
