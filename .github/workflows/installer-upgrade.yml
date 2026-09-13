@@ -1,0 +1,196 @@
+name: Installer and database upgrade
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [installer-upgrade-hardening]
+
+permissions:
+  contents: read
+
+jobs:
+  installer-upgrade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql, mbstring, sodium
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Installer and migration syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l install.php
+          php -l bin/migrate.php
+          grep -Fq "'tasks'" install.php
+          grep -Fq "'messenger_attachments'" install.php
+          grep -Fq "tasks_schema.sql' => 5" install.php
+          grep -Fq 'PROFILE_AVATAR_MAX_SIZE=2097152' install.php
+          grep -Fq 'Web-installer не изменяет существующие данные' install.php
+          grep -Fq '20260913_messenger_membership_contract.sql' bin/migrate.php
+          grep -Fq '20260913_tasks_contract.sql' bin/migrate.php
+
+      - name: Fresh install schema contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot -e 'CREATE DATABASE notes_fresh_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;'
+          mysql -h 127.0.0.1 -uroot -proot notes_fresh_test < database/messenger_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_fresh_test < database/notes_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_fresh_test < database/file_manager_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_fresh_test < database/user_fields_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_fresh_test < database/tasks_schema.sql
+          COUNT="$(mysql -N -h 127.0.0.1 -uroot -proot notes_fresh_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('users','dialogs','user_to_dialogs','messages','message_user_deletions','messenger_attachments','message_reactions','notes','note_attachments','shared_notes','note_history','note_tags','note_tag_relations','user_files','user_fields','tasks','subtasks','task_categories','task_category_relations','task_reminders')")"
+          test "$COUNT" = "20"
+
+      - name: Prepare legacy database fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot -e 'CREATE DATABASE notes_upgrade_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;'
+          mysql -h 127.0.0.1 -uroot -proot notes_upgrade_test <<'SQL'
+          CREATE TABLE users (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            username VARCHAR(50) NOT NULL UNIQUE,
+            email VARCHAR(190) NOT NULL,
+            password VARCHAR(255) NOT NULL,
+            firstname VARCHAR(80) NOT NULL,
+            surname VARCHAR(80) NOT NULL,
+            user_image VARCHAR(255) NULL,
+            role INT NOT NULL DEFAULT 888,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+          INSERT INTO users (username,email,password,firstname,surname,user_image,role)
+          VALUES ('legacy-user','legacy@example.test','legacy-hash','Legacy','User','/uploads/users/1/avatars/old.jpg',888);
+
+          CREATE TABLE dialogs (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            uid CHAR(36) NOT NULL UNIQUE,
+            type ENUM('private','group') NOT NULL DEFAULT 'private',
+            name VARCHAR(120) NULL,
+            created_by INT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+          INSERT INTO dialogs (uid,type,name,created_by)
+          VALUES ('b1000000-0000-4000-8000-000000000001','private','Legacy dialog',1);
+
+          CREATE TABLE dialog_users (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            dialog_id BIGINT UNSIGNED NOT NULL,
+            user_id INT NOT NULL,
+            role ENUM('owner','member') NOT NULL DEFAULT 'member',
+            UNIQUE KEY uq_dialog_user (dialog_id,user_id)
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+          INSERT INTO dialog_users (dialog_id,user_id,role) VALUES (1,1,'owner');
+
+          CREATE TABLE messages (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            uid CHAR(36) NOT NULL UNIQUE,
+            dialog_id BIGINT UNSIGNED NOT NULL,
+            sender_id INT NOT NULL,
+            content LONGTEXT NULL,
+            content_type ENUM('text','image','file') NOT NULL DEFAULT 'text',
+            message_status ENUM('unread','sent','read','deleted') NOT NULL DEFAULT 'unread',
+            is_deleted TINYINT(1) NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+          INSERT INTO messages (uid,dialog_id,sender_id,content,content_type,message_status)
+          VALUES ('b2000000-0000-4000-8000-000000000001',1,1,'legacy-ciphertext','text','unread');
+          SQL
+          mysql -h 127.0.0.1 -uroot -proot notes_upgrade_test < database/notes_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_upgrade_test < database/file_manager_schema.sql
+
+      - name: Dry-run does not mutate legacy database
+        shell: bash
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: notes_upgrade_test
+        run: |
+          set -euo pipefail
+          php bin/migrate.php --dry-run | tee /tmp/migrate-dry-run.txt
+          grep -Fq 'PENDING  20260913_messenger_v2.sql' /tmp/migrate-dry-run.txt
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='schema_migrations'")" = "0"
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='tasks'")" = "0"
+
+      - name: Apply upgrade and verify preserved contract
+        shell: bash
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: notes_upgrade_test
+        run: |
+          set -euo pipefail
+          php bin/migrate.php | tee /tmp/migrate-apply.txt
+          grep -Fq 'Schema contract: OK' /tmp/migrate-apply.txt
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT COUNT(*) FROM schema_migrations")" = "10"
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT COUNT(*) FROM users WHERE username='legacy-user' AND lastname='User' AND password_hash='legacy-hash' AND is_active=1")" = "1"
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT COUNT(*) FROM messages WHERE uid='b2000000-0000-4000-8000-000000000001' AND from_user_id=1 AND message='legacy-ciphertext' AND message_status='sent'")" = "1"
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('tasks','subtasks','task_categories','task_category_relations','task_reminders')")" = "5"
+          TYPE="$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT column_type FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='dialogs' AND column_name='type'")"
+          echo "$TYPE" | grep -Fq "'saved'"
+
+      - name: Second run is idempotent
+        shell: bash
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: notes_upgrade_test
+        run: |
+          set -euo pipefail
+          php bin/migrate.php --status | tee /tmp/migrate-status.txt
+          grep -Fq 'Summary: 10 applied, 0 pending' /tmp/migrate-status.txt
+          grep -Fq 'Schema contract: OK' /tmp/migrate-status.txt
+          php bin/migrate.php | grep -Fq 'Database is up to date. Schema contract: OK'
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT COUNT(*) FROM schema_migrations")" = "10"
+
+      - name: Applied migration checksum is immutable
+        shell: bash
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: notes_upgrade_test
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "UPDATE schema_migrations SET checksum=REPEAT('0',64) WHERE migration='20260913_tasks_contract.sql'"
+          set +e
+          php bin/migrate.php --status >/tmp/migrate-bad-checksum.out 2>/tmp/migrate-bad-checksum.err
+          STATUS=$?
+          set -e
+          test "$STATUS" -ne 0
+          grep -Fq 'Checksum mismatch' /tmp/migrate-bad-checksum.err
