@@ -55,22 +55,17 @@ final class NoteAttachmentController extends Controller
                 'SELECT id, uid FROM notes WHERE uid = :uid AND user_id = :user_id AND is_deleted = 0 LIMIT 1',
                 [':uid' => $uid, ':user_id' => $userId]
             );
-            if (!$note) {
-                throw new DomainException('Заметка не найдена или недоступна');
-            }
+            if (!$note) throw new DomainException('Заметка не найдена или недоступна');
 
             $file = $_FILES['attachment'] ?? null;
-            if (!is_array($file)) {
-                throw new InvalidArgumentException('Файл не выбран');
-            }
+            if (!is_array($file)) throw new InvalidArgumentException('Файл не выбран');
             $this->validateUpload($file);
 
-            $maxAttachments = $this->maxAttachments();
             $count = (int) $db->fetchValue(
                 'SELECT COUNT(*) FROM note_attachments WHERE note_id = :note_id AND is_deleted = 0',
                 [':note_id' => (int) $note['id']]
             );
-            if ($count >= $maxAttachments) {
+            if ($count >= $this->maxAttachments()) {
                 throw new InvalidArgumentException('Достигнут лимит вложений для заметки');
             }
 
@@ -84,22 +79,15 @@ final class NoteAttachmentController extends Controller
 
             $voice = $request->post('is_voice') === 'true';
             $fileType = $this->fileType($mimeType, $extension, $voice);
-            if ($voice && $fileType !== 'voice') {
-                throw new InvalidArgumentException('Файл не распознан как голосовая запись');
-            }
+            if ($voice && $fileType !== 'voice') throw new InvalidArgumentException('Файл не распознан как голосовая запись');
 
             $fileUid = bin2hex(random_bytes(16));
-            $directory = $this->storageRoot()
-                . DIRECTORY_SEPARATOR . (int) $note['id']
-                . DIRECTORY_SEPARATOR . $userId;
+            $directory = $this->storageRoot() . DIRECTORY_SEPARATOR . (int) $note['id'] . DIRECTORY_SEPARATOR . $userId;
             if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) {
                 throw new RuntimeException('Не удалось подготовить защищённое хранилище');
             }
             $path = $directory . DIRECTORY_SEPARATOR . bin2hex(random_bytes(24)) . '.' . $extension;
-
-            if (!move_uploaded_file($tmpName, $path)) {
-                throw new RuntimeException('Не удалось сохранить загруженный файл');
-            }
+            if (!move_uploaded_file($tmpName, $path)) throw new RuntimeException('Не удалось сохранить загруженный файл');
             @chmod($path, 0600);
 
             try {
@@ -112,14 +100,10 @@ final class NoteAttachmentController extends Controller
                         0,NULL,:uploaded_at,0
                      )',
                     [
-                        ':note_id' => (int) $note['id'],
-                        ':file_uid' => $fileUid,
-                        ':file_name' => $originalName,
-                        ':file_path' => $path,
-                        ':file_type' => $fileType,
-                        ':mime_type' => $mimeType,
-                        ':file_size' => (int) $file['size'],
-                        ':uploaded_at' => date('Y-m-d H:i:s'),
+                        ':note_id' => (int) $note['id'], ':file_uid' => $fileUid,
+                        ':file_name' => $originalName, ':file_path' => $path,
+                        ':file_type' => $fileType, ':mime_type' => $mimeType,
+                        ':file_size' => (int) $file['size'], ':uploaded_at' => date('Y-m-d H:i:s'),
                     ]
                 );
             } catch (\Throwable $e) {
@@ -155,17 +139,13 @@ final class NoteAttachmentController extends Controller
             $userId = $this->sessionUserId($request);
             $db = DatabaseManager::getInstance();
             $row = $db->fetchOne(
-                'SELECT a.id
-                 FROM note_attachments a
+                'SELECT a.id FROM note_attachments a
                  INNER JOIN notes n ON n.id = a.note_id
                  WHERE a.id = :id AND a.is_deleted = 0
-                   AND n.user_id = :user_id AND n.is_deleted = 0
-                 LIMIT 1',
+                   AND n.user_id = :user_id AND n.is_deleted = 0 LIMIT 1',
                 [':id' => $attachmentId, ':user_id' => $userId]
             );
-            if (!$row) {
-                throw new DomainException('Вложение не найдено или недоступно');
-            }
+            if (!$row) throw new DomainException('Вложение не найдено или недоступно');
             $db->execute('UPDATE note_attachments SET is_deleted = 1 WHERE id = :id', [':id' => $attachmentId]);
             echo json_encode(['success' => true], JSON_UNESCAPED_UNICODE);
         } catch (DomainException $e) {
@@ -180,20 +160,14 @@ final class NoteAttachmentController extends Controller
     {
         try {
             $userId = $this->sessionUserId($request);
-            $db = DatabaseManager::getInstance();
-            $row = $db->fetchOne(
-                'SELECT a.*
-                 FROM note_attachments a
+            $row = DatabaseManager::getInstance()->fetchOne(
+                'SELECT a.* FROM note_attachments a
                  INNER JOIN notes n ON n.id = a.note_id
                  WHERE a.file_uid = :file_uid AND a.is_deleted = 0
-                   AND n.user_id = :user_id AND n.is_deleted = 0
-                 LIMIT 1',
+                   AND n.user_id = :user_id AND n.is_deleted = 0 LIMIT 1',
                 [':file_uid' => $fileUid, ':user_id' => $userId]
             );
-            if (!$row) {
-                $this->notFound();
-                return;
-            }
+            if (!$row) { $this->notFound(); return; }
             $this->stream($row);
         } catch (DomainException) {
             http_response_code(403);
@@ -203,23 +177,18 @@ final class NoteAttachmentController extends Controller
 
     public function sharedDownload(Request $request, string $token, string $fileUid): void
     {
-        $db = DatabaseManager::getInstance();
-        $row = $db->fetchOne(
-            'SELECT a.*
-             FROM shared_notes s
+        $row = DatabaseManager::getInstance()->fetchOne(
+            'SELECT a.* FROM shared_notes s
              INNER JOIN notes n ON n.id = s.note_id AND n.is_deleted = 0
              INNER JOIN note_attachments a ON a.note_id = n.id AND a.is_deleted = 0
              WHERE s.share_token = :token
+               AND s.shared_with_user_id IS NULL
                AND s.is_active = 1
                AND (s.expires_at IS NULL OR s.expires_at >= :now)
-               AND a.file_uid = :file_uid
-             LIMIT 1',
+               AND a.file_uid = :file_uid LIMIT 1',
             [':token' => $token, ':file_uid' => $fileUid, ':now' => date('Y-m-d H:i:s')]
         );
-        if (!$row) {
-            $this->notFound();
-            return;
-        }
+        if (!$row) { $this->notFound(); return; }
         $this->stream($row);
     }
 
@@ -227,29 +196,18 @@ final class NoteAttachmentController extends Controller
     private function validateUpload(array $file): void
     {
         $error = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
-        if ($error !== UPLOAD_ERR_OK) {
-            throw new InvalidArgumentException($this->uploadErrorMessage($error));
-        }
+        if ($error !== UPLOAD_ERR_OK) throw new InvalidArgumentException($this->uploadErrorMessage($error));
         $tmpName = (string) ($file['tmp_name'] ?? '');
-        if ($tmpName === '' || !is_uploaded_file($tmpName)) {
-            throw new InvalidArgumentException('Некорректная загрузка файла');
-        }
+        if ($tmpName === '' || !is_uploaded_file($tmpName)) throw new InvalidArgumentException('Некорректная загрузка файла');
         $size = (int) ($file['size'] ?? 0);
-        if ($size <= 0 || $size > $this->maxUploadSize()) {
-            throw new InvalidArgumentException('Файл пустой или превышает допустимый размер');
-        }
+        if ($size <= 0 || $size > $this->maxUploadSize()) throw new InvalidArgumentException('Файл пустой или превышает допустимый размер');
         $extension = strtolower((string) pathinfo((string) ($file['name'] ?? ''), PATHINFO_EXTENSION));
-        if ($extension === '' || !isset(self::ALLOWED_UPLOADS[$extension])) {
-            throw new InvalidArgumentException('Файлы данного типа запрещены');
-        }
+        if ($extension === '' || !isset(self::ALLOWED_UPLOADS[$extension])) throw new InvalidArgumentException('Файлы данного типа запрещены');
     }
 
     private function fileType(string $mime, string $extension, bool $voice): string
     {
-        if ($voice) {
-            $voiceMime = str_starts_with($mime, 'audio/') || ($extension === 'webm' && $mime === 'video/webm');
-            return $voiceMime ? 'voice' : 'document';
-        }
+        if ($voice) return (str_starts_with($mime, 'audio/') || ($extension === 'webm' && $mime === 'video/webm')) ? 'voice' : 'document';
         if (str_starts_with($mime, 'image/')) return 'image';
         if (str_starts_with($mime, 'audio/')) return 'audio';
         if (str_starts_with($mime, 'video/')) return 'video';
@@ -260,22 +218,13 @@ final class NoteAttachmentController extends Controller
     private function stream(array $row): void
     {
         $path = $this->resolvePath((string) ($row['file_path'] ?? ''));
-        if ($path === null || !is_file($path)) {
-            $this->notFound();
-            return;
-        }
-
+        if ($path === null || !is_file($path)) { $this->notFound(); return; }
         $size = filesize($path);
-        if ($size === false) {
-            $this->notFound();
-            return;
-        }
+        if ($size === false || $size <= 0) { $this->notFound(); return; }
 
         $mime = (string) ($row['mime_type'] ?? 'application/octet-stream');
-        $kind = (string) ($row['file_type'] ?? 'document');
-        $inline = in_array($kind, ['image', 'audio', 'video', 'voice'], true);
+        $inline = in_array((string) ($row['file_type'] ?? 'document'), ['image', 'audio', 'video', 'voice'], true);
         $name = $this->safeHeaderName((string) ($row['file_name'] ?? 'file'));
-
         header('X-Content-Type-Options: nosniff');
         header('Cache-Control: private, no-store, max-age=0');
         header('Pragma: no-cache');
@@ -287,28 +236,16 @@ final class NoteAttachmentController extends Controller
         $end = $size - 1;
         $range = (string) ($_SERVER['HTTP_RANGE'] ?? '');
         if ($range !== '') {
-            if (preg_match('/^bytes=(\d*)-(\d*)$/', $range, $matches) !== 1 || ($matches[1] === '' && $matches[2] === '')) {
-                http_response_code(416);
-                header('Content-Range: bytes */' . $size);
-                return;
-            }
+            if (preg_match('/^bytes=(\d*)-(\d*)$/', $range, $matches) !== 1 || ($matches[1] === '' && $matches[2] === '')) { $this->rangeNotSatisfiable($size); return; }
             if ($matches[1] === '') {
                 $suffix = (int) $matches[2];
-                if ($suffix <= 0) {
-                    http_response_code(416);
-                    header('Content-Range: bytes */' . $size);
-                    return;
-                }
+                if ($suffix <= 0) { $this->rangeNotSatisfiable($size); return; }
                 $start = max(0, $size - $suffix);
             } else {
                 $start = (int) $matches[1];
                 $end = $matches[2] === '' ? $end : (int) $matches[2];
             }
-            if ($start > $end || $start >= $size) {
-                http_response_code(416);
-                header('Content-Range: bytes */' . $size);
-                return;
-            }
+            if ($start > $end || $start >= $size) { $this->rangeNotSatisfiable($size); return; }
             $end = min($end, $size - 1);
             http_response_code(206);
             header(sprintf('Content-Range: bytes %d-%d/%d', $start, $end, $size));
@@ -317,10 +254,7 @@ final class NoteAttachmentController extends Controller
         $length = $end - $start + 1;
         header('Content-Length: ' . $length);
         $handle = fopen($path, 'rb');
-        if ($handle === false) {
-            $this->notFound();
-            return;
-        }
+        if ($handle === false) { $this->notFound(); return; }
         fseek($handle, $start);
         $remaining = $length;
         while ($remaining > 0 && !feof($handle)) {
@@ -333,21 +267,19 @@ final class NoteAttachmentController extends Controller
         fclose($handle);
     }
 
+    private function rangeNotSatisfiable(int $size): void { http_response_code(416); header('Content-Range: bytes */' . $size); }
+
     private function sessionUserId(Request $request): int
     {
         $id = (int) $request->session('user_id');
-        if ($id <= 0) {
-            throw new DomainException('Требуется авторизация');
-        }
+        if ($id <= 0) throw new DomainException('Требуется авторизация');
         return $id;
     }
 
     private function storageRoot(): string
     {
         $configured = getenv('PRIVATE_STORAGE_PATH');
-        $root = is_string($configured) && trim($configured) !== ''
-            ? trim($configured)
-            : dirname(SITEPATH) . DIRECTORY_SEPARATOR . 'notes-private-storage';
+        $root = is_string($configured) && trim($configured) !== '' ? trim($configured) : dirname(SITEPATH) . DIRECTORY_SEPARATOR . 'notes-private-storage';
         return rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'notes';
     }
 
@@ -382,10 +314,7 @@ final class NoteAttachmentController extends Controller
         return mb_substr($name, 0, 255);
     }
 
-    private function safeHeaderName(string $name): string
-    {
-        return preg_replace('/[\r\n"\\]+/', '_', $this->safeName($name)) ?: 'file';
-    }
+    private function safeHeaderName(string $name): string { return preg_replace('/[\r\n"\\]+/', '_', $this->safeName($name)) ?: 'file'; }
 
     private function uploadErrorMessage(int $error): string
     {
@@ -397,15 +326,6 @@ final class NoteAttachmentController extends Controller
         };
     }
 
-    private function jsonError(string $message, int $status): void
-    {
-        http_response_code($status);
-        echo json_encode(['success' => false, 'error' => $message], JSON_UNESCAPED_UNICODE);
-    }
-
-    private function notFound(): void
-    {
-        http_response_code(404);
-        echo 'File not found';
-    }
+    private function jsonError(string $message, int $status): void { http_response_code($status); echo json_encode(['success' => false, 'error' => $message], JSON_UNESCAPED_UNICODE); }
+    private function notFound(): void { http_response_code(404); echo 'File not found'; }
 }
