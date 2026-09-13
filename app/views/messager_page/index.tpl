@@ -6,6 +6,7 @@
 <style>
 {include file='messager_page/style.css'}
 {include file='messager_page/media.css'}
+{include file='messager_page/group.css'}
 .messenger-chat__actions { display:flex; gap:.35rem; margin-left:auto; }
 .messenger-chat__actions .messenger-icon-button[data-active="true"] { color:var(--msg-accent); background:var(--msg-accent-soft); }
 .messenger-folder-tabs { display:flex; gap:6px; padding:0 12px 10px; }
@@ -83,6 +84,9 @@
                     <span id="chat-subtitle">&nbsp;</span>
                 </div>
                 <div class="messenger-chat__actions" aria-label="Действия с чатом">
+                    <button class="messenger-icon-button" id="chat-group-button" type="button" hidden title="Информация о группе" aria-label="Информация о группе">
+                        <i class="fa fa-users" aria-hidden="true"></i>
+                    </button>
                     <button class="messenger-icon-button" id="chat-pin-button" type="button" title="Закрепить чат" aria-label="Закрепить чат">
                         <i class="fa fa-thumb-tack" aria-hidden="true"></i>
                     </button>
@@ -199,8 +203,77 @@
     </form>
 </dialog>
 
+<dialog class="messenger-dialog-modal" id="group-info-dialog">
+    <form method="dialog" class="messenger-dialog-modal__surface messenger-group-dialog__surface">
+        <header>
+            <div>
+                <strong>Информация о группе</strong>
+                <span>Участники и права доступа</span>
+            </div>
+            <button class="messenger-icon-button" value="cancel" aria-label="Закрыть">
+                <i class="fa fa-times" aria-hidden="true"></i>
+            </button>
+        </header>
+
+        <div class="messenger-group-dialog__body">
+            <div id="group-loading">Загрузка информации о группе…</div>
+            <div id="group-content" hidden>
+                <div class="messenger-group-summary">
+                    <div class="messenger-avatar" id="group-summary-avatar" aria-hidden="true">?</div>
+                    <div class="messenger-group-summary__identity">
+                        <strong id="group-summary-title">Группа</strong>
+                        <span id="group-summary-text"></span>
+                        <span class="messenger-group-role" id="group-current-role" data-role="member">Участник</span>
+                    </div>
+                </div>
+
+                <section class="messenger-group-section">
+                    <h3>Название</h3>
+                    <div class="messenger-group-name-row">
+                        <input id="group-name-input" type="text" maxlength="120" aria-label="Название группы">
+                        <button class="messenger-primary-button" id="group-save-name" type="button">Сохранить</button>
+                    </div>
+                </section>
+
+                <section class="messenger-group-section">
+                    <h3>Участники</h3>
+                    <div class="messenger-group-members" id="group-member-list"></div>
+                </section>
+
+                <section class="messenger-group-section" id="group-add-section">
+                    <h3>Добавить участников</h3>
+                    <div class="messenger-group-add-list" id="group-add-contact-list">
+                        {foreach $contacts as $contact}
+                            <label class="messenger-contact messenger-group-add-contact" data-contact-uid="{$contact.uid|escape}">
+                                <input class="messenger-contact__checkbox messenger-group-add-checkbox" type="checkbox" value="{$contact.uid|escape}">
+                                <span class="messenger-avatar messenger-avatar--small" aria-hidden="true">
+                                    <i class="fa fa-user"></i>
+                                </span>
+                                <span class="messenger-contact__identity">
+                                    <strong>{$contact.firstname|escape} {$contact.lastname|escape}</strong>
+                                    <small>@{$contact.username|escape}</small>
+                                </span>
+                            </label>
+                        {foreachelse}
+                            <div class="messenger-contact-list__empty">Нет доступных пользователей</div>
+                        {/foreach}
+                    </div>
+                    <div class="messenger-group-section__footer">
+                        <button class="messenger-primary-button" id="group-add-button" type="button">Добавить выбранных</button>
+                    </div>
+                </section>
+
+                <section class="messenger-group-section messenger-group-danger-row">
+                    <button class="messenger-danger-button" id="group-leave-button" type="button">Выйти из группы</button>
+                </section>
+            </div>
+        </div>
+    </form>
+</dialog>
+
 <script>{include file='messager_page/script.js'}</script>
 <script>{include file='messager_page/dialog-actions.js'}</script>
 <script>{include file='messager_page/receipts.js'}</script>
 <script>{include file='messager_page/media.js'}</script>
+<script>{include file='messager_page/group.js'}</script>
 {/block}
