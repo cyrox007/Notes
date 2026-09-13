@@ -40,10 +40,10 @@ function messengerCryptoKey(): string
 
 function messengerNonceFromIv(string $iv): string
 {
-    return hash(
-        'sha256',
-        "notes-messenger-nonce-v2\0" . $iv,
-        true
+    return substr(
+        hash('sha256', "notes-messenger-nonce-v2\0" . $iv, true),
+        0,
+        SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES
     );
 }
 
@@ -68,7 +68,7 @@ function openssl_encrypt(
     string $passphrase,
     int $options = 0,
     string $iv = '',
-    string &$tag = null,
+    ?string &$tag = null,
     string $aad = '',
     int $tag_length = 16
 ): string|false {
@@ -83,7 +83,6 @@ function openssl_encrypt(
         messengerCryptoKey()
     );
 
-    // Legacy caller expects openssl_encrypt(..., options=0) to return base64 text.
     return base64_encode($ciphertext);
 }
 
