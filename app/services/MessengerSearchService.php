@@ -100,6 +100,7 @@ final class MessengerSearchService
                 sender.lastname AS sender_lastname,
                 CASE
                     WHEN d.type = "group" THEN COALESCE(NULLIF(TRIM(d.name), ""), "Групповой чат")
+                    WHEN d.type = "saved" THEN COALESCE(NULLIF(TRIM(d.name), ""), "Сохранённые сообщения")
                     ELSE COALESCE((
                         SELECT NULLIF(TRIM(CONCAT_WS(" ", partner.firstname, partner.lastname)), "")
                         FROM user_to_dialogs partner_membership
