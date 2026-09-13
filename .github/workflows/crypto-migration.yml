@@ -1,0 +1,192 @@
+name: Legacy crypto migration
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [crypto-migration-hardening]
+
+permissions:
+  contents: read
+
+jobs:
+  crypto-migration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: notes_crypto_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      DBDRIVER: mysql
+      DBHOST: 127.0.0.1
+      DBPORT: 3306
+      DBUSER: root
+      DBPASS: root
+      DBNAME: notes_crypto_test
+      MSG_SECRET_KEY: current-messenger-secret-0123456789abcdef0123456789abcdef
+      MSG_LEGACY_SECRET_KEY: legacy-messenger-key-0123456789abcdef
+      UNIQUE_KEY: current-note-secret-0123456789abcdef0123456789abcdef
+      SECONDARY_KEY: legacy-note-secondary-0123456789abcdef
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, mysqli, sodium, openssl, mbstring
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Crypto migration syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l app/services/CryptoMigrationService.php
+          php -l bin/migrate_crypto.php
+          grep -Fq -- '--allow-plaintext-notes' bin/migrate_crypto.php
+          grep -Fq -- '--after-id' bin/migrate_crypto.php
+          grep -Fq 'Message changed concurrently' app/services/CryptoMigrationService.php
+          grep -Fq 'Legacy note GCM authentication failed' app/services/CryptoMigrationService.php
+
+      - name: Prepare canonical schema and crypto fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot notes_crypto_test < database/messenger_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_crypto_test < database/notes_schema.sql
+          HASH="$(php -r 'echo password_hash("crypto-test-password", PASSWORD_ARGON2ID);')"
+          mysql -h 127.0.0.1 -uroot -proot notes_crypto_test <<SQL
+          INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active)
+          VALUES ('c1000000-0000-4000-8000-000000000001','crypto-user','crypto@example.test','$HASH','Crypto','User',888,1);
+          INSERT INTO dialogs (uid,type,name,created_by)
+          VALUES ('c2000000-0000-4000-8000-000000000001','private','Crypto dialog',1);
+          INSERT INTO user_to_dialogs (dialog_id,user_id,role) VALUES (1,1,'owner');
+          SQL
+
+          php <<'PHP' > /tmp/crypto-fixtures.sql
+          <?php
+          declare(strict_types=1);
+          require 'core/config.php';
+          require 'core/DatabaseManager.php';
+          require 'app/handlers/CryptMethods.php';
+          require 'app/handlers/MessengerCrypto.php';
+
+          function q(string $value): string { return "'" . str_replace("'", "''", $value) . "'"; }
+          function legacyMessenger(string $plaintext): string {
+              $key = (string) getenv('MSG_LEGACY_SECRET_KEY');
+              $iv = random_bytes(16);
+              $encoded = openssl_encrypt($plaintext, 'aes-256-cbc', $key, 0, $iv);
+              if ($encoded === false) throw new RuntimeException('fixture legacy messenger encrypt failed');
+              return base64_encode($iv . $encoded);
+          }
+          function legacyNote(string $plaintext): string {
+              $unique = (string) getenv('UNIQUE_KEY');
+              $secondary = (string) getenv('SECONDARY_KEY');
+              $iv1 = random_bytes(12);
+              $enc1 = openssl_encrypt($plaintext, 'aes-256-gcm', $unique, OPENSSL_RAW_DATA, $iv1, $tag1);
+              if ($enc1 === false) throw new RuntimeException('fixture legacy note GCM failed');
+              $iv2 = random_bytes(16);
+              $enc2 = openssl_encrypt($enc1, 'aes-256-cbc', $secondary, OPENSSL_RAW_DATA, $iv2);
+              if ($enc2 === false) throw new RuntimeException('fixture legacy note CBC failed');
+              return base64_encode(json_encode([
+                  'iv1'=>base64_encode($iv1),
+                  'tag1'=>base64_encode($tag1),
+                  'enc1'=>base64_encode($enc1),
+                  'iv2'=>base64_encode($iv2),
+                  'enc2'=>base64_encode($enc2),
+              ], JSON_THROW_ON_ERROR));
+          }
+
+          $m1='c3000000-0000-4000-8000-000000000001';
+          $m2='c3000000-0000-4000-8000-000000000002';
+          echo "INSERT INTO messages (uid,dialog_id,from_user_id,message,message_type,message_status) VALUES\n";
+          echo '(' . q($m1) . ",1,1," . q(\App\Helpers\MessengerCrypto::encrypt('current messenger',$m1)) . ",'text','sent'),\n";
+          echo '(' . q($m2) . ",1,1," . q(legacyMessenger('legacy messenger')) . ",'text','sent');\n";
+
+          $n1='c4000000000000000000000000000001';
+          $n2='c4000000000000000000000000000002';
+          $n3='c4000000000000000000000000000003';
+          $n4='c4000000000000000000000000000004';
+          echo "INSERT INTO notes (uid,user_id,notename,content,content_type,is_encrypted,created_note,updated_note) VALUES\n";
+          echo '(' . q($n1) . ",1,'Current'," . q(\App\Helpers\CryptMethods::encrypt('current note',$n1)) . ",'text',1,NOW(),NOW()),\n";
+          echo '(' . q($n2) . ",1,'Legacy double'," . q(legacyNote('legacy double note')) . ",'text',1,NOW(),NOW()),\n";
+          echo '(' . q($n3) . ",1,'Known plaintext'," . q('known plaintext note') . ",'text',0,NOW(),NOW()),\n";
+          echo '(' . q($n4) . ",1,'Unknown flag'," . q('unknown legacy plaintext') . ",'text',1,NOW(),NOW());\n";
+          PHP
+          mysql -h 127.0.0.1 -uroot -proot notes_crypto_test < /tmp/crypto-fixtures.sql
+
+      - name: Dry-run is fail-closed and does not mutate
+        shell: bash
+        run: |
+          set -euo pipefail
+          BEFORE_MSG="$(mysql -N -h 127.0.0.1 -uroot -proot notes_crypto_test -e "SELECT SHA2(message,256) FROM messages WHERE id=2")"
+          BEFORE_NOTE="$(mysql -N -h 127.0.0.1 -uroot -proot notes_crypto_test -e "SELECT SHA2(content,256) FROM notes WHERE id=2")"
+          set +e
+          php bin/migrate_crypto.php --dry-run --scope=all --limit=100 > /tmp/crypto-dry.json
+          STATUS=$?
+          set -e
+          test "$STATUS" = "1"
+          php -r '$d=json_decode(file_get_contents("/tmp/crypto-dry.json"),true,512,JSON_THROW_ON_ERROR); if ($d["results"]["messenger"]["would_migrate"]!==1 || $d["results"]["notes"]["failed"]!==1) exit(1);'
+          test "$BEFORE_MSG" = "$(mysql -N -h 127.0.0.1 -uroot -proot notes_crypto_test -e "SELECT SHA2(message,256) FROM messages WHERE id=2")"
+          test "$BEFORE_NOTE" = "$(mysql -N -h 127.0.0.1 -uroot -proot notes_crypto_test -e "SELECT SHA2(content,256) FROM notes WHERE id=2")"
+
+      - name: Migrate messenger legacy ciphertext
+        shell: bash
+        run: |
+          set -euo pipefail
+          php bin/migrate_crypto.php --scope=messenger --limit=100 > /tmp/crypto-messenger.json
+          php -r '$d=json_decode(file_get_contents("/tmp/crypto-messenger.json"),true,512,JSON_THROW_ON_ERROR); $r=$d["results"]["messenger"]; if ($r["current"]!==1 || $r["migrated"]!==1 || $r["failed"]!==0) exit(1);'
+          php <<'PHP'
+          <?php
+          require 'core/config.php'; require 'core/DatabaseManager.php'; require 'app/handlers/MessengerCrypto.php';
+          $rows=\Core\DatabaseManager::getInstance()->fetchAll('SELECT uid,message FROM messages ORDER BY id');
+          $plain=array_map(fn($r)=>\App\Helpers\MessengerCrypto::decrypt($r['message'],$r['uid']),$rows);
+          if ($plain !== ['current messenger','legacy messenger']) throw new RuntimeException('messenger plaintext mismatch');
+          foreach ($rows as $row) if (!str_starts_with($row['message'],'v2:')) throw new RuntimeException('legacy messenger remained');
+          PHP
+
+      - name: Migrate notes in resumable batches
+        shell: bash
+        run: |
+          set -euo pipefail
+          php bin/migrate_crypto.php --scope=notes --limit=3 --after-id=0 > /tmp/crypto-notes-1.json
+          php -r '$d=json_decode(file_get_contents("/tmp/crypto-notes-1.json"),true,512,JSON_THROW_ON_ERROR); $r=$d["results"]["notes"]; if ($r["current"]!==1 || $r["migrated"]!==2 || $r["last_id"]!==3 || $r["failed"]!==0) exit(1);'
+
+          set +e
+          php bin/migrate_crypto.php --scope=notes --limit=100 --after-id=3 > /tmp/crypto-notes-blocked.json
+          STATUS=$?
+          set -e
+          test "$STATUS" = "1"
+          php -r '$d=json_decode(file_get_contents("/tmp/crypto-notes-blocked.json"),true,512,JSON_THROW_ON_ERROR); if ($d["results"]["notes"]["failed"]!==1) exit(1);'
+
+          php bin/migrate_crypto.php --scope=notes --limit=100 --after-id=3 --allow-plaintext-notes > /tmp/crypto-notes-2.json
+          php -r '$d=json_decode(file_get_contents("/tmp/crypto-notes-2.json"),true,512,JSON_THROW_ON_ERROR); $r=$d["results"]["notes"]; if ($r["migrated"]!==1 || $r["failed"]!==0) exit(1);'
+
+          php <<'PHP'
+          <?php
+          require 'core/config.php'; require 'core/DatabaseManager.php'; require 'app/handlers/CryptMethods.php';
+          $rows=\Core\DatabaseManager::getInstance()->fetchAll('SELECT uid,content,is_encrypted FROM notes ORDER BY id');
+          $expected=['current note','legacy double note','known plaintext note','unknown legacy plaintext'];
+          foreach ($rows as $i=>$row) {
+              if ((int)$row['is_encrypted'] !== 1) throw new RuntimeException('note flag not migrated');
+              $plain=\App\Helpers\CryptMethods::decrypt($row['content'],$row['uid']);
+              if ($plain !== $expected[$i]) throw new RuntimeException('note plaintext mismatch at ' . $i);
+          }
+          PHP
