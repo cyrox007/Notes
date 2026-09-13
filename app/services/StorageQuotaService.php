@@ -67,6 +67,28 @@ final class StorageQuotaService
         ];
     }
 
+    public function acquireUploadLock(int $userId, int $timeoutSeconds = 5): void
+    {
+        if ($userId <= 0) {
+            throw new InvalidArgumentException('Некорректный пользователь');
+        }
+        $result = $this->db->fetchValue(
+            'SELECT GET_LOCK(:lock_name, :timeout_seconds)',
+            [':lock_name' => $this->lockName($userId), ':timeout_seconds' => max(1, min(15, $timeoutSeconds))]
+        );
+        if ((int) $result !== 1) {
+            throw new DomainException('Хранилище занято другой загрузкой. Повторите попытку.', 503);
+        }
+    }
+
+    public function releaseUploadLock(int $userId): void
+    {
+        if ($userId <= 0) {
+            return;
+        }
+        $this->db->fetchValue('SELECT RELEASE_LOCK(:lock_name)', [':lock_name' => $this->lockName($userId)]);
+    }
+
     public function assertCanStore(int $userId, int $incomingBytes): void
     {
         if ($incomingBytes <= 0) {
@@ -111,7 +133,7 @@ final class StorageQuotaService
         $quotaBytes = $this->normalizeQuota($quotaBytes);
         $this->db->execute(
             "INSERT INTO system_settings (setting_key,setting_value,setting_type,category,description,is_editable)
-             VALUES (:setting_key,:setting_value,'integer','file_manager','Лимит хранилища файлового менеджера по умолчанию на одного пользователя',1)
+             VALUES (:setting_key,:setting_value,'integer','file_manager','Default File Manager storage quota per user in bytes',1)
              ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = CURRENT_TIMESTAMP",
             [':setting_key' => self::DEFAULT_SETTING_KEY, ':setting_value' => (string) $quotaBytes]
         );
@@ -123,16 +145,22 @@ final class StorageQuotaService
         if ($userId <= 0 || !$this->db->fetchValue('SELECT id FROM users WHERE id = :id', [':id' => $userId])) {
             throw new InvalidArgumentException('Пользователь не найден');
         }
-        if ($quotaBytes === null) {
-            $this->db->execute('DELETE FROM user_storage_quotas WHERE user_id = :user_id', [':user_id' => $userId]);
-            return;
+
+        $this->acquireUploadLock($userId);
+        try {
+            if ($quotaBytes === null) {
+                $this->db->execute('DELETE FROM user_storage_quotas WHERE user_id = :user_id', [':user_id' => $userId]);
+                return;
+            }
+            $quotaBytes = $this->normalizeQuota($quotaBytes);
+            $this->db->execute(
+                'INSERT INTO user_storage_quotas (user_id,quota_bytes) VALUES (:user_id,:quota_bytes) '
+                . 'ON DUPLICATE KEY UPDATE quota_bytes = VALUES(quota_bytes), updated_at = CURRENT_TIMESTAMP',
+                [':user_id' => $userId, ':quota_bytes' => $quotaBytes]
+            );
+        } finally {
+            $this->releaseUploadLock($userId);
         }
-        $quotaBytes = $this->normalizeQuota($quotaBytes);
-        $this->db->execute(
-            'INSERT INTO user_storage_quotas (user_id,quota_bytes) VALUES (:user_id,:quota_bytes) '
-            . 'ON DUPLICATE KEY UPDATE quota_bytes = VALUES(quota_bytes), updated_at = CURRENT_TIMESTAMP',
-            [':user_id' => $userId, ':quota_bytes' => $quotaBytes]
-        );
     }
 
     private function requireAdmin(int $actorId): void
@@ -149,5 +177,10 @@ final class StorageQuotaService
             throw new InvalidArgumentException('Квота должна быть от 10 МБ до 10 ТБ');
         }
         return $quota;
+    }
+
+    private function lockName(int $userId): string
+    {
+        return 'workspace-storage-quota-user-' . $userId;
     }
 }
