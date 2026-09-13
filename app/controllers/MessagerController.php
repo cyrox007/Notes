@@ -59,6 +59,54 @@ final class MessagerController extends Controller
     }
 
     /**
+     * Issue a short-lived ticket from the authenticated HTTP session.
+     *
+     * Reconnects must never reuse a ticket embedded in a page indefinitely.
+     * This endpoint is POST-only, protected by LoginRequared + global CSRF,
+     * and does not accept a user id from the browser.
+     */
+    public function socketTicket(Request $request): void
+    {
+        $userId = (int) $request->session('user_id');
+        if ($userId <= 0) {
+            http_response_code(401);
+            $this->responseJson([
+                'status' => 'error',
+                'message' => 'Требуется авторизация',
+            ]);
+            return;
+        }
+
+        $user = UserModel::select('id', 'is_active')
+            ->where('id', '=', $userId)
+            ->first();
+
+        if (!$user || (int) $user->is_active !== 1) {
+            http_response_code(403);
+            $this->responseJson([
+                'status' => 'error',
+                'message' => 'Пользователь недоступен',
+            ]);
+            return;
+        }
+
+        try {
+            $this->responseJson([
+                'status' => 'ok',
+                'ticket' => SocketTicket::issue($userId),
+                'expires_in' => 120,
+            ]);
+        } catch (\Throwable $e) {
+            error_log('WebSocket ticket refresh failed: ' . $e->getMessage());
+            http_response_code(503);
+            $this->responseJson([
+                'status' => 'error',
+                'message' => 'WebSocket временно недоступен',
+            ]);
+        }
+    }
+
+    /**
      * Attachment transport is intentionally disabled until it is moved to the
      * same private-storage policy as FileController. The UI does not advertise
      * a fake working upload action.
