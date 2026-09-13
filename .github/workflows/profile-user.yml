@@ -171,7 +171,8 @@ jobs:
           require SITEPATH . '/app/services/UserAvatarService.php';
           require SITEPATH . '/app/controllers/ProfileController.php';
           $_SERVER['REQUEST_METHOD']='GET';
-          $_SESSION=['user_id'=>(int)\Core\DatabaseManager::getInstance()->fetchValue('SELECT id FROM users WHERE username="profile-alice"')];
+          if (session_status() === PHP_SESSION_NONE) session_start();
+          $_SESSION['user_id']=(int)\Core\DatabaseManager::getInstance()->fetchValue('SELECT id FROM users WHERE username="profile-alice"');
           $_POST=['confirm_delete'=>'yes','current_password'=>'profile-ci-password'];
           $request = new \Core\Request();
           $controller = new \App\Controllers\ProfileController();
@@ -209,7 +210,8 @@ jobs:
           require SITEPATH . '/app/controllers/ProfileController.php';
           $_SERVER['REQUEST_METHOD']='GET';
           $db=\Core\DatabaseManager::getInstance();
-          $_SESSION=['user_id'=>(int)$db->fetchValue('SELECT id FROM users WHERE username="profile-alice"')];
+          if (session_status() === PHP_SESSION_NONE) session_start();
+          $_SESSION['user_id']=(int)$db->fetchValue('SELECT id FROM users WHERE username="profile-alice"');
           $_POST=['confirm_delete'=>'yes','current_password'=>'profile-ci-password'];
           \Core\Router::getInstance()->add('GET','/auth/login',[\App\Controllers\ProfileController::class,'index'],[],'authpage');
           (new \App\Controllers\ProfileController())->deleteUser(new \Core\Request());
