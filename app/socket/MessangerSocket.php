@@ -54,7 +54,7 @@ final class MessangerSocket
         string $userUid,
         array $payload = []
     ): void {
-        $this->guard($connection, function () use ($connections, $connection, $userUid, $payload): void {
+        $this->guard($connection, function () use ($connection, $userUid, $payload): void {
             $dialogUid = $this->requiredString($payload, 'dialog_uid');
             $beforeId = isset($payload['before_id']) && (int) $payload['before_id'] > 0
                 ? (int) $payload['before_id']
@@ -69,19 +69,6 @@ final class MessangerSocket
                 'has_more' => $result['has_more'],
                 'prepend' => $beforeId !== null,
             ]);
-
-            if ($beforeId === null && $result['messages'] !== []) {
-                $lastMessage = end($result['messages']);
-                $read = $this->messenger->markRead(
-                    $userUid,
-                    $dialogUid,
-                    (string) $lastMessage['uid']
-                );
-                $this->broadcast($connections, $userUid, $dialogUid, [
-                    'action' => 'read_update',
-                    ...$read,
-                ]);
-            }
         });
     }
 
