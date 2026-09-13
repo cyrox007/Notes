@@ -1,0 +1,93 @@
+name: Build hosting package
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
+          coverage: none
+
+      - name: Install production dependencies
+        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress
+
+      - name: Build hosting bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME:-manual}"
+          if [[ "$VERSION" == "hosting-installer-e2e" || "$VERSION" == "master" ]]; then
+            VERSION="manual-${GITHUB_SHA::8}"
+          fi
+          NAME="workspace-organizer-${VERSION}"
+          ROOT="/tmp/$NAME"
+          rm -rf "$ROOT"
+          mkdir -p "$ROOT"
+          rsync -a ./ "$ROOT/" \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude '.env' \
+            --exclude '.logs' \
+            --exclude 'cache/*' \
+            --exclude 'compile/*' \
+            --exclude 'notes-private-storage' \
+            --exclude '*.log'
+          mkdir -p "$ROOT/cache" "$ROOT/compile"
+          test -f "$ROOT/vendor/autoload.php"
+          test -f "$ROOT/install.php"
+          test ! -e "$ROOT/.env"
+          cd /tmp
+          zip -qr "$GITHUB_WORKSPACE/$NAME.zip" "$NAME"
+          echo "BUNDLE=$GITHUB_WORKSPACE/$NAME.zip" >> "$GITHUB_ENV"
+          echo "BUNDLE_NAME=$NAME.zip" >> "$GITHUB_ENV"
+
+      - name: Inspect bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          unzip -l "$BUNDLE" | grep -F 'vendor/autoload.php'
+          unzip -l "$BUNDLE" | grep -F 'install.php'
+          if unzip -l "$BUNDLE" | grep -Eq '/\.env$'; then
+            echo 'Bundle must not contain .env'
+            exit 1
+          fi
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BUNDLE_NAME }}
+          path: ${{ env.BUNDLE }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish tagged release asset
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$BUNDLE" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "$BUNDLE" \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes
+          fi

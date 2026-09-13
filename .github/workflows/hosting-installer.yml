@@ -1,0 +1,186 @@
+name: Hosting installer
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [hosting-installer-e2e]
+
+permissions:
+  contents: read
+
+jobs:
+  hosting-installer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
+          coverage: none
+
+      - name: Install production dependencies
+        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress
+
+      - name: Installer syntax and static contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l install.php
+          grep -Fq 'PHP 8.3+' install.php
+          grep -Fq 'vendor/autoload.php' install.php
+          grep -Fq 'preparePrivateStorage' install.php
+          grep -Fq 'connectOrCreateDatabase' install.php
+          grep -Fq 'writeEnvironmentFile' install.php
+          grep -Fq 'WS_PUBLIC_URL' install.php
+          grep -Fq 'BASE_PATH' install.php
+          ! grep -Fq 'SITEURL=http://localhost' install.php
+          ! grep -Fq 'WS_PUBLIC_URL=ws://localhost:27800' install.php
+
+      - name: Prepare hosting-like document root
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/workspace-hosting-home
+          mkdir -p /tmp/workspace-hosting-home/public_html/workspace
+          rsync -a \
+            --exclude '.git' \
+            --exclude '.env' \
+            --exclude '.logs' \
+            ./ /tmp/workspace-hosting-home/public_html/workspace/
+          test -f /tmp/workspace-hosting-home/public_html/workspace/vendor/autoload.php
+          test ! -e /tmp/workspace-hosting-home/public_html/workspace/.env
+
+      - name: Start PHP hosting server
+        shell: bash
+        run: |
+          set -euo pipefail
+          HOME=/tmp/workspace-hosting-home php -S 127.0.0.1:8080 -t /tmp/workspace-hosting-home/public_html >/tmp/workspace-installer-server.log 2>&1 &
+          echo $! >/tmp/workspace-installer-server.pid
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:8080/workspace/install.php >/tmp/install-step1.html; then
+              break
+            fi
+            sleep 1
+          done
+          grep -Fq 'Composer dependencies (vendor/autoload.php)' /tmp/install-step1.html
+          grep -Fq 'http://127.0.0.1:8080/workspace/' /tmp/install-step1.html
+          grep -Fq 'ws://127.0.0.1:8080/workspace/ws' /tmp/install-step1.html
+
+      - name: Install through HTTP wizard
+        shell: bash
+        run: |
+          set -euo pipefail
+          COOKIE=/tmp/workspace-install-cookie.txt
+          BASE=http://127.0.0.1:8080/workspace
+
+          curl -fsS -c "$COOKIE" -b "$COOKIE" "$BASE/install.php?step=2" -o /tmp/install-step2.html
+          CSRF=$(sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' /tmp/install-step2.html | head -n1)
+          STORAGE=$(sed -n 's/.*name="private_storage_path" value="\([^"]*\)".*/\1/p' /tmp/install-step2.html | head -n1)
+          test -n "$CSRF"
+          test -n "$STORAGE"
+          case "$STORAGE" in
+            /tmp/workspace-hosting-home/public_html/*) echo "Private storage leaked into document root: $STORAGE"; exit 1 ;;
+          esac
+
+          curl -fsS -D /tmp/install-step2.headers -o /tmp/install-step2.post \
+            -c "$COOKIE" -b "$COOKIE" \
+            --data-urlencode "csrf_token=$CSRF" \
+            --data-urlencode 'step=2' \
+            --data-urlencode 'db_host=127.0.0.1' \
+            --data-urlencode 'db_port=3306' \
+            --data-urlencode 'db_name=notes_hosting_test' \
+            --data-urlencode 'db_user=root' \
+            --data-urlencode 'db_pass=root' \
+            --data-urlencode "private_storage_path=$STORAGE" \
+            --data-urlencode 'site_url=http://127.0.0.1:8080' \
+            --data-urlencode 'base_path=/workspace/' \
+            --data-urlencode 'ws_public_url=ws://127.0.0.1:8080/workspace/ws' \
+            "$BASE/install.php"
+          grep -Eiq '^Location: install\.php\?step=3' /tmp/install-step2.headers
+          test ! -e /tmp/workspace-hosting-home/public_html/workspace/.env
+
+          curl -fsS -c "$COOKIE" -b "$COOKIE" "$BASE/install.php?step=3" -o /tmp/install-step3.html
+          CSRF=$(sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' /tmp/install-step3.html | head -n1)
+          test -n "$CSRF"
+
+          curl -fsS -c "$COOKIE" -b "$COOKIE" \
+            --data-urlencode "csrf_token=$CSRF" \
+            --data-urlencode 'step=3' \
+            --data-urlencode 'admin_firstname=Hosting' \
+            --data-urlencode 'admin_lastname=Admin' \
+            --data-urlencode 'admin_username=hosting_admin' \
+            --data-urlencode 'admin_email=hosting-admin@example.test' \
+            --data-urlencode 'admin_password=StrongHostingPass123!' \
+            --data-urlencode 'admin_password_confirm=StrongHostingPass123!' \
+            "$BASE/install.php" -o /tmp/install-finished.html
+
+          grep -Fq 'Установка завершена' /tmp/install-finished.html
+          grep -Fq 'http://127.0.0.1:8080/workspace/' /tmp/install-finished.html
+
+      - name: Verify generated hosting contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=/tmp/workspace-hosting-home/public_html/workspace
+          ENVFILE="$ROOT/.env"
+          test -f "$ENVFILE"
+          grep -Fq 'SITEURL="http://127.0.0.1:8080"' "$ENVFILE"
+          grep -Fq 'BASE_PATH="/workspace/"' "$ENVFILE"
+          grep -Fq 'WS_PUBLIC_URL="ws://127.0.0.1:8080/workspace/ws"' "$ENVFILE"
+          grep -Fq 'WS_ALLOWED_ORIGINS="http://127.0.0.1:8080"' "$ENVFILE"
+          grep -Fq 'LOG_LEVEL=INFO' "$ENVFILE"
+          ! grep -Fq 'localhost:27800' "$ENVFILE"
+
+          STORAGE=$(sed -n 's/^PRIVATE_STORAGE_PATH="\(.*\)"$/\1/p' "$ENVFILE")
+          test -n "$STORAGE"
+          case "$STORAGE" in
+            /tmp/workspace-hosting-home/public_html/*) echo "Private storage is inside document root"; exit 1 ;;
+          esac
+          for directory in file_manager messenger notes users rate-limit logs legacy; do
+            test -d "$STORAGE/$directory"
+          done
+
+          TABLES=$(mysql -N -h 127.0.0.1 -uroot -proot -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='notes_hosting_test';")
+          test "$TABLES" -eq 20
+          ADMIN=$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT CONCAT(role, ':', is_active) FROM users WHERE username='hosting_admin';")
+          test "$ADMIN" = '1:1'
+
+      - name: Fresh install healthcheck
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/workspace-hosting-home/public_html/workspace
+          php bin/healthcheck.php --json | tee /tmp/hosting-health.json
+          grep -Fq '"status": "ok"' /tmp/hosting-health.json
+
+      - name: Installer locks after completion
+        shell: bash
+        run: |
+          set -euo pipefail
+          STATUS=$(curl -sS -o /tmp/locked-installer.txt -w '%{http_code}' -c /tmp/new-cookie.txt http://127.0.0.1:8080/workspace/install.php)
+          test "$STATUS" = '404'
+          grep -Fq 'Installer is locked.' /tmp/locked-installer.txt
+
+      - name: Show server log on failure
+        if: failure()
+        run: cat /tmp/workspace-installer-server.log || true

@@ -6,7 +6,7 @@
 
 Workspace Organizer — внутреннее PHP-приложение для корпоративной работы: заметки, задачи, личные файлы, профиль, администрирование и real-time Messenger.
 
-После PR #45–#55 основные security- и schema-contract блокеры исходного аудита закрыты: Messenger, Notes, Tasks, Profile, fresh install, versioned DB upgrade и legacy crypto migration имеют отдельные проверяемые контракты. Текущий этап — UI/UX и production-readiness.
+После PR #45–#56 основные security-, schema-contract, UI/UX и production-readiness блокеры исходного аудита закрыты: Messenger, Notes, Tasks, Profile, fresh install, versioned DB upgrade, legacy crypto migration и product-wide UI имеют отдельные проверяемые контракты.
 
 ## Возможности
 
@@ -15,7 +15,7 @@ Workspace Organizer — внутреннее PHP-приложение для к�
 - **File Manager** — личные папки/файлы вне document root, protected download, media и read-only text preview.
 - **Messenger v2** — private/group chats, Saved Messages, forwarding, media, voice, reply/edit/delete, delivery/read receipts, reactions, encrypted search, pin/mute/archive, group roles/avatars и multi-device realtime.
 - **Profile** — canonical user contract, private avatar, изменение данных/пароля и безопасная деактивация аккаунта.
-- **Admin panel** — управление пользователями и custom profile fields.
+- **Admin panel** — управление пользователями и custom profile fields без physical delete связанных данных.
 - **Responsive UI** — единый design system, desktop/mobile navigation, dashboard, обновлённые формы/карточки/модалки, keyboard focus и reduced-motion support.
 
 ## Security model
@@ -43,58 +43,68 @@ Workspace Organizer — внутреннее PHP-приложение для к�
 
 - PHP `8.3+`;
 - MySQL `8.x` — основной проверяемый CI path;
-- Composer;
-- PHP extensions: `mysqli`, `pdo_mysql`, `mbstring`, `json`, `fileinfo`, `sodium`; `gd` нужен для avatar/image flows;
+- PHP extensions: `mysqli`, `pdo_mysql`, `mbstring`, `fileinfo`, `sodium`, `gd`;
+- Argon2id support в `password_hash`;
 - Apache + `mod_rewrite` либо Nginx с эквивалентным front-controller routing;
 - writable private storage вне document root;
-- HTTPS + WSS для production.
+- HTTPS + WSS для production Messenger.
 
-## Fresh install
+**Composer на конечном shared hosting не обязателен**, если используется готовый hosting bundle из GitHub Release. Composer нужен при установке непосредственно из source tree и для development/CI.
 
-### 1. Dependencies
+## Fresh install на обычном хостинге
+
+Fresh install должен поднимать проект **без ручного импорта SQL, ручного создания `.env` и запуска Composer/CLI на хостинге**.
+
+Рекомендуемый сценарий:
+
+1. Скачайте `workspace-organizer-v*.zip` из GitHub Release.
+2. Загрузите и распакуйте его в нужный каталог сайта.
+3. Если MySQL-пользователь хостинга не имеет `CREATE DATABASE`, один раз создайте пустую БД через панель хостинга.
+4. Откройте в браузере:
+
+```text
+https://example.com/install.php
+```
+
+или, при установке в подкаталог:
+
+```text
+https://example.com/workspace/install.php
+```
+
+5. Укажите MySQL credentials и создайте первого администратора.
+
+Web-installer автоматически:
+
+- проверяет PHP 8.3, extensions, Argon2id и наличие production `vendor/`;
+- пытается создать отсутствующую БД, если MySQL account это разрешает;
+- импортирует 5 canonical schemas и проверяет 20 обязательных таблиц;
+- создаёт `cache`/`compile`;
+- подбирает и создаёт `PRIVATE_STORAGE_PATH` вне document root;
+- создаёт private пространства `file_manager`, `messenger`, `notes`, `users`, `rate-limit`, `logs`, `legacy`;
+- определяет `SITEURL` и `BASE_PATH`, включая установку в подкаталог;
+- формирует same-site `WS_PUBLIC_URL` вида `/ws` и `WS_ALLOWED_ORIGINS`;
+- генерирует отдельные `UNIQUE_KEY`, `MSG_SECRET_KEY`, `WS_TICKET_SECRET`;
+- создаёт первого superadmin;
+- только после успешной финализации атомарно создаёт `.env` и блокирует повторный запуск installer.
+
+Если установка оборвалась до создания admin, `.env` ещё не существует и мастер можно безопасно запустить повторно.
+
+Подробная пошаговая инструкция: [`docs/HOSTING_INSTALL.md`](docs/HOSTING_INSTALL.md).
+
+### Установка из исходников
+
+Для development, VPS или собственного build pipeline:
 
 ```bash
 composer install --no-dev --optimize-autoloader
-cp default.env .env
 ```
 
-Для development/CI можно использовать обычный `composer install`.
+После этого также можно использовать `/install.php`; вручную копировать `default.env` и импортировать SQL для **fresh install** не требуется.
 
-### 2. Environment
+### Private storage
 
-Минимальный production-набор:
-
-```env
-DBDRIVER=mysql
-DBHOST=localhost
-DBPORT=3306
-DBUSER=workspace
-DBPASS=<strong-db-password>
-DBNAME=workspace
-
-SITEURL=https://workspace.example.com
-BASE_PATH=/
-
-UNIQUE_KEY=<random-secret-at-least-32-chars>
-MSG_SECRET_KEY=<random-secret-at-least-32-chars>
-WS_TICKET_SECRET=<random-secret-at-least-32-chars>
-
-PRIVATE_STORAGE_PATH=/var/lib/notes/private
-WS_PUBLIC_URL=wss://workspace.example.com/ws
-WS_ALLOWED_ORIGINS=https://workspace.example.com
-```
-
-Генерация случайного секрета:
-
-```bash
-openssl rand -hex 32
-```
-
-Не коммитьте `.env` и не используйте одинаковые secrets между prod/stage/dev.
-
-### 3. Private storage
-
-Рекомендуемая структура:
+Пример production-структуры:
 
 ```text
 /var/lib/notes/private/
@@ -102,14 +112,16 @@ openssl rand -hex 32
 ├── messenger/
 ├── notes/
 ├── users/
-└── rate-limit/
+├── rate-limit/
+├── logs/
+└── legacy/
 ```
 
 Canonical root вложений Notes — `PRIVATE_STORAGE_PATH/notes/`; browser никогда не получает этот physical path как URL.
 
-Этот каталог должен принадлежать PHP/web process и **не должен** быть static location веб-сервера.
+На shared hosting installer предпочитает каталог в домашнем каталоге аккаунта, **выше `public_html` / document root**. Если тариф запрещает PHP запись вне web-root, такой тариф не соответствует security contract проекта.
 
-### 4. Database
+### Database
 
 Canonical fresh schemas:
 
@@ -125,7 +137,7 @@ Fresh contract включает 20 обязательных таблиц. `insta
 
 После успешной установки наличие `.env` блокирует повторный запуск web-installer.
 
-### 5. Registration
+### Registration
 
 По умолчанию web-registration закрыта. Для invite registration задайте:
 
@@ -141,17 +153,30 @@ REGISTRATION_INVITE_CODE=<long-random-invite-secret>
 
 Неверный или незаданный invite возвращает `404`.
 
-### 6. WebSocket
+### WebSocket
 
-Development:
+Installer записывает same-site URL вида:
+
+```env
+WS_PUBLIC_URL=wss://workspace.example.com/ws
+WS_ALLOWED_ORIGINS=https://workspace.example.com
+WS_HOST=127.0.0.1
+WS_PORT=27800
+```
+
+На production hosting маршрут `/ws` должен проксироваться на локальный Workerman process. Это единственная часть, которую невозможно универсально стартовать web-installer'ом на каждом типе shared hosting: тариф должен поддерживать long-running PHP process/WebSocket proxy.
+
+Development/VPS:
 
 ```bash
 php ws_server/server.php start
 ```
 
-Production: запускайте Workerman через systemd/supervisor/container orchestration и публикуйте браузеру только через WSS reverse proxy.
+Production: запускайте Workerman через hosting background-process manager, systemd/supervisor/container orchestration и публикуйте браузеру только через WSS reverse proxy.
 
 ## Upgrade existing DB
+
+Web-installer **не используется для upgrade** и намеренно отказывается изменять старую/частичную БД.
 
 До обновления сделайте backup БД, `PRIVATE_STORAGE_PATH` и действующих crypto keys.
 
@@ -289,6 +314,10 @@ Encrypted search не хранит plaintext index: он расшифровыв�
 
 Private avatar выдаётся через authenticated endpoint. Self-delete заменён на deactivation (`is_active=0`), данные не каскадно удаляются; group owner должен сначала передать ownership.
 
+### Admin
+
+Admin lifecycle использует safe deactivation вместо physical delete. Реактивация восстанавливает согласованный `role + is_active`; administrative targets и group owners защищены отдельными checks. Custom profile fields используют canonical `user_fields`.
+
 ## Scheduled maintenance
 
 Messenger orphan cleanup:
@@ -305,13 +334,18 @@ php bin/cleanup_messenger_orphans.php
 
 GitHub Actions покрывают security baseline, PHP/Composer, clean schemas, DB upgrade, crypto migration, Notes/Tasks/Profile contracts и Messenger groups/media/search/voice/reactions/forwarding. Workflow `Product UI and production quality` дополнительно проверяет UI/accessibility wiring, File Manager safe preview, Linux bootstrap paths, rate limit middleware, CSP/web-root protection, healthcheck contract и freshness документации.
 
-Полноценный browser + WSS smoke через production reverse proxy остаётся отдельным pre-release deployment test; repository CI не выдаёт его за уже выполненный.
+`Hosting installer` выполняет настоящий HTTP fresh-install через cookies/CSRF на MySQL в hosting-like `public_html/workspace`, проверяет subdirectory detection, private storage вне document root, admin account, generated `.env`, блокировку повторного installer и итоговый healthcheck.
+
+`Build hosting package` собирает upload-ready ZIP с production `vendor/`; на tag `v*` ZIP публикуется как release asset.
+
+Полноценный browser + WSS smoke через production reverse proxy остаётся отдельным pre-release deployment test.
 
 ## Документация
 
 - [`CHANGELOG.md`](CHANGELOG.md) — история и Unreleased.
 - [`docs/CORE.md`](docs/CORE.md) — архитектура ядра.
 - [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) — пользовательские сценарии.
+- [`docs/HOSTING_INSTALL.md`](docs/HOSTING_INSTALL.md) — fresh install на shared hosting без Composer/CLI.
 - [`docs/PRODUCTION.md`](docs/PRODUCTION.md) — deployment, backup/restore, WSS, rate limiting и operations checklist.
 - [`TASKS_MODULE_README.md`](TASKS_MODULE_README.md) — дополнительная документация Tasks.
 - [`default.env`](default.env) — environment variables и security comments.
@@ -332,16 +366,17 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 
 Перед выкладкой:
 
-1. `composer install --no-dev --optimize-autoloader` проходит без ошибок.
-2. `.env`, application source и service directories недоступны по HTTP.
-3. `UNIQUE_KEY`, `MSG_SECRET_KEY`, `WS_TICKET_SECRET` уникальны и случайны.
-4. `PRIVATE_STORAGE_PATH` находится вне document/application root.
-5. HTTPS + same-site WSS reverse proxy настроены.
-6. `WS_ALLOWED_ORIGINS` содержит только trusted origins.
-7. `php bin/migrate.php --status` показывает ожидаемое состояние.
-8. Legacy crypto migration выполнена/проверена, если нужна.
-9. `php bin/healthcheck.php` возвращает `Healthcheck: OK`.
-10. Backup БД/private storage создан и restore реально проверен.
-11. Orphan cleanup запланирован.
-12. Registration invite/rate limits настроены осознанно.
-13. Logs, metrics и disk-space alerts подключены.
+1. Для shared hosting используется готовый hosting bundle с `vendor/`; при deploy из source `composer install --no-dev --optimize-autoloader` проходит без ошибок.
+2. Fresh install успешно завершается через `/install.php` без ручного SQL/`.env`.
+3. `.env`, application source и service directories недоступны по HTTP.
+4. `UNIQUE_KEY`, `MSG_SECRET_KEY`, `WS_TICKET_SECRET` уникальны и случайны.
+5. `PRIVATE_STORAGE_PATH` находится вне document/application root.
+6. HTTPS + same-site WSS reverse proxy настроены.
+7. `WS_ALLOWED_ORIGINS` содержит только trusted origins.
+8. Для existing DB `php bin/migrate.php --status` показывает ожидаемое состояние.
+9. Legacy crypto migration выполнена/проверена, если нужна.
+10. `php bin/healthcheck.php` возвращает `Healthcheck: OK`.
+11. Backup БД/private storage создан и restore реально проверен.
+12. Orphan cleanup запланирован.
+13. Registration invite/rate limits настроены осознанно.
+14. Logs, metrics и disk-space alerts подключены.
