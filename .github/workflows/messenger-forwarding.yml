@@ -1,0 +1,322 @@
+name: Messenger forwarding and Saved Messages
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [messenger-forwarding]
+
+permissions:
+  contents: read
+
+jobs:
+  forwarding:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: notes_forwarding_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_mysql, mysqli, sodium, fileinfo
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Forwarding PHP and JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l app/services/MessengerSavedService.php
+          php -l app/services/MessengerForwardService.php
+          php -l app/socket/ForwardSocket.php
+          php -l app/services/MessengerSearchService.php
+          php -l ws_server/server.php
+          sed '/^{literal}$/d;/^{\/literal}$/d' app/views/messager_page/forwarding.js > /tmp/messenger-forwarding.js
+          node --check /tmp/messenger-forwarding.js
+          grep -q "ForwardSocket" ws_server/server.php
+          grep -q "messager_page/forwarding.js" app/views/messager_page/index.tpl
+          grep -q "messager_page/forwarding.css" app/views/messager_page/index.tpl
+
+      - name: Prepare schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot notes_forwarding_test < database/messenger_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_forwarding_test < database/migrations/20260913_messenger_saved_dialog.sql
+          mysql -N -h 127.0.0.1 -uroot -proot notes_forwarding_test <<'SQL' > /tmp/forward-contract.txt
+          SELECT COLUMN_TYPE FROM information_schema.columns
+          WHERE table_schema = DATABASE() AND table_name = 'dialogs' AND column_name = 'type';
+          SELECT COUNT(*) FROM information_schema.tables
+          WHERE table_schema = DATABASE() AND table_name = 'messenger_attachments';
+          SQL
+          mapfile -t contract < /tmp/forward-contract.txt
+          [[ "${contract[0]}" == *"saved"* ]]
+          test "${contract[1]}" = "1"
+
+      - name: Forwarding and Saved Messages integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          php <<'PHP'
+          <?php
+          if (!defined('SITEPATH')) define('SITEPATH', getcwd());
+          $_SERVER['HTTP_HOST'] = 'localhost';
+          putenv('DBDRIVER=mysql');
+          putenv('DBHOST=127.0.0.1');
+          putenv('DBPORT=3306');
+          putenv('DBUSER=root');
+          putenv('DBPASS=root');
+          putenv('DBNAME=notes_forwarding_test');
+          putenv('MSG_SECRET_KEY=ci-message-secret-0123456789abcdef0123456789abcdef');
+          putenv('PRIVATE_STORAGE_PATH=/tmp/notes-forwarding-private');
+          putenv('MESSENGER_SEARCH_SCAN_LIMIT=500');
+
+          require __DIR__ . '/core/config.php';
+          require __DIR__ . '/core/DatabaseManager.php';
+          require __DIR__ . '/app/handlers/UUID.php';
+          require __DIR__ . '/app/handlers/MessengerCrypto.php';
+          require __DIR__ . '/app/services/MessengerService.php';
+          require __DIR__ . '/app/services/MessengerMediaService.php';
+          require __DIR__ . '/app/services/MessengerSavedService.php';
+          require __DIR__ . '/app/services/MessengerForwardService.php';
+          require __DIR__ . '/app/services/MessengerSearchService.php';
+
+          $db = \Core\DatabaseManager::getInstance();
+          $now = date('Y-m-d H:i:s');
+          $password = password_hash('ci-password', PASSWORD_ARGON2ID);
+          $alice = '80000000-0000-4000-8000-000000000001';
+          $bob = '80000000-0000-4000-8000-000000000002';
+          $charlie = '80000000-0000-4000-8000-000000000003';
+          $dave = '80000000-0000-4000-8000-000000000004';
+
+          foreach ([
+              [$alice, 'forward-alice', 'Alice', 'Forward'],
+              [$bob, 'forward-bob', 'Bob', 'Forward'],
+              [$charlie, 'forward-charlie', 'Charlie', 'Target'],
+              [$dave, 'forward-dave', 'Dave', 'Outside'],
+          ] as [$uid, $username, $firstname, $lastname]) {
+              $db->execute(
+                  'INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active,created_at,updated_at)
+                   VALUES (:uid,:username,:email,:password_hash,:firstname,:lastname,888,1,:created_at,:updated_at)',
+                  [
+                      ':uid' => $uid,
+                      ':username' => $username,
+                      ':email' => $username . '@example.test',
+                      ':password_hash' => $password,
+                      ':firstname' => $firstname,
+                      ':lastname' => $lastname,
+                      ':created_at' => $now,
+                      ':updated_at' => $now,
+                  ]
+              );
+          }
+
+          $messenger = new \App\Services\MessengerService($db);
+          $media = new \App\Services\MessengerMediaService($db);
+          $saved = new \App\Services\MessengerSavedService($db);
+          $forwarder = new \App\Services\MessengerForwardService($db, $media, $saved);
+          $search = new \App\Services\MessengerSearchService($db, $messenger);
+
+          $aliceBob = $messenger->createDialog($alice, 'private', [$bob]);
+          $bobCharlie = $messenger->createDialog($bob, 'private', [$charlie]);
+
+          // Saved Messages is single-user and idempotent.
+          $savedOne = $saved->getOrCreate($alice);
+          $savedTwo = $saved->getOrCreate($alice);
+          if (
+              ($savedOne['uid'] ?? null) !== ($savedTwo['uid'] ?? null)
+              || ($savedOne['type'] ?? null) !== 'saved'
+              || ($savedOne['title'] ?? null) !== 'Сохранённые сообщения'
+          ) {
+              throw new RuntimeException('Saved Messages dialog is not idempotent or has invalid contract');
+          }
+          $savedCount = (int) $db->fetchValue(
+              'SELECT COUNT(*) FROM dialogs WHERE type = "saved" AND created_by = (
+                   SELECT id FROM users WHERE uid = :uid
+               )',
+              [':uid' => $alice]
+          );
+          if ($savedCount !== 1) {
+              throw new RuntimeException('Multiple Saved Messages dialogs were created');
+          }
+          $bobCannotReadAliceSaved = false;
+          try {
+              $messenger->getMessages($bob, (string) $savedOne['uid']);
+          } catch (DomainException) {
+              $bobCannotReadAliceSaved = true;
+          }
+          if (!$bobCannotReadAliceSaved) {
+              throw new RuntimeException('Another user can access Alice Saved Messages');
+          }
+
+          // Text save creates a fresh independently encrypted message.
+          $sourceText = $messenger->sendMessage($alice, $aliceBob['uid'], 'Forwarding secret text');
+          $savedText = $forwarder->save($alice, $sourceText['uid']);
+          if (
+              ($savedText['dialog_uid'] ?? null) !== $savedOne['uid']
+              || ($savedText['message'] ?? null) !== 'Forwarding secret text'
+              || ($savedText['meta_data']['forwarded_from']['user_uid'] ?? null) !== $alice
+          ) {
+              throw new RuntimeException('Text message was not saved correctly');
+          }
+          $sourceCipher = (string) $db->fetchValue(
+              'SELECT message FROM messages WHERE uid = :uid',
+              [':uid' => $sourceText['uid']]
+          );
+          $savedCipher = (string) $db->fetchValue(
+              'SELECT message FROM messages WHERE uid = :uid',
+              [':uid' => $savedText['uid']]
+          );
+          if ($sourceCipher === '' || $savedCipher === '' || $sourceCipher === $savedCipher) {
+              throw new RuntimeException('Forwarded text reused source ciphertext');
+          }
+          if (\App\Helpers\MessengerCrypto::decrypt($savedCipher, $savedText['uid']) !== 'Forwarding secret text') {
+              throw new RuntimeException('Saved text cannot be decrypted with its own message UID');
+          }
+
+          // Saved dialog is discoverable with its canonical title in encrypted search.
+          $savedSearch = $search->messages($alice, 'Forwarding secret', (string) $savedOne['uid']);
+          if (
+              count($savedSearch) !== 1
+              || ($savedSearch[0]['dialog_type'] ?? null) !== 'saved'
+              || ($savedSearch[0]['dialog_title'] ?? null) !== 'Сохранённые сообщения'
+          ) {
+              throw new RuntimeException('Encrypted search does not understand Saved Messages');
+          }
+
+          // Bob can forward an accessible source into another dialog he belongs to.
+          $forwardedText = $forwarder->forward($bob, $sourceText['uid'], $bobCharlie['uid']);
+          if (
+              ($forwardedText['message'] ?? null) !== 'Forwarding secret text'
+              || ($forwardedText['meta_data']['forwarded_from']['user_uid'] ?? null) !== $alice
+          ) {
+              throw new RuntimeException('Cross-dialog text forward lost origin or plaintext');
+          }
+          $charliePage = $messenger->getMessages($charlie, $bobCharlie['uid']);
+          if (!array_filter(
+              $charliePage['messages'],
+              fn(array $m): bool => ($m['uid'] ?? null) === $forwardedText['uid']
+          )) {
+              throw new RuntimeException('Destination participant cannot read forwarded text');
+          }
+
+          $outsiderBlocked = false;
+          try {
+              $forwarder->forward($dave, $sourceText['uid'], $bobCharlie['uid']);
+          } catch (DomainException) {
+              $outsiderBlocked = true;
+          }
+          if (!$outsiderBlocked) {
+              throw new RuntimeException('Outsider forwarded an inaccessible message');
+          }
+
+          // Delete-for-me removes forwarding ability only for that viewer.
+          $messenger->deleteMessage($bob, $sourceText['uid'], false);
+          $hiddenBlocked = false;
+          try {
+              $forwarder->forward($bob, $sourceText['uid'], $bobCharlie['uid']);
+          } catch (DomainException) {
+              $hiddenBlocked = true;
+          }
+          if (!$hiddenBlocked) {
+              throw new RuntimeException('Delete-for-me source remained forwardable');
+          }
+
+          // Prepare a protected source PDF and send it normally.
+          $sourceDialogId = (int) $db->fetchValue(
+              'SELECT id FROM dialogs WHERE uid = :uid',
+              [':uid' => $aliceBob['uid']]
+          );
+          $aliceId = (int) $db->fetchValue(
+              'SELECT id FROM users WHERE uid = :uid',
+              [':uid' => $alice]
+          );
+          $charlieId = (int) $db->fetchValue(
+              'SELECT id FROM users WHERE uid = :uid',
+              [':uid' => $charlie]
+          );
+          $sourceAttachmentUid = '80000000-0000-4000-8000-000000000010';
+          $sourceDir = '/tmp/notes-forwarding-private/messenger/' . $sourceDialogId . '/' . $aliceId;
+          if (!is_dir($sourceDir) && !mkdir($sourceDir, 0700, true) && !is_dir($sourceDir)) {
+              throw new RuntimeException('Cannot prepare source media directory');
+          }
+          $sourcePath = $sourceDir . '/source.pdf';
+          file_put_contents($sourcePath, "%PDF-1.4\nforwarding fixture\n");
+          chmod($sourcePath, 0600);
+          $db->execute(
+              'INSERT INTO messenger_attachments (
+                  uid,dialog_id,uploader_user_id,message_id,original_name,stored_path,
+                  mime_type,extension,media_kind,size,created_at,is_deleted
+               ) VALUES (
+                  :uid,:dialog_id,:uploader_user_id,NULL,:original_name,:stored_path,
+                  :mime_type,:extension,:media_kind,:size,:created_at,0
+               )',
+              [
+                  ':uid' => $sourceAttachmentUid,
+                  ':dialog_id' => $sourceDialogId,
+                  ':uploader_user_id' => $aliceId,
+                  ':original_name' => 'forward-report.pdf',
+                  ':stored_path' => $sourcePath,
+                  ':mime_type' => 'application/pdf',
+                  ':extension' => 'pdf',
+                  ':media_kind' => 'file',
+                  ':size' => filesize($sourcePath),
+                  ':created_at' => $now,
+              ]
+          );
+          $sourceMedia = $media->send($alice, $sourceAttachmentUid, 'report caption');
+
+          $forwardedMedia = $forwarder->forward($bob, $sourceMedia['uid'], $bobCharlie['uid']);
+          if (
+              ($forwardedMedia['message_type'] ?? null) !== 'file'
+              || ($forwardedMedia['message'] ?? null) !== 'report caption'
+              || empty($forwardedMedia['meta_data']['attachment_uid'])
+              || $forwardedMedia['meta_data']['attachment_uid'] === $sourceAttachmentUid
+          ) {
+              throw new RuntimeException('Media forward did not create an independent attachment');
+          }
+          $forwardedAttachmentUid = (string) $forwardedMedia['meta_data']['attachment_uid'];
+          $forwardedDownload = $media->download($charlieId, $forwardedAttachmentUid);
+          if (
+              ($forwardedDownload['original_name'] ?? null) !== 'forward-report.pdf'
+              || file_get_contents((string) $forwardedDownload['path']) !== file_get_contents($sourcePath)
+              || realpath((string) $forwardedDownload['path']) === realpath($sourcePath)
+          ) {
+              throw new RuntimeException('Forwarded media is not an independent byte-identical private copy');
+          }
+
+          // Deleting the original globally must not break the forwarded copy.
+          $messenger->deleteMessage($alice, $sourceMedia['uid'], true);
+          $stillDownloadable = $media->download($charlieId, $forwardedAttachmentUid);
+          if (!is_file((string) $stillDownloadable['path'])) {
+              throw new RuntimeException('Deleting source media broke forwarded copy');
+          }
+
+          // Forwarding an already-forwarded message preserves the original author.
+          $savedAgain = $forwarder->forward($bob, $forwardedText['uid'], $bobCharlie['uid']);
+          if (($savedAgain['meta_data']['forwarded_from']['user_uid'] ?? null) !== $alice) {
+              throw new RuntimeException('Forward chain replaced original attribution');
+          }
+
+          echo "forwarding and Saved Messages integration passed\n";
+          PHP
