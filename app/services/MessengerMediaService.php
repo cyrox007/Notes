@@ -51,11 +51,7 @@ final class MessengerMediaService
         $this->db ??= DatabaseManager::getInstance();
     }
 
-    /**
-     * Store one upload in private storage without creating a message yet.
-     * @param array<string,mixed> $file
-     * @return array<string,mixed>
-     */
+    /** @param array<string,mixed> $file @return array<string,mixed> */
     public function upload(int $userId, string $dialogUid, array $file, bool $voice = false): array
     {
         if ($userId <= 0 || trim($dialogUid) === '') {
@@ -135,10 +131,7 @@ final class MessengerMediaService
         ];
     }
 
-    /**
-     * Bind an uploaded attachment to a new media message.
-     * @return array<string,mixed>
-     */
+    /** @return array<string,mixed> */
     public function send(string $userUid, string $attachmentUid, string $caption = ''): array
     {
         $caption = trim($caption);
@@ -269,11 +262,7 @@ final class MessengerMediaService
         }
     }
 
-    /**
-     * Resolve an attachment only after membership authorization.
-     * The physical path is returned to the controller, never to the browser.
-     * @return array<string,mixed>
-     */
+    /** @return array<string,mixed> */
     public function download(int $userId, string $attachmentUid): array
     {
         $attachment = $this->db->fetchOne(
@@ -287,9 +276,22 @@ final class MessengerMediaService
                 ON utd.dialog_id = a.dialog_id
                AND utd.user_id = u.id
                AND utd.is_deleted = 0
+             LEFT JOIN messages m ON m.id = a.message_id
              WHERE a.uid = :attachment_uid
                AND a.is_deleted = 0
-               AND (a.message_id IS NOT NULL OR a.uploader_user_id = u.id)
+               AND (
+                    (a.message_id IS NULL AND a.uploader_user_id = u.id)
+                    OR (
+                        a.message_id IS NOT NULL
+                        AND m.is_deleted = 0
+                        AND NOT EXISTS (
+                            SELECT 1
+                            FROM message_user_deletions mud
+                            WHERE mud.message_id = a.message_id
+                              AND mud.user_id = u.id
+                        )
+                    )
+               )
              LIMIT 1',
             [':user_id' => $userId, ':attachment_uid' => $attachmentUid]
         );
