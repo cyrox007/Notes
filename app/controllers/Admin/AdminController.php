@@ -6,12 +6,12 @@ namespace App\Controllers\Admin;
 
 use App\Models\FieldModel;
 use App\Models\UserModel;
-use App\Services\UserAvatarService;
-use Core\Config;
+use App\Services\AdminUserService;
 use Core\Controller;
 use Core\DatabaseManager;
 use Core\Request;
 use Core\Router;
+use DomainException;
 use InvalidArgumentException;
 use Throwable;
 
@@ -22,35 +22,22 @@ final class AdminController extends Controller
 
     public function index(Request $request): void
     {
-        $user = UserModel::select()->where('id', '=', (int) $request->session('user_id', 0))->first();
+        $actorId = (int) $request->session('user_id', 0);
+        $user = UserModel::select()->where('id', '=', $actorId)->first();
         if (!$user) {
             http_response_code(401);
             return;
         }
 
+        try {
+            $users = (new AdminUserService())->listUsers($actorId);
+        } catch (DomainException $e) {
+            http_response_code($this->exceptionStatus($e, 403));
+            return;
+        }
+
         $flash = $request->session('admin_flash');
         $request->unsetSession('admin_flash');
-
-        $users = DatabaseManager::getInstance()->fetchAll(
-            'SELECT id,uid,username,email,firstname,lastname,role,is_active,created_at '
-            . 'FROM users ORDER BY id ASC'
-        );
-        foreach ($users as &$listedUser) {
-            $role = (int) $listedUser['role'];
-            $isActive = (int) $listedUser['is_active'] === 1;
-            $listedUser['role_label'] = $this->roleLabel($role);
-            $listedUser['status_code'] = !$isActive || $role === Config::USER_ROLE_INACTIVE
-                ? 'inactive'
-                : ($role === Config::USER_ROLE_BLOCKED ? 'blocked' : 'active');
-            $listedUser['status_label'] = match ($listedUser['status_code']) {
-                'inactive' => 'Деактивирован',
-                'blocked' => 'Заблокирован',
-                default => 'Активен',
-            };
-            $listedUser['can_manage'] = (int) $listedUser['id'] !== (int) $user->id
-                && !Config::isAdminRole($role);
-        }
-        unset($listedUser);
 
         $this->render_template('admin-page/index', [
             'user' => $user,
@@ -181,51 +168,19 @@ final class AdminController extends Controller
 
     public function toggleUserStatus(Request $request): void
     {
-        $targetUserId = (int) $request->post('user_id', 0);
-        $newStatus = (string) $request->post('new_status', '');
-        if ($targetUserId <= 0 || !in_array($newStatus, ['active', 'blocked'], true)) {
-            $this->respondAdminAction($request, false, 'Некорректные параметры', 422);
-            return;
+        try {
+            $message = (new AdminUserService())->setStatus(
+                (int) $request->session('user_id', 0),
+                (int) $request->post('user_id', 0),
+                (string) $request->post('new_status', '')
+            );
+            $this->respondAdminAction($request, true, $message);
+        } catch (InvalidArgumentException|DomainException $e) {
+            $this->respondAdminAction($request, false, $e->getMessage(), $this->exceptionStatus($e, 422));
+        } catch (Throwable $e) {
+            error_log('Admin status update failed: ' . $e->getMessage());
+            $this->respondAdminAction($request, false, 'Не удалось изменить статус пользователя', 500);
         }
-
-        $db = DatabaseManager::getInstance();
-        $currentUserId = (int) $request->session('user_id', 0);
-        $target = $db->fetchOne(
-            'SELECT id,role,is_active FROM users WHERE id = :id LIMIT 1',
-            [':id' => $targetUserId]
-        );
-        if (!$target) {
-            $this->respondAdminAction($request, false, 'Пользователь не найден', 404);
-            return;
-        }
-        if ($currentUserId === $targetUserId) {
-            $this->respondAdminAction($request, false, 'Нельзя изменить собственный статус', 409);
-            return;
-        }
-        if (Config::isAdminRole((int) $target['role'])) {
-            $this->respondAdminAction($request, false, 'Статус администратора нельзя менять этой операцией', 403);
-            return;
-        }
-        if ($newStatus === 'blocked' && ((int) $target['is_active'] !== 1 || (int) $target['role'] === Config::USER_ROLE_INACTIVE)) {
-            $this->respondAdminAction($request, false, 'Сначала активируйте деактивированный аккаунт', 409);
-            return;
-        }
-
-        $db->execute(
-            'UPDATE users SET role = :role, is_active = :is_active, updated_at = :updated_at WHERE id = :id',
-            [
-                ':role' => $newStatus === 'blocked' ? Config::USER_ROLE_BLOCKED : Config::USER_ROLE_USER,
-                ':is_active' => 1,
-                ':updated_at' => date('Y-m-d H:i:s'),
-                ':id' => $targetUserId,
-            ]
-        );
-
-        $this->respondAdminAction(
-            $request,
-            true,
-            $newStatus === 'blocked' ? 'Пользователь заблокирован' : 'Пользователь активирован'
-        );
     }
 
     /**
@@ -234,91 +189,24 @@ final class AdminController extends Controller
      */
     public function deleteUser(Request $request): void
     {
-        $targetUserId = (int) $request->post('user_id', 0);
-        if ($targetUserId <= 0) {
-            $this->respondAdminAction($request, false, 'Не указан пользователь', 422);
-            return;
-        }
-
-        $db = DatabaseManager::getInstance();
-        $currentUserId = (int) $request->session('user_id', 0);
-        $current = $db->fetchOne(
-            'SELECT id,role,is_active FROM users WHERE id = :id AND is_active = 1 LIMIT 1',
-            [':id' => $currentUserId]
-        );
-        $target = $db->fetchOne(
-            'SELECT id,uid,username,role,is_active,avatar FROM users WHERE id = :id LIMIT 1',
-            [':id' => $targetUserId]
-        );
-
-        if (!$current) {
-            $this->respondAdminAction($request, false, 'Требуется авторизация', 401);
-            return;
-        }
-        if (!$target) {
-            $this->respondAdminAction($request, false, 'Пользователь не найден', 404);
-            return;
-        }
-        if ($currentUserId === $targetUserId) {
-            $this->respondAdminAction($request, false, 'Нельзя деактивировать самого себя из админпанели', 409);
-            return;
-        }
-        if (Config::isAdminRole((int) $target['role'])) {
-            $this->respondAdminAction($request, false, 'Административный аккаунт нельзя деактивировать этой операцией', 403);
-            return;
-        }
-        if ((int) $target['is_active'] !== 1 || (int) $target['role'] === Config::USER_ROLE_INACTIVE) {
-            $this->respondAdminAction($request, true, 'Аккаунт уже деактивирован');
-            return;
-        }
-
-        $ownedGroup = $db->fetchOne(
-            "SELECT d.uid, COALESCE(NULLIF(d.name, ''), 'Без названия') AS name "
-            . 'FROM user_to_dialogs utd '
-            . 'JOIN dialogs d ON d.id = utd.dialog_id '
-            . "WHERE utd.user_id = :user_id AND utd.role = 'owner' AND utd.is_deleted = 0 AND d.type = 'group' "
-            . 'LIMIT 1',
-            [':user_id' => $targetUserId]
-        );
-        if ($ownedGroup !== null) {
-            $this->respondAdminAction(
-                $request,
-                false,
-                'Перед деактивацией передайте владение группой «' . (string) $ownedGroup['name'] . '» другому участнику',
-                409
-            );
-            return;
-        }
-
-        $db->execute(
-            'UPDATE users SET is_active = 0, role = :inactive_role, avatar = NULL, updated_at = :updated_at '
-            . 'WHERE id = :id AND is_active = 1',
-            [
-                ':inactive_role' => Config::USER_ROLE_INACTIVE,
-                ':updated_at' => date('Y-m-d H:i:s'),
-                ':id' => $targetUserId,
-            ]
-        );
-
         try {
-            (new UserAvatarService($db))->removeStoredAvatar((object) $target);
+            $message = (new AdminUserService())->deactivate(
+                (int) $request->session('user_id', 0),
+                (int) $request->post('user_id', 0)
+            );
+            $this->respondAdminAction($request, true, $message);
+        } catch (InvalidArgumentException|DomainException $e) {
+            $this->respondAdminAction($request, false, $e->getMessage(), $this->exceptionStatus($e, 422));
         } catch (Throwable $e) {
-            error_log('Admin user avatar cleanup failed: ' . $e->getMessage());
+            error_log('Admin deactivation failed: ' . $e->getMessage());
+            $this->respondAdminAction($request, false, 'Не удалось деактивировать пользователя', 500);
         }
-
-        $this->respondAdminAction($request, true, 'Пользователь деактивирован, связанные данные сохранены');
     }
 
-    private function roleLabel(int $role): string
+    private function exceptionStatus(Throwable $e, int $fallback): int
     {
-        return match ($role) {
-            Config::USER_ROLE_SUPERADMIN => 'Суперадминистратор',
-            Config::USER_ROLE_ADMIN => 'Администратор',
-            Config::USER_ROLE_BLOCKED => 'Пользователь',
-            Config::USER_ROLE_INACTIVE => 'Пользователь',
-            Config::USER_ROLE_USER => 'Пользователь',
-            default => 'Неизвестная роль',
-        };
+        $code = (int) $e->getCode();
+        return $code >= 400 && $code <= 599 ? $code : $fallback;
     }
 
     private function respondAdminAction(Request $request, bool $success, string $message, int $status = 200): void
