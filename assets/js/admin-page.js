@@ -48,14 +48,14 @@ document.addEventListener('DOMContentLoaded', function () {
                     <input type="checkbox" id="${requiredId}" name="fields[${key}][is_required]">
                     Обязательное
                 </label>
-                <button type="button" class="remove-field" aria-label="Удалить пользовательское поле">
+                <button type="button" class="remove-field admin-action admin-action--danger" aria-label="Удалить пользовательское поле">
                     <i class="fa fa-trash" aria-hidden="true"></i>
                     Удалить
                 </button>
             </div>`;
 
         container.appendChild(wrapper);
-        const nameInput = wrapper.querySelector(`#${CSS.escape(nameId)}`);
+        const nameInput = wrapper.querySelector('input[type="text"]');
         if (nameInput) {
             nameInput.focus();
         }
