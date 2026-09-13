@@ -3,6 +3,7 @@ namespace App\Controllers\Admin;
 
 use App\Models\UserModel;
 use App\Models\FieldModel;
+use Core\Config;
 use Core\Controller;
 use Core\DatabaseManager;
 use Core\Request;
@@ -12,8 +13,6 @@ class AdminController extends Controller {
     public function index(Request $request) {
         $user = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
         $fields = FieldModel::select()->get();
-        
-        // Получаем список всех пользователей для админки
         $users = UserModel::select()->get();
         
         $data['user'] = $user;
@@ -23,9 +22,8 @@ class AdminController extends Controller {
     }
 
     public function saveCustomFields(Request $request) {
-        $incomingFields = $request->post('fields');
+        $incomingFields = $request->post('fields') ?? [];
 
-        // Fetch existing fields
         $existingFieldsArray = [];
         $existingFields = FieldModel::select()->get(true);
         if ($existingFields) {
@@ -36,12 +34,12 @@ class AdminController extends Controller {
         
         $dbManager = DatabaseManager::getInstance();
         foreach ($incomingFields as $fieldId => $fieldData) {
-            if (strpos($fieldId, 'new_') === 0) {
+            if (strpos((string)$fieldId, 'new_') === 0) {
                 $newField = new FieldModel();
                 $newField->field_name = $fieldData['field_name'];
                 $newField->field_label = $fieldData['field_label'];
                 $newField->field_type = $fieldData['field_type'];
-                $newField->is_required = ($fieldData['is_required'] == 'on') ? 1 : 0;
+                $newField->is_required = ($fieldData['is_required'] ?? null) === 'on' ? 1 : 0;
                 $dbManager->queueInsert([
                     'field_name' => $newField->field_name,
                     'field_label' => $newField->field_label,
@@ -54,7 +52,7 @@ class AdminController extends Controller {
                     $existingField->field_name = $fieldData['field_name'];
                     $existingField->field_label = $fieldData['field_label'];
                     $existingField->field_type = $fieldData['field_type'];
-                    $existingField->is_required = ($fieldData['is_required'] == 'on') ? 1 : 0;
+                    $existingField->is_required = ($fieldData['is_required'] ?? null) === 'on' ? 1 : 0;
                     $dbManager->queueUpdate([
                         'field_name' => $existingField->field_name,
                         'field_label' => $existingField->field_label,
@@ -66,7 +64,7 @@ class AdminController extends Controller {
             }
         }
         
-        foreach ($existingFieldsArray as $fieldId => $field) { // нужно использовать оставшиеся данные
+        foreach ($existingFieldsArray as $field) {
             $dbManager->queueDelete('fields', $field->id);
         }
 
@@ -75,55 +73,87 @@ class AdminController extends Controller {
     }
     
     /**
-     * Управление пользователями: блокировка/разблокировка
+     * Управление пользователями: блокировка/разблокировка.
+     * До выделения отдельного status-поля административные роли не переключаются
+     * этим методом, чтобы разблокировка не превращала администратора в обычного пользователя.
      */
     public function toggleUserStatus(Request $request) {
-        $targetUserId = $request->post('user_id');
-        $newStatus = $request->post('new_status'); // 'active' или 'blocked'
+        $targetUserId = (int) $request->post('user_id', 0);
+        $newStatus = (string) $request->post('new_status', '');
         
-        if (!$targetUserId) {
-            return $this->responseJson(['success' => false, 'message' => 'Не указан пользователь']);
+        if ($targetUserId <= 0 || !in_array($newStatus, ['active', 'blocked'], true)) {
+            $this->responseJson(['success' => false, 'message' => 'Некорректные параметры']);
+            return;
         }
         
         $user = UserModel::select()->where('id', '=', $targetUserId)->first();
         if (!$user) {
-            return $this->responseJson(['success' => false, 'message' => 'Пользователь не найден']);
+            $this->responseJson(['success' => false, 'message' => 'Пользователь не найден']);
+            return;
+        }
+
+        $currentUserId = (int) $request->session('user_id', 0);
+        if ($currentUserId === $targetUserId) {
+            $this->responseJson(['success' => false, 'message' => 'Нельзя изменить собственный статус']);
+            return;
+        }
+
+        if (Config::isAdminRole((int) $user->role)) {
+            $this->responseJson([
+                'success' => false,
+                'message' => 'Статус администратора нельзя менять этой операцией'
+            ]);
+            return;
         }
         
-        // Определяем новую роль
-        $config = new \Core\Config();
-        $newRole = ($newStatus === 'blocked') ? 999 : $config->user_role_activate;
+        $newRole = $newStatus === 'blocked'
+            ? Config::USER_ROLE_BLOCKED
+            : Config::USER_ROLE_USER;
         
         $dbManager = DatabaseManager::getInstance();
         $dbManager->queueUpdate(['role' => $newRole], 'users', $user->id);
         $result = $dbManager->commit();
         
         if ($result !== false) {
-            return $this->responseJson(['success' => true, 'message' => 'Статус пользователя изменен']);
+            $this->responseJson(['success' => true, 'message' => 'Статус пользователя изменен']);
+            return;
         }
         
-        return $this->responseJson(['success' => false, 'message' => 'Ошибка при обновлении статуса']);
+        $this->responseJson(['success' => false, 'message' => 'Ошибка при обновлении статуса']);
     }
     
     /**
      * Удаление пользователя
      */
     public function deleteUser(Request $request) {
-        $targetUserId = $request->post('user_id');
+        $targetUserId = (int) $request->post('user_id', 0);
         
-        if (!$targetUserId) {
-            return $this->responseJson(['success' => false, 'message' => 'Не указан пользователь']);
+        if ($targetUserId <= 0) {
+            $this->responseJson(['success' => false, 'message' => 'Не указан пользователь']);
+            return;
         }
         
         $user = UserModel::select()->where('id', '=', $targetUserId)->first();
         if (!$user) {
-            return $this->responseJson(['success' => false, 'message' => 'Пользователь не найден']);
+            $this->responseJson(['success' => false, 'message' => 'Пользователь не найден']);
+            return;
         }
         
-        // Нельзя удалить самого себя
         $currentUser = UserModel::select()->where('id', '=', $request->session('user_id'))->first();
-        if ($currentUser->id == $targetUserId) {
-            return $this->responseJson(['success' => false, 'message' => 'Нельзя удалить самого себя']);
+        if (!$currentUser) {
+            http_response_code(401);
+            $this->responseJson(['success' => false, 'message' => 'Требуется авторизация']);
+            return;
+        }
+
+        if ((int)$currentUser->id === $targetUserId) {
+            $this->responseJson(['success' => false, 'message' => 'Нельзя удалить самого себя']);
+            return;
+        }
+
+        if ((int)$user->role === Config::USER_ROLE_SUPERADMIN) {
+            $this->responseJson(['success' => false, 'message' => 'Суперадминистратора удалить нельзя']);
+            return;
         }
         
         $dbManager = DatabaseManager::getInstance();
@@ -131,9 +161,10 @@ class AdminController extends Controller {
         $result = $dbManager->commit();
         
         if ($result !== false) {
-            return $this->responseJson(['success' => true, 'message' => 'Пользователь удален']);
+            $this->responseJson(['success' => true, 'message' => 'Пользователь удален']);
+            return;
         }
         
-        return $this->responseJson(['success' => false, 'message' => 'Ошибка при удалении пользователя']);
+        $this->responseJson(['success' => false, 'message' => 'Ошибка при удалении пользователя']);
     }
 }

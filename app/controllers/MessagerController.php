@@ -1,67 +1,122 @@
 <?php
+
+declare(strict_types=1);
+
 namespace App\Controllers;
 
-use App\Models\DialogModel;
-use App\Models\MessageModel;
+use App\Handlers\SocketTicket;
 use App\Models\UserModel;
-use App\Models\UserToDialogsModel;
 use Core\Controller;
-use Core\DatabaseManager;
 use Core\Request;
-use UUID;
 
-class MessagerController extends Controller {
-	public function index(Request $request) {
-		$userModel = new UserModel();
-		$user = $userModel->select()->where('id', '=', $request->session('user_id'))->first(true);
+final class MessagerController extends Controller
+{
+    public function index(Request $request): void
+    {
+        $user = UserModel::select()
+            ->where('id', '=', (int) $request->session('user_id'))
+            ->first();
 
-		$userToDialogs = UserToDialogsModel::select(
-            'dialogs.uid',
-            'users.firstname',
-            'users.surname'
+        if (!$user) {
+            http_response_code(401);
+            return;
+        }
+
+        $contacts = UserModel::select(
+            'uid',
+            'username',
+            'firstname',
+            'lastname',
+            'avatar'
         )
-        ->innerJoin([DialogModel::class, 'dialogs'], 'user_to_dialogs.dialog_id', '=', 'dialogs.id')  // Получаем данные из таблицы dialogs
-        ->innerJoin([UserModel::class, 'users'], 'user_to_dialogs.user_id', '!=', 'users.id')  // вытаскиваем данные о пользователе
-        ->where('user_to_dialogs.user_id', '=', $user->id)
-        ->get();
+            ->where('id', '!=', (int) $user->id)
+            ->where('is_active', '=', 1)
+            ->orderBy('firstname', 'ASC')
+            ->get();
 
-		$allUsers = $userModel->select()->where('id', '!=', $user->id)->get();
+        $socketTicket = '';
+        try {
+            $socketTicket = SocketTicket::issue((int) $user->id);
+        } catch (\Throwable $e) {
+            error_log('WebSocket ticket is unavailable: ' . $e->getMessage());
+        }
 
-		$data = [
-			'user' => get_object_vars($user),
-			'userToDialogs' => $userToDialogs,
-			'users' => $allUsers
-		];
-		$this->render_template('messager_page/index', $data);
-        return;
-	}
+        $socketUrl = trim((string) getenv('WS_PUBLIC_URL'));
+        if ($socketUrl === '') {
+            $siteUrl = (string) (getenv('SITEURL') ?: 'http://localhost');
+            $socketScheme = strtolower((string) parse_url($siteUrl, PHP_URL_SCHEME)) === 'https' ? 'wss' : 'ws';
+            $socketHost = (string) (parse_url($siteUrl, PHP_URL_HOST) ?: 'localhost');
+            $socketPort = (int) (getenv('WS_PORT') ?: 27800);
+            $socketUrl = sprintf('%s://%s:%d', $socketScheme, $socketHost, $socketPort);
+        }
 
-    public function uploadFile(Request $request) {
-        $files = $request->files('files');
-
-        error_log(json_encode($request->files('files')));
-        
-        return $this->response_json(['status' => 'ok']);
+        $this->render_template('messager_page/index', [
+            'user' => get_object_vars($user),
+            'contacts' => $contacts,
+            'socket_ticket' => $socketTicket,
+            'socket_url' => $socketUrl,
+        ]);
     }
 
-    /* function action_createDialog() {
-        $this->helper->login_requared($_SESSION['auth_login']); // проверим факт авторизованности
+    /**
+     * Issue a short-lived ticket from the authenticated HTTP session.
+     *
+     * Reconnects must never reuse a ticket embedded in a page indefinitely.
+     * This endpoint is POST-only, protected by LoginRequared + global CSRF,
+     * and does not accept a user id from the browser.
+     */
+    public function socketTicket(Request $request): void
+    {
+        $userId = (int) $request->session('user_id');
+        if ($userId <= 0) {
+            http_response_code(401);
+            $this->responseJson([
+                'status' => 'error',
+                'message' => 'Требуется авторизация',
+            ]);
+            return;
+        }
 
-        $dialog_name = $_POST['dialog-name'];
-        $interlocutor_ids = $_POST['contact'];
+        $user = UserModel::select('id', 'is_active')
+            ->where('id', '=', $userId)
+            ->first();
 
-        $user = $_SESSION['auth_login']; // пользователя авторизованного в сессии
-        $user_info = $this->model->getUser_data($user); // получаем информацию о нем
+        if (!$user || (int) $user->is_active !== 1) {
+            http_response_code(403);
+            $this->responseJson([
+                'status' => 'error',
+                'message' => 'Пользователь недоступен',
+            ]);
+            return;
+        }
 
-        $data = [
-            'chat_name' => $dialog_name ? $dialog_name : null,
-            'interlocutor_ids' => $interlocutor_ids,
-            'user-id' => $user_info['id']
-        ];
+        try {
+            $this->responseJson([
+                'status' => 'ok',
+                'ticket' => SocketTicket::issue($userId),
+                'expires_in' => 120,
+            ]);
+        } catch (\Throwable $e) {
+            error_log('WebSocket ticket refresh failed: ' . $e->getMessage());
+            http_response_code(503);
+            $this->responseJson([
+                'status' => 'error',
+                'message' => 'WebSocket временно недоступен',
+            ]);
+        }
+    }
 
-        $this->model->addDialog($data);
-
-        header('Location: /Messager');
-    } */
-
+    /**
+     * Attachment transport is intentionally disabled until it is moved to the
+     * same private-storage policy as FileController. The UI does not advertise
+     * a fake working upload action.
+     */
+    public function uploadFile(Request $request): void
+    {
+        http_response_code(501);
+        $this->responseJson([
+            'status' => 'error',
+            'message' => 'Вложения будут подключены после private-storage migration',
+        ]);
+    }
 }

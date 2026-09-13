@@ -1,0 +1,241 @@
+name: Security baseline
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [audit-hardening]
+
+permissions:
+  contents: read
+
+jobs:
+  php-quality-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: notes_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_mysql, mysqli, sodium, fileinfo
+          coverage: none
+
+      - name: Validate Composer metadata
+        run: composer validate --no-check-publish
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Audit Composer dependencies
+        run: composer audit --no-interaction
+
+      - name: Lint PHP sources
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          find . -type f -name '*.php' -not -path './vendor/*' -print0 \
+            | xargs -0 -n1 php -l
+
+      - name: Messenger JavaScript syntax
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed '/^{literal}$/d;/^{\/literal}$/d' app/views/messager_page/script.js > /tmp/messenger.js
+          node --check /tmp/messenger.js
+
+      - name: Messenger clean-install schema smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot notes_test < database/messenger_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_test < database/notes_schema.sql
+
+          mysql -N -h 127.0.0.1 -uroot -proot notes_test <<'SQL' > /tmp/messenger-contract.txt
+          SELECT COUNT(*) FROM information_schema.tables
+          WHERE table_schema = DATABASE()
+            AND table_name IN ('users','dialogs','user_to_dialogs','messages','message_user_deletions');
+          SELECT COUNT(*) FROM information_schema.columns
+          WHERE table_schema = DATABASE() AND table_name = 'messages'
+            AND column_name IN ('uid','dialog_id','from_user_id','reply_to_message_id','message','message_type','message_status','media_url','meta_data');
+          SELECT COUNT(*) FROM information_schema.columns
+          WHERE table_schema = DATABASE() AND table_name = 'user_to_dialogs'
+            AND column_name IN ('last_read_message_id','archived_at','muted_until','pinned_at');
+          SELECT COUNT(*) FROM information_schema.columns
+          WHERE table_schema = DATABASE() AND table_name = 'users'
+            AND column_name IN ('uid','firstname','lastname','avatar');
+          SQL
+
+          mapfile -t contract < /tmp/messenger-contract.txt
+          test "${contract[0]}" = "5"
+          test "${contract[1]}" = "9"
+          test "${contract[2]}" = "4"
+          test "${contract[3]}" = "4"
+
+      - name: Messenger service integration test
+        shell: bash
+        run: |
+          set -euo pipefail
+          php <<'PHP'
+          <?php
+          $_SERVER['HTTP_HOST'] = 'localhost';
+          putenv('DBDRIVER=mysql');
+          putenv('DBHOST=127.0.0.1');
+          putenv('DBPORT=3306');
+          putenv('DBUSER=root');
+          putenv('DBPASS=root');
+          putenv('DBNAME=notes_test');
+          putenv('MSG_SECRET_KEY=ci-message-secret-0123456789abcdef0123456789abcdef');
+
+          require __DIR__ . '/core/config.php';
+          require __DIR__ . '/core/DatabaseManager.php';
+          require __DIR__ . '/app/handlers/UUID.php';
+          require __DIR__ . '/app/handlers/MessengerCrypto.php';
+          require __DIR__ . '/app/services/MessengerService.php';
+
+          $db = \Core\DatabaseManager::getInstance();
+          $now = date('Y-m-d H:i:s');
+          $password = password_hash('ci-password', PASSWORD_ARGON2ID);
+          $aliceUid = '10000000-0000-4000-8000-000000000001';
+          $bobUid = '10000000-0000-4000-8000-000000000002';
+
+          foreach ([
+              [$aliceUid, 'alice', 'Alice', 'Tester'],
+              [$bobUid, 'bob', 'Bob', 'Tester'],
+          ] as [$uid, $username, $firstname, $lastname]) {
+              $db->execute(
+                  'INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active,created_at,updated_at)
+                   VALUES (:uid,:username,:email,:password_hash,:firstname,:lastname,888,1,:created_at,:updated_at)',
+                  [
+                      ':uid' => $uid,
+                      ':username' => $username,
+                      ':email' => $username . '@example.test',
+                      ':password_hash' => $password,
+                      ':firstname' => $firstname,
+                      ':lastname' => $lastname,
+                      ':created_at' => $now,
+                      ':updated_at' => $now,
+                  ]
+              );
+          }
+
+          $service = new \App\Services\MessengerService($db);
+          $dialog = $service->createDialog($aliceUid, 'private', [$bobUid]);
+          if (($dialog['type'] ?? null) !== 'private') {
+              throw new RuntimeException('Private dialog was not created');
+          }
+
+          $hello = $service->sendMessage($aliceUid, $dialog['uid'], 'hello Bob');
+          $bobPage = $service->getMessages($bobUid, $dialog['uid']);
+          if (count($bobPage['messages']) !== 1 || $bobPage['messages'][0]['message'] !== 'hello Bob') {
+              throw new RuntimeException('Bob cannot read Alice message');
+          }
+
+          $reply = $service->sendMessage($bobUid, $dialog['uid'], 'hello Alice', $hello['uid']);
+          if (($reply['reply']['uid'] ?? null) !== $hello['uid']) {
+              throw new RuntimeException('Reply relation is broken');
+          }
+
+          $edited = $service->editMessage($aliceUid, $hello['uid'], 'hello Bob edited');
+          if ($edited['message'] !== 'hello Bob edited' || empty($edited['edited_at'])) {
+              throw new RuntimeException('Message edit is broken');
+          }
+
+          $service->markRead($bobUid, $dialog['uid'], $reply['uid']);
+          $bobDialogs = $service->listDialogs($bobUid);
+          if ((int) ($bobDialogs[0]['unread_count'] ?? -1) !== 0) {
+              throw new RuntimeException('Read cursor did not clear unread counter');
+          }
+
+          $service->deleteMessage($bobUid, $hello['uid'], false);
+          $bobAfterDelete = $service->getMessages($bobUid, $dialog['uid']);
+          if (array_filter($bobAfterDelete['messages'], fn(array $m): bool => $m['uid'] === $hello['uid'])) {
+              throw new RuntimeException('Delete-for-me did not hide the message');
+          }
+          $aliceAfterBobDelete = $service->getMessages($aliceUid, $dialog['uid']);
+          if (!array_filter($aliceAfterBobDelete['messages'], fn(array $m): bool => $m['uid'] === $hello['uid'])) {
+              throw new RuntimeException('Delete-for-me incorrectly deleted message for other participant');
+          }
+
+          $service->deleteMessage($aliceUid, $hello['uid'], true);
+          $aliceAfterGlobalDelete = $service->getMessages($aliceUid, $dialog['uid']);
+          if (array_filter($aliceAfterGlobalDelete['messages'], fn(array $m): bool => $m['uid'] === $hello['uid'])) {
+              throw new RuntimeException('Delete-for-all did not remove message');
+          }
+
+          echo "messenger service integration passed\n";
+          PHP
+
+      - name: Crypto fail-closed smoke test
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          php <<'PHP'
+          <?php
+          putenv('UNIQUE_KEY=ci-note-secret-0123456789abcdef0123456789abcdef');
+          putenv('MSG_SECRET_KEY=ci-message-secret-0123456789abcdef0123456789abcdef');
+
+          require __DIR__ . '/app/handlers/CryptMethods.php';
+          require __DIR__ . '/app/handlers/MessengerCrypto.php';
+
+          $note = 'secret note';
+          $notePayload = \App\Helpers\CryptMethods::encrypt($note, 'note-uid');
+          if (\App\Helpers\CryptMethods::decrypt($notePayload, 'note-uid') !== $note) {
+              throw new RuntimeException('Note crypto round-trip failed');
+          }
+
+          $noteAadRejected = false;
+          try {
+              \App\Helpers\CryptMethods::decrypt($notePayload, 'wrong-note-uid');
+          } catch (Throwable $e) {
+              $noteAadRejected = true;
+          }
+          if (!$noteAadRejected) {
+              throw new RuntimeException('Note crypto did not reject invalid AAD');
+          }
+
+          $messageUid = '11111111-2222-4333-8444-555555555555';
+          $messagePayload = \App\Helpers\MessengerCrypto::encrypt('secret message', $messageUid);
+          if (!str_starts_with($messagePayload, 'v2:')) {
+              throw new RuntimeException('Messenger crypto payload is not versioned');
+          }
+          if (\App\Helpers\MessengerCrypto::decrypt($messagePayload, $messageUid) !== 'secret message') {
+              throw new RuntimeException('Messenger crypto round-trip failed');
+          }
+
+          $messageAadRejected = false;
+          try {
+              \App\Helpers\MessengerCrypto::decrypt(
+                  $messagePayload,
+                  'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'
+              );
+          } catch (Throwable $e) {
+              $messageAadRejected = true;
+          }
+          if (!$messageAadRejected) {
+              throw new RuntimeException('Messenger crypto did not reject a different message UID');
+          }
+
+          echo "crypto smoke test passed\n";
+          PHP

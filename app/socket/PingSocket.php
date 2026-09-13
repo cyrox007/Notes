@@ -1,14 +1,21 @@
-<?php 
+<?php
+
+declare(strict_types=1);
 
 namespace App\Sockets;
 
 use Workerman\Connection\TcpConnection;
 
-class PingSocket {
-    public function index(array $conns, TcpConnection $conn, $ping) {
-        if ($ping == "Pong") {
-            $conn->pingWithoutResponseCount = 0;
+final class PingSocket
+{
+    public function index(
+        array $connections,
+        TcpConnection $connection,
+        string $userUid,
+        array $payload = []
+    ): void {
+        if (($payload['ping'] ?? null) === 'Pong') {
+            $connection->pingWithoutResponseCount = 0;
         }
-        return;
     }
 }

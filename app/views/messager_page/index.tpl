@@ -1,86 +1,190 @@
 {extends file='core/base.tpl'}
-{block name=title}
-	Мессенджер
-{/block}
+
+{block name=title}Мессенджер{/block}
+
 {block name=body}
-	<section class="messenger">
-		<div class="messenger__dialog-list">
-			<header class="messenger__dialog-list__header">
-				<div class="messenger__dialog-list__header--btn">
-					<button>Новый диалог</button>
-				</div>
-				<div class="messenger__dialog-list__header--search">
-					<input type="search" name="" id="" placeholder="Search...">
-					<span><i class="fa fa-search" aria-hidden="true"></i></span>
-				</div>
-			</header>
-			<div class="messenger__dialog-list__items">
-				{if !$dialogues}
-					<div id="dialogues-empty" class="messager__contact_empty">
-						Диалогов нет. Создать?
-					</div>
-				{else}
-					{foreach $userToDialogs as $utd}
-						<div class="messenger__dialog-list__item" data-dialog_id="{$utd.dialogs.uid}">
-							<div class="messenger__dialog-list__item--img">
-								<img src="../../../assets/img/default_avatar.png" alt="Имя диалога">
-							</div>
-							<div class="messenger__dialog-list__item--body">
-								<div class="messenger__dialog-list__item--header">
-									<span id="userfullname">
-										<b>{$utd.users.u_firstname} {$utd.users.surname}</b>
-									</span>
-									<span>
-										14:30
-									</span>
-								</div>
-								<div class="messenger__dialog-list__item--msg">
-									<span>Alex: I would like to share my p ...</span>
-								</div>
-							</div>
-						</div>
-					{/foreach}
-				{/if}
-			</div>
-		</div>
-		<div class="messenger__dialog-window" id="messager-window" data-uid="">
-			<div id="messager-disable" style="display: block;"></div>
-			<div id="messager-viewer" style="display: none; flex-direction:column;">
-				<header class="messenger__dialog-window__header" id="msg-header">
-					<div class="messenger__dialog-window__header--img">
-						<img src="../../../assets/img/default_avatar.png" alt="Имя диалога">
-					</div>
-					<div class="messenger__dialog-window__header--body">
-						<span><b id="userfullname">Имя диалога</b></span>
-					</div>
-				</header>
+<style>
+{include file='messager_page/style.css'}
+.messenger-chat__actions { display:flex; gap:.35rem; margin-left:auto; }
+.messenger-chat__actions .messenger-icon-button[data-active="true"] { color:var(--msg-accent); background:var(--msg-accent-soft); }
+.messenger-folder-tabs { display:flex; gap:6px; padding:0 12px 10px; }
+.messenger-folder-tab { flex:1; min-width:0; display:flex; align-items:center; justify-content:center; gap:6px; height:34px; padding:0 10px; border:0; border-radius:9px; background:transparent; color:var(--msg-muted); cursor:pointer; font:inherit; font-size:13px; }
+.messenger-folder-tab:hover { background:#f5f7fa; }
+.messenger-folder-tab[aria-selected="true"] { color:var(--msg-accent); background:var(--msg-accent-soft); font-weight:600; }
+.messenger-folder-tab__count { min-width:18px; height:18px; display:inline-grid; place-items:center; padding:0 5px; border-radius:999px; background:rgba(127,127,127,.13); font-size:11px; }
+.messenger-dialog-state-icons { display:inline-flex; align-items:center; gap:5px; flex:0 0 auto; color:var(--msg-muted); font-size:11px; }
+.messenger-message__status[data-state="sent"] { color:var(--msg-muted); }
+.messenger-message__status[data-state="delivered"] { color:#64748b; }
+.messenger-message__status[data-state="read"] { color:var(--msg-accent); }
+</style>
 
-				<div class="messenger__dialog-window__viewer">
-					<div class="messenger__dialog-window__messages" id="msg-view"></div>
-				</div>
+<section
+    class="messenger-app"
+    id="messenger-app"
+    data-user-uid="{$user.uid|escape}"
+    data-user-name="{$user.firstname|escape} {$user.lastname|escape}"
+>
+    <aside class="messenger-list" aria-label="Список диалогов">
+        <header class="messenger-list__header">
+            <div>
+                <h1 class="messenger-list__title">Сообщения</h1>
+                <div class="messenger-connection" id="messenger-connection" data-state="connecting">
+                    <span class="messenger-connection__dot" aria-hidden="true"></span>
+                    <span id="messenger-connection-text">Подключение…</span>
+                </div>
+            </div>
+            <button class="messenger-icon-button" id="new-chat-button" type="button" title="Новый чат" aria-label="Новый чат">
+                <i class="fa fa-pencil-square-o" aria-hidden="true"></i>
+            </button>
+        </header>
 
-				<div class="messenger__dialog-window__control">
-					<div class="messenger__dialog-window__control_typing">
-						<span></span>
-					</div>
-					<div class="messenger__dialog-window__control_panel">
-						<div class="messenger__dialog-window__control--file" id="attach-file">
-							<i class="fa fa-paperclip" aria-hidden="true"></i>
-						</div>
-						<div class="messenger__dialog-window__control--message">
-							<input name="message" id="message-field" placeholder="Введите сообщение...">
-						</div>
-						<div class="messenger__dialog-window__control--send">
-							<button id="message-send">
-								<i class="fa fa-paper-plane" aria-hidden="true"></i>
-							</button>
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
-	</section>
-	<script>
-		{include file="messager_page/script.js"}
-	</script>
+        <div class="messenger-search">
+            <i class="fa fa-search" aria-hidden="true"></i>
+            <input id="dialog-search" type="search" autocomplete="off" placeholder="Поиск чатов">
+        </div>
+
+        <div class="messenger-folder-tabs" role="tablist" aria-label="Папки чатов">
+            <button class="messenger-folder-tab" id="chat-folder-active" type="button" role="tab" aria-selected="true">
+                <i class="fa fa-comments-o" aria-hidden="true"></i>
+                <span>Чаты</span>
+                <span class="messenger-folder-tab__count" id="chat-folder-active-count">0</span>
+            </button>
+            <button class="messenger-folder-tab" id="chat-folder-archive" type="button" role="tab" aria-selected="false">
+                <i class="fa fa-archive" aria-hidden="true"></i>
+                <span>Архив</span>
+                <span class="messenger-folder-tab__count" id="chat-folder-archive-count">0</span>
+            </button>
+        </div>
+
+        <div class="messenger-dialogs" id="dialog-list" aria-live="polite"></div>
+        <div class="messenger-list__empty" id="dialog-list-empty" hidden>
+            <i class="fa fa-comments-o" aria-hidden="true"></i>
+            <strong id="dialog-list-empty-title">Диалогов пока нет</strong>
+            <span id="dialog-list-empty-text">Создайте первый чат с коллегой.</span>
+        </div>
+    </aside>
+
+    <main class="messenger-chat" id="messenger-chat">
+        <div class="messenger-chat__empty" id="chat-empty-state">
+            <div class="messenger-chat__empty-icon"><i class="fa fa-paper-plane-o" aria-hidden="true"></i></div>
+            <strong>Выберите диалог</strong>
+            <span>Или создайте новый чат — переписка появится здесь.</span>
+        </div>
+
+        <div class="messenger-chat__active" id="chat-active" hidden>
+            <header class="messenger-chat__header">
+                <button class="messenger-icon-button messenger-chat__back" id="chat-back-button" type="button" aria-label="Назад к диалогам">
+                    <i class="fa fa-arrow-left" aria-hidden="true"></i>
+                </button>
+                <div class="messenger-avatar" id="chat-avatar" aria-hidden="true">?</div>
+                <div class="messenger-chat__identity">
+                    <strong id="chat-title">Диалог</strong>
+                    <span id="chat-subtitle">&nbsp;</span>
+                </div>
+                <div class="messenger-chat__actions" aria-label="Действия с чатом">
+                    <button class="messenger-icon-button" id="chat-pin-button" type="button" title="Закрепить чат" aria-label="Закрепить чат">
+                        <i class="fa fa-thumb-tack" aria-hidden="true"></i>
+                    </button>
+                    <button class="messenger-icon-button" id="chat-mute-button" type="button" title="Выключить уведомления на час" aria-label="Выключить уведомления на час">
+                        <i class="fa fa-bell-slash-o" aria-hidden="true"></i>
+                    </button>
+                    <button class="messenger-icon-button" id="chat-archive-button" type="button" title="Архивировать чат" aria-label="Архивировать чат">
+                        <i class="fa fa-archive" aria-hidden="true"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div class="messenger-history" id="message-scroll">
+                <button class="messenger-history__older" id="load-older-button" type="button" hidden>
+                    Показать более ранние сообщения
+                </button>
+                <div class="messenger-messages" id="message-list" aria-live="polite"></div>
+            </div>
+
+            <div class="messenger-typing" id="typing-indicator" hidden>
+                <span></span><span></span><span></span>
+                <em id="typing-text">печатает…</em>
+            </div>
+
+            <div class="messenger-compose-context" id="compose-context" hidden>
+                <div>
+                    <strong id="compose-context-title"></strong>
+                    <span id="compose-context-text"></span>
+                </div>
+                <button class="messenger-icon-button" id="compose-context-close" type="button" aria-label="Отменить">
+                    <i class="fa fa-times" aria-hidden="true"></i>
+                </button>
+            </div>
+
+            <footer class="messenger-composer">
+                <button class="messenger-icon-button" type="button" disabled title="Вложения подключим после private-storage migration" aria-label="Прикрепить файл">
+                    <i class="fa fa-paperclip" aria-hidden="true"></i>
+                </button>
+                <textarea
+                    id="message-input"
+                    rows="1"
+                    maxlength="4096"
+                    placeholder="Сообщение"
+                    aria-label="Текст сообщения"
+                ></textarea>
+                <button class="messenger-send-button" id="message-send-button" type="button" aria-label="Отправить">
+                    <i class="fa fa-paper-plane" aria-hidden="true"></i>
+                </button>
+            </footer>
+        </div>
+    </main>
+</section>
+
+<dialog class="messenger-dialog-modal" id="new-chat-dialog">
+    <form method="dialog" class="messenger-dialog-modal__surface" id="new-chat-form">
+        <header>
+            <div>
+                <strong>Новый чат</strong>
+                <span>Один участник — личный чат, несколько — группа.</span>
+            </div>
+            <button class="messenger-icon-button" value="cancel" aria-label="Закрыть">
+                <i class="fa fa-times" aria-hidden="true"></i>
+            </button>
+        </header>
+
+        <label class="messenger-field">
+            <span>Название группы <small>(необязательно)</small></span>
+            <input id="new-chat-name" type="text" maxlength="120" placeholder="Например, Проект Notes">
+        </label>
+
+        <div class="messenger-search messenger-search--modal">
+            <i class="fa fa-search" aria-hidden="true"></i>
+            <input id="contact-search" type="search" autocomplete="off" placeholder="Найти пользователя">
+        </div>
+
+        <div class="messenger-contact-list" id="contact-list">
+            {foreach $contacts as $contact}
+                <label
+                    class="messenger-contact"
+                    data-contact-search="{$contact.firstname|escape} {$contact.lastname|escape} {$contact.username|escape}"
+                >
+                    <input class="messenger-contact__checkbox" type="checkbox" value="{$contact.uid|escape}">
+                    <span class="messenger-avatar messenger-avatar--small" aria-hidden="true">
+                        <i class="fa fa-user"></i>
+                    </span>
+                    <span class="messenger-contact__identity">
+                        <strong>{$contact.firstname|escape} {$contact.lastname|escape}</strong>
+                        <small>@{$contact.username|escape}</small>
+                    </span>
+                </label>
+            {foreachelse}
+                <div class="messenger-contact-list__empty">Нет доступных пользователей</div>
+            {/foreach}
+        </div>
+
+        <footer>
+            <button class="messenger-secondary-button" value="cancel">Отмена</button>
+            <button class="messenger-primary-button" id="create-chat-button" type="button">Создать чат</button>
+        </footer>
+    </form>
+</dialog>
+
+<script>{include file='messager_page/script.js'}</script>
+<script>{include file='messager_page/dialog-actions.js'}</script>
+<script>{include file='messager_page/receipts.js'}</script>
 {/block}

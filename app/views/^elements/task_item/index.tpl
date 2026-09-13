@@ -22,10 +22,12 @@
             <a href="#" class="btn-icon edit-task" title="Редактировать">
                 <i class="fa fa-edit"></i>
             </a>
-            <a href="{route_path name='delete_task' uid=$task.uid}" class="btn-icon delete-task" 
-               title="Удалить" onclick="return confirm('Вы уверены, что хотите удалить эту задачу?')">
-                <i class="fa fa-trash"></i>
-            </a>
+            <form action="{route_path name='delete_task' uid=$task.uid}" method="post" onsubmit="return confirm('Вы уверены, что хотите удалить эту задачу?')">
+                {csrf_token}
+                <button type="submit" class="btn-icon delete-task" title="Удалить">
+                    <i class="fa fa-trash"></i>
+                </button>
+            </form>
         </div>
     </div>
     

@@ -1,0 +1,11 @@
+Options -Indexes
+
+# Файлы файлового менеджера доступны только через контроллер /files/get/{id}/.
+# Это исключает прямое выполнение загруженного PHP/CGI и same-origin active content.
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>
