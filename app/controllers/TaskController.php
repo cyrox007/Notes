@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
-use App\Models\UserModel;
 use Core\Controller;
 use Core\DatabaseManager;
 use Core\Request;
@@ -57,7 +56,8 @@ final class TaskController extends Controller
 
         $sortKey = (string) $request->get('sort', 'created_at');
         $sortColumn = self::SORT_COLUMNS[$sortKey] ?? self::SORT_COLUMNS['created_at'];
-        $direction = strtolower((string) $request->get('direction', 'desc')) === 'asc' ? 'ASC' : 'DESC';
+        $directionKey = strtolower((string) $request->get('direction', 'desc'));
+        $direction = $directionKey === 'asc' ? 'ASC' : 'DESC';
 
         $params = [':user_id' => (int) $user->id];
         $where = ['t.user_id = :user_id', 't.is_deleted = 0'];
@@ -92,7 +92,6 @@ final class TaskController extends Controller
             . ' ORDER BY ' . $sortColumn . ' ' . $direction . ', t.id DESC',
             $params
         );
-
         $this->hydrateTaskRelations($tasks, (int) $user->id);
 
         $categories = $db->fetchAll(
@@ -102,6 +101,10 @@ final class TaskController extends Controller
              ORDER BY sort_order ASC, name ASC, id ASC',
             [':user_id' => (int) $user->id]
         );
+        foreach ($categories as &$category) {
+            $category = $this->normalizeCategory($category);
+        }
+        unset($category);
 
         $statsRow = $db->fetchOne(
             'SELECT
@@ -115,59 +118,61 @@ final class TaskController extends Controller
             [':user_id' => (int) $user->id, ':now' => $now]
         ) ?? [];
 
-        $stats = [
-            'total' => (int) ($statsRow['total'] ?? 0),
-            'pending' => (int) ($statsRow['pending'] ?? 0),
-            'in_progress' => (int) ($statsRow['in_progress'] ?? 0),
-            'completed' => (int) ($statsRow['completed'] ?? 0),
-            'overdue' => (int) ($statsRow['overdue'] ?? 0),
-        ];
-
         $this->render_template('tasks_page/index', [
             'tasks' => $tasks,
             'categories' => $categories,
             'user' => $user,
             'currentFilter' => $filter,
-            'currentSort' => $sortKey,
+            'currentSort' => array_key_exists($sortKey, self::SORT_COLUMNS) ? $sortKey : 'created_at',
             'currentDirection' => strtolower($direction),
-            'stats' => $stats,
+            'stats' => [
+                'total' => (int) ($statsRow['total'] ?? 0),
+                'pending' => (int) ($statsRow['pending'] ?? 0),
+                'in_progress' => (int) ($statsRow['in_progress'] ?? 0),
+                'completed' => (int) ($statsRow['completed'] ?? 0),
+                'overdue' => (int) ($statsRow['overdue'] ?? 0),
+            ],
         ]);
     }
 
     public function create(Request $request): void
     {
-        $user = $this->currentUser($request);
-        $title = $this->taskTitle((string) $request->post('title', ''));
-        $description = $this->description((string) $request->post('description', ''));
-        $status = $this->status((string) $request->post('status', 'pending'));
-        $priority = $this->priority((string) $request->post('priority', 'medium'));
-        $dueDate = $this->dateTimeOrNull((string) $request->post('due_date', ''));
-        $uid = bin2hex(random_bytes(16));
-        $now = date('Y-m-d H:i:s');
+        try {
+            $user = $this->currentUser($request);
+            $title = $this->taskTitle((string) $request->post('title', ''));
+            $description = $this->description((string) $request->post('description', ''));
+            $status = $this->status((string) $request->post('status', 'pending'));
+            $priority = $this->priority((string) $request->post('priority', 'medium'));
+            $dueDate = $this->dateTimeOrNull((string) $request->post('due_date', ''));
+            $uid = bin2hex(random_bytes(16));
+            $now = date('Y-m-d H:i:s');
 
-        DatabaseManager::getInstance()->execute(
-            'INSERT INTO tasks (
-                uid,user_id,title,description,status,priority,due_date,completed_at,
-                is_deleted,deleted_at,created_at,updated_at
-             ) VALUES (
-                :uid,:user_id,:title,:description,:status,:priority,:due_date,:completed_at,
-                0,NULL,:created_at,:updated_at
-             )',
-            [
-                ':uid' => $uid,
-                ':user_id' => (int) $user->id,
-                ':title' => $title,
-                ':description' => $description,
-                ':status' => $status,
-                ':priority' => $priority,
-                ':due_date' => $dueDate,
-                ':completed_at' => $status === 'completed' ? $now : null,
-                ':created_at' => $now,
-                ':updated_at' => $now,
-            ]
-        );
+            DatabaseManager::getInstance()->execute(
+                'INSERT INTO tasks (
+                    uid,user_id,title,description,status,priority,due_date,completed_at,
+                    is_deleted,deleted_at,created_at,updated_at
+                 ) VALUES (
+                    :uid,:user_id,:title,:description,:status,:priority,:due_date,:completed_at,
+                    0,NULL,:created_at,:updated_at
+                 )',
+                [
+                    ':uid' => $uid,
+                    ':user_id' => (int) $user->id,
+                    ':title' => $title,
+                    ':description' => $description,
+                    ':status' => $status,
+                    ':priority' => $priority,
+                    ':due_date' => $dueDate,
+                    ':completed_at' => $status === 'completed' ? $now : null,
+                    ':created_at' => $now,
+                    ':updated_at' => $now,
+                ]
+            );
 
-        Router::getInstance()->redirect('tasks', 'name');
+            Router::getInstance()->redirect('tasks', 'name');
+        } catch (InvalidArgumentException $e) {
+            $this->validationFailure($request, $e->getMessage());
+        }
     }
 
     public function update(Request $request, string $uid): void
@@ -186,30 +191,37 @@ final class TaskController extends Controller
             return;
         }
 
-        $post = $request->post();
-        $changes = [];
-        $params = [':id' => (int) $task['id'], ':user_id' => (int) $user->id];
-
-        if (array_key_exists('title', $post)) {
-            $changes['title'] = $this->taskTitle((string) $post['title']);
-        }
-        if (array_key_exists('description', $post)) {
-            $changes['description'] = $this->description((string) $post['description']);
-        }
-        if (array_key_exists('priority', $post)) {
-            $changes['priority'] = $this->priority((string) $post['priority']);
-        }
-        if (array_key_exists('due_date', $post)) {
-            $changes['due_date'] = $this->dateTimeOrNull((string) $post['due_date']);
-        }
-        if (array_key_exists('status', $post)) {
-            $newStatus = $this->status((string) $post['status']);
-            $changes['status'] = $newStatus;
-            if ($newStatus === 'completed' && (string) $task['status'] !== 'completed') {
-                $changes['completed_at'] = date('Y-m-d H:i:s');
-            } elseif ($newStatus !== 'completed') {
-                $changes['completed_at'] = null;
+        try {
+            $post = $request->post();
+            if (!is_array($post)) {
+                throw new InvalidArgumentException('Некорректные данные задачи');
             }
+
+            $changes = [];
+            if (array_key_exists('title', $post)) {
+                $changes['title'] = $this->taskTitle((string) $post['title']);
+            }
+            if (array_key_exists('description', $post)) {
+                $changes['description'] = $this->description((string) $post['description']);
+            }
+            if (array_key_exists('priority', $post)) {
+                $changes['priority'] = $this->priority((string) $post['priority']);
+            }
+            if (array_key_exists('due_date', $post)) {
+                $changes['due_date'] = $this->dateTimeOrNull((string) $post['due_date']);
+            }
+            if (array_key_exists('status', $post)) {
+                $newStatus = $this->status((string) $post['status']);
+                $changes['status'] = $newStatus;
+                if ($newStatus === 'completed' && (string) $task['status'] !== 'completed') {
+                    $changes['completed_at'] = date('Y-m-d H:i:s');
+                } elseif ($newStatus !== 'completed') {
+                    $changes['completed_at'] = null;
+                }
+            }
+        } catch (InvalidArgumentException $e) {
+            $this->validationFailure($request, $e->getMessage());
+            return;
         }
 
         if ($changes === []) {
@@ -222,6 +234,7 @@ final class TaskController extends Controller
         }
 
         $changes['updated_at'] = date('Y-m-d H:i:s');
+        $params = [':id' => (int) $task['id'], ':user_id' => (int) $user->id];
         $set = [];
         foreach ($changes as $column => $value) {
             $placeholder = ':' . $column;
@@ -261,7 +274,6 @@ final class TaskController extends Controller
                 ':user_id' => (int) $user->id,
             ]
         );
-
         Router::getInstance()->redirect('tasks', 'name');
     }
 
@@ -341,7 +353,6 @@ final class TaskController extends Controller
                 ':id' => $subtaskId,
             ]
         );
-
         $this->json(['success' => true, 'is_completed' => $newStatus]);
     }
 
@@ -368,36 +379,39 @@ final class TaskController extends Controller
 
     public function createCategory(Request $request): void
     {
-        $user = $this->currentUser($request);
-        $name = trim((string) $request->post('name', ''));
-        if ($name === '' || mb_strlen($name) > 120) {
-            throw new InvalidArgumentException('Название категории должно содержать от 1 до 120 символов');
+        try {
+            $user = $this->currentUser($request);
+            $name = trim((string) $request->post('name', ''));
+            if ($name === '' || mb_strlen($name) > 120) {
+                throw new InvalidArgumentException('Название категории должно содержать от 1 до 120 символов');
+            }
+
+            $color = strtolower(trim((string) $request->post('color', '#3498db')));
+            if (preg_match('/^#[0-9a-f]{6}$/', $color) !== 1) {
+                throw new InvalidArgumentException('Некорректный цвет категории');
+            }
+
+            $icon = strtolower(trim((string) $request->post('icon', 'fa-folder')));
+            if (preg_match('/^fa-[a-z0-9-]{1,48}$/', $icon) !== 1) {
+                throw new InvalidArgumentException('Некорректная иконка категории');
+            }
+
+            DatabaseManager::getInstance()->execute(
+                'INSERT INTO task_categories (user_id,name,color,icon,sort_order,is_deleted,created_at,updated_at)
+                 VALUES (:user_id,:name,:color,:icon,0,0,:created_at,:updated_at)',
+                [
+                    ':user_id' => (int) $user->id,
+                    ':name' => $name,
+                    ':color' => $color,
+                    ':icon' => $icon,
+                    ':created_at' => date('Y-m-d H:i:s'),
+                    ':updated_at' => date('Y-m-d H:i:s'),
+                ]
+            );
+            Router::getInstance()->redirect('tasks', 'name');
+        } catch (InvalidArgumentException $e) {
+            $this->validationFailure($request, $e->getMessage());
         }
-
-        $color = strtolower(trim((string) $request->post('color', '#3498db')));
-        if (preg_match('/^#[0-9a-f]{6}$/', $color) !== 1) {
-            throw new InvalidArgumentException('Некорректный цвет категории');
-        }
-
-        $icon = strtolower(trim((string) $request->post('icon', 'fa-folder')));
-        if (preg_match('/^fa-[a-z0-9-]{1,48}$/', $icon) !== 1) {
-            throw new InvalidArgumentException('Некорректная иконка категории');
-        }
-
-        DatabaseManager::getInstance()->execute(
-            'INSERT INTO task_categories (user_id,name,color,icon,sort_order,is_deleted,created_at,updated_at)
-             VALUES (:user_id,:name,:color,:icon,0,0,:created_at,:updated_at)',
-            [
-                ':user_id' => (int) $user->id,
-                ':name' => $name,
-                ':color' => $color,
-                ':icon' => $icon,
-                ':created_at' => date('Y-m-d H:i:s'),
-                ':updated_at' => date('Y-m-d H:i:s'),
-            ]
-        );
-
-        Router::getInstance()->redirect('tasks', 'name');
     }
 
     public function attachCategory(Request $request, string $taskUid, int $categoryId): void
@@ -431,7 +445,6 @@ final class TaskController extends Controller
                 ':created_at' => date('Y-m-d H:i:s'),
             ]
         );
-
         $this->json(['success' => true]);
     }
 
@@ -476,7 +489,6 @@ final class TaskController extends Controller
              ORDER BY task_id ASC, sort_order ASC, id ASC',
             $params
         );
-        $categoryParams = $params + [':user_id' => $userId];
         $categoryRows = $db->fetchAll(
             'SELECT r.task_id,c.id,c.user_id,c.name,c.color,c.icon,c.sort_order
              FROM task_category_relations r
@@ -484,7 +496,7 @@ final class TaskController extends Controller
              WHERE r.task_id IN (' . $in . ')
                AND (c.user_id = :user_id OR c.user_id IS NULL)
              ORDER BY r.task_id ASC,c.sort_order ASC,c.name ASC,c.id ASC',
-            $categoryParams
+            $params + [':user_id' => $userId]
         );
 
         $subtaskMap = [];
@@ -493,7 +505,9 @@ final class TaskController extends Controller
         }
         $categoryMap = [];
         foreach ($categoryRows as $category) {
-            $categoryMap[(int) $category['task_id']][] = $category;
+            $taskId = (int) $category['task_id'];
+            unset($category['task_id']);
+            $categoryMap[$taskId][] = $this->normalizeCategory($category);
         }
 
         $now = time();
@@ -502,40 +516,43 @@ final class TaskController extends Controller
             $task['categories'] = $categoryMap[$taskId] ?? [];
             $task['subtasks'] = $subtaskMap[$taskId] ?? [];
             $task['priority_color'] = self::PRIORITY_COLORS[(string) $task['priority']] ?? '#3498db';
-            $task['status_label'] = self::STATUS_LABELS[(string) $task['status']] ?? (string) $task['status'];
+            $task['status_label'] = self::STATUS_LABELS[(string) $task['status']] ?? 'Неизвестный статус';
             $task['is_overdue'] = $task['due_date'] !== null
                 && !in_array((string) $task['status'], ['completed', 'cancelled'], true)
                 && strtotime((string) $task['due_date']) < $now;
 
             $totalSubtasks = count($task['subtasks']);
-            if ($totalSubtasks === 0) {
-                $task['completion_percentage'] = 0;
-            } else {
-                $completed = 0;
-                foreach ($task['subtasks'] as $subtask) {
-                    if ((int) $subtask['is_completed'] === 1) {
-                        $completed++;
-                    }
+            $completed = 0;
+            foreach ($task['subtasks'] as $subtask) {
+                if ((int) $subtask['is_completed'] === 1) {
+                    $completed++;
                 }
-                $task['completion_percentage'] = (int) round(($completed / $totalSubtasks) * 100);
             }
+            $task['completion_percentage'] = $totalSubtasks > 0
+                ? (int) round(($completed / $totalSubtasks) * 100)
+                : 0;
         }
         unset($task);
     }
 
-    private function currentUser(Request $request): UserModel
+    /** @return object{id:int,uid:string,username:string,firstname:string,lastname:string,role:int,is_active:int} */
+    private function currentUser(Request $request): object
     {
         $id = (int) $request->session('user_id', 0);
-        $user = $id > 0
-            ? UserModel::select('id', 'uid', 'username', 'firstname', 'lastname', 'role', 'is_active')
-                ->where('id', '=', $id)
-                ->where('is_active', '=', 1)
-                ->first()
-            : null;
-        if (!$user) {
+        if ($id <= 0) {
+            throw new RuntimeException('Требуется авторизация');
+        }
+
+        $row = DatabaseManager::getInstance()->fetchOne(
+            'SELECT id,uid,username,firstname,lastname,role,is_active
+             FROM users WHERE id = :id AND is_active = 1 LIMIT 1',
+            [':id' => $id]
+        );
+        if (!$row) {
             throw new RuntimeException('Пользователь не найден или заблокирован');
         }
-        return $user;
+
+        return (object) $row;
     }
 
     /** @return array<string,mixed>|null */
@@ -547,6 +564,17 @@ final class TaskController extends Controller
              LIMIT 1',
             [':uid' => $uid, ':user_id' => $userId]
         );
+    }
+
+    /** @param array<string,mixed> $category @return array<string,mixed> */
+    private function normalizeCategory(array $category): array
+    {
+        $color = strtolower((string) ($category['color'] ?? ''));
+        $category['color'] = preg_match('/^#[0-9a-f]{6}$/', $color) === 1 ? $color : '#3498db';
+
+        $icon = strtolower((string) ($category['icon'] ?? ''));
+        $category['icon'] = preg_match('/^fa-[a-z0-9-]{1,48}$/', $icon) === 1 ? $icon : 'fa-folder';
+        return $category;
     }
 
     private function taskTitle(string $title): string
@@ -598,7 +626,6 @@ final class TaskController extends Controller
                 return $date->format('Y-m-d H:i:s');
             }
         }
-
         throw new InvalidArgumentException('Некорректная дата выполнения');
     }
 
@@ -616,6 +643,17 @@ final class TaskController extends Controller
             return;
         }
         Router::getInstance()->redirect('tasks', 'name');
+    }
+
+    private function validationFailure(Request $request, string $message): void
+    {
+        if ($this->expectsJson($request)) {
+            $this->jsonError($message, 422);
+            return;
+        }
+        http_response_code(422);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo $message;
     }
 
     /** @param array<string,mixed> $payload */
