@@ -11,5 +11,7 @@
 {include file="messager_page/style.css"}
 
 {include file="admin-page/style.css"}
-
 {include file="^shared/footer/style.css"}
+
+{* Product-wide refresh must remain last so it can normalize legacy module styling. *}
+{include file="core/theme-refresh.css"}
