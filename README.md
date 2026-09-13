@@ -99,6 +99,8 @@ openssl rand -hex 32
 └── notes/
 ```
 
+Для Notes canonical attachment root — `PRIVATE_STORAGE_PATH/notes/`. Физический путь хранится только на сервере и никогда не используется как browser URL.
+
 Не настраивайте эти каталоги как static/public locations веб-сервера.
 
 ### 4. База данных
@@ -217,5 +219,3 @@ GitHub Actions проверяют комбинацию:
 4. примените миграции на staging;
 5. прогоните GitHub Actions/runtime smoke;
 6. только после этого обновляйте production.
-
-Никогда не ротируйте `UNIQUE_KEY` или `MSG_SECRET_KEY` без плана перешифрования уже сохранённых данных.
