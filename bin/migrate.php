@@ -39,6 +39,14 @@ $manifest = [
     '20260913_tasks_contract.sql',
 ];
 
+$currentTables = [
+    'users', 'dialogs', 'user_to_dialogs', 'messages', 'message_user_deletions',
+    'messenger_attachments', 'message_reactions',
+    'notes', 'note_attachments', 'shared_notes', 'note_history', 'note_tags', 'note_tag_relations',
+    'user_files', 'user_fields',
+    'tasks', 'subtasks', 'task_categories', 'task_category_relations', 'task_reminders',
+];
+
 function envRequired(string $name): string
 {
     $value = getenv($name);
@@ -99,6 +107,7 @@ function ensureMigrationTable(mysqli $db): void
     );
 }
 
+/** @return array{0:string,1:string,2:string} */
 function readMigration(string $root, string $filename): array
 {
     $path = $root . '/database/migrations/' . $filename;
@@ -112,21 +121,74 @@ function readMigration(string $root, string $filename): array
     return [$path, $sql, hash('sha256', $sql)];
 }
 
+/** @return list<string> */
+function parseMigrationStatements(string $sql): array
+{
+    $delimiter = ';';
+    $buffer = '';
+    $statements = [];
+    $lines = preg_split('/\R/', $sql) ?: [];
+
+    foreach ($lines as $line) {
+        if (preg_match('/^\s*DELIMITER\s+(\S+)\s*$/i', $line, $match) === 1) {
+            if (trim($buffer) !== '') {
+                throw new RuntimeException('Malformed migration: DELIMITER changed before statement ended');
+            }
+            $delimiter = $match[1];
+            continue;
+        }
+
+        $buffer .= $line . "\n";
+        $trimmed = rtrim($buffer);
+        if ($trimmed === '' || !str_ends_with($trimmed, $delimiter)) {
+            continue;
+        }
+
+        $statement = trim(substr($trimmed, 0, -strlen($delimiter)));
+        $buffer = '';
+        if ($statement !== '' && preg_match('/^--(?:\s|$)/', $statement) !== 1) {
+            $statements[] = $statement;
+        } elseif ($statement !== '') {
+            // A leading comment can be followed by SQL in the same buffered statement.
+            $withoutComments = preg_replace('/^\s*--.*(?:\R|$)/m', '', $statement) ?? $statement;
+            if (trim($withoutComments) !== '') {
+                $statements[] = trim($withoutComments);
+            }
+        }
+    }
+
+    if (trim($buffer) !== '') {
+        $withoutComments = preg_replace('/^\s*--.*(?:\R|$)/m', '', trim($buffer)) ?? trim($buffer);
+        if (trim($withoutComments) !== '') {
+            throw new RuntimeException('Malformed migration: unterminated SQL statement');
+        }
+    }
+
+    return $statements;
+}
+
+function drainResults(mysqli $db): void
+{
+    while ($db->more_results()) {
+        $db->next_result();
+        if ($result = $db->store_result()) {
+            $result->free();
+        }
+    }
+}
+
 function executeMigration(mysqli $db, string $sql): void
 {
-    // DELIMITER is a mysql-client command, not SQL. Existing migrations use $$
-    // only as procedure statement delimiters, so normalize them for multi_query.
-    $normalized = preg_replace('/^\s*DELIMITER\s+\S+\s*;?\s*$/im', '', $sql) ?? $sql;
-    $normalized = str_replace('$$', ';', $normalized);
-
+    $statements = parseMigrationStatements($sql);
     $db->query('SET FOREIGN_KEY_CHECKS=0');
     try {
-        $db->multi_query($normalized);
-        do {
-            if ($result = $db->store_result()) {
+        foreach ($statements as $statement) {
+            $result = $db->query($statement);
+            if ($result instanceof mysqli_result) {
                 $result->free();
             }
-        } while ($db->more_results() && $db->next_result());
+            drainResults($db);
+        }
     } finally {
         $db->query('SET FOREIGN_KEY_CHECKS=1');
     }
@@ -134,12 +196,58 @@ function executeMigration(mysqli $db, string $sql): void
 
 function recordMigration(mysqli $db, string $filename, string $checksum): void
 {
-    $stmt = $db->prepare(
-        'INSERT INTO schema_migrations (migration, checksum) VALUES (?, ?)'
-    );
+    $stmt = $db->prepare('INSERT INTO schema_migrations (migration, checksum) VALUES (?, ?)');
     $stmt->bind_param('ss', $filename, $checksum);
     $stmt->execute();
     $stmt->close();
+}
+
+/** @param list<string> $tables */
+function verifyCurrentContract(mysqli $db, array $tables): void
+{
+    $escaped = array_map(static fn (string $table): string => "'" . $db->real_escape_string($table) . "'", $tables);
+    $result = $db->query(
+        'SELECT table_name FROM information_schema.tables ' .
+        'WHERE table_schema = DATABASE() AND table_name IN (' . implode(',', $escaped) . ')'
+    );
+    $existing = [];
+    while ($row = $result->fetch_assoc()) {
+        $existing[] = (string) $row['table_name'];
+    }
+    $missing = array_values(array_diff($tables, $existing));
+    if ($missing !== []) {
+        throw new RuntimeException('Database contract is incomplete; missing tables: ' . implode(', ', $missing));
+    }
+
+    $requiredColumns = [
+        'users' => ['uid', 'password_hash', 'lastname', 'avatar', 'role', 'is_active'],
+        'user_to_dialogs' => ['role', 'last_read_message_id', 'last_delivered_message_id', 'is_deleted'],
+        'messages' => ['from_user_id', 'message', 'message_type', 'reply_to_message_id', 'meta_data'],
+        'note_attachments' => ['file_uid', 'file_path', 'mime_type', 'is_encrypted'],
+    ];
+    foreach ($requiredColumns as $table => $columns) {
+        foreach ($columns as $column) {
+            $stmt = $db->prepare(
+                'SELECT 1 FROM information_schema.columns '
+                . 'WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ? LIMIT 1'
+            );
+            $stmt->bind_param('ss', $table, $column);
+            $stmt->execute();
+            $exists = $stmt->get_result()->num_rows === 1;
+            $stmt->close();
+            if (!$exists) {
+                throw new RuntimeException("Database contract is incomplete; missing column {$table}.{$column}");
+            }
+        }
+    }
+
+    $type = $db->query(
+        "SELECT column_type FROM information_schema.columns
+         WHERE table_schema = DATABASE() AND table_name = 'dialogs' AND column_name = 'type' LIMIT 1"
+    )->fetch_assoc()['column_type'] ?? '';
+    if (!str_contains((string) $type, "'saved'")) {
+        throw new RuntimeException('Database contract is incomplete; dialogs.type does not support saved');
+    }
 }
 
 try {
@@ -167,17 +275,15 @@ try {
             echo sprintf("%-8s %s\n", $state, $filename);
         }
         echo sprintf("Summary: %d applied, %d pending\n", count($manifest) - count($pending), count($pending));
+        if ($statusOnly && $pending === []) {
+            verifyCurrentContract($db, $currentTables);
+            echo "Schema contract: OK\n";
+        }
         $db->close();
         exit(0);
     }
 
     ensureMigrationTable($db);
-    if ($pending === []) {
-        echo "Database is up to date.\n";
-        $db->close();
-        exit(0);
-    }
-
     foreach ($pending as $filename) {
         [, $sql, $checksum] = readMigration($root, $filename);
         echo "Applying {$filename} ... ";
@@ -186,7 +292,10 @@ try {
         echo "OK\n";
     }
 
-    echo 'Applied ' . count($pending) . " migration(s).\n";
+    verifyCurrentContract($db, $currentTables);
+    echo $pending === []
+        ? "Database is up to date. Schema contract: OK\n"
+        : 'Applied ' . count($pending) . " migration(s). Schema contract: OK\n";
     $db->close();
 } catch (Throwable $e) {
     fwrite(STDERR, 'Migration failed: ' . $e->getMessage() . PHP_EOL);
