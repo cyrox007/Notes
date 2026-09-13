@@ -1,41 +1,57 @@
-document.addEventListener("DOMContentLoaded", function () {
-    let password = document.querySelector('#pass'),
-        re_password = document.querySelector('#re_pass');
-    let regBtn = document.getElementById('btn-reg');
-    let loginInput = document.getElementById('login');
-    
-    regBtn.disabled = true;
-    function disabledBtn(status) {
-        regBtn.disabled = status;
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('registration-form');
+    if (!form) {
+        return;
     }
 
-    loginInput.addEventListener('input', () => {
-        console.log('dfsdf');
-        if (loginInput.value.match(/^[0-9a-zA-Z]+$/) || loginInput.value != '') {
-            document.getElementById('correct_login').innerText = "";
-            disabledBtn(false);
-        } else {
-            document.getElementById('correct_login').innerText = "Можно вводить только латинские буквы и цифры";
-            disabledBtn(true);
+    const loginInput = document.getElementById('login');
+    const passwordInput = document.getElementById('password');
+    const submitButton = document.getElementById('btn-reg');
+    const loginError = document.getElementById('correct_login');
+    const usernamePattern = /^[A-Za-z0-9._-]{3,50}$/;
+
+    function validateLogin() {
+        if (!loginInput) {
+            return true;
         }
-        
+
+        const value = loginInput.value.trim();
+        const valid = usernamePattern.test(value);
+        if (loginError) {
+            loginError.textContent = value === '' || valid
+                ? ''
+                : '3–50 символов: латинские буквы, цифры, точка, дефис или подчёркивание.';
+        }
+        loginInput.setAttribute('aria-invalid', value !== '' && !valid ? 'true' : 'false');
+        return valid;
+    }
+
+    function validatePassword() {
+        if (!passwordInput) {
+            return true;
+        }
+        const valid = passwordInput.value.length >= 10;
+        passwordInput.setAttribute('aria-invalid', passwordInput.value !== '' && !valid ? 'true' : 'false');
+        return valid;
+    }
+
+    function syncButton() {
+        if (!submitButton) {
+            return;
+        }
+        submitButton.disabled = !form.checkValidity() || !validateLogin() || !validatePassword();
+    }
+
+    loginInput?.addEventListener('input', syncButton);
+    passwordInput?.addEventListener('input', syncButton);
+    form.addEventListener('input', syncButton);
+    form.addEventListener('change', syncButton);
+    form.addEventListener('submit', function (event) {
+        if (!validateLogin() || !validatePassword() || !form.checkValidity()) {
+            event.preventDefault();
+            form.reportValidity();
+        }
     });
 
-    password.addEventListener('change', () => {
-        if (password.value == '') {
-            disabledBtn(true);
-        } else {
-            disabledBtn(false);
-        }
-    });
-
-    re_password.addEventListener('input', () => {
-        if (re_password.value != password.value || re_password.value == '') {
-            document.getElementById('match_pass').innerText = 'Пароли не совпадают';
-            disabledBtn(true);
-        } else if (re_password.value == password.value) {
-            document.getElementById('match_pass').innerText = '';
-            disabledBtn(false);
-        }
-    });
+    syncButton();
 });
