@@ -3,7 +3,11 @@
 {block name=title}Мессенджер{/block}
 
 {block name=body}
-<style>{include file='messager_page/style.css'}</style>
+<style>
+{include file='messager_page/style.css'}
+.messenger-chat__actions { display:flex; gap:.35rem; margin-left:auto; }
+.messenger-chat__actions .messenger-icon-button[data-active="true"] { background:rgba(127,127,127,.16); }
+</style>
 
 <section
     class="messenger-app"
@@ -54,6 +58,14 @@
                 <div class="messenger-chat__identity">
                     <strong id="chat-title">Диалог</strong>
                     <span id="chat-subtitle">&nbsp;</span>
+                </div>
+                <div class="messenger-chat__actions">
+                    <button class="messenger-icon-button" id="chat-pin-button" type="button" title="Закрепить чат" aria-label="Закрепить чат">
+                        <i class="fa fa-thumb-tack" aria-hidden="true"></i>
+                    </button>
+                    <button class="messenger-icon-button" id="chat-mute-button" type="button" title="Выключить уведомления на час" aria-label="Выключить уведомления на час">
+                        <i class="fa fa-bell-slash-o" aria-hidden="true"></i>
+                    </button>
                 </div>
             </header>
 
@@ -148,4 +160,5 @@
 </dialog>
 
 <script>{include file='messager_page/script.js'}</script>
+<script>{include file='messager_page/dialog-actions.js'}</script>
 {/block}
