@@ -28,6 +28,8 @@ $requiredTables = [
     'user_to_dialogs',
     'messages',
     'message_user_deletions',
+    'messenger_attachments',
+    'message_reactions',
     'notes',
     'note_attachments',
     'shared_notes',
@@ -36,6 +38,11 @@ $requiredTables = [
     'note_tag_relations',
     'user_files',
     'user_fields',
+    'tasks',
+    'subtasks',
+    'task_categories',
+    'task_category_relations',
+    'task_reminders',
 ];
 
 $schemaFiles = glob($basePath . '/database/*.sql') ?: [];
@@ -45,6 +52,7 @@ usort($schemaFiles, static function (string $a, string $b): int {
         'notes_schema.sql' => 2,
         'file_manager_schema.sql' => 3,
         'user_fields_schema.sql' => 4,
+        'tasks_schema.sql' => 5,
     ];
 
     return ($order[basename($a)] ?? 99) <=> ($order[basename($b)] ?? 99);
@@ -201,7 +209,14 @@ UPLOAD_DIR={$basePath}/uploads/file_manager
 NOTES_UPLOAD_DIR={$basePath}/uploads/notes
 MESSENGER_UPLOAD_DIR={$basePath}/uploads/messenger
 MAX_UPLOAD_SIZE=10485760
+NOTES_MAX_UPLOAD_SIZE=10485760
 MAX_NOTE_ATTACHMENTS=10
+MESSENGER_MAX_UPLOAD_SIZE=10485760
+MESSENGER_MAX_VOICE_SIZE=5242880
+MESSENGER_GROUP_AVATAR_MAX_SIZE=2097152
+PROFILE_AVATAR_MAX_SIZE=2097152
+MESSENGER_ORPHAN_TTL_SECONDS=86400
+MESSENGER_SEARCH_SCAN_LIMIT=1000
 
 SITEURL={$siteUrl}
 BASE_PATH=/
@@ -242,13 +257,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             try {
                 $pdo = connectDatabase($host, $port, $database, $username, $password);
-                $missing = array_diff($requiredTables, existingTables($pdo));
+                $existing = existingTables($pdo);
+                $missing = array_diff($requiredTables, $existing);
 
-                if ($missing !== []) {
+                if ($existing === []) {
                     if ($schemaFiles === []) {
                         throw new RuntimeException('Файлы database/*.sql не найдены.');
                     }
                     importSchemas($host, $port, $database, $username, $password, $schemaFiles);
+                } elseif ($missing !== []) {
+                    throw new RuntimeException(
+                        'Обнаружена существующая база старой/неполной версии. Web-installer не изменяет существующие данные. ' .
+                        'Создайте .env с этими параметрами, сделайте резервную копию и выполните `php bin/migrate.php --dry-run`, затем `php bin/migrate.php`. ' .
+                        'Отсутствуют таблицы: ' . implode(', ', $missing)
+                    );
                 }
 
                 $remaining = array_diff($requiredTables, existingTables($pdo));
@@ -322,7 +344,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 createAdminUser($pdo, $username, $email, $password, $firstname, $lastname);
                 $step = 4;
                 $installationCompleted = true;
-                $successMessage = 'Администратор создан. Основная схема Messenger v2 установлена.';
+                $successMessage = 'Администратор создан. Каноническая схема приложения установлена.';
             } catch (Throwable $e) {
                 error_log('Installer admin step failed: ' . $e->getMessage());
                 $errors[] = 'Не удалось создать администратора: ' . $e->getMessage();
@@ -382,7 +404,7 @@ $csrf = htmlspecialchars((string) $_SESSION['notes_install_csrf'], ENT_QUOTES, '
 <body>
 <main class="card">
     <h1>Notes — мастер установки</h1>
-    <p>Создаёт каноническую схему приложения и отдельные секреты для заметок, Messenger v2 и WebSocket.</p>
+    <p>Создаёт каноническую схему приложения и отдельные секреты для заметок, Messenger v2 и WebSocket. Обновление существующей базы выполняется только через versioned CLI migrations.</p>
 
     <div class="steps" aria-label="Шаг <?= $step ?> из 4">
         <?php for ($i = 1; $i <= 4; $i++): ?>
@@ -419,7 +441,7 @@ $csrf = htmlspecialchars((string) $_SESSION['notes_install_csrf'], ENT_QUOTES, '
             <label>Имя базы<input name="db_name" required></label>
             <label>Пользователь<input name="db_user" required></label>
             <label>Пароль<input name="db_pass" type="password"></label>
-            <button type="submit">Импортировать схемы и продолжить</button>
+            <button type="submit">Проверить базу и продолжить</button>
         </form>
 
     <?php elseif ($step === 3): ?>
