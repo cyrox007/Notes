@@ -6,7 +6,7 @@
 <style>
 {include file='messager_page/style.css'}
 {include file='messager_page/media.css'}
-{include file='messager_page/reactions.css'}
+{include file='messager_page/voice.css'}
 {include file='messager_page/group.css'}
 {include file='messager_page/search.css'}
 .messenger-chat__actions { display:flex; gap:.35rem; margin-left:auto; }
@@ -278,6 +278,7 @@
 <script>{include file='messager_page/receipts.js'}</script>
 <script>{include file='messager_page/media.js'}</script>
 <script>{include file='messager_page/reactions.js'}</script>
+<script>{include file='messager_page/voice.js'}</script>
 <script>{include file='messager_page/group.js'}</script>
 <script>{include file='messager_page/search.js'}</script>
 {/block}
