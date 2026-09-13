@@ -1,6 +1,6 @@
 -- ============================================
 -- Заметки (Notes): каноническая структура БД
--- Версия: 2.1 - private attachments и актуальный crypto contract
+-- Версия: 2.2 - hosting-friendly canonical schema
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS `notes` (
@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS `notes` (
     INDEX `idx_uid` (`uid`),
     INDEX `idx_created_note` (`created_note`),
     INDEX `idx_is_deleted` (`is_deleted`),
+    INDEX `idx_user_notes` (`user_id`, `is_deleted`, `created_note` DESC),
+    INDEX `idx_updated_notes` (`user_id`, `updated_note` DESC),
     FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Личные заметки пользователей';
 
@@ -39,6 +41,7 @@ CREATE TABLE IF NOT EXISTS `note_attachments` (
     INDEX `idx_note_id` (`note_id`),
     INDEX `idx_file_uid` (`file_uid`),
     INDEX `idx_file_type` (`file_type`),
+    INDEX `idx_notes_with_attachments` (`note_id`, `file_type`),
     FOREIGN KEY (`note_id`) REFERENCES `notes`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Приватные вложения заметок';
 
@@ -99,31 +102,22 @@ CREATE TABLE IF NOT EXISTS `note_tag_relations` (
     FOREIGN KEY (`tag_id`) REFERENCES `note_tags`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Связи заметок с тегами';
 
-CREATE INDEX `idx_user_notes` ON `notes`(`user_id`, `is_deleted`, `created_note` DESC);
-CREATE INDEX `idx_updated_notes` ON `notes`(`user_id`, `updated_note` DESC);
-CREATE INDEX `idx_notes_with_attachments` ON `note_attachments`(`note_id`, `file_type`);
-
-DELIMITER $$
+-- Canonical fresh schema avoids mysql-client-only DELIMITER directives so it can
+-- be imported safely by the browser installer as well as mysql/phpMyAdmin.
+DROP TRIGGER IF EXISTS `note_after_insert`;
 CREATE TRIGGER `note_after_insert`
 AFTER INSERT ON `notes`
 FOR EACH ROW
-BEGIN
-    INSERT INTO `note_history` (`note_id`, `user_id`, `action`, `new_content`, `changed_at`)
-    VALUES (NEW.id, NEW.user_id, 'create', NEW.content, CURRENT_TIMESTAMP);
-END$$
-DELIMITER ;
+INSERT INTO `note_history` (`note_id`, `user_id`, `action`, `new_content`, `changed_at`)
+VALUES (NEW.id, NEW.user_id, 'create', NEW.content, CURRENT_TIMESTAMP);
 
-DELIMITER $$
+DROP TRIGGER IF EXISTS `note_after_update`;
 CREATE TRIGGER `note_after_update`
 AFTER UPDATE ON `notes`
 FOR EACH ROW
-BEGIN
-    IF NOT (OLD.content <=> NEW.content) OR OLD.is_deleted != NEW.is_deleted THEN
-        INSERT INTO `note_history` (`note_id`, `user_id`, `action`, `old_content`, `new_content`, `changed_at`)
-        VALUES (NEW.id, NEW.user_id, 'update', OLD.content, NEW.content, CURRENT_TIMESTAMP);
-    END IF;
-END$$
-DELIMITER ;
+INSERT INTO `note_history` (`note_id`, `user_id`, `action`, `old_content`, `new_content`, `changed_at`)
+SELECT NEW.id, NEW.user_id, 'update', OLD.content, NEW.content, CURRENT_TIMESTAMP
+WHERE NOT (OLD.content <=> NEW.content) OR OLD.is_deleted != NEW.is_deleted;
 
 -- ============================================
 -- Security contract
