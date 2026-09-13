@@ -12,6 +12,8 @@
 - Добавлены focus-visible, skip-link/доступные labels, aria-live states и `prefers-reduced-motion`.
 - File Manager больше не выполняет пользовательский code content: незавершённый Ace/code-run flow удалён, текст/code открывается только read-only preview.
 - Исправлены runtime-баги динамических File Manager actions после создания папки.
+- Admin panel получил полноценную таблицу аккаунтов со статусами, блокировкой/активацией и безопасной деактивацией.
+- Custom profile fields в Admin синхронизированы с canonical `user_fields` schema и получили серверную валидацию имён/типов/длины.
 
 ### Production / Core hardening
 - Исправлены case-sensitive bootstrap paths `core.php` для Linux filesystem.
@@ -23,6 +25,9 @@
 - CSP очищена от dev-domain/Google Fonts/external JS CDN; `unsafe-eval` удалён после отказа от browser code runner.
 - Добавлены Permissions Policy и COOP; `unsafe-inline` пока остаётся как известный legacy Smarty CSP debt.
 - Добавлена production/deployment документация `docs/PRODUCTION.md`.
+- Admin physical user delete заменён на deactivation contract: строка пользователя и связанные Notes/Tasks/Messenger данные сохраняются.
+- Admin lifecycle вынесен в `AdminUserService` с повторной проверкой active administrator role, запретом self/admin targets и защитой group owner до transfer ownership.
+- Reactivation теперь восстанавливает одновременно `role` и `is_active`, поэтому деактивированный аккаунт действительно снова может войти после явной активации.
 
 ### Merged hardening after initial 0.10 baseline
 - **PR #50:** Messenger forwarding и «Сохранённые сообщения», независимые forwarded media copies и минимизированные forwarding metadata.
