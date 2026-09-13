@@ -28,6 +28,10 @@
 - Admin physical user delete заменён на deactivation contract: строка пользователя и связанные Notes/Tasks/Messenger данные сохраняются.
 - Admin lifecycle вынесен в `AdminUserService` с повторной проверкой active administrator role, запретом self/admin targets и защитой group owner до transfer ownership.
 - Reactivation теперь восстанавливает одновременно `role` и `is_active`, поэтому деактивированный аккаунт действительно снова может войти после явной активации.
+- Web-installer переработан в hosting-first fresh-install wizard: PHP/extensions/vendor preflight, автоопределение домена и `BASE_PATH`, private storage вне document root, automatic schema import, secrets и первый superadmin без ручного SQL/`.env`.
+- `.env` создаётся только после успешной финализации первого администратора, поэтому оборванный fresh install можно безопасно повторить.
+- Добавлен реальный HTTP/MySQL installer smoke для размещения в `public_html/workspace`, включая CSRF/cookies, 20-table contract, healthcheck и installer lock после установки.
+- Добавлен upload-ready hosting bundle с production `vendor/`; tag `v*` публикует ZIP как GitHub Release asset, поэтому Composer не требуется на конечном shared hosting.
 
 ### Merged hardening after initial 0.10 baseline
 - **PR #50:** Messenger forwarding и «Сохранённые сообщения», независимые forwarded media copies и минимизированные forwarding metadata.
@@ -36,6 +40,7 @@
 - **PR #53:** private user avatars, canonical Profile contract и safe account deactivation вместо physical user delete.
 - **PR #54:** versioned DB migration runner, checksums, fresh-vs-upgrade installer contract и legacy DB integration test.
 - **PR #55:** resumable fail-closed legacy Messenger/Notes ciphertext migration CLI.
+- **PR #56:** product-wide UI/UX refresh, production headers/rate limits/healthcheck и canonical Admin lifecycle.
 
 ## 0.10.0-alpha — 2026-09-13
 
