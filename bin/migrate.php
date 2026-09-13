@@ -206,12 +206,12 @@ function verifyCurrentContract(mysqli $db, array $tables): void
 {
     $escaped = array_map(static fn (string $table): string => "'" . $db->real_escape_string($table) . "'", $tables);
     $result = $db->query(
-        'SELECT table_name FROM information_schema.tables ' .
+        'SELECT TABLE_NAME AS contract_table FROM information_schema.tables ' .
         'WHERE table_schema = DATABASE() AND table_name IN (' . implode(',', $escaped) . ')'
     );
     $existing = [];
     while ($row = $result->fetch_assoc()) {
-        $existing[] = (string) $row['table_name'];
+        $existing[] = (string) $row['contract_table'];
     }
     $missing = array_values(array_diff($tables, $existing));
     if ($missing !== []) {
@@ -241,11 +241,11 @@ function verifyCurrentContract(mysqli $db, array $tables): void
     }
 
     $typeResult = $db->query(
-        "SELECT column_type FROM information_schema.columns
+        "SELECT COLUMN_TYPE AS contract_column_type FROM information_schema.columns
          WHERE table_schema = DATABASE() AND table_name = 'dialogs' AND column_name = 'type' LIMIT 1"
     );
     $typeRow = $typeResult->fetch_assoc();
-    $type = (string) ($typeRow['column_type'] ?? '');
+    $type = (string) ($typeRow['contract_column_type'] ?? '');
     if (!str_contains($type, "'saved'")) {
         throw new RuntimeException('Database contract is incomplete; dialogs.type does not support saved');
     }
