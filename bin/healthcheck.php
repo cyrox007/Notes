@@ -34,19 +34,46 @@ function envValue(string $name): string
     return is_string($value) ? trim($value) : '';
 }
 
+function pathIsInside(string $path, string $parent): bool
+{
+    $path = rtrim(str_replace('\\', '/', $path), '/');
+    $parent = rtrim(str_replace('\\', '/', $parent), '/');
+    return $path === $parent || str_starts_with($path . '/', $parent . '/');
+}
+
 recordHealth($checks, $failed, 'php_version', version_compare(PHP_VERSION, '8.3.0', '>='), PHP_VERSION);
-foreach (['mysqli', 'mbstring', 'sodium', 'fileinfo'] as $extension) {
+foreach (['mysqli', 'pdo_mysql', 'mbstring', 'sodium', 'fileinfo', 'gd'] as $extension) {
     recordHealth($checks, $failed, 'extension_' . $extension, extension_loaded($extension));
 }
 
 foreach (['UNIQUE_KEY', 'MSG_SECRET_KEY', 'WS_TICKET_SECRET'] as $secretName) {
     $secret = envValue($secretName);
-    recordHealth($checks, $failed, 'secret_' . strtolower($secretName), strlen($secret) >= 32, $secret === '' ? 'missing' : 'configured');
+    recordHealth(
+        $checks,
+        $failed,
+        'secret_' . strtolower($secretName),
+        strlen($secret) >= 32,
+        $secret === '' ? 'missing' : 'configured'
+    );
 }
 
 $privateStorage = envValue('PRIVATE_STORAGE_PATH');
-$privateOk = $privateStorage !== '' && is_dir($privateStorage) && is_writable($privateStorage);
+$privateReal = $privateStorage !== '' ? realpath($privateStorage) : false;
+$privateOk = is_string($privateReal) && is_dir($privateReal) && is_writable($privateReal);
 recordHealth($checks, $failed, 'private_storage', $privateOk, $privateStorage === '' ? 'missing' : $privateStorage);
+
+$appReal = realpath($root);
+$outsideApp = $privateOk
+    && is_string($privateReal)
+    && is_string($appReal)
+    && !pathIsInside($privateReal, $appReal);
+recordHealth(
+    $checks,
+    $failed,
+    'private_storage_outside_app_root',
+    $outsideApp,
+    $privateReal ?: 'unresolved'
+);
 
 $siteUrl = envValue('SITEURL');
 $siteScheme = strtolower((string) parse_url($siteUrl, PHP_URL_SCHEME));
@@ -59,6 +86,27 @@ if ($siteScheme === 'https') {
     $wsSchemeOk = $wsScheme === 'wss';
 }
 recordHealth($checks, $failed, 'websocket_url', $wsSchemeOk, $wsPublicUrl ?: 'missing');
+
+$origins = array_values(array_filter(array_map('trim', explode(',', envValue('WS_ALLOWED_ORIGINS')))));
+$originsOk = $origins !== [];
+foreach ($origins as $origin) {
+    $scheme = strtolower((string) parse_url($origin, PHP_URL_SCHEME));
+    if (!in_array($scheme, ['http', 'https'], true)) {
+        $originsOk = false;
+        break;
+    }
+    if ($siteScheme === 'https' && $scheme !== 'https') {
+        $originsOk = false;
+        break;
+    }
+}
+recordHealth(
+    $checks,
+    $failed,
+    'websocket_allowed_origins',
+    $originsOk,
+    $origins === [] ? 'missing' : implode(', ', $origins)
+);
 
 $requiredTables = [
     'users', 'dialogs', 'user_to_dialogs', 'messages', 'message_user_deletions',
