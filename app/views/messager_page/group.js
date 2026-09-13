@@ -28,6 +28,7 @@
 
         let group = null;
         let pendingOpen = false;
+        let avatarUploading = false;
 
         const roleLabel = (role) => ({
             owner: 'Владелец',
@@ -35,8 +36,54 @@
             member: 'Участник'
         }[role] || 'Участник');
 
+        const groupAvatarUrl = (dialogUid, token) => {
+            if (!dialogUid || !token) return '';
+            return `/messenger/group-avatar/${encodeURIComponent(dialogUid)}?v=${encodeURIComponent(String(token))}`;
+        };
+
+        const renderProtectedAvatar = (element, title, dialogUid, token) => {
+            if (!element) return;
+            app.setAvatar(element, title || '?');
+            const url = groupAvatarUrl(dialogUid, token);
+            if (!url) return;
+
+            const image = document.createElement('img');
+            image.className = 'messenger-avatar__image';
+            image.src = url;
+            image.alt = '';
+            image.loading = 'lazy';
+            image.addEventListener('error', () => image.remove(), { once: true });
+            element.append(image);
+        };
+
+        const decorateDialogAvatars = () => {
+            app.el.dialogList?.querySelectorAll('.messenger-dialog-item[data-dialog-uid]').forEach((node) => {
+                const uid = node.dataset.dialogUid || '';
+                const dialog = app.dialogMap.get(uid);
+                if (!dialog || dialog.type !== 'group') return;
+                const avatar = node.querySelector('.messenger-avatar');
+                renderProtectedAvatar(avatar, dialog.title || 'Группа', dialog.uid, dialog.avatar);
+            });
+        };
+
+        const originalRenderDialogs = app.renderDialogs.bind(app);
+        app.renderDialogs = () => {
+            const result = originalRenderDialogs();
+            decorateDialogAvatars();
+            return result;
+        };
+
         const syncGroupButton = () => {
-            el.infoButton.hidden = app.currentDialog?.type !== 'group';
+            const isGroup = app.currentDialog?.type === 'group';
+            el.infoButton.hidden = !isGroup;
+            if (isGroup) {
+                renderProtectedAvatar(
+                    app.el.chatAvatar,
+                    app.currentDialog.title || 'Группа',
+                    app.currentDialog.uid,
+                    app.currentDialog.avatar
+                );
+            }
         };
 
         const originalRenderHeader = app.renderChatHeader.bind(app);
@@ -59,6 +106,106 @@
         };
 
         el.infoButton.addEventListener('click', () => requestInfo(true));
+
+        const avatarInput = document.createElement('input');
+        avatarInput.type = 'file';
+        avatarInput.accept = 'image/jpeg,image/png,image/webp';
+        avatarInput.hidden = true;
+
+        const avatarActions = document.createElement('div');
+        avatarActions.className = 'messenger-group-avatar-actions';
+        const avatarChange = document.createElement('button');
+        avatarChange.type = 'button';
+        avatarChange.className = 'messenger-group-action';
+        avatarChange.textContent = 'Изменить фото';
+        const avatarRemove = document.createElement('button');
+        avatarRemove.type = 'button';
+        avatarRemove.className = 'messenger-group-action messenger-group-action--danger';
+        avatarRemove.textContent = 'Удалить фото';
+        avatarActions.append(avatarChange, avatarRemove, avatarInput);
+        el.currentRole?.parentElement?.append(avatarActions);
+
+        const applyAvatarLocally = (token) => {
+            if (!group) return;
+            group.avatar = token || null;
+            if (app.currentDialog?.uid === group.dialog_uid) {
+                app.currentDialog = { ...app.currentDialog, avatar: group.avatar };
+                app.dialogMap.set(group.dialog_uid, app.currentDialog);
+            }
+            const dialog = app.dialogMap.get(group.dialog_uid);
+            if (dialog) {
+                dialog.avatar = group.avatar;
+                app.dialogMap.set(group.dialog_uid, dialog);
+            }
+            renderGroup();
+            app.renderDialogs();
+            app.renderChatHeader();
+        };
+
+        const uploadAvatar = async (file) => {
+            if (!group || !file || avatarUploading) return;
+            avatarUploading = true;
+            avatarChange.disabled = true;
+            avatarRemove.disabled = true;
+            const form = new FormData();
+            form.append('avatar', file, file.name || 'avatar');
+
+            try {
+                const response = await fetch(`/messenger/group-avatar/${encodeURIComponent(group.dialog_uid)}`, {
+                    method: 'POST',
+                    body: form
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || !data.success || !data.avatar) {
+                    throw new Error(data.message || 'Не удалось загрузить аватар группы');
+                }
+                applyAvatarLocally(data.avatar.avatar || null);
+                app.sendEvent('GroupSocket:refresh', { dialog_uid: group.dialog_uid });
+                app.showToast('Аватар группы обновлён');
+            } catch (error) {
+                console.error(error);
+                app.showToast(error?.message || 'Ошибка загрузки аватара');
+            } finally {
+                avatarUploading = false;
+                avatarInput.value = '';
+                renderGroup();
+            }
+        };
+
+        avatarChange.addEventListener('click', () => {
+            if (!group || avatarUploading) return;
+            avatarInput.click();
+        });
+        avatarInput.addEventListener('change', () => {
+            const file = avatarInput.files?.[0];
+            if (file) uploadAvatar(file);
+        });
+        avatarRemove.addEventListener('click', async () => {
+            if (!group || !group.avatar || avatarUploading) return;
+            if (!window.confirm('Удалить аватар группы?')) return;
+            avatarUploading = true;
+            avatarChange.disabled = true;
+            avatarRemove.disabled = true;
+            try {
+                const response = await fetch(
+                    `/messenger/group-avatar/${encodeURIComponent(group.dialog_uid)}/delete`,
+                    { method: 'POST' }
+                );
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || 'Не удалось удалить аватар группы');
+                }
+                applyAvatarLocally(null);
+                app.sendEvent('GroupSocket:refresh', { dialog_uid: group.dialog_uid });
+                app.showToast('Аватар группы удалён');
+            } catch (error) {
+                console.error(error);
+                app.showToast(error?.message || 'Ошибка удаления аватара');
+            } finally {
+                avatarUploading = false;
+                renderGroup();
+            }
+        });
 
         el.saveName?.addEventListener('click', () => {
             if (!group) return;
@@ -186,7 +333,7 @@
             el.addButton.disabled = visible === 0;
         };
 
-        const renderGroup = () => {
+        function renderGroup() {
             if (!group) return;
             const canManage = group.current_role === 'owner' || group.current_role === 'admin';
 
@@ -194,7 +341,7 @@
             el.content.hidden = false;
             el.title.textContent = group.name || 'Групповой чат';
             el.summary.textContent = `${(group.members || []).length} участников`;
-            app.setAvatar(el.avatar, group.name || 'Группа');
+            renderProtectedAvatar(el.avatar, group.name || 'Группа', group.dialog_uid, group.avatar);
             el.currentRole.dataset.role = group.current_role || 'member';
             el.currentRole.textContent = roleLabel(group.current_role);
             el.nameInput.value = group.name || '';
@@ -202,10 +349,14 @@
             el.saveName.hidden = !canManage;
             el.addSection.hidden = !canManage;
             el.leaveButton.hidden = group.current_role === 'owner';
+            avatarActions.hidden = !canManage;
+            avatarChange.disabled = avatarUploading;
+            avatarRemove.disabled = avatarUploading || !group.avatar;
+            avatarRemove.hidden = !group.avatar;
 
             renderMembers();
             renderAddCandidates();
-        };
+        }
 
         const closeRemovedGroup = (dialogUid, message) => {
             if (app.currentDialog?.uid === dialogUid) {
