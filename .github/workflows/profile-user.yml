@@ -68,6 +68,8 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot notes_profile_test < database/messenger_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_profile_test < database/user_fields_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_profile_test < database/notes_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_profile_test < database/tasks_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_profile_test < database/file_manager_schema.sql
           php <<'PHP'
           <?php
           $image = imagecreatetruecolor(16, 16);
