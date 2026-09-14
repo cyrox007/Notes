@@ -67,6 +67,64 @@ try {
   await alice.page.locator('#messenger-connection[data-state="online"]').waitFor({ timeout: 20000 });
   await bob.page.locator('#messenger-connection[data-state="online"]').waitFor({ timeout: 20000 });
 
+  // A dropped WebSocket must enter a recovery state, request a fresh short-lived
+  // ticket over the authenticated HTTP session, and return to online without a
+  // page reload or a second transport implementation. Observe the state mutation
+  // directly because a healthy reconnect can make the visual banner too brief
+  // for polling-based visibility assertions.
+  await alice.page.evaluate(() => {
+    const root = document.getElementById('messenger-app');
+    const status = document.getElementById('messenger-connection');
+    if (!root || !status) throw new Error('Messenger connection UI is missing');
+
+    root.dataset.e2eSawRecovery = '0';
+    window.__e2eReconnectObserver?.disconnect?.();
+    window.__e2eReconnectObserver = new MutationObserver(() => {
+      if (status.dataset.state && status.dataset.state !== 'online') {
+        root.dataset.e2eSawRecovery = '1';
+      }
+    });
+    window.__e2eReconnectObserver.observe(status, {
+      attributes: true,
+      attributeFilter: ['data-state'],
+    });
+  });
+
+  const ticketRefresh = alice.page.waitForResponse(response => (
+    response.url().includes('/messenger/socket-ticket')
+    && response.request().method() === 'POST'
+  ), { timeout: 15000 });
+
+  await alice.page.evaluate(() => {
+    const socket = window.wspace?.messenger?.socket;
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      throw new Error('Alice WebSocket is not open before reconnect test');
+    }
+    socket.close(1000, 'e2e reconnect');
+  });
+
+  const refreshResponse = await ticketRefresh;
+  if (refreshResponse.status() !== 200) {
+    throw new Error(`Socket ticket refresh returned ${refreshResponse.status()}`);
+  }
+
+  await alice.page.waitForFunction(() => (
+    window.wspace?.messenger?.socket?.readyState === WebSocket.OPEN
+    && document.getElementById('messenger-connection')?.dataset.state === 'online'
+  ), null, { timeout: 20000 });
+
+  const sawRecovery = await alice.page.locator('#messenger-app').getAttribute('data-e2e-saw-recovery');
+  if (sawRecovery !== '1') {
+    throw new Error('Messenger UI did not enter a reconnecting/offline state after socket close');
+  }
+
+  await alice.page.locator('#messenger-network-banner').waitFor({ state: 'hidden', timeout: 5000 });
+  await alice.page.evaluate(() => {
+    window.__e2eReconnectObserver?.disconnect?.();
+    delete window.__e2eReconnectObserver;
+    document.getElementById('messenger-app')?.removeAttribute('data-e2e-saw-recovery');
+  });
+
   // Create a private dialog entirely through the new-chat modal. Contacts also
   // exist in the group-management dialog, so keep every selector modal-scoped.
   await alice.page.locator('#new-chat-button').click();
@@ -92,7 +150,7 @@ try {
   if (alice.pageErrors.length > 0) throw alice.pageErrors[0];
   if (bob.pageErrors.length > 0) throw bob.pageErrors[0];
 
-  console.log('Browser HTTPS + authenticated WSS + realtime message smoke: OK');
+  console.log('Browser HTTPS + authenticated WSS + reconnect + realtime message smoke: OK');
 
   await alice.context.close();
   await bob.context.close();
