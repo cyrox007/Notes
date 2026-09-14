@@ -49,6 +49,7 @@ jobs:
           bash -n tests/integration/file_manager_admin_quota_race.sh
           bash -n tests/integration/file_manager_quota_endpoint.sh
           bash tests/integration/queued_write_callers.sh
+          php -l bin/migrate.php
           php -l app/controllers/FileController.php
           php -l app/controllers/FileQuotaController.php
           php -l app/middlewares/StorageQuotaLimit.php
@@ -56,6 +57,33 @@ jobs:
           php -l app/services/StorageQuotaService.php
           grep -Fq "[LoginRequared::class, UploadRateLimit::class, StorageQuotaLimit::class]" core/routerConfig.php
           grep -Fq "'files_quota'" core/routerConfig.php
+
+      - name: Reject incompatible legacy storage settings schema
+        shell: bash
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: storage_legacy_contract_test
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot -e 'DROP DATABASE IF EXISTS storage_legacy_contract_test; CREATE DATABASE storage_legacy_contract_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;'
+          mysql -h 127.0.0.1 -uroot -proot storage_legacy_contract_test <<'SQL'
+          CREATE TABLE system_settings (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            setting_key VARCHAR(100) NOT NULL,
+            setting_value TEXT NOT NULL,
+            UNIQUE KEY uq_system_settings_key (setting_key)
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+          SQL
+          set +e
+          php bin/migrate.php --dry-run >/tmp/storage-legacy-contract.out 2>/tmp/storage-legacy-contract.err
+          STATUS=$?
+          set -e
+          test "$STATUS" -ne 0
+          grep -Fq 'Incompatible storage settings schema: missing system_settings.setting_type' /tmp/storage-legacy-contract.err
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot storage_legacy_contract_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='schema_migrations'")" = '0'
 
       - name: Prepare HTTP integration schema
         shell: bash
