@@ -16,16 +16,15 @@ class IsAdmin
         $routeManager = Router::getInstance();
         $userId = (int) $request->session('user_id', 0);
 
-        if ($userId <= 0) {
-            $routeManager->redirect('authpage', 'name');
-            return false;
-        }
+        $user = $userId > 0
+            ? UserModel::select('id', 'role', 'is_active')->where('id', '=', $userId)->first()
+            : null;
 
-        $user = UserModel::select('id', 'role')
-            ->where('id', '=', $userId)
-            ->first();
-
-        if (!$user || !Config::isAdminRole((int) $user->role)) {
+        if (
+            !$user
+            || (int) $user->is_active !== 1
+            || !Config::isAdminRole((int) $user->role)
+        ) {
             $routeManager->redirect('main', 'name');
             return false;
         }

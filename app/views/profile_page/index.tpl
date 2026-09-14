@@ -17,9 +17,10 @@
             <p class="profile__user-login">@{$user.username|escape}</p>
 
             {if $avatar_url}
-                <img src="{$avatar_url|escape}" alt="{$user.firstname|escape} {$user.lastname|escape}" class="img-circle elevation-2" width="256" height="256">
+                {assign var=profileAvatarPath value=$avatar_url|regex_replace:'#^/+#':''}
+                <img src="{$base_url}/{$profileAvatarPath|escape}" alt="{$user.firstname|escape} {$user.lastname|escape}" class="img-circle elevation-2" width="256" height="256">
             {else}
-                <img src="/assets/img/default_avatar.png" alt="{$user.firstname|escape} {$user.lastname|escape}" class="img-circle elevation-2" width="256" height="256">
+                <img src="{$base_url}/assets/img/default_avatar.png" alt="{$user.firstname|escape} {$user.lastname|escape}" class="img-circle elevation-2" width="256" height="256">
             {/if}
 
             <button class="profile__edit_user-info" type="button">Редактировать</button>

@@ -8,7 +8,7 @@
 			<div class="file-manager__breadcrumb" aria-label="Путь к папке">
 				{foreach $breadcrumb as $i => $crumb}
 					{if $i > 0}<span class="file-manager__separator" aria-hidden="true">/</span>{/if}
-					<a href="{if $crumb.id == 0}/files/{else}/files/folder/{$crumb.id}/{/if}"
+					<a href="{if $crumb.id == 0}{route_path name='files'}{else}{route_path name='files_folder' folderId=$crumb.id}{/if}"
 						class="file-manager__breadcrumb-item{if $i == count($breadcrumb) - 1} file-manager__breadcrumb-item--active{/if}"
 						{if $i == count($breadcrumb) - 1}aria-current="page"{/if}>
 						{$crumb.name}
@@ -83,15 +83,15 @@
 									<i class="fa {$icon}" aria-hidden="true"></i>
 								{/if}
 							</div>
-							<div class="file-manager__item-name">{$file.name}{if $file.type == 'file'}.{$file.extension}{/if}</div>
+							<div class="file-manager__item-name">{$file.name}{if $file.type != 'folder' && $file.extension}.{$file.extension}{/if}</div>
 							<div class="file-manager__item-meta">
-								{if $file.type == 'file'}
+								{if $file.type != 'folder'}
 									{if $file.size < 1024}
 										{$file.size} Б
 									{elseif $file.size < 1048576}
-										{$file.size|round:2|round:1} КБ
+										{($file.size / 1024)|round:1} КБ
 									{else}
-										{$file.size|round:6|round:1} МБ
+										{($file.size / 1048576)|round:1} МБ
 									{/if}
 								{else}
 									Папка
@@ -99,11 +99,11 @@
 							</div>
 							<div class="file-manager__item-actions">
 								{if $file.type == 'folder'}
-									<a href="/files/folder/{$file.id}/" class="file-manager__action-btn" title="Открыть" aria-label="Открыть {$file.name}">
+									<a href="{route_path name='files_folder' folderId=$file.id}" class="file-manager__action-btn" title="Открыть" aria-label="Открыть {$file.name}">
 										<i class="fa fa-folder-open-o" aria-hidden="true"></i>
 									</a>
 								{else}
-									<a href="/files/get/{$file.id}/" class="file-manager__action-btn" title="Открыть" aria-label="Открыть {$file.name}" target="_blank" rel="noopener">
+									<a href="{route_path name='files_get' fileId=$file.id}" class="file-manager__action-btn" title="Открыть" aria-label="Открыть {$file.name}" target="_blank" rel="noopener">
 										<i class="fa fa-eye" aria-hidden="true"></i>
 									</a>
 								{/if}
@@ -199,6 +199,6 @@
 			</div>
 		</div>
 	</div>
-	<script src="/assets/js/file_manager/script.js"></script>
-	<script src="/assets/js/file_manager/quota.js"></script>
+	<script src="{$base_url}/assets/js/file_manager/script.js"></script>
+	<script src="{$base_url}/assets/js/file_manager/quota.js"></script>
 {/block}

@@ -21,7 +21,7 @@ use App\Middlewares\CSRFMiddleware;
 class Controller
 {
     /**
-     * @var Smarty Экземпляр шаблонизатора
+     * @var Smarty Экземпляр Smarty
      */
     protected Smarty $smarty;
     
@@ -190,13 +190,15 @@ class Controller
     protected function render_template(string $template, ?array $data = null): void
     {
         $siteUrl = rtrim((string) getenv('SITEURL'), '/');
-        $basePath = trim((string) getenv('BASE_PATH'), '/');
-        $baseUrl = $siteUrl . ($basePath !== '' ? '/' . $basePath : '');
+        $basePathSegment = trim((string) getenv('BASE_PATH'), '/');
+        $basePath = $basePathSegment !== '' ? '/' . $basePathSegment : '';
+        $baseUrl = $siteUrl . $basePath;
         
-        // Назначаем базовые переменные для всех шаблонов. base_url никогда не
-        // заканчивается '/', поэтому шаблоны могут безопасно добавлять /assets,
-        // /profile и другие пути как для корня, так и для subdirectory install.
+        // Назначаем базовые переменные для всех шаблонов. base_url и base_path
+        // никогда не заканчиваются '/', поэтому HTML и JS могут безопасно
+        // строить пути как для корневой, так и для subdirectory установки.
         $this->smarty->assign('base_url', $baseUrl);
+        $this->smarty->assign('base_path', $basePath);
         $this->smarty->assign('sitename', getenv('SITENAME') ?: 'Workspace Organizer');
         $this->smarty->assign('version', \Core\Version::VERSION);
         $this->smarty->assign('product_name', \Core\Version::PRODUCT_NAME);

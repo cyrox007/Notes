@@ -6,6 +6,7 @@
         const app = window.wspace?.messenger;
         if (!app) return;
 
+        const appPath = (path) => window.wspace?.path ? window.wspace.path(path) : path;
         const el = {
             infoButton: document.getElementById('chat-group-button'),
             dialog: document.getElementById('group-info-dialog'),
@@ -38,7 +39,7 @@
 
         const groupAvatarUrl = (dialogUid, token) => {
             if (!dialogUid || !token) return '';
-            return `/messenger/group-avatar/${encodeURIComponent(dialogUid)}?v=${encodeURIComponent(String(token))}`;
+            return appPath(`/messenger/group-avatar/${encodeURIComponent(dialogUid)}?v=${encodeURIComponent(String(token))}`);
         };
 
         const renderProtectedAvatar = (element, title, dialogUid, token) => {

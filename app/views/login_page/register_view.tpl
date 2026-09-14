@@ -3,7 +3,7 @@
 {block name=body}
 <div class="register-page">
     <div class="register">
-        <a href="/" class="login-page__brand" aria-label="{$sitename}">
+        <a href="{route_path name='main'}" class="login-page__brand" aria-label="{$sitename}">
             <span class="login-page__brand-mark" aria-hidden="true">W</span>
             <span class="login-page__brand-copy">
                 <strong>{$sitename}</strong>

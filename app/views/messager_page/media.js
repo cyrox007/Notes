@@ -6,6 +6,7 @@
         const app = window.wspace?.messenger;
         if (!app) return;
 
+        const appPath = (path) => window.wspace?.path ? window.wspace.path(path) : path;
         const attachButton = document.getElementById('message-attach-button');
         const fileInput = document.getElementById('message-file-input');
         const uploadStatus = document.getElementById('messenger-upload-status');
@@ -19,8 +20,12 @@
         let dragDepth = 0;
 
         const safeMediaUrl = (value) => {
-            const url = String(value || '');
-            return /^\/messenger\/media\/[A-Za-z0-9-]+$/.test(url) ? url : '';
+            const raw = String(value || '');
+            const basePath = String(window.wspace?.basePath || '');
+            const route = basePath && (raw === basePath || raw.startsWith(basePath + '/'))
+                ? (raw.slice(basePath.length) || '/')
+                : raw;
+            return /^\/messenger\/media\/[A-Za-z0-9-]+$/.test(route) ? appPath(route) : '';
         };
 
         const formatBytes = (bytes) => {
@@ -140,7 +145,7 @@
             form.append('file', file, file.name || 'attachment');
 
             const xhr = new XMLHttpRequest();
-            xhr.open('POST', '/messenger/upload', true);
+            xhr.open('POST', appPath('/messenger/upload'), true);
             xhr.responseType = 'json';
             xhr.upload.addEventListener('progress', (event) => {
                 if (!event.lengthComputable) return;

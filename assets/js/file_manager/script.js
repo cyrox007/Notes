@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const root = document.querySelector('.file-manager');
     if (!root) return;
 
+    const appPath = (path) => window.wspace?.path ? window.wspace.path(path) : path;
     const btnCreateFolder = document.getElementById('btn-create-folder');
     const btnUploadFile = document.getElementById('btn-upload-file');
     const fileInput = document.getElementById('file-input');
@@ -66,7 +67,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function postForm(url, values) {
         const body = new URLSearchParams();
         Object.entries(values).forEach(([key, value]) => body.set(key, String(value)));
-        return fetch(url, {
+        return fetch(appPath(url), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -81,7 +82,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function fileUrl(id) {
-        return `/files/get/${encodeURIComponent(String(id))}/`;
+        return appPath(`/files/get/${encodeURIComponent(String(id))}/`);
     }
 
     async function createFolder() {
@@ -173,7 +174,7 @@ document.addEventListener('DOMContentLoaded', function () {
             showModal(modalUploadProgress);
 
             const xhr = new XMLHttpRequest();
-            xhr.open('POST', '/files/upload/', true);
+            xhr.open('POST', appPath('/files/upload/'), true);
             xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
 
             xhr.upload.onprogress = function (event) {
@@ -296,7 +297,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!id) return;
 
         if (type === 'folder') {
-            window.location.href = `/files/folder/${encodeURIComponent(id)}/`;
+            window.location.href = appPath(`/files/folder/${encodeURIComponent(id)}/`);
             return;
         }
         if (imageExtensions.has(extension) || audioExtensions.has(extension) || videoExtensions.has(extension)) {

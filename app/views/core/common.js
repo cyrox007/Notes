@@ -1,10 +1,28 @@
 {literal}
 const socketTicket = "{/literal}{$socket_ticket|default:''|escape:'javascript'}{literal}";
 const socketUrl = "{/literal}{$socket_url|default:''|escape:'javascript'}{literal}";
+const appBasePath = "{/literal}{$base_path|default:''|escape:'javascript'}{literal}";
 
 wspace.socketConfig = {
     ticket: socketTicket,
     url: socketUrl
+};
+
+wspace.basePath = appBasePath;
+wspace.path = function appPath(value = '/') {
+    const raw = String(value || '/');
+    if (/^[a-z][a-z0-9+.-]*:/i.test(raw) || raw.startsWith('//') || raw.startsWith('#')) {
+        return raw;
+    }
+
+    const normalized = '/' + raw.replace(/^\/+/, '');
+    if (!appBasePath) {
+        return normalized;
+    }
+    if (normalized === appBasePath || normalized.startsWith(appBasePath + '/')) {
+        return normalized;
+    }
+    return appBasePath + normalized;
 };
 
 (function bootstrapSecurity() {
@@ -23,6 +41,12 @@ wspace.socketConfig = {
         }
     }
 
+    function prefixAppPath(url) {
+        return typeof url === 'string' && url.startsWith('/') && !url.startsWith('//')
+            ? wspace.path(url)
+            : url;
+    }
+
     wspace.security = {
         csrfToken,
         getCSRFToken() {
@@ -33,10 +57,15 @@ wspace.socketConfig = {
     if (typeof window.fetch === 'function') {
         const nativeFetch = window.fetch.bind(window);
         window.fetch = function securedFetch(input, init = {}) {
+            let securedInput = input;
+            if (typeof input === 'string') {
+                securedInput = prefixAppPath(input);
+            }
+
             const requestMethod = String(
                 init.method || (typeof Request !== 'undefined' && input instanceof Request ? input.method : 'GET')
             ).toUpperCase();
-            const requestUrl = typeof Request !== 'undefined' && input instanceof Request ? input.url : String(input);
+            const requestUrl = typeof Request !== 'undefined' && input instanceof Request ? input.url : String(securedInput);
 
             if (csrfToken && unsafeMethods.has(requestMethod) && isSameOrigin(requestUrl)) {
                 const headers = new Headers(
@@ -48,7 +77,7 @@ wspace.socketConfig = {
                 init = Object.assign({}, init, { headers });
             }
 
-            return nativeFetch(input, init);
+            return nativeFetch(securedInput, init);
         };
     }
 
@@ -57,9 +86,10 @@ wspace.socketConfig = {
         const nativeSend = XMLHttpRequest.prototype.send;
 
         XMLHttpRequest.prototype.open = function securedOpen(method, url, ...args) {
+            const securedUrl = prefixAppPath(url);
             this.__wspaceMethod = String(method || 'GET').toUpperCase();
-            this.__wspaceUrl = String(url || '');
-            return nativeOpen.call(this, method, url, ...args);
+            this.__wspaceUrl = String(securedUrl || '');
+            return nativeOpen.call(this, method, securedUrl, ...args);
         };
 
         XMLHttpRequest.prototype.send = function securedSend(body) {

@@ -1,5 +1,5 @@
 <aside class="sidebar" id="workspaceSidebar" aria-label="Основная навигация">
-	<a href="/" class="sidebar__site-title" title="{$sitename}">
+	<a href="{route_path name='main'}" class="sidebar__site-title" title="{$sitename}">
 		<span class="sidebar__brand-mark" aria-hidden="true">W</span>
 		<span class="sidebar__brand-copy">
 			<strong>{$sitename}</strong>
@@ -12,9 +12,10 @@
 		<a href="{route_path name='profile'}" class="sidebar__user-panel" title="Открыть профиль">
 			<div class="sidebar__user-image">
 				{if !$userAvatar || $userAvatar == 'default_img'}
-					{html_image file="/assets/img/default_avatar.png" alt="{$user['firstname']} {$user['lastname']}"}
+					{html_image file="{$base_url}/assets/img/default_avatar.png" alt="{$user['firstname']} {$user['lastname']}"}
 				{else}
-					{html_image file="/{$userAvatar|regex_replace:'#/+#':'/'}" alt="{$user['firstname']} {$user['lastname']}"}
+					{assign var=userAvatarPath value=$userAvatar|regex_replace:'#^/+#':''}
+					{html_image file="{$base_url}/{$userAvatarPath}" alt="{$user['firstname']} {$user['lastname']}"}
 				{/if}
 			</div>
 			<div class="sidebar__user-info">
