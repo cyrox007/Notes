@@ -1,0 +1,52 @@
+name: Findability contract
+
+on:
+  push:
+    branches: [0.12-findability]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  list-query-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress
+
+      - name: Syntax and query contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l app/services/ListQuery.php
+          php -l app/controllers/NoteController.php
+          php -l app/controllers/TaskController.php
+          php -l app/controllers/Admin/AdminController.php
+          php -l app/services/AdminUserService.php
+          node --check assets/js/findability.js
+          php tests/integration/list_query_contract.php
+
+      - name: Bounded server-side list assertions
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq "SELECT COUNT(*) FROM notes" app/controllers/NoteController.php
+          grep -Fq "LIMIT ' . (int) \$query['limit']" app/controllers/NoteController.php
+          grep -Fq "SELECT COUNT(*) FROM tasks" app/controllers/TaskController.php
+          grep -Fq "LIMIT ' . (int) \$query['limit']" app/controllers/TaskController.php
+          grep -Fq 'public function searchUsers' app/services/AdminUserService.php
+          grep -Fq "' LIMIT ' . \$limit . ' OFFSET ' . \$offset" app/services/AdminUserService.php
+          grep -Fq 'data-list-total-pages' app/views/core/base.tpl

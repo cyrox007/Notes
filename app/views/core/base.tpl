@@ -15,6 +15,7 @@
 		{include file='styles.css'}
 	</style>
 	<link rel="stylesheet" href="{$base_url}/assets/font-awesome/css/font-awesome.min.css">
+	<link rel="stylesheet" href="{$base_url}/assets/css/findability.css">
 	<link rel="stylesheet" href="{$base_url}/assets/css/feedback.css">
 	<link rel="icon" href="{$base_url}/favicon.ico" type="image/x-icon">
 	<template id="csrf-token-template">{csrf_token}</template>
@@ -22,12 +23,21 @@
 		wspace = {};
 		{include file="core/common.js"}
 	</script>
+	<script src="{$base_url}/assets/js/findability.js" defer></script>
 	<script src="{$base_url}/assets/js/feedback.js" defer></script>
 	<script src="{$base_url}/assets/js/notes-draft.js" defer></script>
 	<script src="{$base_url}/assets/js/usability-actions.js" defer></script>
 </head>
 
-<body>
+<body{if isset($pagination)}
+	data-list-q="{$pagination.q|default:''|escape}"
+	data-list-page="{$pagination.page|default:1|escape}"
+	data-list-limit="{$pagination.limit|default:20|escape}"
+	data-list-total="{$pagination.total|default:0|escape}"
+	data-list-total-pages="{$pagination.total_pages|default:1|escape}"
+	data-list-sort="{$pagination.sort|default:''|escape}"
+	data-list-direction="{$pagination.direction|default:'desc'|escape}"
+	data-list-filter="{$pagination.filter|default:''|escape}"{/if}>
 	<a class="skip-link" href="#main-content">Перейти к содержимому</a>
 	<div class="wrapper">
 		{include file='^shared/sidebar/index.tpl'}

@@ -7,6 +7,7 @@ namespace App\Controllers\Admin;
 use App\Models\FieldModel;
 use App\Models\UserModel;
 use App\Services\AdminUserService;
+use App\Services\ListQuery;
 use Core\Controller;
 use Core\DatabaseManager;
 use Core\Request;
@@ -19,6 +20,14 @@ final class AdminController extends Controller
 {
     private const FIELD_TYPES = ['text', 'textarea', 'number', 'date', 'select', 'checkbox'];
     private const MAX_CUSTOM_FIELDS = 50;
+    /** @var array<string,string> */
+    private const USER_SORT_COLUMNS = [
+        'id' => 'id',
+        'username' => 'username',
+        'email' => 'email',
+        'created_at' => 'created_at',
+        'role' => 'role',
+    ];
 
     public function index(Request $request): void
     {
@@ -29,8 +38,16 @@ final class AdminController extends Controller
             return;
         }
 
+        $query = ListQuery::fromRequest($request, self::USER_SORT_COLUMNS, 'id');
         try {
-            $users = (new AdminUserService())->listUsers($actorId);
+            $result = (new AdminUserService())->searchUsers(
+                $actorId,
+                $query['q'],
+                $query['sort'],
+                $query['direction'],
+                $query['limit'],
+                $query['offset']
+            );
         } catch (DomainException $e) {
             http_response_code($this->exceptionStatus($e, 403));
             return;
@@ -42,7 +59,8 @@ final class AdminController extends Controller
         $this->render_template('admin-page/index', [
             'user' => $user,
             'customFields' => FieldModel::select()->orderBy('id', 'ASC')->get(),
-            'users' => $users,
+            'users' => $result['items'],
+            'pagination' => ListQuery::pagination($query, (int) $result['total']),
             'admin_flash' => is_array($flash) ? $flash : null,
         ]);
     }
