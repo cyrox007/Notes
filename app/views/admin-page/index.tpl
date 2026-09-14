@@ -99,11 +99,11 @@
                             <button type="button" class="remove-field admin-action admin-action--danger" aria-label="Удалить поле {$field.field_label|escape}"><i class="fa fa-trash" aria-hidden="true"></i> Удалить</button>
                         </div>
                     </div>
-                {foreachelse}<div class="custom-fields-empty">Дополнительных полей пока нет.</div>{/foreach}
+                {/foreach}
             </div>
             <div class="custom-fields-form__footer"><small>Удаление поля из списка удаляет его определение после сохранения, но не выполняет физическое удаление аккаунтов пользователей.</small><button type="submit" class="admin-action admin-action--primary"><i class="fa fa-save" aria-hidden="true"></i> Сохранить поля</button></div>
         </form>
     </section>
 </section>
-<script src="/assets/js/admin-page.js"></script>
+<script src="{$base_url}/assets/js/admin-page.js"></script>
 {/block}
