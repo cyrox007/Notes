@@ -73,6 +73,15 @@ try {
     throw new Error(`Tasks sort form escaped BASE_PATH: ${sortAction}`);
   }
 
+  const board = page.locator('.tasks-board');
+  await board.waitFor({ state: 'visible', timeout: 5000 });
+  if (await board.locator('.tasks-board__column').count() !== 4) {
+    throw new Error('Kanban board must render four status columns');
+  }
+  if ((await page.locator('.tasks-view-switch__button.active').textContent())?.trim() !== 'Доска') {
+    throw new Error('Kanban board is not the default Tasks view');
+  }
+
   const stamp = Date.now();
   const title = `Tasks lifecycle ${stamp}`;
   const updatedTitle = `${title} updated`;
@@ -91,6 +100,9 @@ try {
   await task.waitFor({ state: 'visible', timeout: 10000 });
   const taskUid = await task.getAttribute('data-task-id');
   if (!taskUid) throw new Error('Created task has no data-task-id');
+  if ((await task.locator('xpath=..').getAttribute('data-status')) !== 'pending') {
+    throw new Error('New task was not placed in the pending kanban column');
+  }
 
   await task.locator('.edit-task').click();
   const editPanel = task.locator('.task-edit-panel');
@@ -108,8 +120,10 @@ try {
   if ((await task.locator('.task-status-toggle').inputValue()) !== 'in_progress') {
     throw new Error('Edited task status did not persist');
   }
+  if ((await task.locator('xpath=..').getAttribute('data-status')) !== 'in_progress') {
+    throw new Error('Edited task was not rendered in the in-progress kanban column');
+  }
 
-  // Shared prompt UI adds the subtask without a full-page navigation.
   await task.locator('.add-subtask-btn').click();
   await answerWorkspaceDialog(page, { value: subtaskTitle, button: 'Добавить' });
 
@@ -130,17 +144,46 @@ try {
   if (!(await subtask.locator('.subtask-toggle').isChecked())) throw new Error('Subtask completion did not persist');
 
   task = page.locator(`.task-item[data-task-id="${taskUid}"]`);
-  await task.locator('.task-status-toggle').selectOption('completed');
+  const dragHandle = task.locator('.tasks-board__drag-handle');
+  await dragHandle.waitFor({ state: 'visible', timeout: 5000 });
+  const completedDropzone = page.locator('.tasks-board__dropzone[data-status="completed"]');
+  await completedDropzone.waitFor({ state: 'visible', timeout: 5000 });
+
+  // Playwright dragTo does not consistently preserve an HTML5 DataTransfer in
+  // headless Chromium. Dispatch the browser's native DragEvent sequence with one
+  // DataTransfer object so the product dragstart/drop handlers are exercised.
+  await page.evaluate((uid) => {
+    const item = document.querySelector(`.task-item[data-task-id="${uid}"]`);
+    const handle = item?.querySelector('.tasks-board__drag-handle');
+    const target = document.querySelector('.tasks-board__dropzone[data-status="completed"]');
+    if (!item || !handle || !target) throw new Error('Kanban drag elements not found');
+    const transfer = new DataTransfer();
+    handle.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+    target.dispatchEvent(new DragEvent('dragenter', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+    target.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+    target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+    handle.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+  }, taskUid);
+
   await page.waitForFunction(
     (uid) => {
       const item = document.querySelector(`.task-item[data-task-id="${uid}"]`);
-      return item?.querySelector('.task-status-toggle')?.value === 'completed'
+      return item?.parentElement?.dataset.status === 'completed'
+        && item?.querySelector('.task-status-toggle')?.value === 'completed'
         && item?.querySelector('.task-complete-toggle')?.checked === true;
     },
     taskUid,
     { timeout: 10000 }
   );
-  if (page.url() !== inlineUrl) throw new Error('Task status update unexpectedly navigated the page');
+  if (page.url() !== inlineUrl) throw new Error('Kanban drag unexpectedly navigated the page');
+
+  await page.getByRole('button', { name: /Список/ }).click();
+  await page.locator('.tasks__list').waitFor({ state: 'visible', timeout: 5000 });
+  await page.locator(`.tasks__list .task-item[data-task-id="${taskUid}"]`).waitFor({ state: 'visible', timeout: 5000 });
+  await page.getByRole('button', { name: /Доска/ }).click();
+  await page.locator('.tasks-board').waitFor({ state: 'visible', timeout: 5000 });
+  await page.locator(`.tasks-board__dropzone[data-status="completed"] .task-item[data-task-id="${taskUid}"]`)
+    .waitFor({ state: 'visible', timeout: 5000 });
 
   await page.locator('.tasks__sort-form select[name="sort"]').selectOption('title');
   await page.locator('.tasks__sort-form select[name="direction"]').selectOption('asc');
@@ -150,7 +193,6 @@ try {
   ]);
   await page.locator(`.task-item[data-task-id="${taskUid}"]`).waitFor({ state: 'visible', timeout: 10000 });
 
-  // Shared confirmation replaces native confirm; accepted form still performs the normal POST redirect.
   task = page.locator(`.task-item[data-task-id="${taskUid}"]`);
   await task.locator('.delete-task').click();
   const deleteNavigation = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 });
@@ -164,7 +206,7 @@ try {
   if (escapedRequests.length) throw new Error(`Requests escaped BASE_PATH: ${[...new Set(escapedRequests)].join(', ')}`);
   if (unexpectedHttpErrors.length) throw new Error(`Unexpected HTTP errors: ${unexpectedHttpErrors.join(', ')}`);
 
-  console.log(`Tasks lifecycle browser flow: OK (${taskUid})`);
+  console.log(`Tasks kanban lifecycle browser flow: OK (${taskUid})`);
   await context.close();
 } finally {
   await browser.close();

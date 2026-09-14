@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS `tasks` (
     `due_date` DATETIME DEFAULT NULL,
     `completed_at` DATETIME DEFAULT NULL,
     `is_deleted` TINYINT(1) NOT NULL DEFAULT 0,
+    `is_profile_public` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Явно опубликовано владельцем в публичном профиле',
     `deleted_at` DATETIME DEFAULT NULL,
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -23,6 +24,7 @@ CREATE TABLE IF NOT EXISTS `tasks` (
     KEY `idx_tasks_user_active` (`user_id`, `is_deleted`, `created_at`),
     KEY `idx_tasks_user_status` (`user_id`, `is_deleted`, `status`),
     KEY `idx_tasks_user_due` (`user_id`, `is_deleted`, `due_date`),
+    KEY `idx_tasks_profile_public` (`user_id`, `is_profile_public`, `is_deleted`, `updated_at`),
     CONSTRAINT `fk_tasks_user`
         FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

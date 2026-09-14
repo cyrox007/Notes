@@ -3,7 +3,19 @@
     {$user.firstname|escape} {$user.lastname|escape}
 {/block}
 {block name=body}
-<section class="profile">
+<section class="profile profile--hub">
+    <header class="profile__hub-heading">
+        <div>
+            <span class="ux-kicker">Мой workspace</span>
+            <h1>{$user.firstname|escape} {$user.lastname|escape}</h1>
+            <p>Профиль, быстрый доступ к рабочим разделам и настройки аккаунта.</p>
+        </div>
+        <a class="profile__public-preview" href="{route_path name='profile-public' uid=$user.uid}">
+            <i class="fa fa-eye" aria-hidden="true"></i>
+            Посмотреть как другой пользователь
+        </a>
+    </header>
+
     {if !empty($errors)}
         <div class="profile__errors" role="alert">
             {foreach $errors as $error}
@@ -14,6 +26,7 @@
 
     <div class="profile__column-left">
         <div class="profile__card-avatar">
+            <span class="ux-kicker">Аккаунт</span>
             <p class="profile__user-login">@{$user.username|escape}</p>
 
             {if $avatar_url}
@@ -23,7 +36,10 @@
                 <img src="{$base_url}/assets/img/default_avatar.png" alt="{$user.firstname|escape} {$user.lastname|escape}" class="img-circle elevation-2" width="256" height="256">
             {/if}
 
-            <button class="profile__edit_user-info" type="button">Редактировать</button>
+            <button class="profile__edit_user-info" type="button">
+                <i class="fa fa-pencil" aria-hidden="true"></i>
+                Редактировать профиль
+            </button>
 
             {if $avatar_url}
                 <form class="profile__avatar-delete" action="{route_path name='profile-avatar-delete'}" method="post" onsubmit="return confirm('Удалить фото профиля?');">
@@ -35,28 +51,62 @@
     </div>
 
     <div class="profile__column-right">
+        <nav class="profile__workspace-links" aria-label="Мои разделы">
+            <a class="profile__workspace-link profile__workspace-link--notes" href="{route_path name='notes'}">
+                <span class="profile__workspace-icon"><i class="fa fa-sticky-note-o" aria-hidden="true"></i></span>
+                <span>
+                    <strong>Мои заметки</strong>
+                    <small>Идеи, записи, вложения и общий доступ</small>
+                </span>
+                <i class="fa fa-angle-right" aria-hidden="true"></i>
+            </a>
+            <a class="profile__workspace-link profile__workspace-link--tasks" href="{route_path name='tasks'}">
+                <span class="profile__workspace-icon"><i class="fa fa-check-square-o" aria-hidden="true"></i></span>
+                <span>
+                    <strong>Мои задачи</strong>
+                    <small>Планы, дедлайны и подзадачи</small>
+                </span>
+                <i class="fa fa-angle-right" aria-hidden="true"></i>
+            </a>
+            <a class="profile__workspace-link profile__workspace-link--files" href="{route_path name='files'}">
+                <span class="profile__workspace-icon"><i class="fa fa-folder-open-o" aria-hidden="true"></i></span>
+                <span>
+                    <strong>Мои файлы</strong>
+                    <small>Приватное хранилище и загрузки</small>
+                </span>
+                <i class="fa fa-angle-right" aria-hidden="true"></i>
+            </a>
+        </nav>
+
+        {include file="profile_page/publication.tpl"}
+
         <div class="profile__card-info">
             <div class="profile__card-info--data visible">
-                <div class="profile__user-fio">
-                    {$user.firstname|escape} {$user.lastname|escape}
+                <div class="profile__info-heading">
+                    <span class="ux-kicker">Профиль</span>
+                    <div class="profile__user-fio">
+                        {$user.firstname|escape} {$user.lastname|escape}
+                    </div>
                 </div>
 
                 {if $user.phone}
                     <div class="profile__user-other-info">
-                        <p class="profile__user-detals">Телефон: {$user.phone|escape}</p>
+                        <span class="profile__detail-label">Телефон</span>
+                        <p class="profile__user-detals">{$user.phone|escape}</p>
                     </div>
                 {/if}
                 <div class="profile__user-other-info">
-                    <p class="profile__user-detals">Email: {$user.email|escape}</p>
+                    <span class="profile__detail-label">Email</span>
+                    <p class="profile__user-detals">{$user.email|escape}</p>
                 </div>
 
-                <hr>
                 {assign var="customData" value=[]}
                 {if !empty($user.property)}
                     {jsonParse json=$user.property assign="customData"}
                     {foreach $customData as $props}
                         <div class="profile__user-other-info">
-                            <p class="profile__user-detals">{$props.label|escape}: {$props.value|escape}</p>
+                            <span class="profile__detail-label">{$props.label|escape}</span>
+                            <p class="profile__user-detals">{$props.value|escape}</p>
                         </div>
                     {/foreach}
                 {/if}

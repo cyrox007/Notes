@@ -31,6 +31,7 @@
 	<script src="{$base_url}/assets/js/release-polish.js" defer></script>
 	<script src="{$base_url}/assets/js/file-manager-polish.js" defer></script>
 	<script src="{$base_url}/assets/js/file-manager-drop-upload.js" defer></script>
+	<script src="{$base_url}/assets/js/tasks-kanban.js" defer></script>
 </head>
 
 <body{if isset($pagination)}

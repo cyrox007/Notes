@@ -1,0 +1,51 @@
+name: Profile publication contract
+
+on:
+  push:
+    branches: [0.13-public-profile-content]
+  pull_request:
+    branches: [0.13-profile-hub]
+
+permissions:
+  contents: read
+
+jobs:
+  profile-publication-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Verify publication schema and upgrade manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l bin/migrate.php
+          php -l app/services/ProfilePublicationService.php
+          php -l app/controllers/ProfileController.php
+          php -l app/controllers/PublicProfileController.php
+          grep -Fq "20260914_profile_publication.sql" bin/migrate.php
+          grep -Fq "'notes' => ['is_profile_public']" bin/migrate.php
+          grep -Fq "'tasks' => ['is_profile_public']" bin/migrate.php
+          grep -Fq "'user_files' => ['is_profile_public']" bin/migrate.php
+          grep -Fq 'is_profile_public' database/notes_schema.sql
+          grep -Fq 'is_profile_public' database/tasks_schema.sql
+          grep -Fq 'is_profile_public' database/file_manager_schema.sql
+          grep -Fq 'workspace_add_profile_publication' database/migrations/20260914_profile_publication.sql
+
+      - name: Verify privacy boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'is_profile_public = 1' app/services/ProfilePublicationService.php
+          grep -Fq 'user_id = :user_id' app/services/ProfilePublicationService.php
+          ! grep -Fq 'share_token' app/services/ProfilePublicationService.php
+          ! grep -Fq 'file_path' app/views/profile_page/public.tpl
+          ! grep -Fq 'share_token' app/views/profile_page/public.tpl
