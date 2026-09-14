@@ -3,6 +3,8 @@ name: File Manager HTTP integrity
 on:
   pull_request:
     branches: [master]
+  push:
+    branches: [usable-baseline-0.12-phase3]
 
 permissions:
   contents: read
