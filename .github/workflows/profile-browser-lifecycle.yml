@@ -1,0 +1,227 @@
+name: Profile browser lifecycle
+
+on:
+  push:
+    branches: [usable-baseline-0.12-phase7]
+  pull_request:
+    branches: [master, usable-baseline-0.12-phase6]
+
+permissions:
+  contents: read
+
+jobs:
+  profile-browser-lifecycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: profile_browser_lifecycle
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress
+
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Syntax contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l app/controllers/ProfileController.php
+          php -l app/services/UserAvatarService.php
+          php -l tests/e2e/router.php
+          node --check tests/e2e/profile-lifecycle.mjs
+          grep -Fq "route_path name='profile-set'" app/views/profile_page/index.tpl
+          grep -Fq "route_path name='profile-avatar-delete'" app/views/profile_page/index.tpl
+          ! grep -Fq 'src="/profile/avatar/' app/views/profile_page/index.tpl
+          ! grep -Fq 'src="/assets/img/default_avatar.png' app/views/profile_page/index.tpl
+
+      - name: Prepare canonical database
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot profile_browser_lifecycle < database/messenger_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot profile_browser_lifecycle < database/notes_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot profile_browser_lifecycle < database/file_manager_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot profile_browser_lifecycle < database/user_fields_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot profile_browser_lifecycle < database/tasks_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot profile_browser_lifecycle < database/settings_schema.sql
+
+      - name: Seed browser user, avatar fixture and environment
+        shell: bash
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: profile_browser_lifecycle
+        run: |
+          set -euo pipefail
+          TEST_PASSWORD="$(php -r 'echo bin2hex(random_bytes(18));')"
+          APP_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
+          MESSAGE_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
+          TICKET_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
+          echo "::add-mask::$TEST_PASSWORD"
+          echo "::add-mask::$APP_KEY"
+          echo "::add-mask::$MESSAGE_KEY"
+          echo "::add-mask::$TICKET_KEY"
+          export TEST_PASSWORD
+
+          php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          $pdo = new PDO(
+              sprintf('mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4', getenv('DBHOST'), getenv('DBPORT'), getenv('DBNAME')),
+              getenv('DBUSER'),
+              getenv('DBPASS'),
+              [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+          );
+          $stmt = $pdo->prepare(
+              'INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active,created_at,updated_at) '
+              . 'VALUES (:uid,:username,:email,:password_hash,:firstname,:lastname,888,1,NOW(),NOW())'
+          );
+          $stmt->execute([
+              ':uid' => 'ba5e0000-0000-4000-8000-000000000017',
+              ':username' => 'profile-lifecycle-user',
+              ':email' => 'profile-lifecycle@example.test',
+              ':password_hash' => password_hash((string) getenv('TEST_PASSWORD'), PASSWORD_ARGON2ID),
+              ':firstname' => 'Profile',
+              ':lastname' => 'Lifecycle',
+          ]);
+
+          $image = imagecreatetruecolor(32, 32);
+          imagefill($image, 0, 0, imagecolorallocate($image, 48, 112, 196));
+          imagepng($image, '/tmp/profile-browser-avatar.png');
+          imagedestroy($image);
+          PHP
+
+          rm -rf /tmp/workspace-profile-browser
+          mkdir -p /tmp/workspace-profile-browser/logs compile cache
+          chmod 700 /tmp/workspace-profile-browser /tmp/workspace-profile-browser/logs
+          rm -f /tmp/workspace-organizer-startup.log
+
+          cat > .env <<ENV
+          DBDRIVER=mysql
+          DBHOST=127.0.0.1
+          DBPORT=3306
+          DBUSER=root
+          DBPASS=root
+          DBNAME=profile_browser_lifecycle
+          UNIQUE_KEY=${APP_KEY}
+          MSG_SECRET_KEY=${MESSAGE_KEY}
+          WS_TICKET_SECRET=${TICKET_KEY}
+          PRIVATE_STORAGE_PATH=/tmp/workspace-profile-browser
+          RATE_LIMIT_STORAGE_PATH=/tmp/workspace-profile-browser/rate-limit
+          SITEURL=http://127.0.0.1:18092
+          BASE_PATH=/workspace/
+          WS_HOST=127.0.0.1
+          WS_PORT=27805
+          WS_PUBLIC_URL=ws://127.0.0.1:27805/workspace/ws
+          WS_ALLOWED_ORIGINS=http://127.0.0.1:18092
+          AUTH_RATE_LIMIT_ATTEMPTS=50
+          AUTH_RATE_LIMIT_WINDOW_SECONDS=60
+          UPLOAD_RATE_LIMIT_ATTEMPTS=100
+          UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60
+          PROFILE_AVATAR_MAX_SIZE=2097152
+          LOG_LEVEL=INFO
+          LOG_FILE=/tmp/workspace-profile-browser/logs/app.log
+          CSRF_ENABLED=true
+          ENV
+          chmod 600 .env
+
+          printf 'E2E_USER=%s\n' 'profile-lifecycle-user' >> "$GITHUB_ENV"
+          printf 'E2E_PASSWORD=%s\n' "$TEST_PASSWORD" >> "$GITHUB_ENV"
+          printf 'E2E_AVATAR_PATH=%s\n' '/tmp/profile-browser-avatar.png' >> "$GITHUB_ENV"
+
+      - name: Start subdirectory application
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > /tmp/workspace-profile-browser-http.log
+          PHP_CLI_SERVER_WORKERS=4 php -S 127.0.0.1:18092 tests/e2e/router.php >/tmp/workspace-profile-browser-http.log 2>&1 &
+          echo $! >/tmp/workspace-profile-browser-http.pid
+          READY=0
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:18092/workspace/auth/login/ >/dev/null; then
+              READY=1
+              break
+            fi
+            sleep 0.25
+          done
+          if [[ "$READY" != '1' ]]; then
+            cat /tmp/workspace-profile-browser-http.log >&2
+            exit 1
+          fi
+
+      - name: Run Profile lifecycle in Chromium
+        shell: bash
+        env:
+          E2E_ORIGIN: http://127.0.0.1:18092
+          E2E_BASE_PATH: /workspace
+        run: node tests/e2e/profile-lifecycle.mjs
+
+      - name: Verify durable Profile lifecycle state
+        shell: bash
+        run: |
+          set -euo pipefail
+          USER_ID="$(mysql -N -B -h 127.0.0.1 -uroot -proot profile_browser_lifecycle -e "SELECT id FROM users WHERE username='profile-lifecycle-user'")"
+          test -n "$USER_ID"
+          ROW="$(mysql -N -B -h 127.0.0.1 -uroot -proot profile_browser_lifecycle -e "SELECT CONCAT(firstname,'|',IFNULL(patronymic,''),'|',lastname,'|',IFNULL(phone,''),'|',email,'|',IFNULL(avatar,'NULL'),'|',is_active) FROM users WHERE id=${USER_ID}")"
+          echo "$ROW" | grep -Eq '^Browser[0-9]{6}\|Lifecycle\|Profile\|\+37061234567\|profile-[0-9]+@example\.test\|NULL\|1$'
+          test ! -f "/tmp/workspace-profile-browser/users/${USER_ID}/avatar/avatar.jpg"
+
+      - name: Verify clean PHP runtime log
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -E 'PHP (Warning|Fatal error|Parse error)|Uncaught ' /tmp/workspace-profile-browser-http.log /tmp/workspace-organizer-startup.log 2>/dev/null; then
+            echo 'PHP runtime warning/fatal detected during Profile browser lifecycle' >&2
+            exit 1
+          fi
+
+      - name: Logs on failure
+        if: failure()
+        shell: bash
+        run: |
+          echo '--- PHP server ---'
+          cat /tmp/workspace-profile-browser-http.log || true
+          echo '--- PHP startup/application errors ---'
+          cat /tmp/workspace-organizer-startup.log || true
+          echo '--- application log ---'
+          cat /tmp/workspace-profile-browser/logs/app.log || true
+
+      - name: Stop local server
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f /tmp/workspace-profile-browser-http.pid ]]; then
+            PID="$(cat /tmp/workspace-profile-browser-http.pid)"
+            pkill -TERM -P "$PID" >/dev/null 2>&1 || true
+            kill "$PID" >/dev/null 2>&1 || true
+          fi
