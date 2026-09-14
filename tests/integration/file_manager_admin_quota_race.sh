@@ -28,7 +28,7 @@ cleanup() {
     kill "$SERVER_PID" 2>/dev/null || true
     wait "$SERVER_PID" 2>/dev/null || true
   fi
-  "${mysql_cmd[@]}" -e 'DROP TRIGGER IF EXISTS ci_upload_first_sleep; DROP TRIGGER IF EXISTS ci_admin_first_sleep; DROP TABLE IF EXISTS ci_race_probe;' >/dev/null 2>&1 || true
+  "${mysql_cmd[@]}" -e 'DROP TRIGGER IF EXISTS ci_upload_first_sleep; DROP TRIGGER IF EXISTS ci_admin_first_sleep;' >/dev/null 2>&1 || true
   if [[ -n "$ENV_BACKUP" && -f "$ENV_BACKUP" ]]; then
     mv "$ENV_BACKUP" .env
   else
@@ -93,15 +93,11 @@ SET @uid=(SELECT id FROM users WHERE username='${USER_NAME}');
 INSERT INTO user_storage_quotas (user_id,quota_bytes)
 VALUES (@uid,${START_QUOTA})
 ON DUPLICATE KEY UPDATE quota_bytes=VALUES(quota_bytes);
-CREATE TABLE IF NOT EXISTS ci_race_probe (
-  marker VARCHAR(64) PRIMARY KEY,
-  touched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) ENGINE=InnoDB;
-DELETE FROM ci_race_probe;
 SQL
 
 USER_ID="$("${mysql_cmd[@]}" -N -e "SELECT id FROM users WHERE username='${USER_NAME}'")"
 test -n "$USER_ID"
+LOCK_NAME="workspace-storage-quota-user-${USER_ID}"
 USER_DIR="${PRIVATE_ROOT}/file_manager/${USER_ID}/files"
 printf 'AAAA' > /tmp/file-race-a.txt
 printf 'BBBB' > /tmp/file-race-b.txt
@@ -177,15 +173,14 @@ update_quota() {
     "${BASE_URL}/admin/settings/user-quota"
 }
 
-wait_for_probe() {
-  local marker="$1"
-  for _ in {1..80}; do
-    if [[ "$("${mysql_cmd[@]}" -N -e "SELECT COUNT(*) FROM ci_race_probe WHERE marker='${marker}'")" = '1' ]]; then
+wait_for_storage_lock() {
+  for _ in {1..100}; do
+    if [[ "$("${mysql_cmd[@]}" -N -e "SELECT IS_USED_LOCK('${LOCK_NAME}') IS NOT NULL")" = '1' ]]; then
       return 0
     fi
-    sleep 0.05
+    sleep 0.04
   done
-  echo "race probe did not appear: ${marker}" >&2
+  echo "storage advisory lock did not become active: ${LOCK_NAME}" >&2
   return 1
 }
 
@@ -195,7 +190,7 @@ USER_TOKEN="$(cat /tmp/file-race-user.token)"
 ADMIN_TOKEN="$(cat /tmp/file-race-admin.token)"
 
 checkpoint 'upload-first: admin quota update waits for active upload lock'
-"${mysql_cmd[@]}" -e "DELETE FROM user_files WHERE user_id=${USER_ID}; DELETE FROM ci_race_probe; UPDATE user_storage_quotas SET quota_bytes=${START_QUOTA} WHERE user_id=${USER_ID};"
+"${mysql_cmd[@]}" -e "DELETE FROM user_files WHERE user_id=${USER_ID}; UPDATE user_storage_quotas SET quota_bytes=${START_QUOTA} WHERE user_id=${USER_ID};"
 rm -rf "$USER_DIR"
 "${mysql_cmd[@]}" -e "INSERT INTO user_files (uid,user_id,parent_id,name,type,mime_type,size,path,extension,is_deleted) VALUES ('race-filler-a',${USER_ID},NULL,'race-filler-a','file','application/octet-stream',${MIN_QUOTA},NULL,'bin',0);"
 "${mysql_cmd[@]}" <<'SQL'
@@ -206,8 +201,6 @@ BEFORE INSERT ON user_files
 FOR EACH ROW
 BEGIN
   IF NEW.name = 'admin-race-upload-first' THEN
-    INSERT INTO ci_race_probe(marker) VALUES ('upload-first')
-      ON DUPLICATE KEY UPDATE touched_at = CURRENT_TIMESTAMP;
     DO SLEEP(2);
   END IF;
 END//
@@ -219,7 +212,7 @@ SQL
   printf '%s' "$code" > /tmp/file-race-upload-first.code
 ) &
 UPLOAD_PID=$!
-wait_for_probe 'upload-first'
+wait_for_storage_lock
 ADMIN_START="$(date +%s%3N)"
 ADMIN_STATUS="$(update_quota /tmp/file-race-admin.cookie "$ADMIN_TOKEN" /tmp/file-race-admin-first.body)"
 ADMIN_END="$(date +%s%3N)"
@@ -237,7 +230,7 @@ fi
 "${mysql_cmd[@]}" -e 'DROP TRIGGER IF EXISTS ci_upload_first_sleep'
 
 checkpoint 'admin-first: upload waits, then observes lowered quota and is rejected'
-"${mysql_cmd[@]}" -e "DELETE FROM user_files WHERE user_id=${USER_ID}; DELETE FROM ci_race_probe; UPDATE user_storage_quotas SET quota_bytes=${START_QUOTA} WHERE user_id=${USER_ID};"
+"${mysql_cmd[@]}" -e "DELETE FROM user_files WHERE user_id=${USER_ID}; UPDATE user_storage_quotas SET quota_bytes=${START_QUOTA} WHERE user_id=${USER_ID};"
 rm -rf "$USER_DIR"
 "${mysql_cmd[@]}" -e "INSERT INTO user_files (uid,user_id,parent_id,name,type,mime_type,size,path,extension,is_deleted) VALUES ('race-filler-b',${USER_ID},NULL,'race-filler-b','file','application/octet-stream',$((MIN_QUOTA - 2)),NULL,'bin',0);"
 "${mysql_cmd[@]}" <<'SQL'
@@ -248,8 +241,6 @@ BEFORE UPDATE ON user_storage_quotas
 FOR EACH ROW
 BEGIN
   IF NEW.quota_bytes = 10485760 THEN
-    INSERT INTO ci_race_probe(marker) VALUES ('admin-first')
-      ON DUPLICATE KEY UPDATE touched_at = CURRENT_TIMESTAMP;
     DO SLEEP(2);
   END IF;
 END//
@@ -261,11 +252,18 @@ SQL
   printf '%s' "$code" > /tmp/file-race-admin-second.code
 ) &
 ADMIN_PID=$!
-wait_for_probe 'admin-first'
+wait_for_storage_lock
+UPLOAD_START="$(date +%s%3N)"
 UPLOAD_SECOND_STATUS="$(upload_file /tmp/file-race-user.cookie "$USER_TOKEN" /tmp/file-race-b.txt admin-race-upload-second.txt /tmp/file-race-upload-second.body)"
+UPLOAD_END="$(date +%s%3N)"
 wait "$ADMIN_PID"
 ADMIN_SECOND_STATUS="$(cat /tmp/file-race-admin-second.code)"
 [[ "$ADMIN_SECOND_STATUS" = '302' ]]
+UPLOAD_WAIT_MS=$((UPLOAD_END - UPLOAD_START))
+if (( UPLOAD_WAIT_MS < 1000 )); then
+  echo "upload did not wait for admin quota lock (${UPLOAD_WAIT_MS}ms)" >&2
+  exit 1
+fi
 if [[ "$UPLOAD_SECOND_STATUS" != '413' ]]; then
   echo "upload after in-flight quota reduction returned HTTP ${UPLOAD_SECOND_STATUS}" >&2
   cat /tmp/file-race-upload-second.body >&2 || true
