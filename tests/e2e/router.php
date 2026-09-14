@@ -12,10 +12,10 @@ if ($basePath !== '' && ($path === $basePath || str_starts_with($path, $basePath
     $publicPath = substr($path, strlen($basePath)) ?: '/';
 }
 
-// Let the PHP development server return existing public assets directly. Never
-// resolve dot-segments or paths outside the repository root. For subdirectory
-// installs only strip BASE_PATH for physical asset lookup; the original request
-// URI is preserved for the application Router below.
+// Let the PHP development server return existing root-install assets directly.
+// For subdirectory installs the physical file does not live under /workspace,
+// so the router streams the validated repository file itself. Never resolve
+// dot-segments or paths outside the repository root.
 if ($publicPath !== '/' && !str_contains($publicPath, "\0") && !str_contains($publicPath, '..')) {
     $candidate = realpath($root . $publicPath);
     $realRoot = realpath($root);
@@ -25,7 +25,20 @@ if ($publicPath !== '/' && !str_contains($publicPath, "\0") && !str_contains($pu
         && str_starts_with($candidate, rtrim($realRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)
         && is_file($candidate)
     ) {
-        return false;
+        if ($publicPath === $path) {
+            return false;
+        }
+
+        $mime = function_exists('mime_content_type') ? mime_content_type($candidate) : false;
+        if (is_string($mime) && $mime !== '') {
+            header('Content-Type: ' . $mime);
+        }
+        $size = filesize($candidate);
+        if ($size !== false) {
+            header('Content-Length: ' . $size);
+        }
+        readfile($candidate);
+        return true;
     }
 }
 
