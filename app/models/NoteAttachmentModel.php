@@ -30,7 +30,9 @@ class NoteAttachmentModel extends ORM {
     public ?NoteModel $note = null;
 
     public function getFileUrl(): string {
-        return '/notes/attachment/' . rawurlencode($this->file_uid);
+        $baseSegment = trim((string) getenv('BASE_PATH'), '/');
+        $basePath = $baseSegment !== '' ? '/' . $baseSegment : '';
+        return $basePath . '/notes/attachment/' . rawurlencode($this->file_uid);
     }
 
     public function isVoice(): bool {

@@ -44,20 +44,20 @@
                         {if $attachment.file_type == 'voice' || $attachment.file_type == 'audio'}
                             <span class="attachment-icon"><i class="fa fa-microphone"></i></span>
                             <audio controls preload="metadata">
-                                <source src="/notes/attachment/{$attachment.file_uid|escape:'url'}" type="{$attachment.mime_type|escape}">
+                                <source src="{$base_path|escape}/notes/attachment/{$attachment.file_uid|escape:'url'}" type="{$attachment.mime_type|escape}">
                                 Ваш браузер не поддерживает аудио.
                             </audio>
                         {elseif $attachment.file_type == 'image'}
-                            <img src="/notes/attachment/{$attachment.file_uid|escape:'url'}" alt="{$attachment.file_name|escape}" loading="lazy" style="max-width:200px;max-height:160px;object-fit:contain;">
+                            <img src="{$base_path|escape}/notes/attachment/{$attachment.file_uid|escape:'url'}" alt="{$attachment.file_name|escape}" loading="lazy" style="max-width:200px;max-height:160px;object-fit:contain;">
                         {elseif $attachment.file_type == 'video'}
                             <span class="attachment-icon"><i class="fa fa-film"></i></span>
                             <video controls preload="metadata" style="max-width:300px;">
-                                <source src="/notes/attachment/{$attachment.file_uid|escape:'url'}" type="{$attachment.mime_type|escape}">
+                                <source src="{$base_path|escape}/notes/attachment/{$attachment.file_uid|escape:'url'}" type="{$attachment.mime_type|escape}">
                                 Ваш браузер не поддерживает видео.
                             </video>
                         {else}
                             <span class="attachment-icon"><i class="fa fa-file"></i></span>
-                            <a href="/notes/attachment/{$attachment.file_uid|escape:'url'}">{$attachment.file_name|escape}</a>
+                            <a href="{$base_path|escape}/notes/attachment/{$attachment.file_uid|escape:'url'}">{$attachment.file_name|escape}</a>
                         {/if}
                     </div>
                     <div class="attachment-info">
@@ -81,7 +81,7 @@
         <div class="share-active">
             <p>Заметка доступна по ссылке:</p>
             <div class="share-url-box">
-                <input type="text" id="shareUrl" value="{$shareUrl|escape}" readonly>
+                <input type="text" id="shareUrl" value="{$base_url|escape}/notes/shared/{$shareInfo.share_token|escape:'url'}" readonly>
                 <button id="copyShareUrl" type="button" class="btn btn-secondary">Копировать</button>
             </div>
             {if $shareInfo.expires_at}<p>Действует до: {$shareInfo.expires_at|escape}</p>{/if}
@@ -113,9 +113,11 @@
     </div>
 </div>
 
+{literal}
 <style>
 .note-attachments,.note-sharing{margin-top:30px;padding:20px;background:#f9f9f9;border-radius:8px}.note-security-hint{color:#667085;font-size:.9rem}.attachment-upload{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.attachments-list{margin-top:15px}.attachment-item{display:flex;align-items:center;gap:15px;padding:10px;margin-bottom:10px;background:#fff;border:1px solid #ddd;border-radius:6px}.attachment-preview{flex-shrink:0}.attachment-info{flex:1;display:flex;flex-direction:column;gap:5px;min-width:0}.attachment-name{font-weight:700;overflow-wrap:anywhere}.attachment-size,.attachment-duration{font-size:.85em;color:#666}.share-url-box{display:flex;gap:10px;margin:10px 0}.share-url-box input{flex:1;padding:8px;border:1px solid #ccc;border-radius:4px}.share-form{display:flex;align-items:end;gap:14px;flex-wrap:wrap}.share-form label{display:flex;flex-direction:column;gap:5px}.modal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000}.modal-content{background:#fff;max-width:420px;margin:100px auto;padding:20px;border-radius:8px}.recorder-controls{display:flex;gap:10px;margin:15px 0;flex-wrap:wrap}#recordingStatus{padding:10px;background:#eef;border-radius:4px}@media(max-width:720px){.attachment-item{align-items:flex-start;flex-direction:column}.attachment-preview audio,.attachment-preview video{max-width:100%!important}.share-url-box{flex-direction:column}}
 </style>
+{/literal}
 
 <script>
 {literal}

@@ -2,11 +2,12 @@
 
 ## Working state
 
-- Roadmap: `docs/USABLE_BASELINE_0.12.md`
-- Parent data-integrity branch / PR: `usable-baseline-0.12` / #62.
-- Active-session + BASE_PATH stack: `usable-baseline-0.12-phase2` / #63.
-- Current migration-completion branch: `usable-baseline-0.12-phase3`.
-- PR #61 (storage quotas/settings) is already merged into `master`; #62 was rebuilt on top of that merge before the later stacks were created.
+- Roadmap: `docs/USABLE_BASELINE_0.12.md`.
+- PR #61 (storage quotas/settings) is merged into `master`.
+- PR #62 (data integrity + File Manager lifecycle) is merged into `master`.
+- PR #63 (active sessions + BASE_PATH hardening) is merged into `master`.
+- PR #64 (partial/legacy storage quota migration reconciliation) is merged into `master`.
+- Current work branch: `usable-baseline-0.12-phase4` — Notes product browser lifecycle.
 
 ## Completed — data integrity foundation
 
@@ -35,27 +36,37 @@
 - Shared shell, auth pages, profile, File Manager and affected Messenger media/group-avatar flows no longer assume a root install.
 - Chromium E2E runs the application from `/workspace/` and exercises login, Notes, Tasks, Profile, quota UI and real File Manager create/upload/delete operations before rendering Messenger.
 - `tests/integration/active_session_http.sh` proves an already authenticated user is redirected to the prefixed login route after `is_active` becomes `0`.
-- Phase2 GitHub Actions gate is green on `edb0ae942a7baf83a4a39140324f61569ac30f78`.
 
 ## Completed — partial/legacy quota migration
 
-- The already shipped `20260913_system_settings_storage_quota.sql` is left byte-for-byte unchanged, preserving applied-migration checksums.
-- `20260914_storage_quota_legacy_reconcile.sql` runs before the canonical storage migration in the manifest: it is a no-op on fresh installs and reconciles supported partial legacy tables on upgrades.
+- The already shipped `20260913_system_settings_storage_quota.sql` remains immutable, preserving applied-migration checksums.
+- `20260914_storage_quota_legacy_reconcile.sql` runs before the canonical storage migration: it is a no-op on fresh installs and reconciles supported partial legacy tables on upgrades.
 - Existing administrator-defined `file_manager_default_quota_bytes`, unrelated settings and per-user quota values are preserved.
 - Missing typed-setting metadata, timestamps, single-user uniqueness and the `users(id) ON DELETE CASCADE` quota foreign key are added only after legacy core/data validation succeeds.
 - Duplicate setting keys, duplicate quota rows, orphan quota rows, incompatible core columns and incompatible existing quota foreign keys fail closed rather than being guessed/coerced.
-- `tests/integration/storage_quota_legacy_migration.sh` executes the real migration runner against MySQL 8.4, verifies value preservation and the final schema contract, and proves ambiguous duplicate keys fail before additive schema changes are recorded as applied.
-- `File Manager HTTP integrity` run `34824601434` is fully green with legacy reconciliation plus all existing HTTP/quota/concurrency contracts.
+- `tests/integration/storage_quota_legacy_migration.sh` executes the real migration runner against MySQL 8.4 and verifies both supported reconciliation and ambiguous legacy rejection.
 
 ## P0 status
 
-All planned 0.12 P0 items are now implemented and covered by automated contracts. The next workstream is product-level browser lifecycle coverage required by the 0.12 Definition of Done.
+All planned 0.12 P0 items are implemented and covered by automated contracts.
+
+## Completed — Notes product browser lifecycle
+
+- Added a real Chromium lifecycle running the application from `/workspace/`: login → create note → edit encrypted text → reopen/decrypt → multipart attachment upload → authenticated download → public share → anonymous view/download → unshare → verify old link returns 404 → delete note.
+- The browser gate rejects page errors, unexpected HTTP errors and requests that escape the configured `BASE_PATH`.
+- The new browser flow found two existing production render failures: inline CSS in both `notes_page/edit_view.tpl` and `notes_page/shared_view.tpl` was parsed as Smarty syntax. Both style blocks are now protected with `{literal}`.
+- Notes attachment and share URLs are BASE_PATH-aware in templates, controllers and `NoteAttachmentModel`.
+- Fixed the malformed `safeHeaderName()` regular expression that emitted a PHP warning while streaming downloaded attachments.
+- Note deletion now retires note, attachment metadata and active share state in one DB transaction.
+- Physical attachment bytes are deliberately retained in private storage after note soft-delete, matching the current retention/backup policy rather than unlinking data during the user-visible delete operation.
+- `tests/e2e/notes-lifecycle.mjs` and `.github/workflows/notes-browser-lifecycle.yml` cover the complete product flow and durable post-delete state.
+- GitHub Actions run `34832980573` is fully green on the strengthened contract: browser lifecycle, inactive shares, soft-deleted attachment metadata and retained physical attachment file all pass.
 
 ## Next — Product browser E2E
 
-1. Notes lifecycle: create → edit → attachment → share → delete.
-2. Tasks lifecycle: create → edit → subtask → status → delete.
-3. Complete File Manager lifecycle: preview/download → rename → delete → browser-visible quota error.
-4. Profile lifecycle: edit profile → avatar upload/remove.
-5. Admin lifecycle: user status → quota update.
-6. Fault-injection browser coverage, then usability/pagination/governance passes.
+1. Tasks lifecycle: create → edit → subtask → status → delete.
+2. Complete File Manager lifecycle: preview/download → rename → delete → browser-visible quota error.
+3. Profile lifecycle: edit profile → avatar upload/remove.
+4. Admin lifecycle: user status → quota update.
+5. Fault-injection browser coverage.
+6. Then usability, pagination/findability and governance hardening passes.

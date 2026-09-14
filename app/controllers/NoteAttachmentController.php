@@ -119,7 +119,7 @@ final class NoteAttachmentController extends Controller
                     'file_type' => $fileType,
                     'mime_type' => $mimeType,
                     'file_size' => (int) $file['size'],
-                    'file_url' => '/notes/attachment/' . rawurlencode($fileUid),
+                    'file_url' => $this->appPath('/notes/attachment/' . rawurlencode($fileUid)),
                 ],
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         } catch (InvalidArgumentException $e) {
@@ -307,6 +307,13 @@ final class NoteAttachmentController extends Controller
         return max(1, min(100, $value));
     }
 
+    private function appPath(string $path): string
+    {
+        $baseSegment = trim((string) getenv('BASE_PATH'), '/');
+        $basePath = $baseSegment !== '' ? '/' . $baseSegment : '';
+        return $basePath . '/' . ltrim($path, '/');
+    }
+
     private function safeName(string $name): string
     {
         $name = basename(str_replace('\\', '/', $name));
@@ -314,7 +321,10 @@ final class NoteAttachmentController extends Controller
         return mb_substr($name, 0, 255);
     }
 
-    private function safeHeaderName(string $name): string { return preg_replace('/[\r\n"\\]+/', '_', $this->safeName($name)) ?: 'file'; }
+    private function safeHeaderName(string $name): string
+    {
+        return preg_replace('/[\r\n"\\\\]+/', '_', $this->safeName($name)) ?: 'file';
+    }
 
     private function uploadErrorMessage(int $error): string
     {

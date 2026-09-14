@@ -159,17 +159,11 @@ final class NoteController extends Controller
             ]
         );
 
-        $siteUrl = getenv('SITEURL');
-        $siteUrl = is_string($siteUrl) && trim($siteUrl) !== ''
-            ? rtrim(trim($siteUrl), '/')
-            : rtrim((string) Config::get('SITEURL'), '/');
-
         $this->render_template('notes_page/edit_view', [
             'user' => $user,
             'note' => $note,
             'attachments' => $attachments,
             'shareInfo' => $shareInfo ?: null,
-            'shareUrl' => $shareInfo ? $siteUrl . '/notes/shared/' . $shareInfo['share_token'] : null,
         ]);
     }
 
@@ -221,16 +215,50 @@ final class NoteController extends Controller
     public function delete(Request $request, string $uid): void
     {
         $user = $this->currentUser($request);
-        DatabaseManager::getInstance()->execute(
-            'UPDATE notes
-             SET is_deleted = 1, deleted_at = :deleted_at
-             WHERE uid = :uid AND user_id = :user_id AND is_deleted = 0',
-            [
-                ':deleted_at' => date('Y-m-d H:i:s'),
-                ':uid' => $uid,
-                ':user_id' => (int) $user->id,
-            ]
+        $db = DatabaseManager::getInstance();
+        $note = $db->fetchOne(
+            'SELECT id FROM notes
+             WHERE uid = :uid AND user_id = :user_id AND is_deleted = 0
+             LIMIT 1',
+            [':uid' => $uid, ':user_id' => (int) $user->id]
         );
+        if (!$note) {
+            Router::getInstance()->redirect('notes', 'name');
+            return;
+        }
+
+        $noteId = (int) $note['id'];
+        $userId = (int) $user->id;
+        $db->beginTransaction();
+        try {
+            // Retention policy keeps physical attachment bytes in private storage.
+            // Only metadata/access state is retired atomically with the note.
+            $db->execute(
+                'UPDATE note_attachments SET is_deleted = 1
+                 WHERE note_id = :note_id AND is_deleted = 0',
+                [':note_id' => $noteId]
+            );
+            $db->execute(
+                'UPDATE shared_notes SET is_active = 0
+                 WHERE note_id = :note_id AND owner_id = :owner_id AND is_active = 1',
+                [':note_id' => $noteId, ':owner_id' => $userId]
+            );
+            $db->execute(
+                'UPDATE notes
+                 SET is_deleted = 1, deleted_at = :deleted_at
+                 WHERE id = :id AND user_id = :user_id AND is_deleted = 0',
+                [
+                    ':deleted_at' => date('Y-m-d H:i:s'),
+                    ':id' => $noteId,
+                    ':user_id' => $userId,
+                ]
+            );
+            $db->endTransaction(true);
+        } catch (\Throwable $e) {
+            $db->endTransaction(false);
+            throw $e;
+        }
+
         Router::getInstance()->redirect('notes', 'name');
     }
 

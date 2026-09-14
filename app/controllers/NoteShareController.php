@@ -72,13 +72,9 @@ final class NoteShareController extends Controller
                 throw $e;
             }
 
-            $configuredUrl = getenv('SITEURL');
-            $siteUrl = is_string($configuredUrl) && trim($configuredUrl) !== ''
-                ? rtrim(trim($configuredUrl), '/')
-                : rtrim((string) Config::get('SITEURL'), '/');
             echo json_encode([
                 'success' => true,
-                'share_url' => $siteUrl . '/notes/shared/' . $token,
+                'share_url' => $this->absoluteAppUrl('/notes/shared/' . rawurlencode($token)),
                 'access_type' => 'view',
                 'expires_at' => $expiresAt,
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -176,8 +172,10 @@ final class NoteShareController extends Controller
         );
         foreach ($attachments as &$attachment) {
             $attachment['formatted_size'] = $this->formatBytes((int) ($attachment['file_size'] ?? 0));
-            $attachment['file_url'] = '/notes/shared/' . rawurlencode($token)
-                . '/attachment/' . rawurlencode((string) $attachment['file_uid']);
+            $attachment['file_url'] = $this->appPath(
+                '/notes/shared/' . rawurlencode($token)
+                . '/attachment/' . rawurlencode((string) $attachment['file_uid'])
+            );
         }
         unset($attachment);
 
@@ -205,6 +203,22 @@ final class NoteShareController extends Controller
             throw new DomainException('Требуется авторизация');
         }
         return $id;
+    }
+
+    private function appPath(string $path): string
+    {
+        $baseSegment = trim((string) getenv('BASE_PATH'), '/');
+        $basePath = $baseSegment !== '' ? '/' . $baseSegment : '';
+        return $basePath . '/' . ltrim($path, '/');
+    }
+
+    private function absoluteAppUrl(string $path): string
+    {
+        $configuredUrl = getenv('SITEURL');
+        $siteUrl = is_string($configuredUrl) && trim($configuredUrl) !== ''
+            ? rtrim(trim($configuredUrl), '/')
+            : rtrim((string) Config::get('SITEURL'), '/');
+        return $siteUrl . $this->appPath($path);
     }
 
     private function formatBytes(int $bytes): string
