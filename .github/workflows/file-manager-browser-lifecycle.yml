@@ -2,9 +2,9 @@ name: File Manager browser lifecycle
 
 on:
   push:
-    branches: [usable-baseline-0.12-phase6]
+    branches: [usable-baseline-0.12-phase6, 0.13-file-manager-polish]
   pull_request:
-    branches: [master, usable-baseline-0.12-phase5]
+    branches: [master, usable-baseline-0.12-phase5, 0.13-ux-foundation]
 
 permissions:
   contents: read
