@@ -44,7 +44,8 @@ https://example.com/workspace/install.php
 ## Что installer делает автоматически
 
 - при наличии MySQL privilege пытается создать отсутствующую БД;
-- импортирует 5 canonical schema-файлов и проверяет 20 обязательных таблиц;
+- импортирует 6 canonical schema-файлов и проверяет 22 обязательные таблицы;
+- создаёт `system_settings` и `user_storage_quotas` для системного лимита File Manager и персональных quota overrides;
 - создаёт private storage вне document root;
 - создаёт внутри него `file_manager`, `messenger`, `notes`, `users`, `rate-limit`, `logs`, `legacy`;
 - создаёт `cache` и `compile`;
@@ -54,6 +55,8 @@ https://example.com/workspace/install.php
 - учитывает установку приложения в подкаталог;
 - выставляет same-site WebSocket URL вида `/ws`;
 - не создаёт `.env` до успешной финализации admin account.
+
+Фактический объём занятого File Manager storage не хранится отдельным счётчиком: он вычисляется из canonical `user_files`. Это исключает рассинхронизацию usage counter после удаления или восстановления файлов. Квота проверяется до записи файла, а параллельные загрузки одного пользователя сериализуются на время проверки и записи.
 
 ## Если база не существует
 
@@ -112,7 +115,7 @@ php bin/migrate.php --dry-run
 php bin/migrate.php
 ```
 
-Перед upgrade обязательны backup БД, private storage и crypto keys.
+Перед upgrade обязательны backup БД, private storage и crypto keys. Migration `20260913_system_settings_storage_quota.sql` добавляет настройки и storage quotas существующим установкам без пересоздания пользовательских данных.
 
 ## Как собирается hosting bundle
 
