@@ -21,3 +21,5 @@
 {* Tasks board is intentionally module-specific and loads after shared polish. *}
 {include file="tasks_page/kanban.css"}
 {include file="tasks_page/kanban-handle.css"}
+{* Profile hub/public profile is a module-specific final layer. *}
+{include file="profile_page/hub.css"}
