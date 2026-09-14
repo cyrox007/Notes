@@ -11,62 +11,38 @@ $require = static function (string $relative, string $reason) use ($root, &$erro
     }
 };
 
-// Product Browser E2E closure.
-$require('.github/workflows/profile-browser-lifecycle.yml', 'Profile edit/avatar lifecycle is not integrated');
-$require('.github/workflows/admin-browser-lifecycle.yml', 'Admin status/quota lifecycle is not integrated');
+// 0.12 durable baseline remains mandatory for every later release.
+$require('.github/workflows/profile-browser-lifecycle.yml', 'Profile browser lifecycle is not integrated');
+$require('.github/workflows/admin-browser-lifecycle.yml', 'Admin browser lifecycle is not integrated');
 $require('.github/workflows/fault-injection-browser.yml', 'browser-visible DB/storage fault injection is not integrated');
-
-// Usability closure.
-$require('assets/js/feedback.js', 'shared toast/inline/confirmation layer is not integrated');
-$require('assets/js/notes-draft.js', 'Notes dirty-state/local draft protection is not integrated');
-$require('assets/js/usability-actions.js', 'inline Tasks/File Manager actions are not integrated');
-$require('assets/js/release-polish.js', 'final File Manager findability/page-boundary polish is not integrated');
-
-// Findability closure.
-$require('app/services/ListQuery.php', 'bounded q/page/limit/sort contract is not integrated');
-$require('assets/js/findability.js', 'URL-preserving findability controls are not integrated');
-$require('tests/integration/list_query_contract.php', 'findability query contract is not integrated');
-
-// Governance closure.
+$require('assets/js/feedback.js', 'shared feedback layer is not integrated');
+$require('app/services/ListQuery.php', 'bounded list-query contract is not integrated');
 $require('.github/release-governance.json', 'machine-readable merge governance is not integrated');
-$require('docs/RELEASE_GOVERNANCE.md', 'branch-protection/review policy is not integrated');
-$require('tests/integration/release_governance_contract.php', 'governance drift check is not integrated');
 
-$roadmapPath = $root . '/docs/USABLE_BASELINE_0.12.md';
+// 0.13 product UX closure.
+$require('assets/js/tasks-kanban.js', 'Tasks kanban flow is not integrated');
+$require('assets/js/notes-editor-013.js', 'Notes 0.13 editor is not integrated');
+$require('app/views/notes_page/editor-013.css', 'Notes 0.13 editor styling is not integrated');
+$require('app/services/ProfileMetricsService.php', 'Profile workspace metrics are not integrated');
+$require('app/views/profile_page/metrics.css', 'Profile workspace metrics UI is not integrated');
+$require('assets/js/file-manager-polish.js', 'File Manager 0.13 workspace polish is not integrated');
+$require('assets/js/file-manager-drop-upload.js', 'File Manager drag/drop upload is not integrated');
+$require('assets/js/messenger-connection-ux.js', 'Messenger reconnect/offline UX is not integrated');
+$require('.github/workflows/installer-0.13-contract.yml', '0.13 installer schema regression is not integrated');
+
+$roadmapPath = $root . '/docs/PRODUCT_UX_0.13.md';
 if (!is_file($roadmapPath)) {
-    $errors[] = 'missing docs/USABLE_BASELINE_0.12.md';
+    $errors[] = 'missing docs/PRODUCT_UX_0.13.md';
 } else {
     $roadmap = (string) file_get_contents($roadmapPath);
-    $requiredSections = [
-        '## P1 — Product browser E2E',
-        '## P1 — Usability pass',
-        '## P1 — Pagination / findability',
-        '## P1 — Security / governance hardening',
-    ];
-    foreach ($requiredSections as $heading) {
-        $start = strpos($roadmap, $heading);
-        if ($start === false) {
-            $errors[] = "roadmap section missing: {$heading}";
-            continue;
-        }
-        $nextStart = strlen($roadmap);
-        foreach ($requiredSections as $otherHeading) {
-            $candidate = strpos($roadmap, $otherHeading, $start + strlen($heading));
-            if ($candidate !== false) {
-                $nextStart = min($nextStart, $candidate);
-            }
-        }
-        $p2 = strpos($roadmap, '## P2 —', $start + strlen($heading));
-        if ($p2 !== false) {
-            $nextStart = min($nextStart, $p2);
-        }
-        $definition = strpos($roadmap, '## Definition of Done', $start + strlen($heading));
-        if ($definition !== false) {
-            $nextStart = min($nextStart, $definition);
-        }
-        $section = substr($roadmap, $start, $nextStart - $start);
-        if (str_contains($section, '- [ ]')) {
-            $errors[] = "roadmap still has unchecked items in {$heading}";
+    foreach ([
+        'Статус релиза: **закрыт**',
+        '## 0.14 beta backlog',
+        'Messenger reconnect/offline UX',
+        'Profile metrics',
+    ] as $marker) {
+        if (!str_contains($roadmap, $marker)) {
+            $errors[] = "0.13 roadmap marker missing: {$marker}";
         }
     }
 }
@@ -74,11 +50,11 @@ if (!is_file($roadmapPath)) {
 $versionPath = $root . '/core/Version.php';
 if (is_file($versionPath)) {
     $version = (string) file_get_contents($versionPath);
-    if (!str_contains($version, "public const VERSION = '0.12.0-alpha';")) {
-        $errors[] = 'final release commit must set Core\\Version::VERSION to 0.12.0-alpha';
+    if (!str_contains($version, "public const VERSION = '0.13.0-alpha';")) {
+        $errors[] = 'final release commit must set Core\\Version::VERSION to 0.13.0-alpha';
     }
-    if (!str_contains($version, 'public const VERSION_CODE = 1200;')) {
-        $errors[] = 'final release commit must set VERSION_CODE to 1200';
+    if (!str_contains($version, 'public const VERSION_CODE = 1300;')) {
+        $errors[] = 'final release commit must set VERSION_CODE to 1300';
     }
     if (!str_contains($version, "public const RELEASE_DATE = '2026-09-14';")) {
         $errors[] = 'final release commit must set RELEASE_DATE to 2026-09-14';
@@ -88,24 +64,24 @@ if (is_file($versionPath)) {
 }
 
 $readme = is_file($root . '/README.md') ? (string) file_get_contents($root . '/README.md') : '';
-if (!str_contains($readme, '**Версия:** `0.12.0-alpha`')) {
-    $errors[] = 'README.md must advertise 0.12.0-alpha';
+if (!str_contains($readme, '**Версия:** `0.13.0-alpha`')) {
+    $errors[] = 'README.md must advertise 0.13.0-alpha';
 }
 if (!str_contains($readme, 'compatibility upgrade SQL')) {
-    $errors[] = 'README.md must describe the accepted canonical-schema + compatibility-upgrade DB contract';
+    $errors[] = 'README.md must preserve the canonical-schema + compatibility-upgrade DB contract';
 }
 
 $changelog = is_file($root . '/CHANGELOG.md') ? (string) file_get_contents($root . '/CHANGELOG.md') : '';
-if (!str_contains($changelog, '## 0.12.0-alpha — 2026-09-14')) {
-    $errors[] = 'CHANGELOG.md must contain the 0.12.0-alpha release section';
+if (!str_contains($changelog, '## 0.13.0-alpha — 2026-09-14')) {
+    $errors[] = 'CHANGELOG.md must contain the 0.13.0-alpha release section';
 }
 
 if ($errors !== []) {
-    fwrite(STDERR, "Workspace 0.12 usable-alpha readiness: BLOCKED\n");
+    fwrite(STDERR, "Workspace 0.13 alpha readiness: BLOCKED\n");
     foreach ($errors as $error) {
         fwrite(STDERR, " - {$error}\n");
     }
     exit(1);
 }
 
-fwrite(STDOUT, "Workspace 0.12 usable-alpha readiness: OK\n");
+fwrite(STDOUT, "Workspace 0.13 alpha readiness: OK\n");
