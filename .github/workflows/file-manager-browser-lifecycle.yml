@@ -57,8 +57,11 @@ jobs:
           php -l app/controllers/FileDeleteController.php
           php -l app/controllers/FileQuotaController.php
           php -l tests/e2e/router.php
+          node --check assets/js/file-manager-polish.js
           node --check tests/e2e/file-manager-lifecycle.mjs
+          node --check tests/e2e/file-manager-ux-contract.mjs
           grep -Fq "route_path name='files_quota'" app/views/file_manager/index.tpl
+          grep -Fq 'assets/js/file-manager-polish.js' app/views/core/base.tpl
           ! grep -Fq 'href="/files/' app/views/file_manager/index.tpl
           ! grep -Fq 'src="/assets/' app/views/file_manager/index.tpl
 
@@ -180,6 +183,13 @@ jobs:
             cat /tmp/workspace-file-manager-browser-http.log >&2
             exit 1
           fi
+
+      - name: Run File Manager 0.13 UX contract
+        shell: bash
+        env:
+          E2E_ORIGIN: http://127.0.0.1:18091
+          E2E_BASE_PATH: /workspace
+        run: node tests/e2e/file-manager-ux-contract.mjs
 
       - name: Run File Manager lifecycle in Chromium
         shell: bash
