@@ -1,0 +1,75 @@
+name: File Manager HTTP integrity
+
+on:
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  file-manager-http-integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: file_manager_http_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Static integrity contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n tests/integration/queued_write_callers.sh
+          bash -n tests/integration/file_manager_http_quota.sh
+          bash tests/integration/queued_write_callers.sh
+          php -l app/controllers/FileController.php
+          php -l app/middlewares/StorageQuotaLimit.php
+          php -l app/middlewares/StorageMutationLock.php
+          php -l app/services/StorageQuotaService.php
+          grep -Fq "[LoginRequared::class, UploadRateLimit::class, StorageQuotaLimit::class]" core/routerConfig.php
+
+      - name: Prepare HTTP integration schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot file_manager_http_test < database/messenger_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot file_manager_http_test < database/file_manager_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot file_manager_http_test < database/settings_schema.sql
+
+      - name: Real HTTP multipart auth CSRF quota and failure flow
+        shell: bash
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: file_manager_http_test
+          PRIVATE_STORAGE_PATH: /tmp/workspace-file-http-private
+        run: |
+          set -euo pipefail
+          bash tests/integration/file_manager_http_quota.sh
