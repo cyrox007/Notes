@@ -6,16 +6,16 @@
 
 Workspace Organizer — внутреннее PHP-приложение для корпоративной работы: заметки, задачи, личные файлы, профиль, администрирование и real-time Messenger.
 
-После PR #45–#59 основные security-, schema-contract, UI/UX, installer, browser/WSS и production-operations блокеры исходного аудита закрыты: Messenger, Notes, Tasks, Profile, fresh install, versioned DB upgrade, legacy crypto migration, product-wide UI, hosting install, real browser E2E и restore drill имеют отдельные проверяемые контракты.
+После PR #45–#60 основные security-, schema-contract, UI/UX, installer, browser/WSS и production-operations блокеры исходного аудита закрыты: Messenger, Notes, Tasks, Profile, fresh install, versioned DB upgrade, legacy crypto migration, product-wide UI, hosting install, real browser E2E, restore drill и post-merge release gate имеют отдельные проверяемые контракты.
 
 ## Возможности
 
 - **Notes** — XChaCha20-Poly1305 для текста, private attachments, голосовые вложения, view-only sharing по токену.
 - **Tasks** — статусы, приоритеты, сроки, категории, подзадачи, фильтры и server-side sort allowlist.
-- **File Manager** — личные папки/файлы вне document root, protected download, media и read-only text preview.
+- **File Manager** — личные папки/файлы вне document root, protected download, media и read-only text preview; объём хранилища ограничивается общей или персональной квотой.
 - **Messenger v2** — private/group chats, Saved Messages, forwarding, media, voice, reply/edit/delete, delivery/read receipts, reactions, encrypted search, pin/mute/archive, group roles/avatars и multi-device realtime.
 - **Profile** — canonical user contract, private avatar, изменение данных/пароля и безопасная деактивация аккаунта.
-- **Admin panel** — управление пользователями и custom profile fields без physical delete связанных данных.
+- **Admin panel** — управление пользователями, custom profile fields, системным лимитом File Manager и персональными storage quota overrides без physical delete связанных данных.
 - **Responsive UI** — единый design system, desktop/mobile navigation, dashboard, обновлённые формы/карточки/модалки, keyboard focus и reduced-motion support.
 
 ## Security model
@@ -29,6 +29,7 @@ Workspace Organizer — внутреннее PHP-приложение для к�
 - WebSocket identity — подписанный server-issued ticket, client UID не считается доверенным;
 - WebSocket origins/actions — allowlist;
 - File Manager, Messenger media, Notes attachments и user avatars — `PRIVATE_STORAGE_PATH` вне document root;
+- File Manager quota проверяется до записи файла; concurrent uploads одного пользователя сериализуются MySQL advisory lock;
 - upload MIME — server-side `finfo` + allowlist;
 - unsafe HTTP actions — CSRF policy;
 - login/registration и upload endpoints — request rate limiting;
@@ -78,14 +79,14 @@ Web-installer автоматически:
 
 - проверяет PHP 8.3, extensions, Argon2id и наличие production `vendor/`;
 - пытается создать отсутствующую БД, если MySQL account это разрешает;
-- импортирует 5 canonical schemas и проверяет 20 обязательных таблиц;
+- импортирует 6 canonical schemas и создаёт current contract из 22 обязательных таблиц;
 - создаёт `cache`/`compile`;
 - подбирает и создаёт `PRIVATE_STORAGE_PATH` вне document root;
 - создаёт private пространства `file_manager`, `messenger`, `notes`, `users`, `rate-limit`, `logs`, `legacy`;
 - определяет `SITEURL` и `BASE_PATH`, включая установку в подкаталог;
 - формирует same-site `WS_PUBLIC_URL` вида `/ws` и `WS_ALLOWED_ORIGINS`;
 - генерирует отдельные `UNIQUE_KEY`, `MSG_SECRET_KEY`, `WS_TICKET_SECRET`;
-- создаёт первого superadmin;
+- создаёт первый superadmin;
 - только после успешной финализации атомарно создаёт `.env` и блокирует повторный запуск installer.
 
 Если установка оборвалась до создания admin, `.env` ещё не существует и мастер можно безопасно запустить повторно.
@@ -131,9 +132,10 @@ database/notes_schema.sql
 database/file_manager_schema.sql
 database/user_fields_schema.sql
 database/tasks_schema.sql
+database/settings_schema.sql
 ```
 
-Fresh contract включает 20 обязательных таблиц. `install.php` предназначен только для новой/пустой БД; существующие установки обновляются versioned migrations.
+Fresh contract включает 22 обязательные таблицы. `system_settings` хранит редактируемые системные значения, а `user_storage_quotas` — только персональные overrides лимита; фактический used space всегда рассчитывается из canonical `user_files`, чтобы не поддерживать рассинхронизируемый usage counter. `install.php` предназначен только для новой/пустой БД; существующие установки обновляются versioned migrations.
 
 После успешной установки наличие `.env` блокирует повторный запуск web-installer.
 
@@ -285,6 +287,7 @@ HSTS намеренно задаётся на production TLS reverse proxy, а �
 /messenger/          Messenger
 /profile/            профиль
 /admin/              admin panel
+/admin/settings      system settings и storage quotas
 ```
 
 Полный route contract: `core/routerConfig.php`.
@@ -318,6 +321,8 @@ Private avatar выдаётся через authenticated endpoint. Self-delete �
 
 Admin lifecycle использует safe deactivation вместо physical delete. Реактивация восстанавливает согласованный `role + is_active`; administrative targets и group owners защищены отдельными checks. Custom profile fields используют canonical `user_fields`.
 
+`/admin/settings` управляет default File Manager quota и персональными overrides. Изменение квоты повторно авторизуется внутри service-layer; File Manager upload проверяет эффективный лимит до физической записи файла. Для одного пользователя concurrent uploads сериализуются advisory lock, поэтому параллельные запросы не могут независимо занять один и тот же остаток квоты.
+
 ## Scheduled maintenance
 
 Messenger orphan cleanup:
@@ -334,7 +339,9 @@ php bin/cleanup_messenger_orphans.php
 
 GitHub Actions покрывают security baseline, PHP/Composer, clean schemas, DB upgrade, crypto migration, Notes/Tasks/Profile contracts и Messenger groups/media/search/voice/reactions/forwarding. Workflow `Product UI and production quality` дополнительно проверяет UI/accessibility wiring, File Manager safe preview, Linux bootstrap paths, rate limit middleware, CSP/web-root protection, healthcheck contract и freshness документации.
 
-`Hosting installer` выполняет настоящий HTTP fresh-install через cookies/CSRF на MySQL в hosting-like `public_html/workspace`, проверяет subdirectory detection, private storage вне document root, admin account, generated `.env`, блокировку повторного installer и итоговый healthcheck.
+`System settings and storage quota` проверяет canonical settings schema, admin ACL, default/per-user quota, live usage из `user_files`, reset override и quota overflow denial на MySQL 8.4.
+
+`Hosting installer` выполняет настоящий HTTP fresh-install через cookies/CSRF на MySQL в hosting-like `public_html/workspace`, проверяет subdirectory detection, private storage вне document root, 22-table contract, quota seed, admin account, generated `.env`, блокировку повторного installer и итоговый healthcheck.
 
 `Build hosting package` собирает upload-ready ZIP с production `vendor/`; на tag `v*` ZIP публикуется как release asset.
 
@@ -369,7 +376,7 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 Перед выкладкой:
 
 1. Для shared hosting используется готовый hosting bundle с `vendor/`; при deploy из source `composer install --no-dev --optimize-autoloader` проходит без ошибок.
-2. Fresh install успешно завершается через `/install.php` без ручного SQL/`.env`.
+2. Fresh install успешно завершается через `/install.php` без ручного SQL/`.env` и создаёт current 22-table schema contract.
 3. `.env`, application source и service directories недоступны по HTTP.
 4. `UNIQUE_KEY`, `MSG_SECRET_KEY`, `WS_TICKET_SECRET` уникальны и случайны.
 5. `PRIVATE_STORAGE_PATH` находится вне document/application root.
@@ -380,6 +387,6 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 10. `php bin/healthcheck.php` возвращает `Healthcheck: OK`.
 11. Backup БД/private storage создан и restore реально проверен.
 12. Orphan cleanup запланирован.
-13. Registration invite/rate limits настроены осознанно.
+13. Registration invite/rate limits/storage quotas настроены осознанно.
 14. Logs, metrics и disk-space alerts подключены.
 15. Последний `Master release gate` на объединённом commit `master` завершён успешно.

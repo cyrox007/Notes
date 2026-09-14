@@ -1,0 +1,120 @@
+name: System settings and storage quota
+
+on:
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  settings-storage-quota:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: settings_quota_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql, mbstring, sodium
+          coverage: none
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Syntax and wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l app/services/StorageQuotaService.php
+          php -l app/middlewares/StorageQuotaLimit.php
+          php -l app/controllers/Admin/SettingsController.php
+          php -l bin/migrate.php
+          php -l bin/healthcheck.php
+          grep -Fq 'StorageQuotaLimit::class' core/routerConfig.php
+          grep -Fq "'20260913_system_settings_storage_quota.sql'" bin/migrate.php
+          grep -Fq 'GET_LOCK' app/services/StorageQuotaService.php
+          grep -Fq 'RELEASE_LOCK' app/services/StorageQuotaService.php
+          grep -Fq "route_path name='admin_settings'" app/views/admin-page/index.tpl
+          grep -Fq "route_path name='admin_settings_user_quota'" app/views/admin-page/settings.tpl
+      - name: Prepare canonical schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot settings_quota_test < database/messenger_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot settings_quota_test < database/file_manager_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot settings_quota_test < database/settings_schema.sql
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot settings_quota_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('system_settings','user_storage_quotas')")" = "2"
+      - name: Quota service integration
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: settings_quota_test
+          SITEURL: http://localhost
+        shell: bash
+        run: |
+          set -euo pipefail
+          php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          define('SITEPATH', getcwd());
+          require SITEPATH . '/vendor/autoload.php';
+          require SITEPATH . '/core/config.php';
+          require SITEPATH . '/core/DatabaseManager.php';
+          require SITEPATH . '/app/services/StorageQuotaService.php';
+          $db = \Core\DatabaseManager::getInstance();
+          $now = date('Y-m-d H:i:s');
+          $hash = password_hash('quota-test-password', PASSWORD_ARGON2ID);
+          foreach ([
+              [1, 'quota-admin', 1],
+              [2, 'quota-user', 888],
+              [3, 'quota-outsider', 888],
+          ] as [$id, $username, $role]) {
+              $db->execute(
+                  'INSERT INTO users (id,uid,username,email,password_hash,firstname,lastname,role,is_active,created_at,updated_at) VALUES (:id,:uid,:username,:email,:hash,:firstname,:lastname,:role,1,:created,:updated)',
+                  [':id'=>$id, ':uid'=>sprintf('a0000000-0000-4000-8000-%012d',$id), ':username'=>$username, ':email'=>$username.'@example.test', ':hash'=>$hash, ':firstname'=>'Quota', ':lastname'=>'Test', ':role'=>$role, ':created'=>$now, ':updated'=>$now]
+              );
+          }
+          $db->execute("INSERT INTO user_files (uid,user_id,parent_id,name,type,mime_type,size,path,extension,is_deleted) VALUES ('quota-file',2,NULL,'existing','file','application/pdf',2097152,'/tmp/quota.pdf','pdf',0)");
+          $service = new \App\Services\StorageQuotaService($db);
+          if ($service->defaultQuotaBytes() !== 1073741824) throw new RuntimeException('Default quota seed mismatch');
+          $service->setDefaultQuota(1, 20 * 1024 * 1024);
+          if ($service->effectiveQuotaBytes(2) !== 20 * 1024 * 1024) throw new RuntimeException('Default quota update failed');
+          $service->setUserQuota(1, 2, 12 * 1024 * 1024);
+          if ($service->effectiveQuotaBytes(2) !== 12 * 1024 * 1024) throw new RuntimeException('Override failed');
+          $usage = $service->usage(2);
+          if ($usage['used_bytes'] !== 2097152) throw new RuntimeException('Usage must be derived from user_files');
+          $service->assertCanStore(2, 9 * 1024 * 1024);
+          $blocked = false;
+          try { $service->assertCanStore(2, 11 * 1024 * 1024); } catch (DomainException $e) { $blocked = $e->getCode() === 413; }
+          if (!$blocked) throw new RuntimeException('Quota overflow was not rejected');
+
+          $service->acquireUploadLock(2);
+          $other = new mysqli('127.0.0.1', 'root', 'root', 'settings_quota_test', 3306);
+          $other->set_charset('utf8mb4');
+          $lockResult = $other->query("SELECT GET_LOCK('workspace-storage-quota-user-2',0)")->fetch_row();
+          if ((int) ($lockResult[0] ?? -1) !== 0) throw new RuntimeException('Concurrent quota lock was not exclusive');
+          $other->close();
+          $service->releaseUploadLock(2);
+
+          $service->setUserQuota(1, 2, null);
+          if ($service->effectiveQuotaBytes(2) !== 20 * 1024 * 1024) throw new RuntimeException('Override reset failed');
+          $denied = false;
+          try { $service->setDefaultQuota(3, 30 * 1024 * 1024); } catch (DomainException $e) { $denied = $e->getCode() === 403; }
+          if (!$denied) throw new RuntimeException('Non-admin changed system settings');
+          echo "settings/quota integration OK\n";
+          PHP

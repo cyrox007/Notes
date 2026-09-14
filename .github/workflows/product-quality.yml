@@ -50,9 +50,12 @@ jobs:
             core.php \
             app/controllers/AuthController.php \
             app/controllers/Admin/AdminController.php \
+            app/controllers/Admin/SettingsController.php \
             app/services/AdminUserService.php \
+            app/services/StorageQuotaService.php \
             app/middlewares/AuthRateLimit.php \
             app/middlewares/UploadRateLimit.php \
+            app/middlewares/StorageQuotaLimit.php \
             app/services/RequestRateLimiter.php \
             core/routerConfig.php \
             bin/healthcheck.php \
@@ -110,7 +113,7 @@ jobs:
           ! grep -Fq 'btn-run-code' app/views/file_manager/index.tpl
           ! grep -Fq 'btn-save-code' app/views/file_manager/index.tpl
 
-      - name: Admin lifecycle and custom field static contract
+      - name: Admin lifecycle and settings static contract
         shell: bash
         run: |
           set -euo pipefail
@@ -124,6 +127,11 @@ jobs:
           grep -Fq "d.type = 'group'" app/services/AdminUserService.php
           grep -Fq "route_path name='admin_toggle_user'" app/views/admin-page/index.tpl
           grep -Fq "route_path name='admin_delete_user'" app/views/admin-page/index.tpl
+          grep -Fq "route_path name='admin_settings'" app/views/admin-page/index.tpl
+          grep -Fq "route_path name='admin_settings_user_quota'" app/views/admin-page/settings.tpl
+          grep -Fq 'StorageQuotaLimit::class' core/routerConfig.php
+          grep -Fq 'GET_LOCK' app/services/StorageQuotaService.php
+          grep -Fq 'RELEASE_LOCK' app/services/StorageQuotaService.php
           grep -Fq 'data-confirm-deactivate' app/views/admin-page/index.tpl
           ! grep -Fq 'onclick=' app/views/admin-page/index.tpl
 
@@ -154,6 +162,7 @@ jobs:
           set -euo pipefail
           grep -Fq 'AuthRateLimit::class' core/routerConfig.php
           grep -Fq 'UploadRateLimit::class' core/routerConfig.php
+          grep -Fq 'StorageQuotaLimit::class' core/routerConfig.php
           grep -Fq 'REGISTRATION_INVITE_CODE' app/controllers/AuthController.php
           grep -Fq 'AUTH_RATE_LIMIT_WINDOW_SECONDS=300' default.env
           grep -Fq 'UPLOAD_RATE_LIMIT_ATTEMPTS=60' default.env
@@ -206,6 +215,7 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/file_manager_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/user_fields_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/tasks_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/settings_schema.sql
 
       - name: Admin lifecycle integration
         shell: bash
@@ -359,6 +369,8 @@ jobs:
           chmod 700 "$PRIVATE_STORAGE_PATH"
           php bin/healthcheck.php --json | tee /tmp/healthcheck.json
           grep -Fq '"status": "ok"' /tmp/healthcheck.json
+          grep -Fq '22 required tables present' /tmp/healthcheck.json
+          grep -Fq 'storage_quota_setting' /tmp/healthcheck.json
           grep -Fq 'private_storage_outside_app_root' /tmp/healthcheck.json
           grep -Fq 'websocket_allowed_origins' /tmp/healthcheck.json
 
@@ -367,12 +379,15 @@ jobs:
         run: |
           set -euo pipefail
           grep -Fq 'database/tasks_schema.sql' README.md
+          grep -Fq 'database/settings_schema.sql' README.md
+          grep -Fq '22 обязательные таблицы' README.md
           grep -Fq 'php bin/migrate.php' README.md
           grep -Fq 'php bin/migrate_crypto.php' README.md
           grep -Fq 'Saved Messages' README.md
           grep -Fq 'PRIVATE_STORAGE_PATH/notes' README.md
           grep -Fq 'docs/PRODUCTION.md' README.md
           grep -Fq 'File Manager code execution удалён' README.md
+          grep -Fq '/admin/settings' README.md
           test -s docs/PRODUCTION.md
           grep -Fq 'read-only preview' docs/USER_GUIDE.md
           grep -Fq 'versioned runner' docs/CORE.md

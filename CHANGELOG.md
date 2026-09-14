@@ -4,7 +4,13 @@
 
 ## Unreleased
 
-- Следующие изменения после `0.11.0-alpha` фиксируются здесь.
+### Admin / File Manager storage
+- Добавлены canonical `system_settings` и `user_storage_quotas` с versioned upgrade migration.
+- `/admin/settings` позволяет задавать общий File Manager quota и optional per-user overrides.
+- Used storage не кэшируется отдельным счётчиком: значение вычисляется из активных `user_files`, поэтому delete/restore не требует ручного пересчёта.
+- File Manager upload проверяет effective quota до физической записи файла.
+- Concurrent uploads одного пользователя сериализуются MySQL advisory lock; изменение персональной квоты использует тот же lock.
+- Production healthcheck, hosting installer, DB upgrade/restore и master release gate переведены на current 22-table contract.
 
 ## 0.11.0-alpha — 2026-09-13
 

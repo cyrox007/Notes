@@ -54,6 +54,8 @@ jobs:
           grep -Fq 'Web-installer не изменяет существующие данные' install.php
           grep -Fq '20260913_messenger_membership_contract.sql' bin/migrate.php
           grep -Fq '20260913_tasks_contract.sql' bin/migrate.php
+          grep -Fq '20260913_system_settings_storage_quota.sql' bin/migrate.php
+          test -f database/settings_schema.sql
 
       - name: Fresh install schema contract
         shell: bash
@@ -65,8 +67,10 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot notes_fresh_test < database/file_manager_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_fresh_test < database/user_fields_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_fresh_test < database/tasks_schema.sql
-          COUNT="$(mysql -N -h 127.0.0.1 -uroot -proot notes_fresh_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('users','dialogs','user_to_dialogs','messages','message_user_deletions','messenger_attachments','message_reactions','notes','note_attachments','shared_notes','note_history','note_tags','note_tag_relations','user_files','user_fields','tasks','subtasks','task_categories','task_category_relations','task_reminders')")"
-          test "$COUNT" = "20"
+          mysql -h 127.0.0.1 -uroot -proot notes_fresh_test < database/settings_schema.sql
+          COUNT="$(mysql -N -h 127.0.0.1 -uroot -proot notes_fresh_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('users','dialogs','user_to_dialogs','messages','message_user_deletions','messenger_attachments','message_reactions','notes','note_attachments','shared_notes','note_history','note_tags','note_tag_relations','user_files','user_fields','tasks','subtasks','task_categories','task_category_relations','task_reminders','system_settings','user_storage_quotas')")"
+          test "$COUNT" = "22"
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_fresh_test -e "SELECT setting_value FROM system_settings WHERE setting_key='file_manager_default_quota_bytes'")" = "1073741824"
 
       - name: Prepare legacy database fixture
         shell: bash
@@ -139,8 +143,10 @@ jobs:
           set -euo pipefail
           php bin/migrate.php --dry-run | tee /tmp/migrate-dry-run.txt
           grep -Fq 'PENDING  20260913_messenger_v2.sql' /tmp/migrate-dry-run.txt
+          grep -Fq 'PENDING  20260913_system_settings_storage_quota.sql' /tmp/migrate-dry-run.txt
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='schema_migrations'")" = "0"
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='tasks'")" = "0"
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='system_settings'")" = "0"
 
       - name: Apply upgrade and verify preserved contract
         shell: bash
@@ -154,10 +160,12 @@ jobs:
           set -euo pipefail
           php bin/migrate.php | tee /tmp/migrate-apply.txt
           grep -Fq 'Schema contract: OK' /tmp/migrate-apply.txt
-          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT COUNT(*) FROM schema_migrations")" = "10"
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT COUNT(*) FROM schema_migrations")" = "11"
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT COUNT(*) FROM users WHERE username='legacy-user' AND lastname='User' AND password_hash='legacy-hash' AND is_active=1")" = "1"
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT COUNT(*) FROM messages WHERE uid='b2000000-0000-4000-8000-000000000001' AND from_user_id=1 AND message='legacy-ciphertext' AND message_status='sent'")" = "1"
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('tasks','subtasks','task_categories','task_category_relations','task_reminders')")" = "5"
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('system_settings','user_storage_quotas')")" = "2"
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT setting_value FROM system_settings WHERE setting_key='file_manager_default_quota_bytes'")" = "1073741824"
           TYPE="$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT column_type FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='dialogs' AND column_name='type'")"
           echo "$TYPE" | grep -Fq "'saved'"
 
@@ -172,10 +180,10 @@ jobs:
         run: |
           set -euo pipefail
           php bin/migrate.php --status | tee /tmp/migrate-status.txt
-          grep -Fq 'Summary: 10 applied, 0 pending' /tmp/migrate-status.txt
+          grep -Fq 'Summary: 11 applied, 0 pending' /tmp/migrate-status.txt
           grep -Fq 'Schema contract: OK' /tmp/migrate-status.txt
           php bin/migrate.php | grep -Fq 'Database is up to date. Schema contract: OK'
-          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT COUNT(*) FROM schema_migrations")" = "10"
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT COUNT(*) FROM schema_migrations")" = "11"
 
       - name: Applied migration checksum is immutable
         shell: bash
@@ -187,7 +195,7 @@ jobs:
           DBNAME: notes_upgrade_test
         run: |
           set -euo pipefail
-          mysql -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "UPDATE schema_migrations SET checksum=REPEAT('0',64) WHERE migration='20260913_tasks_contract.sql'"
+          mysql -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "UPDATE schema_migrations SET checksum=REPEAT('0',64) WHERE migration='20260913_system_settings_storage_quota.sql'"
           set +e
           php bin/migrate.php --status >/tmp/migrate-bad-checksum.out 2>/tmp/migrate-bad-checksum.err
           STATUS=$?

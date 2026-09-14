@@ -77,9 +77,12 @@ Template helpers:
 - `IsAdmin` — admin route gate;
 - `CSRFMiddleware` — state-changing request protection;
 - `AuthRateLimit` — login/registration fixed-window limit;
-- `UploadRateLimit` — upload endpoint limit.
+- `UploadRateLimit` — upload endpoint limit;
+- `StorageQuotaLimit` — File Manager quota gate перед физической записью файла.
 
 По умолчанию rate limiter state хранится под `PRIVATE_STORAGE_PATH/rate-limit`, файл блокируется `flock`, directory/file permissions — private. Для нескольких web-узлов используется отдельный общий `RATE_LIMIT_STORAGE_PATH` на POSIX volume с рабочими advisory locks.
+
+`StorageQuotaLimit` захватывает per-user MySQL advisory lock, проверяет текущий used space и effective quota, а lock удерживается до завершения HTTP upload request. Поэтому два одновременных upload одного пользователя не могут оба зарезервировать один и тот же остаток квоты.
 
 Middleware определяет класс доступа к endpoint, но не заменяет resource ACL. Note/File/Dialog/Message/Task ownership проверяется в Controller/Service.
 
@@ -114,9 +117,10 @@ database/notes_schema.sql
 database/file_manager_schema.sql
 database/user_fields_schema.sql
 database/tasks_schema.sql
+database/settings_schema.sql
 ```
 
-Current fresh contract содержит 20 обязательных таблиц.
+Current fresh contract содержит 22 обязательные таблицы. `system_settings` хранит редактируемые системные значения, а `user_storage_quotas` — только per-user quota overrides. Использованный объём хранилища не кэшируется отдельным счётчиком: `StorageQuotaService` вычисляет его из активных строк `user_files`, поэтому delete/restore файлов не требует синхронизации отдельной usage-таблицы.
 
 Existing DB обновляется только через versioned runner:
 
@@ -190,14 +194,18 @@ PRIVATE_STORAGE_PATH/
 
 Notes attachment bytes сейчас private + ACL, но не отдельно encrypted at-rest; `is_encrypted=0` является намеренным contract.
 
-## 10. File Manager browser contract
+## 10. File Manager browser and quota contract
 
 File Manager не является code execution environment.
 
 - media открывается через protected `/files/get/{id}/`;
 - текстовые/code-файлы могут показываться только read-only;
 - user file content не подставляется в `eval`, `srcdoc` или executable script context;
-- внешние editor CDN не требуются.
+- внешние editor CDN не требуются;
+- effective storage quota = per-user override из `user_storage_quotas` либо `file_manager_default_quota_bytes` из `system_settings`;
+- used bytes = `SUM(user_files.size)` только для активных non-folder rows;
+- upload выше effective quota отклоняется до `move_uploaded_file`;
+- concurrent uploads одного пользователя сериализуются advisory lock.
 
 ## 11. WebSocket / Messenger
 
@@ -259,7 +267,7 @@ php bin/healthcheck.php
 php bin/healthcheck.php --json
 ```
 
-Проверяются PHP version/extensions, required secrets, private storage, SITEURL/WSS consistency, deployment node count, rate-limit storage, trusted proxy allowlist, DB connection и 20-table schema contract.
+Проверяются PHP version/extensions, required secrets, private storage, SITEURL/WSS consistency, deployment node count, rate-limit storage, trusted proxy allowlist, DB connection, 22-table schema contract и наличие валидного default File Manager quota seed.
 
 Healthcheck — deployment gate, а не замена application monitoring.
 
