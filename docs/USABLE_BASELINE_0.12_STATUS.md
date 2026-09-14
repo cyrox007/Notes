@@ -5,7 +5,7 @@
 - Roadmap: `docs/USABLE_BASELINE_0.12.md`
 - Parent data-integrity branch / PR: `usable-baseline-0.12` / #62.
 - Active-session + BASE_PATH stack: `usable-baseline-0.12-phase2` / #63.
-- Current next-slice branch: `usable-baseline-0.12-phase3`.
+- Current migration-completion branch: `usable-baseline-0.12-phase3`.
 - PR #61 (storage quotas/settings) is already merged into `master`; #62 was rebuilt on top of that merge before the later stacks were created.
 
 ## Completed — data integrity foundation
@@ -37,15 +37,25 @@
 - `tests/integration/active_session_http.sh` proves an already authenticated user is redirected to the prefixed login route after `is_active` becomes `0`.
 - Phase2 GitHub Actions gate is green on `edb0ae942a7baf83a4a39140324f61569ac30f78`.
 
-## Remaining P0
+## Completed — partial/legacy quota migration
 
-1. Make the settings/storage-quota migration safe for partial legacy schemas. Current migration preflight is deliberately fail-closed: incompatible partial tables are rejected before `schema_migrations` is created, but compatible reconciliation/upgrade of legacy tables is not implemented yet.
+- The already shipped `20260913_system_settings_storage_quota.sql` is left byte-for-byte unchanged, preserving applied-migration checksums.
+- `20260914_storage_quota_legacy_reconcile.sql` runs before the canonical storage migration in the manifest: it is a no-op on fresh installs and reconciles supported partial legacy tables on upgrades.
+- Existing administrator-defined `file_manager_default_quota_bytes`, unrelated settings and per-user quota values are preserved.
+- Missing typed-setting metadata, timestamps, single-user uniqueness and the `users(id) ON DELETE CASCADE` quota foreign key are added only after legacy core/data validation succeeds.
+- Duplicate setting keys, duplicate quota rows, orphan quota rows, incompatible core columns and incompatible existing quota foreign keys fail closed rather than being guessed/coerced.
+- `tests/integration/storage_quota_legacy_migration.sh` executes the real migration runner against MySQL 8.4, verifies value preservation and the final schema contract, and proves ambiguous duplicate keys fail before additive schema changes are recorded as applied.
+- `File Manager HTTP integrity` run `34824601434` is fully green with legacy reconciliation plus all existing HTTP/quota/concurrency contracts.
 
-## Next after P0
+## P0 status
 
-1. Product browser E2E: Notes lifecycle.
-2. Product browser E2E: Tasks lifecycle.
-3. Complete File Manager browser lifecycle (preview/download + rename + browser-visible quota error).
-4. Profile browser lifecycle (profile edit + avatar upload/remove).
-5. Admin browser lifecycle (user status + quota update).
+All planned 0.12 P0 items are now implemented and covered by automated contracts. The next workstream is product-level browser lifecycle coverage required by the 0.12 Definition of Done.
+
+## Next — Product browser E2E
+
+1. Notes lifecycle: create → edit → attachment → share → delete.
+2. Tasks lifecycle: create → edit → subtask → status → delete.
+3. Complete File Manager lifecycle: preview/download → rename → delete → browser-visible quota error.
+4. Profile lifecycle: edit profile → avatar upload/remove.
+5. Admin lifecycle: user status → quota update.
 6. Fault-injection browser coverage, then usability/pagination/governance passes.
