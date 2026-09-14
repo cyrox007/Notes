@@ -1,10 +1,28 @@
 {literal}
 const socketTicket = "{/literal}{$socket_ticket|default:''|escape:'javascript'}{literal}";
 const socketUrl = "{/literal}{$socket_url|default:''|escape:'javascript'}{literal}";
+const appBasePath = "{/literal}{$base_path|default:''|escape:'javascript'}{literal}";
 
 wspace.socketConfig = {
     ticket: socketTicket,
     url: socketUrl
+};
+
+wspace.basePath = appBasePath;
+wspace.path = function appPath(value = '/') {
+    const raw = String(value || '/');
+    if (/^[a-z][a-z0-9+.-]*:/i.test(raw) || raw.startsWith('//') || raw.startsWith('#')) {
+        return raw;
+    }
+
+    const normalized = '/' + raw.replace(/^\/+/, '');
+    if (!appBasePath) {
+        return normalized;
+    }
+    if (normalized === appBasePath || normalized.startsWith(appBasePath + '/')) {
+        return normalized;
+    }
+    return appBasePath + normalized;
 };
 
 (function bootstrapSecurity() {
