@@ -46,9 +46,7 @@
             <span class="profile-metric__body">
                 <span class="profile-metric__value">{$profileMetrics.storage.percent|default:0|escape}%</span>
                 <span class="profile-metric__label">{$profileMetrics.storage.used_label|default:'0 Б'|escape} из {$profileMetrics.storage.quota_label|default:'—'|escape}</span>
-                <span class="profile-metric__progress" aria-hidden="true">
-                    <span style="width: {$profileMetrics.storage.percent|default:0|escape}%"></span>
-                </span>
+                <progress class="profile-metric__progress" value="{$profileMetrics.storage.percent|default:0|escape}" max="100" aria-label="Использовано {$profileMetrics.storage.percent|default:0|escape}% хранилища"></progress>
             </span>
             <i class="fa fa-angle-right profile-metric__arrow" aria-hidden="true"></i>
         </a>
