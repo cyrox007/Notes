@@ -21,6 +21,7 @@ use App\Middlewares\IsAdmin;
 use App\Middlewares\AuthRateLimit;
 use App\Middlewares\UploadRateLimit;
 use App\Middlewares\StorageQuotaLimit;
+use App\Middlewares\StorageMutationLock;
 use Core\Router;
 
 $router = Router::getInstance();
@@ -75,10 +76,10 @@ $router->group('/profile')
 $router->group('/files')
     ->add('GET', '/', [FileController::class, 'index'], [LoginRequared::class], 'files')
     ->add('GET', '/folder/{int:folderId}/', [FileController::class, 'folder'], [LoginRequared::class], 'files_folder')
-    ->add('POST', '/create-folder/', [FileController::class, 'createFolder'], [LoginRequared::class], 'files_create_folder')
+    ->add('POST', '/create-folder/', [FileController::class, 'createFolder'], [LoginRequared::class, StorageMutationLock::class], 'files_create_folder')
     ->add('POST', '/upload/', [FileController::class, 'uploadFile'], [LoginRequared::class, UploadRateLimit::class, StorageQuotaLimit::class], 'files_upload')
     ->add('POST', '/delete/', [FileDeleteController::class, 'delete'], [LoginRequared::class], 'files_delete')
-    ->add('POST', '/rename/', [FileController::class, 'rename'], [LoginRequared::class], 'files_rename')
+    ->add('POST', '/rename/', [FileController::class, 'rename'], [LoginRequared::class, StorageMutationLock::class], 'files_rename')
     ->add('GET', '/get/{int:fileId}/', [FileController::class, 'getFile'], [LoginRequared::class], 'files_get')
     ->endGroup();
 
