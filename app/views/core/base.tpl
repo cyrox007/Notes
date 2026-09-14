@@ -17,6 +17,7 @@
 	<link rel="stylesheet" href="{$base_url}/assets/font-awesome/css/font-awesome.min.css">
 	<link rel="stylesheet" href="{$base_url}/assets/css/findability.css">
 	<link rel="stylesheet" href="{$base_url}/assets/css/feedback.css">
+	<link rel="stylesheet" href="{$base_url}/assets/css/file-manager-polish.css">
 	<link rel="icon" href="{$base_url}/favicon.ico" type="image/x-icon">
 	<template id="csrf-token-template">{csrf_token}</template>
 	<script>
@@ -28,6 +29,7 @@
 	<script src="{$base_url}/assets/js/notes-draft.js" defer></script>
 	<script src="{$base_url}/assets/js/usability-actions.js" defer></script>
 	<script src="{$base_url}/assets/js/release-polish.js" defer></script>
+	<script src="{$base_url}/assets/js/file-manager-polish.js" defer></script>
 	<script src="{$base_url}/assets/js/tasks-kanban.js" defer></script>
 </head>
 
