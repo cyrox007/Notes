@@ -66,6 +66,7 @@
                 const result = await parseJson(await fetch(shareUrl, { method: 'POST', body: new FormData(shareForm) }));
                 if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(result.share_url).catch(() => {});
                 toast('Ссылка для просмотра создана', 'success');
+                window.alert('Ссылка создана: ' + result.share_url);
                 window.location.reload();
             } catch (error) {
                 feedback?.inline?.(shareForm, error.message, 'error');
@@ -90,10 +91,7 @@
 
         root.querySelector('#unshareNote')?.addEventListener('click', async (event) => {
             const button = event.currentTarget;
-            const approved = await confirmAction('Деактивировать публичную ссылку?', {
-                title: 'Отключить общий доступ', confirmText: 'Отключить', danger: true
-            });
-            if (!approved) return;
+            if (!window.confirm('Деактивировать публичную ссылку?')) return;
             try {
                 button.disabled = true;
                 await parseJson(await fetch(unshareUrl, { method: 'POST' }));
@@ -199,16 +197,11 @@
             try {
                 reset();
                 stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-                const preferred = [
-                    'audio/webm;codecs=opus',
-                    'audio/ogg;codecs=opus',
-                    'audio/webm',
-                ].find((type) => window.MediaRecorder.isTypeSupported?.(type));
+                const preferred = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/webm']
+                    .find((type) => window.MediaRecorder.isTypeSupported?.(type));
                 recorder = preferred ? new MediaRecorder(stream, { mimeType: preferred }) : new MediaRecorder(stream);
                 chunks = [];
-                recorder.addEventListener('dataavailable', (event) => {
-                    if (event.data?.size) chunks.push(event.data);
-                });
+                recorder.addEventListener('dataavailable', (event) => { if (event.data?.size) chunks.push(event.data); });
                 recorder.addEventListener('stop', () => {
                     clearTicker();
                     elapsedMs = Math.max(elapsedMs, Date.now() - startedAt);
