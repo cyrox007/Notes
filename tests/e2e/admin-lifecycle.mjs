@@ -56,6 +56,13 @@ function targetRow(page) {
   return page.locator('.admin-users-table tbody tr').filter({ hasText: `@${targetUsername}` });
 }
 
+function targetQuotaRow(page) {
+  return page.locator('.admin-users-table tbody tr').filter({
+    has: page.locator('input[name="quota_mb"]'),
+    hasText: `@${targetUsername}`,
+  });
+}
+
 try {
   const context = await browser.newContext();
   const page = await context.newPage();
@@ -104,7 +111,7 @@ try {
     settingsLink.click(),
   ]);
 
-  const quotaRow = page.locator('.admin-quota-row').filter({ hasText: `@${targetUsername}` });
+  const quotaRow = targetQuotaRow(page);
   await quotaRow.waitFor({ state: 'visible', timeout: 10000 });
   const quotaInput = quotaRow.locator('input[name="quota_mb"]');
   await quotaInput.fill('25');
@@ -112,7 +119,7 @@ try {
   await page.locator('.admin-page__flash').filter({ hasText: 'Персональный лимит обновлён' })
     .waitFor({ state: 'visible', timeout: 10000 });
 
-  const updatedQuotaRow = page.locator('.admin-quota-row').filter({ hasText: `@${targetUsername}` });
+  const updatedQuotaRow = targetQuotaRow(page);
   await updatedQuotaRow.waitFor({ state: 'visible', timeout: 10000 });
   if ((await updatedQuotaRow.locator('input[name="quota_mb"]').inputValue()) !== '25') {
     throw new Error('Updated storage quota did not persist in Admin UI');
