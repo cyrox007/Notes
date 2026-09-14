@@ -147,7 +147,24 @@ try {
   const dragHandle = task.locator('.tasks-board__drag-handle');
   await dragHandle.waitFor({ state: 'visible', timeout: 5000 });
   const completedDropzone = page.locator('.tasks-board__dropzone[data-status="completed"]');
-  await dragHandle.dragTo(completedDropzone);
+  await completedDropzone.waitFor({ state: 'visible', timeout: 5000 });
+
+  // Playwright dragTo does not consistently preserve an HTML5 DataTransfer in
+  // headless Chromium. Dispatch the browser's native DragEvent sequence with one
+  // DataTransfer object so the product dragstart/drop handlers are exercised.
+  await page.evaluate((uid) => {
+    const item = document.querySelector(`.task-item[data-task-id="${uid}"]`);
+    const handle = item?.querySelector('.tasks-board__drag-handle');
+    const target = document.querySelector('.tasks-board__dropzone[data-status="completed"]');
+    if (!item || !handle || !target) throw new Error('Kanban drag elements not found');
+    const transfer = new DataTransfer();
+    handle.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+    target.dispatchEvent(new DragEvent('dragenter', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+    target.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+    target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+    handle.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+  }, taskUid);
+
   await page.waitForFunction(
     (uid) => {
       const item = document.querySelector(`.task-item[data-task-id="${uid}"]`);
