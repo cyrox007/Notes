@@ -27,6 +27,23 @@
 			</div>
 		</div>
 
+		<section id="file-manager-quota" class="file-manager__quota" data-url="{route_path('files_quota')}" aria-label="Использование хранилища">
+			<div class="file-manager__quota-header">
+				<div>
+					<strong>Хранилище</strong>
+					<span data-quota-status>Загрузка данных…</span>
+				</div>
+				<div class="file-manager__quota-values">
+					<span>Использовано <strong data-quota-used>—</strong></span>
+					<span>Лимит <strong data-quota-total>—</strong></span>
+					<span>Осталось <strong data-quota-remaining>—</strong></span>
+				</div>
+			</div>
+			<div class="file-manager__quota-track" role="progressbar" aria-label="Заполненность хранилища" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+				<div class="file-manager__quota-bar" data-quota-bar></div>
+			</div>
+		</section>
+
 		<div class="file-manager__content" aria-live="polite">
 			{if empty($files)}
 				<div class="file-manager__empty">
@@ -183,4 +200,5 @@
 		</div>
 	</div>
 	<script src="/assets/js/file_manager/script.js"></script>
+	<script src="/assets/js/file_manager/quota.js"></script>
 {/block}
