@@ -203,6 +203,202 @@ function recordMigration(mysqli $db, string $filename, string $checksum): void
     $stmt->close();
 }
 
+function contractTableExists(mysqli $db, string $table): bool
+{
+    $stmt = $db->prepare(
+        'SELECT 1 FROM information_schema.tables '
+        . 'WHERE table_schema = DATABASE() AND table_name = ? LIMIT 1'
+    );
+    $stmt->bind_param('s', $table);
+    $stmt->execute();
+    $exists = $stmt->get_result()->num_rows === 1;
+    $stmt->close();
+    return $exists;
+}
+
+/** @return array<string,mixed>|null */
+function contractColumn(mysqli $db, string $table, string $column): ?array
+{
+    $stmt = $db->prepare(
+        'SELECT DATA_TYPE,COLUMN_TYPE,IS_NULLABLE,COLUMN_DEFAULT,EXTRA,CHARACTER_MAXIMUM_LENGTH '
+        . 'FROM information_schema.columns '
+        . 'WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ? LIMIT 1'
+    );
+    $stmt->bind_param('ss', $table, $column);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return is_array($row) ? $row : null;
+}
+
+/** @param array<string,mixed> $expected */
+function assertContractColumn(mysqli $db, string $table, string $column, array $expected): void
+{
+    $row = contractColumn($db, $table, $column);
+    if ($row === null) {
+        throw new RuntimeException("Incompatible storage settings schema: missing {$table}.{$column}");
+    }
+
+    foreach ($expected as $field => $value) {
+        $actual = $row[$field] ?? null;
+        if ($field === 'EXTRA') {
+            if (!str_contains(strtolower((string) $actual), strtolower((string) $value))) {
+                throw new RuntimeException("Incompatible storage settings schema: {$table}.{$column} {$field} is '{$actual}'");
+            }
+            continue;
+        }
+        if ($field === 'COLUMN_DEFAULT') {
+            $actualNormalized = $actual === null ? null : strtolower(trim((string) $actual, "'"));
+            $expectedNormalized = $value === null ? null : strtolower(trim((string) $value, "'"));
+            if ($actualNormalized !== $expectedNormalized) {
+                throw new RuntimeException("Incompatible storage settings schema: {$table}.{$column} default is '" . (string) $actual . "'");
+            }
+            continue;
+        }
+        if ((string) $actual !== (string) $value) {
+            throw new RuntimeException("Incompatible storage settings schema: {$table}.{$column} {$field} is '{$actual}'");
+        }
+    }
+}
+
+/** @param list<string> $columns */
+function assertContractIndex(mysqli $db, string $table, array $columns, bool $unique): void
+{
+    $result = $db->query(
+        "SELECT INDEX_NAME,NON_UNIQUE,SEQ_IN_INDEX,COLUMN_NAME
+         FROM information_schema.statistics
+         WHERE table_schema = DATABASE() AND table_name = '" . $db->real_escape_string($table) . "'
+         ORDER BY INDEX_NAME,SEQ_IN_INDEX"
+    );
+    $indexes = [];
+    while ($row = $result->fetch_assoc()) {
+        $name = (string) $row['INDEX_NAME'];
+        $indexes[$name]['unique'] = (int) $row['NON_UNIQUE'] === 0;
+        $indexes[$name]['columns'][] = (string) $row['COLUMN_NAME'];
+    }
+    foreach ($indexes as $index) {
+        if (($index['unique'] ?? false) === $unique && ($index['columns'] ?? []) === $columns) {
+            return;
+        }
+    }
+    $kind = $unique ? 'unique index' : 'index';
+    throw new RuntimeException('Incompatible storage settings schema: missing ' . $kind . ' on ' . $table . '(' . implode(',', $columns) . ')');
+}
+
+function assertStorageQuotaForeignKey(mysqli $db): void
+{
+    $result = $db->query(
+        "SELECT k.REFERENCED_TABLE_NAME,k.REFERENCED_COLUMN_NAME,r.DELETE_RULE
+         FROM information_schema.KEY_COLUMN_USAGE k
+         JOIN information_schema.REFERENTIAL_CONSTRAINTS r
+           ON r.CONSTRAINT_SCHEMA=k.CONSTRAINT_SCHEMA AND r.CONSTRAINT_NAME=k.CONSTRAINT_NAME
+         WHERE k.TABLE_SCHEMA=DATABASE()
+           AND k.TABLE_NAME='user_storage_quotas'
+           AND k.COLUMN_NAME='user_id'
+           AND k.REFERENCED_TABLE_NAME IS NOT NULL"
+    );
+    while ($row = $result->fetch_assoc()) {
+        if (
+            (string) $row['REFERENCED_TABLE_NAME'] === 'users'
+            && (string) $row['REFERENCED_COLUMN_NAME'] === 'id'
+            && strtoupper((string) $row['DELETE_RULE']) === 'CASCADE'
+        ) {
+            return;
+        }
+    }
+    throw new RuntimeException('Incompatible storage settings schema: user_storage_quotas.user_id must reference users.id ON DELETE CASCADE');
+}
+
+function verifyStorageSettingsContract(mysqli $db, bool $allowMissingTables = false): void
+{
+    $settingsExists = contractTableExists($db, 'system_settings');
+    $quotaExists = contractTableExists($db, 'user_storage_quotas');
+
+    if (!$settingsExists && !$quotaExists && $allowMissingTables) {
+        return;
+    }
+    if (!$settingsExists && !$allowMissingTables) {
+        throw new RuntimeException('Database contract is incomplete; missing table system_settings');
+    }
+    if (!$quotaExists && !$allowMissingTables) {
+        throw new RuntimeException('Database contract is incomplete; missing table user_storage_quotas');
+    }
+
+    if ($settingsExists) {
+        assertContractColumn($db, 'system_settings', 'id', [
+            'DATA_TYPE' => 'int', 'IS_NULLABLE' => 'NO', 'EXTRA' => 'auto_increment',
+        ]);
+        assertContractColumn($db, 'system_settings', 'setting_key', [
+            'DATA_TYPE' => 'varchar', 'IS_NULLABLE' => 'NO', 'CHARACTER_MAXIMUM_LENGTH' => '100',
+        ]);
+        assertContractColumn($db, 'system_settings', 'setting_value', [
+            'DATA_TYPE' => 'text', 'IS_NULLABLE' => 'NO',
+        ]);
+        assertContractColumn($db, 'system_settings', 'setting_type', [
+            'COLUMN_TYPE' => "enum('string','integer','boolean','json')", 'IS_NULLABLE' => 'NO', 'COLUMN_DEFAULT' => 'string',
+        ]);
+        assertContractColumn($db, 'system_settings', 'category', [
+            'DATA_TYPE' => 'varchar', 'IS_NULLABLE' => 'NO', 'CHARACTER_MAXIMUM_LENGTH' => '50', 'COLUMN_DEFAULT' => 'general',
+        ]);
+        assertContractColumn($db, 'system_settings', 'description', [
+            'DATA_TYPE' => 'varchar', 'IS_NULLABLE' => 'YES', 'CHARACTER_MAXIMUM_LENGTH' => '255',
+        ]);
+        assertContractColumn($db, 'system_settings', 'is_editable', [
+            'DATA_TYPE' => 'tinyint', 'IS_NULLABLE' => 'NO', 'COLUMN_DEFAULT' => '1',
+        ]);
+        assertContractColumn($db, 'system_settings', 'created_at', [
+            'DATA_TYPE' => 'datetime', 'IS_NULLABLE' => 'NO', 'COLUMN_DEFAULT' => 'current_timestamp',
+        ]);
+        assertContractColumn($db, 'system_settings', 'updated_at', [
+            'DATA_TYPE' => 'datetime', 'IS_NULLABLE' => 'NO', 'COLUMN_DEFAULT' => 'current_timestamp', 'EXTRA' => 'on update CURRENT_TIMESTAMP',
+        ]);
+        assertContractIndex($db, 'system_settings', ['setting_key'], true);
+        assertContractIndex($db, 'system_settings', ['category'], false);
+    }
+
+    if ($quotaExists) {
+        assertContractColumn($db, 'user_storage_quotas', 'id', [
+            'DATA_TYPE' => 'int', 'IS_NULLABLE' => 'NO', 'EXTRA' => 'auto_increment',
+        ]);
+        assertContractColumn($db, 'user_storage_quotas', 'user_id', [
+            'DATA_TYPE' => 'int', 'COLUMN_TYPE' => 'int', 'IS_NULLABLE' => 'NO',
+        ]);
+        assertContractColumn($db, 'user_storage_quotas', 'quota_bytes', [
+            'DATA_TYPE' => 'bigint', 'COLUMN_TYPE' => 'bigint unsigned', 'IS_NULLABLE' => 'NO',
+        ]);
+        assertContractColumn($db, 'user_storage_quotas', 'created_at', [
+            'DATA_TYPE' => 'datetime', 'IS_NULLABLE' => 'NO', 'COLUMN_DEFAULT' => 'current_timestamp',
+        ]);
+        assertContractColumn($db, 'user_storage_quotas', 'updated_at', [
+            'DATA_TYPE' => 'datetime', 'IS_NULLABLE' => 'NO', 'COLUMN_DEFAULT' => 'current_timestamp', 'EXTRA' => 'on update CURRENT_TIMESTAMP',
+        ]);
+        assertContractIndex($db, 'user_storage_quotas', ['user_id'], true);
+        assertStorageQuotaForeignKey($db);
+    }
+
+    if ($allowMissingTables || !$settingsExists || !$quotaExists) {
+        return;
+    }
+
+    $stmt = $db->prepare(
+        "SELECT setting_type,category,is_editable FROM system_settings
+         WHERE setting_key='file_manager_default_quota_bytes' LIMIT 1"
+    );
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!is_array($row)) {
+        throw new RuntimeException('Database contract is incomplete; missing file_manager_default_quota_bytes setting');
+    }
+    if (
+        (string) $row['setting_type'] !== 'integer'
+        || (string) $row['category'] !== 'file_manager'
+        || (int) $row['is_editable'] !== 1
+    ) {
+        throw new RuntimeException('Incompatible storage settings schema: file_manager_default_quota_bytes metadata is invalid');
+    }
+}
+
 /** @param list<string> $tables */
 function verifyCurrentContract(mysqli $db, array $tables): void
 {
@@ -225,7 +421,7 @@ function verifyCurrentContract(mysqli $db, array $tables): void
         'user_to_dialogs' => ['role', 'last_read_message_id', 'last_delivered_message_id', 'is_deleted'],
         'messages' => ['from_user_id', 'message', 'message_type', 'reply_to_message_id', 'meta_data'],
         'note_attachments' => ['file_uid', 'file_path', 'mime_type', 'is_encrypted'],
-        'system_settings' => ['setting_key', 'setting_value', 'setting_type', 'is_editable'],
+        'system_settings' => ['setting_key', 'setting_value', 'setting_type', 'category', 'is_editable'],
         'user_storage_quotas' => ['user_id', 'quota_bytes'],
     ];
     foreach ($requiredColumns as $table => $columns) {
@@ -253,6 +449,8 @@ function verifyCurrentContract(mysqli $db, array $tables): void
     if (!str_contains($type, "'saved'")) {
         throw new RuntimeException('Database contract is incomplete; dialogs.type does not support saved');
     }
+
+    verifyStorageSettingsContract($db, false);
 }
 
 try {
@@ -274,6 +472,10 @@ try {
         $pending[] = $filename;
     }
 
+    if (in_array('20260913_system_settings_storage_quota.sql', $pending, true)) {
+        verifyStorageSettingsContract($db, true);
+    }
+
     if ($statusOnly || $dryRun) {
         foreach ($manifest as $filename) {
             $state = in_array($filename, $pending, true) ? 'PENDING' : 'APPLIED';
@@ -290,6 +492,9 @@ try {
 
     ensureMigrationTable($db);
     foreach ($pending as $filename) {
+        if ($filename === '20260913_system_settings_storage_quota.sql') {
+            verifyStorageSettingsContract($db, true);
+        }
         [, $sql, $checksum] = readMigration($root, $filename);
         echo "Applying {$filename} ... ";
         executeMigration($db, $sql);
