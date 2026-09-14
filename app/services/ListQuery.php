@@ -47,44 +47,18 @@ final class ListQuery
         ];
     }
 
-    /**
-     * @param array{q:string,page:int,limit:int,offset:int,sort:string,sort_column:string,direction:string,direction_sql:string} $query
-     * @return array{q:string,page:int,limit:int,offset:int,sort:string,sort_column:string,direction:string,direction_sql:string}
-     */
-    public static function clampToTotal(array $query, int $total): array
-    {
-        $state = self::pageState((int) $query['page'], (int) $query['limit'], $total);
-        $query['page'] = $state['page'];
-        $query['offset'] = $state['offset'];
-        return $query;
-    }
-
     /** @return array{q:string,page:int,limit:int,total:int,total_pages:int,sort:string,direction:string} */
     public static function pagination(array $query, int $total): array
     {
-        $state = self::pageState((int) $query['page'], (int) $query['limit'], $total);
+        $totalPages = max(1, (int) ceil($total / max(1, (int) $query['limit'])));
         return [
             'q' => (string) $query['q'],
-            'page' => $state['page'],
+            'page' => min((int) $query['page'], $totalPages),
             'limit' => (int) $query['limit'],
             'total' => max(0, $total),
-            'total_pages' => $state['total_pages'],
+            'total_pages' => $totalPages,
             'sort' => (string) $query['sort'],
             'direction' => (string) $query['direction'],
-        ];
-    }
-
-    /** @return array{page:int,offset:int,total_pages:int} */
-    public static function pageState(int $page, int $limit, int $total): array
-    {
-        $limit = max(1, $limit);
-        $totalPages = max(1, (int) ceil(max(0, $total) / $limit));
-        $page = min(max(1, $page), $totalPages);
-
-        return [
-            'page' => $page,
-            'offset' => ($page - 1) * $limit,
-            'total_pages' => $totalPages,
         ];
     }
 }
