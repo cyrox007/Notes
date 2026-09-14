@@ -18,3 +18,5 @@
 {include file="core/theme-refresh.css"}
 {* 0.13 shared UX layer: module-specific redesigns stay in their own styles. *}
 {include file="core/product-ux-013.css"}
+{* Profile hub/public profile is a module-specific final layer. *}
+{include file="profile_page/hub.css"}
