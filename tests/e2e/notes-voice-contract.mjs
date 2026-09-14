@@ -80,24 +80,39 @@ try {
   await page.getByRole('button', { name: /Начать запись/ }).waitFor({ state: 'visible' });
   await page.getByRole('button', { name: 'Сохранить голосовую', exact: true }).waitFor({ state: 'visible' });
 
-  const upload = await context.request.post(origin + uploadPath, {
-    multipart: {
-      attachment: {
-        name: `voice-${stamp}.wav`,
-        mimeType: 'audio/wav',
-        buffer: wavFixture(2),
-      },
-      is_voice: 'true',
-      duration: '2',
-    },
+  // Exercise the same browser FormData/fetch path as the product. common.js injects
+  // the session CSRF token into this request, so the voice contract cannot bypass CSRF.
+  const uploadForm = page.locator('#uploadForm');
+  await uploadForm.locator('#attachmentInput').setInputFiles({
+    name: `voice-${stamp}.wav`,
+    mimeType: 'audio/wav',
+    buffer: wavFixture(2),
   });
-  if (upload.status() !== 200) throw new Error(`Voice upload returned HTTP ${upload.status()}: ${await upload.text()}`);
-  const payload = await upload.json();
-  if (payload?.success !== true || payload?.attachment?.file_type !== 'voice' || Number(payload?.attachment?.duration) !== 2) {
-    throw new Error(`Unexpected voice upload payload: ${JSON.stringify(payload)}`);
-  }
+  await uploadForm.locator('input[name="is_voice"]').evaluate((input) => { input.value = 'true'; });
+  await uploadForm.evaluate((form) => {
+    let duration = form.querySelector('input[name="duration"]');
+    if (!duration) {
+      duration = document.createElement('input');
+      duration.type = 'hidden';
+      duration.name = 'duration';
+      form.appendChild(duration);
+    }
+    duration.value = '2';
+  });
 
-  await page.reload({ waitUntil: 'domcontentloaded' });
+  const uploadResponsePromise = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.origin === origin && url.pathname === uploadPath && response.request().method() === 'POST';
+  }, { timeout: 15000 });
+  const reloadPromise = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 });
+  await uploadForm.getByRole('button', { name: 'Добавить файл', exact: true }).click();
+  const upload = await uploadResponsePromise;
+  const payload = await upload.json().catch(() => ({}));
+  if (upload.status() !== 200 || payload?.success !== true || payload?.attachment?.file_type !== 'voice' || Number(payload?.attachment?.duration) !== 2) {
+    throw new Error(`Unexpected voice upload response: HTTP ${upload.status()} ${JSON.stringify(payload)}`);
+  }
+  await reloadPromise;
+
   const voiceItem = page.locator('.attachment-item--voice').filter({ hasText: 'Голосовая заметка' }).first();
   await voiceItem.waitFor({ state: 'visible', timeout: 10000 });
   await voiceItem.getByText('2 сек', { exact: false }).waitFor({ state: 'visible', timeout: 5000 });
@@ -116,7 +131,7 @@ try {
   if (escapedRequests.length) throw new Error(`Requests escaped BASE_PATH: ${[...new Set(escapedRequests)].join(', ')}`);
   if (httpErrors.length) throw new Error(`Unexpected HTTP errors: ${httpErrors.join(', ')}`);
 
-  console.log('Notes voice UI/upload/playback contract: OK');
+  console.log('Notes voice UI/CSRF upload/playback contract: OK');
 } finally {
   await context.close();
   await browser.close();
