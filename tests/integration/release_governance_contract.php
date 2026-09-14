@@ -1,0 +1,111 @@
+<?php
+
+declare(strict_types=1);
+
+$root = dirname(__DIR__, 2);
+$policyPath = $root . '/.github/release-governance.json';
+$templatePath = $root . '/.github/pull_request_template.md';
+$releaseGatePath = $root . '/.github/workflows/release-gate.yml';
+
+function failContract(string $message): never
+{
+    fwrite(STDERR, "Release governance contract failed: {$message}\n");
+    exit(1);
+}
+
+function requireFileText(string $path): string
+{
+    if (!is_file($path)) {
+        failContract('missing file: ' . $path);
+    }
+    $content = file_get_contents($path);
+    if ($content === false) {
+        failContract('cannot read file: ' . $path);
+    }
+    return $content;
+}
+
+$policy = json_decode(requireFileText($policyPath), true);
+if (!is_array($policy) || json_last_error() !== JSON_ERROR_NONE) {
+    failContract('invalid JSON policy');
+}
+
+if (($policy['protected_branch'] ?? null) !== 'master') {
+    failContract('protected_branch must be master');
+}
+
+foreach ([
+    'require_pull_request',
+    'require_branch_up_to_date',
+    'dismiss_stale_reviews',
+    'block_force_pushes',
+    'block_branch_deletion',
+] as $flag) {
+    if (($policy[$flag] ?? false) !== true) {
+        failContract("{$flag} must be true");
+    }
+}
+
+if ((int) ($policy['required_approvals_when_independent_reviewer_exists'] ?? 0) !== 1) {
+    failContract('independent-review approval count must be 1');
+}
+
+$requiredChecks = $policy['required_checks'] ?? null;
+if (!is_array($requiredChecks) || $requiredChecks === []) {
+    failContract('required_checks must be a non-empty array');
+}
+if (count($requiredChecks) !== count(array_unique($requiredChecks))) {
+    failContract('required_checks contains duplicates');
+}
+
+$workflowByCheck = [
+    'release-gate' => '.github/workflows/release-gate.yml',
+    'notes-browser-lifecycle' => '.github/workflows/notes-browser-lifecycle.yml',
+    'tasks-browser-lifecycle' => '.github/workflows/tasks-browser-lifecycle.yml',
+    'file-manager-browser-lifecycle' => '.github/workflows/file-manager-browser-lifecycle.yml',
+];
+
+foreach ($requiredChecks as $check) {
+    if (!is_string($check) || !isset($workflowByCheck[$check])) {
+        failContract('unknown current required check: ' . var_export($check, true));
+    }
+    $workflowText = requireFileText($root . '/' . $workflowByCheck[$check]);
+    if (preg_match('/^\s{2}' . preg_quote($check, '/') . ':\s*$/m', $workflowText) !== 1) {
+        failContract("workflow job id {$check} not found in {$workflowByCheck[$check]}");
+    }
+}
+
+$futureChecks = $policy['required_checks_after_product_e2e_merge'] ?? null;
+$expectedFutureChecks = [
+    'profile-browser-lifecycle',
+    'admin-browser-lifecycle',
+    'storage-db-failure',
+];
+if ($futureChecks !== $expectedFutureChecks) {
+    failContract('future Product E2E check list drifted');
+}
+
+$template = requireFileText($templatePath);
+foreach ([
+    'Master release gate',
+    'BASE_PATH=/workspace/',
+    'DB_ARCHITECTURE.md',
+    'independent approval',
+    'durable DB/storage',
+] as $marker) {
+    if (!str_contains($template, $marker)) {
+        failContract("pull request template missing marker: {$marker}");
+    }
+}
+
+$releaseGate = requireFileText($releaseGatePath);
+if (!str_contains($releaseGate, 'php tests/integration/release_governance_contract.php')) {
+    failContract('release-gate.yml must execute release_governance_contract.php');
+}
+
+$docs = requireFileText($root . '/docs/RELEASE_GOVERNANCE.md');
+if (!str_contains($docs, 'GitHub branch-protection settings live outside Git history')) {
+    failContract('governance documentation must state the external Settings boundary');
+}
+
+fwrite(STDOUT, "Release governance contract: OK\n");
