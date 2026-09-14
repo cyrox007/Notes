@@ -1,16 +1,56 @@
 # История версий Workspace Organizer
 
-Формат основан на принципах Keep a Changelog. Пока проект находится в alpha, обратная совместимость между промежуточными версиями не гарантируется; database migrations являются частью обновления.
+Формат основан на принципах Keep a Changelog. Пока проект находится в alpha, обратная совместимость между промежуточными версиями не гарантируется; для существующих БД используются compatibility upgrade SQL, а canonical `*_schema.sql` остаются источником текущей схемы fresh install.
 
 ## Unreleased
 
-### Admin / File Manager storage
-- Добавлены canonical `system_settings` и `user_storage_quotas` с versioned upgrade migration.
+- Изменений после `0.12.0-alpha` пока нет.
+
+## 0.12.0-alpha — 2026-09-14
+
+### Usable baseline / data integrity
+- Durable DB writes переведены на fail-closed contract: неудачный commit больше не может молча превращаться в пользовательский success.
+- File Manager lifecycle согласован между DB и private filesystem; добавлен reconciliation path для расхождений.
+- Recursive folder soft-delete больше не оставляет активных потомков и не завышает storage usage.
+- File uploads и изменение quota используют общий per-user advisory lock, включая upload-vs-admin-update race.
+- Browser fault injection реально ломает metadata INSERT после физического upload и доказывает отсутствие false-success и orphan-файла.
+- Notes delete согласован с attachment/share metadata без преждевременного physical cleanup, сохраняя retention contract.
+
+### Product browser E2E
+- Notes: create → edit → attachment → public share → anonymous attachment → unshare → delete.
+- Tasks: create → edit → subtask → completion/status → sort → delete.
+- File Manager: folder → upload → preview/download → rename → quota denial → delete.
+- Profile: edit → avatar upload/download → avatar remove.
+- Admin: dynamic field UI → block/reactivate user → per-user quota update.
+- Все основные flows выполняются также при `BASE_PATH=/workspace/` и отвергают escaped root requests, неожиданные HTTP errors и PHP warnings/fatals.
+
+### Usability / findability
+- Добавлен общий accessible toast/inline feedback/confirmation/prompt layer.
+- Notes получили local draft autosave, dirty-state warning и server-side поиск/пагинацию.
+- Tasks получили server-side поиск/пагинацию и inline status/subtask actions без лишних full-page reload.
+- Admin users получили bounded server-side `q/page/limit/sort` и URL-preserving state.
+- File Manager получил поиск и сортировку текущей папки; существующий upload flow показывает имя файла, progress и ошибку.
+- Пограничный URL с номером страницы за пределами результата нормализуется на существующую страницу вместо пустой пользовательской выдачи.
+
+### BASE_PATH / runtime hardening
+- Root-relative application URLs системно переведены на `route_path`, `base_url` и JS `wspace.path()`.
+- Login/Profile/Notes/Tasks/File Manager/Messenger/Admin покрыты subdirectory browser baseline.
+- Исправлены Smarty 5 runtime incompatibilities, обнаруженные реальным Chromium: CSS/template parsing и callback type `Smarty\Template`.
+- Исправлены download `Content-Disposition` sanitization warnings для Notes/File Manager.
+
+### Database architecture / Admin / storage
+- Fresh install официально закреплён за canonical `database/*_schema.sql`.
+- `bin/migrate.php` определён как compatibility-upgrade runner для уже существующих установок, а `schema_migrations` — как internal filename/checksum ledger; это не замена canonical schema и не предположение, что проект исторически строился на migration framework.
+- Добавлены canonical `system_settings` и `user_storage_quotas` и безопасный compatibility upgrade для partial legacy schema.
 - `/admin/settings` позволяет задавать общий File Manager quota и optional per-user overrides.
-- Used storage не кэшируется отдельным счётчиком: значение вычисляется из активных `user_files`, поэтому delete/restore не требует ручного пересчёта.
-- File Manager upload проверяет effective quota до физической записи файла.
-- Concurrent uploads одного пользователя сериализуются MySQL advisory lock; изменение персональной квоты использует тот же lock.
-- Production healthcheck, hosting installer, DB upgrade/restore и master release gate переведены на current 22-table contract.
+- Used storage не кэшируется отдельным счётчиком: значение вычисляется из активных `user_files`.
+- Production healthcheck, hosting installer, DB upgrade/restore и release gate работают с current 22-table contract.
+
+### Release governance
+- Добавлен machine-readable required-check policy и PR checklist.
+- `Master release gate` проверяет governance drift и наличие реальных browser workflow job IDs.
+- Политика branch protection и независимого approval документирована в `docs/RELEASE_GOVERNANCE.md`; включение repository-level enforcement остаётся one-time GitHub Settings операцией с admin permission.
+- Добавлен отдельный `0.12 usable-alpha readiness` gate, который проверяет наличие всех release-scope артефактов, закрытый P1 roadmap и согласованность Version/README/CHANGELOG.
 
 ## 0.11.0-alpha — 2026-09-13
 
@@ -55,7 +95,7 @@
 - **PR #51:** Notes private attachments/share ACL, truthful attachment encryption flag и актуализированная документация.
 - **PR #52:** canonical Tasks schema, ACL/validation contract, рабочие subtasks/categories/UI и Tasks integration CI.
 - **PR #53:** private user avatars, canonical Profile contract и safe account deactivation вместо physical user delete.
-- **PR #54:** versioned DB migration runner, checksums, fresh-vs-upgrade installer contract и legacy DB integration test.
+- **PR #54:** DB compatibility upgrade runner, checksums, fresh-vs-upgrade installer contract и legacy DB integration test.
 - **PR #55:** resumable fail-closed legacy Messenger/Notes ciphertext migration CLI.
 - **PR #56:** product-wide UI/UX refresh, production headers/rate limits/healthcheck и canonical Admin lifecycle.
 - **PR #57:** zero-CLI hosting installer, hosting-like HTTP smoke и upload-ready release bundle.
