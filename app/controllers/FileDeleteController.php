@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Models\UserModel;
 use App\Services\FileLifecycleService;
+use App\Services\StorageQuotaService;
 use Core\Controller;
 use Core\Request;
 use DomainException;
@@ -28,7 +29,15 @@ final class FileDeleteController extends Controller
             return;
         }
 
+        $storageGuard = new StorageQuotaService();
+        $locked = false;
         try {
+            // Share the same per-user advisory lock used by uploads/quota updates.
+            // This prevents a parallel upload from inserting a new child after the
+            // delete subtree has been collected but before its metadata is committed.
+            $storageGuard->acquireUploadLock($userId);
+            $locked = true;
+
             $result = (new FileLifecycleService())->softDeleteTree($userId, $fileId);
             $payload = [
                 'message' => $result['deleted_records'] > 1 ? 'Папка и содержимое удалены' : 'Удалено успешно',
@@ -46,6 +55,14 @@ final class FileDeleteController extends Controller
         } catch (Throwable $e) {
             error_log('Error deleting File Manager item: ' . $e->getMessage());
             $this->jsonError('Ошибка при удалении', 500);
+        } finally {
+            if ($locked) {
+                try {
+                    $storageGuard->releaseUploadLock($userId);
+                } catch (Throwable $releaseError) {
+                    error_log('File Manager delete lock release failed: ' . $releaseError->getMessage());
+                }
+            }
         }
     }
 
