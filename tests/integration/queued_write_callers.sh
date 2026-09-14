@@ -3,9 +3,13 @@ set -euo pipefail
 
 mapfile -t callers < <(git grep -l -E -- '->queue(Insert|Update|Delete)\(' -- '*.php' | sort)
 
+# Every queued-write caller is intentionally enumerated. Adding a new caller
+# requires reviewing its error path because DatabaseManager::commit() now throws.
 expected=(
   'app/controllers/AuthController.php'
   'app/controllers/FileController.php'
+  'app/models/TaskModel.php'
+  'core/ORM.php'
   'tests/integration/database_queue_integrity.php'
 )
 
@@ -34,7 +38,12 @@ for known in "${expected[@]}"; do
   fi
 done
 
-for production_caller in app/controllers/AuthController.php app/controllers/FileController.php; do
+for production_caller in \
+  app/controllers/AuthController.php \
+  app/controllers/FileController.php \
+  app/models/TaskModel.php \
+  core/ORM.php
+do
   if ! git grep -q -F -- '->commit()' -- "$production_caller"; then
     echo "Queued writes without a commit call in $production_caller" >&2
     unexpected=1
