@@ -9,9 +9,19 @@ const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext();
 const page = await context.newPage();
 const pageErrors = [];
+const consoleErrors = [];
+const failedResponses = [];
 const escapedRequests = [];
 
 page.on('pageerror', error => pageErrors.push(error));
+page.on('console', message => {
+  if (message.type() === 'error') consoleErrors.push(message.text());
+});
+page.on('response', response => {
+  if (response.status() >= 400) {
+    failedResponses.push(`${response.status()} ${new URL(response.url()).pathname}`);
+  }
+});
 page.on('request', request => {
   const url = new URL(request.url());
   if (url.origin !== origin) return;
@@ -30,6 +40,31 @@ async function assertPage(path, selector) {
     throw new Error(`${path} returned ${response?.status()}`);
   }
   await page.locator(selector).waitFor({ state: 'visible', timeout: 15000 });
+}
+
+async function quotaDiagnostics() {
+  return page.evaluate(async () => {
+    const root = document.querySelector('#file-manager-quota');
+    const status = document.querySelector('[data-quota-status]')?.textContent || '';
+    const endpoint = root?.dataset.url || '';
+    const scripts = Array.from(document.scripts)
+      .map(script => script.src)
+      .filter(src => src.includes('file_manager'));
+    let endpointStatus = null;
+    let endpointBody = '';
+    let endpointError = '';
+    try {
+      const response = await fetch(endpoint, {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      endpointStatus = response.status;
+      endpointBody = await response.text();
+    } catch (error) {
+      endpointError = String(error);
+    }
+    return { status, endpoint, scripts, endpointStatus, endpointBody, endpointError };
+  });
 }
 
 try {
@@ -74,10 +109,25 @@ try {
 
   await assertPage('/files/', '.file-manager');
   await page.locator('[data-quota-status]').waitFor({ state: 'visible' });
-  await page.waitForFunction(() => {
-    const node = document.querySelector('[data-quota-status]');
-    return node && !node.textContent.includes('Загрузка данных');
-  }, null, { timeout: 15000 });
+
+  const quotaScriptSrc = await page.locator('script[src*="file_manager/quota.js"]').getAttribute('src');
+  if (!quotaScriptSrc?.includes(`${basePath}/assets/js/file_manager/quota.js`)) {
+    throw new Error(`Quota script escaped BASE_PATH: ${quotaScriptSrc}`);
+  }
+
+  try {
+    await page.waitForFunction(() => {
+      const node = document.querySelector('[data-quota-status]');
+      return node && !node.textContent.includes('Загрузка данных');
+    }, null, { timeout: 15000 });
+  } catch (error) {
+    const diagnostics = await quotaDiagnostics();
+    throw new Error(
+      `Quota UI did not settle. diagnostics=${JSON.stringify(diagnostics)} `
+      + `consoleErrors=${JSON.stringify(consoleErrors)} failedResponses=${JSON.stringify(failedResponses)}`,
+      { cause: error }
+    );
+  }
 
   const quotaState = await page.locator('#file-manager-quota').getAttribute('class');
   if (!quotaState?.includes('file-manager__quota--ready')) {
@@ -118,6 +168,12 @@ try {
 
   if (pageErrors.length > 0) {
     throw pageErrors[0];
+  }
+  if (consoleErrors.length > 0) {
+    throw new Error(`Browser console errors:\n${consoleErrors.join('\n')}`);
+  }
+  if (failedResponses.length > 0) {
+    throw new Error(`HTTP failures observed:\n${failedResponses.join('\n')}`);
   }
   if (escapedRequests.length > 0) {
     throw new Error(`Requests escaped BASE_PATH:\n${escapedRequests.join('\n')}`);
