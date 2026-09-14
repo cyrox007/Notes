@@ -106,14 +106,11 @@ try {
   }, { timeout: 15000 });
   await uploadForm.getByRole('button', { name: 'Добавить файл', exact: true }).click();
   const upload = await uploadResponsePromise;
-  const payload = await upload.json().catch(() => ({}));
-  if (upload.status() !== 200 || payload?.success !== true || payload?.attachment?.file_type !== 'voice' || Number(payload?.attachment?.duration) !== 2) {
-    throw new Error(`Unexpected voice upload response: HTTP ${upload.status()} ${JSON.stringify(payload)}`);
-  }
+  if (upload.status() !== 200) throw new Error(`Voice upload failed: HTTP ${upload.status()}`);
 
-  // The product reloads the editor after a successful upload. Do not couple the
-  // contract to Playwright's navigation timing: the persisted voice card is the
-  // user-visible state we actually care about, and locators survive that reload.
+  // The durable, user-visible contract is stronger than coupling the test to response-body
+  // timing while the product reloads the editor after upload: the voice card must reappear
+  // with persisted duration and a protected playback URL.
   const voiceItem = page.locator('.attachment-item--voice').filter({ hasText: 'Голосовая заметка' }).first();
   await voiceItem.waitFor({ state: 'visible', timeout: 10000 });
   await voiceItem.getByText('2 сек', { exact: false }).waitFor({ state: 'visible', timeout: 5000 });
