@@ -9,6 +9,7 @@ use App\Controllers\NoteAttachmentController;
 use App\Controllers\NoteShareController;
 use App\Controllers\TaskController;
 use App\Controllers\ProfileController;
+use App\Controllers\PublicProfileController;
 use App\Controllers\FileController;
 use App\Controllers\FileDeleteController;
 use App\Controllers\FileQuotaController;
@@ -67,6 +68,7 @@ $router->group('/tasks')
 
 $router->group('/profile')
    ->add('GET', '/', [ProfileController::class, 'index'], [LoginRequared::class], 'profile')
+   ->add('GET', '/user/{str:uid}', [PublicProfileController::class, 'view'], [LoginRequared::class], 'profile-public')
    ->add('POST', '/', [ProfileController::class, 'update'], [LoginRequared::class], 'profile-set')
    ->add('GET', '/avatar/{str:uid}', [ProfileController::class, 'avatar'], [LoginRequared::class], 'profile-avatar')
    ->add('POST', '/avatar/delete', [ProfileController::class, 'removeAvatar'], [LoginRequared::class], 'profile-avatar-delete')
