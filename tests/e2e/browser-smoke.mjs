@@ -67,6 +67,30 @@ try {
   await alice.page.locator('#messenger-connection[data-state="online"]').waitFor({ timeout: 20000 });
   await bob.page.locator('#messenger-connection[data-state="online"]').waitFor({ timeout: 20000 });
 
+  // A dropped WebSocket must visibly enter recovery, request a fresh short-lived
+  // ticket over the authenticated HTTP session, and return to online without a
+  // page reload or a second transport implementation.
+  const ticketRefresh = alice.page.waitForResponse(response => (
+    response.url().includes('/messenger/socket-ticket')
+    && response.request().method() === 'POST'
+  ), { timeout: 15000 });
+
+  await alice.page.evaluate(() => {
+    const socket = window.wspace?.messenger?.socket;
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      throw new Error('Alice WebSocket is not open before reconnect test');
+    }
+    socket.close(1000, 'e2e reconnect');
+  });
+
+  await alice.page.locator('#messenger-network-banner').waitFor({ state: 'visible', timeout: 5000 });
+  const refreshResponse = await ticketRefresh;
+  if (refreshResponse.status() !== 200) {
+    throw new Error(`Socket ticket refresh returned ${refreshResponse.status()}`);
+  }
+  await alice.page.locator('#messenger-connection[data-state="online"]').waitFor({ timeout: 20000 });
+  await alice.page.locator('#messenger-network-banner').waitFor({ state: 'hidden', timeout: 5000 });
+
   // Create a private dialog entirely through the new-chat modal. Contacts also
   // exist in the group-management dialog, so keep every selector modal-scoped.
   await alice.page.locator('#new-chat-button').click();
@@ -92,7 +116,7 @@ try {
   if (alice.pageErrors.length > 0) throw alice.pageErrors[0];
   if (bob.pageErrors.length > 0) throw bob.pageErrors[0];
 
-  console.log('Browser HTTPS + authenticated WSS + realtime message smoke: OK');
+  console.log('Browser HTTPS + authenticated WSS + reconnect + realtime message smoke: OK');
 
   await alice.context.close();
   await bob.context.close();
