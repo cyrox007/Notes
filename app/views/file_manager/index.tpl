@@ -27,7 +27,7 @@
 			</div>
 		</div>
 
-		<section id="file-manager-quota" class="file-manager__quota" data-url="{route_path('files_quota')}" aria-label="Использование хранилища">
+		<section id="file-manager-quota" class="file-manager__quota" data-url="{route_path name='files_quota'}" aria-label="Использование хранилища">
 			<div class="file-manager__quota-header">
 				<div>
 					<strong>Хранилище</strong>
