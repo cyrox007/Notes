@@ -104,13 +104,12 @@
             if (button) renderView(button.dataset.view);
         });
 
-        // Existing status API remains the single source of truth. Dragging is started
-        // from an explicit handle so editing controls never accidentally cancel a move.
         for (const task of tasks) {
             task.draggable = false;
             const header = task.querySelector('.task-header');
-            if (header && !header.querySelector('.tasks-board__drag-handle')) {
-                const handle = document.createElement('span');
+            let handle = header?.querySelector('.tasks-board__drag-handle');
+            if (header && !handle) {
+                handle = document.createElement('span');
                 handle.className = 'tasks-board__drag-handle';
                 handle.draggable = true;
                 handle.title = 'Перетащить задачу';
@@ -130,16 +129,17 @@
                 }).observe(statusLabel, { childList: true, subtree: true, characterData: true });
             }
 
-            task.addEventListener('dragstart', (event) => {
-                if (!event.target.closest('.tasks-board__drag-handle')) {
+            handle?.addEventListener('dragstart', (event) => {
+                const transfer = event.dataTransfer;
+                if (!transfer) {
                     event.preventDefault();
                     return;
                 }
                 task.classList.add('task-item--dragging');
-                event.dataTransfer.effectAllowed = 'move';
-                event.dataTransfer.setData('text/plain', task.dataset.taskId || '');
+                transfer.effectAllowed = 'move';
+                transfer.setData('text/plain', task.dataset.taskId || '');
             });
-            task.addEventListener('dragend', () => {
+            handle?.addEventListener('dragend', () => {
                 task.classList.remove('task-item--dragging', 'task-item--status-pending');
                 board.querySelectorAll('.tasks-board__dropzone--active').forEach((zone) => zone.classList.remove('tasks-board__dropzone--active'));
             });
@@ -148,14 +148,14 @@
         for (const [status, zone] of columns) {
             zone.addEventListener('dragover', (event) => {
                 event.preventDefault();
-                event.dataTransfer.dropEffect = 'move';
+                if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
                 zone.classList.add('tasks-board__dropzone--active');
             });
             zone.addEventListener('dragleave', () => zone.classList.remove('tasks-board__dropzone--active'));
             zone.addEventListener('drop', (event) => {
                 event.preventDefault();
                 zone.classList.remove('tasks-board__dropzone--active');
-                const uid = event.dataTransfer.getData('text/plain');
+                const uid = event.dataTransfer?.getData('text/plain') || '';
                 const task = tasks.find((candidate) => candidate.dataset.taskId === uid);
                 const select = task?.querySelector('.task-status-toggle');
                 if (!task || !select || select.value === status) return;
@@ -163,9 +163,6 @@
                 task.classList.add('task-item--status-pending');
                 select.value = status;
                 select.dispatchEvent(new Event('change', { bubbles: true }));
-
-                // Failure path in the shared action restores the old select value.
-                // Do not move optimistically; the status-label observer moves only on success.
                 window.setTimeout(() => task.classList.remove('task-item--status-pending'), 6000);
             });
         }
