@@ -11,6 +11,7 @@ BASE_URL="http://127.0.0.1:${HTTP_PORT}"
 PRIVATE_ROOT="${PRIVATE_STORAGE_PATH:-/tmp/workspace-file-http-private}"
 PASSWORD='file-http-password'
 USERNAME='file-http-user'
+MIN_QUOTA=10485760
 SERVER_PID=''
 ENV_BACKUP=''
 SERVER_LOG='/tmp/file-manager-http-server.log'
@@ -80,7 +81,7 @@ MAX_UPLOAD_SIZE=10485760
 EOF
 chmod 600 .env
 
-checkpoint 'seed user and quota'
+checkpoint 'seed user and valid minimum quota'
 HASH="$(php -r 'echo password_hash($argv[1], PASSWORD_ARGON2ID);' "$PASSWORD")"
 "${mysql_cmd[@]}" <<SQL
 DELETE FROM users WHERE username='${USERNAME}';
@@ -88,7 +89,7 @@ INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_a
 VALUES ('f1000000-0000-4000-8000-000000000001','${USERNAME}','file-http-user@example.test','${HASH}','File','Http',888,1);
 SET @uid=(SELECT id FROM users WHERE username='${USERNAME}');
 INSERT INTO user_storage_quotas (user_id,quota_bytes)
-VALUES (@uid,1048576)
+VALUES (@uid,${MIN_QUOTA})
 ON DUPLICATE KEY UPDATE quota_bytes=VALUES(quota_bytes);
 SQL
 
@@ -214,8 +215,8 @@ test -n "$OK_PATH"
 test -f "$OK_PATH"
 test "$(stat -c '%a' "$OK_PATH")" = '600'
 
-checkpoint 'quota overflow is rejected'
-"${mysql_cmd[@]}" -e "UPDATE user_storage_quotas SET quota_bytes=4 WHERE user_id=${USER_ID}"
+checkpoint 'quota overflow is rejected with a valid 10 MiB quota'
+"${mysql_cmd[@]}" -e "UPDATE user_files SET size=$((MIN_QUOTA - 1)) WHERE user_id=${USER_ID} AND name='ok-three';"
 OVER_STATUS="$(upload_file /tmp/file-http-cookie-a "$TOKEN_A" /tmp/file-http-two.txt over-two.txt /tmp/file-http-over.body)"
 if [[ "$OVER_STATUS" != '413' ]]; then
   echo "overflow upload returned HTTP ${OVER_STATUS}" >&2
@@ -225,18 +226,19 @@ fi
 test "$("${mysql_cmd[@]}" -N -e "SELECT COUNT(*) FROM user_files WHERE user_id=${USER_ID} AND name='over-two'")" = '0'
 
 checkpoint 'exact remaining quota is accepted'
-"${mysql_cmd[@]}" -e "UPDATE user_storage_quotas SET quota_bytes=5 WHERE user_id=${USER_ID}"
+"${mysql_cmd[@]}" -e "UPDATE user_files SET size=$((MIN_QUOTA - 2)) WHERE user_id=${USER_ID} AND name='ok-three';"
 EXACT_STATUS="$(upload_file /tmp/file-http-cookie-a "$TOKEN_A" /tmp/file-http-two.txt exact-two.txt /tmp/file-http-exact.body)"
 if [[ "$EXACT_STATUS" != '200' ]]; then
   echo "exact-remaining upload returned HTTP ${EXACT_STATUS}" >&2
   cat /tmp/file-http-exact.body >&2 || true
   exit 1
 fi
-test "$("${mysql_cmd[@]}" -N -e "SELECT COALESCE(SUM(size),0) FROM user_files WHERE user_id=${USER_ID} AND is_deleted=0")" = '5'
+test "$("${mysql_cmd[@]}" -N -e "SELECT COALESCE(SUM(size),0) FROM user_files WHERE user_id=${USER_ID} AND is_deleted=0")" = "$MIN_QUOTA"
 
 checkpoint 'parallel sessions cannot oversubscribe quota'
-"${mysql_cmd[@]}" -e "DELETE FROM user_files WHERE user_id=${USER_ID}; UPDATE user_storage_quotas SET quota_bytes=6 WHERE user_id=${USER_ID};"
+"${mysql_cmd[@]}" -e "DELETE FROM user_files WHERE user_id=${USER_ID};"
 rm -rf "$USER_DIR"
+"${mysql_cmd[@]}" -e "INSERT INTO user_files (uid,user_id,parent_id,name,type,mime_type,size,path,extension,is_deleted) VALUES ('http-quota-filler',${USER_ID},NULL,'quota-filler','file','application/octet-stream',$((MIN_QUOTA - 6)),NULL,'bin',0);"
 login_session /tmp/file-http-cookie-b /tmp/file-http-token-b
 TOKEN_B="$(cat /tmp/file-http-token-b)"
 
@@ -262,11 +264,11 @@ if [[ "$SORTED_CODES" != '200 413' ]]; then
   cat /tmp/file-http-concurrent-b.body >&2 || true
   exit 1
 fi
-test "$("${mysql_cmd[@]}" -N -e "SELECT COUNT(*) FROM user_files WHERE user_id=${USER_ID} AND is_deleted=0")" = '1'
-test "$("${mysql_cmd[@]}" -N -e "SELECT COALESCE(SUM(size),0) FROM user_files WHERE user_id=${USER_ID} AND is_deleted=0")" = '4'
+test "$("${mysql_cmd[@]}" -N -e "SELECT COUNT(*) FROM user_files WHERE user_id=${USER_ID} AND name IN ('concurrent-a','concurrent-b') AND is_deleted=0")" = '1'
+test "$("${mysql_cmd[@]}" -N -e "SELECT COALESCE(SUM(size),0) FROM user_files WHERE user_id=${USER_ID} AND is_deleted=0")" = "$((MIN_QUOTA - 2))"
 
 checkpoint 'metadata DB failure returns 500 and cleans moved file'
-"${mysql_cmd[@]}" -e "DELETE FROM user_files WHERE user_id=${USER_ID}; UPDATE user_storage_quotas SET quota_bytes=1048576 WHERE user_id=${USER_ID};"
+"${mysql_cmd[@]}" -e "DELETE FROM user_files WHERE user_id=${USER_ID};"
 rm -rf "$USER_DIR"
 "${mysql_cmd[@]}" <<'SQL'
 DROP TRIGGER IF EXISTS ci_fail_file_metadata;
