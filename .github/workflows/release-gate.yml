@@ -93,6 +93,24 @@ jobs:
           test "$count" -ge 22
           test "$(mysql -N -h 127.0.0.1 -uroot -proot workspace_release_gate -e "SELECT setting_value FROM system_settings WHERE setting_key='file_manager_default_quota_bytes'")" = '1073741824'
 
+      - name: Run data-integrity integration contracts
+        shell: bash
+        env:
+          DBDRIVER: mysql
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: workspace_release_gate
+          PRIVATE_STORAGE_PATH: /tmp/workspace-release-integrity-private
+        run: |
+          set -euo pipefail
+          rm -rf "$PRIVATE_STORAGE_PATH"
+          install -d -m 700 "$PRIVATE_STORAGE_PATH/file_manager"
+          php tests/integration/database_queue_integrity.php
+          php tests/integration/file_lifecycle_integrity.php
+          php bin/reconcile_file_storage.php --cleanup-deleted
+
       - name: Run production healthcheck
         shell: bash
         env:
