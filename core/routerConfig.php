@@ -11,6 +11,7 @@ use App\Controllers\TaskController;
 use App\Controllers\ProfileController;
 use App\Controllers\FileController;
 use App\Controllers\FileDeleteController;
+use App\Controllers\FileQuotaController;
 use App\Controllers\Admin\AdminController;
 use App\Controllers\Admin\SettingsController;
 use App\Controllers\MessagerController;
@@ -75,6 +76,7 @@ $router->group('/profile')
 
 $router->group('/files')
     ->add('GET', '/', [FileController::class, 'index'], [LoginRequared::class], 'files')
+    ->add('GET', '/quota/', [FileQuotaController::class, 'usage'], [LoginRequared::class], 'files_quota')
     ->add('GET', '/folder/{int:folderId}/', [FileController::class, 'folder'], [LoginRequared::class], 'files_folder')
     ->add('POST', '/create-folder/', [FileController::class, 'createFolder'], [LoginRequared::class, StorageMutationLock::class], 'files_create_folder')
     ->add('POST', '/upload/', [FileController::class, 'uploadFile'], [LoginRequared::class, UploadRateLimit::class, StorageQuotaLimit::class], 'files_upload')
