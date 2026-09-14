@@ -9,8 +9,8 @@ function requiredEnv(name) {
 const origin = requiredEnv('E2E_ORIGIN');
 const basePathRaw = requiredEnv('E2E_BASE_PATH');
 const username = requiredEnv('E2E_USER');
-const password = requiredEnv('E2E_PASSWORD');
 const targetUsername = requiredEnv('E2E_TARGET_USER');
+const password = requiredEnv('E2E_PASSWORD');
 const basePath = '/' + basePathRaw.replace(/^\/+|\/+$/g, '');
 const baseUrl = origin + basePath;
 
@@ -67,10 +67,13 @@ try {
 
   // Prove the Admin JS asset loads under BASE_PATH by exercising its dynamic field UI.
   await page.locator('#add-field-btn').click();
-  const transientField = page.locator('#custom-fields-container .custom-field').last();
+  const transientField = page.locator('#custom-fields-container .custom-field[data-field-key^="new_"]').last();
   await transientField.waitFor({ state: 'visible', timeout: 5000 });
-  await transientField.locator('.remove-field').click();
-  await transientField.waitFor({ state: 'detached', timeout: 5000 });
+  const transientKey = await transientField.getAttribute('data-field-key');
+  if (!transientKey) throw new Error('Dynamic Admin field has no stable data-field-key');
+  const transientByKey = page.locator(`#custom-fields-container .custom-field[data-field-key="${transientKey}"]`);
+  await transientByKey.locator('.remove-field').click();
+  await transientByKey.waitFor({ state: 'detached', timeout: 5000 });
 
   let row = targetRow(page);
   await row.waitFor({ state: 'visible', timeout: 10000 });
@@ -93,27 +96,28 @@ try {
   // Open quota settings using the real generated link.
   const settingsLink = page.getByRole('link', { name: /Настройки и квоты/ });
   const settingsHref = await settingsLink.getAttribute('href');
-  if (!settingsHref || !new URL(settingsHref, origin).pathname.startsWith(`${basePath}/admin/settings`)) {
-    throw new Error(`Admin settings URL escaped BASE_PATH: ${settingsHref}`);
+  if (!settingsHref?.startsWith(`${basePath}/admin/settings`)) {
+    throw new Error(`Admin settings link escaped BASE_PATH: ${settingsHref}`);
   }
   await Promise.all([
-    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }),
+    page.waitForURL((url) => url.pathname.replace(/\/+$/, '') === `${basePath}/admin/settings`, { timeout: 15000 }),
     settingsLink.click(),
   ]);
 
-  const storageRow = page.locator('.admin-users-table tbody tr').filter({ hasText: `@${targetUsername}` });
-  await storageRow.waitFor({ state: 'visible', timeout: 10000 });
-  const quotaInput = storageRow.locator('input[name="quota_mb"]');
+  const quotaRow = page.locator('.admin-quota-row').filter({ hasText: `@${targetUsername}` });
+  await quotaRow.waitFor({ state: 'visible', timeout: 10000 });
+  const quotaInput = quotaRow.locator('input[name="quota_mb"]');
   await quotaInput.fill('25');
-  await submitAndWait(page, storageRow.getByRole('button', { name: 'Применить', exact: true }));
-
+  await submitAndWait(page, quotaRow.getByRole('button', { name: 'Применить', exact: true }));
   await page.locator('.admin-page__flash').filter({ hasText: 'Персональный лимит обновлён' })
     .waitFor({ state: 'visible', timeout: 10000 });
-  const updatedStorageRow = page.locator('.admin-users-table tbody tr').filter({ hasText: `@${targetUsername}` });
-  if ((await updatedStorageRow.locator('input[name="quota_mb"]').inputValue()) !== '25') {
-    throw new Error('Personal quota value did not round-trip through the admin form');
+
+  const updatedQuotaRow = page.locator('.admin-quota-row').filter({ hasText: `@${targetUsername}` });
+  await updatedQuotaRow.waitFor({ state: 'visible', timeout: 10000 });
+  if ((await updatedQuotaRow.locator('input[name="quota_mb"]').inputValue()) !== '25') {
+    throw new Error('Updated storage quota did not persist in Admin UI');
   }
-  await updatedStorageRow.getByText('25 МБ', { exact: true }).waitFor({ state: 'visible', timeout: 10000 });
+  await updatedQuotaRow.getByText('25 МБ', { exact: false }).waitFor({ state: 'visible', timeout: 10000 });
 
   if (pageErrors.length) throw pageErrors[0];
   if (escapedRequests.length) {
@@ -123,7 +127,7 @@ try {
     throw new Error(`Unexpected HTTP errors: ${unexpectedHttpErrors.join(', ')}`);
   }
 
-  console.log('Admin status/quota browser lifecycle: OK');
+  console.log(`Admin lifecycle browser flow: OK (${targetUsername})`);
   await context.close();
 } finally {
   await browser.close();
