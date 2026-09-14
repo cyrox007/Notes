@@ -18,3 +18,5 @@
 {include file="core/theme-refresh.css"}
 {* 0.13 shared UX layer: module-specific redesigns stay in their own styles. *}
 {include file="core/product-ux-013.css"}
+{* Tasks board is intentionally module-specific and loads after shared polish. *}
+{include file="tasks_page/kanban.css"}
