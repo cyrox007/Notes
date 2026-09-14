@@ -1,0 +1,230 @@
+name: Browser fault injection
+
+on:
+  push:
+    branches: [0.12-product-e2e]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  storage-db-failure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: fault_injection_browser
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress
+
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Syntax contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l app/controllers/FileController.php
+          php -l core/DatabaseManager.php
+          php -l tests/e2e/router.php
+          node --check tests/e2e/fault-injection-storage.mjs
+
+      - name: Prepare canonical database
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot fault_injection_browser < database/messenger_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot fault_injection_browser < database/notes_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot fault_injection_browser < database/file_manager_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot fault_injection_browser < database/user_fields_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot fault_injection_browser < database/tasks_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot fault_injection_browser < database/settings_schema.sql
+
+      - name: Seed browser user and forced DB failure
+        shell: bash
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: fault_injection_browser
+        run: |
+          set -euo pipefail
+          TEST_PASSWORD="$(php -r 'echo bin2hex(random_bytes(18));')"
+          APP_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
+          MESSAGE_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
+          TICKET_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
+          echo "::add-mask::$TEST_PASSWORD"
+          echo "::add-mask::$APP_KEY"
+          echo "::add-mask::$MESSAGE_KEY"
+          echo "::add-mask::$TICKET_KEY"
+          export TEST_PASSWORD
+
+          php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          $pdo = new PDO(
+              sprintf('mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4', getenv('DBHOST'), getenv('DBPORT'), getenv('DBNAME')),
+              getenv('DBUSER'),
+              getenv('DBPASS'),
+              [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+          );
+          $stmt = $pdo->prepare(
+              'INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active,created_at,updated_at) '
+              . 'VALUES (:uid,:username,:email,:password_hash,:firstname,:lastname,888,1,NOW(),NOW())'
+          );
+          $stmt->execute([
+              ':uid' => 'ba5e0000-0000-4000-8000-000000000020',
+              ':username' => 'fault-injection-user',
+              ':email' => 'fault-injection@example.test',
+              ':password_hash' => password_hash((string) getenv('TEST_PASSWORD'), PASSWORD_ARGON2ID),
+              ':firstname' => 'Fault',
+              ':lastname' => 'Injection',
+          ]);
+          PHP
+
+          mysql -h 127.0.0.1 -uroot -proot fault_injection_browser <<'SQL'
+          DELIMITER $$
+          CREATE TRIGGER e2e_fail_user_file_metadata
+          BEFORE INSERT ON user_files
+          FOR EACH ROW
+          BEGIN
+            IF NEW.name LIKE 'fault-injection-%' THEN
+              SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'forced e2e metadata failure';
+            END IF;
+          END$$
+          DELIMITER ;
+          SQL
+
+          rm -rf /tmp/workspace-fault-browser
+          mkdir -p /tmp/workspace-fault-browser/logs compile cache
+          chmod 700 /tmp/workspace-fault-browser /tmp/workspace-fault-browser/logs
+          rm -f /tmp/workspace-organizer-startup.log
+
+          cat > .env <<ENV
+          DBDRIVER=mysql
+          DBHOST=127.0.0.1
+          DBPORT=3306
+          DBUSER=root
+          DBPASS=root
+          DBNAME=fault_injection_browser
+          UNIQUE_KEY=${APP_KEY}
+          MSG_SECRET_KEY=${MESSAGE_KEY}
+          WS_TICKET_SECRET=${TICKET_KEY}
+          PRIVATE_STORAGE_PATH=/tmp/workspace-fault-browser
+          RATE_LIMIT_STORAGE_PATH=/tmp/workspace-fault-browser/rate-limit
+          SITEURL=http://127.0.0.1:18094
+          BASE_PATH=/workspace/
+          WS_HOST=127.0.0.1
+          WS_PORT=27807
+          WS_PUBLIC_URL=ws://127.0.0.1:27807/workspace/ws
+          WS_ALLOWED_ORIGINS=http://127.0.0.1:18094
+          AUTH_RATE_LIMIT_ATTEMPTS=50
+          AUTH_RATE_LIMIT_WINDOW_SECONDS=60
+          UPLOAD_RATE_LIMIT_ATTEMPTS=100
+          UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60
+          LOG_LEVEL=INFO
+          LOG_FILE=/tmp/workspace-fault-browser/logs/app.log
+          CSRF_ENABLED=true
+          ENV
+          chmod 600 .env
+
+          printf 'E2E_USER=%s\n' 'fault-injection-user' >> "$GITHUB_ENV"
+          printf 'E2E_PASSWORD=%s\n' "$TEST_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Start subdirectory application
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > /tmp/workspace-fault-browser-http.log
+          PHP_CLI_SERVER_WORKERS=4 php -S 127.0.0.1:18094 tests/e2e/router.php >/tmp/workspace-fault-browser-http.log 2>&1 &
+          echo $! >/tmp/workspace-fault-browser-http.pid
+          READY=0
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:18094/workspace/auth/login/ >/dev/null; then
+              READY=1
+              break
+            fi
+            sleep 0.25
+          done
+          if [[ "$READY" != '1' ]]; then
+            cat /tmp/workspace-fault-browser-http.log >&2
+            exit 1
+          fi
+
+      - name: Run storage fault injection in Chromium
+        shell: bash
+        env:
+          E2E_ORIGIN: http://127.0.0.1:18094
+          E2E_BASE_PATH: /workspace
+        run: node tests/e2e/fault-injection-storage.mjs
+
+      - name: Verify no durable or physical orphan
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot fault_injection_browser -e "SELECT COUNT(*) FROM user_files WHERE name LIKE 'fault-injection-%'")" = '0'
+          if [[ -d /tmp/workspace-fault-browser/file_manager ]]; then
+            test "$(find /tmp/workspace-fault-browser/file_manager -type f | wc -l | tr -d ' ')" = '0'
+          fi
+
+      - name: Verify clean PHP runtime log
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -E 'PHP (Warning|Fatal error|Parse error)|Uncaught ' /tmp/workspace-fault-browser-http.log /tmp/workspace-organizer-startup.log 2>/dev/null; then
+            echo 'PHP runtime warning/fatal detected during fault injection' >&2
+            exit 1
+          fi
+
+      - name: Logs on failure
+        if: failure()
+        shell: bash
+        run: |
+          echo '--- PHP server ---'
+          cat /tmp/workspace-fault-browser-http.log || true
+          echo '--- PHP startup/application errors ---'
+          cat /tmp/workspace-organizer-startup.log || true
+          echo '--- application log ---'
+          cat /tmp/workspace-fault-browser/logs/app.log || true
+          echo '--- private storage ---'
+          find /tmp/workspace-fault-browser -maxdepth 5 -type f -print 2>/dev/null || true
+
+      - name: Stop local server
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f /tmp/workspace-fault-browser-http.pid ]]; then
+            PID="$(cat /tmp/workspace-fault-browser-http.pid)"
+            pkill -TERM -P "$PID" >/dev/null 2>&1 || true
+            kill "$PID" >/dev/null 2>&1 || true
+          fi

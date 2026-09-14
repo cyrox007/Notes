@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Core;
 
 use Smarty\Smarty;
+use Smarty\Template;
 use App\Middlewares\CSRFMiddleware;
 
 /**
@@ -146,7 +147,7 @@ class Controller
      * 
      * @param array<string, mixed> $params Параметры из шаблона:
      *   - key: ключ сессионной переменной
-     * @return string|null Значение из сессии или null если не найдено
+     * @return string|null Значение сессии
      */
     public function getSession(array $params): ?string
     {
@@ -154,29 +155,22 @@ class Controller
     }
 
     /**
-     * Парсит JSON строку и назначает результат в переменную шаблона
-     * 
-     * @param array<string, mixed> $params Параметры из шаблона:
-     *   - json: JSON строка для парсинга
-     *   - assign: имя переменной для назначения результата
-     * @param Smarty $smarty Экземпляр Smarty для назначения переменной
+     * Парсит JSON строку и назначает результат в переменную шаблона.
+     * Smarty 5 передаёт в function-plugin текущий Template, а не Smarty engine.
+     *
+     * @param array<string, mixed> $params
      */
-    public function jsonParse(array $params, Smarty &$smarty): void
+    public function jsonParse(array $params, Template $template): void
     {
-        $smarty->assign($params['assign'], json_decode($params['json'], true));
+        $template->assign($params['assign'], json_decode($params['json'], true));
     }
 
     /**
-     * Читает содержимое файла
-     * 
-     * Используется в шаблонах как {file_get_contents file='path/to/file'}
-     * 
-     * @param array<string, mixed> $params Параметры из шаблона:
-     *   - file: путь к файлу
-     * @param Smarty $smarty Экземпляр Smarty (не используется)
-     * @return string Содержимое файла или пустая строка при ошибке
+     * Читает содержимое файла.
+     *
+     * @param array<string, mixed> $params
      */
-    public function smarty_function_file_get_contents(array $params, Smarty &$smarty): string
+    public function smarty_function_file_get_contents(array $params, Template $template): string
     {
         return file_get_contents($params['file']) ?: '';
     }

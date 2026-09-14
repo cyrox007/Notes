@@ -92,18 +92,18 @@
                 {foreach $customFields as $field}
                     <div class="custom-field" data-field-key="{$field.id}">
                         <div class="custom-field__grid">
-                            <div class="custom-field__control"><label for="field_name_{$field.id}">Техническое имя</label><input type="text" id="field_name_{$field.id}" name="fields[{$field.id}][field_name]" value="{$field.field_name|escape}" maxlength="50" pattern="[a-z][a-z0-9_]{0,49}" required autocomplete="off"></div>
+                            <div class="custom-field__control"><label for="field_name_{$field.id}">Техническое имя</label><input type="text" id="field_name_{$field.id}" name="fields[{$field.id}][field_name]" value="{$field.field_name|escape}" maxlength="50" pattern="[a-z][a-z0-9_]&#123;0,49&#125;" required autocomplete="off"></div>
                             <div class="custom-field__control"><label for="field_label_{$field.id}">Метка</label><input type="text" id="field_label_{$field.id}" name="fields[{$field.id}][field_label]" value="{$field.field_label|escape}" maxlength="100" required autocomplete="off"></div>
                             <div class="custom-field__control"><label for="field_type_{$field.id}">Тип</label><select id="field_type_{$field.id}" name="fields[{$field.id}][field_type]" required><option value="text" {if $field.field_type == 'text'}selected{/if}>Текст</option><option value="textarea" {if $field.field_type == 'textarea'}selected{/if}>Многострочный текст</option><option value="number" {if $field.field_type == 'number'}selected{/if}>Число</option><option value="date" {if $field.field_type == 'date'}selected{/if}>Дата</option><option value="checkbox" {if $field.field_type == 'checkbox'}selected{/if}>Флажок</option><option value="select" {if $field.field_type == 'select'}selected{/if}>Select (legacy, без вариантов)</option></select></div>
                             <label class="custom-field__required" for="is_required_{$field.id}"><input type="checkbox" id="is_required_{$field.id}" name="fields[{$field.id}][is_required]" {if $field.is_required}checked{/if}> Обязательное</label>
                             <button type="button" class="remove-field admin-action admin-action--danger" aria-label="Удалить поле {$field.field_label|escape}"><i class="fa fa-trash" aria-hidden="true"></i> Удалить</button>
                         </div>
                     </div>
-                {foreachelse}<div class="custom-fields-empty">Дополнительных полей пока нет.</div>{/foreach}
+                {/foreach}
             </div>
             <div class="custom-fields-form__footer"><small>Удаление поля из списка удаляет его определение после сохранения, но не выполняет физическое удаление аккаунтов пользователей.</small><button type="submit" class="admin-action admin-action--primary"><i class="fa fa-save" aria-hidden="true"></i> Сохранить поля</button></div>
         </form>
     </section>
 </section>
-<script src="/assets/js/admin-page.js"></script>
+<script src="{$base_url}/assets/js/admin-page.js"></script>
 {/block}

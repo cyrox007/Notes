@@ -174,8 +174,10 @@ try {
     throw new Error(`File link escaped BASE_PATH: ${fileOpenHref}`);
   }
 
-  page.once('dialog', dialog => dialog.accept());
   await fileItem.locator('.btn-delete').click();
+  const deleteDialog = page.locator('.wspace-dialog-backdrop:not([hidden])');
+  await deleteDialog.waitFor({ state: 'visible', timeout: 5000 });
+  await deleteDialog.getByRole('button', { name: 'Удалить', exact: true }).click();
   await fileItem.waitFor({ state: 'detached', timeout: 15000 });
 
   // Messenger must at least render cleanly under the prefix. A separate HTTPS/WSS
