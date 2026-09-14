@@ -46,15 +46,16 @@ try {
   ]);
 
   await page.locator('#main-content').waitFor({ state: 'visible' });
+  await page.locator('.sidebar__user-panel').waitFor({ state: 'visible' });
 
   const homeHref = await page.locator('.navbar__home').getAttribute('href');
   if (homeHref !== `${basePath}/`) {
     throw new Error(`Header home link escaped BASE_PATH: ${homeHref}`);
   }
 
-  const sidebarAvatar = await page.locator('.sidebar__user-image img').getAttribute('src');
-  if (!sidebarAvatar?.includes(`${basePath}/assets/img/default_avatar.png`)) {
-    throw new Error(`Sidebar avatar escaped BASE_PATH: ${sidebarAvatar}`);
+  const fontAwesomeHref = await page.locator('link[href*="font-awesome.min.css"]').getAttribute('href');
+  if (!fontAwesomeHref?.includes(`${basePath}/assets/font-awesome/css/font-awesome.min.css`)) {
+    throw new Error(`Shell asset escaped BASE_PATH: ${fontAwesomeHref}`);
   }
 
   const helperResult = await page.evaluate(() => window.wspace?.path?.('/files/upload/'));
