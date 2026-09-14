@@ -4,7 +4,26 @@ declare(strict_types=1);
 
 $root = dirname(__DIR__, 2);
 $path = rawurldecode((string) (parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/'));
-$baseSegment = trim((string) getenv('BASE_PATH'), '/');
+
+$configuredBasePath = getenv('BASE_PATH');
+if (!is_string($configuredBasePath) || trim($configuredBasePath) === '') {
+    $envFile = $root . '/.env';
+    if (is_file($envFile)) {
+        $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [];
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line === '' || str_starts_with($line, '#') || !str_starts_with($line, 'BASE_PATH=')) {
+                continue;
+            }
+
+            $configuredBasePath = trim(substr($line, strlen('BASE_PATH=')));
+            $configuredBasePath = trim($configuredBasePath, " \t\n\r\0\x0B\"'");
+            break;
+        }
+    }
+}
+
+$baseSegment = trim((string) $configuredBasePath, '/');
 $basePath = $baseSegment !== '' ? '/' . $baseSegment : '';
 $publicPath = $path;
 
