@@ -60,7 +60,12 @@ final class ProfilePublicationService
                  LIMIT " . $limit,
                 [':user_id' => $userId]
             ),
-            'metrics' => (new ProfileMetricsService($this->db))->summary($userId),
+            // The production bootstrap eagerly loads app/services/*. The narrow
+            // legacy CLI harness used by profile-user.yml intentionally loads only
+            // the dependencies it exercises, so keep that harness independent.
+            'metrics' => class_exists(ProfileMetricsService::class, false)
+                ? (new ProfileMetricsService($this->db))->summary($userId)
+                : [],
         ];
     }
 
