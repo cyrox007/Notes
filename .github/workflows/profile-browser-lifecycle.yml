@@ -2,9 +2,9 @@ name: Profile browser lifecycle
 
 on:
   push:
-    branches: [0.13-profile-hub]
+    branches: [0.13-profile-hub, 0.13-public-profile-content]
   pull_request:
-    branches: [master, 0.13-ux-foundation]
+    branches: [master, 0.13-ux-foundation, 0.13-profile-hub]
 
 permissions:
   contents: read
@@ -55,15 +55,22 @@ jobs:
           set -euo pipefail
           php -l app/controllers/ProfileController.php
           php -l app/controllers/PublicProfileController.php
+          php -l app/services/ProfilePublicationService.php
           php -l app/services/UserAvatarService.php
           php -l core/routerConfig.php
           php -l tests/e2e/router.php
           node --check tests/e2e/profile-lifecycle.mjs
           grep -Fq "route_path name='profile-set'" app/views/profile_page/index.tpl
           grep -Fq "route_path name='profile-avatar-delete'" app/views/profile_page/index.tpl
+          grep -Fq "route_path name='profile-publication'" app/views/profile_page/publication.tpl
           grep -Fq "route_path name='profile-public'" app/views/profile_page/index.tpl
           grep -Fq 'profile_page/hub.css' app/views/styles.css
-          grep -Fq "'public_content' => []" app/controllers/PublicProfileController.php
+          grep -Fq 'is_profile_public' database/notes_schema.sql
+          grep -Fq 'is_profile_public' database/tasks_schema.sql
+          grep -Fq 'is_profile_public' database/file_manager_schema.sql
+          grep -Fq 'workspace_add_profile_publication' database/migrations/20260914_profile_publication.sql
+          ! grep -Fq 'file_path' app/views/profile_page/public.tpl
+          ! grep -Fq 'share_token' app/views/profile_page/public.tpl
           ! grep -Fq 'src="/profile/avatar/' app/views/profile_page/index.tpl
           ! grep -Fq 'src="/assets/img/default_avatar.png' app/views/profile_page/index.tpl
 
@@ -77,8 +84,11 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot profile_browser_lifecycle < database/user_fields_schema.sql
           mysql -h 127.0.0.1 -uroot -proot profile_browser_lifecycle < database/tasks_schema.sql
           mysql -h 127.0.0.1 -uroot -proot profile_browser_lifecycle < database/settings_schema.sql
+          # Compatibility upgrade remains idempotent even on the canonical fresh schema.
+          mysql -h 127.0.0.1 -uroot -proot profile_browser_lifecycle < database/migrations/20260914_profile_publication.sql
+          mysql -h 127.0.0.1 -uroot -proot profile_browser_lifecycle < database/migrations/20260914_profile_publication.sql
 
-      - name: Seed browser users, avatar fixture and environment
+      - name: Seed browser users, public/private content and environment
         shell: bash
         env:
           DBHOST: 127.0.0.1
@@ -121,6 +131,8 @@ jobs:
               ':phone' => null,
               ':property' => '[]',
           ]);
+          $ownId = (int) $pdo->lastInsertId();
+
           $stmt->execute([
               ':uid' => 'ba5e0000-0000-4000-8000-000000000018',
               ':username' => 'profile-public-user',
@@ -135,6 +147,29 @@ jobs:
                   'value' => 'PRIVATE-PROFILE-MARKER-013',
               ]], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
           ]);
+          $otherId = (int) $pdo->lastInsertId();
+
+          $pdo->prepare(
+              'INSERT INTO notes (uid,user_id,notename,content,is_deleted,is_profile_public) VALUES (?,?,?,?,0,?)'
+          )->execute(['profile-own-publish-013', $ownId, 'PROFILE-OWN-PUBLISH-013', null, 0]);
+          $noteInsert = $pdo->prepare(
+              'INSERT INTO notes (uid,user_id,notename,content,is_deleted,is_profile_public) VALUES (?,?,?,?,0,?)'
+          );
+          $noteInsert->execute(['profile-public-note-013', $otherId, 'PUBLIC-NOTE-013', null, 1]);
+          $noteInsert->execute(['profile-private-note-013', $otherId, 'PRIVATE-NOTE-013', null, 0]);
+
+          $taskInsert = $pdo->prepare(
+              'INSERT INTO tasks (uid,user_id,title,status,priority,is_deleted,is_profile_public) VALUES (?,?,?,?,?,0,?)'
+          );
+          $taskInsert->execute(['11111111111111111111111111111111', $otherId, 'PUBLIC-TASK-013', 'in_progress', 'high', 1]);
+          $taskInsert->execute(['22222222222222222222222222222222', $otherId, 'PRIVATE-TASK-013', 'pending', 'medium', 0]);
+
+          $fileInsert = $pdo->prepare(
+              'INSERT INTO user_files (uid,user_id,parent_id,name,type,mime_type,size,path,extension,is_deleted,is_profile_public) '
+              . 'VALUES (?,?,NULL,?,\'file\',\'text/plain\',?,?,\'txt\',0,?)'
+          );
+          $fileInsert->execute(['profile-public-file-013', $otherId, 'public-file-013', 123, '/tmp/PRIVATE-STORAGE-PATH-013/public-file-013.txt', 1]);
+          $fileInsert->execute(['profile-private-file-013', $otherId, 'private-file-013', 456, '/tmp/PRIVATE-STORAGE-PATH-013/private-file-013.txt', 0]);
 
           $image = imagecreatetruecolor(32, 32);
           imagefill($image, 0, 0, imagecolorallocate($image, 48, 112, 196));
@@ -205,7 +240,7 @@ jobs:
             exit 1
           fi
 
-      - name: Run Profile hub and privacy lifecycle in Chromium
+      - name: Run Profile publication lifecycle in Chromium
         shell: bash
         env:
           E2E_ORIGIN: http://127.0.0.1:18092
@@ -221,8 +256,15 @@ jobs:
           ROW="$(mysql -N -B -h 127.0.0.1 -uroot -proot profile_browser_lifecycle -e "SELECT CONCAT(firstname,'|',IFNULL(patronymic,''),'|',lastname,'|',IFNULL(phone,''),'|',email,'|',IFNULL(avatar,'NULL'),'|',is_active) FROM users WHERE id=${USER_ID}")"
           echo "$ROW" | grep -Eq '^Browser[0-9]{6}\|Lifecycle\|Profile\|\+37061234567\|profile-[0-9]+@example\.test\|NULL\|1$'
           test ! -f "/tmp/workspace-profile-browser/users/${USER_ID}/avatar/avatar.jpg"
+          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot profile_browser_lifecycle -e "SELECT is_profile_public FROM notes WHERE user_id=${USER_ID} AND notename='PROFILE-OWN-PUBLISH-013'")" = '1'
 
-          PRIVATE_ROW="$(mysql -N -B -h 127.0.0.1 -uroot -proot profile_browser_lifecycle -e "SELECT CONCAT(email,'|',IFNULL(phone,''),'|',property,'|',is_active) FROM users WHERE username='profile-public-user'")"
+          OTHER_ID="$(mysql -N -B -h 127.0.0.1 -uroot -proot profile_browser_lifecycle -e "SELECT id FROM users WHERE username='profile-public-user'")"
+          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot profile_browser_lifecycle -e "SELECT COUNT(*) FROM notes WHERE user_id=${OTHER_ID} AND is_profile_public=1 AND notename='PUBLIC-NOTE-013'")" = '1'
+          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot profile_browser_lifecycle -e "SELECT COUNT(*) FROM notes WHERE user_id=${OTHER_ID} AND is_profile_public=0 AND notename='PRIVATE-NOTE-013'")" = '1'
+          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot profile_browser_lifecycle -e "SELECT COUNT(*) FROM tasks WHERE user_id=${OTHER_ID} AND is_profile_public=1 AND title='PUBLIC-TASK-013'")" = '1'
+          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot profile_browser_lifecycle -e "SELECT COUNT(*) FROM user_files WHERE user_id=${OTHER_ID} AND is_profile_public=1 AND name='public-file-013'")" = '1'
+
+          PRIVATE_ROW="$(mysql -N -B -h 127.0.0.1 -uroot -proot profile_browser_lifecycle -e "SELECT CONCAT(email,'|',IFNULL(phone,''),'|',property,'|',is_active) FROM users WHERE id=${OTHER_ID}")"
           echo "$PRIVATE_ROW" | grep -Fq 'private-public-user@example.test|+37069998877|'
           echo "$PRIVATE_ROW" | grep -Fq 'PRIVATE-PROFILE-MARKER-013'
           echo "$PRIVATE_ROW" | grep -Fq '|1'

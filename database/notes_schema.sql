@@ -1,6 +1,6 @@
 -- ============================================
 -- Заметки (Notes): каноническая структура БД
--- Версия: 2.2 - hosting-friendly canonical schema
+-- Версия: 2.3 - explicit profile publication
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS `notes` (
@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS `notes` (
     `created_note` DATETIME DEFAULT CURRENT_TIMESTAMP,
     `updated_note` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     `is_deleted` TINYINT(1) DEFAULT 0 COMMENT 'Soft-delete заметки',
+    `is_profile_public` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Явно опубликовано владельцем в публичном профиле',
     `deleted_at` DATETIME DEFAULT NULL,
     INDEX `idx_user_id` (`user_id`),
     INDEX `idx_uid` (`uid`),
@@ -21,6 +22,7 @@ CREATE TABLE IF NOT EXISTS `notes` (
     INDEX `idx_is_deleted` (`is_deleted`),
     INDEX `idx_user_notes` (`user_id`, `is_deleted`, `created_note` DESC),
     INDEX `idx_updated_notes` (`user_id`, `updated_note` DESC),
+    INDEX `idx_notes_profile_public` (`user_id`, `is_profile_public`, `is_deleted`, `updated_note` DESC),
     FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Личные заметки пользователей';
 
@@ -132,10 +134,10 @@ WHERE NOT (OLD.content <=> NEW.content) OR OLD.is_deleted != NEW.is_deleted;
 --    Браузеру не выдаётся file_path; чтение идёт через ACL endpoints.
 --    На текущем этапе байты вложений НЕ шифруются at-rest, поэтому is_encrypted=0.
 --
--- 3. Общий доступ:
---    Публичная ссылка использует случайный share_token, is_active и expires_at.
---    Вложения shared note выдаются только через token-bound endpoint.
---    UI текущей версии поддерживает публичный режим view; edit зарезервирован схемой.
+-- 3. Общий доступ и профиль:
+--    Публичная share-ссылка использует случайный share_token, is_active и expires_at.
+--    is_profile_public — отдельное явное решение владельца и НЕ выводится из share-token.
+--    Публикация в профиле по умолчанию выключена и не открывает вложения автоматически.
 --
 -- 4. Soft delete:
 --    Notes/attachments используют is_deleted. Политику физической очистки следует

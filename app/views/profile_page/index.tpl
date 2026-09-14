@@ -78,6 +78,8 @@
             </a>
         </nav>
 
+        {include file="profile_page/publication.tpl"}
+
         <div class="profile__card-info">
             <div class="profile__card-info--data visible">
                 <div class="profile__info-heading">

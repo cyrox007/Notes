@@ -28,6 +28,7 @@ $statusOnly = isset($options['status']);
 
 $storageLegacyReconcileMigration = '20260914_storage_quota_legacy_reconcile.sql';
 $storageQuotaMigration = '20260913_system_settings_storage_quota.sql';
+$profilePublicationMigration = '20260914_profile_publication.sql';
 
 $manifest = [
     '20260913_messenger_v2.sql',
@@ -45,6 +46,9 @@ $manifest = [
     // only the missing metadata/index/FK contract before the canonical seed.
     $storageLegacyReconcileMigration,
     $storageQuotaMigration,
+    // 0.13 publication is an additive compatibility upgrade. Existing objects
+    // remain private because every new visibility column defaults to 0.
+    $profilePublicationMigration,
 ];
 
 $currentTables = [
@@ -427,7 +431,10 @@ function verifyCurrentContract(mysqli $db, array $tables): void
         'users' => ['uid', 'password_hash', 'lastname', 'avatar', 'role', 'is_active'],
         'user_to_dialogs' => ['role', 'last_read_message_id', 'last_delivered_message_id', 'is_deleted'],
         'messages' => ['from_user_id', 'message', 'message_type', 'reply_to_message_id', 'meta_data'],
+        'notes' => ['is_profile_public'],
         'note_attachments' => ['file_uid', 'file_path', 'mime_type', 'is_encrypted'],
+        'tasks' => ['is_profile_public'],
+        'user_files' => ['is_profile_public'],
         'system_settings' => ['setting_key', 'setting_value', 'setting_type', 'category', 'is_editable'],
         'user_storage_quotas' => ['user_id', 'quota_bytes'],
     ];
