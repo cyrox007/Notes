@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Helpers\CryptMethods;
+use App\Services\ProfilePublicationService;
 use App\Services\UserAvatarService;
 use Core\Config;
 use Core\Controller;
@@ -19,6 +20,26 @@ final class ProfileController extends Controller
     public function index(Request $request): void
     {
         $this->renderProfile($this->currentUser($request));
+    }
+
+    public function setPublication(Request $request): void
+    {
+        $user = $this->currentUser($request);
+
+        try {
+            $type = (string) $request->post('type', '');
+            $uid = (string) $request->post('uid', '');
+            $isPublic = (string) $request->post('public', '0') === '1';
+            (new ProfilePublicationService(DatabaseManager::getInstance()))
+                ->setVisibility((int) $user->id, $type, $uid, $isPublic);
+
+            Router::getInstance()->redirect('profile');
+        } catch (InvalidArgumentException $e) {
+            $this->renderProfile($user, [[
+                'CODE' => 'profile_publication_invalid',
+                'MESSAGE' => $e->getMessage(),
+            ]], 422);
+        }
     }
 
     public function update(Request $request): void
@@ -330,7 +351,8 @@ final class ProfileController extends Controller
             http_response_code($status);
         }
 
-        $fields = DatabaseManager::getInstance()->fetchAll(
+        $db = DatabaseManager::getInstance();
+        $fields = $db->fetchAll(
             'SELECT id,field_name,field_type,field_label,is_required FROM user_fields ORDER BY id ASC'
         );
         $avatarUrl = !empty($user->avatar)
@@ -342,6 +364,7 @@ final class ProfileController extends Controller
             'fields' => $fields,
             'avatar_url' => $avatarUrl,
             'errors' => $errors,
+            'publication_items' => (new ProfilePublicationService($db))->ownerItems((int) $user->id),
         ]);
     }
 
