@@ -27,6 +27,7 @@
 	<script src="{$base_url}/assets/js/feedback.js" defer></script>
 	<script src="{$base_url}/assets/js/notes-draft.js" defer></script>
 	<script src="{$base_url}/assets/js/usability-actions.js" defer></script>
+	<script src="{$base_url}/assets/js/release-polish.js" defer></script>
 </head>
 
 <body{if isset($pagination)}
