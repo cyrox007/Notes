@@ -14,7 +14,6 @@
 {include file="admin-page/style.css"}
 {include file="^shared/footer/style.css"}
 
-{* Product-wide refresh must remain last so it can normalize legacy module styling. *}
 {include file="core/theme-refresh.css"}
-{* 0.13 shared UX layer: module-specific redesigns stay in their own styles. *}
 {include file="core/product-ux-013.css"}
+{include file="notes_page/editor-013.css"}
