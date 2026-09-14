@@ -24,7 +24,8 @@ final class ProfilePublicationService
      * @return array{
      *   notes:list<array<string,mixed>>,
      *   tasks:list<array<string,mixed>>,
-     *   files:list<array<string,mixed>>
+     *   files:list<array<string,mixed>>,
+     *   metrics:array<string,mixed>
      * }
      */
     public function ownerItems(int $userId, int $limitPerType = 12): array
@@ -59,6 +60,7 @@ final class ProfilePublicationService
                  LIMIT " . $limit,
                 [':user_id' => $userId]
             ),
+            'metrics' => (new ProfileMetricsService($this->db))->summary($userId),
         ];
     }
 
