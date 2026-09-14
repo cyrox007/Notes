@@ -1,0 +1,79 @@
+name: 0.13 installer schema contract
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master, 0.13-installer-regression]
+
+permissions:
+  contents: read
+
+jobs:
+  installer-013-schema:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql, mbstring, sodium
+          coverage: none
+
+      - name: Verify installer and upgrade manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l install.php
+          php -l bin/migrate.php
+          test -f database/migrations/20260914_profile_publication.sql
+          grep -Fq '20260914_profile_publication.sql' bin/migrate.php
+          grep -Fq 'WS_HOST=127.0.0.1' install.php
+          grep -Fq 'WS_PORT=27800' install.php
+          grep -Fq 'WS_PUBLIC_URL=' install.php
+          grep -Fq 'WS_ALLOWED_ORIGINS=' install.php
+
+      - name: Import canonical fresh-install schemas
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot -e 'CREATE DATABASE installer_013_contract CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;'
+          mysql -h 127.0.0.1 -uroot -proot installer_013_contract < database/messenger_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot installer_013_contract < database/notes_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot installer_013_contract < database/file_manager_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot installer_013_contract < database/user_fields_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot installer_013_contract < database/tasks_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot installer_013_contract < database/settings_schema.sql
+
+      - name: Verify 0.13 fresh-install database contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='installer_013_contract'")" = '22'
+
+          for table in notes tasks user_files; do
+            CONTRACT="$(mysql -N -B -h 127.0.0.1 -uroot -proot installer_013_contract -e "SELECT CONCAT(IS_NULLABLE,'|',COALESCE(COLUMN_DEFAULT,'NULL')) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='${table}' AND column_name='is_profile_public'")"
+            test "$CONTRACT" = 'NO|0'
+          done
+
+          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot installer_013_contract -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='note_attachments' AND column_name='duration' AND DATA_TYPE='int' AND IS_NULLABLE='YES'")" = '1'
+          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot installer_013_contract -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('system_settings','user_storage_quotas')")" = '2'
+          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot installer_013_contract -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='schema_migrations'")" = '0'
