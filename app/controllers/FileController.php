@@ -355,7 +355,10 @@ class FileController extends Controller
             return;
         }
 
-        $safeName = preg_replace('/[\r\n"\\]+/', '_', (string) $file->name) ?: 'file';
+        $safeName = str_replace(["\r", "\n", '"', '\\'], '_', (string) $file->name);
+        if ($safeName === '') {
+            $safeName = 'file';
+        }
         $extension = preg_replace('/[^a-z0-9]+/i', '', (string) $file->extension);
         $downloadName = $safeName . ($extension !== '' ? '.' . $extension : '');
         $disposition = in_array((string) $file->type, ['image', 'audio', 'video'], true) ? 'inline' : 'attachment';
