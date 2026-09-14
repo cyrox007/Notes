@@ -1,31 +1,46 @@
 {literal}
 document.addEventListener('DOMContentLoaded', () => {
-    const btnEditProfile = document.querySelector('.profile__edit_user-info');
+    const editButtons = Array.from(document.querySelectorAll('.profile__edit_user-info, [data-profile-edit]'));
     const cardInfo = document.querySelector('.profile__card-info--data');
     const cardEdit = document.querySelector('.profile__card-info--edit');
     const closeEdit = document.getElementById('close');
 
+    if (cardEdit && !cardEdit.id) {
+        cardEdit.id = 'profile-account-settings';
+    }
+
+    const setEditButtonsState = (expanded) => {
+        editButtons.forEach((button) => {
+            button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+            button.classList.toggle('invisible-btn', expanded);
+            button.disabled = expanded;
+        });
+    };
+
     const showEdit = () => {
-        if (!btnEditProfile || !cardInfo || !cardEdit) return;
-        btnEditProfile.classList.add('invisible-btn');
-        btnEditProfile.disabled = true;
+        if (!cardInfo || !cardEdit) return;
+        setEditButtonsState(true);
         cardInfo.classList.add('hidden');
         cardInfo.classList.remove('visible');
         cardEdit.classList.add('visible');
+        closeEdit?.focus({ preventScroll: true });
+        cardEdit.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
     const hideEdit = () => {
-        if (!btnEditProfile || !cardInfo || !cardEdit) return;
-        btnEditProfile.classList.remove('invisible-btn');
-        btnEditProfile.disabled = false;
+        if (!cardInfo || !cardEdit) return;
+        setEditButtonsState(false);
         cardInfo.classList.remove('hidden');
         cardInfo.classList.add('visible');
         cardEdit.classList.remove('visible');
+        editButtons[0]?.focus({ preventScroll: true });
     };
 
-    btnEditProfile?.addEventListener('click', (event) => {
-        event.preventDefault();
-        showEdit();
+    editButtons.forEach((button) => {
+        button.addEventListener('click', (event) => {
+            event.preventDefault();
+            showEdit();
+        });
     });
 
     closeEdit?.addEventListener('click', (event) => {
