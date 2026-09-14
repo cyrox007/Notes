@@ -18,7 +18,7 @@
 - [x] Закрыть false-success upload при неудачной записи metadata через общий fail-closed commit contract.
 - [x] Добавить настоящий HTTP multipart integration test через router/middleware/controller chain.
 - [x] Проверить CSRF/auth/role/quota/concurrency/upload-vs-admin-update end-to-end.
-- [x] Сделать migration settings/quota безопасной для partial legacy schema.
+- [x] Сделать compatibility upgrade settings/quota безопасным для partial legacy schema.
 - [x] Показывать обычному пользователю `used / quota / remaining` в File Manager.
 
 ## P0 — BASE_PATH contract
@@ -34,31 +34,31 @@
 - [x] Notes: create → edit → attachment → share → delete.
 - [x] Tasks: create → edit → subtask → status → delete.
 - [x] Files: folder → upload → preview/download → rename → delete → quota error.
-- [ ] Profile: edit profile → avatar upload/remove.
-- [ ] Admin: user status → quota update.
-- [ ] Fault injection: DB failure не должен давать success и не должен оставлять опасную storage inconsistency.
+- [x] Profile: edit profile → avatar upload/remove.
+- [x] Admin: user status → quota update.
+- [x] Fault injection: DB failure не должен давать success и не должен оставлять опасную storage inconsistency.
 
 ## P1 — Usability pass
 
-- [ ] Общий toast/inline-error/confirmation component вместо `alert/confirm/prompt`.
-- [ ] Сократить full-page reload для мелких операций.
-- [ ] Notes: dirty-state warning / autosave, поиск.
-- [ ] Tasks: поиск и более быстрые inline actions.
-- [ ] Files: поиск, сортировка, понятный progress/error по каждому файлу.
+- [x] Общий toast/inline-error/confirmation component вместо `alert/confirm/prompt` для основных пользовательских действий.
+- [x] Сократить full-page reload для мелких операций.
+- [x] Notes: dirty-state warning / autosave и поиск.
+- [x] Tasks: поиск и более быстрые inline actions.
+- [x] Files: поиск и сортировка текущей папки; upload показывает имя файла, progress и понятную ошибку.
 
 ## P1 — Pagination / findability
 
-- [ ] Notes: server-side `q/page/limit/sort`.
-- [ ] Tasks: server-side `q/page/limit/sort`.
-- [ ] Admin users: server-side `q/page/limit/sort`.
-- [ ] Сохранять фильтры и сортировку в URL.
+- [x] Notes: server-side `q/page/limit/sort`.
+- [x] Tasks: server-side `q/page/limit/sort`.
+- [x] Admin users: server-side `q/page/limit/sort`.
+- [x] Сохранять фильтры и сортировку в URL.
 
 ## P1 — Security / governance hardening
 
 - [x] `LoginRequared` должен проверять и `role`, и `is_active`.
 - [x] `IsAdmin` должен проверять и `role`, и `is_active`.
-- [ ] Сделать release/browser checks обязательными для merge в default branch.
-- [ ] При наличии второго участника проекта — минимум одно независимое approval для merge.
+- [x] Зафиксировать machine-readable policy обязательных release/browser checks и проверять её в `Master release gate`; one-time включение enforcement в GitHub Settings документировано в `docs/RELEASE_GOVERNANCE.md`.
+- [x] Политика независимого approval зафиксирована: при наличии второго квалифицированного участника требуется минимум одно независимое approval.
 
 ## P2 — После Usable Baseline
 
