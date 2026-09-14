@@ -4,7 +4,51 @@
 
 ## Unreleased
 
-- Изменений после `0.12.0-alpha` пока нет.
+Следующий цикл — beta-hardening: observability, upgrade matrix, cross-browser/mobile regression, soak/load baseline, retention contract и release-governance enforcement без расширения крупного feature scope.
+
+## 0.13.0-alpha — 2026-09-14
+
+### Product UX foundation
+- Content area приведён к единой спокойной 0.13 design system поверх сохранённого тёмного sidebar.
+- Общие buttons/inputs/cards/panels/focus states получили единый visual layer без перехода приложения в dark theme.
+- Ключевые модули уплотнены и перестали выглядеть как набор больших технических форм.
+
+### Tasks
+- Добавлен kanban board по статусам «Новые / В работе / Готово / Отменено».
+- Добавлены компактные task cards, list/board switch и локальное сохранение выбранного режима.
+- Drag-and-drop статусов и quick-create используют существующий ownership-checked backend contract.
+- Сохранён bounded server-side search/filter/sort/pagination contract.
+
+### Notes / Voice
+- Notes переведён на writing-first editor shell с отдельными actions, writing canvas и materials sidebar.
+- Attachments/share/voice оформлены как first-class части editor workflow.
+- Голосовые заметки получили явный recorder flow: start/stop/cancel/save, timer, preview, private playback и persisted duration metadata.
+- Existing private-storage, sharing, encrypted content и browser lifecycle guarantees сохранены.
+
+### Profile / publication
+- Собственный Profile превращён в workspace hub с быстрыми переходами к Notes, Tasks и Files.
+- Добавлены owner-scoped counters Notes/Tasks/Files и storage usage/quota без тяжёлого dashboard query.
+- Account settings открываются компактным edit/settings entry вместо дублирования форм.
+- Добавлен authenticated read-only профиль другого пользователя.
+- Notes, Tasks и Files получили explicit `is_profile_public`, default private; share-link сам по себе не публикует объект в профиле.
+- Public Profile использует whitelist metadata и не раскрывает note content, task description, storage path, private download URL или share token.
+
+### File Manager
+- Добавлены локальный search/sort, grid/list workspace views и сохранение выбранного режима.
+- Добавлен drag-and-drop upload через существующий hardened upload pipeline.
+- Storage quota, durable DB/filesystem lifecycle и browser integrity contracts не ослаблены.
+
+### Messenger
+- Добавлен production runbook `docs/MESSENGER_SERVER.md` для Workerman/WSS, reverse proxy и process manager.
+- UI получил понятные online/reconnecting/offline/session-ended состояния и ручной retry.
+- Перед каждым reconnect запрашивается новый short-lived WebSocket ticket; учтены browser `online`, sleep/background recovery и bounded backoff.
+- Production-like HTTPS/WSS Chromium smoke теперь доказывает forced disconnect → recovery state → fresh ticket → new WSS connection → realtime delivery.
+
+### Installer / release safety
+- Fresh-install schema явно включает public-profile fields Notes/Tasks/Files и `note_attachments.duration` для voice notes.
+- Отдельный `0.13 installer schema contract` фиксирует current schema + Messenger installer config.
+- `docs/PRODUCT_UX_0.13.md` закрывает alpha feature scope; оставшийся косметический/mobile polish перенесён в beta backlog.
+- `0.13 alpha readiness` проверяет сохранение 0.12 durable baseline, наличие ключевых 0.13 артефактов и синхронизацию Version/README/CHANGELOG.
 
 ## 0.12.0-alpha — 2026-09-14
 
@@ -35,7 +79,7 @@
 ### BASE_PATH / runtime hardening
 - Root-relative application URLs системно переведены на `route_path`, `base_url` и JS `wspace.path()`.
 - Login/Profile/Notes/Tasks/File Manager/Messenger/Admin покрыты subdirectory browser baseline.
-- Исправлены Smarty 5 runtime incompatibilities, обнаруженные реальным Chromium: CSS/template parsing и callback type `Smarty\Template`.
+- Исправлены Smarty 5 runtime incompatibilities, обнаруженные реальным Chromium: CSS/template parsing и callback type `Smarty\\Template`.
 - Исправлены download `Content-Disposition` sanitization warnings для Notes/File Manager.
 
 ### Database architecture / Admin / storage
