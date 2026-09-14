@@ -81,6 +81,14 @@ final class NoteAttachmentController extends Controller
             $fileType = $this->fileType($mimeType, $extension, $voice);
             if ($voice && $fileType !== 'voice') throw new InvalidArgumentException('Файл не распознан как голосовая запись');
 
+            $duration = null;
+            if ($voice) {
+                $rawDuration = trim((string) $request->post('duration'));
+                if ($rawDuration !== '' && ctype_digit($rawDuration)) {
+                    $duration = max(1, min(86400, (int) $rawDuration));
+                }
+            }
+
             $fileUid = bin2hex(random_bytes(16));
             $directory = $this->storageRoot() . DIRECTORY_SEPARATOR . (int) $note['id'] . DIRECTORY_SEPARATOR . $userId;
             if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) {
@@ -96,14 +104,15 @@ final class NoteAttachmentController extends Controller
                         note_id,file_uid,file_name,file_path,file_type,mime_type,file_size,duration,
                         is_encrypted,encryption_key_ref,uploaded_at,is_deleted
                      ) VALUES (
-                        :note_id,:file_uid,:file_name,:file_path,:file_type,:mime_type,:file_size,NULL,
+                        :note_id,:file_uid,:file_name,:file_path,:file_type,:mime_type,:file_size,:duration,
                         0,NULL,:uploaded_at,0
                      )',
                     [
                         ':note_id' => (int) $note['id'], ':file_uid' => $fileUid,
                         ':file_name' => $originalName, ':file_path' => $path,
                         ':file_type' => $fileType, ':mime_type' => $mimeType,
-                        ':file_size' => (int) $file['size'], ':uploaded_at' => date('Y-m-d H:i:s'),
+                        ':file_size' => (int) $file['size'], ':duration' => $duration,
+                        ':uploaded_at' => date('Y-m-d H:i:s'),
                     ]
                 );
             } catch (\Throwable $e) {
@@ -119,6 +128,7 @@ final class NoteAttachmentController extends Controller
                     'file_type' => $fileType,
                     'mime_type' => $mimeType,
                     'file_size' => (int) $file['size'],
+                    'duration' => $duration,
                     'file_url' => $this->appPath('/notes/attachment/' . rawurlencode($fileUid)),
                 ],
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
