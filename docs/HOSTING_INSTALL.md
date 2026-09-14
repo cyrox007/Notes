@@ -82,7 +82,7 @@ Installer попытается создать private storage примерно �
 
 Если hosting запрещает запись вне `public_html`, такой тариф не соответствует security contract проекта. Не размещайте `PRIVATE_STORAGE_PATH` внутри web root ради обхода этой проверки.
 
-## WebSocket
+## WebSocket / realtime Messenger
 
 Installer автоматически записывает:
 
@@ -93,21 +93,35 @@ WS_HOST=127.0.0.1
 WS_PORT=27800
 ```
 
-Для production reverse proxy маршрут `/ws` должен проксироваться на локальный Workerman port `27800`.
+**Установка web-части сама по себе не запускает realtime Messenger.** После installer необходимо отдельно запустить долгоживущий Workerman process и настроить reverse proxy `/ws` на локальный `WS_PORT`.
 
-Если панель хостинга предлагает разделы вроде **Background processes / Supervisor / WebSocket / Reverse proxy**, используйте их для запуска:
+Быстрый ручной запуск из корня приложения:
 
 ```bash
 php ws_server/server.php start
 ```
 
-На VPS/dedicated используйте systemd/supervisor/container orchestration.
+Для проверки:
+
+```bash
+php ws_server/server.php status
+```
+
+В production Workerman должен работать под process manager с автоматическим restart, а browser должен подключаться через `wss://`, не напрямую к `27800`.
+
+Полная инструкция — переменные `.env`, Nginx `/ws`, systemd, Supervisor, shared hosting, диагностика `502`/Origin/ticket и порядок рестарта после deploy — находится в:
+
+**[`docs/MESSENGER_SERVER.md`](MESSENGER_SERVER.md)**
+
+Если панель хостинга предлагает разделы вроде **Background processes / Supervisor / WebSocket / Reverse proxy**, используйте их для запуска Workerman и проксирования публичного `/ws` на `127.0.0.1:27800`.
+
+Если тариф не позволяет long-running process и WebSocket reverse proxy, Notes/Tasks/Files/Profile работают, но realtime Messenger на таком тарифе полноценно не поддерживается.
 
 ## Upgrade существующей установки
 
 Web-installer предназначен **только для fresh install**. Если в БД обнаружена старая или неполная схема, он не изменяет существующие данные.
 
-Upgrade выполняется versioned migration runner:
+Upgrade выполняется compatibility upgrade runner:
 
 ```bash
 php bin/migrate.php --status
@@ -115,7 +129,9 @@ php bin/migrate.php --dry-run
 php bin/migrate.php
 ```
 
-Перед upgrade обязательны backup БД, private storage и crypto keys. Migration `20260913_system_settings_storage_quota.sql` добавляет настройки и storage quotas существующим установкам без пересоздания пользовательских данных.
+`database/*_schema.sql` остаются canonical схемой fresh install. `bin/migrate.php` применяется только к существующей установке и ведёт filename/checksum ledger уже применённых compatibility SQL.
+
+Перед upgrade обязательны backup БД, private storage и crypto keys.
 
 ## Как собирается hosting bundle
 
