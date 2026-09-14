@@ -8,8 +8,6 @@ require dirname(__DIR__, 2) . '/core/config.php';
 require dirname(__DIR__, 2) . '/core/DatabaseManager.php';
 
 use Core\DatabaseManager;
-use RuntimeException;
-use Throwable;
 
 $db = DatabaseManager::getInstance();
 $db->execute('DROP TABLE IF EXISTS queue_integrity_test');
@@ -26,17 +24,17 @@ $db->queueInsert(['code' => 'duplicate'], 'queue_integrity_test');
 $thrown = false;
 try {
     $db->commit();
-} catch (Throwable) {
+} catch (\Throwable) {
     $thrown = true;
 }
 
 if (!$thrown) {
-    throw new RuntimeException('Queued transaction failure was swallowed');
+    throw new \RuntimeException('Queued transaction failure was swallowed');
 }
 
 $count = (int) $db->fetchValue('SELECT COUNT(*) FROM queue_integrity_test');
 if ($count !== 0) {
-    throw new RuntimeException('Failed queued transaction was not fully rolled back');
+    throw new \RuntimeException('Failed queued transaction was not fully rolled back');
 }
 
 $result = $db
@@ -44,12 +42,13 @@ $result = $db
     ->commit();
 
 if (!is_array($result) || (int) ($result[0]['last_insert_id'] ?? 0) <= 0) {
-    throw new RuntimeException('Successful queued transaction contract regressed');
+    throw new \RuntimeException('Successful queued transaction contract regressed');
 }
 
 $count = (int) $db->fetchValue('SELECT COUNT(*) FROM queue_integrity_test');
 if ($count !== 1) {
-    throw new RuntimeException('Successful queued transaction was not persisted');
+    throw new \RuntimeException('Successful queued transaction was not persisted');
 }
 
+$db->execute('DROP TABLE queue_integrity_test');
 echo "Queued transaction rollback/error contract: OK\n";
