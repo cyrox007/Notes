@@ -160,6 +160,65 @@
   grid-row: 1;
 }
 
+.file-manager {
+  position: relative;
+}
+
+.file-manager-dropzone {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  min-height: 280px;
+  padding: 24px;
+  pointer-events: none;
+  background: rgba(241,245,249,.78);
+  border: 2px dashed rgba(79,70,229,.55);
+  border-radius: 18px;
+  backdrop-filter: blur(4px);
+}
+
+.file-manager-dropzone[hidden] {
+  display: none !important;
+}
+
+.file-manager-dropzone__card {
+  width: min(420px, 100%);
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  padding: 28px 22px;
+  color: #334155;
+  background: rgba(255,255,255,.96);
+  border: 1px solid rgba(99,102,241,.24);
+  border-radius: 16px;
+  box-shadow: 0 18px 44px rgba(15,23,42,.12);
+  text-align: center;
+}
+
+.file-manager-dropzone__card .fa {
+  margin-bottom: 4px;
+  color: #4f46e5;
+  font-size: 34px;
+}
+
+.file-manager-dropzone__card strong {
+  font-size: 16px;
+}
+
+.file-manager-dropzone__card span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.file-manager.is-file-dragging .file-manager__toolbar,
+.file-manager.is-file-dragging .file-manager-polish,
+.file-manager.is-file-dragging .file-manager__quota,
+.file-manager.is-file-dragging .file-manager__content {
+  filter: saturate(.85);
+}
+
 @media (max-width: 760px) {
   .file-manager-polish {
     grid-template-columns: 1fr 1fr;
