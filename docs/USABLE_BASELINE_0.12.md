@@ -32,7 +32,7 @@
 Минимальные реальные browser flows:
 
 - [x] Notes: create → edit → attachment → share → delete.
-- [ ] Tasks: create → edit → subtask → status → delete.
+- [x] Tasks: create → edit → subtask → status → delete.
 - [ ] Files: folder → upload → preview/download → rename → delete → quota error.
 - [ ] Profile: edit profile → avatar upload/remove.
 - [ ] Admin: user status → quota update.

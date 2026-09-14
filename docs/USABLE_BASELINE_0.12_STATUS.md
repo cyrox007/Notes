@@ -7,7 +7,8 @@
 - PR #62 (data integrity + File Manager lifecycle) is merged into `master`.
 - PR #63 (active sessions + BASE_PATH hardening) is merged into `master`.
 - PR #64 (partial/legacy storage quota migration reconciliation) is merged into `master`.
-- Current work branch: `usable-baseline-0.12-phase4` — Notes product browser lifecycle.
+- PR #65 (`usable-baseline-0.12-phase4`) contains the Notes product browser lifecycle and has a fully green 21-workflow PR matrix after the installer migration-count CI contract was updated for the reconciliation migration added by #64.
+- Current work branch: `usable-baseline-0.12-phase5` — Tasks product browser lifecycle, stacked separately from #65.
 
 ## Completed — data integrity foundation
 
@@ -54,19 +55,27 @@ All planned 0.12 P0 items are implemented and covered by automated contracts.
 
 - Added a real Chromium lifecycle running the application from `/workspace/`: login → create note → edit encrypted text → reopen/decrypt → multipart attachment upload → authenticated download → public share → anonymous view/download → unshare → verify old link returns 404 → delete note.
 - The browser gate rejects page errors, unexpected HTTP errors and requests that escape the configured `BASE_PATH`.
-- The new browser flow found two existing production render failures: inline CSS in both `notes_page/edit_view.tpl` and `notes_page/shared_view.tpl` was parsed as Smarty syntax. Both style blocks are now protected with `{literal}`.
+- The browser flow found two existing production render failures: inline CSS in both `notes_page/edit_view.tpl` and `notes_page/shared_view.tpl` was parsed as Smarty syntax. Both style blocks are now protected with `{literal}`.
 - Notes attachment and share URLs are BASE_PATH-aware in templates, controllers and `NoteAttachmentModel`.
 - Fixed the malformed `safeHeaderName()` regular expression that emitted a PHP warning while streaming downloaded attachments.
 - Note deletion now retires note, attachment metadata and active share state in one DB transaction.
 - Physical attachment bytes are deliberately retained in private storage after note soft-delete, matching the current retention/backup policy rather than unlinking data during the user-visible delete operation.
 - `tests/e2e/notes-lifecycle.mjs` and `.github/workflows/notes-browser-lifecycle.yml` cover the complete product flow and durable post-delete state.
-- GitHub Actions run `34832980573` is fully green on the strengthened contract: browser lifecycle, inactive shares, soft-deleted attachment metadata and retained physical attachment file all pass.
+- PR #65 final head `2ad7ccf90c4bb6ff0114f1dba1b7515f7f62c59f` passes all 21 pull-request workflows.
+
+## Completed — Tasks product browser lifecycle
+
+- Added a real Chromium lifecycle under `/workspace/`: login → create task through the modal → edit title/description/status/priority → add a subtask through the real prompt-driven UI → complete the subtask → complete the main task → submit the normal GET sort form → delete through the real confirmation form.
+- Fixed the remaining root-relative Tasks sort form action by generating it through the named `tasks` route; root-relative AJAX calls remain safe because the shared `fetch` wrapper normalizes them through `wspace.path()`.
+- The browser contract rejects page errors, unexpected HTTP errors and same-origin requests escaping the configured `BASE_PATH`.
+- The workflow verifies durable MySQL state after the browser flow: the deleted task remains soft-deleted with `status=completed` and `completed_at` populated, while the created subtask remains completed with its own completion timestamp.
+- `tests/e2e/tasks-lifecycle.mjs` and `.github/workflows/tasks-browser-lifecycle.yml` cover the full task lifecycle.
+- GitHub Actions run `34836367800` is fully green, including the real Chromium flow and durable Tasks state verification.
 
 ## Next — Product browser E2E
 
-1. Tasks lifecycle: create → edit → subtask → status → delete.
-2. Complete File Manager lifecycle: preview/download → rename → delete → browser-visible quota error.
-3. Profile lifecycle: edit profile → avatar upload/remove.
-4. Admin lifecycle: user status → quota update.
-5. Fault-injection browser coverage.
-6. Then usability, pagination/findability and governance hardening passes.
+1. Complete File Manager lifecycle: preview/download → rename → delete → browser-visible quota error.
+2. Profile lifecycle: edit profile → avatar upload/remove.
+3. Admin lifecycle: user status → quota update.
+4. Fault-injection browser coverage.
+5. Then usability, pagination/findability and governance hardening passes.
