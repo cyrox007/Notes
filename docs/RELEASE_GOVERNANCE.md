@@ -1,10 +1,10 @@
 # Release governance
 
-Workspace Organizer 0.12 treats `master` as the release branch. Repository code can define and verify the intended policy, but GitHub branch-protection settings live outside Git history and must be enabled once in repository Settings by a user with Administration permission.
+Workspace Organizer treats `master` as the release branch. Repository code defines and verifies the intended policy, while GitHub ruleset / branch-protection settings live outside Git history and must be enforced in repository Settings by a user with Administration permission.
 
 ## Required `master` protection
 
-Enable branch protection for `master` with these rules:
+The target policy is:
 
 1. Require a pull request before merging.
 2. Require branches to be up to date before merging.
@@ -13,26 +13,28 @@ Enable branch protection for `master` with these rules:
 5. Block force pushes and branch deletion.
 6. If the repository has another independent participant who can review changes, require one approving review. A PR author's own approval does not satisfy the independent-review requirement.
 
-The initial required status checks are:
+The baseline required status checks are:
 
 - `release-gate`
 - `notes-browser-lifecycle`
 - `tasks-browser-lifecycle`
 - `file-manager-browser-lifecycle`
 
-After the Product Browser E2E PR lands, add:
+The Product Browser E2E checks recorded by the policy are:
 
 - `profile-browser-lifecycle`
 - `admin-browser-lifecycle`
 - `storage-db-failure`
 
-Do not require a check before its workflow exists on `master`, otherwise GitHub can make every PR permanently unmergeable.
+All of these workflows now exist in the repository. Moving every recorded check into the actually enforced GitHub ruleset is part of beta release-governance hardening; source-level policy verification does not substitute for repository-side enforcement.
+
+Do not require a status check before its workflow exists on `master`, otherwise GitHub can make every PR permanently unmergeable.
 
 ## Merge rule
 
 A PR targeting `master` is release-eligible only when:
 
-- all configured required checks pass on the current head;
+- all release-relevant checks pass on the current head;
 - the branch is up to date with `master`;
 - DB changes follow `docs/DB_ARCHITECTURE.md`;
 - user-visible storage mutations do not report success before durable persistence;
@@ -44,14 +46,14 @@ Do not use administrator bypass to merge a red or stale PR for normal developmen
 
 ## Why the policy is split between code and Settings
 
-GitHub Actions and repository files cannot safely grant themselves Administration permission. The repository therefore stores the expected protection contract in `.github/release-governance.json` and validates the parts that are observable from source. The one-time Settings change remains an explicit repository-owner action.
+GitHub Actions and repository files cannot safely grant themselves Administration permission. The repository therefore stores the expected protection contract in `.github/release-governance.json` and validates the parts that are observable from source. Repository-side enforcement remains an explicit owner/admin operation and is tracked separately from source correctness.
 
 ## Verification
 
 `tests/integration/release_governance_contract.php` checks that:
 
 - the policy file is valid and names `master`;
-- all currently required check IDs correspond to workflow job IDs present in the repository;
+- all currently recorded check IDs correspond to workflow job IDs present in the repository;
 - the pull-request template contains the release/browser/database review prompts;
 - the master release gate executes the governance contract itself.
 
