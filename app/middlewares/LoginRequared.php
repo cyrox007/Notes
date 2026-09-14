@@ -21,13 +21,17 @@ class LoginRequared
             return false;
         }
 
-        // Проверяем роль на каждом защищённом запросе, чтобы блокировка
-        // немедленно инвалидировала уже существующую пользовательскую сессию.
-        $user = UserModel::select('id', 'role')
+        // Re-check both role and active state on every protected request so an
+        // account disabled after login cannot keep using an existing session.
+        $user = UserModel::select('id', 'role', 'is_active')
             ->where('id', '=', $userId)
             ->first();
 
-        if (!$user || !Config::canAuthenticate((int) $user->role)) {
+        if (
+            !$user
+            || (int) $user->is_active !== 1
+            || !Config::canAuthenticate((int) $user->role)
+        ) {
             $request->unsetSession('auth');
             $request->unsetSession('user_id');
             $request->unsetSession('user_uid');
