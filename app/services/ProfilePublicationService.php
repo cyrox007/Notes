@@ -24,7 +24,8 @@ final class ProfilePublicationService
      * @return array{
      *   notes:list<array<string,mixed>>,
      *   tasks:list<array<string,mixed>>,
-     *   files:list<array<string,mixed>>
+     *   files:list<array<string,mixed>>,
+     *   metrics:array<string,mixed>
      * }
      */
     public function ownerItems(int $userId, int $limitPerType = 12): array
@@ -59,6 +60,12 @@ final class ProfilePublicationService
                  LIMIT " . $limit,
                 [':user_id' => $userId]
             ),
+            // The production bootstrap eagerly loads app/services/*. The narrow
+            // legacy CLI harness used by profile-user.yml intentionally loads only
+            // the dependencies it exercises, so keep that harness independent.
+            'metrics' => class_exists(ProfileMetricsService::class, false)
+                ? (new ProfileMetricsService($this->db))->summary($userId)
+                : [],
         ];
     }
 

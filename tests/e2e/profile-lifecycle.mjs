@@ -99,6 +99,19 @@ try {
     }
   }
 
+  // Owner metrics are intentionally lightweight and owner-scoped. The canonical
+  // fixture has one active owner note and no owner tasks/files, while storage is
+  // empty, so the rendered summary must match those durable rows.
+  await page.locator('.profile-metrics').waitFor({ state: 'visible', timeout: 5000 });
+  await page.locator('.profile-metric--notes .profile-metric__value').filter({ hasText: '1' })
+    .waitFor({ state: 'visible', timeout: 5000 });
+  await page.locator('.profile-metric--tasks .profile-metric__value').filter({ hasText: '0' })
+    .waitFor({ state: 'visible', timeout: 5000 });
+  await page.locator('.profile-metric--files .profile-metric__value').filter({ hasText: '0' })
+    .waitFor({ state: 'visible', timeout: 5000 });
+  await page.locator('.profile-metric--storage .profile-metric__value').filter({ hasText: '0%' })
+    .waitFor({ state: 'visible', timeout: 5000 });
+
   const previewHref = await page.getByRole('link', { name: 'Посмотреть как другой пользователь' }).getAttribute('href');
   if (!previewHref || !new URL(previewHref, origin).pathname.startsWith(`${basePath}/profile/user/`)) {
     throw new Error(`Public-profile preview link is invalid: ${previewHref}`);
@@ -122,9 +135,13 @@ try {
   const email = `profile-${stamp}@example.test`;
   const phone = '+37061234567';
 
-  await page.locator('.profile__edit_user-info').click();
+  const settingsButton = page.locator('.profile-metrics__settings');
+  await settingsButton.click();
   const editPanel = page.locator('.profile__card-info--edit');
   await editPanel.waitFor({ state: 'visible', timeout: 5000 });
+  if (await editPanel.getAttribute('id') !== 'profile-account-settings') {
+    throw new Error('Profile settings panel is not wired to the compact settings entry');
+  }
 
   await editPanel.locator('#user-name').fill(firstname);
   await editPanel.locator('#user-patronymic').fill(patronymic);
@@ -205,7 +222,7 @@ try {
   if (escapedRequests.length) throw new Error(`Requests escaped BASE_PATH: ${[...new Set(escapedRequests)].join(', ')}`);
   if (unexpectedHttpErrors.length) throw new Error(`Unexpected HTTP errors: ${unexpectedHttpErrors.join(', ')}`);
 
-  console.log('Profile hub/edit/avatar/explicit-public-content lifecycle: OK');
+  console.log('Profile hub/metrics/settings/edit/avatar/explicit-public-content lifecycle: OK');
   await context.close();
 } finally {
   await browser.close();

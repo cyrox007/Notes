@@ -22,3 +22,4 @@
 {include file="tasks_page/kanban-handle.css"}
 {* Profile hub/public profile is a module-specific final layer. *}
 {include file="profile_page/hub.css"}
+{include file="profile_page/metrics.css"}
