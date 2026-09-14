@@ -5,6 +5,11 @@ on:
     branches: [master]
   push:
     branches: [usable-baseline-0.12-phase3]
+    paths:
+      - 'bin/migrate.php'
+      - 'database/migrations/**'
+      - 'tests/integration/storage_quota_legacy_migration.sh'
+      - '.github/workflows/file-manager-http-integrity.yml'
 
 permissions:
   contents: read
