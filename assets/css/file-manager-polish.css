@@ -88,6 +88,10 @@
   transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
 }
 
+.file-manager__item[hidden] {
+  display: none !important;
+}
+
 .file-manager__item:hover,
 .file-manager__item:focus-within {
   transform: translateY(-2px);
@@ -121,6 +125,10 @@
   align-items: center;
   gap: 14px;
   padding: 10px 14px;
+}
+
+.file-manager[data-view="list"] .file-manager__item[hidden] {
+  display: none !important;
 }
 
 .file-manager[data-view="list"] .file-manager__item-icon {
