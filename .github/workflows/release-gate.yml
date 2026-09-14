@@ -74,6 +74,12 @@ jobs:
             node --check "$target"
           done
 
+      - name: Verify release governance contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/integration/release_governance_contract.php
+
       - name: Import canonical database contract
         shell: bash
         run: |
