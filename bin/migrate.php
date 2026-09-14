@@ -26,6 +26,9 @@ if (isset($options['help'])) {
 $dryRun = isset($options['dry-run']);
 $statusOnly = isset($options['status']);
 
+$storageLegacyReconcileMigration = '20260914_storage_quota_legacy_reconcile.sql';
+$storageQuotaMigration = '20260913_system_settings_storage_quota.sql';
+
 $manifest = [
     '20260913_messenger_v2.sql',
     '20260913_user_contract_v2.sql',
@@ -37,7 +40,11 @@ $manifest = [
     '20260913_notes_private_attachments.sql',
     '20260913_user_fields_contract.sql',
     '20260913_tasks_contract.sql',
-    '20260913_system_settings_storage_quota.sql',
+    // The legacy reconciler must run before the canonical quota migration. On a
+    // fresh database it is a no-op; on a supported partial legacy schema it adds
+    // only the missing metadata/index/FK contract before the canonical seed.
+    $storageLegacyReconcileMigration,
+    $storageQuotaMigration,
 ];
 
 $currentTables = [
@@ -472,7 +479,8 @@ try {
         $pending[] = $filename;
     }
 
-    if (in_array('20260913_system_settings_storage_quota.sql', $pending, true)) {
+    $legacyReconcilePending = in_array($storageLegacyReconcileMigration, $pending, true);
+    if (in_array($storageQuotaMigration, $pending, true) && !$legacyReconcilePending) {
         verifyStorageSettingsContract($db, true);
     }
 
@@ -492,7 +500,9 @@ try {
 
     ensureMigrationTable($db);
     foreach ($pending as $filename) {
-        if ($filename === '20260913_system_settings_storage_quota.sql') {
+        if ($filename === $storageQuotaMigration) {
+            // If the legacy reconciler was pending it has just run earlier in the
+            // manifest; this strict check proves its output before canonical seed.
             verifyStorageSettingsContract($db, true);
         }
         [, $sql, $checksum] = readMigration($root, $filename);
