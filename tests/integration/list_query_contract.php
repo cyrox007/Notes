@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
-require dirname(__DIR__, 2) . '/vendor/autoload.php';
+$root = dirname(__DIR__, 2);
+require $root . '/core/request.php';
+require $root . '/app/services/ListQuery.php';
 
 use App\Services\ListQuery;
 use Core\Request;
