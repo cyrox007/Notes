@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Helpers\CryptMethods;
 use App\Models\UserModel;
+use App\Services\ListQuery;
 use Core\Config;
 use Core\Controller;
 use Core\DatabaseManager;
@@ -26,39 +27,67 @@ final class NoteController extends Controller
     public function index(Request $request): void
     {
         $user = $this->currentUser($request);
-        $sortKey = (string) $request->get('sort', 'created_note');
-        $sort = self::SORT_COLUMNS[$sortKey] ?? self::SORT_COLUMNS['created_note'];
-        $direction = strtolower((string) $request->get('direction', 'desc')) === 'asc' ? 'ASC' : 'DESC';
+        $query = ListQuery::fromRequest($request, self::SORT_COLUMNS, 'created_note');
         $db = DatabaseManager::getInstance();
 
+        $personalWhere = ['user_id = :user_id', 'is_deleted = 0'];
+        $personalParams = [':user_id' => (int) $user->id];
+        if ($query['q'] !== '') {
+            $personalWhere[] = 'notename LIKE :q';
+            $personalParams[':q'] = '%' . $query['q'] . '%';
+        }
+        $personalWhereSql = implode(' AND ', $personalWhere);
+        $personalTotal = (int) $db->fetchValue(
+            'SELECT COUNT(*) FROM notes WHERE ' . $personalWhereSql,
+            $personalParams
+        );
         $personalNotes = $db->fetchAll(
             'SELECT uid,notename,created_note,updated_note,content_type
              FROM notes
-             WHERE user_id = :user_id AND is_deleted = 0
-             ORDER BY ' . $sort . ' ' . $direction,
-            [':user_id' => (int) $user->id]
+             WHERE ' . $personalWhereSql . '
+             ORDER BY ' . $query['sort_column'] . ' ' . $query['direction_sql'] . ', id DESC
+             LIMIT ' . (int) $query['limit'] . ' OFFSET ' . (int) $query['offset'],
+            $personalParams
         );
 
         $isAdmin = Config::isAdminRole((int) $user->role);
         $allNotes = [];
+        $allTotal = 0;
         if ($isAdmin) {
+            $allWhere = ['notes.is_deleted = 0'];
+            $allParams = [];
+            if ($query['q'] !== '') {
+                $allWhere[] = '(notes.notename LIKE :q OR author.username LIKE :q OR author.email LIKE :q)';
+                $allParams[':q'] = '%' . $query['q'] . '%';
+            }
+            $allWhereSql = implode(' AND ', $allWhere);
+            $allTotal = (int) $db->fetchValue(
+                'SELECT COUNT(*)
+                 FROM notes
+                 INNER JOIN users author ON author.id = notes.user_id
+                 WHERE ' . $allWhereSql,
+                $allParams
+            );
             $allNotes = $db->fetchAll(
                 'SELECT
                     notes.uid,notes.notename,notes.created_note,notes.updated_note,notes.content_type,
                     author.username AS author_username,author.id AS author_id
                  FROM notes
                  INNER JOIN users author ON author.id = notes.user_id
-                 WHERE notes.is_deleted = 0
-                 ORDER BY ' . $sort . ' ' . $direction,
-                []
+                 WHERE ' . $allWhereSql . '
+                 ORDER BY ' . $query['sort_column'] . ' ' . $query['direction_sql'] . ', notes.id DESC
+                 LIMIT ' . (int) $query['limit'] . ' OFFSET ' . (int) $query['offset'],
+                $allParams
             );
         }
 
+        $pagination = ListQuery::pagination($query, max($personalTotal, $allTotal));
         $this->render_template('notes_page/index', [
             'personalNotes' => $personalNotes,
             'allNotes' => $allNotes,
             'user' => $user,
             'isAdmin' => $isAdmin,
+            'pagination' => $pagination,
         ]);
     }
 
@@ -231,8 +260,6 @@ final class NoteController extends Controller
         $userId = (int) $user->id;
         $db->beginTransaction();
         try {
-            // Retention policy keeps physical attachment bytes in private storage.
-            // Only metadata/access state is retired atomically with the note.
             $db->execute(
                 'UPDATE note_attachments SET is_deleted = 1
                  WHERE note_id = :note_id AND is_deleted = 0',

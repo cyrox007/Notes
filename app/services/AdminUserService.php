@@ -12,6 +12,15 @@ use Throwable;
 
 final class AdminUserService
 {
+    /** @var array<string,string> */
+    private const SORT_COLUMNS = [
+        'id' => 'id',
+        'username' => 'username',
+        'email' => 'email',
+        'created_at' => 'created_at',
+        'role' => 'role',
+    ];
+
     public function __construct(private ?DatabaseManager $db = null)
     {
         $this->db ??= DatabaseManager::getInstance();
@@ -25,25 +34,51 @@ final class AdminUserService
             'SELECT id,uid,username,email,firstname,lastname,role,is_active,created_at '
             . 'FROM users ORDER BY id ASC'
         );
+        return $this->decorateUsers($users, (int) $actor['id']);
+    }
 
-        foreach ($users as &$user) {
-            $role = (int) $user['role'];
-            $isActive = (int) $user['is_active'] === 1;
-            $user['role_label'] = $this->roleLabel($role);
-            $user['status_code'] = !$isActive || $role === Config::USER_ROLE_INACTIVE
-                ? 'inactive'
-                : ($role === Config::USER_ROLE_BLOCKED ? 'blocked' : 'active');
-            $user['status_label'] = match ($user['status_code']) {
-                'inactive' => 'Деактивирован',
-                'blocked' => 'Заблокирован',
-                default => 'Активен',
-            };
-            $user['can_manage'] = (int) $user['id'] !== (int) $actor['id']
-                && !Config::isAdminRole($role);
+    /** @return array{items:list<array<string,mixed>>,total:int} */
+    public function searchUsers(
+        int $actorId,
+        string $q,
+        string $sort,
+        string $direction,
+        int $limit,
+        int $offset
+    ): array {
+        $actor = $this->requireAdmin($actorId);
+        $q = trim($q);
+        if (mb_strlen($q) > 100) {
+            $q = mb_substr($q, 0, 100);
         }
-        unset($user);
+        $sortColumn = self::SORT_COLUMNS[$sort] ?? self::SORT_COLUMNS['id'];
+        $directionSql = strtolower($direction) === 'desc' ? 'DESC' : 'ASC';
+        $limit = max(1, min(50, $limit));
+        $offset = max(0, $offset);
 
-        return $users;
+        $where = [];
+        $params = [];
+        if ($q !== '') {
+            $where[] = '(username LIKE :q_username OR email LIKE :q_email OR firstname LIKE :q_firstname OR lastname LIKE :q_lastname)';
+            $needle = '%' . $q . '%';
+            $params = [
+                ':q_username' => $needle,
+                ':q_email' => $needle,
+                ':q_firstname' => $needle,
+                ':q_lastname' => $needle,
+            ];
+        }
+        $whereSql = $where === [] ? '' : ' WHERE ' . implode(' AND ', $where);
+        $total = (int) $this->db->fetchValue('SELECT COUNT(*) FROM users' . $whereSql, $params);
+        $users = $this->db->fetchAll(
+            'SELECT id,uid,username,email,firstname,lastname,role,is_active,created_at '
+            . 'FROM users' . $whereSql
+            . ' ORDER BY ' . $sortColumn . ' ' . $directionSql . ', id ASC'
+            . ' LIMIT ' . $limit . ' OFFSET ' . $offset,
+            $params
+        );
+
+        return ['items' => $this->decorateUsers($users, (int) $actor['id']), 'total' => $total];
     }
 
     public function setStatus(int $actorId, int $targetId, string $status): string
@@ -117,6 +152,27 @@ final class AdminUserService
         }
 
         return 'Пользователь деактивирован, связанные данные сохранены';
+    }
+
+    /** @param list<array<string,mixed>> $users @return list<array<string,mixed>> */
+    private function decorateUsers(array $users, int $actorId): array
+    {
+        foreach ($users as &$user) {
+            $role = (int) $user['role'];
+            $isActive = (int) $user['is_active'] === 1;
+            $user['role_label'] = $this->roleLabel($role);
+            $user['status_code'] = !$isActive || $role === Config::USER_ROLE_INACTIVE
+                ? 'inactive'
+                : ($role === Config::USER_ROLE_BLOCKED ? 'blocked' : 'active');
+            $user['status_label'] = match ($user['status_code']) {
+                'inactive' => 'Деактивирован',
+                'blocked' => 'Заблокирован',
+                default => 'Активен',
+            };
+            $user['can_manage'] = (int) $user['id'] !== $actorId && !Config::isAdminRole($role);
+        }
+        unset($user);
+        return $users;
     }
 
     /** @return array<string,mixed> */

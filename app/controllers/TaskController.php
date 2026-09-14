@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Services\ListQuery;
 use Core\Controller;
 use Core\DatabaseManager;
 use Core\Request;
@@ -54,14 +55,15 @@ final class TaskController extends Controller
             $filter = 'all';
         }
 
-        $sortKey = (string) $request->get('sort', 'created_at');
-        $sortColumn = self::SORT_COLUMNS[$sortKey] ?? self::SORT_COLUMNS['created_at'];
-        $directionKey = strtolower((string) $request->get('direction', 'desc'));
-        $direction = $directionKey === 'asc' ? 'ASC' : 'DESC';
-
+        $query = ListQuery::fromRequest($request, self::SORT_COLUMNS, 'created_at');
         $params = [':user_id' => (int) $user->id];
         $where = ['t.user_id = :user_id', 't.is_deleted = 0'];
         $now = date('Y-m-d H:i:s');
+
+        if ($query['q'] !== '') {
+            $where[] = '(t.title LIKE :q OR t.description LIKE :q)';
+            $params[':q'] = '%' . $query['q'] . '%';
+        }
 
         switch ($filter) {
             case 'today':
@@ -87,9 +89,12 @@ final class TaskController extends Controller
                 break;
         }
 
+        $whereSql = implode(' AND ', $where);
+        $total = (int) $db->fetchValue('SELECT COUNT(*) FROM tasks t WHERE ' . $whereSql, $params);
         $tasks = $db->fetchAll(
-            'SELECT t.* FROM tasks t WHERE ' . implode(' AND ', $where)
-            . ' ORDER BY ' . $sortColumn . ' ' . $direction . ', t.id DESC',
+            'SELECT t.* FROM tasks t WHERE ' . $whereSql
+            . ' ORDER BY ' . $query['sort_column'] . ' ' . $query['direction_sql'] . ', t.id DESC'
+            . ' LIMIT ' . (int) $query['limit'] . ' OFFSET ' . (int) $query['offset'],
             $params
         );
         $this->hydrateTaskRelations($tasks, (int) $user->id);
@@ -118,13 +123,15 @@ final class TaskController extends Controller
             [':user_id' => (int) $user->id, ':now' => $now]
         ) ?? [];
 
+        $pagination = ListQuery::pagination($query, $total);
+        $pagination['filter'] = $filter;
         $this->render_template('tasks_page/index', [
             'tasks' => $tasks,
             'categories' => $categories,
             'user' => $user,
             'currentFilter' => $filter,
-            'currentSort' => array_key_exists($sortKey, self::SORT_COLUMNS) ? $sortKey : 'created_at',
-            'currentDirection' => strtolower($direction),
+            'currentSort' => $query['sort'],
+            'currentDirection' => $query['direction'],
             'stats' => [
                 'total' => (int) ($statsRow['total'] ?? 0),
                 'pending' => (int) ($statsRow['pending'] ?? 0),
@@ -132,6 +139,7 @@ final class TaskController extends Controller
                 'completed' => (int) ($statsRow['completed'] ?? 0),
                 'overdue' => (int) ($statsRow['overdue'] ?? 0),
             ],
+            'pagination' => $pagination,
         ]);
     }
 
