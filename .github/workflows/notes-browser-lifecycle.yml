@@ -2,7 +2,7 @@ name: Notes browser lifecycle
 
 on:
   pull_request:
-    branches: [master]
+    branches: [master, 0.13-ux-foundation]
 
 permissions:
   contents: read
@@ -56,9 +56,13 @@ jobs:
           php -l app/controllers/NoteShareController.php
           php -l app/models/NoteAttachmentModel.php
           php -l tests/e2e/router.php
+          node --check assets/js/notes-editor-013.js
           node --check tests/e2e/notes-lifecycle.mjs
-          ! grep -Fq 'src="/notes/attachment/' app/views/notes_page/edit_view.tpl
-          ! grep -Fq 'href="/notes/attachment/' app/views/notes_page/edit_view.tpl
+          node --check tests/e2e/notes-voice-contract.mjs
+          grep -Fq 'data-note-editor-013' app/views/notes_page/editor-013.tpl
+          grep -Fq 'notes_page/editor-013.css' app/views/styles.css
+          ! grep -Fq 'src="/notes/attachment/' app/views/notes_page/editor-013.tpl
+          ! grep -Fq 'href="/notes/attachment/' app/views/notes_page/editor-013.tpl
           ! grep -Fq 'href="/" class="btn btn-secondary"' app/views/notes_page/shared_view.tpl
 
       - name: Prepare canonical database
@@ -178,7 +182,10 @@ jobs:
         env:
           E2E_ORIGIN: http://127.0.0.1:18089
           E2E_BASE_PATH: /workspace
-        run: node tests/e2e/notes-lifecycle.mjs
+        run: |
+          set -euo pipefail
+          node tests/e2e/notes-lifecycle.mjs
+          node tests/e2e/notes-voice-contract.mjs
 
       - name: Verify durable Notes lifecycle state
         shell: bash
@@ -189,12 +196,14 @@ jobs:
           ATTACHMENTS="$(mysql -N -h 127.0.0.1 -uroot -proot notes_browser_lifecycle -e "SELECT COUNT(*) FROM note_attachments a INNER JOIN notes n ON n.id=a.note_id WHERE n.notename LIKE 'Notes lifecycle % updated'")"
           ACTIVE_ATTACHMENTS="$(mysql -N -h 127.0.0.1 -uroot -proot notes_browser_lifecycle -e "SELECT COUNT(*) FROM note_attachments a INNER JOIN notes n ON n.id=a.note_id WHERE n.notename LIKE 'Notes lifecycle % updated' AND a.is_deleted=0")"
           ATTACHMENT_PATH="$(mysql -N -h 127.0.0.1 -uroot -proot notes_browser_lifecycle -e "SELECT a.file_path FROM note_attachments a INNER JOIN notes n ON n.id=a.note_id WHERE n.notename LIKE 'Notes lifecycle % updated' LIMIT 1")"
+          VOICE_ROW="$(mysql -N -B -h 127.0.0.1 -uroot -proot notes_browser_lifecycle -e "SELECT CONCAT(a.file_type,':',IFNULL(a.duration,0),':',a.is_deleted) FROM note_attachments a INNER JOIN notes n ON n.id=a.note_id WHERE n.notename LIKE 'Voice contract %' LIMIT 1")"
           test "$DELETED_NOTES" = '1'
           test "$ACTIVE_SHARES" = '0'
           test "$ATTACHMENTS" = '1'
           test "$ACTIVE_ATTACHMENTS" = '0'
           test -n "$ATTACHMENT_PATH"
           test -f "$ATTACHMENT_PATH"
+          test "$VOICE_ROW" = 'voice:2:0'
 
       - name: Logs on failure
         if: failure()
