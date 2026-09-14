@@ -77,6 +77,12 @@ jobs:
         run: |
           set -euo pipefail
           bash tests/integration/file_manager_http_quota.sh
+          php -r '
+          $d=json_decode(file_get_contents("/tmp/file-http-ok.body"), true, 512, JSON_THROW_ON_ERROR);
+          $file=$d["file"] ?? [];
+          if (array_key_exists("path", $file)) { fwrite(STDERR, "Upload response exposed storage path\n"); exit(1); }
+          if (str_contains(file_get_contents("/tmp/file-http-ok.body"), "/tmp/workspace-file-http-private")) { fwrite(STDERR, "Upload response exposed private root\n"); exit(2); }
+          '
 
       - name: Real HTTP quota endpoint
         shell: bash
