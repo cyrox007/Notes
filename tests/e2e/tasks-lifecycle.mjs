@@ -124,7 +124,6 @@ try {
     throw new Error('Edited task was not rendered in the in-progress kanban column');
   }
 
-  // Shared prompt UI adds the subtask without a full-page navigation.
   await task.locator('.add-subtask-btn').click();
   await answerWorkspaceDialog(page, { value: subtaskTitle, button: 'Добавить' });
 
@@ -144,10 +143,11 @@ try {
   subtask = page.locator(`.task-item[data-task-id="${taskUid}"] .subtask-item`).filter({ hasText: subtaskTitle });
   if (!(await subtask.locator('.subtask-toggle').isChecked())) throw new Error('Subtask completion did not persist');
 
-  // The 0.13 board must persist status through the same API when a card is dragged.
   task = page.locator(`.task-item[data-task-id="${taskUid}"]`);
+  const dragHandle = task.locator('.tasks-board__drag-handle');
+  await dragHandle.waitFor({ state: 'visible', timeout: 5000 });
   const completedDropzone = page.locator('.tasks-board__dropzone[data-status="completed"]');
-  await task.dragTo(completedDropzone);
+  await dragHandle.dragTo(completedDropzone);
   await page.waitForFunction(
     (uid) => {
       const item = document.querySelector(`.task-item[data-task-id="${uid}"]`);
@@ -160,7 +160,6 @@ try {
   );
   if (page.url() !== inlineUrl) throw new Error('Kanban drag unexpectedly navigated the page');
 
-  // View switching is client-side and must not lose the task DOM/state.
   await page.getByRole('button', { name: /Список/ }).click();
   await page.locator('.tasks__list').waitFor({ state: 'visible', timeout: 5000 });
   await page.locator(`.tasks__list .task-item[data-task-id="${taskUid}"]`).waitFor({ state: 'visible', timeout: 5000 });
@@ -177,7 +176,6 @@ try {
   ]);
   await page.locator(`.task-item[data-task-id="${taskUid}"]`).waitFor({ state: 'visible', timeout: 10000 });
 
-  // Shared confirmation replaces native confirm; accepted form still performs the normal POST redirect.
   task = page.locator(`.task-item[data-task-id="${taskUid}"]`);
   await task.locator('.delete-task').click();
   const deleteNavigation = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 });
