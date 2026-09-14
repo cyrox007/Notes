@@ -275,51 +275,23 @@ class FileController extends Controller
             $dbManager = DatabaseManager::getInstance();
             $dbManager->queueInsert($newFile, 'user_files');
             $dbManager->commit();
-            $this->jsonSuccess(['message' => 'Файл загружен успешно', 'file' => $newFile]);
+
+            $publicFile = [
+                'uid' => $newFile['uid'],
+                'parent_id' => $newFile['parent_id'],
+                'name' => $newFile['name'],
+                'type' => $newFile['type'],
+                'mime_type' => $newFile['mime_type'],
+                'size' => $newFile['size'],
+                'extension' => $newFile['extension'],
+            ];
+            $this->jsonSuccess(['message' => 'Файл загружен успешно', 'file' => $publicFile]);
         } catch (Exception $e) {
             error_log('Error uploading file: ' . $e->getMessage());
             if (is_file($filePath)) {
                 @unlink($filePath);
             }
             $this->jsonError('Ошибка при загрузке файла', 500);
-        }
-    }
-
-    public function delete(Request $request): void
-    {
-        $user = $this->currentUser($request);
-        if (!$user) {
-            $this->jsonError('Unauthorized', 401);
-            return;
-        }
-
-        $fileId = (int) $request->post('id', 0);
-        if ($fileId <= 0) {
-            $this->jsonError('Неверный ID', 422);
-            return;
-        }
-
-        $file = FileModel::select()->where('id', '=', $fileId)->where('user_id', '=', $user->id)->first();
-        if (!$file) {
-            $this->jsonError('Файл не найден', 404);
-            return;
-        }
-
-        try {
-            if ($file->type !== 'folder' && !empty($file->path)) {
-                $fullPath = $this->resolveStoredPath((string) $file->path);
-                if ($fullPath !== null && is_file($fullPath)) {
-                    @unlink($fullPath);
-                }
-            }
-
-            $dbManager = DatabaseManager::getInstance();
-            $dbManager->queueUpdate(['is_deleted' => 1], 'user_files', $fileId);
-            $dbManager->commit();
-            $this->jsonSuccess(['message' => 'Удалено успешно']);
-        } catch (Exception $e) {
-            error_log('Error deleting file: ' . $e->getMessage());
-            $this->jsonError('Ошибка при удалении', 500);
         }
     }
 

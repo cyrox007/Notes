@@ -233,6 +233,16 @@ class DatabaseManager
         return $this;
     }
 
+    /**
+     * Commit queued writes atomically.
+     *
+     * A failed queued write must never be indistinguishable from a successful
+     * request. Legacy callers historically ignored a false return value, which
+     * allowed controllers to report success after the transaction had rolled
+     * back. Keep the method shape compatible, but propagate the original error
+     * after rollback so every caller either completes durably or enters its
+     * normal exception/error path.
+     */
     public function commit(): array|false
     {
         if ($this->transactionQueue === []) {
@@ -272,7 +282,7 @@ class DatabaseManager
             $this->inTransaction = false;
             $this->transactionQueue = [];
             $this->log('[commit] Откат: ' . $e->getMessage(), LogLevel::ERROR);
-            return false;
+            throw $e;
         }
     }
 
