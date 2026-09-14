@@ -1,0 +1,208 @@
+name: Phase 2 active-session and BASE_PATH hardening
+
+on:
+  push:
+    branches: [usable-baseline-0.12-phase2]
+  pull_request:
+    branches: [master, usable-baseline-0.12]
+
+permissions:
+  contents: read
+
+jobs:
+  phase2-hardening:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: phase2_hardening
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
+          coverage: none
+
+      - name: Install PHP dependencies
+        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress
+
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Syntax and static contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l app/middlewares/LoginRequared.php
+          php -l app/middlewares/IsAdmin.php
+          php -l core/controller.php
+          php -l tests/e2e/router.php
+          node --check assets/js/file_manager/script.js
+          node --check assets/js/file_manager/quota.js
+          node --check tests/e2e/base-path-smoke.mjs
+          bash -n tests/integration/active_session_http.sh
+          grep -Fq "UserModel::select('id', 'role', 'is_active')" app/middlewares/LoginRequared.php
+          grep -Fq "UserModel::select('id', 'role', 'is_active')" app/middlewares/IsAdmin.php
+          grep -Fq "wspace.path = function appPath" app/views/core/common.js
+          grep -Fq "appPath('/messenger/upload')" app/views/messager_page/media.js
+          ! grep -Fq 'href="/files/' app/views/file_manager/index.tpl
+          ! grep -Fq 'src="/assets/js/file_manager/' app/views/file_manager/index.tpl
+
+      - name: Prepare canonical database
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot phase2_hardening < database/messenger_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot phase2_hardening < database/notes_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot phase2_hardening < database/file_manager_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot phase2_hardening < database/user_fields_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot phase2_hardening < database/tasks_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot phase2_hardening < database/settings_schema.sql
+
+      - name: Seed browser user
+        shell: bash
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: phase2_hardening
+        run: |
+          set -euo pipefail
+          php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          $pdo = new PDO(
+              sprintf('mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4', getenv('DBHOST'), getenv('DBPORT'), getenv('DBNAME')),
+              getenv('DBUSER'),
+              getenv('DBPASS'),
+              [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+          );
+          $stmt = $pdo->prepare(
+              'INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active,created_at,updated_at) '
+              . 'VALUES (:uid,:username,:email,:password_hash,:firstname,:lastname,888,1,NOW(),NOW())'
+          );
+          $stmt->execute([
+              ':uid' => 'ba5e0000-0000-4000-8000-000000000001',
+              ':username' => 'base-path-user',
+              ':email' => 'base-path@example.test',
+              ':password_hash' => password_hash('BasePathPassword123!', PASSWORD_ARGON2ID),
+              ':firstname' => 'Base',
+              ':lastname' => 'Path',
+          ]);
+          PHP
+
+      - name: Prepare subdirectory environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/workspace-phase2-private
+          mkdir -p /tmp/workspace-phase2-private/logs compile cache
+          chmod 700 /tmp/workspace-phase2-private /tmp/workspace-phase2-private/logs
+          cat > .env <<'ENV'
+          DBDRIVER=mysql
+          DBHOST=127.0.0.1
+          DBPORT=3306
+          DBUSER=root
+          DBPASS=root
+          DBNAME=phase2_hardening
+          UNIQUE_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          MSG_SECRET_KEY=abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789
+          WS_TICKET_SECRET=00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
+          PRIVATE_STORAGE_PATH=/tmp/workspace-phase2-private
+          SITEURL=http://127.0.0.1:18088
+          BASE_PATH=/workspace/
+          REGISTRATION_INVITE_CODE=
+          WS_HOST=127.0.0.1
+          WS_PORT=27801
+          WS_PUBLIC_URL=ws://127.0.0.1:27801/workspace/ws
+          WS_ALLOWED_ORIGINS=http://127.0.0.1:18088
+          MAX_LOGIN_ATTEMPTS=50
+          AUTH_RATE_LIMIT_ATTEMPTS=50
+          AUTH_RATE_LIMIT_WINDOW_SECONDS=60
+          UPLOAD_RATE_LIMIT_ATTEMPTS=100
+          UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60
+          LOG_LEVEL=INFO
+          LOG_FILE=/tmp/workspace-phase2-private/logs/app.log
+          CSRF_ENABLED=true
+          ENV
+          chmod 600 .env
+
+      - name: Start subdirectory HTTP server
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > /tmp/workspace-phase2-http.log
+          PHP_CLI_SERVER_WORKERS=4 php -S 127.0.0.1:18088 tests/e2e/router.php >/tmp/workspace-phase2-http.log 2>&1 &
+          echo $! >/tmp/workspace-phase2-http.pid
+          READY=0
+          for i in {1..40}; do
+            if curl -fsS http://127.0.0.1:18088/workspace/auth/login >/dev/null; then
+              READY=1
+              break
+            fi
+            sleep 0.25
+          done
+          if [[ "$READY" != '1' ]]; then
+            cat /tmp/workspace-phase2-http.log >&2
+            exit 1
+          fi
+
+      - name: Run BASE_PATH browser flow
+        shell: bash
+        env:
+          E2E_ORIGIN: http://127.0.0.1:18088
+          E2E_BASE_PATH: /workspace
+          E2E_USER: base-path-user
+          E2E_PASSWORD: BasePathPassword123!
+        run: node tests/e2e/base-path-smoke.mjs
+
+      - name: Verify active sessions are revoked
+        shell: bash
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: phase2_hardening
+          ACTIVE_SESSION_BASE_URL: http://127.0.0.1:18088/workspace
+        run: bash tests/integration/active_session_http.sh
+
+      - name: Logs on failure
+        if: failure()
+        shell: bash
+        run: |
+          echo '--- PHP server ---'
+          cat /tmp/workspace-phase2-http.log || true
+          echo '--- application log ---'
+          cat /tmp/workspace-phase2-private/logs/app.log || true
+
+      - name: Stop local server
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f /tmp/workspace-phase2-http.pid ]]; then
+            PID="$(cat /tmp/workspace-phase2-http.pid)"
+            pkill -TERM -P "$PID" >/dev/null 2>&1 || true
+            kill "$PID" >/dev/null 2>&1 || true
+          fi
