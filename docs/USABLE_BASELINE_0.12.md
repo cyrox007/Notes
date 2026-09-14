@@ -5,7 +5,7 @@
 ## P0 — Data integrity и File Manager
 
 - [x] Ввести единый контракт для queued DB writes: ошибка commit не может молча превращаться в успешный пользовательский ответ.
-- [ ] Пройти все callers `queueInsert/queueUpdate/queueDelete + commit()` и убрать unchecked commits.
+- [x] Пройти все callers `queueInsert/queueUpdate/queueDelete + commit()` и убрать unchecked commits.
 - [x] Исправить File Manager upload/create folder/rename/delete так, чтобы DB failure не приводил к false success.
 - [x] Исключить потерю физического файла при неудачном soft-delete metadata.
 - [x] Определить атомарный lifecycle для private storage: durable metadata/state transition -> physical cleanup -> reconciliation.
@@ -16,16 +16,16 @@
 ## P0 — Storage quotas / merged PR #61
 
 - [x] Закрыть false-success upload при неудачной записи metadata через общий fail-closed commit contract.
-- [ ] Добавить настоящий HTTP multipart integration test через router/middleware/controller chain.
-- [ ] Проверить CSRF/auth/role/quota/concurrency/upload-vs-admin-update end-to-end.
-- [ ] Сделать migration settings/quota безопасной для partial legacy schema.
-- [ ] Показывать обычному пользователю `used / quota / remaining` в File Manager.
+- [x] Добавить настоящий HTTP multipart integration test через router/middleware/controller chain.
+- [x] Проверить CSRF/auth/role/quota/concurrency/upload-vs-admin-update end-to-end.
+- [x] Сделать migration settings/quota безопасной для partial legacy schema.
+- [x] Показывать обычному пользователю `used / quota / remaining` в File Manager.
 
 ## P0 — BASE_PATH contract
 
-- [ ] Убрать root-relative application URLs из шаблонов и JS там, где они ломают subdirectory install.
-- [ ] Унифицировать URL generation через `route_path`, `base_url` и JS base-path helper.
-- [ ] Добавить E2E установки и работы приложения в `/workspace/`.
+- [x] Убрать root-relative application URLs из шаблонов и JS там, где они ломают subdirectory install.
+- [x] Унифицировать URL generation через `route_path`, `base_url` и JS base-path helper.
+- [x] Добавить E2E установки и работы приложения в `/workspace/`.
 
 ## P1 — Product browser E2E
 
@@ -55,8 +55,8 @@
 
 ## P1 — Security / governance hardening
 
-- [ ] `LoginRequared` должен проверять и `role`, и `is_active`.
-- [ ] `IsAdmin` должен проверять и `role`, и `is_active`.
+- [x] `LoginRequared` должен проверять и `role`, и `is_active`.
+- [x] `IsAdmin` должен проверять и `role`, и `is_active`.
 - [ ] Сделать release/browser checks обязательными для merge в default branch.
 - [ ] При наличии второго участника проекта — минимум одно независимое approval для merge.
 

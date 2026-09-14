@@ -3,6 +3,13 @@ name: File Manager HTTP integrity
 on:
   pull_request:
     branches: [master]
+  push:
+    branches: [usable-baseline-0.12-phase3]
+    paths:
+      - 'bin/migrate.php'
+      - 'database/migrations/**'
+      - 'tests/integration/storage_quota_legacy_migration.sh'
+      - '.github/workflows/file-manager-http-integrity.yml'
 
 permissions:
   contents: read
@@ -48,6 +55,7 @@ jobs:
           bash -n tests/integration/file_manager_http_quota.sh
           bash -n tests/integration/file_manager_admin_quota_race.sh
           bash -n tests/integration/file_manager_quota_endpoint.sh
+          bash -n tests/integration/storage_quota_legacy_migration.sh
           bash tests/integration/queued_write_callers.sh
           php -l bin/migrate.php
           php -l app/controllers/FileController.php
@@ -58,32 +66,18 @@ jobs:
           grep -Fq "[LoginRequared::class, UploadRateLimit::class, StorageQuotaLimit::class]" core/routerConfig.php
           grep -Fq "'files_quota'" core/routerConfig.php
 
-      - name: Reject incompatible legacy storage settings schema
+      - name: Reconcile supported legacy storage schema and reject ambiguity
         shell: bash
         env:
           DBHOST: 127.0.0.1
           DBPORT: 3306
           DBUSER: root
           DBPASS: root
-          DBNAME: storage_legacy_contract_test
+          LEGACY_STORAGE_POSITIVE_DB: storage_legacy_reconcile_test
+          LEGACY_STORAGE_NEGATIVE_DB: storage_legacy_reject_test
         run: |
           set -euo pipefail
-          mysql -h 127.0.0.1 -uroot -proot -e 'DROP DATABASE IF EXISTS storage_legacy_contract_test; CREATE DATABASE storage_legacy_contract_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;'
-          mysql -h 127.0.0.1 -uroot -proot storage_legacy_contract_test <<'SQL'
-          CREATE TABLE system_settings (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            setting_key VARCHAR(100) NOT NULL,
-            setting_value TEXT NOT NULL,
-            UNIQUE KEY uq_system_settings_key (setting_key)
-          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-          SQL
-          set +e
-          php bin/migrate.php --dry-run >/tmp/storage-legacy-contract.out 2>/tmp/storage-legacy-contract.err
-          STATUS=$?
-          set -e
-          test "$STATUS" -ne 0
-          grep -Fq 'Incompatible storage settings schema: missing system_settings.setting_type' /tmp/storage-legacy-contract.err
-          test "$(mysql -N -h 127.0.0.1 -uroot -proot storage_legacy_contract_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='schema_migrations'")" = '0'
+          bash tests/integration/storage_quota_legacy_migration.sh
 
       - name: Prepare HTTP integration schema
         shell: bash
