@@ -20,6 +20,7 @@ $require('.github/workflows/fault-injection-browser.yml', 'browser-visible DB/st
 $require('assets/js/feedback.js', 'shared toast/inline/confirmation layer is not integrated');
 $require('assets/js/notes-draft.js', 'Notes dirty-state/local draft protection is not integrated');
 $require('assets/js/usability-actions.js', 'inline Tasks/File Manager actions are not integrated');
+$require('assets/js/release-polish.js', 'final File Manager findability/page-boundary polish is not integrated');
 
 // Findability closure.
 $require('app/services/ListQuery.php', 'bounded q/page/limit/sort contract is not integrated');
@@ -42,7 +43,7 @@ if (!is_file($roadmapPath)) {
         '## P1 — Pagination / findability',
         '## P1 — Security / governance hardening',
     ];
-    foreach ($requiredSections as $index => $heading) {
+    foreach ($requiredSections as $heading) {
         $start = strpos($roadmap, $heading);
         if ($start === false) {
             $errors[] = "roadmap section missing: {$heading}";
@@ -89,6 +90,9 @@ if (is_file($versionPath)) {
 $readme = is_file($root . '/README.md') ? (string) file_get_contents($root . '/README.md') : '';
 if (!str_contains($readme, '**Версия:** `0.12.0-alpha`')) {
     $errors[] = 'README.md must advertise 0.12.0-alpha';
+}
+if (!str_contains($readme, 'compatibility upgrade SQL')) {
+    $errors[] = 'README.md must describe the accepted canonical-schema + compatibility-upgrade DB contract';
 }
 
 $changelog = is_file($root . '/CHANGELOG.md') ? (string) file_get_contents($root . '/CHANGELOG.md') : '';
