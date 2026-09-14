@@ -3,7 +3,7 @@
 		<i class="fa fa-bars" aria-hidden="true"></i>
 	</button>
 
-	<a href="/" class="navbar__home" aria-label="На главную">
+	<a href="{route_path name='main'}" class="navbar__home" aria-label="На главную">
 		<span class="navbar__home-mark" aria-hidden="true">W</span>
 		<span class="navbar__home-copy">
 			<strong>{$sitename}</strong>
