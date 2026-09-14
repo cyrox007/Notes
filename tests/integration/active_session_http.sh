@@ -55,7 +55,7 @@ test "$STATUS" = '200'
 STATUS="$(curl -sS -o /tmp/active-session-after.html -D "$PROTECTED_HEADERS" -w '%{http_code}' \
   -c "$COOKIE" -b "$COOKIE" "${BASE_URL}/notes/")"
 test "$STATUS" = '302'
-grep -Eiq "^Location: ${BASE_URL#*://*/}/auth/login|^Location: /workspace/auth/login" "$PROTECTED_HEADERS" || {
+grep -Eiq '^Location: (https?://[^/]+)?/workspace/auth/login/?\r?$' "$PROTECTED_HEADERS" || {
   echo 'Inactive session was not redirected to the prefixed login route' >&2
   cat "$PROTECTED_HEADERS" >&2
   exit 1
