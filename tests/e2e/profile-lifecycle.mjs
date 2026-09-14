@@ -104,13 +104,13 @@ try {
     throw new Error(`Public-profile preview link is invalid: ${previewHref}`);
   }
 
-  // Explicit publication is owner-controlled and defaults to private.
+  // Explicit publication is owner-controlled and defaults to private. Locator.click()
+  // already waits for a form-triggered navigation, so a second waitForNavigation on
+  // the same-page redirect is both redundant and flaky. The visible state below plus
+  // the durable DB assertion in the workflow prove that the mutation really happened.
   const ownPublishItem = page.locator('.profile-publication__item').filter({ hasText: ownPublicationNote });
   await ownPublishItem.waitFor({ state: 'visible', timeout: 5000 });
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }),
-    ownPublishItem.getByRole('button', { name: 'Опубликовать', exact: true }).click(),
-  ]);
+  await ownPublishItem.getByRole('button', { name: 'Опубликовать', exact: true }).click();
   await page.locator('.profile-publication__item').filter({ hasText: ownPublicationNote })
     .getByRole('button', { name: 'Скрыть', exact: true })
     .waitFor({ state: 'visible', timeout: 5000 });
