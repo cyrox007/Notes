@@ -1,22 +1,22 @@
 # Workspace Organizer
 
-**Версия:** `0.12.0-alpha`  
+**Версия:** `0.13.0-alpha`  
 **Актуально на:** 14 сентября 2026  
-**Статус:** usable alpha
+**Статус:** product-complete alpha / beta candidate baseline
 
 Workspace Organizer — внутреннее PHP-приложение для корпоративной работы: заметки, задачи, личные файлы, профиль, администрирование и real-time Messenger.
 
-К 0.12 основные security-, schema-contract, UI/UX, installer, browser/WSS и production-operations блокеры исходного аудита закрыты: Messenger, Notes, Tasks, Profile, File Manager, Admin, fresh install, compatibility DB upgrade, legacy crypto migration, product-wide UI, hosting install, реальные browser lifecycle, fault injection, restore drill и release gate имеют отдельные проверяемые контракты.
+К 0.13 базовые security-, schema-contract, data-integrity, installer, browser/WSS и production-operations риски уже закрыты 0.12 usable baseline, а 0.13 завершает основной alpha-цикл продуктового UX: Tasks получил kanban, Notes — writing-first editor и first-class voice notes, Profile — workspace metrics и explicit publication model, File Manager — grid/list/search/sort/drag-drop workspace, Messenger — понятный reconnect/offline lifecycle. После 0.13 крупные новые функции замораживаются до beta-hardening.
 
 ## Возможности
 
-- **Notes** — XChaCha20-Poly1305 для текста, private attachments, голосовые вложения, view-only sharing по токену, autosave/dirty-state и server-side поиск.
-- **Tasks** — статусы, приоритеты, сроки, категории, подзадачи, фильтры, server-side поиск/пагинация и быстрые inline actions.
-- **File Manager** — личные папки/файлы вне document root, protected download, media и read-only text preview, поиск/сортировка текущей папки и upload progress; объём хранилища ограничивается общей или персональной квотой.
-- **Messenger v2** — private/group chats, Saved Messages, forwarding, media, voice, reply/edit/delete, delivery/read receipts, reactions, encrypted search, pin/mute/archive, group roles/avatars и multi-device realtime.
-- **Profile** — canonical user contract, private avatar, изменение данных/пароля и безопасная деактивация аккаунта.
+- **Notes** — XChaCha20-Poly1305 для текста, writing-first editor, private attachments, first-class voice notes с duration/playback, view-only sharing по токену, autosave/dirty-state и server-side поиск.
+- **Tasks** — kanban/list режимы, drag-and-drop статусов, быстрое создание, приоритеты, сроки, категории, подзадачи, фильтры и server-side поиск/пагинация.
+- **File Manager** — личные папки/файлы вне document root, protected download, media/read-only text preview, grid/list workspace, поиск/сортировка, drag-and-drop upload и storage quota.
+- **Messenger v2** — private/group chats, Saved Messages, forwarding, media, voice, reply/edit/delete, delivery/read receipts, reactions, encrypted search, pin/mute/archive, group roles/avatars, multi-device realtime и reconnect/offline/session-ended UX.
+- **Profile** — workspace hub с Notes/Tasks/Files/storage metrics, private avatar, account settings, безопасная деактивация и explicit `is_profile_public` publication model без раскрытия private content.
 - **Admin panel** — управление пользователями, custom profile fields, системным лимитом File Manager и персональными storage quota overrides без physical delete связанных данных; список пользователей поддерживает server-side поиск/пагинацию.
-- **Responsive UI** — единый design system, desktop/mobile navigation, dashboard, обновлённые формы/карточки/модалки, keyboard focus, reduced-motion support и общий feedback layer.
+- **Responsive UI** — единый design system, desktop/mobile navigation, обновлённые формы/карточки/модалки, keyboard focus, reduced-motion support и общий feedback layer.
 
 ## Security model
 
@@ -174,7 +174,7 @@ Development/VPS:
 php ws_server/server.php start
 ```
 
-Production: запускайте Workerman через hosting background-process manager, systemd/supervisor/container orchestration и публикуйте браузеру только через WSS reverse proxy.
+Production: запускайте Workerman через hosting background-process manager, systemd/supervisor/container orchestration и публикуйте браузеру только через WSS reverse proxy. Полный runbook: [`docs/MESSENGER_SERVER.md`](docs/MESSENGER_SERVER.md).
 
 ## Upgrade existing DB
 
@@ -257,7 +257,7 @@ Repository `.htaccess`:
 
 HSTS намеренно задаётся на production TLS reverse proxy, а не в repository `.htaccess`.
 
-## UI / UX refresh
+## UI / UX 0.13
 
 Интерфейс остаётся server-rendered Smarty без отдельного frontend build pipeline.
 
@@ -265,20 +265,21 @@ HSTS намеренно задаётся на production TLS reverse proxy, а �
 
 - системный font stack без Google Fonts;
 - единые tokens для colors/surfaces/borders/radii/shadows;
-- новый responsive sidebar: desktop collapse + mobile drawer/overlay;
+- responsive sidebar: desktop collapse + mobile drawer/overlay;
 - current-route navigation state;
-- обновлённый top bar/footer и dashboard;
-- унифицированные Notes/Tasks/Profile/File Manager/Admin surfaces;
-- Messenger визуально интегрирован в общий shell без изменения realtime logic;
-- обновлённые login/register screens;
+- Tasks kanban/list switch, drag/drop статусов и quick-create;
+- Notes writing-first editor, attachments/share/voice workspace и local draft protection;
+- Profile hub с workspace counters, storage usage/quota и explicit publication controls;
+- File Manager grid/list, local search/sort и drag-and-drop upload;
+- Messenger connection recovery states и fresh-ticket WSS reconnect;
 - общий toast/inline feedback/confirmation layer;
-- Notes local draft protection и dirty-state warning;
 - server-side findability для Notes, Tasks и Admin users;
-- File Manager поиск/сортировка текущей папки и upload progress;
 - keyboard focus, skip-link, aria-live region и доступные labels;
 - `prefers-reduced-motion`;
 - touch/mobile actions не зависят только от hover;
 - File Manager code execution удалён; текстовые/code-файлы открываются только в read-only preview.
+
+Полный 0.13 scope и отложенный beta polish: [`docs/PRODUCT_UX_0.13.md`](docs/PRODUCT_UX_0.13.md).
 
 ## Основные URL
 
@@ -300,6 +301,7 @@ HSTS намеренно задаётся на production TLS reverse proxy, а �
 
 ### Notes
 
+- writing-first 0.13 editor и first-class voice attachments;
 - server-side search/pagination/sort allowlist;
 - owner-only edit/delete;
 - private attachment upload/download/delete;
@@ -309,17 +311,17 @@ HSTS намеренно задаётся на production TLS reverse proxy, а �
 
 ### Tasks
 
-`database/tasks_schema.sql` входит в canonical install. Поддерживаются statuses/priorities/due dates/subtasks/categories, server-side search/filter/sort/pagination и быстрые inline actions.
+`database/tasks_schema.sql` входит в canonical install. Поддерживаются kanban/list views, drag-and-drop status, statuses/priorities/due dates/subtasks/categories, server-side search/filter/sort/pagination и быстрые inline actions.
 
 ### Messenger v2
 
-Current contract включает private/group dialogs, Saved Messages, forwarding, media/voice, replies/edit/delete, delivered/read cursors, reactions, multi-device fanout, pin/mute/archive, group ownership/admin roles/avatars, orphan cleanup и bounded encrypted search.
+Current contract включает private/group dialogs, Saved Messages, forwarding, media/voice, replies/edit/delete, delivered/read cursors, reactions, multi-device fanout, pin/mute/archive, group ownership/admin roles/avatars, orphan cleanup, bounded encrypted search и reconnect/offline/session-ended UI с fresh WebSocket ticket перед reconnect.
 
 Encrypted search не хранит plaintext index: он расшифровывает только ограниченное число последних доступных сообщений (`MESSENGER_SEARCH_SCAN_LIMIT`, default `1000`).
 
 ### Profile
 
-Private avatar выдаётся через authenticated endpoint. Self-delete заменён на deactivation (`is_active=0`), данные не каскадно удаляются; group owner должен сначала передать ownership.
+Private avatar выдаётся через authenticated endpoint. Self-delete заменён на deactivation (`is_active=0`), данные не каскадно удаляются; group owner должен сначала передать ownership. Собственный hub показывает bounded workspace metrics и storage quota; чужой профиль получает только whitelist metadata объектов, явно опубликованных владельцем через `is_profile_public`.
 
 ### Admin
 
@@ -343,17 +345,21 @@ php bin/cleanup_messenger_orphans.php
 
 GitHub Actions покрывают security baseline, PHP/Composer, clean schemas, DB compatibility upgrades, crypto migration, Notes/Tasks/Profile contracts и Messenger groups/media/search/voice/reactions/forwarding. Workflow `Product UI and production quality` дополнительно проверяет UI/accessibility wiring, File Manager safe preview, Linux bootstrap paths, rate limit middleware, CSP/web-root protection, healthcheck contract и freshness документации.
 
+`0.13 installer schema contract` явно проверяет publication fields Notes/Tasks/Files, voice-note duration, settings/quota schemas и Messenger installer config.
+
 `System settings and storage quota` проверяет canonical settings schema, admin ACL, default/per-user quota, live usage из `user_files`, reset override и quota overflow denial на MySQL 8.4.
 
 `Hosting installer` выполняет настоящий HTTP fresh-install через cookies/CSRF на MySQL в hosting-like `public_html/workspace`, проверяет subdirectory detection, private storage вне document root, 22-table contract, quota seed, admin account, generated `.env`, блокировку повторного installer и итоговый healthcheck.
 
 `Build hosting package` собирает upload-ready ZIP с production `vendor/`; на tag `v*` ZIP публикуется как release asset.
 
-`Browser HTTPS and WSS E2E` поднимает PHP + Workerman + TLS Nginx + MySQL и две реальные Chromium-сессии: проверяет login, основные модули, authenticated WSS, создание приватного диалога и Alice→Bob realtime message без reload.
+`Browser HTTPS and WSS E2E` поднимает PHP + Workerman + TLS Nginx + MySQL и реальные Chromium-сессии: проверяет login, основные модули, authenticated WSS, realtime delivery и 0.13 reconnect recovery.
 
 Отдельные browser lifecycle workflows проверяют Notes, Tasks, File Manager, Profile и Admin, включая реальную quota-ошибку и DB/storage fault injection без production test hooks.
 
 `Production operations` проверяет shared rate-limit storage, trusted proxy contract, positive/negative multi-node healthcheck, MySQL dump/checksum/restore, private-storage restore и rotation `WS_TICKET_SECRET`.
+
+`0.13 alpha readiness` проверяет наличие 0.12 durable baseline, ключевых 0.13 UX артефактов, закрытый release scope и синхронизацию Version/README/CHANGELOG.
 
 `Master release gate` запускается на каждом PR и после каждого push/merge в `master`: повторно проверяет объединённый commit — Composer/security audit, полный PHP/JS lint, canonical schema import, production healthcheck, согласованность версии, governance contract и upload-ready hosting bundle.
 
@@ -366,18 +372,29 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 - [`docs/PRODUCTION.md`](docs/PRODUCTION.md) — deployment, WSS, rate limiting и production checklist.
 - [`docs/OPERATIONS.md`](docs/OPERATIONS.md) — backup/restore drill, multi-node rate limiting, trusted proxies и key-rotation procedures.
 - [`docs/RELEASE_GOVERNANCE.md`](docs/RELEASE_GOVERNANCE.md) — required checks, branch protection и review policy.
+- [`docs/PRODUCT_UX_0.13.md`](docs/PRODUCT_UX_0.13.md) — закрытый 0.13 scope и beta backlog.
 - [`TASKS_MODULE_README.md`](TASKS_MODULE_README.md) — дополнительная документация Tasks.
 - [`default.env`](default.env) — environment variables и security comments.
 
-## Что остаётся до production release
+## После 0.13: путь к beta / stable
 
-Проект всё ещё **alpha**. Usable baseline 0.12 закрывает ежедневные основные сценарии; до production release остаются главным образом эксплуатационные и масштабные задачи:
+`0.13.0-alpha` закрывает функциональный alpha-цикл. Следующий этап — beta-hardening без крупных новых функций.
 
-- централизованные metrics/alerts/log aggregation и наблюдаемость production deployment;
-- transactional re-encryption procedure для безопасной ротации `UNIQUE_KEY` / `MSG_SECRET_KEY`;
+Перед `0.14.0-beta.1` приоритетны:
+
+- централизованные structured logs / metrics / alerts и наблюдаемость production deployment;
+- upgrade matrix как минимум `0.12.0-alpha → 0.13.0-alpha → beta` с сохранением encrypted/user data;
+- cross-browser и mobile/tablet regression pass;
+- Messenger soak/reconnect baseline и измеримый load/performance baseline;
+- явный data-retention/permanent-purge contract;
+- фактическое enforcement required status checks в GitHub ruleset.
+
+До `1.0.0` дополнительно нужны:
+
+- transactional/resumable re-encryption procedure для безопасной ротации `UNIQUE_KEY` / `MSG_SECRET_KEY`;
 - постепенный вынос inline Smarty JS/CSS для CSP без `unsafe-inline`;
-- при росте Messenger — scalable encrypted-search architecture вместо bounded decrypt scan;
-- one-time включение branch-protection enforcement в GitHub Settings согласно `docs/RELEASE_GOVERNANCE.md`, если оно ещё не включено.
+- подтверждённый beta-период без P0/P1 data-loss/security дефектов;
+- scalable encrypted-search architecture только если beta load tests покажут, что bounded decrypt scan перестаёт соответствовать заявленному масштабу.
 
 ## Production checklist
 
