@@ -46,6 +46,7 @@ jobs:
           set -euo pipefail
           bash -n tests/integration/queued_write_callers.sh
           bash -n tests/integration/file_manager_http_quota.sh
+          bash -n tests/integration/file_manager_admin_quota_race.sh
           bash tests/integration/queued_write_callers.sh
           php -l app/controllers/FileController.php
           php -l app/middlewares/StorageQuotaLimit.php
@@ -73,3 +74,16 @@ jobs:
         run: |
           set -euo pipefail
           bash tests/integration/file_manager_http_quota.sh
+
+      - name: Real HTTP upload versus admin quota update race
+        shell: bash
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: file_manager_http_test
+          PRIVATE_STORAGE_PATH: /tmp/workspace-file-admin-race-private
+        run: |
+          set -euo pipefail
+          bash tests/integration/file_manager_admin_quota_race.sh
