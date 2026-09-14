@@ -33,7 +33,7 @@
 
 - [x] Notes: create → edit → attachment → share → delete.
 - [x] Tasks: create → edit → subtask → status → delete.
-- [ ] Files: folder → upload → preview/download → rename → delete → quota error.
+- [x] Files: folder → upload → preview/download → rename → delete → quota error.
 - [ ] Profile: edit profile → avatar upload/remove.
 - [ ] Admin: user status → quota update.
 - [ ] Fault injection: DB failure не должен давать success и не должен оставлять опасную storage inconsistency.

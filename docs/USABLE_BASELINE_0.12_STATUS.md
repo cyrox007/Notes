@@ -8,7 +8,8 @@
 - PR #63 (active sessions + BASE_PATH hardening) is merged into `master`.
 - PR #64 (partial/legacy storage quota migration reconciliation) is merged into `master`.
 - PR #65 (`usable-baseline-0.12-phase4`) contains the Notes product browser lifecycle and has a fully green 21-workflow PR matrix after the installer migration-count CI contract was updated for the reconciliation migration added by #64.
-- Current work branch: `usable-baseline-0.12-phase5` — Tasks product browser lifecycle, stacked separately from #65.
+- PR #66 (`usable-baseline-0.12-phase5`) contains the Tasks product browser lifecycle, stacked separately on #65; its Tasks browser PR check is green.
+- Current work branch: `usable-baseline-0.12-phase6` — complete File Manager product browser lifecycle, stacked separately on phase5.
 
 ## Completed — data integrity foundation
 
@@ -72,10 +73,20 @@ All planned 0.12 P0 items are implemented and covered by automated contracts.
 - `tests/e2e/tasks-lifecycle.mjs` and `.github/workflows/tasks-browser-lifecycle.yml` cover the full task lifecycle.
 - GitHub Actions run `34836367800` is fully green, including the real Chromium flow and durable Tasks state verification.
 
+## Completed — File Manager product browser lifecycle
+
+- Added a real Chromium lifecycle under `/workspace/`: login → create folder → enter folder → multipart upload → read-only text preview → authenticated download → rename → re-download with updated filename → browser-visible quota rejection → delete file → delete folder.
+- The quota scenario uses the real minimum 10 MiB user quota and pre-seeded active usage, so the successful upload consumes genuine remaining capacity and the following upload is rejected by `StorageQuotaLimit` with HTTP 413 and the real user-facing message.
+- The browser contract rejects page errors, unexpected HTTP errors and same-origin requests escaping `BASE_PATH`.
+- Durable MySQL verification proves the folder/file metadata is soft-deleted, the rejected upload created no metadata row, active usage returns to the seeded baseline and the physical uploaded file is removed after delete.
+- The browser flow exposed a production bug in `FileController::getFile()`: the download filename sanitization regex was malformed, emitted a PHP warning and collapsed `Content-Disposition` to `file.txt`. It is replaced with explicit CR/LF/quote/backslash sanitization.
+- The workflow additionally scans PHP runtime logs and fails on warnings, fatal/parse errors or uncaught exceptions, preventing hidden download/runtime defects from passing just because HTTP bytes were returned.
+- `tests/e2e/file-manager-lifecycle.mjs` and `.github/workflows/file-manager-browser-lifecycle.yml` cover the full product flow.
+- GitHub Actions run `34837337161` is fully green, including Chromium, durable storage state and clean-runtime verification.
+
 ## Next — Product browser E2E
 
-1. Complete File Manager lifecycle: preview/download → rename → delete → browser-visible quota error.
-2. Profile lifecycle: edit profile → avatar upload/remove.
-3. Admin lifecycle: user status → quota update.
-4. Fault-injection browser coverage.
-5. Then usability, pagination/findability and governance hardening passes.
+1. Profile lifecycle: edit profile → avatar upload/remove.
+2. Admin lifecycle: user status → quota update.
+3. Fault-injection browser coverage.
+4. Then usability, pagination/findability and governance hardening passes.
