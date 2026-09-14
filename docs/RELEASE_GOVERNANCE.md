@@ -1,6 +1,6 @@
 # Release governance
 
-Workspace Organizer treats `master` as the release branch. Repository code defines and verifies the intended policy, while GitHub ruleset / branch-protection settings live outside Git history and must be enforced in repository Settings by a user with Administration permission.
+Workspace Organizer treats `master` as the release branch. Repository code defines and verifies the intended policy, but **GitHub branch-protection settings live outside Git history** and must be enforced in repository Settings by a user with Administration permission.
 
 ## Required `master` protection
 
