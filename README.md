@@ -1,22 +1,22 @@
 # Workspace Organizer
 
-**Версия:** `0.11.0-alpha`  
-**Актуально на:** 13 сентября 2026  
-**Статус:** active alpha / release hardening
+**Версия:** `0.12.0-alpha`  
+**Актуально на:** 14 сентября 2026  
+**Статус:** usable alpha
 
 Workspace Organizer — внутреннее PHP-приложение для корпоративной работы: заметки, задачи, личные файлы, профиль, администрирование и real-time Messenger.
 
-После PR #45–#60 основные security-, schema-contract, UI/UX, installer, browser/WSS и production-operations блокеры исходного аудита закрыты: Messenger, Notes, Tasks, Profile, fresh install, versioned DB upgrade, legacy crypto migration, product-wide UI, hosting install, real browser E2E, restore drill и post-merge release gate имеют отдельные проверяемые контракты.
+К 0.12 основные security-, schema-contract, UI/UX, installer, browser/WSS и production-operations блокеры исходного аудита закрыты: Messenger, Notes, Tasks, Profile, File Manager, Admin, fresh install, compatibility DB upgrade, legacy crypto migration, product-wide UI, hosting install, реальные browser lifecycle, fault injection, restore drill и release gate имеют отдельные проверяемые контракты.
 
 ## Возможности
 
-- **Notes** — XChaCha20-Poly1305 для текста, private attachments, голосовые вложения, view-only sharing по токену.
-- **Tasks** — статусы, приоритеты, сроки, категории, подзадачи, фильтры и server-side sort allowlist.
-- **File Manager** — личные папки/файлы вне document root, protected download, media и read-only text preview; объём хранилища ограничивается общей или персональной квотой.
+- **Notes** — XChaCha20-Poly1305 для текста, private attachments, голосовые вложения, view-only sharing по токену, autosave/dirty-state и server-side поиск.
+- **Tasks** — статусы, приоритеты, сроки, категории, подзадачи, фильтры, server-side поиск/пагинация и быстрые inline actions.
+- **File Manager** — личные папки/файлы вне document root, protected download, media и read-only text preview, поиск/сортировка текущей папки и upload progress; объём хранилища ограничивается общей или персональной квотой.
 - **Messenger v2** — private/group chats, Saved Messages, forwarding, media, voice, reply/edit/delete, delivery/read receipts, reactions, encrypted search, pin/mute/archive, group roles/avatars и multi-device realtime.
 - **Profile** — canonical user contract, private avatar, изменение данных/пароля и безопасная деактивация аккаунта.
-- **Admin panel** — управление пользователями, custom profile fields, системным лимитом File Manager и персональными storage quota overrides без physical delete связанных данных.
-- **Responsive UI** — единый design system, desktop/mobile navigation, dashboard, обновлённые формы/карточки/модалки, keyboard focus и reduced-motion support.
+- **Admin panel** — управление пользователями, custom profile fields, системным лимитом File Manager и персональными storage quota overrides без physical delete связанных данных; список пользователей поддерживает server-side поиск/пагинацию.
+- **Responsive UI** — единый design system, desktop/mobile navigation, dashboard, обновлённые формы/карточки/модалки, keyboard focus, reduced-motion support и общий feedback layer.
 
 ## Security model
 
@@ -135,7 +135,7 @@ database/tasks_schema.sql
 database/settings_schema.sql
 ```
 
-Fresh contract включает 22 обязательные таблицы. `system_settings` хранит редактируемые системные значения, а `user_storage_quotas` — только персональные overrides лимита; фактический used space всегда рассчитывается из canonical `user_files`, чтобы не поддерживать рассинхронизируемый usage counter. `install.php` предназначен только для новой/пустой БД; существующие установки обновляются versioned migrations.
+Fresh contract включает 22 обязательные таблицы. `system_settings` хранит редактируемые системные значения, а `user_storage_quotas` — только персональные overrides лимита; фактический used space всегда рассчитывается из canonical `user_files`, чтобы не поддерживать рассинхронизируемый usage counter. `install.php` предназначен только для новой/пустой БД. Для существующих установок используются compatibility upgrade SQL; они не заменяют canonical `*_schema.sql` как описание текущей схемы.
 
 После успешной установки наличие `.env` блокирует повторный запуск web-installer.
 
@@ -182,7 +182,7 @@ Web-installer **не используется для upgrade** и намерен
 
 До обновления сделайте backup БД, `PRIVATE_STORAGE_PATH` и действующих crypto keys.
 
-Проверка migration state:
+Проверка состояния compatibility upgrades:
 
 ```bash
 php bin/migrate.php --status
@@ -200,7 +200,7 @@ Apply:
 php bin/migrate.php
 ```
 
-`schema_migrations` сохраняет filename + SHA-256 checksum. Уже применённые migration-файлы нельзя переписывать задним числом — создавайте новый migration.
+`bin/migrate.php` — upgrade runner для уже существующих SQL-скриптов совместимости, а не источник canonical schema. Внутренняя таблица `schema_migrations` хранит filename + SHA-256 checksum уже применённых upgrade scripts, чтобы повторный запуск был идемпотентным и изменение ранее применённого SQL обнаруживалось fail-closed. Уже применённый upgrade SQL не переписывается задним числом — добавляется новый compatibility script.
 
 ### Legacy crypto migration
 
@@ -271,6 +271,10 @@ HSTS намеренно задаётся на production TLS reverse proxy, а �
 - унифицированные Notes/Tasks/Profile/File Manager/Admin surfaces;
 - Messenger визуально интегрирован в общий shell без изменения realtime logic;
 - обновлённые login/register screens;
+- общий toast/inline feedback/confirmation layer;
+- Notes local draft protection и dirty-state warning;
+- server-side findability для Notes, Tasks и Admin users;
+- File Manager поиск/сортировка текущей папки и upload progress;
 - keyboard focus, skip-link, aria-live region и доступные labels;
 - `prefers-reduced-motion`;
 - touch/mobile actions не зависят только от hover;
@@ -296,7 +300,7 @@ HSTS намеренно задаётся на production TLS reverse proxy, а �
 
 ### Notes
 
-- server-side sort allowlist;
+- server-side search/pagination/sort allowlist;
 - owner-only edit/delete;
 - private attachment upload/download/delete;
 - public view-only share token;
@@ -305,7 +309,7 @@ HSTS намеренно задаётся на production TLS reverse proxy, а �
 
 ### Tasks
 
-`database/tasks_schema.sql` входит в canonical install. Поддерживаются statuses/priorities/due dates/subtasks/categories и server-side filter/sort allowlists.
+`database/tasks_schema.sql` входит в canonical install. Поддерживаются statuses/priorities/due dates/subtasks/categories, server-side search/filter/sort/pagination и быстрые inline actions.
 
 ### Messenger v2
 
@@ -333,11 +337,11 @@ php bin/cleanup_messenger_orphans.php
 
 Рекомендуемый cron/systemd timer: каждые 15–60 минут.
 
-Также контролируйте disk space, права private storage, migration state, logs, backup/restore tests и удаление временных legacy keys.
+Также контролируйте disk space, права private storage, compatibility-upgrade state, logs, backup/restore tests и удаление временных legacy keys.
 
 ## CI
 
-GitHub Actions покрывают security baseline, PHP/Composer, clean schemas, DB upgrade, crypto migration, Notes/Tasks/Profile contracts и Messenger groups/media/search/voice/reactions/forwarding. Workflow `Product UI and production quality` дополнительно проверяет UI/accessibility wiring, File Manager safe preview, Linux bootstrap paths, rate limit middleware, CSP/web-root protection, healthcheck contract и freshness документации.
+GitHub Actions покрывают security baseline, PHP/Composer, clean schemas, DB compatibility upgrades, crypto migration, Notes/Tasks/Profile contracts и Messenger groups/media/search/voice/reactions/forwarding. Workflow `Product UI and production quality` дополнительно проверяет UI/accessibility wiring, File Manager safe preview, Linux bootstrap paths, rate limit middleware, CSP/web-root protection, healthcheck contract и freshness документации.
 
 `System settings and storage quota` проверяет canonical settings schema, admin ACL, default/per-user quota, live usage из `user_files`, reset override и quota overflow denial на MySQL 8.4.
 
@@ -347,9 +351,11 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 
 `Browser HTTPS and WSS E2E` поднимает PHP + Workerman + TLS Nginx + MySQL и две реальные Chromium-сессии: проверяет login, основные модули, authenticated WSS, создание приватного диалога и Alice→Bob realtime message без reload.
 
+Отдельные browser lifecycle workflows проверяют Notes, Tasks, File Manager, Profile и Admin, включая реальную quota-ошибку и DB/storage fault injection без production test hooks.
+
 `Production operations` проверяет shared rate-limit storage, trusted proxy contract, positive/negative multi-node healthcheck, MySQL dump/checksum/restore, private-storage restore и rotation `WS_TICKET_SECRET`.
 
-`Master release gate` запускается на каждом PR и после каждого push/merge в `master`: повторно проверяет объединённый commit — Composer/security audit, полный PHP/JS lint, canonical schema import, production healthcheck, согласованность версии и upload-ready hosting bundle.
+`Master release gate` запускается на каждом PR и после каждого push/merge в `master`: повторно проверяет объединённый commit — Composer/security audit, полный PHP/JS lint, canonical schema import, production healthcheck, согласованность версии, governance contract и upload-ready hosting bundle.
 
 ## Документация
 
@@ -359,17 +365,19 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 - [`docs/HOSTING_INSTALL.md`](docs/HOSTING_INSTALL.md) — fresh install на shared hosting без Composer/CLI.
 - [`docs/PRODUCTION.md`](docs/PRODUCTION.md) — deployment, WSS, rate limiting и production checklist.
 - [`docs/OPERATIONS.md`](docs/OPERATIONS.md) — backup/restore drill, multi-node rate limiting, trusted proxies и key-rotation procedures.
+- [`docs/RELEASE_GOVERNANCE.md`](docs/RELEASE_GOVERNANCE.md) — required checks, branch protection и review policy.
 - [`TASKS_MODULE_README.md`](TASKS_MODULE_README.md) — дополнительная документация Tasks.
 - [`default.env`](default.env) — environment variables и security comments.
 
 ## Что остаётся до production release
 
-Проект всё ещё **alpha**. После закрытия исходного аудита основными оставшимися задачами являются:
+Проект всё ещё **alpha**. Usable baseline 0.12 закрывает ежедневные основные сценарии; до production release остаются главным образом эксплуатационные и масштабные задачи:
 
 - централизованные metrics/alerts/log aggregation и наблюдаемость production deployment;
 - transactional re-encryption procedure для безопасной ротации `UNIQUE_KEY` / `MSG_SECRET_KEY`;
 - постепенный вынос inline Smarty JS/CSS для CSP без `unsafe-inline`;
-- при росте Messenger — scalable encrypted-search architecture вместо bounded decrypt scan.
+- при росте Messenger — scalable encrypted-search architecture вместо bounded decrypt scan;
+- one-time включение branch-protection enforcement в GitHub Settings согласно `docs/RELEASE_GOVERNANCE.md`, если оно ещё не включено.
 
 ## Production checklist
 
@@ -382,7 +390,7 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 5. `PRIVATE_STORAGE_PATH` находится вне document/application root.
 6. HTTPS + same-site WSS reverse proxy настроены.
 7. `WS_ALLOWED_ORIGINS` содержит только trusted origins.
-8. Для existing DB `php bin/migrate.php --status` показывает ожидаемое состояние.
+8. Для existing DB `php bin/migrate.php --status` показывает ожидаемое состояние compatibility upgrades.
 9. Legacy crypto migration выполнена/проверена, если нужна.
 10. `php bin/healthcheck.php` возвращает `Healthcheck: OK`.
 11. Backup БД/private storage создан и restore реально проверен.
