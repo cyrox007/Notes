@@ -2,9 +2,9 @@ name: Tasks browser lifecycle
 
 on:
   push:
-    branches: [usable-baseline-0.12-phase5]
+    branches: [0.13-tasks-kanban]
   pull_request:
-    branches: [master, usable-baseline-0.12-phase4]
+    branches: [master, 0.13-ux-foundation]
 
 permissions:
   contents: read
@@ -55,7 +55,11 @@ jobs:
           set -euo pipefail
           php -l app/controllers/TaskController.php
           php -l tests/e2e/router.php
+          node --check assets/js/tasks-kanban.js
           node --check tests/e2e/tasks-lifecycle.mjs
+          grep -Fq 'tasks_page/kanban.css' app/views/styles.css
+          grep -Fq 'assets/js/tasks-kanban.js' app/views/core/base.tpl
+          grep -Fq 'tasks-board__dropzone' assets/js/tasks-kanban.js
           ! grep -Fq 'action="/tasks/' app/views/tasks_page/index.tpl
 
       - name: Prepare canonical database
@@ -167,7 +171,7 @@ jobs:
             exit 1
           fi
 
-      - name: Run Tasks lifecycle in Chromium
+      - name: Run Tasks kanban lifecycle in Chromium
         shell: bash
         env:
           E2E_ORIGIN: http://127.0.0.1:18090
