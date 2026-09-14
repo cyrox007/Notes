@@ -6,10 +6,12 @@
         return;
     }
 
+    const appPath = (path) => window.wspace?.path ? window.wspace.path(path) : path;
+
     if (!document.querySelector('link[data-file-manager-quota-style]')) {
         const stylesheet = document.createElement('link');
         stylesheet.rel = 'stylesheet';
-        stylesheet.href = '/assets/css/file_manager/quota.css';
+        stylesheet.href = appPath('/assets/css/file_manager/quota.css');
         stylesheet.dataset.fileManagerQuotaStyle = '1';
         document.head.appendChild(stylesheet);
     }
