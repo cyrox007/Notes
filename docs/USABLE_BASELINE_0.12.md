@@ -18,7 +18,7 @@
 - [x] Закрыть false-success upload при неудачной записи metadata через общий fail-closed commit contract.
 - [x] Добавить настоящий HTTP multipart integration test через router/middleware/controller chain.
 - [x] Проверить CSRF/auth/role/quota/concurrency/upload-vs-admin-update end-to-end.
-- [ ] Сделать migration settings/quota безопасной для partial legacy schema.
+- [x] Сделать migration settings/quota безопасной для partial legacy schema.
 - [x] Показывать обычному пользователю `used / quota / remaining` в File Manager.
 
 ## P0 — BASE_PATH contract
