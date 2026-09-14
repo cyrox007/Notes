@@ -48,6 +48,7 @@ jobs:
           set -euo pipefail
           php -l app/controllers/ProfileController.php
           php -l app/services/UserAvatarService.php
+          php -l app/services/ProfilePublicationService.php
           php -l core/routerConfig.php
           php -l ws_server/server.php
           sed '/^{literal}$/d;/^{\/literal}$/d' app/views/profile_page/script.js > /tmp/profile.js
@@ -169,6 +170,7 @@ jobs:
           require SITEPATH . '/core/images.php';
           require SITEPATH . '/app/handlers/CryptMethods.php';
           require SITEPATH . '/app/services/UserAvatarService.php';
+          require SITEPATH . '/app/services/ProfilePublicationService.php';
           require SITEPATH . '/app/controllers/ProfileController.php';
           $_SERVER['REQUEST_METHOD']='GET';
           if (session_status() === PHP_SESSION_NONE) session_start();
@@ -207,6 +209,7 @@ jobs:
           require SITEPATH . '/core/images.php';
           require SITEPATH . '/app/handlers/CryptMethods.php';
           require SITEPATH . '/app/services/UserAvatarService.php';
+          require SITEPATH . '/app/services/ProfilePublicationService.php';
           require SITEPATH . '/app/controllers/ProfileController.php';
           $_SERVER['REQUEST_METHOD']='GET';
           $db=\Core\DatabaseManager::getInstance();
