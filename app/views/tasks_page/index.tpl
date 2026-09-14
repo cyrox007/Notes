@@ -39,7 +39,7 @@
             <a href="?filter=cancelled" class="filter-btn {if $currentFilter == 'cancelled'}active{/if}">Отменены</a>
         </div>
 
-        <form method="get" action="/tasks/" class="tasks__sort-form">
+        <form method="get" action="{route_path name='tasks'}" class="tasks__sort-form">
             <input type="hidden" name="filter" value="{$currentFilter|escape}">
             <label>
                 Сортировка
