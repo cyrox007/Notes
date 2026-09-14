@@ -20,3 +20,4 @@
 {include file="core/product-ux-013.css"}
 {* Tasks board is intentionally module-specific and loads after shared polish. *}
 {include file="tasks_page/kanban.css"}
+{include file="tasks_page/kanban-handle.css"}
