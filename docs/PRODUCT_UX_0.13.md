@@ -4,67 +4,70 @@
 
 После 0.12 usable-alpha следующий этап переводит интерфейс из «рабочего административного приложения» в цельный ежедневный workspace. Сайдбар остаётся визуальным ориентиром: остальной продукт должен догнать его по плотности, иерархии, цвету и качеству состояний.
 
+> Статус синхронизирован с `master` после PR #74–#81. Галочка означает, что изменение уже находится в `master` и имеет соответствующий regression/browser contract там, где он нужен.
+
 ## P0 — визуальный фундамент
 
-- [ ] Современная единая палитра content area: мягкий холодный фон, белые/elevated поверхности, спокойные borders, выразительный primary без кислотного контраста.
-- [ ] Единые размеры и состояния buttons / inputs / cards / panels / badges.
-- [ ] Нормальные hover / focus-visible / disabled / loading / empty states.
-- [ ] Уменьшить ощущение «огромных пустых белых листов» на широком экране.
-- [ ] Сохранить тёмный sidebar как сильную визуальную основу, не превращать приложение в тёмную тему.
+- [x] Современная единая палитра content area: мягкий холодный фон, белые/elevated поверхности, спокойные borders, выразительный primary без кислотного контраста.
+- [x] Единый 0.13 visual layer для buttons / inputs / cards / panels и focus states.
+- [ ] Довести hover / focus-visible / disabled / loading / empty states до единого уровня во всех модулях.
+- [x] Уменьшить ощущение «огромных пустых белых листов» на ключевых переработанных экранах.
+- [x] Сохранить тёмный sidebar как сильную визуальную основу, не превращая приложение в тёмную тему.
 - [ ] Mobile/tablet polish для новых layouts.
 
 ## P1 — Tasks как рабочая доска
 
 Цель: приблизить UX к Trello/kanban, не копируя внешний вид буквально.
 
-- [ ] Board view по статусам: «Новые», «В работе», «Готово», при необходимости «Отменено».
-- [ ] Компактные task cards вместо формоподобного списка.
-- [ ] Priority/category labels с понятной цветовой системой.
-- [ ] Deadline, progress subtasks и быстрые действия видны прямо на карточке.
-- [ ] Drag-and-drop между статусами с сохранением через существующий update contract.
-- [ ] Быстрое создание задачи в колонке.
-- [ ] List/board переключатель, если старый list view остаётся полезным.
-- [ ] Поиск/filter state не теряется при переключении представления.
+- [x] Board view по статусам: «Новые», «В работе», «Готово», «Отменено».
+- [x] Компактные task cards вместо формоподобного списка.
+- [ ] Дополировать priority/category labels как единую визуальную систему.
+- [ ] Дополировать deadline/progress subtasks/quick actions прямо на карточке.
+- [x] Drag-and-drop между статусами с сохранением через существующий ownership-checked update contract.
+- [x] Быстрое создание задачи в колонке.
+- [x] List/board переключатель с локальным сохранением режима.
+- [x] Existing server-side search/filter/sort contract сохранён; board работает поверх текущего bounded result set.
 
 ## P1 — Notes editor
 
-- [ ] Убрать ощущение «большой textarea + огромная кнопка».
-- [ ] Нормальный editor shell: title, toolbar/action row, autosave state, content canvas.
-- [ ] Кнопка ручного Save не должна визуально доминировать при работающем autosave.
-- [ ] Attachments/share/voice вынести в понятные секции или side panel.
-- [ ] Вложения отображать как аккуратный список/карточки с типом, размером и действиями.
-- [ ] Empty/loading/error состояния редактора.
+- [x] Убрано ощущение «большой textarea + огромная кнопка».
+- [x] Новый editor shell: title, actions, autosave state, writing canvas.
+- [x] Ручной Save больше не доминирует над editor workflow.
+- [x] Attachments/share/voice вынесены в понятные секции editor workspace.
+- [x] Вложения и voice notes отображаются отдельными карточками/элементами с действиями.
+- [ ] Довести empty/loading/error states Notes до общего 0.13 UI contract.
 - [ ] Улучшить Notes list cards и визуальную иерархию поиска/сортировки.
 
 ## P1 — Voice notes
 
 Голос должен восприниматься как отдельный способ создать контент заметки, а не как техническое file attachment.
 
-- [ ] Явная кнопка «Записать голос» в editor actions.
-- [ ] Record timer, recording state, pause/cancel/save.
-- [ ] Playback внутри заметки: play/pause, duration, progress.
-- [ ] Список нескольких voice notes в одной заметке.
-- [ ] MIME/size/private-storage ограничения остаются fail-closed.
-- [ ] Browser lifecycle для записи/загрузки/playback metadata.
+- [x] Явная кнопка записи голоса в editor actions.
+- [x] Recording state, timer, stop/cancel/save и preview.
+- [x] Playback внутри заметки и сохранение duration metadata.
+- [x] Несколько voice attachments поддерживаются существующей моделью вложений заметки.
+- [x] MIME/size/private-storage ограничения остаются fail-closed.
+- [x] Browser/backend lifecycle для voice upload, persisted metadata и private playback.
+- [ ] Отдельный pause/resume UX записи, если он остаётся нужен после usability review.
 
 ## P1 — Profile hub
 
 ### Свой профиль
 
-- [ ] Компактный hero: avatar, имя, `@username`, контакты/поля профиля.
-- [ ] Быстрые карточки «Мои заметки», «Мои задачи», «Мои файлы».
+- [x] Компактный hero: avatar, имя, `@username`, account/profile context.
+- [x] Быстрые карточки «Мои заметки», «Мои задачи», «Мои файлы».
 - [ ] Счётчики и/или краткий activity summary без тяжёлых dashboard-запросов.
 - [ ] Storage usage/limit как полезный account metric.
-- [ ] Edit profile/avatar/password/deactivation не должны занимать основной экран, а открываются как settings/edit mode.
+- [ ] Edit profile/avatar/password/deactivation вынести из основного hub в более компактный settings/edit mode.
 
 ### Чужой профиль
 
-- [ ] Отдельный read-only route пользователя.
-- [ ] Никогда не показывать private email/phone/property без явного public contract.
-- [ ] Показывать только контент, который пользователь **явно** опубликовал.
-- [ ] Share-link сам по себе не означает «показывать в публичном профиле».
-- [ ] Для Notes/Tasks/Files ввести явный publication contract до появления public listing.
-- [ ] Empty state «Пользователь пока ничего не публиковал».
+- [x] Отдельный authenticated read-only route пользователя.
+- [x] Private email/phone/property не загружаются в foreign-profile view.
+- [x] Показывается только контент, который пользователь явно опубликовал.
+- [x] Share-link сам по себе не означает «показывать в публичном профиле».
+- [x] Для Notes/Tasks/Files введён явный `is_profile_public` contract, default private.
+- [x] Есть safe empty state, если пользователь ничего не публиковал.
 
 ## P1 — Messenger UX / эксплуатация
 
@@ -74,26 +77,42 @@
 
 ## P2 — File Manager
 
-- [ ] Более выраженная toolbar/navigation hierarchy.
+- [x] Более выраженная toolbar/navigation hierarchy, локальный поиск и сортировка.
 - [ ] Upload progress/error state сделать частью общего file row/card UX.
-- [ ] Grid/list view при достаточной ценности для пользователя.
-- [ ] Drag/drop upload после отдельной browser accessibility проверки.
+- [x] Grid/list view с сохранением пользовательского выбора.
+- [x] Drag/drop upload через существующий hardened upload pipeline и отдельный Chromium contract.
 
 ## P2 — Profile/publication model
 
-Публичность — security contract, а не CSS-функция. До реализации публичного профиля нужно определить для каждого типа данных:
+Публичность реализована как отдельный security contract:
 
-- `private` — доступ только владельцу;
-- `shared_by_link` — доступ по capability link, но не виден в public profile;
-- `public_profile` — владелец явно разрешил показывать объект в своём публичном профиле.
+- [x] `private` — объект не показывается в чужом профиле;
+- [x] `shared_by_link` — capability link не делает объект публичным в профиле;
+- [x] `public_profile` — только явное действие владельца выставляет `is_profile_public=1`.
+- [x] Public Profile использует whitelist metadata и не публикует note content, task description, storage path, private download URL или share token.
+- [x] Fresh install и compatibility upgrade содержат publication schema contract.
 
-Не переиспользовать существующий Notes share-token как автоматический признак публичной публикации.
+## Инсталлятор / release safety
+
+- [x] Hosting installer проходит реальный HTTP wizard в hosting-like `/workspace/`.
+- [x] Compatibility upgrade проверяется отдельным migration contract.
+- [x] HTTPS/WSS E2E реально запускает PHP + Workerman + Nginx proxy и Chromium smoke.
+- [ ] Смержить отдельный 0.13 installer regression gate (#82) после review, чтобы новые schema fields проверялись явно и на будущих изменениях.
 
 ## Definition of Done 0.13 UX
 
-- sidebar и content area воспринимаются как одна дизайн-система;
-- Tasks имеет настоящий kanban flow без потери текущих lifecycle guarantees;
-- Notes editor комфортен для длинной ежедневной работы и имеет заметный voice-note flow;
-- собственный Profile полезен как hub, чужой Profile не раскрывает private data;
-- ключевые UX flows проходят root и `/workspace/` browser regression;
-- новые действия не возвращают native `alert/confirm/prompt` и не увеличивают legacy inline JS/CSS debt.
+- [ ] Sidebar и content area воспринимаются как одна дизайн-система на всех основных экранах.
+- [x] Tasks имеет настоящий kanban flow без потери lifecycle guarantees.
+- [x] Notes editor пригоден для ежедневной работы и имеет заметный voice-note flow.
+- [x] Собственный Profile полезен как hub, чужой Profile не раскрывает private data и показывает только явно опубликованное.
+- [x] Ключевые переработанные UX flows имеют `/workspace/` browser regression.
+- [ ] Новые/оставшиеся действия не возвращают native `alert/confirm/prompt` и не увеличивают legacy inline JS/CSS debt.
+
+## Следующий порядок работ
+
+1. Messenger reconnect/offline UX + визуальная консистентность media/voice/search/group.
+2. Profile metrics: counters + storage usage + компактный settings/edit mode.
+3. Notes list polish и единые empty/loading/error states.
+4. File Manager inline upload progress/error UX.
+5. Mobile/tablet pass по Tasks / Notes / Profile / File Manager / Messenger.
+6. 0.13 release candidate: version/changelog/readiness contract после закрытия пунктов выше.
