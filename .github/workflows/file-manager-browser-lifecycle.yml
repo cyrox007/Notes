@@ -2,9 +2,9 @@ name: File Manager browser lifecycle
 
 on:
   push:
-    branches: [usable-baseline-0.12-phase6, 0.13-file-manager-polish]
+    branches: [usable-baseline-0.12-phase6, 0.13-file-manager-polish, 0.13-file-manager-drop-upload]
   pull_request:
-    branches: [master, usable-baseline-0.12-phase5, 0.13-ux-foundation]
+    branches: [master, usable-baseline-0.12-phase5, 0.13-ux-foundation, 0.13-file-manager-polish]
 
 permissions:
   contents: read
@@ -58,10 +58,12 @@ jobs:
           php -l app/controllers/FileQuotaController.php
           php -l tests/e2e/router.php
           node --check assets/js/file-manager-polish.js
+          node --check assets/js/file-manager-drop-upload.js
           node --check tests/e2e/file-manager-lifecycle.mjs
           node --check tests/e2e/file-manager-ux-contract.mjs
           grep -Fq "route_path name='files_quota'" app/views/file_manager/index.tpl
           grep -Fq 'assets/js/file-manager-polish.js' app/views/core/base.tpl
+          grep -Fq 'assets/js/file-manager-drop-upload.js' app/views/core/base.tpl
           ! grep -Fq 'href="/files/' app/views/file_manager/index.tpl
           ! grep -Fq 'src="/assets/' app/views/file_manager/index.tpl
 
@@ -204,6 +206,16 @@ jobs:
           set -euo pipefail
           USER_ID="$(mysql -N -B -h 127.0.0.1 -uroot -proot file_manager_browser_lifecycle -e "SELECT id FROM users WHERE username='file-manager-lifecycle-user'")"
           test -n "$USER_ID"
+
+          DROP_ROW="$(mysql -N -B -h 127.0.0.1 -uroot -proot file_manager_browser_lifecycle -e "SELECT CONCAT(is_deleted,'|',path) FROM user_files WHERE user_id=${USER_ID} AND name LIKE 'drop-contract-%' AND extension='txt' ORDER BY id DESC LIMIT 1")"
+          test -n "$DROP_ROW"
+          DROP_DELETED="${DROP_ROW%%|*}"
+          DROP_PATH="${DROP_ROW#*|}"
+          test "$DROP_DELETED" = '1'
+          test -n "$DROP_PATH"
+          test ! -f "$DROP_PATH"
+          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot file_manager_browser_lifecycle -e "SELECT COUNT(*) FROM user_files WHERE user_id=${USER_ID} AND name LIKE 'UX search %' AND is_deleted=0")" = '0'
+
           FOLDER_DELETED="$(mysql -N -B -h 127.0.0.1 -uroot -proot file_manager_browser_lifecycle -e "SELECT is_deleted FROM user_files WHERE user_id=${USER_ID} AND name LIKE 'FM lifecycle %' AND type='folder' LIMIT 1")"
           test "$FOLDER_DELETED" = '1'
           FILE_ROW="$(mysql -N -B -h 127.0.0.1 -uroot -proot file_manager_browser_lifecycle -e "SELECT CONCAT(is_deleted,'|',path) FROM user_files WHERE user_id=${USER_ID} AND name LIKE 'fm-renamed-%' AND extension='txt' LIMIT 1")"
