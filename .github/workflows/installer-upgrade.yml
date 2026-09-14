@@ -54,6 +54,7 @@ jobs:
           grep -Fq 'Web-installer не изменяет существующие данные' install.php
           grep -Fq '20260913_messenger_membership_contract.sql' bin/migrate.php
           grep -Fq '20260913_tasks_contract.sql' bin/migrate.php
+          grep -Fq '20260914_storage_quota_legacy_reconcile.sql' bin/migrate.php
           grep -Fq '20260913_system_settings_storage_quota.sql' bin/migrate.php
           test -f database/settings_schema.sql
 
@@ -143,6 +144,7 @@ jobs:
           set -euo pipefail
           php bin/migrate.php --dry-run | tee /tmp/migrate-dry-run.txt
           grep -Fq 'PENDING  20260913_messenger_v2.sql' /tmp/migrate-dry-run.txt
+          grep -Fq 'PENDING  20260914_storage_quota_legacy_reconcile.sql' /tmp/migrate-dry-run.txt
           grep -Fq 'PENDING  20260913_system_settings_storage_quota.sql' /tmp/migrate-dry-run.txt
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='schema_migrations'")" = "0"
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='tasks'")" = "0"
@@ -160,7 +162,7 @@ jobs:
           set -euo pipefail
           php bin/migrate.php | tee /tmp/migrate-apply.txt
           grep -Fq 'Schema contract: OK' /tmp/migrate-apply.txt
-          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT COUNT(*) FROM schema_migrations")" = "11"
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT COUNT(*) FROM schema_migrations")" = "12"
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT COUNT(*) FROM users WHERE username='legacy-user' AND lastname='User' AND password_hash='legacy-hash' AND is_active=1")" = "1"
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT COUNT(*) FROM messages WHERE uid='b2000000-0000-4000-8000-000000000001' AND from_user_id=1 AND message='legacy-ciphertext' AND message_status='sent'")" = "1"
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('tasks','subtasks','task_categories','task_category_relations','task_reminders')")" = "5"
@@ -180,10 +182,10 @@ jobs:
         run: |
           set -euo pipefail
           php bin/migrate.php --status | tee /tmp/migrate-status.txt
-          grep -Fq 'Summary: 11 applied, 0 pending' /tmp/migrate-status.txt
+          grep -Fq 'Summary: 12 applied, 0 pending' /tmp/migrate-status.txt
           grep -Fq 'Schema contract: OK' /tmp/migrate-status.txt
           php bin/migrate.php | grep -Fq 'Database is up to date. Schema contract: OK'
-          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT COUNT(*) FROM schema_migrations")" = "11"
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT COUNT(*) FROM schema_migrations")" = "12"
 
       - name: Applied migration checksum is immutable
         shell: bash
