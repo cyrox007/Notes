@@ -73,6 +73,15 @@ try {
     throw new Error(`Tasks sort form escaped BASE_PATH: ${sortAction}`);
   }
 
+  const board = page.locator('.tasks-board');
+  await board.waitFor({ state: 'visible', timeout: 5000 });
+  if (await board.locator('.tasks-board__column').count() !== 4) {
+    throw new Error('Kanban board must render four status columns');
+  }
+  if ((await page.locator('.tasks-view-switch__button.active').textContent())?.trim() !== 'Доска') {
+    throw new Error('Kanban board is not the default Tasks view');
+  }
+
   const stamp = Date.now();
   const title = `Tasks lifecycle ${stamp}`;
   const updatedTitle = `${title} updated`;
@@ -91,6 +100,9 @@ try {
   await task.waitFor({ state: 'visible', timeout: 10000 });
   const taskUid = await task.getAttribute('data-task-id');
   if (!taskUid) throw new Error('Created task has no data-task-id');
+  if ((await task.locator('xpath=..').getAttribute('data-status')) !== 'pending') {
+    throw new Error('New task was not placed in the pending kanban column');
+  }
 
   await task.locator('.edit-task').click();
   const editPanel = task.locator('.task-edit-panel');
@@ -107,6 +119,9 @@ try {
   await task.locator('.task-description p').filter({ hasText: updatedDescription }).waitFor({ state: 'visible' });
   if ((await task.locator('.task-status-toggle').inputValue()) !== 'in_progress') {
     throw new Error('Edited task status did not persist');
+  }
+  if ((await task.locator('xpath=..').getAttribute('data-status')) !== 'in_progress') {
+    throw new Error('Edited task was not rendered in the in-progress kanban column');
   }
 
   // Shared prompt UI adds the subtask without a full-page navigation.
@@ -129,18 +144,30 @@ try {
   subtask = page.locator(`.task-item[data-task-id="${taskUid}"] .subtask-item`).filter({ hasText: subtaskTitle });
   if (!(await subtask.locator('.subtask-toggle').isChecked())) throw new Error('Subtask completion did not persist');
 
+  // The 0.13 board must persist status through the same API when a card is dragged.
   task = page.locator(`.task-item[data-task-id="${taskUid}"]`);
-  await task.locator('.task-status-toggle').selectOption('completed');
+  const completedDropzone = page.locator('.tasks-board__dropzone[data-status="completed"]');
+  await task.dragTo(completedDropzone);
   await page.waitForFunction(
     (uid) => {
       const item = document.querySelector(`.task-item[data-task-id="${uid}"]`);
-      return item?.querySelector('.task-status-toggle')?.value === 'completed'
+      return item?.parentElement?.dataset.status === 'completed'
+        && item?.querySelector('.task-status-toggle')?.value === 'completed'
         && item?.querySelector('.task-complete-toggle')?.checked === true;
     },
     taskUid,
     { timeout: 10000 }
   );
-  if (page.url() !== inlineUrl) throw new Error('Task status update unexpectedly navigated the page');
+  if (page.url() !== inlineUrl) throw new Error('Kanban drag unexpectedly navigated the page');
+
+  // View switching is client-side and must not lose the task DOM/state.
+  await page.getByRole('button', { name: /Список/ }).click();
+  await page.locator('.tasks__list').waitFor({ state: 'visible', timeout: 5000 });
+  await page.locator(`.tasks__list .task-item[data-task-id="${taskUid}"]`).waitFor({ state: 'visible', timeout: 5000 });
+  await page.getByRole('button', { name: /Доска/ }).click();
+  await page.locator('.tasks-board').waitFor({ state: 'visible', timeout: 5000 });
+  await page.locator(`.tasks-board__dropzone[data-status="completed"] .task-item[data-task-id="${taskUid}"]`)
+    .waitFor({ state: 'visible', timeout: 5000 });
 
   await page.locator('.tasks__sort-form select[name="sort"]').selectOption('title');
   await page.locator('.tasks__sort-form select[name="direction"]').selectOption('asc');
@@ -164,7 +191,7 @@ try {
   if (escapedRequests.length) throw new Error(`Requests escaped BASE_PATH: ${[...new Set(escapedRequests)].join(', ')}`);
   if (unexpectedHttpErrors.length) throw new Error(`Unexpected HTTP errors: ${unexpectedHttpErrors.join(', ')}`);
 
-  console.log(`Tasks lifecycle browser flow: OK (${taskUid})`);
+  console.log(`Tasks kanban lifecycle browser flow: OK (${taskUid})`);
   await context.close();
 } finally {
   await browser.close();
