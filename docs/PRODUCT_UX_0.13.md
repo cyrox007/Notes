@@ -1,118 +1,98 @@
 # Workspace Organizer 0.13 — Product UX
 
-## Цель
+Статус релиза: **закрыт**.
 
-После 0.12 usable-alpha следующий этап переводит интерфейс из «рабочего административного приложения» в цельный ежедневный workspace. Сайдбар остаётся визуальным ориентиром: остальной продукт должен догнать его по плотности, иерархии, цвету и качеству состояний.
+0.13 завершает alpha-цикл продуктовой переработки поверх 0.12 usable baseline. После этого релиза новые крупные функции замораживаются до beta-hardening: приоритет смещается на эксплуатационную надёжность, совместимость, наблюдаемость и доказанный upgrade/recovery contract.
 
-> Статус синхронизирован с `master` после PR #74–#81. Галочка означает, что изменение уже находится в `master` и имеет соответствующий regression/browser contract там, где он нужен.
+## Цель 0.13
 
-## P0 — визуальный фундамент
+Перевести интерфейс из «рабочего административного приложения» в цельный ежедневный workspace, не ослабляя уже закрытые в 0.12 контракты целостности данных, private storage, installer/upgrade, BASE_PATH и browser E2E.
 
-- [x] Современная единая палитра content area: мягкий холодный фон, белые/elevated поверхности, спокойные borders, выразительный primary без кислотного контраста.
-- [x] Единый 0.13 visual layer для buttons / inputs / cards / panels и focus states.
-- [ ] Довести hover / focus-visible / disabled / loading / empty states до единого уровня во всех модулях.
-- [x] Уменьшить ощущение «огромных пустых белых листов» на ключевых переработанных экранах.
-- [x] Сохранить тёмный sidebar как сильную визуальную основу, не превращая приложение в тёмную тему.
-- [ ] Mobile/tablet polish для новых layouts.
+## Доставлено в 0.13
 
-## P1 — Tasks как рабочая доска
+### Визуальный фундамент
 
-Цель: приблизить UX к Trello/kanban, не копируя внешний вид буквально.
+- [x] Единая спокойная палитра content area, согласованная с тёмным sidebar.
+- [x] Общий 0.13 visual layer для buttons / inputs / cards / panels / focus states.
+- [x] Ключевые экраны избавлены от ощущения больших пустых технических форм.
+- [x] Новые layouts учитывают reduced-motion и responsive breakpoints.
 
-- [x] Board view по статусам: «Новые», «В работе», «Готово», «Отменено».
-- [x] Компактные task cards вместо формоподобного списка.
-- [ ] Дополировать priority/category labels как единую визуальную систему.
-- [ ] Дополировать deadline/progress subtasks/quick actions прямо на карточке.
-- [x] Drag-and-drop между статусами с сохранением через существующий ownership-checked update contract.
-- [x] Быстрое создание задачи в колонке.
+### Tasks
+
+- [x] Kanban board: «Новые», «В работе», «Готово», «Отменено».
+- [x] Компактные task cards.
+- [x] Drag-and-drop между статусами через существующий ownership-checked update contract.
+- [x] Быстрое создание задачи в целевой колонке.
 - [x] List/board переключатель с локальным сохранением режима.
-- [x] Existing server-side search/filter/sort contract сохранён; board работает поверх текущего bounded result set.
+- [x] Existing bounded server-side search/filter/sort contract сохранён.
 
-## P1 — Notes editor
+### Notes / Voice notes
 
-- [x] Убрано ощущение «большой textarea + огромная кнопка».
-- [x] Новый editor shell: title, actions, autosave state, writing canvas.
-- [x] Ручной Save больше не доминирует над editor workflow.
-- [x] Attachments/share/voice вынесены в понятные секции editor workspace.
-- [x] Вложения и voice notes отображаются отдельными карточками/элементами с действиями.
-- [ ] Довести empty/loading/error states Notes до общего 0.13 UI contract.
-- [ ] Улучшить Notes list cards и визуальную иерархию поиска/сортировки.
+- [x] Writing-first editor shell вместо legacy textarea layout.
+- [x] Title/actions/autosave state/writing canvas собраны в единый editor workspace.
+- [x] Attachments, share и voice вынесены в понятные секции.
+- [x] Явная запись голоса: recording state, timer, stop/cancel/save и preview.
+- [x] Playback внутри заметки и duration metadata.
+- [x] Несколько voice attachments поддерживаются существующей моделью.
+- [x] Private-storage/MIME/size ограничения и browser/backend lifecycle сохранены.
 
-## P1 — Voice notes
+### Profile hub / publication
 
-Голос должен восприниматься как отдельный способ создать контент заметки, а не как техническое file attachment.
-
-- [x] Явная кнопка записи голоса в editor actions.
-- [x] Recording state, timer, stop/cancel/save и preview.
-- [x] Playback внутри заметки и сохранение duration metadata.
-- [x] Несколько voice attachments поддерживаются существующей моделью вложений заметки.
-- [x] MIME/size/private-storage ограничения остаются fail-closed.
-- [x] Browser/backend lifecycle для voice upload, persisted metadata и private playback.
-- [ ] Отдельный pause/resume UX записи, если он остаётся нужен после usability review.
-
-## P1 — Profile hub
-
-### Свой профиль
-
-- [x] Компактный hero: avatar, имя, `@username`, account/profile context.
-- [x] Быстрые карточки «Мои заметки», «Мои задачи», «Мои файлы».
-- [ ] Счётчики и/или краткий activity summary без тяжёлых dashboard-запросов.
-- [ ] Storage usage/limit как полезный account metric.
-- [ ] Edit profile/avatar/password/deactivation вынести из основного hub в более компактный settings/edit mode.
-
-### Чужой профиль
-
-- [x] Отдельный authenticated read-only route пользователя.
+- [x] Компактный собственный Profile hub.
+- [x] Быстрые переходы в Notes / Tasks / Files.
+- [x] Profile metrics: counters + storage usage/quota без тяжёлого dashboard query.
+- [x] Компактный settings/edit entry для профиля, пароля, avatar и deactivation.
+- [x] Отдельный authenticated read-only профиль другого пользователя.
 - [x] Private email/phone/property не загружаются в foreign-profile view.
-- [x] Показывается только контент, который пользователь явно опубликовал.
-- [x] Share-link сам по себе не означает «показывать в публичном профиле».
-- [x] Для Notes/Tasks/Files введён явный `is_profile_public` contract, default private.
-- [x] Есть safe empty state, если пользователь ничего не публиковал.
+- [x] `is_profile_public` contract для Notes / Tasks / Files, default private.
+- [x] Share/capability link сам по себе не публикует объект в профиле.
+- [x] Public Profile использует whitelist metadata и не раскрывает content, storage path, private URL или share token.
 
-## P1 — Messenger UX / эксплуатация
+### File Manager
 
-- [x] Отдельная инструкция запуска realtime Workerman/WSS server: `docs/MESSENGER_SERVER.md`.
-- [ ] В UI показывать понятный reconnect/offline state без технических формулировок.
-- [ ] Проверить визуальную консистентность voice/media/search/group flows с остальным 0.13 UI.
+- [x] Toolbar/navigation hierarchy, локальный поиск и сортировка.
+- [x] Grid/list workspace views с сохранением выбора.
+- [x] Drag/drop upload использует существующий hardened upload pipeline.
+- [x] Quota/storage contract и durable File Manager lifecycle не ослаблены.
 
-## P2 — File Manager
+### Messenger
 
-- [x] Более выраженная toolbar/navigation hierarchy, локальный поиск и сортировка.
-- [ ] Upload progress/error state сделать частью общего file row/card UX.
-- [x] Grid/list view с сохранением пользовательского выбора.
-- [x] Drag/drop upload через существующий hardened upload pipeline и отдельный Chromium contract.
+- [x] Production runbook Workerman/WSS: `docs/MESSENGER_SERVER.md`.
+- [x] Messenger reconnect/offline UX: online / reconnecting / offline / session-ended states.
+- [x] Fresh short-lived WebSocket ticket перед reconnect.
+- [x] Recovery после browser online/sleep/background с bounded backoff.
+- [x] HTTPS/WSS Chromium regression доказывает reconnect и последующую realtime delivery.
 
-## P2 — Profile/publication model
+### Installer / release safety
 
-Публичность реализована как отдельный security contract:
-
-- [x] `private` — объект не показывается в чужом профиле;
-- [x] `shared_by_link` — capability link не делает объект публичным в профиле;
-- [x] `public_profile` — только явное действие владельца выставляет `is_profile_public=1`.
-- [x] Public Profile использует whitelist metadata и не публикует note content, task description, storage path, private download URL или share token.
-- [x] Fresh install и compatibility upgrade содержат publication schema contract.
-
-## Инсталлятор / release safety
-
-- [x] Hosting installer проходит реальный HTTP wizard в hosting-like `/workspace/`.
+- [x] Hosting installer проходит реальный HTTP wizard при `BASE_PATH=/workspace/`.
 - [x] Compatibility upgrade проверяется отдельным migration contract.
 - [x] HTTPS/WSS E2E реально запускает PHP + Workerman + Nginx proxy и Chromium smoke.
-- [ ] Смержить отдельный 0.13 installer regression gate (#82) после review, чтобы новые schema fields проверялись явно и на будущих изменениях.
+- [x] 0.13 installer schema contract явно проверяет publication fields, voice duration и Messenger config.
 
-## Definition of Done 0.13 UX
+## Definition of Done 0.13
 
-- [ ] Sidebar и content area воспринимаются как одна дизайн-система на всех основных экранах.
+- [x] 0.12 durable-data/security baseline сохранён.
 - [x] Tasks имеет настоящий kanban flow без потери lifecycle guarantees.
-- [x] Notes editor пригоден для ежедневной работы и имеет заметный voice-note flow.
-- [x] Собственный Profile полезен как hub, чужой Profile не раскрывает private data и показывает только явно опубликованное.
+- [x] Notes editor пригоден для ежедневной работы и имеет first-class voice-note flow.
+- [x] Собственный Profile полезен как hub; чужой Profile раскрывает только явно опубликованные metadata.
+- [x] File Manager получил современный workspace UX поверх hardened storage backend.
+- [x] Messenger показывает понятные connection states и реально восстанавливает WSS session.
 - [x] Ключевые переработанные UX flows имеют `/workspace/` browser regression.
-- [ ] Новые/оставшиеся действия не возвращают native `alert/confirm/prompt` и не увеличивают legacy inline JS/CSS debt.
+- [x] Fresh install / compatibility upgrade / production release gate остаются зелёными.
+- [x] `Core\Version`, README, CHANGELOG и readiness contract синхронизированы для `0.13.0-alpha` в release PR.
 
-## Следующий порядок работ
+## 0.14 beta backlog
 
-1. Messenger reconnect/offline UX + визуальная консистентность media/voice/search/group.
-2. Profile metrics: counters + storage usage + компактный settings/edit mode.
-3. Notes list polish и единые empty/loading/error states.
-4. File Manager inline upload progress/error UX.
-5. Mobile/tablet pass по Tasks / Notes / Profile / File Manager / Messenger.
-6. 0.13 release candidate: version/changelog/readiness contract после закрытия пунктов выше.
+Следующие пункты осознанно **не блокируют 0.13 alpha**. Они переходят в beta-hardening, где новые крупные функции заморожены.
+
+- Единый pass по hover / focus-visible / disabled / loading / empty states во всех модулях.
+- Mobile/tablet polish для Tasks / Notes / Profile / File Manager / Messenger.
+- Tasks: унифицировать priority/category labels, deadline/progress subtasks и quick actions на карточках.
+- Notes: улучшить list cards и визуальную иерархию поиска/сортировки; унифицировать list empty/loading/error states.
+- Voice notes: pause/resume recorder UX только если подтвердится потребность после beta usability review.
+- Messenger: дополнительная визуальная унификация media/voice/search/group flows.
+- File Manager: перенести upload progress/error из modal-flow непосредственно в file card/row UX.
+- Продолжить вынос legacy inline JS/CSS без добавления нового CSP debt.
+
+Отдельный beta roadmap должен дополнить это эксплуатационными задачами: observability/alerts, upgrade matrix, cross-browser/mobile coverage, soak/load baseline, data-retention contract и реальное enforcement release governance.
