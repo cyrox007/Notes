@@ -41,6 +41,12 @@ wspace.path = function appPath(value = '/') {
         }
     }
 
+    function prefixAppPath(url) {
+        return typeof url === 'string' && url.startsWith('/') && !url.startsWith('//')
+            ? wspace.path(url)
+            : url;
+    }
+
     wspace.security = {
         csrfToken,
         getCSRFToken() {
@@ -51,10 +57,15 @@ wspace.path = function appPath(value = '/') {
     if (typeof window.fetch === 'function') {
         const nativeFetch = window.fetch.bind(window);
         window.fetch = function securedFetch(input, init = {}) {
+            let securedInput = input;
+            if (typeof input === 'string') {
+                securedInput = prefixAppPath(input);
+            }
+
             const requestMethod = String(
                 init.method || (typeof Request !== 'undefined' && input instanceof Request ? input.method : 'GET')
             ).toUpperCase();
-            const requestUrl = typeof Request !== 'undefined' && input instanceof Request ? input.url : String(input);
+            const requestUrl = typeof Request !== 'undefined' && input instanceof Request ? input.url : String(securedInput);
 
             if (csrfToken && unsafeMethods.has(requestMethod) && isSameOrigin(requestUrl)) {
                 const headers = new Headers(
@@ -66,7 +77,7 @@ wspace.path = function appPath(value = '/') {
                 init = Object.assign({}, init, { headers });
             }
 
-            return nativeFetch(input, init);
+            return nativeFetch(securedInput, init);
         };
     }
 
@@ -75,9 +86,10 @@ wspace.path = function appPath(value = '/') {
         const nativeSend = XMLHttpRequest.prototype.send;
 
         XMLHttpRequest.prototype.open = function securedOpen(method, url, ...args) {
+            const securedUrl = prefixAppPath(url);
             this.__wspaceMethod = String(method || 'GET').toUpperCase();
-            this.__wspaceUrl = String(url || '');
-            return nativeOpen.call(this, method, url, ...args);
+            this.__wspaceUrl = String(securedUrl || '');
+            return nativeOpen.call(this, method, securedUrl, ...args);
         };
 
         XMLHttpRequest.prototype.send = function securedSend(body) {
