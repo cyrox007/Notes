@@ -45,26 +45,18 @@ async function login(page) {
   ]);
 }
 
-async function acceptDialog(page, expectedText, promptText = '') {
-  return new Promise((resolve, reject) => {
-    page.once('dialog', async (dialog) => {
-      try {
-        if (expectedText && !dialog.message().includes(expectedText)) {
-          throw new Error(`Unexpected dialog: ${dialog.message()}`);
-        }
-        await dialog.accept(promptText);
-        resolve(dialog.message());
-      } catch (error) {
-        reject(error);
-      }
-    });
-  });
-}
-
 async function waitForNavigation(page, action) {
   const navigation = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 });
   await action();
   await navigation;
+}
+
+async function answerWorkspaceDialog(page, { value = null, button }) {
+  const dialog = page.locator('.wspace-dialog');
+  await dialog.waitFor({ state: 'visible', timeout: 5000 });
+  if (value !== null) await dialog.locator('.wspace-dialog__input').fill(value);
+  await dialog.getByRole('button', { name: button, exact: true }).click();
+  await dialog.waitFor({ state: 'detached', timeout: 5000 });
 }
 
 try {
@@ -117,32 +109,38 @@ try {
     throw new Error('Edited task status did not persist');
   }
 
-  const promptPromise = acceptDialog(page, 'Название подзадачи:', subtaskTitle);
-  const addSubtaskNavigation = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 });
+  // Shared prompt UI adds the subtask without a full-page navigation.
   await task.locator('.add-subtask-btn').click();
-  await promptPromise;
-  await addSubtaskNavigation;
+  await answerWorkspaceDialog(page, { value: subtaskTitle, button: 'Добавить' });
 
   let subtask = page.locator(`.task-item[data-task-id="${taskUid}"] .subtask-item`).filter({ hasText: subtaskTitle });
   await subtask.waitFor({ state: 'visible', timeout: 10000 });
+  const inlineUrl = page.url();
 
-  await waitForNavigation(page, () => subtask.locator('.subtask-toggle').check());
-  let completedSubtask = page.locator(`.task-item[data-task-id="${taskUid}"] .subtask-item.completed`).filter({ hasText: subtaskTitle });
-  await completedSubtask.waitFor({ state: 'visible', timeout: 10000 });
-  if (!(await completedSubtask.locator('.subtask-toggle').isChecked())) {
-    throw new Error('Subtask completion did not persist');
-  }
+  await subtask.locator('.subtask-toggle').check();
+  await subtask.waitFor({ state: 'visible', timeout: 5000 });
+  await page.waitForFunction(
+    ({ uid, titleText }) => [...document.querySelectorAll(`.task-item[data-task-id="${uid}"] .subtask-item.completed`)]
+      .some((node) => node.textContent.includes(titleText)),
+    { uid: taskUid, titleText: subtaskTitle },
+    { timeout: 10000 }
+  );
+  if (page.url() !== inlineUrl) throw new Error('Subtask toggle unexpectedly navigated the page');
+  subtask = page.locator(`.task-item[data-task-id="${taskUid}"] .subtask-item`).filter({ hasText: subtaskTitle });
+  if (!(await subtask.locator('.subtask-toggle').isChecked())) throw new Error('Subtask completion did not persist');
 
   task = page.locator(`.task-item[data-task-id="${taskUid}"]`);
-  await waitForNavigation(page, () => task.locator('.task-status-toggle').selectOption('completed'));
-  task = page.locator(`.task-item[data-task-id="${taskUid}"]`);
-  await task.locator('.task-complete-toggle').waitFor({ state: 'visible', timeout: 10000 });
-  if (!(await task.locator('.task-complete-toggle').isChecked())) {
-    throw new Error('Completed task checkbox is not checked after status update');
-  }
-  if ((await task.locator('.task-status-toggle').inputValue()) !== 'completed') {
-    throw new Error('Task status selector did not persist completed state');
-  }
+  await task.locator('.task-status-toggle').selectOption('completed');
+  await page.waitForFunction(
+    (uid) => {
+      const item = document.querySelector(`.task-item[data-task-id="${uid}"]`);
+      return item?.querySelector('.task-status-toggle')?.value === 'completed'
+        && item?.querySelector('.task-complete-toggle')?.checked === true;
+    },
+    taskUid,
+    { timeout: 10000 }
+  );
+  if (page.url() !== inlineUrl) throw new Error('Task status update unexpectedly navigated the page');
 
   await page.locator('.tasks__sort-form select[name="sort"]').selectOption('title');
   await page.locator('.tasks__sort-form select[name="direction"]').selectOption('asc');
@@ -152,23 +150,19 @@ try {
   ]);
   await page.locator(`.task-item[data-task-id="${taskUid}"]`).waitFor({ state: 'visible', timeout: 10000 });
 
+  // Shared confirmation replaces native confirm; accepted form still performs the normal POST redirect.
   task = page.locator(`.task-item[data-task-id="${taskUid}"]`);
-  const confirmPromise = acceptDialog(page, 'Вы уверены, что хотите удалить эту задачу?');
-  const deleteNavigation = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 });
   await task.locator('.delete-task').click();
-  await confirmPromise;
+  const deleteNavigation = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 });
+  await answerWorkspaceDialog(page, { button: 'Удалить' });
   await deleteNavigation;
   if (await page.locator(`.task-item[data-task-id="${taskUid}"]`).count()) {
     throw new Error('Deleted task is still visible');
   }
 
   if (pageErrors.length) throw pageErrors[0];
-  if (escapedRequests.length) {
-    throw new Error(`Requests escaped BASE_PATH: ${[...new Set(escapedRequests)].join(', ')}`);
-  }
-  if (unexpectedHttpErrors.length) {
-    throw new Error(`Unexpected HTTP errors: ${unexpectedHttpErrors.join(', ')}`);
-  }
+  if (escapedRequests.length) throw new Error(`Requests escaped BASE_PATH: ${[...new Set(escapedRequests)].join(', ')}`);
+  if (unexpectedHttpErrors.length) throw new Error(`Unexpected HTTP errors: ${unexpectedHttpErrors.join(', ')}`);
 
   console.log(`Tasks lifecycle browser flow: OK (${taskUid})`);
   await context.close();
