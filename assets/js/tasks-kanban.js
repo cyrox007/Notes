@@ -104,10 +104,21 @@
             if (button) renderView(button.dataset.view);
         });
 
-        // Existing status API remains the single source of truth. The observer only
-        // repositions a card after the shared usability layer confirms the status.
+        // Existing status API remains the single source of truth. Dragging is started
+        // from an explicit handle so editing controls never accidentally cancel a move.
         for (const task of tasks) {
-            task.draggable = true;
+            task.draggable = false;
+            const header = task.querySelector('.task-header');
+            if (header && !header.querySelector('.tasks-board__drag-handle')) {
+                const handle = document.createElement('span');
+                handle.className = 'tasks-board__drag-handle';
+                handle.draggable = true;
+                handle.title = 'Перетащить задачу';
+                handle.setAttribute('aria-label', 'Перетащить задачу');
+                handle.innerHTML = '<i class="fa fa-bars" aria-hidden="true"></i>';
+                header.prepend(handle);
+            }
+
             const statusLabel = task.querySelector('.task-status-label');
             if (statusLabel) {
                 new MutationObserver(() => {
@@ -120,7 +131,7 @@
             }
 
             task.addEventListener('dragstart', (event) => {
-                if (event.target.closest('button,input,select,textarea,a,form')) {
+                if (!event.target.closest('.tasks-board__drag-handle')) {
                     event.preventDefault();
                     return;
                 }
