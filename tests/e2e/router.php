@@ -29,10 +29,36 @@ if ($publicPath !== '/' && !str_contains($publicPath, "\0") && !str_contains($pu
             return false;
         }
 
-        $mime = function_exists('mime_content_type') ? mime_content_type($candidate) : false;
-        if (is_string($mime) && $mime !== '') {
-            header('Content-Type: ' . $mime);
+        // Do not rely on mime_content_type() for browser executable assets: on
+        // many Linux runners .js is reported as text/plain, which modern Chromium
+        // refuses to execute under strict MIME checking.
+        $extension = strtolower((string) pathinfo($candidate, PATHINFO_EXTENSION));
+        $mimeTypes = [
+            'js' => 'application/javascript; charset=utf-8',
+            'mjs' => 'application/javascript; charset=utf-8',
+            'css' => 'text/css; charset=utf-8',
+            'html' => 'text/html; charset=utf-8',
+            'json' => 'application/json; charset=utf-8',
+            'svg' => 'image/svg+xml',
+            'png' => 'image/png',
+            'jpg' => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+            'ico' => 'image/x-icon',
+            'woff' => 'font/woff',
+            'woff2' => 'font/woff2',
+            'ttf' => 'font/ttf',
+        ];
+        $mime = $mimeTypes[$extension] ?? null;
+        if ($mime === null && function_exists('mime_content_type')) {
+            $detected = mime_content_type($candidate);
+            if (is_string($detected) && $detected !== '') {
+                $mime = $detected;
+            }
         }
+        header('Content-Type: ' . ($mime ?? 'application/octet-stream'));
+
         $size = filesize($candidate);
         if ($size !== false) {
             header('Content-Length: ' . $size);
