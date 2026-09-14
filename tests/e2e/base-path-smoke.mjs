@@ -4,6 +4,7 @@ const origin = process.env.E2E_ORIGIN || 'http://127.0.0.1:18088';
 const basePath = (process.env.E2E_BASE_PATH || '/workspace').replace(/\/$/, '');
 const username = process.env.E2E_USER || 'base-path-user';
 const password = process.env.E2E_PASSWORD || 'BasePathPassword123!';
+const expectedOfflineWebSocket = `ws://127.0.0.1:27801${basePath}/ws`;
 
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext();
@@ -15,7 +16,22 @@ const escapedRequests = [];
 
 page.on('pageerror', error => pageErrors.push(error));
 page.on('console', message => {
-  if (message.type() === 'error') consoleErrors.push(message.text());
+  if (message.type() !== 'error') return;
+
+  const text = message.text();
+  // This gate validates HTTP rendering and BASE_PATH behaviour only. Realtime
+  // transport is intentionally owned by the dedicated WSS browser workflow, so
+  // the local WSS endpoint is not started here. Ignore only that exact expected
+  // connection-refused diagnostic; every other browser console error remains fatal.
+  if (
+    text.includes('WebSocket connection to')
+    && text.includes(expectedOfflineWebSocket)
+    && text.includes('ERR_CONNECTION_REFUSED')
+  ) {
+    return;
+  }
+
+  consoleErrors.push(text);
 });
 page.on('response', response => {
   if (response.status() >= 400) {
