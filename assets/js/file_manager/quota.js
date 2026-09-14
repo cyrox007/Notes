@@ -6,6 +6,14 @@
         return;
     }
 
+    if (!document.querySelector('link[data-file-manager-quota-style]')) {
+        const stylesheet = document.createElement('link');
+        stylesheet.rel = 'stylesheet';
+        stylesheet.href = '/assets/css/file_manager/quota.css';
+        stylesheet.dataset.fileManagerQuotaStyle = '1';
+        document.head.appendChild(stylesheet);
+    }
+
     const endpoint = root.dataset.url || '';
     const usedNode = root.querySelector('[data-quota-used]');
     const quotaNode = root.querySelector('[data-quota-total]');
@@ -24,6 +32,7 @@
     }
 
     function showError() {
+        root.classList.remove('file-manager__quota--ready');
         root.classList.add('file-manager__quota--error');
         if (status) status.textContent = 'Данные хранилища временно недоступны';
     }
@@ -57,6 +66,7 @@
                 bar.parentElement?.setAttribute('aria-valuenow', String(Math.round(percent)));
             }
             if (status) status.textContent = `${Number(storage.percent || 0).toFixed(1)}% занято`;
+            root.classList.remove('file-manager__quota--error');
             root.classList.add('file-manager__quota--ready');
         })
         .catch((error) => {
