@@ -10,8 +10,10 @@ $_SERVER['HTTP_HOST'] = $_SERVER['HTTP_HOST'] ?? 'localhost';
 require SITEPATH . '/core/config.php';
 require SITEPATH . '/core/DatabaseManager.php';
 require SITEPATH . '/app/services/FileLifecycleService.php';
+require SITEPATH . '/app/services/StorageQuotaService.php';
 
 use App\Services\FileLifecycleService;
+use App\Services\StorageQuotaService;
 use Core\DatabaseManager;
 use RuntimeException;
 
@@ -86,6 +88,11 @@ $insertItem([
     'mime_type' => 'text/plain', 'size' => 3, 'path' => $fileTwo, 'extension' => 'txt',
 ]);
 
+$quotaService = new StorageQuotaService($db);
+if ($quotaService->usedBytes($userId) !== 6) {
+    throw new RuntimeException('Quota fixture precondition failed: active subtree bytes were not counted');
+}
+
 $service = new FileLifecycleService($db);
 $result = $service->softDeleteTree($userId, $rootFolderId);
 if ($result['deleted_records'] !== 4 || $result['cleanup_failures'] !== 0) {
@@ -100,6 +107,9 @@ if ($count !== 4) {
 }
 if (is_file($fileOne) || is_file($fileTwo)) {
     throw new RuntimeException('Physical cleanup did not run after durable soft-delete');
+}
+if ($quotaService->usedBytes($userId) !== 0) {
+    throw new RuntimeException('Soft-deleted descendants must not count toward storage quota');
 }
 
 $missingPath = $fixtureRoot . '/missing.txt';
@@ -143,4 +153,4 @@ $db->execute('DELETE FROM users WHERE id = :id', [':id' => $userId]);
 @unlink($externalPath);
 @rmdir($externalRoot);
 
-echo "File Manager recursive delete/reconciliation contract: OK\n";
+echo "File Manager recursive delete/reconciliation/quota contract: OK\n";
