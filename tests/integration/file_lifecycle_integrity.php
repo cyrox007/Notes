@@ -15,7 +15,6 @@ require SITEPATH . '/app/services/StorageQuotaService.php';
 use App\Services\FileLifecycleService;
 use App\Services\StorageQuotaService;
 use Core\DatabaseManager;
-use RuntimeException;
 
 $db = DatabaseManager::getInstance();
 $privateRoot = rtrim((string) getenv('PRIVATE_STORAGE_PATH'), DIRECTORY_SEPARATOR);
