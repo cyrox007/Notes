@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Services\ProfilePublicationService;
 use Core\Controller;
 use Core\DatabaseManager;
 use Core\Request;
@@ -23,8 +24,6 @@ final class PublicProfileController extends Controller
             [':id' => $currentUserId]
         );
 
-        // LoginRequared normally guarantees this, but keep the layout fail-closed if
-        // session/user state changes between middleware and controller execution.
         if ($layoutUser === null) {
             Router::getInstance()->redirect('authpage');
             return;
@@ -46,7 +45,7 @@ final class PublicProfileController extends Controller
         }
 
         $profile = $db->fetchOne(
-            'SELECT uid, username, firstname, lastname, avatar, created_at
+            'SELECT id, uid, username, firstname, lastname, avatar, created_at
              FROM users
              WHERE uid = :uid AND is_active = 1
              LIMIT 1',
@@ -62,19 +61,16 @@ final class PublicProfileController extends Controller
             return;
         }
 
+        $profileId = (int) $profile['id'];
+        unset($profile['id']);
         $avatarUrl = !empty($profile['avatar'])
             ? '/profile/avatar/' . rawurlencode((string) $profile['uid']) . '?v=' . rawurlencode(substr(hash('sha256', (string) $profile['avatar']), 0, 12))
             : null;
+        $publicContent = (new ProfilePublicationService($db))->publicItems($profileId);
+        $publicTotal = count($publicContent['notes']) + count($publicContent['tasks']) + count($publicContent['files']);
 
         $this->render_template('profile_page/public', [
-            // `$user` belongs to the authenticated viewer and is used by shared layout/sidebar.
-            // `$profile` is the deliberately narrow read-only subject shown in page content.
-            'user' => $layoutUser,
-            'profile' => (object) $profile,
-            'avatar_url' => $avatarUrl,
-            // 0.13 deliberately does not treat capability/share links as public-profile publication.
-            // Objects will appear here only after an explicit public_profile publication contract exists.
-            'public_content' => [],
+            '$user' => $layoutUser,
         ]);
     }
 }
