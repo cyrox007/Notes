@@ -70,7 +70,11 @@ final class PublicProfileController extends Controller
         $publicTotal = count($publicContent['notes']) + count($publicContent['tasks']) + count($publicContent['files']);
 
         $this->render_template('profile_page/public', [
-            '$user' => $layoutUser,
+            'user' => $layoutUser,
+            'profile' => (object) $profile,
+            'avatar_url' => $avatarUrl,
+            'public_content' => $publicContent,
+            'public_total' => $publicTotal,
         ]);
     }
 }
