@@ -31,6 +31,7 @@ $rbacFoundationMigration = '20260915_rbac_foundation.sql';
 $roleModulePoliciesMigration = '20260915_role_module_policies.sql';
 $sharedTaskBoardsMigration = '20260915_shared_task_boards.sql';
 $moduleLifecycleMigration = '20260915_module_lifecycle.sql';
+$installationLicenseMigration = '20260915_installation_license.sql';
 
 $manifest = [
     '20260913_messenger_v2.sql',
@@ -60,6 +61,9 @@ $manifest = [
     // Module lifecycle follows RBAC because runtime bootstrap now requires both
     // authorization state and persisted module state before app/* is loaded.
     $moduleLifecycleMigration,
+    // 1.0 licensing is additive: it creates only installation identity + signed
+    // token settings and never modifies user-owned application data.
+    $installationLicenseMigration,
 ];
 
 $currentTables = [
@@ -427,6 +431,37 @@ function verifyStorageSettingsContract(mysqli $db, bool $allowMissingTables = fa
     }
 }
 
+function verifyLicenseSettingsContract(mysqli $db): void
+{
+    $result = $db->query(
+        "SELECT setting_key,setting_value,setting_type,category,is_editable
+         FROM system_settings
+         WHERE setting_key IN ('installation_id','workspace_license_token')"
+    );
+    $settings = [];
+    while ($row = $result->fetch_assoc()) {
+        $settings[(string) $row['setting_key']] = $row;
+    }
+
+    foreach (['installation_id', 'workspace_license_token'] as $key) {
+        if (!isset($settings[$key])) {
+            throw new RuntimeException("Database contract is incomplete; missing {$key} setting");
+        }
+        if (
+            (string) $settings[$key]['setting_type'] !== 'string'
+            || (string) $settings[$key]['category'] !== 'licensing'
+            || (int) $settings[$key]['is_editable'] !== 0
+        ) {
+            throw new RuntimeException("Incompatible licensing setting metadata: {$key}");
+        }
+    }
+
+    $installationId = strtolower(trim((string) $settings['installation_id']['setting_value']));
+    if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $installationId) !== 1) {
+        throw new RuntimeException('Database contract is incomplete; installation_id is not a UUID');
+    }
+}
+
 /** @param list<string> $tables */
 function verifyCurrentContract(mysqli $db, array $tables): void
 {
@@ -495,6 +530,7 @@ function verifyCurrentContract(mysqli $db, array $tables): void
     }
 
     verifyStorageSettingsContract($db, false);
+    verifyLicenseSettingsContract($db);
 }
 
 try {
