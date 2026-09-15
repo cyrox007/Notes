@@ -1,0 +1,121 @@
+/* Final high-specificity QA layer. Kept separate so module-local inline styles cannot win by source order. */
+
+.note-editor-013 .note-editor-013__topbar {
+    padding: 18px 20px;
+    background: linear-gradient(180deg, #ffffff, #f8fafc);
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    box-shadow: 0 4px 18px rgba(15, 23, 42, .05);
+}
+
+.note-editor-013 .note-editor-013__meta span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 26px;
+    padding: 4px 8px;
+    background: #f1f5f9;
+    border-radius: 999px;
+}
+
+.note-editor-013 .note-editor-013__document {
+    border-color: #dce5ef;
+    box-shadow: 0 8px 26px rgba(15, 23, 42, .06);
+}
+
+.note-editor-013 .note-editor-013__side-card {
+    border-color: #e2e8f0;
+    box-shadow: 0 3px 14px rgba(15, 23, 42, .045);
+}
+
+.note-editor-013 .note-editor-013__file-form input[type="file"] {
+    min-height: 46px;
+    color: #475569;
+    background: #f8fafc;
+}
+
+.note-editor-013 .note-editor-013__file-form input[type="file"]::file-selector-button {
+    min-height: 32px;
+    margin-right: 10px;
+    padding: 6px 10px;
+    color: #334155;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font: inherit;
+    font-weight: 650;
+    cursor: pointer;
+}
+
+.note-editor-013 .note-voice-recorder {
+    box-shadow: 0 5px 18px rgba(37, 99, 235, .07);
+}
+
+.admin-page .custom-field__required {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 34px;
+    padding: 6px 9px;
+    color: #334155;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 12px;
+}
+
+.admin-page .custom-field__required input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+}
+
+.messenger-app .messenger-message {
+    min-width: 0;
+    max-width: min(76%, 720px);
+}
+
+.messenger-app .messenger-message__bubble {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.messenger-app .messenger-message__bubble .messenger-media {
+    min-width: 0;
+    width: min(420px, 100%);
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.messenger-app .messenger-message__bubble .messenger-media > a,
+.messenger-app .messenger-message__bubble .messenger-media__file,
+.messenger-app .messenger-message__bubble .messenger-message__text {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.messenger-app .messenger-message__bubble .messenger-media__image,
+.messenger-app .messenger-message__bubble .messenger-media__video {
+    display: block;
+    width: auto;
+    max-width: 100%;
+    height: auto;
+    max-height: min(52vh, 520px);
+    object-fit: contain;
+}
+
+.messenger-app .messenger-message__bubble .messenger-media__audio {
+    width: min(360px, 100%);
+    max-width: 100%;
+}
+
+@media (max-width: 760px) {
+    .note-editor-013 .note-editor-013__topbar {
+        padding: 15px;
+    }
+
+    .messenger-app .messenger-message {
+        max-width: 90%;
+    }
+}
