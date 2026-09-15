@@ -8,6 +8,7 @@ use App\Controllers\NoteController;
 use App\Controllers\NoteAttachmentController;
 use App\Controllers\NoteShareController;
 use App\Controllers\TaskController;
+use App\Controllers\TaskBoardController;
 use App\Controllers\ProfileController;
 use App\Controllers\PublicProfileController;
 use App\Controllers\FileController;
@@ -38,6 +39,11 @@ use App\Middlewares\StorageQuotaLimit;
 use App\Middlewares\StorageMutationLock;
 use App\Middlewares\EnforceFileUploadPolicy;
 use App\Middlewares\EnforceFileFolderPolicy;
+use App\Middlewares\EnforceNoteCreatePolicy;
+use App\Middlewares\EnforceNoteAttachmentPolicy;
+use App\Middlewares\EnforceNoteSharePolicy;
+use App\Middlewares\EnforceTaskCreatePolicy;
+use App\Middlewares\EnforceMessengerUploadPolicy;
 use Core\Router;
 
 $router = Router::getInstance();
@@ -55,14 +61,14 @@ $router->group('/auth')
 
 $router->group('/notes')
     ->add('GET', '/', [NoteController::class, 'index'], [LoginRequared::class, RequireNotesUse::class], 'notes')
-    ->add('POST', '/', [NoteController::class, 'create'], [LoginRequared::class, RequireNotesUse::class], 'note_create')
+    ->add('POST', '/', [NoteController::class, 'create'], [LoginRequared::class, RequireNotesUse::class, EnforceNoteCreatePolicy::class], 'note_create')
     ->add('GET', '/{str:uid}/edit', [NoteController::class, 'edit'], [LoginRequared::class, RequireNotesUse::class], 'edit_page')
     ->add('POST', '/{str:uid}/edit', [NoteController::class, 'update'], [LoginRequared::class, RequireNotesUse::class], 'update_note')
     ->add('POST', '/{str:uid}/delete', [NoteController::class, 'delete'], [LoginRequared::class, RequireNotesUse::class], 'delete_note')
-    ->add('POST', '/upload/{str:uid}', [NoteAttachmentController::class, 'upload'], [LoginRequared::class, RequireNotesUse::class, UploadRateLimit::class], 'note_attachment_upload')
+    ->add('POST', '/upload/{str:uid}', [NoteAttachmentController::class, 'upload'], [LoginRequared::class, RequireNotesUse::class, UploadRateLimit::class, EnforceNoteAttachmentPolicy::class], 'note_attachment_upload')
     ->add('POST', '/attachment/delete/{int:attachmentId}', [NoteAttachmentController::class, 'delete'], [LoginRequared::class, RequireNotesUse::class], 'note_attachment_delete')
     ->add('GET', '/attachment/{str:fileUid}', [NoteAttachmentController::class, 'download'], [LoginRequared::class, RequireNotesUse::class], 'note_attachment_download')
-    ->add('POST', '/share/{str:uid}', [NoteShareController::class, 'create'], [LoginRequared::class, RequireNotesUse::class], 'note_share')
+    ->add('POST', '/share/{str:uid}', [NoteShareController::class, 'create'], [LoginRequared::class, RequireNotesUse::class, EnforceNoteSharePolicy::class], 'note_share')
     ->add('POST', '/unshare/{str:uid}', [NoteShareController::class, 'unshare'], [LoginRequared::class, RequireNotesUse::class], 'note_unshare')
     ->add('GET', '/shared/{str:token}', [NoteShareController::class, 'view'], [], 'note_shared_view')
     ->add('GET', '/shared/{str:token}/attachment/{str:fileUid}', [NoteAttachmentController::class, 'sharedDownload'], [], 'note_shared_attachment')
@@ -70,7 +76,13 @@ $router->group('/notes')
 
 $router->group('/tasks')
     ->add('GET', '/', [TaskController::class, 'index'], [LoginRequared::class, RequireTasksUse::class], 'tasks')
-    ->add('POST', '/', [TaskController::class, 'create'], [LoginRequared::class, RequireTasksUse::class], 'task_create')
+    ->add('POST', '/', [TaskController::class, 'create'], [LoginRequared::class, RequireTasksUse::class, EnforceTaskCreatePolicy::class], 'task_create')
+    ->add('GET', '/boards', [TaskBoardController::class, 'index'], [LoginRequared::class, RequireTasksUse::class], 'task_boards')
+    ->add('POST', '/boards', [TaskBoardController::class, 'createBoard'], [LoginRequared::class, RequireTasksUse::class, CSRFMiddleware::class], 'task_board_create')
+    ->add('POST', '/boards/{str:uid}/members', [TaskBoardController::class, 'saveMembers'], [LoginRequared::class, RequireTasksUse::class, CSRFMiddleware::class], 'task_board_members')
+    ->add('POST', '/boards/{str:uid}/tasks', [TaskBoardController::class, 'createTask'], [LoginRequared::class, RequireTasksUse::class, CSRFMiddleware::class], 'task_board_task_create')
+    ->add('POST', '/boards/task/{str:uid}/update', [TaskBoardController::class, 'updateTask'], [LoginRequared::class, RequireTasksUse::class, CSRFMiddleware::class], 'task_board_task_update')
+    ->add('POST', '/boards/task/{str:uid}/delete', [TaskBoardController::class, 'deleteTask'], [LoginRequared::class, RequireTasksUse::class, CSRFMiddleware::class], 'task_board_task_delete')
     ->add('POST', '/{str:uid}/update', [TaskController::class, 'update'], [LoginRequared::class, RequireTasksUse::class], 'update_task')
     ->add('POST', '/{str:uid}/delete', [TaskController::class, 'delete'], [LoginRequared::class, RequireTasksUse::class], 'delete_task')
     ->add('POST', '/{str:taskUid}/subtask', [TaskController::class, 'addSubtask'], [LoginRequared::class, RequireTasksUse::class], 'add_subtask')
@@ -106,8 +118,8 @@ $router->group('/files')
 $router->group('/messenger')
     ->add('GET', '/', [MessagerController::class, 'index'], [LoginRequared::class, RequireMessengerUse::class], 'messenger')
     ->add('POST', '/socket-ticket', [MessagerController::class, 'socketTicket'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_socket_ticket')
-    ->add('POST', '/upload', [MessagerController::class, 'uploadFile'], [LoginRequared::class, RequireMessengerUse::class, UploadRateLimit::class], 'messenger_upload')
-    ->add('POST', '/voice-upload', [MessengerVoiceController::class, 'upload'], [LoginRequared::class, RequireMessengerUse::class, UploadRateLimit::class], 'messenger_voice_upload')
+    ->add('POST', '/upload', [MessagerController::class, 'uploadFile'], [LoginRequared::class, RequireMessengerUse::class, UploadRateLimit::class, EnforceMessengerUploadPolicy::class], 'messenger_upload')
+    ->add('POST', '/voice-upload', [MessengerVoiceController::class, 'upload'], [LoginRequared::class, RequireMessengerUse::class, UploadRateLimit::class, EnforceMessengerUploadPolicy::class], 'messenger_voice_upload')
     ->add('GET', '/media/{str:uid}', [MessagerController::class, 'media'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_media')
     ->add('GET', '/group-avatar/{str:uid}', [MessengerGroupController::class, 'avatar'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_group_avatar')
     ->add('POST', '/group-avatar/{str:uid}', [MessengerGroupController::class, 'uploadAvatar'], [LoginRequared::class, RequireMessengerUse::class, UploadRateLimit::class], 'messenger_group_avatar_upload')
