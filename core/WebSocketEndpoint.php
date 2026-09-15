@@ -11,7 +11,12 @@ final class WebSocketEndpoint
     public static function bindHost(): string
     {
         $host = trim((string) (getenv('WS_HOST') ?: '127.0.0.1'));
-        if ($host === '' || preg_match('/[\s\\\/]/', $host) === 1) {
+        if (
+            $host === ''
+            || str_contains($host, '/')
+            || str_contains($host, '\\')
+            || preg_match('/\s/', $host) === 1
+        ) {
             throw new InvalidArgumentException('WS_HOST is invalid');
         }
         return $host;
