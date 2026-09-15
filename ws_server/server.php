@@ -25,6 +25,7 @@ if ($configuredLog !== '') {
 use App\Handlers\SocketTicket;
 use App\Models\UserModel;
 use App\Services\PermissionService;
+use Core\WebSocketEndpoint;
 use Workerman\Connection\TcpConnection;
 use Workerman\Lib\Timer;
 use Workerman\Protocols\Websocket;
@@ -32,15 +33,30 @@ use Workerman\Worker;
 
 /** @var array<string,array<int,TcpConnection>> $connections */
 $connections = [];
-$host = trim((string) (getenv('WS_HOST') ?: '0.0.0.0'));
-$port = (int) (getenv('WS_PORT') ?: 27800);
+$host = WebSocketEndpoint::bindHost();
+$port = WebSocketEndpoint::port();
+$publicUrl = WebSocketEndpoint::publicUrl();
 
 // Use an explicit TCP listener + Workerman protocol class instead of relying on
-// URI-scheme protocol probing. This is deterministic alongside the application's
-// legacy autoloader and behaves the same under CLI, supervisor and containers.
+// URI-scheme protocol probing. TLS terminates at the public reverse proxy; this
+// process intentionally stays on an internal plain WebSocket listener.
 $worker = new Worker(sprintf('tcp://%s:%d', $host, $port));
 $worker->name = 'workspace-messenger';
 $worker->protocol = Websocket::class;
+
+error_log(sprintf(
+    'WebSocket listener configured: tcp://%s:%d; public=%s',
+    $host,
+    $port,
+    $publicUrl
+));
+if (WebSocketEndpoint::usesSameOriginProxy()) {
+    error_log(sprintf(
+        'WebSocket reverse proxy required: %s -> %s',
+        WebSocketEndpoint::proxyPath(),
+        WebSocketEndpoint::proxyBackendUrl()
+    ));
+}
 
 $allowedRoutes = [
     'PingSocket' => ['index'],
