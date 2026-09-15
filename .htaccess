@@ -10,7 +10,7 @@ RewriteRule ^install\.php$ - [F,L]
 
 # Исходный код, служебные каталоги, миграции, module packages и CI metadata никогда не должны
 # отдаваться как static files из project web-root.
-RewriteRule ^(?:app|bin|core|database|docs|modules|vendor|ws_server|\.github|\.git|\.logs)(?:/|$) - [F,L,NC]
+RewriteRule ^(?:app|bin|core|database|docs|vendor|ws_server|modules|\.github|\.git|\.logs)(?:/|$) - [F,L,NC]
 
 # Не отдаём конфигурацию и repository metadata напрямую.
 <IfModule mod_authz_core.c>
