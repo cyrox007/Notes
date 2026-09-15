@@ -49,6 +49,8 @@ jobs:
           grep -Fq 'WebSocketEndpoint::publicUrl()' app/controllers/MessagerController.php
           grep -Fq 'WebSocketEndpoint::bindHost()' ws_server/server.php
           grep -Fq 'websocket_proxy_contract' bin/healthcheck.php
+          grep -Fq 'RewriteCond %{HTTP:Upgrade} ^websocket$ [NC]' .htaccess
+          grep -Fq 'RewriteRule ^ws/?$ ws://127.0.0.1:27800/ [P,L]' .htaccess
           grep -Fq '.osp\\Apache\\notes.local.conf' docs/OPEN_SERVER_WEBSOCKET.md
           grep -Fq 'ProxyPass "/ws" "http://127.0.0.1:27800/" upgrade=websocket' docs/OPEN_SERVER_WEBSOCKET.md
           ! grep -Fq "getenv('WS_HOST') ?: '0.0.0.0'" ws_server/server.php
