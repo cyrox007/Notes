@@ -35,14 +35,14 @@ unset REGISTRATION_INVITE_CODE || true
 php tests/integration/registration_policy_runtime.php
 
 # Security/routing contract: public POST keeps rate-limit + CSRF, while admin
-# provisioning/settings use their dedicated RBAC middleware.
+# provisioning/settings require both dedicated RBAC middleware and CSRF.
 grep -Fq "'/registration', [AuthController::class, 'registration'], [], 'registration'" core/routerConfig.php
 grep -Fq "'/registration', [AuthController::class, 'registration'], [AuthRateLimit::class, CSRFMiddleware::class], 'register_submit'" core/routerConfig.php
-grep -Fq "'/users/create', [UserProvisioningController::class, 'create'], [LoginRequared::class, RequireAdminUsersManage::class]" core/routerConfig.php
+grep -Fq "'/users/create', [UserProvisioningController::class, 'create'], [LoginRequared::class, RequireAdminUsersManage::class, CSRFMiddleware::class]" core/routerConfig.php
 grep -Fq "'/registration', [RegistrationSettingsController::class, 'index'], [LoginRequared::class, RequireAdminSettingsManage::class]" core/routerConfig.php
-grep -Fq "'/registration/mode', [RegistrationSettingsController::class, 'saveMode'], [LoginRequared::class, RequireAdminSettingsManage::class]" core/routerConfig.php
-grep -Fq "'/registration/invites/create', [RegistrationSettingsController::class, 'createInvite'], [LoginRequared::class, RequireAdminSettingsManage::class]" core/routerConfig.php
-grep -Fq "'/registration/invites/revoke', [RegistrationSettingsController::class, 'revokeInvite'], [LoginRequared::class, RequireAdminSettingsManage::class]" core/routerConfig.php
+grep -Fq "'/registration/mode', [RegistrationSettingsController::class, 'saveMode'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class]" core/routerConfig.php
+grep -Fq "'/registration/invites/create', [RegistrationSettingsController::class, 'createInvite'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class]" core/routerConfig.php
+grep -Fq "'/registration/invites/revoke', [RegistrationSettingsController::class, 'revokeInvite'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class]" core/routerConfig.php
 
 grep -Fq "registration_mode == 'open'" app/views/login_page/login_view.tpl
 grep -Fq "registration_mode == 'invite'" app/views/login_page/login_view.tpl
