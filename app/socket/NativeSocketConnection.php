@@ -104,11 +104,16 @@ final class NativeSocketConnection extends SocketConnection
 
     public function close(): void
     {
+        $this->closeWithCode(1000);
+    }
+
+    public function closeWithCode(int $code, string $reason = ''): void
+    {
         if ($this->destroyed || $this->closing) {
             return;
         }
         if ($this->handshakeComplete) {
-            $this->queueRaw(SocketFrameCodec::encodeClose());
+            $this->queueRaw(SocketFrameCodec::encodeClose($code, $reason));
         }
         $this->closing = true;
     }
