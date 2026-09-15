@@ -1,7 +1,6 @@
 {
     "require": {
         "php": ">=8.1",
-        "workerman/workerman": "^4.1",
-        "smarty/smarty": "^5.3"
+        "workerman/workerman": "^4.1"
     }
 }
