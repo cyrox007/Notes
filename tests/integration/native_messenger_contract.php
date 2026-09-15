@@ -85,4 +85,63 @@ nativeMessengerAssert(str_contains($controller, "'socket_ticket' => \$socketTick
 nativeMessengerAssert(str_contains($controller, "'socket_url' => \$socketUrl"), 'socket URL is not passed to Messenger view');
 nativeMessengerAssert(str_contains($controller, 'MessengerMediaService'), 'protected Messenger media service boundary is missing');
 
-echo "[OK] native Messenger view contract\n";
+// 1.0 WebSocket transport boundary: business handlers must not know about
+// Workerman. The current Workerman dependency is isolated to the compatibility
+// adapter and server bootstrap so it can be replaced in the next phase.
+$connectionBoundary = $root . '/app/socket/SocketConnection.php';
+nativeMessengerAssert(is_file($connectionBoundary), 'transport-neutral SocketConnection is missing');
+require_once $connectionBoundary;
+
+$fake = new class extends \App\Sockets\SocketConnection {
+    public array $sent = [];
+    public bool $closed = false;
+    public bool $destroyed = false;
+
+    public function send(string $payload): void { $this->sent[] = $payload; }
+    public function close(): void { $this->closed = true; }
+    public function destroy(): void { $this->destroyed = true; }
+};
+$fake->uid = 'contract-user';
+$fake->userId = 42;
+$fake->send('{"action":"Ping"}');
+$fake->close();
+$fake->destroy();
+nativeMessengerAssert($fake->uid === 'contract-user' && $fake->userId === 42, 'SocketConnection does not retain auth identity state');
+nativeMessengerAssert($fake->sent === ['{"action":"Ping"}'], 'SocketConnection send contract is broken');
+nativeMessengerAssert($fake->closed && $fake->destroyed, 'SocketConnection lifecycle contract is broken');
+
+$handlerFiles = [
+    'PingSocket.php',
+    'MessangerSocket.php',
+    'DialogStateSocket.php',
+    'ReceiptSocket.php',
+    'MediaSocket.php',
+    'GroupSocket.php',
+    'SearchSocket.php',
+    'ForwardSocket.php',
+    'ReactionSocket.php',
+];
+foreach ($handlerFiles as $handlerFile) {
+    $path = $root . '/app/socket/' . $handlerFile;
+    nativeMessengerAssert(is_file($path), "socket handler {$handlerFile} is missing");
+    $handlerSource = (string) file_get_contents($path);
+    nativeMessengerAssert(!str_contains($handlerSource, 'Workerman\\'), "business socket {$handlerFile} still imports Workerman");
+    nativeMessengerAssert(!str_contains($handlerSource, 'TcpConnection'), "business socket {$handlerFile} still depends on TcpConnection");
+    nativeMessengerAssert(str_contains($handlerSource, 'SocketConnection'), "business socket {$handlerFile} does not use SocketConnection boundary");
+    require_once $path;
+}
+
+$adapterPath = $root . '/app/socket/WorkermanConnectionAdapter.php';
+nativeMessengerAssert(is_file($adapterPath), 'Workerman compatibility adapter is missing');
+$adapterSource = (string) file_get_contents($adapterPath);
+nativeMessengerAssert(str_contains($adapterSource, 'extends SocketConnection'), 'Workerman adapter does not implement application connection boundary');
+nativeMessengerAssert(str_contains($adapterSource, 'Workerman\\Connection\\TcpConnection'), 'Workerman adapter no longer wraps TcpConnection');
+
+$server = (string) file_get_contents($root . '/ws_server/server.php');
+nativeMessengerAssert(str_contains($server, 'WorkermanConnectionAdapter'), 'WebSocket server does not route raw connections through adapter');
+nativeMessengerAssert(str_contains($server, '$handler->$methodName($connections, $adapter, $adapter->uid, $payload)'), 'handler dispatch bypasses transport adapter');
+nativeMessengerAssert(str_contains($server, "SocketTicket::validate(\$ticket)"), 'transport migration lost signed ticket validation');
+nativeMessengerAssert(str_contains($server, "hasPermission(\$userId, 'messenger.use')"), 'transport migration lost messenger RBAC check');
+nativeMessengerAssert(str_contains($server, "unset(\$payload['user_uid'], \$payload['user_id'], \$payload['from_user_id'])"), 'transport migration lost anti-impersonation payload stripping');
+
+echo "[OK] native Messenger view and WebSocket transport boundary contract\n";
