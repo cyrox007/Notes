@@ -7,10 +7,10 @@ on:
       - 'core/ViewRenderer.php'
       - 'core/ViewContext.php'
       - 'core/NativeViewRenderer.php'
-      - 'core/LegacySmartyRenderer.php'
-      - 'core/HybridViewRenderer.php'
       - 'core/controller.php'
       - 'core.php'
+      - 'app/controllers/Error.php'
+      - 'app/views/error_page/*.php'
       - 'app/views/login_page/*.php'
       - 'app/views/core/base.php'
       - 'app/views/^shared/**/*.php'
@@ -47,10 +47,10 @@ on:
       - 'core/ViewRenderer.php'
       - 'core/ViewContext.php'
       - 'core/NativeViewRenderer.php'
-      - 'core/LegacySmartyRenderer.php'
-      - 'core/HybridViewRenderer.php'
       - 'core/controller.php'
       - 'core.php'
+      - 'app/controllers/Error.php'
+      - 'app/views/error_page/*.php'
       - 'app/views/login_page/*.php'
       - 'app/views/core/base.php'
       - 'app/views/^shared/**/*.php'
@@ -103,10 +103,10 @@ jobs:
           php -l core/ViewRenderer.php
           php -l core/ViewContext.php
           php -l core/NativeViewRenderer.php
-          php -l core/LegacySmartyRenderer.php
-          php -l core/HybridViewRenderer.php
           php -l core/controller.php
           php -l core.php
+          php -l app/controllers/Error.php
+          php -l app/views/error_page/index.php
           php -l app/views/login_page/login_layout.php
           php -l app/views/login_page/login_view.php
           php -l app/views/login_page/register_view.php
@@ -150,15 +150,21 @@ jobs:
           php tests/integration/native_notes_contract.php
           php tests/integration/native_tasks_contract.php
           php tests/integration/native_messenger_contract.php
-      - name: Verify migration boundary
+      - name: Verify native-only migration boundary
         run: |
-          ! grep -F 'use Smarty\\' core/controller.php
-          ! grep -F '$this->smarty' core/controller.php
-          ! grep -F '{literal}' assets/js/common.js
-          ! grep -F '{literal}' assets/js/profile.js
-          ! grep -F '{literal}' assets/js/notes-list.js
-          ! grep -F '{literal}' assets/js/tasks-page.js
-          ! grep -F '{literal}' assets/js/task-boards.js
+          ! test -f core/LegacySmartyRenderer.php
+          ! test -f core/HybridViewRenderer.php
+          ! grep -Fq 'LegacySmartyRenderer' core/controller.php core.php
+          ! grep -Fq 'HybridViewRenderer' core/controller.php core.php
+          grep -Fq 'new NativeViewRenderer(' core/controller.php
+          ! grep -R -Fq -- '->view->render_template(' app/controllers
+          ! grep -R -Fq 'new View(' app/controllers
+          ! grep -Fq '{literal}' assets/js/common.js
+          ! grep -Fq '{literal}' assets/js/profile.js
+          ! grep -Fq '{literal}' assets/js/notes-list.js
+          ! grep -Fq '{literal}' assets/js/tasks-page.js
+          ! grep -Fq '{literal}' assets/js/task-boards.js
+          test -f app/views/error_page/index.php
           test -f app/views/login_page/login_view.php
           test -f app/views/login_page/register_view.php
           test -f app/views/login_page/login_layout.php

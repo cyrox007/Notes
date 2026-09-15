@@ -10,9 +10,8 @@ if (!is_file($environmentLoader)) {
 require_once $environmentLoader;
 \Core\Environment::load(SITEPATH . '/.env');
 
-// Composer is still required temporarily for the legacy Smarty view adapter and
-// Workerman. Native 1.0 views do not depend on it; both remaining libraries are
-// removed in subsequent vendor-free phases.
+// Composer remains temporary only for the Workerman WebSocket runtime. HTTP
+// rendering itself is fully internal/native and does not require vendor code.
 if (file_exists(SITEPATH . '/vendor/autoload.php')) {
     require SITEPATH . '/vendor/autoload.php';
 }
@@ -28,7 +27,7 @@ spl_autoload_register(function ($class) {
 });
 
 // Core files. Paths intentionally match repository casing because production Linux
-// filesystems are case-sensitive. View infrastructure is explicitly required here
+// filesystems are case-sensitive. Native view infrastructure is explicitly loaded
 // because the generic namespace autoloader would map Core to /Core, not /core.
 $coreFiles = [
     '/core/config.php',
@@ -49,8 +48,6 @@ $coreFiles = [
     '/core/ViewRenderer.php',
     '/core/ViewContext.php',
     '/core/NativeViewRenderer.php',
-    '/core/LegacySmartyRenderer.php',
-    '/core/HybridViewRenderer.php',
     '/core/controller.php',
     '/core/images.php'
 ];
