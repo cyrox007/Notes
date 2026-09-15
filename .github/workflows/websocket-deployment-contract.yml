@@ -2,7 +2,7 @@ name: WebSocket deployment contract
 
 on:
   pull_request:
-    branches: [master]
+    branches: [master, '1.0']
   push:
     branches: [0.14-beta2-websocket-deployment]
 
@@ -31,15 +31,23 @@ jobs:
         run: |
           php -l core/WebSocketEndpoint.php
           php -l app/controllers/MessagerController.php
+          php -l app/socket/SocketConnection.php
+          php -l app/socket/SocketHandshake.php
+          php -l app/socket/SocketFrameCodec.php
+          php -l app/socket/NativeSocketConnection.php
+          php -l app/socket/NativeMessengerServer.php
           php -l ws_server/server.php
           php -l bin/ws_doctor.php
           php -l bin/healthcheck.php
           php -l tests/integration/websocket_endpoint_contract.php
+          php -l tests/integration/native_websocket_protocol_contract.php
 
-      - name: Verify endpoint contract
-        run: php tests/integration/websocket_endpoint_contract.php
+      - name: Verify endpoint and RFC6455 contracts
+        run: |
+          php tests/integration/websocket_endpoint_contract.php
+          php tests/integration/native_websocket_protocol_contract.php
 
-      - name: Verify safe deployment defaults
+      - name: Verify native vendor-free deployment boundary
         shell: bash
         run: |
           set -euo pipefail
@@ -48,9 +56,16 @@ jobs:
           grep -Fq 'php bin/ws_doctor.php' default.env
           grep -Fq 'WebSocketEndpoint::publicUrl()' app/controllers/MessagerController.php
           grep -Fq 'WebSocketEndpoint::bindHost()' ws_server/server.php
+          grep -Fq 'NativeMessengerServer' ws_server/server.php
+          grep -Fq 'stream_socket_server(' app/socket/NativeMessengerServer.php
+          grep -Fq 'stream_select(' app/socket/NativeMessengerServer.php
+          grep -Fq 'SocketHandshake::tryParse' app/socket/NativeMessengerServer.php
           grep -Fq 'websocket_proxy_contract' bin/healthcheck.php
           grep -Fq 'RewriteCond %{HTTP:Upgrade} ^websocket$ [NC]' .htaccess
           grep -Fq 'RewriteRule ^ws/?$ ws://127.0.0.1:27800/ [P,L]' .htaccess
           grep -Fq 'C:\OSPanel\home\notes.local\.osp\Apache\notes.local.conf' docs/OPEN_SERVER_WEBSOCKET.md
           grep -Fq 'ProxyPass "/ws" "http://127.0.0.1:27800/" upgrade=websocket' docs/OPEN_SERVER_WEBSOCKET.md
           ! grep -Fq "getenv('WS_HOST') ?: '0.0.0.0'" ws_server/server.php
+          ! grep -R -Fq 'Workerman\\' app/socket ws_server core.php
+          ! grep -Fq 'vendor/autoload.php' core.php
+          ! test -f app/socket/WorkermanConnectionAdapter.php
