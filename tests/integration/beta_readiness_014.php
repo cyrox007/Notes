@@ -34,8 +34,8 @@ foreach ([
     '.github/workflows/rbac-enforcement.yml' => 'RBAC enforcement gate is missing',
     '.github/workflows/browser-wss-e2e.yml' => 'HTTPS/WSS browser gate is missing',
     '.github/workflows/websocket-deployment-contract.yml' => 'WebSocket deployment regression gate is missing',
-    '.github/workflows/registration-provisioning.yml' => 'registration/provisioning regression gate is missing',
-    '.github/workflows/registration-browser-lifecycle.yml' => 'registration browser lifecycle gate is missing',
+    '.github/workflows/registration-policy.yml' => 'registration/provisioning regression gate is missing',
+    '.github/workflows/registration-browser.yml' => 'registration browser lifecycle gate is missing',
 ] as $file => $reason) {
     $require($file, $reason);
 }
