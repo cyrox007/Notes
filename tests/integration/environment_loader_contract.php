@@ -17,7 +17,7 @@ function envContractAssert(bool $condition, string $message): void
 $prefix = 'WO_ENV_' . strtoupper(bin2hex(random_bytes(4))) . '_';
 $keys = [
     'PLAIN', 'EMPTY', 'DOUBLE', 'ESCAPED', 'SINGLE', 'INLINE', 'HASH',
-    'EXPORTED', 'BASE', 'EXPANDED', 'PRESET', 'BOM',
+    'EXPORTED', 'BASE', 'EXPANDED', 'LITERAL_DOLLAR', 'PRESET', 'BOM',
 ];
 
 foreach ($keys as $suffix) {
@@ -39,6 +39,7 @@ $hash = $prefix . 'HASH';
 $exported = $prefix . 'EXPORTED';
 $base = $prefix . 'BASE';
 $expanded = $prefix . 'EXPANDED';
+$literalDollar = $prefix . 'LITERAL_DOLLAR';
 $preset = $prefix . 'PRESET';
 $bom = $prefix . 'BOM';
 
@@ -53,6 +54,7 @@ $contents = "\xEF\xBB\xBF# Workspace Organizer environment contract\n"
     . "export {$exported}=\"yes\"\n"
     . "{$base}=alpha\n"
     . "{$expanded}=\"\${{$base}}-beta\"\n"
+    . "{$literalDollar}=\"\\\${{$base}}\"\n"
     . "{$preset}=from-file\n"
     . "{$bom}=ok\n";
 
@@ -73,6 +75,7 @@ envContractAssert(getenv($inline) === 'value', 'inline comment was not removed')
 envContractAssert(getenv($hash) === 'value#hash', 'literal hash in unquoted value was corrupted');
 envContractAssert(getenv($exported) === 'yes', 'export KEY=VALUE syntax was not loaded');
 envContractAssert(getenv($expanded) === 'alpha-beta', 'variable expansion failed');
+envContractAssert(getenv($literalDollar) === '${' . $base . '}', 'escaped variable reference was expanded instead of preserved');
 envContractAssert(getenv($preset) === 'from-process', 'existing process environment was overwritten');
 envContractAssert(($_ENV[$plain] ?? null) === 'hello', '$_ENV was not populated');
 envContractAssert(($_SERVER[$plain] ?? null) === 'hello', '$_SERVER was not populated');
