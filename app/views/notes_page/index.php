@@ -1,0 +1,100 @@
+<?php
+
+declare(strict_types=1);
+
+/** @var \Core\NativeViewRenderer $view */
+$currentUser = isset($user) && is_array($user) ? $user : [];
+$access = isset($workspaceAccess) && is_array($workspaceAccess) ? $workspaceAccess : [];
+$personal = isset($personalNotes) && is_array($personalNotes) ? $personalNotes : [];
+$all = isset($allNotes) && is_array($allNotes) ? $allNotes : [];
+$isAdmin = !empty($isAdmin);
+$pager = isset($pagination) && is_array($pagination) ? $pagination : [];
+$siteName = isset($sitename) ? (string) $sitename : 'Workspace Organizer';
+$workspaceVersion = isset($version) ? (string) $version : '';
+$baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
+$currentSort = (string) ($pager['sort'] ?? 'created_note');
+$currentDirection = strtolower((string) ($pager['direction'] ?? 'desc')) === 'asc' ? 'asc' : 'desc';
+
+$sortUrl = static function (string $sort) use ($view, $pager, $currentSort, $currentDirection): string {
+    $direction = $currentSort === $sort && $currentDirection === 'asc' ? 'desc' : 'asc';
+    $query = ['sort' => $sort, 'direction' => $direction];
+    foreach (['q', 'limit', 'filter'] as $key) {
+        if (isset($pager[$key]) && $pager[$key] !== '' && $pager[$key] !== null) {
+            $query[$key] = (string) $pager[$key];
+        }
+    }
+    return $view->route('notes') . '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986);
+};
+$sortMarker = static function (string $sort) use ($currentSort, $currentDirection): string {
+    if ($currentSort !== $sort) {
+        return '▼';
+    }
+    return $currentDirection === 'asc' ? '▲' : '▼';
+};
+
+ob_start();
+?>
+<section class="content-header"><h1>Блокнот</h1></section>
+<section class="notes">
+    <form class="notes__create" action="<?= $view->e($view->route('note_create')) ?>" method="post">
+        <?= $view->csrfInput() ?>
+        <div class="notes__input"><input type="text" name="notename" maxlength="255" placeholder="Введите название новой заметки..." aria-label="Название новой заметки"></div>
+        <div class="notes__submit"><button type="submit">Создать</button></div>
+    </form>
+
+    <?php if ($isAdmin): ?>
+        <div id="show-all-notes">
+            <p>Показать метаданные заметок всех пользователей</p>
+            <button class="switch-btn" type="button" aria-pressed="false" aria-label="Показать все заметки"></button>
+        </div>
+    <?php endif; ?>
+
+    <div class="notes__content">
+        <h3 class="notes__title">Список записей</h3>
+        <div class="notes__list_head">
+            <div class="notes__list_head--name"><a href="<?= $view->e($sortUrl('notename')) ?>">Название <?= $view->e($sortMarker('notename')) ?></a></div>
+            <?php if ($isAdmin): ?><div class="notes__list_head--author" style="display:none;">Автор</div><?php endif; ?>
+            <div class="notes__list_head--date"><a href="<?= $view->e($sortUrl('created_note')) ?>">Дата создания <?= $view->e($sortMarker('created_note')) ?></a></div>
+            <div class="notes__list_head--btn"></div>
+        </div>
+
+        <div id="personal" class="notes__list visible">
+            <?php if ($personal !== []): ?>
+                <?php foreach ($personal as $noteRow): ?>
+                    <?php if (!is_array($noteRow)) { continue; } ?>
+                    <?= $view->partial('^elements/note_item/index', ['note' => $noteRow, 'user' => $currentUser, 'readOnly' => false, 'showAuthor' => false]) ?>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <div class="notes__list_item"><p>Здесь ничего нет</p></div>
+            <?php endif; ?>
+        </div>
+
+        <?php if ($isAdmin): ?>
+            <div id="all-user" class="notes__list">
+                <?php if ($all !== []): ?>
+                    <?php foreach ($all as $noteRow): ?>
+                        <?php if (!is_array($noteRow)) { continue; } ?>
+                        <?= $view->partial('^elements/note_item/index', ['note' => $noteRow, 'user' => $currentUser, 'readOnly' => true, 'showAuthor' => true]) ?>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <div class="notes__list_item"><p>Заметок нет</p></div>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
+    </div>
+</section>
+<script src="<?= $view->e($baseUrl) ?>/assets/js/notes-list.js" defer></script>
+<?php
+$content = (string) ob_get_clean();
+echo $view->layout('core/base', [
+    'title' => 'Блокнот',
+    'sitename' => $siteName,
+    'version' => $workspaceVersion,
+    'base_url' => $baseUrl,
+    'base_path' => $base_path ?? '',
+    'user' => $currentUser,
+    'workspaceAccess' => $access,
+    'pagination' => $pager,
+    'socket_ticket' => $socket_ticket ?? '',
+    'socket_url' => $socket_url ?? '',
+], $content);
