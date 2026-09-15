@@ -68,7 +68,7 @@ foreach ($iterator as $file) {
     }
 
     $source = file_get_contents($file->getPathname()) ?: '';
-    if (preg_match_all("/\\$this->render_template\\(\\s*['\"]([^'\"]+)['\"]/", $source, $matches) !== false) {
+    if (preg_match_all('/\$this->render_template\(\s*[\'\"]([^\'\"]+)[\'\"]/', $source, $matches) !== false) {
         foreach ($matches[1] as $template) {
             $renderedTemplates[$template] = true;
         }
