@@ -9,7 +9,11 @@
 
 	<div class="sidebar__content">
 		{assign var=userAvatar value=$user['avatar']|default:''}
-		<a href="{route_path name='profile'}" class="sidebar__user-panel" title="Открыть профиль">
+		{if $workspaceAccess.profile}
+			<a href="{route_path name='profile'}" class="sidebar__user-panel" title="Открыть профиль">
+		{else}
+			<div class="sidebar__user-panel" aria-label="Профиль недоступен для текущей роли">
+		{/if}
 			<div class="sidebar__user-image">
 				{if !$userAvatar || $userAvatar == 'default_img'}
 					{html_image file="{$base_url}/assets/img/default_avatar.png" alt="{$user['firstname']} {$user['lastname']}"}
@@ -22,31 +26,41 @@
 				<strong>{$user['firstname']} {$user['lastname']}</strong>
 				<span>@{$user['username']}</span>
 			</div>
-		</a>
+		{if $workspaceAccess.profile}</a>{else}</div>{/if}
 
 		<div class="sidebar__section-label">Рабочее пространство</div>
 		<nav class="sidebar__menu" aria-label="Разделы Workspace">
-			<a href="{route_path name="notes"}" class="sidebar__menu-link" title="Блокнот">
-				<span class="sidebar__menu-icon"><i class="fa fa-sticky-note-o" aria-hidden="true"></i></span>
-				<span>Блокнот</span>
-			</a>
-			<a href="{route_path name="tasks"}" class="sidebar__menu-link" title="Задачи">
-				<span class="sidebar__menu-icon"><i class="fa fa-check-square-o" aria-hidden="true"></i></span>
-				<span>Задачи</span>
-			</a>
-			<a href="{route_path name="files"}" class="sidebar__menu-link" title="Файлы">
-				<span class="sidebar__menu-icon"><i class="fa fa-folder-o" aria-hidden="true"></i></span>
-				<span>Файлы</span>
-			</a>
-			<a href="{route_path name="messenger"}" class="sidebar__menu-link" title="Мессенджер">
-				<span class="sidebar__menu-icon"><i class="fa fa-comments-o" aria-hidden="true"></i></span>
-				<span>Мессенджер</span>
-			</a>
-			<a href="{route_path name="profile"}" class="sidebar__menu-link" title="Профиль">
-				<span class="sidebar__menu-icon"><i class="fa fa-user-o" aria-hidden="true"></i></span>
-				<span>Профиль</span>
-			</a>
-			{if $user.role == 1 || $user.role == 111}
+			{if $workspaceAccess.notes}
+				<a href="{route_path name="notes"}" class="sidebar__menu-link" title="Блокнот">
+					<span class="sidebar__menu-icon"><i class="fa fa-sticky-note-o" aria-hidden="true"></i></span>
+					<span>Блокнот</span>
+				</a>
+			{/if}
+			{if $workspaceAccess.tasks}
+				<a href="{route_path name="tasks"}" class="sidebar__menu-link" title="Задачи">
+					<span class="sidebar__menu-icon"><i class="fa fa-check-square-o" aria-hidden="true"></i></span>
+					<span>Задачи</span>
+				</a>
+			{/if}
+			{if $workspaceAccess.files}
+				<a href="{route_path name="files"}" class="sidebar__menu-link" title="Файлы">
+					<span class="sidebar__menu-icon"><i class="fa fa-folder-o" aria-hidden="true"></i></span>
+					<span>Файлы</span>
+				</a>
+			{/if}
+			{if $workspaceAccess.messenger}
+				<a href="{route_path name="messenger"}" class="sidebar__menu-link" title="Мессенджер">
+					<span class="sidebar__menu-icon"><i class="fa fa-comments-o" aria-hidden="true"></i></span>
+					<span>Мессенджер</span>
+				</a>
+			{/if}
+			{if $workspaceAccess.profile}
+				<a href="{route_path name="profile"}" class="sidebar__menu-link" title="Профиль">
+					<span class="sidebar__menu-icon"><i class="fa fa-user-o" aria-hidden="true"></i></span>
+					<span>Профиль</span>
+				</a>
+			{/if}
+			{if $workspaceAccess.admin}
 				<div class="sidebar__section-label sidebar__section-label--admin">Управление</div>
 				<a href="{route_path name="adminpanel"}" class="sidebar__menu-link" title="Админпанель">
 					<span class="sidebar__menu-icon"><i class="fa fa-sliders" aria-hidden="true"></i></span>
