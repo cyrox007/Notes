@@ -64,7 +64,7 @@ final class StorageQuotaService
             'used_bytes' => $used,
             'quota_bytes' => $quota,
             'remaining_bytes' => max(0, $quota - $used),
-            'percent' => $quota > 0 ? round(min(100, ($used / $quota) * 100, 2)) : 100.0,
+            'percent' => $quota > 0 ? round(min(100, ($used / $quota) * 100), 2) : 100.0,
         ];
     }
 
