@@ -32,8 +32,8 @@ jobs:
 
           replace_once(
               'database/messenger_schema.sql',
-              "    `is_active` TINYINT(1) NOT NULL DEFAULT 1,\n    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,",
-              "    `is_active` TINYINT(1) NOT NULL DEFAULT 1,\n    `account_status` ENUM('active', 'inactive', 'blocked') NOT NULL DEFAULT 'active',\n    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,",
+              "    `property` JSON DEFAULT NULL,\n    `role` INT NOT NULL DEFAULT 888,\n    `is_active` TINYINT(1) NOT NULL DEFAULT 1,\n    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,",
+              "    `property` JSON DEFAULT NULL,\n    `role` INT NOT NULL DEFAULT 888,\n    `is_active` TINYINT(1) NOT NULL DEFAULT 1,\n    `account_status` ENUM('active', 'inactive', 'blocked') NOT NULL DEFAULT 'active',\n    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,",
           )
 
           replace_once(
