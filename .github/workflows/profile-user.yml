@@ -57,7 +57,7 @@ jobs:
           grep -Fq "'/avatar/delete'" core/routerConfig.php
           grep -Fq 'PROFILE_AVATAR_MAX_SIZE=2097152' default.env
           grep -Fq "group_owner_transfer_required" app/controllers/ProfileController.php
-          grep -Fq "account_status = 'inactive'" app/controllers/ProfileController.php
+          grep -Fq 'SET is_active = 0, account_status' app/controllers/ProfileController.php
           grep -Fq 'messenger.use' ws_server/server.php
           ! grep -Fq 'Config::canAuthenticate' ws_server/server.php
           ! grep -Fq 'role = :inactive_role' app/controllers/ProfileController.php
