@@ -19,6 +19,7 @@ use App\Controllers\Admin\SettingsController;
 use App\Controllers\Admin\RegistrationSettingsController;
 use App\Controllers\Admin\UserProvisioningController;
 use App\Controllers\Admin\RoleManagementController;
+use App\Controllers\Admin\LicenseController;
 use App\Controllers\MessagerController;
 use App\Controllers\MessengerGroupController;
 use App\Controllers\MessengerVoiceController;
@@ -84,7 +85,7 @@ $router->group('/tasks')
     ->add('POST', '/boards/task/{str:uid}/update', [TaskBoardController::class, 'updateTask'], [LoginRequared::class, RequireTasksUse::class, CSRFMiddleware::class], 'task_board_task_update')
     ->add('POST', '/boards/task/{str:uid}/delete', [TaskBoardController::class, 'deleteTask'], [LoginRequared::class, RequireTasksUse::class, CSRFMiddleware::class], 'task_board_task_delete')
     ->add('POST', '/{str:uid}/update', [TaskController::class, 'update'], [LoginRequared::class, RequireTasksUse::class], 'update_task')
-    ->add('POST', '/{str:uid}/delete', [TaskController::class, 'delete'], [LoginRequared::class, RequireTasksUse::class], 'delete_task')
+    ->add('POST', '/{str:uid}/delete', [TaskController::class, RequireTasksUse::class], 'delete_task')
     ->add('POST', '/{str:taskUid}/subtask', [TaskController::class, 'addSubtask'], [LoginRequared::class, RequireTasksUse::class], 'add_subtask')
     ->add('POST', '/subtask/{int:subtaskId}/toggle', [TaskController::class, 'toggleSubtask'], [LoginRequared::class, RequireTasksUse::class], 'toggle_subtask')
     ->add('POST', '/subtask/{int:subtaskId}/delete', [TaskController::class, 'deleteSubtask'], [LoginRequared::class, RequireTasksUse::class], 'delete_subtask')
@@ -145,6 +146,9 @@ $router->group('/admin')
    ->add('GET', '/settings', [SettingsController::class, 'index'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_settings')
    ->add('POST', '/settings/default-quota', [SettingsController::class, 'saveDefaultQuota'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_settings_default_quota')
    ->add('POST', '/settings/user-quota', [SettingsController::class, 'saveUserQuota'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_settings_user_quota')
+   ->add('GET', '/license', [LicenseController::class, 'index'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_license')
+   ->add('POST', '/license/activate', [LicenseController::class, 'activate'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_license_activate')
+   ->add('POST', '/license/clear', [LicenseController::class, 'clear'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_license_clear')
    ->endGroup();
 
 $router->dispatch();
