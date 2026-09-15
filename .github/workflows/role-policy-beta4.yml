@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [master]
   push:
-    branches: [0.14-beta4-role-policies-collaboration]
+    branches: [master, 0.14-beta4-role-policies-collaboration]
 
 permissions:
   contents: read

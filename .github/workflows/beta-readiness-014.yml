@@ -2,7 +2,7 @@ name: 0.14 beta readiness
 
 on:
   push:
-    branches: [0.14-beta4-role-policies-collaboration]
+    branches: [master, 0.14-beta4-role-policies-collaboration]
   pull_request:
     branches: [master]
 
