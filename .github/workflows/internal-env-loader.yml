@@ -1,0 +1,46 @@
+name: 1.0 internal environment loader
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'core/Environment.php'
+      - 'core.php'
+      - 'composer.json'
+      - 'composer.lock'
+      - 'tests/integration/environment_loader_contract.php'
+      - '.github/workflows/internal-env-loader.yml'
+  pull_request:
+    paths:
+      - 'core/Environment.php'
+      - 'core.php'
+      - 'composer.json'
+      - 'composer.lock'
+      - 'tests/integration/environment_loader_contract.php'
+      - '.github/workflows/internal-env-loader.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  environment-loader:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.1', '8.3']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - name: Validate dependency contract
+        run: |
+          composer validate --strict
+          composer install --no-dev --prefer-dist --no-progress --no-interaction
+          php -r '$c=json_decode(file_get_contents("composer.json"), true, 512, JSON_THROW_ON_ERROR); if (isset($c["require"]["vlucas/phpdotenv"])) { fwrite(STDERR, "phpdotenv is still a direct dependency\n"); exit(1); }'
+          test ! -d vendor/vlucas/phpdotenv
+          ! grep -R --line-number --fixed-strings 'Dotenv\\Dotenv' core.php core tests/integration
+      - name: Run environment loader contract
+        run: php tests/integration/environment_loader_contract.php
