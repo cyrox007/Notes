@@ -144,4 +144,6 @@ nativeMessengerAssert(str_contains($server, "SocketTicket::validate(\$ticket)"),
 nativeMessengerAssert(str_contains($server, "hasPermission(\$userId, 'messenger.use')"), 'transport migration lost messenger RBAC check');
 nativeMessengerAssert(str_contains($server, "unset(\$payload['user_uid'], \$payload['user_id'], \$payload['from_user_id'])"), 'transport migration lost anti-impersonation payload stripping');
 
-echo "[OK] native Messenger view and WebSocket transport boundary contract\n";
+require_once __DIR__ . '/native_websocket_protocol_contract.php';
+
+echo "[OK] native Messenger view, transport boundary and protocol contract\n";
