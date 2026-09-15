@@ -16,6 +16,7 @@
             ['/admin/roles', 'fa-shield', 'Роли и доступ'],
             ['/admin/registration', 'fa-user-plus', 'Регистрация'],
             ['/admin/settings', 'fa-sliders', 'Системные настройки'],
+            ['/admin/license', 'fa-key', 'Лицензия'],
         ];
 
         const nav = document.createElement('nav');
