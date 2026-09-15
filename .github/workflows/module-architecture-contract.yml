@@ -1,0 +1,31 @@
+name: 0.14 module architecture contract
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  module-architecture-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Lint module architecture contract
+        run: php -l tests/integration/module_manifest_schema_contract.php
+
+      - name: Verify module architecture contract
+        run: php tests/integration/module_manifest_schema_contract.php
