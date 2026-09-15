@@ -41,7 +41,7 @@ function pathIsInside(string $path, string $parent): bool
     return $path === $parent || str_starts_with($path . '/', $parent . '/');
 }
 
-recordHealth($checks, $failed, 'php_version', version_compare(PHP_VERSION, '8.3.0', '>='), PHP_VERSION);
+recordHealth($checks, $failed, 'php_version', version_compare(PHP_VERSION, '8.1.0', '>='), PHP_VERSION . ' (technical floor 8.1; production 8.3+ recommended)');
 foreach (['mysqli', 'pdo_mysql', 'mbstring', 'sodium', 'fileinfo', 'gd'] as $extension) {
     recordHealth($checks, $failed, 'extension_' . $extension, extension_loaded($extension));
 }

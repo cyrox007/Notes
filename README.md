@@ -42,9 +42,10 @@ Workspace Organizer — внутреннее PHP-приложение для к�
 
 ## Требования
 
-- PHP `8.3+`;
+- PHP `8.1+` — технический compatibility floor; для Internet-facing production рекомендуется поддерживаемая ветка PHP, сейчас `8.3+`;
 - MySQL `8.x` — основной проверяемый CI path;
 - PHP extensions: `mysqli`, `pdo_mysql`, `mbstring`, `fileinfo`, `sodium`, `gd`;
+- для realtime Messenger/Workerman: POSIX-compatible host, PHP CLI, `pcntl`, `posix`, long-running process и WebSocket reverse proxy;
 - Argon2id support в `password_hash`;
 - Apache + `mod_rewrite` либо Nginx с эквивалентным front-controller routing;
 - writable private storage вне document root;
@@ -77,7 +78,7 @@ https://example.com/workspace/install.php
 
 Web-installer автоматически:
 
-- проверяет PHP 8.3, extensions, Argon2id и наличие production `vendor/`;
+- проверяет PHP 8.1+, extensions, Argon2id и наличие production `vendor/`;
 - пытается создать отсутствующую БД, если MySQL account это разрешает;
 - импортирует 6 canonical schemas и создаёт current contract из 22 обязательных таблиц;
 - создаёт `cache`/`compile`;
