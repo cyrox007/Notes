@@ -9,7 +9,6 @@ use App\Services\MessengerSavedService;
 use App\Services\MessengerService;
 use DomainException;
 use InvalidArgumentException;
-use Workerman\Connection\TcpConnection;
 
 final class ForwardSocket
 {
@@ -23,7 +22,7 @@ final class ForwardSocket
         $this->messenger ??= new MessengerService();
     }
 
-    public function saved(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
+    public function saved(array $connections, SocketConnection $connection, string $userUid, array $payload = []): void
     {
         $this->guard($connection, function () use ($connections, $userUid): void {
             $dialog = $this->saved->getOrCreate($userUid);
@@ -34,7 +33,7 @@ final class ForwardSocket
         });
     }
 
-    public function save_message(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
+    public function save_message(array $connections, SocketConnection $connection, string $userUid, array $payload = []): void
     {
         $this->guard($connection, function () use ($connections, $userUid, $payload): void {
             $message = $this->forwarder->save(
@@ -57,7 +56,7 @@ final class ForwardSocket
         });
     }
 
-    public function forward(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
+    public function forward(array $connections, SocketConnection $connection, string $userUid, array $payload = []): void
     {
         $this->guard($connection, function () use ($connections, $userUid, $payload): void {
             $message = $this->forwarder->forward(
@@ -96,13 +95,13 @@ final class ForwardSocket
     private function sendToUser(array $connections, string $userUid, array $payload): void
     {
         foreach ($connections[$userUid] ?? [] as $userConnection) {
-            if ($userConnection instanceof TcpConnection) {
+            if ($userConnection instanceof SocketConnection) {
                 $this->send($userConnection, $payload);
             }
         }
     }
 
-    private function guard(TcpConnection $connection, callable $callback): void
+    private function guard(SocketConnection $connection, callable $callback): void
     {
         try {
             $callback();
@@ -116,7 +115,7 @@ final class ForwardSocket
         }
     }
 
-    private function error(TcpConnection $connection, string $code, string $message): void
+    private function error(SocketConnection $connection, string $code, string $message): void
     {
         $this->send($connection, [
             'action' => 'error',
@@ -125,7 +124,7 @@ final class ForwardSocket
         ]);
     }
 
-    private function send(TcpConnection $connection, array $payload): void
+    private function send(SocketConnection $connection, array $payload): void
     {
         $connection->send(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
