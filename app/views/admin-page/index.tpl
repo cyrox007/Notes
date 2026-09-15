@@ -8,10 +8,16 @@
             <h1>Админпанель</h1>
             <p>Управление аккаунтами и дополнительными полями профиля без физического удаления рабочих данных.</p>
         </div>
-        <a class="admin-action admin-action--secondary" href="{route_path name='admin_settings'}">
-            <i class="fa fa-sliders" aria-hidden="true"></i>
-            Настройки и квоты
-        </a>
+        <div class="admin-user-actions">
+            <a class="admin-action admin-action--secondary" href="{route_path name='admin_registration'}">
+                <i class="fa fa-user-plus" aria-hidden="true"></i>
+                Регистрация
+            </a>
+            <a class="admin-action admin-action--secondary" href="{route_path name='admin_settings'}">
+                <i class="fa fa-sliders" aria-hidden="true"></i>
+                Настройки и квоты
+            </a>
+        </div>
     </header>
 
     {if $admin_flash}
@@ -19,6 +25,53 @@
             {$admin_flash.message|escape}
         </div>
     {/if}
+
+    <section class="admin-panel-card" aria-labelledby="admin-create-user-title">
+        <div class="admin-panel-card__header">
+            <div>
+                <span class="admin-panel-card__kicker">Создание аккаунта</span>
+                <h2 id="admin-create-user-title">Новый пользователь</h2>
+                <p>Администратор может создать обычный активный аккаунт независимо от режима публичной регистрации. Повышение роли выполняется отдельно через RBAC.</p>
+            </div>
+        </div>
+        <form action="{route_path name='admin_create_user'}" method="post" class="custom-fields-form">
+            {csrf_token}
+            <div class="custom-field__grid">
+                <div class="custom-field__control">
+                    <label for="new_user_login">Логин *</label>
+                    <input id="new_user_login" name="login" type="text" minlength="3" maxlength="50" pattern="[A-Za-z0-9._-]+" required autocomplete="off">
+                </div>
+                <div class="custom-field__control">
+                    <label for="new_user_email">Email *</label>
+                    <input id="new_user_email" name="email" type="email" maxlength="190" required autocomplete="off">
+                </div>
+                <div class="custom-field__control">
+                    <label for="new_user_password">Временный пароль *</label>
+                    <input id="new_user_password" name="password" type="password" minlength="10" maxlength="200" required autocomplete="new-password">
+                </div>
+                <div class="custom-field__control">
+                    <label for="new_user_first_name">Имя *</label>
+                    <input id="new_user_first_name" name="first_name" type="text" maxlength="80" required>
+                </div>
+                <div class="custom-field__control">
+                    <label for="new_user_patronymic">Отчество</label>
+                    <input id="new_user_patronymic" name="patronymic" type="text" maxlength="80">
+                </div>
+                <div class="custom-field__control">
+                    <label for="new_user_surname">Фамилия *</label>
+                    <input id="new_user_surname" name="surname" type="text" maxlength="80" required>
+                </div>
+                <div class="custom-field__control">
+                    <label for="new_user_phone">Телефон</label>
+                    <input id="new_user_phone" name="user_phone" type="tel" maxlength="32">
+                </div>
+            </div>
+            <div class="custom-fields-form__footer">
+                <small>Новый аккаунт получает базовую роль User и статус «Активен». Пароль не отправляется по email — передайте его пользователю безопасным каналом.</small>
+                <button type="submit" class="admin-action admin-action--primary"><i class="fa fa-user-plus" aria-hidden="true"></i> Создать пользователя</button>
+            </div>
+        </form>
+    </section>
 
     <section class="admin-panel-card" aria-labelledby="admin-users-title">
         <div class="admin-panel-card__header">

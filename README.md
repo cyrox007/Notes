@@ -51,6 +51,8 @@ Workspace Organizer — внутреннее PHP-приложение для к�
 - writable private storage вне document root;
 - HTTPS + WSS для production Messenger.
 
+Подробная матрица Open Server 6+, legacy-compatible Open Server 5.4.x, shared hosting и VPS/VDS: [`docs/DEPLOYMENT_COMPATIBILITY.md`](docs/DEPLOYMENT_COMPATIBILITY.md).
+
 **Composer на конечном shared hosting не обязателен**, если используется готовый hosting bundle из GitHub Release. Composer нужен при установке непосредственно из source tree и для development/CI.
 
 ## Fresh install на обычном хостинге

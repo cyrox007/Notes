@@ -13,28 +13,36 @@
 
         <form action="{route_path name='register_submit'}" method="post" id="registration-form">
             {csrf_token}
-            <input type="hidden" name="invite_code" value="{$invite_code}">
 
             <h1 class="page-title-login">Регистрация пользователя</h1>
-            <p class="register-page__subtitle">Заполните профиль. Пароль должен содержать не менее 10 символов. Аватар можно добавить после входа.</p>
+            {if $registration_mode == 'invite'}
+                <p class="register-page__subtitle">Регистрация доступна по приглашению. Введите код инвайта и заполните профиль.</p>
+                <div class="form-group">
+                    <label for="invite_code">Код приглашения *</label>
+                    <input type="text" name="invite_code" id="invite_code" value="{$invite_code|escape}" autocomplete="off" maxlength="128" required>
+                </div>
+            {else}
+                <input type="hidden" name="invite_code" value="">
+                <p class="register-page__subtitle">Свободная регистрация включена администратором. Заполните профиль. Пароль должен содержать не менее 10 символов.</p>
+            {/if}
 
             {if $errors}
                 <div class="error-messages" role="alert">
                     {foreach $errors as $error}
-                        <p class="error">{$error.MESSAGE}</p>
+                        <p class="error">{$error.MESSAGE|escape}</p>
                     {/foreach}
                 </div>
             {/if}
 
             <div class="form-group">
                 <label for="login">Логин *</label>
-                <input type="text" name="login" id="login" placeholder="Например, alex.t" autocomplete="username" autocapitalize="none" spellcheck="false" minlength="3" maxlength="50" pattern="[A-Za-z0-9._-]+" required>
+                <input type="text" name="login" id="login" value="{$form_values.login|default:''|escape}" placeholder="Например, alex.t" autocomplete="username" autocapitalize="none" spellcheck="false" minlength="3" maxlength="50" pattern="[A-Za-z0-9._-]+" required>
                 <span id="correct_login" class="field-error" aria-live="polite"></span>
             </div>
 
             <div class="form-group">
                 <label for="email">Email *</label>
-                <input type="email" name="email" id="email" placeholder="name@example.com" autocomplete="email" maxlength="190" required>
+                <input type="email" name="email" id="email" value="{$form_values.email|default:''|escape}" placeholder="name@example.com" autocomplete="email" maxlength="190" required>
             </div>
 
             <div class="form-group">
@@ -46,23 +54,23 @@
             <div class="form-row">
                 <div class="form-group">
                     <label for="first_name">Имя *</label>
-                    <input type="text" name="first_name" id="first_name" placeholder="Имя" autocomplete="given-name" maxlength="80" required>
+                    <input type="text" name="first_name" id="first_name" value="{$form_values.first_name|default:''|escape}" placeholder="Имя" autocomplete="given-name" maxlength="80" required>
                 </div>
 
                 <div class="form-group">
                     <label for="patronymic">Отчество</label>
-                    <input type="text" name="patronymic" id="patronymic" placeholder="Отчество" autocomplete="additional-name" maxlength="80">
+                    <input type="text" name="patronymic" id="patronymic" value="{$form_values.patronymic|default:''|escape}" placeholder="Отчество" autocomplete="additional-name" maxlength="80">
                 </div>
 
                 <div class="form-group">
                     <label for="surname">Фамилия *</label>
-                    <input type="text" name="surname" id="surname" placeholder="Фамилия" autocomplete="family-name" maxlength="80" required>
+                    <input type="text" name="surname" id="surname" value="{$form_values.surname|default:''|escape}" placeholder="Фамилия" autocomplete="family-name" maxlength="80" required>
                 </div>
             </div>
 
             <div class="form-group">
                 <label for="user_phone">Телефон</label>
-                <input type="tel" name="user_phone" id="user_phone" placeholder="+49 ..." autocomplete="tel" maxlength="32">
+                <input type="tel" name="user_phone" id="user_phone" value="{$form_values.user_phone|default:''|escape}" placeholder="+49 ..." autocomplete="tel" maxlength="32">
             </div>
 
             <button id="btn-reg" type="submit">Создать аккаунт</button>

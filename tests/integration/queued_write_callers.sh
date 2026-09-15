@@ -6,7 +6,6 @@ mapfile -t callers < <(git grep -l -E -- '->queue(Insert|Update|Delete)\(' -- '*
 # Every queued-write caller is intentionally enumerated. Adding a new caller
 # requires reviewing its error path because DatabaseManager::commit() now throws.
 expected=(
-  'app/controllers/AuthController.php'
   'app/controllers/FileController.php'
   'app/models/TaskModel.php'
   'core/ORM.php'
@@ -39,7 +38,6 @@ for known in "${expected[@]}"; do
 done
 
 for production_caller in \
-  app/controllers/AuthController.php \
   app/controllers/FileController.php \
   app/models/TaskModel.php \
   core/ORM.php
