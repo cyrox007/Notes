@@ -58,14 +58,20 @@ foreach ($coreFiles as $file) {
 \Core\SessionSecurity::configure();
 
 // 0.14 module-platform boundary: every product module must have a validated
-// manifest and a persisted lifecycle record before legacy application code is
-// loaded. Valid-but-core-incompatible modules are retained as lifecycle state
-// instead of disappearing from the registry. Runtime loading still uses app/*
-// during migration; module-owned bootstrap/routes are the next phase.
+// manifest before legacy application code is loaded. Normal HTTP/CLI entrypoints
+// also reconcile persisted lifecycle state here. Pre-fork runtimes (Workerman)
+// can deliberately defer only the database-backed reconciliation until their
+// worker process starts, avoiding an inherited PDO connection while preserving
+// fail-closed manifest discovery in the master process.
+$deferModuleLifecyclePersistence = defined('WORKSPACE_DEFER_MODULE_LIFECYCLE')
+    && WORKSPACE_DEFER_MODULE_LIFECYCLE === true;
+
 \Core\ModuleRegistry::boot(
     SITEPATH . '/modules',
     \Core\Version::VERSION,
-    new \Core\ModuleLifecycleStore(\Core\DatabaseManager::getInstance())
+    $deferModuleLifecyclePersistence
+        ? null
+        : new \Core\ModuleLifecycleStore(\Core\DatabaseManager::getInstance())
 );
 
 $directories = [
