@@ -1,4 +1,4 @@
-name: Apply RBAC hardening patch
+name: Apply RBAC README sync
 
 on:
   push:
@@ -9,80 +9,61 @@ permissions:
 
 jobs:
   patch:
-    if: ${{ !contains(github.event.head_commit.message, '[rbac-hardening-applied]') }}
+    if: ${{ !contains(github.event.head_commit.message, '[rbac-readme-applied]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: 0.14-phase3-rbac-foundation
 
-      - name: Patch migration safety and canonical fixtures
+      - name: Sync README with 0.14 canonical install contract
         shell: bash
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
-          def replace_once(path, old, new):
-              p = Path(path)
-              text = p.read_text()
+          path = Path('README.md')
+          text = path.read_text()
+
+          replacements = [
+              (
+                  'импортирует 6 canonical schemas и создаёт current contract из 22 обязательных таблиц;',
+                  'импортирует 7 canonical schemas и создаёт current contract из 26 обязательных таблиц;',
+              ),
+              (
+                  'database/tasks_schema.sql\ndatabase/settings_schema.sql',
+                  'database/tasks_schema.sql\ndatabase/access_control_schema.sql\ndatabase/settings_schema.sql',
+              ),
+              (
+                  'Fresh contract включает 22 обязательные таблицы.',
+                  'Fresh contract включает 26 обязательных таблиц.',
+              ),
+          ]
+
+          for old, new in replacements:
               count = text.count(old)
               if count != 1:
-                  raise SystemExit(f'{path}: expected one occurrence, got {count}: {old!r}')
-              p.write_text(text.replace(old, new, 1))
+                  raise SystemExit(f'README.md: expected one occurrence, got {count}: {old!r}')
+              text = text.replace(old, new, 1)
 
-          replace_once(
-              'bin/migrate.php',
-              "$lines = preg_split('/\\R/', $sql) ?: [];",
-              "$lines = preg_split('/\\R/u', $sql);\n    if ($lines === false) {\n        throw new RuntimeException('Malformed migration: SQL is not valid UTF-8');\n    }",
-          )
-
-          replace_once(
-              'database/migrations/20260915_rbac_foundation.sql',
-              "ALTER TABLE `users`\n    ADD COLUMN `account_status` ENUM('active','inactive','blocked') NOT NULL DEFAULT 'active' AFTER `is_active`;",
-              "SET @rbac_account_status_exists := (\n    SELECT COUNT(*)\n    FROM information_schema.columns\n    WHERE table_schema = DATABASE()\n      AND table_name = 'users'\n      AND column_name = 'account_status'\n);\nSET @rbac_account_status_sql := IF(\n    @rbac_account_status_exists = 0,\n    \"ALTER TABLE `users` ADD COLUMN `account_status` ENUM('active','inactive','blocked') NOT NULL DEFAULT 'active' AFTER `is_active`\",\n    'SELECT 1'\n);\nPREPARE rbac_account_status_stmt FROM @rbac_account_status_sql;\nEXECUTE rbac_account_status_stmt;\nDEALLOCATE PREPARE rbac_account_status_stmt;",
-          )
-
-          replace_once(
-              '.github/workflows/product-quality.yml',
-              "          mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/tasks_schema.sql\n          mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/settings_schema.sql",
-              "          mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/tasks_schema.sql\n          mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/access_control_schema.sql\n          mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/settings_schema.sql",
-          )
-          replace_once(
-              '.github/workflows/product-quality.yml',
-              "          grep -Fq '22 required tables present' /tmp/healthcheck.json",
-              "          grep -Fq '26 required tables present' /tmp/healthcheck.json",
-          )
-
-          replace_once(
-              '.github/workflows/release-gate.yml',
-              "            database/tasks_schema.sql \\\n            database/settings_schema.sql",
-              "            database/tasks_schema.sql \\\n            database/access_control_schema.sql \\\n            database/settings_schema.sql",
-          )
-          replace_once(
-              '.github/workflows/release-gate.yml',
-              '          test "$count" -ge 22',
-              '          test "$count" -eq 26',
-          )
+          path.write_text(text)
           PY
 
-      - name: Static validation
+      - name: Validate README contract
         shell: bash
         run: |
           set -euo pipefail
-          php -l bin/migrate.php
-          grep -Fq "preg_split('/\\R/u'" bin/migrate.php
-          grep -Fq 'rbac_account_status_exists' database/migrations/20260915_rbac_foundation.sql
-          grep -Fq 'access_control_schema.sql' .github/workflows/product-quality.yml
-          grep -Fq '26 required tables present' .github/workflows/product-quality.yml
-          grep -Fq 'access_control_schema.sql' .github/workflows/release-gate.yml
-          grep -Fq 'test "$count" -eq 26' .github/workflows/release-gate.yml
+          grep -Fq '7 canonical schemas' README.md
+          grep -Fq '26 обязательных таблиц' README.md
+          grep -Fq 'database/access_control_schema.sql' README.md
+          ! grep -Fq '22 обязательные таблицы' README.md
 
-      - name: Commit patch
+      - name: Commit README sync
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add bin/migrate.php database/migrations/20260915_rbac_foundation.sql .github/workflows/product-quality.yml .github/workflows/release-gate.yml
-          git commit -m '0.14 RBAC: harden UTF-8 upgrades and canonical fixtures [rbac-hardening-applied]'
+          git add README.md
+          git commit -m '0.14 RBAC: sync installer documentation [rbac-readme-applied]'
           git push origin HEAD:0.14-phase3-rbac-foundation
