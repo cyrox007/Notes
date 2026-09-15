@@ -110,6 +110,7 @@ final class RegistrationPolicyService
 
         $this->db->beginTransaction();
         try {
+            $this->ensureInviteStorageRow();
             $invites = $this->readInvitesForUpdate();
             if (count($invites) >= self::MAX_INVITES) {
                 throw new DomainException('Достигнут лимит сохранённых инвайтов. Отзовите старые приглашения.', 409);
@@ -140,6 +141,7 @@ final class RegistrationPolicyService
 
         $this->db->beginTransaction();
         try {
+            $this->ensureInviteStorageRow();
             $invites = $this->readInvitesForUpdate();
             $found = false;
             foreach ($invites as &$invite) {
@@ -187,6 +189,7 @@ final class RegistrationPolicyService
                     && hash_equals($this->legacyInviteCode(), $inviteCode);
 
                 if (!$legacyAccepted) {
+                    $this->ensureInviteStorageRow();
                     $invites = $this->readInvitesForUpdate();
                     $managedInviteIndex = $this->findUsableInviteIndex($invites, $inviteCode);
                     if ($managedInviteIndex === null) {
@@ -244,6 +247,17 @@ final class RegistrationPolicyService
             [':setting_key' => self::INVITES_SETTING]
         );
         return $this->decodeInvites($raw);
+    }
+
+    private function ensureInviteStorageRow(): void
+    {
+        // The singleton JSON row must exist before SELECT ... FOR UPDATE. If it
+        // did not, two first-time writers could both lock no row and overwrite
+        // each other's invite list.
+        $this->db->execute(
+            "INSERT IGNORE INTO system_settings (setting_key,setting_value,setting_type,category,description,is_editable) VALUES (:setting_key,'[]','json','registration','Hashed managed registration invitations',1)",
+            [':setting_key' => self::INVITES_SETTING]
+        );
     }
 
     /** @return list<array<string,mixed>> */
