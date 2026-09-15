@@ -6,6 +6,27 @@
 
 Основная цель после первого beta — `1.0.0` stable. Крупный пользовательский feature scope остаётся заморожен; приоритеты: полная runtime-изоляция модулей, package compositions, signed updater/recovery, licensing, observability, upgrade/load/soak/cross-browser evidence, key re-encryption и CSP hardening.
 
+## 0.14.0-beta.3 — 2026-09-15
+
+### Registration / user provisioning
+- Добавлены управляемые режимы публичной регистрации: `disabled`, `open` и `invite`; безопасный default остаётся закрытым.
+- Администратор может создавать обычных пользователей непосредственно из основной админ-панели независимо от публичного registration mode.
+- Self-registration и admin provisioning назначают каноническую RBAC-роль `user`; выдача административных прав не смешивается с созданием аккаунта.
+- Login page показывает registration entry только когда текущая policy это разрешает.
+
+### Managed invites / security
+- Добавлены управляемые инвайты с label, expiry, usage limit и revoke.
+- Invite code генерируется из криптографически случайных байтов, показывается один раз и хранится в `system_settings` только как SHA-256 hash с метаданными.
+- Создание аккаунта и расход managed invite выполняются в одной транзакции; singleton JSON-row блокируется через `SELECT ... FOR UPDATE`, чтобы concurrent writers не теряли изменения.
+- Публичный POST регистрации защищён `AuthRateLimit` + CSRF; admin provisioning и registration/invite mutations требуют соответствующих RBAC permissions + CSRF.
+- Legacy `REGISTRATION_INVITE_CODE` сохранён только как compatibility fallback до первого явного сохранения registration policy в БД.
+
+### Deployment / verification
+- Добавлен `docs/DEPLOYMENT_COMPATIBILITY.md` с отдельными рекомендациями для Open Server 6+, Open Server 5.4.x с PHP 8.1+, Linux VPS/VDS и shared hosting.
+- Для shared hosting явно зафиксировано, что realtime Messenger требует long-running PHP process и WebSocket reverse proxy; cron не заменяет process manager.
+- Добавлены PHP 8.1 + MySQL 8.4 registration/provisioning contract и настоящий Chromium registration lifecycle.
+- Перед merge пройдены все 38 PR workflows; после merge функционального PR повторно зелёные master release/installer/module/core-security gates.
+
 ## 0.14.0-beta.2 — 2026-09-15
 
 ### WebSocket deployment hotfix

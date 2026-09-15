@@ -25,7 +25,8 @@ foreach ([
     'docs/MODULE_PLATFORM_0.14.md' => 'module platform contract is missing',
     'docs/BETA_HARDENING_0.14.md' => 'beta hardening roadmap is missing',
     'docs/OPEN_SERVER_WEBSOCKET.md' => 'Open Server WebSocket deployment guide is missing',
-    'docs/releases/v0.14.0-beta.2.md' => 'curated beta.2 release notes are missing',
+    'docs/DEPLOYMENT_COMPATIBILITY.md' => 'deployment compatibility matrix is missing',
+    'docs/releases/v0.14.0-beta.3.md' => 'curated beta.3 release notes are missing',
     '.github/workflows/core-security-phase2.yml' => 'core security regression gate is missing',
     '.github/workflows/module-platform-contract.yml' => 'module platform regression gate is missing',
     '.github/workflows/module-lifecycle-contract.yml' => 'module lifecycle regression gate is missing',
@@ -33,6 +34,8 @@ foreach ([
     '.github/workflows/rbac-enforcement.yml' => 'RBAC enforcement gate is missing',
     '.github/workflows/browser-wss-e2e.yml' => 'HTTPS/WSS browser gate is missing',
     '.github/workflows/websocket-deployment-contract.yml' => 'WebSocket deployment regression gate is missing',
+    '.github/workflows/registration-policy.yml' => 'registration/provisioning regression gate is missing',
+    '.github/workflows/registration-browser.yml' => 'registration browser lifecycle gate is missing',
 ] as $file => $reason) {
     $require($file, $reason);
 }
@@ -40,9 +43,9 @@ foreach ([
 $versionPath = $root . '/core/Version.php';
 $version = is_file($versionPath) ? (string) file_get_contents($versionPath) : '';
 foreach ([
-    "public const VERSION = '0.14.0-beta.2';",
+    "public const VERSION = '0.14.0-beta.3';",
     "public const STATUS = 'beta';",
-    'public const VERSION_CODE = 1402;',
+    'public const VERSION_CODE = 1403;',
     "public const RELEASE_DATE = '2026-09-15';",
 ] as $marker) {
     if (!str_contains($version, $marker)) {
@@ -51,15 +54,15 @@ foreach ([
 }
 
 $readme = is_file($root . '/README.md') ? (string) file_get_contents($root . '/README.md') : '';
-foreach (['**Версия:** `0.14.0-beta.2`', '`1.0.0` stable', '27 обязательных таблиц'] as $marker) {
+foreach (['**Версия:** `0.14.0-beta.3`', '`1.0.0` stable', '27 обязательных таблиц'] as $marker) {
     if (!str_contains($readme, $marker)) {
         $errors[] = "README beta marker missing: {$marker}";
     }
 }
 
 $changelog = is_file($root . '/CHANGELOG.md') ? (string) file_get_contents($root . '/CHANGELOG.md') : '';
-if (!str_contains($changelog, '## 0.14.0-beta.2 — 2026-09-15')) {
-    $errors[] = 'CHANGELOG beta.2 release section is missing';
+if (!str_contains($changelog, '## 0.14.0-beta.3 — 2026-09-15')) {
+    $errors[] = 'CHANGELOG beta.3 release section is missing';
 }
 if (!str_contains($changelog, 'Основная цель после первого beta — `1.0.0` stable')) {
     $errors[] = 'CHANGELOG must point Unreleased at 1.0.0 stable';
