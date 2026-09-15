@@ -1,0 +1,35 @@
+name: 0.14 core router and session security
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  core-router-session-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Lint hardened core files
+        run: |
+          php -l core/SessionSecurity.php
+          php -l core/RedirectPolicy.php
+          php -l core/Router.php
+          php -l tests/integration/router_session_security_contract.php
+
+      - name: Verify router/session negative security contract
+        run: php tests/integration/router_session_security_contract.php
