@@ -20,6 +20,9 @@ on:
       - 'app/views/admin-page/*.php'
       - 'app/views/notes_page/*.php'
       - 'app/views/tasks_page/*.php'
+      - 'app/views/messager_page/index.php'
+      - 'app/views/messager_page/*.js'
+      - 'app/views/messager_page/*.css'
       - 'app/views/^elements/note_item/index.php'
       - 'app/views/^elements/task_item/index.php'
       - 'assets/js/common.js'
@@ -27,6 +30,8 @@ on:
       - 'assets/js/notes-list.js'
       - 'assets/js/tasks-page.js'
       - 'assets/js/task-boards.js'
+      - 'assets/js/messenger-connection-ux.js'
+      - 'assets/css/live-qa-final.css'
       - 'tests/integration/native_view_renderer_contract.php'
       - 'tests/integration/native_workspace_shell_contract.php'
       - 'tests/integration/native_file_manager_contract.php'
@@ -34,6 +39,7 @@ on:
       - 'tests/integration/native_admin_contract.php'
       - 'tests/integration/native_notes_contract.php'
       - 'tests/integration/native_tasks_contract.php'
+      - 'tests/integration/native_messenger_contract.php'
       - '.github/workflows/native-view-foundation.yml'
   pull_request:
     branches: ['1.0']
@@ -54,6 +60,9 @@ on:
       - 'app/views/admin-page/*.php'
       - 'app/views/notes_page/*.php'
       - 'app/views/tasks_page/*.php'
+      - 'app/views/messager_page/index.php'
+      - 'app/views/messager_page/*.js'
+      - 'app/views/messager_page/*.css'
       - 'app/views/^elements/note_item/index.php'
       - 'app/views/^elements/task_item/index.php'
       - 'assets/js/common.js'
@@ -61,6 +70,8 @@ on:
       - 'assets/js/notes-list.js'
       - 'assets/js/tasks-page.js'
       - 'assets/js/task-boards.js'
+      - 'assets/js/messenger-connection-ux.js'
+      - 'assets/css/live-qa-final.css'
       - 'tests/integration/native_view_renderer_contract.php'
       - 'tests/integration/native_workspace_shell_contract.php'
       - 'tests/integration/native_file_manager_contract.php'
@@ -68,6 +79,7 @@ on:
       - 'tests/integration/native_admin_contract.php'
       - 'tests/integration/native_notes_contract.php'
       - 'tests/integration/native_tasks_contract.php'
+      - 'tests/integration/native_messenger_contract.php'
       - '.github/workflows/native-view-foundation.yml'
 
 permissions:
@@ -119,6 +131,7 @@ jobs:
           php -l app/views/tasks_page/index.php
           php -l app/views/tasks_page/boards.php
           php -l 'app/views/^elements/task_item/index.php'
+          php -l app/views/messager_page/index.php
           php -l tests/integration/native_view_renderer_contract.php
           php -l tests/integration/native_workspace_shell_contract.php
           php -l tests/integration/native_file_manager_contract.php
@@ -126,6 +139,7 @@ jobs:
           php -l tests/integration/native_admin_contract.php
           php -l tests/integration/native_notes_contract.php
           php -l tests/integration/native_tasks_contract.php
+          php -l tests/integration/native_messenger_contract.php
       - name: Verify native renderer contracts without vendor bootstrap
         run: |
           php tests/integration/native_view_renderer_contract.php
@@ -135,6 +149,7 @@ jobs:
           php tests/integration/native_admin_contract.php
           php tests/integration/native_notes_contract.php
           php tests/integration/native_tasks_contract.php
+          php tests/integration/native_messenger_contract.php
       - name: Verify migration boundary
         run: |
           ! grep -F 'use Smarty\\' core/controller.php
@@ -168,3 +183,4 @@ jobs:
           test -f app/views/tasks_page/index.php
           test -f app/views/tasks_page/boards.php
           test -f 'app/views/^elements/task_item/index.php'
+          test -f app/views/messager_page/index.php
