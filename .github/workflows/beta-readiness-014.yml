@@ -1,8 +1,8 @@
-name: 0.13 alpha readiness
+name: 0.14 beta readiness
 
 on:
   push:
-    branches: [0.13-release-alpha]
+    branches: [0.14-beta1-release-prep]
   pull_request:
     branches: [master]
 
@@ -10,10 +10,9 @@ permissions:
   contents: read
 
 jobs:
-  usable-alpha-readiness:
+  beta-readiness:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,8 +23,8 @@ jobs:
           php-version: '8.3'
           coverage: none
 
-      - name: Lint readiness contract
-        run: php -l tests/integration/usable_alpha_readiness.php
+      - name: Lint beta readiness contract
+        run: php -l tests/integration/beta_readiness_014.php
 
-      - name: Verify Workspace 0.13 Definition of Done
-        run: php tests/integration/usable_alpha_readiness.php
+      - name: Verify Workspace 0.14 beta.1 baseline
+        run: php tests/integration/beta_readiness_014.php

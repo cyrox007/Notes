@@ -77,6 +77,15 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Verify tag matches application version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED_TAG="v$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")"
+          test "$GITHUB_REF_NAME" = "$EXPECTED_TAG"
+          echo "Release tag matches application version: $EXPECTED_TAG"
+
       - name: Publish tagged release asset
         if: startsWith(github.ref, 'refs/tags/v')
         env:
@@ -84,10 +93,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          RELEASE_FLAGS=()
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            RELEASE_FLAGS+=(--prerelease)
+          fi
+
+          NOTES_FLAGS=(--generate-notes)
+          NOTES_FILE="docs/releases/${GITHUB_REF_NAME}.md"
+          if [[ -f "$NOTES_FILE" ]]; then
+            NOTES_FLAGS=(--notes-file "$NOTES_FILE")
+          fi
+
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" "$BUNDLE" --clobber
           else
             gh release create "$GITHUB_REF_NAME" "$BUNDLE" \
               --title "$GITHUB_REF_NAME" \
-              --generate-notes
+              "${RELEASE_FLAGS[@]}" \
+              "${NOTES_FLAGS[@]}"
           fi

@@ -1,5 +1,7 @@
 # Workspace Organizer 0.14 — Beta Hardening / Modular Platform
 
+> Release channel: **beta**. `0.14.0-beta.1` фиксирует первый hardening baseline; незакрытые P0/P1 пункты этого документа продолжаются в `master` как blockers на пути к `1.0.0` stable.
+
 ## Цель релиза
 
 0.14 — первый beta-hardening релиз после product-complete `0.13.0-alpha`.

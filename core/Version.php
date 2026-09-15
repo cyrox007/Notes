@@ -10,11 +10,11 @@ namespace Core;
 
 class Version
 {
-    public const VERSION = '0.13.0-alpha';
+    public const VERSION = '0.14.0-beta.1';
     public const PRODUCT_NAME = 'Workspace Organizer';
-    public const STATUS = 'alpha';
-    public const VERSION_CODE = 1300;
-    public const RELEASE_DATE = '2026-09-14';
+    public const STATUS = 'beta';
+    public const VERSION_CODE = 1401;
+    public const RELEASE_DATE = '2026-09-15';
 
     public static function getFullVersion(): string
     {
@@ -36,6 +36,11 @@ class Version
     public static function isAlpha(): bool
     {
         return self::STATUS === 'alpha';
+    }
+
+    public static function isBeta(): bool
+    {
+        return self::STATUS === 'beta';
     }
 
     public static function compare(string $version): int

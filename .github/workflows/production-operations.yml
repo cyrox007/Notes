@@ -65,6 +65,7 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot notes_operations < database/tasks_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_operations < database/access_control_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_operations < database/settings_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_operations < database/module_lifecycle_schema.sql
 
       - name: Prepare operations environment
         shell: bash
@@ -137,7 +138,7 @@ jobs:
           set -euo pipefail
           php bin/healthcheck.php --json > /tmp/health.json
           php -r '$d=json_decode(file_get_contents("/tmp/health.json"),true,512,JSON_THROW_ON_ERROR); if (($d["status"] ?? "") !== "ok") { fwrite(STDERR,file_get_contents("/tmp/health.json")); exit(1); }'
-          grep -Fq '26 required tables present' /tmp/health.json
+          grep -Fq '27 required tables present' /tmp/health.json
           grep -Fq 'storage_quota_setting' /tmp/health.json
           grep -Fq 'rate_limit_storage' /tmp/health.json
           grep -Fq 'trusted_proxy_ips' /tmp/health.json
@@ -169,7 +170,7 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot notes_operations_restore < /tmp/notes-operations.sql
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_operations_restore -e "SELECT COUNT(*) FROM users WHERE username='ops_restore';")" = '1'
           TABLES=$(mysql -N -h 127.0.0.1 -uroot -proot notes_operations_restore -e 'SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE();')
-          test "$TABLES" -ge 26
+          test "$TABLES" -ge 27
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_operations_restore -e "SELECT setting_value FROM system_settings WHERE setting_key='file_manager_default_quota_bytes'")" = '1073741824'
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_operations_restore -e "SELECT COUNT(*) FROM user_roles;")" -ge '1'
 

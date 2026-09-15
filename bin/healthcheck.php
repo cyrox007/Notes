@@ -173,6 +173,7 @@ $requiredTables = [
     'tasks', 'subtasks', 'task_categories', 'task_category_relations', 'task_reminders',
     'system_settings', 'user_storage_quotas',
     'roles', 'permissions', 'role_permissions', 'user_roles',
+    'module_lifecycle',
 ];
 
 try {
