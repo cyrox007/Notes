@@ -80,7 +80,7 @@ Web-installer автоматически:
 
 - проверяет PHP 8.1+, extensions, Argon2id и наличие production `vendor/`;
 - пытается создать отсутствующую БД, если MySQL account это разрешает;
-- импортирует 6 canonical schemas и создаёт current contract из 22 обязательных таблиц;
+- импортирует 7 canonical schemas и создаёт current contract из 26 обязательных таблиц;
 - создаёт `cache`/`compile`;
 - подбирает и создаёт `PRIVATE_STORAGE_PATH` вне document root;
 - создаёт private пространства `file_manager`, `messenger`, `notes`, `users`, `rate-limit`, `logs`, `legacy`;
@@ -133,10 +133,11 @@ database/notes_schema.sql
 database/file_manager_schema.sql
 database/user_fields_schema.sql
 database/tasks_schema.sql
+database/access_control_schema.sql
 database/settings_schema.sql
 ```
 
-Fresh contract включает 22 обязательные таблицы. `system_settings` хранит редактируемые системные значения, а `user_storage_quotas` — только персональные overrides лимита; фактический used space всегда рассчитывается из canonical `user_files`, чтобы не поддерживать рассинхронизируемый usage counter. `install.php` предназначен только для новой/пустой БД. Для существующих установок используются compatibility upgrade SQL; они не заменяют canonical `*_schema.sql` как описание текущей схемы.
+Fresh contract включает 26 обязательных таблиц. `system_settings` хранит редактируемые системные значения, а `user_storage_quotas` — только персональные overrides лимита; фактический used space всегда рассчитывается из canonical `user_files`, чтобы не поддерживать рассинхронизируемый usage counter. `install.php` предназначен только для новой/пустой БД. Для существующих установок используются compatibility upgrade SQL; они не заменяют canonical `*_schema.sql` как описание текущей схемы.
 
 После успешной установки наличие `.env` блокирует повторный запуск web-installer.
 
@@ -350,7 +351,7 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 
 `System settings and storage quota` проверяет canonical settings schema, admin ACL, default/per-user quota, live usage из `user_files`, reset override и quota overflow denial на MySQL 8.4.
 
-`Hosting installer` выполняет настоящий HTTP fresh-install через cookies/CSRF на MySQL в hosting-like `public_html/workspace`, проверяет subdirectory detection, private storage вне document root, 22-table contract, quota seed, admin account, generated `.env`, блокировку повторного installer и итоговый healthcheck.
+`Hosting installer` выполняет настоящий HTTP fresh-install через cookies/CSRF на MySQL в hosting-like `public_html/workspace`, проверяет subdirectory detection, private storage вне document root, 26-table contract, quota seed, admin account, generated `.env`, блокировку повторного installer и итоговый healthcheck.
 
 `Build hosting package` собирает upload-ready ZIP с production `vendor/`; на tag `v*` ZIP публикуется как release asset.
 
@@ -402,7 +403,7 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 Перед выкладкой:
 
 1. Для shared hosting используется готовый hosting bundle с `vendor/`; при deploy из source `composer install --no-dev --optimize-autoloader` проходит без ошибок.
-2. Fresh install успешно завершается через `/install.php` без ручного SQL/`.env` и создаёт current 22-table schema contract.
+2. Fresh install успешно завершается через `/install.php` без ручного SQL/`.env` и создаёт current 26-table schema contract.
 3. `.env`, application source и service directories недоступны по HTTP.
 4. `UNIQUE_KEY`, `MSG_SECRET_KEY`, `WS_TICKET_SECRET` уникальны и случайны.
 5. `PRIVATE_STORAGE_PATH` находится вне document/application root.

@@ -29,6 +29,7 @@ $statusOnly = isset($options['status']);
 $storageLegacyReconcileMigration = '20260914_storage_quota_legacy_reconcile.sql';
 $storageQuotaMigration = '20260913_system_settings_storage_quota.sql';
 $profilePublicationMigration = '20260914_profile_publication.sql';
+$rbacFoundationMigration = '20260915_rbac_foundation.sql';
 
 $manifest = [
     '20260913_messenger_v2.sql',
@@ -49,6 +50,8 @@ $manifest = [
     // 0.13 publication is an additive compatibility upgrade. Existing objects
     // remain private because every new visibility column defaults to 0.
     $profilePublicationMigration,
+    // 0.14 introduces persisted RBAC and separates account state from role identity.
+    $rbacFoundationMigration,
 ];
 
 $currentTables = [
@@ -58,6 +61,7 @@ $currentTables = [
     'user_files', 'user_fields',
     'tasks', 'subtasks', 'task_categories', 'task_category_relations', 'task_reminders',
     'system_settings', 'user_storage_quotas',
+    'roles', 'permissions', 'role_permissions', 'user_roles',
 ];
 
 function envRequired(string $name): string
@@ -140,7 +144,10 @@ function parseMigrationStatements(string $sql): array
     $delimiter = ';';
     $buffer = '';
     $statements = [];
-    $lines = preg_split('/\R/', $sql) ?: [];
+    $lines = preg_split('/\R/u', $sql);
+    if ($lines === false) {
+        throw new RuntimeException('Malformed migration: SQL is not valid UTF-8');
+    }
 
     foreach ($lines as $line) {
         if (preg_match('/^\s*--/', $line) === 1) {
@@ -428,7 +435,11 @@ function verifyCurrentContract(mysqli $db, array $tables): void
     }
 
     $requiredColumns = [
-        'users' => ['uid', 'password_hash', 'lastname', 'avatar', 'role', 'is_active'],
+        'users' => ['uid', 'password_hash', 'lastname', 'avatar', 'role', 'is_active', 'account_status'],
+        'roles' => ['code', 'name', 'is_system'],
+        'permissions' => ['code', 'module_id'],
+        'role_permissions' => ['role_id', 'permission_id'],
+        'user_roles' => ['user_id', 'role_id', 'assigned_by'],
         'user_to_dialogs' => ['role', 'last_read_message_id', 'last_delivered_message_id', 'is_deleted'],
         'messages' => ['from_user_id', 'message', 'message_type', 'reply_to_message_id', 'meta_data'],
         'notes' => ['is_profile_public'],

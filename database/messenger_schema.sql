@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS `users` (
     `property` JSON DEFAULT NULL,
     `role` INT NOT NULL DEFAULT 888,
     `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+    `account_status` ENUM('active', 'inactive', 'blocked') NOT NULL DEFAULT 'active',
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY `uq_users_uid` (`uid`),
