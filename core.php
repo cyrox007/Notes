@@ -35,6 +35,7 @@ $coreFiles = [
     '/core/ModuleRegistry.php',
     '/core/DatabaseControll.php',
     '/core/DatabaseManager.php',
+    '/core/ModuleLifecycleStore.php',
     '/core/ORM.php',
     '/core/model.php',
     '/core/view.php',
@@ -56,11 +57,16 @@ foreach ($coreFiles as $file) {
 // session_start(). Fail closed if PHP refuses the configured policy.
 \Core\SessionSecurity::configure();
 
-// 0.14 module-platform boundary: every product module must have a validated,
-// core-compatible manifest before any legacy application code is loaded. Runtime
-// loading still uses app/* during the migration period; later 0.14 phases move
-// each module to isolated routes/bootstrap paths behind this registry.
-\Core\ModuleRegistry::boot(SITEPATH . '/modules', \Core\Version::VERSION);
+// 0.14 module-platform boundary: every product module must have a validated
+// manifest and a persisted lifecycle record before legacy application code is
+// loaded. Valid-but-core-incompatible modules are retained as lifecycle state
+// instead of disappearing from the registry. Runtime loading still uses app/*
+// during migration; module-owned bootstrap/routes are the next phase.
+\Core\ModuleRegistry::boot(
+    SITEPATH . '/modules',
+    \Core\Version::VERSION,
+    new \Core\ModuleLifecycleStore(\Core\DatabaseManager::getInstance())
+);
 
 $directories = [
     '/app/models/',
