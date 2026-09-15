@@ -7,7 +7,6 @@ namespace App\Sockets;
 use App\Services\MessengerReactionService;
 use DomainException;
 use InvalidArgumentException;
-use Workerman\Connection\TcpConnection;
 
 final class ReactionSocket
 {
@@ -16,7 +15,7 @@ final class ReactionSocket
         $this->reactions ??= new MessengerReactionService();
     }
 
-    public function list(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
+    public function list(array $connections, SocketConnection $connection, string $userUid, array $payload = []): void
     {
         $this->guard($connection, function () use ($connection, $userUid, $payload): void {
             $messageUids = is_array($payload['message_uids'] ?? null)
@@ -30,7 +29,7 @@ final class ReactionSocket
         });
     }
 
-    public function toggle(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
+    public function toggle(array $connections, SocketConnection $connection, string $userUid, array $payload = []): void
     {
         $this->guard($connection, function () use ($connections, $userUid, $payload): void {
             $messageUid = $this->requiredString($payload, 'message_uid');
@@ -64,13 +63,13 @@ final class ReactionSocket
     private function sendToUser(array $connections, string $userUid, array $payload): void
     {
         foreach ($connections[$userUid] ?? [] as $userConnection) {
-            if ($userConnection instanceof TcpConnection) {
+            if ($userConnection instanceof SocketConnection) {
                 $this->send($userConnection, $payload);
             }
         }
     }
 
-    private function guard(TcpConnection $connection, callable $callback): void
+    private function guard(SocketConnection $connection, callable $callback): void
     {
         try {
             $callback();
@@ -84,7 +83,7 @@ final class ReactionSocket
         }
     }
 
-    private function error(TcpConnection $connection, string $code, string $message): void
+    private function error(SocketConnection $connection, string $code, string $message): void
     {
         $this->send($connection, [
             'action' => 'error',
@@ -93,7 +92,7 @@ final class ReactionSocket
         ]);
     }
 
-    private function send(TcpConnection $connection, array $payload): void
+    private function send(SocketConnection $connection, array $payload): void
     {
         $connection->send(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
