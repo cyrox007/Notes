@@ -19,7 +19,9 @@ use App\Controllers\MessagerController;
 use App\Controllers\MessengerGroupController;
 use App\Controllers\MessengerVoiceController;
 use App\Middlewares\LoginRequared;
-use App\Middlewares\IsAdmin;
+use App\Middlewares\RequireAdminAccess;
+use App\Middlewares\RequireAdminUsersManage;
+use App\Middlewares\RequireAdminSettingsManage;
 use App\Middlewares\AuthRateLimit;
 use App\Middlewares\UploadRateLimit;
 use App\Middlewares\StorageQuotaLimit;
@@ -100,13 +102,13 @@ $router->group('/messenger')
     ->endGroup();
 
 $router->group('/admin')
-   ->add('GET', '/', [AdminController::class, 'index'], [LoginRequared::class, IsAdmin::class], 'adminpanel')
-   ->add('POST', '/', [AdminController::class, 'saveCustomFields'], [LoginRequared::class, IsAdmin::class], 'save_custom_fields')
-   ->add('POST', '/users/toggle-status', [AdminController::class, 'toggleUserStatus'], [LoginRequared::class, IsAdmin::class], 'admin_toggle_user')
-   ->add('POST', '/users/delete', [AdminController::class, 'deleteUser'], [LoginRequared::class, IsAdmin::class], 'admin_delete_user')
-   ->add('GET', '/settings', [SettingsController::class, 'index'], [LoginRequared::class, IsAdmin::class], 'admin_settings')
-   ->add('POST', '/settings/default-quota', [SettingsController::class, 'saveDefaultQuota'], [LoginRequared::class, IsAdmin::class], 'admin_settings_default_quota')
-   ->add('POST', '/settings/user-quota', [SettingsController::class, 'saveUserQuota'], [LoginRequared::class, IsAdmin::class], 'admin_settings_user_quota')
+   ->add('GET', '/', [AdminController::class, 'index'], [LoginRequared::class, RequireAdminAccess::class], 'adminpanel')
+   ->add('POST', '/', [AdminController::class, 'saveCustomFields'], [LoginRequared::class, RequireAdminUsersManage::class], 'save_custom_fields')
+   ->add('POST', '/users/toggle-status', [AdminController::class, 'toggleUserStatus'], [LoginRequared::class, RequireAdminUsersManage::class], 'admin_toggle_user')
+   ->add('POST', '/users/delete', [AdminController::class, 'deleteUser'], [LoginRequared::class, RequireAdminUsersManage::class], 'admin_delete_user')
+   ->add('GET', '/settings', [SettingsController::class, 'index'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_settings')
+   ->add('POST', '/settings/default-quota', [SettingsController::class, 'saveDefaultQuota'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_settings_default_quota')
+   ->add('POST', '/settings/user-quota', [SettingsController::class, 'saveUserQuota'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_settings_user_quota')
    ->endGroup();
 
 $router->dispatch();
