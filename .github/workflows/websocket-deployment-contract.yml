@@ -1,0 +1,50 @@
+name: WebSocket deployment contract
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [0.14-beta2-websocket-deployment]
+
+permissions:
+  contents: read
+
+jobs:
+  websocket-deployment-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        php: ['8.1', '8.3']
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+
+      - name: Lint WebSocket deployment boundary
+        run: |
+          php -l core/WebSocketEndpoint.php
+          php -l app/controllers/MessagerController.php
+          php -l ws_server/server.php
+          php -l bin/ws_doctor.php
+          php -l tests/integration/websocket_endpoint_contract.php
+
+      - name: Verify endpoint contract
+        run: php tests/integration/websocket_endpoint_contract.php
+
+      - name: Verify safe deployment defaults
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'WS_HOST=127.0.0.1' default.env
+          grep -Fq 'WS_PUBLIC_URL=ws://localhost/ws' default.env
+          grep -Fq 'php bin/ws_doctor.php' default.env
+          grep -Fq 'WebSocketEndpoint::publicUrl()' app/controllers/MessagerController.php
+          grep -Fq 'WebSocketEndpoint::bindHost()' ws_server/server.php
+          ! grep -Fq "getenv('WS_HOST') ?: '0.0.0.0'" ws_server/server.php
