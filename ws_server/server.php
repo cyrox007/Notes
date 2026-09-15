@@ -25,21 +25,25 @@ if ($configuredLog !== '') {
 use App\Handlers\SocketTicket;
 use App\Models\UserModel;
 use App\Services\PermissionService;
+use App\Sockets\SocketConnection;
+use App\Sockets\WorkermanConnectionAdapter;
 use Core\WebSocketEndpoint;
 use Workerman\Connection\TcpConnection;
 use Workerman\Lib\Timer;
 use Workerman\Protocols\Websocket;
 use Workerman\Worker;
 
-/** @var array<string,array<int,TcpConnection>> $connections */
+/** @var array<string,array<int,SocketConnection>> $connections */
 $connections = [];
+/** @var array<int,WorkermanConnectionAdapter> $adapters */
+$adapters = [];
 $host = WebSocketEndpoint::bindHost();
 $port = WebSocketEndpoint::port();
 $publicUrl = WebSocketEndpoint::publicUrl();
 
-// Use an explicit TCP listener + Workerman protocol class instead of relying on
-// URI-scheme protocol probing. TLS terminates at the public reverse proxy; this
-// process intentionally stays on an internal plain WebSocket listener.
+// Workerman is isolated to this transport bootstrap. Messenger handlers receive
+// only SocketConnection instances so a later native event loop can replace this
+// adapter without changing messaging business logic.
 $worker = new Worker(sprintf('tcp://%s:%d', $host, $port));
 $worker->name = 'workspace-messenger';
 $worker->protocol = Websocket::class;
@@ -121,27 +125,28 @@ $canUseMessenger = static function (int $userId): bool {
     return (new PermissionService())->hasPermission($userId, 'messenger.use');
 };
 
-$removeConnection = static function (TcpConnection $connection) use (&$connections): void {
-    if (!isset($connection->uid)) {
+$removeConnection = static function (SocketConnection $connection) use (&$connections): void {
+    if ($connection->uid === null || $connection->uid === '') {
         return;
     }
 
-    $uid = (string) $connection->uid;
+    $uid = $connection->uid;
     unset($connections[$uid][spl_object_id($connection)]);
     if (empty($connections[$uid])) {
         unset($connections[$uid]);
     }
 };
 
-$worker->onConnect = function (TcpConnection $connection) use (&$connections, $allowedOrigins, $canUseMessenger): void {
-    $connection->authenticated = false;
-    $connection->pingWithoutResponseCount = 0;
+$worker->onConnect = function (TcpConnection $rawConnection) use (&$connections, &$adapters, $allowedOrigins, $canUseMessenger): void {
+    $adapter = new WorkermanConnectionAdapter($rawConnection);
+    $rawId = spl_object_id($rawConnection);
+    $adapters[$rawId] = $adapter;
 
-    $connection->onWebSocketConnect = function (TcpConnection $connection) use (&$connections, $allowedOrigins, $canUseMessenger): void {
+    $rawConnection->onWebSocketConnect = function (TcpConnection $rawConnection) use ($adapter, &$connections, $allowedOrigins, $canUseMessenger): void {
         $origin = rtrim((string) ($_SERVER['HTTP_ORIGIN'] ?? ''), '/');
         if ($allowedOrigins !== [] && ($origin === '' || !in_array($origin, $allowedOrigins, true))) {
             error_log('Rejected WebSocket origin: ' . ($origin ?: '[missing]'));
-            $connection->close();
+            $adapter->close();
             return;
         }
 
@@ -150,36 +155,40 @@ $worker->onConnect = function (TcpConnection $connection) use (&$connections, $a
             $userId = SocketTicket::validate($ticket);
         } catch (\Throwable $e) {
             error_log('WebSocket ticket validation failed: ' . $e->getMessage());
-            $connection->close();
+            $adapter->close();
             return;
         }
 
         if ($userId === null || !$canUseMessenger($userId)) {
-            $connection->close();
+            $adapter->close();
             return;
         }
 
         $user = UserModel::select('uid')->where('id', '=', $userId)->first();
         if (!$user || empty($user->uid)) {
-            $connection->close();
+            $adapter->close();
             return;
         }
 
-        $connection->uid = (string) $user->uid;
-        $connection->userId = $userId;
-        $connection->authenticated = true;
-        $connectionKey = spl_object_id($connection);
-        $connections[$connection->uid][$connectionKey] = $connection;
+        $adapter->uid = (string) $user->uid;
+        $adapter->userId = $userId;
+        $adapter->authenticated = true;
+        $connections[$adapter->uid][spl_object_id($adapter)] = $adapter;
 
-        $connection->send(json_encode([
+        $adapter->send(json_encode([
             'action' => 'Authorized',
-            'user_uid' => $connection->uid,
+            'user_uid' => $adapter->uid,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     };
 };
 
-$worker->onClose = function (TcpConnection $connection) use ($removeConnection): void {
-    $removeConnection($connection);
+$worker->onClose = function (TcpConnection $rawConnection) use (&$adapters, $removeConnection): void {
+    $rawId = spl_object_id($rawConnection);
+    $adapter = $adapters[$rawId] ?? null;
+    if ($adapter instanceof WorkermanConnectionAdapter) {
+        $removeConnection($adapter);
+    }
+    unset($adapters[$rawId]);
 };
 
 $worker->onWorkerStart = function () use (&$connections): void {
@@ -197,6 +206,11 @@ $worker->onWorkerStart = function () use (&$connections): void {
     Timer::add(5, function () use (&$connections): void {
         foreach (array_keys($connections) as $uid) {
             foreach ($connections[$uid] ?? [] as $connectionKey => $connection) {
+                if (!$connection instanceof SocketConnection) {
+                    unset($connections[$uid][$connectionKey]);
+                    continue;
+                }
+
                 if ($connection->pingWithoutResponseCount >= 3) {
                     unset($connections[$uid][$connectionKey]);
                     $connection->destroy();
@@ -214,18 +228,24 @@ $worker->onWorkerStart = function () use (&$connections): void {
     });
 };
 
-$worker->onMessage = function (TcpConnection $connection, string $message) use (&$connections, $allowedRoutes, $removeConnection, $canUseMessenger): void {
-    if (($connection->authenticated ?? false) !== true || !isset($connection->uid, $connection->userId)) {
-        $connection->close();
+$worker->onMessage = function (TcpConnection $rawConnection, string $message) use (&$connections, &$adapters, $allowedRoutes, $removeConnection, $canUseMessenger): void {
+    $adapter = $adapters[spl_object_id($rawConnection)] ?? null;
+    if (!$adapter instanceof WorkermanConnectionAdapter) {
+        $rawConnection->close();
+        return;
+    }
+
+    if ($adapter->authenticated !== true || $adapter->uid === null || $adapter->userId === null) {
+        $adapter->close();
         return;
     }
 
     // Re-check the effective permission for every inbound message. Blocking,
     // deactivation, role removal or module-permission revocation therefore takes
     // effect without waiting for a new WebSocket connection.
-    if (!$canUseMessenger((int) $connection->userId)) {
-        $removeConnection($connection);
-        $connection->close();
+    if (!$canUseMessenger($adapter->userId)) {
+        $removeConnection($adapter);
+        $adapter->close();
         return;
     }
 
@@ -260,7 +280,7 @@ $worker->onMessage = function (TcpConnection $connection, string $message) use (
 
     try {
         $handler = new $fullClassName();
-        $handler->$methodName($connections, $connection, (string) $connection->uid, $payload);
+        $handler->$methodName($connections, $adapter, $adapter->uid, $payload);
     } catch (\Throwable $e) {
         error_log(sprintf('WebSocket handler failure for %s: %s', $action, $e->getMessage()));
     }
