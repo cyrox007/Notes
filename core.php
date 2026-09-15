@@ -1,16 +1,19 @@
 <?php
-// Include vendor/autoload.php if exists
+
+// Environment loading is part of the application core from 1.0 onward. It must
+// not depend on Composer/vendor because configuration is needed before optional
+// third-party runtimes are bootstrapped.
+$environmentLoader = SITEPATH . '/core/Environment.php';
+if (!is_file($environmentLoader)) {
+    throw new RuntimeException('Core environment loader is missing.');
+}
+require_once $environmentLoader;
+\Core\Environment::load(SITEPATH . '/.env');
+
+// Remaining Composer dependencies are currently limited to Smarty and Workerman.
+// Their removal is handled in later 1.0 vendor-free phases.
 if (file_exists(SITEPATH . '/vendor/autoload.php')) {
     require SITEPATH . '/vendor/autoload.php';
-}
-
-// Include Dotenv (or equivalent logic)
-if (class_exists('Dotenv\\Dotenv')) {
-    try {
-        Dotenv\Dotenv::createUnsafeImmutable(SITEPATH)->load();
-    } catch (\Dotenv\Exception\InvalidPathException $e) {
-        throw new \Exception("Environment configuration file (.env) not found. Please create a .env file in the project root directory.", 500);
-    }
 }
 
 // Register the autoload function
