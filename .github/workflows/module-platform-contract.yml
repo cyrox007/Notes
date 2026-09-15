@@ -1,0 +1,43 @@
+name: Module platform contract
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  module-platform-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Lint module platform
+        run: |
+          php -l core/ModuleManifest.php
+          php -l core/ModuleRegistry.php
+          php -l tests/integration/module_registry_contract.php
+          php -l tests/e2e/router.php
+
+      - name: Verify module registry contract
+        run: php tests/integration/module_registry_contract.php
+
+      - name: Verify module package web boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq '|modules|' .htaccess
+          grep -Fq "'modules'" tests/e2e/router.php
+          grep -Fq 'privateSegments' tests/e2e/router.php

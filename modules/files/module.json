@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "id": "files",
+  "name": "File Manager",
+  "version": "0.13.0",
+  "core": {"min": "0.13.0-alpha", "max_exclusive": "0.15.0"},
+  "dependencies": [],
+  "capabilities": ["workspace.files"],
+  "package": {"bundled": true, "default_enabled": true},
+  "license": {"feature": "workspace.files"},
+  "runtime": {"mode": "legacy"},
+  "storage_namespaces": ["file_manager"]
+}

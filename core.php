@@ -29,6 +29,8 @@ spl_autoload_register(function ($class) {
 $coreFiles = [
     '/core/config.php',
     '/core/Version.php',
+    '/core/ModuleManifest.php',
+    '/core/ModuleRegistry.php',
     '/core/DatabaseControll.php',
     '/core/DatabaseManager.php',
     '/core/ORM.php',
@@ -47,6 +49,12 @@ foreach ($coreFiles as $file) {
         throw new RuntimeException("Core file {$file} is missing.");
     }
 }
+
+// 0.14 module-platform boundary: every product module must have a validated,
+// core-compatible manifest before any legacy application code is loaded. Runtime
+// loading still uses app/* during the migration period; later 0.14 phases move
+// each module to isolated routes/bootstrap paths behind this registry.
+\Core\ModuleRegistry::boot(SITEPATH . '/modules', \Core\Version::VERSION);
 
 $directories = [
     '/app/models/',

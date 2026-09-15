@@ -31,6 +31,31 @@ if ($basePath !== '' && ($path === $basePath || str_starts_with($path, $basePath
     $publicPath = substr($path, strlen($basePath)) ?: '/';
 }
 
+// Mirror the production source/package boundary from .htaccess. Browser E2E must
+// never pass merely because the PHP development server exposes repository files
+// that Apache/Nginx production is expected to keep private.
+$trimmedPublicPath = ltrim($publicPath, '/');
+$firstSegment = explode('/', $trimmedPublicPath, 2)[0] ?? '';
+$privateSegments = [
+    'app', 'bin', 'core', 'database', 'docs', 'modules', 'vendor', 'ws_server',
+    '.github', '.git', '.logs',
+];
+$privateRootFiles = [
+    '.env', 'default.env', 'composer.json', 'composer.lock', '.gitignore',
+    'README.md', 'CHANGELOG.md', 'TASKS_MODULE_README.md',
+];
+
+if (
+    in_array($firstSegment, $privateSegments, true)
+    || in_array($trimmedPublicPath, $privateRootFiles, true)
+    || str_starts_with($trimmedPublicPath, '.env.')
+) {
+    http_response_code(404);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo '404 Page Not Found';
+    return true;
+}
+
 // Let the PHP development server return existing root-install assets directly.
 // For subdirectory installs the physical file does not live under /workspace,
 // so the router streams the validated repository file itself. Never resolve
