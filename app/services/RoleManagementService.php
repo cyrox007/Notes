@@ -12,6 +12,15 @@ use Throwable;
 final class RoleManagementService
 {
     private const SYSTEM_ROLES = ['superadmin', 'admin', 'user'];
+    private const MODULE_LABELS = [
+        'admin' => 'Администрирование',
+        'files' => 'Файлы',
+        'messenger' => 'Мессенджер',
+        'notes' => 'Блокнот',
+        'tasks' => 'Задачи',
+        'profile' => 'Профиль',
+    ];
+
     private PermissionService $permissions;
     private RolePolicyService $policies;
 
@@ -47,20 +56,71 @@ final class RoleManagementService
             . "ORDER BY FIELD(code,'superadmin','admin','user') DESC,is_system DESC,name ASC,id ASC"
         );
         $roles = [];
+        $roleChoices = [];
         foreach ($roleRows as $role) {
             $roleId = (int) $role['id'];
+            $roleCode = (string) $role['code'];
+            $grantedCodes = $permissionCodesByRole[$roleId] ?? [];
+            $explicitPolicies = $this->policies->rolePolicies($roleId);
+
+            $permissionItems = [];
+            foreach ($permissionRows as $permission) {
+                $code = (string) $permission['code'];
+                $permissionItems[] = [
+                    'code' => $code,
+                    'module_id' => (string) $permission['module_id'],
+                    'module_label' => self::MODULE_LABELS[(string) $permission['module_id']] ?? (string) $permission['module_id'],
+                    'description' => (string) ($permission['description'] ?? ''),
+                    'granted' => in_array($code, $grantedCodes, true),
+                    'locked' => $code === 'admin.roles.manage' || $roleCode === 'superadmin',
+                ];
+            }
+
+            $policySections = [];
+            foreach (RolePolicyService::definitions() as $module => $definitions) {
+                $items = [];
+                foreach ($definitions as $key => $definition) {
+                    $isExplicit = array_key_exists($key, $explicitPolicies[$module] ?? []);
+                    $value = $isExplicit ? $explicitPolicies[$module][$key] : null;
+                    $items[] = [
+                        'key' => $key,
+                        'label' => (string) $definition['label'],
+                        'type' => (string) $definition['type'],
+                        'help' => (string) ($definition['help'] ?? ''),
+                        'unit' => (string) ($definition['unit'] ?? ''),
+                        'is_explicit' => $isExplicit,
+                        'value' => match ((string) $definition['type']) {
+                            'bool' => $isExplicit ? ($value ? '1' : '0') : '__inherit__',
+                            'string_list' => $isExplicit && is_array($value) ? implode(', ', $value) : '',
+                            default => $isExplicit ? (string) $value : '',
+                        },
+                    ];
+                }
+                $policySections[] = [
+                    'module_id' => $module,
+                    'module_label' => self::MODULE_LABELS[$module] ?? $module,
+                    'items' => $items,
+                ];
+            }
+
             $roles[] = [
                 'id' => $roleId,
-                'code' => (string) $role['code'],
+                'code' => $roleCode,
                 'name' => (string) $role['name'],
                 'description' => (string) ($role['description'] ?? ''),
                 'is_system' => (int) $role['is_system'] === 1,
-                'permission_codes' => $permissionCodesByRole[$roleId] ?? [],
-                'policies' => $this->policies->rolePolicies($roleId),
+                'is_superadmin' => $roleCode === 'superadmin',
+                'permission_items' => $permissionItems,
+                'policy_sections' => $policySections,
                 'assigned_users' => (int) $this->db->fetchValue(
                     'SELECT COUNT(*) FROM user_roles WHERE role_id = :role_id',
                     [':role_id' => $roleId]
                 ),
+            ];
+            $roleChoices[] = [
+                'id' => $roleId,
+                'code' => $roleCode,
+                'name' => (string) $role['name'],
             ];
         }
 
@@ -77,8 +137,16 @@ final class RoleManagementService
         );
         foreach ($users as &$user) {
             $userId = (int) $user['id'];
-            $user['role_ids'] = $assignments[$userId] ?? [];
+            $assigned = $assignments[$userId] ?? [];
+            $user['role_ids'] = $assigned;
             $user['is_self'] = $userId === $actorId;
+            $user['status_label'] = ((int) $user['is_active'] !== 1 || (string) $user['account_status'] === 'inactive')
+                ? 'Деактивирован'
+                : ((string) $user['account_status'] === 'blocked' ? 'Заблокирован' : 'Активен');
+            $user['role_choices'] = array_map(
+                static fn (array $choice): array => $choice + ['checked' => in_array($choice['id'], $assigned, true)],
+                $roleChoices
+            );
         }
         unset($user);
 
