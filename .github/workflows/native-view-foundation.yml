@@ -15,9 +15,11 @@ on:
       - 'app/views/core/base.php'
       - 'app/views/^shared/**/*.php'
       - 'app/views/main_page/index.php'
+      - 'app/views/file_manager/index.php'
       - 'assets/js/common.js'
       - 'tests/integration/native_view_renderer_contract.php'
       - 'tests/integration/native_workspace_shell_contract.php'
+      - 'tests/integration/native_file_manager_contract.php'
       - '.github/workflows/native-view-foundation.yml'
   pull_request:
     branches: ['1.0']
@@ -33,9 +35,11 @@ on:
       - 'app/views/core/base.php'
       - 'app/views/^shared/**/*.php'
       - 'app/views/main_page/index.php'
+      - 'app/views/file_manager/index.php'
       - 'assets/js/common.js'
       - 'tests/integration/native_view_renderer_contract.php'
       - 'tests/integration/native_workspace_shell_contract.php'
+      - 'tests/integration/native_file_manager_contract.php'
       - '.github/workflows/native-view-foundation.yml'
 
 permissions:
@@ -71,12 +75,15 @@ jobs:
           php -l 'app/views/^shared/sidebar/index.php'
           php -l 'app/views/^shared/footer/index.php'
           php -l app/views/main_page/index.php
+          php -l app/views/file_manager/index.php
           php -l tests/integration/native_view_renderer_contract.php
           php -l tests/integration/native_workspace_shell_contract.php
+          php -l tests/integration/native_file_manager_contract.php
       - name: Verify native renderer contracts without vendor bootstrap
         run: |
           php tests/integration/native_view_renderer_contract.php
           php tests/integration/native_workspace_shell_contract.php
+          php tests/integration/native_file_manager_contract.php
       - name: Verify migration boundary
         run: |
           ! grep -F 'use Smarty\\' core/controller.php
@@ -90,3 +97,4 @@ jobs:
           test -f 'app/views/^shared/sidebar/index.php'
           test -f 'app/views/^shared/footer/index.php'
           test -f app/views/main_page/index.php
+          test -f app/views/file_manager/index.php
