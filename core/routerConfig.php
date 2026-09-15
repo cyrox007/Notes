@@ -17,6 +17,7 @@ use App\Controllers\Admin\AdminController;
 use App\Controllers\Admin\SettingsController;
 use App\Controllers\Admin\RegistrationSettingsController;
 use App\Controllers\Admin\UserProvisioningController;
+use App\Controllers\Admin\RoleManagementController;
 use App\Controllers\MessagerController;
 use App\Controllers\MessengerGroupController;
 use App\Controllers\MessengerVoiceController;
@@ -24,6 +25,7 @@ use App\Middlewares\LoginRequared;
 use App\Middlewares\RequireAdminAccess;
 use App\Middlewares\RequireAdminUsersManage;
 use App\Middlewares\RequireAdminSettingsManage;
+use App\Middlewares\RequireAdminRolesManage;
 use App\Middlewares\AuthRateLimit;
 use App\Middlewares\CSRFMiddleware;
 use App\Middlewares\UploadRateLimit;
@@ -111,6 +113,12 @@ $router->group('/admin')
    ->add('POST', '/users/create', [UserProvisioningController::class, 'create'], [LoginRequared::class, RequireAdminUsersManage::class, CSRFMiddleware::class], 'admin_create_user')
    ->add('POST', '/users/toggle-status', [AdminController::class, 'toggleUserStatus'], [LoginRequared::class, RequireAdminUsersManage::class], 'admin_toggle_user')
    ->add('POST', '/users/delete', [AdminController::class, 'deleteUser'], [LoginRequared::class, RequireAdminUsersManage::class], 'admin_delete_user')
+   ->add('GET', '/roles', [RoleManagementController::class, 'index'], [LoginRequared::class, RequireAdminRolesManage::class], 'admin_roles')
+   ->add('POST', '/roles/create', [RoleManagementController::class, 'create'], [LoginRequared::class, RequireAdminRolesManage::class, CSRFMiddleware::class], 'admin_roles_create')
+   ->add('POST', '/roles/update', [RoleManagementController::class, 'update'], [LoginRequared::class, RequireAdminRolesManage::class, CSRFMiddleware::class], 'admin_roles_update')
+   ->add('POST', '/roles/policies', [RoleManagementController::class, 'savePolicies'], [LoginRequared::class, RequireAdminRolesManage::class, CSRFMiddleware::class], 'admin_roles_policies')
+   ->add('POST', '/roles/assign', [RoleManagementController::class, 'assign'], [LoginRequared::class, RequireAdminRolesManage::class, CSRFMiddleware::class], 'admin_roles_assign')
+   ->add('POST', '/roles/delete', [RoleManagementController::class, 'delete'], [LoginRequared::class, RequireAdminRolesManage::class, CSRFMiddleware::class], 'admin_roles_delete')
    ->add('GET', '/registration', [RegistrationSettingsController::class, 'index'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_registration')
    ->add('POST', '/registration/mode', [RegistrationSettingsController::class, 'saveMode'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_registration_mode')
    ->add('POST', '/registration/invites/create', [RegistrationSettingsController::class, 'createInvite'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_registration_invite_create')
