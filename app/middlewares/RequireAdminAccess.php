@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace App\Middlewares;
 
-final class RequireAdminAccess extends RequirePermission
+use Core\Request;
+
+final class RequireAdminAccess
 {
-    protected const PERMISSION = 'admin.access';
+    public function handle(Request $request): bool
+    {
+        return RequirePermission::check($request, 'admin.access');
+    }
 }
