@@ -44,6 +44,11 @@ jobs:
           php -l app/services/RoleManagementService.php
           php -l app/controllers/Admin/RoleManagementController.php
           php -l app/middlewares/RequireAdminRolesManage.php
+          php -l app/middlewares/RequireNotesUse.php
+          php -l app/middlewares/RequireTasksUse.php
+          php -l app/middlewares/RequireFilesUse.php
+          php -l app/middlewares/RequireMessengerUse.php
+          php -l app/middlewares/RequireProfileUse.php
           php -l app/middlewares/EnforceFileUploadPolicy.php
           php -l app/middlewares/EnforceFileFolderPolicy.php
           php -l core/routerConfig.php
@@ -53,7 +58,7 @@ jobs:
       - name: Verify schema, migration and runtime composition
         run: bash tests/integration/role_policy_mysql.sh
 
-      - name: Verify admin UI contract
+      - name: Verify admin UI and module access contract
         shell: bash
         run: |
           set -euo pipefail
@@ -62,3 +67,10 @@ jobs:
           grep -Fq "permission_codes[]" app/views/admin-page/roles.tpl
           grep -Fq "policies[" app/views/admin-page/roles.tpl
           grep -Fq "role_ids[]" app/views/admin-page/roles.tpl
+          grep -Fq "RequireNotesUse::class" core/routerConfig.php
+          grep -Fq "RequireTasksUse::class" core/routerConfig.php
+          grep -Fq "RequireFilesUse::class" core/routerConfig.php
+          grep -Fq "RequireMessengerUse::class" core/routerConfig.php
+          grep -Fq "RequireProfileUse::class" core/routerConfig.php
+          grep -Fq "EnforceFileUploadPolicy::class" core/routerConfig.php
+          grep -Fq "EnforceFileFolderPolicy::class" core/routerConfig.php
