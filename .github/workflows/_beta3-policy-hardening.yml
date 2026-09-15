@@ -42,7 +42,19 @@ jobs:
           text = text.replace(old, new, 1)
 
           marker = "    /** @return list<array<string,mixed>> */\n    private function readInvitesForUpdate(): array\n"
-          helper = "    private function ensureInviteStorageRow(): void\n    {\n        // Create the singleton JSON row before SELECT ... FOR UPDATE. Without\n        // this, two first-time invite writers could both lock no row and then\n        // overwrite each other's JSON list. INSERT IGNORE is safe under the\n        // unique setting_key constraint and the following SELECT locks it.\n        $this->db->execute(\n            'INSERT IGNORE INTO system_settings (setting_key,setting_value,setting_type,category,description,is_editable) ' .\n            'VALUES (:setting_key,\'[]\',\'json\',\'registration\',\'Hashed managed registration invitations\',1)',\n            [':setting_key' => self::INVITES_SETTING]\n        );\n    }\n\n"
+          helper = '''    private function ensureInviteStorageRow(): void
+    {
+        // Create the singleton JSON row before SELECT ... FOR UPDATE. Without
+        // this, two first-time invite writers could both lock no row and then
+        // overwrite each other's JSON list. INSERT IGNORE is safe under the
+        // unique setting_key constraint and the following SELECT locks it.
+        $this->db->execute(
+            "INSERT IGNORE INTO system_settings (setting_key,setting_value,setting_type,category,description,is_editable) VALUES (:setting_key,'[]','json','registration','Hashed managed registration invitations',1)",
+            [':setting_key' => self::INVITES_SETTING]
+        );
+    }
+
+'''
           if marker not in text:
               raise SystemExit('readInvitesForUpdate marker missing')
           text = text.replace(marker, helper + marker, 1)
