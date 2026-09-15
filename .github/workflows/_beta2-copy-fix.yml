@@ -1,0 +1,40 @@
+name: Temporary beta2 copy fix
+
+on:
+  push:
+    branches: [0.14-beta2-release-prep]
+
+permissions:
+  contents: write
+
+jobs:
+  fix-copy:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 0.14-beta2-release-prep
+      - name: Normalize CHANGELOG class name
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('CHANGELOG.md')
+          text = path.read_text(encoding='utf-8')
+          old = '`Core\\\\WebSocketEndpoint`'
+          new = '`Core\\WebSocketEndpoint`'
+          if old not in text:
+              raise SystemExit('double-backslash marker not found')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+      - name: Commit copy fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add CHANGELOG.md
+          git commit -m 'Normalize beta.2 CHANGELOG class name'
+          git push origin HEAD:0.14-beta2-release-prep
