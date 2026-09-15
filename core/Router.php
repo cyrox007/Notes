@@ -11,6 +11,9 @@ class Router
     /** @var array<int, array{path: string, method: string, controller: array{0: class-string, 1: non-empty-string}, middlewares: array<class-string>, name?: string}> */
     protected array $routes = [];
 
+    /** @var array<class-string> */
+    private array $globalMiddlewares = [];
+
     /** @var string|null */
     private ?string $groupPrefix = null;
 
@@ -24,6 +27,24 @@ class Router
             self::$instance = new self();
         }
         return self::$instance;
+    }
+
+    /**
+     * Register middleware that runs for every matched route before route-specific
+     * middleware. A global guard therefore also protects future routes unless
+     * the guard itself explicitly classifies an operation as safe/recovery-only.
+     *
+     * @param class-string $middleware
+     */
+    public function addGlobalMiddleware(string $middleware): self
+    {
+        if ($middleware === '') {
+            throw new \InvalidArgumentException('Global middleware class cannot be empty');
+        }
+        if (!in_array($middleware, $this->globalMiddlewares, true)) {
+            $this->globalMiddlewares[] = $middleware;
+        }
+        return $this;
     }
 
     private function getBasePath(): string
@@ -178,6 +199,10 @@ class Router
             $routeFound = true;
 
             $request = new Request();
+
+            if (!$this->executeMiddlewares($this->globalMiddlewares, $request)) {
+                return;
+            }
 
             if (!$this->executeMiddlewares($route['middlewares'], $request)) {
                 continue;
