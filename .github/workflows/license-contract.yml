@@ -1,0 +1,61 @@
+name: 1.0 installation license contract
+
+on:
+  pull_request:
+    branches: [master, '1.0']
+  push:
+    branches: ['1.0-installation-licensing']
+
+permissions:
+  contents: read
+
+jobs:
+  license-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        php: ['8.1', '8.3']
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: sodium, mbstring
+          coverage: none
+
+      - name: Lint licensing boundary
+        run: |
+          php -l app/services/LicenseVerifier.php
+          php -l app/services/LicenseService.php
+          php -l app/controllers/Admin/LicenseController.php
+          php -l app/views/admin-page/license.php
+          php -l tests/integration/license_verifier_contract.php
+          php -l bin/migrate.php
+          php -l core/routerConfig.php
+
+      - name: Verify Ed25519 contract
+        run: php tests/integration/license_verifier_contract.php
+
+      - name: Verify installation-wide storage and admin routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq "'installation_id'" database/settings_schema.sql
+          grep -Fq "'workspace_license_token'" database/settings_schema.sql
+          grep -Fq "'installation_id'" database/migrations/20260915_installation_license.sql
+          grep -Fq '20260915_installation_license.sql' bin/migrate.php
+          grep -Fq "'/license'" core/routerConfig.php
+          grep -Fq "'/license/activate'" core/routerConfig.php
+          grep -Fq "'/license/clear'" core/routerConfig.php
+          grep -F "'/license/activate'" core/routerConfig.php | grep -Fq 'CSRFMiddleware::class'
+          grep -F "'/license/clear'" core/routerConfig.php | grep -Fq 'CSRFMiddleware::class'
+          grep -Fq "hasRole(\$actorId, 'superadmin')" app/services/LicenseService.php
+          grep -Fq "admin.settings.manage" app/services/LicenseService.php
+          grep -Fq 'sodium_crypto_sign_verify_detached' app/services/LicenseVerifier.php
+          ! grep -R -F 'sodium_crypto_sign_secretkey(' app/services app/controllers core
+          ! grep -R -E 'LICENSE_PRIVATE|SIGNING_PRIVATE|PRIVATE_SIGNING_KEY' app core database default.env
