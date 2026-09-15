@@ -14,6 +14,7 @@ if (is_file($root . '/vendor/autoload.php')) {
 if (class_exists(Dotenv\Dotenv::class) && is_file($root . '/.env')) {
     Dotenv\Dotenv::createUnsafeImmutable($root)->safeLoad();
 }
+require_once $root . '/core/WebSocketEndpoint.php';
 
 $json = in_array('--json', $argv, true);
 $checks = [];
@@ -134,15 +135,46 @@ recordHealth(
 
 $siteUrl = envValue('SITEURL');
 $siteScheme = strtolower((string) parse_url($siteUrl, PHP_URL_SCHEME));
-recordHealth($checks, $failed, 'site_url', in_array($siteScheme, ['http', 'https'], true), $siteUrl ?: 'missing');
+try {
+    $siteUrl = \Core\WebSocketEndpoint::siteUrl();
+    $siteScheme = strtolower((string) parse_url($siteUrl, PHP_URL_SCHEME));
+    recordHealth($checks, $failed, 'site_url', true, $siteUrl);
 
-$wsPublicUrl = envValue('WS_PUBLIC_URL');
-$wsScheme = strtolower((string) parse_url($wsPublicUrl, PHP_URL_SCHEME));
-$wsSchemeOk = in_array($wsScheme, ['ws', 'wss'], true);
-if ($siteScheme === 'https') {
-    $wsSchemeOk = $wsScheme === 'wss';
+    $wsPublicUrl = \Core\WebSocketEndpoint::publicUrl();
+    recordHealth($checks, $failed, 'websocket_url', true, $wsPublicUrl);
+
+    $wsBindHost = \Core\WebSocketEndpoint::bindHost();
+    $wsPort = \Core\WebSocketEndpoint::port();
+    recordHealth(
+        $checks,
+        $failed,
+        'websocket_listener',
+        true,
+        sprintf('tcp://%s:%d', $wsBindHost, $wsPort)
+    );
+
+    if (\Core\WebSocketEndpoint::usesSameOriginProxy()) {
+        recordHealth(
+            $checks,
+            $failed,
+            'websocket_proxy_contract',
+            true,
+            \Core\WebSocketEndpoint::proxyPath() . ' -> ' . \Core\WebSocketEndpoint::proxyBackendUrl()
+                . ' (verify reachability with php bin/ws_doctor.php)'
+        );
+    } else {
+        recordHealth(
+            $checks,
+            $failed,
+            'websocket_proxy_contract',
+            true,
+            'custom/external public WebSocket endpoint'
+        );
+    }
+} catch (Throwable $e) {
+    recordHealth($checks, $failed, 'site_url', false, $siteUrl !== '' ? $siteUrl : 'missing');
+    recordHealth($checks, $failed, 'websocket_url', false, $e->getMessage());
 }
-recordHealth($checks, $failed, 'websocket_url', $wsSchemeOk, $wsPublicUrl ?: 'missing');
 
 $origins = array_values(array_filter(array_map('trim', explode(',', envValue('WS_ALLOWED_ORIGINS')))));
 $originsOk = $origins !== [];
