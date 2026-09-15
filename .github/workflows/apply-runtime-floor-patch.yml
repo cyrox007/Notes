@@ -69,6 +69,6 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add README.md docs/HOSTING_INSTALL.md docs/PRODUCTION.md install.php bin/healthcheck.php .github/workflows/hosting-installer.yml .github/workflows/apply-runtime-floor-patch.yml
+          git add -A
           git commit -m '0.14: align minimum runtime to PHP 8.1 [runtime-floor-applied]'
           git push origin HEAD:0.14-system-requirements-php81
