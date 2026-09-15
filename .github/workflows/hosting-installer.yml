@@ -55,6 +55,7 @@ jobs:
           grep -Fq 'BASE_PATH' install.php
           test -f database/settings_schema.sql
           test -f database/access_control_schema.sql
+          test -f database/module_lifecycle_schema.sql
           ! grep -Fq 'SITEURL=http://localhost' install.php
           ! grep -Fq 'WS_PUBLIC_URL=ws://localhost:27800' install.php
 
@@ -163,7 +164,8 @@ jobs:
           done
 
           TABLES=$(mysql -N -h 127.0.0.1 -uroot -proot -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='notes_hosting_test';")
-          test "$TABLES" -eq 26
+          test "$TABLES" -eq 27
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='module_lifecycle'")" = "1"
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('system_settings','user_storage_quotas')")" = "2"
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('roles','permissions','role_permissions','user_roles')")" = "4"
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT setting_value FROM system_settings WHERE setting_key='file_manager_default_quota_bytes'")" = "1073741824"
