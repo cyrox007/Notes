@@ -57,7 +57,10 @@ jobs:
           grep -Fq "'/avatar/delete'" core/routerConfig.php
           grep -Fq 'PROFILE_AVATAR_MAX_SIZE=2097152' default.env
           grep -Fq "group_owner_transfer_required" app/controllers/ProfileController.php
-          grep -Fq 'Config::canAuthenticate' ws_server/server.php
+          grep -Fq "account_status = 'inactive'" app/controllers/ProfileController.php
+          grep -Fq 'messenger.use' ws_server/server.php
+          ! grep -Fq 'Config::canAuthenticate' ws_server/server.php
+          ! grep -Fq 'role = :inactive_role' app/controllers/ProfileController.php
           ! grep -Fq '/uploads/users/' app/controllers/ProfileController.php
           ! grep -Fq 'profile__write-message-btn' app/views/profile_page/index.tpl
 
@@ -70,6 +73,7 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot notes_profile_test < database/notes_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_profile_test < database/tasks_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_profile_test < database/file_manager_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_profile_test < database/access_control_schema.sql
           php <<'PHP'
           <?php
           $image = imagecreatetruecolor(16, 16);
@@ -80,10 +84,10 @@ jobs:
           PHP
           HASH="$(php -r 'echo password_hash("profile-ci-password", PASSWORD_ARGON2ID);')"
           mysql -h 127.0.0.1 -uroot -proot notes_profile_test <<SQL
-          INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active)
+          INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active,account_status)
           VALUES
-            ('a1000000-0000-4000-8000-000000000001','profile-alice','alice-profile@example.test','$HASH','Alice','Profile',888,1),
-            ('a1000000-0000-4000-8000-000000000002','profile-bob','bob-profile@example.test','$HASH','Bob','Profile',888,1);
+            ('a1000000-0000-4000-8000-000000000001','profile-alice','alice-profile@example.test','$HASH','Alice','Profile',888,1,'active'),
+            ('a1000000-0000-4000-8000-000000000002','profile-bob','bob-profile@example.test','$HASH','Bob','Profile',888,1,'active');
           SET @alice=(SELECT id FROM users WHERE username='profile-alice');
           SET @bob=(SELECT id FROM users WHERE username='profile-bob');
           INSERT INTO dialogs (uid,type,name,created_by) VALUES ('a2000000-0000-4000-8000-000000000001','group','Owned group',@alice);
@@ -183,7 +187,7 @@ jobs:
           $controller->deleteUser($request);
           if (http_response_code() !== 409) throw new RuntimeException('Owner guard did not return 409');
           PHP
-          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_profile_test -e "SELECT is_active FROM users WHERE username='profile-alice'")" = "1"
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_profile_test -e "SELECT CONCAT(role,':',is_active,':',account_status) FROM users WHERE username='profile-alice'")" = "888:1:active"
           grep -Fq 'передайте владение группой' /tmp/profile-owner-guard.html
 
       - name: Deactivation preserves related data
@@ -224,7 +228,8 @@ jobs:
           STATUS=$?
           set -e
           test "$STATUS" = "0"
-          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_profile_test -e "SELECT CONCAT(is_active,':',role,':',IFNULL(avatar,'NULL')) FROM users WHERE username='profile-alice'")" = "0:899:NULL"
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_profile_test -e "SELECT CONCAT(is_active,':',role,':',account_status,':',IFNULL(avatar,'NULL')) FROM users WHERE username='profile-alice'")" = "0:888:inactive:NULL"
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_profile_test -e "SELECT COUNT(*) FROM notes n JOIN users u ON u.id=n.user_id WHERE u.username='profile-alice'")" = "1"
           ALICE_ID="$(mysql -N -h 127.0.0.1 -uroot -proot notes_profile_test -e "SELECT id FROM users WHERE username='profile-alice'")"
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_profile_test -e "SELECT COUNT(*) FROM user_roles ur JOIN roles r ON r.id=ur.role_id WHERE ur.user_id=${ALICE_ID} AND r.code='user'")" = "1"
           test ! -f "/tmp/notes-profile-private/users/${ALICE_ID}/avatar/avatar.jpg"
