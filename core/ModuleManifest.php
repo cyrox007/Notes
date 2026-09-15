@@ -27,6 +27,7 @@ final class ModuleManifest
         private readonly bool $defaultEnabled,
         private readonly ?string $licenseFeature,
         private readonly string $runtimeMode,
+        private readonly ?string $runtimeEntrypoint,
         private readonly array $storageNamespaces,
         private readonly string $manifestPath,
         private readonly string $integrityHash,
@@ -112,6 +113,7 @@ final class ModuleManifest
         if (!is_string($runtimeMode) || !in_array($runtimeMode, ['legacy', 'isolated'], true)) {
             throw new RuntimeException("Module {$id} runtime mode must be legacy or isolated");
         }
+        $runtimeEntrypoint = self::runtimeEntrypoint($runtime, $id, $runtimeMode);
 
         $storageNamespaces = self::identifierList($data['storage_namespaces'] ?? [], "{$id}.storage_namespaces");
 
@@ -127,6 +129,7 @@ final class ModuleManifest
             $defaultEnabled,
             $licenseFeature,
             $runtimeMode,
+            $runtimeEntrypoint,
             $storageNamespaces,
             $manifestPath,
             hash('sha256', $raw),
@@ -196,6 +199,11 @@ final class ModuleManifest
         return $this->runtimeMode;
     }
 
+    public function runtimeEntrypoint(): ?string
+    {
+        return $this->runtimeEntrypoint;
+    }
+
     /** @return list<string> */
     public function storageNamespaces(): array
     {
@@ -251,6 +259,42 @@ final class ModuleManifest
             throw new InvalidArgumentException("Invalid boolean field: {$key}");
         }
         return $value;
+    }
+
+    private static function runtimeEntrypoint(array $runtime, string $moduleId, string $runtimeMode): ?string
+    {
+        $entrypoint = $runtime['entrypoint'] ?? null;
+
+        if ($runtimeMode === 'legacy') {
+            if ($entrypoint !== null) {
+                throw new RuntimeException("Legacy module {$moduleId} must not define a runtime entrypoint");
+            }
+            return null;
+        }
+
+        if (!is_string($entrypoint)) {
+            throw new RuntimeException("Isolated module {$moduleId} must define a runtime entrypoint");
+        }
+
+        $entrypoint = trim($entrypoint);
+        if (
+            $entrypoint === ''
+            || strlen($entrypoint) > 180
+            || str_starts_with($entrypoint, '/')
+            || str_contains($entrypoint, '\\')
+            || preg_match('/[\x00-\x1F\x7F]/', $entrypoint) === 1
+            || preg_match('/^[A-Za-z0-9._\/-]+\.php$/', $entrypoint) !== 1
+        ) {
+            throw new RuntimeException("Module {$moduleId} has an invalid runtime entrypoint");
+        }
+
+        foreach (explode('/', $entrypoint) as $segment) {
+            if ($segment === '' || $segment === '.' || $segment === '..') {
+                throw new RuntimeException("Module {$moduleId} runtime entrypoint must be a confined relative path");
+            }
+        }
+
+        return $entrypoint;
     }
 
     /** @return list<string> */
