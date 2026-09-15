@@ -58,8 +58,13 @@ HTML;
 try {
     require_once SITEPATH . '/core.php';
 } catch (Throwable $e) {
-    $incidentId = substr(hash('sha256', microtime(true) . ':' . getmypid() . ':' . $e::class . ':' . $e->getMessage()), 0, 16);
-    error_log("Workspace bootstrap failed [{$incidentId}] {$e::class}: {$e->getMessage()}");
+    $exceptionClass = $e::class;
+    $incidentId = substr(
+        hash('sha256', microtime(true) . ':' . getmypid() . ':' . $exceptionClass . ':' . $e->getMessage()),
+        0,
+        16
+    );
+    error_log("Workspace bootstrap failed [{$incidentId}] {$exceptionClass}: {$e->getMessage()}");
     handleStartupError(
         "Не удалось безопасно запустить приложение. Код ошибки: {$incidentId}. Подробности записаны в server error log.",
         'Configuration Error'
