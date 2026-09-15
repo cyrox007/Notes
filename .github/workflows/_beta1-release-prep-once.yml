@@ -20,11 +20,21 @@ jobs:
       - name: Apply deterministic release prep
         run: python3 .github/scripts/beta1_release_prep.py
 
-      - name: Commit prepared beta release
+      - name: Commit non-workflow release files
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          # GITHUB_TOKEN may not create/update workflow files. Restore workflow
+          # and helper paths; those are updated directly through the connector.
+          git restore --source=HEAD -- \
+            .github/workflows/_beta1-release-prep-once.yml \
+            .github/workflows/hosting-package.yml \
+            .github/workflows/usable-alpha-readiness.yml \
+            .github/scripts/beta1_release_prep.py
+          rm -f .github/workflows/beta-readiness-014.yml
+
           git add -A
-          git commit -m 'Prepare 0.14.0-beta.1 release identity and publishing'
+          git commit -m 'Prepare 0.14.0-beta.1 release identity and notes'
           git push origin HEAD:${GITHUB_REF_NAME}
