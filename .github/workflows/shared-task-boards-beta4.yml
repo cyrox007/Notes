@@ -65,4 +65,7 @@ jobs:
           grep -q "TaskBoardController" core/routerConfig.php
           grep -q "task_board_create" app/views/tasks_page/boards.tpl
           grep -q "task_board_task_update" app/views/tasks_page/boards.tpl
+          grep -q "X-CSRF-Token" app/views/tasks_page/boards.tpl
+          grep -q "const card = dragged" app/views/tasks_page/boards.tpl
+          grep -q "CSRFMiddleware::class" core/routerConfig.php
           grep -q "task-boards-nav.js" app/views/core/base.tpl
