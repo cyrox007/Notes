@@ -31,6 +31,8 @@ $coreFiles = [
     '/core/Version.php',
     '/core/ModuleManifest.php',
     '/core/ModuleRegistry.php',
+    '/core/RequestContext.php',
+    '/core/SessionSecurity.php',
     '/core/DatabaseControll.php',
     '/core/DatabaseManager.php',
     '/core/ORM.php',
