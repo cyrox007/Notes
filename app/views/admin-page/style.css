@@ -217,10 +217,9 @@
   align-items: end;
 }
 
-/* The account creation form used to inherit the five-column custom-field editor
- * layout. That made seven account fields spill into an uneven 5+2 row and sit
- * flush against the card edges. Keep the custom-field editor compact, but give
- * provisioning its own responsive three-column rhythm. */
+/* Provisioning and role-management forms are normal form grids, not rows from
+ * the five-column custom-profile-field editor. Giving them their own layouts
+ * prevents orphan fields and cramped policy controls on desktop/tablet. */
 .admin-panel-card[aria-labelledby="admin-create-user-title"] .custom-field__grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
@@ -228,6 +227,22 @@
 }
 
 .admin-panel-card[aria-labelledby="admin-create-user-title"] .custom-field__control {
+  min-width: 0;
+}
+
+.admin-panel-card[aria-labelledby="admin-create-role-title"] .custom-field__grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: 16px;
+}
+
+.admin-panel-card[aria-labelledby^="role-title-"] .custom-field__grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 16px;
+}
+
+.admin-panel-card[aria-labelledby^="role-title-"] .custom-field__control {
   min-width: 0;
 }
 
@@ -291,8 +306,13 @@
     grid-template-columns: 1fr 1fr;
   }
 
-  .admin-panel-card[aria-labelledby="admin-create-user-title"] .custom-field__grid {
+  .admin-panel-card[aria-labelledby="admin-create-user-title"] .custom-field__grid,
+  .admin-panel-card[aria-labelledby="admin-create-role-title"] .custom-field__grid,
+  .admin-panel-card[aria-labelledby^="role-title-"] .custom-field__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-panel-card[aria-labelledby="admin-create-user-title"] .custom-field__grid {
     padding-left: 20px;
     padding-right: 20px;
   }
@@ -326,7 +346,9 @@
     padding-right: 16px;
   }
 
-  .custom-field__grid {
+  .custom-field__grid,
+  .admin-panel-card[aria-labelledby="admin-create-role-title"] .custom-field__grid,
+  .admin-panel-card[aria-labelledby^="role-title-"] .custom-field__grid {
     grid-template-columns: 1fr;
   }
 
