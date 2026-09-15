@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace App\Middlewares;
 
-final class RequireAdminUsersManage extends RequirePermission
+use Core\Request;
+
+final class RequireAdminUsersManage
 {
-    protected const PERMISSION = 'admin.users.manage';
+    public function handle(Request $request): bool
+    {
+        return RequirePermission::check($request, 'admin.users.manage');
+    }
 }
