@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "id": "admin",
+  "name": "Administration",
+  "version": "0.13.0",
+  "core": {"min": "0.13.0-alpha", "max_exclusive": "0.15.0"},
+  "dependencies": [],
+  "capabilities": ["workspace.admin"],
+  "package": {"bundled": true, "default_enabled": true},
+  "license": {"feature": "workspace.admin"},
+  "runtime": {"mode": "legacy"},
+  "storage_namespaces": []
+}
