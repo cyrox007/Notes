@@ -30,6 +30,7 @@ $storageLegacyReconcileMigration = '20260914_storage_quota_legacy_reconcile.sql'
 $storageQuotaMigration = '20260913_system_settings_storage_quota.sql';
 $profilePublicationMigration = '20260914_profile_publication.sql';
 $rbacFoundationMigration = '20260915_rbac_foundation.sql';
+$roleModulePoliciesMigration = '20260915_role_module_policies.sql';
 $moduleLifecycleMigration = '20260915_module_lifecycle.sql';
 
 $manifest = [
@@ -53,6 +54,8 @@ $manifest = [
     $profilePublicationMigration,
     // 0.14 introduces persisted RBAC and separates account state from role identity.
     $rbacFoundationMigration,
+    // Beta 4 keeps quantitative and typed module restrictions separate from RBAC.
+    $roleModulePoliciesMigration,
     // Module lifecycle follows RBAC because runtime bootstrap now requires both
     // authorization state and persisted module state before app/* is loaded.
     $moduleLifecycleMigration,
@@ -65,7 +68,7 @@ $currentTables = [
     'user_files', 'user_fields',
     'tasks', 'subtasks', 'task_categories', 'task_category_relations', 'task_reminders',
     'system_settings', 'user_storage_quotas',
-    'roles', 'permissions', 'role_permissions', 'user_roles',
+    'roles', 'permissions', 'role_permissions', 'user_roles', 'role_module_policies',
     'module_lifecycle',
 ];
 
@@ -445,6 +448,7 @@ function verifyCurrentContract(mysqli $db, array $tables): void
         'permissions' => ['code', 'module_id'],
         'role_permissions' => ['role_id', 'permission_id'],
         'user_roles' => ['user_id', 'role_id', 'assigned_by'],
+        'role_module_policies' => ['role_id', 'module_id', 'policy_key', 'value_type', 'value_json', 'updated_by'],
         'user_to_dialogs' => ['role', 'last_read_message_id', 'last_delivered_message_id', 'is_deleted'],
         'messages' => ['from_user_id', 'message', 'message_type', 'reply_to_message_id', 'meta_data'],
         'notes' => ['is_profile_public'],
