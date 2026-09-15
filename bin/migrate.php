@@ -30,6 +30,7 @@ $storageLegacyReconcileMigration = '20260914_storage_quota_legacy_reconcile.sql'
 $storageQuotaMigration = '20260913_system_settings_storage_quota.sql';
 $profilePublicationMigration = '20260914_profile_publication.sql';
 $rbacFoundationMigration = '20260915_rbac_foundation.sql';
+$moduleLifecycleMigration = '20260915_module_lifecycle.sql';
 
 $manifest = [
     '20260913_messenger_v2.sql',
@@ -52,6 +53,9 @@ $manifest = [
     $profilePublicationMigration,
     // 0.14 introduces persisted RBAC and separates account state from role identity.
     $rbacFoundationMigration,
+    // Module lifecycle follows RBAC because runtime bootstrap now requires both
+    // authorization state and persisted module state before app/* is loaded.
+    $moduleLifecycleMigration,
 ];
 
 $currentTables = [
@@ -62,6 +66,7 @@ $currentTables = [
     'tasks', 'subtasks', 'task_categories', 'task_category_relations', 'task_reminders',
     'system_settings', 'user_storage_quotas',
     'roles', 'permissions', 'role_permissions', 'user_roles',
+    'module_lifecycle',
 ];
 
 function envRequired(string $name): string
@@ -448,6 +453,10 @@ function verifyCurrentContract(mysqli $db, array $tables): void
         'user_files' => ['is_profile_public'],
         'system_settings' => ['setting_key', 'setting_value', 'setting_type', 'category', 'is_editable'],
         'user_storage_quotas' => ['user_id', 'quota_bytes'],
+        'module_lifecycle' => [
+            'module_id', 'installed_version', 'manifest_hash', 'configured_state',
+            'effective_state', 'last_error', 'state_changed_at',
+        ],
     ];
     foreach ($requiredColumns as $table => $columns) {
         foreach ($columns as $column) {
