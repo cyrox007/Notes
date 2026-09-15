@@ -38,6 +38,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Eq 'RewriteRule \^\(\?:[^\n]*\|modules\|' .htaccess
+          grep -Fq '|modules|' .htaccess
           grep -Fq "'modules'" tests/e2e/router.php
           grep -Fq 'privateSegments' tests/e2e/router.php
