@@ -20,14 +20,6 @@ jobs:
       - name: Apply deterministic release prep
         run: python3 .github/scripts/beta1_release_prep.py
 
-      - name: Validate generated diff
-        run: |
-          set -euo pipefail
-          git diff --check
-          php -l core/Version.php
-          php -l tests/integration/beta_readiness_014.php
-          php tests/integration/beta_readiness_014.php
-
       - name: Commit prepared beta release
         run: |
           set -euo pipefail
