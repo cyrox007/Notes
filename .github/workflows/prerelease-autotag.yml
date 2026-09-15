@@ -1,4 +1,4 @@
-name: Publish prerelease tag after master gate
+name: Publish prerelease after master gate
 
 on:
   workflow_run:
@@ -6,10 +6,11 @@ on:
     types: [completed]
 
 permissions:
+  actions: write
   contents: write
 
 jobs:
-  prerelease-tag:
+  prerelease-publish:
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
@@ -18,6 +19,7 @@ jobs:
     timeout-minutes: 5
     env:
       RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+      GH_TOKEN: ${{ github.token }}
 
     steps:
       - name: Checkout validated master revision
@@ -32,7 +34,7 @@ jobs:
           php-version: '8.3'
           coverage: none
 
-      - name: Create prerelease tag if absent
+      - name: Tag validated prerelease and dispatch package build
         shell: bash
         run: |
           set -euo pipefail
@@ -41,7 +43,7 @@ jobs:
           case "$VERSION" in
             *-*) ;;
             *)
-              echo "Stable version $VERSION is intentionally not auto-tagged."
+              echo "Stable version $VERSION is intentionally not auto-published."
               exit 0
               ;;
           esac
@@ -49,15 +51,27 @@ jobs:
           TAG="v$VERSION"
           NOTES="docs/releases/$TAG.md"
           test -f "$NOTES"
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
 
           if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists; nothing to publish."
+            git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
+            test "$(git rev-list -n1 "$TAG")" = "$RELEASE_SHA"
+            echo "Tag $TAG already exists at the validated revision."
+          else
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git tag -a "$TAG" "$RELEASE_SHA" -m "Workspace Organizer $VERSION"
+            git push origin "refs/tags/$TAG"
+            echo "Published prerelease tag $TAG at $RELEASE_SHA."
+          fi
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; package dispatch is not needed."
             exit 0
           fi
 
-          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git tag -a "$TAG" "$RELEASE_SHA" -m "Workspace Organizer $VERSION"
-          git push origin "refs/tags/$TAG"
-          echo "Published prerelease tag $TAG at $RELEASE_SHA."
+          # Pushes made with GITHUB_TOKEN do not recursively start push workflows.
+          # workflow_dispatch is allowed, so explicitly start the existing package job
+          # against the validated tag rather than relying on the tag-push event.
+          gh workflow run hosting-package.yml --ref "$TAG"
+          echo "Dispatched hosting package workflow for $TAG."
