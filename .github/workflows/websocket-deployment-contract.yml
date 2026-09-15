@@ -42,9 +42,12 @@ jobs:
           php -l tests/integration/websocket_endpoint_contract.php
           php -l tests/integration/native_websocket_protocol_contract.php
           php -l tests/integration/native_messenger_contract.php
+          php -l tests/integration/vendor_free_runtime_contract.php
 
-      - name: Verify endpoint and RFC6455 contracts
+      - name: Verify endpoint, RFC6455 and vendor-free contracts
         run: |
+          rm -rf vendor
+          php tests/integration/vendor_free_runtime_contract.php
           php tests/integration/websocket_endpoint_contract.php
           php tests/integration/native_websocket_protocol_contract.php
           php tests/integration/native_messenger_contract.php
@@ -53,6 +56,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          test ! -e vendor
           grep -Fq 'WS_HOST=127.0.0.1' default.env
           grep -Fq 'WS_PUBLIC_URL=ws://localhost/ws' default.env
           grep -Fq 'php bin/ws_doctor.php' default.env
