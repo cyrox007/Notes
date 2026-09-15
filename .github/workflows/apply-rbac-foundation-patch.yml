@@ -1,0 +1,86 @@
+name: Apply RBAC foundation patch
+
+on:
+  push:
+    branches: [0.14-phase3-rbac-foundation]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[rbac-foundation-applied]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 0.14-phase3-rbac-foundation
+
+      - name: Patch canonical schema and migration contracts
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one occurrence, got {count}: {old!r}')
+              p.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              'database/messenger_schema.sql',
+              "    `is_active` TINYINT(1) NOT NULL DEFAULT 1,\n    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,",
+              "    `is_active` TINYINT(1) NOT NULL DEFAULT 1,\n    `account_status` ENUM('active', 'inactive', 'blocked') NOT NULL DEFAULT 'active',\n    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,",
+          )
+
+          replace_once(
+              'install.php',
+              "    'task_reminders',\n];",
+              "    'task_reminders',\n    'roles',\n    'permissions',\n    'role_permissions',\n    'user_roles',\n];",
+          )
+          replace_once(
+              'install.php',
+              "        'tasks_schema.sql' => 5,\n    ];",
+              "        'tasks_schema.sql' => 5,\n        'access_control_schema.sql' => 6,\n        'settings_schema.sql' => 7,\n    ];",
+          )
+
+          replace_once(
+              'bin/healthcheck.php',
+              "    'system_settings', 'user_storage_quotas',\n];",
+              "    'system_settings', 'user_storage_quotas',\n    'roles', 'permissions', 'role_permissions', 'user_roles',\n];",
+          )
+
+          replace_once(
+              'bin/migrate.php',
+              "$profilePublicationMigration = '20260914_profile_publication.sql';",
+              "$profilePublicationMigration = '20260914_profile_publication.sql';\n$rbacFoundationMigration = '20260915_rbac_foundation.sql';",
+          )
+          replace_once(
+              'bin/migrate.php',
+              "    $profilePublicationMigration,\n];",
+              "    $profilePublicationMigration,\n    // 0.14 introduces persisted RBAC and separates account state from role identity.\n    $rbacFoundationMigration,\n];",
+          )
+          replace_once(
+              'bin/migrate.php',
+              "    'system_settings', 'user_storage_quotas',\n];",
+              "    'system_settings', 'user_storage_quotas',\n    'roles', 'permissions', 'role_permissions', 'user_roles',\n];",
+          )
+          replace_once(
+              'bin/migrate.php',
+              "        'users' => ['uid', 'password_hash', 'lastname', 'avatar', 'role', 'is_active'],",
+              "        'users' => ['uid', 'password_hash', 'lastname', 'avatar', 'role', 'is_active', 'account_status'],\n        'roles' => ['code', 'name', 'is_system'],\n        'permissions' => ['code', 'module_id'],\n        'role_permissions' => ['role_id', 'permission_id'],\n        'user_roles' => ['user_id', 'role_id', 'assigned_by'],",
+          )
+          PY
+
+      - name: Commit integration patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add database/messenger_schema.sql install.php bin/healthcheck.php bin/migrate.php
+          git commit -m '0.14 RBAC: wire schema into install and upgrade [rbac-foundation-applied]'
+          git push origin HEAD:0.14-phase3-rbac-foundation
