@@ -144,7 +144,10 @@ function parseMigrationStatements(string $sql): array
     $delimiter = ';';
     $buffer = '';
     $statements = [];
-    $lines = preg_split('/\R/', $sql) ?: [];
+    $lines = preg_split('/\R/u', $sql);
+    if ($lines === false) {
+        throw new RuntimeException('Malformed migration: SQL is not valid UTF-8');
+    }
 
     foreach ($lines as $line) {
         if (preg_match('/^\s*--/', $line) === 1) {
