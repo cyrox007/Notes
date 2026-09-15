@@ -55,8 +55,33 @@ jobs:
 
           if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
             git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
-            test "$(git rev-list -n1 "$TAG")" = "$RELEASE_SHA"
-            echo "Tag $TAG already exists at the validated revision."
+            TAG_SHA="$(git rev-list -n1 "$TAG")"
+
+            if [[ "$TAG_SHA" = "$RELEASE_SHA" ]]; then
+              echo "Tag $TAG already exists at the validated revision."
+            else
+              # Never move a published prerelease tag. A later master revision is
+              # acceptable only when it descends from the tagged product revision
+              # and changes release automation itself, which is excluded from the
+              # hosting bundle. Any product/runtime change remains a hard failure.
+              if ! git merge-base --is-ancestor "$TAG_SHA" "$RELEASE_SHA"; then
+                echo "Tag $TAG points to $TAG_SHA, which is not an ancestor of validated master $RELEASE_SHA." >&2
+                exit 1
+              fi
+
+              while IFS= read -r path; do
+                [[ -z "$path" ]] && continue
+                case "$path" in
+                  .github/workflows/prerelease-autotag.yml) ;;
+                  *)
+                    echo "Tag $TAG already points to $TAG_SHA, but product content changed before validated master $RELEASE_SHA: $path" >&2
+                    exit 1
+                    ;;
+                esac
+              done < <(git diff --name-only "$TAG_SHA..$RELEASE_SHA")
+
+              echo "Tag $TAG remains at immutable product revision $TAG_SHA; validated master differs only by prerelease automation."
+            fi
           else
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
