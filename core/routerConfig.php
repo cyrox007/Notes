@@ -26,6 +26,11 @@ use App\Middlewares\RequireAdminAccess;
 use App\Middlewares\RequireAdminUsersManage;
 use App\Middlewares\RequireAdminSettingsManage;
 use App\Middlewares\RequireAdminRolesManage;
+use App\Middlewares\RequireNotesUse;
+use App\Middlewares\RequireTasksUse;
+use App\Middlewares\RequireFilesUse;
+use App\Middlewares\RequireMessengerUse;
+use App\Middlewares\RequireProfileUse;
 use App\Middlewares\AuthRateLimit;
 use App\Middlewares\CSRFMiddleware;
 use App\Middlewares\UploadRateLimit;
@@ -49,64 +54,64 @@ $router->group('/auth')
     ->endGroup();
 
 $router->group('/notes')
-    ->add('GET', '/', [NoteController::class, 'index'], [LoginRequared::class], 'notes')
-    ->add('POST', '/', [NoteController::class, 'create'], [LoginRequared::class], 'note_create')
-    ->add('GET', '/{str:uid}/edit', [NoteController::class, 'edit'], [LoginRequared::class], 'edit_page')
-    ->add('POST', '/{str:uid}/edit', [NoteController::class, 'update'], [LoginRequared::class], 'update_note')
-    ->add('POST', '/{str:uid}/delete', [NoteController::class, 'delete'], [LoginRequared::class], 'delete_note')
-    ->add('POST', '/upload/{str:uid}', [NoteAttachmentController::class, 'upload'], [LoginRequared::class, UploadRateLimit::class], 'note_attachment_upload')
-    ->add('POST', '/attachment/delete/{int:attachmentId}', [NoteAttachmentController::class, 'delete'], [LoginRequared::class], 'note_attachment_delete')
-    ->add('GET', '/attachment/{str:fileUid}', [NoteAttachmentController::class, 'download'], [LoginRequared::class], 'note_attachment_download')
-    ->add('POST', '/share/{str:uid}', [NoteShareController::class, 'create'], [LoginRequared::class], 'note_share')
-    ->add('POST', '/unshare/{str:uid}', [NoteShareController::class, 'unshare'], [LoginRequared::class], 'note_unshare')
+    ->add('GET', '/', [NoteController::class, 'index'], [LoginRequared::class, RequireNotesUse::class], 'notes')
+    ->add('POST', '/', [NoteController::class, 'create'], [LoginRequared::class, RequireNotesUse::class], 'note_create')
+    ->add('GET', '/{str:uid}/edit', [NoteController::class, 'edit'], [LoginRequared::class, RequireNotesUse::class], 'edit_page')
+    ->add('POST', '/{str:uid}/edit', [NoteController::class, 'update'], [LoginRequared::class, RequireNotesUse::class], 'update_note')
+    ->add('POST', '/{str:uid}/delete', [NoteController::class, 'delete'], [LoginRequared::class, RequireNotesUse::class], 'delete_note')
+    ->add('POST', '/upload/{str:uid}', [NoteAttachmentController::class, 'upload'], [LoginRequared::class, RequireNotesUse::class, UploadRateLimit::class], 'note_attachment_upload')
+    ->add('POST', '/attachment/delete/{int:attachmentId}', [NoteAttachmentController::class, 'delete'], [LoginRequared::class, RequireNotesUse::class], 'note_attachment_delete')
+    ->add('GET', '/attachment/{str:fileUid}', [NoteAttachmentController::class, 'download'], [LoginRequared::class, RequireNotesUse::class], 'note_attachment_download')
+    ->add('POST', '/share/{str:uid}', [NoteShareController::class, 'create'], [LoginRequared::class, RequireNotesUse::class], 'note_share')
+    ->add('POST', '/unshare/{str:uid}', [NoteShareController::class, 'unshare'], [LoginRequared::class, RequireNotesUse::class], 'note_unshare')
     ->add('GET', '/shared/{str:token}', [NoteShareController::class, 'view'], [], 'note_shared_view')
     ->add('GET', '/shared/{str:token}/attachment/{str:fileUid}', [NoteAttachmentController::class, 'sharedDownload'], [], 'note_shared_attachment')
     ->endGroup();
 
 $router->group('/tasks')
-    ->add('GET', '/', [TaskController::class, 'index'], [LoginRequared::class], 'tasks')
-    ->add('POST', '/', [TaskController::class, 'create'], [LoginRequared::class], 'task_create')
-    ->add('POST', '/{str:uid}/update', [TaskController::class, 'update'], [LoginRequared::class], 'update_task')
-    ->add('POST', '/{str:uid}/delete', [TaskController::class, 'delete'], [LoginRequared::class], 'delete_task')
-    ->add('POST', '/{str:taskUid}/subtask', [TaskController::class, 'addSubtask'], [LoginRequared::class], 'add_subtask')
-    ->add('POST', '/subtask/{int:subtaskId}/toggle', [TaskController::class, 'toggleSubtask'], [LoginRequared::class], 'toggle_subtask')
-    ->add('POST', '/subtask/{int:subtaskId}/delete', [TaskController::class, 'deleteSubtask'], [LoginRequared::class], 'delete_subtask')
-    ->add('POST', '/category', [TaskController::class, 'createCategory'], [LoginRequared::class], 'create_category')
-    ->add('POST', '/{str:taskUid}/category/{int:categoryId}', [TaskController::class, 'attachCategory'], [LoginRequared::class], 'attach_category')
-    ->add('DELETE', '/{str:taskUid}/category/{int:categoryId}', [TaskController::class, 'detachCategory'], [LoginRequared::class], 'detach_category')
+    ->add('GET', '/', [TaskController::class, 'index'], [LoginRequared::class, RequireTasksUse::class], 'tasks')
+    ->add('POST', '/', [TaskController::class, 'create'], [LoginRequared::class, RequireTasksUse::class], 'task_create')
+    ->add('POST', '/{str:uid}/update', [TaskController::class, 'update'], [LoginRequared::class, RequireTasksUse::class], 'update_task')
+    ->add('POST', '/{str:uid}/delete', [TaskController::class, 'delete'], [LoginRequared::class, RequireTasksUse::class], 'delete_task')
+    ->add('POST', '/{str:taskUid}/subtask', [TaskController::class, 'addSubtask'], [LoginRequared::class, RequireTasksUse::class], 'add_subtask')
+    ->add('POST', '/subtask/{int:subtaskId}/toggle', [TaskController::class, 'toggleSubtask'], [LoginRequared::class, RequireTasksUse::class], 'toggle_subtask')
+    ->add('POST', '/subtask/{int:subtaskId}/delete', [TaskController::class, 'deleteSubtask'], [LoginRequared::class, RequireTasksUse::class], 'delete_subtask')
+    ->add('POST', '/category', [TaskController::class, 'createCategory'], [LoginRequared::class, RequireTasksUse::class], 'create_category')
+    ->add('POST', '/{str:taskUid}/category/{int:categoryId}', [TaskController::class, 'attachCategory'], [LoginRequared::class, RequireTasksUse::class], 'attach_category')
+    ->add('DELETE', '/{str:taskUid}/category/{int:categoryId}', [TaskController::class, 'detachCategory'], [LoginRequared::class, RequireTasksUse::class], 'detach_category')
     ->endGroup();
 
 $router->group('/profile')
-   ->add('GET', '/', [ProfileController::class, 'index'], [LoginRequared::class], 'profile')
-   ->add('GET', '/user/{str:uid}', [PublicProfileController::class, 'view'], [LoginRequared::class], 'profile-public')
-   ->add('POST', '/publication', [ProfileController::class, 'setPublication'], [LoginRequared::class], 'profile-publication')
-   ->add('POST', '/', [ProfileController::class, 'update'], [LoginRequared::class], 'profile-set')
-   ->add('GET', '/avatar/{str:uid}', [ProfileController::class, 'avatar'], [LoginRequared::class], 'profile-avatar')
-   ->add('POST', '/avatar/delete', [ProfileController::class, 'removeAvatar'], [LoginRequared::class], 'profile-avatar-delete')
-   ->add('POST', '/change-pass', [ProfileController::class, 'changeUserPass'], [LoginRequared::class], 'profile-password-set')
-   ->add('POST', '/delete-user', [ProfileController::class, 'deleteUser'], [LoginRequared::class], 'profile-delete')
+   ->add('GET', '/', [ProfileController::class, 'index'], [LoginRequared::class, RequireProfileUse::class], 'profile')
+   ->add('GET', '/user/{str:uid}', [PublicProfileController::class, 'view'], [LoginRequared::class, RequireProfileUse::class], 'profile-public')
+   ->add('POST', '/publication', [ProfileController::class, 'setPublication'], [LoginRequared::class, RequireProfileUse::class], 'profile-publication')
+   ->add('POST', '/', [ProfileController::class, 'update'], [LoginRequared::class, RequireProfileUse::class], 'profile-set')
+   ->add('GET', '/avatar/{str:uid}', [ProfileController::class, 'avatar'], [LoginRequared::class, RequireProfileUse::class], 'profile-avatar')
+   ->add('POST', '/avatar/delete', [ProfileController::class, 'removeAvatar'], [LoginRequared::class, RequireProfileUse::class], 'profile-avatar-delete')
+   ->add('POST', '/change-pass', [ProfileController::class, 'changeUserPass'], [LoginRequared::class, RequireProfileUse::class], 'profile-password-set')
+   ->add('POST', '/delete-user', [ProfileController::class, 'deleteUser'], [LoginRequared::class, RequireProfileUse::class], 'profile-delete')
    ->endGroup();
 
 $router->group('/files')
-    ->add('GET', '/', [FileController::class, 'index'], [LoginRequared::class], 'files')
-    ->add('GET', '/quota/', [FileQuotaController::class, 'usage'], [LoginRequared::class], 'files_quota')
-    ->add('GET', '/folder/{int:folderId}/', [FileController::class, 'folder'], [LoginRequared::class], 'files_folder')
-    ->add('POST', '/create-folder/', [FileController::class, 'createFolder'], [LoginRequared::class, EnforceFileFolderPolicy::class, StorageMutationLock::class], 'files_create_folder')
-    ->add('POST', '/upload/', [FileController::class, 'uploadFile'], [LoginRequared::class, UploadRateLimit::class, EnforceFileUploadPolicy::class, StorageQuotaLimit::class], 'files_upload')
-    ->add('POST', '/delete/', [FileDeleteController::class, 'delete'], [LoginRequared::class], 'files_delete')
-    ->add('POST', '/rename/', [FileController::class, 'rename'], [LoginRequared::class, StorageMutationLock::class], 'files_rename')
-    ->add('GET', '/get/{int:fileId}/', [FileController::class, 'getFile'], [LoginRequared::class], 'files_get')
+    ->add('GET', '/', [FileController::class, 'index'], [LoginRequared::class, RequireFilesUse::class], 'files')
+    ->add('GET', '/quota/', [FileQuotaController::class, 'usage'], [LoginRequared::class, RequireFilesUse::class], 'files_quota')
+    ->add('GET', '/folder/{int:folderId}/', [FileController::class, 'folder'], [LoginRequared::class, RequireFilesUse::class], 'files_folder')
+    ->add('POST', '/create-folder/', [FileController::class, 'createFolder'], [LoginRequared::class, RequireFilesUse::class, EnforceFileFolderPolicy::class, StorageMutationLock::class], 'files_create_folder')
+    ->add('POST', '/upload/', [FileController::class, 'uploadFile'], [LoginRequared::class, RequireFilesUse::class, UploadRateLimit::class, EnforceFileUploadPolicy::class, StorageQuotaLimit::class], 'files_upload')
+    ->add('POST', '/delete/', [FileDeleteController::class, 'delete'], [LoginRequared::class, RequireFilesUse::class], 'files_delete')
+    ->add('POST', '/rename/', [FileController::class, 'rename'], [LoginRequared::class, RequireFilesUse::class, StorageMutationLock::class], 'files_rename')
+    ->add('GET', '/get/{int:fileId}/', [FileController::class, 'getFile'], [LoginRequared::class, RequireFilesUse::class], 'files_get')
     ->endGroup();
 
 $router->group('/messenger')
-    ->add('GET', '/', [MessagerController::class, 'index'], [LoginRequared::class], 'messenger')
-    ->add('POST', '/socket-ticket', [MessagerController::class, 'socketTicket'], [LoginRequared::class], 'messenger_socket_ticket')
-    ->add('POST', '/upload', [MessagerController::class, 'uploadFile'], [LoginRequared::class, UploadRateLimit::class], 'messenger_upload')
-    ->add('POST', '/voice-upload', [MessengerVoiceController::class, 'upload'], [LoginRequared::class, UploadRateLimit::class], 'messenger_voice_upload')
-    ->add('GET', '/media/{str:uid}', [MessagerController::class, 'media'], [LoginRequared::class], 'messenger_media')
-    ->add('GET', '/group-avatar/{str:uid}', [MessengerGroupController::class, 'avatar'], [LoginRequared::class], 'messenger_group_avatar')
-    ->add('POST', '/group-avatar/{str:uid}', [MessengerGroupController::class, 'uploadAvatar'], [LoginRequared::class, UploadRateLimit::class], 'messenger_group_avatar_upload')
-    ->add('POST', '/group-avatar/{str:uid}/delete', [MessengerGroupController::class, 'removeAvatar'], [LoginRequared::class], 'messenger_group_avatar_delete')
+    ->add('GET', '/', [MessagerController::class, 'index'], [LoginRequared::class, RequireMessengerUse::class], 'messenger')
+    ->add('POST', '/socket-ticket', [MessagerController::class, 'socketTicket'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_socket_ticket')
+    ->add('POST', '/upload', [MessagerController::class, 'uploadFile'], [LoginRequared::class, RequireMessengerUse::class, UploadRateLimit::class], 'messenger_upload')
+    ->add('POST', '/voice-upload', [MessengerVoiceController::class, 'upload'], [LoginRequared::class, RequireMessengerUse::class, UploadRateLimit::class], 'messenger_voice_upload')
+    ->add('GET', '/media/{str:uid}', [MessagerController::class, 'media'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_media')
+    ->add('GET', '/group-avatar/{str:uid}', [MessengerGroupController::class, 'avatar'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_group_avatar')
+    ->add('POST', '/group-avatar/{str:uid}', [MessengerGroupController::class, 'uploadAvatar'], [LoginRequared::class, RequireMessengerUse::class, UploadRateLimit::class], 'messenger_group_avatar_upload')
+    ->add('POST', '/group-avatar/{str:uid}/delete', [MessengerGroupController::class, 'removeAvatar'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_group_avatar_delete')
     ->endGroup();
 
 $router->group('/admin')
