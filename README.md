@@ -16,7 +16,7 @@ Workspace Organizer — внутреннее PHP-приложение для к�
 - **Messenger v2** — private/group chats, Saved Messages, forwarding, media, voice, reply/edit/delete, delivery/read receipts, reactions, encrypted search, pin/mute/archive, group roles/avatars, multi-device realtime и reconnect/offline/session-ended UX.
 - **Profile** — workspace hub с Notes/Tasks/Files/storage metrics, private avatar, account settings, безопасная деактивация и explicit `is_profile_public` publication model без раскрытия private content.
 - **Admin panel** — управление пользователями, custom profile fields, системным лимитом File Manager и персональными storage quota overrides без physical delete связанных данных; список пользователей поддерживает server-side поиск/пагинацию.
-- **Responsive UI** — единый design system, desktop/mobile navigation, обновлённые формы/карточки/модалки, keyboard focus, reduced-motion support и общий feedback layer.
+- **Responsive UI** — единый design system, desktop/mobile navigation, обновлённые формы/карточек/модалки, keyboard focus, reduced-motion support и общий feedback layer.
 
 ## Security model
 
@@ -351,7 +351,7 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 
 `System settings and storage quota` проверяет canonical settings schema, admin ACL, default/per-user quota, live usage из `user_files`, reset override и quota overflow denial на MySQL 8.4.
 
-`Hosting installer` выполняет настоящий HTTP fresh-install через cookies/CSRF на MySQL в hosting-like `public_html/workspace`, проверяет subdirectory detection, private storage вне document root, 22-table contract, quota seed, admin account, generated `.env`, блокировку повторного installer и итоговый healthcheck.
+`Hosting installer` выполняет настоящий HTTP fresh-install через cookies/CSRF на MySQL в hosting-like `public_html/workspace`, проверяет subdirectory detection, private storage вне document root, 26-table contract, quota seed, admin account, generated `.env`, блокировку повторного installer и итоговый healthcheck.
 
 `Build hosting package` собирает upload-ready ZIP с production `vendor/`; на tag `v*` ZIP публикуется как release asset.
 
@@ -403,7 +403,7 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 Перед выкладкой:
 
 1. Для shared hosting используется готовый hosting bundle с `vendor/`; при deploy из source `composer install --no-dev --optimize-autoloader` проходит без ошибок.
-2. Fresh install успешно завершается через `/install.php` без ручного SQL/`.env` и создаёт current 22-table schema contract.
+2. Fresh install успешно завершается через `/install.php` без ручного SQL/`.env` и создаёт current 26-table schema contract.
 3. `.env`, application source и service directories недоступны по HTTP.
 4. `UNIQUE_KEY`, `MSG_SECRET_KEY`, `WS_TICKET_SECRET` уникальны и случайны.
 5. `PRIVATE_STORAGE_PATH` находится вне document/application root.
