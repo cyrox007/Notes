@@ -1,0 +1,63 @@
+name: Publish prerelease tag after master gate
+
+on:
+  workflow_run:
+    workflows: ["Master release gate"]
+    types: [completed]
+
+permissions:
+  contents: write
+
+jobs:
+  prerelease-tag:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+
+    steps:
+      - name: Checkout validated master revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Create prerelease tag if absent
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")"
+          case "$VERSION" in
+            *-*) ;;
+            *)
+              echo "Stable version $VERSION is intentionally not auto-tagged."
+              exit 0
+              ;;
+          esac
+
+          TAG="v$VERSION"
+          NOTES="docs/releases/$TAG.md"
+          test -f "$NOTES"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists; nothing to publish."
+            exit 0
+          fi
+
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -a "$TAG" "$RELEASE_SHA" -m "Workspace Organizer $VERSION"
+          git push origin "refs/tags/$TAG"
+          echo "Published prerelease tag $TAG at $RELEASE_SHA."
