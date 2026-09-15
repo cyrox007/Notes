@@ -96,13 +96,9 @@
                         <div class="custom-field">
                             <strong>Разрешения</strong>
                             <div class="admin-user-actions" style="margin-top:12px">
-                                {foreach $permissions as $permission}
-                                    {assign var=permissionAssigned value=false}
-                                    {foreach $role.permission_codes as $assignedCode}
-                                        {if $assignedCode == $permission.code}{assign var=permissionAssigned value=true}{/if}
-                                    {/foreach}
-                                    <label class="custom-field__required">
-                                        <input type="checkbox" name="permission_codes[]" value="{$permission.code|escape}" {if $permissionAssigned}checked{/if} {if $permission.code == 'admin.roles.manage'}disabled{/if}>
+                                {foreach $role.permission_items as $permission}
+                                    <label class="custom-field__required" title="{$permission.description|escape}">
+                                        <input type="checkbox" name="permission_codes[]" value="{$permission.code|escape}" {if $permission.granted}checked{/if} {if $permission.locked}disabled{/if}>
                                         {$permission.code|escape}
                                     </label>
                                 {/foreach}
@@ -119,25 +115,25 @@
                     {csrf_token}
                     <input type="hidden" name="role_id" value="{$role.id}">
                     <div class="custom-fields-list">
-                        {foreach $policyDefinitions as $moduleId => $modulePolicies}
+                        {foreach $role.policy_sections as $policySection}
                             <div class="custom-field">
-                                <strong>{$moduleId|escape}</strong>
+                                <strong>{$policySection.module_label|escape}</strong>
                                 <div class="custom-field__grid" style="margin-top:12px">
-                                    {foreach $modulePolicies as $policyKey => $definition}
+                                    {foreach $policySection.items as $policy}
                                         <div class="custom-field__control">
-                                            <label for="policy_{$role.id}_{$moduleId|escape}_{$policyKey|escape}">{$definition.label|escape}</label>
-                                            {if $definition.type == 'bool'}
-                                                <select id="policy_{$role.id}_{$moduleId|escape}_{$policyKey|escape}" name="policies[{$moduleId|escape}][{$policyKey|escape}]">
-                                                    <option value="__inherit__" {if !isset($role.policies[$moduleId][$policyKey])}selected{/if}>По умолчанию</option>
-                                                    <option value="1" {if isset($role.policies[$moduleId][$policyKey]) && $role.policies[$moduleId][$policyKey]}selected{/if}>Разрешено</option>
-                                                    <option value="0" {if isset($role.policies[$moduleId][$policyKey]) && !$role.policies[$moduleId][$policyKey]}selected{/if}>Запрещено</option>
+                                            <label for="policy_{$role.id}_{$policySection.module_id|escape}_{$policy.key|escape}">{$policy.label|escape}</label>
+                                            {if $policy.type == 'bool'}
+                                                <select id="policy_{$role.id}_{$policySection.module_id|escape}_{$policy.key|escape}" name="policies[{$policySection.module_id|escape}][{$policy.key|escape}]">
+                                                    <option value="__inherit__" {if !$policy.is_explicit}selected{/if}>По умолчанию</option>
+                                                    <option value="1" {if $policy.is_explicit && $policy.value == '1'}selected{/if}>Разрешено</option>
+                                                    <option value="0" {if $policy.is_explicit && $policy.value == '0'}selected{/if}>Запрещено</option>
                                                 </select>
-                                            {elseif $definition.type == 'int'}
-                                                <input id="policy_{$role.id}_{$moduleId|escape}_{$policyKey|escape}" name="policies[{$moduleId|escape}][{$policyKey|escape}]" type="number" min="0" step="1" value="{if isset($role.policies[$moduleId][$policyKey])}{$role.policies[$moduleId][$policyKey]}{/if}" placeholder="наследовать">
+                                            {elseif $policy.type == 'int'}
+                                                <input id="policy_{$role.id}_{$policySection.module_id|escape}_{$policy.key|escape}" name="policies[{$policySection.module_id|escape}][{$policy.key|escape}]" type="number" min="0" step="1" value="{if $policy.is_explicit}{$policy.value|escape}{/if}" placeholder="наследовать">
                                             {else}
-                                                <input id="policy_{$role.id}_{$moduleId|escape}_{$policyKey|escape}" name="policies[{$moduleId|escape}][{$policyKey|escape}]" type="text" value="{if isset($role.policies[$moduleId][$policyKey])}{foreach $role.policies[$moduleId][$policyKey] as $policyItem}{$policyItem|escape}{if !$policyItem@last}, {/if}{/foreach}{/if}" placeholder="наследовать">
+                                                <input id="policy_{$role.id}_{$policySection.module_id|escape}_{$policy.key|escape}" name="policies[{$policySection.module_id|escape}][{$policy.key|escape}]" type="text" value="{if $policy.is_explicit}{$policy.value|escape}{/if}" placeholder="наследовать">
                                             {/if}
-                                            <small>{$definition.help|escape}</small>
+                                            <small>{$policy.help|escape}</small>
                                         </div>
                                     {/foreach}
                                 </div>
@@ -168,18 +164,14 @@
                     {foreach $roleUsers as $listedUser}
                         <tr>
                             <td data-label="Пользователь"><strong>@{$listedUser.username|escape}</strong><small>{$listedUser.email|escape}</small></td>
-                            <td data-label="Статус">{$listedUser.account_status|escape}</td>
+                            <td data-label="Статус">{$listedUser.status_label|escape}</td>
                             <td data-label="Роли">
                                 <form action="{route_path name='admin_roles_assign'}" method="post" class="admin-user-actions">
                                     {csrf_token}
                                     <input type="hidden" name="user_id" value="{$listedUser.id}">
-                                    {foreach $roles as $assignableRole}
-                                        {assign var=roleAssigned value=false}
-                                        {foreach $listedUser.role_ids as $assignedRoleId}
-                                            {if $assignedRoleId == $assignableRole.id}{assign var=roleAssigned value=true}{/if}
-                                        {/foreach}
+                                    {foreach $listedUser.role_choices as $assignableRole}
                                         <label class="custom-field__required">
-                                            <input type="checkbox" name="role_ids[]" value="{$assignableRole.id}" {if $roleAssigned}checked{/if} {if $listedUser.is_self}disabled{/if}>
+                                            <input type="checkbox" name="role_ids[]" value="{$assignableRole.id}" {if $assignableRole.checked}checked{/if} {if $listedUser.is_self}disabled{/if}>
                                             {$assignableRole.name|escape}
                                         </label>
                                     {/foreach}
