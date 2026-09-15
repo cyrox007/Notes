@@ -10,7 +10,7 @@
 
 ### WebSocket deployment hotfix
 - Исправлен deployment gap, при котором Workerman мог успешно слушать `127.0.0.1:27800`, а браузер не мог подключиться к `wss://<site>/ws` без настроенного reverse proxy.
-- Добавлен единый `Core\\WebSocketEndpoint`: same-origin public endpoint выводится из `SITEURL`/`BASE_PATH`, а HTTPS-сайт больше не получает ошибочный direct `wss://host:27800` fallback для plain listener.
+- Добавлен единый `Core\WebSocketEndpoint`: same-origin public endpoint выводится из `SITEURL`/`BASE_PATH`, а HTTPS-сайт больше не получает ошибочный direct `wss://host:27800` fallback для plain listener.
 - Workerman по умолчанию остаётся loopback-only (`127.0.0.1`); публичный TLS/WSS завершается на Apache/Nginx/Caddy.
 - Для Apache добавлен guarded `.htaccess` bridge `/ws -> ws://127.0.0.1:27800` при доступных proxy modules; для Open Server 6+ документированы project-local `.osp` Apache/Nginx fallbacks.
 - Добавлен `php bin/ws_doctor.php`, различающий внутренний listener и публичный proxy endpoint; production healthcheck показывает canonical WebSocket proxy contract.
