@@ -217,6 +217,20 @@
   align-items: end;
 }
 
+/* The account creation form used to inherit the five-column custom-field editor
+ * layout. That made seven account fields spill into an uneven 5+2 row and sit
+ * flush against the card edges. Keep the custom-field editor compact, but give
+ * provisioning its own responsive three-column rhythm. */
+.admin-panel-card[aria-labelledby="admin-create-user-title"] .custom-field__grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  padding: 20px 24px 22px;
+}
+
+.admin-panel-card[aria-labelledby="admin-create-user-title"] .custom-field__control {
+  min-width: 0;
+}
+
 .custom-field__control {
   display: grid;
   gap: 6px;
@@ -277,6 +291,12 @@
     grid-template-columns: 1fr 1fr;
   }
 
+  .admin-panel-card[aria-labelledby="admin-create-user-title"] .custom-field__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
   .custom-field__required,
   .custom-field .remove-field {
     justify-self: start;
@@ -308,6 +328,11 @@
 
   .custom-field__grid {
     grid-template-columns: 1fr;
+  }
+
+  .admin-panel-card[aria-labelledby="admin-create-user-title"] .custom-field__grid {
+    grid-template-columns: 1fr;
+    padding: 16px;
   }
 
   .admin-users-table {
