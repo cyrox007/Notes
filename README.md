@@ -1,21 +1,21 @@
 # Workspace Organizer
 
-**Версия:** `0.14.0-beta.3`  
+**Версия:** `0.14.0-beta.4`  
 **Актуально на:** 15 сентября 2026  
-**Статус:** beta.3 / managed registration and user provisioning; следующая основная цель — `1.0.0` stable
+**Статус:** beta.4 / role policies and shared task boards; следующая основная цель — `1.0.0` stable
 
-Workspace Organizer — внутреннее PHP-приложение для корпоративной работы: заметки, задачи, личные файлы, профиль, администрирование и real-time Messenger.
+Workspace Organizer — внутреннее PHP-приложение для корпоративной работы: заметки, личные и общие задачи, файлы, профиль, администрирование и real-time Messenger.
 
-Версия `0.14.0-beta.3` добавляет управляемую регистрацию и provisioning пользователей: администратор выбирает закрытый, свободный или invite-only режим, создаёт обычных пользователей из админки и управляет ограниченными инвайтами без хранения plaintext-кодов. Публичная регистрация и admin mutations защищены rate limit / CSRF / RBAC contract. Сохраняются WebSocket deployment fixes beta.2 и совместимость PHP 8.1+. Дальнейшая работа в `master` направлена на `1.0.0` stable: module isolation, updater/recovery, licensing, observability и остальные stable blockers.
+Версия `0.14.0-beta.4` добавляет полноценное управление ролями поверх persisted RBAC, отдельный слой типизированных ограничений модулей и совместные task boards для выбранных пользователей или всех активных аккаунтов. Ограничения применяются server-side в Notes, Tasks, File Manager и Messenger, а навигация отражает эффективные разрешения текущего пользователя. Сохраняются managed registration beta.3, WebSocket deployment fixes beta.2 и совместимость PHP 8.1+. Следующая основная цель — `1.0.0` stable: vendor-free runtime, signed updater/recovery, installation-wide licensing и остальные stable blockers.
 
 ## Возможности
 
-- **Notes** — XChaCha20-Poly1305 для текста, writing-first editor, private attachments, first-class voice notes с duration/playback, view-only sharing по токену, autosave/dirty-state и server-side поиск.
-- **Tasks** — kanban/list режимы, drag-and-drop статусов, быстрое создание, приоритеты, сроки, категории, подзадачи, фильтры и server-side поиск/пагинация.
-- **File Manager** — личные папки/файлы вне document root, protected download, media/read-only text preview, grid/list workspace, поиск/сортировка, drag-and-drop upload и storage quota.
-- **Messenger v2** — private/group chats, Saved Messages, forwarding, media, voice, reply/edit/delete, delivery/read receipts, reactions, encrypted search, pin/mute/archive, group roles/avatars, multi-device realtime и reconnect/offline/session-ended UX.
+- **Notes** — XChaCha20-Poly1305 для текста, writing-first editor, private attachments, first-class voice notes с duration/playback, view-only sharing по токену, autosave/dirty-state, server-side поиск и role policies для количества заметок, вложений, типов/размера файлов и sharing.
+- **Tasks** — личные kanban/list задачи, drag-and-drop статусов, приоритеты, сроки, категории, подзадачи, фильтры и server-side поиск/пагинация; beta.4 добавляет общие task boards с ACL, участниками, исполнителями и audience `all_active`.
+- **File Manager** — личные папки/файлы вне document root, protected download, media/read-only text preview, grid/list workspace, поиск/сортировка, drag-and-drop upload, storage quota и role policies для размера/типов файлов, общей ёмкости и создания папок.
+- **Messenger v2** — private/group chats, Saved Messages, forwarding, media, voice, reply/edit/delete, delivery/read receipts, reactions, encrypted search, pin/mute/archive, group roles/avatars, multi-device realtime и reconnect/offline/session-ended UX; role policies ограничивают частоту сообщений, вложения, voice и group capabilities.
 - **Profile** — workspace hub с Notes/Tasks/Files/storage metrics, private avatar, account settings, безопасная деактивация и explicit `is_profile_public` publication model без раскрытия private content.
-- **Admin panel** — создание и lifecycle пользователей, управляемые режимы регистрации `disabled/open/invite`, ограниченные/revocable инвайты, custom profile fields, системный лимит File Manager и персональные storage quota overrides без physical delete связанных данных; список пользователей поддерживает server-side поиск/пагинацию.
+- **Admin panel** — создание и lifecycle пользователей, managed registration `disabled/open/invite`, ограниченные/revocable инвайты, Role Manager с permission assignment и module policies, custom profile fields, системный лимит File Manager и персональные storage quota overrides без physical delete связанных данных.
 - **Responsive UI** — единый design system, desktop/mobile navigation, обновлённые формы/карточки/модалки, keyboard focus, reduced-motion support и общий feedback layer.
 
 ## Security model
@@ -33,6 +33,7 @@ Workspace Organizer — внутреннее PHP-приложение для к�
 - upload MIME — server-side `finfo` + allowlist;
 - unsafe HTTP actions — CSRF policy;
 - login/registration и upload endpoints — request rate limiting;
+- persisted RBAC отвечает за доступ к действиям, а `role_module_policies` отдельно задаёт количественные/типовые ограничения; server-side middleware/services остаются authorization boundary;
 - публичная регистрация по умолчанию закрыта; режимы `disabled/open/invite` управляются администратором, а managed invite-коды хранятся только как SHA-256 hash;
 - inactive/blocked user повторно проверяется на HTTP и WebSocket paths.
 
@@ -82,14 +83,14 @@ Web-installer автоматически:
 
 - проверяет PHP 8.1+, extensions, Argon2id и наличие production `vendor/`;
 - пытается создать отсутствующую БД, если MySQL account это разрешает;
-- импортирует 8 canonical schemas и создаёт current contract из 27 обязательных таблиц;
+- импортирует 8 canonical schemas и создаёт current contract из 32 обязательных таблиц;
 - создаёт `cache`/`compile`;
 - подбирает и создаёт `PRIVATE_STORAGE_PATH` вне document root;
 - создаёт private пространства `file_manager`, `messenger`, `notes`, `users`, `rate-limit`, `logs`, `legacy`;
 - определяет `SITEURL` и `BASE_PATH`, включая установку в подкаталог;
 - формирует same-site `WS_PUBLIC_URL` вида `/ws` и `WS_ALLOWED_ORIGINS`;
 - генерирует отдельные `UNIQUE_KEY`, `MSG_SECRET_KEY`, `WS_TICKET_SECRET`;
-- создаёт первый superadmin;
+- создаёт первого superadmin;
 - только после успешной финализации атомарно создаёт `.env` и блокирует повторный запуск installer.
 
 Если установка оборвалась до создания admin, `.env` ещё не существует и мастер можно безопасно запустить повторно.
@@ -140,7 +141,7 @@ database/settings_schema.sql
 database/module_lifecycle_schema.sql
 ```
 
-Fresh contract включает 27 обязательных таблиц, включая persisted `module_lifecycle` registry. `system_settings` хранит редактируемые системные значения, а `user_storage_quotas` — только персональные overrides лимита; фактический used space всегда рассчитывается из canonical `user_files`, чтобы не поддерживать рассинхронизируемый usage counter. `install.php` предназначен только для новой/пустой БД. Для существующих установок используются compatibility upgrade SQL; они не заменяют canonical `*_schema.sql` как описание текущей схемы.
+Fresh contract включает 32 обязательные таблицы: persisted `module_lifecycle`, RBAC + `role_module_policies`, а также `task_boards`, `task_board_members`, `task_board_items` и `task_board_assignees`. `system_settings` хранит редактируемые системные значения, а `user_storage_quotas` — только персональные overrides лимита; фактический used space всегда рассчитывается из canonical `user_files`, чтобы не поддерживать рассинхронизируемый usage counter. `install.php` предназначен только для новой/пустой БД. Для существующих установок используются compatibility upgrade SQL; они не заменяют canonical `*_schema.sql` как описание текущей схемы.
 
 После успешной установки наличие `.env` блокирует повторный запуск web-installer.
 
@@ -154,7 +155,7 @@ Fresh contract включает 27 обязательных таблиц, вкл
 
 В invite-only режиме администратор создаёт приглашения с названием, сроком действия и лимитом использований. Полный код показывается один раз; в `system_settings` сохраняется только SHA-256 hash и служебные метаданные. Инвайт можно отозвать, а исчерпанный или просроченный код автоматически перестаёт действовать. Создание аккаунта и расход инвайта выполняются одной транзакцией.
 
-Администратор также может создавать обычных пользователей напрямую из `/admin/` независимо от публичного режима регистрации. Такое создание не выдаёт admin/superadmin права: новый аккаунт получает каноническую RBAC-роль `user`.
+Администратор также может создавать обычных пользователей напрямую из `/admin/` независимо от публичного режима регистрации. Такое создание не выдаёт admin/superadmin права: новый аккаунт получает каноническую RBAC-роль `user`. Суперадминистратор управляет прикладными ролями, permission assignment и module policies через `/admin/roles`.
 
 `REGISTRATION_INVITE_CODE` из `.env` сохранён только как compatibility fallback для старых установок, пока администратор ни разу не сохранил новую явную политику в БД. После сохранения режима env-код больше не является отдельным authorization path.
 
@@ -231,7 +232,7 @@ php bin/healthcheck.php
 php bin/healthcheck.php --json
 ```
 
-Healthcheck проверяет PHP/extensions, secrets, private storage и его размещение вне application root, HTTPS/WSS/origin consistency, DB connection и current schema contract. Ненулевой exit code означает, что deployment нельзя считать healthy.
+Healthcheck проверяет PHP/extensions, secrets, private storage и его размещение вне application root, HTTPS/WSS/origin consistency, DB connection и current 32-table schema contract. Ненулевой exit code означает, что deployment нельзя считать healthy.
 
 ## Rate limiting
 
@@ -260,7 +261,7 @@ Repository `.htaccess`:
 
 HSTS намеренно задаётся на production TLS reverse proxy, а не в repository `.htaccess`.
 
-## UI / UX 0.13
+## UI / UX 0.13 + beta.4 collaboration
 
 Интерфейс остаётся server-rendered Smarty без отдельного frontend build pipeline.
 
@@ -268,13 +269,15 @@ HSTS намеренно задаётся на production TLS reverse proxy, а �
 
 - системный font stack без Google Fonts;
 - единые tokens для colors/surfaces/borders/radii/shadows;
-- responsive sidebar: desktop collapse + mobile drawer/overlay;
+- responsive sidebar: desktop collapse + mobile drawer/overlay; видимые пункты модулей рассчитываются из effective RBAC;
 - current-route navigation state;
 - Tasks kanban/list switch, drag/drop статусов и quick-create;
+- shared Tasks boards с отдельным Kanban, board ACL, участниками и assignees;
 - Notes writing-first editor, attachments/share/voice workspace и local draft protection;
 - Profile hub с workspace counters, storage usage/quota и explicit publication controls;
 - File Manager grid/list, local search/sort и drag-and-drop upload;
 - Messenger connection recovery states и fresh-ticket WSS reconnect;
+- Role Manager с адаптивными формами permission/policy assignment;
 - общий toast/inline feedback/confirmation layer;
 - server-side findability для Notes, Tasks и Admin users;
 - keyboard focus, skip-link, aria-live region и доступные labels;
@@ -290,11 +293,13 @@ HSTS намеренно задаётся на production TLS reverse proxy, а �
 /                    dashboard
 /auth/login          вход
 /notes/              заметки
-/tasks/              задачи
+/tasks/              личные задачи
+/tasks/boards        общие доски задач
 /files/              личные файлы
 /messenger/          Messenger
 /profile/            профиль
 /admin/              admin panel
+/admin/roles         роли, permissions и module policies
 /admin/settings      system settings и storage quotas
 ```
 
@@ -310,15 +315,16 @@ HSTS намеренно задаётся на production TLS reverse proxy, а �
 - private attachment upload/download/delete;
 - public view-only share token;
 - shared attachment ACL;
-- encrypted text fail-closed.
+- encrypted text fail-closed;
+- beta.4 role policies ограничивают количество заметок, sharing и attachment limits/types.
 
 ### Tasks
 
-`database/tasks_schema.sql` входит в canonical install. Поддерживаются kanban/list views, drag-and-drop status, statuses/priorities/due dates/subtasks/categories, server-side search/filter/sort/pagination и быстрые inline actions.
+`database/tasks_schema.sql` входит в canonical install. Личные задачи сохраняют прежний ownership contract и поддерживают kanban/list views, drag-and-drop status, statuses/priorities/due dates/subtasks/categories и server-side search/filter/sort/pagination. Beta.4 добавляет отдельные shared boards для выбранной команды или `all_active`, board-level ACL, несколько исполнителей и ограничения на создание/размер досок через role policies.
 
 ### Messenger v2
 
-Current contract включает private/group dialogs, Saved Messages, forwarding, media/voice, replies/edit/delete, delivered/read cursors, reactions, multi-device fanout, pin/mute/archive, group ownership/admin roles/avatars, orphan cleanup, bounded encrypted search и reconnect/offline/session-ended UI с fresh WebSocket ticket перед reconnect.
+Current contract включает private/group dialogs, Saved Messages, forwarding, media/voice, replies/edit/delete, delivered/read cursors, reactions, multi-device fanout, pin/mute/archive, group ownership/admin roles/avatars, orphan cleanup, bounded encrypted search и reconnect/offline/session-ended UI с fresh WebSocket ticket перед reconnect. Beta.4 применяет server-side role policies к message rate, attachment limits/types, созданию/размеру групп и voice messages.
 
 Encrypted search не хранит plaintext index: он расшифровывает только ограниченное число последних доступных сообщений (`MESSENGER_SEARCH_SCAN_LIMIT`, default `1000`).
 
@@ -328,7 +334,9 @@ Private avatar выдаётся через authenticated endpoint. Self-delete �
 
 ### Admin
 
-Admin lifecycle использует safe deactivation вместо physical delete. Реактивация восстанавливает согласованный `role + is_active`; administrative targets и group owners защищены отдельными checks. Custom profile fields используют canonical `user_fields`.
+Admin lifecycle использует safe deactivation вместо physical delete. Administrative targets и group owners защищены отдельными checks. Custom profile fields используют canonical `user_fields`.
+
+`/admin/roles` позволяет superadmin создавать прикладные роли, назначать роли пользователям, управлять boolean permissions и отдельными типизированными policies Notes/Tasks/Files/Messenger. Системные роли не удаляются, текущий superadmin защищён от самоблокировки/самоснятия, а изменения доступа применяются через persisted RBAC при следующей серверной проверке.
 
 `/admin/settings` управляет default File Manager quota и персональными overrides. Изменение квоты повторно авторизуется внутри service-layer; File Manager upload проверяет эффективный лимит до физической записи файла. Для одного пользователя concurrent uploads сериализуются advisory lock, поэтому параллельные запросы не могут независимо занять один и тот же остаток квоты.
 
@@ -348,13 +356,15 @@ php bin/cleanup_messenger_orphans.php
 
 GitHub Actions покрывают security baseline, PHP/Composer, clean schemas, DB compatibility upgrades, crypto migration, Notes/Tasks/Profile contracts и Messenger groups/media/search/voice/reactions/forwarding. Workflow `Product UI and production quality` дополнительно проверяет UI/accessibility wiring, File Manager safe preview, Linux bootstrap paths, rate limit middleware, CSP/web-root protection, healthcheck contract и freshness документации.
 
-`0.13 installer schema contract` явно проверяет publication fields Notes/Tasks/Files, voice-note duration, settings/quota schemas и Messenger installer config.
+`0.14 installer schema contract` явно проверяет publication fields Notes/Tasks/Files, voice-note duration, settings/quota schemas, persisted RBAC/module policies и shared task-board tables.
+
+`0.14 Beta 4 role policies` и `0.14 Beta 4 shared task boards` проверяют policy composition/enforcement, Role Manager wiring, board ACL и compatibility migrations.
 
 `System settings and storage quota` проверяет canonical settings schema, admin ACL, default/per-user quota, live usage из `user_files`, reset override и quota overflow denial на MySQL 8.4.
 
-`Hosting installer` выполняет настоящий HTTP fresh-install через cookies/CSRF на MySQL в hosting-like `public_html/workspace`, проверяет subdirectory detection, private storage вне document root, 27-table contract, quota seed, admin account, generated `.env`, блокировку повторного installer и итоговый healthcheck.
+`Hosting installer` выполняет настоящий HTTP fresh-install через cookies/CSRF на MySQL в hosting-like `public_html/workspace`, проверяет subdirectory detection, private storage вне document root, 32-table contract, quota seed, admin account, generated `.env`, блокировку повторного installer и итоговый healthcheck.
 
-`Build hosting package` собирает upload-ready ZIP с production `vendor/`; теги `v*-*` публикуются как GitHub prerelease, а stable tag без suffix — как обычный Release.
+`Build hosting package` собирает upload-ready ZIP с production `vendor/`; теги `v*-*` публикуются как GitHub prerelease, а stable tag без suffix — как обычные Release.
 
 `Browser HTTPS and WSS E2E` поднимает PHP + Workerman + TLS Nginx + MySQL и реальные Chromium-сессии: проверяет login, основные модули, authenticated WSS, realtime delivery и 0.13 reconnect recovery.
 
@@ -385,10 +395,11 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 
 Перед `1.0.0` должны быть закрыты оставшиеся platform/stability blockers:
 
+- полный отказ от сторонних runtime-библиотек в distributable application;
 - module-owned bootstrap/routes/assets/socket registration и фактическая изоляция отключённых модулей;
 - deterministic package compositions и dependency preflight для разных наборов модулей;
 - signed core/module update metadata, staged transactional update, rollback/recovery и health verification;
-- централизованный licensing/entitlement contract с безопасным offline/expiry behavior без удаления пользовательских данных;
+- installation-wide licensing/entitlement contract с безопасным offline/expiry behavior без удаления пользовательских данных;
 - structured observability, security/audit events, metrics/alerts, load/soak и cross-browser/mobile regression evidence;
 - transactional/resumable re-encryption procedure для безопасной ротации `UNIQUE_KEY` / `MSG_SECRET_KEY`;
 - постепенный вынос inline Smarty JS/CSS для CSP без `unsafe-inline`;
