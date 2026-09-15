@@ -13,7 +13,7 @@
                 <i class="fa fa-user-plus" aria-hidden="true"></i>
                 Регистрация
             </a>
-            {if $user.role == 1}
+            {if $canManageRoles}
                 <a class="admin-action admin-action--secondary" href="{route_path name='admin_roles'}">
                     <i class="fa fa-shield" aria-hidden="true"></i>
                     Роли и доступ
