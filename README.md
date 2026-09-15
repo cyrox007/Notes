@@ -1,12 +1,12 @@
 # Workspace Organizer
 
-**Версия:** `0.14.0-beta.1`  
+**Версия:** `0.14.0-beta.2`  
 **Актуально на:** 15 сентября 2026  
-**Статус:** beta.1 / modular security-hardening baseline; следующая основная цель — `1.0.0` stable
+**Статус:** beta.2 / WebSocket deployment hotfix; следующая основная цель — `1.0.0` stable
 
 Workspace Organizer — внутреннее PHP-приложение для корпоративной работы: заметки, задачи, личные файлы, профиль, администрирование и real-time Messenger.
 
-Версия `0.14.0-beta.1` переводит проект из alpha в beta: поверх product-complete 0.13 зафиксированы hardening Router/session/redirect boundary, формальные module manifests и registry, persisted module lifecycle, compatibility/dependency contracts и полный regression baseline, включая HTTPS/WSS. Beta.1 — это первая стабилизационная точка, а не финальная 1.0: дальнейшая работа в `master` направлена на завершение изоляции модулей, signed updates/recovery, licensing, observability и остальные stable blockers.
+Версия `0.14.0-beta.2` сохраняет beta hardening baseline и исправляет deployment-контракт realtime Messenger: браузер использует same-origin `ws(s)://<site>[/base]/ws`, фронтовый Apache/Nginx/Caddy завершает TLS/WebSocket Upgrade, а Workerman безопасно остаётся внутренним listener на `127.0.0.1:27800`. Добавлены Open Server 6+ bridge/диагностика и regression coverage на PHP 8.1/8.3. Дальнейшая работа в `master` по-прежнему направлена на `1.0.0` stable: module isolation, updater/recovery, licensing, observability и остальные stable blockers.
 
 ## Возможности
 
