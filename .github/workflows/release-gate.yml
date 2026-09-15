@@ -98,7 +98,7 @@ jobs:
           done
 
           count="$(mysql -N -h 127.0.0.1 -uroot -proot workspace_release_gate -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE();")"
-          test "$count" -eq 27
+          test "$count" -eq 32
           test "$(mysql -N -h 127.0.0.1 -uroot -proot workspace_release_gate -e "SELECT setting_value FROM system_settings WHERE setting_key='file_manager_default_quota_bytes'")" = '1073741824'
           test "$(mysql -N -h 127.0.0.1 -uroot -proot workspace_release_gate -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='module_lifecycle' AND column_name IN ('module_id','installed_version','manifest_hash','configured_state','effective_state','last_error')")" = '6'
 
