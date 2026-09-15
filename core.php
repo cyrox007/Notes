@@ -1,20 +1,14 @@
 <?php
 
-// Environment loading is part of the application core from 1.0 onward. It must
-// not depend on Composer/vendor because configuration is needed before optional
-// third-party runtimes are bootstrapped.
+// Environment loading and all 1.0 runtime infrastructure are internal. Runtime
+// boot must therefore remain independent from Composer/vendor so the application
+// can start from the release bundle with no third-party PHP packages installed.
 $environmentLoader = SITEPATH . '/core/Environment.php';
 if (!is_file($environmentLoader)) {
     throw new RuntimeException('Core environment loader is missing.');
 }
 require_once $environmentLoader;
 \Core\Environment::load(SITEPATH . '/.env');
-
-// Composer remains temporary only for the Workerman WebSocket runtime. HTTP
-// rendering itself is fully internal/native and does not require vendor code.
-if (file_exists(SITEPATH . '/vendor/autoload.php')) {
-    require SITEPATH . '/vendor/autoload.php';
-}
 
 spl_autoload_register(function ($class) {
     $classPath = SITEPATH . '/' . str_replace('\\', '/', $class) . '.php';

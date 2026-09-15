@@ -100,6 +100,7 @@ nativeViewAssert(!str_contains($controllerSource, 'LegacySmartyRenderer'), 'base
 $coreSource = file_get_contents(__DIR__ . '/../../core.php') ?: '';
 nativeViewAssert(!str_contains($coreSource, 'LegacySmartyRenderer.php'), 'core bootstrap still loads LegacySmartyRenderer');
 nativeViewAssert(!str_contains($coreSource, 'HybridViewRenderer.php'), 'core bootstrap still loads HybridViewRenderer');
+nativeViewAssert(!str_contains($coreSource, 'vendor/autoload.php'), 'core bootstrap still depends on Composer vendor autoload');
 nativeViewAssert(!is_file(__DIR__ . '/../../core/LegacySmartyRenderer.php'), 'LegacySmartyRenderer file still exists');
 nativeViewAssert(!is_file(__DIR__ . '/../../core/HybridViewRenderer.php'), 'HybridViewRenderer file still exists');
 nativeViewAssert($appNative->hasTemplate('error_page/index'), 'native error view is missing');
@@ -107,19 +108,16 @@ nativeViewAssert($appNative->hasTemplate('error_page/index'), 'native error view
 $composer = json_decode(file_get_contents(__DIR__ . '/../../composer.json') ?: '', true);
 nativeViewAssert(is_array($composer), 'composer.json is not valid JSON');
 nativeViewAssert(!isset($composer['require']['smarty/smarty']), 'composer.json still requires smarty/smarty');
+nativeViewAssert(!isset($composer['require']['workerman/workerman']), 'composer.json still requires workerman/workerman');
+nativeViewAssert(array_keys((array) ($composer['require'] ?? [])) === ['php'], 'runtime Composer requirements contain a package other than PHP');
 
 $lock = json_decode(file_get_contents(__DIR__ . '/../../composer.lock') ?: '', true);
 nativeViewAssert(is_array($lock), 'composer.lock is not valid JSON');
-$lockedPackages = array_map(
-    static fn (array $package): string => (string) ($package['name'] ?? ''),
-    is_array($lock['packages'] ?? null) ? $lock['packages'] : []
-);
-nativeViewAssert(!in_array('smarty/smarty', $lockedPackages, true), 'composer.lock still contains smarty/smarty');
-nativeViewAssert(!in_array('symfony/polyfill-mbstring', $lockedPackages, true), 'Smarty-only mbstring polyfill remains locked');
-nativeViewAssert(in_array('workerman/workerman', $lockedPackages, true), 'Workerman lock entry was lost before its replacement phase');
+nativeViewAssert(($lock['packages'] ?? null) === [], 'composer.lock still contains runtime packages');
+nativeViewAssert(($lock['packages-dev'] ?? null) === [], 'composer.lock still contains dev packages');
 
 @unlink($root . '/auth/native.php');
 @rmdir($root . '/auth');
 @rmdir($root);
 
-echo "[OK] native-only view runtime, template coverage and Composer cutover contract\n";
+echo "[OK] vendor-free native view runtime and template coverage contract\n";

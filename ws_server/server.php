@@ -15,7 +15,13 @@ if (!defined('WORKSPACE_DEFER_MODULE_LIFECYCLE')) {
 error_reporting(E_ALL);
 ini_set('error_log', sys_get_temp_dir() . '/workspace-organizer-ws-startup.log');
 
-require_once SITEPATH . '/core.php';
+// Process lifecycle commands must remain usable even when the application DB is
+// unavailable. Load only the internal environment parser first so status/stop can
+// locate the installation-specific PID file without booting the full application.
+require_once SITEPATH . '/core/Environment.php';
+if (is_file(SITEPATH . '/.env')) {
+    \Core\Environment::load(SITEPATH . '/.env');
+}
 
 $configuredLog = trim((string) (getenv('LOG_FILE') ?: ''));
 if ($configuredLog !== '') {
@@ -182,6 +188,10 @@ if (!in_array($command, ['start', 'run'], true)) {
     fwrite(STDERR, "Usage: php ws_server/server.php start [-d] | status | stop | restart\n");
     exit(2);
 }
+
+// From this point onward a real server process is being started, so load the
+// complete application stack (database, module lifecycle, RBAC and handlers).
+require_once SITEPATH . '/core.php';
 
 $existingPid = workspaceWsReadPid($pidFile);
 if ($existingPid !== null && workspaceWsProcessExists($existingPid)) {

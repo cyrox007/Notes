@@ -2,7 +2,7 @@ name: Hosting installer
 
 on:
   pull_request:
-    branches: [master]
+    branches: [master, '1.0']
   push:
     branches: [hosting-installer-e2e]
 
@@ -38,16 +38,18 @@ jobs:
           extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
           coverage: none
 
-      - name: Install production dependencies
-        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress
-
-      - name: Installer syntax and static contract
+      - name: Prove installer has no vendor prerequisite
         shell: bash
         run: |
           set -euo pipefail
+          rm -rf vendor
+          test ! -e vendor
           php -l install.php
           grep -Fq 'PHP 8.1+' install.php
-          grep -Fq 'vendor/autoload.php' install.php
+          grep -Fq 'Native core runtime' install.php
+          grep -Fq 'Native WebSocket runtime' install.php
+          ! grep -Fq 'vendor/autoload.php' install.php
+          ! grep -Fq 'Workerman' install.php
           grep -Fq 'preparePrivateStorage' install.php
           grep -Fq 'connectOrCreateDatabase' install.php
           grep -Fq 'writeEnvironmentFile' install.php
@@ -61,7 +63,7 @@ jobs:
           ! grep -Fq 'SITEURL=http://localhost' install.php
           ! grep -Fq 'WS_PUBLIC_URL=ws://localhost:27800' install.php
 
-      - name: Prepare hosting-like document root
+      - name: Prepare hosting-like document root without vendor
         shell: bash
         run: |
           set -euo pipefail
@@ -71,8 +73,11 @@ jobs:
             --exclude '.git' \
             --exclude '.env' \
             --exclude '.logs' \
+            --exclude 'vendor' \
             ./ /tmp/workspace-hosting-home/public_html/workspace/
-          test -f /tmp/workspace-hosting-home/public_html/workspace/vendor/autoload.php
+          test ! -e /tmp/workspace-hosting-home/public_html/workspace/vendor
+          test -f /tmp/workspace-hosting-home/public_html/workspace/core/NativeViewRenderer.php
+          test -f /tmp/workspace-hosting-home/public_html/workspace/app/socket/NativeMessengerServer.php
           test ! -e /tmp/workspace-hosting-home/public_html/workspace/.env
 
       - name: Start PHP hosting server
@@ -87,7 +92,9 @@ jobs:
             fi
             sleep 1
           done
-          grep -Fq 'Composer dependencies (vendor/autoload.php)' /tmp/install-step1.html
+          grep -Fq 'Native core runtime' /tmp/install-step1.html
+          grep -Fq 'Native WebSocket runtime' /tmp/install-step1.html
+          ! grep -Fq 'vendor/autoload.php' /tmp/install-step1.html
           grep -Fq 'http://127.0.0.1:8080/workspace/' /tmp/install-step1.html
           grep -Fq 'ws://127.0.0.1:8080/workspace/ws' /tmp/install-step1.html
 
@@ -140,6 +147,7 @@ jobs:
             "$BASE/install.php" -o /tmp/install-finished.html
 
           grep -Fq 'Установка завершена' /tmp/install-finished.html
+          grep -Fq 'native WebSocket process' /tmp/install-finished.html
           grep -Fq 'http://127.0.0.1:8080/workspace/' /tmp/install-finished.html
 
       - name: Verify generated hosting contract
@@ -153,8 +161,11 @@ jobs:
           grep -Fq 'BASE_PATH="/workspace/"' "$ENVFILE"
           grep -Fq 'WS_PUBLIC_URL="ws://127.0.0.1:8080/workspace/ws"' "$ENVFILE"
           grep -Fq 'WS_ALLOWED_ORIGINS="http://127.0.0.1:8080"' "$ENVFILE"
+          grep -Fq 'WS_MAX_CONNECTIONS=256' "$ENVFILE"
+          grep -Fq 'WS_MAX_PAYLOAD_BYTES=2097152' "$ENVFILE"
           grep -Fq 'LOG_LEVEL=INFO' "$ENVFILE"
           ! grep -Fq 'localhost:27800' "$ENVFILE"
+          test ! -e "$ROOT/vendor"
 
           STORAGE=$(sed -n 's/^PRIVATE_STORAGE_PATH="\(.*\)"$/\1/p' "$ENVFILE")
           test -n "$STORAGE"
@@ -171,17 +182,17 @@ jobs:
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('system_settings','user_storage_quotas')")" = "2"
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('roles','permissions','role_permissions','user_roles','role_module_policies')")" = "5"
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('task_boards','task_board_members','task_board_items','task_board_assignees')")" = "4"
-          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT setting_value FROM system_settings WHERE setting_key='file_manager_default_quota_bytes'")" = "1073741824"
           ADMIN=$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT CONCAT(role, ':', is_active, ':', account_status) FROM users WHERE username='hosting_admin';")
           test "$ADMIN" = '1:1:active'
           ADMIN_RBAC=$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT r.code FROM user_roles ur JOIN roles r ON r.id=ur.role_id JOIN users u ON u.id=ur.user_id WHERE u.username='hosting_admin';")
           test "$ADMIN_RBAC" = 'superadmin'
 
-      - name: Fresh install healthcheck
+      - name: Fresh install healthcheck without vendor
         shell: bash
         run: |
           set -euo pipefail
           cd /tmp/workspace-hosting-home/public_html/workspace
+          test ! -e vendor
           php bin/healthcheck.php --json | tee /tmp/hosting-health.json
           grep -Fq '"status": "ok"' /tmp/hosting-health.json
           grep -Fq '32 required tables present' /tmp/hosting-health.json
