@@ -43,6 +43,7 @@ jobs:
           php -l app/services/RolePolicyService.php
           php -l app/services/RoleManagementService.php
           php -l app/controllers/Admin/RoleManagementController.php
+          php -l app/controllers/Admin/AdminController.php
           php -l app/middlewares/RequireAdminRolesManage.php
           php -l app/middlewares/RequireNotesUse.php
           php -l app/middlewares/RequireTasksUse.php
@@ -63,7 +64,12 @@ jobs:
         run: |
           set -euo pipefail
           grep -Fq "route_path name='admin_roles'" app/views/admin-page/index.tpl
+          grep -Fq '$canManageRoles' app/views/admin-page/index.tpl
+          grep -Fq "hasPermission(\$actorId, 'admin.roles.manage')" app/controllers/Admin/AdminController.php
           grep -Fq "route_path name='admin_roles_policies'" app/views/admin-page/roles.tpl
+          grep -Fq '$role.permission_items' app/views/admin-page/roles.tpl
+          grep -Fq '$role.policy_sections' app/views/admin-page/roles.tpl
+          grep -Fq '$listedUser.role_choices' app/views/admin-page/roles.tpl
           grep -Fq "permission_codes[]" app/views/admin-page/roles.tpl
           grep -Fq "policies[" app/views/admin-page/roles.tpl
           grep -Fq "role_ids[]" app/views/admin-page/roles.tpl
