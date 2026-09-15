@@ -37,7 +37,9 @@ jobs:
           coverage: none
       - name: Validate dependency contract
         run: |
-          composer validate --strict
+          # This repository is an application, not a publishable Composer package;
+          # validate schema/lock consistency without package-publishing metadata.
+          composer validate --no-check-publish
           composer install --no-dev --prefer-dist --no-progress --no-interaction
           php -r '$c=json_decode(file_get_contents("composer.json"), true, 512, JSON_THROW_ON_ERROR); if (isset($c["require"]["vlucas/phpdotenv"])) { fwrite(STDERR, "phpdotenv is still a direct dependency\n"); exit(1); }'
           test ! -d vendor/vlucas/phpdotenv
