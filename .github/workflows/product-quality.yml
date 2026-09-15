@@ -380,8 +380,9 @@ jobs:
         run: |
           set -euo pipefail
           grep -Fq 'database/tasks_schema.sql' README.md
+          grep -Fq 'database/access_control_schema.sql' README.md
           grep -Fq 'database/settings_schema.sql' README.md
-          grep -Fq '22 обязательные таблицы' README.md
+          grep -Fq '26 обязательных таблиц' README.md
           grep -Fq 'php bin/migrate.php' README.md
           grep -Fq 'php bin/migrate_crypto.php' README.md
           grep -Fq 'Saved Messages' README.md
