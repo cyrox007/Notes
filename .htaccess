@@ -2,6 +2,25 @@ Options -Indexes
 
 RewriteEngine On
 
+# Same-origin WebSocket bridge for the default Workerman listener.
+# In .htaccess context the pattern is relative to this application directory,
+# so the same rule also serves BASE_PATH installations (for example /workspace/ws).
+# The backend is deliberately fixed to loopback; clients cannot influence it.
+<IfModule mod_proxy.c>
+    <IfModule mod_proxy_wstunnel.c>
+        RewriteCond %{HTTP:Upgrade} =websocket [NC]
+        RewriteCond %{HTTP:Connection} (^|,)\s*upgrade\s*(,|$) [NC]
+        RewriteRule ^ws/?$ ws://127.0.0.1:27800/ [P,L]
+    </IfModule>
+    <IfModule !mod_proxy_wstunnel.c>
+        <IfModule mod_proxy_http.c>
+            RewriteCond %{HTTP:Upgrade} =websocket [NC]
+            RewriteCond %{HTTP:Connection} (^|,)\s*upgrade\s*(,|$) [NC]
+            RewriteRule ^ws/?$ http://127.0.0.1:27800/ [P,L]
+        </IfModule>
+    </IfModule>
+</IfModule>
+
 # После успешной установки .env существует: повторный запуск web-installer запрещён.
 # Используем директорию самого install.php, поэтому правило работает и при BASE_PATH/subdirectory deploy.
 RewriteCond %{REQUEST_FILENAME} ^(.*/)install\.php$
