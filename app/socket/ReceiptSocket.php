@@ -7,7 +7,6 @@ namespace App\Sockets;
 use App\Services\MessengerReceiptService;
 use DomainException;
 use InvalidArgumentException;
-use Workerman\Connection\TcpConnection;
 
 final class ReceiptSocket
 {
@@ -16,7 +15,7 @@ final class ReceiptSocket
         $this->receipts ??= new MessengerReceiptService();
     }
 
-    public function list(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
+    public function list(array $connections, SocketConnection $connection, string $userUid, array $payload = []): void
     {
         $this->guard($connection, function () use ($connection, $userUid, $payload): void {
             $dialogUid = $this->requiredString($payload, 'dialog_uid');
@@ -28,7 +27,7 @@ final class ReceiptSocket
         });
     }
 
-    public function delivered(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
+    public function delivered(array $connections, SocketConnection $connection, string $userUid, array $payload = []): void
     {
         $this->guard($connection, function () use ($connections, $userUid, $payload): void {
             $dialogUid = $this->requiredString($payload, 'dialog_uid');
@@ -47,7 +46,7 @@ final class ReceiptSocket
     private function sendToUser(array $connections, string $userUid, array $payload): void
     {
         foreach ($connections[$userUid] ?? [] as $userConnection) {
-            if ($userConnection instanceof TcpConnection) {
+            if ($userConnection instanceof SocketConnection) {
                 $this->send($userConnection, $payload);
             }
         }
@@ -62,7 +61,7 @@ final class ReceiptSocket
         return $value;
     }
 
-    private function guard(TcpConnection $connection, callable $callback): void
+    private function guard(SocketConnection $connection, callable $callback): void
     {
         try {
             $callback();
@@ -74,7 +73,7 @@ final class ReceiptSocket
         }
     }
 
-    private function send(TcpConnection $connection, array $payload): void
+    private function send(SocketConnection $connection, array $payload): void
     {
         $connection->send(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
