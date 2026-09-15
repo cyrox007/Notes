@@ -17,12 +17,14 @@ on:
       - 'app/views/main_page/index.php'
       - 'app/views/file_manager/index.php'
       - 'app/views/profile_page/*.php'
+      - 'app/views/admin-page/*.php'
       - 'assets/js/common.js'
       - 'assets/js/profile.js'
       - 'tests/integration/native_view_renderer_contract.php'
       - 'tests/integration/native_workspace_shell_contract.php'
       - 'tests/integration/native_file_manager_contract.php'
       - 'tests/integration/native_profile_contract.php'
+      - 'tests/integration/native_admin_contract.php'
       - '.github/workflows/native-view-foundation.yml'
   pull_request:
     branches: ['1.0']
@@ -40,12 +42,14 @@ on:
       - 'app/views/main_page/index.php'
       - 'app/views/file_manager/index.php'
       - 'app/views/profile_page/*.php'
+      - 'app/views/admin-page/*.php'
       - 'assets/js/common.js'
       - 'assets/js/profile.js'
       - 'tests/integration/native_view_renderer_contract.php'
       - 'tests/integration/native_workspace_shell_contract.php'
       - 'tests/integration/native_file_manager_contract.php'
       - 'tests/integration/native_profile_contract.php'
+      - 'tests/integration/native_admin_contract.php'
       - '.github/workflows/native-view-foundation.yml'
 
 permissions:
@@ -85,16 +89,22 @@ jobs:
           php -l app/views/profile_page/index.php
           php -l app/views/profile_page/publication.php
           php -l app/views/profile_page/public.php
+          php -l app/views/admin-page/index.php
+          php -l app/views/admin-page/registration.php
+          php -l app/views/admin-page/settings.php
+          php -l app/views/admin-page/roles.php
           php -l tests/integration/native_view_renderer_contract.php
           php -l tests/integration/native_workspace_shell_contract.php
           php -l tests/integration/native_file_manager_contract.php
           php -l tests/integration/native_profile_contract.php
+          php -l tests/integration/native_admin_contract.php
       - name: Verify native renderer contracts without vendor bootstrap
         run: |
           php tests/integration/native_view_renderer_contract.php
           php tests/integration/native_workspace_shell_contract.php
           php tests/integration/native_file_manager_contract.php
           php tests/integration/native_profile_contract.php
+          php tests/integration/native_admin_contract.php
       - name: Verify migration boundary
         run: |
           ! grep -F 'use Smarty\\' core/controller.php
@@ -113,3 +123,7 @@ jobs:
           test -f app/views/profile_page/index.php
           test -f app/views/profile_page/publication.php
           test -f app/views/profile_page/public.php
+          test -f app/views/admin-page/index.php
+          test -f app/views/admin-page/registration.php
+          test -f app/views/admin-page/settings.php
+          test -f app/views/admin-page/roles.php
