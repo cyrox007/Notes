@@ -320,11 +320,16 @@ document.addEventListener('DOMContentLoaded', () => {
             event.preventDefault();
             column.dataset.dragOver = 'false';
             if (!dragged) return;
+
+            const card = dragged;
             const status = column.dataset.status || '';
-            const url = dragged.dataset.updateUrl || '';
+            const url = card.dataset.updateUrl || '';
             if (!status || !url) return;
-            const currentColumn = dragged.closest('.task-board-column');
+            const currentColumn = card.closest('.task-board-column');
             if (currentColumn?.dataset.status === status) return;
+            const csrfToken = card.querySelector('input[name="csrf_token"]')?.value
+                || document.querySelector('input[name="csrf_token"]')?.value
+                || '';
 
             try {
                 const response = await fetch(url, {
@@ -332,6 +337,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     headers: {
                         'Accept': 'application/json',
                         'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-Token': csrfToken,
                         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
                     },
                     body: new URLSearchParams({ status }).toString()
@@ -340,8 +346,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!response.ok || payload.success !== true) {
                     throw new Error(payload.message || `HTTP ${response.status}`);
                 }
-                column.querySelector('.task-board-column__items')?.appendChild(dragged);
-                const select = dragged.querySelector('select[name="status"]');
+                column.querySelector('.task-board-column__items')?.appendChild(card);
+                const select = card.querySelector('select[name="status"]');
                 if (select) select.value = status;
                 window.setTimeout(() => window.location.reload(), 120);
             } catch (error) {
