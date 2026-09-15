@@ -1,12 +1,12 @@
 # Workspace Organizer
 
-**Версия:** `0.13.0-alpha`  
-**Актуально на:** 14 сентября 2026  
-**Статус:** product-complete alpha / beta candidate baseline
+**Версия:** `0.14.0-beta.1`  
+**Актуально на:** 15 сентября 2026  
+**Статус:** beta.1 / modular security-hardening baseline; следующая основная цель — `1.0.0` stable
 
 Workspace Organizer — внутреннее PHP-приложение для корпоративной работы: заметки, задачи, личные файлы, профиль, администрирование и real-time Messenger.
 
-К 0.13 базовые security-, schema-contract, data-integrity, installer, browser/WSS и production-operations риски уже закрыты 0.12 usable baseline, а 0.13 завершает основной alpha-цикл продуктового UX: Tasks получил kanban, Notes — writing-first editor и first-class voice notes, Profile — workspace metrics и explicit publication model, File Manager — grid/list/search/sort/drag-drop workspace, Messenger — понятный reconnect/offline lifecycle. После 0.13 крупные новые функции замораживаются до beta-hardening.
+Версия `0.14.0-beta.1` переводит проект из alpha в beta: поверх product-complete 0.13 зафиксированы hardening Router/session/redirect boundary, формальные module manifests и registry, persisted module lifecycle, compatibility/dependency contracts и полный regression baseline, включая HTTPS/WSS. Beta.1 — это первая стабилизационная точка, а не финальная 1.0: дальнейшая работа в `master` направлена на завершение изоляции модулей, signed updates/recovery, licensing, observability и остальные stable blockers.
 
 ## Возможности
 
@@ -80,7 +80,7 @@ Web-installer автоматически:
 
 - проверяет PHP 8.1+, extensions, Argon2id и наличие production `vendor/`;
 - пытается создать отсутствующую БД, если MySQL account это разрешает;
-- импортирует 7 canonical schemas и создаёт current contract из 26 обязательных таблиц;
+- импортирует 8 canonical schemas и создаёт current contract из 27 обязательных таблиц;
 - создаёт `cache`/`compile`;
 - подбирает и создаёт `PRIVATE_STORAGE_PATH` вне document root;
 - создаёт private пространства `file_manager`, `messenger`, `notes`, `users`, `rate-limit`, `logs`, `legacy`;
@@ -135,9 +135,10 @@ database/user_fields_schema.sql
 database/tasks_schema.sql
 database/access_control_schema.sql
 database/settings_schema.sql
+database/module_lifecycle_schema.sql
 ```
 
-Fresh contract включает 26 обязательных таблиц. `system_settings` хранит редактируемые системные значения, а `user_storage_quotas` — только персональные overrides лимита; фактический used space всегда рассчитывается из canonical `user_files`, чтобы не поддерживать рассинхронизируемый usage counter. `install.php` предназначен только для новой/пустой БД. Для существующих установок используются compatibility upgrade SQL; они не заменяют canonical `*_schema.sql` как описание текущей схемы.
+Fresh contract включает 27 обязательных таблиц, включая persisted `module_lifecycle` registry. `system_settings` хранит редактируемые системные значения, а `user_storage_quotas` — только персональные overrides лимита; фактический used space всегда рассчитывается из canonical `user_files`, чтобы не поддерживать рассинхронизируемый usage counter. `install.php` предназначен только для новой/пустой БД. Для существующих установок используются compatibility upgrade SQL; они не заменяют canonical `*_schema.sql` как описание текущей схемы.
 
 После успешной установки наличие `.env` блокирует повторный запуск web-installer.
 
@@ -351,7 +352,7 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 
 `System settings and storage quota` проверяет canonical settings schema, admin ACL, default/per-user quota, live usage из `user_files`, reset override и quota overflow denial на MySQL 8.4.
 
-`Hosting installer` выполняет настоящий HTTP fresh-install через cookies/CSRF на MySQL в hosting-like `public_html/workspace`, проверяет subdirectory detection, private storage вне document root, 26-table contract, quota seed, admin account, generated `.env`, блокировку повторного installer и итоговый healthcheck.
+`Hosting installer` выполняет настоящий HTTP fresh-install через cookies/CSRF на MySQL в hosting-like `public_html/workspace`, проверяет subdirectory detection, private storage вне document root, 27-table contract, quota seed, admin account, generated `.env`, блокировку повторного installer и итоговый healthcheck.
 
 `Build hosting package` собирает upload-ready ZIP с production `vendor/`; на tag `v*` ZIP публикуется как release asset.
 
@@ -361,7 +362,7 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 
 `Production operations` проверяет shared rate-limit storage, trusted proxy contract, positive/negative multi-node healthcheck, MySQL dump/checksum/restore, private-storage restore и rotation `WS_TICKET_SECRET`.
 
-`0.13 alpha readiness` проверяет наличие 0.12 durable baseline, ключевых 0.13 UX артефактов, закрытый release scope и синхронизацию Version/README/CHANGELOG.
+`0.14 beta readiness` проверяет beta identity, module/security lifecycle artifacts, release publishing contract и синхронизацию Version/README/CHANGELOG.
 
 `Master release gate` запускается на каждом PR и после каждого push/merge в `master`: повторно проверяет объединённый commit — Composer/security audit, полный PHP/JS lint, canonical schema import, production healthcheck, согласованность версии, governance contract и upload-ready hosting bundle.
 
@@ -378,42 +379,20 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 - [`TASKS_MODULE_README.md`](TASKS_MODULE_README.md) — дополнительная документация Tasks.
 - [`default.env`](default.env) — environment variables и security comments.
 
-## После 0.13: путь к beta / stable
+## 0.14 beta и путь к `1.0.0` stable
 
-`0.13.0-alpha` закрывает функциональный alpha-цикл. Следующий этап — beta-hardening без крупных новых функций.
+`0.14.0-beta.1` — первая официальная beta-точка. Beta patch releases при необходимости публикуются как `v0.14.0-beta.N`; они не открывают новый feature cycle. Основная ветка после beta.1 развивается в сторону `1.0.0` stable.
 
-Перед `0.14.0-beta.1` приоритетны:
+Перед `1.0.0` должны быть закрыты оставшиеся platform/stability blockers:
 
-- централизованные structured logs / metrics / alerts и наблюдаемость production deployment;
-- upgrade matrix как минимум `0.12.0-alpha → 0.13.0-alpha → beta` с сохранением encrypted/user data;
-- cross-browser и mobile/tablet regression pass;
-- Messenger soak/reconnect baseline и измеримый load/performance baseline;
-- явный data-retention/permanent-purge contract;
-- фактическое enforcement required status checks в GitHub ruleset.
-
-До `1.0.0` дополнительно нужны:
-
+- module-owned bootstrap/routes/assets/socket registration и фактическая изоляция отключённых модулей;
+- deterministic package compositions и dependency preflight для разных наборов модулей;
+- signed core/module update metadata, staged transactional update, rollback/recovery и health verification;
+- централизованный licensing/entitlement contract с безопасным offline/expiry behavior без удаления пользовательских данных;
+- structured observability, security/audit events, metrics/alerts, load/soak и cross-browser/mobile regression evidence;
 - transactional/resumable re-encryption procedure для безопасной ротации `UNIQUE_KEY` / `MSG_SECRET_KEY`;
 - постепенный вынос inline Smarty JS/CSS для CSP без `unsafe-inline`;
-- подтверждённый beta-период без P0/P1 data-loss/security дефектов;
-- scalable encrypted-search architecture только если beta load tests покажут, что bounded decrypt scan перестаёт соответствовать заявленному масштабу.
+- явный retention/permanent-purge contract и подтверждённый beta-период без P0/P1 data-loss/security дефектов;
+- scalable encrypted-search architecture только если beta load tests покажут, что bounded decrypt scan не соответствует заявленному масштабу.
 
-## Production checklist
-
-Перед выкладкой:
-
-1. Для shared hosting используется готовый hosting bundle с `vendor/`; при deploy из source `composer install --no-dev --optimize-autoloader` проходит без ошибок.
-2. Fresh install успешно завершается через `/install.php` без ручного SQL/`.env` и создаёт current 26-table schema contract.
-3. `.env`, application source и service directories недоступны по HTTP.
-4. `UNIQUE_KEY`, `MSG_SECRET_KEY`, `WS_TICKET_SECRET` уникальны и случайны.
-5. `PRIVATE_STORAGE_PATH` находится вне document/application root.
-6. HTTPS + same-site WSS reverse proxy настроены.
-7. `WS_ALLOWED_ORIGINS` содержит только trusted origins.
-8. Для existing DB `php bin/migrate.php --status` показывает ожидаемое состояние compatibility upgrades.
-9. Legacy crypto migration выполнена/проверена, если нужна.
-10. `php bin/healthcheck.php` возвращает `Healthcheck: OK`.
-11. Backup БД/private storage создан и restore реально проверен.
-12. Orphan cleanup запланирован.
-13. Registration invite/rate limits/storage quotas настроены осознанно.
-14. Logs, metrics и disk-space alerts подключены.
-15. Последний `Master release gate` на объединённом commit `master` завершён успешно.
+Подробный hardening roadmap: [`docs/BETA_HARDENING_0.14.md`](docs/BETA_HARDENING_0.14.md).

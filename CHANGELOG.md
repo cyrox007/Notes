@@ -4,7 +4,30 @@
 
 ## Unreleased
 
-Следующий цикл — beta-hardening: observability, upgrade matrix, cross-browser/mobile regression, soak/load baseline, retention contract и release-governance enforcement без расширения крупного feature scope.
+Основная цель после первого beta — `1.0.0` stable. Крупный пользовательский feature scope остаётся заморожен; приоритеты: полная runtime-изоляция модулей, package compositions, signed updater/recovery, licensing, observability, upgrade/load/soak/cross-browser evidence, key re-encryption и CSP hardening.
+
+## 0.14.0-beta.1 — 2026-09-15
+
+### Beta transition
+- Проект официально переведён из product-complete alpha в первый beta hardening baseline.
+- Release identity синхронизирован между `Core\Version`, README, CHANGELOG и отдельным beta-readiness contract.
+- Теги prerelease вида `v*-*` публикуются как GitHub **prerelease**, а stable tags — как обычные Releases.
+
+### Core / security hardening
+- Усилен Router/session/redirect boundary: strict session cookie policy, local-only redirect policy, typed route parameters и fail-closed malformed request handling.
+- Bootstrap/security failures не должны раскрывать внутренние stack/path details браузеру; security contracts закреплены CI.
+- Сохранены и повторно пройдены security baseline, production healthcheck, installer/upgrade, crypto migration и fault-injection gates.
+
+### Modular platform
+- Добавлены строгие data-only module manifests и `ModuleRegistry` с path/symlink confinement, compatibility/dependency/capability validation и deterministic load order.
+- Notes, Tasks, Files, Messenger, Profile и Administration зарегистрированы как формальные модули; legacy runtime остаётся временным migration boundary.
+- Добавлен persisted `module_lifecycle` registry с configured/effective state, состояниями `discovered/installed/enabled/disabled/incompatible/degraded/quarantined/uninstalled`, dependency-aware transitions и non-destructive disable/uninstall semantics.
+- Fresh install и compatibility upgrade включают canonical `module_lifecycle` schema; current fresh contract содержит 27 таблиц.
+- Для Workerman lifecycle reconciliation выполняется post-fork, поэтому worker не наследует pre-fork PDO connection; HTTPS/WSS Chromium regression подтверждает reconnect и realtime delivery.
+
+### Beta boundary / next target
+- Beta.1 не объявляет завершёнными module-owned runtime isolation, signed updater/recovery или licensing: эти P0/P1 platform items остаются в `Unreleased` на пути к `1.0.0`.
+- Полный план остаётся в `docs/BETA_HARDENING_0.14.md`; крупные новые пользовательские функции до stable не добавляются.
 
 ## 0.13.0-alpha — 2026-09-14
 
