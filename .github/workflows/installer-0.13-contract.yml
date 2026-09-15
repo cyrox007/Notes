@@ -71,7 +71,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='installer_013_contract'")" = '26'
+          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='installer_013_contract'")" = '27'
 
           for table in notes tasks user_files; do
             CONTRACT="$(mysql -N -B -h 127.0.0.1 -uroot -proot installer_013_contract -e "SELECT CONCAT(IS_NULLABLE,'|',COALESCE(COLUMN_DEFAULT,'NULL')) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='${table}' AND column_name='is_profile_public'")"
@@ -80,7 +80,7 @@ jobs:
 
           test "$(mysql -N -B -h 127.0.0.1 -uroot -proot installer_013_contract -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='note_attachments' AND column_name='duration' AND DATA_TYPE='int' AND IS_NULLABLE='YES'")" = '1'
           test "$(mysql -N -B -h 127.0.0.1 -uroot -proot installer_013_contract -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('system_settings','user_storage_quotas')")" = '2'
-          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot installer_013_contract -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('roles','permissions','role_permissions','user_roles')")" = '4'
+          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot installer_013_contract -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('roles','permissions','role_permissions','user_roles','role_module_policies')")" = '5'
           test "$(mysql -N -B -h 127.0.0.1 -uroot -proot installer_013_contract -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='users' AND column_name='account_status' AND COLUMN_TYPE=\"enum('active','inactive','blocked')\"")" = '1'
           test "$(mysql -N -B -h 127.0.0.1 -uroot -proot installer_013_contract -e "SELECT COUNT(*) FROM roles WHERE code IN ('superadmin','admin','user')")" = '3'
           test "$(mysql -N -B -h 127.0.0.1 -uroot -proot installer_013_contract -e "SELECT COUNT(*) FROM permissions WHERE code='admin.roles.manage'")" = '1'
