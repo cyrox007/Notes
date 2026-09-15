@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use Core\Config;
 use Core\DatabaseManager;
 use DomainException;
 use InvalidArgumentException;
@@ -17,10 +16,12 @@ final class StorageQuotaService
     public const DEFAULT_SETTING_KEY = 'file_manager_default_quota_bytes';
 
     private DatabaseManager $db;
+    private PermissionService $permissions;
 
-    public function __construct(?DatabaseManager $db = null)
+    public function __construct(?DatabaseManager $db = null, ?PermissionService $permissions = null)
     {
         $this->db = $db ?? DatabaseManager::getInstance();
+        $this->permissions = $permissions ?? new PermissionService($this->db);
     }
 
     public function defaultQuotaBytes(): int
@@ -63,7 +64,7 @@ final class StorageQuotaService
             'used_bytes' => $used,
             'quota_bytes' => $quota,
             'remaining_bytes' => max(0, $quota - $used),
-            'percent' => $quota > 0 ? round(min(100, ($used / $quota) * 100), 2) : 100.0,
+            'percent' => $quota > 0 ? round(min(100, ($used / $quota) * 100, 2)) : 100.0,
         ];
     }
 
@@ -103,16 +104,16 @@ final class StorageQuotaService
     /** @return list<array<string,mixed>> */
     public function adminUsage(int $actorId): array
     {
-        $this->requireAdmin($actorId);
+        $this->permissions->requirePermission($actorId, 'admin.settings.manage');
         $defaultQuota = $this->defaultQuotaBytes();
         $rows = $this->db->fetchAll(
-            "SELECT u.id,u.username,u.email,u.firstname,u.lastname,u.is_active,u.role,
+            "SELECT u.id,u.username,u.email,u.firstname,u.lastname,u.is_active,u.account_status,
                     q.quota_bytes AS override_quota,
                     COALESCE(SUM(CASE WHEN f.is_deleted = 0 AND f.type <> 'folder' THEN f.size ELSE 0 END),0) AS used_bytes
              FROM users u
              LEFT JOIN user_storage_quotas q ON q.user_id = u.id
              LEFT JOIN user_files f ON f.user_id = u.id
-             GROUP BY u.id,u.username,u.email,u.firstname,u.lastname,u.is_active,u.role,q.quota_bytes
+             GROUP BY u.id,u.username,u.email,u.firstname,u.lastname,u.is_active,u.account_status,q.quota_bytes
              ORDER BY u.username ASC"
         );
         foreach ($rows as &$row) {
@@ -129,7 +130,7 @@ final class StorageQuotaService
 
     public function setDefaultQuota(int $actorId, int $quotaBytes): void
     {
-        $this->requireAdmin($actorId);
+        $this->permissions->requirePermission($actorId, 'admin.settings.manage');
         $quotaBytes = $this->normalizeQuota($quotaBytes);
         $this->db->execute(
             "INSERT INTO system_settings (setting_key,setting_value,setting_type,category,description,is_editable)
@@ -141,7 +142,7 @@ final class StorageQuotaService
 
     public function setUserQuota(int $actorId, int $userId, ?int $quotaBytes): void
     {
-        $this->requireAdmin($actorId);
+        $this->permissions->requirePermission($actorId, 'admin.settings.manage');
         if ($userId <= 0 || !$this->db->fetchValue('SELECT id FROM users WHERE id = :id', [':id' => $userId])) {
             throw new InvalidArgumentException('Пользователь не найден');
         }
@@ -160,14 +161,6 @@ final class StorageQuotaService
             );
         } finally {
             $this->releaseUploadLock($userId);
-        }
-    }
-
-    private function requireAdmin(int $actorId): void
-    {
-        $row = $this->db->fetchOne('SELECT role,is_active FROM users WHERE id = :id LIMIT 1', [':id' => $actorId]);
-        if (!$row || (int) $row['is_active'] !== 1 || !Config::isAdminRole((int) $row['role'])) {
-            throw new DomainException('Доступ запрещён', 403);
         }
     }
 
