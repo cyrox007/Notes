@@ -80,7 +80,7 @@ Web-installer автоматически:
 
 - проверяет PHP 8.1+, extensions, Argon2id и наличие production `vendor/`;
 - пытается создать отсутствующую БД, если MySQL account это разрешает;
-- импортирует 6 canonical schemas и создаёт current contract из 22 обязательных таблиц;
+- импортирует 7 canonical schemas и создаёт current contract из 26 обязательных таблиц;
 - создаёт `cache`/`compile`;
 - подбирает и создаёт `PRIVATE_STORAGE_PATH` вне document root;
 - создаёт private пространства `file_manager`, `messenger`, `notes`, `users`, `rate-limit`, `logs`, `legacy`;
@@ -133,10 +133,11 @@ database/notes_schema.sql
 database/file_manager_schema.sql
 database/user_fields_schema.sql
 database/tasks_schema.sql
+database/access_control_schema.sql
 database/settings_schema.sql
 ```
 
-Fresh contract включает 22 обязательные таблицы. `system_settings` хранит редактируемые системные значения, а `user_storage_quotas` — только персональные overrides лимита; фактический used space всегда рассчитывается из canonical `user_files`, чтобы не поддерживать рассинхронизируемый usage counter. `install.php` предназначен только для новой/пустой БД. Для существующих установок используются compatibility upgrade SQL; они не заменяют canonical `*_schema.sql` как описание текущей схемы.
+Fresh contract включает 26 обязательных таблиц. `system_settings` хранит редактируемые системные значения, а `user_storage_quotas` — только персональные overrides лимита; фактический used space всегда рассчитывается из canonical `user_files`, чтобы не поддерживать рассинхронизируемый usage counter. `install.php` предназначен только для новой/пустой БД. Для существующих установок используются compatibility upgrade SQL; они не заменяют canonical `*_schema.sql` как описание текущей схемы.
 
 После успешной установки наличие `.env` блокирует повторный запуск web-installer.
 
