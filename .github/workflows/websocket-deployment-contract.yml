@@ -70,7 +70,12 @@ jobs:
           ! grep -R -F 'Workerman\\' app/socket ws_server core.php
           ! test -e app/socket/WorkermanConnectionAdapter.php
           ! grep -Fq 'vendor/autoload.php' core.php
-          php ws_server/server.php status >/dev/null
+          set +e
+          php ws_server/server.php status >/tmp/workspace-ws-status.txt 2>&1
+          WS_STATUS=$?
+          set -e
+          test "$WS_STATUS" -eq 1
+          grep -Fq 'WebSocket server is not running.' /tmp/workspace-ws-status.txt
           grep -Fq 'websocket_proxy_contract' bin/healthcheck.php
           grep -Fq 'RewriteCond %{HTTP:Upgrade} ^websocket$ [NC]' .htaccess
           grep -Fq 'RewriteRule ^ws/?$ ws://127.0.0.1:27800/ [P,L]' .htaccess
