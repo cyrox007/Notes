@@ -1,0 +1,88 @@
+name: Apply RBAC hardening patch
+
+on:
+  push:
+    branches: [0.14-phase3-rbac-foundation]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[rbac-hardening-applied]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 0.14-phase3-rbac-foundation
+
+      - name: Patch migration safety and canonical fixtures
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one occurrence, got {count}: {old!r}')
+              p.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              'bin/migrate.php',
+              "$lines = preg_split('/\\R/', $sql) ?: [];",
+              "$lines = preg_split('/\\R/u', $sql);\n    if ($lines === false) {\n        throw new RuntimeException('Malformed migration: SQL is not valid UTF-8');\n    }",
+          )
+
+          replace_once(
+              'database/migrations/20260915_rbac_foundation.sql',
+              "ALTER TABLE `users`\n    ADD COLUMN `account_status` ENUM('active','inactive','blocked') NOT NULL DEFAULT 'active' AFTER `is_active`;",
+              "SET @rbac_account_status_exists := (\n    SELECT COUNT(*)\n    FROM information_schema.columns\n    WHERE table_schema = DATABASE()\n      AND table_name = 'users'\n      AND column_name = 'account_status'\n);\nSET @rbac_account_status_sql := IF(\n    @rbac_account_status_exists = 0,\n    \"ALTER TABLE `users` ADD COLUMN `account_status` ENUM('active','inactive','blocked') NOT NULL DEFAULT 'active' AFTER `is_active`\",\n    'SELECT 1'\n);\nPREPARE rbac_account_status_stmt FROM @rbac_account_status_sql;\nEXECUTE rbac_account_status_stmt;\nDEALLOCATE PREPARE rbac_account_status_stmt;",
+          )
+
+          replace_once(
+              '.github/workflows/product-quality.yml',
+              "          mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/tasks_schema.sql\n          mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/settings_schema.sql",
+              "          mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/tasks_schema.sql\n          mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/access_control_schema.sql\n          mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/settings_schema.sql",
+          )
+          replace_once(
+              '.github/workflows/product-quality.yml',
+              "          grep -Fq '22 required tables present' /tmp/healthcheck.json",
+              "          grep -Fq '26 required tables present' /tmp/healthcheck.json",
+          )
+
+          replace_once(
+              '.github/workflows/master-release-gate.yml',
+              "  database/tasks_schema.sql \\\n  database/settings_schema.sql",
+              "  database/tasks_schema.sql \\\n  database/access_control_schema.sql \\\n  database/settings_schema.sql",
+          )
+          replace_once(
+              '.github/workflows/master-release-gate.yml',
+              'test "$count" -ge 22',
+              'test "$count" -eq 26',
+          )
+          PY
+
+      - name: Static validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l bin/migrate.php
+          grep -Fq "preg_split('/\\R/u'" bin/migrate.php
+          grep -Fq 'rbac_account_status_exists' database/migrations/20260915_rbac_foundation.sql
+          grep -Fq 'access_control_schema.sql' .github/workflows/product-quality.yml
+          grep -Fq '26 required tables present' .github/workflows/product-quality.yml
+          grep -Fq 'access_control_schema.sql' .github/workflows/master-release-gate.yml
+          grep -Fq 'test "$count" -eq 26' .github/workflows/master-release-gate.yml
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add bin/migrate.php database/migrations/20260915_rbac_foundation.sql .github/workflows/product-quality.yml .github/workflows/master-release-gate.yml
+          git commit -m '0.14 RBAC: harden UTF-8 upgrades and canonical fixtures [rbac-hardening-applied]'
+          git push origin HEAD:0.14-phase3-rbac-foundation
