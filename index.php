@@ -72,4 +72,13 @@ try {
 }
 
 require_once SITEPATH . '/core/Router.php';
+require_once SITEPATH . '/core/ModuleRouteProvider.php';
+require_once SITEPATH . '/core/ModuleRuntimeLoader.php';
+
+\Core\ModuleRuntimeLoader::registerRoutes(
+    \Core\ModuleRegistry::getInstance(),
+    \Core\Router::getInstance(),
+    SITEPATH . '/modules'
+);
+
 require_once SITEPATH . '/core/routerConfig.php';
