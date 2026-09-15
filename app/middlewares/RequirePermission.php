@@ -8,14 +8,18 @@ use App\Services\PermissionService;
 use Core\Request;
 use Core\Router;
 
-abstract class RequirePermission
+/**
+ * Shared permission gate for legacy router middleware wrappers.
+ *
+ * This class is deliberately composed rather than inherited from: core.php
+ * still loads app/middlewares recursively without dependency ordering, so a
+ * concrete middleware must be safe to declare before this helper file is read.
+ */
+final class RequirePermission
 {
-    protected const PERMISSION = '';
-
-    public function handle(Request $request): bool
+    public static function check(Request $request, string $permission): bool
     {
         $userId = (int) $request->session('user_id', 0);
-        $permission = static::PERMISSION;
 
         if ($permission === '' || !(new PermissionService())->hasPermission($userId, $permission)) {
             Router::getInstance()->redirect('main', 'name');
