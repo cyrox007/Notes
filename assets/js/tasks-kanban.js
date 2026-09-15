@@ -5,6 +5,12 @@
         ['completed', 'Готово', 'Завершённые задачи'],
         ['cancelled', 'Отменено', 'Снято с работы'],
     ];
+    const STATUS_LABELS = {
+        pending: 'Ожидает',
+        in_progress: 'В процессе',
+        completed: 'Завершена',
+        cancelled: 'Отменена',
+    };
 
     function boot() {
         const root = document.querySelector('.tasks');
@@ -61,7 +67,70 @@
         let activeView = localStorage.getItem('workspace.tasks.view') === 'list' ? 'list' : 'board';
 
         function statusOf(task) {
-            return task.querySelector('.task-status-toggle')?.value || 'pending';
+            return task.dataset.status || task.querySelector('.task-status-toggle')?.value || 'pending';
+        }
+
+        function readStat(status) {
+            const node = root.querySelector(`.stat-${status} .stat-value`);
+            return node ? Number(node.textContent || 0) : 0;
+        }
+
+        function writeStat(status, value) {
+            const node = root.querySelector(`.stat-${status} .stat-value`);
+            if (node) node.textContent = String(Math.max(0, value));
+        }
+
+        function shiftStats(previous, next, task) {
+            if (previous === next) return;
+            if (['pending', 'in_progress', 'completed'].includes(previous)) {
+                writeStat(previous, readStat(previous) - 1);
+            }
+            if (['pending', 'in_progress', 'completed'].includes(next)) {
+                writeStat(next, readStat(next) + 1);
+            }
+
+            const wasOverdue = task.dataset.overdue === '1';
+            const becomesInactive = ['completed', 'cancelled'].includes(next);
+            const wasInactive = ['completed', 'cancelled'].includes(previous);
+            if (wasOverdue && !wasInactive && becomesInactive) {
+                writeStat('overdue', readStat('overdue') - 1);
+            } else if (wasOverdue && wasInactive && !becomesInactive) {
+                writeStat('overdue', readStat('overdue') + 1);
+            }
+        }
+
+        function syncTaskStatus(task, nextStatus, previousStatus = null) {
+            if (!task || !STATUS_LABELS[nextStatus]) return;
+            const previous = previousStatus || statusOf(task);
+            task.dataset.status = nextStatus;
+            const label = task.querySelector('.task-status-label');
+            if (label) label.textContent = STATUS_LABELS[nextStatus];
+            const complete = task.querySelector('.task-complete-toggle');
+            if (complete) complete.checked = nextStatus === 'completed';
+            task.querySelector('.task-title')?.classList.toggle('completed', nextStatus === 'completed');
+            shiftStats(previous, nextStatus, task);
+            if (activeView === 'board') {
+                moveTaskToBoard(task);
+                updateCounts();
+            }
+        }
+
+        function updateSubtaskProgress(toggle) {
+            const container = toggle?.closest('.task-subtasks');
+            if (!container) return;
+            const toggles = [...container.querySelectorAll('.subtask-toggle')];
+            const total = toggles.length;
+            const completed = toggles.filter((item) => item.checked).length;
+            const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
+            container.dataset.subtaskTotal = String(total);
+            container.dataset.subtaskCompleted = String(completed);
+            const label = container.querySelector('.task-subtasks__percent');
+            if (label) label.textContent = String(percent);
+            const progress = container.querySelector('.task-subtasks__progress');
+            const bar = container.querySelector('.task-subtasks__progress-bar');
+            if (progress) progress.setAttribute('aria-valuenow', String(percent));
+            if (bar) bar.style.width = `${percent}%`;
+            toggle.closest('.subtask-item')?.classList.toggle('completed', toggle.checked);
         }
 
         function updateCounts() {
@@ -106,6 +175,8 @@
 
         for (const task of tasks) {
             task.draggable = false;
+            task.dataset.status = task.dataset.status || task.querySelector('.task-status-toggle')?.value || 'pending';
+            task.dataset.overdue = task.querySelector('.task-due-date.overdue') ? '1' : '0';
             const header = task.querySelector('.task-header');
             let handle = header?.querySelector('.tasks-board__drag-handle');
             if (header && !handle) {
@@ -118,16 +189,27 @@
                 header.prepend(handle);
             }
 
-            const statusLabel = task.querySelector('.task-status-label');
-            if (statusLabel) {
-                new MutationObserver(() => {
-                    if (activeView === 'board') {
-                        moveTaskToBoard(task);
-                        task.classList.remove('task-item--status-pending');
-                        updateCounts();
-                    }
-                }).observe(statusLabel, { childList: true, subtree: true, characterData: true });
-            }
+            const select = task.querySelector('.task-status-toggle');
+            select?.addEventListener('change', () => {
+                const previous = select.dataset.previousValue || task.dataset.status || 'pending';
+                syncTaskStatus(task, select.value, previous);
+                select.dataset.previousValue = select.value;
+            });
+
+            task.querySelector('.task-complete-toggle')?.addEventListener('change', (event) => {
+                const previous = task.dataset.status || 'pending';
+                const next = event.currentTarget.checked ? 'completed' : 'pending';
+                const statusSelect = task.querySelector('.task-status-toggle');
+                if (statusSelect) {
+                    statusSelect.value = next;
+                    statusSelect.dataset.previousValue = next;
+                }
+                syncTaskStatus(task, next, previous);
+            });
+
+            task.querySelectorAll('.subtask-toggle').forEach((toggle) => {
+                toggle.addEventListener('change', () => updateSubtaskProgress(toggle));
+            });
 
             handle?.addEventListener('dragstart', (event) => {
                 const transfer = event.dataTransfer;
