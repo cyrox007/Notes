@@ -1,6 +1,6 @@
 # Messenger WebSocket server — запуск и эксплуатация
 
-Workspace Organizer использует отдельный долгоживущий **Workerman**-процесс для realtime Messenger. Обычного PHP-FPM/Apache недостаточно: web-приложение выдаёт короткоживущий WebSocket ticket, а браузер затем подключается к отдельному Workerman listener.
+Workspace Organizer использует отдельный долгоживущий **Workerman**-процесс для realtime Messenger. Матрица совместимости Open Server 5.4/6+, shared hosting и VPS вынесена в `docs/DEPLOYMENT_COMPATIBILITY.md`. Обычного PHP-FPM/Apache недостаточно: web-приложение выдаёт короткоживущий WebSocket ticket, а браузер затем подключается к отдельному Workerman listener.
 
 ## 1. Архитектура
 
