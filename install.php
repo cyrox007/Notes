@@ -62,10 +62,17 @@ $requiredTables = [
     'task_categories',
     'task_category_relations',
     'task_reminders',
+    'task_boards',
+    'task_board_members',
+    'task_board_items',
+    'task_board_assignees',
+    'system_settings',
+    'user_storage_quotas',
     'roles',
     'permissions',
     'role_permissions',
     'user_roles',
+    'role_module_policies',
     'module_lifecycle',
 ];
 
@@ -515,6 +522,8 @@ function installerRequirements(string $basePath): array
             && is_file($basePath . '/database/file_manager_schema.sql')
             && is_file($basePath . '/database/user_fields_schema.sql')
             && is_file($basePath . '/database/tasks_schema.sql')
+            && is_file($basePath . '/database/access_control_schema.sql')
+            && is_file($basePath . '/database/settings_schema.sql')
             && is_file($basePath . '/database/module_lifecycle_schema.sql'),
     ];
 

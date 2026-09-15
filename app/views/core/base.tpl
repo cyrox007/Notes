@@ -19,6 +19,8 @@
 	<link rel="stylesheet" href="{$base_url}/assets/css/feedback.css">
 	<link rel="stylesheet" href="{$base_url}/assets/css/file-manager-polish.css">
 	<link rel="stylesheet" href="{$base_url}/assets/css/messenger-connection-ux.css">
+	<link rel="stylesheet" href="{$base_url}/assets/css/live-qa-fixes.css?v={$version|escape:'url'}">
+	<link rel="stylesheet" href="{$base_url}/assets/css/live-qa-final.css?v={$version|escape:'url'}">
 	<link rel="icon" href="{$base_url}/favicon.ico" type="image/x-icon">
 	<template id="csrf-token-template">{csrf_token}</template>
 	<script>
@@ -33,7 +35,9 @@
 	<script src="{$base_url}/assets/js/file-manager-polish.js" defer></script>
 	<script src="{$base_url}/assets/js/file-manager-drop-upload.js" defer></script>
 	<script src="{$base_url}/assets/js/tasks-kanban.js" defer></script>
+	<script src="{$base_url}/assets/js/task-boards-nav.js" defer></script>
 	<script src="{$base_url}/assets/js/messenger-connection-ux.js" defer></script>
+	<script src="{$base_url}/assets/js/admin-settings-nav.js" defer></script>
 </head>
 
 <body{if isset($pagination)}

@@ -30,6 +30,8 @@ $storageLegacyReconcileMigration = '20260914_storage_quota_legacy_reconcile.sql'
 $storageQuotaMigration = '20260913_system_settings_storage_quota.sql';
 $profilePublicationMigration = '20260914_profile_publication.sql';
 $rbacFoundationMigration = '20260915_rbac_foundation.sql';
+$roleModulePoliciesMigration = '20260915_role_module_policies.sql';
+$sharedTaskBoardsMigration = '20260915_shared_task_boards.sql';
 $moduleLifecycleMigration = '20260915_module_lifecycle.sql';
 
 $manifest = [
@@ -53,6 +55,10 @@ $manifest = [
     $profilePublicationMigration,
     // 0.14 introduces persisted RBAC and separates account state from role identity.
     $rbacFoundationMigration,
+    // Beta 4 keeps quantitative and typed module restrictions separate from RBAC.
+    $roleModulePoliciesMigration,
+    // Shared boards are additive and keep legacy personal Tasks untouched.
+    $sharedTaskBoardsMigration,
     // Module lifecycle follows RBAC because runtime bootstrap now requires both
     // authorization state and persisted module state before app/* is loaded.
     $moduleLifecycleMigration,
@@ -64,8 +70,9 @@ $currentTables = [
     'notes', 'note_attachments', 'shared_notes', 'note_history', 'note_tags', 'note_tag_relations',
     'user_files', 'user_fields',
     'tasks', 'subtasks', 'task_categories', 'task_category_relations', 'task_reminders',
+    'task_boards', 'task_board_members', 'task_board_items', 'task_board_assignees',
     'system_settings', 'user_storage_quotas',
-    'roles', 'permissions', 'role_permissions', 'user_roles',
+    'roles', 'permissions', 'role_permissions', 'user_roles', 'role_module_policies',
     'module_lifecycle',
 ];
 
@@ -445,11 +452,16 @@ function verifyCurrentContract(mysqli $db, array $tables): void
         'permissions' => ['code', 'module_id'],
         'role_permissions' => ['role_id', 'permission_id'],
         'user_roles' => ['user_id', 'role_id', 'assigned_by'],
+        'role_module_policies' => ['role_id', 'module_id', 'policy_key', 'value_type', 'value_json', 'updated_by'],
         'user_to_dialogs' => ['role', 'last_read_message_id', 'last_delivered_message_id', 'is_deleted'],
         'messages' => ['from_user_id', 'message', 'message_type', 'reply_to_message_id', 'meta_data'],
         'notes' => ['is_profile_public'],
         'note_attachments' => ['file_uid', 'file_path', 'mime_type', 'is_encrypted'],
         'tasks' => ['is_profile_public'],
+        'task_boards' => ['uid', 'owner_user_id', 'name', 'audience', 'is_archived'],
+        'task_board_members' => ['board_id', 'user_id', 'role'],
+        'task_board_items' => ['uid', 'board_id', 'creator_user_id', 'title', 'status', 'priority', 'is_deleted'],
+        'task_board_assignees' => ['task_id', 'user_id'],
         'user_files' => ['is_profile_public'],
         'system_settings' => ['setting_key', 'setting_value', 'setting_type', 'category', 'is_editable'],
         'user_storage_quotas' => ['user_id', 'quota_bytes'],

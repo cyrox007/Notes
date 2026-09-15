@@ -56,6 +56,8 @@ jobs:
           test -f database/settings_schema.sql
           test -f database/access_control_schema.sql
           test -f database/module_lifecycle_schema.sql
+          grep -Fq 'task_boards' database/tasks_schema.sql
+          grep -Fq 'role_module_policies' database/access_control_schema.sql
           ! grep -Fq 'SITEURL=http://localhost' install.php
           ! grep -Fq 'WS_PUBLIC_URL=ws://localhost:27800' install.php
 
@@ -164,10 +166,11 @@ jobs:
           done
 
           TABLES=$(mysql -N -h 127.0.0.1 -uroot -proot -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='notes_hosting_test';")
-          test "$TABLES" -eq 27
+          test "$TABLES" -eq 32
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='module_lifecycle'")" = "1"
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('system_settings','user_storage_quotas')")" = "2"
-          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('roles','permissions','role_permissions','user_roles')")" = "4"
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('roles','permissions','role_permissions','user_roles','role_module_policies')")" = "5"
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('task_boards','task_board_members','task_board_items','task_board_assignees')")" = "4"
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT setting_value FROM system_settings WHERE setting_key='file_manager_default_quota_bytes'")" = "1073741824"
           ADMIN=$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT CONCAT(role, ':', is_active, ':', account_status) FROM users WHERE username='hosting_admin';")
           test "$ADMIN" = '1:1:active'
@@ -181,11 +184,11 @@ jobs:
           cd /tmp/workspace-hosting-home/public_html/workspace
           php bin/healthcheck.php --json | tee /tmp/hosting-health.json
           grep -Fq '"status": "ok"' /tmp/hosting-health.json
+          grep -Fq '32 required tables present' /tmp/hosting-health.json
 
       - name: Installer locks after completion
         shell: bash
         run: |
-          set -euo pipefail
           STATUS=$(curl -sS -o /tmp/locked-installer.txt -w '%{http_code}' -c /tmp/new-cookie.txt http://127.0.0.1:8080/workspace/install.php)
           test "$STATUS" = '404'
           grep -Fq 'Installer is locked.' /tmp/locked-installer.txt

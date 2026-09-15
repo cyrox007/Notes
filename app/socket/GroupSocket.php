@@ -6,18 +6,23 @@ namespace App\Sockets;
 
 use App\Services\MessengerGroupService;
 use App\Services\MessengerService;
+use App\Services\RolePolicyService;
 use DomainException;
 use InvalidArgumentException;
 use Workerman\Connection\TcpConnection;
 
 final class GroupSocket
 {
+    private RolePolicyService $policies;
+
     public function __construct(
         private ?MessengerGroupService $groups = null,
-        private ?MessengerService $messenger = null
+        private ?MessengerService $messenger = null,
+        ?RolePolicyService $policies = null
     ) {
         $this->groups ??= new MessengerGroupService();
         $this->messenger ??= new MessengerService();
+        $this->policies = $policies ?? new RolePolicyService();
     }
 
     public function info(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
@@ -61,8 +66,9 @@ final class GroupSocket
 
     public function add_members(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
     {
-        $this->mutate($connections, $connection, $userUid, $payload, 'members_added', function (string $dialogUid) use ($userUid, $payload): void {
+        $this->mutate($connections, $connection, $userUid, $payload, 'members_added', function (string $dialogUid) use ($connection, $userUid, $payload): void {
             $uids = is_array($payload['member_uids'] ?? null) ? $payload['member_uids'] : [];
+            $this->assertMemberLimit($connection, $userUid, $dialogUid, $uids);
             $this->groups->addMembers($userUid, $dialogUid, $uids);
         });
     }
@@ -150,6 +156,32 @@ final class GroupSocket
                 'reason' => $reason,
             ]);
         });
+    }
+
+    private function assertMemberLimit(TcpConnection $connection, string $userUid, string $dialogUid, array $requested): void
+    {
+        $userId = (int) ($connection->userId ?? 0);
+        if ($userId <= 0) {
+            throw new DomainException('Требуется авторизация');
+        }
+        $limit = (int) $this->policies->effectiveValue($userId, 'messenger', 'max_group_members');
+        if ($limit <= 0) {
+            return;
+        }
+
+        $current = $this->messenger->participantUids($userUid, $dialogUid);
+        $all = [];
+        foreach ($current as $uid) {
+            $uid = trim((string) $uid);
+            if ($uid !== '') $all[$uid] = true;
+        }
+        foreach ($requested as $uid) {
+            $uid = trim((string) $uid);
+            if ($uid !== '') $all[$uid] = true;
+        }
+        if (count($all) > $limit) {
+            throw new DomainException('Количество участников группы превышает лимит вашей роли');
+        }
     }
 
     private function broadcastKnown(

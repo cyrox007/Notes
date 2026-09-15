@@ -1,4 +1,4 @@
-<div class="task-item task-priority-{$task.priority|escape}" data-task-id="{$task.uid|escape}">
+<div class="task-item task-priority-{$task.priority|escape}" data-task-id="{$task.uid|escape}" data-status="{$task.status|escape}">
     <div class="task-header">
         <div class="task-title-section">
             <input type="checkbox"
@@ -82,10 +82,13 @@
         <button type="button" class="btn-sm attach-category-btn" data-task-id="{$task.uid|escape}">Добавить категорию</button>
     </div>
 
-    <div class="task-subtasks">
+    <div class="task-subtasks" data-subtask-total="{$task.subtasks|count}">
         <div class="subtasks-header">
-            <span>Подзадачи ({$task.completion_percentage}%)</span>
+            <span class="task-subtasks__label">Подзадачи (<span class="task-subtasks__percent">{$task.completion_percentage}</span>%)</span>
             <button type="button" class="btn-sm add-subtask-btn" data-task-id="{$task.uid|escape}">+ Добавить</button>
+        </div>
+        <div class="task-subtasks__progress" role="progressbar" aria-label="Прогресс подзадач" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{$task.completion_percentage}">
+            <span class="task-subtasks__progress-bar" style="width: {$task.completion_percentage}%"></span>
         </div>
         <ul class="subtasks-list">
             {foreach $task.subtasks as $subtask}

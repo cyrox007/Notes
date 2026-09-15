@@ -6,15 +6,25 @@ namespace App\Sockets;
 
 use App\Models\DialogModel;
 use App\Services\MessengerService;
+use App\Services\RolePolicyService;
+use Core\DatabaseManager;
 use DomainException;
 use InvalidArgumentException;
 use Workerman\Connection\TcpConnection;
 
 final class MessangerSocket
 {
-    public function __construct(private ?MessengerService $messenger = null)
-    {
-        $this->messenger ??= new MessengerService();
+    private RolePolicyService $policies;
+    private DatabaseManager $db;
+
+    public function __construct(
+        private ?MessengerService $messenger = null,
+        ?RolePolicyService $policies = null,
+        ?DatabaseManager $db = null
+    ) {
+        $this->db = $db ?? DatabaseManager::getInstance();
+        $this->messenger ??= new MessengerService($this->db);
+        $this->policies = $policies ?? new RolePolicyService($this->db);
     }
 
     public function get_dialogs(
@@ -83,6 +93,10 @@ final class MessangerSocket
             $participants = is_array($payload['participants'] ?? null) ? $payload['participants'] : [];
             $name = isset($payload['name']) ? (string) $payload['name'] : null;
 
+            if ($type === 'group') {
+                $this->assertGroupCreationPolicy($connection, $participants);
+            }
+
             $dialog = $this->messenger->createDialog($userUid, $type, $participants, $name);
             $dialogUid = (string) $dialog['uid'];
 
@@ -111,7 +125,8 @@ final class MessangerSocket
         string $userUid,
         array $payload = []
     ): void {
-        $this->guard($connection, function () use ($connections, $userUid, $payload): void {
+        $this->guard($connection, function () use ($connections, $connection, $userUid, $payload): void {
+            $this->assertMessageRatePolicy($connection);
             $dialogUid = $this->requiredString($payload, 'dialog_uid');
             $message = $this->requiredString($payload, 'message', allowWhitespace: true);
             $replyToUid = isset($payload['reply_to_uid']) ? trim((string) $payload['reply_to_uid']) : null;
@@ -229,6 +244,52 @@ final class MessangerSocket
                 'user_uid' => $userUid,
             ], excludeUserUid: $userUid);
         });
+    }
+
+    private function assertGroupCreationPolicy(TcpConnection $connection, array $participants): void
+    {
+        $userId = (int) ($connection->userId ?? 0);
+        if ($userId <= 0) {
+            throw new DomainException('Требуется авторизация');
+        }
+        if (!(bool) $this->policies->effectiveValue($userId, 'messenger', 'can_create_groups')) {
+            throw new DomainException('Создание групп отключено для вашей роли');
+        }
+
+        $maxMembers = (int) $this->policies->effectiveValue($userId, 'messenger', 'max_group_members');
+        if ($maxMembers <= 0) {
+            return;
+        }
+        $unique = [];
+        foreach ($participants as $participant) {
+            $uid = trim((string) $participant);
+            if ($uid !== '') {
+                $unique[$uid] = true;
+            }
+        }
+        if (count($unique) + 1 > $maxMembers) {
+            throw new DomainException('Количество участников группы превышает лимит вашей роли');
+        }
+    }
+
+    private function assertMessageRatePolicy(TcpConnection $connection): void
+    {
+        $userId = (int) ($connection->userId ?? 0);
+        if ($userId <= 0) {
+            throw new DomainException('Требуется авторизация');
+        }
+        $limit = (int) $this->policies->effectiveValue($userId, 'messenger', 'messages_per_minute');
+        if ($limit <= 0) {
+            return;
+        }
+
+        $sent = (int) $this->db->fetchValue(
+            'SELECT COUNT(*) FROM messages WHERE from_user_id = :user_id AND created_at >= DATE_SUB(NOW(), INTERVAL 1 MINUTE)',
+            [':user_id' => $userId]
+        );
+        if ($sent >= $limit) {
+            throw new DomainException('Превышен лимит сообщений в минуту для вашей роли');
+        }
     }
 
     private function broadcast(

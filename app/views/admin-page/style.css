@@ -217,6 +217,35 @@
   align-items: end;
 }
 
+/* Provisioning and role-management forms are normal form grids, not rows from
+ * the five-column custom-profile-field editor. Giving them their own layouts
+ * prevents orphan fields and cramped policy controls on desktop/tablet. */
+.admin-panel-card[aria-labelledby="admin-create-user-title"] .custom-field__grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  padding: 20px 24px 22px;
+}
+
+.admin-panel-card[aria-labelledby="admin-create-user-title"] .custom-field__control {
+  min-width: 0;
+}
+
+.admin-panel-card[aria-labelledby="admin-create-role-title"] .custom-field__grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: 16px;
+}
+
+.admin-panel-card[aria-labelledby^="role-title-"] .custom-field__grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 16px;
+}
+
+.admin-panel-card[aria-labelledby^="role-title-"] .custom-field__control {
+  min-width: 0;
+}
+
 .custom-field__control {
   display: grid;
   gap: 6px;
@@ -277,6 +306,17 @@
     grid-template-columns: 1fr 1fr;
   }
 
+  .admin-panel-card[aria-labelledby="admin-create-user-title"] .custom-field__grid,
+  .admin-panel-card[aria-labelledby="admin-create-role-title"] .custom-field__grid,
+  .admin-panel-card[aria-labelledby^="role-title-"] .custom-field__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-panel-card[aria-labelledby="admin-create-user-title"] .custom-field__grid {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
   .custom-field__required,
   .custom-field .remove-field {
     justify-self: start;
@@ -306,8 +346,15 @@
     padding-right: 16px;
   }
 
-  .custom-field__grid {
+  .custom-field__grid,
+  .admin-panel-card[aria-labelledby="admin-create-role-title"] .custom-field__grid,
+  .admin-panel-card[aria-labelledby^="role-title-"] .custom-field__grid {
     grid-template-columns: 1fr;
+  }
+
+  .admin-panel-card[aria-labelledby="admin-create-user-title"] .custom-field__grid {
+    grid-template-columns: 1fr;
+    padding: 16px;
   }
 
   .admin-users-table {

@@ -9,6 +9,7 @@ if (!defined('SITEPATH')) {
 
 putenv('SITEURL=https://example.test');
 putenv('BASE_PATH=/workspace');
+putenv('SESSION_LIFETIME_SECONDS=2592000');
 $_SERVER['HTTP_HOST'] = 'example.test';
 $_SERVER['HTTPS'] = 'on';
 
@@ -55,6 +56,15 @@ if (($params['samesite'] ?? null) !== 'Lax') {
 }
 if (($params['path'] ?? null) !== '/workspace/') {
     failSecurityContract('session cookie path must follow BASE_PATH');
+}
+if ((int) ($params['lifetime'] ?? 0) !== 2592000) {
+    failSecurityContract('session cookie must persist for the configured lifetime');
+}
+if (SessionSecurity::lifetimeSeconds() !== 2592000) {
+    failSecurityContract('session lifetime service value is inconsistent');
+}
+if ((int) ini_get('session.gc_maxlifetime') < 2592000) {
+    failSecurityContract('server session lifetime must not expire before the persistent cookie');
 }
 if (ini_get('session.use_strict_mode') !== '1') {
     failSecurityContract('session.use_strict_mode must be enabled');

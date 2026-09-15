@@ -23,7 +23,7 @@
                 </div>
             {/if}
 
-            <form action="" method="post">
+            <form action="{route_path name='authpage'}" method="post" autocomplete="on">
                 {csrf_token}
                 <div class="form-group">
                     <label for="login">Логин</label>

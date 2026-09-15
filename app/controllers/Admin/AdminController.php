@@ -8,6 +8,7 @@ use App\Models\FieldModel;
 use App\Models\UserModel;
 use App\Services\AdminUserService;
 use App\Services\ListQuery;
+use App\Services\PermissionService;
 use Core\Controller;
 use Core\DatabaseManager;
 use Core\Request;
@@ -48,6 +49,7 @@ final class AdminController extends Controller
                 $query['limit'],
                 $query['offset']
             );
+            $canManageRoles = (new PermissionService())->hasPermission($actorId, 'admin.roles.manage');
         } catch (DomainException $e) {
             http_response_code($this->exceptionStatus($e, 403));
             return;
@@ -61,6 +63,7 @@ final class AdminController extends Controller
             'customFields' => FieldModel::select()->orderBy('id', 'ASC')->get(),
             'users' => $result['items'],
             'pagination' => ListQuery::pagination($query, (int) $result['total']),
+            'canManageRoles' => $canManageRoles,
             'admin_flash' => is_array($flash) ? $flash : null,
         ]);
     }

@@ -203,8 +203,9 @@ $requiredTables = [
     'notes', 'note_attachments', 'shared_notes', 'note_history', 'note_tags', 'note_tag_relations',
     'user_files', 'user_fields',
     'tasks', 'subtasks', 'task_categories', 'task_category_relations', 'task_reminders',
+    'task_boards', 'task_board_members', 'task_board_items', 'task_board_assignees',
     'system_settings', 'user_storage_quotas',
-    'roles', 'permissions', 'role_permissions', 'user_roles',
+    'roles', 'permissions', 'role_permissions', 'user_roles', 'role_module_policies',
     'module_lifecycle',
 ];
 

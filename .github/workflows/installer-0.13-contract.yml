@@ -1,4 +1,4 @@
-name: 0.13 installer schema contract
+name: 0.14 installer schema contract
 
 on:
   pull_request:
@@ -46,9 +46,13 @@ jobs:
           php -l bin/migrate.php
           test -f database/migrations/20260914_profile_publication.sql
           test -f database/migrations/20260915_rbac_foundation.sql
+          test -f database/migrations/20260915_role_module_policies.sql
+          test -f database/migrations/20260915_shared_task_boards.sql
           test -f database/access_control_schema.sql
           grep -Fq '20260914_profile_publication.sql' bin/migrate.php
           grep -Fq '20260915_rbac_foundation.sql' bin/migrate.php
+          grep -Fq '20260915_role_module_policies.sql' bin/migrate.php
+          grep -Fq '20260915_shared_task_boards.sql' bin/migrate.php
           grep -Fq 'WS_HOST=127.0.0.1' install.php
           grep -Fq 'WS_PORT=27800' install.php
           grep -Fq 'WS_PUBLIC_URL=' install.php
@@ -71,7 +75,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='installer_013_contract'")" = '26'
+          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='installer_013_contract'")" = '31'
 
           for table in notes tasks user_files; do
             CONTRACT="$(mysql -N -B -h 127.0.0.1 -uroot -proot installer_013_contract -e "SELECT CONCAT(IS_NULLABLE,'|',COALESCE(COLUMN_DEFAULT,'NULL')) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='${table}' AND column_name='is_profile_public'")"
@@ -80,7 +84,8 @@ jobs:
 
           test "$(mysql -N -B -h 127.0.0.1 -uroot -proot installer_013_contract -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='note_attachments' AND column_name='duration' AND DATA_TYPE='int' AND IS_NULLABLE='YES'")" = '1'
           test "$(mysql -N -B -h 127.0.0.1 -uroot -proot installer_013_contract -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('system_settings','user_storage_quotas')")" = '2'
-          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot installer_013_contract -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('roles','permissions','role_permissions','user_roles')")" = '4'
+          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot installer_013_contract -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('roles','permissions','role_permissions','user_roles','role_module_policies')")" = '5'
+          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot installer_013_contract -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('task_boards','task_board_members','task_board_items','task_board_assignees')")" = '4'
           test "$(mysql -N -B -h 127.0.0.1 -uroot -proot installer_013_contract -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='users' AND column_name='account_status' AND COLUMN_TYPE=\"enum('active','inactive','blocked')\"")" = '1'
           test "$(mysql -N -B -h 127.0.0.1 -uroot -proot installer_013_contract -e "SELECT COUNT(*) FROM roles WHERE code IN ('superadmin','admin','user')")" = '3'
           test "$(mysql -N -B -h 127.0.0.1 -uroot -proot installer_013_contract -e "SELECT COUNT(*) FROM permissions WHERE code='admin.roles.manage'")" = '1'

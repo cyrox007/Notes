@@ -13,6 +13,12 @@
                 <i class="fa fa-user-plus" aria-hidden="true"></i>
                 Регистрация
             </a>
+            {if $canManageRoles}
+                <a class="admin-action admin-action--secondary" href="{route_path name='admin_roles'}">
+                    <i class="fa fa-shield" aria-hidden="true"></i>
+                    Роли и доступ
+                </a>
+            {/if}
             <a class="admin-action admin-action--secondary" href="{route_path name='admin_settings'}">
                 <i class="fa fa-sliders" aria-hidden="true"></i>
                 Настройки и квоты

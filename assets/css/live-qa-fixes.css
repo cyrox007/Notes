@@ -1,0 +1,338 @@
+/* Live QA fixes for 0.14 beta: targeted visual corrections without changing legacy module layout contracts. */
+
+/* Notes editor: make all actions read as controls, not bare links. */
+.note-editor-013__top-actions,
+.note-voice-recorder__controls {
+    align-items: center;
+}
+
+.note-editor-013__voice-button,
+.note-editor-013 .btn {
+    min-height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 9px 15px;
+    box-sizing: border-box;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.2;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color .15s ease, border-color .15s ease, color .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+
+.note-editor-013__voice-button {
+    color: #1d4ed8;
+    background: #eff6ff;
+    border-color: #bfdbfe;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, .08);
+}
+
+.note-editor-013__voice-button:hover,
+.note-editor-013__voice-button:focus-visible {
+    color: #1e40af;
+    background: #dbeafe;
+    border-color: #93c5fd;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, .12);
+    outline: none;
+    transform: translateY(-1px);
+}
+
+.note-editor-013 .btn-primary {
+    color: #fff;
+    background: #2563eb;
+    border-color: #2563eb;
+}
+
+.note-editor-013 .btn-primary:hover,
+.note-editor-013 .btn-primary:focus-visible {
+    color: #fff;
+    background: #1d4ed8;
+    border-color: #1d4ed8;
+    outline: none;
+}
+
+.note-editor-013 .btn-secondary {
+    color: #334155;
+    background: #fff;
+    border-color: #cbd5e1;
+}
+
+.note-editor-013 .btn-secondary:hover,
+.note-editor-013 .btn-secondary:focus-visible {
+    color: #0f172a;
+    background: #f8fafc;
+    border-color: #94a3b8;
+    outline: none;
+}
+
+.note-editor-013 .btn-danger {
+    color: #b42318;
+    background: #fff5f4;
+    border-color: #fecaca;
+}
+
+.note-editor-013 .btn-danger:hover,
+.note-editor-013 .btn-danger:focus-visible {
+    color: #991b1b;
+    background: #fee2e2;
+    border-color: #fca5a5;
+    outline: none;
+}
+
+.note-editor-013 .btn:disabled,
+.note-editor-013__voice-button:disabled {
+    opacity: .55;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.note-editor-013__side-card {
+    overflow: hidden;
+}
+
+.note-editor-013__file-form .btn,
+.note-editor-013__share-box .btn {
+    width: auto;
+}
+
+/* Task cards: visible subtask progress that can be updated without a page reload. */
+.task-subtasks__progress {
+    height: 6px;
+    margin: 9px 0 12px;
+    overflow: hidden;
+    background: #e2e8f0;
+    border-radius: 999px;
+}
+
+.task-subtasks__progress-bar {
+    display: block;
+    height: 100%;
+    width: 0;
+    background: #2563eb;
+    border-radius: inherit;
+    transition: width .2s ease;
+}
+
+.task-item[data-status="completed"] .task-subtasks__progress-bar {
+    background: #16a34a;
+}
+
+/* Admin: stronger hierarchy and stable form grids for wide and narrow screens. */
+.admin-page .admin-panel-card {
+    overflow: hidden;
+}
+
+.admin-page .custom-fields-form {
+    gap: 0;
+}
+
+.admin-page .custom-fields-list {
+    display: grid;
+    gap: 12px;
+}
+
+.admin-page .custom-field {
+    margin: 0;
+    padding: 16px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+}
+
+.admin-page .custom-field__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.admin-page .custom-field__control {
+    min-width: 0;
+    display: grid;
+    align-content: start;
+    gap: 6px;
+}
+
+.admin-page .custom-field__control label,
+.admin-page .custom-field > strong {
+    color: #334155;
+    font-size: 12px;
+    font-weight: 750;
+}
+
+.admin-page .custom-field__control input,
+.admin-page .custom-field__control select,
+.admin-page .custom-field__control textarea {
+    width: 100%;
+    min-height: 42px;
+    box-sizing: border-box;
+    padding: 9px 11px;
+    color: #0f172a;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 9px;
+}
+
+.admin-page .custom-field__control small {
+    color: #64748b;
+    line-height: 1.45;
+}
+
+.admin-settings-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin: -4px 0 18px;
+    padding: 6px;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+}
+
+.admin-settings-tabs__link {
+    min-height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 8px 12px;
+    color: #475569;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.admin-settings-tabs__link:hover,
+.admin-settings-tabs__link:focus-visible {
+    color: #0f172a;
+    background: rgba(255,255,255,.75);
+    outline: none;
+}
+
+.admin-settings-tabs__link[aria-current="page"] {
+    color: #1d4ed8;
+    background: #fff;
+    border-color: #dbe5f0;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, .06);
+}
+
+/* Messenger: keep bubbles and media inside the conversation column. */
+.messenger-message {
+    min-width: 0;
+}
+
+.messenger-message__bubble {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.messenger-message__text,
+.messenger-media,
+.messenger-media > a,
+.messenger-media__file {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.messenger-media {
+    width: min(420px, 100%);
+    min-width: 0;
+}
+
+.messenger-media__image,
+.messenger-media__video {
+    width: auto;
+    max-width: 100%;
+    height: auto;
+    max-height: min(52vh, 520px);
+    object-fit: contain;
+}
+
+.messenger-media__audio {
+    width: min(360px, 100%);
+    max-width: 100%;
+}
+
+.messenger-message__actions {
+    flex: 0 0 auto;
+}
+
+.messenger-paste-preview {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 14px;
+    color: var(--msg-text);
+    background: #fff;
+    border-top: 1px solid var(--msg-border);
+}
+
+.messenger-paste-preview[hidden] {
+    display: none;
+}
+
+.messenger-paste-preview__files {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.messenger-paste-preview__file {
+    max-width: 260px;
+    overflow: hidden;
+    padding: 5px 8px;
+    color: #475569;
+    background: #f1f5f9;
+    border-radius: 8px;
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.messenger-paste-preview__remove {
+    min-height: 32px;
+    padding: 5px 9px;
+    color: #475569;
+    background: transparent;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+@media (max-width: 760px) {
+    .note-editor-013__top-actions .btn,
+    .note-editor-013__voice-button {
+        width: 100%;
+    }
+
+    .admin-page .custom-field__grid {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-settings-tabs {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .messenger-message {
+        max-width: 88%;
+    }
+
+    .messenger-paste-preview {
+        align-items: stretch;
+        flex-direction: column;
+    }
+}
