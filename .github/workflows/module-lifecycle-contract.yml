@@ -1,0 +1,65 @@
+name: 0.14 module lifecycle contract
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [0.14-phase5-module-lifecycle]
+
+permissions:
+  contents: read
+
+jobs:
+  module-lifecycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: module_lifecycle_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.1
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: mysqli, pdo_mysql, mbstring
+          coverage: none
+
+      - name: Lint lifecycle platform
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l core/ModuleManifest.php
+          php -l core/ModuleRegistry.php
+          php -l core/ModuleLifecycleStore.php
+          php -l tests/integration/module_lifecycle_runtime.php
+          php -l core.php
+
+      - name: Prepare lifecycle database
+        run: mysql -h 127.0.0.1 -uroot -proot module_lifecycle_test < database/module_lifecycle_schema.sql
+
+      - name: Verify persisted lifecycle contract
+        env:
+          DBDRIVER: mysql
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: module_lifecycle_test
+          SITEURL: http://localhost
+          BASE_PATH: /
+        run: php tests/integration/module_lifecycle_runtime.php
