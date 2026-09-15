@@ -2,7 +2,7 @@
 
 ## Почему одного Workerman недостаточно
 
-Workspace Organizer намеренно запускает Workerman как внутренний plain-WebSocket listener, например:
+Workspace Organizer намеренно запускает Workerman как внутренний plain-WebSocket listener:
 
 ```text
 tcp://127.0.0.1:27800
@@ -48,23 +48,19 @@ WS_ALLOWED_ORIGINS=https://notes.local
 
 После изменения `.env` перезапустите HTTP/PHP окружение и Workerman, чтобы оба процесса увидели одинаковую конфигурацию.
 
-## Apache в Open Server 6+
+## Apache в Open Server 6+: стандартный случай
 
-Для проекта `C:\OSPanel\home\notes.local` создайте файл:
-
-```text
-C:\OSPanel\home\notes.local\.osp\Apache\notes.local.conf
-```
-
-Содержимое для Apache 2.4.47+:
+Для стандартного `WS_PORT=27800` проект содержит безопасный `.htaccess` bridge:
 
 ```apache
-ProxyPreserveHost On
-ProxyPass "/ws" "http://127.0.0.1:27800/" upgrade=websocket
-ProxyPassReverse "/ws" "http://127.0.0.1:27800/"
+RewriteCond %{HTTP:Upgrade} ^websocket$ [NC]
+RewriteCond %{HTTP:Connection} (^|,)\s*upgrade\s*(,|$) [NC]
+RewriteRule ^ws/?$ ws://127.0.0.1:27800/ [P,L]
 ```
 
-После сохранения **перезапустите Open Server**, затем запустите/перезапустите Workerman:
+Правило активируется только при наличии Apache proxy modules и проксирует только фиксированный loopback backend. В `.htaccess`-контексте оно работает и при установке приложения в подкаталог: запрос `/workspace/ws` попадает в относительный `^ws/?$` внутри каталога приложения.
+
+После обновления `.htaccess` **перезапустите Open Server**, затем запустите/перезапустите Workerman:
 
 ```bat
 php ws_server/server.php restart
@@ -76,7 +72,25 @@ php ws_server/server.php restart
 php ws_server/server.php start
 ```
 
-Для старого Apache, где `upgrade=websocket` недоступен, backend можно указать через WebSocket scheme:
+Если proxy modules доступны, дополнительный `.osp`-файл для стандартного порта не нужен.
+
+## Apache: fallback / нестандартный порт
+
+Если автоматический bridge не сработал либо `WS_PORT` изменён, создайте project-local host extension:
+
+```text
+C:\OSPanel\home\notes.local\.osp\Apache\notes.local.conf
+```
+
+Для Apache 2.4.47+:
+
+```apache
+ProxyPreserveHost On
+ProxyPass "/ws" "http://127.0.0.1:27800/" upgrade=websocket
+ProxyPassReverse "/ws" "http://127.0.0.1:27800/"
+```
+
+Для старого Apache, где `upgrade=websocket` недоступен:
 
 ```apache
 ProxyPreserveHost On
@@ -84,9 +98,11 @@ ProxyPass "/ws" "ws://127.0.0.1:27800/"
 ProxyPassReverse "/ws" "ws://127.0.0.1:27800/"
 ```
 
+После сохранения перезапустите Open Server.
+
 ## Nginx в Open Server
 
-Если проект использует Nginx, создайте project-local extension:
+Если проект использует Nginx, `.htaccess` не применяется. Создайте project-local extension:
 
 ```text
 C:\OSPanel\home\notes.local\.osp\Nginx\notes.local.conf
@@ -116,7 +132,9 @@ location /ws {
 wss://example.local/workspace/ws
 ```
 
-и proxy path тоже должен быть `/workspace/ws`:
+Проектный Apache `.htaccess` bridge продолжает работать автоматически, потому что правило применяется относительно каталога приложения.
+
+Для внешнего virtual-host proxy path должен быть `/workspace/ws`:
 
 ```apache
 ProxyPass "/workspace/ws" "http://127.0.0.1:27800/" upgrade=websocket
@@ -141,7 +159,9 @@ php bin/ws_doctor.php
 - требуемый proxy path/backend;
 - доступен ли TCP listener;
 - готовые Apache и Nginx snippets;
-- на Windows — ожидаемые `.osp` пути для текущего домена.
+- на Windows — fallback `.osp` пути для текущего домена.
+
+`php bin/healthcheck.php` также показывает canonical WebSocket URL и proxy contract, но `ws_doctor.php` дополнительно проверяет доступность listener.
 
 Затем откройте Messenger и проверьте DevTools → Network → WS. Успешное соединение должно получить:
 
@@ -155,13 +175,13 @@ php bin/ws_doctor.php
 
 Проверяйте по порядку:
 
-1. Open Server был перезапущен после создания `.osp` config.
-2. Активен именно тот web-server (Apache или Nginx), для которого создан config.
+1. Open Server был перезапущен после обновления `.htaccess` или `.osp` config.
+2. Если используется Apache, proxy modules доступны; если Nginx — создан Nginx host extension.
 3. `WS_PUBLIC_URL` совпадает с proxy path.
 4. `WS_ALLOWED_ORIGINS` содержит browser origin, например `https://notes.local`.
 5. `WS_TICKET_SECRET` одинаков у HTTP/PHP и Workerman процессов.
 6. Порт `27800` не занят другим процессом.
-7. В логах веб-сервера нет `502`, `503` или ошибки загрузки proxy module.
+7. В логах веб-сервера нет `502`, `503` или ошибки proxy module.
 8. В `LOG_FILE` / Workerman log нет `Rejected WebSocket origin` или ошибки ticket validation.
 
 ## Production / VPS
