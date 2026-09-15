@@ -2,8 +2,21 @@
 -- Keeps legacy users.role operational while introducing independent account state
 -- and persisted role/permission assignments.
 
-ALTER TABLE `users`
-    ADD COLUMN `account_status` ENUM('active','inactive','blocked') NOT NULL DEFAULT 'active' AFTER `is_active`;
+SET @rbac_account_status_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'users'
+      AND column_name = 'account_status'
+);
+SET @rbac_account_status_sql := IF(
+    @rbac_account_status_exists = 0,
+    "ALTER TABLE `users` ADD COLUMN `account_status` ENUM('active','inactive','blocked') NOT NULL DEFAULT 'active' AFTER `is_active`",
+    'SELECT 1'
+);
+PREPARE rbac_account_status_stmt FROM @rbac_account_status_sql;
+EXECUTE rbac_account_status_stmt;
+DEALLOCATE PREPARE rbac_account_status_stmt;
 
 UPDATE `users`
 SET `account_status` = CASE
