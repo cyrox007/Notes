@@ -55,7 +55,7 @@ jobs:
           composer install --no-dev --prefer-dist --no-progress --no-interaction
           php -r '$c=json_decode(file_get_contents("composer.json"), true, 512, JSON_THROW_ON_ERROR); if (isset($c["require"]["vlucas/phpdotenv"])) { fwrite(STDERR, "phpdotenv is still a direct dependency\n"); exit(1); }'
           test ! -d vendor/vlucas/phpdotenv
-          ! grep -R --line-number --fixed-strings 'Dotenv\\Dotenv' core.php core bin tests/integration
+          ! grep -R --line-number --fixed-strings 'Dotenv\\Dotenv' core.php core bin ws_server
       - name: Lint environment bootstrap sources
         run: |
           php -l core/Environment.php
