@@ -51,8 +51,13 @@ jobs:
             app/controllers/AuthController.php \
             app/controllers/Admin/AdminController.php \
             app/controllers/Admin/SettingsController.php \
+            app/services/PermissionService.php \
             app/services/AdminUserService.php \
             app/services/StorageQuotaService.php \
+            app/middlewares/RequirePermission.php \
+            app/middlewares/RequireAdminAccess.php \
+            app/middlewares/RequireAdminUsersManage.php \
+            app/middlewares/RequireAdminSettingsManage.php \
             app/middlewares/AuthRateLimit.php \
             app/middlewares/UploadRateLimit.php \
             app/middlewares/StorageQuotaLimit.php \
@@ -123,8 +128,14 @@ jobs:
           ! grep -Eq "queue(Insert|Update|Delete).*['\"]fields['\"]" app/controllers/Admin/AdminController.php
           ! grep -Fq 'DELETE FROM users' app/controllers/Admin/AdminController.php
           ! grep -Fq 'DELETE FROM users' app/services/AdminUserService.php
-          grep -Fq 'UPDATE users SET is_active = 0' app/services/AdminUserService.php
+          grep -Fq "account_status = 'inactive'" app/services/AdminUserService.php
+          grep -Fq "admin.users.manage" app/services/AdminUserService.php
+          grep -Fq "admin.settings.manage" app/services/StorageQuotaService.php
           grep -Fq "d.type = 'group'" app/services/AdminUserService.php
+          grep -Fq 'RequireAdminAccess::class' core/routerConfig.php
+          grep -Fq 'RequireAdminUsersManage::class' core/routerConfig.php
+          grep -Fq 'RequireAdminSettingsManage::class' core/routerConfig.php
+          ! grep -Fq 'IsAdmin::class' core/routerConfig.php
           grep -Fq "route_path name='admin_toggle_user'" app/views/admin-page/index.tpl
           grep -Fq "route_path name='admin_delete_user'" app/views/admin-page/index.tpl
           grep -Fq "route_path name='admin_settings'" app/views/admin-page/index.tpl
@@ -239,15 +250,18 @@ jobs:
           $_SERVER['HTTP_HOST'] = 'localhost';
           require getcwd() . '/core/config.php';
           require getcwd() . '/core/DatabaseManager.php';
+          require getcwd() . '/app/services/PermissionService.php';
           require getcwd() . '/app/services/UserAvatarService.php';
           require getcwd() . '/app/services/AdminUserService.php';
 
           use App\Services\AdminUserService;
+          use App\Services\PermissionService;
           use Core\Config;
           use Core\DatabaseManager;
           use DomainException;
 
           $db = DatabaseManager::getInstance();
+          $permissions = new PermissionService($db);
           $password = password_hash('ci-password', PASSWORD_ARGON2ID);
           $now = date('Y-m-d H:i:s');
 
@@ -260,8 +274,8 @@ jobs:
           $ids = [];
           foreach ($fixtures as [$uid, $username, $email, $role]) {
               $db->execute(
-                  'INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active,created_at,updated_at) '
-                  . 'VALUES (:uid,:username,:email,:password_hash,:firstname,:lastname,:role,1,:created_at,:updated_at)',
+                  'INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active,account_status,created_at,updated_at) '
+                  . "VALUES (:uid,:username,:email,:password_hash,:firstname,:lastname,:role,1,'active',:created_at,:updated_at)",
                   [
                       ':uid' => $uid,
                       ':username' => $username,
@@ -277,29 +291,59 @@ jobs:
               $ids[$username] = (int) $db->fetchValue('SELECT id FROM users WHERE uid = :uid', [':uid' => $uid]);
           }
 
-          $service = new AdminUserService($db);
+          $service = new AdminUserService($db, $permissions);
           $listed = $service->listUsers($ids['admin-ci']);
           if (count($listed) < 4) {
               throw new RuntimeException('Admin user listing contract failed');
           }
 
+          $initialRole = (int) $db->fetchValue('SELECT role FROM users WHERE id = :id', [':id' => $ids['user-ci']]);
+          $initialRbacRoles = $permissions->roleCodesForUser($ids['user-ci']);
+          if ($initialRole !== Config::USER_ROLE_USER || $initialRbacRoles !== ['user']) {
+              throw new RuntimeException('Admin lifecycle target fixture role contract failed');
+          }
+
           $service->setStatus($ids['admin-ci'], $ids['user-ci'], 'blocked');
-          $state = $db->fetchOne('SELECT role,is_active FROM users WHERE id = :id', [':id' => $ids['user-ci']]);
-          if ((int) $state['role'] !== Config::USER_ROLE_BLOCKED || (int) $state['is_active'] !== 1) {
+          $state = $db->fetchOne('SELECT role,is_active,account_status FROM users WHERE id = :id', [':id' => $ids['user-ci']]);
+          if (
+              !$state
+              || (int) $state['role'] !== $initialRole
+              || (int) $state['is_active'] !== 1
+              || (string) $state['account_status'] !== 'blocked'
+          ) {
               throw new RuntimeException('Admin block contract failed');
+          }
+          if ($permissions->roleCodesForUser($ids['user-ci']) !== $initialRbacRoles) {
+              throw new RuntimeException('Admin block changed RBAC role assignment');
           }
 
           $service->setStatus($ids['admin-ci'], $ids['user-ci'], 'active');
           $service->deactivate($ids['admin-ci'], $ids['user-ci']);
-          $state = $db->fetchOne('SELECT role,is_active FROM users WHERE id = :id', [':id' => $ids['user-ci']]);
-          if (!$state || (int) $state['role'] !== Config::USER_ROLE_INACTIVE || (int) $state['is_active'] !== 0) {
-              throw new RuntimeException('Admin deactivation must preserve the user row and mark it inactive');
+          $state = $db->fetchOne('SELECT role,is_active,account_status FROM users WHERE id = :id', [':id' => $ids['user-ci']]);
+          if (
+              !$state
+              || (int) $state['role'] !== $initialRole
+              || (int) $state['is_active'] !== 0
+              || (string) $state['account_status'] !== 'inactive'
+          ) {
+              throw new RuntimeException('Admin deactivation must preserve role identity and mark account inactive');
+          }
+          if ($permissions->roleCodesForUser($ids['user-ci']) !== $initialRbacRoles) {
+              throw new RuntimeException('Admin deactivation changed RBAC role assignment');
           }
 
           $service->setStatus($ids['admin-ci'], $ids['user-ci'], 'active');
-          $state = $db->fetchOne('SELECT role,is_active FROM users WHERE id = :id', [':id' => $ids['user-ci']]);
-          if ((int) $state['role'] !== Config::USER_ROLE_USER || (int) $state['is_active'] !== 1) {
+          $state = $db->fetchOne('SELECT role,is_active,account_status FROM users WHERE id = :id', [':id' => $ids['user-ci']]);
+          if (
+              !$state
+              || (int) $state['role'] !== $initialRole
+              || (int) $state['is_active'] !== 1
+              || (string) $state['account_status'] !== 'active'
+          ) {
               throw new RuntimeException('Admin reactivation contract failed');
+          }
+          if ($permissions->roleCodesForUser($ids['user-ci']) !== $initialRbacRoles) {
+              throw new RuntimeException('Admin reactivation changed RBAC role assignment');
           }
 
           try {
@@ -341,8 +385,11 @@ jobs:
                   throw $e;
               }
           }
-          $ownerActive = (int) $db->fetchValue('SELECT is_active FROM users WHERE id = :id', [':id' => $ids['owner-ci']]);
-          if ($ownerActive !== 1) {
+          $ownerState = $db->fetchOne(
+              'SELECT is_active,account_status FROM users WHERE id = :id',
+              [':id' => $ids['owner-ci']]
+          );
+          if (!$ownerState || (int) $ownerState['is_active'] !== 1 || (string) $ownerState['account_status'] !== 'active') {
               throw new RuntimeException('Rejected group owner deactivation changed account state');
           }
 

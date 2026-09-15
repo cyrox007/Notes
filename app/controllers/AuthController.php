@@ -35,7 +35,10 @@ class AuthController extends Controller
             return;
         }
 
-        if ((int) $user->is_active !== 1 || !Config::canAuthenticate((int) $user->role)) {
+        if (
+            (int) $user->is_active !== 1
+            || (string) ($user->account_status ?? '') !== 'active'
+        ) {
             $this->render_template('login_page/login_view', [
                 'errors' => [[
                     'CODE' => 'login_error',
@@ -138,8 +141,12 @@ class AuthController extends Controller
             'phone' => $phone !== '' ? $phone : null,
             'avatar' => null,
             'property' => json_encode([], JSON_THROW_ON_ERROR),
+            // Legacy role remains compatibility metadata during the 0.14
+            // migration. The canonical access-control trigger assigns the RBAC
+            // `user` role atomically with this INSERT.
             'role' => Config::USER_ROLE_USER,
             'is_active' => 1,
+            'account_status' => 'active',
             'created_at' => $now,
             'updated_at' => $now,
         ], 'users');

@@ -7,7 +7,6 @@ namespace App\Controllers;
 use App\Helpers\CryptMethods;
 use App\Services\ProfilePublicationService;
 use App\Services\UserAvatarService;
-use Core\Config;
 use Core\Controller;
 use Core\DatabaseManager;
 use Core\Request;
@@ -100,7 +99,7 @@ final class ProfileController extends Controller
                      property = :property,
                      avatar = COALESCE(:avatar, avatar),
                      updated_at = :updated_at
-                 WHERE id = :id AND is_active = 1',
+                 WHERE id = :id AND is_active = 1 AND account_status = \'active\'',
                 [
                     ':firstname' => $update['firstname'],
                     ':patronymic' => $update['patronymic'],
@@ -161,7 +160,7 @@ final class ProfileController extends Controller
 
         DatabaseManager::getInstance()->execute(
             'UPDATE users SET password_hash = :password_hash, updated_at = :updated_at
-             WHERE id = :id AND is_active = 1',
+             WHERE id = :id AND is_active = 1 AND account_status = \'active\'',
             [
                 ':password_hash' => CryptMethods::hashPassword($newPassword),
                 ':updated_at' => date('Y-m-d H:i:s'),
@@ -180,7 +179,8 @@ final class ProfileController extends Controller
 
         (new UserAvatarService($db))->removeStoredAvatar($user);
         $db->execute(
-            'UPDATE users SET avatar = NULL, updated_at = :updated_at WHERE id = :id AND is_active = 1',
+            'UPDATE users SET avatar = NULL, updated_at = :updated_at '
+            . 'WHERE id = :id AND is_active = 1 AND account_status = \'active\'',
             [':updated_at' => date('Y-m-d H:i:s'), ':id' => (int) $user->id]
         );
 
@@ -223,10 +223,9 @@ final class ProfileController extends Controller
 
         $db->execute(
             'UPDATE users
-             SET is_active = 0, role = :inactive_role, avatar = NULL, updated_at = :updated_at
-             WHERE id = :id AND is_active = 1',
+             SET is_active = 0, account_status = \'inactive\', avatar = NULL, updated_at = :updated_at
+             WHERE id = :id AND is_active = 1 AND account_status = \'active\'',
             [
-                ':inactive_role' => Config::USER_ROLE_INACTIVE,
                 ':updated_at' => date('Y-m-d H:i:s'),
                 ':id' => (int) $user->id,
             ]
@@ -250,11 +249,11 @@ final class ProfileController extends Controller
         }
 
         $columns = $withPassword
-            ? 'id,uid,username,email,password_hash,firstname,patronymic,lastname,phone,avatar,property,role,is_active,created_at,updated_at'
-            : 'id,uid,username,email,firstname,patronymic,lastname,phone,avatar,property,role,is_active,created_at,updated_at';
+            ? 'id,uid,username,email,password_hash,firstname,patronymic,lastname,phone,avatar,property,role,is_active,account_status,created_at,updated_at'
+            : 'id,uid,username,email,firstname,patronymic,lastname,phone,avatar,property,role,is_active,account_status,created_at,updated_at';
 
         $user = DatabaseManager::getInstance()->fetchOne(
-            'SELECT ' . $columns . ' FROM users WHERE id = :id AND is_active = 1 LIMIT 1',
+            "SELECT {$columns} FROM users WHERE id = :id AND is_active = 1 AND account_status = 'active' LIMIT 1",
             [':id' => $userId]
         );
         if (!$user) {

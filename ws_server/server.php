@@ -21,7 +21,7 @@ if ($configuredLog !== '') {
 
 use App\Handlers\SocketTicket;
 use App\Models\UserModel;
-use Core\Config;
+use App\Services\PermissionService;
 use Workerman\Connection\TcpConnection;
 use Workerman\Lib\Timer;
 use Workerman\Protocols\Websocket;
@@ -96,6 +96,12 @@ $allowedOrigins = array_values(array_filter(array_map(
     explode(',', (string) (getenv('WS_ALLOWED_ORIGINS') ?: getenv('SITEURL') ?: ''))
 )));
 
+// Instantiate the RBAC service lazily after Workerman has entered the worker
+// process. This avoids creating a PDO connection in a pre-fork master process.
+$canUseMessenger = static function (int $userId): bool {
+    return (new PermissionService())->hasPermission($userId, 'messenger.use');
+};
+
 $removeConnection = static function (TcpConnection $connection) use (&$connections): void {
     if (!isset($connection->uid)) {
         return;
@@ -108,11 +114,11 @@ $removeConnection = static function (TcpConnection $connection) use (&$connectio
     }
 };
 
-$worker->onConnect = function (TcpConnection $connection) use (&$connections, $allowedOrigins): void {
+$worker->onConnect = function (TcpConnection $connection) use (&$connections, $allowedOrigins, $canUseMessenger): void {
     $connection->authenticated = false;
     $connection->pingWithoutResponseCount = 0;
 
-    $connection->onWebSocketConnect = function (TcpConnection $connection) use (&$connections, $allowedOrigins): void {
+    $connection->onWebSocketConnect = function (TcpConnection $connection) use (&$connections, $allowedOrigins, $canUseMessenger): void {
         $origin = rtrim((string) ($_SERVER['HTTP_ORIGIN'] ?? ''), '/');
         if ($allowedOrigins !== [] && ($origin === '' || !in_array($origin, $allowedOrigins, true))) {
             error_log('Rejected WebSocket origin: ' . ($origin ?: '[missing]'));
@@ -129,18 +135,13 @@ $worker->onConnect = function (TcpConnection $connection) use (&$connections, $a
             return;
         }
 
-        if ($userId === null) {
+        if ($userId === null || !$canUseMessenger($userId)) {
             $connection->close();
             return;
         }
 
-        $user = UserModel::select('uid', 'role', 'is_active')->where('id', '=', $userId)->first();
-        if (
-            !$user
-            || empty($user->uid)
-            || (int) $user->is_active !== 1
-            || !Config::canAuthenticate((int) $user->role)
-        ) {
+        $user = UserModel::select('uid')->where('id', '=', $userId)->first();
+        if (!$user || empty($user->uid)) {
             $connection->close();
             return;
         }
@@ -183,18 +184,16 @@ $worker->onWorkerStart = function () use (&$connections): void {
     });
 };
 
-$worker->onMessage = function (TcpConnection $connection, string $message) use (&$connections, $allowedRoutes, $removeConnection): void {
+$worker->onMessage = function (TcpConnection $connection, string $message) use (&$connections, $allowedRoutes, $removeConnection, $canUseMessenger): void {
     if (($connection->authenticated ?? false) !== true || !isset($connection->uid, $connection->userId)) {
         $connection->close();
         return;
     }
 
-    $currentUser = UserModel::select('role', 'is_active')->where('id', '=', (int) $connection->userId)->first();
-    if (
-        !$currentUser
-        || (int) $currentUser->is_active !== 1
-        || !Config::canAuthenticate((int) $currentUser->role)
-    ) {
+    // Re-check the effective permission for every inbound message. Blocking,
+    // deactivation, role removal or module-permission revocation therefore takes
+    // effect without waiting for a new WebSocket connection.
+    if (!$canUseMessenger((int) $connection->userId)) {
         $removeConnection($connection);
         $connection->close();
         return;

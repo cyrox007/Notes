@@ -53,6 +53,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          php -l app/services/PermissionService.php
           php -l app/middlewares/LoginRequared.php
           php -l app/middlewares/IsAdmin.php
           php -l core/controller.php
@@ -61,8 +62,10 @@ jobs:
           node --check assets/js/file_manager/quota.js
           node --check tests/e2e/base-path-smoke.mjs
           bash -n tests/integration/active_session_http.sh
-          grep -Fq "UserModel::select('id', 'role', 'is_active')" app/middlewares/LoginRequared.php
-          grep -Fq "UserModel::select('id', 'role', 'is_active')" app/middlewares/IsAdmin.php
+          grep -Fq "UserModel::select('id', 'is_active', 'account_status')" app/middlewares/LoginRequared.php
+          grep -Fq "admin.access" app/middlewares/IsAdmin.php
+          ! grep -Fq 'Config::canAuthenticate' app/middlewares/LoginRequared.php
+          ! grep -Fq 'Config::isAdminRole' app/middlewares/IsAdmin.php
           grep -Fq "wspace.path = function appPath" app/views/core/common.js
           grep -Fq "appPath('/messenger/upload')" app/views/messager_page/media.js
           ! grep -Fq 'href="/files/' app/views/file_manager/index.tpl
@@ -77,6 +80,7 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot phase2_hardening < database/file_manager_schema.sql
           mysql -h 127.0.0.1 -uroot -proot phase2_hardening < database/user_fields_schema.sql
           mysql -h 127.0.0.1 -uroot -proot phase2_hardening < database/tasks_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot phase2_hardening < database/access_control_schema.sql
           mysql -h 127.0.0.1 -uroot -proot phase2_hardening < database/settings_schema.sql
 
       - name: Seed browser user
@@ -99,8 +103,8 @@ jobs:
               [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
           );
           $stmt = $pdo->prepare(
-              'INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active,created_at,updated_at) '
-              . 'VALUES (:uid,:username,:email,:password_hash,:firstname,:lastname,888,1,NOW(),NOW())'
+              'INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active,account_status,created_at,updated_at) '
+              . "VALUES (:uid,:username,:email,:password_hash,:firstname,:lastname,888,1,'active',NOW(),NOW())"
           );
           $stmt->execute([
               ':uid' => 'ba5e0000-0000-4000-8000-000000000001',

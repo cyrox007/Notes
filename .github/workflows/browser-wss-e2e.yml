@@ -57,6 +57,7 @@ jobs:
           set -euo pipefail
           php -l index.php
           php -l core/config.php
+          php -l app/services/PermissionService.php
           php -l ws_server/server.php
           php -l tests/e2e/router.php
           node --check tests/e2e/browser-smoke.mjs
@@ -66,6 +67,8 @@ jobs:
           ! grep -Fq "display_errors', 1" index.php
           grep -Fq 'Workerman\Protocols\Websocket' ws_server/server.php
           grep -Fq "new Worker(sprintf('tcp://%s:%d'" ws_server/server.php
+          grep -Fq "messenger.use" ws_server/server.php
+          ! grep -Fq 'Config::canAuthenticate' ws_server/server.php
           grep -Fq "getenv('SITEURL')" core/config.php
 
       - name: Prepare canonical database
@@ -77,6 +80,7 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot notes_browser_e2e < database/file_manager_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_browser_e2e < database/user_fields_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_browser_e2e < database/tasks_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_browser_e2e < database/access_control_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_browser_e2e < database/settings_schema.sql
 
       - name: Seed browser users
