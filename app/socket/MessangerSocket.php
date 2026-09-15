@@ -10,7 +10,6 @@ use App\Services\RolePolicyService;
 use Core\DatabaseManager;
 use DomainException;
 use InvalidArgumentException;
-use Workerman\Connection\TcpConnection;
 
 final class MessangerSocket
 {
@@ -29,7 +28,7 @@ final class MessangerSocket
 
     public function get_dialogs(
         array $connections,
-        TcpConnection $connection,
+        SocketConnection $connection,
         string $userUid,
         array $payload = []
     ): void {
@@ -60,7 +59,7 @@ final class MessangerSocket
 
     public function load(
         array $connections,
-        TcpConnection $connection,
+        SocketConnection $connection,
         string $userUid,
         array $payload = []
     ): void {
@@ -84,7 +83,7 @@ final class MessangerSocket
 
     public function create_dialog(
         array $connections,
-        TcpConnection $connection,
+        SocketConnection $connection,
         string $userUid,
         array $payload = []
     ): void {
@@ -121,7 +120,7 @@ final class MessangerSocket
 
     public function message_send(
         array $connections,
-        TcpConnection $connection,
+        SocketConnection $connection,
         string $userUid,
         array $payload = []
     ): void {
@@ -142,7 +141,7 @@ final class MessangerSocket
 
     public function edit_message(
         array $connections,
-        TcpConnection $connection,
+        SocketConnection $connection,
         string $userUid,
         array $payload = []
     ): void {
@@ -169,7 +168,7 @@ final class MessangerSocket
 
     public function delete_message(
         array $connections,
-        TcpConnection $connection,
+        SocketConnection $connection,
         string $userUid,
         array $payload = []
     ): void {
@@ -195,7 +194,7 @@ final class MessangerSocket
 
     public function mark_read(
         array $connections,
-        TcpConnection $connection,
+        SocketConnection $connection,
         string $userUid,
         array $payload = []
     ): void {
@@ -213,7 +212,7 @@ final class MessangerSocket
 
     public function user_typing(
         array $connections,
-        TcpConnection $connection,
+        SocketConnection $connection,
         string $userUid,
         array $payload = []
     ): void {
@@ -222,7 +221,7 @@ final class MessangerSocket
 
     public function stop_typing(
         array $connections,
-        TcpConnection $connection,
+        SocketConnection $connection,
         string $userUid,
         array $payload = []
     ): void {
@@ -231,7 +230,7 @@ final class MessangerSocket
 
     private function typing(
         array $connections,
-        TcpConnection $connection,
+        SocketConnection $connection,
         string $userUid,
         array $payload,
         bool $typing
@@ -246,7 +245,7 @@ final class MessangerSocket
         });
     }
 
-    private function assertGroupCreationPolicy(TcpConnection $connection, array $participants): void
+    private function assertGroupCreationPolicy(SocketConnection $connection, array $participants): void
     {
         $userId = (int) ($connection->userId ?? 0);
         if ($userId <= 0) {
@@ -272,7 +271,7 @@ final class MessangerSocket
         }
     }
 
-    private function assertMessageRatePolicy(TcpConnection $connection): void
+    private function assertMessageRatePolicy(SocketConnection $connection): void
     {
         $userId = (int) ($connection->userId ?? 0);
         if ($userId <= 0) {
@@ -310,13 +309,13 @@ final class MessangerSocket
     private function sendToUser(array $connections, string $userUid, array $payload): void
     {
         foreach ($connections[$userUid] ?? [] as $userConnection) {
-            if ($userConnection instanceof TcpConnection) {
+            if ($userConnection instanceof SocketConnection) {
                 $this->send($userConnection, $payload);
             }
         }
     }
 
-    private function guard(TcpConnection $connection, callable $callback): void
+    private function guard(SocketConnection $connection, callable $callback): void
     {
         try {
             $callback();
@@ -330,7 +329,7 @@ final class MessangerSocket
         }
     }
 
-    private function error(TcpConnection $connection, string $code, string $message): void
+    private function error(SocketConnection $connection, string $code, string $message): void
     {
         $this->send($connection, [
             'action' => 'error',
@@ -339,7 +338,7 @@ final class MessangerSocket
         ]);
     }
 
-    private function send(TcpConnection $connection, array $payload): void
+    private function send(SocketConnection $connection, array $payload): void
     {
         $connection->send(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }

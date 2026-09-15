@@ -9,7 +9,6 @@ use App\Services\MessengerService;
 use App\Services\RolePolicyService;
 use DomainException;
 use InvalidArgumentException;
-use Workerman\Connection\TcpConnection;
 
 final class GroupSocket
 {
@@ -25,7 +24,7 @@ final class GroupSocket
         $this->policies = $policies ?? new RolePolicyService();
     }
 
-    public function info(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
+    public function info(array $connections, SocketConnection $connection, string $userUid, array $payload = []): void
     {
         $this->guard($connection, function () use ($connection, $userUid, $payload): void {
             $dialogUid = $this->requiredString($payload, 'dialog_uid');
@@ -36,7 +35,7 @@ final class GroupSocket
         });
     }
 
-    public function refresh(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
+    public function refresh(array $connections, SocketConnection $connection, string $userUid, array $payload = []): void
     {
         $this->guard($connection, function () use ($connections, $userUid, $payload): void {
             $dialogUid = $this->requiredString($payload, 'dialog_uid');
@@ -57,14 +56,14 @@ final class GroupSocket
         });
     }
 
-    public function rename(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
+    public function rename(array $connections, SocketConnection $connection, string $userUid, array $payload = []): void
     {
         $this->mutate($connections, $connection, $userUid, $payload, 'renamed', function (string $dialogUid) use ($userUid, $payload): void {
             $this->groups->rename($userUid, $dialogUid, $this->requiredString($payload, 'name'));
         });
     }
 
-    public function add_members(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
+    public function add_members(array $connections, SocketConnection $connection, string $userUid, array $payload = []): void
     {
         $this->mutate($connections, $connection, $userUid, $payload, 'members_added', function (string $dialogUid) use ($connection, $userUid, $payload): void {
             $uids = is_array($payload['member_uids'] ?? null) ? $payload['member_uids'] : [];
@@ -73,7 +72,7 @@ final class GroupSocket
         });
     }
 
-    public function remove_member(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
+    public function remove_member(array $connections, SocketConnection $connection, string $userUid, array $payload = []): void
     {
         $dialogUid = $this->requiredString($payload, 'dialog_uid');
         $memberUid = $this->requiredString($payload, 'member_uid');
@@ -93,7 +92,7 @@ final class GroupSocket
         });
     }
 
-    public function set_role(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
+    public function set_role(array $connections, SocketConnection $connection, string $userUid, array $payload = []): void
     {
         $this->mutate($connections, $connection, $userUid, $payload, 'role_changed', function (string $dialogUid) use ($userUid, $payload): void {
             $this->groups->setRole(
@@ -105,7 +104,7 @@ final class GroupSocket
         });
     }
 
-    public function transfer_owner(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
+    public function transfer_owner(array $connections, SocketConnection $connection, string $userUid, array $payload = []): void
     {
         $this->mutate($connections, $connection, $userUid, $payload, 'owner_transferred', function (string $dialogUid) use ($userUid, $payload): void {
             $this->groups->transferOwner(
@@ -116,7 +115,7 @@ final class GroupSocket
         });
     }
 
-    public function leave(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
+    public function leave(array $connections, SocketConnection $connection, string $userUid, array $payload = []): void
     {
         $dialogUid = $this->requiredString($payload, 'dialog_uid');
         $before = $this->messenger->participantUids($userUid, $dialogUid);
@@ -137,7 +136,7 @@ final class GroupSocket
 
     private function mutate(
         array $connections,
-        TcpConnection $connection,
+        SocketConnection $connection,
         string $userUid,
         array $payload,
         string $reason,
@@ -158,7 +157,7 @@ final class GroupSocket
         });
     }
 
-    private function assertMemberLimit(TcpConnection $connection, string $userUid, string $dialogUid, array $requested): void
+    private function assertMemberLimit(SocketConnection $connection, string $userUid, string $dialogUid, array $requested): void
     {
         $userId = (int) ($connection->userId ?? 0);
         if ($userId <= 0) {
@@ -202,7 +201,7 @@ final class GroupSocket
     private function sendToUser(array $connections, string $userUid, array $payload): void
     {
         foreach ($connections[$userUid] ?? [] as $userConnection) {
-            if ($userConnection instanceof TcpConnection) {
+            if ($userConnection instanceof SocketConnection) {
                 $this->send($userConnection, $payload);
             }
         }
@@ -217,7 +216,7 @@ final class GroupSocket
         return $value;
     }
 
-    private function guard(TcpConnection $connection, callable $callback): void
+    private function guard(SocketConnection $connection, callable $callback): void
     {
         try {
             $callback();
@@ -231,7 +230,7 @@ final class GroupSocket
         }
     }
 
-    private function error(TcpConnection $connection, string $code, string $message): void
+    private function error(SocketConnection $connection, string $code, string $message): void
     {
         $this->send($connection, [
             'action' => 'error',
@@ -240,7 +239,7 @@ final class GroupSocket
         ]);
     }
 
-    private function send(TcpConnection $connection, array $payload): void
+    private function send(SocketConnection $connection, array $payload): void
     {
         $connection->send(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }

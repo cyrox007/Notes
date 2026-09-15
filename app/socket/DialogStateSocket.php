@@ -7,7 +7,6 @@ namespace App\Sockets;
 use App\Services\MessengerDialogStateService;
 use DomainException;
 use InvalidArgumentException;
-use Workerman\Connection\TcpConnection;
 
 final class DialogStateSocket
 {
@@ -16,7 +15,7 @@ final class DialogStateSocket
         $this->states ??= new MessengerDialogStateService();
     }
 
-    public function list(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
+    public function list(array $connections, SocketConnection $connection, string $userUid, array $payload = []): void
     {
         $this->guard($connection, function () use ($connection, $userUid): void {
             $this->send($connection, [
@@ -26,7 +25,7 @@ final class DialogStateSocket
         });
     }
 
-    public function pin(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
+    public function pin(array $connections, SocketConnection $connection, string $userUid, array $payload = []): void
     {
         $this->guard($connection, function () use ($connection, $userUid, $payload): void {
             $dialogUid = $this->dialogUid($payload);
@@ -37,7 +36,7 @@ final class DialogStateSocket
         });
     }
 
-    public function archive(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
+    public function archive(array $connections, SocketConnection $connection, string $userUid, array $payload = []): void
     {
         $this->guard($connection, function () use ($connection, $userUid, $payload): void {
             $dialogUid = $this->dialogUid($payload);
@@ -48,7 +47,7 @@ final class DialogStateSocket
         });
     }
 
-    public function mute(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
+    public function mute(array $connections, SocketConnection $connection, string $userUid, array $payload = []): void
     {
         $this->guard($connection, function () use ($connection, $userUid, $payload): void {
             $dialogUid = $this->dialogUid($payload);
@@ -71,7 +70,7 @@ final class DialogStateSocket
         return $uid;
     }
 
-    private function guard(TcpConnection $connection, callable $callback): void
+    private function guard(SocketConnection $connection, callable $callback): void
     {
         try {
             $callback();
@@ -83,7 +82,7 @@ final class DialogStateSocket
         }
     }
 
-    private function send(TcpConnection $connection, array $payload): void
+    private function send(SocketConnection $connection, array $payload): void
     {
         $connection->send(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
