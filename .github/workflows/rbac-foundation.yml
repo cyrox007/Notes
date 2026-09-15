@@ -1,0 +1,59 @@
+name: 0.14 RBAC foundation
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [0.14-phase3-rbac-foundation]
+
+permissions:
+  contents: read
+
+jobs:
+  rbac-foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.1
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
+          coverage: none
+
+      - name: Lint RBAC runtime
+        run: |
+          php -l app/services/PermissionService.php
+          php -l bin/migrate.php
+          php -l bin/healthcheck.php
+          php -l install.php
+          php -l tests/integration/rbac_permission_runtime.php
+
+      - name: Verify RBAC fresh and legacy-upgrade contracts
+        run: bash tests/integration/rbac_foundation_mysql.sh
+
+      - name: Verify migration is registered
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq "20260915_rbac_foundation.sql" bin/migrate.php
+          grep -Fq "access_control_schema.sql" install.php
+          grep -Fq "account_status" database/messenger_schema.sql
+          grep -Fq "unknown permission must fail closed" tests/integration/rbac_permission_runtime.php
