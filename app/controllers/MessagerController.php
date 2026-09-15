@@ -9,6 +9,7 @@ use App\Models\UserModel;
 use App\Services\MessengerMediaService;
 use Core\Controller;
 use Core\Request;
+use Core\WebSocketEndpoint;
 use DomainException;
 use InvalidArgumentException;
 use RuntimeException;
@@ -45,13 +46,11 @@ final class MessagerController extends Controller
             error_log('WebSocket ticket is unavailable: ' . $e->getMessage());
         }
 
-        $socketUrl = trim((string) getenv('WS_PUBLIC_URL'));
-        if ($socketUrl === '') {
-            $siteUrl = (string) (getenv('SITEURL') ?: 'http://localhost');
-            $socketScheme = strtolower((string) parse_url($siteUrl, PHP_URL_SCHEME)) === 'https' ? 'wss' : 'ws';
-            $socketHost = (string) (parse_url($siteUrl, PHP_URL_HOST) ?: 'localhost');
-            $socketPort = (int) (getenv('WS_PORT') ?: 27800);
-            $socketUrl = sprintf('%s://%s:%d', $socketScheme, $socketHost, $socketPort);
+        $socketUrl = '';
+        try {
+            $socketUrl = WebSocketEndpoint::publicUrl();
+        } catch (\Throwable $e) {
+            error_log('WebSocket public endpoint is invalid: ' . $e->getMessage());
         }
 
         $this->render_template('messager_page/index', [

@@ -31,6 +31,7 @@ $coreFiles = [
     '/core/Version.php',
     '/core/SessionSecurity.php',
     '/core/RedirectPolicy.php',
+    '/core/WebSocketEndpoint.php',
     '/core/ModuleManifest.php',
     '/core/ModuleRegistry.php',
     '/core/DatabaseControll.php',
