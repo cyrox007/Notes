@@ -1,0 +1,64 @@
+name: 0.14 Beta 4 role policies
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [0.14-beta4-role-policies-collaboration]
+
+permissions:
+  contents: read
+
+jobs:
+  role-policy-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.1
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
+          coverage: none
+
+      - name: Lint Beta 4 role policy runtime
+        run: |
+          php -l app/services/RolePolicyService.php
+          php -l app/services/RoleManagementService.php
+          php -l app/controllers/Admin/RoleManagementController.php
+          php -l app/middlewares/RequireAdminRolesManage.php
+          php -l app/middlewares/EnforceFileUploadPolicy.php
+          php -l app/middlewares/EnforceFileFolderPolicy.php
+          php -l core/routerConfig.php
+          php -l bin/migrate.php
+          php -l tests/integration/role_policy_runtime.php
+
+      - name: Verify schema, migration and runtime composition
+        run: bash tests/integration/role_policy_mysql.sh
+
+      - name: Verify admin UI contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq "route_path name='admin_roles'" app/views/admin-page/index.tpl
+          grep -Fq "route_path name='admin_roles_policies'" app/views/admin-page/roles.tpl
+          grep -Fq "permission_codes[]" app/views/admin-page/roles.tpl
+          grep -Fq "policies[" app/views/admin-page/roles.tpl
+          grep -Fq "role_ids[]" app/views/admin-page/roles.tpl
