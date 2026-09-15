@@ -82,7 +82,7 @@
         <button type="button" class="btn-sm attach-category-btn" data-task-id="{$task.uid|escape}">Добавить категорию</button>
     </div>
 
-    <div class="task-subtasks" data-subtask-total="{$task.subtasks|count}" data-subtask-completed="{assign var=completedSubtasks value=0}{foreach $task.subtasks as $subtask}{if $subtask.is_completed}{assign var=completedSubtasks value=$completedSubtasks+1}{/if}{/foreach}{$completedSubtasks}">
+    <div class="task-subtasks" data-subtask-total="{$task.subtasks|count}">
         <div class="subtasks-header">
             <span class="task-subtasks__label">Подзадачи (<span class="task-subtasks__percent">{$task.completion_percentage}</span>%)</span>
             <button type="button" class="btn-sm add-subtask-btn" data-task-id="{$task.uid|escape}">+ Добавить</button>
