@@ -156,13 +156,22 @@ nativeMessengerAssert(str_contains($server, "WS_MAX_PAYLOAD_BYTES"), 'native ent
 nativeMessengerAssert(str_contains($server, "'status'"), 'native entrypoint lost process status command');
 nativeMessengerAssert(str_contains($server, "'restart'"), 'native entrypoint lost restart command');
 
-// Workerman remains installed temporarily only as a rollback dependency while
-// the new runtime undergoes a full Chromium/Nginx WSS smoke. It must not be used
-// by the active entrypoint or business handlers.
 $composer = json_decode((string) file_get_contents($root . '/composer.json'), true);
 nativeMessengerAssert(is_array($composer), 'composer.json is invalid');
-nativeMessengerAssert(isset($composer['require']['workerman/workerman']), 'Workerman rollback dependency was removed before native WSS proof');
+nativeMessengerAssert(array_keys($composer['require'] ?? []) === ['php'], 'composer.json still contains a third-party runtime dependency');
+nativeMessengerAssert(!isset($composer['require']['workerman/workerman']), 'Workerman still exists in Composer requirements');
+
+$lock = json_decode((string) file_get_contents($root . '/composer.lock'), true);
+nativeMessengerAssert(is_array($lock), 'composer.lock is invalid');
+nativeMessengerAssert(($lock['packages'] ?? null) === [], 'composer.lock still contains runtime packages');
+nativeMessengerAssert(($lock['packages-dev'] ?? null) === [], 'composer.lock still contains development packages');
+nativeMessengerAssert(($lock['content-hash'] ?? '') === '63e7cd6af94fff1be77b03d112d0b91c', 'vendor-free Composer content hash is stale');
+
+nativeMessengerAssert(!is_file($root . '/app/socket/WorkermanConnectionAdapter.php'), 'obsolete Workerman adapter still exists');
+$coreSource = (string) file_get_contents($root . '/core.php');
+nativeMessengerAssert(!str_contains($coreSource, 'vendor/autoload.php'), 'core bootstrap still depends on vendor/autoload.php');
+nativeMessengerAssert(!str_contains($coreSource, 'Workerman'), 'core bootstrap still references Workerman');
 
 require_once __DIR__ . '/native_websocket_protocol_contract.php';
 
-echo "[OK] native Messenger view, transport, runtime and protocol contract\n";
+echo "[OK] vendor-free native Messenger view, transport, runtime and protocol contract\n";
