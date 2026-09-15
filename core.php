@@ -10,13 +10,13 @@ if (!is_file($environmentLoader)) {
 require_once $environmentLoader;
 \Core\Environment::load(SITEPATH . '/.env');
 
-// Remaining Composer dependencies are currently limited to Smarty and Workerman.
-// Their removal is handled in later 1.0 vendor-free phases.
+// Composer is still required temporarily for the legacy Smarty view adapter and
+// Workerman. Native 1.0 views do not depend on it; both remaining libraries are
+// removed in subsequent vendor-free phases.
 if (file_exists(SITEPATH . '/vendor/autoload.php')) {
     require SITEPATH . '/vendor/autoload.php';
 }
 
-// Register the autoload function
 spl_autoload_register(function ($class) {
     $classPath = SITEPATH . '/' . str_replace('\\', '/', $class) . '.php';
 
@@ -28,7 +28,8 @@ spl_autoload_register(function ($class) {
 });
 
 // Core files. Paths intentionally match repository casing because production Linux
-// filesystems are case-sensitive.
+// filesystems are case-sensitive. View infrastructure is explicitly required here
+// because the generic namespace autoloader would map Core to /Core, not /core.
 $coreFiles = [
     '/core/config.php',
     '/core/Version.php',
@@ -44,8 +45,13 @@ $coreFiles = [
     '/core/model.php',
     '/core/view.php',
     '/core/request.php',
-    '/core/controller.php',
     '/core/helper.php',
+    '/core/ViewRenderer.php',
+    '/core/ViewContext.php',
+    '/core/NativeViewRenderer.php',
+    '/core/LegacySmartyRenderer.php',
+    '/core/HybridViewRenderer.php',
+    '/core/controller.php',
     '/core/images.php'
 ];
 
@@ -57,16 +63,8 @@ foreach ($coreFiles as $file) {
     }
 }
 
-// Session cookie/security settings must be fixed before any Request can call
-// session_start(). Fail closed if PHP refuses the configured policy.
 \Core\SessionSecurity::configure();
 
-// 0.14 module-platform boundary: every product module must have a validated
-// manifest before legacy application code is loaded. Normal HTTP/CLI entrypoints
-// also reconcile persisted lifecycle state here. Pre-fork runtimes (Workerman)
-// can deliberately defer only the database-backed reconciliation until their
-// worker process starts, avoiding an inherited PDO connection while preserving
-// fail-closed manifest discovery in the master process.
 $deferModuleLifecyclePersistence = defined('WORKSPACE_DEFER_MODULE_LIFECYCLE')
     && WORKSPACE_DEFER_MODULE_LIFECYCLE === true;
 
@@ -87,26 +85,20 @@ $directories = [
     '/app/middlewares/'
 ];
 
-// Load each directory files if directory exists
 array_walk($directories, function ($directory) {
     $path = SITEPATH . $directory;
     if (is_dir($path)) {
         loadDirectoryFiles($path);
-    } else {
-        // Services are optional for older installs; all other directories are expected.
-        if ($directory !== '/app/services/') {
-            error_log("Directory {$path} does not exist.");
-        }
+    } elseif ($directory !== '/app/services/') {
+        error_log("Directory {$path} does not exist.");
     }
 });
 
 /**
- * Loads all PHP files in a given directory.
- *
  * @param string $directory Directory path
- * @return void
  */
-function loadDirectoryFiles(string $directory): void {
+function loadDirectoryFiles(string $directory): void
+{
     $files = new RecursiveIteratorIterator(
         new RecursiveDirectoryIterator($directory, RecursiveDirectoryIterator::SKIP_DOTS),
         RecursiveIteratorIterator::LEAVES_ONLY

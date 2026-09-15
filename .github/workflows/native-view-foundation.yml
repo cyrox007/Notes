@@ -1,0 +1,68 @@
+name: 1.0 native view foundation
+
+on:
+  push:
+    branches: ['1.0']
+    paths:
+      - 'core/ViewRenderer.php'
+      - 'core/ViewContext.php'
+      - 'core/NativeViewRenderer.php'
+      - 'core/LegacySmartyRenderer.php'
+      - 'core/HybridViewRenderer.php'
+      - 'core/controller.php'
+      - 'core.php'
+      - 'app/views/login_page/*.php'
+      - 'tests/integration/native_view_renderer_contract.php'
+      - '.github/workflows/native-view-foundation.yml'
+  pull_request:
+    branches: ['1.0']
+    paths:
+      - 'core/ViewRenderer.php'
+      - 'core/ViewContext.php'
+      - 'core/NativeViewRenderer.php'
+      - 'core/LegacySmartyRenderer.php'
+      - 'core/HybridViewRenderer.php'
+      - 'core/controller.php'
+      - 'core.php'
+      - 'app/views/login_page/*.php'
+      - 'tests/integration/native_view_renderer_contract.php'
+      - '.github/workflows/native-view-foundation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  native-view:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.1', '8.3']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - name: Lint renderer and native auth views
+        run: |
+          php -l core/ViewRenderer.php
+          php -l core/ViewContext.php
+          php -l core/NativeViewRenderer.php
+          php -l core/LegacySmartyRenderer.php
+          php -l core/HybridViewRenderer.php
+          php -l core/controller.php
+          php -l core.php
+          php -l app/views/login_page/login_layout.php
+          php -l app/views/login_page/login_view.php
+          php -l app/views/login_page/register_view.php
+          php -l tests/integration/native_view_renderer_contract.php
+      - name: Verify native renderer contract without vendor bootstrap
+        run: php tests/integration/native_view_renderer_contract.php
+      - name: Verify migration boundary
+        run: |
+          ! grep -F 'use Smarty\\' core/controller.php
+          ! grep -F '$this->smarty' core/controller.php
+          test -f app/views/login_page/login_view.php
+          test -f app/views/login_page/register_view.php
+          test -f app/views/login_page/login_layout.php
