@@ -54,12 +54,12 @@ jobs:
           )
 
           replace_once(
-              '.github/workflows/master-release-gate.yml',
+              '.github/workflows/release-gate.yml',
               "  database/tasks_schema.sql \\\n  database/settings_schema.sql",
               "  database/tasks_schema.sql \\\n  database/access_control_schema.sql \\\n  database/settings_schema.sql",
           )
           replace_once(
-              '.github/workflows/master-release-gate.yml',
+              '.github/workflows/release-gate.yml',
               'test "$count" -ge 22',
               'test "$count" -eq 26',
           )
@@ -74,8 +74,8 @@ jobs:
           grep -Fq 'rbac_account_status_exists' database/migrations/20260915_rbac_foundation.sql
           grep -Fq 'access_control_schema.sql' .github/workflows/product-quality.yml
           grep -Fq '26 required tables present' .github/workflows/product-quality.yml
-          grep -Fq 'access_control_schema.sql' .github/workflows/master-release-gate.yml
-          grep -Fq 'test "$count" -eq 26' .github/workflows/master-release-gate.yml
+          grep -Fq 'access_control_schema.sql' .github/workflows/release-gate.yml
+          grep -Fq 'test "$count" -eq 26' .github/workflows/release-gate.yml
 
       - name: Commit patch
         shell: bash
@@ -83,6 +83,6 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add bin/migrate.php database/migrations/20260915_rbac_foundation.sql .github/workflows/product-quality.yml .github/workflows/master-release-gate.yml
+          git add bin/migrate.php database/migrations/20260915_rbac_foundation.sql .github/workflows/product-quality.yml .github/workflows/release-gate.yml
           git commit -m '0.14 RBAC: harden UTF-8 upgrades and canonical fixtures [rbac-hardening-applied]'
           git push origin HEAD:0.14-phase3-rbac-foundation
