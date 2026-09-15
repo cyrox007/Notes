@@ -10,9 +10,8 @@ use App\Services\PermissionService;
 /**
  * Base HTTP controller.
  *
- * View rendering is intentionally behind ViewRenderer so 1.0 can migrate away
- * from Smarty incrementally. Native PHP templates are preferred; untouched .tpl
- * views continue through LegacySmartyRenderer until their migration PR lands.
+ * From 1.0 onward application views are rendered exclusively by the internal
+ * NativeViewRenderer. There is no Smarty/legacy fallback in the HTTP runtime.
  */
 class Controller
 {
@@ -25,20 +24,7 @@ class Controller
         ob_start();
         $this->request = new Request();
         $this->viewContext = new ViewContext($this->request);
-
-        $native = new NativeViewRenderer(SITEPATH . '/app/views', $this->viewContext);
-        $this->renderer = new HybridViewRenderer(
-            $native,
-            function (): ViewRenderer {
-                return new LegacySmartyRenderer(
-                    $this->viewContext,
-                    SITEPATH . '/app/views',
-                    SITEPATH . '/config',
-                    SITEPATH . '/compile',
-                    SITEPATH . '/cache'
-                );
-            }
-        );
+        $this->renderer = new NativeViewRenderer(SITEPATH . '/app/views', $this->viewContext);
 
         // CSRF validation remains global for mutating HTTP requests and is
         // independent from the selected presentation engine.
@@ -58,8 +44,8 @@ class Controller
     }
 
     /**
-     * Backward-compatible public helper retained for callers/tests while the
-     * template implementation moves behind ViewContext.
+     * Backward-compatible public helper retained for callers/tests while route
+     * generation is owned by ViewContext.
      *
      * @param array<string,mixed> $params
      */
@@ -80,7 +66,7 @@ class Controller
     }
 
     /**
-     * Render a logical application view.
+     * Render a logical application view through the internal native PHP engine.
      *
      * @param array<string,mixed>|null $data
      */
@@ -103,8 +89,8 @@ class Controller
         if ($data !== null) {
             $normalized = $this->convertObjectsToArray($data);
             if (is_array($normalized)) {
-                // Preserve the legacy behavior where controller-provided view
-                // variables can override common defaults intentionally.
+                // Preserve the legacy controller contract where explicitly
+                // supplied view variables can override common defaults.
                 $viewData = array_merge($viewData, $normalized);
             }
         }
