@@ -39,8 +39,18 @@ jobs:
           extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
           coverage: none
 
-      - name: Install PHP dependencies
-        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress
+      - name: Verify vendor-free PHP runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          composer validate --strict --no-check-publish
+          rm -rf vendor
+          test ! -e vendor/autoload.php
+          test ! -f app/socket/WorkermanConnectionAdapter.php
+          ! grep -Fq 'vendor/autoload.php' core.php
+          ! grep -R -Fq 'Workerman\\' app/socket ws_server core.php
+          php -r '$c=json_decode(file_get_contents("composer.json"),true,512,JSON_THROW_ON_ERROR); if (array_keys($c["require"] ?? []) !== ["php"]) exit(1);'
+          php -r '$l=json_decode(file_get_contents("composer.lock"),true,512,JSON_THROW_ON_ERROR); if (($l["packages"] ?? null)!==[] || ($l["packages-dev"] ?? null)!==[]) exit(1);'
 
       - name: Install browser and TLS proxy
         shell: bash
@@ -56,6 +66,7 @@ jobs:
         run: |
           set -euo pipefail
           php -l index.php
+          php -l core.php
           php -l core/config.php
           php -l app/services/PermissionService.php
           php -l app/socket/SocketConnection.php
@@ -81,6 +92,7 @@ jobs:
           ! grep -Fq 'Config::canAuthenticate' app/socket/NativeMessengerServer.php
           grep -Fq "getenv('SITEURL')" core/config.php
           php tests/integration/native_websocket_protocol_contract.php
+          php tests/integration/native_messenger_contract.php
 
       - name: Prepare canonical database
         shell: bash
