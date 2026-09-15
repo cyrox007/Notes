@@ -43,11 +43,6 @@ jobs:
               'bin/healthcheck.php': [
                   ("recordHealth($checks, $failed, 'php_version', version_compare(PHP_VERSION, '8.3.0', '>='), PHP_VERSION);", "recordHealth($checks, $failed, 'php_version', version_compare(PHP_VERSION, '8.1.0', '>='), PHP_VERSION . ' (technical floor 8.1; production 8.3+ recommended)');"),
               ],
-              '.github/workflows/hosting-installer.yml': [
-                  ('- name: Setup PHP 8.3', '- name: Setup PHP 8.1'),
-                  ("php-version: '8.3'", "php-version: '8.1'"),
-                  ("grep -Fq 'PHP 8.3+' install.php", "grep -Fq 'PHP 8.1+' install.php"),
-              ],
           }
 
           for filename, pairs in replacements.items():
@@ -61,14 +56,12 @@ jobs:
               path.write_text(text)
           PY
 
-          git rm .github/workflows/apply-runtime-floor-patch.yml
-
       - name: Commit audited requirement alignment
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
+          git add README.md docs/HOSTING_INSTALL.md docs/PRODUCTION.md install.php bin/healthcheck.php
           git commit -m '0.14: align minimum runtime to PHP 8.1 [runtime-floor-applied]'
           git push origin HEAD:0.14-system-requirements-php81
