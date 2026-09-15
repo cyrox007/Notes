@@ -26,13 +26,14 @@ Browser не должен иметь прямого доступа к `PRIVATE_S
 
 Минимум:
 
-- PHP 8.3+;
+- PHP 8.1+ как технический compatibility floor; для Internet-facing production используйте поддерживаемую ветку PHP, сейчас рекомендуется 8.3+;
 - MySQL 8.x;
 - Composer dependencies установлены с production flags;
 - extensions `mysqli`, `pdo_mysql`, `mbstring`, `json`, `fileinfo`, `sodium`, `gd`;
 - writable `PRIVATE_STORAGE_PATH` вне document root;
 - TLS certificate;
 - WSS reverse proxy;
+- для Workerman runtime: POSIX-compatible OS, PHP CLI, extensions `pcntl` и `posix`;
 - уникальные secrets для этого environment.
 
 Установка dependencies:

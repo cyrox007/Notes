@@ -8,14 +8,14 @@
 
 Минимум:
 
-- PHP 8.3+;
+- PHP 8.1+ как технический минимум; для публичного production рекомендуется поддерживаемая ветка PHP, сейчас 8.3+;
 - MySQL 8.x;
 - extensions `mysqli`, `pdo_mysql`, `mbstring`, `sodium`, `fileinfo`, `gd`;
 - Argon2id в `password_hash`;
 - возможность PHP записывать в каталог приложения во время установки;
 - возможность PHP создать private каталог вне document root;
 - Apache `mod_rewrite` либо эквивалентный routing в панели/Nginx;
-- для realtime Messenger — возможность держать долгоживущий PHP/Workerman process и проксировать `/ws`.
+- для realtime Messenger — POSIX-compatible host, PHP CLI extensions `pcntl` и `posix`, возможность держать долгоживущий PHP/Workerman process и проксировать `/ws`.
 
 Если тариф не позволяет long-running processes/WebSocket proxy, остальные web-модули устанавливаются, но realtime Messenger нельзя считать полностью развёрнутым на таком тарифе.
 

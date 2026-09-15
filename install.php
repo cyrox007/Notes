@@ -491,7 +491,7 @@ function writeEnvironmentFile(string $file, array $data): void
 function installerRequirements(string $basePath): array
 {
     $checks = [
-        'PHP 8.3+' => version_compare(PHP_VERSION, '8.3.0', '>='),
+        'PHP 8.1+' => version_compare(PHP_VERSION, '8.1.0', '>='),
         'Composer dependencies (vendor/autoload.php)' => is_file($basePath . '/vendor/autoload.php'),
         'mbstring' => extension_loaded('mbstring'),
         'pdo_mysql' => extension_loaded('pdo_mysql'),
