@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 namespace App\Sockets;
 
-use Workerman\Connection\TcpConnection;
-
 final class PingSocket
 {
     public function index(
         array $connections,
-        TcpConnection $connection,
+        SocketConnection $connection,
         string $userUid,
         array $payload = []
     ): void {
