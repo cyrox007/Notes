@@ -33,7 +33,7 @@ foreach ($views as $relative) {
 }
 
 $index = (string) file_get_contents($root . '/app/views/notes_page/index.php');
-nativeNotesAssert(str_contains($index, "$view->layout('core/base'"), 'notes index does not use native application shell');
+nativeNotesAssert(str_contains($index, '$view->layout(\'core/base\''), 'notes index does not use native application shell');
 nativeNotesAssert(str_contains($index, "route('note_create')"), 'note create route is missing');
 nativeNotesAssert(str_contains($index, '$view->csrfInput()'), 'note create form lost CSRF input');
 nativeNotesAssert(str_contains($index, "partial('^elements/note_item/index'"), 'native note item partial is not used');
@@ -50,7 +50,7 @@ nativeNotesAssert(str_contains($item, '$readOnly'), 'read-only admin metadata co
 $edit = (string) file_get_contents($root . '/app/views/notes_page/edit_view.php');
 nativeNotesAssert(str_contains($edit, "partial('notes_page/editor-013'"), 'native editor partial is not used');
 nativeNotesAssert(str_contains($edit, '/assets/js/notes-editor-013.js'), 'notes editor behavior bundle is missing');
-nativeNotesAssert(str_contains($edit, "$view->layout('core/base'"), 'note editor wrapper does not use native shell');
+nativeNotesAssert(str_contains($edit, '$view->layout(\'core/base\''), 'note editor wrapper does not use native shell');
 
 $editor = (string) file_get_contents($root . '/app/views/notes_page/editor-013.php');
 foreach (['note_attachment_upload', 'note_share', 'note_unshare', 'update_note', 'note_attachment_download', 'note_attachment_delete'] as $route) {
@@ -63,8 +63,8 @@ nativeNotesAssert(str_contains($editor, '$view->csrfInput()'), 'note update form
 nativeNotesAssert(str_contains($editor, '$view->e($noteRow[\'content\'] ?? \'\')'), 'note content is not escaped in editor');
 
 $shared = (string) file_get_contents($root . '/app/views/notes_page/shared_view.php');
-nativeNotesAssert(str_contains($shared, "$view->layout('core/base'"), 'shared note does not use native shell');
-nativeNotesAssert(str_contains($shared, "$attachment['file_url']"), 'shared note does not consume controller-provided protected attachment URL');
+nativeNotesAssert(str_contains($shared, '$view->layout(\'core/base\''), 'shared note does not use native shell');
+nativeNotesAssert(str_contains($shared, '$attachment[\'file_url\']'), 'shared note does not consume controller-provided protected attachment URL');
 nativeNotesAssert(!str_contains($shared, "route('update_note'"), 'shared note unexpectedly exposes update route');
 nativeNotesAssert(!str_contains($shared, "route('delete_note'"), 'shared note unexpectedly exposes delete route');
 nativeNotesAssert(str_contains($shared, '$view->e($noteRow[\'content\'])'), 'shared note content is not escaped');
