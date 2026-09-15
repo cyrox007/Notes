@@ -16,12 +16,12 @@ final class StorageQuotaService
     public const DEFAULT_SETTING_KEY = 'file_manager_default_quota_bytes';
 
     private DatabaseManager $db;
-    private PermissionService $permissions;
+    private ?PermissionService $permissions;
 
     public function __construct(?DatabaseManager $db = null, ?PermissionService $permissions = null)
     {
         $this->db = $db ?? DatabaseManager::getInstance();
-        $this->permissions = $permissions ?? new PermissionService($this->db);
+        $this->permissions = $permissions;
     }
 
     public function defaultQuotaBytes(): int
@@ -104,7 +104,7 @@ final class StorageQuotaService
     /** @return list<array<string,mixed>> */
     public function adminUsage(int $actorId): array
     {
-        $this->permissions->requirePermission($actorId, 'admin.settings.manage');
+        $this->permissions()->requirePermission($actorId, 'admin.settings.manage');
         $defaultQuota = $this->defaultQuotaBytes();
         $rows = $this->db->fetchAll(
             "SELECT u.id,u.username,u.email,u.firstname,u.lastname,u.is_active,u.account_status,
@@ -130,7 +130,7 @@ final class StorageQuotaService
 
     public function setDefaultQuota(int $actorId, int $quotaBytes): void
     {
-        $this->permissions->requirePermission($actorId, 'admin.settings.manage');
+        $this->permissions()->requirePermission($actorId, 'admin.settings.manage');
         $quotaBytes = $this->normalizeQuota($quotaBytes);
         $this->db->execute(
             "INSERT INTO system_settings (setting_key,setting_value,setting_type,category,description,is_editable)
@@ -142,7 +142,7 @@ final class StorageQuotaService
 
     public function setUserQuota(int $actorId, int $userId, ?int $quotaBytes): void
     {
-        $this->permissions->requirePermission($actorId, 'admin.settings.manage');
+        $this->permissions()->requirePermission($actorId, 'admin.settings.manage');
         if ($userId <= 0 || !$this->db->fetchValue('SELECT id FROM users WHERE id = :id', [':id' => $userId])) {
             throw new InvalidArgumentException('Пользователь не найден');
         }
@@ -162,6 +162,11 @@ final class StorageQuotaService
         } finally {
             $this->releaseUploadLock($userId);
         }
+    }
+
+    private function permissions(): PermissionService
+    {
+        return $this->permissions ??= new PermissionService($this->db);
     }
 
     private function normalizeQuota(int $quota): int
