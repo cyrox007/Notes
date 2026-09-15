@@ -2,6 +2,11 @@
 
 declare(strict_types=1);
 
+error_reporting(E_ALL);
+set_error_handler(static function (int $severity, string $message, string $file, int $line): never {
+    throw new ErrorException($message, 0, $severity, $file, $line);
+});
+
 $root = dirname(__DIR__, 2);
 require_once $root . '/core/WebSocketEndpoint.php';
 
@@ -112,6 +117,20 @@ assertWebSocketEndpoint(
 setWebSocketEnv([
     'SITEURL' => 'https://notes.local',
     'BASE_PATH' => '/',
+    'WS_HOST' => 'bad/host',
+    'WS_PORT' => '27800',
+]);
+$hostRejected = false;
+try {
+    WebSocketEndpoint::bindHost();
+} catch (InvalidArgumentException) {
+    $hostRejected = true;
+}
+assertWebSocketEndpoint($hostRejected, 'invalid WS_HOST was accepted');
+
+setWebSocketEnv([
+    'SITEURL' => 'https://notes.local',
+    'BASE_PATH' => '/',
     'WS_HOST' => '127.0.0.1',
     'WS_PORT' => '70000',
 ]);
@@ -123,4 +142,5 @@ try {
 }
 assertWebSocketEndpoint($portRejected, 'out-of-range WS_PORT was accepted');
 
+restore_error_handler();
 fwrite(STDOUT, "WebSocket endpoint contract: OK\n");
