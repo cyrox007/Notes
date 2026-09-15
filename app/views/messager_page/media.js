@@ -18,6 +18,21 @@
 
         let uploading = false;
         let dragDepth = 0;
+        let pendingPasteFiles = [];
+
+        const pastePreview = document.createElement('div');
+        pastePreview.className = 'messenger-paste-preview';
+        pastePreview.hidden = true;
+        pastePreview.setAttribute('aria-live', 'polite');
+
+        const pasteFiles = document.createElement('div');
+        pasteFiles.className = 'messenger-paste-preview__files';
+        const pasteRemove = document.createElement('button');
+        pasteRemove.type = 'button';
+        pasteRemove.className = 'messenger-paste-preview__remove';
+        pasteRemove.textContent = 'Убрать';
+        pastePreview.append(pasteFiles, pasteRemove);
+        uploadStatus.insertAdjacentElement('beforebegin', pastePreview);
 
         const safeMediaUrl = (value) => {
             const raw = String(value || '');
@@ -134,6 +149,30 @@
             if (uploadPercent) uploadPercent.textContent = active ? `${Math.round(uploadProgress.value)}%` : '';
         };
 
+        const clearPastePreview = () => {
+            pendingPasteFiles = [];
+            pasteFiles.replaceChildren();
+            pastePreview.hidden = true;
+        };
+
+        const stagePastedFiles = (files) => {
+            const list = Array.from(files || []).filter((file) => file instanceof File);
+            if (list.length === 0) return;
+            pendingPasteFiles = list;
+            pasteFiles.replaceChildren();
+            list.forEach((file) => {
+                const chip = document.createElement('span');
+                chip.className = 'messenger-paste-preview__file';
+                chip.title = file.name || 'Вложение из буфера';
+                chip.textContent = `${file.name || 'Вложение из буфера'}${file.size ? ` · ${formatBytes(file.size)}` : ''}`;
+                pasteFiles.append(chip);
+            });
+            pastePreview.hidden = false;
+            app.showToast('Вложение добавлено. Нажмите «Отправить», чтобы отправить его в чат.');
+        };
+
+        pasteRemove.addEventListener('click', clearPastePreview);
+
         const uploadBinary = (file) => new Promise((resolve, reject) => {
             if (!app.currentDialog?.uid) {
                 reject(new Error('Сначала выберите диалог'));
@@ -166,16 +205,16 @@
         });
 
         const sendFiles = async (files) => {
-            if (uploading) return;
+            if (uploading) return false;
             const list = Array.from(files || []).filter((file) => file instanceof File);
-            if (list.length === 0) return;
+            if (list.length === 0) return false;
             if (!app.currentDialog?.uid) {
                 app.showToast('Сначала выберите диалог');
-                return;
+                return false;
             }
             if (app.editing) {
                 app.showToast('Сначала завершите редактирование сообщения');
-                return;
+                return false;
             }
 
             const initialDialogUid = app.currentDialog.uid;
@@ -210,13 +249,35 @@
                 }
                 app.stopTyping();
                 app.showToast(list.length === 1 ? 'Вложение отправляется' : `Отправляется файлов: ${list.length}`);
+                return true;
             } catch (error) {
                 console.error(error);
                 app.showToast(error?.message || 'Не удалось отправить вложение');
+                return false;
             } finally {
                 setUploadState(false);
                 fileInput.value = '';
             }
+        };
+
+        const originalSubmitComposer = app.submitComposer.bind(app);
+        app.submitComposer = () => {
+            if (pendingPasteFiles.length > 0 && !app.editing) {
+                const files = [...pendingPasteFiles];
+                sendFiles(files).then((sent) => {
+                    if (sent) clearPastePreview();
+                });
+                return;
+            }
+            originalSubmitComposer();
+        };
+
+        const originalOpenDialog = app.openDialog.bind(app);
+        app.openDialog = (uid) => {
+            if (pendingPasteFiles.length > 0 && app.currentDialog?.uid && app.currentDialog.uid !== uid) {
+                clearPastePreview();
+            }
+            originalOpenDialog(uid);
         };
 
         attachButton.addEventListener('click', () => {
@@ -233,7 +294,7 @@
             const files = Array.from(event.clipboardData?.files || []);
             if (files.length === 0) return;
             event.preventDefault();
-            sendFiles(files);
+            stagePastedFiles(files);
         });
 
         const dropTarget = app.el.chatActive;
