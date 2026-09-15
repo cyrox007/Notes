@@ -36,6 +36,12 @@
                 <button type="submit">Войти</button>
             </form>
 
+            {if $registration_mode == 'open'}
+                <p class="login-link">Нет аккаунта? <a href="{route_path name='registration'}">Зарегистрироваться</a></p>
+            {elseif $registration_mode == 'invite'}
+                <p class="login-link">Есть приглашение? <a href="{route_path name='registration'}">Регистрация по инвайту</a></p>
+            {/if}
+
             <div class="auth-security-note">
                 <i class="fa fa-lock" aria-hidden="true"></i>
                 <span>Для production-среды открывайте Workspace только по HTTPS.</span>
