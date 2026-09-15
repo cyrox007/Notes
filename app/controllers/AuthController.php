@@ -11,8 +11,10 @@ use App\Services\UserProvisioningService;
 use Core\Controller;
 use Core\Request;
 use Core\Router;
+use Core\SessionSecurity;
 use DomainException;
 use InvalidArgumentException;
+use RuntimeException;
 use Throwable;
 
 class AuthController extends Controller
@@ -25,16 +27,7 @@ class AuthController extends Controller
      */
     public function login(): void
     {
-        $registrationMode = RegistrationPolicyService::MODE_DISABLED;
-        try {
-            $registrationMode = (new RegistrationPolicyService())->mode();
-        } catch (Throwable $e) {
-            error_log('Registration policy lookup failed on login page: ' . $e->getMessage());
-        }
-
-        $this->render_template('login_page/login_view', [
-            'registration_mode' => $registrationMode,
-        ]);
+        $this->renderLogin();
     }
 
     public function sigin(Request $request): void
@@ -44,13 +37,10 @@ class AuthController extends Controller
 
         $user = UserModel::select()->where('username', '=', $login)->first();
         if (!$user || !CryptMethods::verifyPassword($password, $user->password_hash)) {
-            $this->render_template('login_page/login_view', [
-                'registration_mode' => $this->safeRegistrationMode(),
-                'errors' => [[
-                    'CODE' => 'login_error',
-                    'MESSAGE' => 'Неверный логин или пароль',
-                ]],
-            ]);
+            $this->renderLogin([[
+                'CODE' => 'login_error',
+                'MESSAGE' => 'Неверный логин или пароль',
+            ]]);
             return;
         }
 
@@ -58,30 +48,32 @@ class AuthController extends Controller
             (int) $user->is_active !== 1
             || (string) ($user->account_status ?? '') !== 'active'
         ) {
-            $this->render_template('login_page/login_view', [
-                'registration_mode' => $this->safeRegistrationMode(),
-                'errors' => [[
-                    'CODE' => 'login_error',
-                    'MESSAGE' => 'Учетная запись недоступна',
-                ]],
-            ]);
+            $this->renderLogin([[
+                'CODE' => 'login_error',
+                'MESSAGE' => 'Учетная запись недоступна',
+            ]]);
             return;
         }
 
-        session_regenerate_id(true);
+        if (!session_regenerate_id(true)) {
+            throw new RuntimeException('Не удалось обновить идентификатор сессии');
+        }
+
         $request->setSession('auth', true);
         $request->setSession('user_id', $user->id);
         $request->setSession('user_uid', $user->uid);
+        // Rotate the form token together with the authenticated session id. This
+        // prevents a token from an anonymous/stale login page from surviving the
+        // authentication boundary.
+        $request->setSession('_csrf_token', bin2hex(random_bytes(32)));
+        SessionSecurity::refreshCurrentSessionCookie();
 
         Router::getInstance()->redirect('main', 'name');
     }
 
     public function logout(Request $request): void
     {
-        $request->unsetSession('auth');
-        $request->unsetSession('user_id');
-        $request->unsetSession('user_uid');
-        session_regenerate_id(true);
+        SessionSecurity::destroyCurrentSession();
         Router::getInstance()->redirect('authpage', 'name');
     }
 
@@ -116,6 +108,7 @@ class AuthController extends Controller
         ];
 
         if (strtoupper((string) $request->server('REQUEST_METHOD', 'GET')) !== 'POST') {
+            $this->noStoreAuthPage();
             $this->render_template('login_page/register_view', $data);
             return;
         }
@@ -140,6 +133,7 @@ class AuthController extends Controller
                 'CODE' => 'registration_error',
                 'MESSAGE' => $e->getMessage(),
             ];
+            $this->noStoreAuthPage();
             $this->render_template('login_page/register_view', $data);
         } catch (Throwable $e) {
             error_log('Registration failed: ' . $e->getMessage());
@@ -147,16 +141,35 @@ class AuthController extends Controller
                 'CODE' => 'registration_error',
                 'MESSAGE' => 'Не удалось создать аккаунт. Повторите попытку позже.',
             ];
+            $this->noStoreAuthPage();
             $this->render_template('login_page/register_view', $data);
         }
     }
 
-    private function safeRegistrationMode(): string
+    /** @param array<int,array{CODE:string,MESSAGE:string}> $errors */
+    private function renderLogin(array $errors = []): void
     {
+        $this->noStoreAuthPage();
+
+        $registrationMode = RegistrationPolicyService::MODE_DISABLED;
         try {
-            return (new RegistrationPolicyService())->mode();
-        } catch (Throwable) {
-            return RegistrationPolicyService::MODE_DISABLED;
+            $registrationMode = (new RegistrationPolicyService())->mode();
+        } catch (Throwable $e) {
+            error_log('Registration policy lookup failed on login page: ' . $e->getMessage());
         }
+
+        $data = ['registration_mode' => $registrationMode];
+        if ($errors !== []) {
+            $data['errors'] = $errors;
+        }
+
+        $this->render_template('login_page/login_view', $data);
+    }
+
+    private function noStoreAuthPage(): void
+    {
+        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+        header('Pragma: no-cache');
+        header('Expires: 0');
     }
 }
