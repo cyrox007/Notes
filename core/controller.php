@@ -7,6 +7,7 @@ namespace Core;
 use Smarty\Smarty;
 use Smarty\Template;
 use App\Middlewares\CSRFMiddleware;
+use App\Services\PermissionService;
 
 /**
  * Базовый класс контроллера
@@ -196,6 +197,34 @@ class Controller
         $this->smarty->assign('sitename', getenv('SITENAME') ?: 'Workspace Organizer');
         $this->smarty->assign('version', \Core\Version::VERSION);
         $this->smarty->assign('product_name', \Core\Version::PRODUCT_NAME);
+
+        // Shared navigation follows the same persisted RBAC checks as routes.
+        // This is presentation only; middleware remains the authorization boundary.
+        $workspaceAccess = [
+            'notes' => false,
+            'tasks' => false,
+            'files' => false,
+            'messenger' => false,
+            'profile' => false,
+            'admin' => false,
+        ];
+        $viewerId = (int) $this->request->session('user_id', 0);
+        if ($viewerId > 0) {
+            try {
+                $effectivePermissions = (new PermissionService())->permissionsForUser($viewerId);
+                $workspaceAccess = [
+                    'notes' => in_array('notes.use', $effectivePermissions, true),
+                    'tasks' => in_array('tasks.use', $effectivePermissions, true),
+                    'files' => in_array('files.use', $effectivePermissions, true),
+                    'messenger' => in_array('messenger.use', $effectivePermissions, true),
+                    'profile' => in_array('profile.use', $effectivePermissions, true),
+                    'admin' => in_array('admin.access', $effectivePermissions, true),
+                ];
+            } catch (\Throwable $e) {
+                error_log('Navigation RBAC evaluation failed: ' . $e->getMessage());
+            }
+        }
+        $this->smarty->assign('workspaceAccess', $workspaceAccess);
 
         if ($data !== null) {
             $data = $this->convertObjectsToArray($data);
