@@ -85,9 +85,6 @@ nativeMessengerAssert(str_contains($controller, "'socket_ticket' => \$socketTick
 nativeMessengerAssert(str_contains($controller, "'socket_url' => \$socketUrl"), 'socket URL is not passed to Messenger view');
 nativeMessengerAssert(str_contains($controller, 'MessengerMediaService'), 'protected Messenger media service boundary is missing');
 
-// 1.0 WebSocket transport boundary: business handlers must not know about
-// Workerman. The current Workerman dependency is isolated to the compatibility
-// adapter and server bootstrap so it can be replaced in the next phase.
 $connectionBoundary = $root . '/app/socket/SocketConnection.php';
 nativeMessengerAssert(is_file($connectionBoundary), 'transport-neutral SocketConnection is missing');
 require_once $connectionBoundary;
@@ -131,19 +128,41 @@ foreach ($handlerFiles as $handlerFile) {
     require_once $path;
 }
 
-$adapterPath = $root . '/app/socket/WorkermanConnectionAdapter.php';
-nativeMessengerAssert(is_file($adapterPath), 'Workerman compatibility adapter is missing');
-$adapterSource = (string) file_get_contents($adapterPath);
-nativeMessengerAssert(str_contains($adapterSource, 'extends SocketConnection'), 'Workerman adapter does not implement application connection boundary');
-nativeMessengerAssert(str_contains($adapterSource, 'Workerman\\Connection\\TcpConnection'), 'Workerman adapter no longer wraps TcpConnection');
+$nativeConnectionPath = $root . '/app/socket/NativeSocketConnection.php';
+$nativeServerPath = $root . '/app/socket/NativeMessengerServer.php';
+nativeMessengerAssert(is_file($nativeConnectionPath), 'native stream connection implementation is missing');
+nativeMessengerAssert(is_file($nativeServerPath), 'native Messenger WebSocket server is missing');
+$nativeConnectionSource = (string) file_get_contents($nativeConnectionPath);
+$nativeServerSource = (string) file_get_contents($nativeServerPath);
+nativeMessengerAssert(str_contains($nativeConnectionSource, 'extends SocketConnection'), 'native connection does not implement SocketConnection boundary');
+nativeMessengerAssert(str_contains($nativeConnectionSource, 'SocketFrameCodec::encodeText'), 'native connection does not frame outgoing text messages');
+nativeMessengerAssert(str_contains($nativeConnectionSource, 'SocketFrameCodec::decodeClientFrames'), 'native connection does not decode RFC6455 client frames');
+nativeMessengerAssert(str_contains($nativeServerSource, 'stream_socket_server('), 'native server does not own a TCP listener');
+nativeMessengerAssert(str_contains($nativeServerSource, 'stream_select('), 'native server does not provide an event loop');
+nativeMessengerAssert(str_contains($nativeServerSource, 'SocketHandshake::tryParse'), 'native server does not perform RFC6455 upgrade parsing');
+nativeMessengerAssert(str_contains($nativeServerSource, 'SocketTicket::validate'), 'native server lost signed ticket validation');
+nativeMessengerAssert(str_contains($nativeServerSource, "hasPermission(\$userId, 'messenger.use')"), 'native server lost Messenger RBAC checks');
+nativeMessengerAssert(str_contains($nativeServerSource, "unset(\$payload['user_uid'], \$payload['user_id'], \$payload['from_user_id'])"), 'native server lost anti-impersonation payload stripping');
+nativeMessengerAssert(str_contains($nativeServerSource, 'ALLOWED_ROUTES'), 'native server lost action allowlist');
+nativeMessengerAssert(str_contains($nativeServerSource, 'HANDSHAKE_TIMEOUT_SECONDS'), 'native server lacks handshake timeout');
+nativeMessengerAssert(str_contains($nativeServerSource, 'maxConnections'), 'native server lacks connection limit');
 
 $server = (string) file_get_contents($root . '/ws_server/server.php');
-nativeMessengerAssert(str_contains($server, 'WorkermanConnectionAdapter'), 'WebSocket server does not route raw connections through adapter');
-nativeMessengerAssert(str_contains($server, '$handler->$methodName($connections, $adapter, $adapter->uid, $payload)'), 'handler dispatch bypasses transport adapter');
-nativeMessengerAssert(str_contains($server, "SocketTicket::validate(\$ticket)"), 'transport migration lost signed ticket validation');
-nativeMessengerAssert(str_contains($server, "hasPermission(\$userId, 'messenger.use')"), 'transport migration lost messenger RBAC check');
-nativeMessengerAssert(str_contains($server, "unset(\$payload['user_uid'], \$payload['user_id'], \$payload['from_user_id'])"), 'transport migration lost anti-impersonation payload stripping');
+nativeMessengerAssert(str_contains($server, 'NativeMessengerServer'), 'WebSocket entrypoint does not start native runtime');
+nativeMessengerAssert(!str_contains($server, 'Workerman\\'), 'WebSocket entrypoint still imports Workerman');
+nativeMessengerAssert(!str_contains($server, 'WorkermanConnectionAdapter'), 'WebSocket entrypoint still routes through Workerman adapter');
+nativeMessengerAssert(str_contains($server, "WS_MAX_CONNECTIONS"), 'native entrypoint does not expose connection cap');
+nativeMessengerAssert(str_contains($server, "WS_MAX_PAYLOAD_BYTES"), 'native entrypoint does not expose payload cap');
+nativeMessengerAssert(str_contains($server, "'status'"), 'native entrypoint lost process status command');
+nativeMessengerAssert(str_contains($server, "'restart'"), 'native entrypoint lost restart command');
+
+// Workerman remains installed temporarily only as a rollback dependency while
+// the new runtime undergoes a full Chromium/Nginx WSS smoke. It must not be used
+// by the active entrypoint or business handlers.
+$composer = json_decode((string) file_get_contents($root . '/composer.json'), true);
+nativeMessengerAssert(is_array($composer), 'composer.json is invalid');
+nativeMessengerAssert(isset($composer['require']['workerman/workerman']), 'Workerman rollback dependency was removed before native WSS proof');
 
 require_once __DIR__ . '/native_websocket_protocol_contract.php';
 
-echo "[OK] native Messenger view, transport boundary and protocol contract\n";
+echo "[OK] native Messenger view, transport, runtime and protocol contract\n";
