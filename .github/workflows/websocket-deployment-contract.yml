@@ -33,6 +33,7 @@ jobs:
           php -l app/controllers/MessagerController.php
           php -l ws_server/server.php
           php -l bin/ws_doctor.php
+          php -l bin/healthcheck.php
           php -l tests/integration/websocket_endpoint_contract.php
 
       - name: Verify endpoint contract
@@ -47,4 +48,7 @@ jobs:
           grep -Fq 'php bin/ws_doctor.php' default.env
           grep -Fq 'WebSocketEndpoint::publicUrl()' app/controllers/MessagerController.php
           grep -Fq 'WebSocketEndpoint::bindHost()' ws_server/server.php
+          grep -Fq 'websocket_proxy_contract' bin/healthcheck.php
+          grep -Fq '.osp\\Apache\\notes.local.conf' docs/OPEN_SERVER_WEBSOCKET.md
+          grep -Fq 'ProxyPass "/ws" "http://127.0.0.1:27800/" upgrade=websocket' docs/OPEN_SERVER_WEBSOCKET.md
           ! grep -Fq "getenv('WS_HOST') ?: '0.0.0.0'" ws_server/server.php
