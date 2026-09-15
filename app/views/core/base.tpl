@@ -19,6 +19,7 @@
 	<link rel="stylesheet" href="{$base_url}/assets/css/feedback.css">
 	<link rel="stylesheet" href="{$base_url}/assets/css/file-manager-polish.css">
 	<link rel="stylesheet" href="{$base_url}/assets/css/messenger-connection-ux.css">
+	<link rel="stylesheet" href="{$base_url}/assets/css/live-qa-fixes.css?v={$version|escape:'url'}">
 	<link rel="icon" href="{$base_url}/favicon.ico" type="image/x-icon">
 	<template id="csrf-token-template">{csrf_token}</template>
 	<script>
