@@ -25,8 +25,20 @@ jobs:
           extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
           coverage: none
 
-      - name: Install production dependencies
-        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress
+      - name: Verify vendor-free application runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf vendor
+          test ! -e vendor
+          test "$(php -r '$j=json_decode(file_get_contents("composer.lock"),true); echo count($j["packages"] ?? []);')" = '0'
+          ! grep -Fq 'vendor/autoload.php' core.php
+          ! grep -R -F 'Workerman\\' app/socket ws_server core.php
+          php -l core.php
+          php -l install.php
+          php -l ws_server/server.php
+          php tests/integration/native_view_renderer_contract.php
+          php tests/integration/native_websocket_protocol_contract.php
 
       - name: Build hosting bundle
         shell: bash
@@ -45,13 +57,16 @@ jobs:
             --exclude '.github' \
             --exclude '.env' \
             --exclude '.logs' \
+            --exclude 'vendor' \
             --exclude 'cache/*' \
             --exclude 'compile/*' \
             --exclude 'notes-private-storage' \
             --exclude '*.log'
           mkdir -p "$ROOT/cache" "$ROOT/compile"
-          test -f "$ROOT/vendor/autoload.php"
+          test ! -e "$ROOT/vendor"
           test -f "$ROOT/install.php"
+          test -f "$ROOT/core/NativeViewRenderer.php"
+          test -f "$ROOT/app/socket/NativeMessengerServer.php"
           test ! -e "$ROOT/.env"
           cd /tmp
           zip -qr "$GITHUB_WORKSPACE/$NAME.zip" "$NAME"
@@ -62,8 +77,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          unzip -l "$BUNDLE" | grep -F 'vendor/autoload.php'
           unzip -l "$BUNDLE" | grep -F 'install.php'
+          unzip -l "$BUNDLE" | grep -F 'core/NativeViewRenderer.php'
+          unzip -l "$BUNDLE" | grep -F 'app/socket/NativeMessengerServer.php'
+          if unzip -l "$BUNDLE" | grep -Eq '/vendor/'; then
+            echo 'Vendor-free bundle must not contain vendor/'
+            exit 1
+          fi
           if unzip -l "$BUNDLE" | grep -Eq '/\.env$'; then
             echo 'Bundle must not contain .env'
             exit 1
