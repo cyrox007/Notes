@@ -17,6 +17,12 @@ use Throwable;
 
 class AuthController extends Controller
 {
+    /**
+     * Registration policy, including the legacy REGISTRATION_INVITE_CODE
+     * compatibility fallback, is owned by RegistrationPolicyService. Keeping
+     * env-secret handling out of this HTTP controller avoids parallel policy
+     * paths and makes admin-managed registration the single source of truth.
+     */
     public function login(): void
     {
         $registrationMode = RegistrationPolicyService::MODE_DISABLED;
