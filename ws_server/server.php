@@ -6,6 +6,9 @@ ini_set('display_errors', '0');
 if (!defined('SITEPATH')) {
     define('SITEPATH', dirname(__FILE__) . '/..');
 }
+if (!defined('WORKSPACE_DEFER_MODULE_LIFECYCLE')) {
+    define('WORKSPACE_DEFER_MODULE_LIFECYCLE', true);
+}
 error_reporting(E_ALL);
 ini_set('error_log', sys_get_temp_dir() . '/workspace-organizer-ws-startup.log');
 
@@ -164,6 +167,17 @@ $worker->onClose = function (TcpConnection $connection) use ($removeConnection):
 };
 
 $worker->onWorkerStart = function () use (&$connections): void {
+    // core.php validates module manifests in the pre-fork master, but deliberately
+    // defers persisted lifecycle reconciliation. Reset any accidentally inherited
+    // singleton connection, then create the lifecycle store inside this worker so
+    // every PDO handle is process-local.
+    \Core\DatabaseManager::resetInstance();
+    \Core\ModuleRegistry::boot(
+        SITEPATH . '/modules',
+        \Core\Version::VERSION,
+        new \Core\ModuleLifecycleStore(\Core\DatabaseManager::getInstance())
+    );
+
     Timer::add(5, function () use (&$connections): void {
         foreach (array_keys($connections) as $uid) {
             foreach ($connections[$uid] ?? [] as $connectionKey => $connection) {
