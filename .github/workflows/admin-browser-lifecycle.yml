@@ -55,10 +55,19 @@ jobs:
           set -euo pipefail
           php -l app/controllers/Admin/AdminController.php
           php -l app/controllers/Admin/SettingsController.php
+          php -l app/services/PermissionService.php
           php -l app/services/AdminUserService.php
           php -l app/services/StorageQuotaService.php
+          php -l app/middlewares/RequirePermission.php
+          php -l app/middlewares/RequireAdminAccess.php
+          php -l app/middlewares/RequireAdminUsersManage.php
+          php -l app/middlewares/RequireAdminSettingsManage.php
           php -l tests/e2e/router.php
           node --check tests/e2e/admin-lifecycle.mjs
+          grep -Fq 'RequireAdminAccess::class' core/routerConfig.php
+          grep -Fq 'RequireAdminUsersManage::class' core/routerConfig.php
+          grep -Fq 'RequireAdminSettingsManage::class' core/routerConfig.php
+          ! grep -Fq 'IsAdmin::class' core/routerConfig.php
           grep -Fq 'src="{$base_url}/assets/js/admin-page.js"' app/views/admin-page/index.tpl
           ! grep -Fq 'src="/assets/js/admin-page.js"' app/views/admin-page/index.tpl
 
@@ -71,6 +80,7 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot admin_browser_lifecycle < database/file_manager_schema.sql
           mysql -h 127.0.0.1 -uroot -proot admin_browser_lifecycle < database/user_fields_schema.sql
           mysql -h 127.0.0.1 -uroot -proot admin_browser_lifecycle < database/tasks_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot admin_browser_lifecycle < database/access_control_schema.sql
           mysql -h 127.0.0.1 -uroot -proot admin_browser_lifecycle < database/settings_schema.sql
 
       - name: Seed admin, target user and environment
@@ -197,9 +207,10 @@ jobs:
           set -euo pipefail
           TARGET_ID="$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_browser_lifecycle -e "SELECT id FROM users WHERE username='admin-target-user'")"
           test -n "$TARGET_ID"
-          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_browser_lifecycle -e "SELECT CONCAT(role,'|',is_active) FROM users WHERE id=${TARGET_ID}")" = '888|1'
+          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_browser_lifecycle -e "SELECT CONCAT(role,'|',is_active,'|',account_status) FROM users WHERE id=${TARGET_ID}")" = '888|1|active'
           test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_browser_lifecycle -e "SELECT quota_bytes FROM user_storage_quotas WHERE user_id=${TARGET_ID}")" = '26214400'
-          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_browser_lifecycle -e "SELECT CONCAT(role,'|',is_active) FROM users WHERE username='admin-lifecycle-user'")" = '111|1'
+          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_browser_lifecycle -e "SELECT CONCAT(role,'|',is_active,'|',account_status) FROM users WHERE username='admin-lifecycle-user'")" = '111|1|active'
+          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_browser_lifecycle -e "SELECT COUNT(*) FROM user_roles ur JOIN roles r ON r.id=ur.role_id JOIN users u ON u.id=ur.user_id WHERE u.username='admin-lifecycle-user' AND r.code='admin'")" = '1'
 
       - name: Verify clean PHP runtime log
         shell: bash
