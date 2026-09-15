@@ -477,6 +477,8 @@ function writeEnvironmentFile(string $file, array $data): void
         'WS_PORT=27800',
         'WS_PUBLIC_URL=' . envQuoted((string) $data['ws_public_url']),
         'WS_ALLOWED_ORIGINS=' . envQuoted((string) $data['site_url']),
+        'WS_MAX_CONNECTIONS=256',
+        'WS_MAX_PAYLOAD_BYTES=2097152',
         '',
         'LOG_LEVEL=INFO',
         'LOG_FILE=' . envQuoted($privateStorage . '/logs/app.log'),
@@ -507,7 +509,11 @@ function installerRequirements(string $basePath): array
 {
     $checks = [
         'PHP 8.1+' => version_compare(PHP_VERSION, '8.1.0', '>='),
-        'Composer dependencies (vendor/autoload.php)' => is_file($basePath . '/vendor/autoload.php'),
+        'Native core runtime' => is_file($basePath . '/core/Environment.php')
+            && is_file($basePath . '/core/NativeViewRenderer.php'),
+        'Native WebSocket runtime' => is_file($basePath . '/app/socket/NativeMessengerServer.php')
+            && is_file($basePath . '/app/socket/SocketHandshake.php')
+            && is_file($basePath . '/app/socket/SocketFrameCodec.php'),
         'mbstring' => extension_loaded('mbstring'),
         'pdo_mysql' => extension_loaded('pdo_mysql'),
         'mysqli' => extension_loaded('mysqli'),
@@ -529,9 +535,9 @@ function installerRequirements(string $basePath): array
 
     try {
         prepareRuntimeDirectories($basePath);
-        $checks['Writable compile/cache'] = true;
+        $checks['Writable runtime directories'] = true;
     } catch (Throwable) {
-        $checks['Writable compile/cache'] = false;
+        $checks['Writable runtime directories'] = false;
     }
 
     return $checks;
@@ -542,7 +548,7 @@ $detectedBasePath = detectedBasePath();
 $detectedWsUrl = defaultWebSocketUrl($detectedSiteUrl, $detectedBasePath);
 $detectedPrivateStorage = privateStorageCandidate($basePath);
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     verifyInstallerCsrf();
     $postedStep = (int) ($_POST['step'] ?? 0);
 
@@ -607,7 +613,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     );
                 }
 
-                $envData = [
+                $_SESSION['notes_install_db'] = [
                     'db_host' => $host,
                     'db_port' => $port,
                     'db_name' => $database,
@@ -622,8 +628,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'ws_ticket_secret' => randomSecret(),
                     'install_date' => date('YmdHis'),
                 ];
-
-                $_SESSION['notes_install_db'] = $envData;
                 header('Location: install.php?step=3');
                 exit;
             } catch (Throwable $e) {
@@ -755,7 +759,7 @@ $csrf = htmlspecialchars((string) $_SESSION['notes_install_csrf'], ENT_QUOTES, '
 <body>
 <main class="card">
     <h1>Workspace Organizer — установка</h1>
-    <p>Fresh install рассчитан на обычный PHP/MySQL hosting: мастер сам создаёт схему, private storage, секреты, конфигурацию домена и первый admin. Composer/CLI на хостинге не нужен, если загружен готовый hosting bundle с <code>vendor/</code>.</p>
+    <p>Fresh install рассчитан на обычный PHP/MySQL hosting: мастер сам создаёт схему, private storage, секреты, конфигурацию домена и первого admin. Composer и каталог <code>vendor/</code> для runtime не нужны.</p>
 
     <div class="steps" aria-label="Шаг <?= $step ?> из 4">
         <?php for ($i = 1; $i <= 4; $i++): ?>
@@ -835,7 +839,7 @@ $csrf = htmlspecialchars((string) $_SESSION['notes_install_csrf'], ENT_QUOTES, '
     <?php else: ?>
         <h2>4. Готово</h2>
         <p>Схема БД, private storage, секреты, <code>.env</code> и первый admin созданы. Повторный запуск installer автоматически закрыт.</p>
-        <p>Для обычных страниц больше ничего вручную настраивать не нужно. Realtime Messenger использует уже записанный same-site <code>WS_PUBLIC_URL</code>; hosting должен поддерживать долгоживущий PHP/Workerman process и proxy маршрута <code>/ws</code>.</p>
+        <p>Realtime Messenger использует встроенный native WebSocket process. Запустите <code>php ws_server/server.php start</code> через systemd/Supervisor/панель и проксируйте публичный <code>/ws</code> на локальный <code>WS_PORT</code>.</p>
         <p>Если hosting bundle развернут в подкаталоге, ссылка ниже уже учитывает <code>BASE_PATH</code>.</p>
         <a class="button" href="<?= htmlspecialchars($installedAppUrl !== '' ? $installedAppUrl : '/', ENT_QUOTES, 'UTF-8') ?>">Открыть Workspace Organizer</a>
     <?php endif; ?>
