@@ -22,6 +22,23 @@
         let sessionUnavailable = false;
         let countdownTimer = null;
         let reconnectAt = 0;
+        let lastIdentityCheckAt = 0;
+
+        function ticketSubject(ticket) {
+            try {
+                const encoded = String(ticket || '').split('.')[0] || '';
+                if (!encoded) return null;
+                const normalized = encoded.replace(/-/g, '+').replace(/_/g, '/');
+                const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
+                const payload = JSON.parse(atob(padded));
+                const subject = Number(payload?.sub || 0);
+                return Number.isInteger(subject) && subject > 0 ? subject : null;
+            } catch (error) {
+                return null;
+            }
+        }
+
+        let activeTicketSubject = ticketSubject(window.wspace?.socketConfig?.ticket);
 
         connection?.setAttribute('role', 'status');
         connection?.setAttribute('aria-live', 'polite');
@@ -157,6 +174,25 @@
                         throw new Error('Ticket refresh returned an invalid payload');
                     }
 
+                    const nextSubject = ticketSubject(data.ticket);
+                    if (activeTicketSubject && nextSubject && nextSubject !== activeTicketSubject) {
+                        sessionUnavailable = true;
+                        clearReconnectTimer();
+                        try {
+                            app.socket?.close();
+                        } catch (error) {
+                            // Ignore close races; the page is about to refresh.
+                        }
+                        renderState('offline', 'Аккаунт изменён', {
+                            reason: 'session',
+                            bannerText: 'Обнаружена другая авторизованная учётная запись. Обновляем страницу…',
+                            hideRetry: true
+                        });
+                        window.setTimeout(() => window.location.reload(), 80);
+                        return false;
+                    }
+
+                    activeTicketSubject = nextSubject || activeTicketSubject;
                     window.wspace.socketConfig = window.wspace.socketConfig || {};
                     window.wspace.socketConfig.ticket = data.ticket;
                     return true;
@@ -173,6 +209,14 @@
             })();
 
             return refreshPromise;
+        }
+
+        async function verifySessionIdentity() {
+            if (sessionUnavailable || navigator.onLine === false) return;
+            const now = Date.now();
+            if (now - lastIdentityCheckAt < 2500) return;
+            lastIdentityCheckAt = now;
+            await refreshTicket();
         }
 
         app.connect = async function connectWithFreshTicket() {
@@ -264,12 +308,18 @@
                 clearReconnectTimer();
                 app.scheduleReconnect({ immediate: true });
             }
+            verifySessionIdentity();
+        });
+
+        window.addEventListener('focus', () => {
+            verifySessionIdentity();
         });
 
         document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState !== 'visible') return;
+            verifySessionIdentity();
             if (
-                document.visibilityState === 'visible'
-                && navigator.onLine !== false
+                navigator.onLine !== false
                 && !sessionUnavailable
                 && (!app.socket || app.socket.readyState !== WebSocket.OPEN)
             ) {
