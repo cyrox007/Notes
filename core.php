@@ -29,6 +29,8 @@ spl_autoload_register(function ($class) {
 $coreFiles = [
     '/core/config.php',
     '/core/Version.php',
+    '/core/SessionSecurity.php',
+    '/core/RedirectPolicy.php',
     '/core/ModuleManifest.php',
     '/core/ModuleRegistry.php',
     '/core/DatabaseControll.php',
@@ -49,6 +51,10 @@ foreach ($coreFiles as $file) {
         throw new RuntimeException("Core file {$file} is missing.");
     }
 }
+
+// Session cookie/security settings must be fixed before any Request can call
+// session_start(). Fail closed if PHP refuses the configured policy.
+\Core\SessionSecurity::configure();
 
 // 0.14 module-platform boundary: every product module must have a validated,
 // core-compatible manifest before any legacy application code is loaded. Runtime

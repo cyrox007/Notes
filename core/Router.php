@@ -7,7 +7,7 @@ namespace Core;
 class Router
 {
     private static ?self $instance = null;
-    
+
     /** @var array<int, array{path: string, method: string, controller: array{0: class-string, 1: non-empty-string}, middlewares: array<class-string>, name?: string}> */
     protected array $routes = [];
 
@@ -15,7 +15,7 @@ class Router
     private ?string $groupPrefix = null;
 
     private function __construct() {}
-    
+
     private function __clone() {}
 
     public static function getInstance(): self
@@ -44,7 +44,6 @@ class Router
     public function group(string $prefix): self
     {
         $basePath = $this->getBasePath();
-        // Сохраняем префикс группы. Если уже был префикс (вложенность), добавляем к нему новый.
         $currentPrefix = $this->groupPrefix !== null
             ? $this->groupPrefix . $prefix
             : $basePath . $prefix;
@@ -56,8 +55,6 @@ class Router
 
     /**
      * End the current group scope.
-     * Resets the group prefix to the base path (or previous level if nested groups were implemented differently).
-     * For simple flat grouping, we just reset to null so next add() uses base path.
      */
     public function endGroup(): self
     {
@@ -67,14 +64,29 @@ class Router
 
     private function createPattern(string $path): string
     {
-        $pattern = '/\{(?:int:|str:)([a-zA-Z0-9_]+)\}/';
-        
-        $replacedPath = preg_replace_callback($pattern, static function (array $matches): string {
-            $type = str_contains($matches[0], 'int:') ? '\d+' : '[\w-]+';
-            return "(?P<{$matches[1]}>{$type})";
-        }, $path);
-        
-        return '~^' . $replacedPath . '$~';
+        $tokens = preg_split(
+            '/(\{(?:int|str):[A-Za-z0-9_]+\})/',
+            $path,
+            -1,
+            PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY
+        );
+
+        if ($tokens === false) {
+            throw new \RuntimeException('Unable to compile route pattern');
+        }
+
+        $pattern = '';
+        foreach ($tokens as $token) {
+            if (preg_match('/^\{(int|str):([A-Za-z0-9_]+)\}$/', $token, $matches) === 1) {
+                $valuePattern = $matches[1] === 'int' ? '\\d+' : '[A-Za-z0-9_-]+';
+                $pattern .= '(?P<' . $matches[2] . '>' . $valuePattern . ')';
+                continue;
+            }
+
+            $pattern .= preg_quote($token, '~');
+        }
+
+        return '~^' . $pattern . '$~D';
     }
 
     /**
@@ -93,8 +105,6 @@ class Router
             ARRAY_FILTER_USE_KEY
         );
 
-        
-        // Преобразуем параметры к соответствующим типам
         foreach ($filtered as $key => $value) {
             if (is_string($value) && ctype_digit($value)) {
                 $filtered[$key] = (int) $value;
@@ -118,13 +128,12 @@ class Router
     public function add(string $method, string $path, array $controller, array $middlewares = [], string $name = ''): self
     {
         $basePath = $this->getBasePath();
-        // Если активен префикс группы, используем его вместо basePath
         if ($this->groupPrefix !== null) {
             $path = $this->normalizePath($this->groupPrefix . $path);
         } else {
             $path = $this->normalizePath($basePath . $path);
         }
-        
+
         $route = [
             'path' => $path,
             'method' => strtoupper($method),
@@ -143,8 +152,18 @@ class Router
 
     public function dispatch(): void
     {
-        $requestUrl = $this->normalizePath(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH));
-        $requestMethod = strtoupper($_SERVER['REQUEST_METHOD']);
+        $rawRequestUri = (string) ($_SERVER['REQUEST_URI'] ?? '/');
+        if (preg_match('/[\r\n\x00]/', $rawRequestUri) === 1) {
+            $this->handleBadRequest();
+        }
+
+        $parsedPath = parse_url($rawRequestUri, PHP_URL_PATH);
+        if (!is_string($parsedPath)) {
+            $this->handleBadRequest();
+        }
+
+        $requestUrl = $this->normalizePath($parsedPath);
+        $requestMethod = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
         $routeFound = false;
 
         foreach ($this->routes as $route) {
@@ -165,13 +184,13 @@ class Router
             }
 
             [$className, $methodName] = $route['controller'];
-            
+
             if (!class_exists($className)) {
                 throw new \RuntimeException("Controller class does not exist: {$className}");
             }
-            
+
             $controllerInstance = new $className();
-            
+
             if (!method_exists($controllerInstance, $methodName)) {
                 throw new \RuntimeException("Method {$methodName} does not exist in controller {$className}");
             }
@@ -179,7 +198,7 @@ class Router
             $params = $this->clearParams($params);
 
             $this->invokeController($controllerInstance, $methodName, $request, $params);
-            
+
             return;
         }
 
@@ -192,7 +211,17 @@ class Router
     {
         http_response_code(404);
         header('Content-Type: text/plain; charset=utf-8');
+        header('Cache-Control: no-store');
         echo '404 Page Not Found';
+        exit;
+    }
+
+    private function handleBadRequest(): never
+    {
+        http_response_code(400);
+        header('Content-Type: text/plain; charset=utf-8');
+        header('Cache-Control: no-store');
+        echo '400 Bad Request';
         exit;
     }
 
@@ -225,9 +254,9 @@ class Router
             if (!class_exists($middleware)) {
                 throw new \RuntimeException("Middleware class does not exist: {$middleware}");
             }
-            
+
             $middlewareInstance = new $middleware();
-            
+
             if (!method_exists($middlewareInstance, 'handle')) {
                 throw new \RuntimeException("Middleware {$middleware} does not have a handle method");
             }
@@ -240,23 +269,28 @@ class Router
     }
 
     /**
+     * Redirects to a named route or to a same-origin local URL.
+     * Arbitrary external redirects are intentionally not supported by this core API.
+     *
      * @param array<string, mixed> $params
      */
     public function redirect(string $to, string $type = 'name', array $params = []): void
     {
-        if ($type === 'url' && filter_var($to, FILTER_VALIDATE_URL) !== false) {
-            header("Location: {$to}");
+        if ($type === 'url') {
+            $siteUrl = (string) Config::get('SITEURL', '');
+            $location = RedirectPolicy::resolveLocal($to, $siteUrl);
+            header("Location: {$location}", true, 302);
             exit;
         }
-        
+
         if ($type === 'name') {
             $route = $this->findRouteByName($to);
             if ($route !== null) {
                 $url = $this->buildUrlFromRoute($route['path'], $params);
-                header("Location: {$url}");
+                header("Location: {$url}", true, 302);
                 exit;
             }
-            
+
             throw new \RuntimeException("Route for redirect not found: {$to}");
         }
 
@@ -269,14 +303,38 @@ class Router
     private function buildUrlFromRoute(string $path, array $params): string
     {
         foreach ($params as $key => $value) {
+            if (!is_string($key) || preg_match('/^[A-Za-z0-9_]+$/', $key) !== 1) {
+                throw new \InvalidArgumentException('Invalid route parameter name');
+            }
+
             $pattern = '/\{(int|str):' . preg_quote($key, '/') . '\}/';
-            
-            if (preg_match($pattern, $path) === 1) {
-                $path = (string) preg_replace($pattern, (string) $value, $path, 1);
-            } else {
+            if (preg_match($pattern, $path, $matches) !== 1) {
                 throw new \RuntimeException("Parameter {$key} not found in route path");
             }
+
+            $type = $matches[1];
+            if ($type === 'int') {
+                if (!(is_int($value) || (is_string($value) && ctype_digit($value)))) {
+                    throw new \InvalidArgumentException("Route parameter {$key} must be an integer");
+                }
+                $replacement = (string) $value;
+            } else {
+                if (!(is_string($value) || is_int($value))) {
+                    throw new \InvalidArgumentException("Route parameter {$key} must be a scalar string identifier");
+                }
+                $replacement = (string) $value;
+                if (preg_match('/^[A-Za-z0-9_-]+$/', $replacement) !== 1) {
+                    throw new \InvalidArgumentException("Route parameter {$key} contains invalid characters");
+                }
+            }
+
+            $path = (string) preg_replace($pattern, $replacement, $path, 1);
         }
+
+        if (preg_match('/\{(?:int|str):[A-Za-z0-9_]+\}/', $path) === 1) {
+            throw new \RuntimeException('Missing parameter for named route redirect');
+        }
+
         return $this->normalizePath($path);
     }
 
@@ -314,7 +372,7 @@ class Router
 
     /**
      * Get all registered routes
-     * 
+     *
      * @return array<int, array{path: string, method: string, controller: array{0: class-string, 1: non-empty-string}, middlewares: array<class-string>, name?: string}>
      */
     public function getRoutes(): array
