@@ -66,6 +66,7 @@ $requiredTables = [
     'permissions',
     'role_permissions',
     'user_roles',
+    'module_lifecycle',
 ];
 
 $schemaFiles = glob($basePath . '/database/*.sql') ?: [];
@@ -78,6 +79,7 @@ usort($schemaFiles, static function (string $a, string $b): int {
         'tasks_schema.sql' => 5,
         'access_control_schema.sql' => 6,
         'settings_schema.sql' => 7,
+        'module_lifecycle_schema.sql' => 8,
     ];
 
     return ($order[basename($a)] ?? 99) <=> ($order[basename($b)] ?? 99);
@@ -512,7 +514,8 @@ function installerRequirements(string $basePath): array
             && is_file($basePath . '/database/notes_schema.sql')
             && is_file($basePath . '/database/file_manager_schema.sql')
             && is_file($basePath . '/database/user_fields_schema.sql')
-            && is_file($basePath . '/database/tasks_schema.sql'),
+            && is_file($basePath . '/database/tasks_schema.sql')
+            && is_file($basePath . '/database/module_lifecycle_schema.sql'),
     ];
 
     try {

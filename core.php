@@ -35,6 +35,7 @@ $coreFiles = [
     '/core/ModuleRegistry.php',
     '/core/DatabaseControll.php',
     '/core/DatabaseManager.php',
+    '/core/ModuleLifecycleStore.php',
     '/core/ORM.php',
     '/core/model.php',
     '/core/view.php',
@@ -56,11 +57,22 @@ foreach ($coreFiles as $file) {
 // session_start(). Fail closed if PHP refuses the configured policy.
 \Core\SessionSecurity::configure();
 
-// 0.14 module-platform boundary: every product module must have a validated,
-// core-compatible manifest before any legacy application code is loaded. Runtime
-// loading still uses app/* during the migration period; later 0.14 phases move
-// each module to isolated routes/bootstrap paths behind this registry.
-\Core\ModuleRegistry::boot(SITEPATH . '/modules', \Core\Version::VERSION);
+// 0.14 module-platform boundary: every product module must have a validated
+// manifest before legacy application code is loaded. Normal HTTP/CLI entrypoints
+// also reconcile persisted lifecycle state here. Pre-fork runtimes (Workerman)
+// can deliberately defer only the database-backed reconciliation until their
+// worker process starts, avoiding an inherited PDO connection while preserving
+// fail-closed manifest discovery in the master process.
+$deferModuleLifecyclePersistence = defined('WORKSPACE_DEFER_MODULE_LIFECYCLE')
+    && WORKSPACE_DEFER_MODULE_LIFECYCLE === true;
+
+\Core\ModuleRegistry::boot(
+    SITEPATH . '/modules',
+    \Core\Version::VERSION,
+    $deferModuleLifecyclePersistence
+        ? null
+        : new \Core\ModuleLifecycleStore(\Core\DatabaseManager::getInstance())
+);
 
 $directories = [
     '/app/models/',

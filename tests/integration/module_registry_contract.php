@@ -80,6 +80,7 @@ foreach ($registry->all() as $id => $manifest) {
     assertModuleContract($manifest->runtimeMode() === 'legacy', "{$id} must remain explicitly marked legacy until isolated");
     assertModuleContract(strlen($manifest->integrityHash()) === 64, "{$id} manifest must expose a SHA-256 integrity hash");
     assertModuleContract($manifest->licenseFeature() !== null, "{$id} must declare a central entitlement feature");
+    assertModuleContract($manifest->isCompatibleWithCore(Version::VERSION), "{$id} must be compatible with the current core");
 }
 
 assertModuleContract($registry->resolveComposition(['notes']) === ['notes'], 'single independent module composition failed');
@@ -125,13 +126,19 @@ try {
         'fixture.future',
         ['min' => '99.0.0', 'max_exclusive' => '100.0.0']
     );
-    $incompatibleRejected = false;
+    $futureRegistry = ModuleRegistry::discover($tmp, Version::VERSION);
+    assertModuleContract($futureRegistry->has('future'), 'valid incompatible manifest must remain discoverable');
+    assertModuleContract(
+        !$futureRegistry->get('future')->isCompatibleWithCore(Version::VERSION),
+        'core incompatibility must be represented separately from manifest validity'
+    );
+    $assertStillFails = false;
     try {
-        ModuleRegistry::discover($tmp, Version::VERSION);
+        $futureRegistry->get('future')->assertCompatibleWithCore(Version::VERSION);
     } catch (RuntimeException) {
-        $incompatibleRejected = true;
+        $assertStillFails = true;
     }
-    assertModuleContract($incompatibleRejected, 'core-incompatible module must fail closed');
+    assertModuleContract($assertStillFails, 'explicit compatibility assertion must remain fail-closed');
 } finally {
     removeTree($tmp);
 }

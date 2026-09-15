@@ -84,6 +84,7 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot profile_browser_lifecycle < database/user_fields_schema.sql
           mysql -h 127.0.0.1 -uroot -proot profile_browser_lifecycle < database/tasks_schema.sql
           mysql -h 127.0.0.1 -uroot -proot profile_browser_lifecycle < database/settings_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot profile_browser_lifecycle < database/module_lifecycle_schema.sql
           # Compatibility upgrade remains idempotent even on the canonical fresh schema.
           mysql -h 127.0.0.1 -uroot -proot profile_browser_lifecycle < database/migrations/20260914_profile_publication.sql
           mysql -h 127.0.0.1 -uroot -proot profile_browser_lifecycle < database/migrations/20260914_profile_publication.sql

@@ -143,6 +143,12 @@ final class ModuleManifest
         }
     }
 
+    public function isCompatibleWithCore(string $coreVersion): bool
+    {
+        return version_compare($coreVersion, $this->coreMin, '>=')
+            && version_compare($coreVersion, $this->coreMaxExclusive, '<');
+    }
+
     public function id(): string
     {
         return $this->id;

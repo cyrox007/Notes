@@ -1,6 +1,6 @@
 # Workspace Organizer 0.14 — Module Platform Contract
 
-This document defines the target contract for independently distributable product modules. Phase 1 implements the manifest/registry control plane while current product code remains explicitly marked `runtime.mode = legacy`.
+This document defines the target contract for independently distributable product modules. Phase 1 introduced the manifest/registry control plane. Phase 5 adds persisted lifecycle state while current product code remains explicitly marked `runtime.mode = legacy`.
 
 ## Core versus module
 
@@ -33,24 +33,25 @@ Required fields:
 
 ## Fail-closed rules
 
-Startup/module resolution fails when:
+Discovery/startup fails when:
 
 - the modules root or manifest is missing/invalid;
 - a module directory is a symlink at the discovery boundary;
 - manifest schema/types/identifiers are invalid;
 - directory and manifest IDs differ;
-- a module is incompatible with the running core version;
 - a declared dependency is absent;
 - dependencies contain a cycle;
-- two modules claim the same capability.
+- two modules claim the same capability;
+- a persisted module that is not explicitly `uninstalled` disappears from disk;
+- the lifecycle table is missing or contains invalid state.
 
-A malformed or incompatible package is therefore not silently loaded.
+A **valid** manifest whose core range does not include the running core is different from a malformed package. It remains registered, keeps its configured lifecycle intent and reconciles to effective state `incompatible`. It is never runtime-enabled while incompatible. This allows a later compatible core update to restore the prior configured state without silently forgetting operator intent.
 
 ## Composition
 
-`ModuleRegistry::resolveComposition()` takes a requested module set, adds required dependencies and returns deterministic dependency-first load order.
+`ModuleRegistry::resolveComposition()` is manifest-only: it takes a requested package set, adds required dependencies and returns deterministic dependency-first order. Package/distribution planning therefore does not change because one installation has a module disabled.
 
-Phase 1 only computes composition. A later phase will connect it to persisted lifecycle state and runtime route/bootstrap loading.
+`ModuleRegistry::enabledComposition()` is runtime-state-aware: it returns only modules whose persisted **effective** state is `enabled`. Disabled, incompatible, degraded, quarantined and uninstalled modules are never silently enabled to satisfy a dependency.
 
 Target supported package forms include:
 
@@ -62,21 +63,42 @@ Target supported package forms include:
 - full Workspace;
 - licensed/custom enterprise composition.
 
-A package builder must use the same resolver as runtime/installer checks so distribution cannot create a composition that runtime would reject.
+A package builder must use the same manifest resolver as installer/update preflight so distribution cannot create a composition with missing or cyclic dependencies.
 
-## Runtime states (next phase)
+## Persisted lifecycle
 
-The persisted registry will distinguish at least:
+Lifecycle state is stored in `module_lifecycle`. The platform separates two concepts:
 
+- `configured_state` — persisted operator/package intent;
+- `effective_state` — what the running core can actually expose after compatibility and dependency reconciliation.
+
+Configured states are:
+
+- `discovered`;
 - `installed`;
 - `enabled`;
 - `disabled`;
-- `incompatible`;
 - `degraded`;
 - `quarantined`;
-- `update-pending` / `recovery-required` where applicable.
+- `uninstalled`.
 
-Disabling is non-destructive. Data purge/uninstall is a separate explicit operation with dependency and retention checks.
+Effective state additionally includes `incompatible`.
+
+Bundled modules are registered on first reconciliation using `package.default_enabled`. A newly discovered **non-bundled** package is always registered as `discovered`; `default_enabled` cannot self-activate third-party code.
+
+When a configured `enabled` module loses an enabled dependency, its effective state becomes `degraded` while configured intent remains `enabled`. When compatibility/dependencies recover, reconciliation can return it to `enabled` without inventing new operator intent.
+
+Lifecycle transitions are constrained. Enabling requires all dependencies to be effectively enabled and core-compatible. Disabling, quarantining or uninstalling a module is rejected while another effectively enabled module depends on it. Quarantine recovery requires an explicit transition to `disabled` before re-enabling.
+
+Disabling and uninstall state changes are non-destructive: they do not purge customer data. Physical package removal, data retention/purge and signed update recovery remain separate explicit operations.
+
+`manifest_hash` records the currently observed local manifest identity. Reconciliation may update it when deployed package contents change. It is **not** a publisher signature or authorization to execute downloaded code.
+
+## Current runtime boundary
+
+Phase 5 persists and reconciles lifecycle state before recursive `app/*` loading. The registry now exposes the effective runtime composition, but current modules are still `runtime.mode = legacy`; their PHP files/routes are not yet physically isolated by lifecycle state.
+
+Therefore `disabled`/`quarantined` state is a control-plane contract in this phase, not a claim that all legacy code has already stopped being loaded. The next phase moves module-owned route/bootstrap providers behind `enabledComposition()` and proves isolation with a reference module.
 
 ## Isolation target
 
@@ -96,7 +118,7 @@ Cross-module access must go through a declared contract/capability/service. Dire
 
 ## Package integrity and signatures
 
-The SHA-256 hash exposed by Phase 1 represents local manifest content identity only. It is **not** a cryptographic publisher signature.
+The SHA-256 hash exposed by the manifest/lifecycle registry represents local manifest content identity only. It is **not** a cryptographic publisher signature.
 
 Before remote installation/update is enabled, the platform must verify signed release metadata and package contents using trusted public verification keys. Package code must never execute before signature/integrity/compatibility verification. Private signing keys must never be distributed with customer installations.
 
