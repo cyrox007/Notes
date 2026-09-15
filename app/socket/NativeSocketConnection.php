@@ -16,6 +16,7 @@ final class NativeSocketConnection extends SocketConnection
 {
     /** @var resource|null */
     private $stream;
+    private int $resourceId;
     private string $inputBuffer = '';
     private string $outputBuffer = '';
     private bool $closing = false;
@@ -35,6 +36,7 @@ final class NativeSocketConnection extends SocketConnection
         }
 
         $this->stream = $stream;
+        $this->resourceId = get_resource_id($stream);
         stream_set_blocking($this->stream, false);
         $this->acceptedAt = microtime(true);
         $this->lastActivityAt = $this->acceptedAt;
@@ -42,10 +44,7 @@ final class NativeSocketConnection extends SocketConnection
 
     public function id(): int
     {
-        if (!is_resource($this->stream)) {
-            return 0;
-        }
-        return get_resource_id($this->stream);
+        return $this->resourceId;
     }
 
     /** @return resource|null */
