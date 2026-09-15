@@ -124,7 +124,9 @@ final class Environment
                 't' => "\t",
                 '"' => '"',
                 '\\' => '\\',
-                '$' => '$',
+                // Keep escaped dollars protected until variable expansion has
+                // finished. Otherwise "\${NAME}" would incorrectly expand.
+                '$' => '\\$',
                 default => '\\' . $next,
             };
         }
@@ -159,7 +161,9 @@ final class Environment
             throw new RuntimeException('Unable to expand environment variable reference.');
         }
 
-        return str_replace('\\${', '${', $expanded);
+        // Unescape protected dollars after expansion. This covers both ${VAR}
+        // literals and other escaped dollar sequences inside double quotes.
+        return str_replace('\\$', '$', $expanded);
     }
 
     private static function isDefined(string $key): bool
