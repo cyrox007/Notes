@@ -12,7 +12,12 @@ on:
       - 'core/controller.php'
       - 'core.php'
       - 'app/views/login_page/*.php'
+      - 'app/views/core/base.php'
+      - 'app/views/^shared/**/*.php'
+      - 'app/views/main_page/index.php'
+      - 'assets/js/common.js'
       - 'tests/integration/native_view_renderer_contract.php'
+      - 'tests/integration/native_workspace_shell_contract.php'
       - '.github/workflows/native-view-foundation.yml'
   pull_request:
     branches: ['1.0']
@@ -25,7 +30,12 @@ on:
       - 'core/controller.php'
       - 'core.php'
       - 'app/views/login_page/*.php'
+      - 'app/views/core/base.php'
+      - 'app/views/^shared/**/*.php'
+      - 'app/views/main_page/index.php'
+      - 'assets/js/common.js'
       - 'tests/integration/native_view_renderer_contract.php'
+      - 'tests/integration/native_workspace_shell_contract.php'
       - '.github/workflows/native-view-foundation.yml'
 
 permissions:
@@ -44,7 +54,7 @@ jobs:
         with:
           php-version: ${{ matrix.php }}
           coverage: none
-      - name: Lint renderer and native auth views
+      - name: Lint renderer and native views
         run: |
           php -l core/ViewRenderer.php
           php -l core/ViewContext.php
@@ -56,13 +66,27 @@ jobs:
           php -l app/views/login_page/login_layout.php
           php -l app/views/login_page/login_view.php
           php -l app/views/login_page/register_view.php
+          php -l app/views/core/base.php
+          php -l 'app/views/^shared/header/index.php'
+          php -l 'app/views/^shared/sidebar/index.php'
+          php -l 'app/views/^shared/footer/index.php'
+          php -l app/views/main_page/index.php
           php -l tests/integration/native_view_renderer_contract.php
-      - name: Verify native renderer contract without vendor bootstrap
-        run: php tests/integration/native_view_renderer_contract.php
+          php -l tests/integration/native_workspace_shell_contract.php
+      - name: Verify native renderer contracts without vendor bootstrap
+        run: |
+          php tests/integration/native_view_renderer_contract.php
+          php tests/integration/native_workspace_shell_contract.php
       - name: Verify migration boundary
         run: |
           ! grep -F 'use Smarty\\' core/controller.php
           ! grep -F '$this->smarty' core/controller.php
+          ! grep -F '{literal}' assets/js/common.js
           test -f app/views/login_page/login_view.php
           test -f app/views/login_page/register_view.php
           test -f app/views/login_page/login_layout.php
+          test -f app/views/core/base.php
+          test -f 'app/views/^shared/header/index.php'
+          test -f 'app/views/^shared/sidebar/index.php'
+          test -f 'app/views/^shared/footer/index.php'
+          test -f app/views/main_page/index.php
