@@ -4,7 +4,29 @@
 
 ## Unreleased
 
-Основная цель после первого beta — `1.0.0` stable. Крупный пользовательский feature scope остаётся заморожен; приоритеты: полная runtime-изоляция модулей, package compositions, signed updater/recovery, licensing, observability, upgrade/load/soak/cross-browser evidence, key re-encryption и CSP hardening.
+Основная цель после первого beta — `1.0.0` stable. Крупный пользовательский feature scope остаётся заморожен; приоритеты: отказ от сторонних runtime-библиотек, полная runtime-изоляция модулей, package compositions, signed updater/recovery, installation-wide licensing, observability, upgrade/load/soak/cross-browser evidence, key re-encryption и CSP hardening.
+
+## 0.14.0-beta.4 — 2026-09-15
+
+### Roles / module policies
+- Админ-панель получила полноценный Role Manager поверх persisted RBAC: создание прикладных ролей, назначение ролей пользователям и редактирование permission assignment.
+- Boolean permissions отделены от типизированных `role_module_policies`, поэтому доступ к функции и её количественные/типовые ограничения больше не смешиваются.
+- Role policies применяются server-side для Notes, Tasks, File Manager и Messenger: лимиты количества/размера, allowlist расширений, message rate, group/voice capabilities и collaborative-task limits.
+- Общая sidebar-навигация теперь отражает effective RBAC вместо legacy numeric `users.role`; скрытие пункта меню остаётся UX-слоем, а server-side middleware/service checks — authorization boundary.
+- Исправлена адаптивная сетка создания пользователей и Role Manager, чтобы admin forms не использовали пятиколоночную сетку редактора custom profile fields.
+
+### Shared Tasks
+- Добавлены shared task boards отдельно от legacy personal tasks, сохраняя прежний ownership contract личных задач.
+- Доска может быть доступна выбранным участникам или динамической аудитории `all_active`; для конкретной доски действует собственный ACL owner/manager/member/viewer.
+- Добавлены shared task items, несколько исполнителей, статусы/priorities/due dates и отдельный Kanban с drag-and-drop.
+- Drag-and-drop shared board использует CSRF-protected server update и фиксирует карточку до asynchronous request, исключая race с `dragend`.
+- Fresh schema и compatibility migration включают `task_boards`, `task_board_members`, `task_board_items`, `task_board_assignees`.
+
+### Database / deployment / verification
+- Canonical fresh install расширен до 32 обязательных таблиц; `database/tasks_schema.sql` теперь является source of truth и для shared boards, а `database/access_control_schema.sql` — для `role_module_policies`.
+- `bin/migrate.php` регистрирует additive compatibility migrations для role policies и shared task boards; `bin/healthcheck.php` проверяет полный 32-table contract.
+- Обновлены installer/hosting/RBAC/browser fixtures, чтобы старые lifecycle tests поднимали persisted access-control schema до выполнения новых permission middleware.
+- Добавлены отдельные Beta 4 contracts для policy composition/enforcement и shared-board ACL, а static regression checks фиксируют правильное связывание Role Manager snapshot и CSRF drag-and-drop.
 
 ## 0.14.0-beta.3 — 2026-09-15
 
