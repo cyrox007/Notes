@@ -76,6 +76,7 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot notes_browser_lifecycle < database/tasks_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_browser_lifecycle < database/settings_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_browser_lifecycle < database/module_lifecycle_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_browser_lifecycle < database/access_control_schema.sql
 
       - name: Seed browser user and environment
         shell: bash
