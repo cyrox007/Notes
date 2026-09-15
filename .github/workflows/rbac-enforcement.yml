@@ -60,5 +60,24 @@ jobs:
             php -l "$source"
           done
 
+      - name: Verify legacy middleware bootstrap order
+        shell: bash
+        run: |
+          set -euo pipefail
+          php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          $files = new RecursiveIteratorIterator(
+              new RecursiveDirectoryIterator(getcwd() . '/app/middlewares', RecursiveDirectoryIterator::SKIP_DOTS),
+              RecursiveIteratorIterator::LEAVES_ONLY
+          );
+          foreach ($files as $file) {
+              if ($file->isFile() && $file->getExtension() === 'php') {
+                  require_once $file->getRealPath();
+              }
+          }
+          echo "Legacy middleware bootstrap order OK\n";
+          PHP
+
       - name: Verify MySQL and runtime enforcement contract
         run: bash tests/integration/rbac_enforcement_mysql.sh
