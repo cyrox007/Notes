@@ -55,13 +55,13 @@ jobs:
 
           replace_once(
               '.github/workflows/release-gate.yml',
-              "  database/tasks_schema.sql \\\n  database/settings_schema.sql",
-              "  database/tasks_schema.sql \\\n  database/access_control_schema.sql \\\n  database/settings_schema.sql",
+              "            database/tasks_schema.sql \\\n            database/settings_schema.sql",
+              "            database/tasks_schema.sql \\\n            database/access_control_schema.sql \\\n            database/settings_schema.sql",
           )
           replace_once(
               '.github/workflows/release-gate.yml',
-              'test "$count" -ge 22',
-              'test "$count" -eq 26',
+              '          test "$count" -ge 22',
+              '          test "$count" -eq 26',
           )
           PY
 
