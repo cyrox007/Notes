@@ -46,7 +46,7 @@ try {
 
 wsDoctorLine('OK', 'SITEURL', $siteUrl);
 wsDoctorLine('OK', 'Browser WebSocket URL', $publicUrl);
-wsDoctorLine('OK', 'Workerman listener', sprintf('tcp://%s:%d', $bindHost, $port));
+wsDoctorLine('OK', 'Native WebSocket listener', sprintf('tcp://%s:%d', $bindHost, $port));
 wsDoctorLine('INFO', 'Deployment mode', $sameOriginProxy ? 'same-origin reverse proxy' : 'custom/external WebSocket endpoint');
 if ($sameOriginProxy) {
     wsDoctorLine('INFO', 'Required proxy', $proxyPath . ' -> ' . $backend);
@@ -64,10 +64,10 @@ $socket = @stream_socket_client(
 );
 if (is_resource($socket)) {
     fclose($socket);
-    wsDoctorLine('OK', 'Workerman listener reachable', $connectHost . ':' . $port);
+    wsDoctorLine('OK', 'Native WebSocket listener reachable', $connectHost . ':' . $port);
     $listenerOk = true;
 } else {
-    wsDoctorLine('FAIL', 'Workerman listener unreachable', ($errstr !== '' ? $errstr : 'connection failed') . " ({$connectHost}:{$port})");
+    wsDoctorLine('FAIL', 'Native WebSocket listener unreachable', ($errstr !== '' ? $errstr : 'connection failed') . " ({$connectHost}:{$port})");
     $listenerOk = false;
 }
 
@@ -103,7 +103,7 @@ if ($sameOriginProxy) {
         fwrite(STDOUT, "After creating/editing the active web-server config, restart Open Server.\n");
     }
 
-    fwrite(STDOUT, "\nImportant: an [OK] Workerman process only proves that the internal listener is alive.\n");
+    fwrite(STDOUT, "\nImportant: an [OK] listener only proves that the internal native WebSocket process is alive.\n");
     fwrite(STDOUT, "The browser still needs the web server to proxy {$proxyPath} to {$backend}.\n");
 }
 
