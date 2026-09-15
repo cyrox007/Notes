@@ -354,7 +354,7 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 
 `Hosting installer` выполняет настоящий HTTP fresh-install через cookies/CSRF на MySQL в hosting-like `public_html/workspace`, проверяет subdirectory detection, private storage вне document root, 27-table contract, quota seed, admin account, generated `.env`, блокировку повторного installer и итоговый healthcheck.
 
-`Build hosting package` собирает upload-ready ZIP с production `vendor/`; на tag `v*` ZIP публикуется как release asset.
+`Build hosting package` собирает upload-ready ZIP с production `vendor/`; теги `v*-*` публикуются как GitHub prerelease, а stable tag без suffix — как обычный Release.
 
 `Browser HTTPS and WSS E2E` поднимает PHP + Workerman + TLS Nginx + MySQL и реальные Chromium-сессии: проверяет login, основные модули, authenticated WSS, realtime delivery и 0.13 reconnect recovery.
 

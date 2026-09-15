@@ -1,6 +1,6 @@
 # История версий Workspace Organizer
 
-Формат основан на принципах Keep a Changelog. Пока проект находится в alpha, обратная совместимость между промежуточными версиями не гарантируется; для существующих БД используются compatibility upgrade SQL, а canonical `*_schema.sql` остаются источником текущей схемы fresh install.
+Формат основан на принципах Keep a Changelog. Начиная с 0.14 проект находится в beta: совместимость upgrade-path и пользовательских данных является частью release contract; до 1.0 внутренние platform contracts ещё могут меняться через явные compatibility migrations. Canonical `*_schema.sql` остаются источником текущей схемы fresh install.
 
 ## Unreleased
 
