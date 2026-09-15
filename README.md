@@ -1,12 +1,12 @@
 # Workspace Organizer
 
-**Версия:** `0.14.0-beta.2`  
+**Версия:** `0.14.0-beta.3`  
 **Актуально на:** 15 сентября 2026  
-**Статус:** beta.2 / WebSocket deployment hotfix; следующая основная цель — `1.0.0` stable
+**Статус:** beta.3 / managed registration and user provisioning; следующая основная цель — `1.0.0` stable
 
 Workspace Organizer — внутреннее PHP-приложение для корпоративной работы: заметки, задачи, личные файлы, профиль, администрирование и real-time Messenger.
 
-Версия `0.14.0-beta.2` сохраняет beta hardening baseline и исправляет deployment-контракт realtime Messenger: браузер использует same-origin `ws(s)://<site>[/base]/ws`, фронтовый Apache/Nginx/Caddy завершает TLS/WebSocket Upgrade, а Workerman безопасно остаётся внутренним listener на `127.0.0.1:27800`. Добавлены Open Server 6+ bridge/диагностика и regression coverage на PHP 8.1/8.3. Дальнейшая работа в `master` по-прежнему направлена на `1.0.0` stable: module isolation, updater/recovery, licensing, observability и остальные stable blockers.
+Версия `0.14.0-beta.3` добавляет управляемую регистрацию и provisioning пользователей: администратор выбирает закрытый, свободный или invite-only режим, создаёт обычных пользователей из админки и управляет ограниченными инвайтами без хранения plaintext-кодов. Публичная регистрация и admin mutations защищены rate limit / CSRF / RBAC contract. Сохраняются WebSocket deployment fixes beta.2 и совместимость PHP 8.1+. Дальнейшая работа в `master` направлена на `1.0.0` stable: module isolation, updater/recovery, licensing, observability и остальные stable blockers.
 
 ## Возможности
 
@@ -15,7 +15,7 @@ Workspace Organizer — внутреннее PHP-приложение для к�
 - **File Manager** — личные папки/файлы вне document root, protected download, media/read-only text preview, grid/list workspace, поиск/сортировка, drag-and-drop upload и storage quota.
 - **Messenger v2** — private/group chats, Saved Messages, forwarding, media, voice, reply/edit/delete, delivery/read receipts, reactions, encrypted search, pin/mute/archive, group roles/avatars, multi-device realtime и reconnect/offline/session-ended UX.
 - **Profile** — workspace hub с Notes/Tasks/Files/storage metrics, private avatar, account settings, безопасная деактивация и explicit `is_profile_public` publication model без раскрытия private content.
-- **Admin panel** — управление пользователями, custom profile fields, системным лимитом File Manager и персональными storage quota overrides без physical delete связанных данных; список пользователей поддерживает server-side поиск/пагинацию.
+- **Admin panel** — создание и lifecycle пользователей, управляемые режимы регистрации `disabled/open/invite`, ограниченные/revocable инвайты, custom profile fields, системный лимит File Manager и персональные storage quota overrides без physical delete связанных данных; список пользователей поддерживает server-side поиск/пагинацию.
 - **Responsive UI** — единый design system, desktop/mobile navigation, обновлённые формы/карточки/модалки, keyboard focus, reduced-motion support и общий feedback layer.
 
 ## Security model
@@ -33,7 +33,7 @@ Workspace Organizer — внутреннее PHP-приложение для к�
 - upload MIME — server-side `finfo` + allowlist;
 - unsafe HTTP actions — CSRF policy;
 - login/registration и upload endpoints — request rate limiting;
-- web-registration закрыта без `REGISTRATION_INVITE_CODE`;
+- публичная регистрация по умолчанию закрыта; режимы `disabled/open/invite` управляются администратором, а managed invite-коды хранятся только как SHA-256 hash;
 - inactive/blocked user повторно проверяется на HTTP и WebSocket paths.
 
 > Messenger использует **server-side encryption at rest**, а не end-to-end encryption. Сервер способен расшифровать сообщения.
@@ -146,19 +146,17 @@ Fresh contract включает 27 обязательных таблиц, вкл
 
 ### Registration
 
-По умолчанию web-registration закрыта. Для invite registration задайте:
+По умолчанию публичная регистрация закрыта. Администратор управляет политикой в `/admin/registration` и может выбрать один из трёх режимов:
 
-```env
-REGISTRATION_INVITE_CODE=<long-random-invite-secret>
-```
+- `disabled` — самостоятельная регистрация запрещена;
+- `open` — свободная регистрация;
+- `invite` — регистрация только по действующему управляемому инвайту.
 
-После этого используется URL:
+В invite-only режиме администратор создаёт приглашения с названием, сроком действия и лимитом использований. Полный код показывается один раз; в `system_settings` сохраняется только SHA-256 hash и служебные метаданные. Инвайт можно отозвать, а исчерпанный или просроченный код автоматически перестаёт действовать. Создание аккаунта и расход инвайта выполняются одной транзакцией.
 
-```text
-/auth/registration/<REGISTRATION_INVITE_CODE>
-```
+Администратор также может создавать обычных пользователей напрямую из `/admin/` независимо от публичного режима регистрации. Такое создание не выдаёт admin/superadmin права: новый аккаунт получает каноническую RBAC-роль `user`.
 
-Неверный или незаданный invite возвращает `404`.
+`REGISTRATION_INVITE_CODE` из `.env` сохранён только как compatibility fallback для старых установок, пока администратор ни разу не сохранил новую явную политику в БД. После сохранения режима env-код больше не является отдельным authorization path.
 
 ### WebSocket
 
