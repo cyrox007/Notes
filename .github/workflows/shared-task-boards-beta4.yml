@@ -1,0 +1,68 @@
+name: 0.14 Beta 4 shared task boards
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [0.14-beta4-role-policies-collaboration]
+
+permissions:
+  contents: read
+
+jobs:
+  shared-task-boards:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: notes_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_mysql, mysqli
+          coverage: none
+
+      - name: Lint Beta 4 board and policy sources
+        run: |
+          php -l app/services/TaskBoardService.php
+          php -l app/controllers/TaskBoardController.php
+          php -l app/middlewares/EnforceNoteCreatePolicy.php
+          php -l app/middlewares/EnforceNoteAttachmentPolicy.php
+          php -l app/middlewares/EnforceNoteSharePolicy.php
+          php -l app/middlewares/EnforceTaskCreatePolicy.php
+          php -l app/middlewares/EnforceMessengerUploadPolicy.php
+          php -l app/socket/MessangerSocket.php
+          php -l app/socket/GroupSocket.php
+          php -l core/routerConfig.php
+
+      - name: Run shared board ACL and role-policy contract
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: notes_test
+        run: bash tests/integration/task_board_beta4_mysql.sh
+
+      - name: Verify task board templates are wired
+        run: |
+          grep -q "TaskBoardController" core/routerConfig.php
+          grep -q "task_board_create" app/views/tasks_page/boards.tpl
+          grep -q "task_board_task_update" app/views/tasks_page/boards.tpl
+          grep -q "task-boards-nav.js" app/views/core/base.tpl
