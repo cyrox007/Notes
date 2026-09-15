@@ -27,6 +27,7 @@ $styleFiles = [
     'file_manager/style.css',
     'messager_page/style.css',
     'admin-page/style.css',
+    'admin-page/license.css',
     '^shared/footer/style.css',
     'core/theme-refresh.css',
     'core/product-ux-013.css',
