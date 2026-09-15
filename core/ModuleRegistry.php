@@ -11,16 +11,33 @@ final class ModuleRegistry
 {
     private static ?self $instance = null;
 
+    /** @var array<string,array<string,mixed>> */
+    private array $lifecycle = [];
+
     /** @param array<string,ModuleManifest> $modules */
     private function __construct(
         private readonly array $modules,
         private readonly array $loadOrder,
+        private readonly string $coreVersion,
+        private readonly ?ModuleLifecycleStore $lifecycleStore = null,
     ) {
     }
 
-    public static function boot(string $modulesRoot, string $coreVersion): self
-    {
-        $registry = self::discover($modulesRoot, $coreVersion);
+    public static function boot(
+        string $modulesRoot,
+        string $coreVersion,
+        ?ModuleLifecycleStore $lifecycleStore = null
+    ): self {
+        $discovered = self::discover($modulesRoot, $coreVersion);
+        $registry = new self(
+            $discovered->modules,
+            $discovered->loadOrder,
+            $coreVersion,
+            $lifecycleStore,
+        );
+        if ($lifecycleStore !== null) {
+            $registry->lifecycle = $lifecycleStore->reconcile($registry->modules, $coreVersion);
+        }
         self::$instance = $registry;
         return $registry;
     }
@@ -58,8 +75,6 @@ final class ModuleRegistry
             }
 
             $manifest = ModuleManifest::fromFile($modulePath . '/module.json', $moduleId);
-            $manifest->assertCompatibleWithCore($coreVersion);
-
             if (isset($modules[$manifest->id()])) {
                 throw new RuntimeException("Duplicate module id: {$manifest->id()}");
             }
@@ -75,7 +90,7 @@ final class ModuleRegistry
         self::assertCapabilitiesUnique($modules);
         $loadOrder = self::resolveLoadOrder($modules);
 
-        return new self($modules, $loadOrder);
+        return new self($modules, $loadOrder, $coreVersion);
     }
 
     public function has(string $moduleId): bool
@@ -103,7 +118,12 @@ final class ModuleRegistry
         return $this->loadOrder;
     }
 
-    /** @return list<string> */
+    /**
+     * Manifest-only default composition. This intentionally ignores persisted
+     * runtime lifecycle state so package/distribution planning remains stable.
+     *
+     * @return list<string>
+     */
     public function defaultComposition(): array
     {
         $enabled = [];
@@ -147,6 +167,67 @@ final class ModuleRegistry
             }
         }
         return $resolved;
+    }
+
+    /** @return array<string,array<string,mixed>> */
+    public function lifecycle(): array
+    {
+        $this->assertLifecycleAvailable();
+        return $this->lifecycle;
+    }
+
+    /** @return array<string,mixed> */
+    public function lifecycleFor(string $moduleId): array
+    {
+        $this->assertLifecycleAvailable();
+        if (!isset($this->lifecycle[$moduleId])) {
+            throw new RuntimeException("Missing lifecycle state for module: {$moduleId}");
+        }
+        return $this->lifecycle[$moduleId];
+    }
+
+    public function effectiveState(string $moduleId): string
+    {
+        return (string) $this->lifecycleFor($moduleId)['effective_state'];
+    }
+
+    public function isRuntimeEnabled(string $moduleId): bool
+    {
+        return $this->effectiveState($moduleId) === 'enabled';
+    }
+
+    /**
+     * Runtime composition is strictly the persisted effective enabled set.
+     * Dependencies that cannot run are reconciled to degraded before this method
+     * is reached, so disabled/incompatible modules are never silently enabled.
+     *
+     * @return list<string>
+     */
+    public function enabledComposition(): array
+    {
+        $this->assertLifecycleAvailable();
+        $enabled = [];
+        foreach ($this->loadOrder as $moduleId) {
+            if (($this->lifecycle[$moduleId]['effective_state'] ?? null) === 'enabled') {
+                $enabled[] = $moduleId;
+            }
+        }
+        return $enabled;
+    }
+
+    /** @return array<string,mixed> */
+    public function transitionLifecycle(string $moduleId, string $targetState, ?string $reason = null): array
+    {
+        $this->assertLifecycleAvailable();
+        $this->lifecycleStore->transition(
+            $moduleId,
+            $targetState,
+            $this->modules,
+            $this->coreVersion,
+            $reason,
+        );
+        $this->lifecycle = $this->lifecycleStore->reconcile($this->modules, $this->coreVersion);
+        return $this->lifecycleFor($moduleId);
     }
 
     /** @param array<string,ModuleManifest> $modules */
@@ -206,6 +287,13 @@ final class ModuleRegistry
         }
 
         return $order;
+    }
+
+    private function assertLifecycleAvailable(): void
+    {
+        if ($this->lifecycleStore === null) {
+            throw new RuntimeException('Persisted module lifecycle is not attached to this registry');
+        }
     }
 
     private static function isPathInside(string $path, string $root): bool
