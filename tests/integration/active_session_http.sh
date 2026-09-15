@@ -46,7 +46,7 @@ assert_prefixed_login_redirect() {
   local location
   location="$(tr -d '\r' < "$headers" | awk 'BEGIN{IGNORECASE=1} /^Location:/{sub(/^[^:]*:[[:space:]]*/, ""); print; exit}')"
   if [[ "$location" != "$EXPECTED_LOGIN" && "$location" != "${EXPECTED_LOGIN}/" ]]; then
-    echo "Inactive session was not redirected to the prefixed login route: ${location:-<missing>}" >&2
+    echo "Unavailable session was not redirected to the prefixed login route: ${location:-<missing>}" >&2
     cat "$headers" >&2
     exit 1
   fi
@@ -55,9 +55,14 @@ assert_prefixed_login_redirect() {
 HASH="$(php -r 'echo password_hash($argv[1], PASSWORD_ARGON2ID);' "$PASSWORD")"
 "${mysql_cmd[@]}" <<SQL
 DELETE FROM users WHERE username='${USERNAME}';
-INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active)
-VALUES ('ac710000-0000-4000-8000-000000000001','${USERNAME}','active-session@example.test','${HASH}','Active','Session',888,1);
+INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active,account_status)
+VALUES ('ac710000-0000-4000-8000-000000000001','${USERNAME}','active-session@example.test','${HASH}','Active','Session',888,1,'active');
 SQL
+
+USER_ID="$("${mysql_cmd[@]}" -N -B -e "SELECT id FROM users WHERE username='${USERNAME}' LIMIT 1")"
+test -n "$USER_ID"
+test "$("${mysql_cmd[@]}" -N -B -e "SELECT CONCAT(role,'|',is_active,'|',account_status) FROM users WHERE id=${USER_ID}")" = '888|1|active'
+test "$("${mysql_cmd[@]}" -N -B -e "SELECT COUNT(*) FROM user_roles ur JOIN roles r ON r.id=ur.role_id WHERE ur.user_id=${USER_ID} AND r.code='user'")" = '1'
 
 rm -f "$COOKIE"
 curl -sS -c "$COOKIE" -b "$COOKIE" "${BASE_URL}/auth/login" > "$LOGIN_HTML"
@@ -75,7 +80,12 @@ test "$STATUS" = '302'
 STATUS="$(curl -sS -o "$BEFORE_HTML" -w '%{http_code}' -c "$COOKIE" -b "$COOKIE" "${BASE_URL}/notes/")"
 test "$STATUS" = '200'
 
-"${mysql_cmd[@]}" -e "UPDATE users SET is_active=0 WHERE username='${USERNAME}'"
+# 0.14 account availability is independent from authorization identity. Revoke
+# the active session by blocking the account while preserving is_active, the
+# compatibility role and persisted RBAC role assignment.
+"${mysql_cmd[@]}" -e "UPDATE users SET account_status='blocked' WHERE id=${USER_ID}"
+test "$("${mysql_cmd[@]}" -N -B -e "SELECT CONCAT(role,'|',is_active,'|',account_status) FROM users WHERE id=${USER_ID}")" = '888|1|blocked'
+test "$("${mysql_cmd[@]}" -N -B -e "SELECT COUNT(*) FROM user_roles ur JOIN roles r ON r.id=ur.role_id WHERE ur.user_id=${USER_ID} AND r.code='user'")" = '1'
 
 STATUS="$(curl -sS -o "$AFTER_HTML" -D "$PROTECTED_HEADERS" -w '%{http_code}' \
   -c "$COOKIE" -b "$COOKIE" "${BASE_URL}/notes/")"
@@ -89,7 +99,9 @@ STATUS="$(curl -sS -o "$SECOND_HTML" -D "$PROTECTED_HEADERS" -w '%{http_code}' \
 test "$STATUS" = '302'
 assert_prefixed_login_redirect "$PROTECTED_HEADERS"
 
-grep -Fq "UserModel::select('id', 'role', 'is_active')" app/middlewares/LoginRequared.php
-grep -Fq "UserModel::select('id', 'role', 'is_active')" app/middlewares/IsAdmin.php
+grep -Fq "UserModel::select('id', 'is_active', 'account_status')" app/middlewares/LoginRequared.php
+grep -Fq "admin.access" app/middlewares/IsAdmin.php
+! grep -Fq 'Config::canAuthenticate' app/middlewares/LoginRequared.php
+! grep -Fq 'Config::isAdminRole' app/middlewares/IsAdmin.php
 
-echo 'Active-session invalidation contract: OK'
+echo 'Active-session account-status invalidation contract: OK'
