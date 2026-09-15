@@ -62,6 +62,10 @@ $requiredTables = [
     'task_categories',
     'task_category_relations',
     'task_reminders',
+    'roles',
+    'permissions',
+    'role_permissions',
+    'user_roles',
 ];
 
 $schemaFiles = glob($basePath . '/database/*.sql') ?: [];
@@ -72,6 +76,8 @@ usort($schemaFiles, static function (string $a, string $b): int {
         'file_manager_schema.sql' => 3,
         'user_fields_schema.sql' => 4,
         'tasks_schema.sql' => 5,
+        'access_control_schema.sql' => 6,
+        'settings_schema.sql' => 7,
     ];
 
     return ($order[basename($a)] ?? 99) <=> ($order[basename($b)] ?? 99);
