@@ -7,7 +7,6 @@ namespace App\Sockets;
 use App\Services\MessengerSearchService;
 use DomainException;
 use InvalidArgumentException;
-use Workerman\Connection\TcpConnection;
 
 final class SearchSocket
 {
@@ -18,7 +17,7 @@ final class SearchSocket
         $this->search ??= new MessengerSearchService();
     }
 
-    public function all(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
+    public function all(array $connections, SocketConnection $connection, string $userUid, array $payload = []): void
     {
         $this->guard($connection, function () use ($connection, $userUid, $payload): void {
             $this->throttle($connection);
@@ -33,7 +32,7 @@ final class SearchSocket
         });
     }
 
-    public function messages(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
+    public function messages(array $connections, SocketConnection $connection, string $userUid, array $payload = []): void
     {
         $this->guard($connection, function () use ($connection, $userUid, $payload): void {
             $this->throttle($connection);
@@ -50,7 +49,7 @@ final class SearchSocket
         });
     }
 
-    public function dialogs(array $connections, TcpConnection $connection, string $userUid, array $payload = []): void
+    public function dialogs(array $connections, SocketConnection $connection, string $userUid, array $payload = []): void
     {
         $this->guard($connection, function () use ($connection, $userUid, $payload): void {
             $this->throttle($connection);
@@ -65,17 +64,17 @@ final class SearchSocket
         });
     }
 
-    private function throttle(TcpConnection $connection): void
+    private function throttle(SocketConnection $connection): void
     {
         $now = microtime(true);
-        $last = (float) ($connection->lastMessengerSearchAt ?? 0.0);
+        $last = $connection->lastMessengerSearchAt;
         if ($last > 0 && ($now - $last) < self::MIN_INTERVAL_SECONDS) {
             throw new InvalidArgumentException('Слишком частые поисковые запросы');
         }
         $connection->lastMessengerSearchAt = $now;
     }
 
-    private function guard(TcpConnection $connection, callable $callback): void
+    private function guard(SocketConnection $connection, callable $callback): void
     {
         try {
             $callback();
@@ -89,7 +88,7 @@ final class SearchSocket
         }
     }
 
-    private function error(TcpConnection $connection, string $code, string $message): void
+    private function error(SocketConnection $connection, string $code, string $message): void
     {
         $this->send($connection, [
             'action' => 'error',
@@ -98,7 +97,7 @@ final class SearchSocket
         ]);
     }
 
-    private function send(TcpConnection $connection, array $payload): void
+    private function send(SocketConnection $connection, array $payload): void
     {
         $connection->send(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
