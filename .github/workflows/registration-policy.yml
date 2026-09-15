@@ -1,0 +1,58 @@
+name: 0.14 registration and provisioning contract
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [0.14-beta3-registration-policy]
+
+permissions:
+  contents: read
+
+jobs:
+  registration-policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.1
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
+          coverage: none
+
+      - name: Lint registration and provisioning sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          for source in \
+            app/controllers/AuthController.php \
+            app/controllers/Admin/UserProvisioningController.php \
+            app/controllers/Admin/RegistrationSettingsController.php \
+            app/services/UserProvisioningService.php \
+            app/services/RegistrationPolicyService.php \
+            core/routerConfig.php \
+            tests/integration/registration_policy_runtime.php
+          do
+            php -l "$source"
+          done
+
+      - name: Verify MySQL registration policy contract
+        run: bash tests/integration/registration_policy_mysql.sh
