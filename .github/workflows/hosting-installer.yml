@@ -31,10 +31,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup PHP 8.3
+      - name: Setup PHP 8.1
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: '8.1'
           extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
           coverage: none
 
@@ -46,7 +46,7 @@ jobs:
         run: |
           set -euo pipefail
           php -l install.php
-          grep -Fq 'PHP 8.3+' install.php
+          grep -Fq 'PHP 8.1+' install.php
           grep -Fq 'vendor/autoload.php' install.php
           grep -Fq 'preparePrivateStorage' install.php
           grep -Fq 'connectOrCreateDatabase' install.php
