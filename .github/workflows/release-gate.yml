@@ -91,14 +91,16 @@ jobs:
             database/user_fields_schema.sql \
             database/tasks_schema.sql \
             database/access_control_schema.sql \
-            database/settings_schema.sql
+            database/settings_schema.sql \
+            database/module_lifecycle_schema.sql
           do
             mysql -h 127.0.0.1 -uroot -proot workspace_release_gate < "$schema"
           done
 
           count="$(mysql -N -h 127.0.0.1 -uroot -proot workspace_release_gate -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE();")"
-          test "$count" -eq 26
+          test "$count" -eq 27
           test "$(mysql -N -h 127.0.0.1 -uroot -proot workspace_release_gate -e "SELECT setting_value FROM system_settings WHERE setting_key='file_manager_default_quota_bytes'")" = '1073741824'
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot workspace_release_gate -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='module_lifecycle' AND column_name IN ('module_id','installed_version','manifest_hash','configured_state','effective_state','last_error')")" = '6'
 
       - name: Run data-integrity integration contracts
         shell: bash
@@ -174,6 +176,8 @@ jobs:
           test -f "$bundle/default.env"
           test -f "$bundle/database/messenger_schema.sql"
           test -f "$bundle/database/settings_schema.sql"
+          test -f "$bundle/database/module_lifecycle_schema.sql"
+          test -f "$bundle/database/migrations/20260915_module_lifecycle.sql"
           test ! -e "$bundle/.env"
           test ! -d "$bundle/.git"
           test ! -d "$bundle/.github"
