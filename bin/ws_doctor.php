@@ -8,11 +8,9 @@ if (PHP_SAPI !== 'cli') {
 }
 
 $root = dirname(__DIR__);
-if (is_file($root . '/vendor/autoload.php')) {
-    require_once $root . '/vendor/autoload.php';
-}
-if (class_exists(Dotenv\Dotenv::class) && is_file($root . '/.env')) {
-    Dotenv\Dotenv::createUnsafeImmutable($root)->safeLoad();
+require_once $root . '/core/Environment.php';
+if (is_file($root . '/.env')) {
+    \Core\Environment::load($root . '/.env');
 }
 require_once $root . '/core/WebSocketEndpoint.php';
 
