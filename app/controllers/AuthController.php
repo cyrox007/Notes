@@ -11,6 +11,7 @@ use Core\Controller;
 use Core\DatabaseManager;
 use Core\Request;
 use Core\Router;
+use Core\SessionSecurity;
 
 class AuthController extends Controller
 {
@@ -45,7 +46,9 @@ class AuthController extends Controller
             return;
         }
 
-        session_regenerate_id(true);
+        // A successful authentication is a full trust-boundary transition: clear
+        // unauthenticated session state, rotate the id and rotate the CSRF secret.
+        SessionSecurity::rotateAuthenticationBoundary(true);
         $request->setSession('auth', true);
         $request->setSession('user_id', $user->id);
         $request->setSession('user_uid', $user->uid);
@@ -55,10 +58,7 @@ class AuthController extends Controller
 
     public function logout(Request $request): void
     {
-        $request->unsetSession('auth');
-        $request->unsetSession('user_id');
-        $request->unsetSession('user_uid');
-        session_regenerate_id(true);
+        SessionSecurity::invalidateAuthentication();
         Router::getInstance()->redirect('authpage', 'name');
     }
 
