@@ -20,6 +20,7 @@ Status values:
 |---|---|---|
 | Bootstrap/autoload/startup errors | finding | explicit load boundary, no secret/path disclosure, fail-closed startup tests |
 | Module discovery/manifest/registry | reviewing | schema validation, path confinement, dependency/cycle/core-version tests |
+| Web-server/source/package exposure | fixed | production deny boundary mirrored by E2E router and regression coverage |
 | Router/path parsing/redirects | not-reviewed | route parser fuzz/negative cases, safe redirects, method handling |
 | Request parsing/input boundaries | not-reviewed | malformed JSON, oversized/nested input, raw-vs-escaped contract |
 | Session/cookie lifecycle | not-reviewed | fixation, cookie flags, logout invalidation, concurrent session behavior |
@@ -77,6 +78,15 @@ The Phase 1 manifest integrity hash detects manifest content identity inside the
 
 `core/routerConfig.php` imports and registers every product controller centrally. A disabled/missing module therefore cannot yet disappear as a coherent capability. The module registry added in Phase 1 is metadata/control-plane groundwork only; route ownership will migrate to module-owned route providers in a separate PR.
 
+### A14-005 — Module/source directories were not consistently modelled as non-public content
+
+**Severity:** Medium  
+**State:** fixed in Phase 1; browser/static regression coverage is provided by the existing E2E suites running through the hardened router.
+
+The production Apache baseline already denied direct access to source/config directories, but the newly introduced `modules/` directory was not yet present in that deny list. In addition, `tests/e2e/router.php` served any existing repository file directly, so browser CI did not reproduce the production source boundary.
+
+Phase 1 adds `modules` to the Apache private-source deny rule and makes the PHP E2E router deny the same source/package segments and sensitive root metadata before its static-file fast path. This prevents module manifests/future module code from being treated as browser assets and makes browser CI exercise the intended boundary.
+
 ## Phase 1 evidence
 
 Phase 1 adds:
@@ -88,7 +98,8 @@ Phase 1 adds:
 - explicit `runtime.mode = legacy` so the repository cannot pretend current modules are isolated before they actually are;
 - dedicated `module-platform-contract` CI with real positive/negative registry fixtures;
 - bootstrap validation of all module manifests before legacy application code is loaded;
-- removal of raw bootstrap exception details from HTTP responses.
+- removal of raw bootstrap exception details from HTTP responses;
+- Apache and browser-E2E denial of direct `modules/`/source-package access.
 
 ## Required next audit/implementation sequence
 
