@@ -16,7 +16,7 @@ Workspace Organizer — внутреннее PHP-приложение для к�
 - **Messenger v2** — private/group chats, Saved Messages, forwarding, media, voice, reply/edit/delete, delivery/read receipts, reactions, encrypted search, pin/mute/archive, group roles/avatars, multi-device realtime и reconnect/offline/session-ended UX.
 - **Profile** — workspace hub с Notes/Tasks/Files/storage metrics, private avatar, account settings, безопасная деактивация и explicit `is_profile_public` publication model без раскрытия private content.
 - **Admin panel** — управление пользователями, custom profile fields, системным лимитом File Manager и персональными storage quota overrides без physical delete связанных данных; список пользователей поддерживает server-side поиск/пагинацию.
-- **Responsive UI** — единый design system, desktop/mobile navigation, обновлённые формы/карточек/модалки, keyboard focus, reduced-motion support и общий feedback layer.
+- **Responsive UI** — единый design system, desktop/mobile navigation, обновлённые формы/карточки/модалки, keyboard focus, reduced-motion support и общий feedback layer.
 
 ## Security model
 
