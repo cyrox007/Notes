@@ -6,13 +6,10 @@ require_once __DIR__ . '/../../core/request.php';
 require_once __DIR__ . '/../../core/ViewRenderer.php';
 require_once __DIR__ . '/../../core/ViewContext.php';
 require_once __DIR__ . '/../../core/NativeViewRenderer.php';
-require_once __DIR__ . '/../../core/HybridViewRenderer.php';
 
-use Core\HybridViewRenderer;
 use Core\NativeViewRenderer;
 use Core\Request;
 use Core\ViewContext;
-use Core\ViewRenderer;
 
 function nativeViewAssert(bool $condition, string $message): void
 {
@@ -32,34 +29,22 @@ file_put_contents(
 $request = new Request();
 $context = new ViewContext($request);
 $native = new NativeViewRenderer($root, $context);
-$legacyCalls = 0;
-$hybrid = new HybridViewRenderer(
-    $native,
-    static function () use (&$legacyCalls): ViewRenderer {
-        $legacyCalls++;
-        return new class implements ViewRenderer {
-            public function render(string $template, array $data = []): void
-            {
-                echo '[legacy:' . $template . ']';
-            }
-        };
-    }
-);
 
 ob_start();
-$hybrid->render('auth/native', ['dangerous' => '<script>alert("x")</script>']);
+$native->render('auth/native', ['dangerous' => '<script>alert("x")</script>']);
 $nativeOutput = (string) ob_get_clean();
 nativeViewAssert(
     $nativeOutput === '&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;',
     'native renderer did not escape HTML by default helper'
 );
-nativeViewAssert($legacyCalls === 0, 'legacy renderer was constructed for a native template');
 
-ob_start();
-$hybrid->render('auth/legacy-only');
-$legacyOutput = (string) ob_get_clean();
-nativeViewAssert($legacyOutput === '[legacy:auth/legacy-only]', 'legacy fallback did not render');
-nativeViewAssert($legacyCalls === 1, 'legacy renderer factory was not lazy/single-use');
+$missingBlocked = false;
+try {
+    $native->render('auth/missing');
+} catch (RuntimeException) {
+    $missingBlocked = true;
+}
+nativeViewAssert($missingBlocked, 'native renderer silently accepted a missing template');
 
 $blocked = false;
 try {
@@ -72,16 +57,48 @@ nativeViewAssert($blocked, 'native renderer accepted path traversal');
 $appViews = realpath(__DIR__ . '/../../app/views');
 nativeViewAssert(is_string($appViews), 'application view directory not found');
 $appNative = new NativeViewRenderer($appViews, $context);
-nativeViewAssert($appNative->hasTemplate('login_page/login_layout'), 'native login layout missing');
-nativeViewAssert($appNative->hasTemplate('login_page/login_view'), 'native login view missing');
-nativeViewAssert($appNative->hasTemplate('login_page/register_view'), 'native registration view missing');
 
-$controllerSource = file_get_contents(__DIR__ . '/../../core/controller.php') ?: '';
-nativeViewAssert(!str_contains($controllerSource, 'Smarty\\'), 'Controller still imports/references Smarty');
-nativeViewAssert(!str_contains($controllerSource, '$this->smarty'), 'Controller still owns a Smarty instance');
+$controllerRoot = realpath(__DIR__ . '/../../app/controllers');
+nativeViewAssert(is_string($controllerRoot), 'controller directory not found');
+$iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($controllerRoot));
+$renderedTemplates = [];
+foreach ($iterator as $file) {
+    if (!$file->isFile() || $file->getExtension() !== 'php') {
+        continue;
+    }
+
+    $source = file_get_contents($file->getPathname()) ?: '';
+    if (preg_match_all('/\$this->render_template\(\s*[\'\"]([^\'\"]+)[\'\"]/', $source, $matches) !== false) {
+        foreach ($matches[1] as $template) {
+            $renderedTemplates[$template] = true;
+        }
+    }
+}
+
+nativeViewAssert($renderedTemplates !== [], 'no controller render_template calls discovered');
+foreach (array_keys($renderedTemplates) as $template) {
+    nativeViewAssert(
+        $appNative->hasTemplate($template),
+        "controller template {$template} has no native .php implementation"
+    );
+}
+
+$composer = json_decode(file_get_contents(__DIR__ . '/../../composer.json') ?: '', true);
+nativeViewAssert(is_array($composer), 'composer.json is not valid JSON');
+nativeViewAssert(!isset($composer['require']['smarty/smarty']), 'composer.json still requires smarty/smarty');
+
+$lock = json_decode(file_get_contents(__DIR__ . '/../../composer.lock') ?: '', true);
+nativeViewAssert(is_array($lock), 'composer.lock is not valid JSON');
+$lockedPackages = array_map(
+    static fn (array $package): string => (string) ($package['name'] ?? ''),
+    is_array($lock['packages'] ?? null) ? $lock['packages'] : []
+);
+nativeViewAssert(!in_array('smarty/smarty', $lockedPackages, true), 'composer.lock still contains smarty/smarty');
+nativeViewAssert(!in_array('symfony/polyfill-mbstring', $lockedPackages, true), 'Smarty-only mbstring polyfill remains locked');
+nativeViewAssert(in_array('workerman/workerman', $lockedPackages, true), 'Workerman lock entry was lost');
 
 @unlink($root . '/auth/native.php');
 @rmdir($root . '/auth');
 @rmdir($root);
 
-echo "[OK] native view renderer and legacy fallback contract\n";
+echo "[OK] native view renderer, native template coverage and Composer cutover contract\n";
