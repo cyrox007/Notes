@@ -1,8 +1,7 @@
 <?php
 
-// Environment loading is part of the application core from 1.0 onward. It must
-// not depend on Composer/vendor because configuration is needed before optional
-// third-party runtimes are bootstrapped.
+// Environment loading is part of the application core from 1.0 onward and is
+// intentionally independent from Composer/vendor.
 $environmentLoader = SITEPATH . '/core/Environment.php';
 if (!is_file($environmentLoader)) {
     throw new RuntimeException('Core environment loader is missing.');
@@ -10,12 +9,8 @@ if (!is_file($environmentLoader)) {
 require_once $environmentLoader;
 \Core\Environment::load(SITEPATH . '/.env');
 
-// Composer remains temporary only for the Workerman WebSocket runtime. HTTP
-// rendering itself is fully internal/native and does not require vendor code.
-if (file_exists(SITEPATH . '/vendor/autoload.php')) {
-    require SITEPATH . '/vendor/autoload.php';
-}
-
+// Workspace Organizer 1.0 has no third-party runtime dependencies. Application
+// classes are loaded by the internal filesystem autoloader below.
 spl_autoload_register(function ($class) {
     $classPath = SITEPATH . '/' . str_replace('\\', '/', $class) . '.php';
 
