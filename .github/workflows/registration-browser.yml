@@ -1,0 +1,202 @@
+name: Registration browser lifecycle
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [0.14-beta3-registration-policy]
+
+permissions:
+  contents: read
+
+jobs:
+  registration-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: registration_browser
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.1
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
+          coverage: none
+
+      - name: Install production dependencies
+        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress
+
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Syntax contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l app/controllers/AuthController.php
+          php -l app/controllers/Admin/UserProvisioningController.php
+          php -l app/controllers/Admin/RegistrationSettingsController.php
+          php -l app/services/UserProvisioningService.php
+          php -l app/services/RegistrationPolicyService.php
+          php -l tests/e2e/router.php
+          node --check tests/e2e/registration-policy.mjs
+
+      - name: Prepare canonical database
+        shell: bash
+        run: |
+          set -euo pipefail
+          for schema in messenger_schema.sql notes_schema.sql file_manager_schema.sql user_fields_schema.sql tasks_schema.sql access_control_schema.sql settings_schema.sql module_lifecycle_schema.sql; do
+            mysql -h 127.0.0.1 -uroot -proot registration_browser < "database/${schema}"
+          done
+
+      - name: Seed RBAC administrator
+        shell: bash
+        run: |
+          set -euo pipefail
+          php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          $pdo = new PDO(
+              'mysql:host=127.0.0.1;port=3306;dbname=registration_browser;charset=utf8mb4',
+              'root',
+              'root',
+              [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+          );
+          $hash = password_hash('RegistrationAdminBrowser-2026', PASSWORD_ARGON2ID);
+          $stmt = $pdo->prepare(
+              'INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active,account_status,created_at,updated_at) '
+              . 'VALUES (:uid,:username,:email,:password_hash,:firstname,:lastname,888,1,\'active\',NOW(),NOW())'
+          );
+          $stmt->execute([
+              ':uid' => '32000000-0000-4000-8000-000000000001',
+              ':username' => 'registration-browser-admin',
+              ':email' => 'registration-browser-admin@example.test',
+              ':password_hash' => $hash,
+              ':firstname' => 'Registration',
+              ':lastname' => 'Admin',
+          ]);
+          $pdo->exec("DELETE ur FROM user_roles ur JOIN users u ON u.id=ur.user_id WHERE u.username='registration-browser-admin'");
+          $pdo->exec("INSERT INTO user_roles (user_id,role_id) SELECT u.id,r.id FROM users u JOIN roles r ON r.code='admin' WHERE u.username='registration-browser-admin'");
+          PHP
+
+      - name: Prepare application environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/workspace-registration-browser
+          mkdir -p /tmp/workspace-registration-browser/logs compile cache
+          chmod 700 /tmp/workspace-registration-browser /tmp/workspace-registration-browser/logs
+          cat > .env <<'ENV'
+          DBDRIVER=mysql
+          DBHOST=127.0.0.1
+          DBPORT=3306
+          DBUSER=root
+          DBPASS=root
+          DBNAME=registration_browser
+          UNIQUE_KEY=ci-registration-browser-unique-key-000000000000000000000001
+          MSG_SECRET_KEY=ci-registration-browser-message-key-0000000000000000000001
+          WS_TICKET_SECRET=ci-registration-browser-ticket-key-00000000000000000000001
+          PRIVATE_STORAGE_PATH=/tmp/workspace-registration-browser
+          RATE_LIMIT_STORAGE_PATH=/tmp/workspace-registration-browser/rate-limit
+          SITEURL=http://127.0.0.1:18104
+          BASE_PATH=/workspace/
+          WS_HOST=127.0.0.1
+          WS_PORT=27814
+          WS_PUBLIC_URL=ws://127.0.0.1:18104/workspace/ws
+          WS_ALLOWED_ORIGINS=http://127.0.0.1:18104
+          AUTH_RATE_LIMIT_ATTEMPTS=100
+          AUTH_RATE_LIMIT_WINDOW_SECONDS=60
+          UPLOAD_RATE_LIMIT_ATTEMPTS=100
+          UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60
+          LOG_LEVEL=INFO
+          LOG_FILE=/tmp/workspace-registration-browser/logs/app.log
+          CSRF_ENABLED=true
+          ENV
+          chmod 600 .env
+
+      - name: Start subdirectory application
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > /tmp/workspace-registration-http.log
+          PHP_CLI_SERVER_WORKERS=4 php -S 127.0.0.1:18104 tests/e2e/router.php >/tmp/workspace-registration-http.log 2>&1 &
+          echo $! >/tmp/workspace-registration-http.pid
+          READY=0
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:18104/workspace/auth/login/ >/dev/null; then
+              READY=1
+              break
+            fi
+            sleep 0.25
+          done
+          if [[ "$READY" != '1' ]]; then
+            cat /tmp/workspace-registration-http.log >&2
+            exit 1
+          fi
+
+      - name: Run registration and provisioning browser acceptance
+        shell: bash
+        env:
+          E2E_ORIGIN: http://127.0.0.1:18104
+          E2E_BASE_PATH: /workspace
+          E2E_ADMIN_USER: registration-browser-admin
+          E2E_ADMIN_PASSWORD: RegistrationAdminBrowser-2026
+        run: node tests/e2e/registration-policy.mjs
+
+      - name: Verify durable registration state
+        shell: bash
+        run: |
+          set -euo pipefail
+          for username in browser-admin-created browser-open browser-invite; do
+            test "$(mysql -N -B -h 127.0.0.1 -uroot -proot registration_browser -e "SELECT CONCAT(role,'|',is_active,'|',account_status) FROM users WHERE username='${username}'")" = '888|1|active'
+            test "$(mysql -N -B -h 127.0.0.1 -uroot -proot registration_browser -e "SELECT COUNT(*) FROM user_roles ur JOIN roles r ON r.id=ur.role_id JOIN users u ON u.id=ur.user_id WHERE u.username='${username}' AND r.code='user'")" = '1'
+          done
+          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot registration_browser -e "SELECT setting_value FROM system_settings WHERE setting_key='registration_mode'")" = 'invite'
+
+      - name: Verify clean PHP runtime log
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -E 'PHP (Warning|Fatal error|Parse error)|Uncaught ' /tmp/workspace-registration-http.log 2>/dev/null; then
+            echo 'PHP runtime warning/fatal detected during registration browser flow' >&2
+            exit 1
+          fi
+
+      - name: Logs on failure
+        if: failure()
+        shell: bash
+        run: |
+          echo '--- PHP server ---'
+          cat /tmp/workspace-registration-http.log || true
+          echo '--- application log ---'
+          cat /tmp/workspace-registration-browser/logs/app.log || true
+
+      - name: Stop local server
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f /tmp/workspace-registration-http.pid ]]; then
+            PID="$(cat /tmp/workspace-registration-http.pid)"
+            pkill -TERM -P "$PID" >/dev/null 2>&1 || true
+            kill "$PID" >/dev/null 2>&1 || true
+          fi
