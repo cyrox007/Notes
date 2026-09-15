@@ -2,7 +2,7 @@ name: 0.14 beta readiness
 
 on:
   push:
-    branches: [0.14-beta3-release]
+    branches: [0.14-beta4-role-policies-collaboration]
   pull_request:
     branches: [master]
 
@@ -26,5 +26,5 @@ jobs:
       - name: Lint beta readiness contract
         run: php -l tests/integration/beta_readiness_014.php
 
-      - name: Verify Workspace 0.14 beta.3 baseline
+      - name: Verify Workspace 0.14 beta.4 baseline
         run: php tests/integration/beta_readiness_014.php
