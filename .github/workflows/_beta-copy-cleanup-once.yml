@@ -1,0 +1,52 @@
+name: One-time beta copy cleanup
+
+on:
+  push:
+    branches: [0.14-beta1-release-prep]
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update stale alpha-era copy
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('CHANGELOG.md')
+          s = p.read_text()
+          old = 'Формат основан на принципах Keep a Changelog. Пока проект находится в alpha, обратная совместимость между промежуточными версиями не гарантируется; для существующих БД используются compatibility upgrade SQL, а canonical `*_schema.sql` остаются источником текущей схемы fresh install.'
+          new = 'Формат основан на принципах Keep a Changelog. Начиная с 0.14 проект находится в beta: совместимость upgrade-path и пользовательских данных является частью release contract; до 1.0 внутренние platform contracts ещё могут меняться через явные compatibility migrations. Canonical `*_schema.sql` остаются источником текущей схемы fresh install.'
+          if old not in s:
+              raise SystemExit('CHANGELOG alpha-era marker missing')
+          p.write_text(s.replace(old, new, 1))
+
+          p = Path('README.md')
+          s = p.read_text()
+          old = '`Build hosting package` собирает upload-ready ZIP с production `vendor/`; на tag `v*` ZIP публикуется как release asset.'
+          new = '`Build hosting package` собирает upload-ready ZIP с production `vendor/`; теги `v*-*` публикуются как GitHub prerelease, а stable tag без suffix — как обычный Release.'
+          if old not in s:
+              raise SystemExit('README package marker missing')
+          p.write_text(s.replace(old, new, 1))
+          PY
+
+      - name: Commit copy cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add README.md CHANGELOG.md
+          git commit -m 'Align beta release copy with 1.0 stable track'
+          git push origin HEAD:${GITHUB_REF_NAME}
