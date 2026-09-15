@@ -18,8 +18,10 @@ jobs:
           fetch-depth: 0
 
       - name: Update README and CHANGELOG
-        shell: python
+        shell: bash
         run: |
+          set -euo pipefail
+          python3 - <<'PY'
           from pathlib import Path
 
           readme_path = Path('README.md')
@@ -40,23 +42,22 @@ jobs:
           marker = '## 0.14.0-beta.1 — 2026-09-15\n'
           if marker not in changelog:
               raise SystemExit('CHANGELOG beta.1 marker missing')
-          beta2 = '''## 0.14.0-beta.2 — 2026-09-15
-
-### WebSocket deployment hotfix
-- Исправлен deployment gap, при котором Workerman мог успешно слушать `127.0.0.1:27800`, а браузер не мог подключиться к `wss://<site>/ws` без настроенного reverse proxy.
-- Добавлен единый `Core\\WebSocketEndpoint`: same-origin public endpoint выводится из `SITEURL`/`BASE_PATH`, а HTTPS-сайт больше не получает ошибочный direct `wss://host:27800` fallback для plain listener.
-- Workerman по умолчанию остаётся loopback-only (`127.0.0.1`); публичный TLS/WSS завершается на Apache/Nginx/Caddy.
-- Для Apache добавлен guarded `.htaccess` bridge `/ws -> ws://127.0.0.1:27800` при доступных proxy modules; для Open Server 6+ документированы project-local `.osp` Apache/Nginx fallbacks.
-- Добавлен `php bin/ws_doctor.php`, различающий внутренний listener и публичный proxy endpoint; production healthcheck показывает canonical WebSocket proxy contract.
-- Новый WebSocket deployment contract проходит на PHP 8.1 и 8.3 и превращает PHP warnings в hard failure.
-- Перед hotfix-релизом повторно пройдены полный HTTPS/WSS Chromium E2E, installer, security, production operations и release gates.
-
-### Release direction
-- `0.14.0-beta.2` остаётся hotfix в beta-линейке; следующий основной milestone — `1.0.0` stable без открытия нового feature cycle.
-
-'''
+          beta2 = (
+              '## 0.14.0-beta.2 — 2026-09-15\n\n'
+              '### WebSocket deployment hotfix\n'
+              '- Исправлен deployment gap, при котором Workerman мог успешно слушать `127.0.0.1:27800`, а браузер не мог подключиться к `wss://<site>/ws` без настроенного reverse proxy.\n'
+              '- Добавлен единый `Core\\\\WebSocketEndpoint`: same-origin public endpoint выводится из `SITEURL`/`BASE_PATH`, а HTTPS-сайт больше не получает ошибочный direct `wss://host:27800` fallback для plain listener.\n'
+              '- Workerman по умолчанию остаётся loopback-only (`127.0.0.1`); публичный TLS/WSS завершается на Apache/Nginx/Caddy.\n'
+              '- Для Apache добавлен guarded `.htaccess` bridge `/ws -> ws://127.0.0.1:27800` при доступных proxy modules; для Open Server 6+ документированы project-local `.osp` Apache/Nginx fallbacks.\n'
+              '- Добавлен `php bin/ws_doctor.php`, различающий внутренний listener и публичный proxy endpoint; production healthcheck показывает canonical WebSocket proxy contract.\n'
+              '- Новый WebSocket deployment contract проходит на PHP 8.1 и 8.3 и превращает PHP warnings в hard failure.\n'
+              '- Перед hotfix-релизом повторно пройдены полный HTTPS/WSS Chromium E2E, installer, security, production operations и release gates.\n\n'
+              '### Release direction\n'
+              '- `0.14.0-beta.2` остаётся hotfix в beta-линейке; следующий основной milestone — `1.0.0` stable без открытия нового feature cycle.\n\n'
+          )
           changelog = changelog.replace(marker, beta2 + marker, 1)
           changelog_path.write_text(changelog, encoding='utf-8')
+          PY
 
       - name: Commit synchronized release copy
         shell: bash
