@@ -1,0 +1,128 @@
+name: Publish v0.14.0-beta.3
+
+on:
+  push:
+    branches:
+      - '0.14-beta3-release'
+    paths:
+      - '.github/workflows/_publish-v0.14.0-beta.3.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      RELEASE_SHA: 6ddb66da5155d7937e947936593104653b402201
+      RELEASE_TAG: v0.14.0-beta.3
+
+    steps:
+      - name: Checkout verified master release commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+          fetch-depth: 0
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
+          coverage: none
+
+      - name: Verify release identity and source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")" = '0.14.0-beta.3'
+          test -f "docs/releases/${RELEASE_TAG}.md"
+          grep -Fq '**Версия:** `0.14.0-beta.3`' README.md
+          grep -Fq '## 0.14.0-beta.3 — 2026-09-15' CHANGELOG.md
+
+      - name: Create immutable release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code --tags origin "refs/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
+            remote_sha="$(git ls-remote --tags origin "refs/tags/${RELEASE_TAG}" | awk '{print $1}')"
+            test "$remote_sha" = "$RELEASE_SHA"
+            echo "Tag already exists at verified release commit: $RELEASE_TAG"
+          else
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git tag "$RELEASE_TAG" "$RELEASE_SHA"
+            git push origin "refs/tags/${RELEASE_TAG}"
+          fi
+
+      - name: Install production dependencies
+        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress
+
+      - name: Build upload-ready hosting bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          NAME="workspace-organizer-${RELEASE_TAG}"
+          ROOT="/tmp/$NAME"
+          BUNDLE="$GITHUB_WORKSPACE/$NAME.zip"
+          rm -rf "$ROOT" "$BUNDLE"
+          mkdir -p "$ROOT"
+          rsync -a ./ "$ROOT/" \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude '.env' \
+            --exclude '.logs' \
+            --exclude 'cache/*' \
+            --exclude 'compile/*' \
+            --exclude 'notes-private-storage' \
+            --exclude '*.log'
+          mkdir -p "$ROOT/cache" "$ROOT/compile"
+          test -f "$ROOT/vendor/autoload.php"
+          test -f "$ROOT/install.php"
+          test ! -e "$ROOT/.env"
+          cd /tmp
+          zip -qr "$BUNDLE" "$NAME"
+          echo "BUNDLE=$BUNDLE" >> "$GITHUB_ENV"
+          echo "BUNDLE_NAME=$NAME.zip" >> "$GITHUB_ENV"
+
+      - name: Inspect hosting bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          unzip -l "$BUNDLE" | grep -F 'vendor/autoload.php'
+          unzip -l "$BUNDLE" | grep -F 'install.php'
+          unzip -l "$BUNDLE" | grep -F 'database/module_lifecycle_schema.sql'
+          if unzip -l "$BUNDLE" | grep -Eq '/\.env$'; then
+            echo 'Bundle must not contain .env' >&2
+            exit 1
+          fi
+
+      - name: Publish GitHub prerelease and asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          NOTES_FILE="docs/releases/${RELEASE_TAG}.md"
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$BUNDLE" --clobber
+          else
+            gh release create "$RELEASE_TAG" "$BUNDLE" \
+              --title "$RELEASE_TAG" \
+              --prerelease \
+              --notes-file "$NOTES_FILE"
+          fi
+
+      - name: Verify published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote --tags origin "refs/tags/${RELEASE_TAG}" | awk '{print $1}')" = "$RELEASE_SHA"
+          gh release view "$RELEASE_TAG" --json tagName,isPrerelease,assets --jq \
+            '.tagName == "v0.14.0-beta.3" and .isPrerelease == true and ([.assets[].name] | index("workspace-organizer-v0.14.0-beta.3.zip") != null)' \
+            | grep -Fxq true
+          echo "Published and verified: $RELEASE_TAG"
