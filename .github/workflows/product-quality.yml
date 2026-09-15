@@ -215,6 +215,7 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/file_manager_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/user_fields_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/tasks_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/access_control_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/settings_schema.sql
 
       - name: Admin lifecycle integration
@@ -369,7 +370,7 @@ jobs:
           chmod 700 "$PRIVATE_STORAGE_PATH"
           php bin/healthcheck.php --json | tee /tmp/healthcheck.json
           grep -Fq '"status": "ok"' /tmp/healthcheck.json
-          grep -Fq '22 required tables present' /tmp/healthcheck.json
+          grep -Fq '26 required tables present' /tmp/healthcheck.json
           grep -Fq 'storage_quota_setting' /tmp/healthcheck.json
           grep -Fq 'private_storage_outside_app_root' /tmp/healthcheck.json
           grep -Fq 'websocket_allowed_origins' /tmp/healthcheck.json
