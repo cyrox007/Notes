@@ -15,8 +15,6 @@ use App\Services\PermissionService;
 use App\Services\RegistrationPolicyService;
 use App\Services\UserProvisioningService;
 use Core\DatabaseManager;
-use DomainException;
-use InvalidArgumentException;
 
 function failRegistration(string $message): never
 {
