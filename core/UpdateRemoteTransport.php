@@ -29,7 +29,8 @@ interface UpdateRemoteTransport
  * - DNS is resolved first and the checked address is pinned for the TLS socket;
  * - certificate + peer-name verification is mandatory;
  * - redirects, transfer-encoding and content-encoding are rejected;
- * - Content-Length is mandatory so every response is bounded before reading.
+ * - Content-Length is mandatory so every response is bounded before reading;
+ * - request targets containing raw ASCII controls or spaces are rejected.
  *
  * The updater does not need ext-curl and does not depend on allow_url_fopen.
  */
@@ -148,12 +149,19 @@ final class UpdateHttpsTransport implements UpdateRemoteTransport
                     $this->assertStreamHealthy($stream);
                     throw new RuntimeException('Remote update package download ended before Content-Length');
                 }
-                $written = fwrite($output, $chunk);
-                if (!is_int($written) || $written !== strlen($chunk)) {
-                    throw new RuntimeException('Remote update package could not be written completely');
+
+                $offset = 0;
+                $chunkLength = strlen($chunk);
+                while ($offset < $chunkLength) {
+                    $written = fwrite($output, substr($chunk, $offset));
+                    if (!is_int($written) || $written < 1) {
+                        throw new RuntimeException('Remote update package could not be written completely');
+                    }
+                    $offset += $written;
                 }
+
                 hash_update($hash, $chunk);
-                $total += strlen($chunk);
+                $total += $chunkLength;
             }
             if (!fflush($output)) {
                 throw new RuntimeException('Remote update package could not be flushed to disk');
@@ -248,9 +256,8 @@ final class UpdateHttpsTransport implements UpdateRemoteTransport
     /** @return array{host:string,request_target:string} */
     private function parseHttpsUrl(string $url): array
     {
-        $url = trim($url);
-        if ($url === '' || strlen($url) > 2048) {
-            throw new RuntimeException('Remote update URL is invalid');
+        if ($url === '' || strlen($url) > 2048 || preg_match('/[\x00-\x20\x7f]/', $url) === 1) {
+            throw new RuntimeException('Remote update URL contains unsafe characters');
         }
         $parts = parse_url($url);
         if (!is_array($parts) || strtolower((string) ($parts['scheme'] ?? '')) !== 'https') {
@@ -263,7 +270,7 @@ final class UpdateHttpsTransport implements UpdateRemoteTransport
             throw new RuntimeException('Remote update HTTPS URL must use port 443');
         }
 
-        $host = strtolower(rtrim(trim((string) ($parts['host'] ?? '')), '.'));
+        $host = strtolower(rtrim((string) ($parts['host'] ?? ''), '.'));
         if ($host === '' || filter_var(trim($host, '[]'), FILTER_VALIDATE_IP) !== false) {
             throw new RuntimeException('Remote update server must use a public DNS host name');
         }
@@ -278,12 +285,15 @@ final class UpdateHttpsTransport implements UpdateRemoteTransport
         }
 
         $path = (string) ($parts['path'] ?? '/');
-        if ($path === '' || !str_starts_with($path, '/') || str_contains($path, "\0") || str_contains($path, '\\')) {
+        if ($path === '' || !str_starts_with($path, '/') || str_contains($path, '\\')) {
             throw new RuntimeException('Remote update URL path is invalid');
         }
         $requestTarget = $path;
         if (isset($parts['query']) && (string) $parts['query'] !== '') {
             $requestTarget .= '?' . (string) $parts['query'];
+        }
+        if (preg_match('/[\x00-\x20\x7f]/', $requestTarget) === 1) {
+            throw new RuntimeException('Remote update URL request target contains unsafe characters');
         }
 
         return ['host' => $host, 'request_target' => $requestTarget];
