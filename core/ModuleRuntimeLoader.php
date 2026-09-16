@@ -115,13 +115,9 @@ final class ModuleRuntimeLoader
         sort($declared, SORT_STRING);
 
         $exported = $provider->capabilities();
-        if (!is_array($exported)) {
-            throw new RuntimeException("Module {$manifest->id()} capability export must be an array");
-        }
-
         $exportedNames = [];
         foreach ($exported as $capability => $service) {
-            if (!is_string($capability) || !$service instanceof \stdClass && !is_object($service)) {
+            if (!is_string($capability) || !is_object($service)) {
                 throw new RuntimeException("Module {$manifest->id()} exported an invalid capability service");
             }
             $exportedNames[] = $capability;
