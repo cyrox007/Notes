@@ -12,4 +12,4 @@ Owned runtime surfaces:
 - `notes` private-storage namespace;
 - notes schema/migration ownership metadata.
 
-Cross-module dependencies must remain explicit platform/module contracts rather than direct inclusion of another module's internal files.
+Cross-module dependencies must remain explicit platform/module contracts rather than direct inclusion of another module's internal files. Module-owned views/assets move behind the same isolated runtime boundary rather than remaining globally coupled through `app/views`.
