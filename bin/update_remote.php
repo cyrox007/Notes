@@ -133,20 +133,38 @@ try {
             JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
         ) . PHP_EOL;
     } else {
-        if (($result['status'] ?? '') === 'update_available') {
+        $status = (string) ($result['status'] ?? '');
+        if ($status === 'update_available') {
             echo "[OK] Signed remote update is available\n";
             echo 'Channel:   ' . $result['channel'] . PHP_EOL;
             echo 'Target:    ' . $result['target_version'] . ' (' . $result['target_version_code'] . ')' . PHP_EOL;
             echo 'Package:   ' . $result['package_filename'] . ' (' . $result['package_size'] . " bytes)\n";
             echo 'Key ID:    ' . $result['key_id'] . PHP_EOL;
             echo "Package was not downloaded. No live files were changed.\n";
-        } else {
+        } elseif ($status === 'up_to_date') {
+            echo "[OK] Installation is up to date with the configured signed feed\n";
+            echo 'Installed version code: ' . Version::VERSION_CODE . PHP_EOL;
+            echo 'Feed target:            ' . $result['target_version'] . ' (' . $result['target_version_code'] . ')' . PHP_EOL;
+            echo "Package was not downloaded. No live files were changed.\n";
+        } elseif ($status === 'ahead_of_feed') {
+            echo "[OK] Installed version is newer than the configured signed feed\n";
+            echo 'Installed version code: ' . Version::VERSION_CODE . PHP_EOL;
+            echo 'Feed target:            ' . $result['target_version'] . ' (' . $result['target_version_code'] . ')' . PHP_EOL;
+            echo "Package was not downloaded. No live files were changed.\n";
+        } elseif ($status === 'update_incompatible') {
+            echo "[WARN] A newer signed update exists but is incompatible with this installation\n";
+            echo 'Target:  ' . $result['target_version'] . ' (' . $result['target_version_code'] . ')' . PHP_EOL;
+            echo 'Reason:  ' . ($result['compatibility_message'] ?? 'compatibility policy rejected the update') . PHP_EOL;
+            echo "Package was not downloaded. No live files were changed.\n";
+        } elseif ($status === 'staged') {
             echo "[OK] Remote signed update verified, audited and staged\n";
             echo 'Channel:   ' . $result['channel'] . PHP_EOL;
             echo 'Target:    ' . $result['target_version'] . ' (' . $result['target_version_code'] . ')' . PHP_EOL;
             echo 'Stage:     ' . $result['stage_dir'] . PHP_EOL;
             echo 'SHA-256:   ' . $result['package_sha256'] . PHP_EOL;
             echo "No maintenance was entered and no live files were changed.\n";
+        } else {
+            throw new RuntimeException('Remote updater returned an unknown success state');
         }
     }
 } catch (Throwable $e) {
