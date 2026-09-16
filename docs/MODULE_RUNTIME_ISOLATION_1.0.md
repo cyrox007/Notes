@@ -35,7 +35,7 @@ Rules:
 - capability identifiers are declared in the provider module manifest;
 - the runtime provider must export exactly the same capability set;
 - only modules in the effective runtime composition can provide capabilities;
-- two active modules cannot silently provide the same capability: duplicate registration fails closed;
+- one active capability has exactly one active provider; duplicate registration fails closed instead of depending on boot order;
 - after module boot the registry is sealed and cannot be mutated during request dispatch;
 - consumers request a capability service through `ModuleRuntimeLoader::getInstance()->capabilities()`;
 - consumers may require an expected interface/class, and a type mismatch fails closed;
