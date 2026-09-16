@@ -1,0 +1,214 @@
+name: One-shot Notes isolation migration
+
+on:
+  push:
+    branches: ['1.0-module-notes-isolation']
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 1.0-module-notes-isolation
+          fetch-depth: 0
+
+      - name: Move Notes-owned runtime behind module boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p modules/notes/controllers modules/notes/models modules/notes/middlewares
+          mkdir -p modules/notes/views/note_item modules/notes/assets
+
+          git mv app/controllers/NoteController.php modules/notes/controllers/NoteController.php
+          git mv app/controllers/NoteAttachmentController.php modules/notes/controllers/NoteAttachmentController.php
+          git mv app/controllers/NoteShareController.php modules/notes/controllers/NoteShareController.php
+
+          git mv app/models/NoteModel.php modules/notes/models/NoteModel.php
+          git mv app/models/NoteAttachmentModel.php modules/notes/models/NoteAttachmentModel.php
+          git mv app/models/NoteTagModel.php modules/notes/models/NoteTagModel.php
+          git mv app/models/NoteTagRelationModel.php modules/notes/models/NoteTagRelationModel.php
+          git mv app/models/SharedNoteModel.php modules/notes/models/SharedNoteModel.php
+
+          git mv app/middlewares/RequireNotesUse.php modules/notes/middlewares/RequireNotesUse.php
+          git mv app/middlewares/EnforceNoteCreatePolicy.php modules/notes/middlewares/EnforceNoteCreatePolicy.php
+          git mv app/middlewares/EnforceNoteAttachmentPolicy.php modules/notes/middlewares/EnforceNoteAttachmentPolicy.php
+          git mv app/middlewares/EnforceNoteSharePolicy.php modules/notes/middlewares/EnforceNoteSharePolicy.php
+
+          git mv app/views/notes_page/index.php modules/notes/views/index.php
+          git mv app/views/notes_page/edit_view.php modules/notes/views/edit_view.php
+          git mv app/views/notes_page/editor-013.php modules/notes/views/editor-013.php
+          git mv app/views/notes_page/shared_view.php modules/notes/views/shared_view.php
+          git mv 'app/views/^elements/note_item/index.php' modules/notes/views/note_item/index.php
+
+          git mv app/views/notes_page/style.css modules/notes/assets/style.css
+          git mv app/views/notes_page/editor-013.css modules/notes/assets/editor-013.css
+          git mv assets/js/notes-list.js modules/notes/assets/notes-list.js
+          git mv assets/js/notes-editor-013.js modules/notes/assets/notes-editor-013.js
+          git mv assets/js/notes-draft.js modules/notes/assets/notes-draft.js
+
+          git rm -f app/views/notes_page/index.tpl app/views/notes_page/edit_view.tpl app/views/notes_page/editor-013.tpl app/views/notes_page/shared_view.tpl
+          git rm -f 'app/views/^elements/note_item/index.tpl'
+
+      - name: Switch Notes to isolated runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          def read(path):
+              return Path(path).read_text(encoding='utf-8')
+
+          def write(path, text):
+              Path(path).write_text(text, encoding='utf-8')
+
+          manifest_path = Path('modules/notes/module.json')
+          manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+          manifest['runtime'] = {'mode': 'isolated', 'entrypoint': 'runtime.php'}
+          manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          controller = read('modules/notes/controllers/NoteController.php')
+          controller = controller.replace("render_template('notes_page/index'", "render_template('@notes/index'")
+          controller = controller.replace("render_template('notes_page/edit_view'", "render_template('@notes/edit_view'")
+          write('modules/notes/controllers/NoteController.php', controller)
+
+          share = read('modules/notes/controllers/NoteShareController.php')
+          share = share.replace("render_template('notes_page/shared_view'", "render_template('@notes/shared_view'")
+          write('modules/notes/controllers/NoteShareController.php', share)
+
+          index = read('modules/notes/views/index.php')
+          index = index.replace("^elements/note_item/index", "@notes/note_item/index")
+          index = re.sub(r'\n<script src="<\?= \$view->e\(\$baseUrl\) \?>/assets/js/notes-list\.js" defer></script>', '', index)
+          needle = "    'pagination' => $pager,\n"
+          addition = needle + "    'module_styles' => [$view->moduleAsset('notes', 'style.css')],\n    'module_scripts' => [$view->moduleAsset('notes', 'notes-list.js')],\n"
+          if "moduleAsset('notes', 'notes-list.js')" not in index:
+              if needle not in index:
+                  raise SystemExit('Notes index layout marker missing')
+              index = index.replace(needle, addition, 1)
+          write('modules/notes/views/index.php', index)
+
+          edit = read('modules/notes/views/edit_view.php')
+          edit = edit.replace("partial('notes_page/editor-013'", "partial('@notes/editor-013'")
+          edit = re.sub(r"\n\$content \.= '<script src=\\\"' \. \$view->e\(\$baseUrl\) \. '/assets/js/notes-editor-013\.js\\\" defer></script>';", '', edit)
+          marker = "    'workspaceAccess' => $access,\n"
+          addition = marker + "    'module_styles' => [\n        $view->moduleAsset('notes', 'style.css'),\n        $view->moduleAsset('notes', 'editor-013.css'),\n    ],\n    'module_scripts' => [\n        $view->moduleAsset('notes', 'notes-editor-013.js'),\n        $view->moduleAsset('notes', 'notes-draft.js'),\n    ],\n"
+          if "moduleAsset('notes', 'notes-editor-013.js')" not in edit:
+              if marker not in edit:
+                  raise SystemExit('Notes editor layout marker missing')
+              edit = edit.replace(marker, addition, 1)
+          write('modules/notes/views/edit_view.php', edit)
+
+          shared = read('modules/notes/views/shared_view.php')
+          marker = "    'workspaceAccess' => $access,\n"
+          addition = marker + "    'module_styles' => [$view->moduleAsset('notes', 'style.css')],\n"
+          if "moduleAsset('notes', 'style.css')" not in shared:
+              if marker not in shared:
+                  raise SystemExit('Notes shared layout marker missing')
+              shared = shared.replace(marker, addition, 1)
+          write('modules/notes/views/shared_view.php', shared)
+
+          router_path = Path('core/routerConfig.php')
+          router = router_path.read_text(encoding='utf-8')
+          for line in [
+              'use App\\Controllers\\NoteController;\n',
+              'use App\\Controllers\\NoteAttachmentController;\n',
+              'use App\\Controllers\\NoteShareController;\n',
+              'use App\\Middlewares\\RequireNotesUse;\n',
+              'use App\\Middlewares\\EnforceNoteCreatePolicy;\n',
+              'use App\\Middlewares\\EnforceNoteAttachmentPolicy;\n',
+              'use App\\Middlewares\\EnforceNoteSharePolicy;\n',
+          ]:
+              router = router.replace(line, '')
+          start = router.find("$router->group('/notes')")
+          end_marker = "$router->group('/tasks')"
+          end = router.find(end_marker, start)
+          if start == -1 or end == -1:
+              raise SystemExit('Notes route block not found')
+          router = router[:start] + router[end:]
+          router_path.write_text(router, encoding='utf-8')
+
+          contract_path = Path('tests/integration/module_registry_contract.php')
+          contract = contract_path.read_text(encoding='utf-8')
+          old = '''foreach ($registry->all() as $id => $manifest) {
+              assertModuleContract($manifest->id() === $id, "manifest id mismatch for {$id}");
+              assertModuleContract($manifest->runtimeMode() === 'legacy', "{$id} must remain explicitly marked legacy until isolated");
+              assertModuleContract($manifest->runtimeEntrypoint() === null, "legacy {$id} must not expose an isolated entrypoint");
+              assertModuleContract(strlen($manifest->integrityHash()) === 64, "{$id} manifest must expose a SHA-256 integrity hash");
+              assertModuleContract($manifest->licenseFeature() !== null, "{$id} must declare a central entitlement feature");
+              assertModuleContract($manifest->isCompatibleWithCore(Version::VERSION), "{$id} must be compatible with the current core");
+          }
+          '''
+          new = '''foreach ($registry->all() as $id => $manifest) {
+              assertModuleContract($manifest->id() === $id, "manifest id mismatch for {$id}");
+              if ($id === 'notes') {
+                  assertModuleContract($manifest->runtimeMode() === 'isolated', 'Notes must be the first physically isolated bundled module');
+                  assertModuleContract($manifest->runtimeEntrypoint() === 'runtime.php', 'Notes isolated entrypoint drifted');
+              } else {
+                  assertModuleContract($manifest->runtimeMode() === 'legacy', "{$id} remains legacy until its dedicated migration");
+                  assertModuleContract($manifest->runtimeEntrypoint() === null, "legacy {$id} must not expose an isolated entrypoint");
+              }
+              assertModuleContract(strlen($manifest->integrityHash()) === 64, "{$id} manifest must expose a SHA-256 integrity hash");
+              assertModuleContract($manifest->licenseFeature() !== null, "{$id} must declare a central entitlement feature");
+              assertModuleContract($manifest->isCompatibleWithCore(Version::VERSION), "{$id} must be compatible with the current core");
+          }
+          '''
+          if old not in contract:
+              raise SystemExit('Bundled module runtime assertion block not found')
+          contract = contract.replace(old, new, 1)
+          contract_path.write_text(contract, encoding='utf-8')
+
+          gate_path = Path('.github/workflows/module-isolation-release-gate.yml')
+          gate = gate_path.read_text(encoding='utf-8')
+          gate = gate.replace('test "$legacy" -le 6', 'test "$legacy" -le 5')
+          gate = gate.replace('This ceiling is tightened by each module migration and becomes zero', 'Notes is isolated; this ceiling is tightened by each remaining module migration and becomes zero')
+          gate_path.write_text(gate, encoding='utf-8')
+          PY
+
+      - name: Verify physical Notes ownership before commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(php -r '$j=json_decode(file_get_contents("modules/notes/module.json"), true, 32, JSON_THROW_ON_ERROR); echo $j["runtime"]["mode"] ?? "";')" = isolated
+          test "$(php -r '$j=json_decode(file_get_contents("modules/notes/module.json"), true, 32, JSON_THROW_ON_ERROR); echo $j["runtime"]["entrypoint"] ?? "";')" = runtime.php
+          test -f modules/notes/controllers/NoteController.php
+          test -f modules/notes/views/index.php
+          test -f modules/notes/assets/notes-list.js
+          ! test -e app/controllers/NoteController.php
+          ! test -e app/models/NoteModel.php
+          ! test -e app/middlewares/RequireNotesUse.php
+          ! test -e app/views/notes_page/index.php
+          ! test -e app/views/notes_page/index.tpl
+          ! test -e 'app/views/^elements/note_item/index.php'
+          ! test -e assets/js/notes-list.js
+          ! grep -Fq "$router->group('/notes')" core/routerConfig.php
+          grep -Fq "render_template('@notes/index'" modules/notes/controllers/NoteController.php
+          grep -Fq "render_template('@notes/shared_view'" modules/notes/controllers/NoteShareController.php
+          grep -Fq "moduleAsset('notes', 'notes-list.js')" modules/notes/views/index.php
+          grep -Fq "moduleAsset('notes', 'notes-editor-013.js')" modules/notes/views/edit_view.php
+          php -l modules/notes/runtime.php
+          php -l modules/notes/NotesRuntimeProvider.php
+          php -l modules/notes/controllers/NoteController.php
+          php -l modules/notes/controllers/NoteAttachmentController.php
+          php -l modules/notes/controllers/NoteShareController.php
+          php -l modules/notes/views/index.php
+          php -l modules/notes/views/edit_view.php
+          php -l modules/notes/views/editor-013.php
+          php -l modules/notes/views/shared_view.php
+          php -l tests/integration/module_registry_contract.php
+
+      - name: Commit atomic Notes migration and remove this workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/notes-isolation-migrate-once.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'refactor: isolate Notes module runtime'
+          git push origin HEAD:1.0-module-notes-isolation
