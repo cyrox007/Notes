@@ -10,6 +10,9 @@ $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
 $basePath = isset($base_path) ? (string) $base_path : '';
 $currentUser = isset($user) && is_array($user) ? $user : [];
 $access = isset($workspaceAccess) && is_array($workspaceAccess) ? $workspaceAccess : [];
+$licenseState = isset($licenseRuntime) && is_array($licenseRuntime) ? $licenseRuntime : [];
+$licenseReadOnly = !empty($licenseState['enforced']) && empty($licenseState['writable']);
+$canManageLicense = !empty($licenseState['can_manage']);
 $paginationData = isset($pagination) && is_array($pagination) ? $pagination : null;
 $socketTicket = isset($socket_ticket) ? (string) $socket_ticket : '';
 $socketUrl = isset($socket_url) ? (string) $socket_url : '';
@@ -17,6 +20,7 @@ $socketUrl = isset($socket_url) ? (string) $socket_url : '';
 $styleFiles = [
     'core/common.css',
     'core/accessibility.css',
+    'core/license-readonly.css',
     '^elements/UI/FormInput/style.css',
     '^shared/sidebar/style.css',
     '^shared/header/style.css',
@@ -42,6 +46,8 @@ $runtimeConfig = json_encode([
     'socketTicket' => $socketTicket,
     'socketUrl' => $socketUrl,
     'basePath' => $basePath,
+    'licenseReadOnly' => $licenseReadOnly,
+    'licenseCode' => isset($licenseState['code']) ? (string) $licenseState['code'] : '',
 ], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR);
 $partialData = [
     'sitename' => $siteName,
@@ -118,6 +124,25 @@ endif; ?>>
         <?= $view->partial('^shared/sidebar/index', $partialData) ?>
         <div class="wrapper__content">
             <?= $view->partial('^shared/header/index', $partialData) ?>
+            <?php if ($licenseReadOnly): ?>
+                <aside class="license-readonly-banner" role="status" aria-live="polite">
+                    <div class="license-readonly-banner__inner">
+                        <div class="license-readonly-banner__copy">
+                            <span class="license-readonly-banner__icon" aria-hidden="true"><i class="fa fa-lock"></i></span>
+                            <div class="license-readonly-banner__text">
+                                <strong class="license-readonly-banner__title">Режим только для чтения</strong>
+                                <p class="license-readonly-banner__message">Просмотр существующих данных доступен, но изменения временно заблокированы до подтверждения лицензии установки.</p>
+                                <?php if (!$canManageLicense): ?>
+                                    <p class="license-readonly-banner__hint">Обратитесь к администратору Workspace.</p>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <?php if ($canManageLicense): ?>
+                            <a class="license-readonly-banner__action" href="<?= $view->e($view->route('admin_license')) ?>">Проверить лицензию</a>
+                        <?php endif; ?>
+                    </div>
+                </aside>
+            <?php endif; ?>
             <main id="main-content" class="content-wrapper" tabindex="-1">
                 <?= $content ?>
             </main>
