@@ -49,12 +49,15 @@ jobs:
           php -l core/UpdateBackupManager.php
           php -l core/UpdateReleaseCandidate.php
           php -l core/UpdateLiveApplier.php
+          php -l core/UpdateApplyOperationLock.php
+          php -l core/UpdateRollbackCodeRestorer.php
           php -l core/UpdateApplyCommand.php
           php tests/integration/native_view_renderer_contract.php
           php tests/integration/native_websocket_protocol_contract.php
           php tests/integration/signed_update_foundation_contract.php
           php tests/integration/update_release_candidate_contract.php
           php tests/integration/updater_live_apply_contract.php
+          php tests/integration/updater_recovery_invariants_contract.php
 
       - name: Build hosting bundle
         shell: bash
@@ -106,6 +109,8 @@ jobs:
           test -f "$ROOT/core/UpdateBackupManager.php"
           test -f "$ROOT/core/UpdateReleaseCandidate.php"
           test -f "$ROOT/core/UpdateLiveApplier.php"
+          test -f "$ROOT/core/UpdateApplyOperationLock.php"
+          test -f "$ROOT/core/UpdateRollbackCodeRestorer.php"
           test -f "$ROOT/core/UpdateApplyCommand.php"
           test ! -e "$ROOT/.env"
           cd /tmp
@@ -135,6 +140,8 @@ jobs:
           unzip -l "$BUNDLE" | grep -F 'core/UpdateBackupManager.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdateReleaseCandidate.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdateLiveApplier.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateApplyOperationLock.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateRollbackCodeRestorer.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdateApplyCommand.php'
           if unzip -l "$BUNDLE" | grep -Eq '/vendor/'; then
             echo 'Vendor-free bundle must not contain vendor/'
