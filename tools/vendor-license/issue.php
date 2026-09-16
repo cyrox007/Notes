@@ -24,7 +24,7 @@ $options = getopt('', [
 
 if (isset($options['help'])) {
     fwrite(STDOUT, "Usage:\n");
-    fwrite(STDOUT, "  php tools/vendor-license/issue.php \\\n    --private-key=/secure/offline/path/key.secret \\\n    --key-id=prod-YYYY-NN \\\n    --installation-id=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx \\\n    --license-id=lic-customer-001 \\\n    --edition=standard [--expires-at=UNIX] [--not-before=UNIX] \\\n    [--customer='Customer name'] [--features=notes,tasks,messenger]\n\n");
+    fwrite(STDOUT, "  php tools/vendor-license/issue.php \\\n    --private-key=/secure/offline/path/key.license-secret \\\n    --key-id=prod-YYYY-NN \\\n    --installation-id=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx \\\n    --license-id=lic-customer-001 \\\n    --edition=standard [--expires-at=UNIX] [--not-before=UNIX] \\\n    [--customer='Customer name'] [--features=notes,tasks,messenger]\n\n");
     fwrite(STDOUT, "The signed wo1 token is written to stdout. The private key is never printed or copied.\n");
     exit(0);
 }
@@ -94,6 +94,8 @@ if ($featuresRaw !== '') {
 }
 
 $secretKey = vendorLicenseReadSecretKey((string) ($options['private-key'] ?? ''));
+$error = null;
+$token = null;
 try {
     $publicKey = sodium_crypto_sign_publickey_from_secretkey($secretKey);
     $json = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
@@ -111,10 +113,14 @@ try {
     if (!($status['valid'] ?? false)) {
         throw new RuntimeException('Self-verification failed: ' . (string) ($status['message'] ?? 'unknown error'));
     }
-
-    fwrite(STDOUT, $token . PHP_EOL);
 } catch (Throwable $e) {
-    vendorLicenseFail($e->getMessage(), 1);
+    $error = $e->getMessage();
 } finally {
     sodium_memzero($secretKey);
 }
+
+if ($error !== null || !is_string($token)) {
+    vendorLicenseFail($error ?? 'License token was not generated.', 1);
+}
+
+fwrite(STDOUT, $token . PHP_EOL);
