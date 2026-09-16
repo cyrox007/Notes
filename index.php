@@ -132,3 +132,4 @@ try {
 require_once SITEPATH . '/core/Router.php';
 \Core\Router::getInstance()->addGlobalMiddleware(\App\Middlewares\EnforceMaintenanceMode::class);
 require_once SITEPATH . '/core/routerConfig.php';
+\Core\ModuleRuntimeLoader::getInstance()->registerRoutes(\Core\Router::getInstance());
