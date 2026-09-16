@@ -60,7 +60,10 @@ jobs:
             }
             echo "Update public registry parsed: " . count($v->trustedKeyIds()) . " key(s)\n";
           '
-          ! grep -R -E 'UPDATE_PRIVATE|UPDATE_SIGNING_PRIVATE|PRIVATE_UPDATE_SIGNING_KEY' app core config database default.env || false
+          if grep -R -E 'UPDATE_PRIVATE|UPDATE_SIGNING_PRIVATE|PRIVATE_UPDATE_SIGNING_KEY' app core config database default.env; then
+            echo 'Runtime tree contains a forbidden update private-key marker'
+            exit 1
+          fi
           ! find . -type f \( -name '*.update-secret' -o -name 'workspace-update-*.secret' \) -print -quit | grep -q .
 
       - name: Refuse repository-local update private key
@@ -89,6 +92,7 @@ jobs:
           (cd "$WORK/package-source" && zip -q "$WORK/workspace-organizer-v-ci.zip" Version.php)
 
           KEY_ID="update-ci-${{ matrix.php }}"
+          KEY_ID="${KEY_ID//./_}"
           KEY_FILE="$WORK/update-ci.update-secret"
           KEYGEN_OUT="$WORK/keygen.out"
           php tools/vendor-update/keygen.php \
@@ -188,8 +192,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq "--exclude 'tools/vendor-update'" .github/workflows/hosting-package.yml
-          grep -Fq "--exclude '*.update-secret'" .github/workflows/hosting-package.yml
+          grep -Fq -- "--exclude 'tools/vendor-update'" .github/workflows/hosting-package.yml
+          grep -Fq -- "--exclude '*.update-secret'" .github/workflows/hosting-package.yml
           grep -Fq 'test ! -e "$ROOT/tools/vendor-update"' .github/workflows/hosting-package.yml
           grep -Fq 'config/update_trusted_keys.php' .github/workflows/hosting-package.yml
           grep -Fq 'bin/update.php' .github/workflows/hosting-package.yml
