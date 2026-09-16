@@ -20,7 +20,6 @@ $content = $view->partial('@notes/editor-013', [
     'shareInfo' => isset($shareInfo) && is_array($shareInfo) ? $shareInfo : null,
     'base_url' => $baseUrl,
 ]);
-$content .= '<script src="' . $view->e($baseUrl) . '/assets/js/notes-editor-013.js" defer></script>';
 
 echo $view->layout('core/base', [
     'title' => 'Блокнот: ' . $noteTitle,
