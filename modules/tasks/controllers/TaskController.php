@@ -125,7 +125,7 @@ final class TaskController extends Controller
 
         $pagination = ListQuery::pagination($query, $total);
         $pagination['filter'] = $filter;
-        $this->render_template('tasks_page/index', [
+        $this->render_template('@tasks/index', [
             'tasks' => $tasks,
             'categories' => $categories,
             'user' => $user,
