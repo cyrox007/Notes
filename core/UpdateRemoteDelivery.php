@@ -106,6 +106,10 @@ final class UpdateRemoteDelivery
      * Download the exact signed package to an external temporary directory,
      * audit it, then hand it to the existing immutable staging layer.
      *
+     * Optional expected target/hash values bind an interactive action to the
+     * exact signed release an operator reviewed. If the feed advances between a
+     * read-only check and staging, the action fails before package download.
+     *
      * @return array<string,mixed>
      */
     public function stage(
@@ -113,20 +117,28 @@ final class UpdateRemoteDelivery
         string $channel,
         string $stageRoot,
         int $currentVersionCode,
-        string $currentPhpVersion
+        string $currentPhpVersion,
+        ?int $expectedTargetVersionCode = null,
+        ?string $expectedPackageSha256 = null
     ): array {
         $resolved = $this->resolve($feedUrl, $channel);
         $manifest = $resolved['manifest'];
+        $package = $manifest['package'] ?? null;
+        if (!is_array($package)) {
+            throw new RuntimeException('Verified manifest package metadata is missing');
+        }
+
+        $this->assertExpectedRelease(
+            $manifest,
+            $package,
+            $expectedTargetVersionCode,
+            $expectedPackageSha256
+        );
 
         // Unlike check(), staging is an action. It must fail closed for
         // same-version, downgrade, source-floor and PHP incompatibility before
         // a stage directory or package download is created.
         $this->stager->assertCompatibility($manifest, $currentVersionCode, $currentPhpVersion);
-
-        $package = $manifest['package'];
-        if (!is_array($package)) {
-            throw new RuntimeException('Verified manifest package metadata is missing');
-        }
 
         $expectedBytes = (int) ($package['size'] ?? 0);
         if ($expectedBytes < 1 || $expectedBytes > self::MAX_REMOTE_PACKAGE_BYTES) {
@@ -206,6 +218,41 @@ final class UpdateRemoteDelivery
             }
             @flock($lock, LOCK_UN);
             fclose($lock);
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $manifest
+     * @param array<string,mixed> $package
+     */
+    private function assertExpectedRelease(
+        array $manifest,
+        array $package,
+        ?int $expectedTargetVersionCode,
+        ?string $expectedPackageSha256
+    ): void {
+        if ($expectedTargetVersionCode !== null && $expectedTargetVersionCode <= 0) {
+            throw new RuntimeException('Expected update version binding is invalid');
+        }
+        if ($expectedPackageSha256 !== null) {
+            $expectedPackageSha256 = strtolower(trim($expectedPackageSha256));
+            if (preg_match('/^[0-9a-f]{64}$/', $expectedPackageSha256) !== 1) {
+                throw new RuntimeException('Expected update package binding is invalid');
+            }
+        }
+
+        if ($expectedTargetVersionCode !== null
+            && (int) ($manifest['version_code'] ?? 0) !== $expectedTargetVersionCode) {
+            throw new RuntimeException(
+                'Remote update feed changed since operator confirmation; run the signed update check again'
+            );
+        }
+
+        if ($expectedPackageSha256 !== null
+            && !hash_equals($expectedPackageSha256, (string) ($package['sha256'] ?? ''))) {
+            throw new RuntimeException(
+                'Remote update feed changed since operator confirmation; run the signed update check again'
+            );
         }
     }
 
