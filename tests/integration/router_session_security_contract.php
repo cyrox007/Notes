@@ -10,15 +10,18 @@ if (!defined('SITEPATH')) {
 putenv('SITEURL=https://example.test');
 putenv('BASE_PATH=/workspace');
 putenv('SESSION_LIFETIME_SECONDS=2592000');
+putenv('MAX_JSON_BODY_BYTES=1048576');
 $_SERVER['HTTP_HOST'] = 'example.test';
 $_SERVER['HTTPS'] = 'on';
 
 require_once $root . '/core/config.php';
 require_once $root . '/core/SessionSecurity.php';
 require_once $root . '/core/RedirectPolicy.php';
+require_once $root . '/core/request.php';
 require_once $root . '/core/Router.php';
 
 use Core\RedirectPolicy;
+use Core\Request;
 use Core\Router;
 use Core\SessionSecurity;
 
@@ -128,6 +131,43 @@ if (preg_match($pattern, '/v1/file.name/42/a/b/', $matches) === 1) {
     failSecurityContract('str route parameter crossed a path boundary');
 }
 
+expectInvalid(
+    static fn () => $patternMethod->invoke($router, '/duplicate/{int:id}/{str:id}/'),
+    'duplicate route parameter name'
+);
+
+$clearParams = $routerReflection->getMethod('clearParams');
+$typedPattern = $patternMethod->invoke($router, '/typed/{str:uid}/{int:id}/');
+if (!is_string($typedPattern) || preg_match($typedPattern, '/typed/123/456/', $typedMatches) !== 1) {
+    failSecurityContract('typed conversion fixture did not match');
+}
+$typed = $clearParams->invoke($router, $typedMatches, '/typed/{str:uid}/{int:id}/');
+if (($typed['uid'] ?? null) !== '123' || !is_string($typed['uid'] ?? null)) {
+    failSecurityContract('numeric string route parameter must remain a string');
+}
+if (($typed['id'] ?? null) !== 456 || !is_int($typed['id'] ?? null)) {
+    failSecurityContract('integer route parameter must be converted to int');
+}
+
+expectInvalid(
+    static fn () => $router->add('TRACE', '/trace-contract', [stdClass::class, 'x']),
+    'unsupported route method'
+);
+expectInvalid(
+    static fn () => $router->add('GET', '/invalid-controller', [stdClass::class]),
+    'invalid controller tuple'
+);
+
+$router->add('GET', '/contract-route/{str:uid}', [stdClass::class, 'first'], [], 'contract.route');
+expectInvalid(
+    static fn () => $router->add('GET', '/contract-route/{str:uid}', [stdClass::class, 'second']),
+    'duplicate method/path route'
+);
+expectInvalid(
+    static fn () => $router->add('POST', '/other-contract-route', [stdClass::class, 'second'], [], 'contract.route'),
+    'duplicate route name'
+);
+
 $buildMethod = $routerReflection->getMethod('buildUrlFromRoute');
 $built = $buildMethod->invoke($router, '/notes/{str:uid}/attachment/{int:id}/', [
     'uid' => 'abc_DEF-9',
@@ -149,5 +189,50 @@ expectInvalid(
     static fn () => $buildMethod->invoke($router, '/files/{int:id}/', []),
     'missing named route parameter'
 );
+
+$requestReflection = new ReflectionClass(Request::class);
+$request = $requestReflection->newInstanceWithoutConstructor();
+$decodeJson = $requestReflection->getMethod('decodeJsonBody');
+
+$decodeJson->invoke($request, '{"message":"<b>ok</b>"}', 1024);
+if ($request->hasInvalidJson() || $request->json('message') !== '&lt;b&gt;ok&lt;/b&gt;') {
+    failSecurityContract('valid JSON body did not decode/sanitize correctly');
+}
+
+$decodeJson->invoke($request, '{broken', 1024);
+if (!$request->hasInvalidJson() || $request->jsonError() !== 'json_body_invalid') {
+    failSecurityContract('malformed JSON body was not rejected');
+}
+
+$decodeJson->invoke($request, '', 1024);
+if (!$request->hasInvalidJson() || $request->jsonError() !== 'json_body_empty') {
+    failSecurityContract('empty JSON body was not rejected');
+}
+
+$decodeJson->invoke($request, str_repeat('x', 1025), 1024);
+if (!$request->hasInvalidJson() || $request->jsonError() !== 'json_body_too_large') {
+    failSecurityContract('oversized JSON body was not rejected');
+}
+
+$expectsJson = $requestReflection->getMethod('expectsJsonBody');
+$_SERVER['CONTENT_TYPE'] = 'application/problem+json; charset=utf-8';
+if ($expectsJson->invoke($request) !== true) {
+    failSecurityContract('+json media type was not recognized');
+}
+$_SERVER['CONTENT_TYPE'] = 'text/plain';
+if ($expectsJson->invoke($request) !== false) {
+    failSecurityContract('non-JSON media type was incorrectly treated as JSON');
+}
+unset($_SERVER['CONTENT_TYPE']);
+
+putenv('MAX_JSON_BODY_BYTES=10');
+if (Request::maxJsonBodyBytes() !== 1024) {
+    failSecurityContract('JSON body limit did not enforce minimum safety bound');
+}
+putenv('MAX_JSON_BODY_BYTES=999999999');
+if (Request::maxJsonBodyBytes() !== 10485760) {
+    failSecurityContract('JSON body limit did not enforce maximum safety bound');
+}
+putenv('MAX_JSON_BODY_BYTES=1048576');
 
 fwrite(STDOUT, "Router/session security contract: OK\n");
