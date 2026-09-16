@@ -1,0 +1,71 @@
+name: 1.0 admin update UI
+
+on:
+  pull_request:
+    branches: ['1.0']
+  push:
+    branches: ['1.0-admin-update-ui']
+
+permissions:
+  contents: read
+
+jobs:
+  admin-update-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.3']
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: pdo_mysql, sodium, openssl, zlib
+          coverage: none
+
+      - name: Lint admin updater boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l app/services/AdminUpdateService.php
+          php -l app/controllers/Admin/UpdateController.php
+          php -l app/views/admin-page/updates.php
+          php -l app/views/admin-page/settings.php
+          php -l core/routerConfig.php
+          php -l tests/integration/admin_update_ui_contract.php
+          php -l tests/integration/native_admin_contract.php
+
+      - name: Verify admin signed-update service and view contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/integration/admin_update_ui_contract.php
+          php tests/integration/native_admin_contract.php
+
+      - name: Re-run network ingress contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/integration/updater_remote_delivery_contract.php
+          php tests/integration/updater_remote_address_policy_contract.php
+
+      - name: Verify destructive boundary is absent from web UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq "->add('GET', '/updates/check'" core/routerConfig.php
+          grep -Fq "->add('POST', '/updates/stage'" core/routerConfig.php
+          grep -Fq "RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_stage'" core/routerConfig.php
+          grep -Fq "hasRole(\$actorId, 'superadmin')" app/services/AdminUpdateService.php
+          grep -Fq 'UpdateRemoteDelivery' app/services/AdminUpdateService.php
+          ! grep -Fq 'UpdateApplyCommand' app/services/AdminUpdateService.php
+          ! grep -Fq 'UpdateLiveApplier' app/services/AdminUpdateService.php
+          ! grep -Fq 'UpdateBackupManager' app/services/AdminUpdateService.php
+          ! grep -Fq "'stage_dir' =>" app/controllers/Admin/UpdateController.php
+          ! grep -Fq "admin_updates_apply" app/views/admin-page/updates.php
