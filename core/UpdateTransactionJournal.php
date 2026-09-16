@@ -9,10 +9,10 @@ use RuntimeException;
 use Throwable;
 
 /**
- * External append-style state journal for updater transactions.
+ * External state journal for updater transactions.
  *
- * The journal lives outside the live application tree and database so recovery
- * information remains available even if the new code or schema fails to boot.
+ * The journal deliberately lives outside both the live application tree and
+ * MySQL so recovery information remains available when either side cannot boot.
  */
 final class UpdateTransactionJournal
 {
@@ -30,7 +30,9 @@ final class UpdateTransactionJournal
             throw new RuntimeException('Application root cannot be resolved for update journal');
         }
         $this->appRoot = $this->normalize($resolvedApp);
-        $this->root = $this->prepareExternalRoot($stateRoot) . DIRECTORY_SEPARATOR . 'transactions';
+        $stateRoot = $this->prepareExternalRoot($stateRoot);
+        $this->root = $stateRoot . DIRECTORY_SEPARATOR . 'transactions';
+
         if (!is_dir($this->root)) {
             $oldUmask = umask(0077);
             $made = @mkdir($this->root, 0700, true);
@@ -51,7 +53,7 @@ final class UpdateTransactionJournal
      */
     public function initialize(array $identity): array
     {
-        $this->validateIdentity($identity);
+        $identity = $this->normalizeIdentity($identity);
         $transactionId = $identity['transaction_id'];
 
         return $this->withLock(function () use ($transactionId, $identity): array {
@@ -71,8 +73,8 @@ final class UpdateTransactionJournal
                 'installed_version_code' => $identity['installed_version_code'],
                 'target_version' => $identity['target_version'],
                 'target_version_code' => $identity['target_version_code'],
-                'package_sha256' => strtolower($identity['package_sha256']),
-                'stage_dir' => $this->normalize($identity['stage_dir']),
+                'package_sha256' => $identity['package_sha256'],
+                'stage_dir' => $identity['stage_dir'],
                 'live_mutation_started' => false,
                 'backups' => null,
                 'created_at' => $now,
@@ -95,7 +97,7 @@ final class UpdateTransactionJournal
     public function recordBackups(string $transactionId, array $backups): array
     {
         $this->validateTransactionId($transactionId);
-        $this->validateBackups($backups);
+        $backups = $this->validateBackups($backups, $transactionId);
 
         return $this->withLock(function () use ($transactionId, $backups): array {
             $path = $this->journalPath($transactionId);
@@ -107,7 +109,10 @@ final class UpdateTransactionJournal
 
             if ($state === 'backup_verified') {
                 $existing = $journal['backups'] ?? null;
-                if (!is_array($existing) || hash('sha256', $this->canonicalJson($existing)) !== hash('sha256', $this->canonicalJson($backups))) {
+                if (!is_array($existing) || !hash_equals(
+                    hash('sha256', $this->canonicalJson($existing)),
+                    hash('sha256', $this->canonicalJson($backups))
+                )) {
                     throw new RuntimeException('Transaction already records a different backup set');
                 }
                 return $journal;
@@ -153,8 +158,11 @@ final class UpdateTransactionJournal
         return $this->journalPath($transactionId);
     }
 
-    /** @param array<string,mixed> $identity */
-    private function validateIdentity(array $identity): void
+    /**
+     * @param array<string,mixed> $identity
+     * @return array{transaction_id:string,installed_version:string,installed_version_code:int,target_version:string,target_version_code:int,package_sha256:string,stage_dir:string}
+     */
+    private function normalizeIdentity(array $identity): array
     {
         foreach (['transaction_id', 'installed_version', 'target_version', 'package_sha256', 'stage_dir'] as $key) {
             if (!isset($identity[$key]) || !is_string($identity[$key]) || trim($identity[$key]) === '') {
@@ -166,13 +174,18 @@ final class UpdateTransactionJournal
                 throw new RuntimeException("Updater transaction identity has invalid {$key}");
             }
         }
-        $this->validateTransactionId($identity['transaction_id']);
+
+        $transactionId = trim($identity['transaction_id']);
+        $this->validateTransactionId($transactionId);
         if ($identity['target_version_code'] <= $identity['installed_version_code']) {
             throw new RuntimeException('Updater transaction target must be newer than installed version');
         }
-        if (preg_match('/^[0-9a-f]{64}$/', strtolower($identity['package_sha256'])) !== 1) {
+
+        $packageSha = strtolower(trim($identity['package_sha256']));
+        if (preg_match('/^[0-9a-f]{64}$/', $packageSha) !== 1) {
             throw new RuntimeException('Updater transaction package SHA-256 is invalid');
         }
+
         $stage = realpath($identity['stage_dir']);
         if (!is_string($stage) || !is_dir($stage) || is_link($identity['stage_dir'])) {
             throw new RuntimeException('Updater transaction stage directory cannot be resolved');
@@ -181,49 +194,99 @@ final class UpdateTransactionJournal
         if ($this->pathInside($stage, $this->appRoot)) {
             throw new RuntimeException('Updater transaction stage must be outside the live application tree');
         }
+
+        return [
+            'transaction_id' => $transactionId,
+            'installed_version' => trim($identity['installed_version']),
+            'installed_version_code' => $identity['installed_version_code'],
+            'target_version' => trim($identity['target_version']),
+            'target_version_code' => $identity['target_version_code'],
+            'package_sha256' => $packageSha,
+            'stage_dir' => $stage,
+        ];
     }
 
     /** @param array<string,mixed> $journal @param array<string,mixed> $identity */
     private function assertSameIdentity(array $journal, array $identity): void
     {
-        $expected = [
-            'transaction_id' => $identity['transaction_id'],
-            'installed_version' => $identity['installed_version'],
-            'installed_version_code' => $identity['installed_version_code'],
-            'target_version' => $identity['target_version'],
-            'target_version_code' => $identity['target_version_code'],
-            'package_sha256' => strtolower($identity['package_sha256']),
-            'stage_dir' => $this->normalize((string) realpath($identity['stage_dir'])),
-        ];
-        foreach ($expected as $key => $value) {
-            if (($journal[$key] ?? null) !== $value) {
+        foreach ([
+            'transaction_id',
+            'installed_version',
+            'installed_version_code',
+            'target_version',
+            'target_version_code',
+            'package_sha256',
+            'stage_dir',
+        ] as $key) {
+            if (($journal[$key] ?? null) !== $identity[$key]) {
                 throw new RuntimeException("Updater transaction id is already bound to different {$key}");
             }
         }
     }
 
-    /** @param array<string,mixed> $backups */
-    private function validateBackups(array $backups): void
+    /**
+     * @param array<string,mixed> $backups
+     * @return array<string,mixed>
+     */
+    private function validateBackups(array $backups, string $transactionId): array
     {
         foreach (['backup_dir', 'manifest_path', 'manifest_sha256', 'code', 'database'] as $key) {
             if (!array_key_exists($key, $backups)) {
                 throw new RuntimeException("Updater backup metadata is missing {$key}");
             }
         }
-        if (!is_string($backups['backup_dir']) || !is_dir($backups['backup_dir'])) {
-            throw new RuntimeException('Updater backup directory is missing');
+        if (!is_array($backups['code']) || !is_array($backups['database'])) {
+            throw new RuntimeException('Updater backup code/database metadata is invalid');
         }
-        if (!is_string($backups['manifest_path']) || !is_file($backups['manifest_path'])) {
-            throw new RuntimeException('Updater backup manifest is missing');
+
+        $backupInput = is_string($backups['backup_dir']) ? $backups['backup_dir'] : '';
+        $backupDir = realpath($backupInput);
+        if (!is_string($backupDir) || !is_dir($backupDir) || is_link($backupInput)) {
+            throw new RuntimeException('Updater backup directory is missing or unsafe');
         }
-        if (!is_string($backups['manifest_sha256']) || preg_match('/^[0-9a-f]{64}$/', $backups['manifest_sha256']) !== 1) {
+        $backupDir = $this->normalize($backupDir);
+        if ($this->pathInside($backupDir, $this->appRoot)) {
+            throw new RuntimeException('Updater backup directory must be outside the live application tree');
+        }
+
+        $manifestInput = is_string($backups['manifest_path']) ? $backups['manifest_path'] : '';
+        $manifestPath = realpath($manifestInput);
+        if (!is_string($manifestPath) || !is_file($manifestPath) || is_link($manifestInput)) {
+            throw new RuntimeException('Updater backup manifest is missing or unsafe');
+        }
+        $manifestPath = $this->normalize($manifestPath);
+        if (!$this->pathInside($manifestPath, $backupDir) || $manifestPath === $backupDir) {
+            throw new RuntimeException('Updater backup manifest must be inside its backup directory');
+        }
+
+        $expectedHash = is_string($backups['manifest_sha256']) ? strtolower($backups['manifest_sha256']) : '';
+        if (preg_match('/^[0-9a-f]{64}$/', $expectedHash) !== 1) {
             throw new RuntimeException('Updater backup manifest SHA-256 is invalid');
         }
-        foreach (['code', 'database'] as $section) {
-            if (!is_array($backups[$section])) {
-                throw new RuntimeException("Updater backup {$section} metadata is invalid");
-            }
+        $actualHash = hash_file('sha256', $manifestPath);
+        if (!is_string($actualHash) || !hash_equals($expectedHash, $actualHash)) {
+            throw new RuntimeException('Updater backup manifest SHA-256 mismatch');
         }
+
+        $manifestBytes = file_get_contents($manifestPath);
+        try {
+            $manifest = is_string($manifestBytes)
+                ? json_decode($manifestBytes, true, 32, JSON_THROW_ON_ERROR)
+                : null;
+        } catch (JsonException $e) {
+            throw new RuntimeException('Updater backup manifest JSON is invalid', 0, $e);
+        }
+        if (!is_array($manifest) || array_is_list($manifest)) {
+            throw new RuntimeException('Updater backup manifest must be a JSON object');
+        }
+        if (!hash_equals($transactionId, (string) ($manifest['transaction_id'] ?? ''))) {
+            throw new RuntimeException('Updater backup manifest belongs to another transaction');
+        }
+
+        $backups['backup_dir'] = $backupDir;
+        $backups['manifest_path'] = $manifestPath;
+        $backups['manifest_sha256'] = $expectedHash;
+        return $backups;
     }
 
     private function validateTransactionId(string $transactionId): void
@@ -255,18 +318,21 @@ final class UpdateTransactionJournal
         if (!is_array($journal) || array_is_list($journal) || ($journal['schema'] ?? null) !== self::SCHEMA) {
             throw new RuntimeException('Updater transaction journal failed schema validation');
         }
-        $id = (string) ($journal['transaction_id'] ?? '');
-        $this->validateTransactionId($id);
+        $this->validateTransactionId((string) ($journal['transaction_id'] ?? ''));
         return $journal;
     }
 
     /** @param array<string,mixed> $journal */
     private function writeAtomic(string $path, array $journal, bool $replace): void
     {
-        $bytes = json_encode($journal, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . PHP_EOL;
+        $bytes = json_encode(
+            $journal,
+            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        ) . PHP_EOL;
         if (strlen($bytes) > self::MAX_BYTES) {
             throw new RuntimeException('Updater transaction journal exceeds size limit');
         }
+
         $tmp = dirname($path) . DIRECTORY_SEPARATOR . '.journal-' . bin2hex(random_bytes(8)) . '.tmp';
         $oldUmask = umask(0077);
         $handle = @fopen($tmp, 'xb');
@@ -354,6 +420,7 @@ final class UpdateTransactionJournal
         return $resolved;
     }
 
+    /** @param array<string,mixed> $value */
     private function canonicalJson(array $value): string
     {
         $normalize = function (mixed $item) use (&$normalize): mixed {
@@ -368,7 +435,10 @@ final class UpdateTransactionJournal
             }
             return $item;
         };
-        return json_encode($normalize($value), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        return json_encode(
+            $normalize($value),
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        );
     }
 
     private function isAbsolute(string $path): bool
