@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     strategy:
+      fail-fast: false
       matrix:
         php: ['8.1', '8.3']
 
@@ -75,6 +76,43 @@ jobs:
           php -r '$j=json_decode(file_get_contents($argv[1]),true,32,JSON_THROW_ON_ERROR); if(($j["maintenance"]["active"]??false)!==true || ($j["maintenance"]["valid"]??true)!==false) exit(1);' /tmp/maintenance-corrupt.json
           php bin/maintenance.php --action=leave --force --state-root="$ROOT"
           test ! -e "$ROOT/workspace-maintenance.json"
+          rm -rf "$ROOT"
+
+      - name: Prove concurrent maintenance ownership is serialized
+        shell: bash
+        run: |
+          set -euo pipefail
+          PHP_TAG="${{ matrix.php }}"
+          PHP_TAG="${PHP_TAG//./_}"
+          ROOT="/tmp/wo-maintenance-race-${PHP_TAG}"
+          rm -rf "$ROOT"
+          mkdir -m 700 -p "$ROOT"
+          TX_A="race-a-${PHP_TAG}-001"
+          TX_B="race-b-${PHP_TAG}-001"
+
+          set +e
+          php bin/maintenance.php --action=enter --transaction="$TX_A" --reason='Race A' --state-root="$ROOT" > /tmp/race-a.out 2>&1 &
+          PID_A=$!
+          php bin/maintenance.php --action=enter --transaction="$TX_B" --reason='Race B' --state-root="$ROOT" > /tmp/race-b.out 2>&1 &
+          PID_B=$!
+          wait "$PID_A"; RC_A=$?
+          wait "$PID_B"; RC_B=$?
+          set -e
+
+          if [[ "$RC_A" -eq 0 && "$RC_B" -eq 0 ]]; then
+            echo 'both concurrent transactions acquired maintenance ownership'
+            cat /tmp/race-a.out /tmp/race-b.out
+            exit 1
+          fi
+          if [[ "$RC_A" -ne 0 && "$RC_B" -ne 0 ]]; then
+            echo 'neither concurrent transaction acquired maintenance ownership'
+            cat /tmp/race-a.out /tmp/race-b.out
+            exit 1
+          fi
+
+          php bin/maintenance.php --action=status --state-root="$ROOT" --json > /tmp/race-status.json
+          php -r '$j=json_decode(file_get_contents($argv[1]),true,32,JSON_THROW_ON_ERROR); $m=$j["maintenance"]??[]; $id=$m["transaction_id"]??""; if(($m["active"]??false)!==true || ($m["valid"]??false)!==true || !in_array($id,[$argv[2],$argv[3]],true)) exit(1);' /tmp/race-status.json "$TX_A" "$TX_B"
+          php bin/maintenance.php --action=leave --force --state-root="$ROOT"
           rm -rf "$ROOT"
 
       - name: Prove HTTP maintenance precedes database bootstrap
