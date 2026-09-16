@@ -34,6 +34,7 @@ $coreFiles = [
     '/core/ModuleRuntimeProvider.php',
     '/core/ModuleCapabilityRegistry.php',
     '/core/ModuleRuntimeLoader.php',
+    '/core/ModuleAssetController.php',
     '/core/DatabaseControll.php',
     '/core/DatabaseManager.php',
     '/core/ModuleLifecycleStore.php',
