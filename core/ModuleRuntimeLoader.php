@@ -117,7 +117,7 @@ final class ModuleRuntimeLoader
         $exported = $provider->capabilities();
         $exportedNames = [];
         foreach ($exported as $capability => $service) {
-            if (!is_string($capability) || !is_object($service)) {
+            if (!is_string($capability) || $capability === '' || !is_object($service)) {
                 throw new RuntimeException("Module {$manifest->id()} exported an invalid capability service");
             }
             $exportedNames[] = $capability;
