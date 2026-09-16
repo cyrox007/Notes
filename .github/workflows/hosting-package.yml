@@ -22,7 +22,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
+          extensions: mysqli, pdo_mysql, mbstring, sodium, openssl, fileinfo, gd
           coverage: none
 
       - name: Verify vendor-free application runtime
@@ -38,12 +38,15 @@ jobs:
           php -l install.php
           php -l ws_server/server.php
           php -l bin/update.php
+          php -l bin/update_remote.php
           php -l bin/update_backup.php
           php -l bin/update_candidate.php
           php -l bin/update_apply.php
           php -l core/UpdateManifestVerifier.php
           php -l core/UpdatePackageStager.php
           php -l core/UpdateArchiveInspector.php
+          php -l core/UpdateRemoteTransport.php
+          php -l core/UpdateRemoteDelivery.php
           php -l core/UpdateTransactionJournal.php
           php -l core/UpdateTransactionStateMachine.php
           php -l core/UpdateBackupManager.php
@@ -55,6 +58,7 @@ jobs:
           php tests/integration/native_view_renderer_contract.php
           php tests/integration/native_websocket_protocol_contract.php
           php tests/integration/signed_update_foundation_contract.php
+          php tests/integration/updater_remote_delivery_contract.php
           php tests/integration/update_release_candidate_contract.php
           php tests/integration/updater_live_apply_contract.php
           php tests/integration/updater_recovery_invariants_contract.php
@@ -97,6 +101,7 @@ jobs:
           test -f "$ROOT/config/license_trusted_keys.php"
           test -f "$ROOT/config/update_trusted_keys.php"
           test -f "$ROOT/bin/update.php"
+          test -f "$ROOT/bin/update_remote.php"
           test -f "$ROOT/bin/update_backup.php"
           test -f "$ROOT/bin/update_candidate.php"
           test -f "$ROOT/bin/update_apply.php"
@@ -104,6 +109,8 @@ jobs:
           test -f "$ROOT/core/UpdateManifestVerifier.php"
           test -f "$ROOT/core/UpdatePackageStager.php"
           test -f "$ROOT/core/UpdateArchiveInspector.php"
+          test -f "$ROOT/core/UpdateRemoteTransport.php"
+          test -f "$ROOT/core/UpdateRemoteDelivery.php"
           test -f "$ROOT/core/UpdateTransactionJournal.php"
           test -f "$ROOT/core/UpdateTransactionStateMachine.php"
           test -f "$ROOT/core/UpdateBackupManager.php"
@@ -128,6 +135,7 @@ jobs:
           unzip -l "$BUNDLE" | grep -F 'config/license_trusted_keys.php'
           unzip -l "$BUNDLE" | grep -F 'config/update_trusted_keys.php'
           unzip -l "$BUNDLE" | grep -F 'bin/update.php'
+          unzip -l "$BUNDLE" | grep -F 'bin/update_remote.php'
           unzip -l "$BUNDLE" | grep -F 'bin/update_backup.php'
           unzip -l "$BUNDLE" | grep -F 'bin/update_candidate.php'
           unzip -l "$BUNDLE" | grep -F 'bin/update_apply.php'
@@ -135,6 +143,8 @@ jobs:
           unzip -l "$BUNDLE" | grep -F 'core/UpdateManifestVerifier.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdatePackageStager.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdateArchiveInspector.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateRemoteTransport.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateRemoteDelivery.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdateTransactionJournal.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdateTransactionStateMachine.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdateBackupManager.php'
