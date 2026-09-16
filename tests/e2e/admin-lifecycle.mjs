@@ -126,6 +126,26 @@ try {
   }
   await updatedQuotaRow.getByText('25 МБ', { exact: false }).waitFor({ state: 'visible', timeout: 10000 });
 
+  // The updater page must be a BASE_PATH-safe native admin surface even when
+  // production trust/feed configuration has not yet been installed. Merely
+  // opening the page performs no network update check.
+  const updatesLink = page.getByRole('link', { name: /Обновления/ });
+  const updatesHref = await updatesLink.getAttribute('href');
+  if (!updatesHref?.startsWith(`${basePath}/admin/updates`)) {
+    throw new Error(`Admin updates link escaped BASE_PATH: ${updatesHref}`);
+  }
+  await Promise.all([
+    page.waitForURL((url) => url.pathname.replace(/\/+$/, '') === `${basePath}/admin/updates`, { timeout: 15000 }),
+    updatesLink.click(),
+  ]);
+  await page.getByRole('heading', { name: 'Обновления Workspace' }).waitFor({ state: 'visible', timeout: 10000 });
+  await page.getByText('Updater пока не готов:', { exact: false }).waitFor({ state: 'visible', timeout: 10000 });
+  await page.getByText('UPDATE_FEED_URL не настроен.', { exact: true }).waitFor({ state: 'visible', timeout: 10000 });
+  await page.getByRole('button', { name: 'Проверка недоступна' }).waitFor({ state: 'visible', timeout: 10000 });
+  if (await page.locator('form[action*="/admin/updates/stage"]').count()) {
+    throw new Error('Updater staging form rendered without a verified update_available result');
+  }
+
   if (pageErrors.length) throw pageErrors[0];
   if (escapedRequests.length) {
     throw new Error(`Requests escaped BASE_PATH: ${[...new Set(escapedRequests)].join(', ')}`);
