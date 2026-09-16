@@ -4,7 +4,7 @@ on:
   push:
     branches: [usable-baseline-0.12-phase8]
   pull_request:
-    branches: [master, usable-baseline-0.12-phase7]
+    branches: [master, usable-baseline-0.12-phase7, '1.0']
 
 permissions:
   contents: read
@@ -36,7 +36,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
+          extensions: mysqli, pdo_mysql, mbstring, sodium, openssl, fileinfo, gd
           coverage: none
 
       - name: Install dependencies
@@ -55,18 +55,23 @@ jobs:
           set -euo pipefail
           php -l app/controllers/Admin/AdminController.php
           php -l app/controllers/Admin/SettingsController.php
+          php -l app/controllers/Admin/UpdateController.php
           php -l app/services/PermissionService.php
           php -l app/services/AdminUserService.php
           php -l app/services/StorageQuotaService.php
+          php -l app/services/AdminUpdateService.php
+          php -l app/views/admin-page/updates.php
           php -l app/middlewares/RequirePermission.php
           php -l app/middlewares/RequireAdminAccess.php
           php -l app/middlewares/RequireAdminUsersManage.php
           php -l app/middlewares/RequireAdminSettingsManage.php
           php -l tests/e2e/router.php
+          php tests/integration/native_admin_contract.php
           node --check tests/e2e/admin-lifecycle.mjs
           grep -Fq 'RequireAdminAccess::class' core/routerConfig.php
           grep -Fq 'RequireAdminUsersManage::class' core/routerConfig.php
           grep -Fq 'RequireAdminSettingsManage::class' core/routerConfig.php
+          grep -Fq "admin_updates_stage" core/routerConfig.php
           ! grep -Fq 'IsAdmin::class' core/routerConfig.php
           grep -Fq 'src="{$base_url}/assets/js/admin-page.js"' app/views/admin-page/index.tpl
           ! grep -Fq 'src="/assets/js/admin-page.js"' app/views/admin-page/index.tpl
