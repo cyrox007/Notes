@@ -1,0 +1,113 @@
+name: 1.0 license trust-root operations
+
+on:
+  pull_request:
+    branches: [master, '1.0']
+  push:
+    branches: ['1.0-license-trust-root-operations']
+
+permissions:
+  contents: read
+
+jobs:
+  trust-root-operations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        php: ['8.1', '8.3']
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: sodium, mbstring
+          coverage: none
+
+      - name: Lint trust and vendor tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l config/license_trusted_keys.php
+          php -l app/services/LicenseVerifier.php
+          php -l tools/vendor-license/lib.php
+          php -l tools/vendor-license/keygen.php
+          php -l tools/vendor-license/issue.php
+          php -l tests/integration/license_verifier_contract.php
+
+      - name: Verify runtime public-trust contract
+        run: php tests/integration/license_verifier_contract.php
+
+      - name: Refuse repository-local private key output
+        shell: bash
+        run: |
+          set -euo pipefail
+          FORBIDDEN="$GITHUB_WORKSPACE/forbidden.license-secret"
+          set +e
+          php tools/vendor-license/keygen.php --key-id=ops-test --private-out="$FORBIDDEN" >/tmp/keygen-forbidden.out 2>/tmp/keygen-forbidden.err
+          STATUS=$?
+          set -e
+          test "$STATUS" -ne 0
+          test ! -e "$FORBIDDEN"
+          grep -Fq 'must not be stored inside the repository tree' /tmp/keygen-forbidden.err
+
+      - name: Generate and issue with external ephemeral key
+        shell: bash
+        run: |
+          set -euo pipefail
+          TMP="$(mktemp -d)"
+          trap 'rm -rf "$TMP"' EXIT
+          PRIVATE="$TMP/ops-test.license-secret"
+          INSTALLATION_ID='11111111-2222-4333-8444-555555555555'
+
+          php tools/vendor-license/keygen.php \
+            --key-id=ops-test \
+            --private-out="$PRIVATE" > "$TMP/keygen.out"
+
+          test -f "$PRIVATE"
+          test "$(stat -c '%a' "$PRIVATE")" = '600'
+          ! grep -Fq 'wo-ed25519-secret-v1:' "$TMP/keygen.out"
+          PUBLIC_KEY="$(sed -n 's/^Public key: //p' "$TMP/keygen.out" | head -n1)"
+          test -n "$PUBLIC_KEY"
+          test "$(printf '%s' "$PUBLIC_KEY" | wc -c)" -ge 40
+
+          EXPIRES="$(( $(date +%s) + 86400 ))"
+          TOKEN="$(php tools/vendor-license/issue.php \
+            --private-key="$PRIVATE" \
+            --key-id=ops-test \
+            --installation-id="$INSTALLATION_ID" \
+            --license-id=lic-ops-test \
+            --edition=standard \
+            --expires-at="$EXPIRES" \
+            --customer='Operations Contract' \
+            --features=notes,tasks,files,messenger)"
+
+          case "$TOKEN" in
+            wo1.ops-test.*) ;;
+            *) echo 'Issuer did not emit a wo1 token'; exit 1 ;;
+          esac
+
+          PUBLIC_KEY="$PUBLIC_KEY" TOKEN="$TOKEN" INSTALLATION_ID="$INSTALLATION_ID" php -r '
+            require "app/services/LicenseVerifier.php";
+            $v = new App\Services\LicenseVerifier(["ops-test" => getenv("PUBLIC_KEY")]);
+            $s = $v->verify(getenv("TOKEN"), getenv("INSTALLATION_ID"));
+            if (!(bool)($s["valid"] ?? false)) {
+                fwrite(STDERR, "Round-trip verification failed: " . ($s["message"] ?? "unknown") . PHP_EOL);
+                exit(1);
+            }
+          '
+
+      - name: Prove customer package excludes vendor signing tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq -- "--exclude 'tools/vendor-license'" .github/workflows/hosting-package.yml
+          grep -Fq -- "--exclude '*.license-secret'" .github/workflows/hosting-package.yml
+          grep -Fq 'test ! -e "$ROOT/tools/vendor-license"' .github/workflows/hosting-package.yml
+          grep -Fq 'config/license_trusted_keys.php' .github/workflows/hosting-package.yml
+          grep -Fq '*.license-secret' .gitignore
+          ! grep -R -E --exclude='*.md' --exclude='*.yml' --exclude='*.yaml' 'prod-[0-9]{4}[^[:space:]]*=>[^[:space:]]*[A-Za-z0-9_-]{40,}' config app core

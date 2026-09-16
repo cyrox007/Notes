@@ -61,12 +61,17 @@ jobs:
             --exclude 'cache/*' \
             --exclude 'compile/*' \
             --exclude 'notes-private-storage' \
+            --exclude 'tools/vendor-license' \
+            --exclude '*.license-secret' \
+            --exclude 'workspace-license-*.secret' \
             --exclude '*.log'
           mkdir -p "$ROOT/cache" "$ROOT/compile"
           test ! -e "$ROOT/vendor"
+          test ! -e "$ROOT/tools/vendor-license"
           test -f "$ROOT/install.php"
           test -f "$ROOT/core/NativeViewRenderer.php"
           test -f "$ROOT/app/socket/NativeMessengerServer.php"
+          test -f "$ROOT/config/license_trusted_keys.php"
           test ! -e "$ROOT/.env"
           cd /tmp
           zip -qr "$GITHUB_WORKSPACE/$NAME.zip" "$NAME"
@@ -80,12 +85,17 @@ jobs:
           unzip -l "$BUNDLE" | grep -F 'install.php'
           unzip -l "$BUNDLE" | grep -F 'core/NativeViewRenderer.php'
           unzip -l "$BUNDLE" | grep -F 'app/socket/NativeMessengerServer.php'
+          unzip -l "$BUNDLE" | grep -F 'config/license_trusted_keys.php'
           if unzip -l "$BUNDLE" | grep -Eq '/vendor/'; then
             echo 'Vendor-free bundle must not contain vendor/'
             exit 1
           fi
           if unzip -l "$BUNDLE" | grep -Eq '/\.env$'; then
             echo 'Bundle must not contain .env'
+            exit 1
+          fi
+          if unzip -l "$BUNDLE" | grep -Eq '/tools/vendor-license/|\.license-secret$|workspace-license-[^/]*\.secret$'; then
+            echo 'Customer bundle must not contain vendor signing tools or private signing material'
             exit 1
           fi
 

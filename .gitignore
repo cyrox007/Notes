@@ -1,5 +1,7 @@
 /vendor
 .env
 *.log
+*.license-secret
+workspace-license-*.secret
 /compile/*
 /uploads/*
