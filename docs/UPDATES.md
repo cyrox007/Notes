@@ -174,6 +174,7 @@ Recommended production configuration:
 UPDATE_STAGING_PATH=/var/lib/notes/update-staging
 UPDATE_STATE_PATH=/var/lib/notes/update-state
 UPDATE_BACKUP_PATH=/var/lib/notes/update-backups
+UPDATE_RELEASE_PATH=/var/lib/notes/update-releases
 ```
 
 If explicit paths are omitted, updater components use safe subdirectories below `PRIVATE_STORAGE_PATH` where supported.
@@ -205,7 +206,7 @@ The early HTTP gate is intentional. Do not move maintenance enforcement exclusiv
 
 ## Transaction journal and verified rollback backup
 
-Before any future live-code switch or migration, an updater transaction must own maintenance mode and be bound to one already verified staged artifact. The journal is stored outside both the live application tree and MySQL under `UPDATE_STATE_PATH/transactions`.
+Before live-code switch or migrations, an updater transaction must own maintenance mode and be bound to one already verified staged artifact. The journal is stored outside both the live application tree and MySQL under `UPDATE_STATE_PATH/transactions`.
 
 The journal records immutable transaction identity:
 
@@ -215,9 +216,9 @@ The journal records immutable transaction identity:
 - verified stage directory;
 - transaction state/history;
 - whether any live mutation has started;
-- hashes and locations of rollback artifacts.
+- hashes and locations of rollback artifacts and the verified release candidate.
 
-The same transaction id cannot silently be rebound to another package or stage. Journal writes are serialized and atomically replaced.
+The same transaction id cannot silently be rebound to another package, stage, backup or candidate. Journal writes are serialized and atomically replaced.
 
 Create the rollback checkpoint only after the same transaction has entered maintenance:
 
@@ -236,47 +237,91 @@ Optional `--state-root` and `--backup-root` override `UPDATE_STATE_PATH` and `UP
 
 The top-level `backup.json`, code manifest and SQL dump are hash-verified. Repeating the same backup transaction is idempotent only while the existing artifacts still verify byte-for-byte.
 
-A successful backup checkpoint leaves maintenance active and journal state at `backup_verified` with `live_mutation_started=false`. This is deliberate: the backup is the final prerequisite before a future apply transaction. Until apply exists, release maintenance explicitly with the owning transaction id if this command is used operationally.
+A successful backup checkpoint leaves maintenance active and journal state at `backup_verified` with `live_mutation_started=false`.
+
+## Verified external release candidate
+
+The verified ZIP is never extracted into the live application tree. After `backup_verified`, build a release candidate outside the application root:
+
+```bash
+php bin/update_candidate.php \
+  --transaction=update-2026-001 \
+  --candidate-root=/var/lib/notes/update-releases
+```
+
+The command re-verifies the same transaction/staged signed package and extracts into an external candidate directory. Every extracted file is checked against ZIP CRC/size, unsupported filesystem entries are rejected, the target `core/Version.php` is validated and a `.workspace-release-tree.json` SHA-256 tree manifest is written. Candidate creation does not switch live code and does not run migrations.
+
+## Transactional live apply and automatic rollback
+
+Apply a previously verified candidate only while the same transaction still owns maintenance:
+
+```bash
+php bin/update_apply.php \
+  --transaction=update-2026-001 \
+  --candidate-dir=/var/lib/notes/update-releases/<candidate> \
+  --apply
+```
+
+Immediately before live mutation the command:
+
+1. re-verifies rollback backup and candidate tree;
+2. confirms the installed version still matches the checkpoint;
+3. runs pre-update `bin/healthcheck.php --json`;
+4. runs candidate `bin/migrate.php --dry-run` including migration checksum/schema validation;
+5. re-verifies backup/candidate again;
+6. records WebSocket running state;
+7. writes `preflight_verified`, then durably records `live_mutation_started=true`.
+
+The live tree is not overwritten file-by-file and the updater never unzips over it. Because the current installation is not a release-symlink layout, the updater prepares release-owned top-level entries in a private sibling directory on the same filesystem and activates them through controlled `rename()` operations. `.env` and configured mutable storage remain in place. Unsafe mutable paths nested under a release-owned top-level directory make apply fail before mutation.
+
+After code switch the updater runs migrations, live healthcheck, exact target-version verification and `bin/migrate.php --status`. If native WebSocket was running before apply, it is restarted and checked before the transaction reaches `committed`. Maintenance is removed only after the committed installation is verified.
+
+Any failure after `live_mutation_started` and before `committed` automatically restores code from the verified snapshot, restores MySQL from the verified consistent dump, verifies the exact pre-update version, healthcheck and migration status, and only then records `rollback_verified` and releases maintenance.
+
+If rollback cannot verify, journal state becomes `rollback_failed` where possible and maintenance stays active. Recovery artifacts are preserved.
+
+Crash/process-death recovery is explicit and phase-aware:
+
+```bash
+php bin/update_apply.php \
+  --transaction=update-2026-001 \
+  --recover
+```
+
+Recovery resumes from the durable journal (`rollback_started`, `code_restored`, `database_restored`, `rollback_failed`, `rollback_verified` or `committed`) rather than assuming the original PHP process survived. A failure to remove the maintenance marker after `committed` or `rollback_verified` never converts a verified terminal state into a destructive rollback.
+
+Detailed operator and state-machine guidance is in `docs/UPDATER_LIVE_APPLY.md`.
 
 ## Current updater boundary
 
-The updater currently provides:
+The local signed-update transaction now provides:
 
-- signed update verification;
-- compatibility and package hash validation;
+- signed update verification and trust-root separation;
+- compatibility/package hash validation;
 - non-extracting ZIP safety audit;
 - external immutable staging;
-- DB-independent maintenance ownership and recovery;
-- transaction journal tied to the signed staged artifact;
-- verified application-code snapshot;
-- verified, restorable MySQL rollback dump.
+- DB-independent maintenance ownership/recovery;
+- external transaction journal;
+- verified code + MySQL rollback checkpoint;
+- verified external release-candidate extraction/tree manifest;
+- pre-healthcheck and migration dry-run/checksum gate;
+- controlled live code switch while preserving installation/mutable state;
+- migration execution under the same transaction;
+- exact-version/post-health/schema verification;
+- WebSocket restart verification when the updater owns that lifecycle;
+- automatic code/MySQL rollback;
+- crash-resumable recovery with fail-closed maintenance.
 
 It still does **not**:
 
-- download remote files;
-- extract a ZIP into the live tree;
-- edit `.env`;
-- switch the active release;
-- run database migrations as part of update apply;
-- restart WebSocket/PHP services;
-- overwrite application code;
-- automatically restore a failed update;
-- delete a previous release.
+- fetch a remote update feed/manifest/package over the network;
+- provide an administrator update UI;
+- create the production license/update private keys (production key ceremony is intentionally still pending);
+- automatically delete old verified backup/candidate/scratch recovery artifacts;
+- replace an external process supervisor's own drain/restart policy;
+- eliminate the requirement for the final real Beta4 -> 1.0 upgrade/rollback release drill.
 
-The next live-apply layer is not considered safe until these remaining operations are implemented together:
-
-1. pre-update `bin/healthcheck.php`;
-2. migration `--dry-run` and checksum validation;
-3. traversal-safe extraction into a new external release directory;
-4. service drain and controlled/atomic code switch;
-5. `bin/migrate.php` under the same transaction journal;
-6. post-update `bin/healthcheck.php` and exact version verification;
-7. explicit code/database rollback command and operator guidance for non-reversible migrations;
-8. maintenance release only after success or completed rollback.
-
-The signed stage, maintenance barrier and verified backups are prerequisites; none of them authorize direct mutation of the current live tree by themselves.
-
-Do not add a direct “unzip over live” path as a shortcut.
+Those remaining items are release-delivery/operations work. They must not weaken the local signed transaction or introduce a direct “unzip over live” shortcut.
 
 ## Key rotation
 
