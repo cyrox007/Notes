@@ -48,6 +48,7 @@ jobs:
           set -euo pipefail
           php -l core/UpdateTransactionStateMachine.php
           php -l core/UpdateLiveApplier.php
+          php -l core/UpdateApplyCommand.php
           php -l bin/update_apply.php
           php -l tests/integration/updater_live_apply_contract.php
 
@@ -90,13 +91,17 @@ jobs:
         run: |
           set -euo pipefail
           php bin/update_apply.php --help | grep -Fq 'transactional live updater'
-          grep -Fq "markLiveMutationStarted" bin/update_apply.php
-          grep -Fq "markRollbackFailed" bin/update_apply.php
-          grep -Fq "maintenance->leave" bin/update_apply.php
-          grep -Fq "--dry-run" bin/update_apply.php
-          grep -Fq "--status" bin/update_apply.php
-          grep -Fq "restart', '-d'" bin/update_apply.php
-          grep -Fq "PRESERVED_ROOTS" core/UpdateLiveApplier.php
-          grep -Fq "DROP TABLE IF EXISTS" core/UpdateLiveApplier.php
-          grep -Fq "rollback_failed" core/UpdateTransactionStateMachine.php
+          grep -Fq 'UpdateApplyCommand' bin/update_apply.php
+          grep -Fq 'markLiveMutationStarted' core/UpdateApplyCommand.php
+          grep -Fq 'markRollbackFailed' core/UpdateApplyCommand.php
+          grep -Fq "state === 'code_restored'" core/UpdateApplyCommand.php
+          grep -Fq "state !== 'database_restored'" core/UpdateApplyCommand.php
+          grep -Fq 'maintenance_release_failed' core/UpdateApplyCommand.php
+          grep -Fq -- "'--dry-run'" core/UpdateApplyCommand.php
+          grep -Fq -- "'--status'" core/UpdateApplyCommand.php
+          grep -Fq "'restart', '-d'" core/UpdateApplyCommand.php
+          grep -Fq 'PRESERVED_ROOTS' core/UpdateLiveApplier.php
+          grep -Fq 'DROP TABLE IF EXISTS' core/UpdateLiveApplier.php
+          grep -Fq 'rollback_failed' core/UpdateTransactionStateMachine.php
           ! grep -Fq 'unzip ' bin/update_apply.php
+          ! grep -Fq 'unzip ' core/UpdateApplyCommand.php
