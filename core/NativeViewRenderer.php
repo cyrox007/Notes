@@ -108,6 +108,32 @@ final class NativeViewRenderer implements ViewRenderer
         return $this->context->route($name, $params);
     }
 
+    public function moduleAsset(string $moduleId, string $asset): string
+    {
+        if (
+            preg_match('/^[a-z][a-z0-9_.-]{1,63}$/D', $moduleId) !== 1
+            || $asset === ''
+            || str_starts_with($asset, '/')
+            || str_contains($asset, '..')
+            || str_contains($asset, '\\')
+            || preg_match('/^[A-Za-z0-9_.\/-]+$/D', $asset) !== 1
+        ) {
+            throw new RuntimeException('Invalid isolated module asset reference.');
+        }
+
+        $route = $this->route('module_asset');
+        if ($route === '') {
+            throw new RuntimeException('Module asset route is unavailable.');
+        }
+
+        return $route . '?' . http_build_query(
+            ['module' => $moduleId, 'file' => $asset],
+            '',
+            '&',
+            PHP_QUERY_RFC3986,
+        );
+    }
+
     public function csrfInput(): string
     {
         return $this->context->csrfInput();
