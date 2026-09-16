@@ -51,10 +51,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ROOT="/tmp/wo-maintenance-cli-${{ matrix.php }}"
+          PHP_TAG="${{ matrix.php }}"
+          PHP_TAG="${PHP_TAG//./_}"
+          ROOT="/tmp/wo-maintenance-cli-${PHP_TAG}"
           rm -rf "$ROOT"
           mkdir -m 700 -p "$ROOT"
-          TX="ci-update-${{ matrix.php }}-001"
+          TX="ci-update-${PHP_TAG}-001"
 
           php bin/maintenance.php --action=status --state-root="$ROOT" --json > /tmp/maintenance-status.json
           php -r '$j=json_decode(file_get_contents($argv[1]),true,32,JSON_THROW_ON_ERROR); if(($j["maintenance"]["active"]??true)!==false) exit(1);' /tmp/maintenance-status.json
@@ -79,7 +81,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          HTTP_ROOT="/tmp/wo-maintenance-http-${{ matrix.php }}"
+          PHP_TAG="${{ matrix.php }}"
+          PHP_TAG="${PHP_TAG//./_}"
+          HTTP_ROOT="/tmp/wo-maintenance-http-${PHP_TAG}"
           STATE_ROOT="$HTTP_ROOT/state"
           PRIVATE_ROOT="$HTTP_ROOT/private"
           rm -rf "$HTTP_ROOT"
@@ -96,10 +100,10 @@ jobs:
           BASE_PATH=/
           EOF
 
-          TX="http-update-${{ matrix.php }}-001"
+          TX="http-update-${PHP_TAG}-001"
           php bin/maintenance.php --action=enter --transaction="$TX" --reason='HTTP maintenance contract' --state-root="$STATE_ROOT"
 
-          PORT=$((18700 + ${{ matrix.php == '8.3' && 3 || 1 }}))
+          PORT=18701
           php -S "127.0.0.1:$PORT" index.php >"$HTTP_ROOT/server.log" 2>&1 &
           SERVER_PID=$!
           trap 'kill "$SERVER_PID" 2>/dev/null || true; rm -f .env; rm -rf "$HTTP_ROOT"' EXIT
