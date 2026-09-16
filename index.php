@@ -135,3 +135,4 @@ $router->addGlobalMiddleware(\App\Middlewares\EnforceMaintenanceMode::class);
 $router->add('GET', '/module-assets', [\Core\ModuleAssetController::class, 'serve'], [], 'module_asset');
 require_once SITEPATH . '/core/routerConfig.php';
 \Core\ModuleRuntimeLoader::getInstance()->registerRoutes($router);
+$router->dispatch();
