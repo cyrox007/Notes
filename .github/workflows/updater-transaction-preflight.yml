@@ -1,0 +1,139 @@
+name: 1.0 updater transaction preflight
+
+on:
+  pull_request:
+    branches: [master, '1.0']
+  push:
+    branches: ['1.0-updater-transaction-preflight']
+
+permissions:
+  contents: read
+
+jobs:
+  updater-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      matrix:
+        php: ['8.1', '8.3']
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, sodium
+          coverage: none
+
+      - name: Lint updater preflight boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            app/services/MaintenanceModeService.php \
+            app/services/LicenseRuntimePolicy.php \
+            app/middlewares/EnforceMaintenanceMode.php \
+            core/UpdateArchiveInspector.php \
+            bin/maintenance.php \
+            bin/update.php \
+            index.php \
+            tests/integration/updater_transaction_preflight_contract.php; do
+            php -l "$file"
+          done
+
+      - name: Verify maintenance and malicious ZIP contracts
+        run: php tests/integration/updater_transaction_preflight_contract.php
+
+      - name: Verify maintenance CLI ownership and recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="/tmp/wo-maintenance-cli-${{ matrix.php }}"
+          rm -rf "$ROOT"
+          mkdir -m 700 -p "$ROOT"
+          TX="ci-update-${{ matrix.php }}-001"
+
+          php bin/maintenance.php --action=status --state-root="$ROOT" --json > /tmp/maintenance-status.json
+          php -r '$j=json_decode(file_get_contents($argv[1]),true,32,JSON_THROW_ON_ERROR); if(($j["maintenance"]["active"]??true)!==false) exit(1);' /tmp/maintenance-status.json
+
+          php bin/maintenance.php --action=enter --transaction="$TX" --reason='CI update preflight' --state-root="$ROOT" --json > /tmp/maintenance-enter.json
+          php -r '$j=json_decode(file_get_contents($argv[1]),true,32,JSON_THROW_ON_ERROR); if(($j["maintenance"]["transaction_id"]??"")!==$argv[2]) exit(1);' /tmp/maintenance-enter.json "$TX"
+
+          if php bin/maintenance.php --action=leave --transaction=wrong-owner --state-root="$ROOT" >/tmp/maintenance-wrong.out 2>&1; then
+            echo 'wrong maintenance owner unexpectedly released marker'
+            exit 1
+          fi
+          grep -Fq 'another transaction' /tmp/maintenance-wrong.out
+
+          printf '{broken\n' > "$ROOT/workspace-maintenance.json"
+          php bin/maintenance.php --action=status --state-root="$ROOT" --json > /tmp/maintenance-corrupt.json
+          php -r '$j=json_decode(file_get_contents($argv[1]),true,32,JSON_THROW_ON_ERROR); if(($j["maintenance"]["active"]??false)!==true || ($j["maintenance"]["valid"]??true)!==false) exit(1);' /tmp/maintenance-corrupt.json
+          php bin/maintenance.php --action=leave --force --state-root="$ROOT"
+          test ! -e "$ROOT/workspace-maintenance.json"
+          rm -rf "$ROOT"
+
+      - name: Prove HTTP maintenance precedes database bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          HTTP_ROOT="/tmp/wo-maintenance-http-${{ matrix.php }}"
+          STATE_ROOT="$HTTP_ROOT/state"
+          PRIVATE_ROOT="$HTTP_ROOT/private"
+          rm -rf "$HTTP_ROOT"
+          mkdir -m 700 -p "$STATE_ROOT" "$PRIVATE_ROOT"
+
+          cat > .env <<EOF
+          UPDATE_STATE_PATH=$STATE_ROOT
+          PRIVATE_STORAGE_PATH=$PRIVATE_ROOT
+          DBHOST=127.0.0.1
+          DBPORT=1
+          DBUSER=definitely-invalid
+          DBPASS=definitely-invalid
+          DBNAME=definitely-invalid
+          BASE_PATH=/
+          EOF
+
+          TX="http-update-${{ matrix.php }}-001"
+          php bin/maintenance.php --action=enter --transaction="$TX" --reason='HTTP maintenance contract' --state-root="$STATE_ROOT"
+
+          PORT=$((18700 + ${{ matrix.php == '8.3' && 3 || 1 }}))
+          php -S "127.0.0.1:$PORT" index.php >"$HTTP_ROOT/server.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true; rm -f .env; rm -rf "$HTTP_ROOT"' EXIT
+
+          for i in $(seq 1 30); do
+            if curl -sS -o /dev/null "http://127.0.0.1:$PORT/"; then
+              break
+            fi
+            sleep 0.2
+          done
+
+          CODE="$(curl -sS -o "$HTTP_ROOT/body.html" -D "$HTTP_ROOT/headers.txt" -w '%{http_code}' "http://127.0.0.1:$PORT/")"
+          test "$CODE" = '503'
+          grep -Fq 'Retry-After: 60' "$HTTP_ROOT/headers.txt"
+          grep -Fq 'Техническое обслуживание' "$HTTP_ROOT/body.html"
+          ! grep -Eq 'mysqli|SQLSTATE|Connection refused|Database' "$HTTP_ROOT/body.html"
+
+          printf '{broken\n' > "$STATE_ROOT/workspace-maintenance.json"
+          CODE="$(curl -sS -o "$HTTP_ROOT/corrupt.html" -w '%{http_code}' "http://127.0.0.1:$PORT/")"
+          test "$CODE" = '503'
+          grep -Fq 'Техническое обслуживание' "$HTTP_ROOT/corrupt.html"
+
+          kill "$SERVER_PID"
+          wait "$SERVER_PID" || true
+          rm -f .env
+          rm -rf "$HTTP_ROOT"
+          trap - EXIT
+
+      - name: Verify live apply is still absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -Fq -- '--apply' bin/update.php
+          ! grep -Fq 'extractTo(' bin/update.php
+          ! grep -Fq 'ZipArchive' core/UpdateArchiveInspector.php
+          grep -Fq 'UpdateArchiveInspector' bin/update.php
+          grep -Fq "require_once SITEPATH . '/core.php'" index.php
