@@ -1,0 +1,71 @@
+name: 1.0 module isolation gate
+
+on:
+  pull_request:
+    branches: ['1.0']
+    paths:
+      - 'core/ModuleManifest.php'
+      - 'core/ModuleRegistry.php'
+      - 'core/ModuleRuntimeProvider.php'
+      - 'core/ModuleCapabilityRegistry.php'
+      - 'core/ModuleRuntimeLoader.php'
+      - 'core.php'
+      - 'index.php'
+      - 'modules/**'
+      - 'tests/integration/module_registry_contract.php'
+      - '.github/workflows/module-isolation-release-gate.yml'
+  push:
+    branches: ['1.0']
+    paths:
+      - 'core/ModuleManifest.php'
+      - 'core/ModuleRegistry.php'
+      - 'core/ModuleRuntimeProvider.php'
+      - 'core/ModuleCapabilityRegistry.php'
+      - 'core/ModuleRuntimeLoader.php'
+      - 'core.php'
+      - 'index.php'
+      - 'modules/**'
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-boundary:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.1', '8.3']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - name: Lint module runtime boundary
+        run: |
+          php -l core/ModuleManifest.php
+          php -l core/ModuleRuntimeProvider.php
+          php -l core/ModuleCapabilityRegistry.php
+          php -l core/ModuleRuntimeLoader.php
+          php -l core/ModuleRegistry.php
+          php -l core.php
+          php -l index.php
+          php -l tests/integration/module_registry_contract.php
+      - name: Verify isolated runtime and capability contract
+        run: php tests/integration/module_registry_contract.php
+      - name: Track remaining legacy bundled modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          legacy=0
+          for manifest in modules/*/module.json; do
+            mode="$(php -r '$j=json_decode(file_get_contents($argv[1]), true, 32, JSON_THROW_ON_ERROR); echo $j["runtime"]["mode"] ?? "";' "$manifest")"
+            if [[ "$mode" == 'legacy' ]]; then
+              echo "LEGACY: $manifest"
+              legacy=$((legacy + 1))
+            fi
+          done
+          # Foundation phase documents the debt but does not pretend it is solved.
+          # This ceiling is tightened by each module migration and becomes zero
+          # before the final 1.0 release tag.
+          test "$legacy" -le 6

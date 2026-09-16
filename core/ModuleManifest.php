@@ -27,6 +27,7 @@ final class ModuleManifest
         private readonly bool $defaultEnabled,
         private readonly ?string $licenseFeature,
         private readonly string $runtimeMode,
+        private readonly ?string $runtimeEntrypoint,
         private readonly array $storageNamespaces,
         private readonly string $manifestPath,
         private readonly string $integrityHash,
@@ -112,6 +113,7 @@ final class ModuleManifest
         if (!is_string($runtimeMode) || !in_array($runtimeMode, ['legacy', 'isolated'], true)) {
             throw new RuntimeException("Module {$id} runtime mode must be legacy or isolated");
         }
+        $runtimeEntrypoint = self::parseRuntimeEntrypoint($runtime, $id, $runtimeMode);
 
         $storageNamespaces = self::identifierList($data['storage_namespaces'] ?? [], "{$id}.storage_namespaces");
 
@@ -127,6 +129,7 @@ final class ModuleManifest
             $defaultEnabled,
             $licenseFeature,
             $runtimeMode,
+            $runtimeEntrypoint,
             $storageNamespaces,
             $manifestPath,
             hash('sha256', $raw),
@@ -196,6 +199,11 @@ final class ModuleManifest
         return $this->runtimeMode;
     }
 
+    public function runtimeEntrypoint(): ?string
+    {
+        return $this->runtimeEntrypoint;
+    }
+
     /** @return list<string> */
     public function storageNamespaces(): array
     {
@@ -210,6 +218,32 @@ final class ModuleManifest
     public function integrityHash(): string
     {
         return $this->integrityHash;
+    }
+
+    private static function parseRuntimeEntrypoint(array $runtime, string $moduleId, string $mode): ?string
+    {
+        $value = $runtime['entrypoint'] ?? null;
+        if ($mode === 'legacy') {
+            if ($value !== null) {
+                throw new RuntimeException("Legacy module {$moduleId} must not declare an isolated runtime entrypoint");
+            }
+            return null;
+        }
+
+        if (!is_string($value)) {
+            throw new RuntimeException("Isolated module {$moduleId} must declare runtime.entrypoint");
+        }
+        $value = trim($value);
+        if (
+            $value === ''
+            || str_starts_with($value, '/')
+            || str_contains($value, '..')
+            || str_contains($value, '\\')
+            || preg_match('/^[A-Za-z0-9_.\/-]+\.php$/D', $value) !== 1
+        ) {
+            throw new RuntimeException("Isolated module {$moduleId} has an invalid runtime.entrypoint");
+        }
+        return $value;
     }
 
     private static function requireIdentifier(array $data, string $key): string
