@@ -3,7 +3,7 @@
   "id": "notes",
   "name": "Notes",
   "version": "0.13.0",
-  "core": {"min": "0.13.0-alpha", "max_exclusive": "0.15.0"},
+  "core": {"min": "0.13.0-alpha", "max_exclusive": "2.0.0"},
   "dependencies": [],
   "capabilities": ["workspace.notes"],
   "package": {"bundled": true, "default_enabled": true},
