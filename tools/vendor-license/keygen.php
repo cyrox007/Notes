@@ -8,7 +8,7 @@ vendorLicenseRequireCli();
 
 $options = getopt('', ['key-id:', 'private-out:', 'help']);
 if (isset($options['help'])) {
-    fwrite(STDOUT, "Usage: php tools/vendor-license/keygen.php --key-id=prod-YYYY-NN --private-out=/secure/offline/path/key.secret\n");
+    fwrite(STDOUT, "Usage: php tools/vendor-license/keygen.php --key-id=prod-YYYY-NN --private-out=/secure/offline/path/key.license-secret\n");
     fwrite(STDOUT, "Generates an Ed25519 keypair. The private key is written only to the explicit external path; the public registry entry is printed to stdout.\n");
     exit(0);
 }
@@ -25,29 +25,29 @@ $secretKey = sodium_crypto_sign_secretkey($keyPair);
 $encodedPublic = vendorLicenseBase64UrlEncode($publicKey);
 $encodedSecret = vendorLicenseBase64UrlEncode($secretKey);
 $privatePayload = WORKSPACE_LICENSE_SECRET_PREFIX . $encodedSecret . PHP_EOL;
-
+$error = null;
 $handle = @fopen($privateOut, 'x');
 if ($handle === false) {
-    sodium_memzero($secretKey);
-    sodium_memzero($keyPair);
-    vendorLicenseFail('Unable to create private key file with exclusive-create semantics.');
+    $error = 'Unable to create private key file with exclusive-create semantics.';
+} else {
+    try {
+        $written = fwrite($handle, $privatePayload);
+        if ($written !== strlen($privatePayload) || !fflush($handle)) {
+            $error = 'Unable to write the complete private key file.';
+        }
+    } finally {
+        fclose($handle);
+    }
 }
 
-$ok = false;
-try {
-    if (fwrite($handle, $privatePayload) !== strlen($privatePayload) || !fflush($handle)) {
-        vendorLicenseFail('Unable to write the complete private key file.');
-    }
-    $ok = true;
-} finally {
-    fclose($handle);
-    if (!$ok) {
-        @unlink($privateOut);
-    }
-    sodium_memzero($secretKey);
-    sodium_memzero($keyPair);
-    sodium_memzero($encodedSecret);
-    sodium_memzero($privatePayload);
+sodium_memzero($secretKey);
+sodium_memzero($keyPair);
+sodium_memzero($encodedSecret);
+sodium_memzero($privatePayload);
+
+if ($error !== null) {
+    @unlink($privateOut);
+    vendorLicenseFail($error);
 }
 
 if (PHP_OS_FAMILY !== 'Windows' && !@chmod($privateOut, 0600)) {
