@@ -32,9 +32,6 @@ use Core\UpdateManifestVerifier;
 use Core\UpdatePackageStager;
 use Core\UpdateReleaseCandidate;
 use Core\UpdateTransactionJournal;
-use mysqli;
-use RuntimeException;
-use Throwable;
 
 $options = getopt('', [
     'app-root:',
@@ -173,18 +170,18 @@ function bootstrapTransactionId(string $value): string
     return $value;
 }
 
-function bootstrapDatabase(): mysqli
+function bootstrapDatabase(): \mysqli
 {
     if (!extension_loaded('mysqli')) {
-        throw new RuntimeException('PHP mysqli extension is required for updater bootstrap');
+        throw new \RuntimeException('PHP mysqli extension is required for updater bootstrap');
     }
     $user = getenv('DBUSER');
     $name = getenv('DBNAME');
     if (!is_string($user) || trim($user) === '' || !is_string($name) || trim($name) === '') {
-        throw new RuntimeException('Database environment is incomplete');
+        throw new \RuntimeException('Database environment is incomplete');
     }
-    mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
-    $db = new mysqli(
+    \mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+    $db = new \mysqli(
         (string) (getenv('DBHOST') ?: 'localhost'),
         trim($user),
         (string) (getenv('DBPASS') ?: ''),
@@ -241,12 +238,52 @@ function bootstrapPrint(array $result): void
     echo 'Maintenance: ' . (!empty($result['maintenance_active']) ? 'ACTIVE' : 'released') . PHP_EOL;
 }
 
+/**
+ * Release only this bootstrap transaction's valid maintenance marker while the
+ * durable journal still proves that live mutation has not started. Any invalid
+ * marker/journal state fails closed and is left for explicit operator recovery.
+ */
+function bootstrapReleasePreLiveMaintenance(
+    ?MaintenanceModeService $maintenance,
+    ?UpdateTransactionJournal $journal,
+    string $transactionId,
+    bool &$maintenanceOwned
+): void {
+    if (!$maintenanceOwned || !$maintenance instanceof MaintenanceModeService) {
+        return;
+    }
+
+    try {
+        $maintenanceState = $maintenance->state();
+        if (!$maintenanceState['active']) {
+            $maintenanceOwned = false;
+            return;
+        }
+        if (!$maintenanceState['valid'] || !hash_equals($transactionId, (string) $maintenanceState['transaction_id'])) {
+            return;
+        }
+
+        if ($journal instanceof UpdateTransactionJournal) {
+            $journalState = $journal->load($transactionId);
+            if (($journalState['live_mutation_started'] ?? true) !== false) {
+                return;
+            }
+        }
+
+        $maintenance->leave($transactionId);
+        $maintenanceOwned = false;
+    } catch (\Throwable) {
+        // Fail closed: never turn an uncertain pre-live state into an implicit
+        // maintenance release. The external journal/marker remain inspectable.
+    }
+}
+
 $appRoot = bootstrapAppRoot((string) ($options['app-root'] ?? ''), $runnerRoot);
 $transactionId = bootstrapTransactionId((string) ($options['transaction'] ?? ''));
 
 try {
     Environment::load($appRoot . '/.env');
-} catch (Throwable $e) {
+} catch (\Throwable $e) {
     bootstrapFail('Cannot load live installation environment: ' . $e->getMessage(), 'environment_failed', 2);
 }
 
@@ -265,7 +302,7 @@ if (isset($options['recover'])) {
         exit(0);
     } catch (UpdateApplyException $e) {
         bootstrapFail($e->getMessage(), $e->errorCode, $e->exitCode, $e->details);
-    } catch (Throwable $e) {
+    } catch (\Throwable $e) {
         bootstrapFail($e->getMessage());
     }
 }
@@ -330,13 +367,13 @@ $maintenanceOwned = false;
 try {
     $verifier = new UpdateManifestVerifier();
     if (!$verifier->hasTrustedKeys()) {
-        throw new RuntimeException(
+        throw new \RuntimeException(
             'No trusted update public keys are configured in the external bootstrap runner'
         );
     }
     $verification = $verifier->verify($manifestBytes, $signatureToken);
     if (!($verification['valid'] ?? false) || !is_array($verification['manifest'] ?? null)) {
-        throw new RuntimeException((string) ($verification['message'] ?? 'Update manifest verification failed'));
+        throw new \RuntimeException((string) ($verification['message'] ?? 'Update manifest verification failed'));
     }
     $manifest = $verification['manifest'];
 
@@ -387,25 +424,25 @@ try {
     $stageManifestBytes = file_get_contents($stageManifestPath);
     $stageSignatureToken = file_get_contents($stageSignaturePath);
     if (!is_string($stageManifestBytes) || !is_string($stageSignatureToken)) {
-        throw new RuntimeException('Verified stage metadata became unreadable after rollback checkpoint');
+        throw new \RuntimeException('Verified stage metadata became unreadable after rollback checkpoint');
     }
     $stageVerification = $verifier->verify($stageManifestBytes, trim($stageSignatureToken));
     if (!($stageVerification['valid'] ?? false) || !is_array($stageVerification['manifest'] ?? null)) {
-        throw new RuntimeException('Verified stage signature no longer validates');
+        throw new \RuntimeException('Verified stage signature no longer validates');
     }
     $stageManifest = $stageVerification['manifest'];
     if (
         (int) $stageManifest['version_code'] !== (int) $manifest['version_code']
         || !hash_equals((string) $stageManifest['package']['sha256'], $package['sha256'])
     ) {
-        throw new RuntimeException('Verified stage no longer matches the signed bootstrap release');
+        throw new \RuntimeException('Verified stage no longer matches the signed bootstrap release');
     }
     $stagedPackagePath = $staged['stage_dir'] . '/' . (string) $stageManifest['package']['filename'];
     $stager->assertCompatibility($stageManifest, $sourceVersionCode, PHP_VERSION);
     $stagedPackage = $stager->verifyPackage($stageManifest, $stagedPackagePath);
     (new UpdateArchiveInspector())->inspect($stagedPackagePath);
     if (!hash_equals($package['sha256'], $stagedPackage['sha256'])) {
-        throw new RuntimeException('Staged package hash changed after rollback checkpoint');
+        throw new \RuntimeException('Staged package hash changed after rollback checkpoint');
     }
 
     $candidate = (new UpdateReleaseCandidate($appRoot))->extract(
@@ -438,24 +475,15 @@ try {
         'maintenance_active' => (bool) ($applyResult['maintenance_active'] ?? false),
     ]);
 } catch (UpdateApplyException $e) {
-    bootstrapFail($e->getMessage(), $e->errorCode, $e->exitCode, $e->details);
-} catch (Throwable $e) {
-    if ($maintenanceOwned && $maintenance instanceof MaintenanceModeService) {
-        try {
-            $liveMutationStarted = false;
-            if ($journal instanceof UpdateTransactionJournal) {
-                $journalState = $journal->load($transactionId);
-                $liveMutationStarted = ($journalState['live_mutation_started'] ?? false) === true;
-            }
-            if (!$liveMutationStarted) {
-                $maintenance->leave($transactionId);
-                $maintenanceOwned = false;
-            }
-        } catch (Throwable) {
-            // Fail closed. An operator can inspect/recover the external state;
-            // never hide the original bootstrap error by forcing maintenance off.
-        }
-    }
+    bootstrapReleasePreLiveMaintenance($maintenance, $journal, $transactionId, $maintenanceOwned);
+    bootstrapFail(
+        $e->getMessage(),
+        $e->errorCode,
+        $e->exitCode,
+        array_merge($e->details, ['maintenance_active' => $maintenanceOwned])
+    );
+} catch (\Throwable $e) {
+    bootstrapReleasePreLiveMaintenance($maintenance, $journal, $transactionId, $maintenanceOwned);
     bootstrapFail(
         $e->getMessage(),
         'bootstrap_failed',
