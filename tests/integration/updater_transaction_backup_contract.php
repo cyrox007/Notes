@@ -129,6 +129,17 @@ try {
     $verifiedAgain = $manager->create($transactionId, $db);
     backupAssert($verifiedAgain['manifest_sha256'] === $backups['manifest_sha256'], 'repeat backup was not idempotent');
 
+    $forgedBackups = $backups;
+    $forgedBackups['manifest_sha256'] = str_repeat('0', 64);
+    $forgedHashRejected = false;
+    try {
+        $journal->recordBackups($transactionId, $forgedBackups);
+    } catch (Throwable $e) {
+        $forgedHashRejected = str_contains($e->getMessage(), 'SHA-256 mismatch');
+    }
+    backupAssert($forgedHashRejected, 'journal accepted forged backup manifest SHA-256');
+    backupAssert(($journal->load($transactionId)['state'] ?? '') === 'initialized', 'forged backup metadata changed journal state');
+
     $journalState = $journal->recordBackups($transactionId, $backups);
     backupAssert(($journalState['state'] ?? '') === 'backup_verified', 'journal did not record verified backup state');
     backupAssert(($journalState['live_mutation_started'] ?? true) === false, 'backup checkpoint incorrectly marks live mutation started');
