@@ -7,7 +7,7 @@ namespace Core;
 use RuntimeException;
 
 /**
- * Read-only ZIP central-directory auditor for update packages.
+ * Read-only ZIP auditor for update packages.
  *
  * No archive entry is extracted here. The intentionally narrow subset keeps the
  * updater independent from ext-zip while rejecting archive constructs that make
@@ -22,6 +22,7 @@ final class UpdateArchiveInspector
     private const MAX_FILENAME_BYTES = 4096;
     private const EOCD_MIN_BYTES = 22;
     private const EOCD_MAX_SEARCH_BYTES = 65557; // 22 + max ZIP comment
+    private const MAX_ENTRY_METADATA_BYTES = 1_048_576;
 
     /**
      * @return array{entries:int,files:int,directories:int,total_uncompressed:int,total_compressed:int}
@@ -90,7 +91,9 @@ final class UpdateArchiveInspector
                 throw new RuntimeException('Unable to seek ZIP central directory');
             }
 
-            $seen = [];
+            $seenPaths = [];
+            $seenOffsets = [];
+            $ranges = [];
             $fileCount = 0;
             $directoryCount = 0;
             $totalUncompressed = 0;
@@ -116,28 +119,39 @@ final class UpdateArchiveInspector
                 if ($nameLength < 1 || $nameLength > self::MAX_FILENAME_BYTES) {
                     throw new RuntimeException('ZIP entry filename length is invalid');
                 }
-
-                $name = fread($handle, $nameLength);
-                if (!is_string($name) || strlen($name) !== $nameLength) {
-                    throw new RuntimeException('ZIP entry filename is truncated');
-                }
-                if ($extraLength + $entryCommentLength > 1_048_576) {
+                if ($extraLength + $entryCommentLength > self::MAX_ENTRY_METADATA_BYTES) {
                     throw new RuntimeException('ZIP entry metadata is unreasonably large');
                 }
-                if (fseek($handle, $extraLength + $entryCommentLength, SEEK_CUR) !== 0) {
-                    throw new RuntimeException('Unable to skip ZIP entry metadata');
+
+                $name = fread($handle, $nameLength);
+                $extra = fread($handle, $extraLength);
+                $comment = fread($handle, $entryCommentLength);
+                if (!is_string($name) || strlen($name) !== $nameLength
+                    || !is_string($extra) || strlen($extra) !== $extraLength
+                    || !is_string($comment) || strlen($comment) !== $entryCommentLength) {
+                    throw new RuntimeException('ZIP central-directory entry metadata is truncated');
+                }
+                $nextCentralPosition = ftell($handle);
+                if (!is_int($nextCentralPosition)) {
+                    throw new RuntimeException('Unable to track ZIP central-directory position');
+                }
+                if ($this->containsZip64Extra($extra)) {
+                    throw new RuntimeException('ZIP64 entry metadata is not supported: ' . $name);
                 }
 
                 $this->assertSafePath($name);
                 $canonical = mb_strtolower(rtrim($name, '/'), 'UTF-8');
-                if (isset($seen[$canonical])) {
+                if (isset($seenPaths[$canonical])) {
                     throw new RuntimeException('ZIP contains duplicate/case-colliding path: ' . $name);
                 }
-                $seen[$canonical] = true;
+                $seenPaths[$canonical] = true;
 
                 $flags = (int) $entry['flags'];
                 if (($flags & 0x0001) !== 0 || ($flags & 0x0040) !== 0) {
                     throw new RuntimeException('Encrypted ZIP entries are not supported: ' . $name);
+                }
+                if (($flags & 0x0008) !== 0) {
+                    throw new RuntimeException('ZIP data-descriptor entries are not supported: ' . $name);
                 }
                 $method = (int) $entry['method'];
                 if (!in_array($method, [0, 8], true)) {
@@ -156,12 +170,16 @@ final class UpdateArchiveInspector
                 if ($compressed < 0 || $uncompressed < 0 || $localOffset < 0 || $localOffset + 30 > $centralOffset) {
                     throw new RuntimeException('ZIP entry boundaries are invalid: ' . $name);
                 }
+                if (isset($seenOffsets[$localOffset])) {
+                    throw new RuntimeException('ZIP entries reuse the same local header offset: ' . $name);
+                }
+                $seenOffsets[$localOffset] = true;
 
                 $isDirectory = str_ends_with($name, '/');
                 $this->assertSafeUnixType((int) $entry['version_made'], (int) $entry['external'], $name, $isDirectory);
 
                 if ($isDirectory) {
-                    if ($uncompressed !== 0) {
+                    if ($uncompressed !== 0 || $compressed !== 0) {
                         throw new RuntimeException('ZIP directory entry has unexpected content: ' . $name);
                     }
                     $directoryCount++;
@@ -178,6 +196,20 @@ final class UpdateArchiveInspector
                     $fileCount++;
                 }
 
+                $range = $this->verifyLocalHeader(
+                    $handle,
+                    $entry,
+                    $name,
+                    $localOffset,
+                    $compressed,
+                    $uncompressed,
+                    $centralOffset
+                );
+                $ranges[] = $range;
+                if (fseek($handle, $nextCentralPosition, SEEK_SET) !== 0) {
+                    throw new RuntimeException('Unable to return to ZIP central directory');
+                }
+
                 $totalUncompressed += $uncompressed;
                 $totalCompressed += $compressed;
                 if ($totalUncompressed > self::MAX_TOTAL_UNCOMPRESSED_BYTES) {
@@ -190,6 +222,15 @@ final class UpdateArchiveInspector
                 throw new RuntimeException('ZIP central-directory size does not match parsed entries');
             }
 
+            usort($ranges, static fn (array $a, array $b): int => $a['start'] <=> $b['start']);
+            $previousEnd = 0;
+            foreach ($ranges as $range) {
+                if ($range['start'] < $previousEnd) {
+                    throw new RuntimeException('ZIP local entry regions overlap');
+                }
+                $previousEnd = $range['end'];
+            }
+
             return [
                 'entries' => $entries,
                 'files' => $fileCount,
@@ -200,6 +241,96 @@ final class UpdateArchiveInspector
         } finally {
             fclose($handle);
         }
+    }
+
+    /**
+     * @param array<string,int> $central
+     * @return array{start:int,end:int}
+     */
+    private function verifyLocalHeader(
+        $handle,
+        array $central,
+        string $centralName,
+        int $localOffset,
+        int $compressed,
+        int $uncompressed,
+        int $centralOffset
+    ): array {
+        if (fseek($handle, $localOffset, SEEK_SET) !== 0) {
+            throw new RuntimeException('Unable to seek ZIP local header: ' . $centralName);
+        }
+        $fixed = fread($handle, 30);
+        if (!is_string($fixed) || strlen($fixed) !== 30 || substr($fixed, 0, 4) !== "PK\x03\x04") {
+            throw new RuntimeException('ZIP local header is missing or invalid: ' . $centralName);
+        }
+        $local = unpack(
+            'vversion_needed/vflags/vmethod/vmtime/vmdate/Vcrc/Vcompressed/Vuncompressed/vname_length/vextra_length',
+            substr($fixed, 4)
+        );
+        if (!is_array($local)) {
+            throw new RuntimeException('ZIP local header cannot be decoded: ' . $centralName);
+        }
+
+        $localNameLength = (int) $local['name_length'];
+        $localExtraLength = (int) $local['extra_length'];
+        if ($localNameLength < 1 || $localNameLength > self::MAX_FILENAME_BYTES
+            || $localExtraLength > self::MAX_ENTRY_METADATA_BYTES) {
+            throw new RuntimeException('ZIP local header metadata is invalid: ' . $centralName);
+        }
+        $localName = fread($handle, $localNameLength);
+        $localExtra = fread($handle, $localExtraLength);
+        if (!is_string($localName) || strlen($localName) !== $localNameLength
+            || !is_string($localExtra) || strlen($localExtra) !== $localExtraLength) {
+            throw new RuntimeException('ZIP local header metadata is truncated: ' . $centralName);
+        }
+        if (!hash_equals($centralName, $localName)) {
+            throw new RuntimeException('ZIP local/central entry names differ: ' . $centralName);
+        }
+        if ($this->containsZip64Extra($localExtra)) {
+            throw new RuntimeException('ZIP64 local metadata is not supported: ' . $centralName);
+        }
+
+        foreach (['flags', 'method', 'crc', 'compressed', 'uncompressed'] as $field) {
+            if ((int) $local[$field] !== (int) $central[$field]) {
+                throw new RuntimeException('ZIP local/central entry metadata differs for ' . $centralName);
+            }
+        }
+        if ((int) $local['compressed'] !== $compressed || (int) $local['uncompressed'] !== $uncompressed) {
+            throw new RuntimeException('ZIP local entry sizes are inconsistent: ' . $centralName);
+        }
+
+        $dataStart = $localOffset + 30 + $localNameLength + $localExtraLength;
+        $dataEnd = $dataStart + $compressed;
+        if ($dataStart < 0 || $dataEnd < $dataStart || $dataEnd > $centralOffset) {
+            throw new RuntimeException('ZIP local entry payload crosses central directory: ' . $centralName);
+        }
+
+        return ['start' => $localOffset, 'end' => $dataEnd];
+    }
+
+    private function containsZip64Extra(string $extra): bool
+    {
+        $offset = 0;
+        $length = strlen($extra);
+        while ($offset < $length) {
+            if ($offset + 4 > $length) {
+                throw new RuntimeException('ZIP extra field is truncated');
+            }
+            $header = unpack('vid/vsize', substr($extra, $offset, 4));
+            if (!is_array($header)) {
+                throw new RuntimeException('ZIP extra field cannot be decoded');
+            }
+            $size = (int) $header['size'];
+            $offset += 4;
+            if ($size < 0 || $offset + $size > $length) {
+                throw new RuntimeException('ZIP extra field length is invalid');
+            }
+            if ((int) $header['id'] === 0x0001) {
+                return true;
+            }
+            $offset += $size;
+        }
+        return false;
     }
 
     private function assertSafePath(string $name): void
