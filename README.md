@@ -1,12 +1,12 @@
 # Workspace Organizer
 
-**Версия:** `0.14.0-beta.4`  
-**Актуально на:** 15 сентября 2026  
-**Статус:** beta.4 / role policies and shared task boards; следующая основная цель — `1.0.0` stable
+**Версия:** `1.0.0`  
+**Актуально на:** 16 сентября 2026  
+**Статус:** stable
 
-Workspace Organizer — внутреннее PHP-приложение для корпоративной работы: заметки, личные и общие задачи, файлы, профиль, администрирование и real-time Messenger.
+Workspace Organizer — self-hosted PHP-приложение для корпоративной работы: заметки, личные и общие задачи, файлы, профиль, администрирование и real-time Messenger.
 
-Версия `0.14.0-beta.4` добавляет полноценное управление ролями поверх persisted RBAC, отдельный слой типизированных ограничений модулей и совместные task boards для выбранных пользователей или всех активных аккаунтов. Ограничения применяются server-side в Notes, Tasks, File Manager и Messenger, а навигация отражает эффективные разрешения текущего пользователя. Сохраняются managed registration beta.3, WebSocket deployment fixes beta.2 и совместимость PHP 8.1+. Следующая основная цель — `1.0.0` stable: vendor-free runtime, signed updater/recovery, installation-wide licensing и остальные stable blockers.
+`1.0.0` фиксирует stable platform contract: vendor-free PHP runtime, native view/WebSocket infrastructure, persisted RBAC и module policies, installation-bound offline Ed25519 licensing, signed remote updater с external staging, transactional code+MySQL rollback и проверенный upgrade path с `0.14.0-beta.4`.
 
 ## Возможности
 
@@ -46,7 +46,7 @@ Workspace Organizer — внутреннее PHP-приложение для к�
 - PHP `8.1+` — технический compatibility floor; для Internet-facing production рекомендуется поддерживаемая ветка PHP, сейчас `8.3+`;
 - MySQL `8.x` — основной проверяемый CI path;
 - PHP extensions: `mysqli`, `pdo_mysql`, `mbstring`, `fileinfo`, `sodium`, `gd`;
-- для realtime Messenger/Workerman: POSIX-compatible host, PHP CLI, `pcntl`, `posix`, long-running process и WebSocket reverse proxy;
+- для realtime Messenger/native WebSocket runtime: POSIX-compatible host, PHP CLI, `pcntl`, long-running process и WebSocket reverse proxy;
 - Argon2id support в `password_hash`;
 - Apache + `mod_rewrite` либо Nginx с эквивалентным front-controller routing;
 - writable private storage вне document root;
@@ -54,7 +54,7 @@ Workspace Organizer — внутреннее PHP-приложение для к�
 
 Подробная матрица Open Server 6+, legacy-compatible Open Server 5.4.x, shared hosting и VPS/VDS: [`docs/DEPLOYMENT_COMPATIBILITY.md`](docs/DEPLOYMENT_COMPATIBILITY.md).
 
-**Composer на конечном shared hosting не обязателен**, если используется готовый hosting bundle из GitHub Release. Composer нужен при установке непосредственно из source tree и для development/CI.
+**Composer не является runtime-зависимостью 1.0.** Готовый hosting bundle и source tree запускаются без `vendor/`; Composer может использоваться только как development/tooling utility, но production package не зависит от него.
 
 ## Fresh install на обычном хостинге
 
@@ -81,7 +81,7 @@ https://example.com/workspace/install.php
 
 Web-installer автоматически:
 
-- проверяет PHP 8.1+, extensions, Argon2id и наличие production `vendor/`;
+- проверяет PHP 8.1+, необходимые extensions и Argon2id; production runtime не требует `vendor/`;
 - пытается создать отсутствующую БД, если MySQL account это разрешает;
 - импортирует 8 canonical schemas и создаёт current contract из 32 обязательных таблиц;
 - создаёт `cache`/`compile`;
@@ -99,13 +99,7 @@ Web-installer автоматически:
 
 ### Установка из исходников
 
-Для development, VPS или собственного build pipeline:
-
-```bash
-composer install --no-dev --optimize-autoloader
-```
-
-После этого также можно использовать `/install.php`; вручную копировать `default.env` и импортировать SQL для **fresh install** не требуется.
+Исходный tree 1.0 является vendor-free и не требует `composer install` для запуска. После checkout/deploy можно использовать `/install.php`; вручную копировать `default.env` и импортировать SQL для **fresh install** не требуется.
 
 ### Private storage
 
@@ -170,7 +164,7 @@ WS_HOST=127.0.0.1
 WS_PORT=27800
 ```
 
-На production hosting маршрут `/ws` должен проксироваться на локальный Workerman process. Это единственная часть, которую невозможно универсально стартовать web-installer'ом на каждом типе shared hosting: тариф должен поддерживать long-running PHP process/WebSocket proxy.
+На production hosting маршрут `/ws` должен проксироваться на локальный native WebSocket process. Это единственная часть, которую невозможно универсально стартовать web-installer'ом на каждом типе shared hosting: тариф должен поддерживать long-running PHP process/WebSocket proxy.
 
 Development/VPS:
 
@@ -178,7 +172,7 @@ Development/VPS:
 php ws_server/server.php start
 ```
 
-Production: запускайте Workerman через hosting background-process manager, systemd/supervisor/container orchestration и публикуйте браузеру только через WSS reverse proxy. Полный runbook: [`docs/MESSENGER_SERVER.md`](docs/MESSENGER_SERVER.md).
+Production: запускайте native WebSocket server через hosting background-process manager, systemd/supervisor/container orchestration и публикуйте браузеру только через WSS reverse proxy. Полный runbook: [`docs/MESSENGER_SERVER.md`](docs/MESSENGER_SERVER.md).
 
 ## Upgrade existing DB
 
