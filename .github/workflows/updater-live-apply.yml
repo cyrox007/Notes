@@ -51,6 +51,7 @@ jobs:
           php -l core/UpdateApplyCommand.php
           php -l bin/update_apply.php
           php -l tests/integration/updater_live_apply_contract.php
+          php -l tests/integration/updater_live_permissions_contract.php
 
       - name: Prepare rollback database fixture
         shell: bash
@@ -84,7 +85,9 @@ jobs:
           DBPASS: root
           DBNAME: updater_live_apply_test
           LIVE_APPLY_CONTRACT_TAG: php-${{ matrix.php }}
-        run: php tests/integration/updater_live_apply_contract.php
+        run: |
+          php tests/integration/updater_live_apply_contract.php
+          php tests/integration/updater_live_permissions_contract.php
 
       - name: Verify CLI and destructive-boundary invariants
         shell: bash
@@ -101,6 +104,7 @@ jobs:
           grep -Fq -- "'--status'" core/UpdateApplyCommand.php
           grep -Fq "'restart', '-d'" core/UpdateApplyCommand.php
           grep -Fq 'PRESERVED_ROOTS' core/UpdateLiveApplier.php
+          grep -Fq 'mkdir($path, 0755, true)' core/UpdateLiveApplier.php
           grep -Fq 'DROP TABLE IF EXISTS' core/UpdateLiveApplier.php
           grep -Fq 'rollback_failed' core/UpdateTransactionStateMachine.php
           ! grep -Fq 'unzip ' bin/update_apply.php
