@@ -1,0 +1,220 @@
+name: 1.0 updater transaction backup
+
+on:
+  pull_request:
+    branches: [master, '1.0']
+  push:
+    branches: ['1.0-updater-transaction-backup']
+
+permissions:
+  contents: read
+
+jobs:
+  updater-backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.3']
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mysqli, mbstring, sodium
+          coverage: none
+
+      - name: Lint transaction backup boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            core/UpdateTransactionJournal.php \
+            core/UpdateBackupManager.php \
+            bin/update_backup.php \
+            tests/integration/updater_transaction_backup_contract.php; do
+            php -l "$file"
+          done
+
+      - name: Prepare rollback source database
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot -e "DROP DATABASE IF EXISTS updater_backup_test; CREATE DATABASE updater_backup_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          mysql -h 127.0.0.1 -uroot -proot updater_backup_test <<'SQL'
+          CREATE TABLE items (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            title VARCHAR(190) NOT NULL,
+            amount DECIMAL(12,2) NOT NULL,
+            payload BLOB NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+          CREATE TABLE audit (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            item_id BIGINT UNSIGNED NOT NULL,
+            event_name VARCHAR(50) NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+          DELIMITER $$
+          CREATE TRIGGER items_after_insert AFTER INSERT ON items
+          FOR EACH ROW BEGIN
+            INSERT INTO audit (item_id, event_name) VALUES (NEW.id, 'insert');
+          END$$
+          DELIMITER ;
+          INSERT INTO items (title, amount, payload) VALUES
+            ('Привет rollback', 12.50, X'000102FF'),
+            ('Second row', 999.01, NULL);
+          SQL
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot updater_backup_test -e 'SELECT COUNT(*) FROM items')" = '2'
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot updater_backup_test -e 'SELECT COUNT(*) FROM audit')" = '2'
+
+      - name: Verify isolated journal and backup contract
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: '3306'
+          DBUSER: root
+          DBPASS: root
+          DBNAME: updater_backup_test
+          BACKUP_CONTRACT_TAG: php-${{ matrix.php }}
+        run: php tests/integration/updater_transaction_backup_contract.php
+
+      - name: Restore verified SQL dump into fresh database
+        shell: bash
+        run: |
+          set -euo pipefail
+          PHP_TAG="php-${{ matrix.php }}"
+          BACKUP="/tmp/wo-update-backup-contract-${PHP_TAG//./_}/backups/backup-contract-001/database.sql"
+          test -s "$BACKUP"
+          mysql -h 127.0.0.1 -uroot -proot -e "DROP DATABASE IF EXISTS updater_backup_restore; CREATE DATABASE updater_backup_restore CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          mysql -h 127.0.0.1 -uroot -proot updater_backup_restore < "$BACKUP"
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot updater_backup_restore -e 'SELECT COUNT(*) FROM items')" = '2'
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot updater_backup_restore -e 'SELECT COUNT(*) FROM audit')" = '2'
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot updater_backup_restore -e "SELECT HEX(payload) FROM items WHERE id=1")" = '000102FF'
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot updater_backup_restore -e "SELECT COUNT(*) FROM information_schema.triggers WHERE trigger_schema='updater_backup_restore' AND trigger_name='items_after_insert'")" = '1'
+          mysql -h 127.0.0.1 -uroot -proot updater_backup_restore -e "INSERT INTO items (title,amount) VALUES ('restored trigger',1.00)"
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot updater_backup_restore -e 'SELECT COUNT(*) FROM audit')" = '3'
+
+      - name: Full signed stage to backup CLI checkpoint
+        shell: bash
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: '3306'
+          DBUSER: root
+          DBPASS: root
+          DBNAME: updater_backup_test
+        run: |
+          set -euo pipefail
+          PHP_TAG="${{ matrix.php }}"
+          SAFE_TAG="${PHP_TAG//./_}"
+          WORK="/tmp/wo-update-backup-cli-$SAFE_TAG"
+          rm -rf "$WORK"
+          mkdir -m 700 -p "$WORK/package" "$WORK/stage" "$WORK/state" "$WORK/backups" "$WORK/private"
+
+          cp core/Version.php "$WORK/package/Version.php"
+          (cd "$WORK/package" && zip -q "$WORK/workspace-organizer-backup-ci.zip" Version.php)
+
+          KEY_ID="backup-ci-$SAFE_TAG"
+          KEY_FILE="$WORK/update.update-secret"
+          KEYGEN_OUT="$WORK/keygen.out"
+          php tools/vendor-update/keygen.php --key-id="$KEY_ID" --private-out="$KEY_FILE" > "$KEYGEN_OUT"
+          PUBLIC_KEY="$(awk -F': ' '/^Public key:/ {print $2}' "$KEYGEN_OUT")"
+          test -n "$PUBLIC_KEY"
+
+          CURRENT_CODE="$(php -r 'require "core/Version.php"; echo Core\Version::VERSION_CODE;')"
+          TARGET_CODE="$((CURRENT_CODE + 1))"
+          php tools/vendor-update/build-manifest.php \
+            --package="$WORK/workspace-organizer-backup-ci.zip" \
+            --version="1.0.0-backup-ci-$SAFE_TAG" \
+            --version-code="$TARGET_CODE" \
+            --channel=beta \
+            --source-commit="$GITHUB_SHA" \
+            --min-source-version-code="$CURRENT_CODE" \
+            --requires-php=8.1.0 \
+            --out="$WORK/update.json"
+          php tools/vendor-update/sign-manifest.php \
+            --private-key="$KEY_FILE" \
+            --key-id="$KEY_ID" \
+            --manifest="$WORK/update.json" \
+            --signature-out="$WORK/update.sig"
+
+          cat > config/update_trusted_keys.php <<EOF
+          <?php
+          declare(strict_types=1);
+          return [
+              '$KEY_ID' => '$PUBLIC_KEY',
+          ];
+          EOF
+
+          php bin/update.php \
+            --manifest="$WORK/update.json" \
+            --signature="$WORK/update.sig" \
+            --package="$WORK/workspace-organizer-backup-ci.zip" \
+            --stage-root="$WORK/stage" --json > "$WORK/stage-result.json"
+          STAGE_DIR="$(php -r '$j=json_decode(file_get_contents($argv[1]),true,32,JSON_THROW_ON_ERROR); echo $j["stage_dir"]??"";' "$WORK/stage-result.json")"
+          test -n "$STAGE_DIR"
+
+          TX="backup-cli-$SAFE_TAG-001"
+          php bin/maintenance.php --action=enter --transaction="$TX" --reason='Backup CLI CI' --state-root="$WORK/state"
+
+          cat > .env <<EOF
+          DBHOST=127.0.0.1
+          DBPORT=3306
+          DBUSER=root
+          DBPASS=root
+          DBNAME=updater_backup_test
+          PRIVATE_STORAGE_PATH=$WORK/private
+          UPDATE_STAGING_PATH=$WORK/stage
+          UPDATE_STATE_PATH=$WORK/state
+          UPDATE_BACKUP_PATH=$WORK/backups
+          EOF
+
+          php bin/update_backup.php \
+            --transaction="$TX" \
+            --stage-dir="$STAGE_DIR" \
+            --state-root="$WORK/state" \
+            --backup-root="$WORK/backups" \
+            --json > "$WORK/backup-result.json"
+          php -r '
+            $j=json_decode(file_get_contents($argv[1]),true,32,JSON_THROW_ON_ERROR);
+            if(($j["status"]??"")!=="backup_verified") exit(1);
+            if(($j["maintenance_active"]??false)!==true) exit(1);
+            if(($j["live_files_changed"]??true)!==false) exit(1);
+            if(($j["live_mutation_started"]??true)!==false) exit(1);
+            if(!is_file((string)($j["journal_path"]??""))) exit(1);
+          ' "$WORK/backup-result.json"
+          test -s "$WORK/backups/$TX/database.sql"
+          test -s "$WORK/backups/$TX/backup.json"
+          test ! -e "$WORK/backups/$TX/code/.env"
+
+          php bin/maintenance.php --action=leave --transaction="$TX" --state-root="$WORK/state"
+          rm -f .env
+
+      - name: Prove backup layer still cannot apply update
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -Fq -- '--apply' bin/update.php
+          ! grep -Fq -- '--apply' bin/update_backup.php
+          ! grep -Fq 'extractTo(' bin/update_backup.php
+          ! grep -Fq 'bin/migrate.php' bin/update_backup.php
+          grep -Fq "'live_mutation_started' => false" core/UpdateTransactionJournal.php
+          grep -Fq 'START TRANSACTION WITH CONSISTENT SNAPSHOT' core/UpdateBackupManager.php
+          grep -Fq 'UPDATE_BACKUP_PATH' bin/update_backup.php
