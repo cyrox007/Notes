@@ -9,6 +9,7 @@ use Core\UpdateHttpsTransport;
 use Core\UpdateManifestVerifier;
 use Core\UpdatePackageStager;
 use Core\UpdateRemoteDelivery;
+use Core\UpdateRemoteTransport;
 use Core\Version;
 use DomainException;
 use RuntimeException;
@@ -35,10 +36,12 @@ final class AdminUpdateService
     private string $appRoot;
     private PermissionService $permissions;
     private UpdateManifestVerifier $verifier;
+    private ?UpdateRemoteTransport $transport;
 
     public function __construct(
         ?PermissionService $permissions = null,
-        ?UpdateManifestVerifier $verifier = null
+        ?UpdateManifestVerifier $verifier = null,
+        ?UpdateRemoteTransport $transport = null
     ) {
         $root = realpath(dirname(__DIR__, 2));
         if (!is_string($root) || !is_dir($root)) {
@@ -47,6 +50,7 @@ final class AdminUpdateService
         $this->appRoot = $root;
         $this->permissions = $permissions ?? new PermissionService();
         $this->verifier = $verifier ?? new UpdateManifestVerifier();
+        $this->transport = $transport;
     }
 
     /** @return array<string,mixed> */
@@ -147,13 +151,15 @@ final class AdminUpdateService
 
     private function delivery(): UpdateRemoteDelivery
     {
+        $transport = $this->transport ?? new UpdateHttpsTransport(
+            self::UI_CONNECT_TIMEOUT_SECONDS,
+            self::UI_READ_TIMEOUT_SECONDS
+        );
+
         return new UpdateRemoteDelivery(
             $this->appRoot,
             $this->verifier,
-            new UpdateHttpsTransport(
-                self::UI_CONNECT_TIMEOUT_SECONDS,
-                self::UI_READ_TIMEOUT_SECONDS
-            ),
+            $transport,
             new UpdatePackageStager($this->appRoot),
             new UpdateArchiveInspector()
         );
