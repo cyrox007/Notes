@@ -15,9 +15,9 @@ interface ModuleRuntimeProvider
     public function boot(): void;
 
     /**
-     * Export concrete services for every capability declared by the isolated
-     * module manifest. Keys are capability identifiers; values are service
-     * objects consumed through ModuleCapabilityRegistry rather than module paths.
+     * Export concrete services for every capability declared by this isolated
+     * module's manifest. Consumers resolve them through ModuleCapabilityRegistry
+     * and therefore do not depend on the provider module's concrete class/path.
      *
      * @return array<string,object>
      */
