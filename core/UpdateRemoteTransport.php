@@ -25,7 +25,7 @@ interface UpdateRemoteTransport
  *
  * Deliberate constraints:
  * - HTTPS only, port 443 only;
- * - public DNS host names only (no literal/private/reserved addresses);
+ * - public DNS host names only (no literal/private/special-use addresses);
  * - DNS is resolved first and the checked address is pinned for the TLS socket;
  * - certificate + peer-name verification is mandatory;
  * - redirects, transfer-encoding and content-encoding are rejected;
@@ -36,6 +36,42 @@ interface UpdateRemoteTransport
 final class UpdateHttpsTransport implements UpdateRemoteTransport
 {
     private const MAX_HEADER_BYTES = 65536;
+
+    /** @var list<string> */
+    private const NON_PUBLIC_IPV4_CIDRS = [
+        '0.0.0.0/8',
+        '10.0.0.0/8',
+        '100.64.0.0/10',
+        '127.0.0.0/8',
+        '169.254.0.0/16',
+        '172.16.0.0/12',
+        '192.0.0.0/24',
+        '192.0.2.0/24',
+        '192.88.99.0/24',
+        '192.168.0.0/16',
+        '198.18.0.0/15',
+        '198.51.100.0/24',
+        '203.0.113.0/24',
+        '224.0.0.0/4',
+        '240.0.0.0/4',
+    ];
+
+    /** @var list<string> */
+    private const NON_PUBLIC_IPV6_CIDRS = [
+        '::/96',
+        '64:ff9b::/96',
+        '64:ff9b:1::/48',
+        '100::/64',
+        '2001::/23',
+        '2001:db8::/32',
+        '2002::/16',
+        '3fff::/20',
+        '5f00::/16',
+        'fc00::/7',
+        'fe80::/10',
+        'fec0::/10',
+        'ff00::/8',
+    ];
 
     public function __construct(
         private int $connectTimeoutSeconds = 10,
@@ -286,15 +322,78 @@ final class UpdateHttpsTransport implements UpdateRemoteTransport
         }
 
         foreach (array_values(array_unique($addresses)) as $ip) {
-            if (filter_var(
-                $ip,
-                FILTER_VALIDATE_IP,
-                FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
-            ) !== false) {
+            if ($this->isPublicAddress($ip)) {
                 return $ip;
             }
         }
         throw new RuntimeException('Remote update server did not resolve to a public network address');
+    }
+
+    /**
+     * PHP's FILTER_FLAG_NO_PRIV_RANGE / NO_RES_RANGE still accepts several
+     * special-use networks (for example CGNAT, TEST-NET and multicast). For an
+     * updater SSRF boundary we intentionally use a stricter conservative policy.
+     */
+    private function isPublicAddress(string $ip): bool
+    {
+        $packed = @inet_pton($ip);
+        if (!is_string($packed)) {
+            return false;
+        }
+
+        if (strlen($packed) === 4) {
+            foreach (self::NON_PUBLIC_IPV4_CIDRS as $cidr) {
+                if ($this->addressInCidr($ip, $cidr)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        if (strlen($packed) !== 16) {
+            return false;
+        }
+
+        $mappedPrefix = str_repeat("\0", 10) . "\xff\xff";
+        if (substr($packed, 0, 12) === $mappedPrefix) {
+            $mapped = @inet_ntop(substr($packed, 12, 4));
+            return is_string($mapped) && $this->isPublicAddress($mapped);
+        }
+
+        foreach (self::NON_PUBLIC_IPV6_CIDRS as $cidr) {
+            if ($this->addressInCidr($ip, $cidr)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private function addressInCidr(string $ip, string $cidr): bool
+    {
+        [$network, $prefixText] = explode('/', $cidr, 2);
+        $addressBytes = @inet_pton($ip);
+        $networkBytes = @inet_pton($network);
+        if (!is_string($addressBytes) || !is_string($networkBytes) || strlen($addressBytes) !== strlen($networkBytes)) {
+            return false;
+        }
+
+        $prefix = (int) $prefixText;
+        $maxBits = strlen($addressBytes) * 8;
+        if ($prefix < 0 || $prefix > $maxBits) {
+            throw new RuntimeException('Updater network policy contains an invalid CIDR prefix');
+        }
+
+        $wholeBytes = intdiv($prefix, 8);
+        if ($wholeBytes > 0 && substr($addressBytes, 0, $wholeBytes) !== substr($networkBytes, 0, $wholeBytes)) {
+            return false;
+        }
+        $remainingBits = $prefix % 8;
+        if ($remainingBits === 0) {
+            return true;
+        }
+
+        $mask = (0xff << (8 - $remainingBits)) & 0xff;
+        return (ord($addressBytes[$wholeBytes]) & $mask) === (ord($networkBytes[$wholeBytes]) & $mask);
     }
 
     /** @param resource $stream */
