@@ -63,6 +63,11 @@ final class ModuleCapabilityRegistry
         return $this->providers[$capability]['module_id'] ?? null;
     }
 
+    /**
+     * Resolve a capability service without exposing the provider's concrete
+     * class/path to consumers. `$expectedType` should be a shared interface or
+     * base contract when the caller needs runtime type enforcement.
+     */
     public function require(string $capability, ?string $expectedType = null): object
     {
         $entry = $this->providers[$capability] ?? null;
