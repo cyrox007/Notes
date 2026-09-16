@@ -76,10 +76,13 @@ final class ModuleCapabilityRegistry
         }
 
         $service = $entry['service'];
-        if ($expectedType !== null && !is_a($service, $expectedType)) {
-            throw new RuntimeException(
-                "Capability {$capability} provided by {$entry['module_id']} does not implement {$expectedType}"
-            );
+        if ($expectedType !== null) {
+            $expectedType = trim($expectedType);
+            if ($expectedType === '' || !is_a($service, $expectedType)) {
+                throw new RuntimeException(
+                    "Capability {$capability} provided by {$entry['module_id']} does not implement {$expectedType}"
+                );
+            }
         }
 
         return $service;
