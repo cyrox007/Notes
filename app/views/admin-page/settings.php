@@ -20,9 +20,12 @@ ob_start();
         <div>
             <span class="admin-page__eyebrow">Хранилище Workspace</span>
             <h1>Системные настройки</h1>
-            <p>Общий лимит файлового менеджера и персональные квоты пользователей.</p>
+            <p>Общий лимит файлового менеджера, персональные квоты пользователей и installation-wide операции.</p>
         </div>
-        <a class="admin-action admin-action--secondary" href="<?= $view->e($view->route('adminpanel')) ?>">Назад в админпанель</a>
+        <div class="admin-user-actions">
+            <a class="admin-action admin-action--secondary" href="<?= $view->e($view->route('admin_updates')) ?>"><i class="fa fa-refresh" aria-hidden="true"></i> Обновления</a>
+            <a class="admin-action admin-action--secondary" href="<?= $view->e($view->route('adminpanel')) ?>">Назад в админпанель</a>
+        </div>
     </header>
 
     <?php if ($flash !== null): ?>
