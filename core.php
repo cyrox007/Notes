@@ -31,6 +31,8 @@ $coreFiles = [
     '/core/WebSocketEndpoint.php',
     '/core/ModuleManifest.php',
     '/core/ModuleRegistry.php',
+    '/core/ModuleRuntimeProvider.php',
+    '/core/ModuleRuntimeLoader.php',
     '/core/DatabaseControll.php',
     '/core/DatabaseManager.php',
     '/core/ModuleLifecycleStore.php',
@@ -58,15 +60,27 @@ foreach ($coreFiles as $file) {
 
 $deferModuleLifecyclePersistence = defined('WORKSPACE_DEFER_MODULE_LIFECYCLE')
     && WORKSPACE_DEFER_MODULE_LIFECYCLE === true;
-
-\Core\ModuleRegistry::boot(
+$moduleLifecycleStore = $deferModuleLifecyclePersistence
+    ? null
+    : new \Core\ModuleLifecycleStore(\Core\DatabaseManager::getInstance());
+$moduleRegistry = \Core\ModuleRegistry::boot(
     SITEPATH . '/modules',
     \Core\Version::VERSION,
-    $deferModuleLifecyclePersistence
-        ? null
-        : new \Core\ModuleLifecycleStore(\Core\DatabaseManager::getInstance())
+    $moduleLifecycleStore
 );
 
+// HTTP runtime uses the reconciled effective composition. Entrypoints that defer
+// lifecycle persistence (notably the native WS process bootstrap) use the package
+// default composition; isolated runtime code is still loaded explicitly rather
+// than through the legacy recursive app/* loader.
+$moduleRuntimeComposition = $moduleLifecycleStore !== null
+    ? $moduleRegistry->enabledComposition()
+    : $moduleRegistry->defaultComposition();
+\Core\ModuleRuntimeLoader::boot($moduleRegistry, $moduleRuntimeComposition);
+
+// Transitional legacy loader. Product files disappear from these shared app/*
+// directories as each module moves behind ModuleRuntimeLoader. This loader is
+// removed once the final bundled module is isolated.
 $directories = [
     '/app/models/',
     '/app/services/',
