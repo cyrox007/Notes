@@ -6,7 +6,9 @@ The live apply layer does **not** download updates and never performs `unzip` ov
 
 ## Safety boundary
 
-Before live mutation, the transaction must be in the external journal and the same transaction must own maintenance mode. `bin/update_apply.php --apply` then executes these gates:
+Before live mutation, the transaction must be in the external journal and the same transaction must own maintenance mode. `bin/update_apply.php --apply` first acquires a non-blocking transaction-scoped operation lock under the external updater state root. That lock is held for the entire apply/recover command, including maintenance validation, live mutation, rollback and maintenance release. A second apply/recover process for the same transaction fails with `operation_busy` instead of entering the destructive path concurrently.
+
+The apply path then executes these gates:
 
 1. re-verify the rollback backup manifest, code snapshot and MySQL dump;
 2. re-hash the complete release candidate tree;
@@ -78,10 +80,10 @@ rollback_started
   -> rollback_verified
 ```
 
-Rollback performs the following:
+After the destructive boundary the verified pre-update backup is the authoritative recovery artifact. The release candidate is **not** required for rollback and may already have been deleted or damaged. Rollback performs the following:
 
-1. re-verifies the external backup and candidate;
-2. restores release-owned application code from the verified pre-update snapshot while leaving `.env` and mutable roots untouched;
+1. re-verifies the external rollback backup, including the code manifest/files and MySQL dump metadata;
+2. enumerates the current live release-owned top-level entries, quarantines the failed release tree, and restores code from the verified pre-update snapshot while leaving `.env` and preserved mutable roots untouched;
 3. restores MySQL from the verified consistent snapshot, including removal of objects introduced by a failed migration;
 4. verifies the exact pre-update `Version.php`;
 5. runs the restored healthcheck;
@@ -89,6 +91,8 @@ Rollback performs the following:
 7. restarts WebSocket if it was running before apply;
 8. records `rollback_verified`;
 9. only then releases maintenance.
+
+Because mutable paths under release-owned top-level directories are rejected before apply, rollback can safely treat every non-preserved live top-level entry as release-owned. This allows target-only entries to be removed without consulting the candidate tree.
 
 If any rollback step cannot be verified, the journal records `rollback_failed` where possible and maintenance remains active. Recovery artifacts are not deleted.
 
@@ -115,7 +119,7 @@ The journal is the durable source of truth. Recovery is phase-aware:
 - `rollback_verified`: re-verify the restored installation and release maintenance;
 - `committed`: re-verify the target installation and release maintenance.
 
-If recovery itself fails, do not force maintenance off merely to reopen the UI. Inspect the external transaction journal and preserve the referenced backup/candidate artifacts.
+If recovery itself fails, do not force maintenance off merely to reopen the UI. Inspect the external transaction journal and preserve the verified backup. The original candidate is useful for diagnostics but is not a rollback dependency after `live_mutation_started`.
 
 ## CLI
 
@@ -144,6 +148,8 @@ php bin/update_apply.php \
 
 The command intentionally requires maintenance to already be active and owned by the same transaction. The earlier staging/backup/candidate commands remain separate checkpoints so an operator can inspect artifacts before crossing the destructive boundary.
 
+Only one live apply/recover command may own a transaction at a time. If another process already holds the transaction operation lock, the command exits with `operation_busy` and makes no updater-state transition.
+
 ## WebSocket lifecycle
 
 Before mutation the updater records whether the native WebSocket process is running. If it was running, a successful apply or rollback uses:
@@ -164,7 +170,7 @@ The apply/rollback critical path deliberately does not delete:
 - transaction journal;
 - sibling switch/rollback scratch retained after the operation.
 
-Cleanup/retention is a separate post-commit maintenance concern. Recovery material must not disappear merely because the update reached a terminal state.
+Cleanup/retention is a separate post-commit maintenance concern. The rollback backup and transaction journal must not disappear merely because the update reached a terminal state. Candidate retention remains desirable for diagnostics/reproducibility, but rollback correctness does not depend on it after the destructive boundary.
 
 ## Required validation before merge/release
 
@@ -175,7 +181,9 @@ The live-apply gate must pass on supported PHP versions and real MySQL. It cover
 - preservation of `.env`, cache and uploads;
 - rejection of mutable paths nested below release-owned roots;
 - directory permission contract;
-- verified code rollback;
+- transaction-scoped single-owner apply/recover locking;
+- verified code rollback with the original candidate absent;
+- removal/quarantine of target-only top-level entries from a failed release;
 - complete MySQL rollback including removal of a failed-migration table;
 - trigger/data restoration;
 - journal transition and rollback retry contract;
