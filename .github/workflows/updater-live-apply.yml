@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [master, '1.0']
   push:
-    branches: ['1.0-updater-live-apply-rollback']
+    branches: ['1.0-data-only-migration-preflight']
 
 permissions:
   contents: read
@@ -46,21 +46,26 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          php -l core/MigrationManifest.php
+          php -l core/UpdateMigrationPreflight.php
           php -l core/UpdateTransactionStateMachine.php
           php -l core/UpdateLiveApplier.php
           php -l core/UpdateApplyOperationLock.php
           php -l core/UpdateRollbackCodeRestorer.php
           php -l core/UpdateApplyCommand.php
           php -l bin/update_apply.php
+          php -l tests/integration/updater_migration_preflight_contract.php
           php -l tests/integration/updater_live_apply_contract.php
           php -l tests/integration/updater_live_permissions_contract.php
           php -l tests/integration/updater_recovery_invariants_contract.php
+          php -r '$m=json_decode(file_get_contents("database/migrations/manifest.json"),true,32,JSON_THROW_ON_ERROR); if (($m["schema"]??null)!==1 || ($m["product"]??null)!=="workspace-organizer") exit(1);'
 
-      - name: Prepare rollback database fixture
+      - name: Prepare updater database fixtures
         shell: bash
         run: |
           set -euo pipefail
           mysql -h 127.0.0.1 -uroot -proot -e "DROP DATABASE IF EXISTS updater_live_apply_test; CREATE DATABASE updater_live_apply_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          mysql -h 127.0.0.1 -uroot -proot -e "DROP DATABASE IF EXISTS updater_migration_preflight_test; CREATE DATABASE updater_migration_preflight_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
           mysql -h 127.0.0.1 -uroot -proot updater_live_apply_test <<'SQL'
           CREATE TABLE items (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -79,6 +84,15 @@ jobs:
           DELIMITER ;
           INSERT INTO items (title) VALUES ('rollback source'), ('second row');
           SQL
+
+      - name: Verify data-only migration preflight
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: '3306'
+          DBUSER: root
+          DBPASS: root
+          MIGRATION_PREFLIGHT_DBNAME: updater_migration_preflight_test
+        run: php tests/integration/updater_migration_preflight_contract.php
 
       - name: Verify controlled switch, rollback state graph and MySQL restore
         env:
@@ -103,13 +117,15 @@ jobs:
           grep -Fq 'operation_busy' core/UpdateApplyCommand.php
           grep -Fq 'UpdateRollbackCodeRestorer' core/UpdateApplyCommand.php
           grep -Fq "'candidate_required' => false" core/UpdateRollbackCodeRestorer.php
+          grep -Fq 'UpdateMigrationPreflight' core/UpdateApplyCommand.php
+          grep -Fq 'migration_preflight_sha256' core/UpdateApplyCommand.php
           grep -Fq 'markLiveMutationStarted' core/UpdateApplyCommand.php
           grep -Fq 'markRollbackFailed' core/UpdateApplyCommand.php
           grep -Fq "state === 'code_restored'" core/UpdateApplyCommand.php
           grep -Fq "state !== 'database_restored'" core/UpdateApplyCommand.php
           grep -Fq 'maintenance_release_failed' core/UpdateApplyCommand.php
-          grep -Fq -- "'--dry-run'" core/UpdateApplyCommand.php
           grep -Fq -- "'--status'" core/UpdateApplyCommand.php
+          ! grep -Fq -- "candidateRoot . '/bin/migrate.php'" core/UpdateApplyCommand.php
           grep -Fq "'restart', '-d'" core/UpdateApplyCommand.php
           grep -Fq 'PRESERVED_ROOTS' core/UpdateLiveApplier.php
           grep -Fq 'mkdir($path, 0755, true)' core/UpdateLiveApplier.php
