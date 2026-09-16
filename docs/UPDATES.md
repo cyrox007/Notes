@@ -56,7 +56,7 @@ A signed manifest contains at least:
 }
 ```
 
-The signature protects the version, compatibility floor, source commit and package hash/size/name. The updater also verifies ZIP magic and refuses same-version/downgrade packages.
+The signature protects the version, compatibility floor, source commit and package hash/size/name. The updater refuses same-version/downgrade packages.
 
 ## Production update-key ceremony
 
@@ -105,7 +105,7 @@ php tools/vendor-update/sign-manifest.php \
 
 Changing even one byte of the manifest after signing invalidates the signature.
 
-## Customer-side verification
+## Customer-side verification and archive preflight
 
 Verification only:
 
@@ -127,9 +127,17 @@ The command verifies:
 - installed version satisfies `min_source_version_code`;
 - local PHP satisfies `requires_php`;
 - package filename, byte size and SHA-256;
-- ZIP file signature/magic.
+- ZIP central-directory and local-header consistency;
+- safe relative UTF-8 entry paths;
+- no path traversal, absolute/backslash/colon paths or NULs;
+- no symlink/special Unix entries;
+- no encrypted, multi-disk, ZIP64 or data-descriptor entries in the supported update subset;
+- supported compression methods only;
+- no duplicate/case-colliding paths;
+- per-file/total uncompressed-size and compression-ratio safety limits;
+- no overlapping local entry payload regions.
 
-It accepts only explicit local regular files, not URLs or symlinks.
+The structural audit is pure PHP and does **not** extract the archive. It accepts only explicit local regular files, not URLs or symlinks.
 
 ## External verified staging
 
@@ -147,8 +155,8 @@ If `--stage-root` is omitted, `UPDATE_STAGING_PATH` is used; otherwise the updat
 
 The staging root must resolve outside the live application tree. The updater:
 
-1. locks the staging root against concurrent staging;
-2. verifies package hash/size before copying;
+1. verifies signature, compatibility, package SHA-256 and ZIP structure;
+2. locks the staging root against concurrent staging;
 3. copies into a random temporary stage directory;
 4. verifies SHA-256 again after copying;
 5. stores the exact manifest/signature plus stage metadata;
@@ -156,32 +164,72 @@ The staging root must resolve outside the live application tree. The updater:
 
 Repeating the same signed artifact is idempotent and re-verifies the existing staged files.
 
-## Current foundation boundary
+## Updater maintenance mode
 
-The current updater foundation deliberately stops at `verified_staged`.
+Updater maintenance is file-backed and deliberately independent from MySQL. Its marker must live outside the application tree so it remains readable while database migrations or code replacement are in progress.
+
+Recommended production configuration:
+
+```dotenv
+UPDATE_STAGING_PATH=/var/lib/notes/update-staging
+UPDATE_STATE_PATH=/var/lib/notes/update-state
+```
+
+If `UPDATE_STATE_PATH` is omitted, maintenance state falls back to `<PRIVATE_STORAGE_PATH>/updates`.
+
+Operator CLI:
+
+```bash
+php bin/maintenance.php --action=status
+php bin/maintenance.php --action=enter --transaction=update-2026-001 --reason='Обновление приложения'
+php bin/maintenance.php --action=leave --transaction=update-2026-001
+```
+
+A valid transaction owns the marker. Concurrent/different transactions cannot replace that ownership. `enter`/`leave` transitions are serialized by a filesystem lock.
+
+If the marker is corrupt, runtime fails closed and treats maintenance as active. Recovery is explicit:
+
+```bash
+php bin/maintenance.php --action=leave --force
+```
+
+While maintenance is active:
+
+- `index.php` returns HTTP `503 Service Unavailable` with `Retry-After` **before database/module bootstrap**;
+- an invalid/corrupt marker also returns 503 rather than silently reopening writes;
+- already-open Messenger WebSocket connections cannot execute mutating actions because the shared runtime mutation policy rechecks maintenance state;
+- the operator can still recover through the CLI even if HTTP or MySQL is unavailable.
+
+The early HTTP gate is intentional. Do not move maintenance enforcement exclusively into a normal router middleware: that would be too late when the database is unavailable during an update.
+
+## Current transaction-preflight boundary
+
+The updater currently stops at a verified external stage plus maintenance/archive preflight.
 
 It does **not**:
 
 - download remote files;
 - extract a ZIP into the live tree;
 - edit `.env`;
-- run database migrations;
+- run database migrations as part of update apply;
 - restart WebSocket/PHP services;
 - overwrite application code;
 - delete a previous release.
 
-This is intentional. Live apply is not considered safe until the transaction layer includes all of these together:
+This is intentional. Live apply is not considered safe until the remaining transaction layer includes all of these together:
 
-1. maintenance lock/drain;
+1. transaction journal tied to the signed staged artifact;
 2. pre-update `bin/healthcheck.php`;
 3. migration `--dry-run` and checksum validation;
 4. database backup and verification;
 5. application-code backup/release snapshot;
-6. safe ZIP extraction with traversal/symlink rejection;
-7. controlled code switch;
+6. controlled traversal-safe extraction into a new release directory;
+7. service drain/controlled code switch;
 8. `bin/migrate.php`;
 9. post-update `bin/healthcheck.php` and version verification;
 10. explicit rollback path, including operator guidance for non-reversible database migrations.
+
+Maintenance lock/drain and non-extracting ZIP safety audit are already present as preconditions, but they do not authorize live mutation by themselves.
 
 Do not add a direct “unzip over live” path as a shortcut.
 
