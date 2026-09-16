@@ -30,7 +30,7 @@ Runtime installations contain only update **public** keys in:
 config/update_trusted_keys.php
 ```
 
-The registry is intentionally empty until the production update-key ceremony is performed. With an empty registry, `bin/update.php` fails closed and signed updating remains disabled.
+The registry is intentionally empty until the production update-key ceremony is performed. With an empty registry, `bin/update.php` and `bin/update_remote.php` fail closed and signed updating remains disabled.
 
 ## Manifest contract
 
@@ -56,7 +56,7 @@ A signed manifest contains at least:
 }
 ```
 
-The signature protects the version, compatibility floor, source commit and package hash/size/name. The updater refuses same-version/downgrade packages.
+The signature protects the version, compatibility floor, source commit and package hash/size/name. Action paths refuse same-version/downgrade packages; read-only remote checks may report those signed states without downloading package bytes.
 
 ## Production update-key ceremony
 
@@ -164,6 +164,42 @@ The staging root must resolve outside the live application tree. The updater:
 
 Repeating the same signed artifact is idempotent and re-verifies the existing staged files.
 
+## Remote signed delivery
+
+Remote delivery is a network-ingress layer in front of the same immutable staging contract. It does **not** enter maintenance, create an updater transaction, extract the package or mutate live files.
+
+Recommended configuration:
+
+```dotenv
+UPDATE_FEED_URL=https://updates.example.com/workspace-organizer/stable/feed.json
+UPDATE_CHANNEL=stable
+UPDATE_STAGING_PATH=/var/lib/notes/update-staging
+```
+
+Check the signed feed without downloading the ZIP:
+
+```bash
+php bin/update_remote.php --check-only --json
+```
+
+A successful read-only check classifies the signed feed as `update_available`, `up_to_date`, `ahead_of_feed` or `update_incompatible`. All four states leave `package_downloaded=false` and `live_files_changed=false`.
+
+Download, verify, audit and stage an installable update:
+
+```bash
+php bin/update_remote.php --json
+```
+
+The feed itself is discovery metadata, not a trust root. It identifies only same-directory manifest/signature leaf filenames. The exact manifest bytes must pass Ed25519 verification; the verified manifest then supplies the package filename, byte size and SHA-256. An unsigned package pointer in the feed has no authority.
+
+The vendor-free HTTPS transport requires `openssl` and fails closed on plain HTTP, literal/private/reserved network targets, non-443 ports, redirects, transfer-encoded responses, non-identity content encoding, ambiguous/missing `Content-Length`, or TLS peer/certificate verification failure. DNS is resolved first, only a public address is accepted, and that checked address is pinned to the TLS socket while certificate verification still uses the configured DNS host.
+
+Package download is streamed into a private external temporary directory and capped at 512 MiB in addition to the signed size contract. The transport requires HTTP `Content-Length` to equal the signed size and calculates SHA-256 while downloading. The existing local package verifier and ZIP inspector then run again, followed by the normal immutable `UpdatePackageStager`; temporary network ingress bytes are removed afterwards.
+
+The package is never downloaded when `--check-only` is used, when a newer signed update is incompatible, or when the action compatibility gate rejects same-version/downgrade/source-floor/runtime conditions.
+
+Detailed network, publishing and failure-boundary guidance is in `docs/UPDATE_REMOTE_DELIVERY.md`.
+
 ## Updater maintenance mode
 
 Updater maintenance is file-backed and deliberately independent from MySQL. Its marker must live outside the application tree so it remains readable while database migrations or code replacement are in progress.
@@ -175,9 +211,11 @@ UPDATE_STAGING_PATH=/var/lib/notes/update-staging
 UPDATE_STATE_PATH=/var/lib/notes/update-state
 UPDATE_BACKUP_PATH=/var/lib/notes/update-backups
 UPDATE_RELEASE_PATH=/var/lib/notes/update-releases
+UPDATE_FEED_URL=https://updates.example.com/workspace-organizer/stable/feed.json
+UPDATE_CHANNEL=stable
 ```
 
-If explicit paths are omitted, updater components use safe subdirectories below `PRIVATE_STORAGE_PATH` where supported.
+If explicit updater state/storage paths are omitted, updater components use safe subdirectories below `PRIVATE_STORAGE_PATH` where supported.
 
 Operator CLI:
 
@@ -294,12 +332,14 @@ Detailed operator and state-machine guidance is in `docs/UPDATER_LIVE_APPLY.md`.
 
 ## Current updater boundary
 
-The local signed-update transaction now provides:
+The signed-update stack now provides:
 
 - signed update verification and trust-root separation;
 - compatibility/package hash validation;
 - non-extracting ZIP safety audit;
-- external immutable staging;
+- public-HTTPS signed feed discovery with read-only status classification;
+- exact signed package download with DNS/TLS/HTTP framing restrictions;
+- external immutable staging for local or remote ingress;
 - DB-independent maintenance ownership/recovery;
 - external transaction journal;
 - verified code + MySQL rollback checkpoint;
@@ -314,14 +354,13 @@ The local signed-update transaction now provides:
 
 It still does **not**:
 
-- fetch a remote update feed/manifest/package over the network;
 - provide an administrator update UI;
 - create the production license/update private keys (production key ceremony is intentionally still pending);
 - automatically delete old verified backup/candidate/scratch recovery artifacts;
 - replace an external process supervisor's own drain/restart policy;
 - eliminate the requirement for the final real Beta4 -> 1.0 upgrade/rollback release drill.
 
-Those remaining items are release-delivery/operations work. They must not weaken the local signed transaction or introduce a direct “unzip over live” shortcut.
+Those remaining items are release-delivery/operations work. They must not weaken the signed transaction or introduce a direct “unzip over live” shortcut.
 
 ## Key rotation
 
