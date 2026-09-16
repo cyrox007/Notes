@@ -82,10 +82,10 @@ nativeNotesAssert(in_array('workspace.notes', (array) ($manifest['capabilities']
 $provider = (string) file_get_contents($moduleRoot . '/NotesRuntimeProvider.php');
 nativeNotesAssert(str_contains($provider, "return 'notes';"), 'Notes runtime provider id drifted');
 nativeNotesAssert(str_contains($provider, "'workspace.notes'"), 'Notes runtime provider does not export workspace.notes');
-nativeNotesAssert(str_contains($provider, "$router->group('/notes')"), 'Notes provider does not own /notes routes');
+nativeNotesAssert(str_contains($provider, "\$router->group('/notes')"), 'Notes provider does not own /notes routes');
 
 $coreRoutes = (string) file_get_contents($root . '/core/routerConfig.php');
-nativeNotesAssert(!str_contains($coreRoutes, "$router->group('/notes')"), 'core router still owns Notes routes');
+nativeNotesAssert(!str_contains($coreRoutes, "\$router->group('/notes')"), 'core router still owns Notes routes');
 nativeNotesAssert(!str_contains($coreRoutes, 'NoteController'), 'core router still imports a Notes controller');
 
 $index = (string) file_get_contents($moduleRoot . '/views/index.php');
@@ -110,7 +110,7 @@ nativeNotesAssert(str_contains($edit, "partial('@notes/editor-013'"), 'isolated 
 nativeNotesAssert(str_contains($edit, "moduleAsset('notes', 'notes-editor-013.js')"), 'Notes editor behavior is not module-owned');
 nativeNotesAssert(str_contains($edit, "moduleAsset('notes', 'notes-draft.js')"), 'Notes draft behavior is not module-owned');
 nativeNotesAssert(!str_contains($edit, '/assets/js/notes-editor-013.js'), 'Notes editor still references the deleted global asset');
-nativeNotesAssert($edit === preg_replace('/<script[^>]+notes-editor-013\.js[^>]*><\/script>/', '', $edit) || !str_contains($edit, '<script'), 'Notes editor injects a duplicate direct script tag');
+nativeNotesAssert(!str_contains($edit, '<script'), 'Notes editor injects a duplicate direct script tag');
 nativeNotesAssert(str_contains($edit, '$view->layout(\'core/base\''), 'note editor wrapper does not use native shell');
 
 $editor = (string) file_get_contents($moduleRoot . '/views/editor-013.php');
