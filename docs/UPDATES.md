@@ -200,6 +200,24 @@ The package is never downloaded when `--check-only` is used, when a newer signed
 
 Detailed network, publishing and failure-boundary guidance is in `docs/UPDATE_REMOTE_DELIVERY.md`.
 
+## Administrator check and staging UI
+
+The administrator UI exposes the same non-destructive remote-delivery primitives under `/admin/updates` without creating a second updater implementation.
+
+Access model:
+
+- page and signed-feed check require `admin.settings.manage`;
+- check is a GET/read-only operation and downloads no package bytes;
+- package staging is POST + CSRF and additionally requires the `superadmin` role;
+- the global license mutation guard still applies to staging;
+- feed URL and channel are server configuration only and are never accepted from browser input.
+
+The UI displays the installed version, configured channel/feed label, trust-root/runtime readiness and the signed check result (`update_available`, `up_to_date`, `ahead_of_feed`, `update_incompatible`). Release notes and package metadata come only from the verified manifest and are escaped before rendering.
+
+When a compatible update is available, a superadmin may explicitly download, re-verify, ZIP-audit and publish it to immutable external staging. The controller stores only a safe summary in the session: target version, signing key id, package hash and archive counts. The absolute staging path is deliberately not persisted into web state or rendered.
+
+This first UI slice stops at staging. It has no browser action for maintenance entry, transaction-journal creation, rollback backup, release-candidate extraction, migrations, live code switch, apply or recovery. Those destructive operations remain CLI/operator transaction boundaries until a separately reviewed browser transaction flow exists.
+
 ## Updater maintenance mode
 
 Updater maintenance is file-backed and deliberately independent from MySQL. Its marker must live outside the application tree so it remains readable while database migrations or code replacement are in progress.
@@ -339,6 +357,7 @@ The signed-update stack now provides:
 - non-extracting ZIP safety audit;
 - public-HTTPS signed feed discovery with read-only status classification;
 - exact signed package download with DNS/TLS/HTTP framing restrictions;
+- administrator read-only signed-feed check and superadmin immutable staging UI;
 - external immutable staging for local or remote ingress;
 - DB-independent maintenance ownership/recovery;
 - external transaction journal;
@@ -354,7 +373,7 @@ The signed-update stack now provides:
 
 It still does **not**:
 
-- provide an administrator update UI;
+- expose destructive maintenance/backup/candidate/apply/recovery operations in the administrator UI;
 - create the production license/update private keys (production key ceremony is intentionally still pending);
 - automatically delete old verified backup/candidate/scratch recovery artifacts;
 - replace an external process supervisor's own drain/restart policy;
