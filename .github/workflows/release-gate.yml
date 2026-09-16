@@ -1,8 +1,8 @@
-name: Master release gate
+name: Stable release gate
 
 on:
   pull_request:
-    branches: [master]
+    branches: [master, '1.0']
   push:
     branches: [master]
   workflow_dispatch:
@@ -13,7 +13,7 @@ permissions:
 jobs:
   release-gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     services:
       mysql:
@@ -30,14 +30,14 @@ jobs:
           --health-retries=10
 
     steps:
-      - name: Checkout merged source
+      - name: Checkout release source
         uses: actions/checkout@v4
 
       - name: Setup PHP 8.3
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
+          extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd, zlib, pcntl
           coverage: none
 
       - name: Setup Node.js
@@ -45,29 +45,34 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Validate and install PHP dependencies
+      - name: Verify vendor-free runtime contract
+        shell: bash
         run: |
           set -euo pipefail
           composer validate --no-check-publish
-          composer install --no-interaction --prefer-dist --no-progress
-          composer audit --no-interaction
+          test "$(php -r '$j=json_decode(file_get_contents("composer.lock"),true,64,JSON_THROW_ON_ERROR); echo count($j["packages"] ?? []);')" = '0'
+          test ! -d vendor
+          ! grep -Fq 'vendor/autoload.php' core.php
+          ! grep -R -F 'Workerman\\' app/socket ws_server core.php
+          php -l core.php
+          php -l core/Environment.php
+          php -l core/NativeViewRenderer.php
+          php -l ws_server/server.php
 
       - name: Lint all PHP sources
         shell: bash
         run: |
           set -euo pipefail
-          find . -type f -name '*.php' -not -path './vendor/*' -print0 \
-            | xargs -0 -n1 php -l
+          find . -type f -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n1 php -l
 
       - name: Check JavaScript syntax
         shell: bash
         run: |
           set -euo pipefail
-
           while IFS= read -r -d '' source; do
             node --check "$source"
           done < <(find assets/js tests/e2e -type f \( -name '*.js' -o -name '*.mjs' \) -print0)
-
+          shopt -s nullglob
           for source in app/views/messager_page/*.js; do
             target="/tmp/$(basename "$source")"
             sed '/^{literal}$/d;/^{\/literal}$/d' "$source" > "$target"
@@ -75,10 +80,30 @@ jobs:
           done
 
       - name: Verify release governance contract
+        run: php tests/integration/release_governance_contract.php
+
+      - name: Verify stable release identity
         shell: bash
         run: |
           set -euo pipefail
-          php tests/integration/release_governance_contract.php
+          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.0'
+          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10000'
+          test "$(php -r "require 'core/Version.php'; echo Core\\Version::STATUS;")" = 'stable'
+          test "$(php -r "require 'core/Version.php'; echo Core\\Version::RELEASE_DATE;")" = '2026-09-16'
+          grep -Fq '**Версия:** `1.0.0`' README.md
+          grep -Fq '## 1.0.0 — 2026-09-16' CHANGELOG.md
+          test -s docs/releases/v1.0.0.md
+          grep -Fq '# Workspace Organizer 1.0.0' docs/releases/v1.0.0.md
+
+      - name: Verify migration manifest contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l core/MigrationManifest.php
+          php -l core/UpdateMigrationPreflight.php
+          php -r '$m=json_decode(file_get_contents("database/migrations/manifest.json"),true,32,JSON_THROW_ON_ERROR); if (($m["schema"]??null)!==1 || ($m["product"]??null)!=="workspace-organizer" || !is_array($m["migrations"]??null) || $m["migrations"]===[]) exit(1);'
+          mysql -h 127.0.0.1 -uroot -proot -e "DROP DATABASE IF EXISTS updater_migration_preflight_test; CREATE DATABASE updater_migration_preflight_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          DBHOST=127.0.0.1 DBPORT=3306 DBUSER=root DBPASS=root MIGRATION_PREFLIGHT_DBNAME=updater_migration_preflight_test php tests/integration/updater_migration_preflight_contract.php
 
       - name: Import canonical database contract
         shell: bash
@@ -96,14 +121,11 @@ jobs:
           do
             mysql -h 127.0.0.1 -uroot -proot workspace_release_gate < "$schema"
           done
-
           count="$(mysql -N -h 127.0.0.1 -uroot -proot workspace_release_gate -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE();")"
           test "$count" -eq 32
           test "$(mysql -N -h 127.0.0.1 -uroot -proot workspace_release_gate -e "SELECT setting_value FROM system_settings WHERE setting_key='file_manager_default_quota_bytes'")" = '1073741824'
-          test "$(mysql -N -h 127.0.0.1 -uroot -proot workspace_release_gate -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='module_lifecycle' AND column_name IN ('module_id','installed_version','manifest_hash','configured_state','effective_state','last_error')")" = '6'
 
       - name: Run data-integrity integration contracts
-        shell: bash
         env:
           DBDRIVER: mysql
           DBHOST: 127.0.0.1
@@ -121,7 +143,6 @@ jobs:
           php bin/reconcile_file_storage.php --cleanup-deleted
 
       - name: Run production healthcheck
-        shell: bash
         env:
           DBDRIVER: mysql
           DBHOST: 127.0.0.1
@@ -146,21 +167,43 @@ jobs:
           done
           php bin/healthcheck.php
 
-      - name: Verify release version contract
+      - name: Verify signing trust registry hygiene
         shell: bash
         run: |
           set -euo pipefail
-          version="$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")"
-          test -n "$version"
-          grep -Fq "**Версия:** \`$version\`" README.md
-          grep -Fq "## $version" CHANGELOG.md
-          echo "Release version contract: $version"
+          php -r '
+          foreach (["license"=>"config/license_trusted_keys.php","update"=>"config/update_trusted_keys.php"] as $domain=>$path) {
+              $keys=require $path;
+              if (!is_array($keys)) { fwrite(STDERR,"$domain registry is not an array\n"); exit(1); }
+              foreach ($keys as $id=>$token) {
+                  if (!is_string($id) || preg_match("/^[A-Za-z0-9][A-Za-z0-9._-]{2,95}$/",$id)!==1 || !is_string($token)) exit(1);
+                  $raw=base64_decode(strtr($token,"-_","+/"),true);
+                  if ($raw===false || strlen($raw)!==32) { fwrite(STDERR,"invalid $domain public key: $id\n"); exit(1); }
+              }
+          }
+          '
+          if find . -type f \( -name '*.license-secret' -o -name 'workspace-license-*.secret' -o -name '*.update-secret' -o -name 'workspace-update-*.secret' \) -print -quit | grep -q .; then
+            echo 'Repository contains forbidden private signing material' >&2
+            exit 1
+          fi
 
-      - name: Verify upload-ready hosting bundle
+      - name: Require production public signing keys for master release
+        if: github.base_ref == 'master' || github.ref == 'refs/heads/master'
         shell: bash
         run: |
           set -euo pipefail
-          composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist --no-progress
+          php -r '
+          $license=require "config/license_trusted_keys.php";
+          $update=require "config/update_trusted_keys.php";
+          if (!is_array($license) || $license===[]) { fwrite(STDERR,"Production license public key registry is empty\n"); exit(1); }
+          if (!is_array($update) || $update===[]) { fwrite(STDERR,"Production update public key registry is empty\n"); exit(1); }
+          if (array_intersect_key($license,$update)!==[]) { fwrite(STDERR,"License/update key ids must be independent\n"); exit(1); }
+          '
+
+      - name: Verify upload-ready vendor-free hosting bundle
+        shell: bash
+        run: |
+          set -euo pipefail
           bundle=/tmp/workspace-hosting-bundle
           rm -rf "$bundle"
           mkdir -p "$bundle"
@@ -168,21 +211,28 @@ jobs:
             --exclude='.git/' \
             --exclude='.github/' \
             --exclude='.env' \
+            --exclude='vendor/' \
             --exclude='cache/*' \
-            --exclude='compile/*'
-
-          test -f "$bundle/vendor/autoload.php"
-          test -f "$bundle/install.php"
-          test -f "$bundle/default.env"
-          test -f "$bundle/database/messenger_schema.sql"
-          test -f "$bundle/database/settings_schema.sql"
-          test -f "$bundle/database/module_lifecycle_schema.sql"
-          test -f "$bundle/database/migrations/20260915_module_lifecycle.sql"
+            --exclude='compile/*' \
+            --exclude='tools/vendor-license/' \
+            --exclude='tools/vendor-update/' \
+            --exclude='*.license-secret' \
+            --exclude='workspace-license-*.secret' \
+            --exclude='*.update-secret' \
+            --exclude='workspace-update-*.secret'
+          mkdir -p "$bundle/cache" "$bundle/compile"
+          test ! -e "$bundle/vendor"
           test ! -e "$bundle/.env"
-          test ! -d "$bundle/.git"
-          test ! -d "$bundle/.github"
-
-          if find "$bundle" -type f -name '.env' -print -quit | grep -q .; then
-            echo 'Hosting bundle unexpectedly contains .env' >&2
-            exit 1
-          fi
+          test ! -e "$bundle/tools/vendor-license"
+          test ! -e "$bundle/tools/vendor-update"
+          test -f "$bundle/install.php"
+          test -f "$bundle/core/NativeViewRenderer.php"
+          test -f "$bundle/app/socket/NativeMessengerServer.php"
+          test -f "$bundle/config/license_trusted_keys.php"
+          test -f "$bundle/config/update_trusted_keys.php"
+          test -f "$bundle/bin/update_bootstrap.php"
+          test -f "$bundle/bin/update_apply.php"
+          test -f "$bundle/core/MigrationManifest.php"
+          test -f "$bundle/core/UpdateMigrationPreflight.php"
+          test -f "$bundle/database/migrations/manifest.json"
+          test -f "$bundle/docs/releases/v1.0.0.md"
