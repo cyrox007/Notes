@@ -57,6 +57,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          mode="$(php -r '$j=json_decode(file_get_contents("modules/notes/module.json"), true, 32, JSON_THROW_ON_ERROR); echo $j["runtime"]["mode"] ?? "";')"
+          test "$mode" = 'isolated'
           legacy=0
           for manifest in modules/*/module.json; do
             mode="$(php -r '$j=json_decode(file_get_contents($argv[1]), true, 32, JSON_THROW_ON_ERROR); echo $j["runtime"]["mode"] ?? "";' "$manifest")"
@@ -65,7 +67,6 @@ jobs:
               legacy=$((legacy + 1))
             fi
           done
-          # Foundation phase documents the debt but does not pretend it is solved.
-          # This ceiling is tightened by each module migration and becomes zero
-          # before the final 1.0 release tag.
-          test "$legacy" -le 6
+          # Notes is isolated. Tighten this ceiling with every remaining module
+          # migration until it reaches zero before the final 1.0 release tag.
+          test "$legacy" -le 5
