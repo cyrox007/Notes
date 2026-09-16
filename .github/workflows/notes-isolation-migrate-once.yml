@@ -186,7 +186,7 @@ jobs:
           ! test -e app/views/notes_page/index.tpl
           ! test -e 'app/views/^elements/note_item/index.php'
           ! test -e assets/js/notes-list.js
-          ! grep -Fq "$router->group('/notes')" core/routerConfig.php
+          ! grep -Fq "\$router->group('/notes')" core/routerConfig.php
           grep -Fq "render_template('@notes/index'" modules/notes/controllers/NoteController.php
           grep -Fq "render_template('@notes/shared_view'" modules/notes/controllers/NoteShareController.php
           grep -Fq "moduleAsset('notes', 'notes-list.js')" modules/notes/views/index.php
@@ -202,11 +202,10 @@ jobs:
           php -l modules/notes/views/shared_view.php
           php -l tests/integration/module_registry_contract.php
 
-      - name: Commit atomic Notes migration and remove this workflow
+      - name: Commit atomic Notes migration
         shell: bash
         run: |
           set -euo pipefail
-          git rm .github/workflows/notes-isolation-migrate-once.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
