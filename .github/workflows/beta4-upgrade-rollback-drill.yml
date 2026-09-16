@@ -50,7 +50,7 @@ jobs:
           grep -Fq -- '--expected-source-version=0.14.0-beta.4' /tmp/bootstrap-help.txt
           grep -Fq 'No private signing key is accepted' /tmp/bootstrap-help.txt
           grep -Fq 'require_once $liveVersionFile' bin/update_bootstrap.php
-          ! grep -Fq "$runnerRoot . '/core/Version.php'" bin/update_bootstrap.php
+          ! grep -Fq "/core/Version.php'" bin/update_bootstrap.php
           ! grep -Fq "'private-key:'" bin/update_bootstrap.php
           grep -Fq 'new UpdateApplyCommand($appRoot' bin/update_bootstrap.php
           grep -Fq 'new UpdateBackupManager($backupRoot, $appRoot' bin/update_bootstrap.php
