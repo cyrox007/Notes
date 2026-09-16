@@ -26,24 +26,33 @@ $encodedPublic = vendorLicenseBase64UrlEncode($publicKey);
 $encodedSecret = vendorLicenseBase64UrlEncode($secretKey);
 $privatePayload = WORKSPACE_LICENSE_SECRET_PREFIX . $encodedSecret . PHP_EOL;
 $error = null;
-$handle = @fopen($privateOut, 'x');
-if ($handle === false) {
-    $error = 'Unable to create private key file with exclusive-create semantics.';
-} else {
-    try {
-        $written = fwrite($handle, $privatePayload);
-        if ($written !== strlen($privatePayload) || !fflush($handle)) {
-            $error = 'Unable to write the complete private key file.';
-        }
-    } finally {
-        fclose($handle);
-    }
+$previousUmask = null;
+if (PHP_OS_FAMILY !== 'Windows') {
+    $previousUmask = umask(0077);
 }
-
-sodium_memzero($secretKey);
-sodium_memzero($keyPair);
-sodium_memzero($encodedSecret);
-sodium_memzero($privatePayload);
+try {
+    $handle = @fopen($privateOut, 'x');
+    if ($handle === false) {
+        $error = 'Unable to create private key file with exclusive-create semantics.';
+    } else {
+        try {
+            $written = fwrite($handle, $privatePayload);
+            if ($written !== strlen($privatePayload) || !fflush($handle)) {
+                $error = 'Unable to write the complete private key file.';
+            }
+        } finally {
+            fclose($handle);
+        }
+    }
+} finally {
+    if ($previousUmask !== null) {
+        umask($previousUmask);
+    }
+    sodium_memzero($secretKey);
+    sodium_memzero($keyPair);
+    sodium_memzero($encodedSecret);
+    sodium_memzero($privatePayload);
+}
 
 if ($error !== null) {
     @unlink($privateOut);
