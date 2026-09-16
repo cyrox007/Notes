@@ -320,9 +320,10 @@ final class UpdateApplyCommand
             );
         }
 
-        // All checks below are non-destructive.
+        // All checks below are non-destructive. Migration validation is data-only:
+        // no PHP from the candidate is executed before live_mutation_started.
         $health = $this->health($this->appRoot);
-        $dryRun = $this->migrationDryRun($candidate['candidate_dir']);
+        $migrationPreflight = $this->migrationPreflight($candidate['candidate_dir']);
         $candidate = $applier->verifyCandidateTree($candidate['candidate_dir']);
         $verifiedBackup = $backupManager->verify($verifiedBackup['backup_dir'], $transactionId);
         $ws = $this->wsStatus($this->appRoot);
@@ -335,7 +336,10 @@ final class UpdateApplyCommand
 
         $journalState = $stateMachine->markPreflightVerified($transactionId, [
             'health_status' => $health['status'] ?? null,
-            'migration_dry_run_sha256' => $dryRun['sha256'],
+            'migration_preflight_sha256' => $migrationPreflight['sha256'],
+            'migration_manifest_sha256' => $migrationPreflight['manifest_sha256'],
+            'migration_ledger_present' => $migrationPreflight['ledger_present'],
+            'migration_pending' => $migrationPreflight['pending'],
             'candidate_tree_sha256' => $candidate['tree_sha256'],
             'backup_manifest_sha256' => $verifiedBackup['manifest_sha256'],
             'ws_was_running' => $ws['running'],
@@ -592,16 +596,30 @@ final class UpdateApplyCommand
         return $payload;
     }
 
-    /** @return array{sha256:string,output:string} */
-    private function migrationDryRun(string $candidateRoot): array
+    /**
+     * Validate target migration data without executing candidate PHP.
+     *
+     * @return array{sha256:string,manifest_sha256:string,ledger_present:bool,pending:int}
+     */
+    private function migrationPreflight(string $candidateRoot): array
     {
-        $result = $this->run([PHP_BINARY, $candidateRoot . '/bin/migrate.php', '--dry-run'], $candidateRoot, 180);
-        if ($result['code'] !== 0) {
-            throw new RuntimeException(
-                'Candidate migration dry-run/checksum validation failed: ' . $this->commandFailureDetails($result)
-            );
+        $db = $this->database();
+        try {
+            $result = (new UpdateMigrationPreflight($candidateRoot))->check($db);
+        } finally {
+            $db->close();
         }
-        return ['sha256' => hash('sha256', $result['stdout']), 'output' => trim($result['stdout'])];
+
+        $bytes = json_encode(
+            $result,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        );
+        return [
+            'sha256' => hash('sha256', $bytes),
+            'manifest_sha256' => (string) $result['manifest_sha256'],
+            'ledger_present' => (bool) $result['ledger_present'],
+            'pending' => (int) $result['pending'],
+        ];
     }
 
     /** @return array{code:int,stdout:string,stderr:string} */
@@ -755,7 +773,7 @@ final class UpdateApplyCommand
     private function database(): mysqli
     {
         if (!extension_loaded('mysqli')) {
-            throw new RuntimeException('PHP mysqli extension is required for updater rollback');
+            throw new RuntimeException('PHP mysqli extension is required for updater database operations');
         }
         $user = getenv('DBUSER');
         $name = getenv('DBNAME');
