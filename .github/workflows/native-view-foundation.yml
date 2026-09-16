@@ -33,6 +33,7 @@ on:
       - 'assets/js/messenger-connection-ux.js'
       - 'assets/css/live-qa-final.css'
       - 'tests/integration/native_view_renderer_contract.php'
+      - 'tests/integration/native_view_layout_context_contract.php'
       - 'tests/integration/native_workspace_shell_contract.php'
       - 'tests/integration/native_file_manager_contract.php'
       - 'tests/integration/native_profile_contract.php'
@@ -73,6 +74,7 @@ on:
       - 'assets/js/messenger-connection-ux.js'
       - 'assets/css/live-qa-final.css'
       - 'tests/integration/native_view_renderer_contract.php'
+      - 'tests/integration/native_view_layout_context_contract.php'
       - 'tests/integration/native_workspace_shell_contract.php'
       - 'tests/integration/native_file_manager_contract.php'
       - 'tests/integration/native_profile_contract.php'
@@ -133,6 +135,7 @@ jobs:
           php -l 'app/views/^elements/task_item/index.php'
           php -l app/views/messager_page/index.php
           php -l tests/integration/native_view_renderer_contract.php
+          php -l tests/integration/native_view_layout_context_contract.php
           php -l tests/integration/native_workspace_shell_contract.php
           php -l tests/integration/native_file_manager_contract.php
           php -l tests/integration/native_profile_contract.php
@@ -143,6 +146,7 @@ jobs:
       - name: Verify native renderer contracts without vendor bootstrap
         run: |
           php tests/integration/native_view_renderer_contract.php
+          php tests/integration/native_view_layout_context_contract.php
           php tests/integration/native_workspace_shell_contract.php
           php tests/integration/native_file_manager_contract.php
           php tests/integration/native_profile_contract.php
