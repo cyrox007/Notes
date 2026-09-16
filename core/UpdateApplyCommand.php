@@ -52,6 +52,18 @@ final class UpdateApplyCommand
         $backupRoot = $this->resolveRoot((string) ($options['backup-root'] ?? ''), 'UPDATE_BACKUP_PATH', 'update-backups');
         $candidateOption = trim((string) ($options['candidate-dir'] ?? ''));
 
+        try {
+            // Intentionally retained in this function scope so its flock covers
+            // maintenance validation, apply/recover, rollback and marker release.
+            $operationLock = new UpdateApplyOperationLock($stateRoot, $transactionId);
+        } catch (UpdateOperationBusyException $e) {
+            throw new UpdateApplyException(
+                'Another live apply/recovery process already owns this updater transaction',
+                'operation_busy',
+                75
+            );
+        }
+
         $maintenance = new MaintenanceModeService($stateRoot, $this->appRoot);
         $maintenanceState = $maintenance->state();
         if (!$maintenanceState['active'] || !$maintenanceState['valid']) {
@@ -460,6 +472,10 @@ final class UpdateApplyCommand
      * Resume-safe rollback. Repeated work is intentional when a crash occurred
      * before a phase marker was durably written.
      *
+     * The verified backup is the authoritative recovery artifact. The release
+     * candidate may already have been deleted or damaged and is never required
+     * to restore code/database state after the destructive boundary.
+     *
      * @param array<string,mixed> $journalState
      * @return array<string,mixed>
      */
@@ -473,7 +489,6 @@ final class UpdateApplyCommand
     ): array {
         $artifacts = $this->recoveryArtifacts($journalState);
         $backups = $backupManager->verify($artifacts['backup_dir'], $transactionId);
-        $candidate = $applier->verifyCandidateTree($artifacts['candidate_dir']);
 
         $current = $stateMachine->load($transactionId);
         $state = (string) ($current['state'] ?? '');
@@ -492,10 +507,9 @@ final class UpdateApplyCommand
         }
 
         if ($state === 'rollback_started') {
-            $code = $applier->restoreCode(
+            $code = (new UpdateRollbackCodeRestorer($this->appRoot))->restore(
                 $transactionId,
-                $backups['backup_dir'],
-                $candidate['candidate_dir']
+                $backups['backup_dir']
             );
             $stateMachine->markCodeRestored($transactionId, $code);
             $state = 'code_restored';
@@ -540,20 +554,18 @@ final class UpdateApplyCommand
         return $verified;
     }
 
-    /** @param array<string,mixed> $journalState @return array{candidate_dir:string,backup_dir:string} */
+    /** @param array<string,mixed> $journalState @return array{backup_dir:string} */
     private function recoveryArtifacts(array $journalState): array
     {
-        $candidate = $journalState['candidate'] ?? null;
         $backups = $journalState['backups'] ?? null;
-        if (!is_array($candidate) || !is_array($backups) || !is_array($backups['database'] ?? null)) {
-            throw new RuntimeException('Updater journal does not contain complete recovery artifacts');
+        if (!is_array($backups) || !is_array($backups['database'] ?? null)) {
+            throw new RuntimeException('Updater journal does not contain complete rollback backup metadata');
         }
-        $candidateDir = (string) ($candidate['candidate_dir'] ?? '');
         $backupDir = (string) ($backups['backup_dir'] ?? '');
-        if ($candidateDir === '' || $backupDir === '') {
-            throw new RuntimeException('Updater journal recovery artifact paths are missing');
+        if ($backupDir === '') {
+            throw new RuntimeException('Updater journal rollback backup path is missing');
         }
-        return ['candidate_dir' => $candidateDir, 'backup_dir' => $backupDir];
+        return ['backup_dir' => $backupDir];
     }
 
     /** @param array<string,mixed> $journalState @param array{version:string,version_code:int} $actual */
