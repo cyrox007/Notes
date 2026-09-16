@@ -29,7 +29,7 @@ $filterLabels = [
 
 ob_start();
 ?>
-<section class="content-header"><h1>Ежедневник</h1></section>
+<section class="content-header"><h1>Задачи</h1></section>
 
 <section class="tasks">
     <div class="tasks__stats">
@@ -125,7 +125,7 @@ ob_start();
 <?php
 $content = (string) ob_get_clean();
 echo $view->layout('core/base', [
-    'title' => 'Ежедневник - Задачи',
+    'title' => 'Задачи',
     'sitename' => $siteName,
     'version' => $workspaceVersion,
     'base_url' => $baseUrl,
