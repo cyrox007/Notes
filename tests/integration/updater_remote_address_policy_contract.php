@@ -19,8 +19,10 @@ remoteAddressAssert(extension_loaded('openssl'), 'openssl is required');
 
 $transport = new UpdateHttpsTransport(1, 1);
 $reflection = new ReflectionClass(UpdateHttpsTransport::class);
-$method = $reflection->getMethod('isPublicAddress');
-$method->setAccessible(true);
+$addressMethod = $reflection->getMethod('isPublicAddress');
+$addressMethod->setAccessible(true);
+$urlMethod = $reflection->getMethod('parseHttpsUrl');
+$urlMethod->setAccessible(true);
 
 foreach ([
     '8.8.8.8',
@@ -29,7 +31,7 @@ foreach ([
     '2001:4860:4860::8888',
 ] as $ip) {
     remoteAddressAssert(
-        $method->invoke($transport, $ip) === true,
+        $addressMethod->invoke($transport, $ip) === true,
         "public updater address was rejected: {$ip}"
     );
 }
@@ -66,14 +68,38 @@ foreach ([
     'ff02::1',
 ] as $ip) {
     remoteAddressAssert(
-        $method->invoke($transport, $ip) === false,
+        $addressMethod->invoke($transport, $ip) === false,
         "special/private updater address was accepted: {$ip}"
     );
 }
 
 remoteAddressAssert(
-    $method->invoke($transport, 'not-an-ip') === false,
+    $addressMethod->invoke($transport, 'not-an-ip') === false,
     'invalid updater network address was accepted'
 );
+
+$validUrl = $urlMethod->invoke($transport, 'https://updates.example.test/stable/feed.json?channel=stable');
+remoteAddressAssert(
+    is_array($validUrl)
+        && ($validUrl['host'] ?? '') === 'updates.example.test'
+        && ($validUrl['request_target'] ?? '') === '/stable/feed.json?channel=stable',
+    'valid updater HTTPS URL did not preserve a safe request target'
+);
+
+foreach ([
+    "https://updates.example.test/stable/feed json",
+    "https://updates.example.test/stable/feed.json?x=hello world",
+    "https://updates.example.test/stable/feed.json?x=ok\r\nX-Evil: yes",
+    "https://updates.example.test/stable/line\nfeed.json",
+] as $unsafeUrl) {
+    $rejected = false;
+    try {
+        $urlMethod->invoke($transport, $unsafeUrl);
+    } catch (Throwable $e) {
+        $rejected = str_contains(strtolower($e->getMessage()), 'unsafe')
+            || str_contains(strtolower($e->getMessage()), 'invalid');
+    }
+    remoteAddressAssert($rejected, 'unsafe updater request target was accepted');
+}
 
 echo "[OK] updater remote address policy contract\n";
