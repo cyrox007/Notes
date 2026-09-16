@@ -48,10 +48,13 @@ jobs:
           set -euo pipefail
           php -l core/UpdateTransactionStateMachine.php
           php -l core/UpdateLiveApplier.php
+          php -l core/UpdateApplyOperationLock.php
+          php -l core/UpdateRollbackCodeRestorer.php
           php -l core/UpdateApplyCommand.php
           php -l bin/update_apply.php
           php -l tests/integration/updater_live_apply_contract.php
           php -l tests/integration/updater_live_permissions_contract.php
+          php -l tests/integration/updater_recovery_invariants_contract.php
 
       - name: Prepare rollback database fixture
         shell: bash
@@ -88,6 +91,7 @@ jobs:
         run: |
           php tests/integration/updater_live_apply_contract.php
           php tests/integration/updater_live_permissions_contract.php
+          php tests/integration/updater_recovery_invariants_contract.php
 
       - name: Verify CLI and destructive-boundary invariants
         shell: bash
@@ -95,6 +99,10 @@ jobs:
           set -euo pipefail
           php bin/update_apply.php --help | grep -Fq 'transactional live updater'
           grep -Fq 'UpdateApplyCommand' bin/update_apply.php
+          grep -Fq 'UpdateApplyOperationLock' core/UpdateApplyCommand.php
+          grep -Fq 'operation_busy' core/UpdateApplyCommand.php
+          grep -Fq 'UpdateRollbackCodeRestorer' core/UpdateApplyCommand.php
+          grep -Fq "'candidate_required' => false" core/UpdateRollbackCodeRestorer.php
           grep -Fq 'markLiveMutationStarted' core/UpdateApplyCommand.php
           grep -Fq 'markRollbackFailed' core/UpdateApplyCommand.php
           grep -Fq "state === 'code_restored'" core/UpdateApplyCommand.php
@@ -107,5 +115,6 @@ jobs:
           grep -Fq 'mkdir($path, 0755, true)' core/UpdateLiveApplier.php
           grep -Fq 'DROP TABLE IF EXISTS' core/UpdateLiveApplier.php
           grep -Fq 'rollback_failed' core/UpdateTransactionStateMachine.php
+          ! grep -Fq 'verifyCandidateTree($artifacts' core/UpdateApplyCommand.php
           ! grep -Fq 'unzip ' bin/update_apply.php
           ! grep -Fq 'unzip ' core/UpdateApplyCommand.php
