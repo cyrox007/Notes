@@ -21,9 +21,35 @@ The entrypoint:
 - must return `Core\ModuleRuntimeProvider`;
 - must report the same module ID as its manifest;
 - boots in dependency-first order;
-- owns registration of its routes.
+- owns registration of its routes;
+- exports concrete service objects for exactly the capabilities declared in `module.json`.
 
 A module must not be switched from `legacy` to `isolated` until its product runtime files and routes have actually moved behind that entrypoint.
+
+## Cross-module capabilities
+
+Isolated modules do not import another module's internal PHP files or look up its classes by path. Cross-module services are discovered through `Core\ModuleCapabilityRegistry`.
+
+Rules:
+
+- capability identifiers are declared in the provider module manifest;
+- the runtime provider must export exactly the same capability set;
+- only modules in the effective runtime composition can provide capabilities;
+- two active modules cannot silently provide the same capability: duplicate registration fails closed;
+- after module boot the registry is sealed and cannot be mutated during request dispatch;
+- consumers request a capability service through `ModuleRuntimeLoader::getInstance()->capabilities()`;
+- consumers may require an expected interface/class, and a type mismatch fails closed;
+- the registry exposes provider ownership for diagnostics without exposing provider filesystem paths.
+
+Example future integration:
+
+```php
+$player = ModuleRuntimeLoader::getInstance()
+    ->capabilities()
+    ->require('media.playback', MediaPlayback::class);
+```
+
+A Files/Notes/Messenger module can therefore use media playback without depending on the implementation module's internal controller/service/model layout. `media.playback` itself is post-1.0 product work; the registry contract is part of the 1.0 isolation foundation.
 
 ## Transitional loader
 
@@ -52,7 +78,8 @@ A migrated module:
 - owns its storage/schema/migration metadata;
 - can be omitted from runtime composition without its entrypoint or routes loading;
 - fails closed on a missing/escaping/invalid entrypoint;
-- uses declared contracts for cross-module integration;
+- exports only capabilities declared in its manifest;
+- uses capability contracts instead of direct access to another module's internals;
 - passes module-specific HTTP/browser/data regression tests;
 - remains compatible with updater/package composition and lifecycle reconciliation.
 
@@ -63,4 +90,5 @@ Before tagging 1.0:
 - every bundled production module (`admin`, `files`, `messenger`, `notes`, `profile`, `tasks`) must report `runtime.mode = isolated`;
 - no bundled module may depend on the transitional recursive product loader;
 - disabling/removing a module must not require editing another module's internal files;
+- duplicate or undeclared capability providers must fail closed;
 - module package web roots remain non-public unless explicitly exposed through core routing/static asset policy.
