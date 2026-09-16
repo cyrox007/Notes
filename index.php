@@ -55,7 +55,65 @@ HTML;
     exit;
 }
 
+/** @param array{active:bool,valid:bool,transaction_id:?string,reason:string,started_at:?int,state_path:?string} $state */
+function handleMaintenanceMode(array $state): never
+{
+    http_response_code(503);
+    header('Cache-Control: no-store');
+    header('Retry-After: 60');
+
+    $reason = trim((string) ($state['reason'] ?? ''));
+    if ($reason === '' || !($state['valid'] ?? false)) {
+        $reason = 'Выполняется техническое обслуживание приложения.';
+    }
+
+    $accept = strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? ''));
+    if (str_contains($accept, 'application/json')) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'success' => false,
+            'error' => 'maintenance_mode',
+            'message' => $reason,
+            'retry_after' => 60,
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
+        exit;
+    }
+
+    header('Content-Type: text/html; charset=utf-8');
+    $safeReason = htmlspecialchars($reason, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    echo <<<HTML
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="robots" content="noindex,nofollow">
+    <title>Техническое обслуживание</title>
+    <style>
+        :root { color-scheme: light; font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+        * { box-sizing:border-box; }
+        body { margin:0; min-height:100vh; display:grid; place-items:center; padding:24px; background:#f4f6f9; color:#1f2937; }
+        main { width:min(620px,100%); padding:28px; background:#fff; border:1px solid #dce2e9; border-radius:16px; box-shadow:0 18px 48px rgba(31,41,55,.10); }
+        h1 { margin:0 0 10px; font-size:24px; } p { margin:0; line-height:1.6; color:#667085; }
+    </style>
+</head>
+<body><main role="status"><h1>Техническое обслуживание</h1><p>{$safeReason}</p><p>Повторите попытку через минуту.</p></main></body>
+</html>
+HTML;
+    exit;
+}
+
 try {
+    // Maintenance must be observable before any database/module bootstrap. During
+    // an update the database may be intentionally unavailable or mid-migration.
+    require_once SITEPATH . '/core/Environment.php';
+    \Core\Environment::load(SITEPATH . '/.env');
+    require_once SITEPATH . '/app/services/MaintenanceModeService.php';
+    $maintenanceState = (new \App\Services\MaintenanceModeService())->state();
+    if ($maintenanceState['active']) {
+        handleMaintenanceMode($maintenanceState);
+    }
+
     require_once SITEPATH . '/core.php';
 } catch (Throwable $e) {
     $exceptionClass = $e::class;
