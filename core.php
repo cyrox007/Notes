@@ -32,6 +32,7 @@ $coreFiles = [
     '/core/ModuleManifest.php',
     '/core/ModuleRegistry.php',
     '/core/ModuleRuntimeProvider.php',
+    '/core/ModuleCapabilityRegistry.php',
     '/core/ModuleRuntimeLoader.php',
     '/core/DatabaseControll.php',
     '/core/DatabaseManager.php',
@@ -72,7 +73,8 @@ $moduleRegistry = \Core\ModuleRegistry::boot(
 // HTTP runtime uses the reconciled effective composition. Entrypoints that defer
 // lifecycle persistence (notably the native WS process bootstrap) use the package
 // default composition; isolated runtime code is still loaded explicitly rather
-// than through the legacy recursive app/* loader.
+// than through the legacy recursive app/* loader. Capability providers are bound
+// while these isolated providers boot and the registry is sealed before dispatch.
 $moduleRuntimeComposition = $moduleLifecycleStore !== null
     ? $moduleRegistry->enabledComposition()
     : $moduleRegistry->defaultComposition();
