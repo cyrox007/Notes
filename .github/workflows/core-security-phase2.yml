@@ -1,35 +1,51 @@
-name: 0.14 core router and session security
+name: 1.0 core router and request security
 
 on:
   pull_request:
+    branches: ['1.0']
   push:
-    branches:
-      - master
+    branches: ['1.0-request-router-hardening']
 
 permissions:
   contents: read
 
 jobs:
-  core-router-session-security:
+  core-router-request-security:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.3']
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup PHP 8.3
+      - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: ${{ matrix.php }}
           coverage: none
 
       - name: Lint hardened core files
         run: |
           php -l core/SessionSecurity.php
           php -l core/RedirectPolicy.php
+          php -l core/request.php
           php -l core/Router.php
           php -l tests/integration/router_session_security_contract.php
 
-      - name: Verify router/session negative security contract
+      - name: Verify router/request/session negative security contract
         run: php tests/integration/router_session_security_contract.php
+
+      - name: Verify dispatch boundary is fail closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'hasInvalidJson' core/Router.php
+          grep -Fq 'handleMethodNotAllowed' core/Router.php
+          grep -Fq 'Duplicate route registration' core/Router.php
+          grep -Fq 'executeMiddlewares($this->globalMiddlewares' core/Router.php
+          grep -Fq 'json_body_too_large' core/request.php
+          grep -Fq 'JSON_THROW_ON_ERROR' core/request.php

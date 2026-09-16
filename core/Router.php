@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Core;
 
+use InvalidArgumentException;
+use RuntimeException;
+
 class Router
 {
     private static ?self $instance = null;
@@ -39,7 +42,7 @@ class Router
     public function addGlobalMiddleware(string $middleware): self
     {
         if ($middleware === '') {
-            throw new \InvalidArgumentException('Global middleware class cannot be empty');
+            throw new InvalidArgumentException('Global middleware class cannot be empty');
         }
         if (!in_array($middleware, $this->globalMiddlewares, true)) {
             $this->globalMiddlewares[] = $middleware;
@@ -86,21 +89,28 @@ class Router
     private function createPattern(string $path): string
     {
         $tokens = preg_split(
-            '/(\{(?:int|str):[A-Za-z0-9_]+\})/',
+            '/(\{(?:int|str):[A-Za-z_][A-Za-z0-9_]*\})/',
             $path,
             -1,
             PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY
         );
 
         if ($tokens === false) {
-            throw new \RuntimeException('Unable to compile route pattern');
+            throw new RuntimeException('Unable to compile route pattern');
         }
 
         $pattern = '';
+        $names = [];
         foreach ($tokens as $token) {
-            if (preg_match('/^\{(int|str):([A-Za-z0-9_]+)\}$/', $token, $matches) === 1) {
+            if (preg_match('/^\{(int|str):([A-Za-z_][A-Za-z0-9_]*)\}$/', $token, $matches) === 1) {
+                $name = $matches[2];
+                if (isset($names[$name])) {
+                    throw new RuntimeException("Duplicate route parameter: {$name}");
+                }
+                $names[$name] = true;
+
                 $valuePattern = $matches[1] === 'int' ? '\\d+' : '[A-Za-z0-9_-]+';
-                $pattern .= '(?P<' . $matches[2] . '>' . $valuePattern . ')';
+                $pattern .= '(?P<' . $name . '>' . $valuePattern . ')';
                 continue;
             }
 
@@ -114,10 +124,17 @@ class Router
      * @param array<string, mixed> $matched
      * @return array<string, mixed>
      */
-    private function clearParams(array|null $matched): array
+    private function clearParams(array|null $matched, string $routePath): array
     {
         if ($matched === null) {
             return [];
+        }
+
+        $types = [];
+        if (preg_match_all('/\{(int|str):([A-Za-z_][A-Za-z0-9_]*)\}/', $routePath, $definitions, PREG_SET_ORDER)) {
+            foreach ($definitions as $definition) {
+                $types[(string) $definition[2]] = (string) $definition[1];
+            }
         }
 
         $filtered = array_filter(
@@ -127,7 +144,7 @@ class Router
         );
 
         foreach ($filtered as $key => $value) {
-            if (is_string($value) && ctype_digit($value)) {
+            if (($types[$key] ?? null) === 'int' && is_string($value) && ctype_digit($value)) {
                 $filtered[$key] = (int) $value;
             }
         }
@@ -137,6 +154,10 @@ class Router
 
     private function normalizePath(string $path): string
     {
+        if (str_contains($path, "\0") || preg_match('/[\x00-\x1F\x7F]/', $path) === 1) {
+            throw new InvalidArgumentException('Route path contains control characters');
+        }
+
         $path = trim($path, '/');
         $path = "/{$path}/";
         return (string) preg_replace('#/{2,}#', '/', $path);
@@ -148,6 +169,20 @@ class Router
      */
     public function add(string $method, string $path, array $controller, array $middlewares = [], string $name = ''): self
     {
+        $method = strtoupper(trim($method));
+        if (!in_array($method, ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'], true)) {
+            throw new InvalidArgumentException("Unsupported HTTP method: {$method}");
+        }
+        if (
+            count($controller) !== 2
+            || !is_string($controller[0] ?? null)
+            || trim((string) ($controller[0] ?? '')) === ''
+            || !is_string($controller[1] ?? null)
+            || trim((string) ($controller[1] ?? '')) === ''
+        ) {
+            throw new InvalidArgumentException('Route controller must be [class, method]');
+        }
+
         $basePath = $this->getBasePath();
         if ($this->groupPrefix !== null) {
             $path = $this->normalizePath($this->groupPrefix . $path);
@@ -155,9 +190,22 @@ class Router
             $path = $this->normalizePath($basePath . $path);
         }
 
+        // Invalid placeholders and duplicate parameter names fail during route
+        // registration rather than on the first request that reaches the route.
+        $this->createPattern($path);
+
+        foreach ($this->routes as $existing) {
+            if ($existing['method'] === $method && $existing['path'] === $path) {
+                throw new RuntimeException("Duplicate route registration: {$method} {$path}");
+            }
+            if ($name !== '' && ($existing['name'] ?? '') === $name) {
+                throw new RuntimeException("Duplicate route name: {$name}");
+            }
+        }
+
         $route = [
             'path' => $path,
-            'method' => strtoupper($method),
+            'method' => $method,
             'controller' => $controller,
             'middlewares' => $middlewares,
         ];
@@ -174,65 +222,81 @@ class Router
     public function dispatch(): void
     {
         $rawRequestUri = (string) ($_SERVER['REQUEST_URI'] ?? '/');
-        if (preg_match('/[\r\n\x00]/', $rawRequestUri) === 1) {
-            $this->handleBadRequest();
+        if (preg_match('/[\x00-\x1F\x7F]/', $rawRequestUri) === 1) {
+            $this->handleBadRequest('invalid_request_path');
         }
 
         $parsedPath = parse_url($rawRequestUri, PHP_URL_PATH);
         if (!is_string($parsedPath)) {
-            $this->handleBadRequest();
+            $this->handleBadRequest('invalid_request_path');
         }
 
-        $requestUrl = $this->normalizePath($parsedPath);
+        try {
+            $requestUrl = $this->normalizePath($parsedPath);
+        } catch (InvalidArgumentException) {
+            $this->handleBadRequest('invalid_request_path');
+        }
         $requestMethod = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
-        $routeFound = false;
+        $pathMatched = false;
+        $allowedMethods = [];
 
         foreach ($this->routes as $route) {
             $pathPattern = $this->createPattern($route['path']);
-
             $params = null;
-
-            if (!$this->isMatchingRoute($pathPattern, $requestUrl, $route['method'], $requestMethod, $params)) {
+            if (preg_match($pathPattern, $requestUrl, $params) !== 1) {
                 continue;
             }
 
-            $routeFound = true;
+            $pathMatched = true;
+            $allowedMethods[$route['method']] = true;
+            if ($route['method'] !== $requestMethod) {
+                continue;
+            }
 
             $request = new Request();
+            if ($request->hasInvalidJson()) {
+                $this->handleBadRequest($request->jsonError() ?? 'invalid_json');
+            }
 
             if (!$this->executeMiddlewares($this->globalMiddlewares, $request)) {
                 return;
             }
 
+            // Once an exact method/path route is matched, denial is terminal.
+            // Never continue scanning in search of a route with weaker guards.
             if (!$this->executeMiddlewares($route['middlewares'], $request)) {
-                continue;
+                return;
             }
 
             [$className, $methodName] = $route['controller'];
 
             if (!class_exists($className)) {
-                throw new \RuntimeException("Controller class does not exist: {$className}");
+                throw new RuntimeException("Controller class does not exist: {$className}");
             }
 
             $controllerInstance = new $className();
 
             if (!method_exists($controllerInstance, $methodName)) {
-                throw new \RuntimeException("Method {$methodName} does not exist in controller {$className}");
+                throw new RuntimeException("Method {$methodName} does not exist in controller {$className}");
             }
 
-            $params = $this->clearParams($params);
+            $params = $this->clearParams($params, $route['path']);
 
             $this->invokeController($controllerInstance, $methodName, $request, $params);
 
             return;
         }
 
-        if (!$routeFound) {
-            $this->handle404();
+        if ($pathMatched) {
+            $methods = array_keys($allowedMethods);
+            sort($methods, SORT_STRING);
+            $this->handleMethodNotAllowed($methods);
         }
+
+        $this->handle404();
     }
 
-    private function handle404(): void
+    private function handle404(): never
     {
         http_response_code(404);
         header('Content-Type: text/plain; charset=utf-8');
@@ -241,21 +305,29 @@ class Router
         exit;
     }
 
-    private function handleBadRequest(): never
+    private function handleBadRequest(string $code): never
     {
         http_response_code(400);
-        header('Content-Type: text/plain; charset=utf-8');
+        header('Content-Type: application/json; charset=utf-8');
         header('Cache-Control: no-store');
-        echo '400 Bad Request';
+        echo json_encode([
+            'error' => 'invalid_request',
+            'code' => $code,
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         exit;
     }
 
-    /**
-     * @param array<string, mixed> $params
-     */
-    private function isMatchingRoute(string $pathPattern, string $requestUrl, string $routeMethod, string $requestMethod, array|null &$params): bool
+    /** @param list<string> $methods */
+    private function handleMethodNotAllowed(array $methods): never
     {
-        return preg_match($pathPattern, $requestUrl, $params) === 1 && $routeMethod === $requestMethod;
+        http_response_code(405);
+        if ($methods !== []) {
+            header('Allow: ' . implode(', ', $methods));
+        }
+        header('Content-Type: text/plain; charset=utf-8');
+        header('Cache-Control: no-store');
+        echo '405 Method Not Allowed';
+        exit;
     }
 
     /**
@@ -277,13 +349,13 @@ class Router
     {
         foreach ($middlewares as $middleware) {
             if (!class_exists($middleware)) {
-                throw new \RuntimeException("Middleware class does not exist: {$middleware}");
+                throw new RuntimeException("Middleware class does not exist: {$middleware}");
             }
 
             $middlewareInstance = new $middleware();
 
             if (!method_exists($middlewareInstance, 'handle')) {
-                throw new \RuntimeException("Middleware {$middleware} does not have a handle method");
+                throw new RuntimeException("Middleware {$middleware} does not have a handle method");
             }
 
             if (!$middlewareInstance->handle($request)) {
@@ -316,10 +388,10 @@ class Router
                 exit;
             }
 
-            throw new \RuntimeException("Route for redirect not found: {$to}");
+            throw new RuntimeException("Route for redirect not found: {$to}");
         }
 
-        throw new \InvalidArgumentException("Invalid type provided for redirect: {$type}");
+        throw new InvalidArgumentException("Invalid type provided for redirect: {$type}");
     }
 
     /**
@@ -329,35 +401,35 @@ class Router
     {
         foreach ($params as $key => $value) {
             if (!is_string($key) || preg_match('/^[A-Za-z0-9_]+$/', $key) !== 1) {
-                throw new \InvalidArgumentException('Invalid route parameter name');
+                throw new InvalidArgumentException('Invalid route parameter name');
             }
 
             $pattern = '/\{(int|str):' . preg_quote($key, '/') . '\}/';
             if (preg_match($pattern, $path, $matches) !== 1) {
-                throw new \RuntimeException("Parameter {$key} not found in route path");
+                throw new RuntimeException("Parameter {$key} not found in route path");
             }
 
             $type = $matches[1];
             if ($type === 'int') {
                 if (!(is_int($value) || (is_string($value) && ctype_digit($value)))) {
-                    throw new \InvalidArgumentException("Route parameter {$key} must be an integer");
+                    throw new InvalidArgumentException("Route parameter {$key} must be an integer");
                 }
                 $replacement = (string) $value;
             } else {
                 if (!(is_string($value) || is_int($value))) {
-                    throw new \InvalidArgumentException("Route parameter {$key} must be a scalar string identifier");
+                    throw new InvalidArgumentException("Route parameter {$key} must be a scalar string identifier");
                 }
                 $replacement = (string) $value;
                 if (preg_match('/^[A-Za-z0-9_-]+$/', $replacement) !== 1) {
-                    throw new \InvalidArgumentException("Route parameter {$key} contains invalid characters");
+                    throw new InvalidArgumentException("Route parameter {$key} contains invalid characters");
                 }
             }
 
             $path = (string) preg_replace($pattern, $replacement, $path, 1);
         }
 
-        if (preg_match('/\{(?:int|str):[A-Za-z0-9_]+\}/', $path) === 1) {
-            throw new \RuntimeException('Missing parameter for named route redirect');
+        if (preg_match('/\{(?:int|str):[A-Za-z_][A-Za-z0-9_]*\}/', $path) === 1) {
+            throw new RuntimeException('Missing parameter for named route redirect');
         }
 
         return $this->normalizePath($path);
