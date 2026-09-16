@@ -32,8 +32,8 @@ function vendorUpdateRequireCli(): void
 function vendorUpdateValidateKeyId(string $keyId): string
 {
     $keyId = trim($keyId);
-    if (preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,47}$/', $keyId) !== 1) {
-        vendorUpdateFail('Invalid key id. Use 1-48 characters: letters, numbers, dot, underscore or hyphen.');
+    if (preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$/', $keyId) !== 1) {
+        vendorUpdateFail('Invalid key id. Use 1-48 characters: letters, numbers, underscore or hyphen. Dot is reserved as the signature-token separator.');
     }
     return $keyId;
 }
