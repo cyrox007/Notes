@@ -17,6 +17,8 @@ require_once $root . '/core/UpdateTransactionJournal.php';
 require_once $root . '/core/UpdateTransactionStateMachine.php';
 require_once $root . '/core/UpdateBackupManager.php';
 require_once $root . '/core/UpdateLiveApplier.php';
+require_once $root . '/core/UpdateApplyOperationLock.php';
+require_once $root . '/core/UpdateRollbackCodeRestorer.php';
 require_once $root . '/app/services/MaintenanceModeService.php';
 require_once $root . '/core/UpdateApplyCommand.php';
 
