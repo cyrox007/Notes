@@ -25,7 +25,14 @@ class Controller
         ob_start();
         $this->request = new Request();
         $this->viewContext = new ViewContext($this->request);
-        $this->renderer = new NativeViewRenderer(SITEPATH . '/app/views', $this->viewContext);
+        $moduleViewRoots = ModuleRuntimeLoader::isBooted()
+            ? ModuleRuntimeLoader::getInstance()->viewRoots()
+            : [];
+        $this->renderer = new NativeViewRenderer(
+            SITEPATH . '/app/views',
+            $this->viewContext,
+            $moduleViewRoots,
+        );
 
         // CSRF validation remains global for mutating HTTP requests and is
         // independent from the selected presentation engine.
@@ -68,6 +75,8 @@ class Controller
 
     /**
      * Render a logical application view through the internal native PHP engine.
+     * Isolated module views use the `@module-id/path` namespace and are resolved
+     * only from view roots registered by the active ModuleRuntimeLoader.
      *
      * @param array<string,mixed>|null $data
      */
