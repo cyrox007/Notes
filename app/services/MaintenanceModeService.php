@@ -18,6 +18,7 @@ use RuntimeException;
 final class MaintenanceModeService
 {
     public const STATE_FILENAME = 'workspace-maintenance.json';
+    private const LOCK_FILENAME = '.workspace-maintenance.lock';
     private const SCHEMA = 1;
     private const MAX_STATE_BYTES = 16384;
 
@@ -110,65 +111,68 @@ final class MaintenanceModeService
             throw new RuntimeException('Maintenance state root is not configured');
         }
 
-        $existing = $this->state();
-        if ($existing['active']) {
-            if ($existing['valid'] && hash_equals((string) $existing['transaction_id'], $transactionId)) {
-                /** @var array{active:bool,valid:bool,transaction_id:string,reason:string,started_at:int,state_path:string} $existing */
-                return $existing;
+        /** @var array{active:bool,valid:bool,transaction_id:string,reason:string,started_at:int,state_path:string} */
+        return $this->withExclusiveLock($path, function () use ($path, $transactionId, $reason): array {
+            $existing = $this->state();
+            if ($existing['active']) {
+                if ($existing['valid'] && hash_equals((string) $existing['transaction_id'], $transactionId)) {
+                    /** @var array{active:bool,valid:bool,transaction_id:string,reason:string,started_at:int,state_path:string} $existing */
+                    return $existing;
+                }
+                throw new RuntimeException('Maintenance mode is already owned by another or invalid transaction');
             }
-            throw new RuntimeException('Maintenance mode is already owned by another or invalid transaction');
-        }
 
-        $payload = [
-            'schema' => self::SCHEMA,
-            'mode' => 'update',
-            'transaction_id' => $transactionId,
-            'reason' => $reason,
-            'started_at' => time(),
-        ];
-        $bytes = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . PHP_EOL;
-        $tmp = dirname($path) . DIRECTORY_SEPARATOR . '.maintenance-' . bin2hex(random_bytes(8)) . '.tmp';
+            $payload = [
+                'schema' => self::SCHEMA,
+                'mode' => 'update',
+                'transaction_id' => $transactionId,
+                'reason' => $reason,
+                'started_at' => time(),
+            ];
+            $bytes = json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . PHP_EOL;
+            $tmp = dirname($path) . DIRECTORY_SEPARATOR . '.maintenance-' . bin2hex(random_bytes(8)) . '.tmp';
 
-        $oldUmask = umask(0077);
-        $handle = @fopen($tmp, 'xb');
-        umask($oldUmask);
-        if ($handle === false) {
-            throw new RuntimeException('Cannot create temporary maintenance marker');
-        }
-        try {
-            if (fwrite($handle, $bytes) !== strlen($bytes) || !fflush($handle)) {
-                throw new RuntimeException('Cannot write complete maintenance marker');
+            $oldUmask = umask(0077);
+            $handle = @fopen($tmp, 'xb');
+            umask($oldUmask);
+            if ($handle === false) {
+                throw new RuntimeException('Cannot create temporary maintenance marker');
             }
-        } catch (\Throwable $e) {
+            try {
+                if (fwrite($handle, $bytes) !== strlen($bytes) || !fflush($handle)) {
+                    throw new RuntimeException('Cannot write complete maintenance marker');
+                }
+            } catch (\Throwable $e) {
+                fclose($handle);
+                @unlink($tmp);
+                throw $e;
+            }
             fclose($handle);
-            @unlink($tmp);
-            throw $e;
-        }
-        fclose($handle);
-        @chmod($tmp, 0600);
+            @chmod($tmp, 0600);
 
-        if (file_exists($path)) {
-            @unlink($tmp);
-            throw new RuntimeException('Maintenance marker appeared concurrently; refusing to replace it');
-        }
-        if (!@rename($tmp, $path)) {
-            @unlink($tmp);
-            throw new RuntimeException('Cannot atomically enable maintenance mode');
-        }
+            if (file_exists($path)) {
+                @unlink($tmp);
+                throw new RuntimeException('Maintenance marker appeared concurrently; refusing to replace it');
+            }
+            if (!@rename($tmp, $path)) {
+                @unlink($tmp);
+                throw new RuntimeException('Cannot atomically enable maintenance mode');
+            }
 
-        $state = $this->state();
-        if (!$state['active'] || !$state['valid'] || $state['transaction_id'] !== $transactionId) {
-            throw new RuntimeException('Maintenance marker verification failed after activation');
-        }
+            $state = $this->state();
+            if (!$state['active'] || !$state['valid'] || $state['transaction_id'] !== $transactionId) {
+                throw new RuntimeException('Maintenance marker verification failed after activation');
+            }
 
-        return [
-            'active' => true,
-            'valid' => true,
-            'transaction_id' => $transactionId,
-            'reason' => $state['reason'],
-            'started_at' => (int) $state['started_at'],
-            'state_path' => (string) $state['state_path'],
-        ];
+            return [
+                'active' => true,
+                'valid' => true,
+                'transaction_id' => $transactionId,
+                'reason' => $state['reason'],
+                'started_at' => (int) $state['started_at'],
+                'state_path' => (string) $state['state_path'],
+            ];
+        });
     }
 
     public function leave(string $transactionId, bool $force = false): void
@@ -178,25 +182,66 @@ final class MaintenanceModeService
             return;
         }
 
-        $state = $this->state();
-        if (!$force) {
-            if (!$state['valid']) {
-                throw new RuntimeException('Maintenance marker is invalid; explicit --force is required for recovery');
+        $this->withExclusiveLock($path, function () use ($path, $transactionId, $force): void {
+            if (!file_exists($path)) {
+                return;
             }
-            if (!hash_equals((string) $state['transaction_id'], trim($transactionId))) {
-                throw new RuntimeException('Maintenance mode belongs to another transaction');
-            }
-        }
 
-        if (!is_file($path) || is_link($path) || !@unlink($path)) {
-            throw new RuntimeException('Cannot remove maintenance marker');
-        }
+            $state = $this->state();
+            if (!$force) {
+                if (!$state['valid']) {
+                    throw new RuntimeException('Maintenance marker is invalid; explicit --force is required for recovery');
+                }
+                if (!hash_equals((string) $state['transaction_id'], trim($transactionId))) {
+                    throw new RuntimeException('Maintenance mode belongs to another transaction');
+                }
+            }
+
+            if (is_link($path)) {
+                if ($force && @unlink($path)) {
+                    return;
+                }
+                throw new RuntimeException('Maintenance marker is a symlink; explicit recovery failed');
+            }
+            if (!is_file($path) || !@unlink($path)) {
+                throw new RuntimeException('Cannot remove maintenance marker');
+            }
+        });
     }
 
     public function configuredStateRoot(): ?string
     {
         $path = $this->statePath(false);
         return $path === null ? null : dirname($path);
+    }
+
+    /** @return mixed */
+    private function withExclusiveLock(string $statePath, callable $callback): mixed
+    {
+        $lockPath = dirname($statePath) . DIRECTORY_SEPARATOR . self::LOCK_FILENAME;
+        if (is_link($lockPath) || (file_exists($lockPath) && !is_file($lockPath))) {
+            throw new RuntimeException('Maintenance lock path is unsafe');
+        }
+
+        $oldUmask = umask(0077);
+        $lock = @fopen($lockPath, 'c');
+        umask($oldUmask);
+        if ($lock === false) {
+            throw new RuntimeException('Cannot open maintenance transition lock');
+        }
+        @chmod($lockPath, 0600);
+
+        if (!flock($lock, LOCK_EX)) {
+            fclose($lock);
+            throw new RuntimeException('Cannot acquire maintenance transition lock');
+        }
+
+        try {
+            return $callback();
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
     }
 
     private function statePath(bool $createRoot): ?string
