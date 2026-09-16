@@ -111,6 +111,17 @@ function remoteBuildZipBytes(array $entries): string
     );
 }
 
+/** @param array<string,mixed> $manifest @return array{bytes:string,token:string} */
+function remoteSignManifest(array $manifest, string $secret, string $keyId): array
+{
+    $bytes = json_encode($manifest, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . PHP_EOL;
+    $token = UpdateManifestVerifier::SIGNATURE_PREFIX . '.' . $keyId . '.'
+        . UpdateManifestVerifier::base64UrlEncode(
+            sodium_crypto_sign_detached(UpdateManifestVerifier::DOMAIN . $bytes, $secret)
+        );
+    return ['bytes' => $bytes, 'token' => $token];
+}
+
 final class FakeRemoteTransport implements UpdateRemoteTransport
 {
     /** @var array<string,string> */
@@ -199,11 +210,9 @@ try {
         ],
         'notes' => 'Remote delivery contract fixture',
     ];
-    $manifestBytes = json_encode($manifest, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . PHP_EOL;
-    $signatureToken = UpdateManifestVerifier::SIGNATURE_PREFIX . '.' . $keyId . '.'
-        . UpdateManifestVerifier::base64UrlEncode(
-            sodium_crypto_sign_detached(UpdateManifestVerifier::DOMAIN . $manifestBytes, $secret)
-        );
+    $signed = remoteSignManifest($manifest, $secret, $keyId);
+    $manifestBytes = $signed['bytes'];
+    $signatureToken = $signed['token'];
     $feedBytes = json_encode([
         'schema' => UpdateRemoteDelivery::FEED_SCHEMA,
         'product' => 'workspace-organizer',
@@ -235,10 +244,52 @@ try {
 
     $checked = $delivery->check($feedUrl, 'stable', Version::VERSION_CODE, PHP_VERSION);
     remoteAssert(($checked['status'] ?? '') === 'update_available', 'remote check did not report update_available');
+    remoteAssert(($checked['update_available'] ?? false) === true, 'available update boolean missing');
     remoteAssert(($checked['target_version_code'] ?? 0) === $targetCode, 'remote check target version changed');
     remoteAssert(($checked['key_id'] ?? '') === $keyId, 'remote check lost signing key id');
     remoteAssert(($checked['package_downloaded'] ?? true) === false, 'check-only path downloaded a package');
     remoteAssert($transport->downloadCalls === [], 'check-only path invoked package transport');
+
+    // Same-version and installed-ahead are valid signed feed states, not errors.
+    foreach ([
+        ['code' => Version::VERSION_CODE, 'expected' => 'up_to_date'],
+        ['code' => max(1, Version::VERSION_CODE - 1), 'expected' => 'ahead_of_feed'],
+    ] as $case) {
+        $variant = $manifest;
+        $variant['version_code'] = $case['code'];
+        $variant['version'] = $case['expected'] . '-fixture';
+        $variant['min_source_version_code'] = 1;
+        $variantSigned = remoteSignManifest($variant, $secret, $keyId);
+        $variantTransport = new FakeRemoteTransport();
+        $variantTransport->text = [
+            $feedUrl => $feedBytes,
+            $manifestUrl => $variantSigned['bytes'],
+            $signatureUrl => $variantSigned['token'] . PHP_EOL,
+        ];
+        $variantDelivery = new UpdateRemoteDelivery($root, $verifier, $variantTransport);
+        $variantResult = $variantDelivery->check($feedUrl, 'stable', Version::VERSION_CODE, PHP_VERSION);
+        remoteAssert(($variantResult['status'] ?? '') === $case['expected'], 'normal signed feed state was misclassified');
+        remoteAssert(($variantResult['update_available'] ?? true) === false, 'normal non-update feed state was marked available');
+        remoteAssert($variantTransport->downloadCalls === [], 'normal check state downloaded package bytes');
+    }
+
+    // A newer but runtime-incompatible signed update is discoverable without
+    // downloading the package; stage() remains the enforcing action boundary.
+    $incompatible = $manifest;
+    $incompatible['requires_php'] = '99.0.0';
+    $incompatibleSigned = remoteSignManifest($incompatible, $secret, $keyId);
+    $incompatibleTransport = new FakeRemoteTransport();
+    $incompatibleTransport->text = [
+        $feedUrl => $feedBytes,
+        $manifestUrl => $incompatibleSigned['bytes'],
+        $signatureUrl => $incompatibleSigned['token'] . PHP_EOL,
+    ];
+    $incompatibleDelivery = new UpdateRemoteDelivery($root, $verifier, $incompatibleTransport);
+    $incompatibleResult = $incompatibleDelivery->check($feedUrl, 'stable', Version::VERSION_CODE, PHP_VERSION);
+    remoteAssert(($incompatibleResult['status'] ?? '') === 'update_incompatible', 'incompatible signed update was not classified');
+    remoteAssert(($incompatibleResult['update_available'] ?? true) === false, 'incompatible update was marked installable');
+    remoteAssert(str_contains((string) ($incompatibleResult['compatibility_message'] ?? ''), 'PHP'), 'incompatibility reason was not preserved');
+    remoteAssert($incompatibleTransport->downloadCalls === [], 'incompatible check downloaded package bytes');
 
     $stageRoot = $temp . '/staging';
     $staged = $delivery->stage($feedUrl, 'stable', $stageRoot, Version::VERSION_CODE, PHP_VERSION);
@@ -253,6 +304,21 @@ try {
         'staged remote package hash changed'
     );
     remoteAssert(!file_exists($stageRoot . '/evil-unsigned-pointer.zip'), 'unsigned feed package pointer was materialized');
+
+    $incompatibleStageRejected = false;
+    try {
+        $incompatibleDelivery->stage(
+            $feedUrl,
+            'stable',
+            $temp . '/incompatible-stage',
+            Version::VERSION_CODE,
+            PHP_VERSION
+        );
+    } catch (Throwable $e) {
+        $incompatibleStageRejected = str_contains($e->getMessage(), 'PHP');
+    }
+    remoteAssert($incompatibleStageRejected, 'stage accepted an incompatible signed update');
+    remoteAssert($incompatibleTransport->downloadCalls === [], 'incompatible stage downloaded package before compatibility rejection');
 
     $badTransport = new FakeRemoteTransport();
     $badTransport->text = $transport->text;
