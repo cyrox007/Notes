@@ -62,6 +62,7 @@ putenv('BASE_PATH=/workspace/');
 $guard = new EnforceLicenseMutation($invalid);
 runtimeLicenseAssert($guard->handle(requestFor('GET', '/workspace/notes/')), 'GET must remain available in read-only mode');
 runtimeLicenseAssert($guard->handle(requestFor('HEAD', '/workspace/files/')), 'HEAD must remain available in read-only mode');
+runtimeLicenseAssert($guard->handle(requestFor('OPTIONS', '/workspace/tasks/')), 'OPTIONS must remain available in read-only mode');
 runtimeLicenseAssert($guard->handle(requestFor('POST', '/workspace/auth/login')), 'login recovery path must remain available');
 runtimeLicenseAssert($guard->handle(requestFor('POST', '/workspace/auth/logout')), 'logout recovery path must remain available');
 runtimeLicenseAssert($guard->handle(requestFor('POST', '/workspace/admin/license/activate')), 'license activation must remain available');
@@ -82,6 +83,24 @@ runtimeLicenseAssert($validGuard->handle(requestFor('POST', '/workspace/tasks/')
 
 $disabledGuard = new EnforceLicenseMutation($disabled);
 runtimeLicenseAssert($disabledGuard->handle(requestFor('DELETE', '/workspace/tasks/abc/category/1')), 'unconfigured trust root must leave runtime unrestricted');
+
+$routerSource = file_get_contents($root . '/core/Router.php');
+runtimeLicenseAssert(is_string($routerSource), 'Router source must be readable');
+$globalDispatch = strpos($routerSource, 'executeMiddlewares($this->globalMiddlewares, $request)');
+$routeDispatch = strpos($routerSource, "executeMiddlewares(\$route['middlewares'], \$request)");
+runtimeLicenseAssert($globalDispatch !== false, 'Router must execute global middleware');
+runtimeLicenseAssert($routeDispatch !== false, 'Router must execute route middleware');
+runtimeLicenseAssert($globalDispatch < $routeDispatch, 'global middleware must run before route-specific middleware');
+
+$routerConfig = file_get_contents($root . '/core/routerConfig.php');
+runtimeLicenseAssert(is_string($routerConfig), 'routerConfig source must be readable');
+runtimeLicenseAssert(str_contains($routerConfig, 'use App\\Middlewares\\EnforceLicenseMutation;'), 'routerConfig must import the global license guard');
+runtimeLicenseAssert(str_contains($routerConfig, '$router->addGlobalMiddleware(EnforceLicenseMutation::class);'), 'routerConfig must register the global license guard');
+
+$baseView = file_get_contents($root . '/app/views/core/base.php');
+runtimeLicenseAssert(is_string($baseView), 'base view source must be readable');
+runtimeLicenseAssert(str_contains($baseView, 'license-readonly-banner'), 'native layout must expose a read-only banner');
+runtimeLicenseAssert(str_contains($baseView, '$canManageLicense'), 'license management action must be permission-aware');
 
 putenv('BASE_PATH');
 echo "[OK] recovery-safe license runtime policy contract\n";
