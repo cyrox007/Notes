@@ -602,6 +602,10 @@ final class UpdateLiveApplier
         }
     }
 
+    /**
+     * Scratch containers stay 0700, but directories that may be renamed into
+     * the live release must remain traversable by the web/PHP service account.
+     */
     private function ensureDirectory(string $path): void
     {
         if (is_dir($path) && !is_link($path)) {
@@ -610,12 +614,13 @@ final class UpdateLiveApplier
         if (file_exists($path) || is_link($path)) {
             throw new RuntimeException('Updater scratch directory path collides with existing entry');
         }
-        $old = umask(0077);
-        $ok = @mkdir($path, 0700, true);
+        $old = umask(0022);
+        $ok = @mkdir($path, 0755, true);
         umask($old);
         if (!$ok && !is_dir($path)) {
             throw new RuntimeException('Cannot create updater scratch directory');
         }
+        @chmod($path, 0755);
     }
 
     /** @param array<string,mixed> $payload */
@@ -640,27 +645,45 @@ final class UpdateLiveApplier
     {
         $db->query('SET FOREIGN_KEY_CHECKS=0');
         try {
+            $viewNames = [];
             $views = $db->query("SELECT TABLE_NAME FROM information_schema.views WHERE table_schema=DATABASE() ORDER BY TABLE_NAME");
             while ($row = $views->fetch_assoc()) {
-                $db->query('DROP VIEW IF EXISTS ' . $this->quoteIdentifier((string) $row['TABLE_NAME']));
+                $viewNames[] = (string) $row['TABLE_NAME'];
             }
+            $views->free();
+            foreach ($viewNames as $name) {
+                $db->query('DROP VIEW IF EXISTS ' . $this->quoteIdentifier($name));
+            }
+
+            $eventNames = [];
             $events = $db->query("SELECT EVENT_NAME FROM information_schema.events WHERE event_schema=DATABASE() ORDER BY EVENT_NAME");
             while ($row = $events->fetch_assoc()) {
-                $db->query('DROP EVENT IF EXISTS ' . $this->quoteIdentifier((string) $row['EVENT_NAME']));
+                $eventNames[] = (string) $row['EVENT_NAME'];
             }
+            $events->free();
+            foreach ($eventNames as $name) {
+                $db->query('DROP EVENT IF EXISTS ' . $this->quoteIdentifier($name));
+            }
+
+            $routineNames = [];
             $routines = $db->query("SELECT ROUTINE_NAME,ROUTINE_TYPE FROM information_schema.routines WHERE routine_schema=DATABASE() ORDER BY ROUTINE_NAME");
             while ($row = $routines->fetch_assoc()) {
-                $type = strtoupper((string) $row['ROUTINE_TYPE']);
+                $routineNames[] = [(string) $row['ROUTINE_NAME'], strtoupper((string) $row['ROUTINE_TYPE'])];
+            }
+            $routines->free();
+            foreach ($routineNames as [$name, $type]) {
                 if (!in_array($type, ['PROCEDURE', 'FUNCTION'], true)) {
                     throw new RuntimeException('Unsupported database routine type during rollback');
                 }
-                $db->query('DROP ' . $type . ' IF EXISTS ' . $this->quoteIdentifier((string) $row['ROUTINE_NAME']));
+                $db->query('DROP ' . $type . ' IF EXISTS ' . $this->quoteIdentifier($name));
             }
+
             $tables = $db->query("SELECT TABLE_NAME FROM information_schema.tables WHERE table_schema=DATABASE() AND TABLE_TYPE='BASE TABLE' ORDER BY TABLE_NAME");
             $names = [];
             while ($row = $tables->fetch_assoc()) {
                 $names[] = $this->quoteIdentifier((string) $row['TABLE_NAME']);
             }
+            $tables->free();
             if ($names !== []) {
                 $db->query('DROP TABLE IF EXISTS ' . implode(',', $names));
             }
@@ -728,18 +751,23 @@ final class UpdateLiveApplier
         while ($row = $result->fetch_assoc()) {
             $actualNames[] = (string) $row['TABLE_NAME'];
         }
+        $result->free();
         $expectedNames = array_keys($expected);
         sort($expectedNames, SORT_STRING);
         if ($actualNames !== $expectedNames) {
             throw new RuntimeException('Restored database table set does not match rollback snapshot');
         }
         foreach ($expected as $table => $rows) {
-            $actual = (int) ($db->query('SELECT COUNT(*) AS c FROM ' . $this->quoteIdentifier($table))->fetch_assoc()['c'] ?? -1);
+            $countResult = $db->query('SELECT COUNT(*) AS c FROM ' . $this->quoteIdentifier($table));
+            $actual = (int) ($countResult->fetch_assoc()['c'] ?? -1);
+            $countResult->free();
             if ($actual !== $rows) {
                 throw new RuntimeException("Restored database row count mismatch for {$table}");
             }
         }
-        $triggers = (int) ($db->query("SELECT COUNT(*) AS c FROM information_schema.triggers WHERE trigger_schema=DATABASE()")->fetch_assoc()['c'] ?? -1);
+        $triggerResult = $db->query("SELECT COUNT(*) AS c FROM information_schema.triggers WHERE trigger_schema=DATABASE()");
+        $triggers = (int) ($triggerResult->fetch_assoc()['c'] ?? -1);
+        $triggerResult->free();
         if ($triggers !== (int) ($metadata['triggers'] ?? -2)) {
             throw new RuntimeException('Restored database trigger count does not match rollback snapshot');
         }
