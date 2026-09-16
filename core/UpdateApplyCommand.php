@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Core;
 
+require_once __DIR__ . '/MigrationManifest.php';
+require_once __DIR__ . '/UpdateMigrationPreflight.php';
+
 use App\Services\MaintenanceModeService;
 use mysqli;
 use RuntimeException;
