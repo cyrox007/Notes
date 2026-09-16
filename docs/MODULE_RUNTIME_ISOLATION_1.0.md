@@ -49,7 +49,9 @@ $player = ModuleRuntimeLoader::getInstance()
     ->require('media.playback', MediaPlayback::class);
 ```
 
-A Files/Notes/Messenger module can therefore use media playback without depending on the implementation module's internal controller/service/model layout. `media.playback` itself is post-1.0 product work; the registry contract is part of the 1.0 isolation foundation.
+A Files/Notes/Messenger module can therefore use media playback without depending on the implementation module's internal controller/service/model layout.
+
+The **registry itself is 1.0 platform infrastructure** because it removes a direct cross-module dependency pattern while modules are being isolated. The actual `media.playback` provider, codec/streaming implementation and player UI remain post-1.0 product work under the feature freeze.
 
 ## Transitional loader
 
