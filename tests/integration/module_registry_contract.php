@@ -6,8 +6,13 @@ $root = dirname(__DIR__, 2);
 require_once $root . '/core/Version.php';
 require_once $root . '/core/ModuleManifest.php';
 require_once $root . '/core/ModuleRegistry.php';
+require_once $root . '/core/ModuleRuntimeProvider.php';
+require_once $root . '/core/ModuleRuntimeLoader.php';
+require_once $root . '/core/Router.php';
 
 use Core\ModuleRegistry;
+use Core\ModuleRuntimeLoader;
+use Core\Router;
 use Core\Version;
 
 function failModuleContract(string $message): never
@@ -41,7 +46,7 @@ function writeModuleFixture(string $root, string $id, array $dependencies = [], 
         'capabilities' => [$capability !== '' ? $capability : 'fixture.' . $id],
         'package' => ['bundled' => false, 'default_enabled' => true],
         'license' => ['feature' => 'fixture.' . $id],
-        'runtime' => ['mode' => 'isolated'],
+        'runtime' => ['mode' => 'isolated', 'entrypoint' => 'runtime.php'],
         'storage_namespaces' => [],
     ];
 
@@ -49,6 +54,17 @@ function writeModuleFixture(string $root, string $id, array $dependencies = [], 
         $dir . '/module.json',
         json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n"
     );
+
+    $provider = <<<'PHP'
+<?php
+return new class('__MODULE_ID__') implements \Core\ModuleRuntimeProvider {
+    public function __construct(private string $id) {}
+    public function moduleId(): string { return $this->id; }
+    public function boot(): void { $GLOBALS['moduleRuntimeBoots'][] = $this->id; }
+    public function registerRoutes(\Core\Router $router): void { $GLOBALS['moduleRuntimeRoutes'][] = $this->id; }
+};
+PHP;
+    file_put_contents($dir . '/runtime.php', str_replace('__MODULE_ID__', $id, $provider));
 }
 
 function removeTree(string $path): void
@@ -78,6 +94,7 @@ assertModuleContract($registry->defaultComposition() === $expected, 'default bun
 foreach ($registry->all() as $id => $manifest) {
     assertModuleContract($manifest->id() === $id, "manifest id mismatch for {$id}");
     assertModuleContract($manifest->runtimeMode() === 'legacy', "{$id} must remain explicitly marked legacy until isolated");
+    assertModuleContract($manifest->runtimeEntrypoint() === null, "legacy {$id} must not expose an isolated entrypoint");
     assertModuleContract(strlen($manifest->integrityHash()) === 64, "{$id} manifest must expose a SHA-256 integrity hash");
     assertModuleContract($manifest->licenseFeature() !== null, "{$id} must declare a central entitlement feature");
     assertModuleContract($manifest->isCompatibleWithCore(Version::VERSION), "{$id} must be compatible with the current core");
@@ -92,10 +109,59 @@ try {
     writeModuleFixture($tmp, 'beta');
     writeModuleFixture($tmp, 'alpha', ['beta']);
     $fixtureRegistry = ModuleRegistry::discover($tmp, Version::VERSION);
+    $composition = $fixtureRegistry->resolveComposition(['alpha']);
     assertModuleContract(
-        $fixtureRegistry->resolveComposition(['alpha']) === ['beta', 'alpha'],
+        $composition === ['beta', 'alpha'],
         'dependency closure/load order must place dependency before consumer'
     );
+
+    $GLOBALS['moduleRuntimeBoots'] = [];
+    $GLOBALS['moduleRuntimeRoutes'] = [];
+    $runtime = ModuleRuntimeLoader::boot($fixtureRegistry, $composition);
+    assertModuleContract(
+        array_keys($runtime->providers()) === ['beta', 'alpha'],
+        'isolated providers must load in dependency-first runtime composition order'
+    );
+    assertModuleContract(
+        $GLOBALS['moduleRuntimeBoots'] === ['beta', 'alpha'],
+        'isolated provider boot order drifted'
+    );
+    $runtime->registerRoutes(Router::getInstance());
+    assertModuleContract(
+        $GLOBALS['moduleRuntimeRoutes'] === ['beta', 'alpha'],
+        'isolated route providers were not invoked in runtime composition order'
+    );
+} finally {
+    unset($GLOBALS['moduleRuntimeBoots'], $GLOBALS['moduleRuntimeRoutes']);
+    removeTree($tmp);
+}
+
+$tmp = sys_get_temp_dir() . '/workspace-module-entrypoint-' . bin2hex(random_bytes(6));
+mkdir($tmp, 0700, true);
+try {
+    writeModuleFixture($tmp, 'alpha');
+    $path = $tmp . '/alpha/module.json';
+    $manifest = json_decode((string) file_get_contents($path), true, 32, JSON_THROW_ON_ERROR);
+    unset($manifest['runtime']['entrypoint']);
+    file_put_contents($path, json_encode($manifest, JSON_THROW_ON_ERROR));
+
+    $missingEntrypointRejected = false;
+    try {
+        ModuleRegistry::discover($tmp, Version::VERSION);
+    } catch (RuntimeException) {
+        $missingEntrypointRejected = true;
+    }
+    assertModuleContract($missingEntrypointRejected, 'isolated module without entrypoint must fail closed');
+
+    $manifest['runtime']['entrypoint'] = '../escape.php';
+    file_put_contents($path, json_encode($manifest, JSON_THROW_ON_ERROR));
+    $escapingEntrypointRejected = false;
+    try {
+        ModuleRegistry::discover($tmp, Version::VERSION);
+    } catch (RuntimeException) {
+        $escapingEntrypointRejected = true;
+    }
+    assertModuleContract($escapingEntrypointRejected, 'isolated entrypoint traversal must fail closed');
 } finally {
     removeTree($tmp);
 }
