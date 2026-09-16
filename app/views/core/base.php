@@ -16,6 +16,12 @@ $canManageLicense = !empty($licenseState['can_manage']);
 $paginationData = isset($pagination) && is_array($pagination) ? $pagination : null;
 $socketTicket = isset($socket_ticket) ? (string) $socket_ticket : '';
 $socketUrl = isset($socket_url) ? (string) $socket_url : '';
+$moduleStyles = isset($module_styles) && is_array($module_styles)
+    ? array_values(array_filter($module_styles, static fn ($value): bool => is_string($value) && $value !== ''))
+    : [];
+$moduleScripts = isset($module_scripts) && is_array($module_scripts)
+    ? array_values(array_filter($module_scripts, static fn ($value): bool => is_string($value) && $value !== ''))
+    : [];
 
 $styleFiles = [
     'core/common.css',
@@ -25,7 +31,6 @@ $styleFiles = [
     '^shared/sidebar/style.css',
     '^shared/header/style.css',
     'profile_page/style.css',
-    'notes_page/style.css',
     'tasks_page/style.css',
     'tasks_page/hardening.css',
     'file_manager/style.css',
@@ -35,7 +40,6 @@ $styleFiles = [
     '^shared/footer/style.css',
     'core/theme-refresh.css',
     'core/product-ux-013.css',
-    'notes_page/editor-013.css',
     'tasks_page/kanban.css',
     'tasks_page/kanban-handle.css',
     'profile_page/hub.css',
@@ -88,13 +92,15 @@ $partialData = [
     <link rel="stylesheet" href="<?= $view->e($baseUrl) ?>/assets/css/messenger-connection-ux.css">
     <link rel="stylesheet" href="<?= $view->e($baseUrl) ?>/assets/css/live-qa-fixes.css?v=<?= rawurlencode($workspaceVersion) ?>">
     <link rel="stylesheet" href="<?= $view->e($baseUrl) ?>/assets/css/live-qa-final.css?v=<?= rawurlencode($workspaceVersion) ?>">
+<?php foreach ($moduleStyles as $moduleStyle): ?>
+    <link rel="stylesheet" href="<?= $view->e($moduleStyle) ?>">
+<?php endforeach; ?>
     <link rel="icon" href="<?= $view->e($baseUrl) ?>/favicon.ico" type="image/x-icon">
     <template id="csrf-token-template"><?= $view->csrfInput() ?></template>
     <script>window.wspaceRuntime = <?= $runtimeConfig ?>; window.wspace = window.wspace || {};</script>
     <script src="<?= $view->e($baseUrl) ?>/assets/js/common.js" defer></script>
     <script src="<?= $view->e($baseUrl) ?>/assets/js/findability.js" defer></script>
     <script src="<?= $view->e($baseUrl) ?>/assets/js/feedback.js" defer></script>
-    <script src="<?= $view->e($baseUrl) ?>/assets/js/notes-draft.js" defer></script>
     <script src="<?= $view->e($baseUrl) ?>/assets/js/usability-actions.js" defer></script>
     <script src="<?= $view->e($baseUrl) ?>/assets/js/release-polish.js" defer></script>
     <script src="<?= $view->e($baseUrl) ?>/assets/js/file-manager-polish.js" defer></script>
@@ -103,6 +109,9 @@ $partialData = [
     <script src="<?= $view->e($baseUrl) ?>/assets/js/task-boards-nav.js" defer></script>
     <script src="<?= $view->e($baseUrl) ?>/assets/js/messenger-connection-ux.js" defer></script>
     <script src="<?= $view->e($baseUrl) ?>/assets/js/admin-settings-nav.js" defer></script>
+<?php foreach ($moduleScripts as $moduleScript): ?>
+    <script src="<?= $view->e($moduleScript) ?>" defer></script>
+<?php endforeach; ?>
 </head>
 <body<?php if ($paginationData !== null):
     $attributes = [

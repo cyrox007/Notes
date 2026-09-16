@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 use App\Controllers\MainController;
 use App\Controllers\AuthController;
-use App\Controllers\NoteController;
-use App\Controllers\NoteAttachmentController;
-use App\Controllers\NoteShareController;
 use App\Controllers\TaskController;
 use App\Controllers\TaskBoardController;
 use App\Controllers\ProfileController;
@@ -29,7 +26,6 @@ use App\Middlewares\RequireAdminAccess;
 use App\Middlewares\RequireAdminUsersManage;
 use App\Middlewares\RequireAdminSettingsManage;
 use App\Middlewares\RequireAdminRolesManage;
-use App\Middlewares\RequireNotesUse;
 use App\Middlewares\RequireTasksUse;
 use App\Middlewares\RequireFilesUse;
 use App\Middlewares\RequireMessengerUse;
@@ -41,9 +37,6 @@ use App\Middlewares\StorageQuotaLimit;
 use App\Middlewares\StorageMutationLock;
 use App\Middlewares\EnforceFileUploadPolicy;
 use App\Middlewares\EnforceFileFolderPolicy;
-use App\Middlewares\EnforceNoteCreatePolicy;
-use App\Middlewares\EnforceNoteAttachmentPolicy;
-use App\Middlewares\EnforceNoteSharePolicy;
 use App\Middlewares\EnforceTaskCreatePolicy;
 use App\Middlewares\EnforceMessengerUploadPolicy;
 use App\Middlewares\EnforceLicenseMutation;
@@ -61,21 +54,6 @@ $router->group('/auth')
     ->add('GET', '/registration', [AuthController::class, 'registration'], [], 'registration')
     ->add('GET', '/registration/{str:invite_code}', [AuthController::class, 'registration'], [], 'registration_invite')
     ->add('POST', '/registration', [AuthController::class, 'registration'], [AuthRateLimit::class, CSRFMiddleware::class], 'register_submit')
-    ->endGroup();
-
-$router->group('/notes')
-    ->add('GET', '/', [NoteController::class, 'index'], [LoginRequared::class, RequireNotesUse::class], 'notes')
-    ->add('POST', '/', [NoteController::class, 'create'], [LoginRequared::class, RequireNotesUse::class, EnforceNoteCreatePolicy::class], 'note_create')
-    ->add('GET', '/{str:uid}/edit', [NoteController::class, 'edit'], [LoginRequared::class, RequireNotesUse::class], 'edit_page')
-    ->add('POST', '/{str:uid}/edit', [NoteController::class, 'update'], [LoginRequared::class, RequireNotesUse::class], 'update_note')
-    ->add('POST', '/{str:uid}/delete', [NoteController::class, 'delete'], [LoginRequared::class, RequireNotesUse::class], 'delete_note')
-    ->add('POST', '/upload/{str:uid}', [NoteAttachmentController::class, 'upload'], [LoginRequared::class, RequireNotesUse::class, UploadRateLimit::class, EnforceNoteAttachmentPolicy::class], 'note_attachment_upload')
-    ->add('POST', '/attachment/delete/{int:attachmentId}', [NoteAttachmentController::class, 'delete'], [LoginRequared::class, RequireNotesUse::class], 'note_attachment_delete')
-    ->add('GET', '/attachment/{str:fileUid}', [NoteAttachmentController::class, 'download'], [LoginRequared::class, RequireNotesUse::class], 'note_attachment_download')
-    ->add('POST', '/share/{str:uid}', [NoteShareController::class, 'create'], [LoginRequared::class, RequireNotesUse::class, EnforceNoteSharePolicy::class], 'note_share')
-    ->add('POST', '/unshare/{str:uid}', [NoteShareController::class, 'unshare'], [LoginRequared::class, RequireNotesUse::class], 'note_unshare')
-    ->add('GET', '/shared/{str:token}', [NoteShareController::class, 'view'], [], 'note_shared_view')
-    ->add('GET', '/shared/{str:token}/attachment/{str:fileUid}', [NoteAttachmentController::class, 'sharedDownload'], [], 'note_shared_attachment')
     ->endGroup();
 
 $router->group('/tasks')
@@ -156,5 +134,3 @@ $router->group('/admin')
    ->add('GET', '/updates/check', [UpdateController::class, 'check'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_updates_check')
    ->add('POST', '/updates/stage', [UpdateController::class, 'stage'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_stage')
    ->endGroup();
-
-$router->dispatch();

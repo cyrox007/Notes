@@ -14,13 +14,12 @@ if ($noteTitle === '') {
     $noteTitle = 'Без названия';
 }
 
-$content = $view->partial('notes_page/editor-013', [
+$content = $view->partial('@notes/editor-013', [
     'note' => $noteRow,
     'attachments' => isset($attachments) && is_array($attachments) ? $attachments : [],
     'shareInfo' => isset($shareInfo) && is_array($shareInfo) ? $shareInfo : null,
     'base_url' => $baseUrl,
 ]);
-$content .= '<script src="' . $view->e($baseUrl) . '/assets/js/notes-editor-013.js" defer></script>';
 
 echo $view->layout('core/base', [
     'title' => 'Блокнот: ' . $noteTitle,
@@ -30,6 +29,14 @@ echo $view->layout('core/base', [
     'base_path' => $base_path ?? '',
     'user' => $currentUser,
     'workspaceAccess' => $access,
+    'module_styles' => [
+        $view->moduleAsset('notes', 'style.css'),
+        $view->moduleAsset('notes', 'editor-013.css'),
+    ],
+    'module_scripts' => [
+        $view->moduleAsset('notes', 'notes-editor-013.js'),
+        $view->moduleAsset('notes', 'notes-draft.js'),
+    ],
     'socket_ticket' => $socket_ticket ?? '',
     'socket_url' => $socket_url ?? '',
 ], $content);

@@ -107,8 +107,13 @@ assertModuleContract($registry->defaultComposition() === $expected, 'default bun
 
 foreach ($registry->all() as $id => $manifest) {
     assertModuleContract($manifest->id() === $id, "manifest id mismatch for {$id}");
-    assertModuleContract($manifest->runtimeMode() === 'legacy', "{$id} must remain explicitly marked legacy until isolated");
-    assertModuleContract($manifest->runtimeEntrypoint() === null, "legacy {$id} must not expose an isolated entrypoint");
+    if ($id === 'notes') {
+        assertModuleContract($manifest->runtimeMode() === 'isolated', 'Notes must be the first physically isolated bundled module');
+        assertModuleContract($manifest->runtimeEntrypoint() === 'runtime.php', 'Notes isolated entrypoint drifted');
+    } else {
+        assertModuleContract($manifest->runtimeMode() === 'legacy', "{$id} remains legacy until its dedicated migration");
+        assertModuleContract($manifest->runtimeEntrypoint() === null, "legacy {$id} must not expose an isolated entrypoint");
+    }
     assertModuleContract(strlen($manifest->integrityHash()) === 64, "{$id} manifest must expose a SHA-256 integrity hash");
     assertModuleContract($manifest->licenseFeature() !== null, "{$id} must declare a central entitlement feature");
     assertModuleContract($manifest->isCompatibleWithCore(Version::VERSION), "{$id} must be compatible with the current core");

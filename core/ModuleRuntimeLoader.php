@@ -12,6 +12,13 @@ final class ModuleRuntimeLoader
 
     /** @var array<string,ModuleRuntimeProvider> */
     private array $providers = [];
+
+    /** @var array<string,string> */
+    private array $viewRoots = [];
+
+    /** @var array<string,string> */
+    private array $assetRoots = [];
+
     private ModuleCapabilityRegistry $capabilityRegistry;
 
     /** @param list<string> $runtimeComposition */
@@ -32,6 +39,11 @@ final class ModuleRuntimeLoader
         return $loader;
     }
 
+    public static function isBooted(): bool
+    {
+        return self::$instance !== null;
+    }
+
     public static function getInstance(): self
     {
         if (self::$instance === null) {
@@ -44,6 +56,18 @@ final class ModuleRuntimeLoader
     public function providers(): array
     {
         return $this->providers;
+    }
+
+    /** @return array<string,string> active isolated module id => canonical views root */
+    public function viewRoots(): array
+    {
+        return $this->viewRoots;
+    }
+
+    /** @return array<string,string> active isolated module id => canonical assets root */
+    public function assetRoots(): array
+    {
+        return $this->assetRoots;
     }
 
     public function capabilities(): ModuleCapabilityRegistry
@@ -105,6 +129,8 @@ final class ModuleRuntimeLoader
 
             $provider->boot();
             $this->registerCapabilities($manifest, $provider);
+            $this->registerOwnedRoot($manifest, $moduleRoot, 'views', $this->viewRoots);
+            $this->registerOwnedRoot($manifest, $moduleRoot, 'assets', $this->assetRoots);
             $this->providers[$moduleId] = $provider;
         }
     }
@@ -133,5 +159,29 @@ final class ModuleRuntimeLoader
         foreach ($exported as $capability => $service) {
             $this->capabilityRegistry->register($manifest->id(), $capability, $service);
         }
+    }
+
+    /** @param array<string,string> $target */
+    private function registerOwnedRoot(
+        ModuleManifest $manifest,
+        string $moduleRoot,
+        string $directory,
+        array &$target,
+    ): void {
+        $candidate = $moduleRoot . DIRECTORY_SEPARATOR . $directory;
+        if (!file_exists($candidate)) {
+            return;
+        }
+        if (!is_dir($candidate) || is_link($candidate)) {
+            throw new RuntimeException("Module {$manifest->id()} {$directory} root is invalid");
+        }
+
+        $resolved = realpath($candidate);
+        $prefix = rtrim($moduleRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+        if ($resolved === false || !str_starts_with($resolved . DIRECTORY_SEPARATOR, $prefix)) {
+            throw new RuntimeException("Module {$manifest->id()} {$directory} root escapes its module root");
+        }
+
+        $target[$manifest->id()] = rtrim($resolved, DIRECTORY_SEPARATOR);
     }
 }

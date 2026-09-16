@@ -12,17 +12,38 @@ final class NativeViewRenderer implements ViewRenderer
 {
     private string $viewRoot;
 
+    /** @var array<string,string> */
+    private array $moduleViewRoots = [];
+
     /** @var list<array<string,mixed>> */
     private array $renderDataStack = [];
 
-    public function __construct(string $viewRoot, private ViewContext $context)
+    /**
+     * @param array<string,string> $moduleViewRoots Active isolated module id => views directory.
+     */
+    public function __construct(string $viewRoot, private ViewContext $context, array $moduleViewRoots = [])
     {
         $resolved = realpath($viewRoot);
-        if ($resolved === false || !is_dir($resolved)) {
-            throw new RuntimeException('Native view root does not exist: ' . $viewRoot);
+        if ($resolved === false || !is_dir($resolved) || is_link($viewRoot)) {
+            throw new RuntimeException('Native view root does not exist or is unsafe: ' . $viewRoot);
         }
 
         $this->viewRoot = rtrim($resolved, DIRECTORY_SEPARATOR);
+
+        foreach ($moduleViewRoots as $moduleId => $moduleRoot) {
+            if (!is_string($moduleId) || preg_match('/^[a-z][a-z0-9_.-]{1,63}$/D', $moduleId) !== 1) {
+                throw new RuntimeException('Invalid native module view root id.');
+            }
+            if (!is_string($moduleRoot) || $moduleRoot === '' || is_link($moduleRoot)) {
+                throw new RuntimeException("Invalid native view root for module {$moduleId}.");
+            }
+
+            $resolvedModuleRoot = realpath($moduleRoot);
+            if ($resolvedModuleRoot === false || !is_dir($resolvedModuleRoot)) {
+                throw new RuntimeException("Native view root does not exist for module {$moduleId}.");
+            }
+            $this->moduleViewRoots[$moduleId] = rtrim($resolvedModuleRoot, DIRECTORY_SEPARATOR);
+        }
     }
 
     public function hasTemplate(string $template): bool
@@ -87,6 +108,32 @@ final class NativeViewRenderer implements ViewRenderer
         return $this->context->route($name, $params);
     }
 
+    public function moduleAsset(string $moduleId, string $asset): string
+    {
+        if (
+            preg_match('/^[a-z][a-z0-9_.-]{1,63}$/D', $moduleId) !== 1
+            || $asset === ''
+            || str_starts_with($asset, '/')
+            || str_contains($asset, '..')
+            || str_contains($asset, '\\')
+            || preg_match('/^[A-Za-z0-9_.\/-]+$/D', $asset) !== 1
+        ) {
+            throw new RuntimeException('Invalid isolated module asset reference.');
+        }
+
+        $route = $this->route('module_asset');
+        if ($route === '') {
+            throw new RuntimeException('Module asset route is unavailable.');
+        }
+
+        return $route . '?' . http_build_query(
+            ['module' => $moduleId, 'file' => $asset],
+            '',
+            '&',
+            PHP_QUERY_RFC3986,
+        );
+    }
+
     public function csrfInput(): string
     {
         return $this->context->csrfInput();
@@ -125,22 +172,34 @@ final class NativeViewRenderer implements ViewRenderer
 
     private function resolve(string $template): string
     {
-        if (
-            $template === ''
-            || str_contains($template, '..')
-            || str_contains($template, '\\')
-            || preg_match('/^[A-Za-z0-9_\/.^-]+$/D', $template) !== 1
-        ) {
+        if ($template === '' || str_contains($template, '..') || str_contains($template, '\\')) {
             throw new RuntimeException('Invalid native template name.');
         }
 
-        $candidate = $this->viewRoot . DIRECTORY_SEPARATOR . $template . '.php';
+        $root = $this->viewRoot;
+        $relativeTemplate = $template;
+        if (str_starts_with($template, '@')) {
+            if (preg_match('/^@([a-z][a-z0-9_.-]{1,63})\/([A-Za-z0-9_\/.^-]+)$/D', $template, $matches) !== 1) {
+                throw new RuntimeException('Invalid native module template name.');
+            }
+
+            $moduleId = $matches[1];
+            $relativeTemplate = $matches[2];
+            if (!isset($this->moduleViewRoots[$moduleId])) {
+                throw new RuntimeException("Native view module is not active or has no view root: {$moduleId}");
+            }
+            $root = $this->moduleViewRoots[$moduleId];
+        } elseif (preg_match('/^[A-Za-z0-9_\/.^-]+$/D', $template) !== 1) {
+            throw new RuntimeException('Invalid native template name.');
+        }
+
+        $candidate = $root . DIRECTORY_SEPARATOR . $relativeTemplate . '.php';
         $resolved = realpath($candidate);
-        if ($resolved === false || !is_file($resolved)) {
+        if ($resolved === false || !is_file($resolved) || is_link($candidate)) {
             throw new RuntimeException('Native template not found: ' . $template);
         }
 
-        $prefix = $this->viewRoot . DIRECTORY_SEPARATOR;
+        $prefix = $root . DIRECTORY_SEPARATOR;
         if (!str_starts_with($resolved, $prefix)) {
             throw new RuntimeException('Native template escaped the configured view root.');
         }

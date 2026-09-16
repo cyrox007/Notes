@@ -62,7 +62,7 @@ ob_start();
             <?php if ($personal !== []): ?>
                 <?php foreach ($personal as $noteRow): ?>
                     <?php if (!is_array($noteRow)) { continue; } ?>
-                    <?= $view->partial('^elements/note_item/index', ['note' => $noteRow, 'user' => $currentUser, 'readOnly' => false, 'showAuthor' => false]) ?>
+                    <?= $view->partial('@notes/note_item/index', ['note' => $noteRow, 'user' => $currentUser, 'readOnly' => false, 'showAuthor' => false]) ?>
                 <?php endforeach; ?>
             <?php else: ?>
                 <div class="notes__list_item"><p>Здесь ничего нет</p></div>
@@ -74,7 +74,7 @@ ob_start();
                 <?php if ($all !== []): ?>
                     <?php foreach ($all as $noteRow): ?>
                         <?php if (!is_array($noteRow)) { continue; } ?>
-                        <?= $view->partial('^elements/note_item/index', ['note' => $noteRow, 'user' => $currentUser, 'readOnly' => true, 'showAuthor' => true]) ?>
+                        <?= $view->partial('@notes/note_item/index', ['note' => $noteRow, 'user' => $currentUser, 'readOnly' => true, 'showAuthor' => true]) ?>
                     <?php endforeach; ?>
                 <?php else: ?>
                     <div class="notes__list_item"><p>Заметок нет</p></div>
@@ -83,7 +83,6 @@ ob_start();
         <?php endif; ?>
     </div>
 </section>
-<script src="<?= $view->e($baseUrl) ?>/assets/js/notes-list.js" defer></script>
 <?php
 $content = (string) ob_get_clean();
 echo $view->layout('core/base', [
@@ -95,6 +94,8 @@ echo $view->layout('core/base', [
     'user' => $currentUser,
     'workspaceAccess' => $access,
     'pagination' => $pager,
+    'module_styles' => [$view->moduleAsset('notes', 'style.css')],
+    'module_scripts' => [$view->moduleAsset('notes', 'notes-list.js')],
     'socket_ticket' => $socket_ticket ?? '',
     'socket_url' => $socket_url ?? '',
 ], $content);

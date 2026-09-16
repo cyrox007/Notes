@@ -82,7 +82,7 @@ final class NoteController extends Controller
         }
 
         $pagination = ListQuery::pagination($query, max($personalTotal, $allTotal));
-        $this->render_template('notes_page/index', [
+        $this->render_template('@notes/index', [
             'personalNotes' => $personalNotes,
             'allNotes' => $allNotes,
             'user' => $user,
@@ -188,7 +188,7 @@ final class NoteController extends Controller
             ]
         );
 
-        $this->render_template('notes_page/edit_view', [
+        $this->render_template('@notes/edit_view', [
             'user' => $user,
             'note' => $note,
             'attachments' => $attachments,
