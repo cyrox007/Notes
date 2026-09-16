@@ -15,7 +15,9 @@ if (is_file($root . '/.env')) {
 require_once $root . '/core/Version.php';
 require_once $root . '/core/UpdateManifestVerifier.php';
 require_once $root . '/core/UpdatePackageStager.php';
+require_once $root . '/core/UpdateArchiveInspector.php';
 
+use Core\UpdateArchiveInspector;
 use Core\UpdateManifestVerifier;
 use Core\UpdatePackageStager;
 use Core\Version;
@@ -31,14 +33,15 @@ $options = getopt('', [
 ]);
 
 if (isset($options['help'])) {
-    echo "Workspace Organizer signed updater foundation\n\n";
+    echo "Workspace Organizer signed updater preflight\n\n";
     echo "Verify only:\n";
     echo "  php bin/update.php --manifest=/path/update.json --signature=/path/update.sig \\\n";
     echo "      --package=/path/package.zip --verify-only [--json]\n\n";
     echo "Verify and stage outside the live application tree:\n";
     echo "  php bin/update.php --manifest=/path/update.json --signature=/path/update.sig \\\n";
     echo "      --package=/path/package.zip [--stage-root=/absolute/external/path] [--json]\n\n";
-    echo "This foundation NEVER extracts the package and NEVER modifies live application files.\n";
+    echo "The package signature/hash and ZIP structure are audited before staging.\n";
+    echo "This command NEVER extracts the package and NEVER modifies live application files.\n";
     exit(0);
 }
 
@@ -121,6 +124,10 @@ try {
     $stager->assertCompatibility($manifest, Version::VERSION_CODE, PHP_VERSION);
     $package = $stager->verifyPackage($manifest, $packagePath);
 
+    // Structural archive audit happens only after the signed size/hash contract
+    // succeeds. It is read-only and does not extract any package entry.
+    $archive = (new UpdateArchiveInspector())->inspect($packagePath);
+
     if (isset($options['verify-only'])) {
         $result = [
             'status' => 'verified',
@@ -130,15 +137,17 @@ try {
             'target_version_code' => (int) $manifest['version_code'],
             'key_id' => $status['key_id'],
             'package_sha256' => $package['sha256'],
+            'archive' => $archive,
         ];
         if ($json) {
             echo json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
         } else {
-            echo "[OK] Signed update verified\n";
+            echo "[OK] Signed update verified and ZIP preflight passed\n";
             echo "Installed: " . Version::VERSION . ' (' . Version::VERSION_CODE . ")\n";
             echo "Target:    " . $manifest['version'] . ' (' . $manifest['version_code'] . ")\n";
             echo "Key ID:    " . $status['key_id'] . "\n";
             echo "SHA-256:   " . $package['sha256'] . "\n";
+            echo "Entries:   " . $archive['entries'] . ' (' . $archive['files'] . " files)\n";
             echo "No live files were changed.\n";
         }
         exit(0);
@@ -182,16 +191,18 @@ try {
         'key_id' => $status['key_id'],
         'stage_dir' => $staged['stage_dir'],
         'package_sha256' => $staged['sha256'],
+        'archive' => $archive,
         'live_files_changed' => false,
     ];
     if ($json) {
         echo json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
     } else {
-        echo "[OK] Signed update verified and staged\n";
+        echo "[OK] Signed update verified, audited and staged\n";
         echo "Target:    " . $manifest['version'] . ' (' . $manifest['version_code'] . ")\n";
         echo "Stage:     " . $staged['stage_dir'] . "\n";
         echo "SHA-256:   " . $staged['sha256'] . "\n";
-        echo "No live files were changed. Apply/rollback is intentionally not enabled in this foundation.\n";
+        echo "Entries:   " . $archive['entries'] . ' (' . $archive['files'] . " files)\n";
+        echo "No live files were changed. Apply/rollback is intentionally not enabled in this preflight layer.\n";
     }
 } catch (Throwable $e) {
     updaterFail($e->getMessage());
