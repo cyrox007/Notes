@@ -8,20 +8,23 @@ use Closure;
 use Throwable;
 
 /**
- * Runtime enforcement policy shared by HTTP and WebSocket transports.
+ * Runtime mutation policy shared by HTTP and WebSocket transports.
  *
- * Enforcement is deliberately dormant until at least one production public
- * verification key is compiled into LicenseVerifier. Once trust is configured,
- * an invalid/missing/expired license makes mutations read-only while reads and
- * explicit recovery paths remain available.
+ * Updater maintenance is evaluated first and blocks mutations independently of
+ * license rollout state. License enforcement remains deliberately dormant until
+ * at least one production public verification key is configured.
  */
 final class LicenseRuntimePolicy
 {
     private Closure $trustConfigured;
     private Closure $statusProvider;
+    private Closure $maintenanceProvider;
 
-    public function __construct(?callable $trustConfigured = null, ?callable $statusProvider = null)
-    {
+    public function __construct(
+        ?callable $trustConfigured = null,
+        ?callable $statusProvider = null,
+        ?callable $maintenanceProvider = null
+    ) {
         $this->trustConfigured = $trustConfigured instanceof Closure
             ? $trustConfigured
             : ($trustConfigured !== null
@@ -33,6 +36,12 @@ final class LicenseRuntimePolicy
             : ($statusProvider !== null
                 ? Closure::fromCallable($statusProvider)
                 : static fn (): array => (new LicenseService())->status());
+
+        $this->maintenanceProvider = $maintenanceProvider instanceof Closure
+            ? $maintenanceProvider
+            : ($maintenanceProvider !== null
+                ? Closure::fromCallable($maintenanceProvider)
+                : static fn (): array => (new MaintenanceModeService())->state());
     }
 
     public function enforcementEnabled(): bool
@@ -52,6 +61,33 @@ final class LicenseRuntimePolicy
      */
     public function state(): array
     {
+        try {
+            $maintenance = ($this->maintenanceProvider)();
+            if (!is_array($maintenance)) {
+                throw new \RuntimeException('Maintenance state provider returned an invalid result');
+            }
+            if ((bool) ($maintenance['active'] ?? false)) {
+                $valid = (bool) ($maintenance['valid'] ?? false);
+                $reason = trim((string) ($maintenance['reason'] ?? ''));
+                return [
+                    'enforced' => true,
+                    'writable' => false,
+                    'code' => $valid ? 'maintenance_mode' : 'maintenance_state_invalid',
+                    'message' => $reason !== ''
+                        ? $reason
+                        : 'Приложение временно переведено в режим обслуживания.',
+                ];
+            }
+        } catch (Throwable $e) {
+            error_log('Maintenance runtime evaluation failed: ' . $e->getMessage());
+            return [
+                'enforced' => true,
+                'writable' => false,
+                'code' => 'maintenance_check_failed',
+                'message' => 'Не удалось безопасно проверить режим обслуживания. Изменение данных заблокировано.',
+            ];
+        }
+
         if (!$this->enforcementEnabled()) {
             return [
                 'enforced' => false,
