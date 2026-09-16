@@ -72,5 +72,4 @@ try {
 }
 
 require_once SITEPATH . '/core/Router.php';
-\Core\Router::getInstance()->addGlobalMiddleware(\App\Middlewares\EnforceLicenseMutation::class);
 require_once SITEPATH . '/core/routerConfig.php';
