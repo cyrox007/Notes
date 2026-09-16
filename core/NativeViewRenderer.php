@@ -12,6 +12,9 @@ final class NativeViewRenderer implements ViewRenderer
 {
     private string $viewRoot;
 
+    /** @var list<array<string,mixed>> */
+    private array $renderDataStack = [];
+
     public function __construct(string $viewRoot, private ViewContext $context)
     {
         $resolved = realpath($viewRoot);
@@ -45,14 +48,25 @@ final class NativeViewRenderer implements ViewRenderer
 
     /**
      * Render an internal layout around already-rendered trusted template content.
-     * User-controlled values in $data must still be escaped in the layout.
+     *
+     * Layouts inherit the active page/partial render context. Explicit layout
+     * values override inherited values and trusted content always wins the
+     * reserved `content` key. This mirrors the variable visibility expected by
+     * the old layout contract without requiring every page to manually forward
+     * common runtime values such as licenseRuntime/base_url/workspaceAccess.
+     * User-controlled values must still be escaped in the layout.
      *
      * @param array<string,mixed> $data
      */
     public function layout(string $template, array $data, string $content): string
     {
-        $data['content'] = $content;
-        return $this->capture($template, $data);
+        $inherited = $this->renderDataStack !== []
+            ? $this->renderDataStack[array_key_last($this->renderDataStack)]
+            : [];
+        $layoutData = array_merge($inherited, $data);
+        $layoutData['content'] = $content;
+
+        return $this->capture($template, $layoutData);
     }
 
     public function e(mixed $value): string
@@ -88,6 +102,7 @@ final class NativeViewRenderer implements ViewRenderer
     {
         $file = $this->resolve($template);
         $view = $this;
+        $this->renderDataStack[] = $data;
 
         ob_start();
         try {
@@ -97,6 +112,8 @@ final class NativeViewRenderer implements ViewRenderer
         } catch (Throwable $e) {
             ob_end_clean();
             throw $e;
+        } finally {
+            array_pop($this->renderDataStack);
         }
 
         if ($output === false) {
