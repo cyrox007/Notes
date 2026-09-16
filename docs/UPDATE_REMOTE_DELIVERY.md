@@ -36,11 +36,12 @@ Remote delivery additionally requires the PHP `openssl` extension. The rest of t
 - embedded URL credentials;
 - non-443 ports;
 - literal IP addresses;
-- DNS results in private/reserved ranges;
+- DNS results in private/reserved/special-use ranges;
 - redirects;
 - transfer-encoded/chunked responses;
 - compressed HTTP response bodies;
 - missing or ambiguous `Content-Length`;
+- raw ASCII control characters or spaces in the URL/request target;
 - TLS certificates/peer names that do not verify.
 
 DNS is resolved before connecting and the validated public address is pinned for the TLS socket while certificate verification still uses the original DNS host name. This prevents a checked public name from being silently re-resolved to a private address for the actual connection.
@@ -89,7 +90,14 @@ php bin/update_remote.php \
   --check-only --json
 ```
 
-The command downloads only the feed, manifest and detached signature. It verifies the signature and compatibility with the installed `VERSION_CODE` and PHP runtime. It does **not** fetch package bytes, enter maintenance, create a transaction or modify live files.
+The command downloads only the feed, manifest and detached signature. It verifies the signature, authenticates the signed metadata and classifies the result without fetching package bytes:
+
+- `update_available` — newer signed update is compatible;
+- `up_to_date` — signed feed points to the installed `VERSION_CODE`;
+- `ahead_of_feed` — this installation is newer than the signed feed;
+- `update_incompatible` — a newer signed update exists but fails source-version or PHP compatibility policy.
+
+All four read-only states return normally with `package_downloaded=false` and `live_files_changed=false`. The command does **not** enter maintenance, create a transaction or modify live files.
 
 This is the intended primitive for a future administrator update UI.
 
@@ -106,6 +114,8 @@ php bin/update_remote.php \
   --stage-root=/var/lib/notes/update-staging \
   --json
 ```
+
+The action path is stricter than read-only check: same-version, downgrade, source-floor and PHP incompatibility are rejected before package download or stage creation.
 
 The package path is not accepted from the feed. After manifest verification the updater derives the package URL from the signed filename, then requires the HTTP `Content-Length` to equal the signed size and streams exactly that many bytes into a private external temporary directory while calculating SHA-256.
 
@@ -129,16 +139,17 @@ Remote package delivery uses a non-blocking lock under the external staging root
 Remote delivery fails closed when:
 
 - no trusted update public key is configured;
-- TLS or DNS policy cannot be verified;
+- TLS, URL framing or DNS policy cannot be verified;
 - the feed shape/product/channel is invalid;
 - manifest/signature names are unsafe;
 - signature verification fails;
 - signed manifest channel differs from configured channel;
-- target is not newer or is incompatible with this source/runtime;
 - package size exceeds the remote ingress ceiling;
 - package transport size/hash differs from the signed manifest;
 - ZIP structural audit fails;
 - staging root is inside the application tree.
+
+Additionally, the **stage action** fails closed when the signed target is not newer or is incompatible with the current source/runtime. Read-only `--check-only` reports those valid signed states as data instead of treating them as network errors.
 
 No failure in this layer should require rollback because this layer never crosses the live mutation boundary.
 
