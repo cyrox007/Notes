@@ -20,15 +20,22 @@ function nativeViewAssert(bool $condition, string $message): void
 }
 
 $root = sys_get_temp_dir() . '/wo-native-view-' . bin2hex(random_bytes(6));
-mkdir($root . '/auth', 0777, true);
+$globalRoot = $root . '/app-views';
+$notesRoot = $root . '/modules/notes/views';
+mkdir($globalRoot . '/auth', 0777, true);
+mkdir($notesRoot . '/page', 0777, true);
 file_put_contents(
-    $root . '/auth/native.php',
+    $globalRoot . '/auth/native.php',
     '<?php echo $view->e($dangerous);'
+);
+file_put_contents(
+    $notesRoot . '/page/index.php',
+    '<?php echo "module:" . $view->e($label);'
 );
 
 $request = new Request();
 $context = new ViewContext($request);
-$native = new NativeViewRenderer($root, $context);
+$native = new NativeViewRenderer($globalRoot, $context, ['notes' => $notesRoot]);
 
 ob_start();
 $native->render('auth/native', ['dangerous' => '<script>alert("x")</script>']);
@@ -37,6 +44,32 @@ nativeViewAssert(
     $nativeOutput === '&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;',
     'native renderer did not escape HTML by default helper'
 );
+
+ob_start();
+$native->render('@notes/page/index', ['label' => '<owned>']);
+$moduleOutput = (string) ob_get_clean();
+nativeViewAssert(
+    $moduleOutput === 'module:&lt;owned&gt;',
+    'native renderer did not resolve an active isolated module view namespace'
+);
+nativeViewAssert($native->hasTemplate('@notes/page/index'), 'registered module template was not discoverable');
+nativeViewAssert(!$native->hasTemplate('@files/page/index'), 'unregistered module view root became visible');
+
+$unknownModuleBlocked = false;
+try {
+    $native->render('@files/page/index');
+} catch (RuntimeException) {
+    $unknownModuleBlocked = true;
+}
+nativeViewAssert($unknownModuleBlocked, 'native renderer accepted an inactive module namespace');
+
+$moduleTraversalBlocked = false;
+try {
+    $native->render('@notes/../auth/native');
+} catch (RuntimeException) {
+    $moduleTraversalBlocked = true;
+}
+nativeViewAssert($moduleTraversalBlocked, 'native module view namespace accepted path traversal');
 
 $missingBlocked = false;
 try {
@@ -94,6 +127,7 @@ foreach (array_keys($renderedTemplates) as $template) {
 
 $controllerSource = file_get_contents(__DIR__ . '/../../core/controller.php') ?: '';
 nativeViewAssert(str_contains($controllerSource, 'new NativeViewRenderer('), 'base Controller does not construct NativeViewRenderer');
+nativeViewAssert(str_contains($controllerSource, 'ModuleRuntimeLoader::getInstance()->viewRoots()'), 'base Controller does not expose active isolated module view roots');
 nativeViewAssert(!str_contains($controllerSource, 'HybridViewRenderer'), 'base Controller still uses hybrid renderer fallback');
 nativeViewAssert(!str_contains($controllerSource, 'LegacySmartyRenderer'), 'base Controller still references legacy Smarty renderer');
 
@@ -116,8 +150,14 @@ nativeViewAssert(is_array($lock), 'composer.lock is not valid JSON');
 nativeViewAssert(($lock['packages'] ?? null) === [], 'composer.lock still contains runtime packages');
 nativeViewAssert(($lock['packages-dev'] ?? null) === [], 'composer.lock still contains dev packages');
 
-@unlink($root . '/auth/native.php');
-@rmdir($root . '/auth');
+@unlink($globalRoot . '/auth/native.php');
+@unlink($notesRoot . '/page/index.php');
+@rmdir($globalRoot . '/auth');
+@rmdir($globalRoot);
+@rmdir($notesRoot . '/page');
+@rmdir($notesRoot);
+@rmdir($root . '/modules/notes');
+@rmdir($root . '/modules');
 @rmdir($root);
 
-echo "[OK] vendor-free native view runtime and template coverage contract\n";
+echo "[OK] vendor-free native view runtime and module namespace contract\n";
