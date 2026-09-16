@@ -45,9 +45,11 @@ use App\Middlewares\EnforceNoteAttachmentPolicy;
 use App\Middlewares\EnforceNoteSharePolicy;
 use App\Middlewares\EnforceTaskCreatePolicy;
 use App\Middlewares\EnforceMessengerUploadPolicy;
+use App\Middlewares\EnforceLicenseMutation;
 use Core\Router;
 
 $router = Router::getInstance();
+$router->addGlobalMiddleware(EnforceLicenseMutation::class);
 
 $router->add('GET', '/', [MainController::class, 'index'], [LoginRequared::class], 'main');
 

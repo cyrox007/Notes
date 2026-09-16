@@ -6,6 +6,7 @@ namespace App\Sockets;
 
 use App\Handlers\SocketTicket;
 use App\Models\UserModel;
+use App\Services\LicenseRuntimePolicy;
 use App\Services\PermissionService;
 use Core\DatabaseManager;
 use Core\ModuleLifecycleStore;
@@ -58,6 +59,23 @@ final class NativeMessengerServer
         'ReactionSocket' => ['list', 'toggle'],
     ];
 
+    /**
+     * Actions proven not to persist user/application state. All other allowed
+     * actions are treated as mutations and require a valid installation license
+     * once a production trust root is configured.
+     *
+     * @var array<string,list<string>>
+     */
+    private const READ_ONLY_ROUTES = [
+        'PingSocket' => ['index'],
+        'MessangerSocket' => ['get_dialogs', 'load'],
+        'DialogStateSocket' => ['list'],
+        'ReceiptSocket' => ['list'],
+        'GroupSocket' => ['info', 'refresh'],
+        'SearchSocket' => ['all', 'messages', 'dialogs'],
+        'ReactionSocket' => ['list'],
+    ];
+
     /** @var resource|null */
     private $listener = null;
 
@@ -70,6 +88,7 @@ final class NativeMessengerServer
     /** @var list<string> */
     private array $allowedOrigins;
 
+    private LicenseRuntimePolicy $licensePolicy;
     private bool $running = false;
     private float $lastHeartbeatAt = 0.0;
 
@@ -81,7 +100,8 @@ final class NativeMessengerServer
         private int $port,
         array $allowedOrigins,
         private int $maxConnections = 256,
-        private int $maxPayloadBytes = SocketFrameCodec::DEFAULT_MAX_PAYLOAD_BYTES
+        private int $maxPayloadBytes = SocketFrameCodec::DEFAULT_MAX_PAYLOAD_BYTES,
+        ?LicenseRuntimePolicy $licensePolicy = null
     ) {
         if ($this->port < 1 || $this->port > 65535) {
             throw new RuntimeException('Invalid WebSocket listener port');
@@ -101,6 +121,7 @@ final class NativeMessengerServer
             }
         }
         $this->allowedOrigins = array_keys($normalized);
+        $this->licensePolicy = $licensePolicy ?? new LicenseRuntimePolicy();
     }
 
     public function run(): void
@@ -362,6 +383,7 @@ final class NativeMessengerServer
             'action' => 'Authorized',
             'user_uid' => $client->uid,
         ]);
+        $this->sendReadOnlyLicenseState($client);
 
         return true;
     }
@@ -467,6 +489,18 @@ final class NativeMessengerServer
             return;
         }
 
+        if (!$this->isReadOnlyAction($className, $methodName)) {
+            $licenseState = $this->licensePolicy->state();
+            if ($licenseState['enforced'] && !$licenseState['writable']) {
+                $this->sendJson($client, [
+                    'action' => 'LicenseReadOnly',
+                    'code' => $licenseState['code'],
+                    'message' => $licenseState['message'],
+                ]);
+                return;
+            }
+        }
+
         $fullClassName = __NAMESPACE__ . '\\' . $className;
         if (!class_exists($fullClassName) || !method_exists($fullClassName, $methodName)) {
             error_log('Configured WebSocket action is unavailable: ' . $action);
@@ -485,6 +519,26 @@ final class NativeMessengerServer
         } catch (Throwable $e) {
             error_log(sprintf('WebSocket handler failure for %s: %s', $action, $e->getMessage()));
         }
+    }
+
+    private function isReadOnlyAction(string $className, string $methodName): bool
+    {
+        return isset(self::READ_ONLY_ROUTES[$className])
+            && in_array($methodName, self::READ_ONLY_ROUTES[$className], true);
+    }
+
+    private function sendReadOnlyLicenseState(SocketConnection $client): void
+    {
+        $state = $this->licensePolicy->state();
+        if (!$state['enforced'] || $state['writable']) {
+            return;
+        }
+
+        $this->sendJson($client, [
+            'action' => 'LicenseReadOnly',
+            'code' => $state['code'],
+            'message' => $state['message'],
+        ]);
     }
 
     private function canUseMessenger(int $userId): bool
