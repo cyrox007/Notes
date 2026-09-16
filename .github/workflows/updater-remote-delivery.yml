@@ -1,0 +1,65 @@
+name: 1.0 updater remote delivery
+
+on:
+  pull_request:
+    branches: ['1.0']
+  push:
+    branches: ['1.0-updater-remote-delivery']
+
+permissions:
+  contents: read
+
+jobs:
+  remote-delivery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.3']
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: sodium, openssl, zlib
+          coverage: none
+
+      - name: Lint remote delivery boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l core/UpdateRemoteTransport.php
+          php -l core/UpdateRemoteDelivery.php
+          php -l bin/update_remote.php
+          php -l tests/integration/updater_remote_delivery_contract.php
+
+      - name: Verify signed remote delivery contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/integration/updater_remote_delivery_contract.php
+          php bin/update_remote.php --help | grep -Fq 'remote signed update delivery'
+
+      - name: Verify network/live-mutation separation
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'verify_peer' core/UpdateRemoteTransport.php
+          grep -Fq 'verify_peer_name' core/UpdateRemoteTransport.php
+          grep -Fq 'FILTER_FLAG_NO_PRIV_RANGE' core/UpdateRemoteTransport.php
+          grep -Fq 'FILTER_FLAG_NO_RES_RANGE' core/UpdateRemoteTransport.php
+          grep -Fq 'Content-Length' core/UpdateRemoteTransport.php
+          grep -Fq 'UpdateManifestVerifier' core/UpdateRemoteDelivery.php
+          grep -Fq 'UpdatePackageStager' core/UpdateRemoteDelivery.php
+          grep -Fq 'UpdateArchiveInspector' core/UpdateRemoteDelivery.php
+          grep -Fq 'package_downloaded' core/UpdateRemoteDelivery.php
+          ! grep -Fq 'maintenance' core/UpdateRemoteDelivery.php
+          ! grep -Fq 'UpdateLiveApplier' core/UpdateRemoteDelivery.php
+          ! grep -Fq 'UpdateApplyCommand' core/UpdateRemoteDelivery.php
+          ! grep -Fq 'curl_' core/UpdateRemoteTransport.php
+          ! grep -Fq 'file_get_contents($url' core/UpdateRemoteTransport.php
