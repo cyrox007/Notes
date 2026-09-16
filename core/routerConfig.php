@@ -20,6 +20,7 @@ use App\Controllers\Admin\RegistrationSettingsController;
 use App\Controllers\Admin\UserProvisioningController;
 use App\Controllers\Admin\RoleManagementController;
 use App\Controllers\Admin\LicenseController;
+use App\Controllers\Admin\UpdateController;
 use App\Controllers\MessagerController;
 use App\Controllers\MessengerGroupController;
 use App\Controllers\MessengerVoiceController;
@@ -151,6 +152,9 @@ $router->group('/admin')
    ->add('GET', '/license', [LicenseController::class, 'index'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_license')
    ->add('POST', '/license/activate', [LicenseController::class, 'activate'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_license_activate')
    ->add('POST', '/license/clear', [LicenseController::class, 'clear'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_license_clear')
+   ->add('GET', '/updates', [UpdateController::class, 'index'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_updates')
+   ->add('GET', '/updates/check', [UpdateController::class, 'check'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_updates_check')
+   ->add('POST', '/updates/stage', [UpdateController::class, 'stage'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_stage')
    ->endGroup();
 
 $router->dispatch();
