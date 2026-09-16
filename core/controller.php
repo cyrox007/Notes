@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Core;
 
 use App\Middlewares\CSRFMiddleware;
+use App\Services\LicenseRuntimePolicy;
 use App\Services\PermissionService;
 
 /**
@@ -76,6 +77,7 @@ class Controller
         $basePathSegment = trim((string) getenv('BASE_PATH'), '/');
         $basePath = $basePathSegment !== '' ? '/' . $basePathSegment : '';
         $baseUrl = $siteUrl . $basePath;
+        $workspaceAccess = $this->workspaceAccess();
 
         $viewData = [
             'base_url' => $baseUrl,
@@ -83,7 +85,8 @@ class Controller
             'sitename' => getenv('SITENAME') ?: 'Workspace Organizer',
             'version' => Version::VERSION,
             'product_name' => Version::PRODUCT_NAME,
-            'workspaceAccess' => $this->workspaceAccess(),
+            'workspaceAccess' => $workspaceAccess,
+            'licenseRuntime' => $this->licenseRuntimeState($workspaceAccess),
         ];
 
         if ($data !== null) {
@@ -98,7 +101,7 @@ class Controller
         $this->renderer->render($template, $viewData);
     }
 
-    /** @return array{notes:bool,tasks:bool,files:bool,messenger:bool,profile:bool,admin:bool} */
+    /** @return array{notes:bool,tasks:bool,files:bool,messenger:bool,profile:bool,admin:bool,license_manage:bool} */
     private function workspaceAccess(): array
     {
         $access = [
@@ -108,6 +111,7 @@ class Controller
             'messenger' => false,
             'profile' => false,
             'admin' => false,
+            'license_manage' => false,
         ];
 
         $viewerId = (int) $this->request->session('user_id', 0);
@@ -124,11 +128,33 @@ class Controller
                 'messenger' => in_array('messenger.use', $permissions, true),
                 'profile' => in_array('profile.use', $permissions, true),
                 'admin' => in_array('admin.access', $permissions, true),
+                'license_manage' => in_array('admin.settings.manage', $permissions, true),
             ];
         } catch (\Throwable $e) {
             error_log('Navigation RBAC evaluation failed: ' . $e->getMessage());
             return $access;
         }
+    }
+
+    /**
+     * @param array{notes:bool,tasks:bool,files:bool,messenger:bool,profile:bool,admin:bool,license_manage:bool} $access
+     * @return array{enforced:bool,writable:bool,code:string,message:string,can_manage:bool}
+     */
+    private function licenseRuntimeState(array $access): array
+    {
+        if ((int) $this->request->session('user_id', 0) <= 0) {
+            return [
+                'enforced' => false,
+                'writable' => true,
+                'code' => 'anonymous',
+                'message' => '',
+                'can_manage' => false,
+            ];
+        }
+
+        $state = (new LicenseRuntimePolicy())->state();
+        $state['can_manage'] = (bool) ($access['license_manage'] ?? false);
+        return $state;
     }
 
     private function convertObjectsToArray(mixed $data): mixed
