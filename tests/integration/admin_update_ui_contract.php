@@ -107,6 +107,17 @@ function adminUpdateBuildZip(array $entries): string
     );
 }
 
+/** @param array<string,mixed> $manifest @return array{bytes:string,token:string} */
+function adminUpdateSignManifest(array $manifest, string $secret, string $keyId): array
+{
+    $bytes = json_encode($manifest, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL;
+    $token = UpdateManifestVerifier::SIGNATURE_PREFIX . '.' . $keyId . '.'
+        . UpdateManifestVerifier::base64UrlEncode(
+            sodium_crypto_sign_detached(UpdateManifestVerifier::DOMAIN . $bytes, $secret)
+        );
+    return ['bytes' => $bytes, 'token' => $token];
+}
+
 final class AdminUpdateFakeDb extends DatabaseManager
 {
     public function __construct()
@@ -226,11 +237,9 @@ try {
         ],
         'notes' => 'Admin update UI contract fixture',
     ];
-    $manifestBytes = json_encode($manifest, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL;
-    $signatureToken = UpdateManifestVerifier::SIGNATURE_PREFIX . '.' . $keyId . '.'
-        . UpdateManifestVerifier::base64UrlEncode(
-            sodium_crypto_sign_detached(UpdateManifestVerifier::DOMAIN . $manifestBytes, $secret)
-        );
+    $signed = adminUpdateSignManifest($manifest, $secret, $keyId);
+    $manifestBytes = $signed['bytes'];
+    $signatureToken = $signed['token'];
     $feedBytes = json_encode([
         'schema' => 1,
         'product' => 'workspace-organizer',
@@ -269,20 +278,45 @@ try {
     adminUpdateAssert(($check['status'] ?? '') === 'update_available', 'admin service did not report signed update');
     adminUpdateAssert(($check['package_downloaded'] ?? true) === false, 'admin check downloaded package bytes');
     adminUpdateAssert($transport->downloadCalls === [], 'admin check invoked package transport');
+    $reviewedVersionCode = (int) ($check['target_version_code'] ?? 0);
+    $reviewedPackageSha256 = (string) ($check['package_sha256'] ?? '');
+    adminUpdateAssert($reviewedVersionCode === $manifest['version_code'], 'reviewed target version binding changed');
+    adminUpdateAssert(hash_equals($manifest['package']['sha256'], $reviewedPackageSha256), 'reviewed package hash binding changed');
 
     $ordinarySnapshot = $service->snapshot(43);
     adminUpdateAssert(($ordinarySnapshot['can_check'] ?? false) === true, 'settings manager cannot perform read-only update check');
     adminUpdateAssert(($ordinarySnapshot['can_stage'] ?? true) === false, 'non-superadmin was allowed installation-wide staging');
     $ordinaryStageRejected = false;
     try {
-        $service->stage(43);
+        $service->stage(43, $reviewedVersionCode, $reviewedPackageSha256);
     } catch (DomainException $e) {
         $ordinaryStageRejected = $e->getCode() === 403;
     }
     adminUpdateAssert($ordinaryStageRejected, 'non-superadmin stage action was not rejected');
     adminUpdateAssert($transport->downloadCalls === [], 'rejected stage downloaded package bytes');
 
-    $staged = $service->stage(42);
+    // TOCTOU guard: if the signed feed advances after the operator reviewed the
+    // first release, staging must fail before any package bytes are downloaded.
+    $advanced = $manifest;
+    $advanced['version'] = '1.0.0-admin-test-next';
+    $advanced['version_code'] = $manifest['version_code'] + 1;
+    $advanced['source_commit'] = str_repeat('d', 40);
+    $advancedSigned = adminUpdateSignManifest($advanced, $secret, $keyId);
+    $transport->text[$manifestUrl] = $advancedSigned['bytes'];
+    $transport->text[$signatureUrl] = $advancedSigned['token'] . PHP_EOL;
+    $feedAdvanceRejected = false;
+    try {
+        $service->stage(42, $reviewedVersionCode, $reviewedPackageSha256);
+    } catch (Throwable $e) {
+        $feedAdvanceRejected = str_contains(strtolower($e->getMessage()), 'changed since operator confirmation');
+    }
+    adminUpdateAssert($feedAdvanceRejected, 'admin staging accepted a feed that changed after review');
+    adminUpdateAssert($transport->downloadCalls === [], 'changed feed downloaded package bytes before binding rejection');
+
+    // Restore the exact signed release the operator reviewed, then staging may proceed.
+    $transport->text[$manifestUrl] = $manifestBytes;
+    $transport->text[$signatureUrl] = $signatureToken . PHP_EOL;
+    $staged = $service->stage(42, $reviewedVersionCode, $reviewedPackageSha256);
     adminUpdateAssert(($staged['status'] ?? '') === 'staged', 'admin service did not publish immutable stage');
     adminUpdateAssert($transport->downloadCalls === [$packageUrl], 'admin stage downloaded unexpected package URL');
     adminUpdateAssert(is_dir((string) ($staged['stage_dir'] ?? '')), 'admin immutable stage directory missing');
@@ -297,13 +331,21 @@ try {
     $routerSource = (string) file_get_contents($root . '/core/routerConfig.php');
 
     adminUpdateAssert(!str_contains($controllerSource, "'stage_dir' =>"), 'admin controller persists/displays absolute stage path');
+    adminUpdateAssert(str_contains($controllerSource, 'STAGE_BINDING_SESSION_KEY'), 'admin controller lost server-side reviewed release binding');
+    adminUpdateAssert(
+        str_contains($controllerSource, '$request->unsetSession(self::STAGE_BINDING_SESSION_KEY)'),
+        'admin reviewed release binding is not one-shot'
+    );
     adminUpdateAssert(!str_contains($serviceSource, 'UpdateApplyCommand'), 'admin service reached destructive apply command');
     adminUpdateAssert(!str_contains($serviceSource, 'UpdateLiveApplier'), 'admin service reached live code applier');
     adminUpdateAssert(!str_contains($serviceSource, 'UpdateBackupManager'), 'first admin UI slice reached rollback backup mutation');
+    adminUpdateAssert(str_contains($serviceSource, 'expectedTargetVersionCode'), 'admin service lost reviewed target version binding');
+    adminUpdateAssert(str_contains($serviceSource, 'expectedPackageSha256'), 'admin service lost reviewed package hash binding');
     adminUpdateAssert(str_contains($viewSource, "route('admin_updates_check')"), 'admin update check action is missing');
     adminUpdateAssert(str_contains($viewSource, "route('admin_updates_stage')"), 'admin update stage action is missing');
     adminUpdateAssert(str_contains($viewSource, '$view->csrfInput()'), 'admin update stage form lost CSRF token');
     adminUpdateAssert(!str_contains($viewSource, 'update_apply'), 'admin update view exposes live apply action');
+    adminUpdateAssert(!str_contains($viewSource, 'stage_dir'), 'admin update view exposes absolute stage path');
     adminUpdateAssert(str_contains($routerSource, "->add('GET', '/updates/check'"), 'admin signed-feed check must remain GET/read-only');
     adminUpdateAssert(str_contains($routerSource, "->add('POST', '/updates/stage'"), 'admin stage route must remain POST');
     adminUpdateAssert(
