@@ -59,8 +59,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq "->add('GET', '/updates/check'" core/routerConfig.php
-          grep -Fq "->add('POST', '/updates/stage'" core/routerConfig.php
+          grep -Fq -- "->add('GET', '/updates/check'" core/routerConfig.php
+          grep -Fq -- "->add('POST', '/updates/stage'" core/routerConfig.php
           grep -Fq "RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_stage'" core/routerConfig.php
           grep -Fq "hasRole(\$actorId, 'superadmin')" app/services/AdminUpdateService.php
           grep -Fq 'UpdateRemoteDelivery' app/services/AdminUpdateService.php
