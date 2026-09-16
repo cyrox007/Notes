@@ -40,7 +40,8 @@ final class UpdateManifestVerifier
 
         foreach ($source as $keyId => $encodedKey) {
             $keyId = trim((string) $keyId);
-            if (preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,47}$/', $keyId) !== 1) {
+            // Dot is the signature-token separator and is therefore forbidden in key ids.
+            if (preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$/', $keyId) !== 1) {
                 throw new InvalidArgumentException('Invalid update public key id');
             }
             $raw = self::base64UrlDecode((string) $encodedKey);
@@ -77,7 +78,7 @@ final class UpdateManifestVerifier
         }
 
         [, $keyId, $signatureEncoded] = $parts;
-        if (preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,47}$/', $keyId) !== 1) {
+        if (preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$/', $keyId) !== 1) {
             return $this->result(false, 'malformed_signature', 'Update signature key id is invalid');
         }
         if (!isset($this->trustedKeys[$keyId])) {
