@@ -130,6 +130,8 @@ try {
 }
 
 require_once SITEPATH . '/core/Router.php';
-\Core\Router::getInstance()->addGlobalMiddleware(\App\Middlewares\EnforceMaintenanceMode::class);
+$router = \Core\Router::getInstance();
+$router->addGlobalMiddleware(\App\Middlewares\EnforceMaintenanceMode::class);
+$router->add('GET', '/module-assets', [\Core\ModuleAssetController::class, 'serve'], [], 'module_asset');
 require_once SITEPATH . '/core/routerConfig.php';
-\Core\ModuleRuntimeLoader::getInstance()->registerRoutes(\Core\Router::getInstance());
+\Core\ModuleRuntimeLoader::getInstance()->registerRoutes($router);
