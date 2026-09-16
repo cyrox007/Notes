@@ -17,6 +17,7 @@ $views = [
     'app/views/admin-page/registration.php',
     'app/views/admin-page/settings.php',
     'app/views/admin-page/roles.php',
+    'app/views/admin-page/updates.php',
 ];
 foreach ($views as $relative) {
     $path = $root . '/' . $relative;
@@ -52,6 +53,7 @@ nativeAdminAssert(str_contains($registration, '$view->csrfInput()'), 'registrati
 $settings = (string) file_get_contents($root . '/app/views/admin-page/settings.php');
 nativeAdminAssert(str_contains($settings, "route('admin_settings_default_quota')"), 'default quota route is missing');
 nativeAdminAssert(str_contains($settings, "route('admin_settings_user_quota')"), 'per-user quota route is missing');
+nativeAdminAssert(str_contains($settings, "route('admin_updates')"), 'signed updater navigation is missing from system settings');
 nativeAdminAssert(str_contains($settings, '1048576'), 'quota byte/MB conversion contract is missing');
 nativeAdminAssert(str_contains($settings, '$view->csrfInput()'), 'settings forms lost CSRF inputs');
 
@@ -65,5 +67,22 @@ nativeAdminAssert(str_contains($roles, "policies["), 'role policy controls are m
 nativeAdminAssert(str_contains($roles, '__inherit__'), 'policy inheritance control is missing');
 nativeAdminAssert(str_contains($roles, '$view->csrfInput()'), 'role management forms lost CSRF inputs');
 nativeAdminAssert(str_contains($roles, '$view->e($permission[\'code\'] ?? \'\')'), 'permission codes are not escaped');
+
+$updates = (string) file_get_contents($root . '/app/views/admin-page/updates.php');
+nativeAdminAssert(str_contains($updates, "route('admin_updates_check')"), 'signed updater check route is missing');
+nativeAdminAssert(str_contains($updates, "route('admin_updates_stage')"), 'signed updater stage route is missing');
+nativeAdminAssert(str_contains($updates, '$view->csrfInput()'), 'signed updater stage form lost CSRF input');
+nativeAdminAssert(str_contains($updates, 'Live-файлы не менялись'), 'signed updater UI lost non-destructive staging boundary copy');
+nativeAdminAssert(!str_contains($updates, "route('admin_updates_apply')"), 'first signed updater UI slice exposes live apply route');
+nativeAdminAssert(!str_contains($updates, 'stage_dir'), 'signed updater UI exposes absolute stage path');
+
+$updateController = (string) file_get_contents($root . '/app/controllers/Admin/UpdateController.php');
+nativeAdminAssert(!str_contains($updateController, "'stage_dir' =>"), 'signed updater controller persists absolute stage path into UI state');
+
+$router = (string) file_get_contents($root . '/core/routerConfig.php');
+nativeAdminAssert(str_contains($router, "->add('GET', '/updates'"), 'signed updater page route missing');
+nativeAdminAssert(str_contains($router, "->add('GET', '/updates/check'"), 'signed updater read-only check route missing');
+nativeAdminAssert(str_contains($router, "->add('POST', '/updates/stage'"), 'signed updater stage route missing');
+nativeAdminAssert(str_contains($router, "RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_stage'"), 'signed updater stage middleware contract missing');
 
 echo "[OK] native admin views contract\n";
