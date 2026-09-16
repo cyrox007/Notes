@@ -96,14 +96,27 @@ licenseAssert($status['valid'] === false && $status['code'] === 'unknown_key', '
 $status = $verifier->verify('not-a-license', $installationId);
 licenseAssert($status['valid'] === false && $status['code'] === 'malformed', 'malformed token was accepted');
 
+$registryPath = $root . '/config/license_trusted_keys.php';
+licenseAssert(is_file($registryPath), 'public license trust registry is missing');
+$registry = require $registryPath;
+licenseAssert(is_array($registry), 'public license trust registry must return an array');
 $defaultVerifier = new LicenseVerifier();
-licenseAssert(!$defaultVerifier->hasTrustedKeys(), 'repository unexpectedly contains a production signing trust root');
+licenseAssert(
+    $defaultVerifier->trustedKeyIds() === array_values(array_map('strval', array_keys($registry))),
+    'default verifier trust ids do not match the public registry'
+);
+licenseAssert($defaultVerifier->hasTrustedKeys() === ($registry !== []), 'default verifier trust state does not match public registry');
 
 $verifierSource = (string) file_get_contents($root . '/app/services/LicenseVerifier.php');
 $serviceSource = (string) file_get_contents($root . '/app/services/LicenseService.php');
+$registrySource = (string) file_get_contents($registryPath);
 licenseAssert(!str_contains($verifierSource, 'sodium_crypto_sign_secretkey('), 'runtime verifier derives or embeds a private key');
 licenseAssert(!str_contains($serviceSource, 'sodium_crypto_sign_secretkey('), 'license service handles private signing material');
+licenseAssert(!str_contains($registrySource, 'SECRET'), 'public trust registry appears to contain secret-key material');
 licenseAssert(str_contains($verifierSource, 'sodium_crypto_sign_verify_detached'), 'Ed25519 detached signature verification is missing');
+licenseAssert(str_contains($verifierSource, 'config/license_trusted_keys.php'), 'default verifier is not wired to the public trust registry');
 licenseAssert(str_contains($serviceSource, 'wrong_installation') === false, 'service duplicates cryptographic verification semantics');
 
+sodium_memzero($secretKey);
+sodium_memzero($keyPair);
 echo "[OK] installation-bound Ed25519 license verifier contract\n";
