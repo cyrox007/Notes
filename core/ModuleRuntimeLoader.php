@@ -12,12 +12,14 @@ final class ModuleRuntimeLoader
 
     /** @var array<string,ModuleRuntimeProvider> */
     private array $providers = [];
+    private ModuleCapabilityRegistry $capabilityRegistry;
 
     /** @param list<string> $runtimeComposition */
     private function __construct(
         private readonly ModuleRegistry $registry,
         private readonly array $runtimeComposition,
     ) {
+        $this->capabilityRegistry = new ModuleCapabilityRegistry();
     }
 
     /** @param list<string> $runtimeComposition */
@@ -25,6 +27,7 @@ final class ModuleRuntimeLoader
     {
         $loader = new self($registry, $runtimeComposition);
         $loader->loadProviders();
+        $loader->capabilityRegistry->seal();
         self::$instance = $loader;
         return $loader;
     }
@@ -41,6 +44,11 @@ final class ModuleRuntimeLoader
     public function providers(): array
     {
         return $this->providers;
+    }
+
+    public function capabilities(): ModuleCapabilityRegistry
+    {
+        return $this->capabilityRegistry;
     }
 
     public function registerRoutes(Router $router): void
@@ -96,7 +104,38 @@ final class ModuleRuntimeLoader
             }
 
             $provider->boot();
+            $this->registerCapabilities($manifest, $provider);
             $this->providers[$moduleId] = $provider;
+        }
+    }
+
+    private function registerCapabilities(ModuleManifest $manifest, ModuleRuntimeProvider $provider): void
+    {
+        $declared = $manifest->capabilities();
+        sort($declared, SORT_STRING);
+
+        $exported = $provider->capabilities();
+        if (!is_array($exported)) {
+            throw new RuntimeException("Module {$manifest->id()} capability export must be an array");
+        }
+
+        $exportedNames = [];
+        foreach ($exported as $capability => $service) {
+            if (!is_string($capability) || !$service instanceof \stdClass && !is_object($service)) {
+                throw new RuntimeException("Module {$manifest->id()} exported an invalid capability service");
+            }
+            $exportedNames[] = $capability;
+        }
+        sort($exportedNames, SORT_STRING);
+
+        if ($exportedNames !== $declared) {
+            throw new RuntimeException(
+                "Module {$manifest->id()} runtime capability exports must exactly match module.json declarations"
+            );
+        }
+
+        foreach ($exported as $capability => $service) {
+            $this->capabilityRegistry->register($manifest->id(), $capability, $service);
         }
     }
 }
