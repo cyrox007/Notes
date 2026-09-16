@@ -47,10 +47,7 @@ final class UpdateArchiveInspector
             if (fseek($handle, $fileSize - $searchBytes, SEEK_SET) !== 0) {
                 throw new RuntimeException('Unable to seek update ZIP');
             }
-            $tail = fread($handle, $searchBytes);
-            if (!is_string($tail) || strlen($tail) !== $searchBytes) {
-                throw new RuntimeException('Unable to read update ZIP end-of-directory data');
-            }
+            $tail = $this->readExact($handle, $searchBytes, 'update ZIP end-of-directory data');
 
             $eocdPos = strrpos($tail, "PK\x05\x06");
             if ($eocdPos === false || strlen($tail) - $eocdPos < self::EOCD_MIN_BYTES) {
@@ -100,9 +97,9 @@ final class UpdateArchiveInspector
             $totalCompressed = 0;
 
             for ($i = 0; $i < $entries; $i++) {
-                $fixed = fread($handle, 46);
-                if (!is_string($fixed) || strlen($fixed) !== 46 || substr($fixed, 0, 4) !== "PK\x01\x02") {
-                    throw new RuntimeException('ZIP central-directory entry is truncated or invalid');
+                $fixed = $this->readExact($handle, 46, 'ZIP central-directory entry');
+                if (substr($fixed, 0, 4) !== "PK\x01\x02") {
+                    throw new RuntimeException('ZIP central-directory entry is invalid');
                 }
                 $entry = unpack(
                     'vversion_made/vversion_needed/vflags/vmethod/vmtime/vmdate/Vcrc/Vcompressed/Vuncompressed/'
@@ -123,14 +120,9 @@ final class UpdateArchiveInspector
                     throw new RuntimeException('ZIP entry metadata is unreasonably large');
                 }
 
-                $name = fread($handle, $nameLength);
-                $extra = fread($handle, $extraLength);
-                $comment = fread($handle, $entryCommentLength);
-                if (!is_string($name) || strlen($name) !== $nameLength
-                    || !is_string($extra) || strlen($extra) !== $extraLength
-                    || !is_string($comment) || strlen($comment) !== $entryCommentLength) {
-                    throw new RuntimeException('ZIP central-directory entry metadata is truncated');
-                }
+                $name = $this->readExact($handle, $nameLength, 'ZIP entry filename');
+                $extra = $this->readExact($handle, $extraLength, 'ZIP entry extra field');
+                $this->readExact($handle, $entryCommentLength, 'ZIP entry comment');
                 $nextCentralPosition = ftell($handle);
                 if (!is_int($nextCentralPosition)) {
                     throw new RuntimeException('Unable to track ZIP central-directory position');
@@ -244,6 +236,25 @@ final class UpdateArchiveInspector
     }
 
     /**
+     * @param resource $handle
+     */
+    private function readExact($handle, int $length, string $context): string
+    {
+        if ($length < 0) {
+            throw new RuntimeException($context . ' length is invalid');
+        }
+        if ($length === 0) {
+            return '';
+        }
+        $bytes = fread($handle, $length);
+        if (!is_string($bytes) || strlen($bytes) !== $length) {
+            throw new RuntimeException($context . ' is truncated');
+        }
+        return $bytes;
+    }
+
+    /**
+     * @param resource $handle
      * @param array<string,int> $central
      * @return array{start:int,end:int}
      */
@@ -259,9 +270,9 @@ final class UpdateArchiveInspector
         if (fseek($handle, $localOffset, SEEK_SET) !== 0) {
             throw new RuntimeException('Unable to seek ZIP local header: ' . $centralName);
         }
-        $fixed = fread($handle, 30);
-        if (!is_string($fixed) || strlen($fixed) !== 30 || substr($fixed, 0, 4) !== "PK\x03\x04") {
-            throw new RuntimeException('ZIP local header is missing or invalid: ' . $centralName);
+        $fixed = $this->readExact($handle, 30, 'ZIP local header');
+        if (substr($fixed, 0, 4) !== "PK\x03\x04") {
+            throw new RuntimeException('ZIP local header is invalid: ' . $centralName);
         }
         $local = unpack(
             'vversion_needed/vflags/vmethod/vmtime/vmdate/Vcrc/Vcompressed/Vuncompressed/vname_length/vextra_length',
@@ -277,12 +288,8 @@ final class UpdateArchiveInspector
             || $localExtraLength > self::MAX_ENTRY_METADATA_BYTES) {
             throw new RuntimeException('ZIP local header metadata is invalid: ' . $centralName);
         }
-        $localName = fread($handle, $localNameLength);
-        $localExtra = fread($handle, $localExtraLength);
-        if (!is_string($localName) || strlen($localName) !== $localNameLength
-            || !is_string($localExtra) || strlen($localExtra) !== $localExtraLength) {
-            throw new RuntimeException('ZIP local header metadata is truncated: ' . $centralName);
-        }
+        $localName = $this->readExact($handle, $localNameLength, 'ZIP local filename');
+        $localExtra = $this->readExact($handle, $localExtraLength, 'ZIP local extra field');
         if (!hash_equals($centralName, $localName)) {
             throw new RuntimeException('ZIP local/central entry names differ: ' . $centralName);
         }
