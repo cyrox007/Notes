@@ -113,7 +113,7 @@ final class ModuleManifest
         if (!is_string($runtimeMode) || !in_array($runtimeMode, ['legacy', 'isolated'], true)) {
             throw new RuntimeException("Module {$id} runtime mode must be legacy or isolated");
         }
-        $runtimeEntrypoint = self::runtimeEntrypoint($runtime, $id, $runtimeMode);
+        $runtimeEntrypoint = self::parseRuntimeEntrypoint($runtime, $id, $runtimeMode);
 
         $storageNamespaces = self::identifierList($data['storage_namespaces'] ?? [], "{$id}.storage_namespaces");
 
@@ -220,7 +220,7 @@ final class ModuleManifest
         return $this->integrityHash;
     }
 
-    private static function runtimeEntrypoint(array $runtime, string $moduleId, string $mode): ?string
+    private static function parseRuntimeEntrypoint(array $runtime, string $moduleId, string $mode): ?string
     {
         $value = $runtime['entrypoint'] ?? null;
         if ($mode === 'legacy') {

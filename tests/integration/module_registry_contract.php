@@ -7,6 +7,7 @@ require_once $root . '/core/Version.php';
 require_once $root . '/core/ModuleManifest.php';
 require_once $root . '/core/ModuleRegistry.php';
 require_once $root . '/core/ModuleRuntimeProvider.php';
+require_once $root . '/core/ModuleCapabilityRegistry.php';
 require_once $root . '/core/ModuleRuntimeLoader.php';
 require_once $root . '/core/Router.php';
 
@@ -36,6 +37,7 @@ function writeModuleFixture(string $root, string $id, array $dependencies = [], 
         throw new RuntimeException("Cannot create fixture directory: {$dir}");
     }
 
+    $declaredCapability = $capability !== '' ? $capability : 'fixture.' . $id;
     $manifest = [
         'schema' => 1,
         'id' => $id,
@@ -43,7 +45,7 @@ function writeModuleFixture(string $root, string $id, array $dependencies = [], 
         'version' => '0.13.0',
         'core' => $core !== [] ? $core : ['min' => '0.13.0-alpha', 'max_exclusive' => '0.15.0'],
         'dependencies' => $dependencies,
-        'capabilities' => [$capability !== '' ? $capability : 'fixture.' . $id],
+        'capabilities' => [$declaredCapability],
         'package' => ['bundled' => false, 'default_enabled' => true],
         'license' => ['feature' => 'fixture.' . $id],
         'runtime' => ['mode' => 'isolated', 'entrypoint' => 'runtime.php'],
@@ -57,14 +59,26 @@ function writeModuleFixture(string $root, string $id, array $dependencies = [], 
 
     $provider = <<<'PHP'
 <?php
-return new class('__MODULE_ID__') implements \Core\ModuleRuntimeProvider {
-    public function __construct(private string $id) {}
+return new class('__MODULE_ID__', '__CAPABILITY__') implements \Core\ModuleRuntimeProvider {
+    public function __construct(private string $id, private string $capability) {}
     public function moduleId(): string { return $this->id; }
     public function boot(): void { $GLOBALS['moduleRuntimeBoots'][] = $this->id; }
+    public function capabilities(): array {
+        return [
+            $this->capability => new class($this->id) {
+                public function __construct(public string $providerId) {}
+            },
+        ];
+    }
     public function registerRoutes(\Core\Router $router): void { $GLOBALS['moduleRuntimeRoutes'][] = $this->id; }
 };
 PHP;
-    file_put_contents($dir . '/runtime.php', str_replace('__MODULE_ID__', $id, $provider));
+    $provider = str_replace(
+        ['__MODULE_ID__', '__CAPABILITY__'],
+        [$id, $declaredCapability],
+        $provider
+    );
+    file_put_contents($dir . '/runtime.php', $provider);
 }
 
 function removeTree(string $path): void
@@ -126,6 +140,50 @@ try {
         $GLOBALS['moduleRuntimeBoots'] === ['beta', 'alpha'],
         'isolated provider boot order drifted'
     );
+
+    $capabilities = $runtime->capabilities();
+    assertModuleContract($capabilities->isSealed(), 'capability registry must be immutable after runtime boot');
+    assertModuleContract(
+        $capabilities->providers() === [
+            'fixture.alpha' => 'alpha',
+            'fixture.beta' => 'beta',
+        ],
+        'capability-to-provider registry does not match effective runtime composition'
+    );
+    $alphaService = $capabilities->require('fixture.alpha');
+    assertModuleContract(
+        property_exists($alphaService, 'providerId') && $alphaService->providerId === 'alpha',
+        'capability lookup did not return the provider-owned service object'
+    );
+    assertModuleContract(
+        $capabilities->providerModuleId('fixture.beta') === 'beta',
+        'capability provider ownership lookup failed'
+    );
+
+    $missingCapabilityRejected = false;
+    try {
+        $capabilities->require('fixture.missing');
+    } catch (RuntimeException) {
+        $missingCapabilityRejected = true;
+    }
+    assertModuleContract($missingCapabilityRejected, 'missing capability lookup must fail closed');
+
+    $typeMismatchRejected = false;
+    try {
+        $capabilities->require('fixture.alpha', DateTimeInterface::class);
+    } catch (RuntimeException) {
+        $typeMismatchRejected = true;
+    }
+    assertModuleContract($typeMismatchRejected, 'capability contract type mismatch must fail closed');
+
+    $sealedMutationRejected = false;
+    try {
+        $capabilities->register('alpha', 'fixture.late', new stdClass());
+    } catch (RuntimeException) {
+        $sealedMutationRejected = true;
+    }
+    assertModuleContract($sealedMutationRejected, 'sealed capability registry accepted a late provider');
+
     $runtime->registerRoutes(Router::getInstance());
     assertModuleContract(
         $GLOBALS['moduleRuntimeRoutes'] === ['beta', 'alpha'],
@@ -133,6 +191,42 @@ try {
     );
 } finally {
     unset($GLOBALS['moduleRuntimeBoots'], $GLOBALS['moduleRuntimeRoutes']);
+    removeTree($tmp);
+}
+
+$tmp = sys_get_temp_dir() . '/workspace-module-capability-duplicate-' . bin2hex(random_bytes(6));
+mkdir($tmp, 0700, true);
+try {
+    writeModuleFixture($tmp, 'alpha', [], 'fixture.shared');
+    writeModuleFixture($tmp, 'beta', [], 'fixture.shared');
+    $duplicateRegistry = ModuleRegistry::discover($tmp, Version::VERSION);
+    $duplicateRejected = false;
+    try {
+        ModuleRuntimeLoader::boot($duplicateRegistry, ['alpha', 'beta']);
+    } catch (RuntimeException) {
+        $duplicateRejected = true;
+    }
+    assertModuleContract($duplicateRejected, 'duplicate active providers for one capability must fail closed');
+} finally {
+    removeTree($tmp);
+}
+
+$tmp = sys_get_temp_dir() . '/workspace-module-capability-drift-' . bin2hex(random_bytes(6));
+mkdir($tmp, 0700, true);
+try {
+    writeModuleFixture($tmp, 'alpha', [], 'fixture.declared');
+    $runtimePath = $tmp . '/alpha/runtime.php';
+    $runtimeSource = (string) file_get_contents($runtimePath);
+    file_put_contents($runtimePath, str_replace('fixture.declared', 'fixture.undeclared', $runtimeSource));
+    $driftRegistry = ModuleRegistry::discover($tmp, Version::VERSION);
+    $driftRejected = false;
+    try {
+        ModuleRuntimeLoader::boot($driftRegistry, ['alpha']);
+    } catch (RuntimeException) {
+        $driftRejected = true;
+    }
+    assertModuleContract($driftRejected, 'runtime capability exports must exactly match manifest declarations');
+} finally {
     removeTree($tmp);
 }
 

@@ -7,6 +7,7 @@ on:
       - 'core/ModuleManifest.php'
       - 'core/ModuleRegistry.php'
       - 'core/ModuleRuntimeProvider.php'
+      - 'core/ModuleCapabilityRegistry.php'
       - 'core/ModuleRuntimeLoader.php'
       - 'core.php'
       - 'index.php'
@@ -19,6 +20,7 @@ on:
       - 'core/ModuleManifest.php'
       - 'core/ModuleRegistry.php'
       - 'core/ModuleRuntimeProvider.php'
+      - 'core/ModuleCapabilityRegistry.php'
       - 'core/ModuleRuntimeLoader.php'
       - 'core.php'
       - 'index.php'
@@ -43,12 +45,13 @@ jobs:
         run: |
           php -l core/ModuleManifest.php
           php -l core/ModuleRuntimeProvider.php
+          php -l core/ModuleCapabilityRegistry.php
           php -l core/ModuleRuntimeLoader.php
           php -l core/ModuleRegistry.php
           php -l core.php
           php -l index.php
           php -l tests/integration/module_registry_contract.php
-      - name: Verify isolated runtime contract
+      - name: Verify isolated runtime and capability contract
         run: php tests/integration/module_registry_contract.php
       - name: Track remaining legacy bundled modules
         shell: bash

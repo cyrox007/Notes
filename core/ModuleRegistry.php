@@ -87,7 +87,6 @@ final class ModuleRegistry
 
         ksort($modules, SORT_STRING);
         self::assertDependenciesExist($modules);
-        self::assertCapabilitiesUnique($modules);
         $loadOrder = self::resolveLoadOrder($modules);
 
         return new self($modules, $loadOrder, $coreVersion);
@@ -121,6 +120,8 @@ final class ModuleRegistry
     /**
      * Manifest-only default composition. This intentionally ignores persisted
      * runtime lifecycle state so package/distribution planning remains stable.
+     * Alternative installed providers may share a capability, but a default
+     * runtime composition must still resolve to one active owner per capability.
      *
      * @return list<string>
      */
@@ -132,6 +133,7 @@ final class ModuleRegistry
                 $enabled[] = $moduleId;
             }
         }
+        $this->assertCompositionCapabilitiesUnique($enabled);
         return $enabled;
     }
 
@@ -166,6 +168,7 @@ final class ModuleRegistry
                 $resolved[] = $moduleId;
             }
         }
+        $this->assertCompositionCapabilitiesUnique($resolved);
         return $resolved;
     }
 
@@ -212,6 +215,7 @@ final class ModuleRegistry
                 $enabled[] = $moduleId;
             }
         }
+        $this->assertCompositionCapabilitiesUnique($enabled);
         return $enabled;
     }
 
@@ -242,18 +246,19 @@ final class ModuleRegistry
         }
     }
 
-    /** @param array<string,ModuleManifest> $modules */
-    private static function assertCapabilitiesUnique(array $modules): void
+    /** @param list<string> $composition */
+    private function assertCompositionCapabilitiesUnique(array $composition): void
     {
         $owners = [];
-        foreach ($modules as $module) {
+        foreach ($composition as $moduleId) {
+            $module = $this->get($moduleId);
             foreach ($module->capabilities() as $capability) {
                 if (isset($owners[$capability])) {
                     throw new RuntimeException(
-                        "Capability {$capability} is declared by both {$owners[$capability]} and {$module->id()}"
+                        "Capability {$capability} is active in both {$owners[$capability]} and {$moduleId}"
                     );
                 }
-                $owners[$capability] = $module->id();
+                $owners[$capability] = $moduleId;
             }
         }
     }
