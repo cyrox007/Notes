@@ -3,11 +3,26 @@
   "id": "notes",
   "name": "Notes",
   "version": "0.13.0",
-  "core": {"min": "0.13.0-alpha", "max_exclusive": "2.0.0"},
+  "core": {
+    "min": "0.13.0-alpha",
+    "max_exclusive": "2.0.0"
+  },
   "dependencies": [],
-  "capabilities": ["workspace.notes"],
-  "package": {"bundled": true, "default_enabled": true},
-  "license": {"feature": "workspace.notes"},
-  "runtime": {"mode": "legacy"},
-  "storage_namespaces": ["notes"]
+  "capabilities": [
+    "workspace.notes"
+  ],
+  "package": {
+    "bundled": true,
+    "default_enabled": true
+  },
+  "license": {
+    "feature": "workspace.notes"
+  },
+  "runtime": {
+    "mode": "isolated",
+    "entrypoint": "runtime.php"
+  },
+  "storage_namespaces": [
+    "notes"
+  ]
 }

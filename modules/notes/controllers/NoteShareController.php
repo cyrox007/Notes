@@ -179,7 +179,7 @@ final class NoteShareController extends Controller
         }
         unset($attachment);
 
-        $this->render_template('notes_page/shared_view', [
+        $this->render_template('@notes/shared_view', [
             'note' => [
                 'uid' => (string) $share['uid'],
                 'notename' => (string) ($share['notename'] ?? ''),

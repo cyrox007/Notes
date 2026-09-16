@@ -68,6 +68,7 @@ echo $view->layout('core/base', [
     'base_path' => $base_path ?? '',
     'user' => $currentUser,
     'workspaceAccess' => $access,
+    'module_styles' => [$view->moduleAsset('notes', 'style.css')],
     'socket_ticket' => $socket_ticket ?? '',
     'socket_url' => $socket_url ?? '',
 ], $content);
