@@ -28,10 +28,15 @@ jobs:
         run: |
           php -l core/ModuleManifest.php
           php -l core/ModuleRegistry.php
+          php -l core/ModuleRuntimeProvider.php
+          php -l core/ModuleCapabilityRegistry.php
+          php -l core/ModuleRuntimeLoader.php
+          php -l core.php
+          php -l index.php
           php -l tests/integration/module_registry_contract.php
           php -l tests/e2e/router.php
 
-      - name: Verify module registry contract
+      - name: Verify module registry, isolated runtime and capability contracts
         run: php tests/integration/module_registry_contract.php
 
       - name: Verify module package web boundary
@@ -41,3 +46,9 @@ jobs:
           grep -Fq '|modules|' .htaccess
           grep -Fq "'modules'" tests/e2e/router.php
           grep -Fq 'privateSegments' tests/e2e/router.php
+          grep -Fq "'/core/ModuleRuntimeProvider.php'" core.php
+          grep -Fq "'/core/ModuleCapabilityRegistry.php'" core.php
+          grep -Fq "'/core/ModuleRuntimeLoader.php'" core.php
+          grep -Fq 'ModuleRuntimeLoader::boot' core.php
+          grep -Fq 'ModuleRuntimeLoader::getInstance()->registerRoutes' index.php
+          grep -Fq 'capabilityRegistry->seal' core/ModuleRuntimeLoader.php
