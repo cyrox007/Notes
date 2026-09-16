@@ -37,8 +37,12 @@ jobs:
           php -l core.php
           php -l install.php
           php -l ws_server/server.php
+          php -l bin/update.php
+          php -l core/UpdateManifestVerifier.php
+          php -l core/UpdatePackageStager.php
           php tests/integration/native_view_renderer_contract.php
           php tests/integration/native_websocket_protocol_contract.php
+          php tests/integration/signed_update_foundation_contract.php
 
       - name: Build hosting bundle
         shell: bash
@@ -62,16 +66,24 @@ jobs:
             --exclude 'compile/*' \
             --exclude 'notes-private-storage' \
             --exclude 'tools/vendor-license' \
+            --exclude 'tools/vendor-update' \
             --exclude '*.license-secret' \
             --exclude 'workspace-license-*.secret' \
+            --exclude '*.update-secret' \
+            --exclude 'workspace-update-*.secret' \
             --exclude '*.log'
           mkdir -p "$ROOT/cache" "$ROOT/compile"
           test ! -e "$ROOT/vendor"
           test ! -e "$ROOT/tools/vendor-license"
+          test ! -e "$ROOT/tools/vendor-update"
           test -f "$ROOT/install.php"
           test -f "$ROOT/core/NativeViewRenderer.php"
           test -f "$ROOT/app/socket/NativeMessengerServer.php"
           test -f "$ROOT/config/license_trusted_keys.php"
+          test -f "$ROOT/config/update_trusted_keys.php"
+          test -f "$ROOT/bin/update.php"
+          test -f "$ROOT/core/UpdateManifestVerifier.php"
+          test -f "$ROOT/core/UpdatePackageStager.php"
           test ! -e "$ROOT/.env"
           cd /tmp
           zip -qr "$GITHUB_WORKSPACE/$NAME.zip" "$NAME"
@@ -86,6 +98,10 @@ jobs:
           unzip -l "$BUNDLE" | grep -F 'core/NativeViewRenderer.php'
           unzip -l "$BUNDLE" | grep -F 'app/socket/NativeMessengerServer.php'
           unzip -l "$BUNDLE" | grep -F 'config/license_trusted_keys.php'
+          unzip -l "$BUNDLE" | grep -F 'config/update_trusted_keys.php'
+          unzip -l "$BUNDLE" | grep -F 'bin/update.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateManifestVerifier.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdatePackageStager.php'
           if unzip -l "$BUNDLE" | grep -Eq '/vendor/'; then
             echo 'Vendor-free bundle must not contain vendor/'
             exit 1
@@ -95,7 +111,11 @@ jobs:
             exit 1
           fi
           if unzip -l "$BUNDLE" | grep -Eq '/tools/vendor-license/|\.license-secret$|workspace-license-[^/]*\.secret$'; then
-            echo 'Customer bundle must not contain vendor signing tools or private signing material'
+            echo 'Customer bundle must not contain license vendor signing tools or private signing material'
+            exit 1
+          fi
+          if unzip -l "$BUNDLE" | grep -Eq '/tools/vendor-update/|\.update-secret$|workspace-update-[^/]*\.secret$'; then
+            echo 'Customer bundle must not contain update vendor signing tools or private update-signing material'
             exit 1
           fi
 
