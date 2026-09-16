@@ -3,5 +3,7 @@
 *.log
 *.license-secret
 workspace-license-*.secret
+*.update-secret
+workspace-update-*.secret
 /compile/*
 /uploads/*
