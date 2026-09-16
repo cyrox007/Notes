@@ -37,12 +37,14 @@ jobs:
           php -l core/UpdateRemoteDelivery.php
           php -l bin/update_remote.php
           php -l tests/integration/updater_remote_delivery_contract.php
+          php -l tests/integration/updater_remote_address_policy_contract.php
 
       - name: Verify signed remote delivery contract
         shell: bash
         run: |
           set -euo pipefail
           php tests/integration/updater_remote_delivery_contract.php
+          php tests/integration/updater_remote_address_policy_contract.php
           php bin/update_remote.php --help | grep -Fq 'remote signed update delivery'
 
       - name: Verify network/live-mutation separation
@@ -51,8 +53,10 @@ jobs:
           set -euo pipefail
           grep -Fq 'verify_peer' core/UpdateRemoteTransport.php
           grep -Fq 'verify_peer_name' core/UpdateRemoteTransport.php
-          grep -Fq 'FILTER_FLAG_NO_PRIV_RANGE' core/UpdateRemoteTransport.php
-          grep -Fq 'FILTER_FLAG_NO_RES_RANGE' core/UpdateRemoteTransport.php
+          grep -Fq 'NON_PUBLIC_IPV4_CIDRS' core/UpdateRemoteTransport.php
+          grep -Fq 'NON_PUBLIC_IPV6_CIDRS' core/UpdateRemoteTransport.php
+          grep -Fq '100.64.0.0/10' core/UpdateRemoteTransport.php
+          grep -Fq '2001:db8::/32' core/UpdateRemoteTransport.php
           grep -Fq 'Content-Length' core/UpdateRemoteTransport.php
           grep -Fq 'UpdateManifestVerifier' core/UpdateRemoteDelivery.php
           grep -Fq 'UpdatePackageStager' core/UpdateRemoteDelivery.php
