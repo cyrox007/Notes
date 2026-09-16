@@ -88,36 +88,45 @@ try {
 nativeViewAssert($blocked, 'native renderer accepted path traversal');
 
 $appViews = realpath(__DIR__ . '/../../app/views');
+$applicationNotesViews = realpath(__DIR__ . '/../../modules/notes/views');
 nativeViewAssert(is_string($appViews), 'application view directory not found');
-$appNative = new NativeViewRenderer($appViews, $context);
+nativeViewAssert(is_string($applicationNotesViews), 'isolated Notes view directory not found');
+$appNative = new NativeViewRenderer($appViews, $context, ['notes' => $applicationNotesViews]);
 
-$controllerRoot = realpath(__DIR__ . '/../../app/controllers');
-nativeViewAssert(is_string($controllerRoot), 'controller directory not found');
-$iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($controllerRoot));
+$controllerRoots = [
+    __DIR__ . '/../../app/controllers',
+    __DIR__ . '/../../modules/notes/controllers',
+];
 $renderedTemplates = [];
-foreach ($iterator as $file) {
-    if (!$file->isFile() || $file->getExtension() !== 'php') {
-        continue;
-    }
+foreach ($controllerRoots as $controllerRoot) {
+    $resolvedControllerRoot = realpath($controllerRoot);
+    nativeViewAssert(is_string($resolvedControllerRoot), "controller directory not found: {$controllerRoot}");
+    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($resolvedControllerRoot));
+    foreach ($iterator as $file) {
+        if (!$file->isFile() || $file->getExtension() !== 'php') {
+            continue;
+        }
 
-    $source = file_get_contents($file->getPathname()) ?: '';
-    nativeViewAssert(
-        !str_contains($source, '->view->render_template('),
-        'controller still bypasses native Controller::render_template(): ' . $file->getFilename()
-    );
-    nativeViewAssert(
-        !str_contains($source, 'new View('),
-        'controller still constructs the obsolete Core\\View path: ' . $file->getFilename()
-    );
+        $source = file_get_contents($file->getPathname()) ?: '';
+        nativeViewAssert(
+            !str_contains($source, '->view->render_template('),
+            'controller still bypasses native Controller::render_template(): ' . $file->getPathname()
+        );
+        nativeViewAssert(
+            !str_contains($source, 'new View('),
+            'controller still constructs the obsolete Core\\View path: ' . $file->getPathname()
+        );
 
-    if (preg_match_all('/\$this->render_template\(\s*[\'\"]([^\'\"]+)[\'\"]/', $source, $matches) !== false) {
-        foreach ($matches[1] as $template) {
-            $renderedTemplates[$template] = true;
+        if (preg_match_all('/\$this->render_template\(\s*[\'\"]([^\'\"]+)[\'\"]/', $source, $matches) !== false) {
+            foreach ($matches[1] as $template) {
+                $renderedTemplates[$template] = true;
+            }
         }
     }
 }
 
 nativeViewAssert($renderedTemplates !== [], 'no controller render_template calls discovered');
+nativeViewAssert(isset($renderedTemplates['@notes/index']), 'isolated Notes controller templates were not inspected');
 foreach (array_keys($renderedTemplates) as $template) {
     nativeViewAssert(
         $appNative->hasTemplate($template),
@@ -138,6 +147,7 @@ nativeViewAssert(!str_contains($coreSource, 'vendor/autoload.php'), 'core bootst
 nativeViewAssert(!is_file(__DIR__ . '/../../core/LegacySmartyRenderer.php'), 'LegacySmartyRenderer file still exists');
 nativeViewAssert(!is_file(__DIR__ . '/../../core/HybridViewRenderer.php'), 'HybridViewRenderer file still exists');
 nativeViewAssert($appNative->hasTemplate('error_page/index'), 'native error view is missing');
+nativeViewAssert($appNative->hasTemplate('@notes/index'), 'isolated Notes native view is missing');
 
 $composer = json_decode(file_get_contents(__DIR__ . '/../../composer.json') ?: '', true);
 nativeViewAssert(is_array($composer), 'composer.json is not valid JSON');
