@@ -14,6 +14,15 @@ interface ModuleRuntimeProvider
      */
     public function boot(): void;
 
+    /**
+     * Export concrete services for every capability declared by the isolated
+     * module manifest. Keys are capability identifiers; values are service
+     * objects consumed through ModuleCapabilityRegistry rather than module paths.
+     *
+     * @return array<string,object>
+     */
+    public function capabilities(): array;
+
     /** Register only routes owned by this module. */
     public function registerRoutes(Router $router): void;
 }
