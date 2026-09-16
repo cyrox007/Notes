@@ -40,16 +40,21 @@ jobs:
           php -l bin/update.php
           php -l bin/update_backup.php
           php -l bin/update_candidate.php
+          php -l bin/update_apply.php
           php -l core/UpdateManifestVerifier.php
           php -l core/UpdatePackageStager.php
           php -l core/UpdateArchiveInspector.php
           php -l core/UpdateTransactionJournal.php
+          php -l core/UpdateTransactionStateMachine.php
           php -l core/UpdateBackupManager.php
           php -l core/UpdateReleaseCandidate.php
+          php -l core/UpdateLiveApplier.php
+          php -l core/UpdateApplyCommand.php
           php tests/integration/native_view_renderer_contract.php
           php tests/integration/native_websocket_protocol_contract.php
           php tests/integration/signed_update_foundation_contract.php
           php tests/integration/update_release_candidate_contract.php
+          php tests/integration/updater_live_apply_contract.php
 
       - name: Build hosting bundle
         shell: bash
@@ -91,13 +96,17 @@ jobs:
           test -f "$ROOT/bin/update.php"
           test -f "$ROOT/bin/update_backup.php"
           test -f "$ROOT/bin/update_candidate.php"
+          test -f "$ROOT/bin/update_apply.php"
           test -f "$ROOT/bin/maintenance.php"
           test -f "$ROOT/core/UpdateManifestVerifier.php"
           test -f "$ROOT/core/UpdatePackageStager.php"
           test -f "$ROOT/core/UpdateArchiveInspector.php"
           test -f "$ROOT/core/UpdateTransactionJournal.php"
+          test -f "$ROOT/core/UpdateTransactionStateMachine.php"
           test -f "$ROOT/core/UpdateBackupManager.php"
           test -f "$ROOT/core/UpdateReleaseCandidate.php"
+          test -f "$ROOT/core/UpdateLiveApplier.php"
+          test -f "$ROOT/core/UpdateApplyCommand.php"
           test ! -e "$ROOT/.env"
           cd /tmp
           zip -qr "$GITHUB_WORKSPACE/$NAME.zip" "$NAME"
@@ -116,13 +125,17 @@ jobs:
           unzip -l "$BUNDLE" | grep -F 'bin/update.php'
           unzip -l "$BUNDLE" | grep -F 'bin/update_backup.php'
           unzip -l "$BUNDLE" | grep -F 'bin/update_candidate.php'
+          unzip -l "$BUNDLE" | grep -F 'bin/update_apply.php'
           unzip -l "$BUNDLE" | grep -F 'bin/maintenance.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdateManifestVerifier.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdatePackageStager.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdateArchiveInspector.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdateTransactionJournal.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateTransactionStateMachine.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdateBackupManager.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdateReleaseCandidate.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateLiveApplier.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateApplyCommand.php'
           if unzip -l "$BUNDLE" | grep -Eq '/vendor/'; then
             echo 'Vendor-free bundle must not contain vendor/'
             exit 1
