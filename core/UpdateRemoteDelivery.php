@@ -45,7 +45,9 @@ final class UpdateRemoteDelivery
 
     /**
      * Fetch only the discovery feed + signed manifest/signature.
-     * No package bytes are downloaded.
+     * No package bytes are downloaded. A valid signed feed state is reported as
+     * data rather than turning normal "up to date" / incompatibility states into
+     * transport errors; this is the read-only primitive used by the future UI.
      *
      * @return array<string,mixed>
      */
@@ -55,23 +57,46 @@ final class UpdateRemoteDelivery
         int $currentVersionCode,
         string $currentPhpVersion
     ): array {
-        $resolved = $this->resolve($feedUrl, $channel, $currentVersionCode, $currentPhpVersion);
+        $resolved = $this->resolve($feedUrl, $channel);
         $manifest = $resolved['manifest'];
+        $targetVersionCode = (int) $manifest['version_code'];
+
+        $status = 'update_available';
+        $available = true;
+        $compatibilityMessage = null;
+        if ($targetVersionCode === $currentVersionCode) {
+            $status = 'up_to_date';
+            $available = false;
+        } elseif ($targetVersionCode < $currentVersionCode) {
+            $status = 'ahead_of_feed';
+            $available = false;
+        } else {
+            try {
+                $this->stager->assertCompatibility($manifest, $currentVersionCode, $currentPhpVersion);
+            } catch (Throwable $e) {
+                $status = 'update_incompatible';
+                $available = false;
+                $compatibilityMessage = $e->getMessage();
+            }
+        }
 
         return [
-            'status' => 'update_available',
+            'status' => $status,
+            'update_available' => $available,
             'feed_url' => $resolved['feed_url'],
             'channel' => $channel,
             'current_version_code' => $currentVersionCode,
             'target_version' => (string) $manifest['version'],
-            'target_version_code' => (int) $manifest['version_code'],
+            'target_version_code' => $targetVersionCode,
             'source_commit' => (string) $manifest['source_commit'],
             'requires_php' => (string) $manifest['requires_php'],
+            'min_source_version_code' => (int) $manifest['min_source_version_code'],
             'package_filename' => (string) $manifest['package']['filename'],
             'package_size' => (int) $manifest['package']['size'],
             'package_sha256' => (string) $manifest['package']['sha256'],
             'key_id' => $resolved['key_id'],
             'notes' => $manifest['notes'] ?? null,
+            'compatibility_message' => $compatibilityMessage,
             'package_downloaded' => false,
             'live_files_changed' => false,
         ];
@@ -90,8 +115,14 @@ final class UpdateRemoteDelivery
         int $currentVersionCode,
         string $currentPhpVersion
     ): array {
-        $resolved = $this->resolve($feedUrl, $channel, $currentVersionCode, $currentPhpVersion);
+        $resolved = $this->resolve($feedUrl, $channel);
         $manifest = $resolved['manifest'];
+
+        // Unlike check(), staging is an action. It must fail closed for
+        // same-version, downgrade, source-floor and PHP incompatibility before
+        // a stage directory or package download is created.
+        $this->stager->assertCompatibility($manifest, $currentVersionCode, $currentPhpVersion);
+
         $package = $manifest['package'];
         if (!is_array($package)) {
             throw new RuntimeException('Verified manifest package metadata is missing');
@@ -179,6 +210,9 @@ final class UpdateRemoteDelivery
     }
 
     /**
+     * Resolve and authenticate remote discovery metadata only. Compatibility is
+     * intentionally classified by check() or enforced by stage(), not here.
+     *
      * @return array{
      *   feed_url:string,
      *   manifest:array<string,mixed>,
@@ -187,12 +221,8 @@ final class UpdateRemoteDelivery
      *   key_id:string
      * }
      */
-    private function resolve(
-        string $feedUrl,
-        string $channel,
-        int $currentVersionCode,
-        string $currentPhpVersion
-    ): array {
+    private function resolve(string $feedUrl, string $channel): array
+    {
         if (!in_array($channel, ['alpha', 'beta', 'stable'], true)) {
             throw new RuntimeException('Remote update channel must be alpha, beta or stable');
         }
@@ -246,7 +276,6 @@ final class UpdateRemoteDelivery
             throw new RuntimeException('Signed update manifest channel does not match the configured channel');
         }
 
-        $this->stager->assertCompatibility($manifest, $currentVersionCode, $currentPhpVersion);
         $package = $manifest['package'] ?? null;
         if (!is_array($package)) {
             throw new RuntimeException('Signed update manifest package metadata is missing');
