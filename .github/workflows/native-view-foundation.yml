@@ -8,6 +8,8 @@ on:
       - 'core/ViewContext.php'
       - 'core/NativeViewRenderer.php'
       - 'core/controller.php'
+      - 'core/ModuleRuntimeLoader.php'
+      - 'core/ModuleAssetController.php'
       - 'core.php'
       - 'app/controllers/Error.php'
       - 'app/views/error_page/*.php'
@@ -18,16 +20,14 @@ on:
       - 'app/views/file_manager/index.php'
       - 'app/views/profile_page/*.php'
       - 'app/views/admin-page/*.php'
-      - 'app/views/notes_page/*.php'
       - 'app/views/tasks_page/*.php'
       - 'app/views/messager_page/index.php'
       - 'app/views/messager_page/*.js'
       - 'app/views/messager_page/*.css'
-      - 'app/views/^elements/note_item/index.php'
       - 'app/views/^elements/task_item/index.php'
+      - 'modules/notes/**'
       - 'assets/js/common.js'
       - 'assets/js/profile.js'
-      - 'assets/js/notes-list.js'
       - 'assets/js/tasks-page.js'
       - 'assets/js/task-boards.js'
       - 'assets/js/messenger-connection-ux.js'
@@ -49,6 +49,8 @@ on:
       - 'core/ViewContext.php'
       - 'core/NativeViewRenderer.php'
       - 'core/controller.php'
+      - 'core/ModuleRuntimeLoader.php'
+      - 'core/ModuleAssetController.php'
       - 'core.php'
       - 'app/controllers/Error.php'
       - 'app/views/error_page/*.php'
@@ -59,16 +61,14 @@ on:
       - 'app/views/file_manager/index.php'
       - 'app/views/profile_page/*.php'
       - 'app/views/admin-page/*.php'
-      - 'app/views/notes_page/*.php'
       - 'app/views/tasks_page/*.php'
       - 'app/views/messager_page/index.php'
       - 'app/views/messager_page/*.js'
       - 'app/views/messager_page/*.css'
-      - 'app/views/^elements/note_item/index.php'
       - 'app/views/^elements/task_item/index.php'
+      - 'modules/notes/**'
       - 'assets/js/common.js'
       - 'assets/js/profile.js'
-      - 'assets/js/notes-list.js'
       - 'assets/js/tasks-page.js'
       - 'assets/js/task-boards.js'
       - 'assets/js/messenger-connection-ux.js'
@@ -106,6 +106,8 @@ jobs:
           php -l core/ViewContext.php
           php -l core/NativeViewRenderer.php
           php -l core/controller.php
+          php -l core/ModuleRuntimeLoader.php
+          php -l core/ModuleAssetController.php
           php -l core.php
           php -l app/controllers/Error.php
           php -l app/views/error_page/index.php
@@ -125,11 +127,13 @@ jobs:
           php -l app/views/admin-page/registration.php
           php -l app/views/admin-page/settings.php
           php -l app/views/admin-page/roles.php
-          php -l app/views/notes_page/index.php
-          php -l app/views/notes_page/edit_view.php
-          php -l app/views/notes_page/editor-013.php
-          php -l app/views/notes_page/shared_view.php
-          php -l 'app/views/^elements/note_item/index.php'
+          php -l modules/notes/runtime.php
+          php -l modules/notes/NotesRuntimeProvider.php
+          php -l modules/notes/views/index.php
+          php -l modules/notes/views/edit_view.php
+          php -l modules/notes/views/editor-013.php
+          php -l modules/notes/views/shared_view.php
+          php -l modules/notes/views/note_item/index.php
           php -l app/views/tasks_page/index.php
           php -l app/views/tasks_page/boards.php
           php -l 'app/views/^elements/task_item/index.php'
@@ -161,11 +165,14 @@ jobs:
           ! grep -Fq 'LegacySmartyRenderer' core/controller.php core.php
           ! grep -Fq 'HybridViewRenderer' core/controller.php core.php
           grep -Fq 'new NativeViewRenderer(' core/controller.php
-          ! grep -R -Fq -- '->view->render_template(' app/controllers
-          ! grep -R -Fq 'new View(' app/controllers
+          grep -Fq 'ModuleRuntimeLoader::getInstance()->viewRoots()' core/controller.php
+          ! grep -R -Fq -- '->view->render_template(' app/controllers modules/notes/controllers
+          ! grep -R -Fq 'new View(' app/controllers modules/notes/controllers
           ! grep -Fq '{literal}' assets/js/common.js
           ! grep -Fq '{literal}' assets/js/profile.js
-          ! grep -Fq '{literal}' assets/js/notes-list.js
+          ! grep -Fq '{literal}' modules/notes/assets/notes-list.js
+          ! grep -Fq '{literal}' modules/notes/assets/notes-editor-013.js
+          ! grep -Fq '{literal}' modules/notes/assets/notes-draft.js
           ! grep -Fq '{literal}' assets/js/tasks-page.js
           ! grep -Fq '{literal}' assets/js/task-boards.js
           test -f app/views/error_page/index.php
@@ -185,11 +192,17 @@ jobs:
           test -f app/views/admin-page/registration.php
           test -f app/views/admin-page/settings.php
           test -f app/views/admin-page/roles.php
-          test -f app/views/notes_page/index.php
-          test -f app/views/notes_page/edit_view.php
-          test -f app/views/notes_page/editor-013.php
-          test -f app/views/notes_page/shared_view.php
-          test -f 'app/views/^elements/note_item/index.php'
+          test -f modules/notes/views/index.php
+          test -f modules/notes/views/edit_view.php
+          test -f modules/notes/views/editor-013.php
+          test -f modules/notes/views/shared_view.php
+          test -f modules/notes/views/note_item/index.php
+          test -f modules/notes/assets/notes-list.js
+          ! test -e app/views/notes_page/index.php
+          ! test -e app/views/notes_page/index.tpl
+          ! test -e 'app/views/^elements/note_item/index.php'
+          ! test -e 'app/views/^elements/note_item/index.tpl'
+          ! test -e assets/js/notes-list.js
           test -f app/views/tasks_page/index.php
           test -f app/views/tasks_page/boards.php
           test -f 'app/views/^elements/task_item/index.php'
