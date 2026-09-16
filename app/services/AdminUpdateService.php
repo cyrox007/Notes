@@ -12,6 +12,7 @@ use Core\UpdateRemoteDelivery;
 use Core\UpdateRemoteTransport;
 use Core\Version;
 use DomainException;
+use InvalidArgumentException;
 use RuntimeException;
 
 $updateCoreRoot = dirname(__DIR__, 2);
@@ -128,11 +129,18 @@ final class AdminUpdateService
     }
 
     /** @return array<string,mixed> */
-    public function stage(int $actorId): array
+    public function stage(int $actorId, int $expectedTargetVersionCode, string $expectedPackageSha256): array
     {
         $this->permissions->requirePermission($actorId, 'admin.settings.manage');
         if (!$this->permissions->hasRole($actorId, 'superadmin')) {
             throw new DomainException('Загрузка и staging обновления доступны только суперадминистратору', 403);
+        }
+        if ($expectedTargetVersionCode <= 0) {
+            throw new InvalidArgumentException('Повторно проверьте обновление перед staging');
+        }
+        $expectedPackageSha256 = strtolower(trim($expectedPackageSha256));
+        if (preg_match('/^[0-9a-f]{64}$/', $expectedPackageSha256) !== 1) {
+            throw new InvalidArgumentException('Повторно проверьте обновление перед staging');
         }
 
         $state = $this->snapshot($actorId);
@@ -145,7 +153,9 @@ final class AdminUpdateService
             $this->channelOrFail(),
             $this->stageRootOrFail(),
             Version::VERSION_CODE,
-            PHP_VERSION
+            PHP_VERSION,
+            $expectedTargetVersionCode,
+            $expectedPackageSha256
         );
     }
 
