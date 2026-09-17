@@ -215,10 +215,7 @@ register_shutdown_function(static function () use ($pidFile, $currentPid): void 
 $host = WebSocketEndpoint::bindHost();
 $port = WebSocketEndpoint::port();
 $publicUrl = WebSocketEndpoint::publicUrl();
-$allowedOrigins = array_values(array_filter(array_map(
-    static fn (string $origin): string => rtrim(trim($origin), '/'),
-    explode(',', (string) (getenv('WS_ALLOWED_ORIGINS') ?: getenv('SITEURL') ?: ''))
-)));
+$allowedOrigins = WebSocketEndpoint::allowedOrigins();
 $maxConnections = (int) (getenv('WS_MAX_CONNECTIONS') ?: 256);
 $maxPayloadBytes = (int) (getenv('WS_MAX_PAYLOAD_BYTES') ?: \App\Sockets\SocketFrameCodec::DEFAULT_MAX_PAYLOAD_BYTES);
 
