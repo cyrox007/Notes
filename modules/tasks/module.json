@@ -22,5 +22,25 @@
     "mode": "isolated",
     "entrypoint": "runtime.php"
   },
-  "storage_namespaces": []
+  "storage_namespaces": [],
+  "database": {
+    "tables": [
+      "tasks",
+      "subtasks",
+      "task_categories",
+      "task_category_relations",
+      "task_reminders",
+      "task_boards",
+      "task_board_members",
+      "task_board_items",
+      "task_board_assignees"
+    ],
+    "schemas": [
+      "database/tasks_schema.sql"
+    ],
+    "migrations": [
+      "database/migrations/20260913_tasks_contract.sql",
+      "database/migrations/20260915_shared_task_boards.sql"
+    ]
+  }
 }
