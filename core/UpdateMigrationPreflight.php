@@ -7,6 +7,10 @@ namespace Core;
 use mysqli;
 use RuntimeException;
 
+require_once __DIR__ . '/MigrationManifest.php';
+require_once __DIR__ . '/ModuleManifest.php';
+require_once __DIR__ . '/DatabaseOwnership.php';
+
 /**
  * Read-only migration preflight for a verified release candidate.
  *
