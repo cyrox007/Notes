@@ -30,13 +30,13 @@ jobs:
       - name: Lint native WebSocket deployment boundary
         run: |
           php -l core/WebSocketEndpoint.php
-          php -l app/controllers/MessagerController.php
-          php -l app/socket/SocketConnection.php
-          php -l app/socket/SocketHandshake.php
-          php -l app/socket/SocketFrameCodec.php
-          php -l app/socket/NativeSocketConnection.php
-          php -l app/socket/NativeMessengerServer.php
-          php -l app/socket/MessangerSocket.php
+          php -l modules/messenger/controllers/MessagerController.php
+          php -l modules/messenger/socket/SocketConnection.php
+          php -l modules/messenger/socket/SocketHandshake.php
+          php -l modules/messenger/socket/SocketFrameCodec.php
+          php -l modules/messenger/socket/NativeSocketConnection.php
+          php -l modules/messenger/socket/NativeMessengerServer.php
+          php -l modules/messenger/socket/MessangerSocket.php
           php -l ws_server/server.php
           php -l bin/ws_doctor.php
           php -l bin/healthcheck.php
@@ -65,18 +65,19 @@ jobs:
           grep -Fq 'WS_HOST=127.0.0.1' default.env
           grep -Fq 'WS_PUBLIC_URL=ws://localhost/ws' default.env
           grep -Fq 'php bin/ws_doctor.php' default.env
-          grep -Fq 'WebSocketEndpoint::browserUrl()' app/controllers/MessagerController.php
+          grep -Fq 'WebSocketEndpoint::browserUrl()' modules/messenger/controllers/MessagerController.php
           grep -Fq 'WebSocketEndpoint::allowedOrigins()' ws_server/server.php
           grep -Fq 'NativeMessengerServer' ws_server/server.php
-          grep -Fq 'stream_socket_server(' app/socket/NativeMessengerServer.php
-          grep -Fq 'stream_select(' app/socket/NativeMessengerServer.php
-          grep -Fq 'SocketHandshake::tryParse' app/socket/NativeMessengerServer.php
-          grep -Fq 'SocketTicket::validate' app/socket/NativeMessengerServer.php
-          grep -Fq "messenger.use" app/socket/NativeMessengerServer.php
-          grep -Fq 'enforceCloseDeadline' app/socket/NativeMessengerServer.php
-          grep -Fq 'decodeClosePayload' app/socket/NativeMessengerServer.php
-          ! grep -R -F 'Workerman\\' app/socket ws_server core.php
-          ! test -e app/socket/WorkermanConnectionAdapter.php
+          grep -Fq 'stream_socket_server(' modules/messenger/socket/NativeMessengerServer.php
+          grep -Fq 'stream_select(' modules/messenger/socket/NativeMessengerServer.php
+          grep -Fq 'SocketHandshake::tryParse' modules/messenger/socket/NativeMessengerServer.php
+          grep -Fq 'SocketTicket::validate' modules/messenger/socket/NativeMessengerServer.php
+          grep -Fq "messenger.use" modules/messenger/socket/NativeMessengerServer.php
+          grep -Fq 'enforceCloseDeadline' modules/messenger/socket/NativeMessengerServer.php
+          grep -Fq 'decodeClosePayload' modules/messenger/socket/NativeMessengerServer.php
+          ! grep -R -F 'Workerman\\' modules/messenger/socket ws_server core.php
+          ! test -e modules/messenger/socket/WorkermanConnectionAdapter.php
+          ! test -e app/socket/NativeMessengerServer.php
           ! grep -Fq 'vendor/autoload.php' core.php
           set +e
           php ws_server/server.php status >/tmp/workspace-ws-status.txt 2>&1
