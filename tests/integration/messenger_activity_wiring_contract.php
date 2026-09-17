@@ -30,15 +30,9 @@ $media = activityContractSource($root . '/app/views/messager_page/media.js');
 $socket = activityContractSource($root . '/app/socket/MessangerSocket.php');
 $server = activityContractSource($root . '/app/socket/NativeMessengerServer.php');
 
-$scriptPosition = strpos($index, "'script.js'");
-$activityPosition = strpos($index, "'activity.js'");
 activityContractAssert(
-    $scriptPosition !== false && $activityPosition !== false && $activityPosition > $scriptPosition,
-    'activity.js must load after the canonical Messenger client'
-);
-activityContractAssert(
-    substr_count(substr($index, $scriptPosition, $activityPosition - $scriptPosition), "'.js'") === 1,
-    'no Messenger feature script may load between script.js and activity.js'
+    strpos($index, "'script.js', 'activity.js'") !== false,
+    'activity.js must load immediately after the canonical Messenger client'
 );
 activityContractAssert(str_contains($activity, "action: 'MessangerSocket:activity'"), 'activity client does not emit the unified WS action');
 activityContractAssert(str_contains($activity, 'ACTIVITY_TTL_MS = 5000'), 'remote activity TTL is missing');
