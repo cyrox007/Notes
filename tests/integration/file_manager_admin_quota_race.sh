@@ -128,20 +128,29 @@ login_session() {
   local token_file="$4"
   local html="${jar}.login.html"
   local headers="${jar}.login.headers"
-  rm -f "$jar" "$html" "$headers"
+  local authenticated_html="${jar}.authenticated.html"
+  rm -f "$jar" "$html" "$headers" "$authenticated_html"
   curl -sS -c "$jar" -b "$jar" "${BASE_URL}/auth/login/" > "$html"
-  local token
-  token="$(extract_csrf "$html")"
-  [[ -n "$token" ]]
+  local anonymous_token
+  anonymous_token="$(extract_csrf "$html")"
+  [[ -n "$anonymous_token" ]]
   local status
   status="$(curl -sS -o /tmp/file-race-login.body -D "$headers" -w '%{http_code}' \
     -c "$jar" -b "$jar" \
     --data-urlencode "login=${username}" \
     --data-urlencode "password=${password}" \
-    --data-urlencode "csrf_token=${token}" \
+    --data-urlencode "csrf_token=${anonymous_token}" \
     "${BASE_URL}/auth/login/")"
   [[ "$status" = '302' ]]
-  printf '%s' "$token" > "$token_file"
+
+  local authenticated_status
+  authenticated_status="$(curl -sS -o "$authenticated_html" -w '%{http_code}' -c "$jar" -b "$jar" "${BASE_URL}/files/")"
+  [[ "$authenticated_status" = '200' ]]
+  local authenticated_token
+  authenticated_token="$(extract_csrf "$authenticated_html")"
+  [[ -n "$authenticated_token" ]]
+  [[ "$authenticated_token" != "$anonymous_token" ]]
+  printf '%s' "$authenticated_token" > "$token_file"
 }
 
 upload_file() {
