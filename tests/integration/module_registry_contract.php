@@ -91,7 +91,7 @@ function removeFixtureTree(string $path): void
 
 $registry = ModuleRegistry::discover($root . '/modules', Version::VERSION);
 $expected = ['admin', 'files', 'messenger', 'notes', 'profile', 'tasks'];
-$isolated = ['admin', 'files', 'notes', 'profile', 'tasks'];
+$isolated = $expected;
 
 moduleAssert(array_keys($registry->all()) === $expected, 'bundled module manifest set drifted');
 moduleAssert($registry->defaultComposition() === $expected, 'default bundled composition drifted');
@@ -101,20 +101,15 @@ foreach ($registry->all() as $id => $manifest) {
     moduleAssert(strlen($manifest->integrityHash()) === 64, "{$id} manifest has no SHA-256 integrity hash");
     moduleAssert($manifest->licenseFeature() !== null, "{$id} has no entitlement feature");
     moduleAssert($manifest->isCompatibleWithCore(Version::VERSION), "{$id} is incompatible with current core");
-
-    if (in_array($id, $isolated, true)) {
-        moduleAssert($manifest->runtimeMode() === 'isolated', "{$id} must remain physically isolated");
-        moduleAssert($manifest->runtimeEntrypoint() === 'runtime.php', "{$id} isolated entrypoint drifted");
-    } else {
-        moduleAssert($manifest->runtimeMode() === 'legacy', "{$id} remains legacy until its dedicated migration");
-        moduleAssert($manifest->runtimeEntrypoint() === null, "legacy {$id} exposes an isolated entrypoint");
-    }
+    moduleAssert($manifest->runtimeMode() === 'isolated', "{$id} must remain physically isolated");
+    moduleAssert($manifest->runtimeEntrypoint() === 'runtime.php', "{$id} isolated entrypoint drifted");
 }
 
 moduleAssert($registry->resolveComposition(['notes']) === ['notes'], 'Notes composition failed');
 moduleAssert($registry->resolveComposition(['tasks']) === ['tasks'], 'Tasks composition failed');
 moduleAssert($registry->resolveComposition(['profile']) === ['profile'], 'Profile composition failed');
-moduleAssert($registry->resolveComposition(['admin', 'files', 'notes', 'profile', 'tasks']) === ['admin', 'files', 'notes', 'profile', 'tasks'], 'isolated composition order drifted');
+moduleAssert($registry->resolveComposition(['messenger']) === ['messenger'], 'Messenger composition failed');
+moduleAssert($registry->resolveComposition($expected) === $expected, 'isolated composition order drifted');
 
 $tmp = sys_get_temp_dir() . '/workspace-module-contract-' . bin2hex(random_bytes(6));
 mkdir($tmp, 0700, true);
