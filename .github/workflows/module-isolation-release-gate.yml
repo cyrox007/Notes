@@ -113,6 +113,7 @@ jobs:
           done
           ! grep -Fq 'MessengerController' core/routerConfig.php
           ! grep -Fq 'MessagerController' core/routerConfig.php
+          grep -Fq "render_template('@messenger/index'" modules/messenger/controllers/MessagerController.php
           test ! -e app/controllers/MessagerController.php
           test ! -e app/socket/NativeMessengerServer.php
           test ! -e app/views/messager_page/index.php
