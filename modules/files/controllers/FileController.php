@@ -68,7 +68,7 @@ class FileController extends Controller
             ->orderBy('name', 'ASC')
             ->get();
 
-        $this->render_template('file_manager/index', [
+        $this->render_template('@files/index', [
             'user' => $user,
             'files' => $files,
             'current_folder' => null,
@@ -104,7 +104,7 @@ class FileController extends Controller
             ->orderBy('name', 'ASC')
             ->get();
 
-        $this->render_template('file_manager/index', [
+        $this->render_template('@files/index', [
             'user' => $user,
             'files' => $files,
             'current_folder' => $folder,
