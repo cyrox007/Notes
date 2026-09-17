@@ -1,10 +1,24 @@
 name: Tasks browser lifecycle
 
 on:
-  push:
-    branches: [0.13-tasks-kanban]
   pull_request:
-    branches: [master, 0.13-ux-foundation]
+    branches: ['1.0']
+    paths:
+      - 'modules/tasks/**'
+      - 'core/ModuleRuntimeLoader.php'
+      - 'core/ModuleAssetController.php'
+      - 'core/routerConfig.php'
+      - 'index.php'
+      - 'tests/e2e/tasks-lifecycle.mjs'
+      - 'tests/e2e/router.php'
+      - 'database/tasks_schema.sql'
+      - '.github/workflows/tasks-browser-lifecycle.yml'
+  push:
+    branches: ['1.0']
+    paths:
+      - 'modules/tasks/**'
+      - 'tests/e2e/tasks-lifecycle.mjs'
+      - '.github/workflows/tasks-browser-lifecycle.yml'
 
 permissions:
   contents: read
@@ -29,18 +43,20 @@ jobs:
           --health-retries=10
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup PHP 8.3
-        uses: shivammathur/setup-php@v2
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo
           coverage: none
 
-      - name: Install dependencies
-        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress
+      - name: Prove vendor-free Tasks runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf vendor
+          test ! -e vendor
+          ! grep -R -Fq 'vendor/autoload.php' modules/tasks core.php index.php
 
       - name: Install Chromium
         shell: bash
@@ -49,18 +65,25 @@ jobs:
           npm install --no-save playwright@1.55.0
           npx playwright install --with-deps chromium
 
-      - name: Syntax contracts
+      - name: Syntax and isolated ownership contracts
         shell: bash
         run: |
           set -euo pipefail
-          php -l app/controllers/TaskController.php
-          php -l tests/e2e/router.php
-          node --check assets/js/tasks-kanban.js
+          find modules/tasks -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          node --check modules/tasks/assets/tasks-page.js
+          node --check modules/tasks/assets/tasks-kanban.js
+          node --check modules/tasks/assets/task-boards.js
+          node --check modules/tasks/assets/task-boards-nav.js
           node --check tests/e2e/tasks-lifecycle.mjs
-          grep -Fq 'tasks_page/kanban.css' app/views/styles.css
-          grep -Fq 'assets/js/tasks-kanban.js' app/views/core/base.tpl
-          grep -Fq 'tasks-board__dropzone' assets/js/tasks-kanban.js
-          ! grep -Fq 'action="/tasks/' app/views/tasks_page/index.tpl
+          php -l tests/e2e/router.php
+          php tests/integration/native_tasks_contract.php
+
+          grep -Fq "moduleAsset('tasks', 'tasks-page.js')" modules/tasks/views/index.php
+          grep -Fq "moduleAsset('tasks', 'tasks-kanban.js')" modules/tasks/views/index.php
+          grep -Fq 'tasks-board__dropzone' modules/tasks/assets/tasks-kanban.js
+          ! test -e app/views/tasks_page/index.tpl
+          ! test -e app/controllers/TaskController.php
+          ! test -e assets/js/tasks-kanban.js
 
       - name: Prepare canonical database
         shell: bash
@@ -173,7 +196,7 @@ jobs:
             exit 1
           fi
 
-      - name: Run Tasks kanban lifecycle in Chromium
+      - name: Run isolated Tasks lifecycle in Chromium
         shell: bash
         env:
           E2E_ORIGIN: http://127.0.0.1:18090
