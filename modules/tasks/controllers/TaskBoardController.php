@@ -64,7 +64,7 @@ final class TaskBoardController extends Controller
             return;
         }
 
-        $this->render_template('tasks_page/boards', [
+        $this->render_template('@tasks/boards', [
             'user' => $user,
             'boards' => $boards,
             'selectedBoard' => $selected,

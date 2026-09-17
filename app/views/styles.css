@@ -6,8 +6,6 @@
 
 {include file="profile_page/style.css"}
 {include file="notes_page/style.css"}
-{include file="tasks_page/style.css"}
-{include file="tasks_page/hardening.css"}
 {include file="file_manager/style.css"}
 {include file="messager_page/style.css"}
 
@@ -17,9 +15,6 @@
 {include file="core/theme-refresh.css"}
 {include file="core/product-ux-013.css"}
 {include file="notes_page/editor-013.css"}
-{* Tasks board is intentionally module-specific and loads after shared polish. *}
-{include file="tasks_page/kanban.css"}
-{include file="tasks_page/kanban-handle.css"}
 {* Profile hub/public profile is a module-specific final layer. *}
 {include file="profile_page/hub.css"}
 {include file="profile_page/metrics.css"}

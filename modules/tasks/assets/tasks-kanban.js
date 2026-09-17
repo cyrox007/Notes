@@ -80,17 +80,17 @@
             if (node) node.textContent = String(Math.max(0, value));
         }
 
-        function shiftStats(previous, next, task) {
-            if (previous === next) return;
+        function shiftStats(previous, nextStatus, task) {
+            if (previous === nextStatus) return;
             if (['pending', 'in_progress', 'completed'].includes(previous)) {
                 writeStat(previous, readStat(previous) - 1);
             }
-            if (['pending', 'in_progress', 'completed'].includes(next)) {
-                writeStat(next, readStat(next) + 1);
+            if (['pending', 'in_progress', 'completed'].includes(nextStatus)) {
+                writeStat(nextStatus, readStat(nextStatus) + 1);
             }
 
             const wasOverdue = task.dataset.overdue === '1';
-            const becomesInactive = ['completed', 'cancelled'].includes(next);
+            const becomesInactive = ['completed', 'cancelled'].includes(nextStatus);
             const wasInactive = ['completed', 'cancelled'].includes(previous);
             if (wasOverdue && !wasInactive && becomesInactive) {
                 writeStat('overdue', readStat('overdue') - 1);
@@ -103,11 +103,15 @@
             if (!task || !STATUS_LABELS[nextStatus]) return;
             const previous = previousStatus || statusOf(task);
             task.dataset.status = nextStatus;
+
+            const select = task.querySelector('.task-status-toggle');
+            if (select) select.value = nextStatus;
             const label = task.querySelector('.task-status-label');
             if (label) label.textContent = STATUS_LABELS[nextStatus];
             const complete = task.querySelector('.task-complete-toggle');
             if (complete) complete.checked = nextStatus === 'completed';
             task.querySelector('.task-title')?.classList.toggle('completed', nextStatus === 'completed');
+
             shiftStats(previous, nextStatus, task);
             if (activeView === 'board') {
                 moveTaskToBoard(task);
@@ -173,6 +177,13 @@
             if (button) renderView(button.dataset.view);
         });
 
+        root.addEventListener('tasks:status-change', (event) => {
+            const detail = event.detail || {};
+            const task = tasks.find((candidate) => candidate.dataset.taskId === detail.taskUid);
+            if (!task) return;
+            syncTaskStatus(task, detail.nextStatus, detail.previousStatus);
+        });
+
         for (const task of tasks) {
             task.draggable = false;
             task.dataset.status = task.dataset.status || task.querySelector('.task-status-toggle')?.value || 'pending';
@@ -188,24 +199,6 @@
                 handle.innerHTML = '<i class="fa fa-bars" aria-hidden="true"></i>';
                 header.prepend(handle);
             }
-
-            const select = task.querySelector('.task-status-toggle');
-            select?.addEventListener('change', () => {
-                const previous = select.dataset.previousValue || task.dataset.status || 'pending';
-                syncTaskStatus(task, select.value, previous);
-                select.dataset.previousValue = select.value;
-            });
-
-            task.querySelector('.task-complete-toggle')?.addEventListener('change', (event) => {
-                const previous = task.dataset.status || 'pending';
-                const next = event.currentTarget.checked ? 'completed' : 'pending';
-                const statusSelect = task.querySelector('.task-status-toggle');
-                if (statusSelect) {
-                    statusSelect.value = next;
-                    statusSelect.dataset.previousValue = next;
-                }
-                syncTaskStatus(task, next, previous);
-            });
 
             task.querySelectorAll('.subtask-toggle').forEach((toggle) => {
                 toggle.addEventListener('change', () => updateSubtaskProgress(toggle));
@@ -242,7 +235,15 @@
                 const select = task?.querySelector('.task-status-toggle');
                 if (!task || !select || select.value === status) return;
 
+                const previousStatus = statusOf(task);
                 task.classList.add('task-item--status-pending');
+
+                // Drag/drop owns the immediate optimistic visual transition. The
+                // generic select handler persists it but must not re-apply the
+                // same UI event (which would double-count stats and make the
+                // result depend on listener ordering).
+                syncTaskStatus(task, status, previousStatus);
+                select.dataset.uiSynced = '1';
                 select.value = status;
                 select.dispatchEvent(new Event('change', { bubbles: true }));
                 window.setTimeout(() => task.classList.remove('task-item--status-pending'), 6000);

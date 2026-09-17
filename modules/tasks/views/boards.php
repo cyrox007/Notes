@@ -31,16 +31,8 @@ $boardHref = static function (string $uid) use ($view): string {
     $url = $view->route('task_boards');
     return $uid === '' ? $url : $url . '?board=' . rawurlencode($uid);
 };
-$boardsCss = '';
-$cssPath = __DIR__ . '/boards.css';
-if (is_file($cssPath) && is_readable($cssPath)) {
-    $css = file_get_contents($cssPath);
-    if (is_string($css)) $boardsCss = $css;
-}
-
 ob_start();
 ?>
-<?php if ($boardsCss !== ''): ?><style><?= $boardsCss ?></style><?php endif; ?>
 <section class="task-boards-page">
     <header class="task-boards-hero">
         <div><span class="admin-page__eyebrow">Совместная работа</span><h1>Общие доски задач</h1><p>Доски для выбранной команды или для всех активных пользователей Workspace.</p></div>
@@ -181,7 +173,6 @@ ob_start();
         </section>
     <?php endif; ?>
 </section>
-<script src="<?= $view->e($baseUrl) ?>/assets/js/task-boards.js" defer></script>
 <?php
 $content = (string) ob_get_clean();
 echo $view->layout('core/base', [
@@ -194,4 +185,13 @@ echo $view->layout('core/base', [
     'workspaceAccess' => $access,
     'socket_ticket' => $socket_ticket ?? '',
     'socket_url' => $socket_url ?? '',
+    'module_styles' => [
+        $view->moduleAsset('tasks', 'style.css'),
+        $view->moduleAsset('tasks', 'hardening.css'),
+        $view->moduleAsset('tasks', 'boards.css'),
+    ],
+    'module_scripts' => [
+        $view->moduleAsset('tasks', 'task-boards.js'),
+        $view->moduleAsset('tasks', 'task-boards-nav.js'),
+    ],
 ], $content);

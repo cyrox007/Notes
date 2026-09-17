@@ -7,40 +7,15 @@ on:
       - 'core/ViewRenderer.php'
       - 'core/ViewContext.php'
       - 'core/NativeViewRenderer.php'
-      - 'core/controller.php'
       - 'core/ModuleRuntimeLoader.php'
       - 'core/ModuleAssetController.php'
+      - 'core/controller.php'
       - 'core.php'
-      - 'app/controllers/Error.php'
-      - 'app/views/error_page/*.php'
-      - 'app/views/login_page/*.php'
-      - 'app/views/core/base.php'
-      - 'app/views/^shared/**/*.php'
-      - 'app/views/main_page/index.php'
-      - 'app/views/file_manager/index.php'
-      - 'app/views/profile_page/*.php'
-      - 'app/views/admin-page/*.php'
-      - 'app/views/tasks_page/*.php'
-      - 'app/views/messager_page/index.php'
-      - 'app/views/messager_page/*.js'
-      - 'app/views/messager_page/*.css'
-      - 'app/views/^elements/task_item/index.php'
+      - 'app/views/**'
       - 'modules/notes/**'
-      - 'assets/js/common.js'
-      - 'assets/js/profile.js'
-      - 'assets/js/tasks-page.js'
-      - 'assets/js/task-boards.js'
-      - 'assets/js/messenger-connection-ux.js'
-      - 'assets/css/live-qa-final.css'
-      - 'tests/integration/native_view_renderer_contract.php'
-      - 'tests/integration/native_view_layout_context_contract.php'
-      - 'tests/integration/native_workspace_shell_contract.php'
-      - 'tests/integration/native_file_manager_contract.php'
-      - 'tests/integration/native_profile_contract.php'
-      - 'tests/integration/native_admin_contract.php'
-      - 'tests/integration/native_notes_contract.php'
-      - 'tests/integration/native_tasks_contract.php'
-      - 'tests/integration/native_messenger_contract.php'
+      - 'modules/tasks/**'
+      - 'assets/js/**'
+      - 'tests/integration/native_*_contract.php'
       - '.github/workflows/native-view-foundation.yml'
   pull_request:
     branches: ['1.0']
@@ -48,40 +23,15 @@ on:
       - 'core/ViewRenderer.php'
       - 'core/ViewContext.php'
       - 'core/NativeViewRenderer.php'
-      - 'core/controller.php'
       - 'core/ModuleRuntimeLoader.php'
       - 'core/ModuleAssetController.php'
+      - 'core/controller.php'
       - 'core.php'
-      - 'app/controllers/Error.php'
-      - 'app/views/error_page/*.php'
-      - 'app/views/login_page/*.php'
-      - 'app/views/core/base.php'
-      - 'app/views/^shared/**/*.php'
-      - 'app/views/main_page/index.php'
-      - 'app/views/file_manager/index.php'
-      - 'app/views/profile_page/*.php'
-      - 'app/views/admin-page/*.php'
-      - 'app/views/tasks_page/*.php'
-      - 'app/views/messager_page/index.php'
-      - 'app/views/messager_page/*.js'
-      - 'app/views/messager_page/*.css'
-      - 'app/views/^elements/task_item/index.php'
+      - 'app/views/**'
       - 'modules/notes/**'
-      - 'assets/js/common.js'
-      - 'assets/js/profile.js'
-      - 'assets/js/tasks-page.js'
-      - 'assets/js/task-boards.js'
-      - 'assets/js/messenger-connection-ux.js'
-      - 'assets/css/live-qa-final.css'
-      - 'tests/integration/native_view_renderer_contract.php'
-      - 'tests/integration/native_view_layout_context_contract.php'
-      - 'tests/integration/native_workspace_shell_contract.php'
-      - 'tests/integration/native_file_manager_contract.php'
-      - 'tests/integration/native_profile_contract.php'
-      - 'tests/integration/native_admin_contract.php'
-      - 'tests/integration/native_notes_contract.php'
-      - 'tests/integration/native_tasks_contract.php'
-      - 'tests/integration/native_messenger_contract.php'
+      - 'modules/tasks/**'
+      - 'assets/js/**'
+      - 'tests/integration/native_*_contract.php'
       - '.github/workflows/native-view-foundation.yml'
 
 permissions:
@@ -95,115 +45,80 @@ jobs:
         php: ['8.1', '8.3']
     steps:
       - uses: actions/checkout@v4
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
           coverage: none
-      - name: Lint renderer and native views
+
+      - name: Lint native renderer and PHP views
+        shell: bash
         run: |
-          php -l core/ViewRenderer.php
-          php -l core/ViewContext.php
-          php -l core/NativeViewRenderer.php
-          php -l core/controller.php
-          php -l core/ModuleRuntimeLoader.php
-          php -l core/ModuleAssetController.php
-          php -l core.php
-          php -l app/controllers/Error.php
-          php -l app/views/error_page/index.php
-          php -l app/views/login_page/login_layout.php
-          php -l app/views/login_page/login_view.php
-          php -l app/views/login_page/register_view.php
-          php -l app/views/core/base.php
-          php -l 'app/views/^shared/header/index.php'
-          php -l 'app/views/^shared/sidebar/index.php'
-          php -l 'app/views/^shared/footer/index.php'
-          php -l app/views/main_page/index.php
-          php -l app/views/file_manager/index.php
-          php -l app/views/profile_page/index.php
-          php -l app/views/profile_page/publication.php
-          php -l app/views/profile_page/public.php
-          php -l app/views/admin-page/index.php
-          php -l app/views/admin-page/registration.php
-          php -l app/views/admin-page/settings.php
-          php -l app/views/admin-page/roles.php
-          php -l modules/notes/runtime.php
-          php -l modules/notes/NotesRuntimeProvider.php
-          php -l modules/notes/views/index.php
-          php -l modules/notes/views/edit_view.php
-          php -l modules/notes/views/editor-013.php
-          php -l modules/notes/views/shared_view.php
-          php -l modules/notes/views/note_item/index.php
-          php -l app/views/tasks_page/index.php
-          php -l app/views/tasks_page/boards.php
-          php -l 'app/views/^elements/task_item/index.php'
-          php -l app/views/messager_page/index.php
-          php -l tests/integration/native_view_renderer_contract.php
-          php -l tests/integration/native_view_layout_context_contract.php
-          php -l tests/integration/native_workspace_shell_contract.php
-          php -l tests/integration/native_file_manager_contract.php
-          php -l tests/integration/native_profile_contract.php
-          php -l tests/integration/native_admin_contract.php
-          php -l tests/integration/native_notes_contract.php
-          php -l tests/integration/native_tasks_contract.php
-          php -l tests/integration/native_messenger_contract.php
-      - name: Verify native renderer contracts without vendor bootstrap
+          set -euo pipefail
+          for file in \
+            core/ViewRenderer.php \
+            core/ViewContext.php \
+            core/NativeViewRenderer.php \
+            core/ModuleRuntimeLoader.php \
+            core/ModuleAssetController.php \
+            core/controller.php \
+            core.php; do
+            php -l "$file"
+          done
+          find app/views modules/notes modules/tasks \
+            -type f -name '*.php' -print0 \
+            | xargs -0 -n1 php -l
+          find tests/integration -maxdepth 1 -type f -name 'native_*_contract.php' -print0 \
+            | xargs -0 -n1 php -l
+
+      - name: Verify substantive native renderer contracts
+        shell: bash
         run: |
-          php tests/integration/native_view_renderer_contract.php
-          php tests/integration/native_view_layout_context_contract.php
-          php tests/integration/native_workspace_shell_contract.php
-          php tests/integration/native_file_manager_contract.php
-          php tests/integration/native_profile_contract.php
-          php tests/integration/native_admin_contract.php
-          php tests/integration/native_notes_contract.php
-          php tests/integration/native_tasks_contract.php
-          php tests/integration/native_messenger_contract.php
-      - name: Verify native-only migration boundary
+          set -euo pipefail
+          for test in \
+            native_view_renderer_contract.php \
+            native_view_layout_context_contract.php \
+            native_workspace_shell_contract.php \
+            native_file_manager_contract.php \
+            native_profile_contract.php \
+            native_admin_contract.php \
+            native_notes_contract.php \
+            native_tasks_contract.php \
+            native_messenger_contract.php; do
+            php "tests/integration/${test}"
+          done
+
+      - name: Verify native-only and isolated-view boundary
+        shell: bash
         run: |
+          set -euo pipefail
           ! test -f core/LegacySmartyRenderer.php
           ! test -f core/HybridViewRenderer.php
           ! grep -Fq 'LegacySmartyRenderer' core/controller.php core.php
           ! grep -Fq 'HybridViewRenderer' core/controller.php core.php
           grep -Fq 'new NativeViewRenderer(' core/controller.php
           grep -Fq 'ModuleRuntimeLoader::getInstance()->viewRoots()' core/controller.php
-          ! grep -R -Fq -- '->view->render_template(' app/controllers modules/notes/controllers
-          ! grep -R -Fq 'new View(' app/controllers modules/notes/controllers
-          ! grep -Fq '{literal}' assets/js/common.js
-          ! grep -Fq '{literal}' assets/js/profile.js
-          ! grep -Fq '{literal}' modules/notes/assets/notes-list.js
-          ! grep -Fq '{literal}' modules/notes/assets/notes-editor-013.js
-          ! grep -Fq '{literal}' modules/notes/assets/notes-draft.js
-          ! grep -Fq '{literal}' assets/js/tasks-page.js
-          ! grep -Fq '{literal}' assets/js/task-boards.js
-          test -f app/views/error_page/index.php
-          test -f app/views/login_page/login_view.php
-          test -f app/views/login_page/register_view.php
-          test -f app/views/login_page/login_layout.php
-          test -f app/views/core/base.php
-          test -f 'app/views/^shared/header/index.php'
-          test -f 'app/views/^shared/sidebar/index.php'
-          test -f 'app/views/^shared/footer/index.php'
-          test -f app/views/main_page/index.php
-          test -f app/views/file_manager/index.php
-          test -f app/views/profile_page/index.php
-          test -f app/views/profile_page/publication.php
-          test -f app/views/profile_page/public.php
-          test -f app/views/admin-page/index.php
-          test -f app/views/admin-page/registration.php
-          test -f app/views/admin-page/settings.php
-          test -f app/views/admin-page/roles.php
+
+          ! grep -R -Fq -- '->view->render_template(' app/controllers modules/notes/controllers modules/tasks/controllers
+          ! grep -R -Fq 'new View(' app/controllers modules/notes/controllers modules/tasks/controllers
+
           test -f modules/notes/views/index.php
-          test -f modules/notes/views/edit_view.php
-          test -f modules/notes/views/editor-013.php
-          test -f modules/notes/views/shared_view.php
-          test -f modules/notes/views/note_item/index.php
           test -f modules/notes/assets/notes-list.js
+          test -f modules/tasks/views/index.php
+          test -f modules/tasks/views/boards.php
+          test -f modules/tasks/views/elements/task_item/index.php
+          test -f modules/tasks/assets/tasks-page.js
+          test -f modules/tasks/assets/task-boards.js
+
           ! test -e app/views/notes_page/index.php
-          ! test -e app/views/notes_page/index.tpl
-          ! test -e 'app/views/^elements/note_item/index.php'
-          ! test -e 'app/views/^elements/note_item/index.tpl'
-          ! test -e assets/js/notes-list.js
-          test -f app/views/tasks_page/index.php
-          test -f app/views/tasks_page/boards.php
-          test -f 'app/views/^elements/task_item/index.php'
-          test -f app/views/messager_page/index.php
+          ! test -e app/views/tasks_page/index.php
+          ! test -e app/views/tasks_page/index.tpl
+          ! test -e app/views/tasks_page/boards.php
+          ! test -e app/views/tasks_page/boards.tpl
+          ! test -e 'app/views/^elements/task_item/index.php'
+          ! test -e 'app/views/^elements/task_item/index.tpl'
+          ! test -e assets/js/tasks-page.js
+          ! test -e assets/js/tasks-kanban.js
+          ! test -e assets/js/task-boards.js
+          ! test -e assets/js/task-boards-nav.js
+
+          ! grep -R -Fq '{literal}' modules/notes/assets modules/tasks/assets

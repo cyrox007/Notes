@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 use App\Controllers\MainController;
 use App\Controllers\AuthController;
-use App\Controllers\TaskController;
-use App\Controllers\TaskBoardController;
 use App\Controllers\ProfileController;
 use App\Controllers\PublicProfileController;
 use App\Controllers\FileController;
@@ -26,7 +24,6 @@ use App\Middlewares\RequireAdminAccess;
 use App\Middlewares\RequireAdminUsersManage;
 use App\Middlewares\RequireAdminSettingsManage;
 use App\Middlewares\RequireAdminRolesManage;
-use App\Middlewares\RequireTasksUse;
 use App\Middlewares\RequireFilesUse;
 use App\Middlewares\RequireMessengerUse;
 use App\Middlewares\RequireProfileUse;
@@ -37,7 +34,6 @@ use App\Middlewares\StorageQuotaLimit;
 use App\Middlewares\StorageMutationLock;
 use App\Middlewares\EnforceFileUploadPolicy;
 use App\Middlewares\EnforceFileFolderPolicy;
-use App\Middlewares\EnforceTaskCreatePolicy;
 use App\Middlewares\EnforceMessengerUploadPolicy;
 use App\Middlewares\EnforceLicenseMutation;
 use Core\Router;
@@ -54,25 +50,6 @@ $router->group('/auth')
     ->add('GET', '/registration', [AuthController::class, 'registration'], [], 'registration')
     ->add('GET', '/registration/{str:invite_code}', [AuthController::class, 'registration'], [], 'registration_invite')
     ->add('POST', '/registration', [AuthController::class, 'registration'], [AuthRateLimit::class, CSRFMiddleware::class], 'register_submit')
-    ->endGroup();
-
-$router->group('/tasks')
-    ->add('GET', '/', [TaskController::class, 'index'], [LoginRequared::class, RequireTasksUse::class], 'tasks')
-    ->add('POST', '/', [TaskController::class, 'create'], [LoginRequared::class, RequireTasksUse::class, EnforceTaskCreatePolicy::class], 'task_create')
-    ->add('GET', '/boards', [TaskBoardController::class, 'index'], [LoginRequared::class, RequireTasksUse::class], 'task_boards')
-    ->add('POST', '/boards', [TaskBoardController::class, 'createBoard'], [LoginRequared::class, RequireTasksUse::class, CSRFMiddleware::class], 'task_board_create')
-    ->add('POST', '/boards/{str:uid}/members', [TaskBoardController::class, 'saveMembers'], [LoginRequared::class, RequireTasksUse::class, CSRFMiddleware::class], 'task_board_members')
-    ->add('POST', '/boards/{str:uid}/tasks', [TaskBoardController::class, 'createTask'], [LoginRequared::class, RequireTasksUse::class, CSRFMiddleware::class], 'task_board_task_create')
-    ->add('POST', '/boards/task/{str:uid}/update', [TaskBoardController::class, 'updateTask'], [LoginRequared::class, RequireTasksUse::class, CSRFMiddleware::class], 'task_board_task_update')
-    ->add('POST', '/boards/task/{str:uid}/delete', [TaskBoardController::class, 'deleteTask'], [LoginRequared::class, RequireTasksUse::class, CSRFMiddleware::class], 'task_board_task_delete')
-    ->add('POST', '/{str:uid}/update', [TaskController::class, 'update'], [LoginRequared::class, RequireTasksUse::class], 'update_task')
-    ->add('POST', '/{str:uid}/delete', [TaskController::class, 'delete'], [LoginRequared::class, RequireTasksUse::class], 'delete_task')
-    ->add('POST', '/{str:taskUid}/subtask', [TaskController::class, 'addSubtask'], [LoginRequared::class, RequireTasksUse::class], 'add_subtask')
-    ->add('POST', '/subtask/{int:subtaskId}/toggle', [TaskController::class, 'toggleSubtask'], [LoginRequared::class, RequireTasksUse::class], 'toggle_subtask')
-    ->add('POST', '/subtask/{int:subtaskId}/delete', [TaskController::class, 'deleteSubtask'], [LoginRequared::class, RequireTasksUse::class], 'delete_subtask')
-    ->add('POST', '/category', [TaskController::class, 'createCategory'], [LoginRequared::class, RequireTasksUse::class], 'create_category')
-    ->add('POST', '/{str:taskUid}/category/{int:categoryId}', [TaskController::class, 'attachCategory'], [LoginRequared::class, RequireTasksUse::class], 'attach_category')
-    ->add('DELETE', '/{str:taskUid}/category/{int:categoryId}', [TaskController::class, 'detachCategory'], [LoginRequared::class, RequireTasksUse::class], 'detach_category')
     ->endGroup();
 
 $router->group('/profile')

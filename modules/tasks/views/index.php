@@ -114,14 +114,13 @@ ob_start();
         <?php if ($taskRows !== []): ?>
             <?php foreach ($taskRows as $taskRow): ?>
                 <?php if (!is_array($taskRow)) { continue; } ?>
-                <?= $view->partial('^elements/task_item/index', ['task' => $taskRow, 'user' => $currentUser, 'categories' => $categoryRows]) ?>
+                <?= $view->partial('@tasks/elements/task_item/index', ['task' => $taskRow, 'user' => $currentUser, 'categories' => $categoryRows]) ?>
             <?php endforeach; ?>
         <?php else: ?>
             <div class="tasks__empty"><p>Здесь пока нет задач. Создайте первую задачу!</p></div>
         <?php endif; ?>
     </div>
 </section>
-<script src="<?= $view->e($baseUrl) ?>/assets/js/tasks-page.js" defer></script>
 <?php
 $content = (string) ob_get_clean();
 echo $view->layout('core/base', [
@@ -135,4 +134,15 @@ echo $view->layout('core/base', [
     'pagination' => $pager,
     'socket_ticket' => $socket_ticket ?? '',
     'socket_url' => $socket_url ?? '',
+    'module_styles' => [
+        $view->moduleAsset('tasks', 'style.css'),
+        $view->moduleAsset('tasks', 'hardening.css'),
+        $view->moduleAsset('tasks', 'kanban.css'),
+        $view->moduleAsset('tasks', 'kanban-handle.css'),
+    ],
+    'module_scripts' => [
+        $view->moduleAsset('tasks', 'tasks-page.js'),
+        $view->moduleAsset('tasks', 'tasks-kanban.js'),
+        $view->moduleAsset('tasks', 'task-boards-nav.js'),
+    ],
 ], $content);

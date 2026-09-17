@@ -52,6 +52,13 @@
             });
         }
 
+        function emitTaskStatus(taskUid, nextStatus, previousStatus) {
+            if (!taskUid || !nextStatus || nextStatus === previousStatus) return;
+            root.dispatchEvent(new CustomEvent('tasks:status-change', {
+                detail: { taskUid, nextStatus, previousStatus }
+            }));
+        }
+
         function syncSubtaskProgress(toggle) {
             const container = toggle?.closest('.task-subtasks');
             if (!container) return;
@@ -68,34 +75,73 @@
             toggle.closest('.subtask-item')?.classList.toggle('completed', toggle.checked);
         }
 
+        function taskItemFor(control) {
+            return control?.closest('.task-item') || null;
+        }
+
+        function markSaveState(control, state) {
+            const task = taskItemFor(control);
+            if (!task) return;
+            task.dataset.saveState = state;
+            if (state === 'saved') {
+                window.setTimeout(() => {
+                    if (task.dataset.saveState === 'saved') delete task.dataset.saveState;
+                }, 900);
+            }
+        }
+
         root.querySelectorAll('.task-status-toggle').forEach((toggle) => {
             toggle.dataset.previousValue = toggle.value;
             toggle.addEventListener('change', async function () {
                 const previous = this.dataset.previousValue || this.defaultValue || 'pending';
+                const next = this.value;
+                if (next === previous) return;
+
+                const uiAlreadySynced = this.dataset.uiSynced === '1';
+                delete this.dataset.uiSynced;
+                if (!uiAlreadySynced) emitTaskStatus(this.dataset.taskId, next, previous);
+
                 this.disabled = true;
+                markSaveState(this, 'saving');
                 try {
-                    await updateTaskStatus(this.dataset.taskId, this.value);
-                    this.dataset.previousValue = this.value;
-                    window.location.reload();
+                    await updateTaskStatus(this.dataset.taskId, next);
+                    this.dataset.previousValue = next;
+                    markSaveState(this, 'saved');
                 } catch (error) {
                     this.value = previous;
-                    this.disabled = false;
+                    this.dataset.previousValue = previous;
+                    emitTaskStatus(this.dataset.taskId, previous, next);
+                    markSaveState(this, 'error');
                     window.alert(`Не удалось изменить статус: ${error.message}`);
+                } finally {
+                    this.disabled = false;
                 }
             });
         });
 
         root.querySelectorAll('.task-complete-toggle').forEach((toggle) => {
             toggle.addEventListener('change', async function () {
+                const task = taskItemFor(this);
+                const statusSelect = task?.querySelector('.task-status-toggle');
+                const previous = task?.dataset.status || statusSelect?.value || (this.checked ? 'pending' : 'completed');
                 const targetStatus = this.checked ? 'completed' : 'pending';
+                if (targetStatus === previous) return;
+
+                emitTaskStatus(this.dataset.taskId, targetStatus, previous);
                 this.disabled = true;
+                markSaveState(this, 'saving');
                 try {
                     await updateTaskStatus(this.dataset.taskId, targetStatus);
-                    window.location.reload();
+                    if (statusSelect) statusSelect.dataset.previousValue = targetStatus;
+                    markSaveState(this, 'saved');
                 } catch (error) {
-                    this.checked = !this.checked;
-                    this.disabled = false;
+                    this.checked = previous === 'completed';
+                    if (statusSelect) statusSelect.dataset.previousValue = previous;
+                    emitTaskStatus(this.dataset.taskId, previous, targetStatus);
+                    markSaveState(this, 'error');
                     window.alert(`Не удалось изменить задачу: ${error.message}`);
+                } finally {
+                    this.disabled = false;
                 }
             });
         });
@@ -133,15 +179,20 @@
 
         root.querySelectorAll('.subtask-toggle').forEach((toggle) => {
             toggle.addEventListener('change', async function () {
+                const previous = !this.checked;
                 this.disabled = true;
+                syncSubtaskProgress(this);
+                markSaveState(this, 'saving');
                 try {
                     await requestJson(appPath(`/tasks/subtask/${encodeURIComponent(this.dataset.subtaskId)}/toggle`), { method: 'POST' });
-                    window.location.reload();
+                    markSaveState(this, 'saved');
                 } catch (error) {
-                    this.checked = !this.checked;
-                    this.disabled = false;
+                    this.checked = previous;
                     syncSubtaskProgress(this);
+                    markSaveState(this, 'error');
                     window.alert(`Не удалось изменить подзадачу: ${error.message}`);
+                } finally {
+                    this.disabled = false;
                 }
             });
         });

@@ -31,8 +31,6 @@ $styleFiles = [
     '^shared/sidebar/style.css',
     '^shared/header/style.css',
     'profile_page/style.css',
-    'tasks_page/style.css',
-    'tasks_page/hardening.css',
     'file_manager/style.css',
     'messager_page/style.css',
     'admin-page/style.css',
@@ -40,8 +38,6 @@ $styleFiles = [
     '^shared/footer/style.css',
     'core/theme-refresh.css',
     'core/product-ux-013.css',
-    'tasks_page/kanban.css',
-    'tasks_page/kanban-handle.css',
     'profile_page/hub.css',
     'profile_page/metrics.css',
 ];
@@ -105,8 +101,6 @@ $partialData = [
     <script src="<?= $view->e($baseUrl) ?>/assets/js/release-polish.js" defer></script>
     <script src="<?= $view->e($baseUrl) ?>/assets/js/file-manager-polish.js" defer></script>
     <script src="<?= $view->e($baseUrl) ?>/assets/js/file-manager-drop-upload.js" defer></script>
-    <script src="<?= $view->e($baseUrl) ?>/assets/js/tasks-kanban.js" defer></script>
-    <script src="<?= $view->e($baseUrl) ?>/assets/js/task-boards-nav.js" defer></script>
     <script src="<?= $view->e($baseUrl) ?>/assets/js/messenger-connection-ux.js" defer></script>
     <script src="<?= $view->e($baseUrl) ?>/assets/js/admin-settings-nav.js" defer></script>
 <?php foreach ($moduleScripts as $moduleScript): ?>
