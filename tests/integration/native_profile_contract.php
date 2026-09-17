@@ -52,6 +52,39 @@ nativeProfileAssert(!str_contains($script, '{literal}'), 'profile JS still conta
 nativeProfileAssert(str_contains($script, 'profile-account-settings'), 'profile edit panel behavior was dropped');
 nativeProfileAssert(str_contains($script, 'Пароли не совпадают'), 'password confirmation behavior was dropped');
 
+$publicationService = (string) file_get_contents($root . '/modules/profile/services/ProfilePublicationService.php');
+$metricsService = (string) file_get_contents($root . '/modules/profile/services/ProfileMetricsService.php');
+$profileController = (string) file_get_contents($root . '/modules/profile/controllers/ProfileController.php');
+foreach (['notes', 'tasks', 'user_files'] as $foreignTable) {
+    nativeProfileAssert(
+        !preg_match('/\b(?:from|join|update|into)\s+`?' . preg_quote($foreignTable, '/') . '`?\b/i', $publicationService),
+        "Profile publication service still reaches into {$foreignTable} directly"
+    );
+    nativeProfileAssert(
+        !preg_match('/\b(?:from|join|update|into)\s+`?' . preg_quote($foreignTable, '/') . '`?\b/i', $metricsService),
+        "Profile metrics service still reaches into {$foreignTable} directly"
+    );
+}
+nativeProfileAssert(str_contains($publicationService, 'ProfileContentProvider'), 'Profile publication service does not consume module content capabilities');
+foreach (['workspace.notes', 'workspace.tasks', 'workspace.files'] as $capability) {
+    nativeProfileAssert(str_contains($publicationService, $capability), "Profile publication service does not resolve {$capability}");
+}
+nativeProfileAssert(!str_contains($profileController, 'user_to_dialogs'), 'Profile controller still reaches into Messenger membership table');
+nativeProfileAssert(!preg_match('/\bjoin\s+dialogs\b/i', $profileController), 'Profile controller still reaches into Messenger dialogs directly');
+nativeProfileAssert(str_contains($profileController, 'AccountDeactivationGuard'), 'Profile account deactivation does not use module guard capability');
+
+foreach ([
+    'modules/notes/NotesCapability.php',
+    'modules/tasks/TasksCapability.php',
+    'modules/files/FilesCapability.php',
+] as $providerFile) {
+    $providerSource = (string) file_get_contents($root . '/' . $providerFile);
+    nativeProfileAssert(str_contains($providerSource, 'ProfileContentProvider'), "{$providerFile} does not implement Profile content contract");
+}
+$messengerCapability = (string) file_get_contents($root . '/modules/messenger/MessengerCapability.php');
+nativeProfileAssert(str_contains($messengerCapability, 'AccountDeactivationGuard'), 'Messenger capability does not own account-deactivation guard');
+nativeProfileAssert(str_contains($messengerCapability, 'user_to_dialogs'), 'Messenger account-deactivation guard lost group ownership check');
+
 $indexBridge = (string) file_get_contents($root . '/app/views/profile_page/index.php');
 $publicBridge = (string) file_get_contents($root . '/app/views/profile_page/public.php');
 $publicationBridge = (string) file_get_contents($root . '/app/views/profile_page/publication.php');
@@ -73,4 +106,4 @@ foreach ([
     nativeProfileAssert(!file_exists($root . '/' . $legacyProductFile), "legacy Profile product file remains: {$legacyProductFile}");
 }
 
-echo "[OK] native isolated profile views contract\n";
+echo "[OK] native isolated profile views and cross-module capability contract\n";
