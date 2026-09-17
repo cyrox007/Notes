@@ -25,8 +25,10 @@ require_once $root . '/core/ViewContext.php';
 require_once $root . '/core/controller.php';
 require_once $root . '/app/handlers/UUID.php';
 
+use Core\AccountDeactivationGuard;
 use Core\ModuleRegistry;
 use Core\ModuleRuntimeLoader;
+use Core\ProfileContentProvider;
 use Core\Router;
 use Core\RuntimeAutoloader;
 use Core\Version;
@@ -48,6 +50,14 @@ $providerClasses = [
     'profile' => 'Modules\\Profile\\ProfileRuntimeProvider',
     'tasks' => 'Modules\\Tasks\\TasksRuntimeProvider',
 ];
+$routeControllerClasses = [
+    'admin' => 'App\\Controllers\\Admin\\AdminController',
+    'files' => 'App\\Controllers\\FileController',
+    'messenger' => 'App\\Controllers\\MessagerController',
+    'notes' => 'App\\Controllers\\NoteController',
+    'profile' => 'App\\Controllers\\ProfileController',
+    'tasks' => 'App\\Controllers\\TaskController',
+];
 
 $coreSource = (string) file_get_contents($root . '/core.php');
 runtimeCompositionAssert(!str_contains($coreSource, 'loadDirectoryFiles'), 'recursive app loader function returned');
@@ -68,17 +78,10 @@ foreach ([
     runtimeCompositionAssert(is_string($resolved) && str_ends_with(str_replace('\\', '/', $resolved), $suffix), "shared class {$class} resolves outside its owner");
 }
 
-foreach ([
-    'App\\Controllers\\AdminController',
-    'App\\Controllers\\FileController',
-    'App\\Controllers\\MessagerController',
-    'App\\Controllers\\NoteController',
-    'App\\Controllers\\ProfileController',
-    'App\\Controllers\\TasksController',
-    'App\\Sockets\\NativeMessengerServer',
-] as $moduleClass) {
+foreach (array_values($routeControllerClasses) as $moduleClass) {
     runtimeCompositionAssert(RuntimeAutoloader::resolve($root, $moduleClass) === null, "module class {$moduleClass} leaked into shared autoload");
 }
+runtimeCompositionAssert(RuntimeAutoloader::resolve($root, 'App\\Sockets\\NativeMessengerServer') === null, 'Messenger socket runtime leaked into shared autoload');
 
 $registry = ModuleRegistry::discover($root . '/modules', Version::VERSION);
 runtimeCompositionAssert(array_keys($registry->all()) === $expected, 'bundled module set drifted');
@@ -100,11 +103,36 @@ if ($exclude === 'core-only') {
 $runtime = ModuleRuntimeLoader::boot($registry, $composition);
 runtimeCompositionAssert(array_keys($runtime->providers()) === $composition, 'loaded provider set does not equal requested composition');
 
-$capabilityOwners = array_values($runtime->capabilities()->providers());
+$capabilities = $runtime->capabilities();
+$capabilityOwners = array_values($capabilities->providers());
 sort($capabilityOwners, SORT_STRING);
 $sortedComposition = $composition;
 sort($sortedComposition, SORT_STRING);
 runtimeCompositionAssert($capabilityOwners === $sortedComposition, 'capability ownership does not equal active composition');
+
+foreach ([
+    'notes' => 'workspace.notes',
+    'tasks' => 'workspace.tasks',
+    'files' => 'workspace.files',
+] as $moduleId => $capability) {
+    $active = in_array($moduleId, $composition, true);
+    runtimeCompositionAssert($capabilities->has($capability) === $active, "Profile capability availability drifted for {$moduleId}");
+    if ($active) {
+        runtimeCompositionAssert(
+            $capabilities->require($capability, ProfileContentProvider::class) instanceof ProfileContentProvider,
+            "{$moduleId} does not implement ProfileContentProvider"
+        );
+    }
+}
+
+$messengerActive = in_array('messenger', $composition, true);
+runtimeCompositionAssert($capabilities->has('workspace.messenger') === $messengerActive, 'Messenger capability availability drifted');
+if ($messengerActive) {
+    runtimeCompositionAssert(
+        $capabilities->require('workspace.messenger', AccountDeactivationGuard::class) instanceof AccountDeactivationGuard,
+        'Messenger does not implement AccountDeactivationGuard'
+    );
+}
 
 $viewRoots = $runtime->viewRoots();
 $assetRoots = $runtime->assetRoots();
@@ -129,6 +157,21 @@ if ($composition === []) {
     runtimeCompositionAssert($routes === [], 'core-only runtime registered module routes');
 } else {
     runtimeCompositionAssert($routes !== [], 'active module composition registered no routes');
+}
+
+$routeControllers = [];
+foreach ($routes as $route) {
+    $controller = $route['controller'][0] ?? null;
+    if (is_string($controller)) {
+        $routeControllers[$controller] = true;
+    }
+}
+foreach ($routeControllerClasses as $moduleId => $controllerClass) {
+    $active = in_array($moduleId, $composition, true);
+    runtimeCompositionAssert(
+        isset($routeControllers[$controllerClass]) === $active,
+        "route registration state drifted for {$moduleId}"
+    );
 }
 
 fwrite(STDOUT, '[OK] module runtime composition ' . ($exclude === '' ? 'full' : $exclude) . "\n");
