@@ -24,5 +24,21 @@
   },
   "storage_namespaces": [
     "notes"
-  ]
+  ],
+  "database": {
+    "tables": [
+      "notes",
+      "note_attachments",
+      "shared_notes",
+      "note_history",
+      "note_tags",
+      "note_tag_relations"
+    ],
+    "schemas": [
+      "database/notes_schema.sql"
+    ],
+    "migrations": [
+      "database/migrations/20260913_notes_private_attachments.sql"
+    ]
+  }
 }
