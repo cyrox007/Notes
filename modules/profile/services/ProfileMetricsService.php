@@ -4,19 +4,22 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use Core\DatabaseManager;
+use Core\ModuleCapabilityRegistry;
+use Core\ModuleRuntimeLoader;
+use Core\ProfileContentProvider;
 use InvalidArgumentException;
-use Throwable;
 
 final class ProfileMetricsService
 {
-    private DatabaseManager $db;
-    private StorageQuotaService $storageQuota;
+    /** @var list<string> */
+    private const CAPABILITIES = [
+        'workspace.notes',
+        'workspace.tasks',
+        'workspace.files',
+    ];
 
-    public function __construct(?DatabaseManager $db = null, ?StorageQuotaService $storageQuota = null)
+    public function __construct(private ?ModuleCapabilityRegistry $capabilities = null)
     {
-        $this->db = $db ?? DatabaseManager::getInstance();
-        $this->storageQuota = $storageQuota ?? new StorageQuotaService($this->db);
     }
 
     /** @return array<string,mixed> */
@@ -26,52 +29,59 @@ final class ProfileMetricsService
             throw new InvalidArgumentException('Некорректный пользователь');
         }
 
-        $row = $this->db->fetchOne(
-            "SELECT
-                (SELECT COUNT(*) FROM notes WHERE user_id = :notes_user_id AND is_deleted = 0) AS notes_count,
-                (SELECT COUNT(*) FROM tasks WHERE user_id = :tasks_user_id AND is_deleted = 0) AS tasks_count,
-                (SELECT COUNT(*) FROM tasks WHERE user_id = :open_tasks_user_id AND is_deleted = 0 AND status IN ('pending','in_progress')) AS open_tasks_count,
-                (SELECT COUNT(*) FROM user_files WHERE user_id = :files_user_id AND is_deleted = 0 AND type <> 'folder') AS files_count",
-            [
-                ':notes_user_id' => $userId,
-                ':tasks_user_id' => $userId,
-                ':open_tasks_user_id' => $userId,
-                ':files_user_id' => $userId,
-            ]
-        ) ?: [];
-
-        $storage = $this->storageUsage($userId);
-
-        return [
-            'notes_count' => max(0, (int) ($row['notes_count'] ?? 0)),
-            'tasks_count' => max(0, (int) ($row['tasks_count'] ?? 0)),
-            'open_tasks_count' => max(0, (int) ($row['open_tasks_count'] ?? 0)),
-            'files_count' => max(0, (int) ($row['files_count'] ?? 0)),
-            'storage' => $storage + [
-                'used_label' => $this->formatBytes((int) $storage['used_bytes']),
-                'quota_label' => $this->formatBytes((int) $storage['quota_bytes']),
+        $metrics = [
+            'notes_count' => 0,
+            'tasks_count' => 0,
+            'open_tasks_count' => 0,
+            'files_count' => 0,
+            'storage' => [
+                'used_bytes' => 0,
+                'quota_bytes' => 0,
+                'remaining_bytes' => 0,
+                'percent' => 0.0,
             ],
         ];
+
+        $registry = $this->capabilityRegistry();
+        if ($registry !== null) {
+            foreach (self::CAPABILITIES as $capability) {
+                if (!$registry->has($capability)) {
+                    continue;
+                }
+
+                $provider = $registry->require($capability, ProfileContentProvider::class);
+                if (!$provider instanceof ProfileContentProvider) {
+                    throw new \RuntimeException("Capability {$capability} has an invalid Profile metric provider");
+                }
+                $metrics = array_replace_recursive($metrics, $provider->profileMetrics($userId));
+            }
+        }
+
+        $storage = is_array($metrics['storage'] ?? null) ? $metrics['storage'] : [];
+        $used = max(0, (int) ($storage['used_bytes'] ?? 0));
+        $quota = max(0, (int) ($storage['quota_bytes'] ?? 0));
+        $metrics['storage'] = [
+            'used_bytes' => $used,
+            'quota_bytes' => $quota,
+            'remaining_bytes' => max(0, (int) ($storage['remaining_bytes'] ?? max(0, $quota - $used))),
+            'percent' => max(0.0, min(100.0, (float) ($storage['percent'] ?? 0.0))),
+            'used_label' => $this->formatBytes($used),
+            'quota_label' => $this->formatBytes($quota),
+        ];
+
+        return $metrics;
     }
 
-    /** @return array{used_bytes:int,quota_bytes:int,remaining_bytes:int,percent:float} */
-    private function storageUsage(int $userId): array
+    private function capabilityRegistry(): ?ModuleCapabilityRegistry
     {
-        try {
-            return $this->storageQuota->usage($userId);
-        } catch (Throwable $e) {
-            // Profile remains usable during partial/legacy schema recovery. The
-            // installer/migration gates still require quota tables in production.
-            error_log('Profile storage metric fallback: ' . $e->getMessage());
-            $used = $this->storageQuota->usedBytes($userId);
-            $quota = StorageQuotaService::DEFAULT_QUOTA_BYTES;
-            return [
-                'used_bytes' => $used,
-                'quota_bytes' => $quota,
-                'remaining_bytes' => max(0, $quota - $used),
-                'percent' => $quota > 0 ? round(min(100, ($used / $quota) * 100), 2) : 100.0,
-            ];
+        if ($this->capabilities !== null) {
+            return $this->capabilities;
         }
+        if (!ModuleRuntimeLoader::isBooted()) {
+            return null;
+        }
+
+        return $this->capabilities = ModuleRuntimeLoader::getInstance()->capabilities();
     }
 
     private function formatBytes(int $bytes): string
