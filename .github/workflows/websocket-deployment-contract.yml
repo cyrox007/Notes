@@ -65,7 +65,8 @@ jobs:
           grep -Fq 'WS_HOST=127.0.0.1' default.env
           grep -Fq 'WS_PUBLIC_URL=ws://localhost/ws' default.env
           grep -Fq 'php bin/ws_doctor.php' default.env
-          grep -Fq 'WebSocketEndpoint::publicUrl()' app/controllers/MessagerController.php
+          grep -Fq 'WebSocketEndpoint::browserUrl()' app/controllers/MessagerController.php
+          grep -Fq 'WebSocketEndpoint::allowedOrigins()' ws_server/server.php
           grep -Fq 'NativeMessengerServer' ws_server/server.php
           grep -Fq 'stream_socket_server(' app/socket/NativeMessengerServer.php
           grep -Fq 'stream_select(' app/socket/NativeMessengerServer.php

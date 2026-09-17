@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use Core\RequestOrigin;
 use RuntimeException;
 
 final class RequestRateLimiter
@@ -76,25 +77,9 @@ final class RequestRateLimiter
 
     public static function clientSubject(string $scope): string
     {
-        $remoteAddress = trim((string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
-        $trustedProxies = array_values(array_filter(array_map(
-            static fn (string $value): string => trim($value),
-            explode(',', (string) (getenv('TRUSTED_PROXY_IPS') ?: ''))
-        )));
-
-        if ($remoteAddress !== '' && in_array($remoteAddress, $trustedProxies, true)) {
-            $candidate = trim((string) ($_SERVER['HTTP_X_REAL_IP'] ?? ''));
-            if ($candidate === '') {
-                $forwarded = trim((string) ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? ''));
-                $candidate = trim(explode(',', $forwarded)[0] ?? '');
-            }
-            if ($candidate !== '' && filter_var($candidate, FILTER_VALIDATE_IP) !== false) {
-                $remoteAddress = $candidate;
-            }
-        }
-
+        $remoteAddress = RequestOrigin::clientIp($_SERVER);
         $path = (string) (parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH) ?: '/');
-        return $scope . '|' . ($remoteAddress !== '' ? $remoteAddress : 'unknown') . '|' . $path;
+        return $scope . '|' . $remoteAddress . '|' . $path;
     }
 
     private static function storageRoot(): string

@@ -1,0 +1,73 @@
+name: 1.0 protocol and origin contract
+
+on:
+  pull_request:
+    branches: ['1.0']
+    paths:
+      - 'core/controller.php'
+      - 'core/WebSocketEndpoint.php'
+      - 'app/controllers/MessagerController.php'
+      - 'app/views/core/base.php'
+      - 'app/views/messager_page/index.php'
+      - 'app/views/messager_page/protocol-origin.js'
+      - 'ws_server/server.php'
+      - 'tests/integration/protocol_asset_path_contract.php'
+      - 'tests/integration/messenger_protocol_origin_contract.mjs'
+      - 'tests/integration/websocket_endpoint_contract.php'
+      - '.github/workflows/protocol-origin-contract.yml'
+  push:
+    branches: ['1.0']
+    paths:
+      - 'core/controller.php'
+      - 'core/WebSocketEndpoint.php'
+      - 'app/controllers/MessagerController.php'
+      - 'app/views/core/base.php'
+      - 'app/views/messager_page/index.php'
+      - 'app/views/messager_page/protocol-origin.js'
+      - 'ws_server/server.php'
+      - 'tests/integration/protocol_asset_path_contract.php'
+      - 'tests/integration/messenger_protocol_origin_contract.mjs'
+      - 'tests/integration/websocket_endpoint_contract.php'
+      - '.github/workflows/protocol-origin-contract.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  protocol-origin:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.1', '8.3']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - name: Lint protocol boundary
+        run: |
+          php -l core/controller.php
+          php -l core/WebSocketEndpoint.php
+          php -l app/controllers/MessagerController.php
+          php -l app/views/core/base.php
+          php -l app/views/messager_page/index.php
+          php -l ws_server/server.php
+          php -l tests/integration/protocol_asset_path_contract.php
+          php -l tests/integration/websocket_endpoint_contract.php
+          node --check tests/integration/messenger_protocol_origin_contract.mjs
+      - name: Verify HTTP HTTPS path independence
+        run: |
+          php tests/integration/protocol_asset_path_contract.php
+          php tests/integration/websocket_endpoint_contract.php
+          node tests/integration/messenger_protocol_origin_contract.mjs
+      - name: Verify protocol hardening invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -Fq '$siteUrl . $basePath' core/controller.php
+          grep -Fq '$baseUrl = $basePath;' core/controller.php
+          grep -Fq 'WebSocketEndpoint::browserUrl()' app/controllers/MessagerController.php
+          grep -Fq 'WebSocketEndpoint::allowedOrigins()' ws_server/server.php
+          grep -Fq "'protocol-origin.js', 'script.js'" app/views/messager_page/index.php

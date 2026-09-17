@@ -26,6 +26,7 @@ spl_autoload_register(function ($class) {
 $coreFiles = [
     '/core/config.php',
     '/core/Version.php',
+    '/core/RequestOrigin.php',
     '/core/SessionSecurity.php',
     '/core/RedirectPolicy.php',
     '/core/WebSocketEndpoint.php',

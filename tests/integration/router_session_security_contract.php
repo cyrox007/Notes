@@ -11,10 +11,12 @@ putenv('SITEURL=https://example.test');
 putenv('BASE_PATH=/workspace');
 putenv('SESSION_LIFETIME_SECONDS=2592000');
 putenv('MAX_JSON_BODY_BYTES=1048576');
+putenv('TRUSTED_PROXY_IPS=');
 $_SERVER['HTTP_HOST'] = 'example.test';
 $_SERVER['HTTPS'] = 'on';
 
 require_once $root . '/core/config.php';
+require_once $root . '/core/RequestOrigin.php';
 require_once $root . '/core/SessionSecurity.php';
 require_once $root . '/core/RedirectPolicy.php';
 require_once $root . '/core/request.php';
@@ -22,6 +24,7 @@ require_once $root . '/core/Router.php';
 
 use Core\RedirectPolicy;
 use Core\Request;
+use Core\RequestOrigin;
 use Core\Router;
 use Core\SessionSecurity;
 
@@ -41,6 +44,55 @@ function expectInvalid(callable $callback, string $label): void
 
     failSecurityContract("expected rejection: {$label}");
 }
+
+// SITEURL is canonical metadata, not proof of the transport used by this request.
+// Reproduce the Beta4 mismatch directly: an HTTP request must remain HTTP even if
+// the configured canonical URL is HTTPS, and spoofed proxy headers must not win.
+$directHttp = [
+    'REMOTE_ADDR' => '198.51.100.40',
+    'REQUEST_SCHEME' => 'http',
+    'SERVER_PORT' => '80',
+    'HTTP_X_FORWARDED_PROTO' => 'https',
+    'HTTP_X_FORWARDED_FOR' => '203.0.113.77',
+];
+if (RequestOrigin::isSecure($directHttp, 'https://example.test')) {
+    failSecurityContract('HTTP request inherited HTTPS from SITEURL or an untrusted proxy header');
+}
+if (RequestOrigin::clientIp($directHttp) !== '198.51.100.40') {
+    failSecurityContract('untrusted proxy headers changed the direct client address');
+}
+
+$directHttps = [
+    'REMOTE_ADDR' => '198.51.100.40',
+    'HTTPS' => 'on',
+    'REQUEST_SCHEME' => 'https',
+    'SERVER_PORT' => '443',
+];
+if (!RequestOrigin::isSecure($directHttps, 'http://example.test')) {
+    failSecurityContract('direct HTTPS request inherited insecure SITEURL scheme');
+}
+
+putenv('TRUSTED_PROXY_IPS=10.0.0.2');
+$trustedProxy = [
+    'REMOTE_ADDR' => '10.0.0.2',
+    'REQUEST_SCHEME' => 'http',
+    'SERVER_PORT' => '8080',
+    'HTTP_X_FORWARDED_PROTO' => 'https',
+    'HTTP_X_FORWARDED_FOR' => '203.0.113.77, 10.0.0.2',
+];
+if (!RequestOrigin::isSecure($trustedProxy, 'http://example.test')) {
+    failSecurityContract('trusted reverse proxy HTTPS transport was ignored');
+}
+if (RequestOrigin::clientIp($trustedProxy) !== '203.0.113.77') {
+    failSecurityContract('trusted reverse proxy client address was not resolved');
+}
+
+$trustedProxyHttp = $trustedProxy;
+$trustedProxyHttp['HTTP_X_FORWARDED_PROTO'] = 'http';
+if (RequestOrigin::isSecure($trustedProxyHttp, 'https://example.test')) {
+    failSecurityContract('trusted reverse proxy HTTP request inherited HTTPS from SITEURL');
+}
+putenv('TRUSTED_PROXY_IPS=');
 
 SessionSecurity::configure();
 if (!SessionSecurity::isConfigured()) {

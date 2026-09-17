@@ -78,14 +78,18 @@ class Controller
      * Isolated module views use the `@module-id/path` namespace and are resolved
      * only from view roots registered by the active ModuleRuntimeLoader.
      *
+     * `base_url` is intentionally a same-origin path prefix, not SITEURL. Static
+     * resources and in-app links must follow the protocol/authority of the HTTP
+     * request that actually loaded the page. SITEURL remains the canonical
+     * installation origin for the few services that explicitly need one.
+     *
      * @param array<string,mixed>|null $data
      */
     protected function render_template(string $template, ?array $data = null): void
     {
-        $siteUrl = rtrim((string) getenv('SITEURL'), '/');
         $basePathSegment = trim((string) getenv('BASE_PATH'), '/');
         $basePath = $basePathSegment !== '' ? '/' . $basePathSegment : '';
-        $baseUrl = $siteUrl . $basePath;
+        $baseUrl = $basePath;
         $workspaceAccess = $this->workspaceAccess();
 
         $viewData = [

@@ -28,8 +28,7 @@ final class SessionSecurity
         }
 
         $siteUrl = trim((string) Config::get('SITEURL', ''));
-        $scheme = strtolower((string) (parse_url($siteUrl, PHP_URL_SCHEME) ?: ''));
-        $secure = $scheme === 'https';
+        $secure = RequestOrigin::isSecure($_SERVER, $siteUrl);
         $lifetime = self::resolveLifetimeSeconds();
 
         $basePath = trim((string) (getenv('BASE_PATH') ?: '/'));

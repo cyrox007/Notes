@@ -48,7 +48,7 @@ final class MessagerController extends Controller
 
         $socketUrl = '';
         try {
-            $socketUrl = WebSocketEndpoint::publicUrl();
+            $socketUrl = WebSocketEndpoint::browserUrl();
         } catch (\Throwable $e) {
             error_log('WebSocket public endpoint is invalid: ' . $e->getMessage());
         }

@@ -31,7 +31,7 @@ $socket = activityContractSource($root . '/app/socket/MessangerSocket.php');
 $server = activityContractSource($root . '/app/socket/NativeMessengerServer.php');
 
 activityContractAssert(
-    strpos($index, "['script.js', 'activity.js'") !== false,
+    strpos($index, "'script.js', 'activity.js'") !== false,
     'activity.js must load immediately after the canonical Messenger client'
 );
 activityContractAssert(str_contains($activity, "action: 'MessangerSocket:activity'"), 'activity client does not emit the unified WS action');
