@@ -68,19 +68,43 @@
             toggle.closest('.subtask-item')?.classList.toggle('completed', toggle.checked);
         }
 
+        function taskItemFor(control) {
+            return control?.closest('.task-item') || null;
+        }
+
+        function markSaveState(control, state) {
+            const task = taskItemFor(control);
+            if (!task) return;
+            task.dataset.saveState = state;
+            if (state === 'saved') {
+                window.setTimeout(() => {
+                    if (task.dataset.saveState === 'saved') delete task.dataset.saveState;
+                }, 900);
+            }
+        }
+
         root.querySelectorAll('.task-status-toggle').forEach((toggle) => {
             toggle.dataset.previousValue = toggle.value;
             toggle.addEventListener('change', async function () {
                 const previous = this.dataset.previousValue || this.defaultValue || 'pending';
+                const next = this.value;
                 this.disabled = true;
+                markSaveState(this, 'saving');
                 try {
-                    await updateTaskStatus(this.dataset.taskId, this.value);
-                    this.dataset.previousValue = this.value;
-                    window.location.reload();
+                    await updateTaskStatus(this.dataset.taskId, next);
+                    this.dataset.previousValue = next;
+                    markSaveState(this, 'saved');
                 } catch (error) {
                     this.value = previous;
-                    this.disabled = false;
+                    markSaveState(this, 'error');
+                    // The Kanban layer applies the optimistic visual state. Reload
+                    // only on failure to restore the authoritative server state;
+                    // successful interactions must remain in-place and tactile.
                     window.alert(`Не удалось изменить статус: ${error.message}`);
+                    window.location.reload();
+                    return;
+                } finally {
+                    this.disabled = false;
                 }
             });
         });
@@ -89,13 +113,18 @@
             toggle.addEventListener('change', async function () {
                 const targetStatus = this.checked ? 'completed' : 'pending';
                 this.disabled = true;
+                markSaveState(this, 'saving');
                 try {
                     await updateTaskStatus(this.dataset.taskId, targetStatus);
-                    window.location.reload();
+                    markSaveState(this, 'saved');
                 } catch (error) {
                     this.checked = !this.checked;
-                    this.disabled = false;
+                    markSaveState(this, 'error');
                     window.alert(`Не удалось изменить задачу: ${error.message}`);
+                    window.location.reload();
+                    return;
+                } finally {
+                    this.disabled = false;
                 }
             });
         });
