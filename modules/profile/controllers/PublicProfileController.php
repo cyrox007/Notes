@@ -66,7 +66,7 @@ final class PublicProfileController extends Controller
         $avatarUrl = !empty($profile['avatar'])
             ? '/profile/avatar/' . rawurlencode((string) $profile['uid']) . '?v=' . rawurlencode(substr(hash('sha256', (string) $profile['avatar']), 0, 12))
             : null;
-        $publicContent = (new ProfilePublicationService($db))->publicItems($profileId);
+        $publicContent = (new ProfilePublicationService())->publicItems($profileId);
         $publicTotal = count($publicContent['notes']) + count($publicContent['tasks']) + count($publicContent['files']);
 
         $this->render_template('profile_page/public', [
