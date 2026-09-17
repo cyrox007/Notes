@@ -101,7 +101,6 @@ jobs:
           ! grep -R -Fq -- '->view->render_template(' app/controllers modules/notes/controllers modules/tasks/controllers
           ! grep -R -Fq 'new View(' app/controllers modules/notes/controllers modules/tasks/controllers
 
-          # Isolated modules own their native views/assets; legacy copies must stay gone.
           test -f modules/notes/views/index.php
           test -f modules/notes/assets/notes-list.js
           test -f modules/tasks/views/index.php
@@ -122,4 +121,4 @@ jobs:
           ! test -e assets/js/task-boards.js
           ! test -e assets/js/task-boards-nav.js
 
-          ! grep -R -Fq '{literal}' modules/notes/assets modules/tasks/assets assets/js || true
+          ! grep -R -Fq '{literal}' modules/notes/assets modules/tasks/assets
