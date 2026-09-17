@@ -53,7 +53,7 @@ final class MessagerController extends Controller
             error_log('WebSocket public endpoint is invalid: ' . $e->getMessage());
         }
 
-        $this->render_template('messager_page/index', [
+        $this->render_template('@messenger/index', [
             'user' => get_object_vars($user),
             'contacts' => $contacts,
             'socket_ticket' => $socketTicket,
