@@ -1,34 +1,9 @@
 -- ============================================================
--- Legacy full-schema compatibility aggregate.
---
--- New composition-aware installs MUST use database/core_identity_schema.sql
--- plus the Messenger-owned database/messenger_module_schema.sql declared by
--- modules/messenger/module.json. This file remains only for pre-1.0 tooling and
--- test fixtures that historically expected messenger_schema.sql to create users.
+-- Workspace Organizer Messenger module canonical schema
+-- Fresh-install source of truth for dialogs, messages and attachments.
+-- Requires the core `users` table from database/core_identity_schema.sql.
+-- Existing installations should use database/migrations/*.sql.
 -- ============================================================
-
-CREATE TABLE IF NOT EXISTS `users` (
-    `id` INT AUTO_INCREMENT PRIMARY KEY,
-    `uid` CHAR(36) NOT NULL,
-    `username` VARCHAR(50) NOT NULL,
-    `email` VARCHAR(190) NOT NULL,
-    `password_hash` VARCHAR(255) NOT NULL,
-    `firstname` VARCHAR(80) NOT NULL DEFAULT '',
-    `patronymic` VARCHAR(80) DEFAULT NULL,
-    `lastname` VARCHAR(80) NOT NULL DEFAULT '',
-    `phone` VARCHAR(32) DEFAULT NULL,
-    `avatar` VARCHAR(255) DEFAULT NULL,
-    `property` JSON DEFAULT NULL,
-    `role` INT NOT NULL DEFAULT 888,
-    `is_active` TINYINT(1) NOT NULL DEFAULT 1,
-    `account_status` ENUM('active', 'inactive', 'blocked') NOT NULL DEFAULT 'active',
-    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY `uq_users_uid` (`uid`),
-    UNIQUE KEY `uq_users_username` (`username`),
-    UNIQUE KEY `uq_users_email` (`email`),
-    KEY `idx_users_active` (`is_active`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `dialogs` (
     `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -42,7 +17,8 @@ CREATE TABLE IF NOT EXISTS `dialogs` (
     UNIQUE KEY `uq_dialogs_uid` (`uid`),
     KEY `idx_dialogs_updated` (`updated_at`),
     KEY `idx_dialogs_creator` (`created_by`),
-    CONSTRAINT `fk_dialogs_creator` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+    CONSTRAINT `fk_dialogs_creator`
+        FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `user_to_dialogs` (
@@ -60,8 +36,10 @@ CREATE TABLE IF NOT EXISTS `user_to_dialogs` (
     UNIQUE KEY `uq_dialog_member` (`dialog_id`, `user_id`),
     KEY `idx_dialog_member_user` (`user_id`, `is_deleted`),
     KEY `idx_dialog_member_dialog` (`dialog_id`, `is_deleted`),
-    CONSTRAINT `fk_dialog_member_dialog` FOREIGN KEY (`dialog_id`) REFERENCES `dialogs` (`id`) ON DELETE CASCADE,
-    CONSTRAINT `fk_dialog_member_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+    CONSTRAINT `fk_dialog_member_dialog`
+        FOREIGN KEY (`dialog_id`) REFERENCES `dialogs` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_dialog_member_user`
+        FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `messages` (
@@ -85,9 +63,12 @@ CREATE TABLE IF NOT EXISTS `messages` (
     KEY `idx_messages_sender` (`from_user_id`, `created_at`),
     KEY `idx_messages_reply` (`reply_to_message_id`),
     KEY `idx_messages_unread` (`dialog_id`, `is_deleted`, `id`),
-    CONSTRAINT `fk_messages_dialog` FOREIGN KEY (`dialog_id`) REFERENCES `dialogs` (`id`) ON DELETE CASCADE,
-    CONSTRAINT `fk_messages_sender` FOREIGN KEY (`from_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-    CONSTRAINT `fk_messages_reply` FOREIGN KEY (`reply_to_message_id`) REFERENCES `messages` (`id`) ON DELETE SET NULL
+    CONSTRAINT `fk_messages_dialog`
+        FOREIGN KEY (`dialog_id`) REFERENCES `dialogs` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_messages_sender`
+        FOREIGN KEY (`from_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_messages_reply`
+        FOREIGN KEY (`reply_to_message_id`) REFERENCES `messages` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `messenger_attachments` (
@@ -108,9 +89,12 @@ CREATE TABLE IF NOT EXISTS `messenger_attachments` (
     KEY `idx_messenger_attachment_dialog` (`dialog_id`, `created_at`),
     KEY `idx_messenger_attachment_message` (`message_id`),
     KEY `idx_messenger_attachment_uploader` (`uploader_user_id`, `created_at`),
-    CONSTRAINT `fk_messenger_attachment_dialog` FOREIGN KEY (`dialog_id`) REFERENCES `dialogs` (`id`) ON DELETE CASCADE,
-    CONSTRAINT `fk_messenger_attachment_uploader` FOREIGN KEY (`uploader_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-    CONSTRAINT `fk_messenger_attachment_message` FOREIGN KEY (`message_id`) REFERENCES `messages` (`id`) ON DELETE CASCADE
+    CONSTRAINT `fk_messenger_attachment_dialog`
+        FOREIGN KEY (`dialog_id`) REFERENCES `dialogs` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_messenger_attachment_uploader`
+        FOREIGN KEY (`uploader_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_messenger_attachment_message`
+        FOREIGN KEY (`message_id`) REFERENCES `messages` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `message_reactions` (
@@ -124,8 +108,10 @@ CREATE TABLE IF NOT EXISTS `message_reactions` (
     UNIQUE KEY `uq_message_reaction_user` (`message_id`, `user_id`, `reaction_code`),
     KEY `idx_message_reaction_message` (`message_id`, `reaction_code`, `is_active`),
     KEY `idx_message_reaction_user` (`user_id`, `message_id`, `is_active`),
-    CONSTRAINT `fk_message_reaction_message` FOREIGN KEY (`message_id`) REFERENCES `messages` (`id`) ON DELETE CASCADE,
-    CONSTRAINT `fk_message_reaction_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+    CONSTRAINT `fk_message_reaction_message`
+        FOREIGN KEY (`message_id`) REFERENCES `messages` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_message_reaction_user`
+        FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `message_user_deletions` (
@@ -134,6 +120,8 @@ CREATE TABLE IF NOT EXISTS `message_user_deletions` (
     `deleted_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`message_id`, `user_id`),
     KEY `idx_message_user_deletions_user` (`user_id`, `message_id`),
-    CONSTRAINT `fk_message_user_deletion_message` FOREIGN KEY (`message_id`) REFERENCES `messages` (`id`) ON DELETE CASCADE,
-    CONSTRAINT `fk_message_user_deletion_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+    CONSTRAINT `fk_message_user_deletion_message`
+        FOREIGN KEY (`message_id`) REFERENCES `messages` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_message_user_deletion_user`
+        FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

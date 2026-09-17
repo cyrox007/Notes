@@ -52,51 +52,6 @@ function migrationPreflightManifest(string $root, array $names): void
     migrationPreflightWrite($root . '/database/migrations/manifest.json', $bytes);
 }
 
-/** @return list<string> */
-function migrationPreflightLegacyList(string $source): array
-{
-    preg_match_all(
-        '/\$([A-Za-z_][A-Za-z0-9_]*Migration)\s*=\s*[\'\"]([0-9]{8}_[a-z0-9_]+\.sql)[\'\"]\s*;/',
-        $source,
-        $assignments,
-        PREG_SET_ORDER
-    );
-    $variables = [];
-    foreach ($assignments as $assignment) {
-        $variables[(string) $assignment[1]] = (string) $assignment[2];
-    }
-
-    $start = strpos($source, '$manifest = [');
-    if ($start === false) {
-        return [];
-    }
-    $end = strpos($source, '];', $start);
-    if ($end === false) {
-        return [];
-    }
-    $block = substr($source, $start, $end - $start + 2);
-    preg_match_all(
-        '/[\'\"]([0-9]{8}_[a-z0-9_]+\.sql)[\'\"]|\$([A-Za-z_][A-Za-z0-9_]*Migration)/',
-        $block,
-        $tokens,
-        PREG_SET_ORDER
-    );
-
-    $names = [];
-    foreach ($tokens as $token) {
-        if (($token[1] ?? '') !== '') {
-            $names[] = (string) $token[1];
-            continue;
-        }
-        $variable = (string) ($token[2] ?? '');
-        if ($variable === '' || !isset($variables[$variable])) {
-            return [];
-        }
-        $names[] = $variables[$variable];
-    }
-    return $names;
-}
-
 $dbName = trim((string) (getenv('MIGRATION_PREFLIGHT_DBNAME') ?: ''));
 migrationPreflightAssert($dbName !== '', 'MIGRATION_PREFLIGHT_DBNAME is required');
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
@@ -145,10 +100,7 @@ try {
     migrationPreflightAssert(($checked['legacy_untracked'] ?? true) === false, 'tracked DB marked legacy');
     migrationPreflightAssert(($checked['applied'] ?? -1) === 1, 'applied migration count changed');
     migrationPreflightAssert(($checked['pending'] ?? -1) === 1, 'pending migration count changed');
-    migrationPreflightAssert(
-        (($checked['pending_migrations'][0]['name'] ?? '') === $beta),
-        'pending migration identity changed'
-    );
+    migrationPreflightAssert((($checked['pending_migrations'][0]['name'] ?? '') === $beta), 'pending migration identity changed');
 
     migrationPreflightWrite($migrationRoot . '/' . $alpha, $alphaSql . "-- tampered\n");
     $tamperRejected = false;
@@ -201,11 +153,21 @@ try {
     migrationPreflightAssert($traversalRejected, 'migration manifest traversal was accepted');
 
     $canonical = (new MigrationManifest($root))->names();
+    migrationPreflightAssert($canonical !== [], 'canonical migration manifest is empty');
     $migrateSource = file_get_contents($root . '/bin/migrate.php');
-    migrationPreflightAssert(is_string($migrateSource), 'cannot read bin/migrate.php for manifest sync contract');
-    $legacyList = migrationPreflightLegacyList($migrateSource);
-    migrationPreflightAssert($legacyList !== [], 'cannot resolve bin/migrate.php migration order');
-    migrationPreflightAssert($canonical === $legacyList, 'canonical migration manifest diverges from bin/migrate.php order');
+    migrationPreflightAssert(is_string($migrateSource), 'cannot read bin/migrate.php for manifest ownership contract');
+    migrationPreflightAssert(
+        str_contains($migrateSource, 'new \\Core\\MigrationManifest($root)'),
+        'bin/migrate.php does not consume the canonical migration manifest'
+    );
+    migrationPreflightAssert(
+        str_contains($migrateSource, '\\Core\\DatabaseOwnership::fromPackageRoot($root)'),
+        'bin/migrate.php does not consume packaged database ownership'
+    );
+    migrationPreflightAssert(
+        !str_contains($migrateSource, '$manifest = ['),
+        'bin/migrate.php still duplicates the canonical migration order'
+    );
 
     echo "[OK] updater data-only migration preflight contract\n";
 } finally {

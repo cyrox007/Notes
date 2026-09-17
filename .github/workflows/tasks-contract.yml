@@ -63,7 +63,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mysql -h 127.0.0.1 -uroot -proot tasks_contract_test < database/messenger_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot tasks_contract_test < database/core_identity_schema.sql
           mysql -h 127.0.0.1 -uroot -proot tasks_contract_test < database/tasks_schema.sql
           TABLES="$(mysql -N -h 127.0.0.1 -uroot -proot tasks_contract_test -e \
             "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('tasks','subtasks','task_categories','task_category_relations','task_reminders')")"

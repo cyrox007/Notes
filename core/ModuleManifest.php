@@ -15,6 +15,9 @@ final class ModuleManifest
     /** @param list<string> $dependencies */
     /** @param list<string> $capabilities */
     /** @param list<string> $storageNamespaces */
+    /** @param list<string> $databaseTables */
+    /** @param list<string> $databaseSchemas */
+    /** @param list<string> $databaseMigrations */
     private function __construct(
         private readonly string $id,
         private readonly string $name,
@@ -29,6 +32,9 @@ final class ModuleManifest
         private readonly string $runtimeMode,
         private readonly ?string $runtimeEntrypoint,
         private readonly array $storageNamespaces,
+        private readonly array $databaseTables,
+        private readonly array $databaseSchemas,
+        private readonly array $databaseMigrations,
         private readonly string $manifestPath,
         private readonly string $integrityHash,
     ) {
@@ -117,6 +123,18 @@ final class ModuleManifest
 
         $storageNamespaces = self::identifierList($data['storage_namespaces'] ?? [], "{$id}.storage_namespaces");
 
+        $database = $data['database'] ?? [];
+        if (!is_array($database)) {
+            throw new RuntimeException("Module {$id} database metadata must be an object");
+        }
+        $databaseTables = self::identifierList($database['tables'] ?? [], "{$id}.database.tables");
+        $databaseSchemas = self::sqlPathList($database['schemas'] ?? [], "{$id}.database.schemas", 'database/');
+        $databaseMigrations = self::sqlPathList(
+            $database['migrations'] ?? [],
+            "{$id}.database.migrations",
+            'database/migrations/'
+        );
+
         return new self(
             $id,
             $name,
@@ -131,6 +149,9 @@ final class ModuleManifest
             $runtimeMode,
             $runtimeEntrypoint,
             $storageNamespaces,
+            $databaseTables,
+            $databaseSchemas,
+            $databaseMigrations,
             $manifestPath,
             hash('sha256', $raw),
         );
@@ -208,6 +229,24 @@ final class ModuleManifest
     public function storageNamespaces(): array
     {
         return $this->storageNamespaces;
+    }
+
+    /** @return list<string> */
+    public function databaseTables(): array
+    {
+        return $this->databaseTables;
+    }
+
+    /** @return list<string> */
+    public function databaseSchemas(): array
+    {
+        return $this->databaseSchemas;
+    }
+
+    /** @return list<string> */
+    public function databaseMigrations(): array
+    {
+        return $this->databaseMigrations;
     }
 
     public function manifestPath(): string
@@ -307,6 +346,36 @@ final class ModuleManifest
         }
 
         sort($result, SORT_STRING);
+        return $result;
+    }
+
+    /** @return list<string> */
+    private static function sqlPathList(mixed $value, string $field, string $requiredPrefix): array
+    {
+        if (!is_array($value) || !array_is_list($value)) {
+            throw new InvalidArgumentException("{$field} must be a list");
+        }
+
+        $result = [];
+        foreach ($value as $entry) {
+            if (
+                !is_string($entry)
+                || $entry === ''
+                || str_starts_with($entry, '/')
+                || str_contains($entry, '..')
+                || str_contains($entry, '\\')
+                || !str_starts_with($entry, $requiredPrefix)
+                || preg_match('/^[A-Za-z0-9_.\/-]+\.sql$/D', $entry) !== 1
+            ) {
+                throw new InvalidArgumentException("{$field} contains an invalid SQL path");
+            }
+            $result[] = $entry;
+        }
+
+        if (count($result) !== count(array_unique($result))) {
+            throw new InvalidArgumentException("{$field} contains duplicate SQL paths");
+        }
+
         return $result;
     }
 }

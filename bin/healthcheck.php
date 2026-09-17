@@ -13,10 +13,23 @@ if (is_file($root . '/.env')) {
     \Core\Environment::load($root . '/.env');
 }
 require_once $root . '/core/WebSocketEndpoint.php';
+require_once $root . '/core/ModuleManifest.php';
+require_once $root . '/core/DatabaseOwnership.php';
 
 $json = in_array('--json', $argv, true);
 $checks = [];
 $failed = false;
+
+try {
+    $databaseOwnership = \Core\DatabaseOwnership::fromPackageRoot($root);
+    $packagedModules = $databaseOwnership->moduleIds();
+} catch (Throwable $e) {
+    fwrite(STDERR, 'Cannot resolve packaged module database ownership: ' . $e->getMessage() . PHP_EOL);
+    exit(1);
+}
+$hasMessenger = in_array('messenger', $packagedModules, true);
+$hasFiles = in_array('files', $packagedModules, true);
+$needsPrivateStorage = array_intersect($packagedModules, ['notes', 'files', 'messenger']) !== [];
 
 /** @param mixed $details */
 function recordHealth(array &$checks, bool &$failed, string $name, bool $ok, $details = null): void
@@ -45,7 +58,12 @@ foreach (['mysqli', 'pdo_mysql', 'mbstring', 'sodium', 'fileinfo', 'gd'] as $ext
     recordHealth($checks, $failed, 'extension_' . $extension, extension_loaded($extension));
 }
 
-foreach (['UNIQUE_KEY', 'MSG_SECRET_KEY', 'WS_TICKET_SECRET'] as $secretName) {
+$requiredSecrets = ['UNIQUE_KEY'];
+if ($hasMessenger) {
+    $requiredSecrets[] = 'MSG_SECRET_KEY';
+    $requiredSecrets[] = 'WS_TICKET_SECRET';
+}
+foreach ($requiredSecrets as $secretName) {
     $secret = envValue($secretName);
     recordHealth(
         $checks,
@@ -58,21 +76,29 @@ foreach (['UNIQUE_KEY', 'MSG_SECRET_KEY', 'WS_TICKET_SECRET'] as $secretName) {
 
 $privateStorage = envValue('PRIVATE_STORAGE_PATH');
 $privateReal = $privateStorage !== '' ? realpath($privateStorage) : false;
-$privateOk = is_string($privateReal) && is_dir($privateReal) && is_writable($privateReal);
-recordHealth($checks, $failed, 'private_storage', $privateOk, $privateStorage === '' ? 'missing' : $privateStorage);
-
-$appReal = realpath($root);
-$outsideApp = $privateOk
-    && is_string($privateReal)
-    && is_string($appReal)
-    && !pathIsInside($privateReal, $appReal);
+$privateOk = !$needsPrivateStorage || (is_string($privateReal) && is_dir($privateReal) && is_writable($privateReal));
 recordHealth(
     $checks,
     $failed,
-    'private_storage_outside_app_root',
-    $outsideApp,
-    $privateReal ?: 'unresolved'
+    'private_storage',
+    $privateOk,
+    !$needsPrivateStorage ? 'not required by packaged composition' : ($privateStorage === '' ? 'missing' : $privateStorage)
 );
+
+$appReal = realpath($root);
+if ($needsPrivateStorage) {
+    $outsideApp = $privateOk
+        && is_string($privateReal)
+        && is_string($appReal)
+        && !pathIsInside($privateReal, $appReal);
+    recordHealth(
+        $checks,
+        $failed,
+        'private_storage_outside_app_root',
+        $outsideApp,
+        $privateReal ?: 'unresolved'
+    );
+}
 
 $nodeCountRaw = envValue('DEPLOYMENT_NODE_COUNT');
 $nodeCount = $nodeCountRaw === '' ? 1 : (int) $nodeCountRaw;
@@ -84,35 +110,37 @@ recordHealth(
     $nodeCountRaw === '' ? '1 (default)' : $nodeCountRaw
 );
 
-$rateLimitStorage = envValue('RATE_LIMIT_STORAGE_PATH');
-$rateLimitReal = $rateLimitStorage !== '' ? realpath($rateLimitStorage) : false;
-$rateLimitUsesPrivate = $rateLimitStorage === '';
-$rateLimitResolved = $rateLimitUsesPrivate ? $privateReal : $rateLimitReal;
-$rateLimitOk = is_string($rateLimitResolved) && is_dir($rateLimitResolved) && is_writable($rateLimitResolved);
-if ($nodeCount > 1 && $rateLimitUsesPrivate) {
-    $rateLimitOk = false;
-}
-recordHealth(
-    $checks,
-    $failed,
-    'rate_limit_storage',
-    $rateLimitOk,
-    $nodeCount > 1 && $rateLimitUsesPrivate
-        ? 'multi-node requires explicit shared RATE_LIMIT_STORAGE_PATH'
-        : ($rateLimitUsesPrivate ? 'PRIVATE_STORAGE_PATH (single-node default)' : $rateLimitStorage)
-);
-
-if (!$rateLimitUsesPrivate) {
-    $rateLimitOutsideApp = is_string($rateLimitReal)
-        && is_string($appReal)
-        && !pathIsInside($rateLimitReal, $appReal);
+if ($needsPrivateStorage) {
+    $rateLimitStorage = envValue('RATE_LIMIT_STORAGE_PATH');
+    $rateLimitReal = $rateLimitStorage !== '' ? realpath($rateLimitStorage) : false;
+    $rateLimitUsesPrivate = $rateLimitStorage === '';
+    $rateLimitResolved = $rateLimitUsesPrivate ? $privateReal : $rateLimitReal;
+    $rateLimitOk = is_string($rateLimitResolved) && is_dir($rateLimitResolved) && is_writable($rateLimitResolved);
+    if ($nodeCount > 1 && $rateLimitUsesPrivate) {
+        $rateLimitOk = false;
+    }
     recordHealth(
         $checks,
         $failed,
-        'rate_limit_storage_outside_app_root',
-        $rateLimitOutsideApp,
-        $rateLimitReal ?: 'unresolved'
+        'rate_limit_storage',
+        $rateLimitOk,
+        $nodeCount > 1 && $rateLimitUsesPrivate
+            ? 'multi-node requires explicit shared RATE_LIMIT_STORAGE_PATH'
+            : ($rateLimitUsesPrivate ? 'PRIVATE_STORAGE_PATH (single-node default)' : $rateLimitStorage)
     );
+
+    if (!$rateLimitUsesPrivate) {
+        $rateLimitOutsideApp = is_string($rateLimitReal)
+            && is_string($appReal)
+            && !pathIsInside($rateLimitReal, $appReal);
+        recordHealth(
+            $checks,
+            $failed,
+            'rate_limit_storage_outside_app_root',
+            $rateLimitOutsideApp,
+            $rateLimitReal ?: 'unresolved'
+        );
+    }
 }
 
 $trustedProxyValues = array_values(array_filter(array_map('trim', explode(',', envValue('TRUSTED_PROXY_IPS')))));
@@ -133,79 +161,57 @@ recordHealth(
 
 $siteUrl = envValue('SITEURL');
 $siteScheme = strtolower((string) parse_url($siteUrl, PHP_URL_SCHEME));
-try {
-    $siteUrl = \Core\WebSocketEndpoint::siteUrl();
-    $siteScheme = strtolower((string) parse_url($siteUrl, PHP_URL_SCHEME));
-    recordHealth($checks, $failed, 'site_url', true, $siteUrl);
+if ($hasMessenger) {
+    try {
+        $siteUrl = \Core\WebSocketEndpoint::siteUrl();
+        $siteScheme = strtolower((string) parse_url($siteUrl, PHP_URL_SCHEME));
+        recordHealth($checks, $failed, 'site_url', true, $siteUrl);
 
-    $wsPublicUrl = \Core\WebSocketEndpoint::publicUrl();
-    recordHealth($checks, $failed, 'websocket_url', true, $wsPublicUrl);
+        $wsPublicUrl = \Core\WebSocketEndpoint::publicUrl();
+        recordHealth($checks, $failed, 'websocket_url', true, $wsPublicUrl);
 
-    $wsBindHost = \Core\WebSocketEndpoint::bindHost();
-    $wsPort = \Core\WebSocketEndpoint::port();
+        $wsBindHost = \Core\WebSocketEndpoint::bindHost();
+        $wsPort = \Core\WebSocketEndpoint::port();
+        recordHealth($checks, $failed, 'websocket_listener', true, sprintf('tcp://%s:%d', $wsBindHost, $wsPort));
+
+        if (\Core\WebSocketEndpoint::usesSameOriginProxy()) {
+            recordHealth(
+                $checks,
+                $failed,
+                'websocket_proxy_contract',
+                true,
+                \Core\WebSocketEndpoint::proxyPath() . ' -> ' . \Core\WebSocketEndpoint::proxyBackendUrl()
+                    . ' (verify reachability with php bin/ws_doctor.php)'
+            );
+        } else {
+            recordHealth($checks, $failed, 'websocket_proxy_contract', true, 'custom/external public WebSocket endpoint');
+        }
+    } catch (Throwable $e) {
+        recordHealth($checks, $failed, 'site_url', false, $siteUrl !== '' ? $siteUrl : 'missing');
+        recordHealth($checks, $failed, 'websocket_url', false, $e->getMessage());
+    }
+
+    $origins = array_values(array_filter(array_map('trim', explode(',', envValue('WS_ALLOWED_ORIGINS')))));
+    $originsOk = $origins !== [];
+    foreach ($origins as $origin) {
+        $scheme = strtolower((string) parse_url($origin, PHP_URL_SCHEME));
+        if (!in_array($scheme, ['http', 'https'], true) || ($siteScheme === 'https' && $scheme !== 'https')) {
+            $originsOk = false;
+            break;
+        }
+    }
     recordHealth(
         $checks,
         $failed,
-        'websocket_listener',
-        true,
-        sprintf('tcp://%s:%d', $wsBindHost, $wsPort)
+        'websocket_allowed_origins',
+        $originsOk,
+        $origins === [] ? 'missing' : implode(', ', $origins)
     );
-
-    if (\Core\WebSocketEndpoint::usesSameOriginProxy()) {
-        recordHealth(
-            $checks,
-            $failed,
-            'websocket_proxy_contract',
-            true,
-            \Core\WebSocketEndpoint::proxyPath() . ' -> ' . \Core\WebSocketEndpoint::proxyBackendUrl()
-                . ' (verify reachability with php bin/ws_doctor.php)'
-        );
-    } else {
-        recordHealth(
-            $checks,
-            $failed,
-            'websocket_proxy_contract',
-            true,
-            'custom/external public WebSocket endpoint'
-        );
-    }
-} catch (Throwable $e) {
-    recordHealth($checks, $failed, 'site_url', false, $siteUrl !== '' ? $siteUrl : 'missing');
-    recordHealth($checks, $failed, 'websocket_url', false, $e->getMessage());
+} else {
+    recordHealth($checks, $failed, 'messenger_websocket', true, 'not required by packaged composition');
 }
 
-$origins = array_values(array_filter(array_map('trim', explode(',', envValue('WS_ALLOWED_ORIGINS')))));
-$originsOk = $origins !== [];
-foreach ($origins as $origin) {
-    $scheme = strtolower((string) parse_url($origin, PHP_URL_SCHEME));
-    if (!in_array($scheme, ['http', 'https'], true)) {
-        $originsOk = false;
-        break;
-    }
-    if ($siteScheme === 'https' && $scheme !== 'https') {
-        $originsOk = false;
-        break;
-    }
-}
-recordHealth(
-    $checks,
-    $failed,
-    'websocket_allowed_origins',
-    $originsOk,
-    $origins === [] ? 'missing' : implode(', ', $origins)
-);
-
-$requiredTables = [
-    'users', 'dialogs', 'user_to_dialogs', 'messages', 'message_user_deletions',
-    'messenger_attachments', 'message_reactions',
-    'notes', 'note_attachments', 'shared_notes', 'note_history', 'note_tags', 'note_tag_relations',
-    'user_files', 'user_fields',
-    'tasks', 'subtasks', 'task_categories', 'task_category_relations', 'task_reminders',
-    'task_boards', 'task_board_members', 'task_board_items', 'task_board_assignees',
-    'system_settings', 'user_storage_quotas',
-    'roles', 'permissions', 'role_permissions', 'user_roles', 'role_module_policies',
-    'module_lifecycle',
-];
+$requiredTables = $databaseOwnership->tables();
 
 try {
     mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
@@ -244,7 +250,7 @@ try {
         $missing === [] ? count($requiredTables) . ' required tables present' : 'missing: ' . implode(', ', $missing)
     );
 
-    if ($missing === []) {
+    if ($missing === [] && $hasFiles) {
         $quotaSeed = $db->query(
             "SELECT setting_value FROM system_settings WHERE setting_key='file_manager_default_quota_bytes' LIMIT 1"
         )->fetch_row();
@@ -265,6 +271,7 @@ try {
 if ($json) {
     echo json_encode([
         'status' => $failed ? 'fail' : 'ok',
+        'packaged_modules' => $packagedModules,
         'checks' => $checks,
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
 } else {

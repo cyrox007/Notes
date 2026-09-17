@@ -61,7 +61,10 @@ jobs:
           grep -Fq "'installation_id'" database/settings_schema.sql
           grep -Fq "'workspace_license_token'" database/settings_schema.sql
           grep -Fq "'installation_id'" database/migrations/20260915_installation_license.sql
-          grep -Fq '20260915_installation_license.sql' bin/migrate.php
+          grep -Fq '20260915_installation_license.sql' database/migrations/manifest.json
+          grep -Fq 'MigrationManifest' bin/migrate.php
+          grep -Fq 'DatabaseOwnership' bin/migrate.php
+          ! grep -Fq '$manifest = [' bin/migrate.php
           grep -Fq "'/license'" modules/admin/AdminRuntimeProvider.php
           grep -Fq "'/license/activate'" modules/admin/AdminRuntimeProvider.php
           grep -Fq "'/license/clear'" modules/admin/AdminRuntimeProvider.php
