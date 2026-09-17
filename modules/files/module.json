@@ -24,5 +24,19 @@
   },
   "storage_namespaces": [
     "file_manager"
-  ]
+  ],
+  "database": {
+    "tables": [
+      "user_files",
+      "user_storage_quotas"
+    ],
+    "schemas": [
+      "database/file_manager_schema.sql",
+      "database/file_storage_quota_schema.sql"
+    ],
+    "migrations": [
+      "database/migrations/20260914_storage_quota_legacy_reconcile.sql",
+      "database/migrations/20260913_system_settings_storage_quota.sql"
+    ]
+  }
 }
