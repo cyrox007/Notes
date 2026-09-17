@@ -97,7 +97,10 @@
                 const next = this.value;
                 if (next === previous) return;
 
-                emitTaskStatus(this.dataset.taskId, next, previous);
+                const uiAlreadySynced = this.dataset.uiSynced === '1';
+                delete this.dataset.uiSynced;
+                if (!uiAlreadySynced) emitTaskStatus(this.dataset.taskId, next, previous);
+
                 this.disabled = true;
                 markSaveState(this, 'saving');
                 try {
