@@ -1,0 +1,136 @@
+name: One-shot Files isolation migration
+
+on:
+  push:
+    branches: ['1.0-module-files-isolation']
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 1.0-module-files-isolation
+          fetch-depth: 0
+      - name: Move Files product runtime behind module boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p modules/files/{controllers,models,services,middlewares,views,assets}
+
+          git mv app/controllers/FileController.php modules/files/controllers/FileController.php
+          git mv app/controllers/FileDeleteController.php modules/files/controllers/FileDeleteController.php
+          git mv app/controllers/FileQuotaController.php modules/files/controllers/FileQuotaController.php
+          git mv app/models/FileModel.php modules/files/models/FileModel.php
+          git mv app/services/FileLifecycleService.php modules/files/services/FileLifecycleService.php
+          git mv app/middlewares/RequireFilesUse.php modules/files/middlewares/RequireFilesUse.php
+          git mv app/middlewares/EnforceFileUploadPolicy.php modules/files/middlewares/EnforceFileUploadPolicy.php
+          git mv app/middlewares/EnforceFileFolderPolicy.php modules/files/middlewares/EnforceFileFolderPolicy.php
+          git mv app/views/file_manager/index.php modules/files/views/index.php
+          git mv app/views/file_manager/style.css modules/files/assets/style.css
+          git mv assets/css/file-manager-polish.css modules/files/assets/polish.css
+          git mv assets/js/file-manager-polish.js modules/files/assets/polish.js
+          git mv assets/js/file-manager-drop-upload.js modules/files/assets/drop-upload.js
+          git mv assets/js/file_manager/script.js modules/files/assets/script.js
+          git mv assets/js/file_manager/quota.js modules/files/assets/quota.js
+
+          rm -f app/views/file_manager/index.tpl
+          rm -f assets/css/file_manager/style.css assets/css/file_manager/quota.css
+          rmdir assets/css/file_manager 2>/dev/null || true
+          rmdir assets/js/file_manager 2>/dev/null || true
+          rmdir app/views/file_manager 2>/dev/null || true
+
+          python3 <<'PY'
+          import json, re
+          from pathlib import Path
+
+          controller = Path('modules/files/controllers/FileController.php')
+          text = controller.read_text(encoding='utf-8')
+          text = text.replace("render_template('file_manager/index'", "render_template('@files/index'")
+          controller.write_text(text, encoding='utf-8')
+
+          view = Path('modules/files/views/index.php')
+          text = view.read_text(encoding='utf-8')
+          text = re.sub(r'\n<script src="<\?= \$view->e\(\$baseUrl\) \?>/assets/js/file_manager/(?:script|quota)\.js"></script>', '', text)
+          marker = "    'socket_url' => $socket_url ?? '',\n"
+          addition = marker + "    'module_styles' => [\n        $view->moduleAsset('files', 'style.css'),\n        $view->moduleAsset('files', 'polish.css'),\n    ],\n    'module_scripts' => [\n        $view->moduleAsset('files', 'script.js'),\n        $view->moduleAsset('files', 'quota.js'),\n        $view->moduleAsset('files', 'polish.js'),\n        $view->moduleAsset('files', 'drop-upload.js'),\n    ],\n"
+          if marker not in text:
+              raise SystemExit('Files view layout marker not found')
+          text = text.replace(marker, addition, 1)
+          view.write_text(text, encoding='utf-8')
+
+          base = Path('app/views/core/base.php')
+          text = base.read_text(encoding='utf-8')
+          for line in [
+              "    'file_manager/style.css',\n",
+              "    <link rel=\"stylesheet\" href=\"<?= $view->e($baseUrl) ?>/assets/css/file-manager-polish.css\">\n",
+              "    <script src=\"<?= $view->e($baseUrl) ?>/assets/js/file-manager-polish.js\" defer></script>\n",
+              "    <script src=\"<?= $view->e($baseUrl) ?>/assets/js/file-manager-drop-upload.js\" defer></script>\n",
+          ]:
+              text = text.replace(line, '')
+          base.write_text(text, encoding='utf-8')
+
+          router = Path('core/routerConfig.php')
+          text = router.read_text(encoding='utf-8')
+          for line in [
+              'use App\\Controllers\\FileController;\n',
+              'use App\\Controllers\\FileDeleteController;\n',
+              'use App\\Controllers\\FileQuotaController;\n',
+              'use App\\Middlewares\\RequireFilesUse;\n',
+              'use App\\Middlewares\\EnforceFileUploadPolicy;\n',
+              'use App\\Middlewares\\EnforceFileFolderPolicy;\n',
+          ]:
+              text = text.replace(line, '')
+          text, count = re.subn(r"\n\$router->group\('/files'\).*?\n\s*->endGroup\(\);\n", '\n', text, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit('Files route block not found')
+          router.write_text(text, encoding='utf-8')
+
+          manifest = Path('modules/files/module.json')
+          data = json.loads(manifest.read_text(encoding='utf-8'))
+          data['runtime'] = {'mode': 'isolated', 'entrypoint': 'runtime.php'}
+          manifest.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          contract = Path('tests/integration/module_registry_contract.php')
+          text = contract.read_text(encoding='utf-8')
+          text = text.replace("$isolated = ['notes', 'tasks'];", "$isolated = ['files', 'notes', 'tasks'];")
+          text = text.replace(
+              "moduleAssert($registry->resolveComposition(['notes', 'tasks']) === ['notes', 'tasks'], 'isolated composition order drifted');",
+              "moduleAssert($registry->resolveComposition(['files', 'notes', 'tasks']) === ['files', 'notes', 'tasks'], 'isolated composition order drifted');"
+          )
+          contract.write_text(text, encoding='utf-8')
+
+          native = Path('tests/integration/native_file_manager_contract.php')
+          text = native.read_text(encoding='utf-8')
+          text = text.replace("$path = $root . '/app/views/file_manager/index.php';", "$path = $root . '/modules/files/views/index.php';")
+          text = text.replace("str_contains($source, '/assets/js/file_manager/script.js')", "str_contains($source, \"moduleAsset('files', 'script.js')\")")
+          text = text.replace("str_contains($source, '/assets/js/file_manager/quota.js')", "str_contains($source, \"moduleAsset('files', 'quota.js')\")")
+          text = text.replace("'file manager behavior bundle was dropped'", "'Files module behavior asset was dropped'")
+          text = text.replace("'file quota behavior bundle was dropped'", "'Files module quota asset was dropped'")
+          native.write_text(text, encoding='utf-8')
+          PY
+
+          php -l modules/files/runtime.php
+          find modules/files -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          php -l core/routerConfig.php
+          php -l app/views/core/base.php
+          php -l tests/integration/native_file_manager_contract.php
+          php tests/integration/native_file_manager_contract.php
+          php tests/integration/module_registry_contract.php
+
+      - name: Commit migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A -- ':!.github/workflows'
+          if git diff --cached --quiet; then
+            echo 'Files migration already applied.'
+            exit 0
+          fi
+          git commit -m 'refactor: isolate Files module runtime'
+          git push origin HEAD:1.0-module-files-isolation
