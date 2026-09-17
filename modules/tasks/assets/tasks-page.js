@@ -52,6 +52,13 @@
             });
         }
 
+        function emitTaskStatus(taskUid, nextStatus, previousStatus) {
+            if (!taskUid || !nextStatus || nextStatus === previousStatus) return;
+            root.dispatchEvent(new CustomEvent('tasks:status-change', {
+                detail: { taskUid, nextStatus, previousStatus }
+            }));
+        }
+
         function syncSubtaskProgress(toggle) {
             const container = toggle?.closest('.task-subtasks');
             if (!container) return;
@@ -88,6 +95,9 @@
             toggle.addEventListener('change', async function () {
                 const previous = this.dataset.previousValue || this.defaultValue || 'pending';
                 const next = this.value;
+                if (next === previous) return;
+
+                emitTaskStatus(this.dataset.taskId, next, previous);
                 this.disabled = true;
                 markSaveState(this, 'saving');
                 try {
@@ -96,13 +106,10 @@
                     markSaveState(this, 'saved');
                 } catch (error) {
                     this.value = previous;
+                    this.dataset.previousValue = previous;
+                    emitTaskStatus(this.dataset.taskId, previous, next);
                     markSaveState(this, 'error');
-                    // The Kanban layer applies the optimistic visual state. Reload
-                    // only on failure to restore the authoritative server state;
-                    // successful interactions must remain in-place and tactile.
                     window.alert(`Не удалось изменить статус: ${error.message}`);
-                    window.location.reload();
-                    return;
                 } finally {
                     this.disabled = false;
                 }
@@ -111,18 +118,25 @@
 
         root.querySelectorAll('.task-complete-toggle').forEach((toggle) => {
             toggle.addEventListener('change', async function () {
+                const task = taskItemFor(this);
+                const statusSelect = task?.querySelector('.task-status-toggle');
+                const previous = task?.dataset.status || statusSelect?.value || (this.checked ? 'pending' : 'completed');
                 const targetStatus = this.checked ? 'completed' : 'pending';
+                if (targetStatus === previous) return;
+
+                emitTaskStatus(this.dataset.taskId, targetStatus, previous);
                 this.disabled = true;
                 markSaveState(this, 'saving');
                 try {
                     await updateTaskStatus(this.dataset.taskId, targetStatus);
+                    if (statusSelect) statusSelect.dataset.previousValue = targetStatus;
                     markSaveState(this, 'saved');
                 } catch (error) {
-                    this.checked = !this.checked;
+                    this.checked = previous === 'completed';
+                    if (statusSelect) statusSelect.dataset.previousValue = previous;
+                    emitTaskStatus(this.dataset.taskId, previous, targetStatus);
                     markSaveState(this, 'error');
                     window.alert(`Не удалось изменить задачу: ${error.message}`);
-                    window.location.reload();
-                    return;
                 } finally {
                     this.disabled = false;
                 }
