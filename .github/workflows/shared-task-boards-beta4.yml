@@ -6,6 +6,7 @@ on:
     paths:
       - 'modules/tasks/**'
       - 'modules/notes/**'
+      - 'modules/messenger/**'
       - 'app/services/PermissionService.php'
       - 'app/services/RolePolicyService.php'
       - 'database/task_boards_schema.sql'
@@ -17,6 +18,8 @@ on:
     branches: ['1.0']
     paths:
       - 'modules/tasks/**'
+      - 'modules/notes/**'
+      - 'modules/messenger/**'
       - 'tests/integration/task_board_beta4_mysql.sh'
 
 permissions:
@@ -59,9 +62,9 @@ jobs:
           php -l modules/notes/middlewares/EnforceNoteCreatePolicy.php
           php -l modules/notes/middlewares/EnforceNoteAttachmentPolicy.php
           php -l modules/notes/middlewares/EnforceNoteSharePolicy.php
-          php -l app/middlewares/EnforceMessengerUploadPolicy.php
-          php -l app/socket/MessangerSocket.php
-          php -l app/socket/GroupSocket.php
+          php -l modules/messenger/middlewares/EnforceMessengerUploadPolicy.php
+          php -l modules/messenger/socket/MessangerSocket.php
+          php -l modules/messenger/socket/GroupSocket.php
           php -l core/routerConfig.php
 
       - name: Run shared board ACL and role-policy contract

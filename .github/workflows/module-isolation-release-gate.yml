@@ -12,6 +12,7 @@ on:
       - 'ws_server/**'
       - 'tests/integration/native_*_contract.php'
       - 'tests/integration/module_registry_contract.php'
+      - 'tests/integration/module_runtime_composition_contract.php'
       - '.github/workflows/module-isolation-release-gate.yml'
   push:
     branches: ['1.0']
@@ -24,6 +25,7 @@ on:
       - 'ws_server/**'
       - 'tests/integration/native_*_contract.php'
       - 'tests/integration/module_registry_contract.php'
+      - 'tests/integration/module_runtime_composition_contract.php'
 
 permissions:
   contents: read
@@ -44,6 +46,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          php -l core/RuntimeAutoloader.php
+          php -l core/ProfileContentProvider.php
+          php -l core/AccountDeactivationGuard.php
           php -l core/ModuleManifest.php
           php -l core/ModuleRuntimeProvider.php
           php -l core/ModuleCapabilityRegistry.php
@@ -52,7 +57,9 @@ jobs:
           php -l core/routerConfig.php
           php -l core.php
           php -l index.php
+          php -l ws_server/server.php
           php -l tests/integration/module_registry_contract.php
+          php -l tests/integration/module_runtime_composition_contract.php
           for contract in \
             native_notes_contract.php \
             native_tasks_contract.php \
@@ -65,6 +72,13 @@ jobs:
           find modules/notes modules/tasks modules/files modules/profile modules/admin modules/messenger -type f -name '*.php' -print0 | xargs -0 -n1 php -l
       - name: Verify registry contract
         run: php tests/integration/module_registry_contract.php
+      - name: Verify full, core-only and exclusion compositions
+        shell: bash
+        run: |
+          set -euo pipefail
+          for exclude in '' core-only admin files messenger notes profile tasks; do
+            MODULE_EXCLUDE="$exclude" php tests/integration/module_runtime_composition_contract.php
+          done
       - name: Verify native module ownership contracts
         shell: bash
         run: |
@@ -111,6 +125,11 @@ jobs:
             mode="$(php -r '$j=json_decode(file_get_contents($argv[1]), true, 32, JSON_THROW_ON_ERROR); echo $j["runtime"]["mode"] ?? "";' "$manifest")"
             test "$mode" != 'legacy'
           done
+          ! grep -Fq 'loadDirectoryFiles' core.php
+          ! grep -Fq 'RecursiveDirectoryIterator' core.php
+          grep -Fq 'RuntimeAutoloader::register' core.php
+          ! grep -Fq 'WORKSPACE_DEFER_MODULE_LIFECYCLE' ws_server/server.php
+          grep -Fq "providers()['messenger']" ws_server/server.php
           ! grep -Fq 'MessengerController' core/routerConfig.php
           ! grep -Fq 'MessagerController' core/routerConfig.php
           grep -Fq "render_template('@messenger/index'" modules/messenger/controllers/MessagerController.php
