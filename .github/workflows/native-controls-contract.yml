@@ -1,0 +1,70 @@
+name: 1.0 native controls contract
+
+on:
+  pull_request:
+    branches: ['1.0']
+    paths:
+      - 'app/views/core/base.php'
+      - 'app/views/core/controls.css'
+      - 'app/views/^elements/UI/FormInput/style.css'
+      - 'app/views/profile_page/index.php'
+      - 'app/views/profile_page/style.css'
+      - 'modules/profile/views/**'
+      - 'modules/profile/assets/**'
+      - 'tests/integration/native_controls_contract.php'
+      - '.github/workflows/native-controls-contract.yml'
+  push:
+    branches: ['1.0']
+    paths:
+      - 'app/views/core/base.php'
+      - 'app/views/core/controls.css'
+      - 'app/views/^elements/UI/FormInput/style.css'
+      - 'app/views/profile_page/index.php'
+      - 'app/views/profile_page/style.css'
+      - 'modules/profile/views/**'
+      - 'modules/profile/assets/**'
+      - 'tests/integration/native_controls_contract.php'
+      - '.github/workflows/native-controls-contract.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  native-controls:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.1', '8.3']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - name: Lint native control boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROFILE_INDEX='app/views/profile_page/index.php'
+          if [ -f 'modules/profile/views/index.php' ]; then
+            PROFILE_INDEX='modules/profile/views/index.php'
+          fi
+          php -l app/views/core/base.php
+          php -l "$PROFILE_INDEX"
+          php -l tests/integration/native_controls_contract.php
+      - name: Verify shared control migration
+        run: php tests/integration/native_controls_contract.php
+      - name: Verify legacy layer and module ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROFILE_STYLE='app/views/profile_page/style.css'
+          if [ -f 'modules/profile/assets/style.css' ]; then
+            PROFILE_STYLE='modules/profile/assets/style.css'
+          fi
+          ! grep -Fq "'^elements/UI/FormInput/style.css'" app/views/core/base.php
+          grep -Fq "'/core/controls.css'" app/views/core/base.php
+          grep -Fq -- '--control-height: 44px' app/views/core/controls.css
+          ! grep -Fq '.profile__card-info--edit--set-input' app/views/core/controls.css
+          grep -Fq '.profile__card-info--edit--set-input' "$PROFILE_STYLE"
