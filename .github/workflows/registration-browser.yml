@@ -54,8 +54,8 @@ jobs:
         run: |
           set -euo pipefail
           php -l app/controllers/AuthController.php
-          php -l app/controllers/Admin/UserProvisioningController.php
-          php -l app/controllers/Admin/RegistrationSettingsController.php
+          php -l modules/admin/controllers/UserProvisioningController.php
+          php -l modules/admin/controllers/RegistrationSettingsController.php
           php -l app/services/UserProvisioningService.php
           php -l app/services/RegistrationPolicyService.php
           php -l tests/e2e/router.php

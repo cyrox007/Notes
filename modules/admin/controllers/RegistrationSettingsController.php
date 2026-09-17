@@ -36,7 +36,7 @@ final class RegistrationSettingsController extends Controller
 
         $flash = $request->session('registration_flash');
         $request->unsetSession('registration_flash');
-        $this->render_template('admin-page/registration', [
+        $this->render_template('@admin/registration', [
             'user' => $user,
             'registration_mode' => $mode,
             'registration_invites' => $invites,

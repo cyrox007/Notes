@@ -196,4 +196,10 @@ echo $view->layout('core/base', [
     'workspaceAccess' => $access,
     'socket_ticket' => $socket_ticket ?? '',
     'socket_url' => $socket_url ?? '',
+    'module_styles' => [
+        $view->moduleAsset('admin', 'style.css'),
+    ],
+    'module_scripts' => [
+        $view->moduleAsset('admin', 'admin-settings-nav.js'),
+    ],
 ], $content);

@@ -37,7 +37,6 @@
 	<script src="{$base_url}/assets/js/tasks-kanban.js" defer></script>
 	<script src="{$base_url}/assets/js/task-boards-nav.js" defer></script>
 	<script src="{$base_url}/assets/js/messenger-connection-ux.js" defer></script>
-	<script src="{$base_url}/assets/js/admin-settings-nav.js" defer></script>
 </head>
 
 <body{if isset($pagination)}

@@ -15,7 +15,7 @@ use DomainException;
 use InvalidArgumentException;
 use RuntimeException;
 
-$updateCoreRoot = dirname(__DIR__, 2);
+$updateCoreRoot = dirname(__DIR__, 3);
 require_once $updateCoreRoot . '/core/UpdateManifestVerifier.php';
 require_once $updateCoreRoot . '/core/UpdatePackageStager.php';
 require_once $updateCoreRoot . '/core/UpdateArchiveInspector.php';
@@ -44,7 +44,7 @@ final class AdminUpdateService
         ?UpdateManifestVerifier $verifier = null,
         ?UpdateRemoteTransport $transport = null
     ) {
-        $root = realpath(dirname(__DIR__, 2));
+        $root = realpath(dirname(__DIR__, 3));
         if (!is_string($root) || !is_dir($root)) {
             throw new RuntimeException('Не удалось определить корень приложения для проверки обновлений');
         }

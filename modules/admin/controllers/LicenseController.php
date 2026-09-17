@@ -24,7 +24,7 @@ final class LicenseController extends Controller
         $flash = $request->session('license_flash');
         $request->unsetSession('license_flash');
 
-        $this->render_template('admin-page/license', [
+        $this->render_template('@admin/license', [
             'user' => $user,
             'license' => (new LicenseService())->snapshot($actorId),
             'license_flash' => is_array($flash) ? $flash : null,

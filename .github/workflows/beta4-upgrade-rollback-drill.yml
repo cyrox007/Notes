@@ -292,7 +292,7 @@ jobs:
           grep -Fq '"status": "committed"' "$DRILL/success-bootstrap.json"
           test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.0'
           test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10000'
-          test -f "$LIVE/app/services/AdminUpdateService.php"
+          test -f "$LIVE/modules/admin/services/AdminUpdateService.php"
           test -f "$LIVE/bin/update_apply.php"
           test -f "$LIVE/bin/update_bootstrap.php"
           test -f "$LIVE/vendor/autoload.php"
@@ -337,7 +337,7 @@ jobs:
 
           test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '0.14.0-beta.4'
           test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '1404'
-          test ! -e "$LIVE/app/services/AdminUpdateService.php"
+          test ! -e "$LIVE/modules/admin/services/AdminUpdateService.php"
           test ! -e "$LIVE/bin/update_apply.php"
           test -f "$LIVE/vendor/autoload.php"
 

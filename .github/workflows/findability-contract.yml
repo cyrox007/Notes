@@ -34,8 +34,8 @@ jobs:
           php -l app/services/ListQuery.php
           php -l app/controllers/NoteController.php
           php -l app/controllers/TaskController.php
-          php -l app/controllers/Admin/AdminController.php
-          php -l app/services/AdminUserService.php
+          php -l modules/admin/controllers/AdminController.php
+          php -l modules/admin/services/AdminUserService.php
           node --check assets/js/findability.js
           php tests/integration/list_query_contract.php
 
@@ -47,6 +47,6 @@ jobs:
           grep -Fq "LIMIT ' . (int) \$query['limit']" app/controllers/NoteController.php
           grep -Fq "SELECT COUNT(*) FROM tasks" app/controllers/TaskController.php
           grep -Fq "LIMIT ' . (int) \$query['limit']" app/controllers/TaskController.php
-          grep -Fq 'public function searchUsers' app/services/AdminUserService.php
-          grep -Fq "' LIMIT ' . \$limit . ' OFFSET ' . \$offset" app/services/AdminUserService.php
+          grep -Fq 'public function searchUsers' modules/admin/services/AdminUserService.php
+          grep -Fq "' LIMIT ' . \$limit . ' OFFSET ' . \$offset" modules/admin/services/AdminUserService.php
           grep -Fq 'data-list-total-pages' app/views/core/base.tpl

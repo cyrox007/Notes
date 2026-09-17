@@ -41,10 +41,10 @@ jobs:
       - name: Lint Beta 4 role policy runtime
         run: |
           php -l app/services/RolePolicyService.php
-          php -l app/services/RoleManagementService.php
-          php -l app/controllers/Admin/RoleManagementController.php
-          php -l app/controllers/Admin/AdminController.php
-          php -l app/middlewares/RequireAdminRolesManage.php
+          php -l modules/admin/services/RoleManagementService.php
+          php -l modules/admin/controllers/RoleManagementController.php
+          php -l modules/admin/controllers/AdminController.php
+          php -l modules/admin/middlewares/RequireAdminRolesManage.php
           php -l app/middlewares/RequireNotesUse.php
           php -l app/middlewares/RequireTasksUse.php
           php -l app/middlewares/RequireFilesUse.php
@@ -63,16 +63,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq "route_path name='admin_roles'" app/views/admin-page/index.tpl
-          grep -Fq '$canManageRoles' app/views/admin-page/index.tpl
-          grep -Fq "hasPermission(\$actorId, 'admin.roles.manage')" app/controllers/Admin/AdminController.php
-          grep -Fq "route_path name='admin_roles_policies'" app/views/admin-page/roles.tpl
-          grep -Fq '$role.permission_items' app/views/admin-page/roles.tpl
-          grep -Fq '$role.policy_sections' app/views/admin-page/roles.tpl
-          grep -Fq '$listedUser.role_choices' app/views/admin-page/roles.tpl
-          grep -Fq "permission_codes[]" app/views/admin-page/roles.tpl
-          grep -Fq "policies[" app/views/admin-page/roles.tpl
-          grep -Fq "role_ids[]" app/views/admin-page/roles.tpl
+          grep -Fq "route('admin_roles')" modules/admin/views/index.php
+          grep -Fq '$canManageRoles' modules/admin/views/index.php
+          grep -Fq "hasPermission(\$actorId, 'admin.roles.manage')" modules/admin/controllers/AdminController.php
+          grep -Fq "route('admin_roles_policies')" modules/admin/views/roles.php
+          grep -Fq "['permission_items']" modules/admin/views/roles.php
+          grep -Fq "['policy_sections']" modules/admin/views/roles.php
+          grep -Fq "['role_choices']" modules/admin/views/roles.php
+          grep -Fq "permission_codes[]" modules/admin/views/roles.php
+          grep -Fq "policies[" modules/admin/views/roles.php
+          grep -Fq "role_ids[]" modules/admin/views/roles.php
           grep -Fq "RequireNotesUse::class" core/routerConfig.php
           grep -Fq "RequireTasksUse::class" core/routerConfig.php
           grep -Fq "RequireFilesUse::class" core/routerConfig.php
