@@ -103,11 +103,15 @@
             if (!task || !STATUS_LABELS[nextStatus]) return;
             const previous = previousStatus || statusOf(task);
             task.dataset.status = nextStatus;
+
+            const select = task.querySelector('.task-status-toggle');
+            if (select) select.value = nextStatus;
             const label = task.querySelector('.task-status-label');
             if (label) label.textContent = STATUS_LABELS[nextStatus];
             const complete = task.querySelector('.task-complete-toggle');
             if (complete) complete.checked = nextStatus === 'completed';
             task.querySelector('.task-title')?.classList.toggle('completed', nextStatus === 'completed');
+
             shiftStats(previous, nextStatus, task);
             if (activeView === 'board') {
                 moveTaskToBoard(task);
@@ -173,6 +177,13 @@
             if (button) renderView(button.dataset.view);
         });
 
+        root.addEventListener('tasks:status-change', (event) => {
+            const detail = event.detail || {};
+            const task = tasks.find((candidate) => candidate.dataset.taskId === detail.taskUid);
+            if (!task) return;
+            syncTaskStatus(task, detail.nextStatus, detail.previousStatus);
+        });
+
         for (const task of tasks) {
             task.draggable = false;
             task.dataset.status = task.dataset.status || task.querySelector('.task-status-toggle')?.value || 'pending';
@@ -188,24 +199,6 @@
                 handle.innerHTML = '<i class="fa fa-bars" aria-hidden="true"></i>';
                 header.prepend(handle);
             }
-
-            const select = task.querySelector('.task-status-toggle');
-            select?.addEventListener('change', () => {
-                const previous = select.dataset.previousValue || task.dataset.status || 'pending';
-                syncTaskStatus(task, select.value, previous);
-                select.dataset.previousValue = select.value;
-            });
-
-            task.querySelector('.task-complete-toggle')?.addEventListener('change', (event) => {
-                const previous = task.dataset.status || 'pending';
-                const next = event.currentTarget.checked ? 'completed' : 'pending';
-                const statusSelect = task.querySelector('.task-status-toggle');
-                if (statusSelect) {
-                    statusSelect.value = next;
-                    statusSelect.dataset.previousValue = next;
-                }
-                syncTaskStatus(task, next, previous);
-            });
 
             task.querySelectorAll('.subtask-toggle').forEach((toggle) => {
                 toggle.addEventListener('change', () => updateSubtaskProgress(toggle));
