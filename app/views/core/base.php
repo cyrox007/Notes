@@ -29,15 +29,12 @@ $styleFiles = [
     'core/license-readonly.css',
     '^shared/sidebar/style.css',
     '^shared/header/style.css',
-    'profile_page/style.css',
     'messager_page/style.css',
     'admin-page/style.css',
     'admin-page/license.css',
     '^shared/footer/style.css',
     'core/theme-refresh.css',
     'core/product-ux-013.css',
-    'profile_page/hub.css',
-    'profile_page/metrics.css',
 ];
 $viewRoot = dirname(__DIR__);
 $runtimeConfig = json_encode([
