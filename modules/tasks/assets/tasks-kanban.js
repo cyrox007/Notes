@@ -80,17 +80,17 @@
             if (node) node.textContent = String(Math.max(0, value));
         }
 
-        function shiftStats(previous, next, task) {
-            if (previous === next) return;
+        function shiftStats(previous, nextStatus, task) {
+            if (previous === nextStatus) return;
             if (['pending', 'in_progress', 'completed'].includes(previous)) {
                 writeStat(previous, readStat(previous) - 1);
             }
-            if (['pending', 'in_progress', 'completed'].includes(next)) {
-                writeStat(next, readStat(next) + 1);
+            if (['pending', 'in_progress', 'completed'].includes(nextStatus)) {
+                writeStat(nextStatus, readStat(nextStatus) + 1);
             }
 
             const wasOverdue = task.dataset.overdue === '1';
-            const becomesInactive = ['completed', 'cancelled'].includes(next);
+            const becomesInactive = ['completed', 'cancelled'].includes(nextStatus);
             const wasInactive = ['completed', 'cancelled'].includes(previous);
             if (wasOverdue && !wasInactive && becomesInactive) {
                 writeStat('overdue', readStat('overdue') - 1);
@@ -235,7 +235,15 @@
                 const select = task?.querySelector('.task-status-toggle');
                 if (!task || !select || select.value === status) return;
 
+                const previousStatus = statusOf(task);
                 task.classList.add('task-item--status-pending');
+
+                // Drag/drop owns the immediate optimistic visual transition. The
+                // generic select handler persists it but must not re-apply the
+                // same UI event (which would double-count stats and make the
+                // result depend on listener ordering).
+                syncTaskStatus(task, status, previousStatus);
+                select.dataset.uiSynced = '1';
                 select.value = status;
                 select.dispatchEvent(new Event('change', { bubbles: true }));
                 window.setTimeout(() => task.classList.remove('task-item--status-pending'), 6000);
