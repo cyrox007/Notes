@@ -16,72 +16,63 @@ use Core\ModuleRuntimeLoader;
 use Core\Router;
 use Core\Version;
 
-function failModuleContract(string $message): never
-{
-    fwrite(STDERR, "Module registry contract failed: {$message}\n");
-    exit(1);
-}
-
-function assertModuleContract(bool $condition, string $message): void
+function moduleAssert(bool $condition, string $message): void
 {
     if (!$condition) {
-        failModuleContract($message);
+        fwrite(STDERR, "Module registry contract failed: {$message}\n");
+        exit(1);
     }
 }
 
 /** @param list<string> $dependencies */
-function writeModuleFixture(string $root, string $id, array $dependencies = [], string $capability = '', array $core = []): void
-{
+function writeFixture(
+    string $root,
+    string $id,
+    array $dependencies = [],
+    ?string $capability = null,
+    array $core = ['min' => '0.13.0-alpha', 'max_exclusive' => '2.0.0'],
+): void {
     $dir = $root . '/' . $id;
-    if (!is_dir($dir) && !mkdir($dir, 0700, true) && !is_dir($dir)) {
-        throw new RuntimeException("Cannot create fixture directory: {$dir}");
+    if (!mkdir($dir, 0700, true) && !is_dir($dir)) {
+        throw new RuntimeException("Cannot create fixture directory {$dir}");
     }
 
-    $declaredCapability = $capability !== '' ? $capability : 'fixture.' . $id;
-    $manifest = [
+    $capability ??= 'fixture.' . $id;
+    file_put_contents($dir . '/module.json', json_encode([
         'schema' => 1,
         'id' => $id,
         'name' => ucfirst($id),
         'version' => '0.13.0',
-        'core' => $core !== [] ? $core : ['min' => '0.13.0-alpha', 'max_exclusive' => '0.15.0'],
+        'core' => $core,
         'dependencies' => $dependencies,
-        'capabilities' => [$declaredCapability],
+        'capabilities' => [$capability],
         'package' => ['bundled' => false, 'default_enabled' => true],
         'license' => ['feature' => 'fixture.' . $id],
         'runtime' => ['mode' => 'isolated', 'entrypoint' => 'runtime.php'],
         'storage_namespaces' => [],
-    ];
-
-    file_put_contents(
-        $dir . '/module.json',
-        json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n"
-    );
+    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n");
 
     $provider = <<<'PHP'
 <?php
-return new class('__MODULE_ID__', '__CAPABILITY__') implements \Core\ModuleRuntimeProvider {
+return new class('__ID__', '__CAP__') implements \Core\ModuleRuntimeProvider {
     public function __construct(private string $id, private string $capability) {}
     public function moduleId(): string { return $this->id; }
-    public function boot(): void { $GLOBALS['moduleRuntimeBoots'][] = $this->id; }
+    public function boot(): void { $GLOBALS['moduleBoots'][] = $this->id; }
     public function capabilities(): array {
-        return [
-            $this->capability => new class($this->id) {
-                public function __construct(public string $providerId) {}
-            },
-        ];
+        return [$this->capability => new class($this->id) {
+            public function __construct(public string $providerId) {}
+        }];
     }
-    public function registerRoutes(\Core\Router $router): void { $GLOBALS['moduleRuntimeRoutes'][] = $this->id; }
+    public function registerRoutes(\Core\Router $router): void { $GLOBALS['moduleRoutes'][] = $this->id; }
 };
 PHP;
-    $provider = str_replace(
-        ['__MODULE_ID__', '__CAPABILITY__'],
-        [$id, $declaredCapability],
-        $provider
+    file_put_contents(
+        $dir . '/runtime.php',
+        str_replace(['__ID__', '__CAP__'], [$id, $capability], $provider)
     );
-    file_put_contents($dir . '/runtime.php', $provider);
 }
 
-function removeTree(string $path): void
+function removeFixtureTree(string $path): void
 {
     if (!is_dir($path)) {
         return;
@@ -91,221 +82,184 @@ function removeTree(string $path): void
         RecursiveIteratorIterator::CHILD_FIRST
     );
     foreach ($iterator as $entry) {
-        if ($entry->isDir() && !$entry->isLink()) {
-            rmdir($entry->getPathname());
-        } else {
-            unlink($entry->getPathname());
-        }
+        $entry->isDir() && !$entry->isLink()
+            ? rmdir($entry->getPathname())
+            : unlink($entry->getPathname());
     }
     rmdir($path);
 }
 
 $registry = ModuleRegistry::discover($root . '/modules', Version::VERSION);
 $expected = ['admin', 'files', 'messenger', 'notes', 'profile', 'tasks'];
-assertModuleContract(array_keys($registry->all()) === $expected, 'bundled module manifest set drifted');
-assertModuleContract($registry->defaultComposition() === $expected, 'default bundled composition must contain all 0.13 modules');
+$isolated = ['notes', 'tasks'];
+
+moduleAssert(array_keys($registry->all()) === $expected, 'bundled module manifest set drifted');
+moduleAssert($registry->defaultComposition() === $expected, 'default bundled composition drifted');
 
 foreach ($registry->all() as $id => $manifest) {
-    assertModuleContract($manifest->id() === $id, "manifest id mismatch for {$id}");
-    if ($id === 'notes') {
-        assertModuleContract($manifest->runtimeMode() === 'isolated', 'Notes must be the first physically isolated bundled module');
-        assertModuleContract($manifest->runtimeEntrypoint() === 'runtime.php', 'Notes isolated entrypoint drifted');
+    moduleAssert($manifest->id() === $id, "manifest id mismatch for {$id}");
+    moduleAssert(strlen($manifest->integrityHash()) === 64, "{$id} manifest has no SHA-256 integrity hash");
+    moduleAssert($manifest->licenseFeature() !== null, "{$id} has no entitlement feature");
+    moduleAssert($manifest->isCompatibleWithCore(Version::VERSION), "{$id} is incompatible with current core");
+
+    if (in_array($id, $isolated, true)) {
+        moduleAssert($manifest->runtimeMode() === 'isolated', "{$id} must remain physically isolated");
+        moduleAssert($manifest->runtimeEntrypoint() === 'runtime.php', "{$id} isolated entrypoint drifted");
     } else {
-        assertModuleContract($manifest->runtimeMode() === 'legacy', "{$id} remains legacy until its dedicated migration");
-        assertModuleContract($manifest->runtimeEntrypoint() === null, "legacy {$id} must not expose an isolated entrypoint");
+        moduleAssert($manifest->runtimeMode() === 'legacy', "{$id} remains legacy until its dedicated migration");
+        moduleAssert($manifest->runtimeEntrypoint() === null, "legacy {$id} exposes an isolated entrypoint");
     }
-    assertModuleContract(strlen($manifest->integrityHash()) === 64, "{$id} manifest must expose a SHA-256 integrity hash");
-    assertModuleContract($manifest->licenseFeature() !== null, "{$id} must declare a central entitlement feature");
-    assertModuleContract($manifest->isCompatibleWithCore(Version::VERSION), "{$id} must be compatible with the current core");
 }
 
-assertModuleContract($registry->resolveComposition(['notes']) === ['notes'], 'single independent module composition failed');
-assertModuleContract($registry->resolveComposition(['files', 'tasks']) === ['files', 'tasks'], 'multi-module composition order is unstable');
+moduleAssert($registry->resolveComposition(['notes']) === ['notes'], 'Notes composition failed');
+moduleAssert($registry->resolveComposition(['tasks']) === ['tasks'], 'Tasks composition failed');
+moduleAssert($registry->resolveComposition(['notes', 'tasks']) === ['notes', 'tasks'], 'isolated composition order drifted');
 
 $tmp = sys_get_temp_dir() . '/workspace-module-contract-' . bin2hex(random_bytes(6));
 mkdir($tmp, 0700, true);
 try {
-    writeModuleFixture($tmp, 'beta');
-    writeModuleFixture($tmp, 'alpha', ['beta']);
-    $fixtureRegistry = ModuleRegistry::discover($tmp, Version::VERSION);
-    $composition = $fixtureRegistry->resolveComposition(['alpha']);
-    assertModuleContract(
-        $composition === ['beta', 'alpha'],
-        'dependency closure/load order must place dependency before consumer'
-    );
+    writeFixture($tmp, 'beta');
+    writeFixture($tmp, 'alpha', ['beta']);
+    $fixtures = ModuleRegistry::discover($tmp, Version::VERSION);
+    $composition = $fixtures->resolveComposition(['alpha']);
+    moduleAssert($composition === ['beta', 'alpha'], 'dependency must load before consumer');
 
-    $GLOBALS['moduleRuntimeBoots'] = [];
-    $GLOBALS['moduleRuntimeRoutes'] = [];
-    $runtime = ModuleRuntimeLoader::boot($fixtureRegistry, $composition);
-    assertModuleContract(
-        array_keys($runtime->providers()) === ['beta', 'alpha'],
-        'isolated providers must load in dependency-first runtime composition order'
-    );
-    assertModuleContract(
-        $GLOBALS['moduleRuntimeBoots'] === ['beta', 'alpha'],
-        'isolated provider boot order drifted'
-    );
+    $GLOBALS['moduleBoots'] = [];
+    $GLOBALS['moduleRoutes'] = [];
+    $runtime = ModuleRuntimeLoader::boot($fixtures, $composition);
+    moduleAssert(array_keys($runtime->providers()) === ['beta', 'alpha'], 'provider load order drifted');
+    moduleAssert($GLOBALS['moduleBoots'] === ['beta', 'alpha'], 'provider boot order drifted');
 
     $capabilities = $runtime->capabilities();
-    assertModuleContract($capabilities->isSealed(), 'capability registry must be immutable after runtime boot');
-    assertModuleContract(
-        $capabilities->providers() === [
-            'fixture.alpha' => 'alpha',
-            'fixture.beta' => 'beta',
-        ],
-        'capability-to-provider registry does not match effective runtime composition'
+    moduleAssert($capabilities->isSealed(), 'capability registry must seal after boot');
+    moduleAssert(
+        $capabilities->providers() === ['fixture.alpha' => 'alpha', 'fixture.beta' => 'beta'],
+        'capability ownership drifted'
     );
-    $alphaService = $capabilities->require('fixture.alpha');
-    assertModuleContract(
-        property_exists($alphaService, 'providerId') && $alphaService->providerId === 'alpha',
-        'capability lookup did not return the provider-owned service object'
-    );
-    assertModuleContract(
-        $capabilities->providerModuleId('fixture.beta') === 'beta',
-        'capability provider ownership lookup failed'
-    );
+    $alpha = $capabilities->require('fixture.alpha');
+    moduleAssert(($alpha->providerId ?? null) === 'alpha', 'capability lookup returned wrong provider');
+    moduleAssert($capabilities->providerModuleId('fixture.beta') === 'beta', 'provider ownership lookup failed');
 
-    $missingCapabilityRejected = false;
-    try {
-        $capabilities->require('fixture.missing');
-    } catch (RuntimeException) {
-        $missingCapabilityRejected = true;
+    foreach ([
+        'missing capability' => static fn () => $capabilities->require('fixture.missing'),
+        'type mismatch' => static fn () => $capabilities->require('fixture.alpha', DateTimeInterface::class),
+        'mutation after seal' => static fn () => $capabilities->register('alpha', 'fixture.late', new stdClass()),
+    ] as $label => $operation) {
+        $rejected = false;
+        try {
+            $operation();
+        } catch (RuntimeException) {
+            $rejected = true;
+        }
+        moduleAssert($rejected, "{$label} must fail closed");
     }
-    assertModuleContract($missingCapabilityRejected, 'missing capability lookup must fail closed');
-
-    $typeMismatchRejected = false;
-    try {
-        $capabilities->require('fixture.alpha', DateTimeInterface::class);
-    } catch (RuntimeException) {
-        $typeMismatchRejected = true;
-    }
-    assertModuleContract($typeMismatchRejected, 'capability contract type mismatch must fail closed');
-
-    $sealedMutationRejected = false;
-    try {
-        $capabilities->register('alpha', 'fixture.late', new stdClass());
-    } catch (RuntimeException) {
-        $sealedMutationRejected = true;
-    }
-    assertModuleContract($sealedMutationRejected, 'sealed capability registry accepted a late provider');
 
     $runtime->registerRoutes(Router::getInstance());
-    assertModuleContract(
-        $GLOBALS['moduleRuntimeRoutes'] === ['beta', 'alpha'],
-        'isolated route providers were not invoked in runtime composition order'
-    );
+    moduleAssert($GLOBALS['moduleRoutes'] === ['beta', 'alpha'], 'route provider order drifted');
 } finally {
-    unset($GLOBALS['moduleRuntimeBoots'], $GLOBALS['moduleRuntimeRoutes']);
-    removeTree($tmp);
+    unset($GLOBALS['moduleBoots'], $GLOBALS['moduleRoutes']);
+    removeFixtureTree($tmp);
 }
 
-$tmp = sys_get_temp_dir() . '/workspace-module-capability-duplicate-' . bin2hex(random_bytes(6));
+$tmp = sys_get_temp_dir() . '/workspace-module-negative-' . bin2hex(random_bytes(6));
 mkdir($tmp, 0700, true);
 try {
-    writeModuleFixture($tmp, 'alpha', [], 'fixture.shared');
-    writeModuleFixture($tmp, 'beta', [], 'fixture.shared');
-    $duplicateRegistry = ModuleRegistry::discover($tmp, Version::VERSION);
-    $duplicateRejected = false;
+    writeFixture($tmp, 'alpha', [], 'fixture.shared');
+    writeFixture($tmp, 'beta', [], 'fixture.shared');
+    $duplicates = ModuleRegistry::discover($tmp, Version::VERSION);
+    $rejected = false;
     try {
-        ModuleRuntimeLoader::boot($duplicateRegistry, ['alpha', 'beta']);
+        ModuleRuntimeLoader::boot($duplicates, ['alpha', 'beta']);
     } catch (RuntimeException) {
-        $duplicateRejected = true;
+        $rejected = true;
     }
-    assertModuleContract($duplicateRejected, 'duplicate active providers for one capability must fail closed');
+    moduleAssert($rejected, 'duplicate active capability providers must fail closed');
 } finally {
-    removeTree($tmp);
+    removeFixtureTree($tmp);
 }
 
-$tmp = sys_get_temp_dir() . '/workspace-module-capability-drift-' . bin2hex(random_bytes(6));
+$tmp = sys_get_temp_dir() . '/workspace-module-drift-' . bin2hex(random_bytes(6));
 mkdir($tmp, 0700, true);
 try {
-    writeModuleFixture($tmp, 'alpha', [], 'fixture.declared');
+    writeFixture($tmp, 'alpha', [], 'fixture.declared');
     $runtimePath = $tmp . '/alpha/runtime.php';
-    $runtimeSource = (string) file_get_contents($runtimePath);
-    file_put_contents($runtimePath, str_replace('fixture.declared', 'fixture.undeclared', $runtimeSource));
-    $driftRegistry = ModuleRegistry::discover($tmp, Version::VERSION);
-    $driftRejected = false;
+    file_put_contents(
+        $runtimePath,
+        str_replace('fixture.declared', 'fixture.undeclared', (string) file_get_contents($runtimePath))
+    );
+    $fixtures = ModuleRegistry::discover($tmp, Version::VERSION);
+    $rejected = false;
     try {
-        ModuleRuntimeLoader::boot($driftRegistry, ['alpha']);
+        ModuleRuntimeLoader::boot($fixtures, ['alpha']);
     } catch (RuntimeException) {
-        $driftRejected = true;
+        $rejected = true;
     }
-    assertModuleContract($driftRejected, 'runtime capability exports must exactly match manifest declarations');
+    moduleAssert($rejected, 'runtime capability exports must match manifest declarations');
 } finally {
-    removeTree($tmp);
+    removeFixtureTree($tmp);
 }
 
 $tmp = sys_get_temp_dir() . '/workspace-module-entrypoint-' . bin2hex(random_bytes(6));
 mkdir($tmp, 0700, true);
 try {
-    writeModuleFixture($tmp, 'alpha');
-    $path = $tmp . '/alpha/module.json';
-    $manifest = json_decode((string) file_get_contents($path), true, 32, JSON_THROW_ON_ERROR);
-    unset($manifest['runtime']['entrypoint']);
-    file_put_contents($path, json_encode($manifest, JSON_THROW_ON_ERROR));
+    writeFixture($tmp, 'alpha');
+    $manifestPath = $tmp . '/alpha/module.json';
+    $manifest = json_decode((string) file_get_contents($manifestPath), true, 32, JSON_THROW_ON_ERROR);
 
-    $missingEntrypointRejected = false;
+    unset($manifest['runtime']['entrypoint']);
+    file_put_contents($manifestPath, json_encode($manifest, JSON_THROW_ON_ERROR));
+    $rejected = false;
     try {
         ModuleRegistry::discover($tmp, Version::VERSION);
     } catch (RuntimeException) {
-        $missingEntrypointRejected = true;
+        $rejected = true;
     }
-    assertModuleContract($missingEntrypointRejected, 'isolated module without entrypoint must fail closed');
+    moduleAssert($rejected, 'isolated module without entrypoint must fail closed');
 
     $manifest['runtime']['entrypoint'] = '../escape.php';
-    file_put_contents($path, json_encode($manifest, JSON_THROW_ON_ERROR));
-    $escapingEntrypointRejected = false;
+    file_put_contents($manifestPath, json_encode($manifest, JSON_THROW_ON_ERROR));
+    $rejected = false;
     try {
         ModuleRegistry::discover($tmp, Version::VERSION);
     } catch (RuntimeException) {
-        $escapingEntrypointRejected = true;
+        $rejected = true;
     }
-    assertModuleContract($escapingEntrypointRejected, 'isolated entrypoint traversal must fail closed');
+    moduleAssert($rejected, 'entrypoint traversal must fail closed');
 } finally {
-    removeTree($tmp);
+    removeFixtureTree($tmp);
 }
 
 $tmp = sys_get_temp_dir() . '/workspace-module-cycle-' . bin2hex(random_bytes(6));
 mkdir($tmp, 0700, true);
 try {
-    writeModuleFixture($tmp, 'alpha', ['beta']);
-    writeModuleFixture($tmp, 'beta', ['alpha']);
-    $cycleRejected = false;
+    writeFixture($tmp, 'alpha', ['beta']);
+    writeFixture($tmp, 'beta', ['alpha']);
+    $rejected = false;
     try {
         ModuleRegistry::discover($tmp, Version::VERSION);
     } catch (RuntimeException) {
-        $cycleRejected = true;
+        $rejected = true;
     }
-    assertModuleContract($cycleRejected, 'dependency cycles must fail closed');
+    moduleAssert($rejected, 'dependency cycle must fail closed');
 } finally {
-    removeTree($tmp);
+    removeFixtureTree($tmp);
 }
 
 $tmp = sys_get_temp_dir() . '/workspace-module-core-' . bin2hex(random_bytes(6));
 mkdir($tmp, 0700, true);
 try {
-    writeModuleFixture(
-        $tmp,
-        'future',
-        [],
-        'fixture.future',
-        ['min' => '99.0.0', 'max_exclusive' => '100.0.0']
-    );
-    $futureRegistry = ModuleRegistry::discover($tmp, Version::VERSION);
-    assertModuleContract($futureRegistry->has('future'), 'valid incompatible manifest must remain discoverable');
-    assertModuleContract(
-        !$futureRegistry->get('future')->isCompatibleWithCore(Version::VERSION),
-        'core incompatibility must be represented separately from manifest validity'
-    );
-    $assertStillFails = false;
+    writeFixture($tmp, 'future', [], 'fixture.future', ['min' => '99.0.0', 'max_exclusive' => '100.0.0']);
+    $future = ModuleRegistry::discover($tmp, Version::VERSION)->get('future');
+    moduleAssert(!$future->isCompatibleWithCore(Version::VERSION), 'future module unexpectedly compatible');
+    $rejected = false;
     try {
-        $futureRegistry->get('future')->assertCompatibleWithCore(Version::VERSION);
+        $future->assertCompatibleWithCore(Version::VERSION);
     } catch (RuntimeException) {
-        $assertStillFails = true;
+        $rejected = true;
     }
-    assertModuleContract($assertStillFails, 'explicit compatibility assertion must remain fail-closed');
+    moduleAssert($rejected, 'explicit compatibility assertion must fail closed');
 } finally {
-    removeTree($tmp);
+    removeFixtureTree($tmp);
 }
 
-fwrite(STDOUT, "Module registry contract: OK\n");
+echo "Module registry contract: OK\n";
