@@ -22,5 +22,10 @@
     "mode": "isolated",
     "entrypoint": "runtime.php"
   },
-  "storage_namespaces": []
+  "storage_namespaces": [],
+  "database": {
+    "tables": [],
+    "schemas": [],
+    "migrations": []
+  }
 }
