@@ -31,7 +31,7 @@
       "user_storage_quotas"
     ],
     "schemas": [
-      "database/file_manager_schema.sql",
+      "database/file_manager_module_schema.sql",
       "database/file_storage_quota_schema.sql"
     ],
     "migrations": [

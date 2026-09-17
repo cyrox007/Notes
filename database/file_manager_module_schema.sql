@@ -1,10 +1,8 @@
 -- ============================================
--- Legacy File Manager compatibility aggregate.
---
--- New composition-aware installs MUST use database/file_manager_module_schema.sql
--- plus database/file_storage_quota_schema.sql as declared by modules/files/module.json.
--- This aggregate remains for pre-1.0 tooling and test fixtures that historically
--- imported one File Manager schema file.
+-- File Manager canonical module schema
+-- Fresh-install source of truth for user_files.
+-- Requires the core `users` table from database/core_identity_schema.sql.
+-- Quota ownership is defined separately in database/file_storage_quota_schema.sql.
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS `user_files` (
@@ -31,23 +29,6 @@ CREATE TABLE IF NOT EXISTS `user_files` (
     FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
     FOREIGN KEY (`parent_id`) REFERENCES `user_files`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS `user_storage_quotas` (
-    `id` INT AUTO_INCREMENT PRIMARY KEY,
-    `user_id` INT NOT NULL,
-    `quota_bytes` BIGINT UNSIGNED NOT NULL,
-    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY `uq_user_storage_quota_user` (`user_id`),
-    CONSTRAINT `fk_user_storage_quota_user`
-        FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-INSERT INTO `system_settings`
-    (`setting_key`,`setting_value`,`setting_type`,`category`,`description`,`is_editable`)
-VALUES
-    ('file_manager_default_quota_bytes','1073741824','integer','file_manager','Default File Manager storage quota per user in bytes',1)
-ON DUPLICATE KEY UPDATE `setting_key` = VALUES(`setting_key`);
 
 -- --------------------------------------------
 -- Примечания по безопасности
