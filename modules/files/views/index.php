@@ -251,6 +251,7 @@ echo $view->layout('core/base', [
     'socket_url' => $socket_url ?? '',
     'module_styles' => [
         $view->moduleAsset('files', 'style.css'),
+        $view->moduleAsset('files', 'quota.css'),
         $view->moduleAsset('files', 'polish.css'),
     ],
     'module_scripts' => [

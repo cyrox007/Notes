@@ -6,16 +6,6 @@
         return;
     }
 
-    const appPath = (path) => window.wspace?.path ? window.wspace.path(path) : path;
-
-    if (!document.querySelector('link[data-file-manager-quota-style]')) {
-        const stylesheet = document.createElement('link');
-        stylesheet.rel = 'stylesheet';
-        stylesheet.href = appPath('/assets/css/file_manager/quota.css');
-        stylesheet.dataset.fileManagerQuotaStyle = '1';
-        document.head.appendChild(stylesheet);
-    }
-
     const endpoint = root.dataset.url || '';
     const usedNode = root.querySelector('[data-quota-used]');
     const quotaNode = root.querySelector('[data-quota-total]');
