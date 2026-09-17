@@ -61,6 +61,24 @@
             return 'fa-file-o';
         };
 
+        const activityForFile = (file) => {
+    const mime = String(file?.type || '').toLowerCase();
+    const name = String(file?.name || '');
+    const extension = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
+    if (mime.startsWith('image/')) return 'uploading_image';
+    if (mime.startsWith('video/')) return 'uploading_video';
+    if (mime.startsWith('audio/')) return 'uploading_audio';
+    if (['pdf', 'txt', 'md', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp', 'rtf'].includes(extension)) {
+        return 'uploading_document';
+    }
+    return 'uploading_file';
+};
+
+const setActivity = (activity, active, dialogUid) => {
+    if (!dialogUid || typeof app.setLocalActivity !== 'function') return false;
+    return app.setLocalActivity(activity, active, dialogUid);
+};
+
         const originalRenderMessage = app.renderMessage.bind(app);
         app.renderMessage = (message) => {
             const row = originalRenderMessage(message);
@@ -229,14 +247,20 @@
                     }
 
                     const file = list[index];
-                    const attachment = await uploadBinary(file);
-                    const sent = app.sendEvent('MediaSocket:send', {
-                        attachment_uid: attachment.uid,
-                        caption: index === 0 ? caption : '',
-                        reply_to_uid: index === 0 ? replyToUid : null
-                    });
-                    if (!sent) {
-                        throw new Error('Файл загружен, но нет соединения для отправки сообщения');
+                    const activity = activityForFile(file);
+                    setActivity(activity, true, initialDialogUid);
+                    try {
+                        const attachment = await uploadBinary(file);
+                        const sent = app.sendEvent('MediaSocket:send', {
+                            attachment_uid: attachment.uid,
+                            caption: index === 0 ? caption : '',
+                            reply_to_uid: index === 0 ? replyToUid : null
+                        });
+                        if (!sent) {
+                            throw new Error('Файл загружен, но нет соединения для отправки сообщения');
+                        }
+                    } finally {
+                        setActivity(activity, false, initialDialogUid);
                     }
                 }
 

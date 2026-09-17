@@ -139,6 +139,39 @@ final class SocketFrameCodec
         return $frames;
     }
 
+    /**
+     * Validate and decode a CLOSE control-frame payload.
+     *
+     * RFC6455 allows an empty payload, or a two-byte valid status code followed
+     * by an optional UTF-8 reason. A one-byte payload, reserved status code or
+     * malformed UTF-8 reason is a protocol error.
+     *
+     * @return array{code:?int,reason:string}
+     */
+    public static function decodeClosePayload(string $payload): array
+    {
+        $length = strlen($payload);
+        if ($length === 0) {
+            return ['code' => null, 'reason' => ''];
+        }
+        if ($length === 1) {
+            throw new RuntimeException('WebSocket close payload cannot be one byte');
+        }
+
+        $decoded = unpack('ncode', substr($payload, 0, 2));
+        $code = (int) ($decoded['code'] ?? 0);
+        if (!self::isValidCloseCode($code)) {
+            throw new RuntimeException('Invalid WebSocket close status code');
+        }
+
+        $reason = (string) substr($payload, 2);
+        if ($reason !== '' && preg_match('//u', $reason) !== 1) {
+            throw new RuntimeException('WebSocket close reason must be valid UTF-8');
+        }
+
+        return ['code' => $code, 'reason' => $reason];
+    }
+
     public static function encodeText(string $payload): string
     {
         return self::encodeFrame(self::OPCODE_TEXT, $payload);
@@ -162,11 +195,14 @@ final class SocketFrameCodec
 
     public static function encodeClose(int $code = 1000, string $reason = ''): string
     {
-        if ($code < 1000 || $code > 4999) {
+        if (!self::isValidCloseCode($code)) {
             throw new RuntimeException('Invalid WebSocket close code');
         }
         if (strlen($reason) > 123) {
             throw new RuntimeException('WebSocket close reason is too long');
+        }
+        if ($reason !== '' && preg_match('//u', $reason) !== 1) {
+            throw new RuntimeException('WebSocket close reason must be valid UTF-8');
         }
         return self::encodeFrame(self::OPCODE_CLOSE, pack('n', $code) . $reason);
     }
@@ -203,6 +239,17 @@ final class SocketFrameCodec
         $high = intdiv($length, 0x100000000);
         $low = $length % 0x100000000;
         return chr($first) . chr(127) . pack('N2', $high, $low) . $payload;
+    }
+
+    private static function isValidCloseCode(int $code): bool
+    {
+        if ($code >= 3000 && $code <= 4999) {
+            return true;
+        }
+
+        return $code >= 1000
+            && $code <= 1014
+            && !in_array($code, [1004, 1005, 1006], true);
     }
 
     private static function applyMask(string $payload, string $mask): string

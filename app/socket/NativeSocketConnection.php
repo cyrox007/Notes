@@ -14,6 +14,9 @@ use RuntimeException;
  */
 final class NativeSocketConnection extends SocketConnection
 {
+    public const DEFAULT_MAX_PENDING_OUTPUT_BYTES = 4_194_304;
+    public const DEFAULT_CLOSE_DRAIN_TIMEOUT_SECONDS = 5.0;
+
     /** @var resource|null */
     private $stream;
     private int $resourceId;
@@ -21,6 +24,7 @@ final class NativeSocketConnection extends SocketConnection
     private string $outputBuffer = '';
     private bool $closing = false;
     private bool $destroyed = false;
+    private ?float $closeDeadlineAt = null;
 
     public bool $handshakeComplete = false;
     public float $acceptedAt;
@@ -29,10 +33,19 @@ final class NativeSocketConnection extends SocketConnection
     public string $fragmentBuffer = '';
 
     /** @param resource $stream */
-    public function __construct($stream)
-    {
+    public function __construct(
+        $stream,
+        private int $maxPendingOutputBytes = self::DEFAULT_MAX_PENDING_OUTPUT_BYTES,
+        private float $closeDrainTimeoutSeconds = self::DEFAULT_CLOSE_DRAIN_TIMEOUT_SECONDS
+    ) {
         if (!is_resource($stream)) {
             throw new RuntimeException('Native WebSocket connection requires a stream resource');
+        }
+        if ($this->maxPendingOutputBytes < 1024 || $this->maxPendingOutputBytes > 67_108_864) {
+            throw new RuntimeException('Invalid WebSocket pending-output limit');
+        }
+        if ($this->closeDrainTimeoutSeconds <= 0.0 || $this->closeDrainTimeoutSeconds > 60.0) {
+            throw new RuntimeException('Invalid WebSocket close-drain timeout');
         }
 
         $this->stream = $stream;
@@ -80,9 +93,18 @@ final class NativeSocketConnection extends SocketConnection
 
     public function queueRaw(string $bytes): void
     {
-        if ($this->destroyed) {
+        if ($this->destroyed || $this->closing || $bytes === '') {
             return;
         }
+
+        $bytesLength = strlen($bytes);
+        $pendingLength = strlen($this->outputBuffer);
+        if ($bytesLength > $this->maxPendingOutputBytes
+            || $pendingLength > ($this->maxPendingOutputBytes - $bytesLength)) {
+            $this->beginBackpressureClose();
+            return;
+        }
+
         $this->outputBuffer .= $bytes;
     }
 
@@ -111,30 +133,45 @@ final class NativeSocketConnection extends SocketConnection
         if ($this->destroyed || $this->closing) {
             return;
         }
+
         if ($this->handshakeComplete) {
-            $this->queueRaw(SocketFrameCodec::encodeClose($code, $reason));
+            $frame = SocketFrameCodec::encodeClose($code, $reason);
+            if (strlen($this->outputBuffer) + strlen($frame) > $this->maxPendingOutputBytes) {
+                // A close handshake must never make an already-saturated queue
+                // unbounded. Discard stale application data and prioritize close.
+                $this->outputBuffer = $frame;
+            } else {
+                $this->outputBuffer .= $frame;
+            }
         }
-        $this->closing = true;
+
+        $this->beginClosing();
     }
 
     public function rejectHttp(int $status, string $reason): void
     {
-        if ($this->destroyed || $this->handshakeComplete) {
+        if ($this->destroyed || $this->handshakeComplete || $this->closing) {
             return;
         }
 
         $safeReason = preg_replace('/[^A-Za-z0-9 ._-]/', '', $reason) ?: 'Rejected';
-        $this->queueRaw(sprintf(
+        $response = sprintf(
             "HTTP/1.1 %d %s\r\nConnection: close\r\nCache-Control: no-store\r\nContent-Length: 0\r\n\r\n",
             $status,
             $safeReason
-        ));
-        $this->closing = true;
+        );
+        $this->outputBuffer = substr($response, 0, $this->maxPendingOutputBytes);
+        $this->beginClosing();
     }
 
     public function hasPendingOutput(): bool
     {
         return $this->outputBuffer !== '';
+    }
+
+    public function pendingOutputBytes(): int
+    {
+        return strlen($this->outputBuffer);
     }
 
     public function isClosing(): bool
@@ -145,6 +182,16 @@ final class NativeSocketConnection extends SocketConnection
     public function isDestroyed(): bool
     {
         return $this->destroyed;
+    }
+
+    public function enforceCloseDeadline(float $now): void
+    {
+        if ($this->destroyed || !$this->closing || $this->closeDeadlineAt === null) {
+            return;
+        }
+        if ($now >= $this->closeDeadlineAt) {
+            $this->destroy();
+        }
     }
 
     public function flush(): void
@@ -183,5 +230,29 @@ final class NativeSocketConnection extends SocketConnection
         $this->stream = null;
         $this->inputBuffer = '';
         $this->outputBuffer = '';
+        $this->fragmentBuffer = '';
+        $this->fragmentOpcode = null;
+    }
+
+    private function beginBackpressureClose(): void
+    {
+        if ($this->destroyed || $this->closing) {
+            return;
+        }
+
+        if ($this->handshakeComplete) {
+            // 1013 asks a peer to retry later and is appropriate for a client
+            // that cannot consume server output fast enough.
+            $this->outputBuffer = SocketFrameCodec::encodeClose(1013, 'Client too slow');
+        } else {
+            $this->outputBuffer = "HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nContent-Length: 0\r\n\r\n";
+        }
+        $this->beginClosing();
+    }
+
+    private function beginClosing(): void
+    {
+        $this->closing = true;
+        $this->closeDeadlineAt = microtime(true) + $this->closeDrainTimeoutSeconds;
     }
 }
