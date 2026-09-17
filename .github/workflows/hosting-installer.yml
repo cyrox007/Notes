@@ -77,7 +77,8 @@ jobs:
             ./ /tmp/workspace-hosting-home/public_html/workspace/
           test ! -e /tmp/workspace-hosting-home/public_html/workspace/vendor
           test -f /tmp/workspace-hosting-home/public_html/workspace/core/NativeViewRenderer.php
-          test -f /tmp/workspace-hosting-home/public_html/workspace/app/socket/NativeMessengerServer.php
+          test -f /tmp/workspace-hosting-home/public_html/workspace/modules/messenger/socket/NativeMessengerServer.php
+          test ! -e /tmp/workspace-hosting-home/public_html/workspace/app/socket/NativeMessengerServer.php
           test ! -e /tmp/workspace-hosting-home/public_html/workspace/.env
 
       - name: Start PHP hosting server
