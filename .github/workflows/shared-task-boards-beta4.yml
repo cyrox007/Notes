@@ -1,10 +1,23 @@
-name: 0.14 Beta 4 shared task boards
+name: Shared task boards contract
 
 on:
   pull_request:
-    branches: [master]
+    branches: ['1.0']
+    paths:
+      - 'modules/tasks/**'
+      - 'modules/notes/**'
+      - 'app/services/PermissionService.php'
+      - 'app/services/RolePolicyService.php'
+      - 'database/task_boards_schema.sql'
+      - 'database/access_control_schema.sql'
+      - 'database/migrations/20260915_role_module_policies.sql'
+      - 'tests/integration/task_board_beta4_mysql.sh'
+      - '.github/workflows/shared-task-boards-beta4.yml'
   push:
-    branches: [master, 0.14-beta4-role-policies-collaboration]
+    branches: ['1.0']
+    paths:
+      - 'modules/tasks/**'
+      - 'tests/integration/task_board_beta4_mysql.sh'
 
 permissions:
   contents: read
@@ -28,24 +41,24 @@ jobs:
           --health-retries=10
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup PHP 8.3
-        uses: shivammathur/setup-php@v2
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           extensions: mbstring, pdo_mysql, mysqli
           coverage: none
 
-      - name: Lint Beta 4 board and policy sources
+      - name: Lint collaboration boundaries
+        shell: bash
         run: |
-          php -l app/services/TaskBoardService.php
-          php -l app/controllers/TaskBoardController.php
-          php -l app/middlewares/EnforceNoteCreatePolicy.php
-          php -l app/middlewares/EnforceNoteAttachmentPolicy.php
-          php -l app/middlewares/EnforceNoteSharePolicy.php
-          php -l app/middlewares/EnforceTaskCreatePolicy.php
+          set -euo pipefail
+          php -l modules/tasks/services/TaskBoardService.php
+          php -l modules/tasks/controllers/TaskBoardController.php
+          php -l modules/tasks/middlewares/EnforceTaskCreatePolicy.php
+          php -l modules/tasks/TasksRuntimeProvider.php
+          php -l modules/notes/middlewares/EnforceNoteCreatePolicy.php
+          php -l modules/notes/middlewares/EnforceNoteAttachmentPolicy.php
+          php -l modules/notes/middlewares/EnforceNoteSharePolicy.php
           php -l app/middlewares/EnforceMessengerUploadPolicy.php
           php -l app/socket/MessangerSocket.php
           php -l app/socket/GroupSocket.php
@@ -60,12 +73,16 @@ jobs:
           DBNAME: notes_test
         run: bash tests/integration/task_board_beta4_mysql.sh
 
-      - name: Verify task board templates are wired
+      - name: Verify module-owned board wiring
+        shell: bash
         run: |
-          grep -q "TaskBoardController" core/routerConfig.php
-          grep -q "task_board_create" app/views/tasks_page/boards.tpl
-          grep -q "task_board_task_update" app/views/tasks_page/boards.tpl
-          grep -q "X-CSRF-Token" app/views/tasks_page/boards.tpl
-          grep -q "const card = dragged" app/views/tasks_page/boards.tpl
-          grep -q "CSRFMiddleware::class" core/routerConfig.php
-          grep -q "task-boards-nav.js" app/views/core/base.tpl
+          set -euo pipefail
+          grep -Fq 'TaskBoardController' modules/tasks/TasksRuntimeProvider.php
+          grep -Fq "'task_board_create'" modules/tasks/TasksRuntimeProvider.php
+          grep -Fq "'task_board_task_update'" modules/tasks/TasksRuntimeProvider.php
+          grep -Fq 'CSRFMiddleware::class' modules/tasks/TasksRuntimeProvider.php
+          grep -Fq "moduleAsset('tasks', 'task-boards.js')" modules/tasks/views/boards.php
+          grep -Fq "moduleAsset('tasks', 'task-boards-nav.js')" modules/tasks/views/index.php
+          grep -Fq 'const card = dragged' modules/tasks/assets/task-boards.js
+          ! grep -Fq 'TaskBoardController' core/routerConfig.php
+          ! test -e app/views/tasks_page/boards.tpl
