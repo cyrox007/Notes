@@ -64,6 +64,8 @@ jobs:
           set -euo pipefail
           php -l index.php
           php -l core/config.php
+          php -l core/RequestOrigin.php
+          php -l core/SessionSecurity.php
           php -l app/services/PermissionService.php
           php -l app/socket/SocketConnection.php
           php -l app/socket/SocketHandshake.php
@@ -87,6 +89,7 @@ jobs:
           ! grep -Fq 'Workerman\\' ws_server/server.php
           ! grep -Fq 'Config::canAuthenticate' app/socket/NativeMessengerServer.php
           grep -Fq "getenv('SITEURL')" core/config.php
+          grep -Fq 'TRUSTED_PROXY_IPS' core/RequestOrigin.php
           php tests/integration/native_websocket_protocol_contract.php
 
       - name: Prepare canonical database
@@ -181,13 +184,14 @@ jobs:
           WS_HOST=127.0.0.1
           WS_PORT=27800
           WS_PUBLIC_URL=wss://127.0.0.1:8443/ws
-          WS_ALLOWED_ORIGINS=https://127.0.0.1:8443
+          WS_ALLOWED_ORIGINS=https://127.0.0.1:8443,http://127.0.0.1:8081
           WS_MAX_CONNECTIONS=64
           WS_MAX_PAYLOAD_BYTES=2097152
           MAX_LOGIN_ATTEMPTS=20
           AUTH_RATE_LIMIT_WINDOW_SECONDS=60
           UPLOAD_RATE_LIMIT_ATTEMPTS=60
           UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60
+          TRUSTED_PROXY_IPS=127.0.0.1
           LOG_LEVEL=INFO
           LOG_FILE=/tmp/workspace-browser-private/logs/app.log
           CSRF_ENABLED=true
@@ -246,7 +250,7 @@ jobs:
           cat /tmp/workspace-browser-private/logs/app.log || true
           exit 1
 
-      - name: Start HTTPS/WSS Nginx proxy
+      - name: Start HTTP/HTTPS WS/WSS Nginx proxy
         shell: bash
         run: |
           set -euo pipefail
@@ -257,6 +261,7 @@ jobs:
           events { worker_connections 256; }
           http {
             access_log /tmp/workspace-e2e-nginx-access.log;
+
             server {
               listen 8443 ssl;
               server_name 127.0.0.1;
@@ -283,11 +288,39 @@ jobs:
                 proxy_set_header X-Real-IP $remote_addr;
               }
             }
+
+            # Reproduce Beta4's protocol mismatch intentionally. SITEURL remains
+            # https://127.0.0.1:8443 while the browser enters through this HTTP
+            # origin. Assets/session/WS must follow the request, not SITEURL.
+            server {
+              listen 8081;
+              server_name 127.0.0.1;
+
+              location /ws {
+                proxy_pass http://127.0.0.1:27800;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection "upgrade";
+                proxy_set_header Host $http_host;
+                proxy_set_header Origin $http_origin;
+                proxy_read_timeout 60s;
+              }
+
+              location / {
+                proxy_pass http://127.0.0.1:8080;
+                proxy_http_version 1.1;
+                proxy_set_header Host $http_host;
+                proxy_set_header X-Forwarded-Proto http;
+                proxy_set_header X-Forwarded-Host $http_host;
+                proxy_set_header X-Real-IP $remote_addr;
+              }
+            }
           }
           NGINX
           sudo nginx -c /tmp/workspace-e2e-nginx.conf
           for i in {1..20}; do
-            if curl -kfsS https://127.0.0.1:8443/auth/login >/dev/null; then
+            if curl -kfsS https://127.0.0.1:8443/auth/login >/dev/null \
+              && curl -fsS http://127.0.0.1:8081/auth/login >/dev/null; then
               exit 0
             fi
             sleep 1
@@ -299,6 +332,18 @@ jobs:
         shell: bash
         env:
           E2E_BASE_URL: https://127.0.0.1:8443
+          E2E_ALICE_USER: e2e_alice
+          E2E_ALICE_PASSWORD: E2eAlicePass123!
+          E2E_BOB_USER: e2e_bob
+          E2E_BOB_PASSWORD: E2eBobPass123!
+          E2E_BOB_UID: 22222222-2222-4222-8222-222222222222
+        run: node tests/e2e/browser-smoke.mjs
+
+      - name: Run Chromium HTTP/WS mismatch smoke
+        shell: bash
+        env:
+          E2E_BASE_URL: http://127.0.0.1:8081
+          E2E_CONNECTIVITY_ONLY: '1'
           E2E_ALICE_USER: e2e_alice
           E2E_ALICE_PASSWORD: E2eAlicePass123!
           E2E_BOB_USER: e2e_bob

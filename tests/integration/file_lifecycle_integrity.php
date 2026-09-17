@@ -9,7 +9,7 @@ $_SERVER['HTTP_HOST'] = $_SERVER['HTTP_HOST'] ?? 'localhost';
 
 require SITEPATH . '/core/config.php';
 require SITEPATH . '/core/DatabaseManager.php';
-require SITEPATH . '/app/services/FileLifecycleService.php';
+require SITEPATH . '/modules/files/services/FileLifecycleService.php';
 require SITEPATH . '/app/services/StorageQuotaService.php';
 
 use App\Services\FileLifecycleService;

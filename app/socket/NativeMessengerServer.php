@@ -8,6 +8,7 @@ use App\Handlers\SocketTicket;
 use App\Models\UserModel;
 use App\Services\LicenseRuntimePolicy;
 use App\Services\PermissionService;
+use Closure;
 use Core\DatabaseManager;
 use Core\ModuleLifecycleStore;
 use Core\ModuleRegistry;
@@ -40,6 +41,7 @@ final class NativeMessengerServer
             'mark_read',
             'user_typing',
             'stop_typing',
+            'activity',
         ],
         'DialogStateSocket' => ['list', 'pin', 'archive', 'mute'],
         'ReceiptSocket' => ['list', 'delivered'],
@@ -62,13 +64,14 @@ final class NativeMessengerServer
     /**
      * Actions proven not to persist user/application state. All other allowed
      * actions are treated as mutations and require a valid installation license
-     * once a production trust root is configured.
+     * once a production trust root is configured. Activity/typing notifications
+     * are ephemeral presence only and therefore remain available in read-only.
      *
      * @var array<string,list<string>>
      */
     private const READ_ONLY_ROUTES = [
         'PingSocket' => ['index'],
-        'MessangerSocket' => ['get_dialogs', 'load'],
+        'MessangerSocket' => ['get_dialogs', 'load', 'user_typing', 'stop_typing', 'activity'],
         'DialogStateSocket' => ['list'],
         'ReceiptSocket' => ['list'],
         'GroupSocket' => ['info', 'refresh'],
@@ -89,6 +92,9 @@ final class NativeMessengerServer
     private array $allowedOrigins;
 
     private LicenseRuntimePolicy $licensePolicy;
+    private Closure $ticketValidator;
+    private Closure $messengerPermissionChecker;
+    private Closure $userUidResolver;
     private bool $running = false;
     private float $lastHeartbeatAt = 0.0;
 
@@ -101,7 +107,10 @@ final class NativeMessengerServer
         array $allowedOrigins,
         private int $maxConnections = 256,
         private int $maxPayloadBytes = SocketFrameCodec::DEFAULT_MAX_PAYLOAD_BYTES,
-        ?LicenseRuntimePolicy $licensePolicy = null
+        ?LicenseRuntimePolicy $licensePolicy = null,
+        ?callable $ticketValidator = null,
+        ?callable $messengerPermissionChecker = null,
+        ?callable $userUidResolver = null
     ) {
         if ($this->port < 1 || $this->port > 65535) {
             throw new RuntimeException('Invalid WebSocket listener port');
@@ -122,6 +131,18 @@ final class NativeMessengerServer
         }
         $this->allowedOrigins = array_keys($normalized);
         $this->licensePolicy = $licensePolicy ?? new LicenseRuntimePolicy();
+        $this->ticketValidator = $ticketValidator !== null
+            ? Closure::fromCallable($ticketValidator)
+            : static fn (string $ticket): ?int => SocketTicket::validate($ticket);
+        $this->messengerPermissionChecker = $messengerPermissionChecker !== null
+            ? Closure::fromCallable($messengerPermissionChecker)
+            : static fn (int $userId): bool => (new PermissionService())->hasPermission($userId, 'messenger.use');
+        $this->userUidResolver = $userUidResolver !== null
+            ? Closure::fromCallable($userUidResolver)
+            : static function (int $userId): ?string {
+                $user = UserModel::select('uid')->where('id', '=', $userId)->first();
+                return $user && !empty($user->uid) ? (string) $user->uid : null;
+            };
     }
 
     public function run(): void
@@ -156,9 +177,6 @@ final class NativeMessengerServer
 
     private function bootLifecycleStore(): void
     {
-        // Workerman previously deferred this until after fork. The native server
-        // is single-process, but retaining the explicit WS bootstrap keeps the
-        // module lifecycle contract identical and guarantees a process-local PDO.
         DatabaseManager::resetInstance();
         ModuleRegistry::boot(
             SITEPATH . '/modules',
@@ -227,7 +245,9 @@ final class NativeMessengerServer
             if (!is_resource($stream) || $client->isDestroyed()) {
                 continue;
             }
-            $read[] = $stream;
+            if (!$client->isClosing()) {
+                $read[] = $stream;
+            }
             if ($client->hasPendingOutput()) {
                 $write[] = $stream;
             }
@@ -236,21 +256,29 @@ final class NativeMessengerServer
         $except = null;
         $selected = @stream_select($read, $write, $except, 0, 200_000);
         if ($selected === false) {
-            // Signals may interrupt stream_select. The next loop either observes
-            // $running=false or simply retries.
             $this->tick();
             return;
         }
 
         foreach ($read as $stream) {
             if ($stream === $this->listener) {
-                $this->acceptPendingClients();
+                try {
+                    $this->acceptPendingClients();
+                } catch (Throwable $e) {
+                    error_log('Native WebSocket accept failure: ' . $e->getMessage());
+                }
                 continue;
             }
             $id = get_resource_id($stream);
             $client = $this->clients[$id] ?? null;
-            if ($client !== null) {
+            if ($client === null) {
+                continue;
+            }
+            try {
                 $this->readClient($client);
+            } catch (Throwable $e) {
+                error_log(sprintf('Native WebSocket client read failure (%d): %s', $id, $e->getMessage()));
+                $this->dropClient($client);
             }
         }
 
@@ -260,8 +288,14 @@ final class NativeMessengerServer
             }
             $id = get_resource_id($stream);
             $client = $this->clients[$id] ?? null;
-            if ($client !== null) {
+            if ($client === null) {
+                continue;
+            }
+            try {
                 $client->flush();
+            } catch (Throwable $e) {
+                error_log(sprintf('Native WebSocket client write failure (%d): %s', $id, $e->getMessage()));
+                $this->dropClient($client);
             }
         }
 
@@ -296,6 +330,10 @@ final class NativeMessengerServer
 
     private function readClient(NativeSocketConnection $client): void
     {
+        if ($client->isClosing() || $client->isDestroyed()) {
+            return;
+        }
+
         $stream = $client->stream();
         if (!is_resource($stream)) {
             $this->dropClient($client);
@@ -322,7 +360,7 @@ final class NativeMessengerServer
             }
         }
 
-        if ($client->handshakeComplete && $client->inputBuffer() !== '') {
+        if ($client->handshakeComplete && $client->inputBuffer() !== '' && !$client->isClosing()) {
             $this->processFrames($client);
         }
     }
@@ -354,25 +392,31 @@ final class NativeMessengerServer
         $ticket = is_scalar($ticketValue) ? (string) $ticketValue : '';
 
         try {
-            $userId = SocketTicket::validate($ticket);
+            $userId = ($this->ticketValidator)($ticket);
         } catch (Throwable $e) {
             error_log('WebSocket ticket validation failed: ' . $e->getMessage());
             $client->rejectHttp(403, 'Forbidden');
             return false;
         }
 
-        if ($userId === null || !$this->canUseMessenger($userId)) {
+        if (!is_int($userId) || $userId < 1 || !$this->canUseMessenger($userId)) {
             $client->rejectHttp(403, 'Forbidden');
             return false;
         }
 
-        $user = UserModel::select('uid')->where('id', '=', $userId)->first();
-        if (!$user || empty($user->uid)) {
+        try {
+            $userUid = ($this->userUidResolver)($userId);
+        } catch (Throwable $e) {
+            error_log('WebSocket user lookup failed: ' . $e->getMessage());
+            $client->rejectHttp(503, 'Service Unavailable');
+            return false;
+        }
+        if (!is_string($userUid) || trim($userUid) === '') {
             $client->rejectHttp(403, 'Forbidden');
             return false;
         }
 
-        $client->uid = (string) $user->uid;
+        $client->uid = $userUid;
         $client->userId = $userId;
         $client->authenticated = true;
         $client->handshakeComplete = true;
@@ -399,19 +443,33 @@ final class NativeMessengerServer
         }
 
         foreach ($frames as $frame) {
+            if ($client->isClosing() || $client->isDestroyed()) {
+                return;
+            }
+
             $opcode = (int) $frame['opcode'];
             $payload = (string) $frame['payload'];
             $fin = (bool) $frame['fin'];
 
             if ($opcode === SocketFrameCodec::OPCODE_PING) {
                 $client->sendPong($payload);
+                if ($client->isClosing()) {
+                    return;
+                }
                 continue;
             }
             if ($opcode === SocketFrameCodec::OPCODE_PONG) {
                 continue;
             }
             if ($opcode === SocketFrameCodec::OPCODE_CLOSE) {
-                $client->closeWithCode(1000);
+                try {
+                    $close = SocketFrameCodec::decodeClosePayload($payload);
+                } catch (Throwable $e) {
+                    $code = str_contains($e->getMessage(), 'UTF-8') ? 1007 : 1002;
+                    $client->closeWithCode($code, 'Invalid close frame');
+                    return;
+                }
+                $client->closeWithCode($close['code'] ?? 1000, $close['reason']);
                 return;
             }
             if ($opcode === SocketFrameCodec::OPCODE_BINARY) {
@@ -426,6 +484,9 @@ final class NativeMessengerServer
                 }
                 if ($fin) {
                     $this->dispatchText($client, $payload);
+                    if ($client->isClosing() || $client->isDestroyed()) {
+                        return;
+                    }
                     continue;
                 }
                 $client->fragmentOpcode = SocketFrameCodec::OPCODE_TEXT;
@@ -448,6 +509,9 @@ final class NativeMessengerServer
                     $client->fragmentBuffer = '';
                     $client->fragmentOpcode = null;
                     $this->dispatchText($client, $message);
+                    if ($client->isClosing() || $client->isDestroyed()) {
+                        return;
+                    }
                 }
             }
         }
@@ -465,8 +529,6 @@ final class NativeMessengerServer
             return;
         }
 
-        // Keep the beta.4 security invariant: role/status changes affect an open
-        // socket on the next inbound action, not only on reconnect.
         if (!$this->canUseMessenger($client->userId)) {
             $client->closeWithCode(1008, 'Permission revoked');
             return;
@@ -544,7 +606,7 @@ final class NativeMessengerServer
     private function canUseMessenger(int $userId): bool
     {
         try {
-            return (new PermissionService())->hasPermission($userId, 'messenger.use');
+            return (bool) ($this->messengerPermissionChecker)($userId);
         } catch (Throwable $e) {
             error_log('Messenger permission evaluation failed: ' . $e->getMessage());
             return false;
@@ -565,6 +627,14 @@ final class NativeMessengerServer
         $now = microtime(true);
 
         foreach ($this->clients as $client) {
+            $client->enforceCloseDeadline($now);
+            if ($client->isDestroyed()) {
+                $this->dropClient($client);
+                continue;
+            }
+            if ($client->isClosing()) {
+                continue;
+            }
             if (!$client->handshakeComplete && ($now - $client->acceptedAt) >= self::HANDSHAKE_TIMEOUT_SECONDS) {
                 $client->rejectHttp(408, 'Request Timeout');
             }
@@ -576,6 +646,9 @@ final class NativeMessengerServer
                 foreach ($userConnections as $connectionId => $connection) {
                     if (!$connection instanceof NativeSocketConnection || $connection->isDestroyed()) {
                         unset($this->connections[$uid][$connectionId]);
+                        continue;
+                    }
+                    if ($connection->isClosing()) {
                         continue;
                     }
                     if ($connection->pingWithoutResponseCount >= 3) {
@@ -592,6 +665,7 @@ final class NativeMessengerServer
         }
 
         foreach ($this->clients as $client) {
+            $client->enforceCloseDeadline($now);
             if ($client->isDestroyed()) {
                 $this->dropClient($client);
             }

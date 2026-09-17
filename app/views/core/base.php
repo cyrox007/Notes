@@ -27,7 +27,6 @@ $styleFiles = [
     'core/common.css',
     'core/accessibility.css',
     'core/license-readonly.css',
-    '^elements/UI/FormInput/style.css',
     '^shared/sidebar/style.css',
     '^shared/header/style.css',
     'messager_page/style.css',
@@ -86,6 +85,17 @@ $partialData = [
 <?php foreach ($moduleStyles as $moduleStyle): ?>
     <link rel="stylesheet" href="<?= $view->e($moduleStyle) ?>">
 <?php endforeach; ?>
+    <style>
+<?php
+$controlsPath = $viewRoot . '/core/controls.css';
+if (is_file($controlsPath) && is_readable($controlsPath)) {
+    $controlsCss = file_get_contents($controlsPath);
+    if (is_string($controlsCss)) {
+        echo $controlsCss . "\n";
+    }
+}
+?>
+    </style>
     <link rel="icon" href="<?= $view->e($baseUrl) ?>/favicon.ico" type="image/x-icon">
     <template id="csrf-token-template"><?= $view->csrfInput() ?></template>
     <script>window.wspaceRuntime = <?= $runtimeConfig ?>; window.wspace = window.wspace || {};</script>

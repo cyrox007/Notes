@@ -36,11 +36,14 @@ jobs:
           php -l app/socket/SocketFrameCodec.php
           php -l app/socket/NativeSocketConnection.php
           php -l app/socket/NativeMessengerServer.php
+          php -l app/socket/MessangerSocket.php
           php -l ws_server/server.php
           php -l bin/ws_doctor.php
           php -l bin/healthcheck.php
           php -l tests/integration/websocket_endpoint_contract.php
           php -l tests/integration/native_websocket_protocol_contract.php
+          php -l tests/integration/native_websocket_runtime_regressions.php
+          php -l tests/integration/messenger_activity_wiring_contract.php
           php -l tests/integration/native_messenger_contract.php
           php -l tests/integration/vendor_free_runtime_contract.php
 
@@ -50,6 +53,8 @@ jobs:
           php tests/integration/vendor_free_runtime_contract.php
           php tests/integration/websocket_endpoint_contract.php
           php tests/integration/native_websocket_protocol_contract.php
+          php tests/integration/native_websocket_runtime_regressions.php
+          php tests/integration/messenger_activity_wiring_contract.php
           php tests/integration/native_messenger_contract.php
 
       - name: Verify vendor-free native deployment defaults
@@ -60,13 +65,16 @@ jobs:
           grep -Fq 'WS_HOST=127.0.0.1' default.env
           grep -Fq 'WS_PUBLIC_URL=ws://localhost/ws' default.env
           grep -Fq 'php bin/ws_doctor.php' default.env
-          grep -Fq 'WebSocketEndpoint::publicUrl()' app/controllers/MessagerController.php
+          grep -Fq 'WebSocketEndpoint::browserUrl()' app/controllers/MessagerController.php
+          grep -Fq 'WebSocketEndpoint::allowedOrigins()' ws_server/server.php
           grep -Fq 'NativeMessengerServer' ws_server/server.php
           grep -Fq 'stream_socket_server(' app/socket/NativeMessengerServer.php
           grep -Fq 'stream_select(' app/socket/NativeMessengerServer.php
           grep -Fq 'SocketHandshake::tryParse' app/socket/NativeMessengerServer.php
           grep -Fq 'SocketTicket::validate' app/socket/NativeMessengerServer.php
           grep -Fq "messenger.use" app/socket/NativeMessengerServer.php
+          grep -Fq 'enforceCloseDeadline' app/socket/NativeMessengerServer.php
+          grep -Fq 'decodeClosePayload' app/socket/NativeMessengerServer.php
           ! grep -R -F 'Workerman\\' app/socket ws_server core.php
           ! test -e app/socket/WorkermanConnectionAdapter.php
           ! grep -Fq 'vendor/autoload.php' core.php

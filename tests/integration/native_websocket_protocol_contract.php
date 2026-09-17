@@ -114,6 +114,35 @@ $close = SocketFrameCodec::encodeClose(1000, 'bye');
 nativeWsProtocolAssert(substr($close, 0, 2) === "\x88\x05", 'server close frame header mismatch');
 nativeWsProtocolAssert(unpack('ncode', substr($close, 2, 2))['code'] === 1000, 'server close code mismatch');
 
+$decodedClose = SocketFrameCodec::decodeClosePayload(pack('n', 1000) . 'bye');
+nativeWsProtocolAssert($decodedClose['code'] === 1000 && $decodedClose['reason'] === 'bye', 'valid close payload failed validation');
+$emptyClose = SocketFrameCodec::decodeClosePayload('');
+nativeWsProtocolAssert($emptyClose['code'] === null && $emptyClose['reason'] === '', 'empty close payload should be valid');
+
+foreach ([
+    "\x03",
+    pack('n', 1005),
+    pack('n', 1015),
+    pack('n', 2000),
+    pack('n', 1000) . "\xc3\x28",
+] as $invalidClosePayload) {
+    $rejected = false;
+    try {
+        SocketFrameCodec::decodeClosePayload($invalidClosePayload);
+    } catch (RuntimeException) {
+        $rejected = true;
+    }
+    nativeWsProtocolAssert($rejected, 'invalid close payload was accepted');
+}
+
+$invalidCloseEncodeRejected = false;
+try {
+    SocketFrameCodec::encodeClose(1005);
+} catch (RuntimeException) {
+    $invalidCloseEncodeRejected = true;
+}
+nativeWsProtocolAssert($invalidCloseEncodeRejected, 'reserved close code was encoded');
+
 $codecSource = (string) file_get_contents($protocolRoot . '/app/socket/SocketFrameCodec.php');
 $handshakeSource = (string) file_get_contents($protocolRoot . '/app/socket/SocketHandshake.php');
 nativeWsProtocolAssert(!str_contains($codecSource, 'Workerman\\'), 'native frame codec depends on Workerman');

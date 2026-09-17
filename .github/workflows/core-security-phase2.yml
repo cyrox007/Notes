@@ -30,6 +30,7 @@ jobs:
 
       - name: Lint hardened core files
         run: |
+          php -l core/RequestOrigin.php
           php -l core/SessionSecurity.php
           php -l core/RedirectPolicy.php
           php -l core/request.php
@@ -43,6 +44,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          grep -Fq 'TRUSTED_PROXY_IPS' core/RequestOrigin.php
+          grep -Fq 'RequestOrigin::isSecure' core/SessionSecurity.php
           grep -Fq 'hasInvalidJson' core/Router.php
           grep -Fq 'handleMethodNotAllowed' core/Router.php
           grep -Fq 'Duplicate route registration' core/Router.php

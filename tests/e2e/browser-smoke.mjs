@@ -50,6 +50,28 @@ async function waitForMessageBubble(page, message) {
   });
 }
 
+async function assertRemoteActivity(senderPage, receiverPage, activity, expectedText) {
+  const sent = await senderPage.evaluate((type) => {
+    const app = window.wspace?.messenger;
+    if (!app?.setLocalActivity || !app.currentDialog?.uid) return false;
+    return app.setLocalActivity(type, true, app.currentDialog.uid);
+  }, activity);
+  if (!sent) throw new Error(`Unable to send Messenger activity: ${activity}`);
+
+  await receiverPage.waitForFunction((text) => {
+    const indicator = document.getElementById('typing-indicator');
+    const label = document.getElementById('typing-text');
+    return Boolean(indicator && !indicator.hidden && label?.textContent?.includes(text));
+  }, expectedText, { timeout: 10000 });
+
+  await senderPage.evaluate((type) => {
+    const app = window.wspace?.messenger;
+    if (!app?.setLocalActivity || !app.currentDialog?.uid) return;
+    app.setLocalActivity(type, false, app.currentDialog.uid);
+  }, activity);
+  await receiverPage.locator('#typing-indicator').waitFor({ state: 'hidden', timeout: 10000 });
+}
+
 try {
   const alice = await createSession(aliceUser, alicePassword);
   const bob = await createSession(bobUser, bobPassword);
@@ -147,10 +169,40 @@ try {
   await bobDialog.click();
   await waitForMessageBubble(bob.page, message);
 
+  // Reproduce the user-visible presence contract with two actual browser
+  // sessions over the native WSS runtime. Typing is emitted by the real input
+  // handler, not by a synthetic server call.
+  await alice.page.locator('#message-input').fill('typing presence probe');
+  await bob.page.waitForFunction(() => {
+    const indicator = document.getElementById('typing-indicator');
+    const label = document.getElementById('typing-text');
+    return Boolean(indicator && !indicator.hidden && label?.textContent?.includes('печатает'));
+  }, null, { timeout: 10000 });
+  await alice.page.evaluate(() => window.wspace?.messenger?.stopTyping?.());
+  await bob.page.locator('#typing-indicator').waitFor({ state: 'hidden', timeout: 10000 });
+  await alice.page.locator('#message-input').fill('');
+
+  // The same transport carries transient recording/upload states. These calls
+  // exercise the exact public client API used by voice.js/media.js; static CI
+  // markers below prove those real producers are wired to it.
+  const activityCases = [
+    ['recording_voice', 'записывает голосовое'],
+    ['recording_video', 'записывает видеосообщение'],
+    ['uploading_image', 'отправляет изображение'],
+    ['uploading_voice', 'отправляет голосовое'],
+    ['uploading_audio', 'отправляет музыку/аудио'],
+    ['uploading_video', 'отправляет видео'],
+    ['uploading_document', 'отправляет документ'],
+    ['uploading_file', 'отправляет файл'],
+  ];
+  for (const [activity, label] of activityCases) {
+    await assertRemoteActivity(alice.page, bob.page, activity, label);
+  }
+
   if (alice.pageErrors.length > 0) throw alice.pageErrors[0];
   if (bob.pageErrors.length > 0) throw bob.pageErrors[0];
 
-  console.log('Browser HTTPS + authenticated WSS + reconnect + realtime message smoke: OK');
+  console.log('Browser HTTPS + authenticated WSS + reconnect + message + activity presence smoke: OK');
 
   await alice.context.close();
   await bob.context.close();

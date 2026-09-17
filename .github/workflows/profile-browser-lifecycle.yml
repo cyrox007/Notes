@@ -2,9 +2,18 @@ name: Profile browser lifecycle
 
 on:
   push:
-    branches: [0.13-profile-hub, 0.13-public-profile-content]
+    branches: ['1.0']
+    paths:
+      - 'modules/profile/**'
+      - 'app/views/profile_page/**'
+      - 'core/ModuleRuntimeLoader.php'
+      - 'core/ModuleAssetController.php'
+      - 'core/routerConfig.php'
+      - 'tests/e2e/profile-lifecycle.mjs'
+      - 'tests/e2e/router.php'
+      - '.github/workflows/profile-browser-lifecycle.yml'
   pull_request:
-    branches: [master, 0.13-ux-foundation, 0.13-profile-hub]
+    branches: ['1.0']
 
 permissions:
   contents: read
@@ -39,9 +48,6 @@ jobs:
           extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
           coverage: none
 
-      - name: Install dependencies
-        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress
-
       - name: Install Chromium
         shell: bash
         run: |
@@ -49,30 +55,36 @@ jobs:
           npm install --no-save playwright@1.55.0
           npx playwright install --with-deps chromium
 
-      - name: Syntax contracts
+      - name: Syntax and isolated ownership contracts
         shell: bash
         run: |
           set -euo pipefail
-          php -l app/controllers/ProfileController.php
-          php -l app/controllers/PublicProfileController.php
-          php -l app/services/ProfilePublicationService.php
-          php -l app/services/UserAvatarService.php
+          rm -rf vendor
+          test ! -e vendor
+          php -l modules/profile/runtime.php
+          find modules/profile -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          php -l tests/integration/native_profile_contract.php
           php -l core/routerConfig.php
           php -l tests/e2e/router.php
           node --check tests/e2e/profile-lifecycle.mjs
-          grep -Fq "route_path name='profile-set'" app/views/profile_page/index.tpl
-          grep -Fq "route_path name='profile-avatar-delete'" app/views/profile_page/index.tpl
-          grep -Fq "route_path name='profile-publication'" app/views/profile_page/publication.tpl
-          grep -Fq "route_path name='profile-public'" app/views/profile_page/index.tpl
-          grep -Fq 'profile_page/hub.css' app/views/styles.css
+          node --check modules/profile/assets/profile.js
+          php tests/integration/native_profile_contract.php
+          grep -Fq '"mode": "isolated"' modules/profile/module.json
+          grep -Fq "moduleAsset('profile', 'profile.js')" app/views/profile_page/index.php
+          grep -Fq "moduleAsset('profile', 'style.css')" app/views/profile_page/index.php
+          test ! -e app/controllers/ProfileController.php
+          test ! -e app/controllers/PublicProfileController.php
+          test ! -e app/services/ProfilePublicationService.php
+          test ! -e app/services/UserAvatarService.php
+          test ! -e assets/js/profile.js
           grep -Fq 'is_profile_public' database/notes_schema.sql
           grep -Fq 'is_profile_public' database/tasks_schema.sql
           grep -Fq 'is_profile_public' database/file_manager_schema.sql
           grep -Fq 'workspace_add_profile_publication' database/migrations/20260914_profile_publication.sql
-          ! grep -Fq 'file_path' app/views/profile_page/public.tpl
-          ! grep -Fq 'share_token' app/views/profile_page/public.tpl
-          ! grep -Fq 'src="/profile/avatar/' app/views/profile_page/index.tpl
-          ! grep -Fq 'src="/assets/img/default_avatar.png' app/views/profile_page/index.tpl
+          ! grep -Fq 'file_path' modules/profile/views/public.php
+          ! grep -Fq 'share_token' modules/profile/views/public.php
+          ! grep -Fq 'src="/profile/avatar/' modules/profile/views/index.php
+          ! grep -Fq 'src="/assets/img/default_avatar.png' modules/profile/views/index.php
 
       - name: Prepare canonical database
         shell: bash
