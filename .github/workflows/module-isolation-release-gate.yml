@@ -4,46 +4,26 @@ on:
   pull_request:
     branches: ['1.0']
     paths:
-      - 'core/ModuleManifest.php'
-      - 'core/ModuleRegistry.php'
-      - 'core/ModuleRuntimeProvider.php'
-      - 'core/ModuleCapabilityRegistry.php'
-      - 'core/ModuleRuntimeLoader.php'
-      - 'core/routerConfig.php'
+      - 'core/**'
       - 'core.php'
       - 'index.php'
       - 'modules/**'
-      - 'app/views/profile_page/**'
-      - 'app/controllers/Admin/**'
-      - 'app/middlewares/RequireAdmin*.php'
-      - 'app/services/Admin*.php'
-      - 'app/services/RoleManagementService.php'
-      - 'app/views/admin-page/**'
-      - 'assets/js/admin-*.js'
-      - 'app/views/core/base.php'
-      - 'assets/js/profile.js'
+      - 'app/**'
+      - 'ws_server/**'
+      - 'tests/integration/native_*_contract.php'
       - 'tests/integration/module_registry_contract.php'
-      - 'tests/integration/native_profile_contract.php'
-      - 'tests/integration/native_admin_contract.php'
       - '.github/workflows/module-isolation-release-gate.yml'
   push:
     branches: ['1.0']
     paths:
       - 'core/**'
+      - 'core.php'
       - 'index.php'
       - 'modules/**'
-      - 'app/views/profile_page/**'
-      - 'app/controllers/Admin/**'
-      - 'app/middlewares/RequireAdmin*.php'
-      - 'app/services/Admin*.php'
-      - 'app/services/RoleManagementService.php'
-      - 'app/views/admin-page/**'
-      - 'assets/js/admin-*.js'
-      - 'app/views/core/base.php'
-      - 'assets/js/profile.js'
+      - 'app/**'
+      - 'ws_server/**'
+      - 'tests/integration/native_*_contract.php'
       - 'tests/integration/module_registry_contract.php'
-      - 'tests/integration/native_profile_contract.php'
-      - 'tests/integration/native_admin_contract.php'
 
 permissions:
   contents: read
@@ -73,16 +53,9 @@ jobs:
           php -l core.php
           php -l index.php
           php -l tests/integration/module_registry_contract.php
-          php -l tests/integration/native_profile_contract.php
-          php -l tests/integration/native_admin_contract.php
-          find modules/notes modules/tasks modules/files modules/profile modules/admin -type f -name '*.php' -print0 | xargs -0 -n1 php -l
-      - name: Verify isolated runtime and native view contracts
-        shell: bash
-        run: |
-          set -euo pipefail
-          php tests/integration/module_registry_contract.php
-          php tests/integration/native_profile_contract.php
-          php tests/integration/native_admin_contract.php
+          find modules/notes modules/tasks modules/files modules/profile modules/admin modules/messenger -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Verify registry contract
+        run: php tests/integration/module_registry_contract.php
       - name: Verify route declaration and dispatch boundary
         shell: bash
         run: |
@@ -101,22 +74,20 @@ jobs:
           if any(position < 0 for position in positions) or positions != sorted(positions):
               raise SystemExit('route registration must be core -> isolated modules -> single dispatch')
           PY
-      - name: Track remaining legacy bundled modules
+      - name: Require complete bundled-module isolation
         shell: bash
         run: |
           set -euo pipefail
-          for module in notes tasks files profile admin; do
+          for module in notes tasks files profile admin messenger; do
             mode="$(php -r '$j=json_decode(file_get_contents($argv[1]), true, 32, JSON_THROW_ON_ERROR); echo $j["runtime"]["mode"] ?? "";' "modules/${module}/module.json")"
             test "$mode" = 'isolated'
+            entry="$(php -r '$j=json_decode(file_get_contents($argv[1]), true, 32, JSON_THROW_ON_ERROR); echo $j["runtime"]["entrypoint"] ?? "";' "modules/${module}/module.json")"
+            test -n "$entry"
+            test -f "modules/${module}/${entry}"
           done
-
-          legacy=0
           for manifest in modules/*/module.json; do
             mode="$(php -r '$j=json_decode(file_get_contents($argv[1]), true, 32, JSON_THROW_ON_ERROR); echo $j["runtime"]["mode"] ?? "";' "$manifest")"
-            if [[ "$mode" == 'legacy' ]]; then
-              echo "LEGACY: $manifest"
-              legacy=$((legacy + 1))
-            fi
+            test "$mode" != 'legacy'
           done
-          # Notes + Tasks + Files + Profile + Admin are physically isolated. Messenger remains.
-          test "$legacy" -le 1
+          ! grep -Fq 'MessengerController' core/routerConfig.php
+          ! grep -Fq 'MessagerController' core/routerConfig.php
