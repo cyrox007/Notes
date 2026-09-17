@@ -15,7 +15,7 @@ if (is_file($root . '/.env')) {
 require $root . '/core/config.php';
 require $root . '/core/DatabaseManager.php';
 require $root . '/app/handlers/CryptMethods.php';
-require $root . '/app/handlers/MessengerCrypto.php';
+require $root . '/modules/messenger/handlers/MessengerCrypto.php';
 require $root . '/app/services/CryptoMigrationService.php';
 
 $options = getopt('', [
