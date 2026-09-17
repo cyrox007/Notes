@@ -47,6 +47,8 @@ jobs:
         run: |
           set -euo pipefail
           php -l core/RuntimeAutoloader.php
+          php -l core/ProfileContentProvider.php
+          php -l core/AccountDeactivationGuard.php
           php -l core/ModuleManifest.php
           php -l core/ModuleRuntimeProvider.php
           php -l core/ModuleCapabilityRegistry.php
