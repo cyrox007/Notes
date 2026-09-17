@@ -13,7 +13,11 @@ on:
       - 'core.php'
       - 'index.php'
       - 'modules/**'
+      - 'app/views/profile_page/**'
+      - 'app/views/core/base.php'
+      - 'assets/js/profile.js'
       - 'tests/integration/module_registry_contract.php'
+      - 'tests/integration/native_profile_contract.php'
       - '.github/workflows/module-isolation-release-gate.yml'
   push:
     branches: ['1.0']
@@ -21,7 +25,11 @@ on:
       - 'core/**'
       - 'index.php'
       - 'modules/**'
+      - 'app/views/profile_page/**'
+      - 'app/views/core/base.php'
+      - 'assets/js/profile.js'
       - 'tests/integration/module_registry_contract.php'
+      - 'tests/integration/native_profile_contract.php'
 
 permissions:
   contents: read
@@ -51,9 +59,14 @@ jobs:
           php -l core.php
           php -l index.php
           php -l tests/integration/module_registry_contract.php
+          php -l tests/integration/native_profile_contract.php
           find modules/notes modules/tasks modules/files modules/profile -type f -name '*.php' -print0 | xargs -0 -n1 php -l
-      - name: Verify isolated runtime and capability contract
-        run: php tests/integration/module_registry_contract.php
+      - name: Verify isolated runtime and Profile view contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/integration/module_registry_contract.php
+          php tests/integration/native_profile_contract.php
       - name: Verify route declaration and dispatch boundary
         shell: bash
         run: |
