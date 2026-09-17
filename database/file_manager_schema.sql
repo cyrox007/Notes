@@ -4,7 +4,8 @@
 -- New composition-aware installs MUST use database/file_manager_module_schema.sql
 -- plus database/file_storage_quota_schema.sql as declared by modules/files/module.json.
 -- This aggregate remains for pre-1.0 tooling and test fixtures that historically
--- imported one File Manager schema file.
+-- imported one File Manager schema file. Core settings are imported separately
+-- by those fixtures, so this aggregate intentionally does not seed settings.
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS `user_files` (
@@ -42,12 +43,6 @@ CREATE TABLE IF NOT EXISTS `user_storage_quotas` (
     CONSTRAINT `fk_user_storage_quota_user`
         FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-INSERT INTO `system_settings`
-    (`setting_key`,`setting_value`,`setting_type`,`category`,`description`,`is_editable`)
-VALUES
-    ('file_manager_default_quota_bytes','1073741824','integer','file_manager','Default File Manager storage quota per user in bytes',1)
-ON DUPLICATE KEY UPDATE `setting_key` = VALUES(`setting_key`);
 
 -- --------------------------------------------
 -- Примечания по безопасности
