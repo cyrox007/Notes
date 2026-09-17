@@ -51,7 +51,7 @@ jobs:
           php -l core.php
           php -l index.php
           php -l tests/integration/module_registry_contract.php
-          find modules/notes modules/tasks modules/files -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          find modules/notes modules/tasks modules/files modules/profile -type f -name '*.php' -print0 | xargs -0 -n1 php -l
       - name: Verify isolated runtime and capability contract
         run: php tests/integration/module_registry_contract.php
       - name: Verify route declaration and dispatch boundary
@@ -76,7 +76,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for module in notes tasks files; do
+          for module in notes tasks files profile; do
             mode="$(php -r '$j=json_decode(file_get_contents($argv[1]), true, 32, JSON_THROW_ON_ERROR); echo $j["runtime"]["mode"] ?? "";' "modules/${module}/module.json")"
             test "$mode" = 'isolated'
           done
@@ -89,5 +89,5 @@ jobs:
               legacy=$((legacy + 1))
             fi
           done
-          # Notes + Tasks + Files are physically isolated. This reaches zero before 1.0 tag.
-          test "$legacy" -le 3
+          # Notes + Tasks + Files + Profile are physically isolated. Admin and Messenger remain.
+          test "$legacy" -le 2

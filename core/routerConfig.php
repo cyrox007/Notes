@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 use App\Controllers\MainController;
 use App\Controllers\AuthController;
-use App\Controllers\ProfileController;
-use App\Controllers\PublicProfileController;
 use App\Controllers\Admin\AdminController;
 use App\Controllers\Admin\SettingsController;
 use App\Controllers\Admin\RegistrationSettingsController;
@@ -22,7 +20,6 @@ use App\Middlewares\RequireAdminUsersManage;
 use App\Middlewares\RequireAdminSettingsManage;
 use App\Middlewares\RequireAdminRolesManage;
 use App\Middlewares\RequireMessengerUse;
-use App\Middlewares\RequireProfileUse;
 use App\Middlewares\AuthRateLimit;
 use App\Middlewares\CSRFMiddleware;
 use App\Middlewares\UploadRateLimit;
@@ -45,18 +42,6 @@ $router->group('/auth')
     ->add('GET', '/registration/{str:invite_code}', [AuthController::class, 'registration'], [], 'registration_invite')
     ->add('POST', '/registration', [AuthController::class, 'registration'], [AuthRateLimit::class, CSRFMiddleware::class], 'register_submit')
     ->endGroup();
-
-$router->group('/profile')
-   ->add('GET', '/', [ProfileController::class, 'index'], [LoginRequared::class, RequireProfileUse::class], 'profile')
-   ->add('GET', '/user/{str:uid}', [PublicProfileController::class, 'view'], [LoginRequared::class, RequireProfileUse::class], 'profile-public')
-   ->add('POST', '/publication', [ProfileController::class, 'setPublication'], [LoginRequared::class, RequireProfileUse::class], 'profile-publication')
-   ->add('POST', '/', [ProfileController::class, 'update'], [LoginRequared::class, RequireProfileUse::class], 'profile-set')
-   ->add('GET', '/avatar/{str:uid}', [ProfileController::class, 'avatar'], [LoginRequared::class, RequireProfileUse::class], 'profile-avatar')
-   ->add('POST', '/avatar/delete', [ProfileController::class, 'removeAvatar'], [LoginRequared::class, RequireProfileUse::class], 'profile-avatar-delete')
-   ->add('POST', '/change-pass', [ProfileController::class, 'changeUserPass'], [LoginRequared::class, RequireProfileUse::class], 'profile-password-set')
-   ->add('POST', '/delete-user', [ProfileController::class, 'deleteUser'], [LoginRequared::class, RequireProfileUse::class], 'profile-delete')
-   ->endGroup();
-
 
 $router->group('/messenger')
     ->add('GET', '/', [MessagerController::class, 'index'], [LoginRequared::class, RequireMessengerUse::class], 'messenger')

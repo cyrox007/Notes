@@ -1,4 +1,3 @@
-{literal}
 document.addEventListener('DOMContentLoaded', () => {
     const editButtons = Array.from(document.querySelectorAll('.profile__edit_user-info, [data-profile-edit]'));
     const cardInfo = document.querySelector('.profile__card-info--data');
@@ -65,4 +64,3 @@ document.addEventListener('DOMContentLoaded', () => {
     fieldRepeatPassword?.addEventListener('input', validatePasswordConfirmation);
     validatePasswordConfirmation();
 });
-{/literal}
