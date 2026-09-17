@@ -13,6 +13,18 @@ use InvalidArgumentException;
 
 final class MessangerSocket
 {
+    private const ACTIVITY_TYPES = [
+        'typing',
+        'recording_voice',
+        'recording_video',
+        'uploading_image',
+        'uploading_voice',
+        'uploading_audio',
+        'uploading_video',
+        'uploading_document',
+        'uploading_file',
+    ];
+
     private RolePolicyService $policies;
     private DatabaseManager $db;
 
@@ -226,6 +238,39 @@ final class MessangerSocket
         array $payload = []
     ): void {
         $this->typing($connections, $connection, $userUid, $payload, false);
+    }
+
+    /**
+     * Broadcast an ephemeral activity signal to the other participants of the
+     * current dialog. Activity is deliberately not persisted and is safe while
+     * the installation is in license read-only mode.
+     */
+    public function activity(
+        array $connections,
+        SocketConnection $connection,
+        string $userUid,
+        array $payload = []
+    ): void {
+        $this->guard($connection, function () use ($connections, $userUid, $payload): void {
+            $dialogUid = $this->requiredString($payload, 'dialog_uid');
+            $activity = $this->requiredString($payload, 'activity');
+            if (!in_array($activity, self::ACTIVITY_TYPES, true)) {
+                throw new InvalidArgumentException('Неизвестный тип активности');
+            }
+            if (!array_key_exists('active', $payload)
+                || (!is_bool($payload['active']) && !in_array($payload['active'], [0, 1, '0', '1'], true))) {
+                throw new InvalidArgumentException('Параметр active должен быть boolean');
+            }
+            $active = filter_var($payload['active'], FILTER_VALIDATE_BOOLEAN);
+
+            $this->broadcast($connections, $userUid, $dialogUid, [
+                'action' => 'activity',
+                'dialog_uid' => $dialogUid,
+                'user_uid' => $userUid,
+                'activity' => $activity,
+                'active' => $active,
+            ], excludeUserUid: $userUid);
+        });
     }
 
     private function typing(

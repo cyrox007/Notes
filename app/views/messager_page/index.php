@@ -19,7 +19,7 @@ $readModuleAsset = static function (string $file): string {
     return is_string($source) ? $source : '';
 };
 $cssFiles = ['style.css', 'media.css', 'forwarding.css', 'reactions.css', 'voice.css', 'group.css', 'search.css'];
-$jsFiles = ['script.js', 'dialog-actions.js', 'receipts.js', 'media.js', 'forwarding.js', 'reactions.js', 'voice.js', 'group.js', 'search.js'];
+$jsFiles = ['script.js', 'activity.js', 'dialog-actions.js', 'receipts.js', 'media.js', 'forwarding.js', 'reactions.js', 'voice.js', 'group.js', 'search.js'];
 $literalOpen = '{' . 'literal}';
 $literalClose = '{/' . 'literal}';
 

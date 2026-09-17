@@ -38,7 +38,7 @@ foreach ($readOnly as $className => $methods) {
 
 $expectedReadOnly = [
     'PingSocket' => ['index'],
-    'MessangerSocket' => ['get_dialogs', 'load'],
+    'MessangerSocket' => ['get_dialogs', 'load', 'user_typing', 'stop_typing', 'activity'],
     'DialogStateSocket' => ['list'],
     'ReceiptSocket' => ['list'],
     'GroupSocket' => ['info', 'refresh'],
@@ -47,8 +47,25 @@ $expectedReadOnly = [
 ];
 wsLicenseAssert($readOnly === $expectedReadOnly, 'read-only WebSocket allowlist changed; review persistence semantics explicitly');
 
+$ephemeral = [
+    'MessangerSocket' => ['user_typing', 'stop_typing', 'activity'],
+];
+
+foreach ($ephemeral as $className => $methods) {
+    foreach ($methods as $methodName) {
+        wsLicenseAssert(
+            isset($allowed[$className]) && in_array($methodName, $allowed[$className], true),
+            "ephemeral action {$className}:{$methodName} must remain an allowed Messenger action"
+        );
+        wsLicenseAssert(
+            isset($readOnly[$className]) && in_array($methodName, $readOnly[$className], true),
+            "ephemeral action {$className}:{$methodName} must remain available in license read-only mode"
+        );
+    }
+}
+
 $mutating = [
-    'MessangerSocket' => ['create_dialog', 'message_send', 'edit_message', 'delete_message', 'mark_read', 'user_typing', 'stop_typing'],
+    'MessangerSocket' => ['create_dialog', 'message_send', 'edit_message', 'delete_message', 'mark_read'],
     'DialogStateSocket' => ['pin', 'archive', 'mute'],
     'ReceiptSocket' => ['delivered'],
     'MediaSocket' => ['send'],

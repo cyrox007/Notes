@@ -81,6 +81,11 @@
         let voiceUploading = false;
         let activeAudio = null;
 
+        const setActivity = (activity, active, dialogUid = initialDialogUid || app.currentDialog?.uid || '') => {
+            if (!dialogUid || typeof app.setLocalActivity !== 'function') return false;
+            return app.setLocalActivity(activity, active, dialogUid);
+        };
+
         const formatDuration = (seconds) => {
             const value = Math.max(0, Math.floor(Number(seconds) || 0));
             const minutes = Math.floor(value / 60);
@@ -137,11 +142,13 @@
         };
 
         const resetRecorderState = () => {
+            const dialogUid = initialDialogUid;
             stopTimer();
             stopTracks();
             recorder = null;
             chunks = [];
             startedAt = 0;
+            if (dialogUid) setActivity('recording_voice', false, dialogUid);
             initialDialogUid = null;
             sendAfterStop = false;
             setRecordingUi(false);
@@ -184,6 +191,7 @@
                 { type: mime || blob.type || 'audio/webm' }
             );
             setUploadUi(true, 'Подготовка голосового сообщения…', 0);
+            setActivity('uploading_voice', true, dialogUid);
 
             try {
                 const attachment = await uploadVoice(file, dialogUid);
@@ -208,6 +216,7 @@
                 console.error(error);
                 app.showToast(error?.message || 'Не удалось отправить голосовое сообщение');
             } finally {
+                setActivity('uploading_voice', false, dialogUid);
                 setUploadUi(false);
             }
         };
@@ -260,6 +269,7 @@
                 }
 
                 initialDialogUid = app.currentDialog.uid;
+                setActivity('recording_voice', true, initialDialogUid);
                 const replyToUid = app.replyTo?.uid || null;
                 chunks = [];
                 sendAfterStop = false;

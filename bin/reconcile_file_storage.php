@@ -16,7 +16,7 @@ if (!defined('SITEPATH')) {
 // supplied through environment variables and no project .env file is present.
 require_once SITEPATH . '/core/config.php';
 require_once SITEPATH . '/core/DatabaseManager.php';
-require_once SITEPATH . '/app/services/FileLifecycleService.php';
+require_once SITEPATH . '/modules/files/services/FileLifecycleService.php';
 
 use App\Services\FileLifecycleService;
 
