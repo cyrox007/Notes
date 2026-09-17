@@ -65,7 +65,10 @@ jobs:
           PY
           )
           grep -Fq "moduleAsset('files', 'script.js')" modules/files/views/index.php
+          grep -Fq "moduleAsset('files', 'quota.css')" modules/files/views/index.php
           grep -Fq "moduleAsset('files', 'quota.js')" modules/files/views/index.php
+          test -s modules/files/assets/quota.css
+          ! grep -Fq '/assets/css/file_manager/quota.css' modules/files/assets/quota.js
           test ! -e app/views/file_manager/index.tpl
           test ! -e app/controllers/FileController.php
           test ! -e assets/js/file_manager/script.js
