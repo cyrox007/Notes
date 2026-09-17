@@ -6,7 +6,7 @@ use App\Sockets\NativeMessengerServer;
 
 $root = dirname(__DIR__, 2);
 require_once $root . '/app/services/LicenseRuntimePolicy.php';
-require_once $root . '/app/socket/NativeMessengerServer.php';
+require_once $root . '/modules/messenger/socket/NativeMessengerServer.php';
 
 function wsLicenseAssert(bool $condition, string $message): void
 {
@@ -88,7 +88,7 @@ foreach ($mutating as $className => $methods) {
     }
 }
 
-$source = file_get_contents($root . '/app/socket/NativeMessengerServer.php');
+$source = file_get_contents($root . '/modules/messenger/socket/NativeMessengerServer.php');
 wsLicenseAssert(is_string($source), 'NativeMessengerServer source must be readable');
 wsLicenseAssert(str_contains($source, '$this->licensePolicy->state()'), 'WebSocket dispatch must evaluate runtime license state');
 wsLicenseAssert(str_contains($source, "'action' => 'LicenseReadOnly'"), 'WebSocket must report read-only state to clients');

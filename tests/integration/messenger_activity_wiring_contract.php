@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__, 2);
+$module = $root . '/modules/messenger';
 
 function activityContractAssert(bool $condition, string $message): void
 {
@@ -12,7 +13,6 @@ function activityContractAssert(bool $condition, string $message): void
     }
 }
 
-/** @return string */
 function activityContractSource(string $path): string
 {
     $source = file_get_contents($path);
@@ -23,20 +23,20 @@ function activityContractSource(string $path): string
     return $source;
 }
 
-$index = activityContractSource($root . '/app/views/messager_page/index.php');
-$activity = activityContractSource($root . '/app/views/messager_page/activity.js');
-$voice = activityContractSource($root . '/app/views/messager_page/voice.js');
-$media = activityContractSource($root . '/app/views/messager_page/media.js');
-$socket = activityContractSource($root . '/app/socket/MessangerSocket.php');
-$server = activityContractSource($root . '/app/socket/NativeMessengerServer.php');
+$index = activityContractSource($module . '/views/index.php');
+$activity = activityContractSource($module . '/views/activity.js');
+$voice = activityContractSource($module . '/views/voice.js');
+$media = activityContractSource($module . '/views/media.js');
+$socket = activityContractSource($module . '/socket/MessangerSocket.php');
+$server = activityContractSource($module . '/socket/NativeMessengerServer.php');
 
 activityContractAssert(
-    strpos($index, "'script.js', 'activity.js'") !== false,
+    strpos($index, "'protocol-origin.js', 'script.js', 'activity.js'") !== false,
     'activity.js must load immediately after the canonical Messenger client'
 );
 activityContractAssert(str_contains($activity, "action: 'MessangerSocket:activity'"), 'activity client does not emit the unified WS action');
 activityContractAssert(str_contains($activity, 'ACTIVITY_TTL_MS = 5000'), 'remote activity TTL is missing');
-activityContractAssert(str_contains($activity, "app.notifyTyping = () =>"), 'typing input path was not migrated to unified activity');
+activityContractAssert(str_contains($activity, 'app.notifyTyping = () =>'), 'typing input path was not migrated to unified activity');
 activityContractAssert(str_contains($activity, "recording_voice: 'записывает голосовое…'"), 'voice recording label is missing');
 activityContractAssert(str_contains($activity, "recording_video: 'записывает видеосообщение…'"), 'video recording protocol label is missing');
 activityContractAssert(str_contains($activity, "uploading_image: 'отправляет изображение…'"), 'image upload label is missing');
@@ -53,8 +53,8 @@ foreach ([
     "mime.startsWith('image/') => 'uploading_image'" => ["mime.startsWith('image/')", "return 'uploading_image'"],
     "mime.startsWith('video/') => 'uploading_video'" => ["mime.startsWith('video/')", "return 'uploading_video'"],
     "mime.startsWith('audio/') => 'uploading_audio'" => ["mime.startsWith('audio/')", "return 'uploading_audio'"],
-    "document extension classifier" => ["'pdf', 'txt', 'md', 'doc', 'docx'", "return 'uploading_document'"],
-    "generic file fallback" => ["return 'uploading_file'"],
+    'document extension classifier' => ["'pdf', 'txt', 'md', 'doc', 'docx'", "return 'uploading_document'"],
+    'generic file fallback' => ["return 'uploading_file'"],
 ] as $label => $markers) {
     foreach ($markers as $marker) {
         activityContractAssert(str_contains($media, $marker), "media classifier missing {$label}: {$marker}");

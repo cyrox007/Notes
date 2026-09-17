@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__, 2);
+$module = $root . '/modules/messenger';
 
 function nativeMessengerAssert(bool $condition, string $message): void
 {
@@ -12,8 +13,13 @@ function nativeMessengerAssert(bool $condition, string $message): void
     }
 }
 
-$viewPath = $root . '/app/views/messager_page/index.php';
-nativeMessengerAssert(is_file($viewPath), 'native Messenger view is missing');
+$manifest = json_decode((string) file_get_contents($module . '/module.json'), true, 32, JSON_THROW_ON_ERROR);
+nativeMessengerAssert(($manifest['runtime']['mode'] ?? null) === 'isolated', 'Messenger manifest is not isolated');
+nativeMessengerAssert(($manifest['runtime']['entrypoint'] ?? null) === 'runtime.php', 'Messenger isolated entrypoint drifted');
+nativeMessengerAssert(is_file($module . '/runtime.php'), 'Messenger runtime entrypoint is missing');
+
+$viewPath = $module . '/views/index.php';
+nativeMessengerAssert(is_file($viewPath), 'native Messenger module view is missing');
 $view = (string) file_get_contents($viewPath);
 nativeMessengerAssert(str_contains($view, '$view->layout(\'core/base\''), 'Messenger does not use the native application shell');
 foreach (['{extends', '{include', '{foreach', '{if', '$smarty'] as $legacyToken) {
@@ -25,44 +31,35 @@ nativeMessengerAssert(str_contains($view, "'socket_ticket' => \$socket_ticket ??
 nativeMessengerAssert(str_contains($view, "'socket_url' => \$socket_url ?? ''"), 'socket URL is not propagated into native shell');
 
 foreach ([
-    'id="messenger-app"',
-    'id="messenger-connection"',
-    'id="dialog-list"',
-    'id="chat-active"',
-    'id="message-list"',
-    'id="message-input"',
-    'id="message-send-button"',
-    'id="message-attach-button"',
-    'id="message-file-input"',
-    'id="new-chat-dialog"',
-    'id="group-info-dialog"',
-    'id="group-member-list"',
-] as $hook) {
-    nativeMessengerAssert(str_contains($view, $hook), "Messenger DOM hook {$hook} is missing");
+    'messenger-app', 'messenger-connection', 'dialog-list', 'chat-active',
+    'message-list', 'message-input', 'message-send-button', 'message-attach-button',
+    'message-file-input', 'new-chat-dialog', 'group-info-dialog', 'group-member-list',
+] as $id) {
+    nativeMessengerAssert(str_contains($view, 'id="' . $id . '"'), "Messenger DOM hook {$id} is missing");
 }
 
 $cssFiles = ['style.css', 'media.css', 'forwarding.css', 'reactions.css', 'voice.css', 'group.css', 'search.css'];
-$jsFiles = ['script.js', 'dialog-actions.js', 'receipts.js', 'media.js', 'forwarding.js', 'reactions.js', 'voice.js', 'group.js', 'search.js'];
+$jsFiles = ['protocol-origin.js', 'script.js', 'activity.js', 'dialog-actions.js', 'receipts.js', 'media.js', 'forwarding.js', 'reactions.js', 'voice.js', 'group.js', 'search.js'];
 foreach (array_merge($cssFiles, $jsFiles) as $asset) {
     nativeMessengerAssert(str_contains($view, "'{$asset}'"), "Messenger native view does not load {$asset}");
-    nativeMessengerAssert(is_file($root . '/app/views/messager_page/' . $asset), "Messenger module asset {$asset} is missing");
+    nativeMessengerAssert(is_file($module . '/views/' . $asset), "Messenger module asset {$asset} is missing");
 }
 
 $literalOpen = '{' . 'literal}';
 $literalClose = '{/' . 'literal}';
 foreach ($jsFiles as $asset) {
-    $source = (string) file_get_contents($root . '/app/views/messager_page/' . $asset);
+    $source = (string) file_get_contents($module . '/views/' . $asset);
     $source = str_replace([$literalOpen, $literalClose], '', $source);
     foreach (['{$', '{if ', '{foreach ', '{include '] as $smartyToken) {
         nativeMessengerAssert(!str_contains($source, $smartyToken), "Messenger JS {$asset} still requires Smarty expansion: {$smartyToken}");
     }
 }
 
-$script = (string) file_get_contents($root . '/app/views/messager_page/script.js');
+$script = (string) file_get_contents($module . '/views/script.js');
 nativeMessengerAssert(str_contains($script, 'window.wspace.messenger = app'), 'Messenger app bootstrap contract is missing');
 nativeMessengerAssert(str_contains($script, 'socketConfig'), 'Messenger client no longer consumes socket runtime config');
 
-$media = (string) file_get_contents($root . '/app/views/messager_page/media.js');
+$media = (string) file_get_contents($module . '/views/media.js');
 nativeMessengerAssert(str_contains($media, 'pendingPasteFiles'), 'clipboard attachment staging state is missing');
 nativeMessengerAssert(str_contains($media, "addEventListener('paste'"), 'clipboard paste handler is missing');
 nativeMessengerAssert(str_contains($media, 'stagePastedFiles(files)'), 'clipboard files are no longer staged before send');
@@ -79,13 +76,15 @@ $qaCss = (string) file_get_contents($root . '/assets/css/live-qa-final.css');
 nativeMessengerAssert(str_contains($qaCss, '.messenger-app .messenger-message'), 'high-specificity Messenger bubble containment fix is missing');
 nativeMessengerAssert(str_contains($qaCss, 'max-width: 100%'), 'Messenger media containment max-width fix is missing');
 
-$controller = (string) file_get_contents($root . '/app/controllers/MessagerController.php');
+$controllerPath = $module . '/controllers/MessagerController.php';
+nativeMessengerAssert(is_file($controllerPath), 'Messenger controller is not module-owned');
+$controller = (string) file_get_contents($controllerPath);
 nativeMessengerAssert(str_contains($controller, 'SocketTicket::issue'), 'Messenger controller no longer issues short-lived socket tickets');
 nativeMessengerAssert(str_contains($controller, "'socket_ticket' => \$socketTicket"), 'socket ticket is not passed to Messenger view');
 nativeMessengerAssert(str_contains($controller, "'socket_url' => \$socketUrl"), 'socket URL is not passed to Messenger view');
 nativeMessengerAssert(str_contains($controller, 'MessengerMediaService'), 'protected Messenger media service boundary is missing');
 
-$connectionBoundary = $root . '/app/socket/SocketConnection.php';
+$connectionBoundary = $module . '/socket/SocketConnection.php';
 nativeMessengerAssert(is_file($connectionBoundary), 'transport-neutral SocketConnection is missing');
 require_once $connectionBoundary;
 
@@ -93,7 +92,6 @@ $fake = new class extends \App\Sockets\SocketConnection {
     public array $sent = [];
     public bool $closed = false;
     public bool $destroyed = false;
-
     public function send(string $payload): void { $this->sent[] = $payload; }
     public function close(): void { $this->closed = true; }
     public function destroy(): void { $this->destroyed = true; }
@@ -108,28 +106,20 @@ nativeMessengerAssert($fake->sent === ['{"action":"Ping"}'], 'SocketConnection s
 nativeMessengerAssert($fake->closed && $fake->destroyed, 'SocketConnection lifecycle contract is broken');
 
 $handlerFiles = [
-    'PingSocket.php',
-    'MessangerSocket.php',
-    'DialogStateSocket.php',
-    'ReceiptSocket.php',
-    'MediaSocket.php',
-    'GroupSocket.php',
-    'SearchSocket.php',
-    'ForwardSocket.php',
-    'ReactionSocket.php',
+    'PingSocket.php', 'MessangerSocket.php', 'DialogStateSocket.php', 'ReceiptSocket.php',
+    'MediaSocket.php', 'GroupSocket.php', 'SearchSocket.php', 'ForwardSocket.php', 'ReactionSocket.php',
 ];
 foreach ($handlerFiles as $handlerFile) {
-    $path = $root . '/app/socket/' . $handlerFile;
+    $path = $module . '/socket/' . $handlerFile;
     nativeMessengerAssert(is_file($path), "socket handler {$handlerFile} is missing");
     $handlerSource = (string) file_get_contents($path);
     nativeMessengerAssert(!str_contains($handlerSource, 'Workerman\\'), "business socket {$handlerFile} still imports Workerman");
     nativeMessengerAssert(!str_contains($handlerSource, 'TcpConnection'), "business socket {$handlerFile} still depends on TcpConnection");
     nativeMessengerAssert(str_contains($handlerSource, 'SocketConnection'), "business socket {$handlerFile} does not use SocketConnection boundary");
-    require_once $path;
 }
 
-$nativeConnectionPath = $root . '/app/socket/NativeSocketConnection.php';
-$nativeServerPath = $root . '/app/socket/NativeMessengerServer.php';
+$nativeConnectionPath = $module . '/socket/NativeSocketConnection.php';
+$nativeServerPath = $module . '/socket/NativeMessengerServer.php';
 nativeMessengerAssert(is_file($nativeConnectionPath), 'native stream connection implementation is missing');
 nativeMessengerAssert(is_file($nativeServerPath), 'native Messenger WebSocket server is missing');
 $nativeConnectionSource = (string) file_get_contents($nativeConnectionPath);
@@ -151,18 +141,20 @@ $server = (string) file_get_contents($root . '/ws_server/server.php');
 nativeMessengerAssert(str_contains($server, 'NativeMessengerServer'), 'WebSocket entrypoint does not start native runtime');
 nativeMessengerAssert(!str_contains($server, 'Workerman\\'), 'WebSocket entrypoint still imports Workerman');
 nativeMessengerAssert(!str_contains($server, 'WorkermanConnectionAdapter'), 'WebSocket entrypoint still routes through Workerman adapter');
-nativeMessengerAssert(str_contains($server, "WS_MAX_CONNECTIONS"), 'native entrypoint does not expose connection cap');
-nativeMessengerAssert(str_contains($server, "WS_MAX_PAYLOAD_BYTES"), 'native entrypoint does not expose payload cap');
+nativeMessengerAssert(str_contains($server, 'WS_MAX_CONNECTIONS'), 'native entrypoint does not expose connection cap');
+nativeMessengerAssert(str_contains($server, 'WS_MAX_PAYLOAD_BYTES'), 'native entrypoint does not expose payload cap');
 nativeMessengerAssert(str_contains($server, "'status'"), 'native entrypoint lost process status command');
 nativeMessengerAssert(str_contains($server, "'restart'"), 'native entrypoint lost restart command');
 
 $composer = json_decode((string) file_get_contents($root . '/composer.json'), true);
 nativeMessengerAssert(is_array($composer), 'composer.json is invalid');
 nativeMessengerAssert(!isset($composer['require']['workerman/workerman']), 'Workerman is still a runtime Composer dependency');
-nativeMessengerAssert(!is_file($root . '/app/socket/WorkermanConnectionAdapter.php'), 'obsolete Workerman compatibility adapter still exists');
+nativeMessengerAssert(!is_file($module . '/socket/WorkermanConnectionAdapter.php'), 'obsolete Workerman compatibility adapter still exists');
+nativeMessengerAssert(!is_file($root . '/app/socket/NativeMessengerServer.php'), 'Messenger WebSocket runtime leaked back into app/socket');
+nativeMessengerAssert(!is_file($root . '/app/controllers/MessagerController.php'), 'Messenger HTTP controller leaked back into app/controllers');
 $coreSource = (string) file_get_contents($root . '/core.php');
 nativeMessengerAssert(!str_contains($coreSource, 'vendor/autoload.php'), 'core runtime still depends on Composer vendor autoload');
 
 require_once __DIR__ . '/native_websocket_protocol_contract.php';
 
-echo "[OK] vendor-free native Messenger view, transport, runtime and protocol contract\n";
+echo "[OK] isolated vendor-free native Messenger view, transport, runtime and protocol contract\n";

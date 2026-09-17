@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const root = new URL('../../', import.meta.url);
-const sourcePath = new URL('app/views/messager_page/protocol-origin.js', root);
+const sourcePath = new URL('modules/messenger/views/protocol-origin.js', root);
 let source = fs.readFileSync(sourcePath, 'utf8');
 source = source.replace(/^\{literal\}\s*/, '').replace(/\s*\{\/literal\}\s*$/, '');
 

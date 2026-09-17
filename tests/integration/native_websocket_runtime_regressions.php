@@ -3,11 +3,11 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__, 2);
-require_once $root . '/app/socket/SocketConnection.php';
-require_once $root . '/app/socket/SocketFrameCodec.php';
-require_once $root . '/app/socket/NativeSocketConnection.php';
-require_once $root . '/app/socket/SocketHandshake.php';
-require_once $root . '/app/socket/NativeMessengerServer.php';
+require_once $root . '/modules/messenger/socket/SocketConnection.php';
+require_once $root . '/modules/messenger/socket/SocketFrameCodec.php';
+require_once $root . '/modules/messenger/socket/NativeSocketConnection.php';
+require_once $root . '/modules/messenger/socket/SocketHandshake.php';
+require_once $root . '/modules/messenger/socket/NativeMessengerServer.php';
 
 use App\Sockets\NativeMessengerServer;
 use App\Sockets\NativeSocketConnection;
@@ -67,8 +67,6 @@ function wsRuntimeInvoke(object $object, string $method, mixed ...$args): mixed
     return $reflection->invoke($object, ...$args);
 }
 
-// B02: a client that does not consume output must never grow the process heap
-// without bound, and a closing connection has a hard drain deadline.
 [$stream, $peer] = wsRuntimeSocketPair();
 $slowClient = new NativeSocketConnection($stream, 1024, 0.01);
 $slowClient->handshakeComplete = true;
@@ -81,9 +79,6 @@ $slowClient->enforceCloseDeadline(microtime(true) + 1.0);
 wsRuntimeAssert($slowClient->isDestroyed(), 'closing client survived beyond forced-close deadline');
 @fclose($peer);
 
-// B03: once an earlier frame schedules protocol close, later frames from the
-// same already-decoded batch must not dispatch. Invalid UTF-8 text followed by
-// PING should queue only one CLOSE frame, never a PONG.
 [$stream, $peer] = wsRuntimeSocketPair();
 $batchClient = new NativeSocketConnection($stream);
 $batchClient->handshakeComplete = true;
@@ -104,8 +99,6 @@ wsRuntimeAssert(
 $batchClient->destroy();
 @fclose($peer);
 
-// B05: a database/user lookup failure during handshake is isolated to that
-// connection and converted to HTTP 503 rather than escaping the shared loop.
 [$stream, $peer] = wsRuntimeSocketPair();
 $handshakeClient = new NativeSocketConnection($stream);
 $handshakeClient->appendInput(

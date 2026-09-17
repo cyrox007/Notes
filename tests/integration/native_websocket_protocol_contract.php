@@ -3,8 +3,8 @@
 declare(strict_types=1);
 
 $protocolRoot = dirname(__DIR__, 2);
-require_once $protocolRoot . '/app/socket/SocketHandshake.php';
-require_once $protocolRoot . '/app/socket/SocketFrameCodec.php';
+require_once $protocolRoot . '/modules/messenger/socket/SocketHandshake.php';
+require_once $protocolRoot . '/modules/messenger/socket/SocketFrameCodec.php';
 
 use App\Sockets\SocketFrameCodec;
 use App\Sockets\SocketHandshake;
@@ -66,7 +66,6 @@ try {
 }
 nativeWsProtocolAssert($invalidVersionRejected, 'unsupported WebSocket version was accepted');
 
-// RFC 6455 §5.7 masked "Hello" client frame example.
 $buffer = "\x81\x85\x37\xfa\x21\x3d\x7f\x9f\x4d\x51\x58";
 $frames = SocketFrameCodec::decodeClientFrames($buffer);
 nativeWsProtocolAssert(count($frames) === 1, 'masked text frame was not decoded');
@@ -143,8 +142,8 @@ try {
 }
 nativeWsProtocolAssert($invalidCloseEncodeRejected, 'reserved close code was encoded');
 
-$codecSource = (string) file_get_contents($protocolRoot . '/app/socket/SocketFrameCodec.php');
-$handshakeSource = (string) file_get_contents($protocolRoot . '/app/socket/SocketHandshake.php');
+$codecSource = (string) file_get_contents($protocolRoot . '/modules/messenger/socket/SocketFrameCodec.php');
+$handshakeSource = (string) file_get_contents($protocolRoot . '/modules/messenger/socket/SocketHandshake.php');
 nativeWsProtocolAssert(!str_contains($codecSource, 'Workerman\\'), 'native frame codec depends on Workerman');
 nativeWsProtocolAssert(!str_contains($handshakeSource, 'Workerman\\'), 'native handshake depends on Workerman');
 

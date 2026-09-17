@@ -6,10 +6,10 @@ on:
     paths:
       - 'core/controller.php'
       - 'core/WebSocketEndpoint.php'
-      - 'app/controllers/MessagerController.php'
+      - 'modules/messenger/controllers/MessagerController.php'
+      - 'modules/messenger/views/index.php'
+      - 'modules/messenger/views/protocol-origin.js'
       - 'app/views/core/base.php'
-      - 'app/views/messager_page/index.php'
-      - 'app/views/messager_page/protocol-origin.js'
       - 'ws_server/server.php'
       - 'tests/integration/protocol_asset_path_contract.php'
       - 'tests/integration/messenger_protocol_origin_contract.mjs'
@@ -20,10 +20,10 @@ on:
     paths:
       - 'core/controller.php'
       - 'core/WebSocketEndpoint.php'
-      - 'app/controllers/MessagerController.php'
+      - 'modules/messenger/controllers/MessagerController.php'
+      - 'modules/messenger/views/index.php'
+      - 'modules/messenger/views/protocol-origin.js'
       - 'app/views/core/base.php'
-      - 'app/views/messager_page/index.php'
-      - 'app/views/messager_page/protocol-origin.js'
       - 'ws_server/server.php'
       - 'tests/integration/protocol_asset_path_contract.php'
       - 'tests/integration/messenger_protocol_origin_contract.mjs'
@@ -50,9 +50,9 @@ jobs:
         run: |
           php -l core/controller.php
           php -l core/WebSocketEndpoint.php
-          php -l app/controllers/MessagerController.php
+          php -l modules/messenger/controllers/MessagerController.php
+          php -l modules/messenger/views/index.php
           php -l app/views/core/base.php
-          php -l app/views/messager_page/index.php
           php -l ws_server/server.php
           php -l tests/integration/protocol_asset_path_contract.php
           php -l tests/integration/websocket_endpoint_contract.php
@@ -68,6 +68,6 @@ jobs:
           set -euo pipefail
           ! grep -Fq '$siteUrl . $basePath' core/controller.php
           grep -Fq '$baseUrl = $basePath;' core/controller.php
-          grep -Fq 'WebSocketEndpoint::browserUrl()' app/controllers/MessagerController.php
+          grep -Fq 'WebSocketEndpoint::browserUrl()' modules/messenger/controllers/MessagerController.php
           grep -Fq 'WebSocketEndpoint::allowedOrigins()' ws_server/server.php
-          grep -Fq "'protocol-origin.js', 'script.js'" app/views/messager_page/index.php
+          grep -Fq "'protocol-origin.js', 'script.js', 'activity.js'" modules/messenger/views/index.php

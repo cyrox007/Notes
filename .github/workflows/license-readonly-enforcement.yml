@@ -35,7 +35,7 @@ jobs:
           for file in \
             app/services/LicenseRuntimePolicy.php \
             app/middlewares/EnforceLicenseMutation.php \
-            app/socket/NativeMessengerServer.php \
+            modules/messenger/socket/NativeMessengerServer.php \
             core/Router.php \
             core/routerConfig.php \
             core/controller.php \
@@ -60,8 +60,8 @@ jobs:
           set -euo pipefail
           grep -Fq 'addGlobalMiddleware(EnforceLicenseMutation::class)' core/routerConfig.php
           grep -Fq 'executeMiddlewares($this->globalMiddlewares, $request)' core/Router.php
-          grep -Fq 'READ_ONLY_ROUTES' app/socket/NativeMessengerServer.php
-          grep -Fq 'LicenseReadOnly' app/socket/NativeMessengerServer.php
+          grep -Fq 'READ_ONLY_ROUTES' modules/messenger/socket/NativeMessengerServer.php
+          grep -Fq 'LicenseReadOnly' modules/messenger/socket/NativeMessengerServer.php
           grep -Fq 'license-readonly-banner' app/views/core/base.php
           grep -Fq "'licenseReadOnly' => \$licenseReadOnly" app/views/core/base.php
           ! grep -R -E 'LICENSE_PRIVATE|SIGNING_PRIVATE|PRIVATE_SIGNING_KEY' app core database default.env

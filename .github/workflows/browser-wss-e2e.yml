@@ -47,7 +47,8 @@ jobs:
           test ! -e vendor
           test "$(php -r '$j=json_decode(file_get_contents("composer.lock"),true); echo count($j["packages"] ?? []);')" = '0'
           ! grep -Fq 'vendor/autoload.php' core.php
-          ! grep -R -F 'Workerman\\' app/socket ws_server core.php
+          ! grep -R -F 'Workerman\\' modules/messenger/socket ws_server core.php
+          ! test -e app/socket/NativeMessengerServer.php
 
       - name: Install browser and TLS proxy
         shell: bash
@@ -67,11 +68,11 @@ jobs:
           php -l core/RequestOrigin.php
           php -l core/SessionSecurity.php
           php -l app/services/PermissionService.php
-          php -l app/socket/SocketConnection.php
-          php -l app/socket/SocketHandshake.php
-          php -l app/socket/SocketFrameCodec.php
-          php -l app/socket/NativeSocketConnection.php
-          php -l app/socket/NativeMessengerServer.php
+          php -l modules/messenger/socket/SocketConnection.php
+          php -l modules/messenger/socket/SocketHandshake.php
+          php -l modules/messenger/socket/SocketFrameCodec.php
+          php -l modules/messenger/socket/NativeSocketConnection.php
+          php -l modules/messenger/socket/NativeMessengerServer.php
           php -l ws_server/server.php
           php -l tests/e2e/router.php
           php -l tests/integration/native_websocket_protocol_contract.php
@@ -81,13 +82,13 @@ jobs:
           ! grep -Fq 'fonts.googleapis.com' index.php
           ! grep -Fq "display_errors', 1" index.php
           grep -Fq 'NativeMessengerServer' ws_server/server.php
-          grep -Fq 'stream_socket_server(' app/socket/NativeMessengerServer.php
-          grep -Fq 'stream_select(' app/socket/NativeMessengerServer.php
-          grep -Fq 'SocketHandshake::tryParse' app/socket/NativeMessengerServer.php
-          grep -Fq 'SocketTicket::validate' app/socket/NativeMessengerServer.php
-          grep -Fq "messenger.use" app/socket/NativeMessengerServer.php
+          grep -Fq 'stream_socket_server(' modules/messenger/socket/NativeMessengerServer.php
+          grep -Fq 'stream_select(' modules/messenger/socket/NativeMessengerServer.php
+          grep -Fq 'SocketHandshake::tryParse' modules/messenger/socket/NativeMessengerServer.php
+          grep -Fq 'SocketTicket::validate' modules/messenger/socket/NativeMessengerServer.php
+          grep -Fq "messenger.use" modules/messenger/socket/NativeMessengerServer.php
           ! grep -Fq 'Workerman\\' ws_server/server.php
-          ! grep -Fq 'Config::canAuthenticate' app/socket/NativeMessengerServer.php
+          ! grep -Fq 'Config::canAuthenticate' modules/messenger/socket/NativeMessengerServer.php
           grep -Fq "getenv('SITEURL')" core/config.php
           grep -Fq 'TRUSTED_PROXY_IPS' core/RequestOrigin.php
           php tests/integration/native_websocket_protocol_contract.php

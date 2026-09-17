@@ -53,7 +53,8 @@ jobs:
           test "$(php -r '$j=json_decode(file_get_contents("composer.lock"),true,64,JSON_THROW_ON_ERROR); echo count($j["packages"] ?? []);')" = '0'
           test ! -d vendor
           ! grep -Fq 'vendor/autoload.php' core.php
-          ! grep -R -F 'Workerman\\' app/socket ws_server core.php
+          ! grep -R -F 'Workerman\\' modules/messenger/socket ws_server core.php
+          test ! -e app/socket/NativeMessengerServer.php
           php -l core.php
           php -l core/Environment.php
           php -l core/NativeViewRenderer.php
@@ -73,7 +74,7 @@ jobs:
             node --check "$source"
           done < <(find assets/js tests/e2e -type f \( -name '*.js' -o -name '*.mjs' \) -print0)
           shopt -s nullglob
-          for source in app/views/messager_page/*.js; do
+          for source in modules/messenger/views/*.js; do
             target="/tmp/$(basename "$source")"
             sed '/^{literal}$/d;/^{\/literal}$/d' "$source" > "$target"
             node --check "$target"
@@ -227,7 +228,8 @@ jobs:
           test ! -e "$bundle/tools/vendor-update"
           test -f "$bundle/install.php"
           test -f "$bundle/core/NativeViewRenderer.php"
-          test -f "$bundle/app/socket/NativeMessengerServer.php"
+          test -f "$bundle/modules/messenger/socket/NativeMessengerServer.php"
+          test ! -e "$bundle/app/socket/NativeMessengerServer.php"
           test -f "$bundle/config/license_trusted_keys.php"
           test -f "$bundle/config/update_trusted_keys.php"
           test -f "$bundle/bin/update_bootstrap.php"
