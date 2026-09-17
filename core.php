@@ -27,6 +27,8 @@ $coreFiles = [
     '/core/SessionSecurity.php',
     '/core/RedirectPolicy.php',
     '/core/WebSocketEndpoint.php',
+    '/core/ProfileContentProvider.php',
+    '/core/AccountDeactivationGuard.php',
     '/core/ModuleManifest.php',
     '/core/ModuleRegistry.php',
     '/core/ModuleRuntimeProvider.php',
