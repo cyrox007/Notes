@@ -68,6 +68,7 @@ foreach ([
     'app/views/profile_page/hub.css',
     'app/views/profile_page/metrics.css',
     'app/views/profile_page/script.js',
+    'assets/js/profile.js',
 ] as $legacyProductFile) {
     nativeProfileAssert(!file_exists($root . '/' . $legacyProductFile), "legacy Profile product file remains: {$legacyProductFile}");
 }

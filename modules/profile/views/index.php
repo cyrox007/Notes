@@ -222,7 +222,6 @@ ob_start();
         </div>
     </div>
 </section>
-<script src="<?= $view->e($baseUrl) ?>/assets/js/profile.js" defer></script>
 <?php
 $content = (string) ob_get_clean();
 echo $view->layout('core/base', [
