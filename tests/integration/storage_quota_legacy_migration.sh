@@ -31,7 +31,7 @@ seed_canonical_non_storage_schema() {
   mysql_db "$db" < database/core_identity_schema.sql
   mysql_db "$db" < database/messenger_schema.sql
   mysql_db "$db" < database/notes_schema.sql
-  mysql_db "$db" < database/file_manager_schema.sql
+  mysql_db "$db" < database/file_manager_module_schema.sql
   mysql_db "$db" < database/user_fields_schema.sql
   mysql_db "$db" < database/tasks_schema.sql
 }
@@ -81,7 +81,7 @@ CREATE TABLE system_settings (
     id INT AUTO_INCREMENT PRIMARY KEY,
     setting_key VARCHAR(100) NOT NULL,
     setting_value TEXT NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
 INSERT INTO system_settings (setting_key,setting_value) VALUES
 ('file_manager_default_quota_bytes','2147483648'),
 ('legacy_banner','keep-me');
@@ -92,7 +92,7 @@ CREATE TABLE user_storage_quotas (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
     quota_bytes BIGINT UNSIGNED NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci;
 INSERT INTO user_storage_quotas (user_id,quota_bytes) VALUES (@uid,3221225472);
 SQL
 
