@@ -168,7 +168,7 @@ try {
   await page.waitForFunction(
     (uid) => {
       const item = document.querySelector(`.task-item[data-task-id="${uid}"]`);
-      return item?.parentElement?.dataset.status === 'completed'
+      return item?.closest('.tasks-board__dropzone')?.dataset.status === 'completed'
         && item?.querySelector('.task-status-toggle')?.value === 'completed'
         && item?.querySelector('.task-complete-toggle')?.checked === true;
     },
