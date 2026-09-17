@@ -32,7 +32,7 @@ final class DatabaseOwnership
     private const CORE_SCHEMAS = [
         'database/core_identity_schema.sql',
         'database/access_control_schema.sql',
-        'database/settings_schema.sql',
+        'database/core_settings_schema.sql',
         'database/module_lifecycle_schema.sql',
     ];
 

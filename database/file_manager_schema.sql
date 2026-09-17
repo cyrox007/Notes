@@ -3,9 +3,8 @@
 --
 -- New composition-aware installs MUST use database/file_manager_module_schema.sql
 -- plus database/file_storage_quota_schema.sql as declared by modules/files/module.json.
--- This aggregate remains only for pre-1.0 tooling and test fixtures that historically
--- imported one File Manager schema file. Its Core settings bridge is compatibility
--- behavior and is intentionally outside the new ownership graph.
+-- This aggregate remains for pre-1.0 tooling and test fixtures that historically
+-- imported one File Manager schema file.
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS `user_files` (
@@ -33,20 +32,6 @@ CREATE TABLE IF NOT EXISTS `user_files` (
     FOREIGN KEY (`parent_id`) REFERENCES `user_files`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `system_settings` (
-    `id` INT AUTO_INCREMENT PRIMARY KEY,
-    `setting_key` VARCHAR(100) NOT NULL,
-    `setting_value` TEXT NOT NULL,
-    `setting_type` ENUM('string','integer','boolean','json') NOT NULL DEFAULT 'string',
-    `category` VARCHAR(50) NOT NULL DEFAULT 'general',
-    `description` VARCHAR(255) DEFAULT NULL,
-    `is_editable` TINYINT(1) NOT NULL DEFAULT 1,
-    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY `uq_system_settings_key` (`setting_key`),
-    INDEX `idx_system_settings_category` (`category`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 CREATE TABLE IF NOT EXISTS `user_storage_quotas` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
     `user_id` INT NOT NULL,
@@ -57,12 +42,6 @@ CREATE TABLE IF NOT EXISTS `user_storage_quotas` (
     CONSTRAINT `fk_user_storage_quota_user`
         FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-INSERT INTO `system_settings`
-    (`setting_key`,`setting_value`,`setting_type`,`category`,`description`,`is_editable`)
-VALUES
-    ('file_manager_default_quota_bytes','1073741824','integer','file_manager','Default File Manager storage quota per user in bytes',1)
-ON DUPLICATE KEY UPDATE `setting_key` = VALUES(`setting_key`);
 
 -- --------------------------------------------
 -- Примечания по безопасности

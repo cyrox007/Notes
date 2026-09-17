@@ -1,8 +1,5 @@
--- Legacy full-bundle settings compatibility aggregate.
---
--- New composition-aware installs use database/core_settings_schema.sql plus
--- module-owned fresh schemas. This file remains for pre-1.0 tooling and fixtures
--- that historically expected the Files default quota to be seeded here.
+-- Canonical core system settings.
+-- Module-specific settings belong to their module fresh-install schema.
 
 CREATE TABLE IF NOT EXISTS `system_settings` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
@@ -22,6 +19,5 @@ INSERT INTO `system_settings`
     (`setting_key`,`setting_value`,`setting_type`,`category`,`description`,`is_editable`)
 VALUES
     ('installation_id',LOWER(UUID()),'string','licensing','Stable installation identifier used to bind signed licenses',0),
-    ('workspace_license_token','','string','licensing','Signed installation-wide Workspace Organizer license token',0),
-    ('file_manager_default_quota_bytes','1073741824','integer','file_manager','Default File Manager storage quota per user in bytes',1)
+    ('workspace_license_token','','string','licensing','Signed installation-wide Workspace Organizer license token',0)
 ON DUPLICATE KEY UPDATE `setting_key` = VALUES(`setting_key`);
