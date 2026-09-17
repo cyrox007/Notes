@@ -10,19 +10,16 @@ if (!is_file($environmentLoader)) {
 require_once $environmentLoader;
 \Core\Environment::load(SITEPATH . '/.env');
 
-spl_autoload_register(function ($class) {
-    $classPath = SITEPATH . '/' . str_replace('\\', '/', $class) . '.php';
+$runtimeAutoloader = SITEPATH . '/core/RuntimeAutoloader.php';
+if (!is_file($runtimeAutoloader)) {
+    throw new RuntimeException('Core runtime autoloader is missing.');
+}
+require_once $runtimeAutoloader;
+\Core\RuntimeAutoloader::register(SITEPATH);
 
-    if (file_exists($classPath)) {
-        require_once $classPath;
-    } else {
-        error_log("Class file for {$class} not found at path: {$classPath}");
-    }
-});
-
-// Core files. Paths intentionally match repository casing because production Linux
-// filesystems are case-sensitive. Native view infrastructure is explicitly loaded
-// because the generic namespace autoloader would map Core to /Core, not /core.
+// Core files are still bootstrapped explicitly where ordering matters. The
+// runtime autoloader only resolves known core/shared-App namespace roots; it does
+// not own module classes. Isolated module classes are loaded by their runtime.php.
 $coreFiles = [
     '/core/config.php',
     '/core/Version.php',
@@ -59,6 +56,14 @@ foreach ($coreFiles as $file) {
     }
 }
 
+// UUID is a historical global helper rather than a namespaced shared service.
+// Keep it as one explicit compatibility include instead of scanning app/handlers.
+$uuidHelper = SITEPATH . '/app/handlers/UUID.php';
+if (!is_file($uuidHelper) || is_link($uuidHelper)) {
+    throw new RuntimeException('Shared UUID helper is missing or unsafe.');
+}
+require_once $uuidHelper;
+
 \Core\SessionSecurity::configure();
 
 $deferModuleLifecyclePersistence = defined('WORKSPACE_DEFER_MODULE_LIFECYCLE')
@@ -72,50 +77,10 @@ $moduleRegistry = \Core\ModuleRegistry::boot(
     $moduleLifecycleStore
 );
 
-// HTTP runtime uses the reconciled effective composition. Entrypoints that defer
-// lifecycle persistence (notably the native WS process bootstrap) use the package
-// default composition; isolated runtime code is still loaded explicitly rather
-// than through the legacy recursive app/* loader. Capability providers are bound
-// while these isolated providers boot and the registry is sealed before dispatch.
+// Normal runtime uses the reconciled persisted enabled composition. Entrypoints
+// that deliberately defer lifecycle persistence may request the package default
+// composition, but isolated providers are always loaded only through runtime.php.
 $moduleRuntimeComposition = $moduleLifecycleStore !== null
     ? $moduleRegistry->enabledComposition()
     : $moduleRegistry->defaultComposition();
 \Core\ModuleRuntimeLoader::boot($moduleRegistry, $moduleRuntimeComposition);
-
-// Transitional legacy loader. Product files disappear from these shared app/*
-// directories as each module moves behind ModuleRuntimeLoader. This loader is
-// removed once the final bundled module is isolated.
-$directories = [
-    '/app/models/',
-    '/app/services/',
-    '/app/controllers/',
-    '/app/socket/',
-    '/app/handlers/',
-    '/app/middlewares/'
-];
-
-array_walk($directories, function ($directory) {
-    $path = SITEPATH . $directory;
-    if (is_dir($path)) {
-        loadDirectoryFiles($path);
-    } elseif ($directory !== '/app/services/') {
-        error_log("Directory {$path} does not exist.");
-    }
-});
-
-/**
- * @param string $directory Directory path
- */
-function loadDirectoryFiles(string $directory): void
-{
-    $files = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($directory, RecursiveDirectoryIterator::SKIP_DOTS),
-        RecursiveIteratorIterator::LEAVES_ONLY
-    );
-
-    foreach ($files as $file) {
-        if ($file->isFile() && $file->getExtension() === 'php') {
-            require_once $file->getRealPath();
-        }
-    }
-}
