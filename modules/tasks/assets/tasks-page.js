@@ -176,15 +176,20 @@
 
         root.querySelectorAll('.subtask-toggle').forEach((toggle) => {
             toggle.addEventListener('change', async function () {
+                const previous = !this.checked;
                 this.disabled = true;
+                syncSubtaskProgress(this);
+                markSaveState(this, 'saving');
                 try {
                     await requestJson(appPath(`/tasks/subtask/${encodeURIComponent(this.dataset.subtaskId)}/toggle`), { method: 'POST' });
-                    window.location.reload();
+                    markSaveState(this, 'saved');
                 } catch (error) {
-                    this.checked = !this.checked;
-                    this.disabled = false;
+                    this.checked = previous;
                     syncSubtaskProgress(this);
+                    markSaveState(this, 'error');
                     window.alert(`Не удалось изменить подзадачу: ${error.message}`);
+                } finally {
+                    this.disabled = false;
                 }
             });
         });
