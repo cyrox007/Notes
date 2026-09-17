@@ -1,31 +1,9 @@
 -- ============================================================
--- Notes Messenger v2 - canonical schema
--- Fresh-install source of truth for users, dialogs, messages and attachments.
+-- Workspace Organizer Messenger canonical schema
+-- Fresh-install source of truth for dialogs, messages and attachments.
+-- Requires the core `users` table from database/core_identity_schema.sql.
 -- Existing installations should use database/migrations/*.sql.
 -- ============================================================
-
-CREATE TABLE IF NOT EXISTS `users` (
-    `id` INT AUTO_INCREMENT PRIMARY KEY,
-    `uid` CHAR(36) NOT NULL,
-    `username` VARCHAR(50) NOT NULL,
-    `email` VARCHAR(190) NOT NULL,
-    `password_hash` VARCHAR(255) NOT NULL,
-    `firstname` VARCHAR(80) NOT NULL DEFAULT '',
-    `patronymic` VARCHAR(80) DEFAULT NULL,
-    `lastname` VARCHAR(80) NOT NULL DEFAULT '',
-    `phone` VARCHAR(32) DEFAULT NULL,
-    `avatar` VARCHAR(255) DEFAULT NULL,
-    `property` JSON DEFAULT NULL,
-    `role` INT NOT NULL DEFAULT 888,
-    `is_active` TINYINT(1) NOT NULL DEFAULT 1,
-    `account_status` ENUM('active', 'inactive', 'blocked') NOT NULL DEFAULT 'active',
-    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY `uq_users_uid` (`uid`),
-    UNIQUE KEY `uq_users_username` (`username`),
-    UNIQUE KEY `uq_users_email` (`email`),
-    KEY `idx_users_active` (`is_active`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `dialogs` (
     `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -136,7 +114,6 @@ CREATE TABLE IF NOT EXISTS `message_reactions` (
         FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Telegram-style "delete only for me" without mutating the message for others.
 CREATE TABLE IF NOT EXISTS `message_user_deletions` (
     `message_id` BIGINT UNSIGNED NOT NULL,
     `user_id` INT NOT NULL,
