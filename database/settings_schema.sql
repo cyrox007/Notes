@@ -1,4 +1,5 @@
--- Canonical system settings and per-user storage quota overrides.
+-- Canonical core system settings.
+-- Module-specific settings belong to their module fresh-install schema.
 
 CREATE TABLE IF NOT EXISTS `system_settings` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
@@ -14,21 +15,9 @@ CREATE TABLE IF NOT EXISTS `system_settings` (
     INDEX `idx_system_settings_category` (`category`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS `user_storage_quotas` (
-    `id` INT AUTO_INCREMENT PRIMARY KEY,
-    `user_id` INT NOT NULL,
-    `quota_bytes` BIGINT UNSIGNED NOT NULL,
-    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY `uq_user_storage_quota_user` (`user_id`),
-    CONSTRAINT `fk_user_storage_quota_user`
-        FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 INSERT INTO `system_settings`
     (`setting_key`,`setting_value`,`setting_type`,`category`,`description`,`is_editable`)
 VALUES
-    ('file_manager_default_quota_bytes','1073741824','integer','file_manager','Default File Manager storage quota per user in bytes',1),
     ('installation_id',LOWER(UUID()),'string','licensing','Stable installation identifier used to bind signed licenses',0),
     ('workspace_license_token','','string','licensing','Signed installation-wide Workspace Organizer license token',0)
 ON DUPLICATE KEY UPDATE `setting_key` = VALUES(`setting_key`);
