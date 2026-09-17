@@ -31,13 +31,18 @@ jobs:
           php -l core/ModuleRuntimeProvider.php
           php -l core/ModuleCapabilityRegistry.php
           php -l core/ModuleRuntimeLoader.php
+          php -l core/DatabaseOwnership.php
           php -l core.php
           php -l index.php
           php -l tests/integration/module_registry_contract.php
+          php -l tests/integration/database_ownership_contract.php
           php -l tests/e2e/router.php
 
       - name: Verify module registry, isolated runtime and capability contracts
         run: php tests/integration/module_registry_contract.php
+
+      - name: Verify database ownership compositions
+        run: php tests/integration/database_ownership_contract.php
 
       - name: Verify module package web boundary
         shell: bash
