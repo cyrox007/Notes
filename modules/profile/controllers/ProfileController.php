@@ -7,8 +7,10 @@ namespace App\Controllers;
 use App\Helpers\CryptMethods;
 use App\Services\ProfilePublicationService;
 use App\Services\UserAvatarService;
+use Core\AccountDeactivationGuard;
 use Core\Controller;
 use Core\DatabaseManager;
+use Core\ModuleRuntimeLoader;
 use Core\Request;
 use Core\Router;
 use DomainException;
@@ -29,7 +31,7 @@ final class ProfileController extends Controller
             $type = (string) $request->post('type', '');
             $uid = (string) $request->post('uid', '');
             $isPublic = (string) $request->post('public', '0') === '1';
-            (new ProfilePublicationService(DatabaseManager::getInstance()))
+            (new ProfilePublicationService())
                 ->setVisibility((int) $user->id, $type, $uid, $isPublic);
 
             Router::getInstance()->redirect('profile');
@@ -201,26 +203,16 @@ final class ProfileController extends Controller
             return;
         }
 
-        $db = DatabaseManager::getInstance();
-        $ownedGroup = $db->fetchOne(
-            "SELECT d.uid, COALESCE(NULLIF(d.name, ''), 'Без названия') AS name
-             FROM user_to_dialogs utd
-             JOIN dialogs d ON d.id = utd.dialog_id
-             WHERE utd.user_id = :user_id
-               AND utd.role = 'owner'
-               AND utd.is_deleted = 0
-               AND d.type = 'group'
-             LIMIT 1",
-            [':user_id' => (int) $user->id]
-        );
-        if ($ownedGroup !== null) {
+        $blocker = $this->accountDeactivationBlocker((int) $user->id);
+        if ($blocker !== null) {
             $this->renderProfile($user, [[
-                'CODE' => 'group_owner_transfer_required',
-                'MESSAGE' => 'Перед деактивацией передайте владение группой «' . (string) $ownedGroup['name'] . '» другому участнику.',
+                'CODE' => $blocker['code'],
+                'MESSAGE' => $blocker['message'],
             ]], 409);
             return;
         }
 
+        $db = DatabaseManager::getInstance();
         $db->execute(
             'UPDATE users
              SET is_active = 0, account_status = \'inactive\', avatar = NULL, updated_at = :updated_at
@@ -363,8 +355,28 @@ final class ProfileController extends Controller
             'fields' => $fields,
             'avatar_url' => $avatarUrl,
             'errors' => $errors,
-            'publication_items' => (new ProfilePublicationService($db))->ownerItems((int) $user->id),
+            'publication_items' => (new ProfilePublicationService())->ownerItems((int) $user->id),
         ]);
+    }
+
+    /** @return array{code:string,message:string}|null */
+    private function accountDeactivationBlocker(int $userId): ?array
+    {
+        if (!ModuleRuntimeLoader::isBooted()) {
+            return null;
+        }
+
+        $capabilities = ModuleRuntimeLoader::getInstance()->capabilities();
+        if (!$capabilities->has('workspace.messenger')) {
+            return null;
+        }
+
+        $guard = $capabilities->require('workspace.messenger', AccountDeactivationGuard::class);
+        if (!$guard instanceof AccountDeactivationGuard) {
+            throw new \RuntimeException('Messenger capability does not implement account deactivation guard');
+        }
+
+        return $guard->accountDeactivationBlocker($userId);
     }
 
     private function invalidateSession(Request $request): void
