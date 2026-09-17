@@ -31,11 +31,11 @@ foreach (['core.php', 'install.php', 'ws_server/server.php'] as $entrypoint) {
 foreach ([
     'core/Environment.php',
     'core/NativeViewRenderer.php',
-    'app/socket/SocketConnection.php',
-    'app/socket/SocketHandshake.php',
-    'app/socket/SocketFrameCodec.php',
-    'app/socket/NativeSocketConnection.php',
-    'app/socket/NativeMessengerServer.php',
+    'modules/messenger/socket/SocketConnection.php',
+    'modules/messenger/socket/SocketHandshake.php',
+    'modules/messenger/socket/SocketFrameCodec.php',
+    'modules/messenger/socket/NativeSocketConnection.php',
+    'modules/messenger/socket/NativeMessengerServer.php',
 ] as $required) {
     vendorFreeAssert(is_file($root . '/' . $required), "internal runtime component missing: {$required}");
 }
@@ -43,12 +43,13 @@ foreach ([
 foreach ([
     'core/LegacySmartyRenderer.php',
     'core/HybridViewRenderer.php',
-    'app/socket/WorkermanConnectionAdapter.php',
+    'modules/messenger/socket/WorkermanConnectionAdapter.php',
+    'app/socket/NativeMessengerServer.php',
 ] as $legacy) {
-    vendorFreeAssert(!is_file($root . '/' . $legacy), "legacy third-party adapter still exists: {$legacy}");
+    vendorFreeAssert(!is_file($root . '/' . $legacy), "legacy third-party or ownership adapter still exists: {$legacy}");
 }
 
-$socketDirectory = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root . '/app/socket'));
+$socketDirectory = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root . '/modules/messenger/socket'));
 foreach ($socketDirectory as $file) {
     if (!$file->isFile() || $file->getExtension() !== 'php') {
         continue;
