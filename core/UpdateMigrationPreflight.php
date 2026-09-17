@@ -17,12 +17,14 @@ use RuntimeException;
 final class UpdateMigrationPreflight
 {
     private MigrationManifest $manifest;
-    private DatabaseOwnership $ownership;
+    private ?DatabaseOwnership $ownership = null;
 
     public function __construct(string $releaseRoot)
     {
         $this->manifest = new MigrationManifest($releaseRoot);
-        $this->ownership = DatabaseOwnership::fromPackageRoot($releaseRoot);
+        if (is_dir(rtrim($releaseRoot, '/\\') . '/modules')) {
+            $this->ownership = DatabaseOwnership::fromPackageRoot($releaseRoot);
+        }
     }
 
     /**
@@ -41,7 +43,9 @@ final class UpdateMigrationPreflight
     {
         $manifest = $this->manifest->load();
         $canonicalFiles = $manifest['migrations'];
-        $files = $this->ownership->migrationNamesInCanonicalOrder($canonicalFiles);
+        $files = $this->ownership !== null
+            ? $this->ownership->migrationNamesInCanonicalOrder($canonicalFiles)
+            : $canonicalFiles;
         $selected = array_fill_keys($files, true);
         $target = [];
         $sqlSetHash = hash_init('sha256');
