@@ -9,9 +9,6 @@ ini_set('display_errors', '0');
 if (!defined('SITEPATH')) {
     define('SITEPATH', dirname(__FILE__) . '/..');
 }
-if (!defined('WORKSPACE_DEFER_MODULE_LIFECYCLE')) {
-    define('WORKSPACE_DEFER_MODULE_LIFECYCLE', true);
-}
 error_reporting(E_ALL);
 ini_set('error_log', sys_get_temp_dir() . '/workspace-organizer-ws-startup.log');
 
@@ -190,8 +187,17 @@ if (!in_array($command, ['start', 'run'], true)) {
 }
 
 // From this point onward a real server process is being started, so load the
-// complete application stack (database, module lifecycle, RBAC and handlers).
+// complete application stack including persisted module lifecycle state.
 require_once SITEPATH . '/core.php';
+
+// A disabled Messenger module must not have a parallel always-on WebSocket
+// runtime. status/stop remain DB-independent above, while start/run fail closed
+// unless the isolated Messenger provider is in the effective composition.
+$moduleRuntime = \Core\ModuleRuntimeLoader::getInstance();
+if (!isset($moduleRuntime->providers()['messenger'])) {
+    fwrite(STDERR, "Messenger module is disabled; WebSocket server will not start.\n");
+    exit(1);
+}
 
 $existingPid = workspaceWsReadPid($pidFile);
 if ($existingPid !== null && workspaceWsProcessExists($existingPid)) {
