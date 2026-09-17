@@ -53,9 +53,31 @@ jobs:
           php -l core.php
           php -l index.php
           php -l tests/integration/module_registry_contract.php
+          for contract in \
+            native_notes_contract.php \
+            native_tasks_contract.php \
+            native_file_manager_contract.php \
+            native_profile_contract.php \
+            native_admin_contract.php \
+            native_messenger_contract.php; do
+            php -l "tests/integration/${contract}"
+          done
           find modules/notes modules/tasks modules/files modules/profile modules/admin modules/messenger -type f -name '*.php' -print0 | xargs -0 -n1 php -l
       - name: Verify registry contract
         run: php tests/integration/module_registry_contract.php
+      - name: Verify native module ownership contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          for contract in \
+            native_notes_contract.php \
+            native_tasks_contract.php \
+            native_file_manager_contract.php \
+            native_profile_contract.php \
+            native_admin_contract.php \
+            native_messenger_contract.php; do
+            php "tests/integration/${contract}"
+          done
       - name: Verify route declaration and dispatch boundary
         shell: bash
         run: |
@@ -91,3 +113,6 @@ jobs:
           done
           ! grep -Fq 'MessengerController' core/routerConfig.php
           ! grep -Fq 'MessagerController' core/routerConfig.php
+          test ! -e app/controllers/MessagerController.php
+          test ! -e app/socket/NativeMessengerServer.php
+          test ! -e app/views/messager_page/index.php
