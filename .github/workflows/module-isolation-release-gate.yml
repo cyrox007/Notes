@@ -18,15 +18,10 @@ on:
   push:
     branches: ['1.0']
     paths:
-      - 'core/ModuleManifest.php'
-      - 'core/ModuleRegistry.php'
-      - 'core/ModuleRuntimeProvider.php'
-      - 'core/ModuleCapabilityRegistry.php'
-      - 'core/ModuleRuntimeLoader.php'
-      - 'core/routerConfig.php'
-      - 'core.php'
+      - 'core/**'
       - 'index.php'
       - 'modules/**'
+      - 'tests/integration/module_registry_contract.php'
 
 permissions:
   contents: read
@@ -44,7 +39,9 @@ jobs:
           php-version: ${{ matrix.php }}
           coverage: none
       - name: Lint module runtime boundary
+        shell: bash
         run: |
+          set -euo pipefail
           php -l core/ModuleManifest.php
           php -l core/ModuleRuntimeProvider.php
           php -l core/ModuleCapabilityRegistry.php
@@ -54,6 +51,7 @@ jobs:
           php -l core.php
           php -l index.php
           php -l tests/integration/module_registry_contract.php
+          find modules/notes modules/tasks -type f -name '*.php' -print0 | xargs -0 -n1 php -l
       - name: Verify isolated runtime and capability contract
         run: php tests/integration/module_registry_contract.php
       - name: Verify route declaration and dispatch boundary
@@ -65,10 +63,12 @@ jobs:
           python3 <<'PY'
           from pathlib import Path
           source = Path('index.php').read_text(encoding='utf-8')
-          core_routes = "require_once SITEPATH . '/core/routerConfig.php';"
-          module_routes = r"\Core\ModuleRuntimeLoader::getInstance()->registerRoutes($router);"
-          dispatch = '$router->dispatch();'
-          positions = [source.find(core_routes), source.find(module_routes), source.find(dispatch)]
+          markers = [
+              "require_once SITEPATH . '/core/routerConfig.php';",
+              r"\Core\ModuleRuntimeLoader::getInstance()->registerRoutes($router);",
+              '$router->dispatch();',
+          ]
+          positions = [source.find(marker) for marker in markers]
           if any(position < 0 for position in positions) or positions != sorted(positions):
               raise SystemExit('route registration must be core -> isolated modules -> single dispatch')
           PY
@@ -76,8 +76,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mode="$(php -r '$j=json_decode(file_get_contents("modules/notes/module.json"), true, 32, JSON_THROW_ON_ERROR); echo $j["runtime"]["mode"] ?? "";')"
-          test "$mode" = 'isolated'
+          for module in notes tasks; do
+            mode="$(php -r '$j=json_decode(file_get_contents($argv[1]), true, 32, JSON_THROW_ON_ERROR); echo $j["runtime"]["mode"] ?? "";' "modules/${module}/module.json")"
+            test "$mode" = 'isolated'
+          done
+
           legacy=0
           for manifest in modules/*/module.json; do
             mode="$(php -r '$j=json_decode(file_get_contents($argv[1]), true, 32, JSON_THROW_ON_ERROR); echo $j["runtime"]["mode"] ?? "";' "$manifest")"
@@ -86,6 +89,5 @@ jobs:
               legacy=$((legacy + 1))
             fi
           done
-          # Notes is isolated. Tighten this ceiling with every remaining module
-          # migration until it reaches zero before the final 1.0 release tag.
-          test "$legacy" -le 5
+          # Notes + Tasks are physically isolated. This reaches zero before 1.0 tag.
+          test "$legacy" -le 4
