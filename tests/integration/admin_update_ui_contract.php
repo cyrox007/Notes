@@ -13,7 +13,7 @@ $root = dirname(__DIR__, 2);
 require_once $root . '/core/Version.php';
 require_once $root . '/core/DatabaseManager.php';
 require_once $root . '/app/services/PermissionService.php';
-require_once $root . '/app/services/AdminUpdateService.php';
+require_once $root . '/modules/admin/services/AdminUpdateService.php';
 
 function adminUpdateAssert(bool $condition, string $message): void
 {
@@ -325,10 +325,10 @@ try {
         'admin staged signed package missing'
     );
 
-    $controllerSource = (string) file_get_contents($root . '/app/controllers/Admin/UpdateController.php');
-    $serviceSource = (string) file_get_contents($root . '/app/services/AdminUpdateService.php');
-    $viewSource = (string) file_get_contents($root . '/app/views/admin-page/updates.php');
-    $routerSource = (string) file_get_contents($root . '/core/routerConfig.php');
+    $controllerSource = (string) file_get_contents($root . '/modules/admin/controllers/UpdateController.php');
+    $serviceSource = (string) file_get_contents($root . '/modules/admin/services/AdminUpdateService.php');
+    $viewSource = (string) file_get_contents($root . '/modules/admin/views/updates.php');
+    $routerSource = (string) file_get_contents($root . '/modules/admin/AdminRuntimeProvider.php');
 
     adminUpdateAssert(!str_contains($controllerSource, "'stage_dir' =>"), 'admin controller persists/displays absolute stage path');
     adminUpdateAssert(str_contains($controllerSource, 'STAGE_BINDING_SESSION_KEY'), 'admin controller lost server-side reviewed release binding');

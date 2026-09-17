@@ -60,7 +60,7 @@ final class UpdateController extends Controller
             ];
         }
 
-        $this->render_template('admin-page/updates', [
+        $this->render_template('@admin/updates', [
             'user' => $user,
             'update_state' => $snapshot,
             'update_result' => is_array($result) ? $result : null,

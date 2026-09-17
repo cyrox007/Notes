@@ -70,10 +70,10 @@ When the final bundled module is isolated, the recursive product loader is delet
 5. Admin.
 6. Messenger — last because its HTTP module boundary must converge with the native WebSocket runtime and protocol/origin hardening.
 
-Current `1.0` migration state after the Profile step:
+Current `1.0` migration state after the Admin step:
 
-- isolated: `notes`, `tasks`, `files`, `profile`;
-- remaining legacy bundled modules: `admin`, `messenger`.
+- isolated: `notes`, `tasks`, `files`, `profile`, `admin`;
+- remaining legacy bundled module: `messenger`.
 
 Profile keeps only narrow compatibility view bridges in `app/views/profile_page/*.php` while its existing controllers retain the historical template names. Those bridges contain no Profile product UI/business logic: product views/assets and runtime code are owned by `modules/profile`, and the module owns its routes/capability. They can be removed later by changing the controller template identifiers to `@profile/*` without changing the runtime boundary.
 

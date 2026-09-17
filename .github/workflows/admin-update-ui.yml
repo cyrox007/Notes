@@ -33,10 +33,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          php -l app/services/AdminUpdateService.php
-          php -l app/controllers/Admin/UpdateController.php
-          php -l app/views/admin-page/updates.php
-          php -l app/views/admin-page/settings.php
+          php -l modules/admin/services/AdminUpdateService.php
+          php -l modules/admin/controllers/UpdateController.php
+          php -l modules/admin/views/updates.php
+          php -l modules/admin/views/settings.php
           php -l core/routerConfig.php
           php -l tests/integration/admin_update_ui_contract.php
           php -l tests/integration/native_admin_contract.php
@@ -59,13 +59,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq -- "->add('GET', '/updates/check'" core/routerConfig.php
-          grep -Fq -- "->add('POST', '/updates/stage'" core/routerConfig.php
-          grep -Fq "RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_stage'" core/routerConfig.php
-          grep -Fq "hasRole(\$actorId, 'superadmin')" app/services/AdminUpdateService.php
-          grep -Fq 'UpdateRemoteDelivery' app/services/AdminUpdateService.php
-          ! grep -Fq 'UpdateApplyCommand' app/services/AdminUpdateService.php
-          ! grep -Fq 'UpdateLiveApplier' app/services/AdminUpdateService.php
-          ! grep -Fq 'UpdateBackupManager' app/services/AdminUpdateService.php
-          ! grep -Fq "'stage_dir' =>" app/controllers/Admin/UpdateController.php
-          ! grep -Fq "admin_updates_apply" app/views/admin-page/updates.php
+          grep -Fq -- "->add('GET', '/updates/check'" modules/admin/AdminRuntimeProvider.php
+          grep -Fq -- "->add('POST', '/updates/stage'" modules/admin/AdminRuntimeProvider.php
+          grep -Fq "RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_stage'" modules/admin/AdminRuntimeProvider.php
+          grep -Fq "hasRole(\$actorId, 'superadmin')" modules/admin/services/AdminUpdateService.php
+          grep -Fq 'UpdateRemoteDelivery' modules/admin/services/AdminUpdateService.php
+          ! grep -Fq 'UpdateApplyCommand' modules/admin/services/AdminUpdateService.php
+          ! grep -Fq 'UpdateLiveApplier' modules/admin/services/AdminUpdateService.php
+          ! grep -Fq 'UpdateBackupManager' modules/admin/services/AdminUpdateService.php
+          ! grep -Fq "'stage_dir' =>" modules/admin/controllers/UpdateController.php
+          ! grep -Fq "admin_updates_apply" modules/admin/views/updates.php

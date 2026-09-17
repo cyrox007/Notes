@@ -30,8 +30,6 @@ $styleFiles = [
     '^shared/sidebar/style.css',
     '^shared/header/style.css',
     'messager_page/style.css',
-    'admin-page/style.css',
-    'admin-page/license.css',
     '^shared/footer/style.css',
     'core/theme-refresh.css',
     'core/product-ux-013.css',
@@ -105,7 +103,6 @@ if (is_file($controlsPath) && is_readable($controlsPath)) {
     <script src="<?= $view->e($baseUrl) ?>/assets/js/usability-actions.js" defer></script>
     <script src="<?= $view->e($baseUrl) ?>/assets/js/release-polish.js" defer></script>
     <script src="<?= $view->e($baseUrl) ?>/assets/js/messenger-connection-ux.js" defer></script>
-    <script src="<?= $view->e($baseUrl) ?>/assets/js/admin-settings-nav.js" defer></script>
 <?php foreach ($moduleScripts as $moduleScript): ?>
     <script src="<?= $view->e($moduleScript) ?>" defer></script>
 <?php endforeach; ?>

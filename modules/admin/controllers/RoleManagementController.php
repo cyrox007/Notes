@@ -34,7 +34,7 @@ final class RoleManagementController extends Controller
 
         $flash = $request->session('admin_roles_flash');
         $request->unsetSession('admin_roles_flash');
-        $this->render_template('admin-page/roles', [
+        $this->render_template('@admin/roles', [
             'user' => $user,
             'roles' => $snapshot['roles'],
             'permissions' => $snapshot['permissions'],

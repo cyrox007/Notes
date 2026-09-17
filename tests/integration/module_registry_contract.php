@@ -91,7 +91,7 @@ function removeFixtureTree(string $path): void
 
 $registry = ModuleRegistry::discover($root . '/modules', Version::VERSION);
 $expected = ['admin', 'files', 'messenger', 'notes', 'profile', 'tasks'];
-$isolated = ['files', 'notes', 'profile', 'tasks'];
+$isolated = ['admin', 'files', 'notes', 'profile', 'tasks'];
 
 moduleAssert(array_keys($registry->all()) === $expected, 'bundled module manifest set drifted');
 moduleAssert($registry->defaultComposition() === $expected, 'default bundled composition drifted');
@@ -114,7 +114,7 @@ foreach ($registry->all() as $id => $manifest) {
 moduleAssert($registry->resolveComposition(['notes']) === ['notes'], 'Notes composition failed');
 moduleAssert($registry->resolveComposition(['tasks']) === ['tasks'], 'Tasks composition failed');
 moduleAssert($registry->resolveComposition(['profile']) === ['profile'], 'Profile composition failed');
-moduleAssert($registry->resolveComposition(['files', 'notes', 'profile', 'tasks']) === ['files', 'notes', 'profile', 'tasks'], 'isolated composition order drifted');
+moduleAssert($registry->resolveComposition(['admin', 'files', 'notes', 'profile', 'tasks']) === ['admin', 'files', 'notes', 'profile', 'tasks'], 'isolated composition order drifted');
 
 $tmp = sys_get_temp_dir() . '/workspace-module-contract-' . bin2hex(random_bytes(6));
 mkdir($tmp, 0700, true);

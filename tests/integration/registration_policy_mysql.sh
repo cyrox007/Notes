@@ -38,24 +38,24 @@ php tests/integration/registration_policy_runtime.php
 # provisioning/settings require both dedicated RBAC middleware and CSRF.
 grep -Fq "'/registration', [AuthController::class, 'registration'], [], 'registration'" core/routerConfig.php
 grep -Fq "'/registration', [AuthController::class, 'registration'], [AuthRateLimit::class, CSRFMiddleware::class], 'register_submit'" core/routerConfig.php
-grep -Fq "'/users/create', [UserProvisioningController::class, 'create'], [LoginRequared::class, RequireAdminUsersManage::class, CSRFMiddleware::class]" core/routerConfig.php
-grep -Fq "'/registration', [RegistrationSettingsController::class, 'index'], [LoginRequared::class, RequireAdminSettingsManage::class]" core/routerConfig.php
-grep -Fq "'/registration/mode', [RegistrationSettingsController::class, 'saveMode'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class]" core/routerConfig.php
-grep -Fq "'/registration/invites/create', [RegistrationSettingsController::class, 'createInvite'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class]" core/routerConfig.php
-grep -Fq "'/registration/invites/revoke', [RegistrationSettingsController::class, 'revokeInvite'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class]" core/routerConfig.php
+grep -Fq "'/users/create', [UserProvisioningController::class, 'create'], [LoginRequared::class, RequireAdminUsersManage::class, CSRFMiddleware::class]" modules/admin/AdminRuntimeProvider.php
+grep -Fq "'/registration', [RegistrationSettingsController::class, 'index'], [LoginRequared::class, RequireAdminSettingsManage::class]" modules/admin/AdminRuntimeProvider.php
+grep -Fq "'/registration/mode', [RegistrationSettingsController::class, 'saveMode'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class]" modules/admin/AdminRuntimeProvider.php
+grep -Fq "'/registration/invites/create', [RegistrationSettingsController::class, 'createInvite'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class]" modules/admin/AdminRuntimeProvider.php
+grep -Fq "'/registration/invites/revoke', [RegistrationSettingsController::class, 'revokeInvite'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class]" modules/admin/AdminRuntimeProvider.php
 
 grep -Fq "registration_mode == 'open'" app/views/login_page/login_view.tpl
 grep -Fq "registration_mode == 'invite'" app/views/login_page/login_view.tpl
-grep -Fq "admin_create_user" app/views/admin-page/index.tpl
-grep -Fq "admin_registration_invite_create" app/views/admin-page/registration.tpl
+grep -Fq "admin_create_user" modules/admin/views/index.php
+grep -Fq "admin_registration_invite_create" modules/admin/views/registration.php
 grep -Fq "hash('sha256', \$code)" app/services/RegistrationPolicyService.php
-! grep -Fq "password_hash" app/views/admin-page/registration.tpl
+! grep -Fq "password_hash" modules/admin/views/registration.php
 
 for file in \
   app/services/UserProvisioningService.php \
   app/services/RegistrationPolicyService.php \
-  app/controllers/Admin/UserProvisioningController.php \
-  app/controllers/Admin/RegistrationSettingsController.php \
+  modules/admin/controllers/UserProvisioningController.php \
+  modules/admin/controllers/RegistrationSettingsController.php \
   app/controllers/AuthController.php \
   tests/integration/registration_policy_runtime.php; do
   php -l "$file"

@@ -45,8 +45,8 @@ jobs:
         run: |
           php -l app/services/LicenseVerifier.php
           php -l app/services/LicenseService.php
-          php -l app/controllers/Admin/LicenseController.php
-          php -l app/views/admin-page/license.php
+          php -l modules/admin/controllers/LicenseController.php
+          php -l modules/admin/views/license.php
           php -l tests/integration/license_verifier_contract.php
           php -l bin/migrate.php
           php -l core/routerConfig.php
@@ -62,11 +62,11 @@ jobs:
           grep -Fq "'workspace_license_token'" database/settings_schema.sql
           grep -Fq "'installation_id'" database/migrations/20260915_installation_license.sql
           grep -Fq '20260915_installation_license.sql' bin/migrate.php
-          grep -Fq "'/license'" core/routerConfig.php
-          grep -Fq "'/license/activate'" core/routerConfig.php
-          grep -Fq "'/license/clear'" core/routerConfig.php
-          grep -F "'/license/activate'" core/routerConfig.php | grep -Fq 'CSRFMiddleware::class'
-          grep -F "'/license/clear'" core/routerConfig.php | grep -Fq 'CSRFMiddleware::class'
+          grep -Fq "'/license'" modules/admin/AdminRuntimeProvider.php
+          grep -Fq "'/license/activate'" modules/admin/AdminRuntimeProvider.php
+          grep -Fq "'/license/clear'" modules/admin/AdminRuntimeProvider.php
+          grep -F "'/license/activate'" modules/admin/AdminRuntimeProvider.php | grep -Fq 'CSRFMiddleware::class'
+          grep -F "'/license/clear'" modules/admin/AdminRuntimeProvider.php | grep -Fq 'CSRFMiddleware::class'
           grep -Fq "hasRole(\$actorId, 'superadmin')" app/services/LicenseService.php
           grep -Fq "admin.settings.manage" app/services/LicenseService.php
           grep -Fq 'sodium_crypto_sign_verify_detached' app/services/LicenseVerifier.php

@@ -44,8 +44,8 @@ jobs:
           set -euo pipefail
           for source in \
             app/controllers/AuthController.php \
-            app/controllers/Admin/UserProvisioningController.php \
-            app/controllers/Admin/RegistrationSettingsController.php \
+            modules/admin/controllers/UserProvisioningController.php \
+            modules/admin/controllers/RegistrationSettingsController.php \
             app/services/UserProvisioningService.php \
             app/services/RegistrationPolicyService.php \
             core/routerConfig.php \

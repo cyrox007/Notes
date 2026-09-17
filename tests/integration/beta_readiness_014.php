@@ -24,7 +24,7 @@ foreach ([
     'database/migrations/20260915_role_module_policies.sql' => 'role module policy migration is missing',
     'database/migrations/20260915_shared_task_boards.sql' => 'shared task board migration is missing',
     'app/services/RolePolicyService.php' => 'role policy runtime is missing',
-    'app/services/RoleManagementService.php' => 'role management runtime is missing',
+    'modules/admin/services/RoleManagementService.php' => 'role management runtime is missing',
     'app/services/TaskBoardService.php' => 'shared task board runtime is missing',
     'docs/CORE_SECURITY_AUDIT_0.14.md' => 'core security audit is missing',
     'docs/MODULE_PLATFORM_0.14.md' => 'module platform contract is missing',

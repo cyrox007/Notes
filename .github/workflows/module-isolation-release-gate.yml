@@ -14,10 +14,17 @@ on:
       - 'index.php'
       - 'modules/**'
       - 'app/views/profile_page/**'
+      - 'app/controllers/Admin/**'
+      - 'app/middlewares/RequireAdmin*.php'
+      - 'app/services/Admin*.php'
+      - 'app/services/RoleManagementService.php'
+      - 'app/views/admin-page/**'
+      - 'assets/js/admin-*.js'
       - 'app/views/core/base.php'
       - 'assets/js/profile.js'
       - 'tests/integration/module_registry_contract.php'
       - 'tests/integration/native_profile_contract.php'
+      - 'tests/integration/native_admin_contract.php'
       - '.github/workflows/module-isolation-release-gate.yml'
   push:
     branches: ['1.0']
@@ -26,10 +33,17 @@ on:
       - 'index.php'
       - 'modules/**'
       - 'app/views/profile_page/**'
+      - 'app/controllers/Admin/**'
+      - 'app/middlewares/RequireAdmin*.php'
+      - 'app/services/Admin*.php'
+      - 'app/services/RoleManagementService.php'
+      - 'app/views/admin-page/**'
+      - 'assets/js/admin-*.js'
       - 'app/views/core/base.php'
       - 'assets/js/profile.js'
       - 'tests/integration/module_registry_contract.php'
       - 'tests/integration/native_profile_contract.php'
+      - 'tests/integration/native_admin_contract.php'
 
 permissions:
   contents: read
@@ -60,13 +74,15 @@ jobs:
           php -l index.php
           php -l tests/integration/module_registry_contract.php
           php -l tests/integration/native_profile_contract.php
-          find modules/notes modules/tasks modules/files modules/profile -type f -name '*.php' -print0 | xargs -0 -n1 php -l
-      - name: Verify isolated runtime and Profile view contracts
+          php -l tests/integration/native_admin_contract.php
+          find modules/notes modules/tasks modules/files modules/profile modules/admin -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Verify isolated runtime and native view contracts
         shell: bash
         run: |
           set -euo pipefail
           php tests/integration/module_registry_contract.php
           php tests/integration/native_profile_contract.php
+          php tests/integration/native_admin_contract.php
       - name: Verify route declaration and dispatch boundary
         shell: bash
         run: |
@@ -89,7 +105,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for module in notes tasks files profile; do
+          for module in notes tasks files profile admin; do
             mode="$(php -r '$j=json_decode(file_get_contents($argv[1]), true, 32, JSON_THROW_ON_ERROR); echo $j["runtime"]["mode"] ?? "";' "modules/${module}/module.json")"
             test "$mode" = 'isolated'
           done
@@ -102,5 +118,5 @@ jobs:
               legacy=$((legacy + 1))
             fi
           done
-          # Notes + Tasks + Files + Profile are physically isolated. Admin and Messenger remain.
-          test "$legacy" -le 2
+          # Notes + Tasks + Files + Profile + Admin are physically isolated. Messenger remains.
+          test "$legacy" -le 1

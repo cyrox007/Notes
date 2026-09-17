@@ -58,7 +58,7 @@ final class AdminController extends Controller
         $flash = $request->session('admin_flash');
         $request->unsetSession('admin_flash');
 
-        $this->render_template('admin-page/index', [
+        $this->render_template('@admin/index', [
             'user' => $user,
             'customFields' => FieldModel::select()->orderBy('id', 'ASC')->get(),
             'users' => $result['items'],

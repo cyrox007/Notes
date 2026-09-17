@@ -167,7 +167,6 @@ ob_start();
         </form>
     </section>
 </section>
-<script src="<?= $view->e($baseUrl) ?>/assets/js/admin-page.js" defer></script>
 <?php
 $content = (string) ob_get_clean();
 echo $view->layout('core/base', [
@@ -181,4 +180,11 @@ echo $view->layout('core/base', [
     'pagination' => $pagination ?? null,
     'socket_ticket' => $socket_ticket ?? '',
     'socket_url' => $socket_url ?? '',
+    'module_styles' => [
+        $view->moduleAsset('admin', 'style.css'),
+    ],
+    'module_scripts' => [
+        $view->moduleAsset('admin', 'admin-settings-nav.js'),
+        $view->moduleAsset('admin', 'admin-page.js'),
+    ],
 ], $content);

@@ -24,7 +24,7 @@ final class SettingsController extends Controller
         $service = new StorageQuotaService();
         $flash = $request->session('settings_flash');
         $request->unsetSession('settings_flash');
-        $this->render_template('admin-page/settings', [
+        $this->render_template('@admin/settings', [
             'user' => $user,
             'default_quota_bytes' => $service->defaultQuotaBytes(),
             'storage_users' => $service->adminUsage($actorId),
