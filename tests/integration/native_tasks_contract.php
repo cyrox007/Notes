@@ -65,7 +65,7 @@ nativeTasksAssert(!str_contains($coreRoutes, "group('/tasks')"), 'core router st
 nativeTasksAssert(!str_contains($coreRoutes, 'TaskController'), 'core router still imports TaskController');
 
 $index = (string) file_get_contents($moduleRoot . '/views/index.php');
-nativeTasksAssert(str_contains($index, "$view->layout('core/base'"), 'Tasks page does not use native shell');
+nativeTasksAssert(str_contains($index, '$view->layout(\'core/base\''), 'Tasks page does not use native shell');
 nativeTasksAssert(str_contains($index, "partial('@tasks/elements/task_item/index'"), 'isolated task item partial is not used');
 nativeTasksAssert(str_contains($index, "moduleAsset('tasks', 'tasks-page.js')"), 'Tasks page JS is not module-owned');
 nativeTasksAssert(str_contains($index, "moduleAsset('tasks', 'style.css')"), 'Tasks page CSS is not module-owned');
@@ -96,6 +96,7 @@ foreach (['tasks-page.js','tasks-kanban.js','task-boards.js','task-boards-nav.js
 $tasksJs = (string) file_get_contents($moduleRoot . '/assets/tasks-page.js');
 nativeTasksAssert(str_contains($tasksJs, 'window.wspace?.path'), 'Tasks API paths are not BASE_PATH-aware');
 nativeTasksAssert(str_contains($tasksJs, 'syncSubtaskProgress'), 'subtask progress synchronization is missing');
+nativeTasksAssert(str_contains($tasksJs, "markSaveState(this, 'saving')"), 'task status save feedback is missing');
 $kanban = (string) file_get_contents($moduleRoot . '/assets/tasks-kanban.js');
 nativeTasksAssert(str_contains($kanban, 'shiftStats'), 'live Tasks stats synchronization is missing');
 
