@@ -11,16 +11,18 @@ use RuntimeException;
  * Read-only migration preflight for a verified release candidate.
  *
  * No PHP from the candidate is executed. The current updater process reads only
- * the candidate's canonical migration manifest and SQL bytes, then compares them
+ * bounded JSON manifests and SQL bytes from the candidate, then compares them
  * with the live schema_migrations ledger when one exists.
  */
 final class UpdateMigrationPreflight
 {
     private MigrationManifest $manifest;
+    private DatabaseOwnership $ownership;
 
     public function __construct(string $releaseRoot)
     {
         $this->manifest = new MigrationManifest($releaseRoot);
+        $this->ownership = DatabaseOwnership::fromPackageRoot($releaseRoot);
     }
 
     /**
@@ -38,11 +40,15 @@ final class UpdateMigrationPreflight
     public function check(mysqli $db): array
     {
         $manifest = $this->manifest->load();
-        $files = $manifest['migrations'];
+        $canonicalFiles = $manifest['migrations'];
+        $files = $this->ownership->migrationNamesInCanonicalOrder($canonicalFiles);
+        $selected = array_fill_keys($files, true);
         $target = [];
         $sqlSetHash = hash_init('sha256');
 
-        foreach ($files as $index => $filename) {
+        // Validate every immutable historical entry so an existing ledger remains
+        // verifiable even when the target package no longer contains its module.
+        foreach ($canonicalFiles as $index => $filename) {
             $sql = $this->manifest->readMigration($filename);
             $sha = hash('sha256', $sql);
             $statements = $this->parseStatements($sql, $filename);
@@ -51,7 +57,9 @@ final class UpdateMigrationPreflight
                 'sha256' => $sha,
                 'statements' => count($statements),
             ];
-            hash_update($sqlSetHash, $filename . "\0" . $sha . "\n");
+            if (isset($selected[$filename])) {
+                hash_update($sqlSetHash, $filename . "\0" . $sha . "\n");
+            }
         }
 
         $ledgerPresent = $this->tableExists($db, 'schema_migrations');
@@ -96,15 +104,16 @@ final class UpdateMigrationPreflight
             ];
         }
 
+        $selectedApplied = count(array_intersect_key($applied, $selected));
         return [
             'status' => 'ok',
             'ledger_present' => $ledgerPresent,
             // Published Beta4 predates a reliable ledger for installer-created
             // schema. In that case we can still prove target SQL is bounded and
-            // syntactically split-safe; the existing migrator remains responsible
-            // for its legacy reconciliation after the code switch.
+            // syntactically split-safe; the migrator remains responsible for its
+            // legacy reconciliation after the code switch.
             'legacy_untracked' => !$ledgerPresent,
-            'applied' => count($applied),
+            'applied' => $selectedApplied,
             'pending' => count($pending),
             'pending_migrations' => $pending,
             'manifest_sha256' => $manifest['sha256'],
