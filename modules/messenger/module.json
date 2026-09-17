@@ -8,6 +8,6 @@
   "capabilities": ["workspace.messenger"],
   "package": {"bundled": true, "default_enabled": true},
   "license": {"feature": "workspace.messenger"},
-  "runtime": {"mode": "legacy"},
+  "runtime": {"mode": "isolated", "entrypoint": "runtime.php"},
   "storage_namespaces": ["messenger"]
 }
