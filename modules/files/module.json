@@ -3,11 +3,26 @@
   "id": "files",
   "name": "File Manager",
   "version": "0.13.0",
-  "core": {"min": "0.13.0-alpha", "max_exclusive": "2.0.0"},
+  "core": {
+    "min": "0.13.0-alpha",
+    "max_exclusive": "2.0.0"
+  },
   "dependencies": [],
-  "capabilities": ["workspace.files"],
-  "package": {"bundled": true, "default_enabled": true},
-  "license": {"feature": "workspace.files"},
-  "runtime": {"mode": "legacy"},
-  "storage_namespaces": ["file_manager"]
+  "capabilities": [
+    "workspace.files"
+  ],
+  "package": {
+    "bundled": true,
+    "default_enabled": true
+  },
+  "license": {
+    "feature": "workspace.files"
+  },
+  "runtime": {
+    "mode": "isolated",
+    "entrypoint": "runtime.php"
+  },
+  "storage_namespaces": [
+    "file_manager"
+  ]
 }

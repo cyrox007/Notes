@@ -91,7 +91,7 @@ function removeFixtureTree(string $path): void
 
 $registry = ModuleRegistry::discover($root . '/modules', Version::VERSION);
 $expected = ['admin', 'files', 'messenger', 'notes', 'profile', 'tasks'];
-$isolated = ['notes', 'tasks'];
+$isolated = ['files', 'notes', 'tasks'];
 
 moduleAssert(array_keys($registry->all()) === $expected, 'bundled module manifest set drifted');
 moduleAssert($registry->defaultComposition() === $expected, 'default bundled composition drifted');
@@ -113,7 +113,7 @@ foreach ($registry->all() as $id => $manifest) {
 
 moduleAssert($registry->resolveComposition(['notes']) === ['notes'], 'Notes composition failed');
 moduleAssert($registry->resolveComposition(['tasks']) === ['tasks'], 'Tasks composition failed');
-moduleAssert($registry->resolveComposition(['notes', 'tasks']) === ['notes', 'tasks'], 'isolated composition order drifted');
+moduleAssert($registry->resolveComposition(['files', 'notes', 'tasks']) === ['files', 'notes', 'tasks'], 'isolated composition order drifted');
 
 $tmp = sys_get_temp_dir() . '/workspace-module-contract-' . bin2hex(random_bytes(6));
 mkdir($tmp, 0700, true);

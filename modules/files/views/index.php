@@ -237,8 +237,6 @@ ob_start();
         </div>
     </div>
 </div>
-<script src="<?= $view->e($baseUrl) ?>/assets/js/file_manager/script.js"></script>
-<script src="<?= $view->e($baseUrl) ?>/assets/js/file_manager/quota.js"></script>
 <?php
 $content = (string) ob_get_clean();
 echo $view->layout('core/base', [
@@ -251,4 +249,14 @@ echo $view->layout('core/base', [
     'workspaceAccess' => $access,
     'socket_ticket' => $socket_ticket ?? '',
     'socket_url' => $socket_url ?? '',
+    'module_styles' => [
+        $view->moduleAsset('files', 'style.css'),
+        $view->moduleAsset('files', 'polish.css'),
+    ],
+    'module_scripts' => [
+        $view->moduleAsset('files', 'script.js'),
+        $view->moduleAsset('files', 'quota.js'),
+        $view->moduleAsset('files', 'polish.js'),
+        $view->moduleAsset('files', 'drop-upload.js'),
+    ],
 ], $content);

@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__, 2);
-$path = $root . '/app/views/file_manager/index.php';
+$path = $root . '/modules/files/views/index.php';
 
 function nativeFileManagerAssert(bool $condition, string $message): void
 {
@@ -31,7 +31,7 @@ nativeFileManagerAssert(str_contains($source, 'id="media-player-modal"'), 'media
 nativeFileManagerAssert(str_contains($source, 'id="text-preview-modal"'), 'text preview modal hook was dropped');
 nativeFileManagerAssert(str_contains($source, 'id="modal-upload-progress"'), 'upload progress modal hook was dropped');
 nativeFileManagerAssert(str_contains($source, "route('files_get'"), 'protected file route was dropped');
-nativeFileManagerAssert(str_contains($source, '/assets/js/file_manager/script.js'), 'file manager behavior bundle was dropped');
-nativeFileManagerAssert(str_contains($source, '/assets/js/file_manager/quota.js'), 'file quota behavior bundle was dropped');
+nativeFileManagerAssert(str_contains($source, "moduleAsset('files', 'script.js')"), 'Files module behavior asset was dropped');
+nativeFileManagerAssert(str_contains($source, "moduleAsset('files', 'quota.js')"), 'Files module quota asset was dropped');
 
 echo "[OK] native file manager view contract\n";

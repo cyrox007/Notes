@@ -31,7 +31,6 @@ $styleFiles = [
     '^shared/sidebar/style.css',
     '^shared/header/style.css',
     'profile_page/style.css',
-    'file_manager/style.css',
     'messager_page/style.css',
     'admin-page/style.css',
     'admin-page/license.css',
@@ -84,7 +83,6 @@ $partialData = [
     <link rel="stylesheet" href="<?= $view->e($baseUrl) ?>/assets/font-awesome/css/font-awesome.min.css">
     <link rel="stylesheet" href="<?= $view->e($baseUrl) ?>/assets/css/findability.css">
     <link rel="stylesheet" href="<?= $view->e($baseUrl) ?>/assets/css/feedback.css">
-    <link rel="stylesheet" href="<?= $view->e($baseUrl) ?>/assets/css/file-manager-polish.css">
     <link rel="stylesheet" href="<?= $view->e($baseUrl) ?>/assets/css/messenger-connection-ux.css">
     <link rel="stylesheet" href="<?= $view->e($baseUrl) ?>/assets/css/live-qa-fixes.css?v=<?= rawurlencode($workspaceVersion) ?>">
     <link rel="stylesheet" href="<?= $view->e($baseUrl) ?>/assets/css/live-qa-final.css?v=<?= rawurlencode($workspaceVersion) ?>">
@@ -99,8 +97,6 @@ $partialData = [
     <script src="<?= $view->e($baseUrl) ?>/assets/js/feedback.js" defer></script>
     <script src="<?= $view->e($baseUrl) ?>/assets/js/usability-actions.js" defer></script>
     <script src="<?= $view->e($baseUrl) ?>/assets/js/release-polish.js" defer></script>
-    <script src="<?= $view->e($baseUrl) ?>/assets/js/file-manager-polish.js" defer></script>
-    <script src="<?= $view->e($baseUrl) ?>/assets/js/file-manager-drop-upload.js" defer></script>
     <script src="<?= $view->e($baseUrl) ?>/assets/js/messenger-connection-ux.js" defer></script>
     <script src="<?= $view->e($baseUrl) ?>/assets/js/admin-settings-nav.js" defer></script>
 <?php foreach ($moduleScripts as $moduleScript): ?>

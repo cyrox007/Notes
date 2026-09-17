@@ -6,9 +6,6 @@ use App\Controllers\MainController;
 use App\Controllers\AuthController;
 use App\Controllers\ProfileController;
 use App\Controllers\PublicProfileController;
-use App\Controllers\FileController;
-use App\Controllers\FileDeleteController;
-use App\Controllers\FileQuotaController;
 use App\Controllers\Admin\AdminController;
 use App\Controllers\Admin\SettingsController;
 use App\Controllers\Admin\RegistrationSettingsController;
@@ -24,7 +21,6 @@ use App\Middlewares\RequireAdminAccess;
 use App\Middlewares\RequireAdminUsersManage;
 use App\Middlewares\RequireAdminSettingsManage;
 use App\Middlewares\RequireAdminRolesManage;
-use App\Middlewares\RequireFilesUse;
 use App\Middlewares\RequireMessengerUse;
 use App\Middlewares\RequireProfileUse;
 use App\Middlewares\AuthRateLimit;
@@ -32,8 +28,6 @@ use App\Middlewares\CSRFMiddleware;
 use App\Middlewares\UploadRateLimit;
 use App\Middlewares\StorageQuotaLimit;
 use App\Middlewares\StorageMutationLock;
-use App\Middlewares\EnforceFileUploadPolicy;
-use App\Middlewares\EnforceFileFolderPolicy;
 use App\Middlewares\EnforceMessengerUploadPolicy;
 use App\Middlewares\EnforceLicenseMutation;
 use Core\Router;
@@ -63,16 +57,6 @@ $router->group('/profile')
    ->add('POST', '/delete-user', [ProfileController::class, 'deleteUser'], [LoginRequared::class, RequireProfileUse::class], 'profile-delete')
    ->endGroup();
 
-$router->group('/files')
-    ->add('GET', '/', [FileController::class, 'index'], [LoginRequared::class, RequireFilesUse::class], 'files')
-    ->add('GET', '/quota/', [FileQuotaController::class, 'usage'], [LoginRequared::class, RequireFilesUse::class], 'files_quota')
-    ->add('GET', '/folder/{int:folderId}/', [FileController::class, 'folder'], [LoginRequared::class, RequireFilesUse::class], 'files_folder')
-    ->add('POST', '/create-folder/', [FileController::class, 'createFolder'], [LoginRequared::class, RequireFilesUse::class, EnforceFileFolderPolicy::class, StorageMutationLock::class], 'files_create_folder')
-    ->add('POST', '/upload/', [FileController::class, 'uploadFile'], [LoginRequared::class, RequireFilesUse::class, UploadRateLimit::class, EnforceFileUploadPolicy::class, StorageQuotaLimit::class], 'files_upload')
-    ->add('POST', '/delete/', [FileDeleteController::class, 'delete'], [LoginRequared::class, RequireFilesUse::class], 'files_delete')
-    ->add('POST', '/rename/', [FileController::class, 'rename'], [LoginRequared::class, RequireFilesUse::class, StorageMutationLock::class], 'files_rename')
-    ->add('GET', '/get/{int:fileId}/', [FileController::class, 'getFile'], [LoginRequared::class, RequireFilesUse::class], 'files_get')
-    ->endGroup();
 
 $router->group('/messenger')
     ->add('GET', '/', [MessagerController::class, 'index'], [LoginRequared::class, RequireMessengerUse::class], 'messenger')
