@@ -46,7 +46,14 @@ jobs:
         run: composer install --no-interaction --prefer-dist --no-progress
 
       - name: Audit Composer dependencies
-        run: composer audit --locked --no-interaction
+        shell: bash
+        run: |
+          set -euo pipefail
+          if php -r '$j=json_decode(file_get_contents("composer.lock"),true,64,JSON_THROW_ON_ERROR); exit((($j["packages"] ?? []) === [] && ($j["packages-dev"] ?? []) === []) ? 0 : 1);'; then
+            echo 'Composer lock contains no third-party packages; dependency advisory audit is not applicable.'
+          else
+            composer audit --locked --no-interaction
+          fi
 
       - name: Lint PHP sources
         if: always()
