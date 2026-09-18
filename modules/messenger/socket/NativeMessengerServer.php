@@ -7,6 +7,7 @@ namespace App\Sockets;
 use App\Handlers\SocketTicket;
 use App\Models\UserModel;
 use App\Services\LicenseRuntimePolicy;
+use App\Services\MaintenanceModeService;
 use App\Services\PermissionService;
 use Closure;
 use Core\DatabaseManager;
@@ -92,6 +93,7 @@ final class NativeMessengerServer
     private array $allowedOrigins;
 
     private LicenseRuntimePolicy $licensePolicy;
+    private Closure $maintenanceStateResolver;
     private Closure $ticketValidator;
     private Closure $messengerPermissionChecker;
     private Closure $userUidResolver;
@@ -110,7 +112,8 @@ final class NativeMessengerServer
         ?LicenseRuntimePolicy $licensePolicy = null,
         ?callable $ticketValidator = null,
         ?callable $messengerPermissionChecker = null,
-        ?callable $userUidResolver = null
+        ?callable $userUidResolver = null,
+        ?callable $maintenanceStateResolver = null
     ) {
         if ($this->port < 1 || $this->port > 65535) {
             throw new RuntimeException('Invalid WebSocket listener port');
@@ -131,6 +134,9 @@ final class NativeMessengerServer
         }
         $this->allowedOrigins = array_keys($normalized);
         $this->licensePolicy = $licensePolicy ?? new LicenseRuntimePolicy();
+        $this->maintenanceStateResolver = $maintenanceStateResolver !== null
+            ? Closure::fromCallable($maintenanceStateResolver)
+            : static fn (): array => (new MaintenanceModeService())->state();
         $this->ticketValidator = $ticketValidator !== null
             ? Closure::fromCallable($ticketValidator)
             : static fn (string $ticket): ?int => SocketTicket::validate($ticket);
@@ -552,6 +558,25 @@ final class NativeMessengerServer
         }
 
         if (!$this->isReadOnlyAction($className, $methodName)) {
+            try {
+                $maintenanceState = ($this->maintenanceStateResolver)();
+            } catch (Throwable $e) {
+                error_log('WebSocket maintenance state evaluation failed: ' . $e->getMessage());
+                $this->sendJson($client, [
+                    'action' => 'MaintenanceMode',
+                    'message' => 'Workspace maintenance state could not be verified safely.',
+                ]);
+                return;
+            }
+            if (!empty($maintenanceState['active'])) {
+                $this->sendJson($client, [
+                    'action' => 'MaintenanceMode',
+                    'reason' => (string) ($maintenanceState['reason'] ?? ''),
+                    'transaction_id' => $maintenanceState['transaction_id'] ?? null,
+                ]);
+                return;
+            }
+
             $licenseState = $this->licensePolicy->state();
             if ($licenseState['enforced'] && !$licenseState['writable']) {
                 $this->sendJson($client, [

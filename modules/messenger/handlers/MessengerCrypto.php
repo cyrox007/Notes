@@ -21,7 +21,12 @@ final class MessengerCrypto
 
     private static function key(): string
     {
-        $secret = (string) (getenv('MSG_SECRET_KEY') ?: '');
+        return self::keyFromSecret((string) (getenv('MSG_SECRET_KEY') ?: ''));
+    }
+
+    private static function keyFromSecret(string $secret): string
+    {
+        $secret = trim($secret);
         if (strlen($secret) < 32) {
             throw new \RuntimeException('MSG_SECRET_KEY must contain at least 32 characters');
         }
@@ -33,7 +38,33 @@ final class MessengerCrypto
         return hash('sha256', $secret, true);
     }
 
+    public static function isCurrentPayload(string $payload): bool
+    {
+        return str_starts_with($payload, self::PREFIX);
+    }
+
     public static function encrypt(string $plaintext, string $messageUid): string
+    {
+        return self::encryptWithKey($plaintext, $messageUid, self::key());
+    }
+
+    /** Maintenance-only primitive for master-key rotation. */
+    public static function encryptWithSecret(string $plaintext, string $messageUid, string $secret): string
+    {
+        return self::encryptWithKey($plaintext, $messageUid, self::keyFromSecret($secret));
+    }
+
+    /** Maintenance-only current-format decrypt for master-key rotation. */
+    public static function decryptCurrentWithSecret(string $payload, string $messageUid, string $secret): string
+    {
+        if (!self::isCurrentPayload($payload)) {
+            throw new \RuntimeException('Messenger payload is not current v2 format; run migrate_crypto.php first');
+        }
+
+        return self::decryptV2(substr($payload, strlen(self::PREFIX)), $messageUid, self::keyFromSecret($secret));
+    }
+
+    private static function encryptWithKey(string $plaintext, string $messageUid, string $key): string
     {
         if ($messageUid === '') {
             throw new \InvalidArgumentException('Message UID is required for encryption');
@@ -44,7 +75,7 @@ final class MessengerCrypto
             $plaintext,
             self::AAD_PREFIX . $messageUid,
             $nonce,
-            self::key()
+            $key
         );
 
         return self::PREFIX . base64_encode($nonce . $ciphertext);
@@ -57,7 +88,7 @@ final class MessengerCrypto
         }
 
         if (str_starts_with($payload, self::PREFIX)) {
-            return self::decryptV2(substr($payload, strlen(self::PREFIX)), $messageUid);
+            return self::decryptV2(substr($payload, strlen(self::PREFIX)), $messageUid, self::key());
         }
 
         // Transitional payload produced by the short-lived compatibility shim
@@ -77,7 +108,7 @@ final class MessengerCrypto
         throw new \RuntimeException('Messenger message authentication/decryption failed');
     }
 
-    private static function decryptV2(string $encoded, string $messageUid): string
+    private static function decryptV2(string $encoded, string $messageUid, string $key): string
     {
         $raw = base64_decode($encoded, true);
         $nonceLength = SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES;
@@ -92,7 +123,7 @@ final class MessengerCrypto
             $ciphertext,
             self::AAD_PREFIX . $messageUid,
             $nonce,
-            self::key()
+            $key
         );
 
         if ($plaintext === false) {
