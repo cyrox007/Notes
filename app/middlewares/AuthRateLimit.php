@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Middlewares;
 
+require_once dirname(__DIR__, 2) . '/core/SecurityEventLog.php';
+
 use App\Services\RequestRateLimiter;
 use Core\Request;
 use Core\SecurityEventLog;
