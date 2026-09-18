@@ -241,23 +241,23 @@ Single-node limiter хранит state под `PRIVATE_STORAGE_PATH/rate-limit` 
 
 ## HTTP / CSP baseline
 
-Repository `.htaccess`:
+Repository `.htaccess` отвечает за static/access headers и routing; Content-Security-Policy формируется PHP Core:
 
 - запрещает directory listing;
 - закрывает от прямой HTTP-выдачи `app`, `bin`, `core`, `database`, `docs`, `vendor`, `ws_server`, `.github`, `.git`, `.logs`, `.env/default.env` и repository metadata;
 - блокирует `install.php` после появления `.env`;
 - задаёт `nosniff`, Referrer Policy, SAMEORIGIN, Permissions Policy и COOP;
-- CSP запрещает objects, ограничивает base/forms/frame ancestors;
+- Core CSP запрещает objects, ограничивает base/forms/frame ancestors и использует per-request nonce;
 - внешние JS CDN не требуются;
 - `unsafe-eval` удалён после отказа от браузерного code runner в File Manager.
 
-Пока остаётся `unsafe-inline`, потому что часть legacy Smarty templates содержит inline script/style blocks. Это известный CSP-hardening debt, а не разрешение для новых inline-скриптов.
+CSP формируется Core на каждый HTML request с криптографическим nonce. `script-src-attr 'none'` и `style-src-attr 'none'` запрещают inline event/style attributes, а `unsafe-inline` больше не входит в policy. Intentional inline `<script>/<style>` допускаются только с per-request nonce и контролируются отдельным CSP contract.
 
 HSTS намеренно задаётся на production TLS reverse proxy, а не в repository `.htaccess`.
 
 ## UI / UX 0.13 + beta.4 collaboration
 
-Интерфейс остаётся server-rendered Smarty без отдельного frontend build pipeline.
+Интерфейс остаётся server-rendered на native PHP views без отдельного frontend build pipeline; bundled product modules больше не зависят от Smarty runtime.
 
 Текущий product UI layer включает:
 
@@ -383,21 +383,29 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 - [`TASKS_MODULE_README.md`](TASKS_MODULE_README.md) — дополнительная документация Tasks.
 - [`default.env`](default.env) — environment variables и security comments.
 
-## 0.14 beta и путь к `1.0.0` stable
+## 1.0 release readiness
 
-`0.14.0-beta.1` — первая официальная beta-точка. Beta patch releases при необходимости публикуются как `v0.14.0-beta.N`; они не открывают новый feature cycle. Основная ветка после beta.1 развивается в сторону `1.0.0` stable.
+Основные platform/stability blockers исходного beta-аудита уже закрыты в ветке `1.0`:
 
-Перед `1.0.0` должны быть закрыты оставшиеся platform/stability blockers:
+- vendor-free distributable runtime;
+- isolated module-owned runtime и composition-aware database/install/update/health ownership;
+- signed staged updater с transactional apply, durable recovery и code+DB rollback;
+- installation-wide licensing и Core recovery control plane;
+- structured security observability и operational alert thresholds;
+- resumable/rollback-safe rotation `UNIQUE_KEY` / `MSG_SECRET_KEY`;
+- nonce-based CSP без `unsafe-inline`;
+- explicit retention/permanent-purge contract с filesystem/DB safety guards;
+- browser lifecycle coverage для основных product modules и Beta4 → 1.0 upgrade/rollback drill;
+- cross-browser/mobile + authenticated load/soak release-evidence harness.
 
-- полный отказ от сторонних runtime-библиотек в distributable application;
-- module-owned bootstrap/routes/assets/socket registration и фактическая изоляция отключённых модулей;
-- deterministic package compositions и dependency preflight для разных наборов модулей;
-- signed core/module update metadata, staged transactional update, rollback/recovery и health verification;
-- installation-wide licensing/entitlement contract с безопасным offline/expiry behavior без удаления пользовательских данных;
-- structured observability, security/audit events, metrics/alerts, load/soak и cross-browser/mobile regression evidence;
-- transactional/resumable re-encryption procedure для безопасной ротации `UNIQUE_KEY` / `MSG_SECRET_KEY`;
-- постепенный вынос inline Smarty JS/CSS для CSP без `unsafe-inline`;
-- явный retention/permanent-purge contract и подтверждённый beta-период без P0/P1 data-loss/security дефектов;
-- scalable encrypted-search architecture только если beta load tests покажут, что bounded decrypt scan не соответствует заявленному масштабу.
+Перед окончательным cut/tag `v1.0.0` остаются только release-ceremony gates, а не новые platform features:
 
-Подробный hardening roadmap: [`docs/BETA_HARDENING_0.14.md`](docs/BETA_HARDENING_0.14.md).
+1. включить GitHub branch protection/ruleset для `1.0` согласно `docs/RELEASE_GOVERNANCE.md`;
+2. офлайн выпустить независимые production license/update Ed25519 keypairs и закоммитить только public trust roots;
+3. получить green cross-browser/mobile + load/soak release evidence на exact release head;
+4. подтвердить свежий backup/restore drill, exact Beta4 upgrade/rollback и отсутствие открытых P0/P1 data-loss/security дефектов;
+5. собрать финальный immutable bundle, подписать update manifest, слить exact release head в `master` и поставить tag `v1.0.0`.
+
+Scalable encrypted-search redesign не является release blocker сам по себе; он требуется только если измерения на заявленном масштабе покажут, что bounded decrypt scan не выдерживает принятого performance envelope.
+
+Финальный порядок действий: [`docs/RELEASE_ACCEPTANCE.md`](docs/RELEASE_ACCEPTANCE.md). Исторический hardening roadmap: [`docs/BETA_HARDENING_0.14.md`](docs/BETA_HARDENING_0.14.md).

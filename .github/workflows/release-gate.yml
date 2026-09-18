@@ -92,6 +92,14 @@ jobs:
       - name: Verify release evidence contract
         run: php tests/integration/release_evidence_contract.php
 
+      - name: Verify final release acceptance contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/integration/release_acceptance_contract.php
+          php bin/release_acceptance.php --json > /tmp/release-acceptance-source.json
+          php -r '$d=json_decode(file_get_contents("/tmp/release-acceptance-source.json"),true,32,JSON_THROW_ON_ERROR); if (($d["status"]??"")==="fail") exit(1);'
+
       - name: Verify stable release identity
         shell: bash
         run: |
