@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   updater-backup:
-    runs-on: [self-hosted, Linux, X64, wb-ci]
+    runs-on: [self-hosted, Linux, X64, notes-ci]
     timeout-minutes: 15
     strategy:
       fail-fast: false

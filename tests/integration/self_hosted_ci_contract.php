@@ -42,8 +42,8 @@ foreach ($expected as $relative) {
         fwrite(STDERR, "[FAIL] cannot read release workflow: {$relative}\n");
         exit(1);
     }
-    if (!str_contains($source, 'runs-on: [self-hosted, Linux, X64, wb-ci]')) {
-        fwrite(STDERR, "[FAIL] release workflow is not pinned to wb-ci: {$relative}\n");
+    if (!str_contains($source, 'runs-on: [self-hosted, Linux, X64, notes-ci]')) {
+        fwrite(STDERR, "[FAIL] release workflow is not pinned to notes-ci: {$relative}\n");
         exit(1);
     }
     if (str_contains($source, 'runs-on: ubuntu-latest')) {
@@ -52,4 +52,4 @@ foreach ($expected as $relative) {
     }
 }
 
-fwrite(STDOUT, "[OK] current 1.0 release workflows target self-hosted wb-ci runner\n");
+fwrite(STDOUT, "[OK] current 1.0 release workflows target self-hosted notes-ci runner\n");

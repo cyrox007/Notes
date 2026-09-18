@@ -30,7 +30,7 @@ permissions:
 
 jobs:
   retention-purge:
-    runs-on: [self-hosted, Linux, X64, wb-ci]
+    runs-on: [self-hosted, Linux, X64, notes-ci]
     timeout-minutes: 15
 
     services:

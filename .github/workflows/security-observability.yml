@@ -29,7 +29,7 @@ permissions:
 
 jobs:
   security-observability:
-    runs-on: [self-hosted, Linux, X64, wb-ci]
+    runs-on: [self-hosted, Linux, X64, notes-ci]
     timeout-minutes: 10
     strategy:
       matrix:
