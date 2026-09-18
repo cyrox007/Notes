@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use Core\DatabaseManager;
+use Core\LocalControlPlaneContext;
 use DomainException;
 use InvalidArgumentException;
 use RuntimeException;
@@ -118,6 +119,40 @@ final class LicenseService
     public function activate(int $actorId, string $token): array
     {
         $this->requireLicenseManager($actorId);
+        return $this->activateToken($token);
+    }
+
+    /**
+     * Local recovery path for the installation control plane.
+     *
+     * The context can only be created in PHP CLI, so HTTP code cannot use this
+     * method to bypass the normal superadmin/RBAC authorization boundary.
+     *
+     * @return array<string,mixed>
+     */
+    public function activateFromControlPlane(LocalControlPlaneContext $context, string $token): array
+    {
+        $context->assertCli();
+        return $this->activateToken($token);
+    }
+
+    /** @return array<string,mixed> */
+    public function clear(int $actorId): array
+    {
+        $this->requireLicenseManager($actorId);
+        return $this->clearToken();
+    }
+
+    /** @return array<string,mixed> */
+    public function clearFromControlPlane(LocalControlPlaneContext $context): array
+    {
+        $context->assertCli();
+        return $this->clearToken();
+    }
+
+    /** @return array<string,mixed> */
+    private function activateToken(string $token): array
+    {
         $token = trim($token);
         if ($token === '') {
             throw new InvalidArgumentException('Вставьте лицензионный ключ', 422);
@@ -146,9 +181,8 @@ final class LicenseService
     }
 
     /** @return array<string,mixed> */
-    public function clear(int $actorId): array
+    private function clearToken(): array
     {
-        $this->requireLicenseManager($actorId);
         $this->db->execute(
             "INSERT INTO system_settings (setting_key,setting_value,setting_type,category,description,is_editable)
              VALUES (:key,'','string','licensing','Signed installation-wide Workspace Organizer license token',0)

@@ -66,8 +66,10 @@ runtimeLicenseAssert($guard->handle(requestFor('HEAD', '/workspace/files/')), 'H
 runtimeLicenseAssert($guard->handle(requestFor('OPTIONS', '/workspace/tasks/')), 'OPTIONS must remain available in read-only mode');
 runtimeLicenseAssert($guard->handle(requestFor('POST', '/workspace/auth/login')), 'login recovery path must remain available');
 runtimeLicenseAssert($guard->handle(requestFor('POST', '/workspace/auth/logout')), 'logout recovery path must remain available');
-runtimeLicenseAssert($guard->handle(requestFor('POST', '/workspace/admin/license/activate')), 'license activation must remain available');
-runtimeLicenseAssert($guard->handle(requestFor('POST', '/workspace/admin/license/clear')), 'license clear/recovery must remain available');
+runtimeLicenseAssert($guard->handle(requestFor('POST', '/workspace/system/license/activate')), 'Core license activation recovery must remain available');
+runtimeLicenseAssert($guard->handle(requestFor('POST', '/workspace/system/license/clear')), 'Core license clear recovery must remain available');
+runtimeLicenseAssert($guard->handle(requestFor('POST', '/workspace/admin/license/activate')), 'Admin compatibility activation path must remain available while Admin is active');
+runtimeLicenseAssert($guard->handle(requestFor('POST', '/workspace/admin/license/clear')), 'Admin compatibility clear path must remain available while Admin is active');
 runtimeLicenseAssert($guard->handle(requestFor('POST', '/workspace/messenger/socket-ticket')), 'socket-ticket refresh must remain available for read-only Messenger');
 
 ob_start();
@@ -77,7 +79,7 @@ runtimeLicenseAssert(!$allowed, 'ordinary mutation must be blocked in read-only 
 $decoded = json_decode($body, true);
 runtimeLicenseAssert(is_array($decoded) && ($decoded['error'] ?? '') === 'license_read_only', 'blocked JSON mutation must return structured license error');
 runtimeLicenseAssert(($decoded['code'] ?? '') === 'expired', 'blocked response must preserve license state code');
-runtimeLicenseAssert(($decoded['license_url'] ?? '') === '/workspace/admin/license', 'license recovery URL must honor BASE_PATH');
+runtimeLicenseAssert(($decoded['license_url'] ?? '') === '/workspace/system/license', 'Core license recovery URL must honor BASE_PATH');
 
 $validGuard = new EnforceLicenseMutation($valid);
 runtimeLicenseAssert($validGuard->handle(requestFor('POST', '/workspace/tasks/')), 'valid license must allow ordinary mutation');
