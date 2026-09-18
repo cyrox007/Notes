@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+require_once dirname(__DIR__, 2) . '/core/SecurityEventLog.php';
+
 use Core\DatabaseManager;
 use Core\LocalControlPlaneContext;
 use Core\SecurityEventLog;
