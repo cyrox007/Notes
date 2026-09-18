@@ -1,10 +1,10 @@
 name: Profile publication contract
 
 on:
+  pull_request:
+    branches: [master, '1.0']
   push:
     branches: [0.13-public-profile-content]
-  pull_request:
-    branches: [0.13-profile-hub]
 
 permissions:
   contents: read
@@ -28,13 +28,12 @@ jobs:
         run: |
           set -euo pipefail
           php -l bin/migrate.php
-          php -l app/services/ProfilePublicationService.php
-          php -l app/controllers/ProfileController.php
-          php -l app/controllers/PublicProfileController.php
-          grep -Fq "20260914_profile_publication.sql" bin/migrate.php
-          grep -Fq "'notes' => ['is_profile_public']" bin/migrate.php
-          grep -Fq "'tasks' => ['is_profile_public']" bin/migrate.php
-          grep -Fq "'user_files' => ['is_profile_public']" bin/migrate.php
+          php -l modules/profile/services/ProfilePublicationService.php
+          php -l modules/profile/controllers/ProfileController.php
+          php -l modules/profile/controllers/PublicProfileController.php
+          grep -Fq "20260914_profile_publication.sql" database/migrations/manifest.json
+          grep -Fq "database/migrations/20260914_profile_publication.sql" core/DatabaseOwnership.php
+          php tests/integration/native_profile_contract.php
           grep -Fq 'is_profile_public' database/notes_schema.sql
           grep -Fq 'is_profile_public' database/tasks_schema.sql
           grep -Fq 'is_profile_public' database/file_manager_schema.sql
@@ -44,8 +43,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq 'is_profile_public = 1' app/services/ProfilePublicationService.php
-          grep -Fq 'user_id = :user_id' app/services/ProfilePublicationService.php
-          ! grep -Fq 'share_token' app/services/ProfilePublicationService.php
-          ! grep -Fq 'file_path' app/views/profile_page/public.tpl
-          ! grep -Fq 'share_token' app/views/profile_page/public.tpl
+          grep -Fq 'ProfileContentProvider' modules/profile/services/ProfilePublicationService.php
+          grep -Fq 'workspace.notes' modules/profile/services/ProfilePublicationService.php
+          grep -Fq 'workspace.tasks' modules/profile/services/ProfilePublicationService.php
+          grep -Fq 'workspace.files' modules/profile/services/ProfilePublicationService.php
+          ! grep -Fq 'share_token' modules/profile/services/ProfilePublicationService.php
+          ! grep -Fq 'file_path' modules/profile/views/public.php
+          ! grep -Fq 'share_token' modules/profile/views/public.php
