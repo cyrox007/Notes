@@ -21,7 +21,9 @@ require_once $root . '/core/UpdateApplyOperationLock.php';
 require_once $root . '/core/UpdateRollbackCodeRestorer.php';
 require_once $root . '/app/services/MaintenanceModeService.php';
 require_once $root . '/core/UpdateApplyCommand.php';
+require_once $root . '/core/SecurityEventLog.php';
 
+use Core\SecurityEventLog;
 use Core\UpdateApplyCommand;
 use Core\UpdateApplyException;
 
@@ -51,6 +53,19 @@ $json = isset($options['json']);
 
 try {
     $result = (new UpdateApplyCommand($root, $json))->execute($options);
+    $recovery = isset($options['recover']);
+    SecurityEventLog::emit(
+        $recovery ? 'update.recovery_succeeded' : 'update.apply_succeeded',
+        'info',
+        'updater',
+        'cli',
+        null,
+        [
+            'transaction_id' => (string) ($options['transaction'] ?? ''),
+            'status' => (string) ($result['status'] ?? 'ok'),
+            'installed_version' => (string) ($result['installed_version'] ?? ''),
+        ]
+    );
     if ($json) {
         echo json_encode(
             $result,
@@ -66,6 +81,17 @@ try {
     }
     exit(0);
 } catch (UpdateApplyException $e) {
+    SecurityEventLog::emit(
+        isset($options['recover']) ? 'update.recovery_failed' : 'update.apply_failed',
+        'critical',
+        'updater',
+        'cli',
+        null,
+        [
+            'transaction_id' => (string) ($options['transaction'] ?? ''),
+            'error_code' => $e->errorCode,
+        ]
+    );
     if ($json) {
         echo json_encode(
             [
@@ -80,6 +106,17 @@ try {
     }
     exit($e->exitCode);
 } catch (Throwable $e) {
+    SecurityEventLog::emit(
+        isset($options['recover']) ? 'update.recovery_failed' : 'update.apply_failed',
+        'critical',
+        'updater',
+        'cli',
+        null,
+        [
+            'transaction_id' => (string) ($options['transaction'] ?? ''),
+            'error_type' => $e::class,
+        ]
+    );
     if ($json) {
         echo json_encode(
             [

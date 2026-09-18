@@ -83,6 +83,9 @@ jobs:
       - name: Verify release governance contract
         run: php tests/integration/release_governance_contract.php
 
+      - name: Verify security observability contract
+        run: php tests/integration/security_observability_contract.php
+
       - name: Verify stable release identity
         shell: bash
         run: |
