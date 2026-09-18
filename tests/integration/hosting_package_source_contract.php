@@ -71,8 +71,8 @@ hostingPackageAssert(
 foreach ([
     "--exclude '.env'",
     "--exclude 'vendor'",
-    "--exclude 'tools/vendor-license'",
-    "--exclude 'tools/vendor-update'",
+    "--exclude 'tests'",
+    "--exclude 'tools'",
     "--exclude '*.license-secret'",
     "--exclude '*.update-secret'",
     'Verify tag matches application version',

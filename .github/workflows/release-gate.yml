@@ -72,10 +72,13 @@ jobs:
           set -euo pipefail
           while IFS= read -r -d '' source; do
             node --check "$source"
-          done < <(find assets/js tests/e2e -type f \( -name '*.js' -o -name '*.mjs' \) -print0)
+          done < <(
+            find assets/js modules tests/e2e -type f \( -name '*.js' -o -name '*.mjs' \) \
+              ! -path 'modules/messenger/views/*' -print0
+          )
           shopt -s nullglob
           for source in modules/messenger/views/*.js; do
-            target="/tmp/$(basename "$source")"
+            target="/tmp/messenger-$(basename "$source")"
             sed '/^{literal}$/d;/^{\/literal}$/d' "$source" > "$target"
             node --check "$target"
           done
