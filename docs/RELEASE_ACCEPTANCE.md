@@ -105,11 +105,11 @@ Automated CI cannot fabricate this decision. If no representative human beta coh
 
 ## Gate G — immutable artifact and signing
 
-Build the final upload-ready bundle from the exact accepted SHA. The `Build hosting package` workflow is deliberately **build-only**: it stores the ZIP and its SHA-256 as a workflow artifact and must not create or update a public GitHub Release before offline signing is complete.
+Build the final upload-ready bundle from the exact accepted SHA. The `Build hosting package` workflow is deliberately **build-only**: for a manual pre-tag build, run it against the exact accepted commit/ref with `version=v1.0.0`. It verifies that version against `core/Version.php`, then stores the ZIP, its SHA-256 and the exact source SHA as one workflow artifact. It must not create or update a public GitHub Release before offline signing is complete.
 
 Then:
 
-1. download the exact workflow ZIP + checksum artifact and verify the recorded bundle SHA-256;
+1. download the exact workflow ZIP + checksum + source-SHA artifact; verify both the recorded bundle SHA-256 and source SHA against the accepted commit;
 2. build the update manifest with the exact source commit/version/version-code;
 3. sign the exact manifest bytes with the offline update-domain private key;
 4. verify manifest signature and package hash with the public registry shipped in the bundle;

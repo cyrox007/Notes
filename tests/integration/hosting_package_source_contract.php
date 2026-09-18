@@ -46,10 +46,19 @@ hostingPackageAssert(
     'hosting package workflow must use read-only repository permissions'
 );
 hostingPackageAssert(
+    str_contains($workflow, 'workflow_dispatch:')
+        && str_contains($workflow, 'version:')
+        && str_contains($workflow, 'EXPECTED_VERSION=')
+        && str_contains($workflow, 'test "$VERSION" = "$EXPECTED_VERSION"'),
+    'manual release-candidate build must use the exact application release version'
+);
+hostingPackageAssert(
     str_contains($workflow, 'Record immutable bundle checksum')
         && str_contains($workflow, 'sha256sum "$BUNDLE_FILE"')
-        && str_contains($workflow, 'BUNDLE_CHECKSUM='),
-    'release packaging must record the exact ZIP SHA-256 beside the workflow artifact'
+        && str_contains($workflow, 'BUNDLE_CHECKSUM=')
+        && str_contains($workflow, 'SOURCE_SHA_FILE=')
+        && str_contains($workflow, 'BUNDLE_SOURCE_SHA='),
+    'release packaging must record the exact ZIP SHA-256 and source SHA beside the workflow artifact'
 );
 hostingPackageAssert(
     str_contains($workflow, "--exclude 'tests'")

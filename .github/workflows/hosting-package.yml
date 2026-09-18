@@ -2,6 +2,11 @@ name: Build hosting package
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version label, for example v1.0.0'
+        required: true
+        type: string
   push:
     tags:
       - 'v*'
@@ -70,10 +75,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="${GITHUB_REF_NAME:-manual}"
-          if [[ "$VERSION" == "hosting-installer-e2e" || "$VERSION" == "master" ]]; then
-            VERSION="manual-${GITHUB_SHA::8}"
+          EXPECTED_VERSION="v$(php -r 'require "core/Version.php"; echo Core\Version::VERSION;')"
+          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+            VERSION="$GITHUB_REF_NAME"
+          else
+            VERSION="${{ inputs.version }}"
           fi
+          test "$VERSION" = "$EXPECTED_VERSION"
           NAME="workspace-organizer-${VERSION}"
           ROOT="/tmp/$NAME"
           rm -rf "$ROOT"
@@ -195,13 +203,18 @@ jobs:
           BUNDLE_DIR="$(dirname "$BUNDLE")"
           BUNDLE_FILE="$(basename "$BUNDLE")"
           CHECKSUM_FILE="$BUNDLE.sha256"
+          SOURCE_SHA_FILE="$BUNDLE.source-sha"
           (
             cd "$BUNDLE_DIR"
             sha256sum "$BUNDLE_FILE"
           ) > "$CHECKSUM_FILE"
+          printf '%s\n' "$GITHUB_SHA" > "$SOURCE_SHA_FILE"
           test -s "$CHECKSUM_FILE"
+          test "$(cat "$SOURCE_SHA_FILE")" = "$GITHUB_SHA"
           cat "$CHECKSUM_FILE"
+          echo "Source SHA: $GITHUB_SHA"
           echo "BUNDLE_CHECKSUM=$CHECKSUM_FILE" >> "$GITHUB_ENV"
+          echo "BUNDLE_SOURCE_SHA=$SOURCE_SHA_FILE" >> "$GITHUB_ENV"
 
       - name: Upload immutable release-candidate artifact
         uses: actions/upload-artifact@v4
@@ -210,6 +223,7 @@ jobs:
           path: |
             ${{ env.BUNDLE }}
             ${{ env.BUNDLE_CHECKSUM }}
+            ${{ env.BUNDLE_SOURCE_SHA }}
           if-no-files-found: error
           retention-days: 14
 
