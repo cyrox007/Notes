@@ -6,6 +6,7 @@ namespace App\Services;
 
 use Core\DatabaseManager;
 use Core\LocalControlPlaneContext;
+use Core\OperationalTelemetry;
 use DomainException;
 use InvalidArgumentException;
 use RuntimeException;
@@ -118,8 +119,19 @@ final class LicenseService
     /** @return array<string,mixed> */
     public function activate(int $actorId, string $token): array
     {
-        $this->requireLicenseManager($actorId);
-        return $this->activateToken($token);
+        try {
+            $this->requireLicenseManager($actorId);
+            $status = $this->activateToken($token);
+            $this->emitActivation($status, 'web', $actorId);
+            return $status;
+        } catch (\Throwable $e) {
+            OperationalTelemetry::emit('license.activation.rejected', 'warning', [
+                'channel' => 'web',
+                'actor_id' => $actorId,
+                'error_class' => $e::class,
+            ]);
+            throw $e;
+        }
     }
 
     /**
@@ -132,22 +144,39 @@ final class LicenseService
      */
     public function activateFromControlPlane(LocalControlPlaneContext $context, string $token): array
     {
-        $context->assertCli();
-        return $this->activateToken($token);
+        try {
+            $context->assertCli();
+            $status = $this->activateToken($token);
+            $this->emitActivation($status, 'cli', null);
+            return $status;
+        } catch (\Throwable $e) {
+            OperationalTelemetry::emit('license.activation.rejected', 'warning', [
+                'channel' => 'cli',
+                'error_class' => $e::class,
+            ]);
+            throw $e;
+        }
     }
 
     /** @return array<string,mixed> */
     public function clear(int $actorId): array
     {
         $this->requireLicenseManager($actorId);
-        return $this->clearToken();
+        $status = $this->clearToken();
+        OperationalTelemetry::emit('license.cleared', 'warning', [
+            'channel' => 'web',
+            'actor_id' => $actorId,
+        ]);
+        return $status;
     }
 
     /** @return array<string,mixed> */
     public function clearFromControlPlane(LocalControlPlaneContext $context): array
     {
         $context->assertCli();
-        return $this->clearToken();
+        $status = $this->clearToken();
+        OperationalTelemetry::emit('license.cleared', 'warning', ['channel' => 'cli']);
+        return $status;
     }
 
     /** @return array<string,mixed> */
@@ -190,6 +219,21 @@ final class LicenseService
             [':key' => self::LICENSE_TOKEN_KEY]
         );
         return $this->status();
+    }
+
+    /** @param array<string,mixed> $status */
+    private function emitActivation(array $status, string $channel, ?int $actorId): void
+    {
+        $context = [
+            'channel' => $channel,
+            'license_id' => (string) ($status['license_id'] ?? ''),
+            'edition' => (string) ($status['edition'] ?? ''),
+            'key_id' => isset($status['key_id']) ? (string) $status['key_id'] : null,
+        ];
+        if ($actorId !== null && $actorId > 0) {
+            $context['actor_id'] = $actorId;
+        }
+        OperationalTelemetry::emit('license.activated', 'info', $context);
     }
 
     public function storedTokenExists(): bool
