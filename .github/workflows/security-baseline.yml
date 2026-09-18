@@ -46,7 +46,7 @@ jobs:
         run: composer install --no-interaction --prefer-dist --no-progress
 
       - name: Audit Composer dependencies
-        run: composer audit --no-interaction
+        run: composer audit --locked --no-interaction
 
       - name: Lint PHP sources
         if: always()

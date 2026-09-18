@@ -140,7 +140,7 @@ jobs:
           grep -Fq "route('admin_delete_user')" modules/admin/views/index.php
           grep -Fq "route('admin_settings')" modules/admin/views/index.php
           grep -Fq "route('admin_settings_user_quota')" modules/admin/views/settings.php
-          grep -Fq 'StorageQuotaLimit::class' core/routerConfig.php
+          grep -Fq 'StorageQuotaLimit::class' modules/files/FilesRuntimeProvider.php
           grep -Fq 'GET_LOCK' app/services/StorageQuotaService.php
           grep -Fq 'RELEASE_LOCK' app/services/StorageQuotaService.php
           grep -Fq 'data-confirm-deactivate' modules/admin/views/index.php

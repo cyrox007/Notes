@@ -126,9 +126,15 @@ try {
   await assertPage('/files/', '.file-manager');
   await page.locator('[data-quota-status]').waitFor({ state: 'visible' });
 
-  const quotaScriptSrc = await page.locator('script[src*="file_manager/quota.js"]').getAttribute('src');
-  if (!quotaScriptSrc?.includes(`${basePath}/assets/js/file_manager/quota.js`)) {
-    throw new Error(`Quota script escaped BASE_PATH: ${quotaScriptSrc}`);
+  const quotaScriptSrc = await page
+    .locator('script[src*="/module-assets"][src*="module=files"][src*="file=quota.js"]')
+    .getAttribute('src');
+  if (
+    !quotaScriptSrc?.includes(`${basePath}/module-assets`)
+    || !quotaScriptSrc.includes('module=files')
+    || !quotaScriptSrc.includes('file=quota.js')
+  ) {
+    throw new Error(`Quota module asset escaped BASE_PATH: ${quotaScriptSrc}`);
   }
 
   try {

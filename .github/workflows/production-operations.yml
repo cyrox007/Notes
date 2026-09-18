@@ -105,6 +105,7 @@ jobs:
           php <<'PHP'
           <?php
           declare(strict_types=1);
+          require 'core/RequestOrigin.php';
           require 'app/services/RequestRateLimiter.php';
           use App\Services\RequestRateLimiter;
 

@@ -58,8 +58,8 @@ jobs:
           echo 'Checking legacy numeric role comparisons'
           ! grep -R -nE 'role[^\n]*(>=|<=|>|<)[[:space:]]*(900|899|888|111|1)' modules/notes/controllers/NoteController.php modules/notes/views/index.php
           echo 'Checking routes and documentation contract'
-          grep -Fq "'/attachment/{str:fileUid}'" core/routerConfig.php
-          grep -Fq "'/shared/{str:token}/attachment/{str:fileUid}'" core/routerConfig.php
+          grep -Fq "'/attachment/{str:fileUid}'" modules/notes/NotesRuntimeProvider.php
+          grep -Fq "'/shared/{str:token}/attachment/{str:fileUid}'" modules/notes/NotesRuntimeProvider.php
           grep -Fq 'PRIVATE_STORAGE_PATH/notes' README.md
           VERSION="$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")"
           grep -Fq "**Версия:** \`$VERSION\`" README.md
