@@ -95,6 +95,9 @@ jobs:
       - name: Verify release evidence contract
         run: php tests/integration/release_evidence_contract.php
 
+      - name: Verify 0.13 compatibility baseline
+        run: php tests/integration/usable_alpha_readiness.php
+
       - name: Verify findability source contract
         run: php tests/integration/findability_source_contract.php
 
