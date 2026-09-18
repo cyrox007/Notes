@@ -55,7 +55,7 @@ ob_start();
     <?php endif; ?>
     <div class="share-actions"><a href="<?= $view->e($view->route('main')) ?>" class="btn btn-secondary">Вернуться на главную</a></div>
 </section>
-<style>
+<style nonce="<?= $view->e(\Core\SecurityHeaders::nonce()) ?>">
 .shared-note{max-width:900px;margin:0 auto;padding:20px}.shared-note .note-header{padding:30px;margin-bottom:30px}.shared-note .note-meta{font-size:.95em}.shared-note .view-notice{margin-top:15px;padding:10px;background:#f1f5f9;border-radius:6px}.note-content-display{background:#fff;padding:25px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.08);margin-bottom:25px}.note-text{line-height:1.8;font-size:1.05em;white-space:pre-wrap;overflow-wrap:anywhere}.note-attachments-display{background:#f8f9fa;padding:25px;border-radius:8px;margin-bottom:25px}.note-attachments-display .attachment-item{display:flex;align-items:center;gap:15px;padding:15px;margin-bottom:15px;background:#fff;border:1px solid #e0e0e0;border-radius:8px}.note-attachments-display .attachment-preview{flex-shrink:0}.note-attachments-display img,.note-attachments-display video{max-width:300px;max-height:240px;object-fit:contain}.note-attachments-display audio{max-width:100%}.note-attachments-display .attachment-info{flex:1;display:flex;flex-direction:column;gap:5px;min-width:0}.share-actions{text-align:center;margin-top:30px}@media(max-width:768px){.note-attachments-display .attachment-item{flex-direction:column;align-items:flex-start}.note-attachments-display img,.note-attachments-display video{max-width:100%}}
 </style>
 <?php
