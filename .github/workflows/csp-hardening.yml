@@ -1,0 +1,91 @@
+name: 1.0 CSP hardening
+
+on:
+  pull_request:
+    branches: ['1.0']
+    paths:
+      - '.htaccess'
+      - 'core/SecurityHeaders.php'
+      - 'core.php'
+      - 'index.php'
+      - 'install.php'
+      - 'app/views/**'
+      - 'app/middlewares/EnforceMaintenanceMode.php'
+      - 'assets/js/usability-actions.js'
+      - 'modules/**/views/**'
+      - 'modules/**/assets/**'
+      - 'tests/integration/csp_contract.php'
+      - '.github/workflows/csp-hardening.yml'
+  push:
+    branches: ['1.0']
+    paths:
+      - '.htaccess'
+      - 'core/SecurityHeaders.php'
+      - 'core.php'
+      - 'index.php'
+      - 'install.php'
+      - 'app/views/**'
+      - 'assets/js/usability-actions.js'
+      - 'modules/**/views/**'
+      - 'modules/**/assets/**'
+      - 'tests/integration/csp_contract.php'
+
+permissions:
+  contents: read
+
+jobs:
+  csp-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        php: ['8.1', '8.3']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+
+      - name: Lint CSP boundary
+        run: |
+          php -l core/SecurityHeaders.php
+          php -l index.php
+          php -l install.php
+          php -l app/middlewares/EnforceMaintenanceMode.php
+          php -l tests/integration/csp_contract.php
+          node --check assets/js/usability-actions.js
+          node --check modules/tasks/assets/tasks-page.js
+          node --check modules/notes/assets/notes-list.js
+
+      - name: Verify CSP source contract
+        run: php tests/integration/csp_contract.php
+
+      - name: Verify emitted CSP header and nonce freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/csp-probe.php <<'PHP'
+          <?php
+          require getenv('GITHUB_WORKSPACE') . '/core/SecurityHeaders.php';
+          \Core\SecurityHeaders::apply();
+          header('Content-Type: text/plain; charset=utf-8');
+          echo 'ok';
+          PHP
+          php -S 127.0.0.1:18081 -t /tmp >/tmp/csp-probe.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for i in {1..20}; do
+            if curl -fsS http://127.0.0.1:18081/csp-probe.php >/dev/null; then break; fi
+            sleep 0.1
+          done
+          H1="$(curl -fsSI http://127.0.0.1:18081/csp-probe.php | tr -d '\r' | grep -i '^Content-Security-Policy:' | head -1)"
+          H2="$(curl -fsSI http://127.0.0.1:18081/csp-probe.php | tr -d '\r' | grep -i '^Content-Security-Policy:' | head -1)"
+          test -n "$H1"
+          test -n "$H2"
+          ! printf '%s\n' "$H1" | grep -Fq "'unsafe-inline'"
+          printf '%s\n' "$H1" | grep -Fq "script-src-attr 'none'"
+          printf '%s\n' "$H1" | grep -Fq "style-src-attr 'none'"
+          test "$H1" != "$H2"
