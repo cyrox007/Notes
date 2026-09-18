@@ -96,7 +96,22 @@ for (const scenario of scenarios) {
     const context = await browser.newContext(scenario.context);
     const page = await context.newPage();
     const pageErrors = [];
+    const failedRequests = [];
+    const escapedRequests = [];
     page.on('pageerror', error => pageErrors.push(String(error?.stack || error)));
+    page.on('requestfailed', request => {
+      failedRequests.push(request.url() + ': ' + (request.failure()?.errorText || 'request failed'));
+    });
+    page.on('request', request => {
+      const url = new URL(request.url());
+      if (
+        url.origin === origin
+        && url.pathname !== basePath
+        && !url.pathname.startsWith(basePath + '/')
+      ) {
+        escapedRequests.push(url.pathname);
+      }
+    });
 
     await login(page, scenario.name);
     await assertDocumentFits(page, scenario.name + ' home');
@@ -118,9 +133,17 @@ for (const scenario of scenarios) {
     if (pageErrors.length > 0) {
       throw new Error(scenario.name + ': page error: ' + pageErrors[0]);
     }
+    if (failedRequests.length > 0) {
+      throw new Error(scenario.name + ': request failed: ' + failedRequests[0]);
+    }
+    if (escapedRequests.length > 0) {
+      throw new Error(
+        scenario.name + ': request escaped BASE_PATH: ' + [...new Set(escapedRequests)].join(', ')
+      );
+    }
 
     if (!exportedCookie) {
-      const cookies = await context.cookies(origin);
+      const cookies = await context.cookies(baseUrl + '/');
       const cookieHeader = cookies.map(cookie => cookie.name + '=' + cookie.value).join('; ');
       if (!cookieHeader.includes('PHPSESSID=')) {
         throw new Error('Authenticated browser context did not produce PHPSESSID');
