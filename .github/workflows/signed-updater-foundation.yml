@@ -192,8 +192,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq -- "--exclude 'tools/vendor-update'" .github/workflows/hosting-package.yml
+          grep -Fq -- "--exclude 'tools'" .github/workflows/hosting-package.yml
           grep -Fq -- "--exclude '*.update-secret'" .github/workflows/hosting-package.yml
-          grep -Fq 'test ! -e "$ROOT/tools/vendor-update"' .github/workflows/hosting-package.yml
+          grep -Fq 'test ! -e "$ROOT/tools"' .github/workflows/hosting-package.yml
           grep -Fq 'config/update_trusted_keys.php' .github/workflows/hosting-package.yml
           grep -Fq 'bin/update.php' .github/workflows/hosting-package.yml

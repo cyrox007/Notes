@@ -205,6 +205,9 @@ jobs:
           require SITEPATH . '/core/Version.php';
           require SITEPATH . '/core/ModuleRuntimeLoader.php';
           require SITEPATH . '/core/AccountDeactivationGuard.php';
+          require SITEPATH . '/core/ViewRenderer.php';
+          require SITEPATH . '/core/ViewContext.php';
+          require SITEPATH . '/core/NativeViewRenderer.php';
           require SITEPATH . '/core/controller.php';
           require SITEPATH . '/core/images.php';
           require SITEPATH . '/app/handlers/CryptMethods.php';

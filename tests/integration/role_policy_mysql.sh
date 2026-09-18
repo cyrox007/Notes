@@ -33,10 +33,12 @@ php tests/integration/role_policy_runtime.php
 
 test "$("${MYSQL[@]}" role_policy_upgrade -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='role_module_policies';")" = "1"
 
-# The migration runner must know about the Beta 4 migration and final schema contract.
-grep -Fq "20260915_role_module_policies.sql" bin/migrate.php
-grep -Fq "'role_module_policies'" bin/migrate.php
-grep -Fq "EnforceFileUploadPolicy::class" core/routerConfig.php
-grep -Fq "EnforceFileFolderPolicy::class" core/routerConfig.php
+# The canonical manifest/ownership model must retain the Beta 4 migration and
+# Files module policy middleware must remain module-owned after 1.0 isolation.
+grep -Fq '"20260915_role_module_policies.sql"' database/migrations/manifest.json
+grep -Fq "'role_module_policies'" core/DatabaseOwnership.php
+grep -Fq "database/migrations/20260915_role_module_policies.sql" core/DatabaseOwnership.php
+grep -Fq "EnforceFileUploadPolicy::class" modules/files/FilesRuntimeProvider.php
+grep -Fq "EnforceFileFolderPolicy::class" modules/files/FilesRuntimeProvider.php
 
 echo "Beta 4 role policy schema/runtime contract OK"
