@@ -410,3 +410,20 @@
         justify-content: flex-end;
     }
 }
+
+
+/* CSP-safe presentation previously expressed through inline style attributes. */
+.tasks__shared-boards-link {
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+}
+.task-priority-badge,
+.category-badge {
+    background-color: #3498db;
+}
+.task-subtasks__progress-bar {
+    width: 0;
+}
