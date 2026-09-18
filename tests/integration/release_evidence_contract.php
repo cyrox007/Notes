@@ -35,6 +35,8 @@ foreach ([
     "aria-expanded",
     "scrollWidth",
     "PHPSESSID=",
+    "uniqueSessions.length !== scenarios.length",
+    "authenticated_sessions: uniqueSessions.length",
 ] as $marker) {
     releaseEvidenceAssert(str_contains($browser, $marker), "browser evidence missing {$marker}");
 }
@@ -50,6 +52,9 @@ foreach ([
     "redirect: 'manual'",
     "auth_redirect",
     "PHPSESSID=",
+    "sessionCookies.length < 2",
+    "sessionCookies[index % sessionCookies.length]",
+    "authenticated_sessions: sessionCookies.length",
     "process.exit(1)",
 ] as $marker) {
     releaseEvidenceAssert(str_contains($load, $marker), "load/soak evidence missing {$marker}");
@@ -74,6 +79,7 @@ foreach ([
 
 $docs = releaseEvidenceText($root, 'docs/RELEASE_EVIDENCE.md');
 foreach ([
+    'five independent authenticated PHP sessions',
     '600 requests with concurrency 12',
     '45 seconds with concurrency 4',
     'maximum p95 latency: 2500 ms',
