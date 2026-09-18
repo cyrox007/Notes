@@ -156,7 +156,10 @@ final class NoteAttachmentController extends Controller
                 [':id' => $attachmentId, ':user_id' => $userId]
             );
             if (!$row) throw new DomainException('Вложение не найдено или недоступно');
-            $db->execute('UPDATE note_attachments SET is_deleted = 1 WHERE id = :id', [':id' => $attachmentId]);
+            $db->execute(
+                'UPDATE note_attachments SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP WHERE id = :id',
+                [':id' => $attachmentId]
+            );
             echo json_encode(['success' => true], JSON_UNESCAPED_UNICODE);
         } catch (DomainException $e) {
             $this->jsonError($e->getMessage(), 404);
