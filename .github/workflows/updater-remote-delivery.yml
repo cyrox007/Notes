@@ -45,7 +45,8 @@ jobs:
           set -euo pipefail
           php tests/integration/updater_remote_delivery_contract.php
           php tests/integration/updater_remote_address_policy_contract.php
-          php bin/update_remote.php --help | grep -Fq 'remote signed update delivery'
+          HELP_OUTPUT="$(php bin/update_remote.php --help)"
+          grep -Fq 'remote signed update delivery' <<<"$HELP_OUTPUT"
 
       - name: Verify network/live-mutation separation
         shell: bash
