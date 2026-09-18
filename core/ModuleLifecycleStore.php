@@ -218,7 +218,19 @@ final class ModuleLifecycleStore
         );
 
         $rows = $this->reconcile($modules, $coreVersion);
-        return $rows[$moduleId];
+        $result = $rows[$moduleId];
+        OperationalTelemetry::emit(
+            'module.lifecycle.changed',
+            in_array($targetState, ['degraded', 'quarantined'], true) ? 'warning' : 'info',
+            [
+                'module_id' => $moduleId,
+                'from' => $current,
+                'to' => $targetState,
+                'effective_state' => (string) ($result['effective_state'] ?? ''),
+                'reason_present' => $reason !== null && trim($reason) !== '',
+            ]
+        );
+        return $result;
     }
 
     /** @return array<string,array<string,mixed>> */
