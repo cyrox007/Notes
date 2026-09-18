@@ -1,0 +1,96 @@
+name: 1.0 security observability
+
+on:
+  pull_request:
+    branches: [master, '1.0']
+    paths:
+      - 'core/SecurityEventLog.php'
+      - 'app/controllers/AuthController.php'
+      - 'app/middlewares/AuthRateLimit.php'
+      - 'app/services/LicenseService.php'
+      - 'core/ModuleLifecycleStore.php'
+      - 'bin/update_apply.php'
+      - 'bin/healthcheck.php'
+      - 'bin/observability.php'
+      - 'default.env'
+      - 'docs/OPERATIONS.md'
+      - 'tests/integration/security_observability_contract.php'
+      - '.github/workflows/security-observability.yml'
+      - '.github/workflows/release-gate.yml'
+  push:
+    branches: ['1.0']
+    paths:
+      - 'core/SecurityEventLog.php'
+      - 'bin/observability.php'
+      - 'tests/integration/security_observability_contract.php'
+
+permissions:
+  contents: read
+
+jobs:
+  security-observability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        php: ['8.1', '8.3']
+
+    env:
+      SECURITY_EVENT_LOG_PATH: /tmp/notes-observability/security-events.jsonl
+      PRIVATE_STORAGE_PATH: /tmp/notes-observability/private
+      OBSERVABILITY_WINDOW_SECONDS: 3600
+      OBSERVABILITY_CRITICAL_ALERT: 1
+      OBSERVABILITY_AUTH_FAILURE_ALERT: 2
+      OBSERVABILITY_RATE_LIMIT_ALERT: 1
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring
+          coverage: none
+
+      - name: Lint observability boundary
+        run: |
+          php -l core/SecurityEventLog.php
+          php -l app/controllers/AuthController.php
+          php -l app/middlewares/AuthRateLimit.php
+          php -l app/services/LicenseService.php
+          php -l core/ModuleLifecycleStore.php
+          php -l bin/update_apply.php
+          php -l bin/healthcheck.php
+          php -l bin/observability.php
+          php -l tests/integration/security_observability_contract.php
+
+      - name: Verify structured security event contract
+        run: php tests/integration/security_observability_contract.php
+
+      - name: Verify CLI clean state
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/notes-observability
+          mkdir -p /tmp/notes-observability/private /tmp/notes-observability
+          chmod 700 /tmp/notes-observability /tmp/notes-observability/private
+          php bin/observability.php --json | tee /tmp/observability-clean.json
+          grep -Fq '"status": "ok"' /tmp/observability-clean.json
+          grep -Fq '"alerts": []' /tmp/observability-clean.json
+
+      - name: Verify CLI alert exit code
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -r '
+          require "core/SecurityEventLog.php";
+          $l=new Core\SecurityEventLog();
+          $l->record("update.apply_failed","critical","updater","cli",null,["error_code"=>"ci"]);
+          '
+          set +e
+          php bin/observability.php --json > /tmp/observability-alert.json
+          status=$?
+          set -e
+          test "$status" -eq 3
+          grep -Fq '"status": "alert"' /tmp/observability-alert.json
+          grep -Fq '"critical_security_events"' /tmp/observability-alert.json
