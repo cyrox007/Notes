@@ -2,7 +2,7 @@ name: File Manager browser lifecycle
 
 on:
   pull_request:
-    branches: ['1.0']
+    branches: [master, '1.0']
   push:
     branches: ['1.0']
     paths:

@@ -2,7 +2,7 @@ name: Profile browser lifecycle
 
 on:
   push:
-    branches: ['1.0']
+    branches: [master, '1.0']
     paths:
       - 'modules/profile/**'
       - 'app/views/profile_page/**'

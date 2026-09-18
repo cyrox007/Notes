@@ -2,7 +2,7 @@ name: 1.0 updater remote delivery
 
 on:
   pull_request:
-    branches: ['1.0']
+    branches: [master, '1.0']
   push:
     branches: ['1.0-updater-remote-delivery']
 
