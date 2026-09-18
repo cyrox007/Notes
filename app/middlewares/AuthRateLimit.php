@@ -6,6 +6,7 @@ namespace App\Middlewares;
 
 use App\Services\RequestRateLimiter;
 use Core\Request;
+use Core\SecurityEventLog;
 use Throwable;
 
 final class AuthRateLimit
@@ -23,6 +24,14 @@ final class AuthRateLimit
                 $window
             );
         } catch (Throwable $e) {
+            SecurityEventLog::emit(
+                'auth.rate_limiter_failed',
+                'critical',
+                'auth_rate_limit',
+                'system',
+                null,
+                ['error_type' => $e::class]
+            );
             error_log('Auth rate limiter failed closed: ' . $e->getMessage());
             http_response_code(503);
             header('Content-Type: text/plain; charset=utf-8');
@@ -31,6 +40,17 @@ final class AuthRateLimit
         }
 
         if (!$result['allowed']) {
+            SecurityEventLog::emit(
+                'auth.rate_limited',
+                'warning',
+                'auth_rate_limit',
+                'anonymous',
+                null,
+                [
+                    'subject_hash' => substr(hash('sha256', RequestRateLimiter::clientSubject('auth')), 0, 24),
+                    'retry_after' => (int) $result['retry_after'],
+                ]
+            );
             http_response_code(429);
             header('Retry-After: ' . $result['retry_after']);
             header('Content-Type: text/plain; charset=utf-8');
