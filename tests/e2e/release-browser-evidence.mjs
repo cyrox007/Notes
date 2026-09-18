@@ -86,7 +86,7 @@ async function assertMobileShell(page, scenarioName) {
 }
 
 const results = [];
-let exportedCookie = false;
+const sessionCookies = [];
 
 for (const scenario of scenarios) {
   const started = performance.now();
@@ -142,15 +142,12 @@ for (const scenario of scenarios) {
       );
     }
 
-    if (!exportedCookie) {
-      const cookies = await context.cookies(baseUrl + '/');
-      const cookieHeader = cookies.map(cookie => cookie.name + '=' + cookie.value).join('; ');
-      if (!cookieHeader.includes('PHPSESSID=')) {
-        throw new Error('Authenticated browser context did not produce PHPSESSID');
-      }
-      fs.writeFileSync(cookieOut, cookieHeader, { mode: 0o600 });
-      exportedCookie = true;
+    const cookies = await context.cookies(baseUrl + '/');
+    const cookieHeader = cookies.map(cookie => cookie.name + '=' + cookie.value).join('; ');
+    if (!cookieHeader.includes('PHPSESSID=')) {
+      throw new Error(scenario.name + ': authenticated browser context did not produce PHPSESSID');
     }
+    sessionCookies.push(cookieHeader);
 
     results.push({
       scenario: scenario.name,
@@ -167,13 +164,23 @@ for (const scenario of scenarios) {
   }
 }
 
-if (!exportedCookie || !fs.existsSync(cookieOut)) {
-  throw new Error('Authenticated cookie evidence was not exported');
+const uniqueSessions = [...new Set(sessionCookies)];
+if (uniqueSessions.length !== scenarios.length) {
+  throw new Error(
+    'Expected ' + scenarios.length + ' independent authenticated sessions, got ' + uniqueSessions.length
+  );
 }
+fs.writeFileSync(cookieOut, uniqueSessions.join('\n') + '\n', { mode: 0o600 });
 
 fs.writeFileSync(
   resultOut,
-  JSON.stringify({ status: 'ok', origin, base_path: basePath, scenarios: results }, null, 2) + '\n',
+  JSON.stringify({
+    status: 'ok',
+    origin,
+    base_path: basePath,
+    authenticated_sessions: uniqueSessions.length,
+    scenarios: results,
+  }, null, 2) + '\n',
 );
 
 console.log('Cross-browser/mobile evidence: ' + results.length + '/' + scenarios.length + ' scenarios OK');
