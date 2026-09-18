@@ -153,7 +153,7 @@ ob_start();
 
             <?php if ($checkedUpdateAvailable): ?>
                 <?php if ($canStage): ?>
-                    <form action="<?= $view->e($view->route('admin_updates_stage')) ?>" method="post" class="custom-fields-form" onsubmit="return confirm('Скачать подписанный пакет и поместить его во внешний staging? Рабочая версия приложения изменена не будет.');">
+                    <form action="<?= $view->e($view->route('admin_updates_stage')) ?>" method="post" class="custom-fields-form" data-confirm-message="Скачать подписанный пакет и поместить его во внешний staging? Рабочая версия приложения изменена не будет." data-confirm-title="Подготовка обновления" data-confirm-danger="false" data-confirm-text="Продолжить">
                         <?= $view->csrfInput() ?>
                         <div class="custom-fields-form__footer">
                             <small>Действие только скачивает, повторно проверяет и сохраняет пакет. Maintenance, backup, миграции и live apply здесь не запускаются.</small>
