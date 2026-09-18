@@ -64,7 +64,7 @@ $roles = (string) file_get_contents($root . '/modules/admin/views/roles.php');
 foreach (['admin_roles_create', 'admin_roles_update', 'admin_roles_policies', 'admin_roles_assign', 'admin_roles_delete'] as $route) {
     nativeAdminAssert(str_contains($roles, "route('{$route}')"), "role management route {$route} is missing");
 }
-nativeAdminAssert(str_contains($roles, '$roleCode === \\'superadmin\\''), 'superadmin edit lock was dropped');
+nativeAdminAssert(str_contains($roles, '$roleCode === \'superadmin\''), 'superadmin edit lock was dropped');
 nativeAdminAssert(str_contains($roles, "permission_codes[]"), 'permission assignment controls are missing');
 nativeAdminAssert(str_contains($roles, "policies["), 'role policy controls are missing');
 nativeAdminAssert(str_contains($roles, '__inherit__'), 'policy inheritance control is missing');
