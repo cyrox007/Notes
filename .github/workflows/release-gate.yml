@@ -86,6 +86,9 @@ jobs:
       - name: Verify security observability contract
         run: php tests/integration/security_observability_contract.php
 
+      - name: Verify retention and permanent purge contract
+        run: php tests/integration/retention_purge_contract.php
+
       - name: Verify stable release identity
         shell: bash
         run: |
