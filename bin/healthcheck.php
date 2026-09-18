@@ -15,6 +15,7 @@ if (is_file($root . '/.env')) {
 require_once $root . '/core/WebSocketEndpoint.php';
 require_once $root . '/core/ModuleManifest.php';
 require_once $root . '/core/DatabaseOwnership.php';
+require_once $root . '/core/SecurityEventLog.php';
 
 $json = in_array('--json', $argv, true);
 $checks = [];
@@ -86,6 +87,21 @@ recordHealth(
 );
 
 $appReal = realpath($root);
+
+try {
+    $securityEventLog = new \Core\SecurityEventLog();
+    $securityEventHealth = $securityEventLog->health();
+    recordHealth(
+        $checks,
+        $failed,
+        'security_event_log',
+        (bool) $securityEventHealth['ok'],
+        (string) $securityEventHealth['path']
+    );
+} catch (Throwable $e) {
+    recordHealth($checks, $failed, 'security_event_log', false, $e->getMessage());
+}
+
 if ($needsPrivateStorage) {
     $outsideApp = $privateOk
         && is_string($privateReal)
