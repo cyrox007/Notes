@@ -23,6 +23,9 @@ final class EnforceLicenseMutation
     private const RECOVERY_MUTATIONS = [
         '/auth/login',
         '/auth/logout',
+        '/system/license/activate',
+        '/system/license/clear',
+        // Backward-compatible Admin UI mutations while the Admin module is active.
         '/admin/license/activate',
         '/admin/license/clear',
         '/messenger/socket-ticket',
@@ -84,7 +87,7 @@ final class EnforceLicenseMutation
         $message = $state['message'] !== ''
             ? $state['message']
             : 'Лицензия установки не подтверждена. Изменение данных заблокировано.';
-        $licenseUrl = $this->localUrl('/admin/license');
+        $licenseUrl = $this->localUrl('/system/license');
 
         if ($this->expectsJson($request)) {
             header('Content-Type: application/json; charset=utf-8');

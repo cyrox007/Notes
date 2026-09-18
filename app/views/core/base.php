@@ -141,7 +141,7 @@ endif; ?>>
                             </div>
                         </div>
                         <?php if ($canManageLicense): ?>
-                            <a class="license-readonly-banner__action" href="<?= $view->e($view->route('admin_license')) ?>">Проверить лицензию</a>
+                            <a class="license-readonly-banner__action" href="<?= $view->e($view->route('system_license')) ?>">Проверить лицензию</a>
                         <?php endif; ?>
                     </div>
                 </aside>
