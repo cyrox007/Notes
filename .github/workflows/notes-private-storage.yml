@@ -2,7 +2,7 @@ name: Notes private storage
 
 on:
   pull_request:
-    branches: [master]
+    branches: [master, '1.0']
   push:
     branches: [notes-storage-hardening-docs]
 
@@ -46,17 +46,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          php -l app/controllers/NoteController.php
-          php -l app/controllers/NoteAttachmentController.php
-          php -l app/controllers/NoteShareController.php
-          php -l app/models/NoteAttachmentModel.php
+          php -l modules/notes/controllers/NoteController.php
+          php -l modules/notes/controllers/NoteAttachmentController.php
+          php -l modules/notes/controllers/NoteShareController.php
+          php -l modules/notes/models/NoteAttachmentModel.php
           php -l core/routerConfig.php
           php -l core/Version.php
 
           echo 'Checking legacy public Notes paths'
-          ! grep -R -n '/uploads/notes' app/controllers/NoteController.php app/controllers/NoteAttachmentController.php app/views/notes_page
+          ! grep -R -n '/uploads/notes' modules/notes/controllers/NoteController.php modules/notes/controllers/NoteAttachmentController.php modules/notes/views
           echo 'Checking legacy numeric role comparisons'
-          ! grep -R -nE 'role[^\n]*(>=|<=|>|<)[[:space:]]*(900|899|888|111|1)' app/controllers/NoteController.php app/views/notes_page/index.tpl
+          ! grep -R -nE 'role[^\n]*(>=|<=|>|<)[[:space:]]*(900|899|888|111|1)' modules/notes/controllers/NoteController.php modules/notes/views/index.php
           echo 'Checking routes and documentation contract'
           grep -Fq "'/attachment/{str:fileUid}'" core/routerConfig.php
           grep -Fq "'/shared/{str:token}/attachment/{str:fileUid}'" core/routerConfig.php
@@ -152,7 +152,7 @@ jobs:
           require SITEPATH . '/core/DatabaseManager.php';
           require SITEPATH . '/core/request.php';
           require SITEPATH . '/core/controller.php';
-          require SITEPATH . '/app/controllers/NoteAttachmentController.php';
+          require SITEPATH . '/modules/notes/controllers/NoteAttachmentController.php';
 
           final class HarnessRequest extends \Core\Request {
               public function __construct(private int $userId = 0, private array $postData = []) {}

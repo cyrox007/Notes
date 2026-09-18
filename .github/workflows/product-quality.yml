@@ -2,7 +2,7 @@ name: Product UI and production quality
 
 on:
   pull_request:
-    branches: [master]
+    branches: [master, '1.0']
   push:
     branches: [product-ui-production-refresh]
 
@@ -74,7 +74,7 @@ jobs:
         run: |
           set -euo pipefail
           node --check assets/js/reg-script.js
-          node --check assets/js/file_manager/script.js
+          node --check modules/files/assets/script.js
           node --check modules/admin/assets/admin-page.js
 
           sed \
@@ -110,13 +110,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq 'text-preview-modal' app/views/file_manager/index.tpl
-          grep -Fq 'read-only' assets/js/file_manager/script.js
-          ! grep -Fq 'cdnjs.cloudflare.com' app/views/file_manager/index.tpl
-          ! grep -Fq 'ace.js' app/views/file_manager/index.tpl
-          ! grep -Fq 'runCodeInSandbox' assets/js/file_manager/script.js
-          ! grep -Fq 'btn-run-code' app/views/file_manager/index.tpl
-          ! grep -Fq 'btn-save-code' app/views/file_manager/index.tpl
+          grep -Fq 'text-preview-modal' modules/files/views/index.php
+          grep -Fq 'read-only' modules/files/assets/script.js
+          ! grep -Fq 'cdnjs.cloudflare.com' modules/files/views/index.php
+          ! grep -Fq 'ace.js' modules/files/views/index.php
+          ! grep -Fq 'runCodeInSandbox' modules/files/assets/script.js
+          ! grep -Fq 'btn-run-code' modules/files/views/index.php
+          ! grep -Fq 'btn-save-code' modules/files/views/index.php
 
       - name: Admin lifecycle and settings static contract
         shell: bash
@@ -252,7 +252,7 @@ jobs:
           require getcwd() . '/core/config.php';
           require getcwd() . '/core/DatabaseManager.php';
           require getcwd() . '/app/services/PermissionService.php';
-          require getcwd() . '/app/services/UserAvatarService.php';
+          require getcwd() . '/modules/profile/services/UserAvatarService.php';
           require getcwd() . '/modules/admin/services/AdminUserService.php';
 
           use App\Services\AdminUserService;
@@ -418,7 +418,7 @@ jobs:
           chmod 700 "$PRIVATE_STORAGE_PATH"
           php bin/healthcheck.php --json | tee /tmp/healthcheck.json
           grep -Fq '"status": "ok"' /tmp/healthcheck.json
-          grep -Fq '27 required tables present' /tmp/healthcheck.json
+          grep -Fq '32 required tables present' /tmp/healthcheck.json
           grep -Fq 'storage_quota_setting' /tmp/healthcheck.json
           grep -Fq 'private_storage_outside_app_root' /tmp/healthcheck.json
           grep -Fq 'websocket_allowed_origins' /tmp/healthcheck.json
@@ -431,7 +431,7 @@ jobs:
           grep -Fq 'database/access_control_schema.sql' README.md
           grep -Fq 'database/settings_schema.sql' README.md
           grep -Fq 'database/module_lifecycle_schema.sql' README.md
-          grep -Fq '27 обязательных таблиц' README.md
+          grep -Fq '32 обязательных таблиц' README.md
           grep -Fq 'php bin/migrate.php' README.md
           grep -Fq 'php bin/migrate_crypto.php' README.md
           grep -Fq 'Saved Messages' README.md

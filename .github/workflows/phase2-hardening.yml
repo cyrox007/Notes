@@ -4,7 +4,7 @@ on:
   push:
     branches: [usable-baseline-0.12-phase2]
   pull_request:
-    branches: [master, usable-baseline-0.12]
+    branches: [master, '1.0', usable-baseline-0.12]
 
 permissions:
   contents: read
@@ -58,8 +58,8 @@ jobs:
           php -l app/middlewares/IsAdmin.php
           php -l core/controller.php
           php -l tests/e2e/router.php
-          node --check assets/js/file_manager/script.js
-          node --check assets/js/file_manager/quota.js
+          node --check modules/files/assets/script.js
+          node --check modules/files/assets/quota.js
           node --check tests/e2e/base-path-smoke.mjs
           bash -n tests/integration/active_session_http.sh
           grep -Fq "UserModel::select('id', 'is_active', 'account_status')" app/middlewares/LoginRequared.php
@@ -67,9 +67,9 @@ jobs:
           ! grep -Fq 'Config::canAuthenticate' app/middlewares/LoginRequared.php
           ! grep -Fq 'Config::isAdminRole' app/middlewares/IsAdmin.php
           grep -Fq "wspace.path = function appPath" app/views/core/common.js
-          grep -Fq "appPath('/messenger/upload')" app/views/messager_page/media.js
-          ! grep -Fq 'href="/files/' app/views/file_manager/index.tpl
-          ! grep -Fq 'src="/assets/js/file_manager/' app/views/file_manager/index.tpl
+          grep -Fq "appPath('/messenger/upload')" modules/messenger/views/media.js
+          ! grep -Fq 'href="/files/' modules/files/views/index.php
+          ! grep -Fq 'src="/assets/js/file_manager/' modules/files/views/index.php
 
       - name: Prepare canonical database
         shell: bash
