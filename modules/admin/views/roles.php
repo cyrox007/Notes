@@ -65,7 +65,7 @@ ob_start();
                     <p><?= $view->e(($role['description'] ?? '') !== '' ? $role['description'] : 'Без описания') ?> · назначено пользователям: <?= $view->e($role['assigned_users'] ?? 0) ?></p>
                 </div>
                 <?php if (!$isSystem): ?>
-                    <form action="<?= $view->e($view->route('admin_roles_delete')) ?>" method="post" onsubmit="return confirm('Удалить эту роль?');">
+                    <form action="<?= $view->e($view->route('admin_roles_delete')) ?>" method="post" data-confirm-message="Удалить эту роль?" data-confirm-title="Удаление роли" data-confirm-text="Удалить">
                         <?= $view->csrfInput() ?>
                         <input type="hidden" name="role_id" value="<?= $view->e($roleId) ?>">
                         <button type="submit" class="admin-action admin-action--danger"><i class="fa fa-trash" aria-hidden="true"></i> Удалить</button>
@@ -86,7 +86,7 @@ ob_start();
                         </div></div>
                         <div class="custom-field">
                             <strong>Разрешения</strong>
-                            <div class="admin-user-actions" style="margin-top:12px">
+                            <div class="admin-user-actions admin-user-actions--spaced">
                                 <?php foreach ($permissionItems as $permission): ?>
                                     <?php if (!is_array($permission)) { continue; } ?>
                                     <label class="custom-field__required" title="<?= $view->e($permission['description'] ?? '') ?>">
@@ -109,7 +109,7 @@ ob_start();
                             <?php $moduleId = (string) ($policySection['module_id'] ?? ''); $policies = isset($policySection['items']) && is_array($policySection['items']) ? $policySection['items'] : []; ?>
                             <div class="custom-field">
                                 <strong><?= $view->e($policySection['module_label'] ?? '') ?></strong>
-                                <div class="custom-field__grid" style="margin-top:12px">
+                                <div class="custom-field__grid custom-field__grid--spaced">
                                     <?php foreach ($policies as $policy): ?>
                                         <?php if (!is_array($policy)) { continue; } ?>
                                         <?php
