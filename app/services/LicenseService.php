@@ -6,9 +6,11 @@ namespace App\Services;
 
 use Core\DatabaseManager;
 use Core\LocalControlPlaneContext;
+use Core\SecurityEventLog;
 use DomainException;
 use InvalidArgumentException;
 use RuntimeException;
+use Throwable;
 
 /**
  * Installation-wide license state boundary.
@@ -119,7 +121,31 @@ final class LicenseService
     public function activate(int $actorId, string $token): array
     {
         $this->requireLicenseManager($actorId);
-        return $this->activateToken($token);
+        try {
+            $status = $this->activateToken($token);
+            SecurityEventLog::emit(
+                'license.activated',
+                'info',
+                'license',
+                'user',
+                $actorId,
+                [
+                    'license_id' => (string) ($status['license_id'] ?? ''),
+                    'key_id' => (string) ($status['key_id'] ?? ''),
+                ]
+            );
+            return $status;
+        } catch (Throwable $e) {
+            SecurityEventLog::emit(
+                'license.activation_failed',
+                'warning',
+                'license',
+                'user',
+                $actorId,
+                ['error_type' => $e::class]
+            );
+            throw $e;
+        }
     }
 
     /**
@@ -133,21 +159,49 @@ final class LicenseService
     public function activateFromControlPlane(LocalControlPlaneContext $context, string $token): array
     {
         $context->assertCli();
-        return $this->activateToken($token);
+        try {
+            $status = $this->activateToken($token);
+            SecurityEventLog::emit(
+                'license.activated',
+                'info',
+                'license',
+                'cli',
+                null,
+                [
+                    'license_id' => (string) ($status['license_id'] ?? ''),
+                    'key_id' => (string) ($status['key_id'] ?? ''),
+                ]
+            );
+            return $status;
+        } catch (Throwable $e) {
+            SecurityEventLog::emit(
+                'license.activation_failed',
+                'warning',
+                'license',
+                'cli',
+                null,
+                ['error_type' => $e::class]
+            );
+            throw $e;
+        }
     }
 
     /** @return array<string,mixed> */
     public function clear(int $actorId): array
     {
         $this->requireLicenseManager($actorId);
-        return $this->clearToken();
+        $status = $this->clearToken();
+        SecurityEventLog::emit('license.cleared', 'warning', 'license', 'user', $actorId);
+        return $status;
     }
 
     /** @return array<string,mixed> */
     public function clearFromControlPlane(LocalControlPlaneContext $context): array
     {
         $context->assertCli();
-        return $this->clearToken();
+        $status = $this->clearToken();
+        SecurityEventLog::emit('license.cleared', 'warning', 'license', 'cli');
+        return $status;
     }
 
     /** @return array<string,mixed> */
