@@ -89,6 +89,9 @@ jobs:
       - name: Verify retention and permanent purge contract
         run: php tests/integration/retention_purge_contract.php
 
+      - name: Verify release evidence contract
+        run: php tests/integration/release_evidence_contract.php
+
       - name: Verify stable release identity
         shell: bash
         run: |
