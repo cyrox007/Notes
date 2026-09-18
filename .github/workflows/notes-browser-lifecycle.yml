@@ -2,7 +2,7 @@ name: Notes browser lifecycle
 
 on:
   pull_request:
-    branches: [master, 0.13-ux-foundation]
+    branches: [master, '1.0', 0.13-ux-foundation]
 
 permissions:
   contents: read
@@ -37,9 +37,6 @@ jobs:
           extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
           coverage: none
 
-      - name: Install dependencies
-        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress
-
       - name: Install Chromium
         shell: bash
         run: |
@@ -47,23 +44,21 @@ jobs:
           npm install --no-save playwright@1.55.0
           npx playwright install --with-deps chromium
 
-      - name: Syntax contracts
+      - name: Verify vendor-free isolated Notes runtime
         shell: bash
         run: |
           set -euo pipefail
-          php -l app/controllers/NoteController.php
-          php -l app/controllers/NoteAttachmentController.php
-          php -l app/controllers/NoteShareController.php
-          php -l app/models/NoteAttachmentModel.php
+          test ! -e vendor
+          find modules/notes -type f -name '*.php' -print0 | xargs -0 -n1 php -l
           php -l tests/e2e/router.php
-          node --check assets/js/notes-editor-013.js
+          php tests/integration/native_notes_contract.php
+          for source in modules/notes/assets/*.js; do
+            node --check "$source"
+          done
           node --check tests/e2e/notes-lifecycle.mjs
           node --check tests/e2e/notes-voice-contract.mjs
-          grep -Fq 'data-note-editor-013' app/views/notes_page/editor-013.tpl
-          grep -Fq 'notes_page/editor-013.css' app/views/styles.css
-          ! grep -Fq 'src="/notes/attachment/' app/views/notes_page/editor-013.tpl
-          ! grep -Fq 'href="/notes/attachment/' app/views/notes_page/editor-013.tpl
-          ! grep -Fq 'href="/" class="btn btn-secondary"' app/views/notes_page/shared_view.tpl
+          test ! -e app/controllers/NoteController.php
+          test ! -e app/views/notes_page/editor-013.tpl
 
       - name: Prepare canonical database
         shell: bash
