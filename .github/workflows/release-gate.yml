@@ -199,6 +199,7 @@ jobs:
           if (!is_array($license) || $license===[]) { fwrite(STDERR,"Production license public key registry is empty\n"); exit(1); }
           if (!is_array($update) || $update===[]) { fwrite(STDERR,"Production update public key registry is empty\n"); exit(1); }
           if (array_intersect_key($license,$update)!==[]) { fwrite(STDERR,"License/update key ids must be independent\n"); exit(1); }
+          if (array_intersect(array_values($license),array_values($update))!==[]) { fwrite(STDERR,"License/update public keys must use independent key material\n"); exit(1); }
           '
 
       - name: Verify upload-ready vendor-free hosting bundle
