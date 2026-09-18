@@ -172,9 +172,15 @@ final class RetentionService
             return;
         }
         $rows = $this->db->fetchAll(
-            'SELECT id FROM notes WHERE is_deleted = 1 AND deleted_at IS NOT NULL AND deleted_at < :cutoff '
-            . 'ORDER BY id ASC LIMIT ' . $limit,
-            [':cutoff' => $cutoff]
+            'SELECT n.id FROM notes n WHERE n.is_deleted = 1 AND n.deleted_at IS NOT NULL AND n.deleted_at < :cutoff '
+            . ($this->hasTable('note_attachments')
+                ? 'AND NOT EXISTS (SELECT 1 FROM note_attachments a WHERE a.note_id=n.id '
+                    . 'AND (a.is_deleted=0 OR a.deleted_at IS NULL OR a.deleted_at >= :attachment_cutoff)) '
+                : '')
+            . 'ORDER BY n.id ASC LIMIT ' . $limit,
+            $this->hasTable('note_attachments')
+                ? [':cutoff' => $cutoff, ':attachment_cutoff' => $cutoff]
+                : [':cutoff' => $cutoff]
         );
         $purged = 0;
         foreach ($rows as $row) {
