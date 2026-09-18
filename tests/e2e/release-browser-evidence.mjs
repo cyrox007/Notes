@@ -46,7 +46,7 @@ async function assertDocumentFits(page, label) {
 }
 
 async function login(page, scenarioName) {
-  const response = await page.goto(baseUrl + '/auth/login/', { waitUntil: 'domcontentloaded' });
+  const response = await page.goto(baseUrl + '/auth/login/', { waitUntil: 'load' });
   if (!response || response.status() !== 200) {
     throw new Error(scenarioName + ': login page returned ' + (response ? response.status() : 'no response'));
   }
@@ -58,6 +58,7 @@ async function login(page, scenarioName) {
     page.getByRole('button', { name: 'Войти' }).click(),
   ]);
   await page.locator('#main-content').waitFor({ state: 'visible', timeout: 15000 });
+  await page.waitForLoadState('load');
 }
 
 async function assertMobileShell(page, scenarioName) {
@@ -121,7 +122,7 @@ for (const scenario of scenarios) {
     }
 
     for (const module of modules) {
-      const response = await page.goto(baseUrl + module.path, { waitUntil: 'domcontentloaded' });
+      const response = await page.goto(baseUrl + module.path, { waitUntil: 'load' });
       if (!response || response.status() !== 200) {
         throw new Error(scenario.name + ': ' + module.path + ' returned ' + (response ? response.status() : 'no response'));
       }
