@@ -172,6 +172,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          php tests/integration/production_trust_domains_contract.php
           php -r '
           foreach (["license"=>"config/license_trusted_keys.php","update"=>"config/update_trusted_keys.php"] as $domain=>$path) {
               $keys=require $path;
