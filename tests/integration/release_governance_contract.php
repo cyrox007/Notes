@@ -71,6 +71,9 @@ $workflowByCheck = [
     'notes-browser-lifecycle' => '.github/workflows/notes-browser-lifecycle.yml',
     'tasks-browser-lifecycle' => '.github/workflows/tasks-browser-lifecycle.yml',
     'file-manager-browser-lifecycle' => '.github/workflows/file-manager-browser-lifecycle.yml',
+    'profile-browser-lifecycle' => '.github/workflows/profile-browser-lifecycle.yml',
+    'admin-browser-lifecycle' => '.github/workflows/admin-browser-lifecycle.yml',
+    'storage-db-failure' => '.github/workflows/fault-injection-browser.yml',
 ];
 
 foreach ($requiredChecks as $check) {
@@ -81,16 +84,22 @@ foreach ($requiredChecks as $check) {
     if (preg_match('/^\s{2}' . preg_quote($check, '/') . ':\s*$/m', $workflowText) !== 1) {
         failContract("workflow job id {$check} not found in {$workflowByCheck[$check]}");
     }
+
+    if (preg_match('/pull_request:\s*\n(?<body>(?:\s{4}.*\n)*)/m', $workflowText, $match) !== 1) {
+        failContract("required workflow lacks pull_request trigger: {$workflowByCheck[$check]}");
+    }
+    $pullRequestBody = (string) ($match['body'] ?? '');
+    if (!str_contains($pullRequestBody, 'master')) {
+        failContract("required workflow does not run for master PRs: {$workflowByCheck[$check]}");
+    }
+    if (str_contains($pullRequestBody, 'paths:') || str_contains($pullRequestBody, 'paths-ignore:')) {
+        failContract("required workflow is path-filtered and can leave a required check pending: {$workflowByCheck[$check]}");
+    }
 }
 
 $futureChecks = $policy['required_checks_after_product_e2e_merge'] ?? null;
-$expectedFutureChecks = [
-    'profile-browser-lifecycle',
-    'admin-browser-lifecycle',
-    'storage-db-failure',
-];
-if ($futureChecks !== $expectedFutureChecks) {
-    failContract('future Product E2E check list drifted');
+if ($futureChecks !== []) {
+    failContract('all Product E2E checks are now promoted into required_checks');
 }
 
 $template = requireFileText($templatePath);
