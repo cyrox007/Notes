@@ -433,15 +433,14 @@ final class RetentionService
         }
 
         if ($this->hasTable('task_boards')) {
-            $ownedBoard = $this->db->fetchValue(
-                "SELECT 1 FROM task_boards b WHERE b.owner_user_id=:user_id "
-                . "AND (b.audience='all_active' "
-                . ($this->hasTable('task_board_members')
-                    ? 'OR EXISTS (SELECT 1 FROM task_board_members m WHERE m.board_id=b.id AND m.user_id<>:other_user_id)'
-                    : '')
-                . ') LIMIT 1',
-                [':user_id' => $userId, ':other_user_id' => $userId]
-            );
+            $sql = "SELECT 1 FROM task_boards b WHERE b.owner_user_id=:user_id AND (b.audience='all_active'";
+            $params = [':user_id' => $userId];
+            if ($this->hasTable('task_board_members')) {
+                $sql .= ' OR EXISTS (SELECT 1 FROM task_board_members m WHERE m.board_id=b.id AND m.user_id<>:other_user_id)';
+                $params[':other_user_id'] = $userId;
+            }
+            $sql .= ') LIMIT 1';
+            $ownedBoard = $this->db->fetchValue($sql, $params);
             if ($ownedBoard !== null) {
                 return 'owned_shared_task_board';
             }
