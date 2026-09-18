@@ -116,9 +116,9 @@ foreach ($attachmentRows as $attachment) {
                                     <?php if ($type === 'audio'): ?>
                                         <audio controls preload="metadata"><source src="<?= $view->e($downloadUrl) ?>" type="<?= $view->e($attachment['mime_type'] ?? '') ?>"></audio>
                                     <?php elseif ($type === 'image'): ?>
-                                        <img src="<?= $view->e($downloadUrl) ?>" alt="<?= $view->e($attachment['file_name'] ?? '') ?>" loading="lazy" style="max-width:100%;max-height:160px;object-fit:contain;">
+                                        <img src="<?= $view->e($downloadUrl) ?>" alt="<?= $view->e($attachment['file_name'] ?? '') ?>" loading="lazy" class="note-attachment-preview__image">
                                     <?php elseif ($type === 'video'): ?>
-                                        <video controls preload="metadata" style="max-width:100%;"><source src="<?= $view->e($downloadUrl) ?>" type="<?= $view->e($attachment['mime_type'] ?? '') ?>"></video>
+                                        <video controls preload="metadata" class="note-attachment-preview__video"><source src="<?= $view->e($downloadUrl) ?>" type="<?= $view->e($attachment['mime_type'] ?? '') ?>"></video>
                                     <?php else: ?>
                                         <a href="<?= $view->e($downloadUrl) ?>"><?= $view->e($attachment['file_name'] ?? '') ?></a>
                                     <?php endif; ?>
