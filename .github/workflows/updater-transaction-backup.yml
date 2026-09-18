@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   updater-backup:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, wb-ci]
     timeout-minutes: 15
     strategy:
       fail-fast: false

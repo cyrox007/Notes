@@ -30,7 +30,7 @@ permissions:
 
 jobs:
   retention-purge:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, wb-ci]
     timeout-minutes: 15
 
     services:

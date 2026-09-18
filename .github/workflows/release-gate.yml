@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   release-gate:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, wb-ci]
     timeout-minutes: 20
 
     services:
@@ -82,6 +82,9 @@ jobs:
 
       - name: Verify release governance contract
         run: php tests/integration/release_governance_contract.php
+
+      - name: Verify self-hosted release CI contract
+        run: php tests/integration/self_hosted_ci_contract.php
 
       - name: Verify security observability contract
         run: php tests/integration/security_observability_contract.php

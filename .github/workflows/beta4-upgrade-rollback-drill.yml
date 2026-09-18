@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   beta4-upgrade-rollback:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, wb-ci]
     timeout-minutes: 25
 
     services:

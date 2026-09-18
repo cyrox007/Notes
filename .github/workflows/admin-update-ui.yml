@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   admin-update-ui:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, wb-ci]
     timeout-minutes: 10
     strategy:
       fail-fast: false

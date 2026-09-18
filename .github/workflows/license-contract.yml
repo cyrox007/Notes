@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   license-contract:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, wb-ci]
     timeout-minutes: 12
     strategy:
       matrix:

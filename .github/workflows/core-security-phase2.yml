@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   core-router-request-security:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, wb-ci]
     timeout-minutes: 5
     strategy:
       fail-fast: false

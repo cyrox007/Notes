@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   profile-browser-lifecycle:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, wb-ci]
     timeout-minutes: 20
 
     services:

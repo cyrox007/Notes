@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   file-manager-http-integrity:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, wb-ci]
     timeout-minutes: 15
 
     services:
