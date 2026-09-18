@@ -26,7 +26,9 @@ The existing Browser HTTPS and WSS E2E workflow remains the release evidence for
 
 ## Load and soak evidence
 
-After the browser matrix exports an authenticated PHP session cookie, the same release-candidate process is exercised through authenticated GET requests against:
+After the browser matrix exports five independent authenticated PHP sessions, the same release-candidate process is exercised through authenticated GET requests distributed round-robin across those sessions. This avoids measuring a single PHP session lock as if it were application concurrency.
+
+The load targets are:
 
 - workspace home;
 - Notes;
