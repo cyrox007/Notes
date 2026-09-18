@@ -73,7 +73,7 @@ ob_start();
             </button>
 
             <?php if ($avatarUrl !== ''): ?>
-                <form class="profile__avatar-delete" action="<?= $view->e($view->route('profile-avatar-delete')) ?>" method="post" data-confirm-message="Удалить фото профиля?" data-confirm-title="Удаление фото" data-confirm-text="Удалить">
+                <form class="profile__avatar-delete" action="<?= $view->e($view->route('profile-avatar-delete')) ?>" method="post" data-confirm-message="Удалить фото профиля?" data-confirm-native="true" data-confirm-title="Удаление фото" data-confirm-text="Удалить">
                     <?= $view->csrfInput() ?>
                     <button type="submit" class="profile__secondary-action">Удалить фото</button>
                 </form>
@@ -211,7 +211,7 @@ ob_start();
                 <section class="profile__danger-zone">
                     <h3>Деактивация аккаунта</h3>
                     <p>Данные аккаунта сохранятся, но вход и действия в системе будут заблокированы. Если вы владелец группы, сначала передайте владение другому участнику.</p>
-                    <form name="deleteUser" action="<?= $view->e($view->route('profile-delete')) ?>" method="post" data-confirm-message="Деактивировать аккаунт? Вход в систему будет заблокирован." data-confirm-title="Деактивация аккаунта" data-confirm-text="Деактивировать">
+                    <form name="deleteUser" action="<?= $view->e($view->route('profile-delete')) ?>" method="post" data-confirm-message="Деактивировать аккаунт? Вход в систему будет заблокирован." data-confirm-native="true" data-confirm-title="Деактивация аккаунта" data-confirm-text="Деактивировать">
                         <?= $view->csrfInput() ?>
                         <div class="profile__card-info--edit--form-group"><label for="deactivate-password">Текущий пароль:</label><input class="profile__card-info--edit--set-input" type="password" name="current_password" id="deactivate-password" required autocomplete="current-password"></div>
                         <label class="profile__confirm-deactivate"><input type="checkbox" name="confirm_delete" value="yes" required> Я понимаю, что аккаунт будет деактивирован.</label>
