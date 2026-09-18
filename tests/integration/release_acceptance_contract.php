@@ -54,6 +54,8 @@ foreach ([
     'v1.0.0',
     'no open P0/P1 data-loss defects',
     'no open P0/P1 security defects',
+    'build-only',
+    'must not create or update a public GitHub Release',
 ] as $marker) {
     releaseAcceptanceAssert(str_contains($doc, $marker), "release acceptance runbook missing {$marker}");
 }

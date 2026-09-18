@@ -79,7 +79,9 @@ The private key file uses a separate update-key format and the tooling refuses t
 
 ## Building and signing release metadata
 
-After the final hosting ZIP exists, build the manifest from that exact file:
+The GitHub `Build hosting package` workflow only builds the release-candidate ZIP and records its SHA-256 as an Actions artifact. It intentionally does not create or update a public GitHub Release. Publication happens only after the exact ZIP has been used to build and offline-sign the production update manifest.
+
+After the final hosting ZIP exists, verify its recorded SHA-256 and build the manifest from that exact file:
 
 ```bash
 php tools/vendor-update/build-manifest.php \

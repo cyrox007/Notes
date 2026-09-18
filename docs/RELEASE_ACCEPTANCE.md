@@ -105,11 +105,11 @@ Automated CI cannot fabricate this decision. If no representative human beta coh
 
 ## Gate G — immutable artifact and signing
 
-Build the final upload-ready bundle from the exact accepted SHA.
+Build the final upload-ready bundle from the exact accepted SHA. The `Build hosting package` workflow is deliberately **build-only**: it stores the ZIP and its SHA-256 as a workflow artifact and must not create or update a public GitHub Release before offline signing is complete.
 
 Then:
 
-1. calculate and record the bundle SHA-256;
+1. download the exact workflow ZIP + checksum artifact and verify the recorded bundle SHA-256;
 2. build the update manifest with the exact source commit/version/version-code;
 3. sign the exact manifest bytes with the offline update-domain private key;
 4. verify manifest signature and package hash with the public registry shipped in the bundle;
@@ -137,7 +137,7 @@ php bin/release_acceptance.php --strict --json \
 2. merge the exact accepted `1.0` head to `master` without introducing source changes;
 3. verify `master` points at the intended release content;
 4. create signed/annotated tag `v1.0.0` according to repository release policy;
-5. publish the immutable bundle + update manifest/signature;
+5. publish the exact previously accepted ZIP together with the update manifest and detached signature; do not rebuild or repack the ZIP after signing;
 6. verify the published download checksum and release metadata once more.
 
 If any source change is required after RC acceptance, invalidate the previous exact-head evidence and repeat the affected gates on the new SHA.
