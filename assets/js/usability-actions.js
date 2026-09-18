@@ -308,11 +308,16 @@
         if (confirmMessage !== '') {
             event.preventDefault();
             event.stopImmediatePropagation();
-            // Preserve the exact semantics of the legacy inline confirm()
-            // handlers while keeping executable code in this external asset.
-            if (window.confirm(confirmMessage)) {
-                HTMLFormElement.prototype.submit.call(form);
-            }
+            const confirmed = form.dataset.confirmNative === 'true'
+                ? window.confirm(confirmMessage)
+                : (feedback()?.confirm
+                    ? await feedback().confirm(confirmMessage, {
+                        title: form.dataset.confirmTitle || 'Подтверждение',
+                        danger: form.dataset.confirmDanger !== 'false',
+                        confirmText: form.dataset.confirmText || 'Подтвердить'
+                    })
+                    : window.confirm(confirmMessage));
+            if (confirmed) HTMLFormElement.prototype.submit.call(form);
             return;
         }
 
