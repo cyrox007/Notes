@@ -1,5 +1,6 @@
 {
   "protected_branch": "master",
+  "stabilization_branch": "1.0",
   "require_pull_request": true,
   "require_branch_up_to_date": true,
   "dismiss_stale_reviews": true,
@@ -11,6 +12,9 @@
     "notes-browser-lifecycle",
     "tasks-browser-lifecycle",
     "file-manager-browser-lifecycle"
+  ],
+  "stabilization_required_checks": [
+    "release-gate"
   ],
   "required_checks_after_product_e2e_merge": [
     "profile-browser-lifecycle",
