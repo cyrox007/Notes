@@ -10,7 +10,9 @@ use App\Services\RegistrationPolicyService;
 use App\Services\UserProvisioningService;
 use Core\Controller;
 use Core\Request;
+use Core\RequestOrigin;
 use Core\Router;
+use Core\SecurityEventLog;
 use Core\SessionSecurity;
 use DomainException;
 use InvalidArgumentException;
@@ -37,6 +39,17 @@ class AuthController extends Controller
 
         $user = UserModel::select()->where('username', '=', $login)->first();
         if (!$user || !CryptMethods::verifyPassword($password, $user->password_hash)) {
+            SecurityEventLog::emit(
+                'auth.login_failed',
+                'warning',
+                'auth',
+                'anonymous',
+                null,
+                [
+                    'client_ip' => RequestOrigin::clientIp($_SERVER),
+                    'login_hash' => substr(hash('sha256', mb_strtolower($login)), 0, 24),
+                ]
+            );
             $this->renderLogin([[
                 'CODE' => 'login_error',
                 'MESSAGE' => 'Неверный логин или пароль',
@@ -48,6 +61,14 @@ class AuthController extends Controller
             (int) $user->is_active !== 1
             || (string) ($user->account_status ?? '') !== 'active'
         ) {
+            SecurityEventLog::emit(
+                'auth.login_blocked',
+                'warning',
+                'auth',
+                'user',
+                (int) $user->id,
+                ['client_ip' => RequestOrigin::clientIp($_SERVER)]
+            );
             $this->renderLogin([[
                 'CODE' => 'login_error',
                 'MESSAGE' => 'Учетная запись недоступна',
@@ -68,12 +89,29 @@ class AuthController extends Controller
         $request->setSession('_csrf_token', bin2hex(random_bytes(32)));
         SessionSecurity::refreshCurrentSessionCookie();
 
+        SecurityEventLog::emit(
+            'auth.login_success',
+            'info',
+            'auth',
+            'user',
+            (int) $user->id,
+            ['client_ip' => RequestOrigin::clientIp($_SERVER)]
+        );
         Router::getInstance()->redirect('main', 'name');
     }
 
     public function logout(Request $request): void
     {
+        $actorId = (int) $request->session('user_id', 0);
         SessionSecurity::destroyCurrentSession();
+        SecurityEventLog::emit(
+            'auth.logout',
+            'info',
+            'auth',
+            $actorId > 0 ? 'user' : 'anonymous',
+            $actorId > 0 ? $actorId : null,
+            ['client_ip' => RequestOrigin::clientIp($_SERVER)]
+        );
         Router::getInstance()->redirect('authpage', 'name');
     }
 
