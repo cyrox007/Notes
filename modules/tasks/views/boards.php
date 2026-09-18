@@ -131,7 +131,7 @@ ob_start();
                             <label class="task-board-user"><input type="checkbox" name="member_ids[]" value="<?= $view->e($candidateId) ?>" <?= isset($memberIds[$candidateId]) ? 'checked' : '' ?>><span><strong><?= $view->e($candidate['firstname'] ?? '') ?> <?= $view->e($candidate['lastname'] ?? '') ?></strong><small>@<?= $view->e($candidate['username'] ?? '') ?></small></span></label>
                         <?php endforeach; ?>
                     </div>
-                    <div class="task-board-actions-row" style="margin-top:12px"><button class="task-board-button task-board-button--primary" type="submit">Сохранить состав</button></div>
+                    <div class="task-board-actions-row task-board-actions-row--spaced"><button class="task-board-button task-board-button--primary" type="submit">Сохранить состав</button></div>
                 </form>
             </section>
         <?php endif; ?>
@@ -155,11 +155,11 @@ ob_start();
                                         <div class="task-board-card__actions">
                                             <form action="<?= $view->e($view->route('task_board_task_update', ['uid' => $taskUid])) ?>" method="post">
                                                 <?= $view->csrfInput() ?>
-                                                <select name="status" onchange="this.form.submit()" aria-label="Статус задачи">
+                                                <select name="status" data-submit-on-change aria-label="Статус задачи">
                                                     <option value="pending" <?= ($boardTask['status'] ?? '') === 'pending' ? 'selected' : '' ?>>Ожидает</option><option value="in_progress" <?= ($boardTask['status'] ?? '') === 'in_progress' ? 'selected' : '' ?>>В процессе</option><option value="completed" <?= ($boardTask['status'] ?? '') === 'completed' ? 'selected' : '' ?>>Завершена</option><option value="cancelled" <?= ($boardTask['status'] ?? '') === 'cancelled' ? 'selected' : '' ?>>Отменена</option>
                                                 </select>
                                             </form>
-                                            <form action="<?= $view->e($view->route('task_board_task_delete', ['uid' => $taskUid])) ?>" method="post" onsubmit="return confirm('Удалить задачу с общей доски?')">
+                                            <form action="<?= $view->e($view->route('task_board_task_delete', ['uid' => $taskUid])) ?>" method="post" data-confirm-message="Удалить задачу с общей доски?" data-confirm-title="Подтверждение" data-confirm-text="Удалить">
                                                 <?= $view->csrfInput() ?><input type="hidden" name="board_uid" value="<?= $view->e($selectedUid) ?>"><button class="task-board-button task-board-button--danger" type="submit">Удалить</button>
                                             </form>
                                         </div>
