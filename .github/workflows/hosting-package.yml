@@ -100,7 +100,8 @@ jobs:
           test ! -e "$ROOT/tools/vendor-update"
           test -f "$ROOT/install.php"
           test -f "$ROOT/core/NativeViewRenderer.php"
-          test -f "$ROOT/app/socket/NativeMessengerServer.php"
+          test -f "$ROOT/modules/messenger/socket/NativeMessengerServer.php"
+          test ! -e "$ROOT/app/socket/NativeMessengerServer.php"
           test -f "$ROOT/config/license_trusted_keys.php"
           test -f "$ROOT/config/update_trusted_keys.php"
           test -f "$ROOT/bin/update.php"
@@ -137,7 +138,11 @@ jobs:
           set -euo pipefail
           unzip -l "$BUNDLE" | grep -F 'install.php'
           unzip -l "$BUNDLE" | grep -F 'core/NativeViewRenderer.php'
-          unzip -l "$BUNDLE" | grep -F 'app/socket/NativeMessengerServer.php'
+          unzip -l "$BUNDLE" | grep -F 'modules/messenger/socket/NativeMessengerServer.php'
+          if unzip -l "$BUNDLE" | grep -Fq 'app/socket/NativeMessengerServer.php'; then
+            echo 'Bundle contains obsolete pre-isolation Messenger socket path' >&2
+            exit 1
+          fi
           unzip -l "$BUNDLE" | grep -F 'config/license_trusted_keys.php'
           unzip -l "$BUNDLE" | grep -F 'config/update_trusted_keys.php'
           unzip -l "$BUNDLE" | grep -F 'bin/update.php'
