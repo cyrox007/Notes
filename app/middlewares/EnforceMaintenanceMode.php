@@ -6,6 +6,7 @@ namespace App\Middlewares;
 
 use App\Services\MaintenanceModeService;
 use Core\Request;
+use Core\SecurityHeaders;
 use Throwable;
 
 /**
@@ -64,11 +65,14 @@ final class EnforceMaintenanceMode
 
         header('Content-Type: text/html; charset=utf-8');
         $safeReason = htmlspecialchars($reason, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $nonce = htmlspecialchars(SecurityHeaders::nonce(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         echo '<!doctype html><html lang="ru"><head><meta charset="utf-8">'
             . '<meta name="viewport" content="width=device-width,initial-scale=1">'
             . '<meta name="robots" content="noindex,nofollow">'
-            . '<title>Техническое обслуживание</title></head>'
-            . '<body style="font-family:system-ui,sans-serif;max-width:720px;margin:8vh auto;padding:24px">'
+            . '<title>Техническое обслуживание</title>'
+            . '<style nonce="' . $nonce . '">body{font-family:system-ui,sans-serif;max-width:720px;margin:8vh auto;padding:24px}</style>'
+            . '</head>'
+            . '<body>'
             . '<h1>Техническое обслуживание</h1>'
             . '<p>Workspace Organizer временно недоступен, пока завершается безопасное обновление.</p>'
             . '<p>' . $safeReason . '</p>'
