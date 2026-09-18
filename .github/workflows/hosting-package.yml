@@ -33,7 +33,7 @@ jobs:
           test ! -e vendor
           test "$(php -r '$j=json_decode(file_get_contents("composer.lock"),true); echo count($j["packages"] ?? []);')" = '0'
           ! grep -Fq 'vendor/autoload.php' core.php
-          ! grep -R -F 'Workerman\\' app/socket ws_server core.php
+          ! grep -R -F 'Workerman\\' modules/messenger/socket ws_server core.php
           php -l core.php
           php -l install.php
           php -l ws_server/server.php
