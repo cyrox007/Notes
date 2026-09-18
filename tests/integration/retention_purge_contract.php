@@ -109,7 +109,7 @@ foreach ([
     retentionAssert(str_contains($service, $marker), "RetentionService missing safety marker {$marker}");
 }
 $filesystemCleanupPosition = strpos($service, '$this->removePaths($paths, $result)');
-$userDeletePosition = strpos($service, "'DELETE FROM users WHERE id = :id");
+$userDeletePosition = strpos($service, 'DELETE FROM users WHERE id = :id');
 retentionAssert($filesystemCleanupPosition !== false, 'account filesystem cleanup marker missing');
 retentionAssert($userDeletePosition !== false, 'irreversible user DELETE marker missing');
 retentionAssert(
