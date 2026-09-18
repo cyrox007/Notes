@@ -183,3 +183,41 @@ php bin/cleanup_messenger_orphans.php
 - `bin/healthcheck.php` проходит на target environment;
 - существует свежий проверенный backup и зафиксирован restore drill;
 - encryption keys и `.env` не входят в публичный release/backup archive.
+
+
+## Security observability
+
+Workspace Organizer writes structured security/audit events as append-only JSONL outside the application tree. By default the file is:
+
+`PRIVATE_STORAGE_PATH/logs/security-events.jsonl`
+
+Set `SECURITY_EVENT_LOG_PATH` only when a dedicated absolute external path is required. The directory is created with mode 0700 and the event file is kept at 0600 on POSIX systems.
+
+Current 1.0 events cover:
+
+- authentication success/failure/blocked-account/logout;
+- authentication rate-limit denials and rate-limiter failures;
+- license activation/clear operations;
+- module lifecycle transitions;
+- updater apply/recovery success and failure.
+
+Sensitive context keys such as passwords, tokens, secrets, authorization/cookie/session/CSRF values are redacted by the logger before serialization. License tokens and signing/private keys must never be logged.
+
+Operational summary:
+
+```bash
+php bin/observability.php
+php bin/observability.php --window=900 --json
+```
+
+The command exits with code 3 when alert thresholds are crossed. Defaults:
+
+- any critical event in the observation window;
+- 10 authentication failures/blocked attempts;
+- 3 rate-limit denials.
+
+Tune with `OBSERVABILITY_CRITICAL_ALERT`, `OBSERVABILITY_AUTH_FAILURE_ALERT`, `OBSERVABILITY_RATE_LIMIT_ALERT` and `OBSERVABILITY_WINDOW_SECONDS`.
+
+Recommended production scheduling is a cron/systemd timer that runs `php bin/observability.php --json` every few minutes and forwards non-zero/alert results to the operator's existing monitoring channel. This release intentionally does not require a specific external monitoring vendor.
+
+`php bin/healthcheck.php` also verifies that security event storage resolves outside the live application tree and is writable.
