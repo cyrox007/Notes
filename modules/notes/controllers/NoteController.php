@@ -261,7 +261,7 @@ final class NoteController extends Controller
         $db->beginTransaction();
         try {
             $db->execute(
-                'UPDATE note_attachments SET is_deleted = 1
+                'UPDATE note_attachments SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP
                  WHERE note_id = :note_id AND is_deleted = 0',
                 [':note_id' => $noteId]
             );
