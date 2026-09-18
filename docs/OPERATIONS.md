@@ -80,11 +80,52 @@ Restore считается проверенным только после вос
 
 ### `UNIQUE_KEY` и `MSG_SECRET_KEY`
 
-**Не меняйте эти значения напрямую.** Текущие note/message ciphertext привязаны к действующим ключам; простая замена переменной сделает существующие данные нечитаемыми.
+**Не меняйте эти значения напрямую.** Штатная смена master keys выполняется только через maintenance-команду `bin/rotate_data_keys.php`.
 
-До ротации data keys требуется отдельная maintenance-процедура re-encryption с old+new key одновременно, backup и verify. `bin/migrate_crypto.php` предназначен для legacy-format migration и проверки текущих ciphertext, но не является инструментом смены master key.
+Перед ротацией:
 
-Поэтому production contract такой: data-encryption keys считаются долгоживущими secrets; их аварийная ротация выполняется только через отдельную re-encryption maintenance операцию, а не редактированием `.env`.
+1. сделать полный backup и иметь актуальный restore drill;
+2. выполнить `php bin/migrate_crypto.php --scope=all --dry-run --limit=10000`; Messenger должен быть в v2, а encrypted Notes — в текущем формате;
+3. подготовить old/new secrets в отдельных файлах вне application tree с правами `0600`; raw key values намеренно не принимаются аргументами CLI;
+4. включить maintenance с уникальным transaction id. HTTP и WebSocket mutation-paths блокируются на всё время операции.
+
+Пример:
+
+```bash
+php bin/maintenance.php \
+  --action=enter \
+  --transaction=keyrotate-2026-09 \
+  --reason='Data encryption key rotation'
+
+php bin/rotate_data_keys.php \
+  --transaction=keyrotate-2026-09 \
+  --scope=all \
+  --old-unique-key-file=/secure/old-unique.key \
+  --new-unique-key-file=/secure/new-unique.key \
+  --old-msg-key-file=/secure/old-msg.key \
+  --new-msg-key-file=/secure/new-msg.key
+```
+
+Rotator использует небольшие DB-транзакции и внешний checkpoint. Если процесс завершится после DB commit, но до записи checkpoint, повторный запуск безопасен: строка сначала аутентифицируется target key и не шифруется повторно. State содержит только SHA-256 fingerprints, checkpoints и counters — не сами ключи.
+
+Notes rotation охватывает `notes.content` и encrypted snapshots `note_history.old_content/new_content`; исторический plaintext в note history остаётся byte-identical. Messenger rotation охватывает `messages.message`. Notes/Messenger attachments этими master keys сейчас не шифруются и в эту процедуру не входят.
+
+`--max-batches=N` позволяет контролируемо остановить операцию и затем продолжить той же командой. До `complete + verified` maintenance не снимается.
+
+Для отмены **до переключения .env/secret manager** запустите ту же команду с `--rollback`. Она переводит уже обновлённые строки обратно на old keys и пропускает строки, которые ещё не были переведены.
+
+После успешного forward:
+
+1. оставить maintenance активным;
+2. заменить `UNIQUE_KEY` / `MSG_SECRET_KEY` в secret manager или `.env`;
+3. перезапустить HTTP workers и WebSocket process;
+4. выполнить `php bin/healthcheck.php` и smoke-проверить encrypted Note и Messenger message;
+5. снять maintenance той же transaction id;
+6. удалить old secrets только после принятого backup/rollback окна.
+
+`DATA_KEY_ROTATION_STATE_PATH` может задавать отдельный внешний state-каталог. Если он пуст, используется `UPDATE_STATE_PATH/data-key-rotation`, затем `PRIVATE_STORAGE_PATH/key-rotation`.
+
+`bin/migrate_crypto.php` остаётся legacy-format migrator; `bin/rotate_data_keys.php` — штатный путь смены master keys.
 
 ## 5. Rate limiting и reverse proxy
 
