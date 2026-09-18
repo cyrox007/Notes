@@ -36,9 +36,9 @@ ob_start();
         <div class="admin-page__flash admin-page__flash--<?= $view->e($flashType) ?>" role="status">
             <?= $view->e($flash['message'] ?? '') ?>
             <?php if (!empty($flash['invite_code'])): ?>
-                <div class="custom-field__control" style="margin-top:12px">
+                <div class="custom-field__control custom-field__control--spaced">
                     <label for="new_invite_code">Новый код приглашения</label>
-                    <input id="new_invite_code" type="text" readonly value="<?= $view->e($flash['invite_code']) ?>" onclick="this.select()">
+                    <input id="new_invite_code" type="text" readonly value="<?= $view->e($flash['invite_code']) ?>" data-select-on-click>
                     <small>Код хранится в системе только в виде SHA-256 hash и повторно показан не будет.</small>
                 </div>
             <?php endif; ?>
