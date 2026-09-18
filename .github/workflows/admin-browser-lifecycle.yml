@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   admin-browser-lifecycle:
-    runs-on: [self-hosted, Linux, X64, wb-ci]
+    runs-on: [self-hosted, Linux, X64, notes-ci]
     timeout-minutes: 20
 
     services:
