@@ -51,7 +51,7 @@ final class MessengerMediaCleanupService
             try {
                 $affected = $this->db->execute(
                     'UPDATE messenger_attachments
-                     SET is_deleted = 1
+                     SET is_deleted = 1, deleted_at = CURRENT_TIMESTAMP
                      WHERE id = :id AND message_id IS NULL AND is_deleted = 0',
                     [':id' => $id]
                 );
@@ -84,7 +84,7 @@ final class MessengerMediaCleanupService
             try {
                 $this->db->execute(
                     'UPDATE messenger_attachments
-                     SET is_deleted = 0
+                     SET is_deleted = 0, deleted_at = NULL
                      WHERE id = :id AND message_id IS NULL AND is_deleted = 1',
                     [':id' => $id]
                 );
