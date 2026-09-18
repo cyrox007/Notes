@@ -36,7 +36,7 @@ $createdAt = $formatDate($taskRow['created_at'] ?? '', 'd.m.Y H:i');
         <div class="task-title-section">
             <input type="checkbox" class="task-complete-toggle" <?= $status === 'completed' ? 'checked' : '' ?> data-task-id="<?= $view->e($uid) ?>" title="Отметить как выполненную">
             <h3 class="task-title<?= $status === 'completed' ? ' completed' : '' ?>"><?= $view->e($title) ?></h3>
-            <span class="task-priority-badge" style="background-color: <?= $view->e($priorityColor) ?>;"><?= $view->e($priority) ?></span>
+            <span class="task-priority-badge" data-task-priority-color="<?= $view->e($priorityColor) ?>"><?= $view->e($priority) ?></span>
         </div>
 
         <div class="task-actions">
@@ -47,7 +47,7 @@ $createdAt = $formatDate($taskRow['created_at'] ?? '', 'd.m.Y H:i');
                 <option value="cancelled" <?= $status === 'cancelled' ? 'selected' : '' ?>>Отменена</option>
             </select>
             <button type="button" class="btn-icon edit-task" data-task-id="<?= $view->e($uid) ?>" title="Редактировать"><i class="fa fa-edit" aria-hidden="true"></i></button>
-            <form action="<?= $view->e($view->route('delete_task', ['uid' => $uid])) ?>" method="post" onsubmit="return confirm('Вы уверены, что хотите удалить эту задачу?')">
+            <form action="<?= $view->e($view->route('delete_task', ['uid' => $uid])) ?>" method="post" data-confirm-message="Вы уверены, что хотите удалить эту задачу?" data-confirm-title="Удаление задачи" data-confirm-text="Удалить">
                 <?= $view->csrfInput() ?>
                 <button type="submit" class="btn-icon delete-task" title="Удалить"><i class="fa fa-trash" aria-hidden="true"></i></button>
             </form>
@@ -76,7 +76,7 @@ $createdAt = $formatDate($taskRow['created_at'] ?? '', 'd.m.Y H:i');
                         $categoryIcon = strtolower((string) ($category['icon'] ?? 'fa-folder'));
                         if (preg_match('/^fa-[a-z0-9-]{1,48}$/', $categoryIcon) !== 1) { $categoryIcon = 'fa-folder'; }
                     ?>
-                    <span class="category-badge" style="background-color: <?= $view->e($categoryColor) ?>;">
+                    <span class="category-badge" data-category-color="<?= $view->e($categoryColor) ?>">
                         <i class="fa <?= $view->e($categoryIcon) ?>" aria-hidden="true"></i>
                         <?= $view->e($category['name'] ?? '') ?>
                         <button type="button" class="detach-category-btn" data-task-id="<?= $view->e($uid) ?>" data-category-id="<?= $view->e($category['id'] ?? '') ?>" title="Убрать категорию" aria-label="Убрать категорию">×</button>
@@ -108,7 +108,7 @@ $createdAt = $formatDate($taskRow['created_at'] ?? '', 'd.m.Y H:i');
             <button type="button" class="btn-sm add-subtask-btn" data-task-id="<?= $view->e($uid) ?>">+ Добавить</button>
         </div>
         <div class="task-subtasks__progress" role="progressbar" aria-label="Прогресс подзадач" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<?= $completion ?>">
-            <span class="task-subtasks__progress-bar" style="width: <?= $completion ?>%"></span>
+            <span class="task-subtasks__progress-bar" data-progress="<?= $completion ?>"></span>
         </div>
         <ul class="subtasks-list">
             <?php foreach ($subtasks as $subtask): ?>
