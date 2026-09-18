@@ -195,7 +195,19 @@ final class UpdateTransactionStateMachine
             $journal['history'] = $history;
 
             $this->writeAtomic($path, $journal);
-            return $this->readPath($path);
+            $updated = $this->readPath($path);
+            $event = $nextState === 'rollback_failed'
+                ? 'update.transaction.rollback_failed'
+                : 'update.transaction.state';
+            $severity = $nextState === 'rollback_failed'
+                ? 'error'
+                : (str_starts_with($nextState, 'rollback_') ? 'warning' : 'info');
+            OperationalTelemetry::emit($event, $severity, [
+                'transaction_hash' => hash('sha256', $transactionId),
+                'from' => $current,
+                'to' => $nextState,
+            ]);
+            return $updated;
         });
     }
 
