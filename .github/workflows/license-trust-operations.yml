@@ -37,10 +37,16 @@ jobs:
           php -l tools/vendor-license/lib.php
           php -l tools/vendor-license/keygen.php
           php -l tools/vendor-license/issue.php
+          php -l tools/vendor-update/lib.php
+          php -l tools/vendor-update/keygen.php
+          php -l tools/vendor-update/sign-manifest.php
           php -l tests/integration/license_verifier_contract.php
+          php -l tests/integration/production_trust_domains_contract.php
 
       - name: Verify runtime public-trust contract
-        run: php tests/integration/license_verifier_contract.php
+        run: |
+          php tests/integration/license_verifier_contract.php
+          php tests/integration/production_trust_domains_contract.php
 
       - name: Refuse repository-local private key output
         shell: bash
