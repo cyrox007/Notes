@@ -141,9 +141,15 @@ try {
   await ownerPage.locator('#shareForm button[type="submit"]').click();
   const shareDialog = await shareDialogPromise;
   await ownerPage.locator('#shareUrl').waitFor({ state: 'visible', timeout: 15000 });
-  const shareUrl = await ownerPage.locator('#shareUrl').inputValue();
-  if (!shareUrl.startsWith(`${origin}${basePath}/notes/shared/`)) {
+  const shareValue = await ownerPage.locator('#shareUrl').inputValue();
+  const resolvedShare = new URL(shareValue, ownerPage.url());
+  const shareUrl = resolvedShare.href;
+  if (resolvedShare.origin !== origin || !resolvedShare.pathname.startsWith(`${basePath}/notes/shared/`)) {
     throw new Error(`Share URL is not BASE_PATH-aware: ${shareUrl}\nDialog: ${shareDialog}`);
+  }
+
+  if (shareDialog !== `Ссылка создана: ${shareUrl}`) {
+    throw new Error('Share API URL and rendered public link disagree');
   }
 
   const publicContext = await browser.newContext();
