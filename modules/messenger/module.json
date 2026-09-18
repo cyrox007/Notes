@@ -43,7 +43,8 @@
       "database/migrations/20260913_messenger_attachments.sql",
       "database/migrations/20260913_messenger_delivery_receipts.sql",
       "database/migrations/20260913_messenger_reactions.sql",
-      "database/migrations/20260913_messenger_saved_dialog.sql"
+      "database/migrations/20260913_messenger_saved_dialog.sql",
+      "database/migrations/20260918_messenger_retention_timestamps.sql"
     ]
   }
 }
