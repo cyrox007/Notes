@@ -4,7 +4,7 @@ on:
   push:
     branches: [0.12-findability]
   pull_request:
-    branches: [master]
+    branches: [master, '1.0']
 
 permissions:
   contents: read
@@ -32,8 +32,8 @@ jobs:
         run: |
           set -euo pipefail
           php -l app/services/ListQuery.php
-          php -l app/controllers/NoteController.php
-          php -l app/controllers/TaskController.php
+          php -l modules/notes/controllers/NoteController.php
+          php -l modules/tasks/controllers/TaskController.php
           php -l modules/admin/controllers/AdminController.php
           php -l modules/admin/services/AdminUserService.php
           node --check assets/js/findability.js
@@ -43,10 +43,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq "SELECT COUNT(*) FROM notes" app/controllers/NoteController.php
-          grep -Fq "LIMIT ' . (int) \$query['limit']" app/controllers/NoteController.php
-          grep -Fq "SELECT COUNT(*) FROM tasks" app/controllers/TaskController.php
-          grep -Fq "LIMIT ' . (int) \$query['limit']" app/controllers/TaskController.php
+          grep -Fq "SELECT COUNT(*) FROM notes" modules/notes/controllers/NoteController.php
+          grep -Fq "LIMIT ' . (int) \$query['limit']" modules/notes/controllers/NoteController.php
+          grep -Fq "SELECT COUNT(*) FROM tasks" modules/tasks/controllers/TaskController.php
+          grep -Fq "LIMIT ' . (int) \$query['limit']" modules/tasks/controllers/TaskController.php
           grep -Fq 'public function searchUsers' modules/admin/services/AdminUserService.php
           grep -Fq "' LIMIT ' . \$limit . ' OFFSET ' . \$offset" modules/admin/services/AdminUserService.php
-          grep -Fq 'data-list-total-pages' app/views/core/base.tpl
+          grep -Fq 'data-list-total-pages' app/views/core/base.php

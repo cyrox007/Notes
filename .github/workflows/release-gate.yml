@@ -92,6 +92,9 @@ jobs:
       - name: Verify release evidence contract
         run: php tests/integration/release_evidence_contract.php
 
+      - name: Verify findability source contract
+        run: php tests/integration/findability_source_contract.php
+
       - name: Verify final release acceptance contract
         shell: bash
         run: |
