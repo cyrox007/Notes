@@ -57,6 +57,29 @@ A PR targeting `1.0` or `master` is release-eligible only when:
 
 Do not use administrator bypass to merge a red or stale PR for normal development. Emergency bypasses should be followed by a corrective PR and a written reason in the PR timeline.
 
+## Applying the repository-side protection
+
+The repository includes `tools/release/apply-github-protection.sh` for the owner/admin to apply the checked-in policy through the authenticated GitHub CLI.
+
+From a trusted checkout of the current `1.0` branch:
+
+```bash
+bash tools/release/apply-github-protection.sh cyrox007/Notes
+```
+
+The script:
+
+- reads required check IDs from `.github/release-governance.json`;
+- protects both `1.0` and `master`;
+- requires branches to be current before merge;
+- blocks force-push and deletion;
+- dismisses stale reviews;
+- enforces the policy for administrators as well;
+- detects whether another direct collaborator with write/maintain/admin permission exists and requires one approval only in that case;
+- prints the resulting GitHub protection state for verification.
+
+The script changes GitHub repository settings only. It does not create, store, or modify credentials beyond using the already authenticated `gh` session.
+
 ## Why the policy is split between code and Settings
 
 GitHub Actions and repository files cannot safely grant themselves Administration permission. The repository therefore stores the expected protection contract in `.github/release-governance.json` and validates the parts that are observable from source. Repository-side enforcement remains an explicit owner/admin operation and is tracked separately from source correctness.
