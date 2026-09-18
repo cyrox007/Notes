@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+require_once dirname(__DIR__, 2) . '/core/SecurityEventLog.php';
+
 use App\Helpers\CryptMethods;
 use App\Models\UserModel;
 use App\Services\RegistrationPolicyService;
