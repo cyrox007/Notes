@@ -21,9 +21,12 @@ const endpoints = ['/', '/notes/', '/tasks/', '/files/', '/profile/'];
 if (!fs.existsSync(cookieFile)) {
   throw new Error('Authenticated cookie file is missing: ' + cookieFile);
 }
-const cookie = fs.readFileSync(cookieFile, 'utf8').trim();
-if (!cookie.includes('PHPSESSID=')) {
-  throw new Error('Authenticated cookie file does not contain PHPSESSID');
+const sessionCookies = fs.readFileSync(cookieFile, 'utf8')
+  .split(/\r?\n/)
+  .map(line => line.trim())
+  .filter(Boolean);
+if (sessionCookies.length < 2 || sessionCookies.some(cookie => !cookie.includes('PHPSESSID='))) {
+  throw new Error('Authenticated cookie file must contain multiple PHPSESSID sessions');
 }
 
 function percentile(values, percentileValue) {
@@ -38,6 +41,7 @@ function percentile(values, percentileValue) {
 
 async function oneRequest(index) {
   const endpoint = endpoints[index % endpoints.length];
+  const cookie = sessionCookies[index % sessionCookies.length];
   const started = performance.now();
 
   try {
@@ -178,7 +182,12 @@ if (soak.throughput_rps < minSoakRps) {
 
 const evidence = {
   status: failures.length === 0 ? 'ok' : 'fail',
-  target: { origin, base_path: basePath, endpoints },
+  target: {
+    origin,
+    base_path: basePath,
+    endpoints,
+    authenticated_sessions: sessionCookies.length,
+  },
   thresholds: {
     load_total_requests: totalRequests,
     load_concurrency: loadConcurrency,
