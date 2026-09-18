@@ -111,7 +111,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          php bin/update_apply.php --help | grep -Fq 'transactional live updater'
+          HELP_OUTPUT="$(php bin/update_apply.php --help)"
+          grep -Fq 'transactional live updater' <<<"$HELP_OUTPUT"
           grep -Fq 'UpdateApplyCommand' bin/update_apply.php
           grep -Fq 'UpdateApplyOperationLock' core/UpdateApplyCommand.php
           grep -Fq 'operation_busy' core/UpdateApplyCommand.php

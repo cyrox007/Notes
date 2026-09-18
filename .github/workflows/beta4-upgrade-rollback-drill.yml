@@ -2,7 +2,7 @@ name: 1.0 Beta4 upgrade and rollback drill
 
 on:
   pull_request:
-    branches: ['1.0']
+    branches: [master, '1.0']
   push:
     branches: ['1.0-beta4-upgrade-drill']
 

@@ -37,6 +37,7 @@ Repository Settings are external to Git history. The repository owner/admin must
 - pull requests are required;
 - branch must be up to date before merge;
 - the always-on `release-gate` is required;
+- the final `master` policy requires the release gate plus Notes/Tasks/Files/Profile/Admin browser lifecycle and storage DB-failure checks listed in `.github/release-governance.json`;
 - stale approvals are dismissed after new commits;
 - force push and branch deletion are blocked;
 - independent approval is required when another qualified reviewer exists.

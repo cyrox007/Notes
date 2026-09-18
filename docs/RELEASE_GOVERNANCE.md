@@ -26,22 +26,19 @@ The target policy is:
 5. Block force pushes and branch deletion.
 6. If the repository has another independent participant who can review changes, require one approving review. A PR author's own approval does not satisfy the independent-review requirement.
 
-The baseline required status checks are:
+The required status checks are:
 
 - `release-gate`
 - `notes-browser-lifecycle`
 - `tasks-browser-lifecycle`
 - `file-manager-browser-lifecycle`
-
-The Product Browser E2E checks recorded by the policy are:
-
 - `profile-browser-lifecycle`
 - `admin-browser-lifecycle`
 - `storage-db-failure`
 
-All of these workflows now exist in the repository. Moving every recorded check into the actually enforced GitHub ruleset is part of beta release-governance hardening; source-level policy verification does not substitute for repository-side enforcement.
+These seven checks are deliberately configured to run on every pull request to `master`; none uses a pull-request path filter. This prevents GitHub branch protection from waiting forever for a required check that never started. Other release-relevant workflows may remain path-filtered, but they are not configured as repository-required contexts.
 
-Do not require a status check before its workflow exists on `master`, otherwise GitHub can make every PR permanently unmergeable.
+Source-level policy verification does not substitute for repository-side enforcement; apply the checked-in policy with the owner/admin command below.
 
 ## Merge rule
 
@@ -90,7 +87,8 @@ GitHub Actions and repository files cannot safely grant themselves Administratio
 
 - the policy file is valid and names both `master` and `1.0`;
 - `1.0` requires the always-on `release-gate`;
-- all currently recorded check IDs correspond to workflow job IDs present in the repository;
+- all required check IDs correspond to workflow job IDs present in the repository;
+- every required master check is always-on for pull requests and has no path filter;
 - the release gate runs on pull requests to both `master` and `1.0`;
 - the pull-request template contains the release/browser/database review prompts;
 - the release gate executes the governance contract itself.

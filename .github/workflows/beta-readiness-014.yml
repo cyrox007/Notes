@@ -1,16 +1,17 @@
-name: 0.14 beta readiness
+name: 0.14 beta.4 compatibility baseline
 
 on:
-  push:
-    branches: [master, 0.14-beta4-role-policies-collaboration]
   pull_request:
-    branches: [master]
+    branches: [master, '1.0']
+  push:
+    branches: [0.14-beta4-role-policies-collaboration]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  beta-readiness:
+  beta4-compatibility-baseline:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -23,8 +24,8 @@ jobs:
           php-version: '8.3'
           coverage: none
 
-      - name: Lint beta readiness contract
+      - name: Lint Beta4 compatibility contract
         run: php -l tests/integration/beta_readiness_014.php
 
-      - name: Verify Workspace 0.14 beta.4 baseline
+      - name: Verify preserved Beta4 upgrade baseline
         run: php tests/integration/beta_readiness_014.php

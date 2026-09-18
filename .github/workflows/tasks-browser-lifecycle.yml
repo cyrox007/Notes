@@ -2,17 +2,7 @@ name: Tasks browser lifecycle
 
 on:
   pull_request:
-    branches: ['1.0']
-    paths:
-      - 'modules/tasks/**'
-      - 'core/ModuleRuntimeLoader.php'
-      - 'core/ModuleAssetController.php'
-      - 'core/routerConfig.php'
-      - 'index.php'
-      - 'tests/e2e/tasks-lifecycle.mjs'
-      - 'tests/e2e/router.php'
-      - 'database/tasks_schema.sql'
-      - '.github/workflows/tasks-browser-lifecycle.yml'
+    branches: [master, '1.0']
   push:
     branches: ['1.0']
     paths:

@@ -4,7 +4,7 @@ on:
   push:
     branches: [0.12-product-e2e]
   pull_request:
-    branches: [master]
+    branches: [master, '1.0']
 
 permissions:
   contents: read
@@ -53,7 +53,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          php -l app/controllers/FileController.php
+          php -l modules/files/controllers/FileController.php
           php -l core/DatabaseManager.php
           php -l tests/e2e/router.php
           node --check tests/e2e/fault-injection-storage.mjs
@@ -69,6 +69,7 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot fault_injection_browser < database/tasks_schema.sql
           mysql -h 127.0.0.1 -uroot -proot fault_injection_browser < database/settings_schema.sql
           mysql -h 127.0.0.1 -uroot -proot fault_injection_browser < database/module_lifecycle_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot fault_injection_browser < database/access_control_schema.sql
 
       - name: Seed browser user and forced DB failure
         shell: bash

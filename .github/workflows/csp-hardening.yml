@@ -2,7 +2,7 @@ name: 1.0 CSP hardening
 
 on:
   pull_request:
-    branches: ['1.0']
+    branches: [master, '1.0']
     paths:
       - '.htaccess'
       - 'core/SecurityHeaders.php'
