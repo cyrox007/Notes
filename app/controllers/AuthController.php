@@ -9,6 +9,7 @@ use App\Models\UserModel;
 use App\Services\RegistrationPolicyService;
 use App\Services\UserProvisioningService;
 use Core\Controller;
+use Core\OperationalTelemetry;
 use Core\Request;
 use Core\Router;
 use Core\SessionSecurity;
@@ -37,6 +38,10 @@ class AuthController extends Controller
 
         $user = UserModel::select()->where('username', '=', $login)->first();
         if (!$user || !CryptMethods::verifyPassword($password, $user->password_hash)) {
+            OperationalTelemetry::emit('auth.login.failed', 'warning', [
+                'reason' => 'invalid_credentials',
+                'login_hash' => hash('sha256', mb_strtolower($login)),
+            ]);
             $this->renderLogin([[
                 'CODE' => 'login_error',
                 'MESSAGE' => 'Неверный логин или пароль',
@@ -48,6 +53,10 @@ class AuthController extends Controller
             (int) $user->is_active !== 1
             || (string) ($user->account_status ?? '') !== 'active'
         ) {
+            OperationalTelemetry::emit('auth.login.failed', 'warning', [
+                'reason' => 'account_unavailable',
+                'actor_id' => (int) $user->id,
+            ]);
             $this->renderLogin([[
                 'CODE' => 'login_error',
                 'MESSAGE' => 'Учетная запись недоступна',
@@ -68,12 +77,19 @@ class AuthController extends Controller
         $request->setSession('_csrf_token', bin2hex(random_bytes(32)));
         SessionSecurity::refreshCurrentSessionCookie();
 
+        OperationalTelemetry::emit('auth.login.succeeded', 'info', [
+            'actor_id' => (int) $user->id,
+        ]);
         Router::getInstance()->redirect('main', 'name');
     }
 
     public function logout(Request $request): void
     {
+        $actorId = (int) $request->session('user_id', 0);
         SessionSecurity::destroyCurrentSession();
+        if ($actorId > 0) {
+            OperationalTelemetry::emit('auth.logout', 'info', ['actor_id' => $actorId]);
+        }
         Router::getInstance()->redirect('authpage', 'name');
     }
 
