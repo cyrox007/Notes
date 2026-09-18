@@ -266,13 +266,35 @@
     }
 
     document.addEventListener('change', (event) => {
-        if (event.target instanceof Element && event.target.matches('.task-status-toggle,.task-complete-toggle,.subtask-toggle')) {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+
+        const submitControl = target.closest('[data-submit-on-change]');
+        if (submitControl instanceof HTMLInputElement || submitControl instanceof HTMLSelectElement) {
+            submitControl.form?.requestSubmit();
+            return;
+        }
+
+        if (target.matches('.task-status-toggle,.task-complete-toggle,.subtask-toggle')) {
             handleTaskChange(event);
         }
     }, true);
 
     document.addEventListener('click', (event) => {
         if (!(event.target instanceof Element)) return;
+
+        const historyBack = event.target.closest('[data-history-back]');
+        if (historyBack) {
+            event.preventDefault();
+            window.history.back();
+            return;
+        }
+
+        const selectOnClick = event.target.closest('[data-select-on-click]');
+        if (selectOnClick instanceof HTMLInputElement || selectOnClick instanceof HTMLTextAreaElement) {
+            selectOnClick.select();
+        }
+
         if (event.target.closest('.add-subtask-btn,.delete-subtask,.file-manager .btn-delete,#modal-rename .modal-ok')) {
             handleTaskClick(event);
         }
@@ -281,6 +303,22 @@
     document.addEventListener('submit', async (event) => {
         const form = event.target;
         if (!(form instanceof HTMLFormElement)) return;
+
+        const confirmMessage = String(form.dataset.confirmMessage || '').trim();
+        if (confirmMessage !== '') {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            const confirmed = feedback()?.confirm
+                ? await feedback().confirm(confirmMessage, {
+                    title: form.dataset.confirmTitle || 'Подтверждение',
+                    danger: form.dataset.confirmDanger !== 'false',
+                    confirmText: form.dataset.confirmText || 'Подтвердить'
+                })
+                : window.confirm(confirmMessage);
+            if (confirmed) HTMLFormElement.prototype.submit.call(form);
+            return;
+        }
+
         if (!form.querySelector('.delete-task')) return;
         event.preventDefault();
         event.stopImmediatePropagation();
