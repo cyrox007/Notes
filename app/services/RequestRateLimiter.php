@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use Core\OperationalTelemetry;
 use Core\RequestOrigin;
 use RuntimeException;
 
@@ -51,6 +52,16 @@ final class RequestRateLimiter
             $retryAfter = max(1, $windowSeconds - ($now - $startedAt));
             $allowed = $count <= $limit;
             $remaining = max(0, $limit - $count);
+
+            if (!$allowed && $count === ($limit + 1)) {
+                OperationalTelemetry::emit('security.rate_limit.denied', 'warning', [
+                    'bucket' => $safeBucket,
+                    'subject_hash' => hash('sha256', $subject),
+                    'retry_after' => $retryAfter,
+                    'limit' => $limit,
+                    'window_seconds' => $windowSeconds,
+                ]);
+            }
 
             $payload = json_encode([
                 'started_at' => $startedAt,
