@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Core;
 
+require_once __DIR__ . '/SecurityEventLog.php';
+
 use InvalidArgumentException;
 use RuntimeException;
 
