@@ -10,7 +10,9 @@
 
 ### Stable runtime / security boundary
 - Runtime полностью отвязан от Composer `vendor/`: собственный Environment loader, native PHP view renderer и native RFC6455 WebSocket server работают из release bundle без сторонних PHP runtime packages.
+- Notes, Tasks, Files, Profile, Admin и Messenger работают через isolated module runtime; Core использует deterministic composition, module-owned DB metadata и composition-aware install/update/health contracts.
 - Request/Router boundary получил bounded strict JSON parsing, duplicate-route validation, fail-closed malformed requests, корректный 405 и типизированные route params.
+- CSP переведён на per-request cryptographic nonce: `unsafe-inline` удалён, inline event/style attributes запрещены contract-ом.
 - Hosting package исключает `.env`, `vendor/`, vendor signing tools и private signing material.
 
 ### Installation-bound licensing
@@ -29,7 +31,12 @@
 - Admin UI умеет проверить signed feed и подготовить verified staged package, не открывая browser one-click destructive apply.
 - Trusted external `bin/update_bootstrap.php` закрывает первый переход с опубликованной `0.14.0-beta.4`, которая предшествует updater runtime.
 - CI drill устанавливает точную Beta4 через HTTP installer, доказывает signed upgrade до 1.0 и отдельно принудительный post-switch failure с automatic code + DB rollback до здоровой Beta4.
-- Завершён residual branch audit: два полезных security/updater хвоста перенесены адаптированно, устаревшие ветки не мержились целиком.
+- Добавлена resumable/rollback-safe ротация `UNIQUE_KEY` / `MSG_SECRET_KEY` с maintenance boundary, checkpoints и post-rotation verification.
+- Security observability пишет structured JSONL events вне application tree, редактирует чувствительный context и предоставляет threshold-based CLI summary/alerts.
+- Retention contract отделяет soft-delete/deactivation от irreversible purge, использует explicit preview/apply CLI, retention timestamps и fail-closed filesystem/account ownership guards.
+- Browser lifecycle coverage охватывает Notes, Tasks, Files, Profile и Admin; отдельный HTTPS/WSS smoke проверяет native Messenger realtime/reconnect path.
+- Добавлен release-evidence harness для Chromium/Firefox/WebKit desktop+mobile smoke и authenticated load/soak; финальный релиз требует green evidence на точном frozen SHA.
+- Завершён residual branch audit: полезные security/updater хвосты перенесены адаптированно, устаревшие ветки не мержились целиком.
 
 ## 0.14.0-beta.4 — 2026-09-15
 
