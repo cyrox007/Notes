@@ -172,18 +172,20 @@ jobs:
         run: |
           set -euo pipefail
           grep -Fq 'AuthRateLimit::class' core/routerConfig.php
-          grep -Fq 'UploadRateLimit::class' core/routerConfig.php
-          grep -Fq 'StorageQuotaLimit::class' core/routerConfig.php
+          grep -Fq 'UploadRateLimit::class' modules/notes/NotesRuntimeProvider.php
+          grep -Fq 'UploadRateLimit::class' modules/files/FilesRuntimeProvider.php
+          grep -Fq 'UploadRateLimit::class' modules/messenger/MessengerRuntimeProvider.php
+          grep -Fq 'StorageQuotaLimit::class' modules/files/FilesRuntimeProvider.php
           grep -Fq 'REGISTRATION_INVITE_CODE' app/controllers/AuthController.php
           grep -Fq 'AUTH_RATE_LIMIT_WINDOW_SECONDS=300' default.env
           grep -Fq 'UPLOAD_RATE_LIMIT_ATTEMPTS=60' default.env
-          grep -Fq "object-src 'none'" .htaccess
+          grep -Fq "object-src 'none'" core/SecurityHeaders.php
           grep -Fq 'Permissions-Policy' .htaccess
           grep -Fq 'Cross-Origin-Opener-Policy' .htaccess
-          grep -Fq '(?:app|bin|core|database|docs|vendor|ws_server' .htaccess
+          grep -Fq '(?:app|bin|config|core|database|docs|modules|tests|tools|vendor|ws_server' .htaccess
           grep -Fq 'default\.env' .htaccess
-          ! grep -Fq "'unsafe-eval'" .htaccess
-          ! grep -Fq 'cdnjs.cloudflare.com' .htaccess
+          ! grep -Fq "'unsafe-eval'" core/SecurityHeaders.php
+          ! grep -Fq 'cdnjs.cloudflare.com' core/SecurityHeaders.php
           ! grep -Fq 'notes.loc' .htaccess
 
       - name: Rate limiter integration
