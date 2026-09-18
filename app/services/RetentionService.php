@@ -421,11 +421,8 @@ final class RetentionService
                 "SELECT 1 FROM user_to_dialogs owner_link "
                 . 'JOIN dialogs d ON d.id=owner_link.dialog_id '
                 . "WHERE owner_link.user_id=:user_id AND owner_link.role='owner' AND owner_link.is_deleted=0 "
-                . "AND d.type='group' "
-                . 'AND EXISTS (SELECT 1 FROM user_to_dialogs member_link '
-                . 'WHERE member_link.dialog_id=d.id AND member_link.user_id<>:other_user_id AND member_link.is_deleted=0) '
-                . 'LIMIT 1',
-                [':user_id' => $userId, ':other_user_id' => $userId]
+                . "AND d.type='group' LIMIT 1",
+                [':user_id' => $userId]
             );
             if ($ownedGroup !== null) {
                 return 'owned_shared_messenger_group';
