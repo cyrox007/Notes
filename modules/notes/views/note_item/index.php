@@ -28,7 +28,7 @@ $uid = (string) ($noteRow['uid'] ?? '');
             <a class="notes__btn--edit" href="<?= $view->e($view->route('edit_page', ['uid' => $uid])) ?>" title="Редактировать" aria-label="Редактировать <?= $view->e($noteName) ?>">
                 <i class="fa fa-pencil" aria-hidden="true"></i>
             </a>
-            <form action="<?= $view->e($view->route('delete_note', ['uid' => $uid])) ?>" method="post" class="notes__delete-form" data-confirm-message="Вы уверены, что хотите удалить эту заметку?" data-confirm-title="Удаление заметки" data-confirm-text="Удалить">
+            <form action="<?= $view->e($view->route('delete_note', ['uid' => $uid])) ?>" method="post" class="notes__delete-form" data-confirm-message="Вы уверены, что хотите удалить эту заметку?" data-confirm-native="true" data-confirm-title="Удаление заметки" data-confirm-text="Удалить">
                 <?= $view->csrfInput() ?>
                 <button class="notes__btn--delete" type="submit" title="Удалить" aria-label="Удалить <?= $view->e($noteName) ?>">
                     <i class="fa fa-trash-o" aria-hidden="true"></i>
