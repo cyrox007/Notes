@@ -25,6 +25,7 @@ $coreFiles = [
     '/core/Version.php',
     '/core/RequestOrigin.php',
     '/core/SessionSecurity.php',
+    '/core/SecurityHeaders.php',
     '/core/RedirectPolicy.php',
     '/core/WebSocketEndpoint.php',
     '/core/ProfileContentProvider.php',

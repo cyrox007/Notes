@@ -105,7 +105,7 @@ ob_start();
             </form>
 
             <?php if ($hasToken): ?>
-                <form action="<?= $view->e($view->route('admin_license_clear')) ?>" method="post" class="custom-fields-form" onsubmit="return confirm('Удалить лицензионный ключ из этой установки? Пользовательские данные останутся без изменений.');">
+                <form action="<?= $view->e($view->route('admin_license_clear')) ?>" method="post" class="custom-fields-form" data-confirm-message="Удалить лицензионный ключ из этой установки? Пользовательские данные останутся без изменений." data-confirm-title="Удаление лицензии" data-confirm-text="Удалить">
                     <?= $view->csrfInput() ?>
                     <button class="admin-action admin-action--secondary" type="submit">Удалить сохранённый ключ</button>
                 </form>

@@ -9,6 +9,9 @@ if (!defined('SITEPATH')) {
     define('SITEPATH', __DIR__);
 }
 
+require_once SITEPATH . '/core/SecurityHeaders.php';
+\Core\SecurityHeaders::apply();
+
 // Startup failures can happen before .env is loaded. Keep this fallback outside
 // the public application tree; configured application logging takes over later.
 ini_set('error_log', sys_get_temp_dir() . '/workspace-organizer-startup.log');
@@ -21,6 +24,7 @@ function handleStartupError(string $message, string $title = 'System Error'): ne
 
     $safeTitle = htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $safeMessage = htmlspecialchars($message, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
     echo <<<HTML
 <!doctype html>
@@ -30,7 +34,7 @@ function handleStartupError(string $message, string $title = 'System Error'): ne
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="robots" content="noindex,nofollow">
     <title>{$safeTitle}</title>
-    <style>
+    <style nonce="{$cspNonce}">
         :root { color-scheme: light; font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
         * { box-sizing: border-box; }
         body { margin:0; min-height:100vh; display:grid; place-items:center; padding:24px; background:#f4f6f9; color:#1f2937; }
@@ -81,6 +85,7 @@ function handleMaintenanceMode(array $state): never
 
     header('Content-Type: text/html; charset=utf-8');
     $safeReason = htmlspecialchars($reason, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     echo <<<HTML
 <!doctype html>
 <html lang="ru">
@@ -89,7 +94,7 @@ function handleMaintenanceMode(array $state): never
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="robots" content="noindex,nofollow">
     <title>Техническое обслуживание</title>
-    <style>
+    <style nonce="{$cspNonce}">
         :root { color-scheme: light; font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
         * { box-sizing:border-box; }
         body { margin:0; min-height:100vh; display:grid; place-items:center; padding:24px; background:#f4f6f9; color:#1f2937; }

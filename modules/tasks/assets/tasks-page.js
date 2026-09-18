@@ -11,6 +11,18 @@
         const openBtn = document.getElementById('open-create-task');
         const closeBtns = document.querySelectorAll('.close-modal');
 
+        const safeColor = (value) => /^#[0-9a-f]{6}$/i.test(String(value || '')) ? String(value) : '#3498db';
+        root.querySelectorAll('[data-task-priority-color]').forEach((node) => {
+            node.style.backgroundColor = safeColor(node.dataset.taskPriorityColor);
+        });
+        root.querySelectorAll('[data-category-color]').forEach((node) => {
+            node.style.backgroundColor = safeColor(node.dataset.categoryColor);
+        });
+        root.querySelectorAll('[data-progress]').forEach((node) => {
+            const percent = Math.max(0, Math.min(100, Number(node.dataset.progress || 0)));
+            node.style.width = percent + '%';
+        });
+
         if (openBtn && modal) {
             openBtn.addEventListener('click', () => {
                 modal.style.display = 'block';

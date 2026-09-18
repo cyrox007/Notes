@@ -54,5 +54,5 @@ RewriteRule .* index.php [L]
     Header always set X-Frame-Options "SAMEORIGIN"
     Header always set Permissions-Policy "camera=(), geolocation=(), microphone=(self), payment=(), usb=()"
     Header always set Cross-Origin-Opener-Policy "same-origin"
-    Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; connect-src 'self' ws: wss:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; media-src 'self' blob:; worker-src 'self' blob:"
+    # Content-Security-Policy is emitted by PHP Core\\SecurityHeaders with a per-request nonce.
 </IfModule>

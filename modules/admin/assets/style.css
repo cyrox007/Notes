@@ -399,3 +399,11 @@
     align-items: stretch;
   }
 }
+
+
+/* CSP-safe replacements for former inline spacing attributes. */
+.custom-field__control--spaced,
+.custom-field__grid--spaced,
+.admin-user-actions--spaced {
+    margin-top: 12px;
+}

@@ -5,6 +5,9 @@ declare(strict_types=1);
 ini_set('display_errors', '0');
 error_reporting(E_ALL);
 
+require_once __DIR__ . '/core/SecurityHeaders.php';
+\Core\SecurityHeaders::apply();
+
 function installerIsHttps(): bool
 {
     $forwarded = strtolower(trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0] ?? ''));
@@ -599,6 +602,7 @@ if ($step === 1) {
     }
 }
 $csrf = htmlspecialchars((string) $_SESSION['notes_install_csrf'], ENT_QUOTES, 'UTF-8');
+$cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
 <!doctype html>
 <html lang="ru">
@@ -607,7 +611,7 @@ $csrf = htmlspecialchars((string) $_SESSION['notes_install_csrf'], ENT_QUOTES, '
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="robots" content="noindex,nofollow">
     <title>Установка Workspace Organizer</title>
-    <style>
+    <style nonce="<?= $cspNonce ?>">
         :root{color-scheme:light;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;--primary:#2563eb;--border:#d9e0e8;--muted:#657284}*{box-sizing:border-box}body{margin:0;padding:24px;color:#1f2937;background:#f4f6f9}.card{width:min(760px,100%);margin:24px auto;padding:30px;background:#fff;border:1px solid var(--border);border-radius:18px;box-shadow:0 16px 45px rgba(31,41,55,.08)}h1{margin:0 0 8px;font-size:clamp(24px,4vw,32px)}h2{margin:26px 0 14px;font-size:20px}p{color:var(--muted);line-height:1.55}.steps{display:flex;gap:8px;margin:22px 0}.steps span{flex:1;height:6px;background:#e7ebf0;border-radius:99px}.steps span.active{background:var(--primary)}.notice{margin:14px 0;padding:12px 14px;border-radius:10px;line-height:1.45}.error{color:#8b2525;background:#fff1f1;border:1px solid #efcaca}.warning{color:#79520c;background:#fff8e7;border:1px solid #f1dfac}.success{color:#1f683e;background:#edf9f2;border:1px solid #c9e8d5}label{display:block;margin:14px 0;font-size:13px;font-weight:650}input{width:100%;margin-top:6px;padding:11px 12px;font:inherit;border:1px solid #cbd3dd;border-radius:9px;background:#fff}fieldset{margin:18px 0;padding:16px;border:1px solid var(--border);border-radius:12px}legend{padding:0 8px;font-weight:700}small{display:block;margin-top:5px;color:var(--muted);font-weight:400;line-height:1.4}button,.button{display:inline-flex;justify-content:center;align-items:center;min-height:44px;padding:10px 16px;color:#fff;background:var(--primary);border:0;border-radius:9px;text-decoration:none;cursor:pointer;font:inherit;font-weight:650}button{width:100%;margin-top:10px}ul{padding-left:22px}li{margin:8px 0}.ok{color:#237046}.fail{color:#a43434}code{padding:2px 5px;background:#f2f4f7;border-radius:5px}.summary{padding:14px;background:#f8fafc;border:1px solid var(--border);border-radius:12px}@media(max-width:600px){body{padding:10px}.card{margin:8px auto;padding:20px;border-radius:14px}}
     </style>
 </head>

@@ -11,6 +11,6 @@ document.addEventListener('DOMContentLoaded', () => {
         toggle.setAttribute('aria-pressed', enabled ? 'true' : 'false');
         personal.classList.toggle('visible', !enabled);
         allUsers.classList.toggle('visible', enabled);
-        if (authorColumn) authorColumn.style.display = enabled ? 'block' : 'none';
+        if (authorColumn) authorColumn.hidden = !enabled;
     });
 });

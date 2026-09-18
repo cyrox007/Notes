@@ -17,7 +17,7 @@ ob_start();
         <h1><?= $view->e($pageTitle) ?></h1>
         <p><?= $view->e($pageMessage) ?></p>
         <div class="workspace-error__actions">
-            <button type="button" class="btn btn-secondary" onclick="history.back()">Назад</button>
+            <button type="button" class="btn btn-secondary" data-history-back>Назад</button>
             <?php if (!empty($access['notes']) || !empty($access['tasks']) || !empty($access['files']) || !empty($access['messenger']) || !empty($access['profile'])): ?>
                 <a class="btn btn-primary" href="<?= $view->e($view->route('main')) ?>">На главную</a>
             <?php endif; ?>

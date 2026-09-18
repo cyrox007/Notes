@@ -22,6 +22,7 @@ $moduleStyles = isset($module_styles) && is_array($module_styles)
 $moduleScripts = isset($module_scripts) && is_array($module_scripts)
     ? array_values(array_filter($module_scripts, static fn ($value): bool => is_string($value) && $value !== ''))
     : [];
+$cspNonce = \Core\SecurityHeaders::nonce();
 
 $styleFiles = [
     'core/common.css',
@@ -61,7 +62,7 @@ $partialData = [
     <meta name="color-scheme" content="light">
     <title><?= $view->e(trim($siteName . ' ' . $workspaceVersion)) ?> | <?= $view->e($pageTitle) ?></title>
 
-    <style>
+    <style nonce="<?= $view->e($cspNonce) ?>">
 <?php foreach ($styleFiles as $styleFile): ?>
 <?php
     $stylePath = $viewRoot . '/' . $styleFile;
@@ -83,7 +84,7 @@ $partialData = [
 <?php foreach ($moduleStyles as $moduleStyle): ?>
     <link rel="stylesheet" href="<?= $view->e($moduleStyle) ?>">
 <?php endforeach; ?>
-    <style>
+    <style nonce="<?= $view->e($cspNonce) ?>">
 <?php
 $controlsPath = $viewRoot . '/core/controls.css';
 if (is_file($controlsPath) && is_readable($controlsPath)) {
@@ -96,7 +97,7 @@ if (is_file($controlsPath) && is_readable($controlsPath)) {
     </style>
     <link rel="icon" href="<?= $view->e($baseUrl) ?>/favicon.ico" type="image/x-icon">
     <template id="csrf-token-template"><?= $view->csrfInput() ?></template>
-    <script>window.wspaceRuntime = <?= $runtimeConfig ?>; window.wspace = window.wspace || {};</script>
+    <script nonce="<?= $view->e($cspNonce) ?>">window.wspaceRuntime = <?= $runtimeConfig ?>; window.wspace = window.wspace || {};</script>
     <script src="<?= $view->e($baseUrl) ?>/assets/js/common.js" defer></script>
     <script src="<?= $view->e($baseUrl) ?>/assets/js/findability.js" defer></script>
     <script src="<?= $view->e($baseUrl) ?>/assets/js/feedback.js" defer></script>

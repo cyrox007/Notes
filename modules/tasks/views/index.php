@@ -66,7 +66,7 @@ ob_start();
             <button type="submit" class="btn-secondary">Применить</button>
         </form>
 
-        <a class="btn-secondary" data-shared-task-boards-link href="<?= $view->e($view->route('task_boards')) ?>" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:7px"><i class="fa fa-users" aria-hidden="true"></i> Общие доски</a>
+        <a class="btn-secondary tasks__shared-boards-link" data-shared-task-boards-link href="<?= $view->e($view->route('task_boards')) ?>"><i class="fa fa-users" aria-hidden="true"></i> Общие доски</a>
         <button class="btn-primary" id="open-create-task" type="button">+ Новая задача</button>
     </div>
 
@@ -90,7 +90,7 @@ ob_start();
         </form>
     </div>
 
-    <div id="create-task-modal" class="modal" style="display:none;">
+    <div id="create-task-modal" class="modal">
         <div class="modal-content">
             <button class="close-modal" type="button" aria-label="Закрыть">&times;</button>
             <h2>Новая задача</h2>

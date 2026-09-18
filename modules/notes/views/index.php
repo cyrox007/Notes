@@ -53,7 +53,7 @@ ob_start();
         <h3 class="notes__title">Список записей</h3>
         <div class="notes__list_head">
             <div class="notes__list_head--name"><a href="<?= $view->e($sortUrl('notename')) ?>">Название <?= $view->e($sortMarker('notename')) ?></a></div>
-            <?php if ($isAdmin): ?><div class="notes__list_head--author" style="display:none;">Автор</div><?php endif; ?>
+            <?php if ($isAdmin): ?><div class="notes__list_head--author" hidden>Автор</div><?php endif; ?>
             <div class="notes__list_head--date"><a href="<?= $view->e($sortUrl('created_note')) ?>">Дата создания <?= $view->e($sortMarker('created_note')) ?></a></div>
             <div class="notes__list_head--btn"></div>
         </div>

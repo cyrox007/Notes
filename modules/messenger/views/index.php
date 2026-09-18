@@ -9,6 +9,7 @@ $contactRows = isset($contacts) && is_array($contacts) ? $contacts : [];
 $siteName = isset($sitename) ? (string) $sitename : 'Workspace Organizer';
 $workspaceVersion = isset($version) ? (string) $version : '';
 $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
+$cspNonce = \Core\SecurityHeaders::nonce();
 
 $readModuleAsset = static function (string $file): string {
     $path = __DIR__ . '/' . $file;
@@ -25,7 +26,7 @@ $literalClose = '{/' . 'literal}';
 
 ob_start();
 ?>
-<style>
+<style nonce="<?= $view->e($cspNonce) ?>">
 <?php foreach ($cssFiles as $cssFile): ?><?= $readModuleAsset($cssFile) ?>
 <?php endforeach; ?>
 .messenger-chat__actions { display:flex; gap:.35rem; margin-left:auto; }
@@ -151,7 +152,7 @@ ob_start();
 
 <?php foreach ($jsFiles as $jsFile): ?>
     <?php $scriptSource = str_replace([$literalOpen, $literalClose], '', $readModuleAsset($jsFile)); ?>
-    <?php if ($scriptSource !== ''): ?><script><?= $scriptSource ?></script><?php endif; ?>
+    <?php if ($scriptSource !== ''): ?><script nonce="<?= $view->e($cspNonce) ?>"><?= $scriptSource ?></script><?php endif; ?>
 <?php endforeach; ?>
 <?php
 $content = (string) ob_get_clean();
