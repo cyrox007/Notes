@@ -91,6 +91,8 @@ foreach ($mutating as $className => $methods) {
 $source = file_get_contents($root . '/modules/messenger/socket/NativeMessengerServer.php');
 wsLicenseAssert(is_string($source), 'NativeMessengerServer source must be readable');
 wsLicenseAssert(str_contains($source, '$this->licensePolicy->state()'), 'WebSocket dispatch must evaluate runtime license state');
+wsLicenseAssert(str_contains($source, '$this->maintenanceStateResolver'), 'WebSocket mutations must evaluate maintenance state');
+wsLicenseAssert(str_contains($source, "'action' => 'MaintenanceMode'"), 'WebSocket must reject mutations while maintenance is active');
 wsLicenseAssert(str_contains($source, "'action' => 'LicenseReadOnly'"), 'WebSocket must report read-only state to clients');
 wsLicenseAssert(str_contains($source, '$this->sendReadOnlyLicenseState($client);'), 'WebSocket handshake must surface existing read-only state');
 
