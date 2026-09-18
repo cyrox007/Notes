@@ -41,6 +41,23 @@ hostingPackageAssert(
     'vendor-free runtime scan does not inspect the module-owned Messenger socket runtime'
 );
 
+hostingPackageAssert(
+    str_contains($workflow, "permissions:\n  contents: read"),
+    'hosting package workflow must use read-only repository permissions'
+);
+hostingPackageAssert(
+    str_contains($workflow, 'Record immutable bundle checksum')
+        && str_contains($workflow, 'sha256sum "$BUNDLE_FILE"')
+        && str_contains($workflow, 'BUNDLE_CHECKSUM='),
+    'release packaging must record the exact ZIP SHA-256 beside the workflow artifact'
+);
+hostingPackageAssert(
+    !str_contains($workflow, 'gh release create')
+        && !str_contains($workflow, 'gh release upload')
+        && !str_contains($workflow, 'contents: write'),
+    'hosting package workflow must not publish the ZIP directly'
+);
+
 foreach ([
     "--exclude '.env'",
     "--exclude 'vendor'",
