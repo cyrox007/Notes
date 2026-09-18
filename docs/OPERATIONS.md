@@ -221,3 +221,54 @@ Tune with `OBSERVABILITY_CRITICAL_ALERT`, `OBSERVABILITY_AUTH_FAILURE_ALERT`, `O
 Recommended production scheduling is a cron/systemd timer that runs `php bin/observability.php --json` every few minutes and forwards non-zero/alert results to the operator's existing monitoring channel. This release intentionally does not require a specific external monitoring vendor.
 
 `php bin/healthcheck.php` also verifies that security event storage resolves outside the live application tree and is writable.
+
+
+## Retention and permanent purge
+
+Workspace Organizer 1.0 separates ordinary user-facing soft-delete/deactivation from irreversible physical purge.
+
+Default retention windows are configured through:
+
+- `RETENTION_SOFT_DELETE_DAYS=30`;
+- `RETENTION_DEACTIVATED_ACCOUNT_DAYS=30`.
+
+Soft-deleted Notes, Note attachments, File Manager entries, Messenger messages/attachments, Tasks, shared-board items and deleted task categories are retained until their applicable cutoff. Deactivated accounts are retained independently from content soft-delete.
+
+Preview is the default and never changes data:
+
+```bash
+php bin/retention.php
+php bin/retention.php --soft-days=30 --account-days=30 --json
+```
+
+Permanent purge is deliberately explicit and irreversible:
+
+```bash
+php bin/retention.php --apply --yes --json
+```
+
+Do not schedule `--apply --yes` until backup/restore drill evidence exists for the deployment.
+
+Safety rules:
+
+1. Physical managed files are deleted before the corresponding DB metadata is hard-deleted. If a file cannot be removed safely, the row remains for retry.
+2. Paths outside managed private/legacy upload roots and symlink escapes are blocked.
+3. Old soft-deleted attachment rows that predate the 1.0 timestamp contract start their retention clock at migration time; they are not purged immediately after upgrade.
+4. A soft-deleted Note is not physically removed while any attachment has not yet completed its own retention window.
+5. Deactivated administrative identities are never purged automatically.
+6. A deactivated account remains blocked from purge while it still owns a Messenger group or a shared/all-active Task board. Ownership must be transferred or the collaborative object explicitly retired first.
+7. User-facing deactivation stays non-destructive; the existing Admin action only disables authentication and removes the avatar. Permanent account deletion exists only in the retention CLI.
+8. Backup archives are outside the live retention policy. Purging live data does not rewrite or erase previously created backups; backup retention is controlled by the operator's backup policy.
+
+The purge command emits structured security events including `retention.purge_completed`, `retention.account_blocked`, `retention.account_purged` and failure events. Review them through the security observability pipeline.
+
+Recommended production operation:
+
+1. run preview and archive the JSON result;
+2. confirm a recent successful backup/restore drill;
+3. resolve blocked ownership;
+4. run `--apply --yes --json`;
+5. investigate exit code 3, which indicates blocked/failed filesystem cleanup or account failures;
+6. run preview again; only intentionally blocked/newly retained rows should remain.
+
+A cron/systemd timer may run preview frequently. If automatic permanent purge is enabled, use a separate reviewed timer with explicit `--apply --yes`, capture JSON output and alert on any non-zero exit status.

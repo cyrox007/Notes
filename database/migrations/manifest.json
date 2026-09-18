@@ -19,6 +19,8 @@
     "20260915_role_module_policies.sql",
     "20260915_shared_task_boards.sql",
     "20260915_module_lifecycle.sql",
-    "20260915_installation_license.sql"
+    "20260915_installation_license.sql",
+    "20260918_notes_retention_timestamps.sql",
+    "20260918_messenger_retention_timestamps.sql"
   ]
 }
