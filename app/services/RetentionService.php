@@ -55,6 +55,19 @@ final class RetentionService
             if (!$this->hasTable($definition['table'])) {
                 continue;
             }
+            if ($name === 'notes' && $this->hasTable('note_attachments')) {
+                $soft[$name] = min(
+                    $limit,
+                    (int) $this->db->fetchValue(
+                        'SELECT COUNT(*) FROM notes n '
+                        . 'WHERE n.is_deleted=1 AND n.deleted_at IS NOT NULL AND n.deleted_at < :cutoff '
+                        . 'AND NOT EXISTS (SELECT 1 FROM note_attachments a WHERE a.note_id=n.id '
+                        . 'AND (a.is_deleted=0 OR a.deleted_at IS NULL OR a.deleted_at >= :attachment_cutoff))',
+                        [':cutoff' => $softCutoff, ':attachment_cutoff' => $softCutoff]
+                    )
+                );
+                continue;
+            }
             $soft[$name] = min(
                 $limit,
                 (int) $this->db->fetchValue(
@@ -67,10 +80,11 @@ final class RetentionService
         $accounts = ['eligible' => 0, 'blocked' => 0];
         if ($this->hasTable('users')) {
             $rows = $this->accountCandidates($accountCutoff, $limit);
-            $accounts['eligible'] = count($rows);
             foreach ($rows as $row) {
                 if ($this->accountBlockReason((int) $row['id']) !== null) {
                     $accounts['blocked']++;
+                } else {
+                    $accounts['eligible']++;
                 }
             }
         }
