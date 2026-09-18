@@ -1,6 +1,19 @@
 # Release governance
 
-Workspace Organizer treats `master` as the release branch. Repository code defines and verifies the intended policy, but **GitHub branch-protection settings live outside Git history** and must be enforced in repository Settings by a user with Administration permission.
+Workspace Organizer treats `master` as the release branch and `1.0` as the stable release-candidate branch. Repository code defines and verifies the intended policy, but **GitHub branch-protection settings live outside Git history** and must be enforced in repository Settings by a user with Administration permission.
+
+## Required `1.0` protection
+
+The stabilization branch must be protected before the final 1.0 release ceremony:
+
+1. Require a pull request before merging.
+2. Require the branch to be up to date before merging.
+3. Require the always-on `release-gate` status check.
+4. Dismiss stale pull-request approvals when new commits are pushed.
+5. Block force pushes and branch deletion.
+6. If another independent participant can review changes, require one approving review.
+
+Only checks that run on **every** pull request to `1.0` may be configured as required repository checks. Path-filtered workflows remain mandatory evidence when they run, but making them repository-required would deadlock unrelated pull requests that legitimately do not trigger them.
 
 ## Required `master` protection
 
@@ -32,10 +45,10 @@ Do not require a status check before its workflow exists on `master`, otherwise 
 
 ## Merge rule
 
-A PR targeting `master` is release-eligible only when:
+A PR targeting `1.0` or `master` is release-eligible only when:
 
 - all release-relevant checks pass on the current head;
-- the branch is up to date with `master`;
+- the branch is up to date with its target;
 - DB changes follow `docs/DB_ARCHITECTURE.md`;
 - user-visible storage mutations do not report success before durable persistence;
 - root and `BASE_PATH=/workspace/` behavior is not regressed;
@@ -52,9 +65,11 @@ GitHub Actions and repository files cannot safely grant themselves Administratio
 
 `tests/integration/release_governance_contract.php` checks that:
 
-- the policy file is valid and names `master`;
+- the policy file is valid and names both `master` and `1.0`;
+- `1.0` requires the always-on `release-gate`;
 - all currently recorded check IDs correspond to workflow job IDs present in the repository;
+- the release gate runs on pull requests to both `master` and `1.0`;
 - the pull-request template contains the release/browser/database review prompts;
-- the master release gate executes the governance contract itself.
+- the release gate executes the governance contract itself.
 
 This prevents policy documentation from silently drifting away from the workflows that are supposed to protect the release branch.
