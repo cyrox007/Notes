@@ -2,7 +2,7 @@ name: Security baseline
 
 on:
   pull_request:
-    branches: [master]
+    branches: [master, '1.0']
   push:
     branches: [messenger-v2-next, messenger-groups]
 
@@ -62,11 +62,11 @@ jobs:
         run: |
           set -euo pipefail
           for source in \
-            app/views/messager_page/script.js \
-            app/views/messager_page/dialog-actions.js \
-            app/views/messager_page/receipts.js \
-            app/views/messager_page/media.js \
-            app/views/messager_page/group.js
+            modules/messenger/views/script.js \
+            modules/messenger/views/dialog-actions.js \
+            modules/messenger/views/receipts.js \
+            modules/messenger/views/media.js \
+            modules/messenger/views/group.js
           do
             target="/tmp/$(basename "$source")"
             sed '/^{literal}$/d;/^{\/literal}$/d' "$source" > "$target"
@@ -126,10 +126,10 @@ jobs:
           require __DIR__ . '/core/config.php';
           require __DIR__ . '/core/DatabaseManager.php';
           require __DIR__ . '/app/handlers/UUID.php';
-          require __DIR__ . '/app/handlers/MessengerCrypto.php';
-          require __DIR__ . '/app/services/MessengerService.php';
-          require __DIR__ . '/app/services/MessengerReceiptService.php';
-          require __DIR__ . '/app/services/MessengerMediaService.php';
+          require __DIR__ . '/modules/messenger/handlers/MessengerCrypto.php';
+          require __DIR__ . '/modules/messenger/services/MessengerService.php';
+          require __DIR__ . '/modules/messenger/services/MessengerReceiptService.php';
+          require __DIR__ . '/modules/messenger/services/MessengerMediaService.php';
 
           $db = \Core\DatabaseManager::getInstance();
           $now = date('Y-m-d H:i:s');
@@ -316,7 +316,7 @@ jobs:
           putenv('MSG_SECRET_KEY=ci-message-secret-0123456789abcdef0123456789abcdef');
 
           require __DIR__ . '/app/handlers/CryptMethods.php';
-          require __DIR__ . '/app/handlers/MessengerCrypto.php';
+          require __DIR__ . '/modules/messenger/handlers/MessengerCrypto.php';
 
           $note = 'secret note';
           $notePayload = \App\Helpers\CryptMethods::encrypt($note, 'note-uid');

@@ -2,7 +2,7 @@ name: Messenger encrypted search
 
 on:
   pull_request:
-    branches: [master]
+    branches: [master, '1.0']
   push:
     branches: [messenger-groups]
 
@@ -46,9 +46,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          php -l app/services/MessengerSearchService.php
-          php -l app/socket/SearchSocket.php
-          sed '/^{literal}$/d;/^{\/literal}$/d' app/views/messager_page/search.js > /tmp/messenger-search.js
+          php -l modules/messenger/services/MessengerSearchService.php
+          php -l modules/messenger/socket/SearchSocket.php
+          sed '/^{literal}$/d;/^{\/literal}$/d' modules/messenger/views/search.js > /tmp/messenger-search.js
           node --check /tmp/messenger-search.js
 
       - name: Prepare schema
@@ -78,9 +78,9 @@ jobs:
           require __DIR__ . '/core/config.php';
           require __DIR__ . '/core/DatabaseManager.php';
           require __DIR__ . '/app/handlers/UUID.php';
-          require __DIR__ . '/app/handlers/MessengerCrypto.php';
-          require __DIR__ . '/app/services/MessengerService.php';
-          require __DIR__ . '/app/services/MessengerSearchService.php';
+          require __DIR__ . '/modules/messenger/handlers/MessengerCrypto.php';
+          require __DIR__ . '/modules/messenger/services/MessengerService.php';
+          require __DIR__ . '/modules/messenger/services/MessengerSearchService.php';
 
           $db = \Core\DatabaseManager::getInstance();
           $now = date('Y-m-d H:i:s');

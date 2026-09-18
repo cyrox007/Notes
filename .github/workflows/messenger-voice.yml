@@ -46,13 +46,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          php -l app/services/MessengerVoiceService.php
-          php -l app/controllers/MessengerVoiceController.php
+          php -l modules/messenger/services/MessengerVoiceService.php
+          php -l modules/messenger/controllers/MessengerVoiceController.php
           php -l core/routerConfig.php
-          sed '/^{literal}$/d;/^{\/literal}$/d' app/views/messager_page/voice.js > /tmp/messenger-voice.js
+          sed '/^{literal}$/d;/^{\/literal}$/d' modules/messenger/views/voice.js > /tmp/messenger-voice.js
           node --check /tmp/messenger-voice.js
-          grep -q "'/voice-upload'" core/routerConfig.php
-          grep -q "messager_page/voice.js" app/views/messager_page/index.tpl
+          grep -Fq "'/voice-upload'" modules/messenger/MessengerRuntimeProvider.php
+          grep -Fq "'voice.js'" modules/messenger/views/index.php
 
       - name: Prepare schema and voice fixture
         shell: bash
@@ -90,8 +90,8 @@ jobs:
           require __DIR__ . '/core/config.php';
           require __DIR__ . '/core/DatabaseManager.php';
           require __DIR__ . '/app/handlers/UUID.php';
-          require __DIR__ . '/app/handlers/MessengerCrypto.php';
-          require __DIR__ . '/app/services/MessengerService.php';
+          require __DIR__ . '/modules/messenger/handlers/MessengerCrypto.php';
+          require __DIR__ . '/modules/messenger/services/MessengerService.php';
 
           $db = \Core\DatabaseManager::getInstance();
           $now = date('Y-m-d H:i:s');
@@ -144,7 +144,7 @@ jobs:
           require SITEPATH . '/core/config.php';
           require SITEPATH . '/core/DatabaseManager.php';
           require SITEPATH . '/app/handlers/UUID.php';
-          require SITEPATH . '/app/services/MessengerVoiceService.php';
+          require SITEPATH . '/modules/messenger/services/MessengerVoiceService.php';
           header('Content-Type: application/json');
           try {
               $attachment = (new \App\Services\MessengerVoiceService())->upload(
@@ -209,8 +209,8 @@ jobs:
           require __DIR__ . '/core/config.php';
           require __DIR__ . '/core/DatabaseManager.php';
           require __DIR__ . '/app/handlers/UUID.php';
-          require __DIR__ . '/app/handlers/MessengerCrypto.php';
-          require __DIR__ . '/app/services/MessengerMediaService.php';
+          require __DIR__ . '/modules/messenger/handlers/MessengerCrypto.php';
+          require __DIR__ . '/modules/messenger/services/MessengerMediaService.php';
 
           $db = \Core\DatabaseManager::getInstance();
           $attachmentUid = trim((string) file_get_contents('/tmp/voice-attachment-uid'));
