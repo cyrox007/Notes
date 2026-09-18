@@ -83,12 +83,12 @@ jobs:
             --exclude '.github' \
             --exclude '.env' \
             --exclude '.logs' \
+            --exclude 'tests' \
+            --exclude 'tools' \
             --exclude 'vendor' \
             --exclude 'cache/*' \
             --exclude 'compile/*' \
             --exclude 'notes-private-storage' \
-            --exclude 'tools/vendor-license' \
-            --exclude 'tools/vendor-update' \
             --exclude '*.license-secret' \
             --exclude 'workspace-license-*.secret' \
             --exclude '*.update-secret' \
@@ -96,8 +96,8 @@ jobs:
             --exclude '*.log'
           mkdir -p "$ROOT/cache" "$ROOT/compile"
           test ! -e "$ROOT/vendor"
-          test ! -e "$ROOT/tools/vendor-license"
-          test ! -e "$ROOT/tools/vendor-update"
+          test ! -e "$ROOT/tests"
+          test ! -e "$ROOT/tools"
           test -f "$ROOT/install.php"
           test -f "$ROOT/core/NativeViewRenderer.php"
           test -f "$ROOT/modules/messenger/socket/NativeMessengerServer.php"
@@ -169,6 +169,10 @@ jobs:
           unzip -l "$BUNDLE" | grep -F 'database/migrations/manifest.json'
           if unzip -l "$BUNDLE" | grep -Eq '/vendor/'; then
             echo 'Vendor-free bundle must not contain vendor/'
+            exit 1
+          fi
+          if unzip -l "$BUNDLE" | grep -Eq '/tests/|/tools/'; then
+            echo 'Customer bundle must not contain tests/ or internal tools/' >&2
             exit 1
           fi
           if unzip -l "$BUNDLE" | grep -Eq '/\.env$'; then

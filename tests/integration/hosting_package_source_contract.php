@@ -52,6 +52,16 @@ hostingPackageAssert(
     'release packaging must record the exact ZIP SHA-256 beside the workflow artifact'
 );
 hostingPackageAssert(
+    str_contains($workflow, "--exclude 'tests'")
+        && str_contains($workflow, "--exclude 'tools'"),
+    'customer release bundle must exclude tests and internal tooling'
+);
+hostingPackageAssert(
+    str_contains($workflow, 'Customer bundle must not contain tests/ or internal tools/'),
+    'release ZIP inspection must reject tests or internal tools'
+);
+
+hostingPackageAssert(
     !str_contains($workflow, 'gh release create')
         && !str_contains($workflow, 'gh release upload')
         && !str_contains($workflow, 'contents: write'),

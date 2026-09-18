@@ -98,6 +98,9 @@ jobs:
       - name: Verify hosting package source contract
         run: php tests/integration/hosting_package_source_contract.php
 
+      - name: Verify deployment surface contract
+        run: php tests/integration/deployment_surface_contract.php
+
       - name: Verify final release acceptance contract
         shell: bash
         run: |
@@ -237,11 +240,11 @@ jobs:
             --exclude='.git/' \
             --exclude='.github/' \
             --exclude='.env' \
+            --exclude='tests/' \
+            --exclude='tools/' \
             --exclude='vendor/' \
             --exclude='cache/*' \
             --exclude='compile/*' \
-            --exclude='tools/vendor-license/' \
-            --exclude='tools/vendor-update/' \
             --exclude='*.license-secret' \
             --exclude='workspace-license-*.secret' \
             --exclude='*.update-secret' \
@@ -249,8 +252,8 @@ jobs:
           mkdir -p "$bundle/cache" "$bundle/compile"
           test ! -e "$bundle/vendor"
           test ! -e "$bundle/.env"
-          test ! -e "$bundle/tools/vendor-license"
-          test ! -e "$bundle/tools/vendor-update"
+          test ! -e "$bundle/tests"
+          test ! -e "$bundle/tools"
           test -f "$bundle/install.php"
           test -f "$bundle/core/NativeViewRenderer.php"
           test -f "$bundle/modules/messenger/socket/NativeMessengerServer.php"
