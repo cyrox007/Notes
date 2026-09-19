@@ -33,6 +33,9 @@ nativeMessengerAssert(str_contains($view, "'socket_url' => \$socket_url ?? ''"),
 $messengerStyle = (string) file_get_contents($module . '/views/style.css');
 nativeMessengerAssert(str_contains($messengerStyle, '--msg-surface:var(--ui-surface)'), 'Messenger no longer consumes shared theme surface tokens');
 nativeMessengerAssert(str_contains($messengerStyle, '--msg-accent:var(--module-accent'), 'Messenger no longer consumes the shared module accent system');
+nativeMessengerAssert(str_contains($view, "'body_class' => 'workspace-viewport workspace-viewport--messenger'"), 'Messenger does not request the viewport workspace layout');
+nativeMessengerAssert(str_contains($messengerStyle, 'min-height:0;flex:1;display:grid'), 'Messenger root is not flexed into the available viewport height');
+nativeMessengerAssert(!str_contains($messengerStyle, '100dvh -'), 'Messenger returned to fragile hard-coded viewport height subtraction');
 
 foreach ([
     'messenger-app', 'messenger-connection', 'dialog-list', 'chat-active',
