@@ -79,6 +79,31 @@ assertWebSocketEndpoint(in_array('http://notes.local', $origins, true), 'HTTP or
 assertWebSocketEndpoint(in_array('https://notes.local', $origins, true), 'HTTPS counterpart missing');
 
 setWebSocketEnv([
+    'SITEURL' => 'http://notes.local',
+    'BASE_PATH' => '/',
+    'WS_PUBLIC_URL' => 'ws://127.0.0.1:27800',
+    'WS_ALLOWED_ORIGINS' => 'http://notes.local',
+    'WS_HOST' => '127.0.0.1',
+    'WS_PORT' => '27800',
+]);
+assertWebSocketEndpoint(
+    WebSocketEndpoint::publicUrl() === 'ws://127.0.0.1:27800',
+    'OpenServer local HTTP direct listener URL changed'
+);
+assertWebSocketEndpoint(
+    WebSocketEndpoint::browserUrl() === 'ws://127.0.0.1:27800',
+    'direct local browser endpoint must remain absolute'
+);
+assertWebSocketEndpoint(
+    !WebSocketEndpoint::usesSameOriginProxy(),
+    'direct OpenServer listener must not be classified as same-origin proxy'
+);
+assertWebSocketEndpoint(
+    WebSocketEndpoint::allowedOrigins() === ['http://notes.local'],
+    'direct listener must preserve the configured browser origin without broadening'
+);
+
+setWebSocketEnv([
     'SITEURL' => 'https://notes.local',
     'BASE_PATH' => '/',
     'WS_PUBLIC_URL' => 'wss://notes.local/ws',

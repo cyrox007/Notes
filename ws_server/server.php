@@ -67,15 +67,21 @@ function workspaceWsProcessExists(int $pid): bool
     if (PHP_OS_FAMILY === 'Linux' && is_dir('/proc/' . $pid)) {
         return true;
     }
-    if (PHP_OS_FAMILY === 'Windows' && function_exists('exec')) {
-        $output = [];
-        $status = 1;
-        @exec('tasklist /FI "PID eq ' . $pid . '" /FO CSV /NH', $output, $status);
-        return $status === 0 && isset($output[0]) && str_contains($output[0], (string) $pid);
+    if (PHP_OS_FAMILY === 'Windows') {
+        if (function_exists('exec')) {
+            $output = [];
+            $status = 1;
+            @exec('tasklist /FI "PID eq ' . $pid . '" /FO CSV /NH', $output, $status);
+            return $status === 0 && isset($output[0]) && str_contains($output[0], (string) $pid);
+        }
+
+        // Some Windows/OpenServer CLI profiles disable exec(). In that case a
+        // stale PID file must not permanently block startup. The listener bind
+        // remains the authoritative duplicate-process guard.
+        return false;
     }
 
-    // Unknown process API: treat a PID as alive to avoid accidentally starting
-    // a duplicate listener on the same installation.
+    // Unknown process API on other platforms: be conservative.
     return true;
 }
 
@@ -186,60 +192,60 @@ if (!in_array($command, ['start', 'run'], true)) {
     exit(2);
 }
 
-// From this point onward a real server process is being started, so load the
-// complete application stack including persisted module lifecycle state.
-require_once SITEPATH . '/core.php';
-
-// A disabled Messenger module must not have a parallel always-on WebSocket
-// runtime. status/stop remain DB-independent above, while start/run fail closed
-// unless the isolated Messenger provider is in the effective composition.
-$moduleRuntime = \Core\ModuleRuntimeLoader::getInstance();
-if (!isset($moduleRuntime->providers()['messenger'])) {
-    fwrite(STDERR, "Messenger module is disabled; WebSocket server will not start.\n");
-    exit(1);
-}
-
-$existingPid = workspaceWsReadPid($pidFile);
-if ($existingPid !== null && workspaceWsProcessExists($existingPid)) {
-    fwrite(STDERR, "WebSocket server is already running (PID {$existingPid}).\n");
-    exit(1);
-}
-@unlink($pidFile);
-
-if ($daemon) {
-    workspaceWsDaemonize();
-}
-
-workspaceWsWritePid($pidFile);
-$currentPid = getmypid();
-register_shutdown_function(static function () use ($pidFile, $currentPid): void {
-    if (workspaceWsReadPid($pidFile) === $currentPid) {
-        @unlink($pidFile);
-    }
-});
-
-$host = WebSocketEndpoint::bindHost();
-$port = WebSocketEndpoint::port();
-$publicUrl = WebSocketEndpoint::publicUrl();
-$allowedOrigins = WebSocketEndpoint::allowedOrigins();
-$maxConnections = (int) (getenv('WS_MAX_CONNECTIONS') ?: 256);
-$maxPayloadBytes = (int) (getenv('WS_MAX_PAYLOAD_BYTES') ?: \App\Sockets\SocketFrameCodec::DEFAULT_MAX_PAYLOAD_BYTES);
-
-error_log(sprintf(
-    'WebSocket listener configured: tcp://%s:%d; public=%s; runtime=native',
-    $host,
-    $port,
-    $publicUrl
-));
-if (WebSocketEndpoint::usesSameOriginProxy()) {
-    error_log(sprintf(
-        'WebSocket reverse proxy required: %s -> %s',
-        WebSocketEndpoint::proxyPath(),
-        WebSocketEndpoint::proxyBackendUrl()
-    ));
-}
-
+// From this point onward a real server process is being started. Keep every
+// startup failure inside one diagnostic boundary: Windows/OpenServer users
+// should never get a silent exit just because display_errors is disabled.
 try {
+    // Load the complete application stack including persisted module lifecycle state.
+    require_once SITEPATH . '/core.php';
+
+    // A disabled Messenger module must not have a parallel always-on WebSocket
+    // runtime. status/stop remain DB-independent above, while start/run fail
+    // closed unless the isolated Messenger provider is in the effective composition.
+    $moduleRuntime = \Core\ModuleRuntimeLoader::getInstance();
+    if (!isset($moduleRuntime->providers()['messenger'])) {
+        throw new RuntimeException('Messenger module is disabled in the effective module composition.');
+    }
+
+    $existingPid = workspaceWsReadPid($pidFile);
+    if ($existingPid !== null && workspaceWsProcessExists($existingPid)) {
+        throw new RuntimeException("WebSocket server is already running (PID {$existingPid}).");
+    }
+    @unlink($pidFile);
+
+    if ($daemon) {
+        workspaceWsDaemonize();
+    }
+
+    workspaceWsWritePid($pidFile);
+    $currentPid = getmypid();
+    register_shutdown_function(static function () use ($pidFile, $currentPid): void {
+        if (workspaceWsReadPid($pidFile) === $currentPid) {
+            @unlink($pidFile);
+        }
+    });
+
+    $host = WebSocketEndpoint::bindHost();
+    $port = WebSocketEndpoint::port();
+    $publicUrl = WebSocketEndpoint::publicUrl();
+    $allowedOrigins = WebSocketEndpoint::allowedOrigins();
+    $maxConnections = (int) (getenv('WS_MAX_CONNECTIONS') ?: 256);
+    $maxPayloadBytes = (int) (getenv('WS_MAX_PAYLOAD_BYTES') ?: \App\Sockets\SocketFrameCodec::DEFAULT_MAX_PAYLOAD_BYTES);
+
+    error_log(sprintf(
+        'WebSocket listener configured: tcp://%s:%d; public=%s; runtime=native',
+        $host,
+        $port,
+        $publicUrl
+    ));
+    if (WebSocketEndpoint::usesSameOriginProxy()) {
+        error_log(sprintf(
+            'WebSocket reverse proxy required: %s -> %s',
+            WebSocketEndpoint::proxyPath(),
+            WebSocketEndpoint::proxyBackendUrl()
+        ));
+    }
+
     (new NativeMessengerServer(
         $host,
         $port,
@@ -248,7 +254,12 @@ try {
         $maxPayloadBytes
     ))->run();
 } catch (Throwable $e) {
-    error_log('Native WebSocket server fatal error: ' . $e->getMessage());
-    fwrite(STDERR, "WebSocket server failed to start or crashed. Check LOG_FILE.\n");
+    $logPath = (string) ini_get('error_log');
+    error_log('Native WebSocket server startup/runtime failure: ' . $e->getMessage());
+    fwrite(STDERR, "WebSocket server failed: " . $e->getMessage() . PHP_EOL);
+    if ($logPath !== '') {
+        fwrite(STDERR, "Startup/runtime log: {$logPath}" . PHP_EOL);
+    }
+    fwrite(STDERR, "Run: php bin/ws_doctor.php" . PHP_EOL);
     exit(1);
 }

@@ -1,5 +1,61 @@
 # Open Server 6+: Messenger WebSocket
 
+## OSPanel / OpenServer 5.2.2 + HTTP: простой локальный режим
+
+OpenServer 5.2.2 использует старую структуру `domains\...` и не поддерживает project-local `.osp\Apache` / `.osp\Nginx` конфигурацию из Open Server 6. Для локальной разработки на **одном Windows-компьютере** reverse proxy можно вообще не использовать.
+
+Если сайт открыт как:
+
+```text
+http://notes.local
+```
+
+используйте:
+
+```env
+SITEURL=http://notes.local
+BASE_PATH=/
+WS_HOST=127.0.0.1
+WS_PORT=27800
+WS_PUBLIC_URL=ws://127.0.0.1:27800
+WS_ALLOWED_ORIGINS=http://notes.local
+WS_MAX_CONNECTIONS=256
+WS_MAX_PAYLOAD_BYTES=2097152
+```
+
+`WS_TICKET_SECRET` должен оставаться отдельным случайным секретом длиной не менее 32 символов.
+
+В этом режиме браузер, запущенный **на том же компьютере**, подключается напрямую к loopback listener. Apache/Nginx WebSocket proxy не требуется. Это режим только для локальной HTTP-разработки; для HTTPS/production используйте same-origin `wss://.../ws` через reverse proxy.
+
+HTTP не мешает запуску native server. `php ws_server/server.php start` — отдельный CLI process. На Windows успешный запуск работает в foreground: окно/терминал остаётся занятым процессом сервера.
+
+Из корня проекта:
+
+```powershell
+php ws_server/server.php status
+php bin/ws_doctor.php
+php ws_server/server.php start
+```
+
+Или в отдельном background process PowerShell:
+
+```powershell
+Start-Process -FilePath (Get-Command php).Source `
+  -ArgumentList "ws_server/server.php","start" `
+  -WorkingDirectory (Get-Location)
+
+php ws_server/server.php status
+php bin/ws_doctor.php
+```
+
+Если `start` завершается сразу, новый startup boundary печатает причину и путь к log. Проверяйте также:
+
+```powershell
+Get-Content "$env:TEMP\workspace-organizer-ws-startup.log" -Tail 100
+```
+
+Если вы хотите именно `ws://notes.local/ws`, тогда нужен Apache/Nginx WebSocket proxy. В OpenServer 5.2.2 сначала можно попробовать встроенный `.htaccess` bridge проекта при включённых `mod_proxy` + `mod_proxy_wstunnel`. Путь `.osp\Apache\notes.local.conf` из раздела Open Server 6 к версии 5.2.2 **не относится**.
+
 ## Почему одного PHP-сайта недостаточно
 
 Workspace Organizer 1.0 запускает собственный native PHP WebSocket listener:
