@@ -54,9 +54,10 @@ nativeProfileAssert(str_contains($script, 'Пароли не совпадают'
 
 $metricsCss = (string) file_get_contents($root . '/modules/profile/assets/metrics.css');
 $hubCss = (string) file_get_contents($root . '/modules/profile/assets/hub.css');
-nativeProfileAssert(str_contains($metricsCss, 'var(--ui-surface'), 'Profile metrics no longer inherit shared theme surfaces');
-nativeProfileAssert(str_contains($metricsCss, 'html[data-theme="dark"] .profile-metrics'), 'Profile metrics dark-mode contract is missing');
-nativeProfileAssert(str_contains($hubCss, 'html[data-theme="dark"] .profile--hub .profile__card-avatar'), 'Profile hub dark-mode surface repair is missing');
+nativeProfileAssert(str_contains($metricsCss, 'var(--ui-surface)'), 'Profile metrics no longer inherit shared theme surfaces');
+nativeProfileAssert(str_contains($metricsCss, 'var(--ui-border)'), 'Profile metrics no longer inherit shared theme borders');
+nativeProfileAssert(str_contains($hubCss, 'var(--ui-surface)'), 'Profile hub no longer inherits shared theme surfaces');
+nativeProfileAssert(str_contains($hubCss, 'var(--module-accent)'), 'Profile hub no longer consumes the module accent system');
 
 $publicationService = (string) file_get_contents($root . '/modules/profile/services/ProfilePublicationService.php');
 $metricsService = (string) file_get_contents($root . '/modules/profile/services/ProfileMetricsService.php');
