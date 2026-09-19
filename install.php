@@ -179,6 +179,14 @@ function isOpenServerLayout(string $basePath): bool
 
 function openServerLocalWebSocketUrl(string $siteUrl, string $basePath): string
 {
+    $scheme = strtolower((string) parse_url($siteUrl, PHP_URL_SCHEME));
+    $host = (string) parse_url($siteUrl, PHP_URL_HOST);
+    if ($scheme === 'http' && $host !== '') {
+        return 'ws://' . $host . ':27800';
+    }
+
+    // Native listener intentionally has no TLS. HTTPS local installs therefore
+    // still require the web server to terminate WSS on the same-origin /ws path.
     return defaultWebSocketUrl($siteUrl, $basePath);
 }
 
@@ -629,7 +637,9 @@ if ($step === 1) {
         $warnings[] = 'Автоматически подобрать private storage вне web-root не удалось. На следующем шаге укажите абсолютный writable путь из панели хостинга.';
     }
     if ($detectedOpenServer) {
-        $warnings[] = 'Для Messenger на современных Chromium-браузерах OpenServer local использует same-origin /ws через Apache/Nginx proxy. Прямой ws://127.0.0.1:27800 с custom HTTP-домена больше не считается надёжным вариантом.';
+        $warnings[] = installerIsHttps()
+            ? 'OpenServer обнаружен через HTTPS: Messenger будет использовать same-origin /ws через Apache/Nginx proxy, потому что native listener не завершает TLS.'
+            : 'OpenServer обнаружен через HTTP: Messenger будет подключаться напрямую к тому же локальному hostname на порту 27800 (например ws://notes.local:27800), без Apache/Nginx WebSocket proxy.';
     }
 }
 $csrf = htmlspecialchars((string) $_SESSION['notes_install_csrf'], ENT_QUOTES, 'UTF-8');
@@ -667,14 +677,14 @@ $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SU
                 <div class="mode-grid">
                     <label class="mode-option">
                         <input type="radio" name="install_mode" value="openserver_local" <?= $selectedInstallMode === 'openserver_local' ? 'checked' : '' ?>>
-                        <span><strong>OpenServer / локальная Windows-установка</strong><small>Messenger использует same-origin endpoint <code>/ws</code>, который Apache/Nginx проксирует на <code>127.0.0.1:27800</code>. Это совместимо с современными Chromium-браузерами и их Local Network Access ограничениями.</small></span>
+                        <span><strong>OpenServer / локальная Windows-установка</strong><small>Для HTTP Messenger подключается напрямую к текущему локальному hostname на порту <code>27800</code> (например <code>ws://notes.local:27800</code>) и не требует reverse proxy. Для HTTPS остаётся <code>wss://.../ws</code> через Apache/Nginx.</small></span>
                     </label>
                     <label class="mode-option">
                         <input type="radio" name="install_mode" value="hosting" <?= $selectedInstallMode === 'hosting' ? 'checked' : '' ?>>
                         <span><strong>Hosting / production</strong><small>Браузер использует публичный <code>/ws</code> или другой ws/wss endpoint через reverse proxy. Для HTTPS требуется <code>wss://</code>.</small></span>
                     </label>
                 </div>
-                <?php if ($detectedOpenServer): ?><p class="inline-note">Обнаружена структура OpenServer/OSPanel <code>domains\...</code>. Профиль OpenServer автоматически выставит same-origin <code>/ws</code>; для Apache должны быть доступны <code>mod_proxy</code> и <code>mod_proxy_wstunnel</code> (или совместимый HTTP Upgrade proxy).</p><?php endif; ?>
+                <?php if ($detectedOpenServer): ?><p class="inline-note">Обнаружена структура OpenServer/OSPanel <code>domains\...</code>. На HTTP профиль OpenServer использует прямой WebSocket к тому же hostname на порту <code>27800</code>; на HTTPS нужен WebSocket reverse proxy <code>/ws</code>.</p><?php endif; ?>
             </fieldset>
             <fieldset><legend>MySQL</legend>
                 <label>Хост<input name="db_host" value="<?= htmlspecialchars((string)($_POST['db_host'] ?? 'localhost'),ENT_QUOTES,'UTF-8') ?>" required></label>
@@ -687,7 +697,7 @@ $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SU
                 <label>Private storage<input name="private_storage_path" value="<?= htmlspecialchars((string)($_POST['private_storage_path'] ?? $detectedPrivateStorage),ENT_QUOTES,'UTF-8') ?>" required><small>Абсолютный путь вне document root.</small></label>
                 <label>SITEURL<input name="site_url" value="<?= htmlspecialchars((string)($_POST['site_url'] ?? $detectedSiteUrl),ENT_QUOTES,'UTF-8') ?>" required></label>
                 <label>BASE_PATH<input name="base_path" value="<?= htmlspecialchars((string)($_POST['base_path'] ?? $detectedBasePath),ENT_QUOTES,'UTF-8') ?>" required></label>
-                <?php if ($hasMessenger): ?><label>WS_PUBLIC_URL<input id="ws-public-url" name="ws_public_url" value="<?= htmlspecialchars((string)($_POST['ws_public_url'] ?? $detectedWsUrl),ENT_QUOTES,'UTF-8') ?>" required data-hosting-default="<?= htmlspecialchars(defaultWebSocketUrl($detectedSiteUrl, $detectedBasePath), ENT_QUOTES, 'UTF-8') ?>"><small>В профиле OpenServer значение автоматически привязывается к текущему SITEURL и BASE_PATH как same-origin <code>/ws</code>. В Hosting/production можно указать другой ws/wss endpoint.</small></label><?php endif; ?>
+                <?php if ($hasMessenger): ?><label>WS_PUBLIC_URL<input id="ws-public-url" name="ws_public_url" value="<?= htmlspecialchars((string)($_POST['ws_public_url'] ?? $detectedWsUrl),ENT_QUOTES,'UTF-8') ?>" required data-hosting-default="<?= htmlspecialchars(defaultWebSocketUrl($detectedSiteUrl, $detectedBasePath), ENT_QUOTES, 'UTF-8') ?>"><small>OpenServer + HTTP: <code>ws://&lt;SITEURL host&gt;:27800</code>. OpenServer + HTTPS и production: публичный <code>wss://.../ws</code> через reverse proxy.</small></label><?php endif; ?>
             </fieldset><button type="submit">Подготовить проект</button>
         </form>
     <?php elseif ($step === 3): ?>
@@ -706,7 +716,7 @@ $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SU
         <h2>4. Готово</h2>
         <p>Схема БД, private storage, секреты, <code>.env</code> и первый admin созданы. Повторный запуск installer автоматически закрыт.</p>
         <?php if ($hasMessenger && (($db['install_mode'] ?? 'hosting') === 'openserver_local')): ?>
-            <div class="notice success"><strong>OpenServer local:</strong> Messenger настроен через same-origin <code>/ws</code> на native listener <code>127.0.0.1:27800</code>. В отдельном терминале из корня проекта запустите <code>php ws_server/server.php start</code> и оставьте процесс работающим. Для Apache убедитесь, что доступны proxy/WebSocket Upgrade modules; затем проверьте <code>php ws_server/server.php status</code> и <code>php bin/ws_doctor.php</code>.</div>
+            <div class="notice success"><strong>OpenServer local:</strong> Messenger настроен на <code><?= htmlspecialchars((string)($db['ws_public_url'] ?? ''), ENT_QUOTES, 'UTF-8') ?></code>. В отдельном терминале из корня проекта запустите <code>php ws_server/server.php start</code> и оставьте процесс работающим. На HTTP reverse proxy не требуется; на HTTPS нужен proxy <code>/ws</code>. Проверка: <code>php ws_server/server.php status</code> и <code>php bin/ws_doctor.php</code>.</div>
         <?php elseif ($hasMessenger): ?>
             <p>Realtime Messenger использует встроенный native WebSocket process. Запустите <code>php ws_server/server.php start</code> через systemd/Supervisor/панель и проксируйте публичный <code>/ws</code> на локальный <code>WS_PORT</code>.</p>
         <?php endif; ?>
@@ -724,13 +734,15 @@ $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SU
     const basePathInput = document.querySelector('input[name="base_path"]');
     let hostingValue = wsInput.value;
 
-    const sameOriginSocketUrl = () => {
+    const openServerSocketUrl = () => {
         try {
             const site = new URL(String(siteInput?.value || window.location.origin).trim());
-            const protocol = site.protocol === 'https:' ? 'wss:' : 'ws:';
+            if (site.protocol === 'http:') {
+                return 'ws://' + site.hostname + ':27800';
+            }
             const basePath = '/' + String(basePathInput?.value || '/').replace(/^\/+|\/+$/g, '');
             const normalizedBase = basePath === '/' ? '' : basePath;
-            return protocol + '//' + site.host + normalizedBase + '/ws';
+            return 'wss://' + site.host + normalizedBase + '/ws';
         } catch (error) {
             return wsInput.dataset.hostingDefault || '';
         }
@@ -740,11 +752,11 @@ $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SU
         const mode = radios.find((radio) => radio.checked)?.value || 'hosting';
         if (mode === 'openserver_local') {
             if (!wsInput.readOnly) hostingValue = wsInput.value;
-            wsInput.value = sameOriginSocketUrl();
+            wsInput.value = openServerSocketUrl();
             wsInput.readOnly = true;
         } else {
             wsInput.readOnly = false;
-            wsInput.value = hostingValue || wsInput.dataset.hostingDefault || sameOriginSocketUrl();
+            wsInput.value = hostingValue || wsInput.dataset.hostingDefault || openServerSocketUrl();
         }
     };
 
