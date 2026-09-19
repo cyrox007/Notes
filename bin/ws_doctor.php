@@ -124,6 +124,31 @@ if (is_resource($socket)) {
     }
 }
 
+$legacyOpenServerLayout = PHP_OS_FAMILY === 'Windows'
+    && preg_match('#(?:^|[\\\\/])domains[\\\\/]#i', $root) === 1;
+
+if ($sameOriginProxy && $legacyOpenServerLayout) {
+    wsDoctorLine(
+        'WARN',
+        'Legacy OpenServer layout detected',
+        'project path uses domains\\...; Open Server 6 .osp project-local proxy paths do not apply'
+    );
+    $siteScheme = strtolower((string) parse_url($siteUrl, PHP_URL_SCHEME));
+    if ($siteScheme === 'http') {
+        wsDoctorLine(
+            'INFO',
+            'Recommended OSPanel 5.x local mode',
+            'set WS_PUBLIC_URL=ws://127.0.0.1:' . $port . ' and WS_ALLOWED_ORIGINS=' . $siteUrl . ', then restart HTTP/PHP and the WebSocket process'
+        );
+    } else {
+        wsDoctorLine(
+            'INFO',
+            'HTTPS requirement',
+            'configure a real WebSocket reverse proxy for ' . $proxyPath . '; direct ws://127.0.0.1 is blocked from an HTTPS page'
+        );
+    }
+}
+
 if ($sameOriginProxy) {
     $host = (string) parse_url($siteUrl, PHP_URL_HOST);
     $apacheBackend = $backend . '/';
@@ -147,13 +172,15 @@ if ($sameOriginProxy) {
     fwrite(STDOUT, "    proxy_read_timeout 60s;\n");
     fwrite(STDOUT, "}\n");
 
-    if (PHP_OS_FAMILY === 'Windows' && $host !== '') {
+    if (PHP_OS_FAMILY === 'Windows' && $host !== '' && !$legacyOpenServerLayout) {
         $windowsRoot = str_replace('/', '\\', $root);
         fwrite(STDOUT, "\nOpen Server 6 project-local config paths:\n");
         fwrite(STDOUT, "-----------------------------------------\n");
         fwrite(STDOUT, $windowsRoot . '\\.osp\\Apache\\' . $host . ".conf\n");
         fwrite(STDOUT, $windowsRoot . '\\.osp\\Nginx\\' . $host . ".conf\n");
         fwrite(STDOUT, "After creating/editing the active web-server config, restart Open Server.\n");
+    } elseif ($legacyOpenServerLayout) {
+        fwrite(STDOUT, "\nLegacy OpenServer/OSPanel 5.x detected: .osp project-local config paths are intentionally not shown.\n");
     }
 
     fwrite(STDOUT, "\nImportant: an [OK] internal listener only proves that the native WebSocket process is alive.\n");

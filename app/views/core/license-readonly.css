@@ -1,91 +1,11 @@
-.license-readonly-banner {
-  width: min(100%, var(--content-max));
-  margin: 18px auto 0;
-  padding: 0 clamp(18px, 2.3vw, 34px);
-}
-
-.license-readonly-banner__inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 14px 16px;
-  border: 1px solid #fed7aa;
-  border-radius: var(--radius-md);
-  background: #fff7ed;
-  box-shadow: var(--shadow-sm);
-}
-
-.license-readonly-banner__copy {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  min-width: 0;
-}
-
-.license-readonly-banner__icon {
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  color: #9a3412;
-  background: #ffedd5;
-}
-
-.license-readonly-banner__text {
-  min-width: 0;
-}
-
-.license-readonly-banner__title {
-  display: block;
-  margin: 0 0 2px;
-  color: #7c2d12;
-  font-size: 14px;
-  font-weight: 800;
-}
-
-.license-readonly-banner__message,
-.license-readonly-banner__hint {
-  margin: 0;
-  color: #9a3412;
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.license-readonly-banner__action {
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 38px;
-  padding: 8px 12px;
-  border: 1px solid #fdba74;
-  border-radius: var(--radius-sm);
-  color: #7c2d12;
-  background: #fff;
-  font-size: 13px;
-  font-weight: 750;
-  text-decoration: none;
-}
-
-.license-readonly-banner__action:hover {
-  color: #7c2d12;
-  background: #fffaf5;
-}
-
-@media (max-width: 720px) {
-  .license-readonly-banner {
-    margin-top: 12px;
-  }
-
-  .license-readonly-banner__inner {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .license-readonly-banner__action {
-    width: 100%;
-  }
-}
+.license-readonly-banner{width:min(calc(100% - 56px),var(--ui-content));margin:16px auto 0;padding:0 28px}
+.license-readonly-banner__inner{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--ui-warning) 45%,var(--ui-border));border-radius:12px;background:var(--ui-warning-soft);color:var(--ui-text)}
+.license-readonly-banner__copy{display:flex;align-items:center;gap:11px;min-width:0}
+.license-readonly-banner__icon{width:34px;height:34px;flex:0 0 34px;display:grid;place-items:center;border-radius:9px;background:color-mix(in srgb,var(--ui-warning) 18%,transparent);color:var(--ui-warning)}
+.license-readonly-banner__text{min-width:0}
+.license-readonly-banner__title{display:block;font-size:13px}
+.license-readonly-banner__message,.license-readonly-banner__hint{margin:2px 0 0;color:var(--ui-muted);font-size:12px}
+.license-readonly-banner__action{flex:0 0 auto;height:34px;display:inline-flex;align-items:center;padding:0 11px;border:1px solid color-mix(in srgb,var(--ui-warning) 55%,var(--ui-border));border-radius:9px;background:var(--ui-surface);font-size:12px;font-weight:700}
+.license-readonly-banner__action:hover{border-color:var(--ui-warning)}
+@media(max-width:900px){.license-readonly-banner{width:100%;padding:0 16px;margin-top:12px}}
+@media(max-width:620px){.license-readonly-banner__inner{align-items:flex-start;flex-direction:column}.license-readonly-banner__action{width:100%;justify-content:center}}

@@ -13,8 +13,8 @@ $access = isset($workspaceAccess) && is_array($workspaceAccess) ? $workspaceAcce
     <div class="profile-metrics__heading">
         <div>
             <span class="ux-kicker">Сводка</span>
-            <h2 id="profile-metrics-title">Мой workspace</h2>
-            <p>Быстрый обзор личных данных без отдельного тяжёлого dashboard.</p>
+            <h2 id="profile-metrics-title">Моё пространство</h2>
+            <p>Заметки, задачи и файлы вашего аккаунта.</p>
         </div>
         <button type="button" class="profile-metrics__settings" data-profile-edit aria-controls="profile-account-settings" aria-expanded="false">
             <i class="fa fa-cog" aria-hidden="true"></i>
@@ -24,7 +24,7 @@ $access = isset($workspaceAccess) && is_array($workspaceAccess) ? $workspaceAcce
 
     <div class="profile-metrics__grid">
         <?php if (!empty($access['notes'])): ?>
-            <a class="profile-metric profile-metric--notes" href="<?= $view->e($view->route('notes')) ?>">
+            <a class="profile-metric profile-metric--notes" aria-label="Мои заметки: <?= $view->e($metrics['notes_count'] ?? 0) ?>" href="<?= $view->e($view->route('notes')) ?>">
                 <span class="profile-metric__icon"><i class="fa fa-sticky-note-o" aria-hidden="true"></i></span>
                 <span class="profile-metric__body">
                     <span class="profile-metric__value"><?= $view->e($metrics['notes_count'] ?? 0) ?></span>
@@ -35,7 +35,7 @@ $access = isset($workspaceAccess) && is_array($workspaceAccess) ? $workspaceAcce
         <?php endif; ?>
 
         <?php if (!empty($access['tasks'])): ?>
-            <a class="profile-metric profile-metric--tasks" href="<?= $view->e($view->route('tasks')) ?>">
+            <a class="profile-metric profile-metric--tasks" aria-label="Мои задачи: <?= $view->e($metrics['tasks_count'] ?? 0) ?>" href="<?= $view->e($view->route('tasks')) ?>">
                 <span class="profile-metric__icon"><i class="fa fa-check-square-o" aria-hidden="true"></i></span>
                 <span class="profile-metric__body">
                     <span class="profile-metric__value"><?= $view->e($metrics['tasks_count'] ?? 0) ?></span>
@@ -46,7 +46,7 @@ $access = isset($workspaceAccess) && is_array($workspaceAccess) ? $workspaceAcce
         <?php endif; ?>
 
         <?php if (!empty($access['files'])): ?>
-            <a class="profile-metric profile-metric--files" href="<?= $view->e($view->route('files')) ?>">
+            <a class="profile-metric profile-metric--files" aria-label="Мои файлы: <?= $view->e($metrics['files_count'] ?? 0) ?>" href="<?= $view->e($view->route('files')) ?>">
                 <span class="profile-metric__icon"><i class="fa fa-folder-open-o" aria-hidden="true"></i></span>
                 <span class="profile-metric__body">
                     <span class="profile-metric__value"><?= $view->e($metrics['files_count'] ?? 0) ?></span>

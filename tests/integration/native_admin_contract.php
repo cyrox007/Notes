@@ -48,6 +48,7 @@ nativeAdminAssert(str_contains($index, '$canManageRoles'), 'role manager navigat
 
 $adminNav = (string) file_get_contents($root . '/modules/admin/assets/admin-settings-nav.js');
 nativeAdminAssert(str_contains($adminNav, "['/admin/updates', 'fa-refresh', 'Обновления']"), 'Admin section navigation does not expose signed updates');
+nativeAdminAssert(!str_contains($index, '<div class="admin-user-actions">\n            <a class="admin-action admin-action--secondary" href="<?= $view->e($view->route(\'admin_registration\')) ?>">'), 'Admin hero still duplicates the section navigation');
 
 $registration = (string) file_get_contents($root . '/modules/admin/views/registration.php');
 nativeAdminAssert(str_contains($registration, "route('admin_registration_mode')"), 'registration mode route is missing');
@@ -59,7 +60,6 @@ nativeAdminAssert(str_contains($registration, '$view->csrfInput()'), 'registrati
 $settings = (string) file_get_contents($root . '/modules/admin/views/settings.php');
 nativeAdminAssert(str_contains($settings, "route('admin_settings_default_quota')"), 'default quota route is missing');
 nativeAdminAssert(str_contains($settings, "route('admin_settings_user_quota')"), 'per-user quota route is missing');
-nativeAdminAssert(str_contains($settings, "route('admin_updates')"), 'signed updater navigation is missing from system settings');
 nativeAdminAssert(str_contains($settings, '1048576'), 'quota byte/MB conversion contract is missing');
 nativeAdminAssert(str_contains($settings, '$view->csrfInput()'), 'settings forms lost CSRF inputs');
 

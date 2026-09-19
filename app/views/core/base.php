@@ -30,10 +30,7 @@ $styleFiles = [
     'core/license-readonly.css',
     '^shared/sidebar/style.css',
     '^shared/header/style.css',
-    'messager_page/style.css',
     '^shared/footer/style.css',
-    'core/theme-refresh.css',
-    'core/product-ux-013.css',
 ];
 $viewRoot = dirname(__DIR__);
 $runtimeConfig = json_encode([
@@ -94,8 +91,6 @@ $partialData = [
     <link rel="stylesheet" href="<?= $view->e($baseUrl) ?>/assets/css/findability.css">
     <link rel="stylesheet" href="<?= $view->e($baseUrl) ?>/assets/css/feedback.css">
     <link rel="stylesheet" href="<?= $view->e($baseUrl) ?>/assets/css/messenger-connection-ux.css">
-    <link rel="stylesheet" href="<?= $view->e($baseUrl) ?>/assets/css/live-qa-fixes.css?v=<?= rawurlencode($workspaceVersion) ?>">
-    <link rel="stylesheet" href="<?= $view->e($baseUrl) ?>/assets/css/live-qa-final.css?v=<?= rawurlencode($workspaceVersion) ?>">
 <?php foreach ($moduleStyles as $moduleStyle): ?>
     <link rel="stylesheet" href="<?= $view->e($moduleStyle) ?>">
 <?php endforeach; ?>

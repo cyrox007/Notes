@@ -21,7 +21,6 @@ ob_start();
             <h1>Роли и ограничения</h1>
             <p>Разрешения отвечают за доступ к функциям, а политики модулей — за лимиты, типы ресурсов и отдельные возможности.</p>
         </div>
-        <a class="admin-action admin-action--secondary" href="<?= $view->e($view->route('adminpanel')) ?>"><i class="fa fa-arrow-left" aria-hidden="true"></i> Назад в админпанель</a>
     </header>
 
     <?php if ($flash !== null): ?>

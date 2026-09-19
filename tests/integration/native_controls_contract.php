@@ -50,11 +50,12 @@ nativeControlsAssert(
     'shared controls must load after module style links'
 );
 
-nativeControlsAssert(str_contains($legacy, '#0069d9') || str_contains($legacy, '#F5F8FA'), 'legacy fixture unexpectedly changed; contract no longer proves migration boundary');
-nativeControlsAssert(str_contains($controls, '--control-height: 44px'), 'shared control height token missing');
-nativeControlsAssert(str_contains($controls, '--control-radius: 10px'), 'shared control radius token missing');
-nativeControlsAssert(str_contains($controls, 'var(--border-strong'), 'controls are not using current border tokens');
-nativeControlsAssert(str_contains($controls, 'var(--primary'), 'controls are not using current primary token');
+nativeControlsAssert(str_contains($legacy, 'var(--ui-border-strong)'), 'FormInput component is not migrated to shared 1.0 tokens');
+nativeControlsAssert(str_contains($legacy, 'var(--ui-primary)'), 'FormInput component does not consume shared primary token');
+nativeControlsAssert(str_contains($controls, '--control-height:38px'), 'shared control height token missing');
+nativeControlsAssert(str_contains($controls, '--control-radius:9px'), 'shared control radius token missing');
+nativeControlsAssert(str_contains($controls, 'var(--ui-border-strong)'), 'controls are not using current border tokens');
+nativeControlsAssert(str_contains($controls, 'var(--ui-primary)'), 'controls are not using current primary token');
 nativeControlsAssert(str_contains($controls, '.form-input_input'), 'legacy FormInput markup bridge missing');
 
 foreach (['.profile__card-info--edit--set-input', '.profile__card-info--edit--set-save', '.profile__edit_user-info'] as $profileSelector) {

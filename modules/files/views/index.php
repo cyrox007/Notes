@@ -63,9 +63,9 @@ $formatSize = static function (mixed $value): string {
 ob_start();
 ?>
 <section class="module-page-header module-page-header--files">
-    <div><span class="module-page-header__eyebrow">Хранилище</span><h1>Файлы</h1><p>Папки, документы и защищённые загрузки.</p></div>
+    <div><h1>Файлы</h1></div>
 </section>
-<div class="file-manager"<?php if ($currentFolder !== null): ?> data-current-folder-id="<?= $view->e($currentFolder['id'] ?? '') ?>"<?php endif; ?>>
+<div class="file-manager" data-view="list"<?php if ($currentFolder !== null): ?> data-current-folder-id="<?= $view->e($currentFolder['id'] ?? '') ?>"<?php endif; ?>>
     <div class="file-manager__toolbar">
         <div class="file-manager__breadcrumb" aria-label="Путь к папке">
             <?php foreach ($crumbs as $index => $crumb): ?>
@@ -120,6 +120,7 @@ ob_start();
                 <p>Создайте папку или загрузите файл, чтобы начать.</p>
             </div>
         <?php else: ?>
+            <div class="file-manager__list-heading" aria-hidden="true"><span>Имя</span><span>Размер / тип</span><span>Действия</span></div>
             <div class="file-manager__grid">
                 <?php foreach ($fileItems as $file): ?>
                     <?php if (!is_array($file)) { continue; } ?>

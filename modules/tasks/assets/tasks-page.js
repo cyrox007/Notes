@@ -25,18 +25,18 @@
 
         if (openBtn && modal) {
             openBtn.addEventListener('click', () => {
-                modal.style.display = 'block';
+                modal.hidden = false;
             });
         }
 
         closeBtns.forEach((btn) => {
             btn.addEventListener('click', () => {
-                if (modal) modal.style.display = 'none';
+                if (modal) modal.hidden = true;
             });
         });
 
         window.addEventListener('click', (event) => {
-            if (modal && event.target === modal) modal.style.display = 'none';
+            if (modal && event.target === modal) modal.hidden = true;
         });
 
         async function requestJson(url, options = {}) {

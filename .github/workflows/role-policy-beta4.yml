@@ -63,7 +63,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq "route('admin_roles')" modules/admin/views/index.php
+          grep -Fq "['/admin/roles', 'fa-shield', 'Роли и доступ']" modules/admin/assets/admin-settings-nav.js
           grep -Fq '$canManageRoles' modules/admin/views/index.php
           grep -Fq "hasPermission(\$actorId, 'admin.roles.manage')" modules/admin/controllers/AdminController.php
           grep -Fq "route('admin_roles_policies')" modules/admin/views/roles.php

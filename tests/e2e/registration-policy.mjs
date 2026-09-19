@@ -62,6 +62,8 @@ try {
   const adminResponse = await admin.goto(`${baseUrl}/admin/`, { waitUntil: 'domcontentloaded' });
   if (!adminResponse || adminResponse.status() !== 200) throw new Error(`Admin page returned ${adminResponse?.status()}`);
 
+  // Open the account-creation disclosure before exercising provisioning.
+  await admin.locator('.admin-create-user > summary').click();
   // Admin-side provisioning works regardless of public registration mode.
   await admin.locator('#new_user_login').fill('browser-admin-created');
   await admin.locator('#new_user_email').fill('browser-admin-created@example.test');

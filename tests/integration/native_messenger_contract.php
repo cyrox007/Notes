@@ -31,8 +31,8 @@ nativeMessengerAssert(str_contains($view, "'socket_ticket' => \$socket_ticket ??
 nativeMessengerAssert(str_contains($view, "'socket_url' => \$socket_url ?? ''"), 'socket URL is not propagated into native shell');
 
 $messengerStyle = (string) file_get_contents($module . '/views/style.css');
-nativeMessengerAssert(str_contains($messengerStyle, '--msg-surface: var(--ui-surface'), 'Messenger no longer consumes shared theme surface tokens');
-nativeMessengerAssert(str_contains($messengerStyle, 'html[data-theme="dark"] .messenger-app'), 'Messenger dark-mode module contract is missing');
+nativeMessengerAssert(str_contains($messengerStyle, '--msg-surface:var(--ui-surface)'), 'Messenger no longer consumes shared theme surface tokens');
+nativeMessengerAssert(str_contains($messengerStyle, '--msg-accent:var(--module-accent'), 'Messenger no longer consumes the shared module accent system');
 
 foreach ([
     'messenger-app', 'messenger-connection', 'dialog-list', 'chat-active',
@@ -76,9 +76,10 @@ nativeMessengerAssert(str_contains($connectionUx, 'ticketSubject'), 'account-swi
 nativeMessengerAssert(str_contains($connectionUx, "window.wspace.path('/messenger/socket-ticket')"), 'socket ticket refresh is not BASE_PATH-aware');
 nativeMessengerAssert(str_contains($connectionUx, 'nextSubject !== activeTicketSubject'), 'account switch detection is missing');
 
-$qaCss = (string) file_get_contents($root . '/assets/css/live-qa-final.css');
-nativeMessengerAssert(str_contains($qaCss, '.messenger-app .messenger-message'), 'high-specificity Messenger bubble containment fix is missing');
-nativeMessengerAssert(str_contains($qaCss, 'max-width: 100%'), 'Messenger media containment max-width fix is missing');
+$mediaCss = (string) file_get_contents($module . '/views/media.css');
+nativeMessengerAssert(str_contains($messengerStyle, '.messenger-message{'), 'Messenger bubble layout contract is missing');
+nativeMessengerAssert(str_contains($messengerStyle, 'max-width:76%'), 'Messenger bubble containment contract is missing');
+nativeMessengerAssert(str_contains($mediaCss, 'max-width:min(420px,100%)'), 'Messenger media containment contract is missing');
 
 $controllerPath = $module . '/controllers/MessagerController.php';
 nativeMessengerAssert(is_file($controllerPath), 'Messenger controller is not module-owned');

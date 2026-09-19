@@ -30,18 +30,13 @@ $filterLabels = [
 ob_start();
 ?>
 <section class="module-page-header module-page-header--tasks">
-    <div><span class="module-page-header__eyebrow">Планирование</span><h1>Задачи</h1><p>Канбан, список, сроки и приоритеты.</p></div>
+    <div><h1>Задачи</h1></div>
 </section>
 
 <section class="tasks">
-    <div class="tasks__stats">
-        <div class="stat-card stat-pending"><span class="stat-value"><?= (int) ($statsData['pending'] ?? 0) ?></span><span class="stat-label">Ожидает</span></div>
-        <div class="stat-card stat-in_progress"><span class="stat-value"><?= (int) ($statsData['in_progress'] ?? 0) ?></span><span class="stat-label">В процессе</span></div>
-        <div class="stat-card stat-completed"><span class="stat-value"><?= (int) ($statsData['completed'] ?? 0) ?></span><span class="stat-label">Завершено</span></div>
-        <div class="stat-card stat-overdue"><span class="stat-value"><?= (int) ($statsData['overdue'] ?? 0) ?></span><span class="stat-label">Просрочено</span></div>
-    </div>
-
     <div class="tasks__controls">
+        <details class="tasks__filter-panel"<?= $filter !== 'all' ? ' open' : '' ?>>
+            <summary><i class="fa fa-filter" aria-hidden="true"></i> Фильтры и сортировка</summary>
         <div class="tasks__filters">
             <?php foreach ($filterLabels as $code => $label): ?>
                 <a href="<?= $view->e($tasksRoute . '?filter=' . rawurlencode($code)) ?>" class="filter-btn<?= $filter === $code ? ' active' : '' ?>"><?= $view->e($label) ?></a>
@@ -68,11 +63,21 @@ ob_start();
             <button type="submit" class="btn-secondary">Применить</button>
         </form>
 
+        </details>
         <a class="btn-secondary tasks__shared-boards-link" data-shared-task-boards-link href="<?= $view->e($view->route('task_boards')) ?>"><i class="fa fa-users" aria-hidden="true"></i> Общие доски</a>
         <button class="btn-primary" id="open-create-task" type="button"><i class="fa fa-plus" aria-hidden="true"></i> Новая задача</button>
     </div>
 
-    <div class="tasks__category-create">
+    <div class="tasks__search-row" data-findability-slot></div>
+    <div class="tasks__stats">
+        <div class="stat-card stat-pending"><span class="stat-value"><?= (int) ($statsData['pending'] ?? 0) ?></span><span class="stat-label">Ожидает</span></div>
+        <div class="stat-card stat-in_progress"><span class="stat-value"><?= (int) ($statsData['in_progress'] ?? 0) ?></span><span class="stat-label">В процессе</span></div>
+        <div class="stat-card stat-completed"><span class="stat-value"><?= (int) ($statsData['completed'] ?? 0) ?></span><span class="stat-label">Завершено</span></div>
+        <div class="stat-card stat-overdue"><span class="stat-value"><?= (int) ($statsData['overdue'] ?? 0) ?></span><span class="stat-label">Просрочено</span></div>
+    </div>
+
+    <details class="tasks__category-create">
+        <summary><i class="fa fa-tags" aria-hidden="true"></i> Создать категорию</summary>
         <form action="<?= $view->e($view->route('create_category')) ?>" method="post" class="category-create-form">
             <?= $view->csrfInput() ?>
             <label>Новая категория<input type="text" name="name" maxlength="120" required placeholder="Например: Проект"></label>
@@ -90,9 +95,9 @@ ob_start();
             </label>
             <button type="submit" class="btn-secondary">Создать категорию</button>
         </form>
-    </div>
+    </details>
 
-    <div id="create-task-modal" class="modal">
+    <div id="create-task-modal" class="modal" hidden>
         <div class="modal-content">
             <button class="close-modal" type="button" aria-label="Закрыть">&times;</button>
             <h2>Новая задача</h2>
