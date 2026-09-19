@@ -17,6 +17,7 @@
             ['/admin/registration', 'fa-user-plus', 'Регистрация'],
             ['/admin/settings', 'fa-sliders', 'Системные настройки'],
             ['/admin/license', 'fa-key', 'Лицензия'],
+            ['/admin/updates', 'fa-refresh', 'Обновления'],
         ];
 
         const nav = document.createElement('nav');
