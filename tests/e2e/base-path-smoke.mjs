@@ -97,11 +97,12 @@ try {
   ]);
 
   await page.locator('#main-content').waitFor({ state: 'visible' });
-  await page.locator('.sidebar__user-panel').waitFor({ state: 'visible' });
+  await page.locator('#workspaceSidebar').waitFor({ state: 'attached' });
+  await page.locator('.sidebar__brand').waitFor({ state: 'visible' });
 
-  const homeHref = await page.locator('.navbar__home').getAttribute('href');
+  const homeHref = await page.locator('.sidebar__brand').getAttribute('href');
   if (homeHref !== `${basePath}/`) {
-    throw new Error(`Header home link escaped BASE_PATH: ${homeHref}`);
+    throw new Error(`Sidebar home link escaped BASE_PATH: ${homeHref}`);
   }
 
   const fontAwesomeHref = await page.locator('link[href*="font-awesome.min.css"]').getAttribute('href');

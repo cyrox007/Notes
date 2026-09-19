@@ -5,6 +5,7 @@ declare(strict_types=1);
 $root = dirname(__DIR__, 2);
 $basePath = $root . '/app/views/core/base.php';
 $headerPath = $root . '/app/views/^shared/header/index.php';
+$sidebarPath = $root . '/app/views/^shared/sidebar/index.php';
 $cssPath = $root . '/assets/css/workspace-ui-1.0.css';
 $scriptPath = $root . '/assets/js/theme-mode.js';
 
@@ -16,16 +17,17 @@ function uiSystemAssert(bool $condition, string $message): void
     }
 }
 
-foreach ([$basePath, $headerPath, $cssPath, $scriptPath] as $path) {
+foreach ([$basePath, $headerPath, $sidebarPath, $cssPath, $scriptPath] as $path) {
     uiSystemAssert(is_file($path), 'missing UI system file: ' . $path);
 }
 
 $base = file_get_contents($basePath);
 $header = file_get_contents($headerPath);
+$sidebar = file_get_contents($sidebarPath);
 $css = file_get_contents($cssPath);
 $script = file_get_contents($scriptPath);
 
-uiSystemAssert(is_string($base) && is_string($header) && is_string($css) && is_string($script), 'UI system source is unreadable');
+uiSystemAssert(is_string($base) && is_string($header) && is_string($sidebar) && is_string($css) && is_string($script), 'UI system source is unreadable');
 
 $uiStylesheet = '/assets/css/workspace-ui-1.0.css';
 $controlsMarker = "echo $controlsCss";
@@ -38,10 +40,14 @@ uiSystemAssert(str_contains($base, "localStorage.getItem('workspace.theme') || '
 
 foreach (['light', 'system', 'dark'] as $theme) {
     uiSystemAssert(
-        str_contains($header, 'data-theme-option="' . $theme . '"'),
+        str_contains($sidebar, 'data-theme-option="' . $theme . '"'),
         "theme picker is missing {$theme} mode"
     );
 }
+uiSystemAssert(str_contains($header, 'data-command-open'), 'top command/search trigger is missing');
+uiSystemAssert(str_contains($header, 'data-command-palette'), 'command palette is missing from the structural shell');
+uiSystemAssert(str_contains($sidebar, 'data-nav-key="home"'), 'sidebar home navigation is missing');
+uiSystemAssert(str_contains($sidebar, 'data-sidebar-toggle'), 'sidebar collapse control is missing');
 
 foreach ([
     'html[data-theme="light"]',
@@ -55,6 +61,8 @@ foreach ([
     '.messenger-app',
     '.profile--hub',
     '.admin-page',
+    '.module-page-header',
+    'body[data-workspace-section="notes"]',
 ] as $marker) {
     uiSystemAssert(str_contains($css, $marker), "unified UI CSS is missing marker: {$marker}");
 }

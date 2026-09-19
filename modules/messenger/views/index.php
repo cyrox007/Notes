@@ -33,12 +33,12 @@ ob_start();
 .messenger-chat__actions .messenger-icon-button[data-active="true"] { color:var(--msg-accent); background:var(--msg-accent-soft); }
 .messenger-folder-tabs { display:flex; gap:6px; padding:0 12px 10px; }
 .messenger-folder-tab { flex:1; min-width:0; display:flex; align-items:center; justify-content:center; gap:6px; height:34px; padding:0 10px; border:0; border-radius:9px; background:transparent; color:var(--msg-muted); cursor:pointer; font:inherit; font-size:13px; }
-.messenger-folder-tab:hover { background:#f5f7fa; }
+.messenger-folder-tab:hover { background:var(--msg-accent-soft); }
 .messenger-folder-tab[aria-selected="true"] { color:var(--msg-accent); background:var(--msg-accent-soft); font-weight:600; }
 .messenger-folder-tab__count { min-width:18px; height:18px; display:inline-grid; place-items:center; padding:0 5px; border-radius:999px; background:rgba(127,127,127,.13); font-size:11px; }
 .messenger-dialog-state-icons { display:inline-flex; align-items:center; gap:5px; flex:0 0 auto; color:var(--msg-muted); font-size:11px; }
 .messenger-message__status[data-state="sent"] { color:var(--msg-muted); }
-.messenger-message__status[data-state="delivered"] { color:#64748b; }
+.messenger-message__status[data-state="delivered"] { color:var(--msg-muted); }
 .messenger-message__status[data-state="read"] { color:var(--msg-accent); }
 </style>
 
