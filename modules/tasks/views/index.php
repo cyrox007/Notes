@@ -92,7 +92,7 @@ ob_start();
         </form>
     </div>
 
-    <div id="create-task-modal" class="modal">
+    <div id="create-task-modal" class="modal" hidden>
         <div class="modal-content">
             <button class="close-modal" type="button" aria-label="Закрыть">&times;</button>
             <h2>Новая задача</h2>
