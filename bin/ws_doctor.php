@@ -31,6 +31,21 @@ function wsDoctorConnectHost(string $bindHost): string
     };
 }
 
+function wsDoctorPidFile(string $root): string
+{
+    $configured = trim((string) (getenv('WS_PID_FILE') ?: ''));
+    if ($configured !== '') {
+        return $configured;
+    }
+
+    $privateStorage = trim((string) (getenv('PRIVATE_STORAGE_PATH') ?: ''));
+    if ($privateStorage !== '') {
+        return rtrim($privateStorage, '/\\') . DIRECTORY_SEPARATOR . 'runtime' . DIRECTORY_SEPARATOR . 'ws-server.pid';
+    }
+
+    return rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'workspace-organizer-ws.pid';
+}
+
 try {
     $siteUrl = WebSocketEndpoint::siteUrl();
     $publicUrl = WebSocketEndpoint::publicUrl();
@@ -44,10 +59,42 @@ try {
     exit(1);
 }
 
+$runtimeOk = true;
+wsDoctorLine('INFO', 'PHP CLI', PHP_BINARY . ' — ' . PHP_VERSION . ' (' . PHP_SAPI . ')');
+foreach (['mysqli', 'pdo_mysql', 'mbstring', 'json', 'fileinfo', 'sodium'] as $extension) {
+    $loaded = extension_loaded($extension);
+    wsDoctorLine($loaded ? 'OK' : 'FAIL', 'PHP extension ' . $extension, $loaded ? 'loaded' : 'missing');
+    $runtimeOk = $runtimeOk && $loaded;
+}
+
+$ticketSecret = (string) (getenv('WS_TICKET_SECRET') ?: '');
+if (strlen($ticketSecret) < 32) {
+    wsDoctorLine('FAIL', 'WS_TICKET_SECRET', 'must contain at least 32 characters');
+    $runtimeOk = false;
+} else {
+    wsDoctorLine('OK', 'WS_TICKET_SECRET', 'configured');
+}
+
+$pidFile = wsDoctorPidFile($root);
+wsDoctorLine('INFO', 'PID file', $pidFile);
+$startupLog = (string) ini_get('error_log');
+if ($startupLog === '' || str_contains($startupLog, 'php')) {
+    $startupLog = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'workspace-organizer-ws-startup.log';
+}
+wsDoctorLine('INFO', 'Startup log', $startupLog);
+
 wsDoctorLine('OK', 'SITEURL', $siteUrl);
 wsDoctorLine('OK', 'Browser WebSocket URL', $publicUrl);
 wsDoctorLine('OK', 'Native WebSocket listener', sprintf('tcp://%s:%d', $bindHost, $port));
-wsDoctorLine('INFO', 'Deployment mode', $sameOriginProxy ? 'same-origin reverse proxy' : 'custom/external WebSocket endpoint');
+wsDoctorLine('INFO', 'Deployment mode', $sameOriginProxy ? 'same-origin reverse proxy' : 'direct/custom WebSocket endpoint');
+if (!$sameOriginProxy && PHP_OS_FAMILY === 'Windows') {
+    $siteScheme = strtolower((string) parse_url($siteUrl, PHP_URL_SCHEME));
+    $publicScheme = strtolower((string) parse_url($publicUrl, PHP_URL_SCHEME));
+    $publicHost = strtolower((string) parse_url($publicUrl, PHP_URL_HOST));
+    if ($siteScheme === 'http' && $publicScheme === 'ws' && in_array($publicHost, ['127.0.0.1', 'localhost', '::1'], true)) {
+        wsDoctorLine('OK', 'OpenServer local HTTP mode', 'browser connects directly to the loopback native listener; Apache WebSocket proxy is not required');
+    }
+}
 if ($sameOriginProxy) {
     wsDoctorLine('INFO', 'Required proxy', $proxyPath . ' -> ' . $backend);
 }
@@ -69,6 +116,12 @@ if (is_resource($socket)) {
 } else {
     wsDoctorLine('FAIL', 'Native WebSocket listener unreachable', ($errstr !== '' ? $errstr : 'connection failed') . " ({$connectHost}:{$port})");
     $listenerOk = false;
+    $startCommand = '"' . PHP_BINARY . '" ws_server/server.php start';
+    wsDoctorLine('INFO', 'Start command', $startCommand);
+    if (PHP_OS_FAMILY === 'Windows') {
+        wsDoctorLine('INFO', 'Windows behavior', 'start runs in the foreground; a healthy server keeps that terminal/process alive');
+        wsDoctorLine('INFO', 'PowerShell background launch', 'Start-Process -FilePath "' . PHP_BINARY . '" -ArgumentList "ws_server/server.php","start" -WorkingDirectory "' . $root . '"');
+    }
 }
 
 if ($sameOriginProxy) {
@@ -107,4 +160,4 @@ if ($sameOriginProxy) {
     fwrite(STDOUT, "The browser still needs the web server to proxy {$proxyPath} to {$backend}.\n");
 }
 
-exit($listenerOk ? 0 : 1);
+exit(($listenerOk && $runtimeOk) ? 0 : 1);
