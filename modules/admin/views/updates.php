@@ -50,10 +50,6 @@ ob_start();
             <h1>Обновления Workspace</h1>
             <p>Проверка подписанного канала и безопасная загрузка пакета во внешний staging. Эта страница не запускает maintenance, миграции или live apply.</p>
         </div>
-        <div class="admin-user-actions">
-            <a class="admin-action admin-action--secondary" href="<?= $view->e($view->route('admin_settings')) ?>">Системные настройки</a>
-            <a class="admin-action admin-action--secondary" href="<?= $view->e($view->route('adminpanel')) ?>">Админпанель</a>
-        </div>
     </header>
 
     <?php if ($flash !== null): ?>
