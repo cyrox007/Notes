@@ -63,7 +63,7 @@ foreach ([
     "workspace.theme",
     "prefers-color-scheme: dark",
     "aria-pressed",
-    "data-theme",
+    "dataset.theme",
 ] as $marker) {
     uiSystemAssert(str_contains($script, $marker), "theme controller is missing marker: {$marker}");
 }
