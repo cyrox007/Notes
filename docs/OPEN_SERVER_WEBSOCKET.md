@@ -2,88 +2,69 @@
 
 ## Fresh install: профиль OpenServer local
 
-Web-installer теперь распознаёт локальную Windows-структуру OpenServer/OSPanel вида `...\\domains\\<host>` и, если installer открыт по HTTP, по умолчанию выбирает профиль **OpenServer / локальная Windows-установка**.
+Web-installer распознаёт локальную Windows-структуру OpenServer/OSPanel вида `...\\domains\\<host>` и предлагает профиль **OpenServer / локальная Windows-установка**.
 
-В этом профиле installer сам записывает:
-
-```env
-SITEURL=http://<локальный-домен>
-WS_HOST=127.0.0.1
-WS_PORT=27800
-WS_PUBLIC_URL=ws://127.0.0.1:27800
-WS_ALLOWED_ORIGINS=http://<локальный-домен>
-```
-
-То есть новый локальный install больше не требует ручной правки `.env` и не зависит от Apache/Nginx proxy для Messenger. После установки достаточно запустить из корня проекта отдельный foreground-процесс:
-
-```powershell
-php ws_server/server.php start
-```
-
-Окно с процессом нужно оставить работающим. В другом терминале проверяйте:
-
-```powershell
-php ws_server/server.php status
-php bin/ws_doctor.php
-```
-
-Если OpenServer-сайт открыт по HTTPS, installer не использует direct-local профиль автоматически: браузер не разрешит `ws://127.0.0.1:27800` со страницы HTTPS. Для такого режима нужен `wss://.../ws` и WebSocket reverse proxy, либо installer следует открыть по HTTP для обычной локальной разработки.
-
-## OSPanel / OpenServer 5.2.2 + HTTP: простой локальный режим
-
-OpenServer 5.2.2 использует старую структуру `domains\...` и не поддерживает project-local `.osp\Apache` / `.osp\Nginx` конфигурацию из Open Server 6. Для локальной разработки на **одном Windows-компьютере** reverse proxy можно вообще не использовать.
-
-Если сайт открыт как:
-
-```text
-http://notes.local
-```
-
-используйте:
+Для custom local domain вроде `http://notes.local` installer **не использует прямой** `ws://127.0.0.1:27800`. В современных Chromium-браузерах Local Network Access распространяется на WebSocket-соединения к loopback/local адресам, а permission flow требует secure context. Поэтому надёжный вариант для `notes.local` — same-origin WebSocket URL через веб-сервер:
 
 ```env
 SITEURL=http://notes.local
 BASE_PATH=/
 WS_HOST=127.0.0.1
 WS_PORT=27800
-WS_PUBLIC_URL=ws://127.0.0.1:27800
+WS_PUBLIC_URL=ws://notes.local/ws
 WS_ALLOWED_ORIGINS=http://notes.local
-WS_MAX_CONNECTIONS=256
-WS_MAX_PAYLOAD_BYTES=2097152
 ```
 
-`WS_TICKET_SECRET` должен оставаться отдельным случайным секретом длиной не менее 32 символов.
+Для HTTPS локального домена installer соответственно формирует:
 
-В этом режиме браузер, запущенный **на том же компьютере**, подключается напрямую к loopback listener. Apache/Nginx WebSocket proxy не требуется. Это режим только для локальной HTTP-разработки; для HTTPS/production используйте same-origin `wss://.../ws` через reverse proxy.
+```env
+WS_PUBLIC_URL=wss://notes.local/ws
+WS_ALLOWED_ORIGINS=https://notes.local
+```
 
-HTTP не мешает запуску native server. `php ws_server/server.php start` — отдельный CLI process. На Windows успешный запуск работает в foreground: окно/терминал остаётся занятым процессом сервера.
+Native process всё равно слушает только loopback `127.0.0.1:27800`. Apache/Nginx принимает browser WebSocket Upgrade на `/ws` и проксирует его к listener.
 
-Из корня проекта:
+После установки:
 
 ```powershell
-php ws_server/server.php status
-php bin/ws_doctor.php
 php ws_server/server.php start
 ```
 
-Или в отдельном background process PowerShell:
+Окно с процессом нужно оставить работающим. В другом терминале:
 
 ```powershell
-Start-Process -FilePath (Get-Command php).Source `
-  -ArgumentList "ws_server/server.php","start" `
-  -WorkingDirectory (Get-Location)
-
 php ws_server/server.php status
 php bin/ws_doctor.php
 ```
 
-Если `start` завершается сразу, новый startup boundary печатает причину и путь к log. Проверяйте также:
+Для Apache проект уже содержит `.htaccess` bridge на стандартный порт `27800`. Он требует `mod_proxy` и `mod_proxy_wstunnel` либо Apache с совместимой поддержкой WebSocket Upgrade через `mod_proxy_http`.
+
+Проверка модулей из OpenServer shell:
 
 ```powershell
-Get-Content "$env:TEMP\workspace-organizer-ws-startup.log" -Tail 100
+httpd -M
 ```
 
-Если вы хотите именно `ws://notes.local/ws`, тогда нужен Apache/Nginx WebSocket proxy. В OpenServer 5.2.2 сначала можно попробовать встроенный `.htaccess` bridge проекта при включённых `mod_proxy` + `mod_proxy_wstunnel`. Путь `.osp\Apache\notes.local.conf` из раздела Open Server 6 к версии 5.2.2 **не относится**.
+В выводе должны присутствовать proxy modules. Если proxy modules недоступны, включите их в активной конфигурации Apache или используйте Nginx reverse proxy.
+
+## OSPanel / OpenServer 5.2.2
+
+OpenServer 5.2.2 использует старую структуру `domains\\...` и не поддерживает project-local `.osp\\Apache` / `.osp\\Nginx` конфигурацию из Open Server 6. Поэтому `ws_doctor` не должен предлагать `.osp` пути для такой установки.
+
+На OSPanel 5.x оставляйте browser endpoint same-origin:
+
+```env
+SITEURL=http://notes.local
+BASE_PATH=/
+WS_HOST=127.0.0.1
+WS_PORT=27800
+WS_PUBLIC_URL=ws://notes.local/ws
+WS_ALLOWED_ORIGINS=http://notes.local
+```
+
+При HTTPS используйте `https://notes.local` + `wss://notes.local/ws`.
+
+Если packaged `.htaccess` bridge не срабатывает, проверьте, что Apache действительно загрузил proxy modules. Для OSPanel 5.x конфигурация Apache хранится в legacy `userdata/config`/active module templates, а не в project-local `.osp` каталоге. После изменения Apache обязательно перезапустите OpenServer.
 
 ## Почему одного PHP-сайта недостаточно
 
