@@ -61,7 +61,7 @@ apply_branch() {
   mapfile -t checks < <(read_checks "$key")
 
   local contexts_json
-  contexts_json="$(printf '%s\\n' "${checks[@]}" | php -r '$a=[]; while (($l=fgets(STDIN))!==false) { $l=trim($l); if ($l!=="") $a[]=$l; } echo json_encode($a, JSON_THROW_ON_ERROR);')"
+  contexts_json="$(printf '%s\n' "${checks[@]}" | php -r '$a=[]; while (($l=fgets(STDIN))!==false) { $l=trim($l); if ($l!=="") $a[]=$l; } echo json_encode($a, JSON_THROW_ON_ERROR);')"
 
   local payload
   payload="$(CONTEXTS_JSON="$contexts_json" APPROVALS="$approvals" php -r '
@@ -94,7 +94,60 @@ apply_branch() {
     "repos/$repo/branches/$branch/protection" \
     --input - >/dev/null
 
-  echo "Protected $repo:$branch with checks: ${checks[*]}"
+  local actual_payload
+  actual_payload="$(gh api \
+    -H 'Accept: application/vnd.github+json' \
+    -H 'X-GitHub-Api-Version: 2022-11-28' \
+    "repos/$repo/branches/$branch/protection")"
+
+  EXPECTED_CONTEXTS="$contexts_json" EXPECTED_APPROVALS="$approvals" ACTUAL_PAYLOAD="$actual_payload" php -r '
+    $expectedContexts = json_decode((string) getenv("EXPECTED_CONTEXTS"), true, 32, JSON_THROW_ON_ERROR);
+    $expectedApprovals = (int) getenv("EXPECTED_APPROVALS");
+    $actual = json_decode((string) getenv("ACTUAL_PAYLOAD"), true, 64, JSON_THROW_ON_ERROR);
+
+    $checks = $actual["required_status_checks"]["contexts"] ?? null;
+    $strict = $actual["required_status_checks"]["strict"] ?? null;
+    $dismissStale = $actual["required_pull_request_reviews"]["dismiss_stale_reviews"] ?? null;
+    $approvals = $actual["required_pull_request_reviews"]["required_approving_review_count"] ?? null;
+    $enforceAdmins = $actual["enforce_admins"]["enabled"] ?? null;
+    $forcePushes = $actual["allow_force_pushes"]["enabled"] ?? null;
+    $deletions = $actual["allow_deletions"]["enabled"] ?? null;
+
+    $errors = [];
+    if ($checks !== $expectedContexts) {
+        $errors[] = "required status checks mismatch: expected "
+            . json_encode($expectedContexts, JSON_UNESCAPED_SLASHES)
+            . ", got "
+            . json_encode($checks, JSON_UNESCAPED_SLASHES);
+    }
+    if ($strict !== true) {
+        $errors[] = "required status checks are not strict";
+    }
+    if ($dismissStale !== true) {
+        $errors[] = "stale approvals are not dismissed";
+    }
+    if ($approvals !== $expectedApprovals) {
+        $errors[] = "required approval count mismatch";
+    }
+    if ($enforceAdmins !== true) {
+        $errors[] = "administrator enforcement is disabled";
+    }
+    if ($forcePushes !== false) {
+        $errors[] = "force pushes are not blocked";
+    }
+    if ($deletions !== false) {
+        $errors[] = "branch deletion is not blocked";
+    }
+
+    if ($errors !== []) {
+        foreach ($errors as $error) {
+            fwrite(STDERR, "Protection verification failed: {$error}" . PHP_EOL);
+        }
+        exit(1);
+    }
+  '
+
+  echo "Protected and verified $repo:$branch with checks: ${checks[*]}"
 }
 
 apply_branch "1.0" "stabilization_required_checks"

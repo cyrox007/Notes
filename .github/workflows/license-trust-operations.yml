@@ -111,9 +111,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq -- "--exclude 'tools/vendor-license'" .github/workflows/hosting-package.yml
+          grep -Fq -- "--exclude 'tools'" .github/workflows/hosting-package.yml
           grep -Fq -- "--exclude '*.license-secret'" .github/workflows/hosting-package.yml
-          grep -Fq 'test ! -e "$ROOT/tools/vendor-license"' .github/workflows/hosting-package.yml
+          grep -Fq 'test ! -e "$ROOT/tools"' .github/workflows/hosting-package.yml
           grep -Fq 'config/license_trusted_keys.php' .github/workflows/hosting-package.yml
           grep -Fq '*.license-secret' .gitignore
           ! grep -R -E --exclude='*.md' --exclude='*.yml' --exclude='*.yaml' 'prod-[0-9]{4}[^[:space:]]*=>[^[:space:]]*[A-Za-z0-9_-]{40,}' config app core

@@ -2,7 +2,7 @@ name: Legacy crypto migration
 
 on:
   pull_request:
-    branches: [master]
+    branches: [master, '1.0']
   push:
     branches: [crypto-migration-hardening]
 
@@ -86,7 +86,7 @@ jobs:
           require 'core/config.php';
           require 'core/DatabaseManager.php';
           require 'app/handlers/CryptMethods.php';
-          require 'app/handlers/MessengerCrypto.php';
+          require 'modules/messenger/handlers/MessengerCrypto.php';
 
           function q(string $value): string { return "'" . str_replace("'", "''", $value) . "'"; }
           function legacyMessenger(string $plaintext): string {
@@ -155,7 +155,7 @@ jobs:
           php -r '$d=json_decode(file_get_contents("/tmp/crypto-messenger.json"),true,512,JSON_THROW_ON_ERROR); $r=$d["results"]["messenger"]; if ($r["current"]!==1 || $r["migrated"]!==1 || $r["failed"]!==0) exit(1);'
           php <<'PHP'
           <?php
-          require 'core/config.php'; require 'core/DatabaseManager.php'; require 'app/handlers/MessengerCrypto.php';
+          require 'core/config.php'; require 'core/DatabaseManager.php'; require 'modules/messenger/handlers/MessengerCrypto.php';
           $rows=\Core\DatabaseManager::getInstance()->fetchAll('SELECT uid,message FROM messages ORDER BY id');
           $plain=array_map(fn($r)=>\App\Helpers\MessengerCrypto::decrypt($r['message'],$r['uid']),$rows);
           if ($plain !== ['current messenger','legacy messenger']) throw new RuntimeException('messenger plaintext mismatch');

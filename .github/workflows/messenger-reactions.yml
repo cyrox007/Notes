@@ -2,7 +2,7 @@ name: Messenger reactions
 
 on:
   pull_request:
-    branches: [master]
+    branches: [master, '1.0']
   push:
     branches: [messenger-reactions]
 
@@ -46,14 +46,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          php -l app/services/MessengerReactionService.php
-          php -l app/socket/ReactionSocket.php
+          php -l modules/messenger/services/MessengerReactionService.php
+          php -l modules/messenger/socket/ReactionSocket.php
           php -l ws_server/server.php
-          sed '/^{literal}$/d;/^{\/literal}$/d' app/views/messager_page/reactions.js > /tmp/messenger-reactions.js
+          sed '/^{literal}$/d;/^{\/literal}$/d' modules/messenger/views/reactions.js > /tmp/messenger-reactions.js
           node --check /tmp/messenger-reactions.js
-          grep -q "ReactionSocket" ws_server/server.php
-          grep -q "messager_page/reactions.js" app/views/messager_page/index.tpl
-          grep -q "messager_page/reactions.css" app/views/messager_page/index.tpl
+          grep -Fq "'ReactionSocket'" modules/messenger/socket/NativeMessengerServer.php
+          grep -Fq "'reactions.js'" modules/messenger/views/index.php
+          grep -Fq "'reactions.css'" modules/messenger/views/index.php
 
       - name: Prepare reaction schema
         shell: bash
@@ -91,9 +91,9 @@ jobs:
           require __DIR__ . '/core/config.php';
           require __DIR__ . '/core/DatabaseManager.php';
           require __DIR__ . '/app/handlers/UUID.php';
-          require __DIR__ . '/app/handlers/MessengerCrypto.php';
-          require __DIR__ . '/app/services/MessengerService.php';
-          require __DIR__ . '/app/services/MessengerReactionService.php';
+          require __DIR__ . '/modules/messenger/handlers/MessengerCrypto.php';
+          require __DIR__ . '/modules/messenger/services/MessengerService.php';
+          require __DIR__ . '/modules/messenger/services/MessengerReactionService.php';
 
           $db = \Core\DatabaseManager::getInstance();
           $now = date('Y-m-d H:i:s');

@@ -2,7 +2,7 @@ name: 0.14 Beta 4 role policies
 
 on:
   pull_request:
-    branches: [master]
+    branches: [master, '1.0']
   push:
     branches: [master, 0.14-beta4-role-policies-collaboration]
 
@@ -45,13 +45,13 @@ jobs:
           php -l modules/admin/controllers/RoleManagementController.php
           php -l modules/admin/controllers/AdminController.php
           php -l modules/admin/middlewares/RequireAdminRolesManage.php
-          php -l app/middlewares/RequireNotesUse.php
-          php -l app/middlewares/RequireTasksUse.php
-          php -l app/middlewares/RequireFilesUse.php
-          php -l app/middlewares/RequireMessengerUse.php
-          php -l app/middlewares/RequireProfileUse.php
-          php -l app/middlewares/EnforceFileUploadPolicy.php
-          php -l app/middlewares/EnforceFileFolderPolicy.php
+          php -l modules/notes/middlewares/RequireNotesUse.php
+          php -l modules/tasks/middlewares/RequireTasksUse.php
+          php -l modules/files/middlewares/RequireFilesUse.php
+          php -l modules/messenger/middlewares/RequireMessengerUse.php
+          php -l modules/profile/middlewares/RequireProfileUse.php
+          php -l modules/files/middlewares/EnforceFileUploadPolicy.php
+          php -l modules/files/middlewares/EnforceFileFolderPolicy.php
           php -l core/routerConfig.php
           php -l bin/migrate.php
           php -l tests/integration/role_policy_runtime.php
@@ -73,10 +73,10 @@ jobs:
           grep -Fq "permission_codes[]" modules/admin/views/roles.php
           grep -Fq "policies[" modules/admin/views/roles.php
           grep -Fq "role_ids[]" modules/admin/views/roles.php
-          grep -Fq "RequireNotesUse::class" core/routerConfig.php
-          grep -Fq "RequireTasksUse::class" core/routerConfig.php
-          grep -Fq "RequireFilesUse::class" core/routerConfig.php
-          grep -Fq "RequireMessengerUse::class" core/routerConfig.php
-          grep -Fq "RequireProfileUse::class" core/routerConfig.php
-          grep -Fq "EnforceFileUploadPolicy::class" core/routerConfig.php
-          grep -Fq "EnforceFileFolderPolicy::class" core/routerConfig.php
+          grep -Fq "RequireNotesUse::class" modules/notes/NotesRuntimeProvider.php
+          grep -Fq "RequireTasksUse::class" modules/tasks/TasksRuntimeProvider.php
+          grep -Fq "RequireFilesUse::class" modules/files/FilesRuntimeProvider.php
+          grep -Fq "RequireMessengerUse::class" modules/messenger/MessengerRuntimeProvider.php
+          grep -Fq "RequireProfileUse::class" modules/profile/ProfileRuntimeProvider.php
+          grep -Fq "EnforceFileUploadPolicy::class" modules/files/FilesRuntimeProvider.php
+          grep -Fq "EnforceFileFolderPolicy::class" modules/files/FilesRuntimeProvider.php

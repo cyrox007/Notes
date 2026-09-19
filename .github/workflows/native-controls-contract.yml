@@ -2,13 +2,12 @@ name: 1.0 native controls contract
 
 on:
   pull_request:
-    branches: ['1.0']
+    branches: [master, '1.0']
     paths:
       - 'app/views/core/base.php'
       - 'app/views/core/controls.css'
       - 'app/views/^elements/UI/FormInput/style.css'
       - 'app/views/profile_page/index.php'
-      - 'app/views/profile_page/style.css'
       - 'modules/profile/views/**'
       - 'modules/profile/assets/**'
       - 'tests/integration/native_controls_contract.php'
@@ -20,7 +19,6 @@ on:
       - 'app/views/core/controls.css'
       - 'app/views/^elements/UI/FormInput/style.css'
       - 'app/views/profile_page/index.php'
-      - 'app/views/profile_page/style.css'
       - 'modules/profile/views/**'
       - 'modules/profile/assets/**'
       - 'tests/integration/native_controls_contract.php'
@@ -46,10 +44,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          PROFILE_INDEX='app/views/profile_page/index.php'
-          if [ -f 'modules/profile/views/index.php' ]; then
-            PROFILE_INDEX='modules/profile/views/index.php'
-          fi
+          PROFILE_INDEX='modules/profile/views/index.php'
           php -l app/views/core/base.php
           php -l "$PROFILE_INDEX"
           php -l tests/integration/native_controls_contract.php
@@ -59,10 +54,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          PROFILE_STYLE='app/views/profile_page/style.css'
-          if [ -f 'modules/profile/assets/style.css' ]; then
-            PROFILE_STYLE='modules/profile/assets/style.css'
-          fi
+          PROFILE_STYLE='modules/profile/assets/style.css'
           ! grep -Fq "'^elements/UI/FormInput/style.css'" app/views/core/base.php
           grep -Fq "'/core/controls.css'" app/views/core/base.php
           grep -Fq -- '--control-height: 44px' app/views/core/controls.css

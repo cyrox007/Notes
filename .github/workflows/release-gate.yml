@@ -72,10 +72,13 @@ jobs:
           set -euo pipefail
           while IFS= read -r -d '' source; do
             node --check "$source"
-          done < <(find assets/js tests/e2e -type f \( -name '*.js' -o -name '*.mjs' \) -print0)
+          done < <(
+            find assets/js modules tests/e2e -type f \( -name '*.js' -o -name '*.mjs' \) \
+              ! -path 'modules/messenger/views/*' -print0
+          )
           shopt -s nullglob
           for source in modules/messenger/views/*.js; do
-            target="/tmp/$(basename "$source")"
+            target="/tmp/messenger-$(basename "$source")"
             sed '/^{literal}$/d;/^{\/literal}$/d' "$source" > "$target"
             node --check "$target"
           done
@@ -91,6 +94,18 @@ jobs:
 
       - name: Verify release evidence contract
         run: php tests/integration/release_evidence_contract.php
+
+      - name: Verify 0.13 compatibility baseline
+        run: php tests/integration/usable_alpha_readiness.php
+
+      - name: Verify findability source contract
+        run: php tests/integration/findability_source_contract.php
+
+      - name: Verify hosting package source contract
+        run: php tests/integration/hosting_package_source_contract.php
+
+      - name: Verify deployment surface contract
+        run: php tests/integration/deployment_surface_contract.php
 
       - name: Verify final release acceptance contract
         shell: bash
@@ -231,11 +246,11 @@ jobs:
             --exclude='.git/' \
             --exclude='.github/' \
             --exclude='.env' \
+            --exclude='tests/' \
+            --exclude='tools/' \
             --exclude='vendor/' \
             --exclude='cache/*' \
             --exclude='compile/*' \
-            --exclude='tools/vendor-license/' \
-            --exclude='tools/vendor-update/' \
             --exclude='*.license-secret' \
             --exclude='workspace-license-*.secret' \
             --exclude='*.update-secret' \
@@ -243,8 +258,8 @@ jobs:
           mkdir -p "$bundle/cache" "$bundle/compile"
           test ! -e "$bundle/vendor"
           test ! -e "$bundle/.env"
-          test ! -e "$bundle/tools/vendor-license"
-          test ! -e "$bundle/tools/vendor-update"
+          test ! -e "$bundle/tests"
+          test ! -e "$bundle/tools"
           test -f "$bundle/install.php"
           test -f "$bundle/core/NativeViewRenderer.php"
           test -f "$bundle/modules/messenger/socket/NativeMessengerServer.php"
