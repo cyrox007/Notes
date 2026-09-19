@@ -163,6 +163,7 @@
 
             if (best) {
                 best.setAttribute('aria-current', 'page');
+                document.body.dataset.workspaceSection = best.dataset.navKey || '';
             }
         }
 
