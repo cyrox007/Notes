@@ -29,7 +29,9 @@ $filterLabels = [
 
 ob_start();
 ?>
-<section class="content-header"><h1>Задачи</h1></section>
+<section class="module-page-header module-page-header--tasks">
+    <div><span class="module-page-header__eyebrow">Планирование</span><h1>Задачи</h1><p>Канбан, список, сроки и приоритеты.</p></div>
+</section>
 
 <section class="tasks">
     <div class="tasks__stats">
@@ -67,7 +69,7 @@ ob_start();
         </form>
 
         <a class="btn-secondary tasks__shared-boards-link" data-shared-task-boards-link href="<?= $view->e($view->route('task_boards')) ?>"><i class="fa fa-users" aria-hidden="true"></i> Общие доски</a>
-        <button class="btn-primary" id="open-create-task" type="button">+ Новая задача</button>
+        <button class="btn-primary" id="open-create-task" type="button"><i class="fa fa-plus" aria-hidden="true"></i> Новая задача</button>
     </div>
 
     <div class="tasks__category-create">
