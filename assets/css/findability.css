@@ -1,5 +1,6 @@
 .list-findability{
   display:flex;
+  flex-wrap:wrap;
   align-items:end;
   gap:8px;
   margin:0;
@@ -40,22 +41,7 @@
   white-space:nowrap
 }
 .list-findability__limit select{
-  width:68px
-}
-.list-findability__sort{
-  display:flex!important;
-  align-items:center;
-  gap:6px;
-  white-space:nowrap
-}
-.list-findability__sort select{
-  width:132px
-}
-.list-findability__direction{
-  width:42px;
-  min-width:42px;
-  padding-inline:8px;
-  text-align:center
+  width:70px
 }
 .list-findability__submit,
 .list-findability__clear{
@@ -63,39 +49,23 @@
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  padding:0 11px;
+  padding:0 10px;
+  border:1px solid var(--ui-border);
   border-radius:8px;
+  background:var(--ui-surface);
+  color:var(--ui-text);
   font-size:12px;
   font-weight:800;
   white-space:nowrap
 }
 .list-findability__submit{
-  border:1px solid var(--ui-border);
-  background:var(--ui-surface);
-  color:var(--ui-text);
   cursor:pointer
 }
-.list-findability__submit:hover{
+.list-findability__submit:hover,
+.list-findability__clear:hover{
   border-color:var(--ui-border-strong);
   background:var(--ui-surface-soft)
 }
-.list-findability__clear{
-  border:1px solid var(--ui-border);
-  background:var(--ui-surface-soft);
-  color:var(--ui-text)
-}
-
-.list-findability--admin{
-  width:100%;
-  display:grid;
-  grid-template-columns:minmax(280px,1fr) auto auto 42px auto;
-  align-items:center;
-  gap:8px
-}
-.list-findability--admin .list-findability__search{
-  min-width:0
-}
-
 .list-pagination{
   display:flex;
   align-items:center;
@@ -123,51 +93,8 @@
   color:var(--ui-muted);
   font-size:12px
 }
-
-@media(max-width:980px){
-  .list-findability--admin{
-    grid-template-columns:minmax(220px,1fr) auto auto 42px
-  }
-  .list-findability--admin .list-findability__submit,
-  .list-findability--admin .list-findability__clear{
-    grid-column:auto
-  }
-}
-
-@media(max-width:760px){
-  .list-findability{
-    flex-wrap:wrap
-  }
+@media(max-width:560px){
   .list-findability__search{
     flex-basis:100%
-  }
-  .list-findability--admin{
-    display:grid;
-    grid-template-columns:1fr 1fr 42px auto
-  }
-  .list-findability--admin .list-findability__search{
-    grid-column:1/-1
-  }
-  .list-findability--admin .list-findability__limit,
-  .list-findability--admin .list-findability__sort{
-    justify-content:space-between
-  }
-}
-
-@media(max-width:560px){
-  .list-findability--admin{
-    grid-template-columns:1fr 1fr
-  }
-  .list-findability--admin .list-findability__search,
-  .list-findability--admin .list-findability__limit,
-  .list-findability--admin .list-findability__sort{
-    grid-column:1/-1
-  }
-  .list-findability--admin .list-findability__direction{
-    width:100%
-  }
-  .list-findability--admin .list-findability__submit,
-  .list-findability--admin .list-findability__clear{
-    width:100%
   }
 }
