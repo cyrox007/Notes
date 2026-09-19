@@ -1,4 +1,4 @@
-.sidebar{position:fixed;inset:0 auto 0 0;z-index:1000;width:var(--ui-sidebar);display:flex;flex-direction:column;background:var(--ui-surface);border-right:1px solid var(--ui-border);transition:width .2s ease,transform .2s ease}
+.sidebar{position:fixed;inset:0 auto 0 0;z-index:1000;width:var(--ui-sidebar);display:flex;flex-direction:column;background:var(--ui-surface-soft);border-right:1px solid var(--ui-border);transition:width .2s ease,transform .2s ease}
 .sidebar__top{height:var(--ui-header);display:flex;align-items:center;padding:0 14px;border-bottom:1px solid var(--ui-border)}
 .sidebar__brand{width:100%;min-width:0;display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:10px}
 .sidebar__brand:hover{background:var(--ui-surface-soft)}
@@ -8,9 +8,9 @@
 .sidebar__brand-copy small{margin-top:3px;color:var(--ui-muted);font-size:10px;font-weight:600}
 .sidebar__menu{flex:1;overflow:auto;padding:12px 10px;display:grid;align-content:start;gap:4px}
 .sidebar__menu::-webkit-scrollbar{width:6px}
-.sidebar__menu-link,.sidebar__utility{min-height:40px;display:flex;align-items:center;gap:10px;border:0;border-radius:10px;padding:0 10px;background:transparent;color:var(--ui-muted);font:inherit;font-weight:600;text-align:left;cursor:pointer}
+.sidebar__menu-link,.sidebar__utility{min-height:40px;display:flex;align-items:center;gap:10px;border:0;border-radius:10px;padding:0 10px;background:transparent;color:var(--ui-muted);font:inherit;font-size:13px;font-weight:500;text-align:left;cursor:pointer}
 .sidebar__menu-link:hover,.sidebar__utility:hover{background:var(--ui-surface-soft);color:var(--ui-text)}
-.sidebar__menu-link[aria-current="page"]{background:var(--ui-primary-soft);color:var(--ui-primary)}
+.sidebar__menu-link[aria-current="page"]{background:var(--module-soft,var(--ui-primary-soft));color:var(--module-accent,var(--ui-primary))}
 .sidebar__menu-icon{width:24px;height:24px;flex:0 0 24px;display:grid;place-items:center;border-radius:7px;font-size:14px}
 .sidebar__menu-link[aria-current="page"] .sidebar__menu-icon{background:color-mix(in srgb,var(--ui-primary) 10%,transparent)}
 .sidebar__menu-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

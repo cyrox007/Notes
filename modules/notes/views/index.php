@@ -35,24 +35,29 @@ $sortMarker = static function (string $sort) use ($currentSort, $currentDirectio
 ob_start();
 ?>
 <section class="module-page-header module-page-header--notes">
-    <div><span class="module-page-header__eyebrow">Рабочее пространство</span><h1>Заметки</h1><p>Личные записи, вложения и общие ссылки.</p></div>
+    <div><h1>Заметки</h1></div>
 </section>
 <section class="notes">
+    <div class="notes__toolbar">
+    <div class="notes__search-slot" data-findability-slot></div>
     <form class="notes__create" action="<?= $view->e($view->route('note_create')) ?>" method="post">
         <?= $view->csrfInput() ?>
         <div class="notes__input"><input type="text" name="notename" maxlength="255" placeholder="Название новой заметки..." aria-label="Название новой заметки"></div>
         <div class="notes__submit"><button type="submit"><i class="fa fa-plus" aria-hidden="true"></i> Новая заметка</button></div>
     </form>
 
+    </div>
+    <div class="notes__content">
+    <div class="notes__collection-bar">
+        <div class="notes__section-heading"><h2 class="notes__title">Мои заметки</h2><span class="notes__count" title="На текущей странице"><?= count($personal) ?></span></div>
     <?php if ($isAdmin): ?>
         <div id="show-all-notes">
-            <p>Показать метаданные заметок всех пользователей</p>
+            <p>Метаданные всех пользователей</p>
             <button class="switch-btn" type="button" aria-pressed="false" aria-label="Показать все заметки"></button>
         </div>
     <?php endif; ?>
 
-    <div class="notes__content">
-        <div class="notes__section-heading"><h2 class="notes__title">Все заметки</h2><span class="notes__count"><?= count($personal) ?></span></div>
+    </div>
         <div class="notes__list_head">
             <div class="notes__list_head--name"><a href="<?= $view->e($sortUrl('notename')) ?>">Название <?= $view->e($sortMarker('notename')) ?></a></div>
             <?php if ($isAdmin): ?><div class="notes__list_head--author" hidden>Автор</div><?php endif; ?>

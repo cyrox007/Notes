@@ -15,7 +15,15 @@ $updatedAt = (string) ($noteRow['updated_note'] ?? '');
 $uid = (string) ($noteRow['uid'] ?? '');
 ?>
 <div class="notes__list_item">
-    <div class="notes__name"><?= $view->e($noteName) ?></div>
+    <div class="notes__name">
+        <span class="notes__document-icon" aria-hidden="true"><i class="fa fa-file-text-o"></i></span>
+        <div class="notes__name-copy">
+            <?php if (!$readOnly): ?>
+                <a href="<?= $view->e($view->route('edit_page', ['uid' => $uid])) ?>"><?= $view->e($noteName) ?></a>
+            <?php else: ?><strong><?= $view->e($noteName) ?></strong><?php endif; ?>
+            <small><?= $readOnly ? 'Только метаданные' : 'Личная заметка' ?></small>
+        </div>
+    </div>
     <?php if ($showAuthor): ?>
         <div class="notes__author"><?= $view->e(($noteRow['author_username'] ?? '') !== '' ? $noteRow['author_username'] : 'Неизвестно') ?></div>
     <?php endif; ?>

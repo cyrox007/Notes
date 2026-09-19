@@ -210,6 +210,9 @@ try {
   await page.locator(`.tasks-board__dropzone[data-status="completed"] .task-item[data-task-id="${taskUid}"]`)
     .waitFor({ state: 'visible', timeout: 5000 });
 
+  if (await page.locator('.tasks__filter-panel').getAttribute('open') === null) {
+    await page.locator('.tasks__filter-panel > summary').click();
+  }
   await page.locator('.tasks__sort-form select[name="sort"]').selectOption('title');
   await page.locator('.tasks__sort-form select[name="direction"]').selectOption('asc');
   await Promise.all([

@@ -138,7 +138,9 @@
             : kind === 'tasks'
                 ? document.querySelector('.tasks__controls')
                 : document.querySelector('.admin-panel-card[aria-labelledby="admin-users-title"] .admin-panel-card__header');
-        if (host) host.before(form);
+        const slot = document.querySelector('[data-findability-slot]');
+        if (slot) slot.append(form);
+        else if (host) host.before(form);
 
         // Keep legacy filter/sort controls while preserving the new query state.
         document.querySelectorAll('.tasks__filters a').forEach((link) => {

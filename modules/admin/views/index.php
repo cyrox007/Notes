@@ -26,9 +26,7 @@ ob_start();
 <section class="admin-page">
     <header class="admin-page__hero">
         <div>
-            <span class="admin-page__eyebrow">Управление Workspace</span>
             <h1>Админпанель</h1>
-            <p>Управление аккаунтами и дополнительными полями профиля без физического удаления рабочих данных.</p>
         </div>
     </header>
 
@@ -39,14 +37,14 @@ ob_start();
         </div>
     <?php endif; ?>
 
-    <section class="admin-panel-card" aria-labelledby="admin-create-user-title">
-        <div class="admin-panel-card__header">
+    <details class="admin-panel-card admin-create-user" aria-labelledby="admin-create-user-title">
+        <summary class="admin-panel-card__header">
             <div>
-                <span class="admin-panel-card__kicker">Создание аккаунта</span>
-                <h2 id="admin-create-user-title">Новый пользователь</h2>
-                <p>Администратор может создать обычный активный аккаунт независимо от режима публичной регистрации. Повышение роли выполняется отдельно через RBAC.</p>
+
+                <h2 id="admin-create-user-title"><i class="fa fa-user-plus" aria-hidden="true"></i> Добавить пользователя</h2>
+
             </div>
-        </div>
+        </summary>
         <form action="<?= $view->e($view->route('admin_create_user')) ?>" method="post" class="custom-fields-form">
             <?= $view->csrfInput() ?>
             <div class="custom-field__grid">
@@ -63,16 +61,15 @@ ob_start();
                 <button type="submit" class="admin-action admin-action--primary"><i class="fa fa-user-plus" aria-hidden="true"></i> Создать пользователя</button>
             </div>
         </form>
-    </section>
+    </details>
 
     <section class="admin-panel-card" aria-labelledby="admin-users-title">
         <div class="admin-panel-card__header">
             <div>
-                <span class="admin-panel-card__kicker">Аккаунты</span>
-                <h2 id="admin-users-title">Пользователи</h2>
-                <p>Блокировка запрещает вход. Деактивация сохраняет Notes, Tasks, Messenger и другие связанные данные.</p>
+                <h2 id="admin-users-title">Пользователи <span class="admin-result-count"><?= count($listedUsers) ?> на странице</span></h2>
             </div>
         </div>
+        <div class="admin-users-search" data-findability-slot></div>
         <div class="admin-users-table-wrap">
             <table class="admin-users-table">
                 <thead><tr><th scope="col">Пользователь</th><th scope="col">Роль</th><th scope="col">Статус</th><th scope="col">Создан</th><th scope="col">Действия</th></tr></thead>
@@ -92,7 +89,7 @@ ob_start();
                             <span>@<?= $view->e($listedUser['username'] ?? '') ?></span>
                             <small><?= $view->e($listedUser['email'] ?? '') ?></small>
                         </td>
-                        <td data-label="Роль"><?= $view->e($listedUser['role_label'] ?? '') ?></td>
+                        <td data-label="Роль"><span class="admin-role"><?= $view->e($listedUser['role_label'] ?? '') ?></span></td>
                         <td data-label="Статус"><span class="admin-status admin-status--<?= $view->e($statusCode) ?>"><?= $view->e($listedUser['status_label'] ?? '') ?></span></td>
                         <td data-label="Создан"><?= $view->e($listedUser['created_at'] ?? '') ?></td>
                         <td data-label="Действия">

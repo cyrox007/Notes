@@ -40,13 +40,11 @@ ob_start();
 <section class="profile profile--hub">
     <header class="profile__hub-heading">
         <div>
-            <span class="ux-kicker">Мой workspace</span>
-            <h1><?= $view->e($fullName) ?></h1>
-            <p>Профиль, быстрый доступ к рабочим разделам и настройки аккаунта.</p>
+            <h1>Профиль</h1>
         </div>
-        <a class="profile__public-preview" href="<?= $view->e($view->route('profile-public', ['uid' => $currentUser['uid'] ?? ''])) ?>">
+        <a class="profile__public-preview" aria-label="Посмотреть как другой пользователь" href="<?= $view->e($view->route('profile-public', ['uid' => $currentUser['uid'] ?? ''])) ?>">
             <i class="fa fa-eye" aria-hidden="true"></i>
-            Посмотреть как другой пользователь
+            Публичный профиль
         </a>
     </header>
 
@@ -61,8 +59,7 @@ ob_start();
 
     <div class="profile__column-left">
         <div class="profile__card-avatar">
-            <span class="ux-kicker">Аккаунт</span>
-            <p class="profile__user-login">@<?= $view->e($username) ?></p>
+            <div class="profile__identity-copy"><h2><?= $view->e($fullName !== '' ? $fullName : $username) ?></h2><p class="profile__user-login">@<?= $view->e($username) ?></p><span>Личный аккаунт</span></div>
 
             <img src="<?= $view->e($avatarPath !== '' ? $baseUrl . '/' . $avatarPath : $baseUrl . '/assets/img/default_avatar.png') ?>"
                  alt="<?= $view->e($fullName) ?>" class="img-circle elevation-2" width="256" height="256">
@@ -82,6 +79,7 @@ ob_start();
     </div>
 
     <div class="profile__column-right">
+        <?php if (empty($publicationItems['metrics'])): ?>
         <nav class="profile__workspace-links" aria-label="Мои разделы">
             <?php if (!empty($access['notes'])): ?>
                 <a class="profile__workspace-link profile__workspace-link--notes" href="<?= $view->e($view->route('notes')) ?>">
@@ -105,17 +103,12 @@ ob_start();
                 </a>
             <?php endif; ?>
         </nav>
-
-        <?= $view->partial('profile_page/publication', [
-            'user' => $currentUser,
-            'publication_items' => $publicationItems,
-            'workspaceAccess' => $access,
-        ]) ?>
+        <?php endif; ?>
 
         <div class="profile__card-info">
             <div class="profile__card-info--data visible">
                 <div class="profile__info-heading">
-                    <span class="ux-kicker">Профиль</span>
+                    <span class="ux-kicker">Личная информация</span>
                     <div class="profile__user-fio"><?= $view->e($fullName) ?></div>
                 </div>
 
@@ -220,6 +213,11 @@ ob_start();
                 </section>
             </div>
         </div>
+        <?= $view->partial('profile_page/publication', [
+            'user' => $currentUser,
+            'publication_items' => $publicationItems,
+            'workspaceAccess' => $access,
+        ]) ?>
     </div>
 </section>
 <?php

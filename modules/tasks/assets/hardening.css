@@ -1,7 +1,7 @@
 .tasks__sort-form,.category-create-form,.task-category-attach{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
-.tasks__sort-form label,.category-create-form label{color:var(--ui-muted);font-size:10px;font-weight:800}
+.tasks__sort-form label,.category-create-form label{color:var(--ui-muted);font-size:12px;font-weight:800}
 .tasks__sort-form select,.category-create-form input,.category-create-form select,.task-category-select,.task-edit-form input,.task-edit-form textarea,.task-edit-form select{min-height:34px}
-.tasks__category-create{padding:9px;border:1px solid var(--ui-border);border-radius:10px;background:var(--ui-surface-soft)}
+.tasks__category-create{padding:0;border:1px solid var(--ui-border);border-radius:10px;background:var(--ui-surface-soft)}
 .task-category-select{max-width:220px}.category-badge{gap:5px}.detach-category-btn{width:18px;height:18px;border:0;border-radius:50%;background:transparent;color:inherit;cursor:pointer}.detach-category-btn:hover{background:color-mix(in srgb,var(--ui-danger) 12%,transparent);color:var(--ui-danger)}
 .task-status-label{font-weight:700;color:var(--ui-muted)}
 .task-edit-panel{margin-top:10px;padding:10px;border:1px solid var(--ui-border);border-radius:10px;background:var(--ui-surface-soft)}.task-edit-panel[hidden]{display:none}

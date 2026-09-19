@@ -97,8 +97,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const button = event.target instanceof Element ? event.target.closest('[data-file-view]') : null;
     if (button) setView(button.dataset.fileView || 'grid');
   });
-  let savedView = 'grid';
-  try { savedView = localStorage.getItem(storageKey) || 'grid'; } catch (_) {}
+  let savedView = 'list';
+  try { savedView = localStorage.getItem(storageKey) || 'list'; } catch (_) {}
   setView(savedView);
   apply();
 });
