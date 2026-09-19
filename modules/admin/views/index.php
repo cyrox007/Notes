@@ -30,19 +30,6 @@ ob_start();
             <h1>Админпанель</h1>
             <p>Управление аккаунтами и дополнительными полями профиля без физического удаления рабочих данных.</p>
         </div>
-        <div class="admin-user-actions">
-            <a class="admin-action admin-action--secondary" href="<?= $view->e($view->route('admin_registration')) ?>">
-                <i class="fa fa-user-plus" aria-hidden="true"></i> Регистрация
-            </a>
-            <?php if ($canManageRoles): ?>
-                <a class="admin-action admin-action--secondary" href="<?= $view->e($view->route('admin_roles')) ?>">
-                    <i class="fa fa-shield" aria-hidden="true"></i> Роли и доступ
-                </a>
-            <?php endif; ?>
-            <a class="admin-action admin-action--secondary" href="<?= $view->e($view->route('admin_settings')) ?>">
-                <i class="fa fa-sliders" aria-hidden="true"></i> Настройки и квоты
-            </a>
-        </div>
     </header>
 
     <?php if ($flash !== null): ?>
