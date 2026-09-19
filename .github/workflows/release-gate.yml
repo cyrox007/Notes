@@ -107,6 +107,9 @@ jobs:
       - name: Verify deployment surface contract
         run: php tests/integration/deployment_surface_contract.php
 
+      - name: Verify unified UI system contract
+        run: php tests/integration/ui_system_contract.php
+
       - name: Verify final release acceptance contract
         shell: bash
         run: |

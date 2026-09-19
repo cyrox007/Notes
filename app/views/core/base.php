@@ -99,7 +99,6 @@ $partialData = [
 <?php foreach ($moduleStyles as $moduleStyle): ?>
     <link rel="stylesheet" href="<?= $view->e($moduleStyle) ?>">
 <?php endforeach; ?>
-    <link rel="stylesheet" href="<?= $view->e($baseUrl) ?>/assets/css/workspace-ui-1.0.css?v=<?= rawurlencode($workspaceVersion) ?>">
     <style nonce="<?= $view->e($cspNonce) ?>">
 <?php
 $controlsPath = $viewRoot . '/core/controls.css';
@@ -111,6 +110,7 @@ if (is_file($controlsPath) && is_readable($controlsPath)) {
 }
 ?>
     </style>
+    <link rel="stylesheet" href="<?= $view->e($baseUrl) ?>/assets/css/workspace-ui-1.0.css?v=<?= rawurlencode($workspaceVersion) ?>">
     <link rel="icon" href="<?= $view->e($baseUrl) ?>/favicon.ico" type="image/x-icon">
     <template id="csrf-token-template"><?= $view->csrfInput() ?></template>
     <script nonce="<?= $view->e($cspNonce) ?>">window.wspaceRuntime = <?= $runtimeConfig ?>; window.wspace = window.wspace || {};</script>
