@@ -29,7 +29,6 @@ ob_start();
             <h1>Лицензия установки</h1>
             <p>Один подписанный ключ привязывается к этой установке. Проверка выполняется локально по Ed25519 и не требует обращения к внешнему серверу.</p>
         </div>
-        <a class="admin-action admin-action--secondary" href="<?= $view->e($view->route('adminpanel')) ?>">Назад в админпанель</a>
     </header>
 
     <?php if ($flash !== null): ?>
