@@ -129,15 +129,15 @@ if (is_file($controlsPath) && is_readable($controlsPath)) {
     <link rel="icon" href="<?= $view->e($baseUrl) ?>/favicon.ico" type="image/x-icon">
     <template id="csrf-token-template"><?= $view->csrfInput() ?></template>
     <script nonce="<?= $view->e($cspNonce) ?>">window.wspaceRuntime = <?= $runtimeConfig ?>; window.wspace = window.wspace || {};</script>
-    <script src="<?= $view->e($baseUrl) ?>/assets/js/common.js" defer></script>
-    <script src="<?= $view->e($baseUrl) ?>/assets/js/theme-mode.js?v=<?= rawurlencode($workspaceVersion) ?>" defer></script>
-    <script src="<?= $view->e($baseUrl) ?>/assets/js/findability.js" defer></script>
-    <script src="<?= $view->e($baseUrl) ?>/assets/js/feedback.js" defer></script>
-    <script src="<?= $view->e($baseUrl) ?>/assets/js/usability-actions.js" defer></script>
-    <script src="<?= $view->e($baseUrl) ?>/assets/js/release-polish.js" defer></script>
-    <script src="<?= $view->e($baseUrl) ?>/assets/js/messenger-connection-ux.js" defer></script>
+    <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/common.js')) ?>" defer></script>
+    <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/theme-mode.js')) ?>" defer></script>
+    <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/findability.js')) ?>" defer></script>
+    <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/feedback.js')) ?>" defer></script>
+    <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/usability-actions.js')) ?>" defer></script>
+    <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/release-polish.js')) ?>" defer></script>
+    <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/messenger-connection-ux.js')) ?>" defer></script>
 <?php foreach ($moduleScripts as $moduleScript): ?>
-    <script src="<?= $view->e($moduleScript) ?>" defer></script>
+    <script src="<?= $view->e($assetUrl($moduleScript)) ?>" defer></script>
 <?php endforeach; ?>
 </head>
 <body<?= $bodyClass !== '' ? ' class="' . $view->e($bodyClass) . '"' : '' ?><?php if ($paginationData !== null):
