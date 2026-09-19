@@ -46,7 +46,7 @@ uiSystemAssert(
 );
 
 $uiStylesheet = '/assets/css/workspace-ui-1.0.css';
-$controlsMarker = "echo $controlsCss";
+$controlsMarker = 'echo $controlsCss';
 $uiPosition = strpos($base, $uiStylesheet);
 $controlsPosition = strpos($base, $controlsMarker);
 uiSystemAssert($uiPosition !== false, 'unified UI stylesheet is not loaded');
