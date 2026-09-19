@@ -19,7 +19,6 @@
         const relative = appPath && path.startsWith(appPath) ? path.slice(appPath.length) || '/' : path;
         const kind = relative.startsWith('/notes') ? 'notes'
             : relative.startsWith('/tasks') ? 'tasks'
-            : relative.startsWith('/admin') ? 'admin'
             : '';
         if (!kind) return;
 
@@ -35,9 +34,7 @@
         const form = document.createElement('form');
         form.method = 'get';
         form.action = path;
-        form.className = kind === 'admin'
-            ? 'list-findability list-findability--admin'
-            : 'list-findability';
+        form.className = 'list-findability';
         form.setAttribute('role', 'search');
 
         const searchLabel = document.createElement('label');
@@ -69,36 +66,7 @@
         limitLabel.append(limitText, limit);
         form.appendChild(limitLabel);
 
-        if (kind === 'admin') {
-            const sortLabel = document.createElement('label');
-            sortLabel.className = 'list-findability__sort';
-            const sortText = document.createElement('span');
-            sortText.textContent = 'Сортировка';
-            const sort = document.createElement('select');
-            sort.name = 'sort';
-            [['id', 'ID'], ['username', 'Логин'], ['email', 'Email'], ['created_at', 'Дата создания'], ['role', 'Роль']].forEach(([value, label]) => {
-                const option = document.createElement('option');
-                option.value = value;
-                option.textContent = label;
-                option.selected = value === state.sort;
-                sort.appendChild(option);
-            });
-            sortLabel.append(sortText, sort);
-            form.appendChild(sortLabel);
-
-            const direction = document.createElement('select');
-            direction.className = 'list-findability__direction';
-            direction.name = 'direction';
-            direction.setAttribute('aria-label', 'Направление сортировки');
-            [['asc', '↑'], ['desc', '↓']].forEach(([value, label]) => {
-                const option = document.createElement('option');
-                option.value = value;
-                option.textContent = label;
-                option.selected = value === state.direction;
-                direction.appendChild(option);
-            });
-            form.appendChild(direction);
-        } else {
+        for (const [name, value] of [['sort', state.sort], ['direction', state.direction]]) {
             for (const [name, value] of [['sort', state.sort], ['direction', state.direction]]) {
                 if (!value) continue;
                 const hidden = document.createElement('input');
@@ -138,9 +106,7 @@
 
         const host = kind === 'notes'
             ? document.querySelector('.notes__content')
-            : kind === 'tasks'
-                ? document.querySelector('.tasks__controls')
-                : document.querySelector('.admin-panel-card[aria-labelledby="admin-users-title"] .admin-panel-card__header');
+            : document.querySelector('.tasks__controls');
         const slot = document.querySelector('[data-findability-slot]');
         if (slot) slot.append(form);
         else if (host) host.before(form);
@@ -193,9 +159,7 @@
 
         const tail = kind === 'notes'
             ? document.querySelector('.notes__content')
-            : kind === 'tasks'
-                ? document.querySelector('.tasks__list')
-                : document.querySelector('.admin-users-table-wrap');
+            : document.querySelector('.tasks__list');
         if (tail) tail.after(pagination);
     });
 })();
