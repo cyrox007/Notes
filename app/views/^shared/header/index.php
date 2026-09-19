@@ -26,6 +26,18 @@ if ($displayName === '') {
 
     <div class="navbar__spacer"></div>
 
+    <div class="navbar__theme-picker" data-theme-picker role="group" aria-label="Цветовая тема">
+        <button type="button" class="navbar__theme-option" data-theme-option="light" aria-label="Светлая тема" title="Светлая тема">
+            <i class="fa fa-sun-o" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="navbar__theme-option" data-theme-option="system" aria-label="Системная тема" title="Системная тема">
+            <i class="fa fa-desktop" aria-hidden="true"></i>
+        </button>
+        <button type="button" class="navbar__theme-option" data-theme-option="dark" aria-label="Тёмная тема" title="Тёмная тема">
+            <i class="fa fa-moon-o" aria-hidden="true"></i>
+        </button>
+    </div>
+
     <nav class="navbar__actions" aria-label="Пользовательские действия">
         <?php if (!empty($access['admin'])): ?>
             <a class="navbar__action" href="<?= $view->e($view->route('adminpanel')) ?>" title="Админпанель">

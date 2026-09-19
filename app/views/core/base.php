@@ -58,8 +58,23 @@ $partialData = [
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="description" content="Workspace Organizer — заметки, задачи, файлы и коммуникация в одном рабочем пространстве">
-    <meta name="theme-color" content="#0f172a">
-    <meta name="color-scheme" content="light">
+    <meta name="theme-color" content="#f4f6fb">
+    <meta name="color-scheme" content="light dark">
+    <script nonce="<?= $view->e($cspNonce) ?>">
+    (() => {
+        try {
+            const preference = localStorage.getItem('workspace.theme') || 'light';
+            const resolved = preference === 'system'
+                ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+                : (preference === 'dark' ? 'dark' : 'light');
+            document.documentElement.dataset.themePreference = preference;
+            document.documentElement.dataset.theme = resolved;
+        } catch (error) {
+            document.documentElement.dataset.themePreference = 'light';
+            document.documentElement.dataset.theme = 'light';
+        }
+    })();
+    </script>
     <title><?= $view->e(trim($siteName . ' ' . $workspaceVersion)) ?> | <?= $view->e($pageTitle) ?></title>
 
     <style nonce="<?= $view->e($cspNonce) ?>">
@@ -95,10 +110,12 @@ if (is_file($controlsPath) && is_readable($controlsPath)) {
 }
 ?>
     </style>
+    <link rel="stylesheet" href="<?= $view->e($baseUrl) ?>/assets/css/workspace-ui-1.0.css?v=<?= rawurlencode($workspaceVersion) ?>">
     <link rel="icon" href="<?= $view->e($baseUrl) ?>/favicon.ico" type="image/x-icon">
     <template id="csrf-token-template"><?= $view->csrfInput() ?></template>
     <script nonce="<?= $view->e($cspNonce) ?>">window.wspaceRuntime = <?= $runtimeConfig ?>; window.wspace = window.wspace || {};</script>
     <script src="<?= $view->e($baseUrl) ?>/assets/js/common.js" defer></script>
+    <script src="<?= $view->e($baseUrl) ?>/assets/js/theme-mode.js?v=<?= rawurlencode($workspaceVersion) ?>" defer></script>
     <script src="<?= $view->e($baseUrl) ?>/assets/js/findability.js" defer></script>
     <script src="<?= $view->e($baseUrl) ?>/assets/js/feedback.js" defer></script>
     <script src="<?= $view->e($baseUrl) ?>/assets/js/usability-actions.js" defer></script>
