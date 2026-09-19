@@ -46,7 +46,7 @@
         input.name = 'q';
         input.value = state.q;
         input.maxLength = 100;
-        input.placeholder = kind === 'admin' ? 'Имя, логин или email' : kind === 'tasks' ? 'Название или описание' : 'Название заметки';
+        input.placeholder = kind === 'tasks' ? 'Название или описание' : 'Название заметки';
         searchLabel.append(searchText, input);
         form.appendChild(searchLabel);
 
@@ -67,14 +67,12 @@
         form.appendChild(limitLabel);
 
         for (const [name, value] of [['sort', state.sort], ['direction', state.direction]]) {
-            for (const [name, value] of [['sort', state.sort], ['direction', state.direction]]) {
-                if (!value) continue;
-                const hidden = document.createElement('input');
-                hidden.type = 'hidden';
-                hidden.name = name;
-                hidden.value = value;
-                form.appendChild(hidden);
-            }
+            if (!value) continue;
+            const hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = name;
+            hidden.value = value;
+            form.appendChild(hidden);
         }
 
         if (state.filter) {
