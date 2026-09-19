@@ -112,4 +112,7 @@ if ($publicPath !== '/' && !str_contains($publicPath, "\0") && !str_contains($pu
     }
 }
 
+require_once $root . '/tests/support/ci_license_fixture.php';
+workspaceEnsureCiLicense();
+
 require $root . '/index.php';
