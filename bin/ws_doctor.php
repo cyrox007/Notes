@@ -89,10 +89,19 @@ wsDoctorLine('OK', 'Native WebSocket listener', sprintf('tcp://%s:%d', $bindHost
 wsDoctorLine('INFO', 'Deployment mode', $sameOriginProxy ? 'same-origin reverse proxy' : 'direct/custom WebSocket endpoint');
 if (!$sameOriginProxy && PHP_OS_FAMILY === 'Windows') {
     $siteScheme = strtolower((string) parse_url($siteUrl, PHP_URL_SCHEME));
+    $siteHost = strtolower((string) parse_url($siteUrl, PHP_URL_HOST));
     $publicScheme = strtolower((string) parse_url($publicUrl, PHP_URL_SCHEME));
     $publicHost = strtolower((string) parse_url($publicUrl, PHP_URL_HOST));
-    if ($siteScheme === 'http' && $publicScheme === 'ws' && in_array($publicHost, ['127.0.0.1', 'localhost', '::1'], true)) {
-        wsDoctorLine('OK', 'OpenServer local HTTP mode', 'browser connects directly to the loopback native listener; Apache WebSocket proxy is not required');
+    if ($publicScheme === 'ws' && in_array($publicHost, ['127.0.0.1', 'localhost', '::1'], true)) {
+        if ($siteScheme === 'http' && in_array($siteHost, ['127.0.0.1', 'localhost', '::1'], true)) {
+            wsDoctorLine('OK', 'Loopback browser mode', 'page and WebSocket endpoint are both loopback-trustworthy');
+        } else {
+            wsDoctorLine(
+                'WARN',
+                'Direct loopback browser mode',
+                'modern Chromium Local Network Access restrictions can block WebSocket connections from custom/non-secure origins to loopback; prefer same-origin /ws proxy'
+            );
+        }
     }
 }
 if ($sameOriginProxy) {
@@ -133,20 +142,16 @@ if ($sameOriginProxy && $legacyOpenServerLayout) {
         'Legacy OpenServer layout detected',
         'project path uses domains\\...; Open Server 6 .osp project-local proxy paths do not apply'
     );
-    $siteScheme = strtolower((string) parse_url($siteUrl, PHP_URL_SCHEME));
-    if ($siteScheme === 'http') {
-        wsDoctorLine(
-            'INFO',
-            'Recommended OSPanel 5.x local mode',
-            'set WS_PUBLIC_URL=ws://127.0.0.1:' . $port . ' and WS_ALLOWED_ORIGINS=' . $siteUrl . ', then restart HTTP/PHP and the WebSocket process'
-        );
-    } else {
-        wsDoctorLine(
-            'INFO',
-            'HTTPS requirement',
-            'configure a real WebSocket reverse proxy for ' . $proxyPath . '; direct ws://127.0.0.1 is blocked from an HTTPS page'
-        );
-    }
+    wsDoctorLine(
+        'INFO',
+        'Recommended OSPanel 5.x local mode',
+        'keep the browser on same-origin ' . $proxyPath . ' and proxy it to ' . $backend . '; direct loopback WebSocket URLs are unreliable in modern Chromium because of Local Network Access restrictions'
+    );
+    wsDoctorLine(
+        'INFO',
+        'Apache module check',
+        'run httpd -M and confirm proxy_module plus proxy_wstunnel_module (or compatible proxy_http Upgrade support), then restart OpenServer'
+    );
 }
 
 if ($sameOriginProxy) {
