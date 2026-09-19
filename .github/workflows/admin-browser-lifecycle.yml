@@ -175,6 +175,12 @@ jobs:
           printf 'E2E_TARGET_USER=%s\n' 'admin-target-user' >> "$GITHUB_ENV"
           printf 'E2E_PASSWORD=%s\n' "$TEST_PASSWORD" >> "$GITHUB_ENV"
 
+      - name: Activate ephemeral CI license
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/support/ci_license_fixture.php
+
       - name: Start subdirectory application
         shell: bash
         run: |
