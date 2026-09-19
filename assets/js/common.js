@@ -167,9 +167,9 @@
         }
 
         function setupSidebar() {
-            const control = document.getElementById('sidebarControl');
+            const controls = [...document.querySelectorAll('[data-sidebar-toggle]')];
             const sidebar = document.getElementById('workspaceSidebar') || document.querySelector('.sidebar');
-            if (!control || !sidebar) {
+            if (!controls.length || !sidebar) {
                 return;
             }
 
@@ -185,7 +185,14 @@
             const isMobile = () => window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
 
             function setExpanded(expanded) {
-                control.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+                controls.forEach((control) => {
+                    control.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+                    const icon = control.querySelector('.fa-angle-double-left, .fa-angle-double-right');
+                    if (icon && !isMobile()) {
+                        icon.classList.toggle('fa-angle-double-left', expanded);
+                        icon.classList.toggle('fa-angle-double-right', !expanded);
+                    }
+                });
             }
 
             function closeMobile() {
@@ -203,45 +210,47 @@
                 setExpanded(true);
             }
 
-            function applyDesktopState() {
-                closeMobile();
-                let collapsed = false;
+            function readCollapsed() {
                 try {
-                    collapsed = window.localStorage.getItem(STORAGE_KEY) === '1';
+                    return window.localStorage.getItem(STORAGE_KEY) === '1';
                 } catch (e) {
-                    collapsed = false;
+                    return false;
                 }
+            }
+
+            function applyDesktopState() {
+                sidebar.classList.remove('sidebar--open');
+                backdrop.classList.remove('is-visible');
+                document.body.classList.remove('sidebar-mobile-open');
+                const collapsed = readCollapsed();
                 sidebar.classList.toggle('sidebar--collapsed', collapsed);
                 setExpanded(!collapsed);
             }
 
-            control.addEventListener('click', (event) => {
-                event.preventDefault();
-                if (isMobile()) {
-                    if (sidebar.classList.contains('sidebar--open')) {
-                        closeMobile();
-                    } else {
-                        openMobile();
-                    }
-                    return;
-                }
+            controls.forEach((control) => {
+                control.addEventListener('click', (event) => {
+                    event.preventDefault();
 
-                const collapsed = sidebar.classList.toggle('sidebar--collapsed');
-                setExpanded(!collapsed);
-                try {
-                    window.localStorage.setItem(STORAGE_KEY, collapsed ? '1' : '0');
-                } catch (e) {
-                    // Storage may be unavailable in privacy-restricted contexts.
-                }
+                    if (isMobile()) {
+                        if (sidebar.classList.contains('sidebar--open')) {
+                            closeMobile();
+                        } else {
+                            openMobile();
+                        }
+                        return;
+                    }
+
+                    const collapsed = sidebar.classList.toggle('sidebar--collapsed');
+                    setExpanded(!collapsed);
+                    try {
+                        window.localStorage.setItem(STORAGE_KEY, collapsed ? '1' : '0');
+                    } catch (e) {
+                        // Storage may be unavailable in privacy-restricted contexts.
+                    }
+                });
             });
 
             backdrop.addEventListener('click', closeMobile);
-            document.addEventListener('keydown', (event) => {
-                if (event.key === 'Escape' && sidebar.classList.contains('sidebar--open')) {
-                    closeMobile();
-                    control.focus();
-                }
-            });
 
             sidebar.addEventListener('click', (event) => {
                 if (isMobile() && event.target.closest('a')) {
@@ -270,11 +279,107 @@
             } else {
                 applyDesktopState();
             }
+
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape' && sidebar.classList.contains('sidebar--open')) {
+                    closeMobile();
+                    controls[0]?.focus();
+                }
+            });
+        }
+
+        function setupCommandPalette() {
+            const palette = document.querySelector('[data-command-palette]');
+            const openers = [...document.querySelectorAll('[data-command-open]')];
+            if (!palette || !openers.length) {
+                return;
+            }
+
+            const input = palette.querySelector('[data-command-input]');
+            const items = [...palette.querySelectorAll('[data-command-item]')];
+            const empty = palette.querySelector('[data-command-empty]');
+            const closers = [...palette.querySelectorAll('[data-command-close]')];
+            let restoreFocus = null;
+
+            function filterItems() {
+                const query = String(input?.value || '').trim().toLocaleLowerCase('ru');
+                let visible = 0;
+                items.forEach((item) => {
+                    const haystack = String(item.dataset.commandText || item.textContent || '').toLocaleLowerCase('ru');
+                    const matches = query === '' || haystack.includes(query);
+                    item.hidden = !matches;
+                    if (matches) visible += 1;
+                });
+                if (empty) empty.hidden = visible !== 0;
+            }
+
+            function openPalette(source) {
+                restoreFocus = source instanceof HTMLElement ? source : document.activeElement;
+                palette.hidden = false;
+                document.body.classList.add('command-palette-open');
+                if (input) {
+                    input.value = '';
+                    filterItems();
+                    requestAnimationFrame(() => input.focus());
+                }
+            }
+
+            function closePalette() {
+                if (palette.hidden) return;
+                palette.hidden = true;
+                document.body.classList.remove('command-palette-open');
+                if (restoreFocus && typeof restoreFocus.focus === 'function') {
+                    restoreFocus.focus();
+                }
+            }
+
+            openers.forEach((opener) => opener.addEventListener('click', () => openPalette(opener)));
+            closers.forEach((closer) => closer.addEventListener('click', closePalette));
+            input?.addEventListener('input', filterItems);
+
+            document.addEventListener('keydown', (event) => {
+                const key = event.key.toLowerCase();
+                if ((event.ctrlKey || event.metaKey) && key === 'k') {
+                    event.preventDefault();
+                    if (palette.hidden) openPalette(document.activeElement);
+                    else closePalette();
+                    return;
+                }
+
+                if (event.key === 'Escape' && !palette.hidden) {
+                    event.preventDefault();
+                    closePalette();
+                    return;
+                }
+
+                if (event.key === 'ArrowDown' && !palette.hidden && document.activeElement === input) {
+                    const firstVisible = items.find((item) => !item.hidden);
+                    if (firstVisible) {
+                        event.preventDefault();
+                        firstVisible.focus();
+                    }
+                }
+            });
+
+            items.forEach((item, index) => {
+                item.addEventListener('keydown', (event) => {
+                    if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return;
+                    const visible = items.filter((candidate) => !candidate.hidden);
+                    const current = visible.indexOf(item);
+                    if (current < 0) return;
+                    event.preventDefault();
+                    const next = event.key === 'ArrowDown'
+                        ? visible[(current + 1) % visible.length]
+                        : visible[(current - 1 + visible.length) % visible.length];
+                    next?.focus();
+                });
+            });
         }
 
         document.addEventListener('DOMContentLoaded', () => {
             setupActiveNavigation();
             setupSidebar();
+            setupCommandPalette();
         });
     })();
 })(window);
