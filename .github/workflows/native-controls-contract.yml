@@ -57,6 +57,6 @@ jobs:
           PROFILE_STYLE='modules/profile/assets/style.css'
           ! grep -Fq "'^elements/UI/FormInput/style.css'" app/views/core/base.php
           grep -Fq "'/core/controls.css'" app/views/core/base.php
-          grep -Fq -- '--control-height: 44px' app/views/core/controls.css
+          grep -Fq -- '--control-height:38px' app/views/core/controls.css
           ! grep -Fq '.profile__card-info--edit--set-input' app/views/core/controls.css
           grep -Fq '.profile__card-info--edit--set-input' "$PROFILE_STYLE"
