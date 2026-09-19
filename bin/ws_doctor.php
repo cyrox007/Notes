@@ -87,6 +87,21 @@ wsDoctorLine('OK', 'SITEURL', $siteUrl);
 wsDoctorLine('OK', 'Browser WebSocket URL', $publicUrl);
 wsDoctorLine('OK', 'Native WebSocket listener', sprintf('tcp://%s:%d', $bindHost, $port));
 wsDoctorLine('INFO', 'Deployment mode', $sameOriginProxy ? 'same-origin reverse proxy' : 'direct/custom WebSocket endpoint');
+$siteHostForMode = strtolower((string) parse_url($siteUrl, PHP_URL_HOST));
+$publicHostForMode = strtolower((string) parse_url($publicUrl, PHP_URL_HOST));
+$publicPortForMode = (int) (parse_url($publicUrl, PHP_URL_PORT) ?? 0);
+$openServerSameHostDirect = PHP_OS_FAMILY === 'Windows'
+    && strtolower((string) parse_url($siteUrl, PHP_URL_SCHEME)) === 'http'
+    && $siteHostForMode !== ''
+    && $siteHostForMode === $publicHostForMode
+    && $publicPortForMode === $port;
+if ($openServerSameHostDirect) {
+    wsDoctorLine(
+        'OK',
+        'OpenServer direct-host mode',
+        'browser connects to ' . $publicUrl . ' while the hostname resolves locally; Apache/Nginx WebSocket proxy is not required'
+    );
+}
 if (!$sameOriginProxy && PHP_OS_FAMILY === 'Windows') {
     $siteScheme = strtolower((string) parse_url($siteUrl, PHP_URL_SCHEME));
     $siteHost = strtolower((string) parse_url($siteUrl, PHP_URL_HOST));
@@ -136,22 +151,27 @@ if (is_resource($socket)) {
 $legacyOpenServerLayout = PHP_OS_FAMILY === 'Windows'
     && preg_match('#(?:^|[\\\\/])domains[\\\\/]#i', $root) === 1;
 
-if ($sameOriginProxy && $legacyOpenServerLayout) {
+if ($legacyOpenServerLayout) {
     wsDoctorLine(
         'WARN',
         'Legacy OpenServer layout detected',
         'project path uses domains\\...; Open Server 6 .osp project-local proxy paths do not apply'
     );
-    wsDoctorLine(
-        'INFO',
-        'Recommended OSPanel 5.x local mode',
-        'keep the browser on same-origin ' . $proxyPath . ' and proxy it to ' . $backend . '; direct loopback WebSocket URLs are unreliable in modern Chromium because of Local Network Access restrictions'
-    );
-    wsDoctorLine(
-        'INFO',
-        'Apache module check',
-        'run httpd -M and confirm proxy_module plus proxy_wstunnel_module (or compatible proxy_http Upgrade support), then restart OpenServer'
-    );
+    $siteScheme = strtolower((string) parse_url($siteUrl, PHP_URL_SCHEME));
+    if ($siteScheme === 'http' && !$openServerSameHostDirect) {
+        $siteHost = (string) parse_url($siteUrl, PHP_URL_HOST);
+        wsDoctorLine(
+            'INFO',
+            'Recommended OSPanel 5.x local mode',
+            'set WS_PUBLIC_URL=ws://' . $siteHost . ':' . $port . ' and WS_ALLOWED_ORIGINS=' . $siteUrl . '; this avoids both Apache proxy setup and cross-host loopback access'
+        );
+    } elseif ($siteScheme === 'https' && $sameOriginProxy) {
+        wsDoctorLine(
+            'INFO',
+            'HTTPS OpenServer mode',
+            'keep ' . $proxyPath . ' and configure Apache/Nginx WebSocket proxy to ' . $backend
+        );
+    }
 }
 
 if ($sameOriginProxy) {
