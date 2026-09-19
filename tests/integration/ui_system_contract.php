@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 $root = dirname(__DIR__, 2);
 $basePath = $root . '/app/views/core/base.php';
+$commonStylePath = $root . '/app/views/core/common.css';
 $headerPath = $root . '/app/views/^shared/header/index.php';
 $sidebarPath = $root . '/app/views/^shared/sidebar/index.php';
 $headerStylePath = $root . '/app/views/^shared/header/style.css';
@@ -19,11 +20,12 @@ function uiSystemAssert(bool $condition, string $message): void
     }
 }
 
-foreach ([$basePath, $headerPath, $sidebarPath, $headerStylePath, $sidebarStylePath, $cssPath, $scriptPath] as $path) {
+foreach ([$basePath, $commonStylePath, $headerPath, $sidebarPath, $headerStylePath, $sidebarStylePath, $cssPath, $scriptPath] as $path) {
     uiSystemAssert(is_file($path), 'missing UI system file: ' . $path);
 }
 
 $base = file_get_contents($basePath);
+$commonStyle = file_get_contents($commonStylePath);
 $header = file_get_contents($headerPath);
 $sidebar = file_get_contents($sidebarPath);
 $headerStyle = file_get_contents($headerStylePath);
@@ -33,6 +35,7 @@ $script = file_get_contents($scriptPath);
 
 uiSystemAssert(
     is_string($base)
+    && is_string($commonStyle)
     && is_string($header)
     && is_string($sidebar)
     && is_string($headerStyle)
@@ -72,22 +75,22 @@ foreach (['.navbar__theme-option', '.navbar__theme-picker', '.sidebar__user-pane
 }
 uiSystemAssert(!str_contains($css, '--sidebar-width: 198px'), 'legacy responsive sidebar width override returned');
 
+foreach (['core/theme-refresh.css', 'core/product-ux-013.css', '/assets/css/live-qa-fixes.css', '/assets/css/live-qa-final.css', 'messager_page/style.css'] as $legacyLayer) {
+    uiSystemAssert(!str_contains($base, $legacyLayer), "legacy visual layer is still loaded: {$legacyLayer}");
+}
+
+foreach (['--ui-bg:', '--ui-surface:', '--ui-text:', '--ui-border:', '--ui-primary:', 'html[data-theme="dark"]'] as $marker) {
+    uiSystemAssert(str_contains($commonStyle, $marker), "core visual tokens are missing marker: {$marker}");
+}
 foreach ([
-    'html[data-theme="light"]',
-    'html[data-theme="dark"]',
-    '--ui-primary:',
-    '--ui-bg:',
-    '.content-header',
-    '.notes__content',
-    '.tasks__controls',
-    '.file-manager__item',
-    '.messenger-app',
-    '.profile--hub',
-    '.admin-page',
+    '.workspace-home__hero',
+    '.workspace-home__grid',
     '.module-page-header',
+    '.admin-settings-tabs',
     'body[data-workspace-section="notes"]',
+    'body[data-workspace-section="admin"]',
 ] as $marker) {
-    uiSystemAssert(str_contains($css, $marker), "unified UI CSS is missing marker: {$marker}");
+    uiSystemAssert(str_contains($css, $marker), "unified workspace layer is missing marker: {$marker}");
 }
 
 foreach ([
