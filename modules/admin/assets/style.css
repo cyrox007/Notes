@@ -287,3 +287,59 @@
     grid-template-columns:1fr
   }
 }
+
+
+/* Updates page: keep the local-state card on the same spacing grid as the rest of Admin. */
+.admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-panel-card__header,
+.admin-panel-card[aria-labelledby="updates-result-title"] .admin-panel-card__header{
+  align-items:flex-start;
+  padding:18px
+}
+.admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-panel-card__header>div,
+.admin-panel-card[aria-labelledby="updates-result-title"] .admin-panel-card__header>div{
+  min-width:0;
+  flex:1
+}
+.admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-panel-card__header .admin-action,
+.admin-panel-card[aria-labelledby="updates-result-title"] .admin-panel-card__header .admin-action{
+  flex:0 0 auto;
+  align-self:flex-start;
+  min-height:38px;
+  margin-top:2px
+}
+.admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-status-grid,
+.admin-panel-card[aria-labelledby="updates-result-title"] .admin-status-grid{
+  gap:14px;
+  padding:18px
+}
+.admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-status-card,
+.admin-panel-card[aria-labelledby="updates-result-title"] .admin-status-card{
+  min-height:92px;
+  padding:14px 15px
+}
+.admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-update-keys{
+  margin:0 18px 16px
+}
+.admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-update-alert{
+  margin:0 18px 18px;
+  padding:14px 16px
+}
+.admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-update-alert strong{
+  display:block;
+  margin-bottom:6px
+}
+.admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-update-alert ul{
+  margin:0;
+  padding-left:20px
+}
+@media(max-width:860px){
+  .admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-panel-card__header,
+  .admin-panel-card[aria-labelledby="updates-result-title"] .admin-panel-card__header{
+    flex-direction:column
+  }
+  .admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-panel-card__header .admin-action,
+  .admin-panel-card[aria-labelledby="updates-result-title"] .admin-panel-card__header .admin-action{
+    width:100%;
+    margin-top:4px
+  }
+}
