@@ -1921,3 +1921,221 @@ html[data-theme="dark"] .workspace-module {
     width: 100%;
   }
 }
+
+
+/* 1.0 internal module refinement: Profile / Admin / Messenger */
+.profile--hub {
+  align-items: start;
+}
+
+.profile__hub-heading {
+  padding: 2px 0 7px;
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.profile__hub-heading h1 {
+  font-size: 16px;
+}
+
+.profile__public-preview {
+  min-height: 31px;
+  padding-inline: 9px;
+}
+
+.profile-metrics {
+  margin-bottom: 8px;
+  padding: 12px;
+  border-radius: var(--ui-radius);
+  box-shadow: var(--ui-shadow-xs);
+}
+
+.profile-metrics__heading {
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.profile-metrics__heading h2 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.profile-metrics__heading p {
+  display: none;
+}
+
+.profile-metrics__settings {
+  min-height: 31px;
+  padding: 5px 9px;
+  border-radius: 8px;
+  font-size: 10px;
+}
+
+.profile-metrics__grid {
+  gap: 7px;
+}
+
+.profile-metric {
+  min-height: 66px;
+  grid-template-columns: 32px minmax(0, 1fr) 10px;
+  gap: 8px;
+  padding: 9px;
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.profile-metric__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.profile-metric__value {
+  font-size: 17px;
+}
+
+.profile-metric__label {
+  margin-top: 3px;
+  font-size: 9px;
+}
+
+.profile--hub .profile__card-info--edit--form-group {
+  max-width: none;
+  display: grid;
+  grid-template-columns: minmax(120px, .36fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+}
+
+.profile--hub .profile__card-info--edit--set-input,
+.profile--hub .set-files {
+  color: var(--ui-text);
+  background: var(--ui-surface-soft);
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+}
+
+.profile--hub .profile__card-info--edit--set-input:focus {
+  background: var(--ui-surface);
+  border-color: color-mix(in srgb, var(--ui-primary) 30%, var(--ui-border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-primary) 9%, transparent);
+}
+
+.profile__danger-zone {
+  margin-top: 14px;
+  padding: 12px;
+  background: var(--ui-danger-soft);
+  border: 1px solid color-mix(in srgb, var(--ui-danger) 18%, var(--ui-border));
+  border-radius: 10px;
+}
+
+.admin-settings-tabs {
+  min-width: 0;
+  display: flex;
+  gap: 3px;
+  overflow-x: auto;
+  padding: 3px;
+  margin: -1px 0 0;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: 10px;
+  box-shadow: var(--ui-shadow-xs);
+  scrollbar-width: none;
+}
+
+.admin-settings-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.admin-settings-tabs__link {
+  flex: 0 0 auto;
+  min-height: 31px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  color: var(--ui-muted);
+  border-radius: 7px;
+  text-decoration: none;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.admin-settings-tabs__link:hover {
+  color: var(--ui-text);
+  background: var(--ui-surface-soft);
+}
+
+.admin-settings-tabs__link[aria-current="page"] {
+  color: var(--ui-primary);
+  background: var(--ui-primary-soft);
+}
+
+.admin-page input:not([type="checkbox"]):not([type="radio"]),
+.admin-page select,
+.admin-page textarea {
+  color: var(--ui-text);
+  background: var(--ui-surface-soft);
+  border-color: var(--ui-border);
+}
+
+.admin-page input:not([type="checkbox"]):not([type="radio"]):focus,
+.admin-page select:focus,
+.admin-page textarea:focus {
+  background: var(--ui-surface);
+  border-color: color-mix(in srgb, var(--ui-primary) 30%, var(--ui-border));
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-primary) 9%, transparent);
+}
+
+.admin-page .custom-field {
+  background: var(--ui-surface-soft);
+  border-color: var(--ui-border);
+}
+
+.admin-page .custom-field__control label,
+.admin-page .custom-field__required {
+  color: var(--ui-text-soft);
+}
+
+.admin-page__flash--success {
+  color: var(--ui-success);
+  background: var(--ui-success-soft);
+  border-color: color-mix(in srgb, var(--ui-success) 22%, var(--ui-border));
+}
+
+.admin-page__flash--error {
+  color: var(--ui-danger);
+  background: var(--ui-danger-soft);
+  border-color: color-mix(in srgb, var(--ui-danger) 22%, var(--ui-border));
+}
+
+html[data-theme="dark"] .profile__danger-zone {
+  background: color-mix(in srgb, var(--ui-danger) 10%, var(--ui-surface));
+}
+
+html[data-theme="dark"] .admin-settings-tabs {
+  background: var(--ui-surface);
+  border-color: var(--ui-border);
+}
+
+@media (max-width: 760px) {
+  .profile--hub .profile__card-info--edit--form-group {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+
+  .admin-settings-tabs {
+    border-radius: 8px;
+  }
+
+  .admin-settings-tabs__link span {
+    display: none;
+  }
+
+  .admin-settings-tabs__link {
+    min-width: 34px;
+    justify-content: center;
+  }
+}
