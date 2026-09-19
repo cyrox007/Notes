@@ -14,8 +14,8 @@
   min-height:36px;border:1px solid transparent;border-radius:9px;padding:0 13px;display:inline-flex;align-items:center;justify-content:center;gap:7px;font-weight:700;line-height:1;cursor:pointer;transition:.15s ease
 }
 :where(.btn,.btn-primary,.btn-secondary,.button,input[type="submit"],input[type="button"],input[type="reset"],button[type="submit"]):disabled{opacity:.5;cursor:not-allowed}
-:where(.btn-primary,.button--primary,input[type="submit"]:not(.btn-secondary):not(.btn-danger)){background:var(--ui-primary);color:#fff}
-:where(.btn-primary,.button--primary,input[type="submit"]:not(.btn-secondary):not(.btn-danger)):hover:not(:disabled){background:var(--ui-primary-hover)}
+:where(.btn-primary,.button--primary,input[type="submit"]:not(.btn-secondary):not(.btn-danger)){background:var(--ui-action);color:#fff}
+:where(.btn-primary,.button--primary,input[type="submit"]:not(.btn-secondary):not(.btn-danger)):hover:not(:disabled){background:var(--ui-action-hover)}
 :where(.btn-secondary,.button--secondary){border-color:var(--ui-border);background:var(--ui-surface);color:var(--ui-text)}
 :where(.btn-secondary,.button--secondary):hover:not(:disabled){background:var(--ui-surface-soft);border-color:var(--ui-border-strong)}
 :where(.btn-danger,.button--danger){background:var(--ui-danger);color:#fff}

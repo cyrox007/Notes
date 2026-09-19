@@ -22,7 +22,7 @@
 .admin-status--active{background:var(--ui-success-soft);color:var(--ui-success)}.admin-status--blocked{background:var(--ui-danger-soft);color:var(--ui-danger)}.admin-status--inactive{background:var(--ui-surface-soft);color:var(--ui-muted)}
 .admin-user-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.admin-user-actions form{display:inline-flex;margin:0}.admin-user-actions__locked{color:var(--ui-muted);font-size:12px}
 .admin-action{min-height:31px;display:inline-flex;align-items:center;justify-content:center;gap:5px;border:1px solid transparent;border-radius:8px;padding:0 9px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}.admin-action:hover{filter:brightness(.97)}
-.admin-action--primary{background:var(--module-accent,var(--ui-primary));color:#fff}.admin-action--secondary{border-color:var(--ui-border);background:var(--ui-surface);color:var(--ui-text)}.admin-action--danger{border-color:color-mix(in srgb,var(--ui-danger) 28%,var(--ui-border));background:var(--ui-danger-soft);color:var(--ui-danger)}
+.admin-action--primary{background:var(--ui-action);color:#fff}.admin-action--secondary{border-color:var(--ui-border);background:var(--ui-surface);color:var(--ui-text)}.admin-action--danger{border-color:color-mix(in srgb,var(--ui-danger) 28%,var(--ui-border));background:var(--ui-danger-soft);color:var(--ui-danger)}
 .custom-fields-form{display:grid;gap:10px;padding:12px 14px}
 .custom-fields-list{display:grid;gap:8px}
 .custom-field{padding:10px;border:1px solid var(--ui-border);border-radius:10px;background:var(--ui-surface-soft)}

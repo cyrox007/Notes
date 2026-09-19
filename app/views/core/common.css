@@ -1,7 +1,7 @@
 :root {
   --ui-bg:#f3f6fc; --ui-surface:#ffffff; --ui-surface-soft:#f8faff; --ui-surface-raised:#ffffff;
   --ui-text:#182235; --ui-muted:#6f7b91; --ui-subtle:#9aa5b8; --ui-border:#dde3ec; --ui-border-strong:#cfd7e4;
-  --ui-primary:#2864ed; --ui-primary-hover:#1d52d0; --ui-primary-soft:#eef1ff;
+  --ui-action:#2864ed; --ui-action-hover:#1d52d0; --ui-primary:#2864ed; --ui-primary-hover:#1d52d0; --ui-primary-soft:#eef1ff;
   --ui-success:#18a66a; --ui-success-soft:#eaf8f1; --ui-warning:#d88916; --ui-warning-soft:#fff6e6;
   --ui-danger:#d84d5e; --ui-danger-soft:#fff0f2; --ui-info:#2d86d9; --ui-info-soft:#edf6ff;
   --ui-shadow:0 8px 28px rgba(30,45,75,.08); --ui-shadow-sm:0 2px 10px rgba(30,45,75,.06);
@@ -11,7 +11,7 @@
 html[data-theme="dark"] {
   --ui-bg:#0b1220; --ui-surface:#101827; --ui-surface-soft:#131d2f; --ui-surface-raised:#162136;
   --ui-text:#eef3fb; --ui-muted:#94a0b5; --ui-subtle:#68758b; --ui-border:#243149; --ui-border-strong:#34425d;
-  --ui-primary:#3d78fa; --ui-primary-hover:#5489ff; --ui-primary-soft:#1c2a55;
+  --ui-primary:#93a5ff; --ui-primary-hover:#b1bfff; --ui-primary-soft:#1c2a55;
   --ui-success:#43c58a; --ui-success-soft:#12382c; --ui-warning:#f0ae4d; --ui-warning-soft:#3a2a13;
   --ui-danger:#ff7381; --ui-danger-soft:#3b1d25; --ui-info:#65adf1; --ui-info-soft:#16304a;
   --ui-shadow:0 10px 32px rgba(0,0,0,.25); --ui-shadow-sm:0 2px 12px rgba(0,0,0,.18);
@@ -42,7 +42,7 @@ body.sidebar-is-collapsed .wrapper__content{margin-left:var(--ui-sidebar-collaps
 .visually-hidden{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
 .sidebar-backdrop{position:fixed;inset:0;z-index:990;background:rgba(5,12,24,.52);opacity:0;pointer-events:none;transition:opacity .2s ease}
 .sidebar-backdrop.is-visible{opacity:1;pointer-events:auto}
-.skip-link{position:fixed;left:14px;top:10px;z-index:3000;transform:translateY(-160%);padding:9px 12px;border-radius:8px;background:var(--ui-primary);color:#fff;font-weight:700}
+.skip-link{position:fixed;left:14px;top:10px;z-index:3000;transform:translateY(-160%);padding:9px 12px;border-radius:8px;background:var(--ui-action);color:#fff;font-weight:700}
 .skip-link:focus{transform:none}
 @media(max-width:900px){
   .wrapper__content,body.sidebar-is-collapsed .wrapper__content{margin-left:0}

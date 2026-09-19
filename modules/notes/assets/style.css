@@ -4,7 +4,7 @@
 .notes__input input{height:38px;border-color:transparent;background:var(--ui-surface-soft)}
 .notes__input input:focus{background:var(--ui-surface);border-color:var(--module-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--module-accent) 12%,transparent)}
 .notes__submit{display:flex}
-.notes__submit button{min-width:132px;height:38px;border:0;border-radius:9px;background:var(--module-accent);color:#fff;font-weight:700}
+.notes__submit button{min-width:132px;height:38px;border:0;border-radius:9px;background:var(--ui-action);color:#fff;font-weight:700}
 .notes__submit button:hover{filter:brightness(.96)}
 .notes #show-all-notes{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 14px;background:transparent}
 .notes #show-all-notes p{margin:0;color:var(--ui-muted);font-size:12px}
@@ -39,7 +39,7 @@
 .note__name-input input{height:42px;font-size:16px;font-weight:700}
 .note__text textarea{min-height:420px;line-height:1.65}
 .note__submit{display:flex;justify-content:flex-end}
-.note__submit button{min-width:110px;background:var(--module-accent);color:#fff}
+.note__submit button{min-width:110px;background:var(--ui-action);color:#fff}
 @media(max-width:760px){
   .notes__list_head{display:none}
   .notes__list_item{grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:10px 12px}
