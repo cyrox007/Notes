@@ -12,6 +12,29 @@ $canManageRoles = !empty($canManageRoles);
 $siteName = isset($sitename) ? (string) $sitename : 'Workspace Organizer';
 $workspaceVersion = isset($version) ? (string) $version : '';
 $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
+$listState = isset($pagination) && is_array($pagination) ? $pagination : [];
+$listQ = trim((string) ($listState['q'] ?? ''));
+$listPage = max(1, (int) ($listState['page'] ?? 1));
+$listLimit = in_array((int) ($listState['limit'] ?? 20), [10, 20, 50], true) ? (int) $listState['limit'] : 20;
+$listTotal = max(0, (int) ($listState['total'] ?? count($listedUsers)));
+$listTotalPages = max(1, (int) ($listState['total_pages'] ?? 1));
+$listSort = in_array((string) ($listState['sort'] ?? 'id'), ['id', 'username', 'email', 'created_at', 'role'], true)
+    ? (string) $listState['sort']
+    : 'id';
+$listDirection = in_array((string) ($listState['direction'] ?? 'desc'), ['asc', 'desc'], true)
+    ? (string) $listState['direction']
+    : 'desc';
+$adminListUrl = static function (int $page) use ($view, $listQ, $listLimit, $listSort, $listDirection): string {
+    $query = http_build_query([
+        'q' => $listQ,
+        'page' => max(1, $page),
+        'limit' => $listLimit,
+        'sort' => $listSort,
+        'direction' => $listDirection,
+    ]);
+
+    return $view->route('adminpanel') . ($query !== '' ? '?' . $query : '');
+};
 $fieldTypes = [
     'text' => 'Текст',
     'textarea' => 'Многострочный текст',
@@ -69,7 +92,60 @@ ob_start();
                 <h2 id="admin-users-title">Пользователи <span class="admin-result-count"><?= count($listedUsers) ?> на странице</span></h2>
             </div>
         </div>
-        <div class="admin-users-search" data-findability-slot></div>
+        <form action="<?= $view->e($view->route('adminpanel')) ?>" method="get" class="admin-toolbar" role="search" aria-label="Поиск и сортировка пользователей">
+            <input type="hidden" name="page" value="1">
+
+            <label class="admin-toolbar__search" for="admin-search">
+                <span>Поиск</span>
+                <input
+                    id="admin-search"
+                    type="search"
+                    name="q"
+                    value="<?= $view->e($listQ) ?>"
+                    maxlength="100"
+                    placeholder="Имя, логин или email"
+                    autocomplete="off"
+                >
+            </label>
+
+            <div class="admin-toolbar__options">
+                <label class="admin-toolbar__field" for="admin-limit">
+                    <span>На странице</span>
+                    <select id="admin-limit" name="limit">
+                        <?php foreach ([10, 20, 50] as $value): ?>
+                            <option value="<?= $value ?>"<?= $listLimit === $value ? ' selected' : '' ?>><?= $value ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+
+                <label class="admin-toolbar__field admin-toolbar__field--sort" for="admin-sort">
+                    <span>Сортировка</span>
+                    <select id="admin-sort" name="sort">
+                        <option value="id"<?= $listSort === 'id' ? ' selected' : '' ?>>ID</option>
+                        <option value="username"<?= $listSort === 'username' ? ' selected' : '' ?>>Логин</option>
+                        <option value="email"<?= $listSort === 'email' ? ' selected' : '' ?>>Email</option>
+                        <option value="created_at"<?= $listSort === 'created_at' ? ' selected' : '' ?>>Дата создания</option>
+                        <option value="role"<?= $listSort === 'role' ? ' selected' : '' ?>>Роль</option>
+                    </select>
+                </label>
+
+                <label class="admin-toolbar__field admin-toolbar__field--direction" for="admin-direction">
+                    <span>Порядок</span>
+                    <select id="admin-direction" name="direction">
+                        <option value="asc"<?= $listDirection === 'asc' ? ' selected' : '' ?>>↑</option>
+                        <option value="desc"<?= $listDirection === 'desc' ? ' selected' : '' ?>>↓</option>
+                    </select>
+                </label>
+            </div>
+
+            <div class="admin-toolbar__actions">
+                <button type="submit" class="admin-action admin-action--primary"><i class="fa fa-search" aria-hidden="true"></i> Найти</button>
+                <?php if ($listQ !== '' || $listLimit !== 20 || $listSort !== 'id' || $listDirection !== 'desc'): ?>
+                    <a class="admin-action admin-action--secondary" href="<?= $view->e($view->route('adminpanel')) ?>">Сбросить</a>
+                <?php endif; ?>
+            </div>
+        </form>
+
         <div class="admin-users-table-wrap">
             <table class="admin-users-table">
                 <thead><tr><th scope="col">Пользователь</th><th scope="col">Роль</th><th scope="col">Статус</th><th scope="col">Создан</th><th scope="col">Действия</th></tr></thead>
@@ -123,6 +199,12 @@ ob_start();
                 </tbody>
             </table>
         </div>
+
+        <nav class="admin-pagination" aria-label="Пагинация пользователей">
+            <a class="admin-pagination__link" href="<?= $view->e($adminListUrl(max(1, $listPage - 1))) ?>"<?= $listPage <= 1 ? ' aria-disabled="true" tabindex="-1"' : '' ?>>← Назад</a>
+            <span class="admin-pagination__summary">Страница <?= $view->e($listPage) ?> из <?= $view->e($listTotalPages) ?> · найдено <?= $view->e($listTotal) ?></span>
+            <a class="admin-pagination__link" href="<?= $view->e($adminListUrl(min($listTotalPages, $listPage + 1))) ?>"<?= $listPage >= $listTotalPages ? ' aria-disabled="true" tabindex="-1"' : '' ?>>Вперёд →</a>
+        </nav>
     </section>
 
     <section class="admin-panel-card" aria-labelledby="admin-fields-title">
@@ -161,7 +243,6 @@ echo $view->layout('core/base', [
     'base_path' => $base_path ?? '',
     'user' => $currentUser,
     'workspaceAccess' => $access,
-    'pagination' => $pagination ?? null,
     'socket_ticket' => $socket_ticket ?? '',
     'socket_url' => $socket_url ?? '',
     'module_styles' => [
