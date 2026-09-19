@@ -128,11 +128,11 @@ ob_start();
             </div>
 
             <?php if (($result['package_sha256'] ?? '') !== ''): ?>
-                <p><strong>SHA-256:</strong> <code><?= $view->e($result['package_sha256']) ?></code></p>
+                <p class="admin-update-detail"><strong>SHA-256</strong><code><?= $view->e($result['package_sha256']) ?></code></p>
             <?php endif; ?>
 
             <?php if (($result['notes'] ?? null) !== null && trim((string) $result['notes']) !== ''): ?>
-                <p><strong>Release notes:</strong> <?= nl2br($view->e((string) $result['notes'])) ?></p>
+                <div class="admin-update-detail"><strong>Release notes</strong><div><?= nl2br($view->e((string) $result['notes'])) ?></div></div>
             <?php endif; ?>
 
             <?php if (($result['compatibility_message'] ?? null) !== null && trim((string) $result['compatibility_message']) !== ''): ?>
@@ -157,7 +157,7 @@ ob_start();
                         </div>
                     </form>
                 <?php elseif (!$canManageStage): ?>
-                    <p>Проверка доступна, но installation-wide staging разрешён только суперадминистратору.</p>
+                    <p class="admin-update-detail">Проверка доступна, но installation-wide staging разрешён только суперадминистратору.</p>
                 <?php endif; ?>
             <?php endif; ?>
         </section>
