@@ -75,21 +75,21 @@ ob_start();
             <?php endif; ?>
         </div>
 
-        <div class="custom-field__grid">
-            <div class="custom-field__control"><label>Установленная версия</label><strong><?= $view->e($state['installed_version'] ?? '—') ?> (<?= $view->e($state['installed_version_code'] ?? '—') ?>)</strong></div>
-            <div class="custom-field__control"><label>Канал</label><strong><?= $view->e($state['channel'] ?? '—') ?></strong></div>
-            <div class="custom-field__control"><label>Signed feed</label><strong><?= $view->e(($state['feed_label'] ?? '') !== '' ? $state['feed_label'] : 'Не настроен') ?></strong></div>
-            <div class="custom-field__control"><label>Update trust root</label><strong><?= !empty($state['trust_configured']) ? 'Настроен' : 'Не настроен' ?></strong></div>
-            <div class="custom-field__control"><label>HTTPS runtime</label><strong><?= !empty($state['openssl_available']) ? 'OpenSSL доступен' : 'OpenSSL недоступен' ?></strong></div>
-            <div class="custom-field__control"><label>External staging</label><strong><?= !empty($state['stage_configured']) ? 'Настроен' : 'Не настроен' ?></strong></div>
+        <div class="admin-status-grid">
+            <div class="admin-status-card"><label>Установленная версия</label><strong><?= $view->e($state['installed_version'] ?? '—') ?> (<?= $view->e($state['installed_version_code'] ?? '—') ?>)</strong></div>
+            <div class="admin-status-card"><label>Канал</label><strong><?= $view->e($state['channel'] ?? '—') ?></strong></div>
+            <div class="admin-status-card"><label>Signed feed</label><strong><?= $view->e(($state['feed_label'] ?? '') !== '' ? $state['feed_label'] : 'Не настроен') ?></strong></div>
+            <div class="admin-status-card"><label>Update trust root</label><strong><?= !empty($state['trust_configured']) ? 'Настроен' : 'Не настроен' ?></strong></div>
+            <div class="admin-status-card"><label>HTTPS runtime</label><strong><?= !empty($state['openssl_available']) ? 'OpenSSL доступен' : 'OpenSSL недоступен' ?></strong></div>
+            <div class="admin-status-card"><label>External staging</label><strong><?= !empty($state['stage_configured']) ? 'Настроен' : 'Не настроен' ?></strong></div>
         </div>
 
         <?php if ($trustedKeys !== []): ?>
-            <p><strong>Доверенные update key ID:</strong> <?= $view->e(implode(', ', array_map('strval', $trustedKeys))) ?></p>
+            <p class="admin-update-keys"><strong>Доверенные update key ID:</strong> <?= $view->e(implode(', ', array_map('strval', $trustedKeys))) ?></p>
         <?php endif; ?>
 
         <?php if ($issues !== []): ?>
-            <div class="admin-page__flash admin-page__flash--error" role="status">
+            <div class="admin-page__flash admin-page__flash--error admin-update-alert" role="status">
                 <strong>Updater пока не готов:</strong>
                 <ul>
                     <?php foreach ($issues as $issue): ?>
@@ -111,19 +111,19 @@ ob_start();
                 </div>
             </div>
 
-            <div class="custom-field__grid">
-                <div class="custom-field__control"><label>Целевая версия</label><strong><?= $view->e($result['target_version'] ?? '—') ?> (<?= $view->e($result['target_version_code'] ?? '—') ?>)</strong></div>
-                <div class="custom-field__control"><label>Канал</label><strong><?= $view->e($result['channel'] ?? '—') ?></strong></div>
-                <div class="custom-field__control"><label>Ключ подписи</label><strong><?= $view->e($result['key_id'] ?? '—') ?></strong></div>
-                <div class="custom-field__control"><label>Source commit</label><strong><code><?= $view->e($result['source_commit'] ?? '—') ?></code></strong></div>
+            <div class="admin-status-grid">
+                <div class="admin-status-card"><label>Целевая версия</label><strong><?= $view->e($result['target_version'] ?? '—') ?> (<?= $view->e($result['target_version_code'] ?? '—') ?>)</strong></div>
+                <div class="admin-status-card"><label>Канал</label><strong><?= $view->e($result['channel'] ?? '—') ?></strong></div>
+                <div class="admin-status-card"><label>Ключ подписи</label><strong><?= $view->e($result['key_id'] ?? '—') ?></strong></div>
+                <div class="admin-status-card"><label>Source commit</label><strong><code><?= $view->e($result['source_commit'] ?? '—') ?></code></strong></div>
                 <?php if (($result['kind'] ?? '') === 'check'): ?>
-                    <div class="custom-field__control"><label>Пакет</label><strong><?= $view->e($result['package_filename'] ?? '—') ?></strong></div>
-                    <div class="custom-field__control"><label>Размер</label><strong><?= $view->e($formatBytes($result['package_size'] ?? 0)) ?></strong></div>
-                    <div class="custom-field__control"><label>Требуемый PHP</label><strong><?= $view->e($result['requires_php'] ?? '—') ?>+</strong></div>
-                    <div class="custom-field__control"><label>Минимальная исходная версия</label><strong><?= $view->e($result['min_source_version_code'] ?? '—') ?></strong></div>
+                    <div class="admin-status-card"><label>Пакет</label><strong><?= $view->e($result['package_filename'] ?? '—') ?></strong></div>
+                    <div class="admin-status-card"><label>Размер</label><strong><?= $view->e($formatBytes($result['package_size'] ?? 0)) ?></strong></div>
+                    <div class="admin-status-card"><label>Требуемый PHP</label><strong><?= $view->e($result['requires_php'] ?? '—') ?>+</strong></div>
+                    <div class="admin-status-card"><label>Минимальная исходная версия</label><strong><?= $view->e($result['min_source_version_code'] ?? '—') ?></strong></div>
                 <?php else: ?>
-                    <div class="custom-field__control"><label>ZIP entries</label><strong><?= $view->e($result['archive_entries'] ?? 0) ?></strong></div>
-                    <div class="custom-field__control"><label>ZIP files</label><strong><?= $view->e($result['archive_files'] ?? 0) ?></strong></div>
+                    <div class="admin-status-card"><label>ZIP entries</label><strong><?= $view->e($result['archive_entries'] ?? 0) ?></strong></div>
+                    <div class="admin-status-card"><label>ZIP files</label><strong><?= $view->e($result['archive_files'] ?? 0) ?></strong></div>
                 <?php endif; ?>
             </div>
 
@@ -136,13 +136,13 @@ ob_start();
             <?php endif; ?>
 
             <?php if (($result['compatibility_message'] ?? null) !== null && trim((string) $result['compatibility_message']) !== ''): ?>
-                <div class="admin-page__flash admin-page__flash--error" role="status">
+                <div class="admin-page__flash admin-page__flash--error admin-update-alert" role="status">
                     <?= $view->e((string) $result['compatibility_message']) ?>
                 </div>
             <?php endif; ?>
 
             <?php if (($result['kind'] ?? '') === 'stage'): ?>
-                <div class="admin-page__flash admin-page__flash--success" role="status">
+                <div class="admin-page__flash admin-page__flash--success admin-update-alert" role="status">
                     Пакет прошёл подпись, signed size/SHA-256, ZIP audit и опубликован в immutable external staging. Live-файлы не менялись.
                 </div>
             <?php endif; ?>
@@ -171,7 +171,7 @@ ob_start();
                 <p>Admin UI пока намеренно не пересекает destructive boundary.</p>
             </div>
         </div>
-        <ul>
+        <ul class="admin-safety-list">
             <li>не включает maintenance mode;</li>
             <li>не создаёт rollback backup или transaction journal;</li>
             <li>не извлекает release candidate;</li>
