@@ -50,5 +50,206 @@
 .admin-create-user summary h2{color:var(--ui-primary);font-size:13px}
 .admin-create-user[open] summary{border-bottom:1px solid var(--ui-border)}
 .admin-result-count{display:inline-block;margin-left:10px;font-size:12px;font-weight:400;color:var(--ui-muted)}
-.admin-users-search{padding:10px 14px;border-bottom:1px solid var(--ui-border);background:var(--ui-surface)}
 .admin-role{display:inline-flex;padding:3px 8px;border-radius:6px;background:var(--ui-primary-soft);color:var(--ui-primary);font-size:12px}
+
+
+/* Admin owns its user-list controls. Do not couple this surface to generic findability UI. */
+.admin-toolbar{
+  display:grid;
+  grid-template-columns:minmax(280px,1fr) auto auto;
+  align-items:end;
+  gap:12px;
+  padding:14px;
+  border-bottom:1px solid var(--ui-border);
+  background:var(--ui-surface)
+}
+.admin-toolbar__search,
+.admin-toolbar__field{
+  min-width:0;
+  display:grid;
+  gap:5px
+}
+.admin-toolbar__search>span,
+.admin-toolbar__field>span{
+  color:var(--ui-muted);
+  font-size:11px;
+  font-weight:800
+}
+.admin-toolbar__search input{
+  width:100%;
+  min-height:38px;
+  background:var(--ui-surface-soft)
+}
+.admin-toolbar__options{
+  display:flex;
+  align-items:end;
+  gap:8px
+}
+.admin-toolbar__field select{
+  min-height:38px
+}
+.admin-toolbar__field:not(.admin-toolbar__field--sort):not(.admin-toolbar__field--direction) select{
+  width:76px
+}
+.admin-toolbar__field--sort select{
+  width:150px
+}
+.admin-toolbar__field--direction select{
+  width:68px;
+  text-align:center
+}
+.admin-toolbar__actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:7px
+}
+.admin-toolbar__actions .admin-action{
+  min-height:38px
+}
+.admin-pagination{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  flex-wrap:wrap;
+  padding:12px 14px;
+  border-top:1px solid var(--ui-border);
+  background:var(--ui-surface-soft)
+}
+.admin-pagination__link{
+  min-height:30px;
+  display:inline-flex;
+  align-items:center;
+  padding:0 9px;
+  border:1px solid var(--ui-border);
+  border-radius:8px;
+  background:var(--ui-surface);
+  color:var(--ui-text);
+  font-size:11px
+}
+.admin-pagination__link:hover{
+  border-color:var(--ui-border-strong);
+  background:var(--ui-surface-soft)
+}
+.admin-pagination__link[aria-disabled="true"]{
+  opacity:.4;
+  pointer-events:none
+}
+.admin-pagination__summary{
+  color:var(--ui-muted);
+  font-size:11px
+}
+
+/* Update status surfaces are read-only status cards, not editable field grids. */
+.admin-status-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:10px;
+  padding:14px
+}
+.admin-status-card{
+  min-width:0;
+  min-height:82px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  gap:5px;
+  padding:12px 13px;
+  border:1px solid var(--ui-border);
+  border-radius:10px;
+  background:var(--ui-surface-soft)
+}
+.admin-status-card label{
+  color:var(--ui-muted);
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.03em;
+  text-transform:uppercase
+}
+.admin-status-card strong{
+  min-width:0;
+  color:var(--ui-text);
+  font-size:14px;
+  line-height:1.3;
+  overflow-wrap:anywhere
+}
+.admin-status-card code{
+  color:inherit;
+  font:600 11px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace
+}
+.admin-update-keys{
+  margin:0;
+  padding:0 14px 14px;
+  color:var(--ui-muted);
+  font-size:11px
+}
+.admin-update-keys strong{
+  color:var(--ui-text)
+}
+.admin-update-alert{
+  margin:0 14px 14px
+}
+.admin-update-alert ul{
+  margin:8px 0 0;
+  padding-left:20px
+}
+.admin-update-alert li+li{
+  margin-top:4px
+}
+.admin-safety-list{
+  margin:0;
+  padding:14px 34px 16px;
+  color:var(--ui-muted);
+  font-size:12px
+}
+.admin-safety-list li+li{
+  margin-top:5px
+}
+
+@media(max-width:980px){
+  .admin-toolbar{
+    grid-template-columns:minmax(220px,1fr) auto
+  }
+  .admin-toolbar__actions{
+    grid-column:1/-1;
+    justify-content:flex-end
+  }
+  .admin-status-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr))
+  }
+}
+
+@media(max-width:720px){
+  .admin-toolbar{
+    grid-template-columns:1fr
+  }
+  .admin-toolbar__options{
+    display:grid;
+    grid-template-columns:1fr 1fr 82px
+  }
+  .admin-toolbar__field:not(.admin-toolbar__field--sort):not(.admin-toolbar__field--direction) select,
+  .admin-toolbar__field--sort select,
+  .admin-toolbar__field--direction select{
+    width:100%
+  }
+  .admin-toolbar__actions{
+    grid-column:1;
+    justify-content:stretch
+  }
+  .admin-toolbar__actions .admin-action{
+    flex:1
+  }
+}
+
+@media(max-width:560px){
+  .admin-toolbar__options{
+    grid-template-columns:1fr 1fr
+  }
+  .admin-toolbar__field--sort{
+    grid-column:1/-1
+  }
+  .admin-status-grid{
+    grid-template-columns:1fr
+  }
+}
