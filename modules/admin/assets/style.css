@@ -197,6 +197,30 @@
 .admin-update-alert li+li{
   margin-top:4px
 }
+.admin-update-detail{
+  margin:0 14px 14px;
+  padding:10px 12px;
+  border:1px solid var(--ui-border);
+  border-radius:9px;
+  background:var(--ui-surface-soft);
+  color:var(--ui-muted);
+  font-size:11px;
+  overflow-wrap:anywhere
+}
+.admin-update-detail strong{
+  display:block;
+  margin-bottom:5px;
+  color:var(--ui-text);
+  font-size:10px;
+  text-transform:uppercase;
+  letter-spacing:.03em
+}
+.admin-update-detail code{
+  display:block;
+  color:var(--ui-text);
+  font:600 11px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;
+  overflow-wrap:anywhere
+}
 .admin-safety-list{
   margin:0;
   padding:14px 34px 16px;
