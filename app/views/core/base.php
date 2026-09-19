@@ -33,6 +33,24 @@ $styleFiles = [
     '^shared/footer/style.css',
 ];
 $viewRoot = dirname(__DIR__);
+$projectRoot = dirname($viewRoot, 2);
+$assetUrl = static function (string $url) use ($projectRoot, $baseUrl): string {
+    $path = (string) parse_url($url, PHP_URL_PATH);
+    if ($baseUrl !== '' && str_starts_with($path, $baseUrl . '/')) {
+        $path = substr($path, strlen($baseUrl));
+    }
+    $localPath = $projectRoot . '/' . ltrim($path, '/');
+    if (!is_file($localPath) || !is_readable($localPath)) {
+        return $url;
+    }
+
+    $hash = hash_file('sha256', $localPath);
+    if (!is_string($hash) || $hash === '') {
+        return $url;
+    }
+
+    return $url . (str_contains($url, '?') ? '&' : '?') . 'v=' . rawurlencode(substr($hash, 0, 12));
+};
 $runtimeConfig = json_encode([
     'socketTicket' => $socketTicket,
     'socketUrl' => $socketUrl,
@@ -87,12 +105,12 @@ $partialData = [
 ?>
 <?php endforeach; ?>
     </style>
-    <link rel="stylesheet" href="<?= $view->e($baseUrl) ?>/assets/font-awesome/css/font-awesome.min.css">
-    <link rel="stylesheet" href="<?= $view->e($baseUrl) ?>/assets/css/findability.css">
-    <link rel="stylesheet" href="<?= $view->e($baseUrl) ?>/assets/css/feedback.css">
-    <link rel="stylesheet" href="<?= $view->e($baseUrl) ?>/assets/css/messenger-connection-ux.css">
+    <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/font-awesome/css/font-awesome.min.css')) ?>">
+    <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/css/findability.css')) ?>">
+    <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/css/feedback.css')) ?>">
+    <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/css/messenger-connection-ux.css')) ?>">
 <?php foreach ($moduleStyles as $moduleStyle): ?>
-    <link rel="stylesheet" href="<?= $view->e($moduleStyle) ?>">
+    <link rel="stylesheet" href="<?= $view->e($assetUrl($moduleStyle)) ?>">
 <?php endforeach; ?>
     <style nonce="<?= $view->e($cspNonce) ?>">
 <?php
@@ -105,7 +123,7 @@ if (is_file($controlsPath) && is_readable($controlsPath)) {
 }
 ?>
     </style>
-    <link rel="stylesheet" href="<?= $view->e($baseUrl) ?>/assets/css/workspace-ui-1.0.css?v=<?= rawurlencode($workspaceVersion) ?>">
+    <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/css/workspace-ui-1.0.css')) ?>">
     <link rel="icon" href="<?= $view->e($baseUrl) ?>/favicon.ico" type="image/x-icon">
     <template id="csrf-token-template"><?= $view->csrfInput() ?></template>
     <script nonce="<?= $view->e($cspNonce) ?>">window.wspaceRuntime = <?= $runtimeConfig ?>; window.wspace = window.wspace || {};</script>
