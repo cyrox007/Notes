@@ -81,6 +81,8 @@ MAX_UPLOAD_SIZE=10485760
 EOF
 chmod 600 .env
 
+php tests/support/ci_license_fixture.php
+
 checkpoint 'seed user and valid minimum quota'
 HASH="$(php -r 'echo password_hash($argv[1], PASSWORD_ARGON2ID);' "$PASSWORD")"
 "${mysql_cmd[@]}" <<SQL
