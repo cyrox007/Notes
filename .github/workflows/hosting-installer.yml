@@ -55,6 +55,8 @@ jobs:
           grep -Fq 'writeEnvironmentFile' install.php
           grep -Fq 'WS_PUBLIC_URL' install.php
           grep -Fq 'BASE_PATH' install.php
+          grep -Fq "installerUsesDirectLocalWebSocket" install.php
+          grep -Fq "return 'ws://127.0.0.1:27800';" install.php
           test -f database/settings_schema.sql
           test -f database/access_control_schema.sql
           test -f database/module_lifecycle_schema.sql
