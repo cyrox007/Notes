@@ -1,0 +1,12 @@
+# Keep executable/tooling scripts portable across Windows and Unix checkouts.
+*.sh text eol=lf
+
+# Keep project source/docs normalized as text.
+*.php text
+*.js text
+*.mjs text
+*.css text
+*.json text
+*.md text
+*.yml text
+*.yaml text
