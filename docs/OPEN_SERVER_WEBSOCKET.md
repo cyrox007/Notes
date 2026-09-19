@@ -4,67 +4,60 @@
 
 Web-installer распознаёт локальную Windows-структуру OpenServer/OSPanel вида `...\\domains\\<host>` и предлагает профиль **OpenServer / локальная Windows-установка**.
 
-Для custom local domain вроде `http://notes.local` installer **не использует прямой** `ws://127.0.0.1:27800`. В современных Chromium-браузерах Local Network Access распространяется на WebSocket-соединения к loopback/local адресам, а permission flow требует secure context. Поэтому надёжный вариант для `notes.local` — same-origin WebSocket URL через веб-сервер:
+Для обычного HTTP local-domain, например `http://notes.local`, Messenger теперь подключается **напрямую к тому же hostname**, но к native WebSocket порту:
 
 ```env
 SITEURL=http://notes.local
 BASE_PATH=/
 WS_HOST=127.0.0.1
 WS_PORT=27800
-WS_PUBLIC_URL=ws://notes.local/ws
+WS_PUBLIC_URL=ws://notes.local:27800
 WS_ALLOWED_ORIGINS=http://notes.local
 ```
 
-Для HTTPS локального домена installer соответственно формирует:
+Это важное отличие от `ws://127.0.0.1:27800`: browser-origin и WebSocket endpoint используют один и тот же local hostname, поэтому для HTTP OpenServer не нужен Apache/Nginx WebSocket proxy и не создаётся отдельный cross-host loopback access.
 
-```env
-WS_PUBLIC_URL=wss://notes.local/ws
-WS_ALLOWED_ORIGINS=https://notes.local
-```
+Native server всё равно слушает только `127.0.0.1:27800`; имя `notes.local` должно резолвиться OpenServer/hosts в loopback, как и сам HTTP-сайт.
 
-Native process всё равно слушает только loopback `127.0.0.1:27800`. Apache/Nginx принимает browser WebSocket Upgrade на `/ws` и проксирует его к listener.
-
-После установки:
+После установки запустите:
 
 ```powershell
 php ws_server/server.php start
 ```
 
-Окно с процессом нужно оставить работающим. В другом терминале:
+Окно с процессом оставьте работающим. В другом терминале:
 
 ```powershell
 php ws_server/server.php status
 php bin/ws_doctor.php
 ```
 
-Для Apache проект уже содержит `.htaccess` bridge на стандартный порт `27800`. Он требует `mod_proxy` и `mod_proxy_wstunnel` либо Apache с совместимой поддержкой WebSocket Upgrade через `mod_proxy_http`.
+Ожидаемый режим doctor:
 
-Проверка модулей из OpenServer shell:
-
-```powershell
-httpd -M
+```text
+[INFO] Deployment mode — direct/custom WebSocket endpoint
+[OK] OpenServer direct-host mode
+[OK] Native WebSocket listener reachable — 127.0.0.1:27800
 ```
 
-В выводе должны присутствовать proxy modules. Если proxy modules недоступны, включите их в активной конфигурации Apache или используйте Nginx reverse proxy.
+Для **HTTPS** direct mode не используется: native listener не завершает TLS. При `https://notes.local` нужен `wss://notes.local/ws` через Apache/Nginx reverse proxy на `127.0.0.1:27800`.
 
 ## OSPanel / OpenServer 5.2.2
 
-OpenServer 5.2.2 использует старую структуру `domains\\...` и не поддерживает project-local `.osp\\Apache` / `.osp\\Nginx` конфигурацию из Open Server 6. Поэтому `ws_doctor` не должен предлагать `.osp` пути для такой установки.
+OpenServer 5.2.2 использует старую структуру `domains\\...` и не поддерживает project-local `.osp\\Apache` / `.osp\\Nginx` конфигурацию Open Server 6.
 
-На OSPanel 5.x оставляйте browser endpoint same-origin:
+Для HTTP локальной разработки используйте direct-host режим:
 
 ```env
 SITEURL=http://notes.local
 BASE_PATH=/
 WS_HOST=127.0.0.1
 WS_PORT=27800
-WS_PUBLIC_URL=ws://notes.local/ws
+WS_PUBLIC_URL=ws://notes.local:27800
 WS_ALLOWED_ORIGINS=http://notes.local
 ```
 
-При HTTPS используйте `https://notes.local` + `wss://notes.local/ws`.
-
-Если packaged `.htaccess` bridge не срабатывает, проверьте, что Apache действительно загрузил proxy modules. Для OSPanel 5.x конфигурация Apache хранится в legacy `userdata/config`/active module templates, а не в project-local `.osp` каталоге. После изменения Apache обязательно перезапустите OpenServer.
+Такой режим специально нужен, чтобы Messenger можно было тестировать на OpenServer 5.x без настройки reverse proxy.
 
 ## Почему одного PHP-сайта недостаточно
 
