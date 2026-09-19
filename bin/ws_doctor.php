@@ -97,6 +97,28 @@ if (!$sameOriginProxy && PHP_OS_FAMILY === 'Windows') {
 }
 if ($sameOriginProxy) {
     wsDoctorLine('INFO', 'Required proxy', $proxyPath . ' -> ' . $backend);
+
+    $siteScheme = strtolower((string) parse_url($siteUrl, PHP_URL_SCHEME));
+    $siteHost = strtolower((string) parse_url($siteUrl, PHP_URL_HOST));
+    $looksLikeOpenServerLocal = PHP_OS_FAMILY === 'Windows'
+        && $siteScheme === 'http'
+        && (
+            in_array($siteHost, ['localhost', '127.0.0.1', '::1'], true)
+            || str_ends_with($siteHost, '.local')
+        );
+
+    if ($looksLikeOpenServerLocal) {
+        wsDoctorLine(
+            'WARN',
+            'OpenServer/OSPanel local HTTP',
+            'same-origin /ws needs a configured proxy; for same-machine OSPanel 5.x use WS_PUBLIC_URL=ws://127.0.0.1:' . $port
+        );
+        wsDoctorLine(
+            'INFO',
+            'After changing WS_PUBLIC_URL',
+            'restart the HTTP environment and the native WebSocket process, then reload Messenger'
+        );
+    }
 }
 
 $connectHost = wsDoctorConnectHost($bindHost);
