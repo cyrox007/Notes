@@ -378,6 +378,7 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 - [`docs/HOSTING_INSTALL.md`](docs/HOSTING_INSTALL.md) — fresh install на shared hosting без Composer/CLI.
 - [`docs/PRODUCTION.md`](docs/PRODUCTION.md) — deployment, WSS, rate limiting и production checklist.
 - [`docs/OPERATIONS.md`](docs/OPERATIONS.md) — backup/restore drill, multi-node rate limiting, trusted proxies и key-rotation procedures.
+- [`docs/LICENSE_ISSUANCE.md`](docs/LICENSE_ISSUANCE.md) — выпуск одной installation-bound лицензии и безопасная передача/активация token.
 - [`docs/RELEASE_GOVERNANCE.md`](docs/RELEASE_GOVERNANCE.md) — required checks, branch protection и review policy.
 - [`docs/PRODUCT_UX_0.13.md`](docs/PRODUCT_UX_0.13.md) — закрытый 0.13 scope и beta backlog.
 - [`TASKS_MODULE_README.md`](TASKS_MODULE_README.md) — дополнительная документация Tasks.
