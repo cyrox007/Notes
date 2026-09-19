@@ -1,6 +1,23 @@
+/* Messenger dialogs live outside .messenger-app in the DOM. Keep module tokens
+   on the page scope so native <dialog> top-layer content and body-level toasts
+   inherit the same palette instead of falling back to transparent/default CSS. */
+.workspace-viewport--messenger{
+  --module-accent:#2c8ecf;
+  --module-soft:#e9f6fd;
+  --msg-bg:var(--ui-bg);
+  --msg-surface:var(--ui-surface);
+  --msg-soft:var(--ui-surface-soft);
+  --msg-border:var(--ui-border);
+  --msg-text:var(--ui-text);
+  --msg-muted:var(--ui-muted);
+  --msg-accent:var(--module-accent,var(--ui-primary));
+  --msg-accent-soft:var(--module-soft,var(--ui-primary-soft))
+}
+html[data-theme="dark"] .workspace-viewport--messenger{
+  --module-accent:#74c8f8;
+  --module-soft:#143044
+}
 .messenger-app{
-  --msg-bg:var(--ui-bg);--msg-surface:var(--ui-surface);--msg-soft:var(--ui-surface-soft);--msg-border:var(--ui-border);
-  --msg-text:var(--ui-text);--msg-muted:var(--ui-muted);--msg-accent:var(--module-accent,var(--ui-primary));--msg-accent-soft:var(--module-soft,var(--ui-primary-soft));
   width:100%;min-width:0;min-height:0;flex:1;display:grid;grid-template-columns:300px minmax(0,1fr);overflow:hidden;border:1px solid var(--msg-border);border-radius:14px;background:var(--msg-surface);box-shadow:var(--ui-shadow-sm)
 }
 .messenger-app [hidden]{display:none!important}
@@ -32,11 +49,13 @@
   width:min(600px,calc(100vw - 32px));
   max-height:min(720px,calc(100vh - 48px));
   padding:0;
+  overflow:hidden;
   border:1px solid var(--msg-border);
   border-radius:16px;
   background:var(--msg-surface);
   color:var(--msg-text);
-  box-shadow:0 28px 80px rgba(7,13,25,.28)
+  box-shadow:0 28px 80px rgba(7,13,25,.28);
+  isolation:isolate
 }
 .messenger-dialog-modal::backdrop{
   background:rgba(6,12,24,.48)
