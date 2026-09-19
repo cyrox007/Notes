@@ -33,7 +33,7 @@ https://example.com/workspace/install.php
 ```
 
 5. Installer проверит PHP/extensions, встроенный core runtime, native WebSocket runtime, writable runtime dirs и private storage.
-6. Укажите MySQL credentials. Мастер определит/создаст `SITEURL`, `BASE_PATH`, `WS_PUBLIC_URL`, `WS_ALLOWED_ORIGINS`, private storage и секреты.
+6. Укажите MySQL credentials. Мастер определит/создаст `SITEURL`, `BASE_PATH`, `WS_PUBLIC_URL`, `WS_ALLOWED_ORIGINS`, private storage и секреты. На Windows/OpenServer с layout `domains\\...` и HTTP installer автоматически предлагает локальный профиль с прямым `ws://127.0.0.1:27800`, без reverse proxy.
 7. Создайте первого администратора.
 8. После успешного завершения `.env` блокирует повторный доступ к installer.
 
