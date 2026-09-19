@@ -1,11 +1,11 @@
 .profile-metrics {
   margin-bottom: 14px;
   padding: 20px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--ui-border, var(--border));
   border-radius: 18px;
   background:
-    radial-gradient(circle at 100% 0, rgba(47,103,232,.08), transparent 20rem),
-    linear-gradient(145deg, #fff, #f8fbff);
+    radial-gradient(circle at 100% 0, color-mix(in srgb, var(--ui-primary, #2f67e8) 8%, transparent), transparent 20rem),
+    linear-gradient(145deg, var(--ui-surface, #fff), var(--ui-surface-soft, #f8fbff));
   box-shadow: var(--shadow-sm);
 }
 
@@ -24,7 +24,7 @@
 
 .profile-metrics__heading p {
   margin: 0;
-  color: var(--text-muted);
+  color: var(--ui-muted, var(--text-muted));
   font-size: 12px;
   line-height: 1.5;
 }
@@ -37,9 +37,9 @@
   justify-content: center;
   gap: 7px;
   padding: 8px 11px;
-  color: #355071;
-  background: #fff;
-  border: 1px solid var(--border);
+  color: var(--ui-text-soft, #355071);
+  background: var(--ui-surface, #fff);
+  border: 1px solid var(--ui-border, var(--border));
   border-radius: 10px;
   font: inherit;
   font-size: 12px;
@@ -49,8 +49,8 @@
 
 .profile-metrics__settings:hover,
 .profile-metrics__settings:focus-visible {
-  color: var(--primary);
-  border-color: #bfd0ea;
+  color: var(--ui-primary, var(--primary));
+  border-color: color-mix(in srgb, var(--ui-primary, #2f67e8) 24%, var(--ui-border, #bfd0ea));
   outline: none;
 }
 
@@ -68,9 +68,9 @@
   gap: 10px;
   align-items: center;
   padding: 13px;
-  color: var(--text);
-  background: rgba(255,255,255,.88);
-  border: 1px solid #e2e9f2;
+  color: var(--ui-text, var(--text));
+  background: color-mix(in srgb, var(--ui-surface, #fff) 92%, transparent);
+  border: 1px solid var(--ui-border, #e2e9f2);
   border-radius: 14px;
   text-decoration: none;
   transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
@@ -78,8 +78,8 @@
 
 .profile-metric:hover,
 .profile-metric:focus-visible {
-  color: var(--text);
-  border-color: #bfd0ea;
+  color: var(--ui-text, var(--text));
+  border-color: color-mix(in srgb, var(--ui-primary, #2f67e8) 24%, var(--ui-border, #bfd0ea));
   box-shadow: var(--shadow-sm);
   transform: translateY(-2px);
   outline: none;
@@ -90,21 +90,21 @@
   height: 40px;
   display: grid;
   place-items: center;
-  color: #2f67e8;
-  background: #edf4ff;
+  color: var(--ui-primary, #2f67e8);
+  background: var(--ui-primary-soft, #edf4ff);
   border-radius: 11px;
   font-size: 16px;
 }
 
 .profile-metric--tasks .profile-metric__icon {
-  color: #15803d;
-  background: #eefbf2;
+  color: var(--ui-success, #15803d);
+  background: var(--ui-success-soft, #eefbf2);
 }
 
 .profile-metric--files .profile-metric__icon,
 .profile-metric--storage .profile-metric__icon {
-  color: #b45309;
-  background: #fff8e8;
+  color: var(--ui-warning, #b45309);
+  background: var(--ui-warning-soft, #fff8e8);
 }
 
 .profile-metric__body,
@@ -124,7 +124,7 @@
 .profile-metric__label {
   margin-top: 5px;
   overflow: hidden;
-  color: var(--text-muted);
+  color: var(--ui-muted, var(--text-muted));
   font-size: 10px;
   line-height: 1.35;
   text-overflow: ellipsis;
@@ -132,7 +132,7 @@
 }
 
 .profile-metric__arrow {
-  color: #9aa9bb;
+  color: var(--ui-muted, #9aa9bb);
 }
 
 .profile-metric__progress {
@@ -143,23 +143,23 @@
   margin-top: 7px;
   appearance: none;
   -webkit-appearance: none;
-  background: #e9eef5;
+  background: var(--ui-surface-strong, #e9eef5);
   border: 0;
   border-radius: 999px;
 }
 
 .profile-metric__progress::-webkit-progress-bar {
-  background: #e9eef5;
+  background: var(--ui-surface-strong, #e9eef5);
   border-radius: 999px;
 }
 
 .profile-metric__progress::-webkit-progress-value {
-  background: linear-gradient(90deg, #2f67e8, #65a2ff);
+  background: linear-gradient(90deg, var(--ui-primary, #2f67e8), color-mix(in srgb, var(--ui-primary, #2f67e8) 62%, white));
   border-radius: 999px;
 }
 
 .profile-metric__progress::-moz-progress-bar {
-  background: linear-gradient(90deg, #2f67e8, #65a2ff);
+  background: linear-gradient(90deg, var(--ui-primary, #2f67e8), color-mix(in srgb, var(--ui-primary, #2f67e8) 62%, white));
   border-radius: 999px;
 }
 
@@ -187,4 +187,24 @@
   .profile-metric {
     transition: none;
   }
+}
+
+
+html[data-theme="dark"] .profile-metrics {
+  background:
+    radial-gradient(circle at 100% 0, color-mix(in srgb, var(--ui-primary) 12%, transparent), transparent 20rem),
+    linear-gradient(145deg, var(--ui-surface), var(--ui-surface-soft));
+  border-color: var(--ui-border);
+}
+
+html[data-theme="dark"] .profile-metric,
+html[data-theme="dark"] .profile-metrics__settings {
+  color: var(--ui-text);
+  background: var(--ui-surface);
+  border-color: var(--ui-border);
+}
+
+html[data-theme="dark"] .profile-metric__progress,
+html[data-theme="dark"] .profile-metric__progress::-webkit-progress-bar {
+  background: var(--ui-surface-strong);
 }
