@@ -1,5 +1,34 @@
 # Open Server 6+: Messenger WebSocket
 
+## Fresh install: профиль OpenServer local
+
+Web-installer теперь распознаёт локальную Windows-структуру OpenServer/OSPanel вида `...\\domains\\<host>` и, если installer открыт по HTTP, по умолчанию выбирает профиль **OpenServer / локальная Windows-установка**.
+
+В этом профиле installer сам записывает:
+
+```env
+SITEURL=http://<локальный-домен>
+WS_HOST=127.0.0.1
+WS_PORT=27800
+WS_PUBLIC_URL=ws://127.0.0.1:27800
+WS_ALLOWED_ORIGINS=http://<локальный-домен>
+```
+
+То есть новый локальный install больше не требует ручной правки `.env` и не зависит от Apache/Nginx proxy для Messenger. После установки достаточно запустить из корня проекта отдельный foreground-процесс:
+
+```powershell
+php ws_server/server.php start
+```
+
+Окно с процессом нужно оставить работающим. В другом терминале проверяйте:
+
+```powershell
+php ws_server/server.php status
+php bin/ws_doctor.php
+```
+
+Если OpenServer-сайт открыт по HTTPS, installer не использует direct-local профиль автоматически: браузер не разрешит `ws://127.0.0.1:27800` со страницы HTTPS. Для такого режима нужен `wss://.../ws` и WebSocket reverse proxy, либо installer следует открыть по HTTP для обычной локальной разработки.
+
 ## OSPanel / OpenServer 5.2.2 + HTTP: простой локальный режим
 
 OpenServer 5.2.2 использует старую структуру `domains\...` и не поддерживает project-local `.osp\Apache` / `.osp\Nginx` конфигурацию из Open Server 6. Для локальной разработки на **одном Windows-компьютере** reverse proxy можно вообще не использовать.
