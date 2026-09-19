@@ -62,16 +62,18 @@ async function login(page, scenarioName) {
 }
 
 async function assertMobileShell(page, scenarioName) {
-  const control = page.locator('#sidebarControl');
+  const control = page.locator('.navbar__menu-button[data-sidebar-toggle]');
   const sidebar = page.locator('#workspaceSidebar');
   await control.waitFor({ state: 'visible', timeout: 10000 });
   await sidebar.waitFor({ state: 'attached', timeout: 10000 });
 
-  await page.waitForFunction(() => document.getElementById('sidebarControl')?.getAttribute('aria-expanded') === 'false');
+  await page.waitForFunction(() => (
+    document.querySelector('.navbar__menu-button[data-sidebar-toggle]')?.getAttribute('aria-expanded') === 'false'
+  ));
   await control.click();
   await page.waitForFunction(() => (
     document.getElementById('workspaceSidebar')?.classList.contains('sidebar--open')
-    && document.getElementById('sidebarControl')?.getAttribute('aria-expanded') === 'true'
+    && document.querySelector('.navbar__menu-button[data-sidebar-toggle]')?.getAttribute('aria-expanded') === 'true'
   ));
 
   const backdropVisible = await page.locator('.sidebar-backdrop').evaluate(el => el.classList.contains('is-visible'));
@@ -82,7 +84,7 @@ async function assertMobileShell(page, scenarioName) {
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => (
     !document.getElementById('workspaceSidebar')?.classList.contains('sidebar--open')
-    && document.getElementById('sidebarControl')?.getAttribute('aria-expanded') === 'false'
+    && document.querySelector('.navbar__menu-button[data-sidebar-toggle]')?.getAttribute('aria-expanded') === 'false'
   ));
 }
 
