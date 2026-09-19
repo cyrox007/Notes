@@ -33,7 +33,7 @@ https://example.com/workspace/install.php
 ```
 
 5. Installer проверит PHP/extensions, встроенный core runtime, native WebSocket runtime, writable runtime dirs и private storage.
-6. Укажите MySQL credentials. Мастер определит/создаст `SITEURL`, `BASE_PATH`, `WS_PUBLIC_URL`, `WS_ALLOWED_ORIGINS`, private storage и секреты. На Windows/OpenServer с layout `domains\\...` installer автоматически предлагает локальный профиль, но оставляет Messenger на same-origin `/ws` через reverse proxy; прямой loopback WebSocket больше не используется для custom local domains из-за современных Chromium Local Network Access ограничений.
+6. Укажите MySQL credentials. Мастер определит/создаст `SITEURL`, `BASE_PATH`, `WS_PUBLIC_URL`, `WS_ALLOWED_ORIGINS`, private storage и секреты. На Windows/OpenServer с layout `domains\\...` и HTTP installer автоматически предлагает direct-host профиль вида `ws://notes.local:27800`, чтобы Messenger можно было тестировать без reverse proxy. Для HTTPS остаётся `wss://.../ws` через proxy.
 7. Создайте первого администратора.
 8. После успешного завершения `.env` блокирует повторный доступ к installer.
 
