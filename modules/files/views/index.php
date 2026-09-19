@@ -62,6 +62,9 @@ $formatSize = static function (mixed $value): string {
 
 ob_start();
 ?>
+<section class="module-page-header module-page-header--files">
+    <div><span class="module-page-header__eyebrow">Хранилище</span><h1>Файлы</h1><p>Папки, документы и защищённые загрузки.</p></div>
+</section>
 <div class="file-manager"<?php if ($currentFolder !== null): ?> data-current-folder-id="<?= $view->e($currentFolder['id'] ?? '') ?>"<?php endif; ?>>
     <div class="file-manager__toolbar">
         <div class="file-manager__breadcrumb" aria-label="Путь к папке">
@@ -86,7 +89,7 @@ ob_start();
                 <i class="fa fa-folder-o" aria-hidden="true"></i> Новая папка
             </button>
             <button id="btn-upload-file" type="button" class="file-manager__btn file-manager__btn--success">
-                <i class="fa fa-upload" aria-hidden="true"></i> Загрузить файл
+                <i class="fa fa-upload" aria-hidden="true"></i> Загрузить
             </button>
             <input type="file" id="file-input" hidden multiple>
         </div>
