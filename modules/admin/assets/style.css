@@ -50,5 +50,5 @@
 .admin-create-user summary h2{color:var(--ui-primary);font-size:13px}
 .admin-create-user[open] summary{border-bottom:1px solid var(--ui-border)}
 .admin-result-count{display:inline-block;margin-left:10px;font-size:12px;font-weight:400;color:var(--ui-muted)}
-.admin-users-search{padding:12px 16px;border-bottom:1px solid var(--ui-border)}
+.admin-users-search{padding:10px 14px;border-bottom:1px solid var(--ui-border);background:var(--ui-surface)}
 .admin-role{display:inline-flex;padding:3px 8px;border-radius:6px;background:var(--ui-primary-soft);color:var(--ui-primary);font-size:12px}
