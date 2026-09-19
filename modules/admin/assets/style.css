@@ -53,6 +53,13 @@
 .admin-role{display:inline-flex;padding:3px 8px;border-radius:6px;background:var(--ui-primary-soft);color:var(--ui-primary);font-size:12px}
 
 
+/* A cached pre-separation findability.js can still inject the obsolete Admin toolbar.
+   Keep legacy generic controls invisible on Admin; the server-rendered .admin-toolbar is canonical. */
+.admin-page .list-findability,
+.admin-page .list-pagination{
+  display:none!important
+}
+
 /* Admin owns its user-list controls. Do not couple this surface to generic findability UI. */
 .admin-toolbar{
   display:grid;
