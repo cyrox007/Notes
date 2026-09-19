@@ -163,8 +163,28 @@ function appUrl(string $siteUrl, string $basePath): string
     return rtrim($siteUrl, '/') . ($basePath === '/' ? '/' : $basePath);
 }
 
+function installerUsesDirectLocalWebSocket(string $siteUrl): bool
+{
+    if (PHP_OS_FAMILY !== 'Windows' || !str_starts_with(strtolower($siteUrl), 'http://')) {
+        return false;
+    }
+
+    $host = strtolower((string) parse_url($siteUrl, PHP_URL_HOST));
+    return in_array($host, ['localhost', '127.0.0.1', '::1'], true)
+        || str_ends_with($host, '.local');
+}
+
 function defaultWebSocketUrl(string $siteUrl, string $basePath): string
 {
+    // OpenServer/OSPanel 5.x local HTTP projects commonly do not expose a
+    // configurable WebSocket reverse proxy. For a same-machine *.local Windows
+    // installation the browser can safely connect straight to the loopback
+    // listener while preserving the actual application Origin for server-side
+    // validation. HTTPS and non-local deployments continue to use /ws proxying.
+    if (installerUsesDirectLocalWebSocket($siteUrl)) {
+        return 'ws://127.0.0.1:27800';
+    }
+
     $scheme = str_starts_with($siteUrl, 'https://') ? 'wss://' : 'ws://';
     $authority = preg_replace('#^https?://#', '', $siteUrl) ?: 'localhost';
     $prefix = $basePath === '/' ? '' : rtrim($basePath, '/');
@@ -643,7 +663,7 @@ $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SU
                 <label>Private storage<input name="private_storage_path" value="<?= htmlspecialchars((string)($_POST['private_storage_path'] ?? $detectedPrivateStorage),ENT_QUOTES,'UTF-8') ?>" required><small>Абсолютный путь вне document root.</small></label>
                 <label>SITEURL<input name="site_url" value="<?= htmlspecialchars((string)($_POST['site_url'] ?? $detectedSiteUrl),ENT_QUOTES,'UTF-8') ?>" required></label>
                 <label>BASE_PATH<input name="base_path" value="<?= htmlspecialchars((string)($_POST['base_path'] ?? $detectedBasePath),ENT_QUOTES,'UTF-8') ?>" required></label>
-                <?php if ($hasMessenger): ?><label>WS_PUBLIC_URL<input name="ws_public_url" value="<?= htmlspecialchars((string)($_POST['ws_public_url'] ?? $detectedWsUrl),ENT_QUOTES,'UTF-8') ?>" required><small>Для HTTPS используйте wss://.</small></label><?php endif; ?>
+                <?php if ($hasMessenger): ?><label>WS_PUBLIC_URL<input name="ws_public_url" value="<?= htmlspecialchars((string)($_POST['ws_public_url'] ?? $detectedWsUrl),ENT_QUOTES,'UTF-8') ?>" required><small>Windows + HTTP *.local: прямой ws://127.0.0.1:27800. Для HTTPS/production используйте same-origin wss://.../ws через reverse proxy.</small></label><?php endif; ?>
             </fieldset><button type="submit">Подготовить проект</button>
         </form>
     <?php elseif ($step === 3): ?>
