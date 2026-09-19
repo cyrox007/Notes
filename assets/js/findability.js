@@ -35,7 +35,9 @@
         const form = document.createElement('form');
         form.method = 'get';
         form.action = path;
-        form.className = 'list-findability';
+        form.className = kind === 'admin'
+            ? 'list-findability list-findability--admin'
+            : 'list-findability';
         form.setAttribute('role', 'search');
 
         const searchLabel = document.createElement('label');
@@ -85,6 +87,7 @@
             form.appendChild(sortLabel);
 
             const direction = document.createElement('select');
+            direction.className = 'list-findability__direction';
             direction.name = 'direction';
             direction.setAttribute('aria-label', 'Направление сортировки');
             [['asc', '↑'], ['desc', '↓']].forEach(([value, label]) => {
