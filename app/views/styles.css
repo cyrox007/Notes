@@ -3,17 +3,4 @@
 {include file="^elements/UI/FormInput/style.css"}
 {include file="^shared/sidebar/style.css"}
 {include file="^shared/header/style.css"}
-
-{include file="profile_page/style.css"}
-{include file="notes_page/style.css"}
-{include file="file_manager/style.css"}
-{include file="messager_page/style.css"}
-
 {include file="^shared/footer/style.css"}
-
-{include file="core/theme-refresh.css"}
-{include file="core/product-ux-013.css"}
-{include file="notes_page/editor-013.css"}
-{* Profile hub/public profile is a module-specific final layer. *}
-{include file="profile_page/hub.css"}
-{include file="profile_page/metrics.css"}
