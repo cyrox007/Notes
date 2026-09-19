@@ -1,25 +1,25 @@
 .messenger-app {
-    --msg-bg: #f3f5f7;
-    --msg-surface: #ffffff;
-    --msg-border: #e4e8ed;
-    --msg-text: #202833;
-    --msg-muted: #778290;
-    --msg-accent: #3977d5;
-    --msg-accent-soft: #eaf2ff;
-    --msg-own: #dfefff;
-    --msg-other: #ffffff;
-    --msg-danger: #c94242;
+    --msg-bg: var(--ui-surface-soft, #f6f8fc);
+    --msg-surface: var(--ui-surface, #ffffff);
+    --msg-border: var(--ui-border, #e3e9f2);
+    --msg-text: var(--ui-text, #162033);
+    --msg-muted: var(--ui-muted, #758196);
+    --msg-accent: var(--ui-primary, #356df3);
+    --msg-accent-soft: var(--ui-primary-soft, #edf3ff);
+    --msg-own: color-mix(in srgb, var(--msg-accent) 13%, var(--msg-surface));
+    --msg-other: var(--msg-surface);
+    --msg-danger: var(--ui-danger, #df4b53);
     display: grid;
-    grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
-    height: min(780px, calc(100dvh - 150px));
-    min-height: 540px;
+    grid-template-columns: minmax(270px, 320px) minmax(0, 1fr);
+    height: min(860px, calc(100dvh - 78px));
+    min-height: 520px;
     margin: 0;
     overflow: hidden;
     color: var(--msg-text);
     background: var(--msg-bg);
     border: 1px solid var(--msg-border);
-    border-radius: 16px;
-    box-shadow: 0 10px 36px rgba(38, 50, 65, .08);
+    border-radius: 12px;
+    box-shadow: var(--ui-shadow-xs, 0 1px 2px rgba(24, 32, 51, .04));
 }
 
 .messenger-app [hidden] {
@@ -36,13 +36,13 @@
 
 .messenger-list__header,
 .messenger-chat__header {
-    min-height: 70px;
+    min-height: 56px;
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px 16px;
+    padding: 9px 12px;
     border-bottom: 1px solid var(--msg-border);
-    background: rgba(255, 255, 255, .96);
+    background: color-mix(in srgb, var(--msg-surface) 96%, transparent);
 }
 
 .messenger-list__header {
@@ -51,7 +51,7 @@
 
 .messenger-list__title {
     margin: 0;
-    font-size: 20px;
+    font-size: 15px;
     line-height: 1.25;
     font-weight: 700;
 }
@@ -101,7 +101,7 @@
     display: inline-grid;
     place-items: center;
     padding: 0;
-    color: #596573;
+    color: var(--msg-muted);
     background: transparent;
     border: 0;
     border-radius: 50%;
@@ -130,7 +130,7 @@
     left: 12px;
     top: 50%;
     transform: translateY(-50%);
-    color: #9aa4af;
+    color: var(--msg-muted);
     pointer-events: none;
 }
 
@@ -139,7 +139,7 @@
     width: 100%;
     box-sizing: border-box;
     color: var(--msg-text);
-    background: #f5f7f9;
+    background: var(--ui-surface-soft, #f6f8fc);
     border: 1px solid transparent;
     border-radius: 11px;
     outline: none;
@@ -152,9 +152,9 @@
 
 .messenger-search input:focus,
 .messenger-field input:focus {
-    background: #fff;
-    border-color: #a9c8f5;
-    box-shadow: 0 0 0 3px rgba(57, 119, 213, .1);
+    background: var(--msg-surface);
+    border-color: color-mix(in srgb, var(--msg-accent) 28%, var(--msg-border));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--msg-accent) 10%, transparent);
 }
 
 .messenger-dialogs {
@@ -283,7 +283,7 @@
 
 .messenger-list__empty strong,
 .messenger-chat__empty strong {
-    color: #4e5967;
+    color: var(--msg-text);
 }
 
 .messenger-chat {
@@ -341,7 +341,7 @@
 }
 
 .messenger-chat__identity span[data-state="online"] {
-    color: #31825a;
+    color: var(--ui-success, #20a46b);
 }
 
 .messenger-chat__back {
@@ -361,14 +361,14 @@
     margin: 0 auto 14px;
     padding: 7px 12px;
     color: var(--msg-accent);
-    background: rgba(255, 255, 255, .82);
-    border: 1px solid #dce6f2;
+    background: color-mix(in srgb, var(--msg-surface) 88%, transparent);
+    border: 1px solid var(--msg-border);
     border-radius: 999px;
     cursor: pointer;
 }
 
 .messenger-history__older:hover {
-    background: #fff;
+    background: var(--msg-surface);
 }
 
 .messenger-messages {
@@ -381,9 +381,9 @@
     align-self: center;
     margin: 11px 0;
     padding: 5px 10px;
-    color: #687585;
-    background: rgba(255, 255, 255, .86);
-    border: 1px solid rgba(222, 228, 235, .9);
+    color: var(--msg-muted);
+    background: color-mix(in srgb, var(--msg-surface) 90%, transparent);
+    border: 1px solid var(--msg-border);
     border-radius: 999px;
     font-size: 11px;
     box-shadow: 0 2px 10px rgba(38, 50, 65, .04);
@@ -415,21 +415,21 @@
     min-width: 74px;
     padding: 8px 10px 6px;
     background: var(--msg-other);
-    border: 1px solid rgba(218, 224, 231, .9);
+    border: 1px solid var(--msg-border);
     border-radius: 14px 14px 14px 4px;
     box-shadow: 0 1px 2px rgba(31, 42, 55, .06);
 }
 
 .messenger-message--own .messenger-message__bubble {
     background: var(--msg-own);
-    border-color: #cfe2f7;
+    border-color: color-mix(in srgb, var(--msg-accent) 18%, var(--msg-border));
     border-radius: 14px 14px 4px 14px;
 }
 
 .messenger-message__author {
     display: block;
     margin-bottom: 3px;
-    color: #416eaa;
+    color: var(--msg-accent);
     font-size: 12px;
 }
 
@@ -447,13 +447,13 @@
     align-items: center;
     gap: 4px;
     margin-top: 3px;
-    color: #748190;
+    color: var(--msg-muted);
     font-size: 10px;
     line-height: 1;
 }
 
 .messenger-message__status {
-    color: #3377c8;
+    color: var(--msg-accent);
     letter-spacing: -2px;
     padding-right: 2px;
 }
@@ -587,7 +587,7 @@
     align-items: flex-end;
     gap: 7px;
     padding: 10px 12px 12px;
-    background: rgba(255, 255, 255, .97);
+    background: color-mix(in srgb, var(--msg-surface) 97%, transparent);
     border-top: 1px solid var(--msg-border);
 }
 
@@ -601,7 +601,7 @@
     overflow-y: auto;
     padding: 9px 13px;
     color: var(--msg-text);
-    background: #f4f6f8;
+    background: var(--ui-surface-soft, #f6f8fc);
     border: 1px solid transparent;
     border-radius: 18px;
     outline: none;
@@ -611,8 +611,8 @@
 }
 
 .messenger-composer textarea:focus {
-    background: #fff;
-    border-color: #b7cff0;
+    background: var(--msg-surface);
+    border-color: color-mix(in srgb, var(--msg-accent) 28%, var(--msg-border));
 }
 
 .messenger-send-button {
@@ -645,9 +645,9 @@
     max-height: min(720px, calc(100dvh - 28px));
     padding: 0;
     color: var(--msg-text, #202833);
-    background: #fff;
+    background: var(--msg-surface);
     border: 0;
-    border-radius: 16px;
+    border-radius: 12px;
     box-shadow: 0 20px 70px rgba(23, 32, 43, .24);
 }
 
@@ -672,7 +672,7 @@
 }
 
 .messenger-dialog-modal__surface > header {
-    border-bottom: 1px solid #e7ebef;
+    border-bottom: 1px solid var(--msg-border);
 }
 
 .messenger-dialog-modal__surface > header > div {
@@ -686,12 +686,12 @@
 
 .messenger-dialog-modal__surface > header span {
     margin-top: 2px;
-    color: #7b8794;
+    color: var(--msg-muted);
     font-size: 11px;
 }
 
 .messenger-dialog-modal__surface > footer {
-    border-top: 1px solid #e7ebef;
+    border-top: 1px solid var(--msg-border);
     justify-content: flex-end;
 }
 
@@ -783,7 +783,7 @@
 
 .messenger-secondary-button {
     color: #53606e;
-    background: #fff;
+    background: var(--msg-surface);
     border: 1px solid #d9dfe6;
 }
 
@@ -892,4 +892,52 @@
     .messenger-composer {
         padding: 8px;
     }
+}
+
+
+/* Theme-safe Messenger 1.0 surface. This module CSS is rendered after the
+ * global stylesheet, so dark/light tokens must be honored here directly. */
+html[data-theme="dark"] .messenger-app {
+    --msg-bg: #0d1526;
+    --msg-surface: #111a2b;
+    --msg-border: #273550;
+    --msg-text: #edf3ff;
+    --msg-muted: #91a0ba;
+    --msg-accent: #6795ff;
+    --msg-accent-soft: #172f5b;
+    --msg-own: #17345f;
+    --msg-other: #151f32;
+}
+
+html[data-theme="dark"] .messenger-list__header,
+html[data-theme="dark"] .messenger-chat__header,
+html[data-theme="dark"] .messenger-composer {
+    background: rgba(17, 26, 43, .97);
+}
+
+html[data-theme="dark"] .messenger-search input,
+html[data-theme="dark"] .messenger-field input,
+html[data-theme="dark"] .messenger-composer textarea {
+    color: var(--msg-text);
+    background: #162136;
+}
+
+html[data-theme="dark"] .messenger-dialog-modal {
+    color: var(--msg-text);
+    background: var(--msg-surface);
+    border: 1px solid var(--msg-border);
+}
+
+html[data-theme="dark"] .messenger-day,
+html[data-theme="dark"] .messenger-history__older {
+    color: var(--msg-muted);
+    background: rgba(21, 31, 50, .92);
+    border-color: var(--msg-border);
+}
+
+html[data-theme="dark"] .messenger-chat {
+    background:
+        radial-gradient(circle at 12% 15%, rgba(103, 149, 255, .07), transparent 30%),
+        radial-gradient(circle at 88% 82%, rgba(103, 149, 255, .05), transparent 34%),
+        var(--msg-bg);
 }
