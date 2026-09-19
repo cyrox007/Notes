@@ -16,6 +16,8 @@ $canManageLicense = !empty($licenseState['can_manage']);
 $paginationData = isset($pagination) && is_array($pagination) ? $pagination : null;
 $socketTicket = isset($socket_ticket) ? (string) $socket_ticket : '';
 $socketUrl = isset($socket_url) ? (string) $socket_url : '';
+$bodyClass = isset($body_class) ? trim((string) $body_class) : '';
+$bodyClass = preg_replace('/[^a-zA-Z0-9_\- ]+/', '', $bodyClass) ?? '';
 $moduleStyles = isset($module_styles) && is_array($module_styles)
     ? array_values(array_filter($module_styles, static fn ($value): bool => is_string($value) && $value !== ''))
     : [];
@@ -138,7 +140,7 @@ if (is_file($controlsPath) && is_readable($controlsPath)) {
     <script src="<?= $view->e($moduleScript) ?>" defer></script>
 <?php endforeach; ?>
 </head>
-<body<?php if ($paginationData !== null):
+<body<?= $bodyClass !== '' ? ' class="' . $view->e($bodyClass) . '"' : '' ?><?php if ($paginationData !== null):
     $attributes = [
         'data-list-q' => $paginationData['q'] ?? '',
         'data-list-page' => $paginationData['page'] ?? 1,
