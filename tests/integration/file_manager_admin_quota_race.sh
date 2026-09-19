@@ -79,6 +79,8 @@ MAX_UPLOAD_SIZE=10485760
 EOF
 chmod 600 .env
 
+php tests/support/ci_license_fixture.php
+
 USER_HASH="$(php -r 'echo password_hash($argv[1], PASSWORD_ARGON2ID);' "$USER_PASSWORD")"
 ADMIN_HASH="$(php -r 'echo password_hash($argv[1], PASSWORD_ARGON2ID);' "$ADMIN_PASSWORD")"
 
