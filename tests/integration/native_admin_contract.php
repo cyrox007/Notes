@@ -46,6 +46,9 @@ nativeAdminAssert(str_contains($index, 'data-confirm-deactivate'), 'safe deactiv
 nativeAdminAssert(str_contains($index, "moduleAsset('admin', 'admin-page.js')"), 'module-owned admin behavior bundle is missing');
 nativeAdminAssert(str_contains($index, '$canManageRoles'), 'role manager navigation guard is missing');
 
+$adminNav = (string) file_get_contents($root . '/modules/admin/assets/admin-settings-nav.js');
+nativeAdminAssert(str_contains($adminNav, "['/admin/updates', 'fa-refresh', 'Обновления']"), 'Admin section navigation does not expose signed updates');
+
 $registration = (string) file_get_contents($root . '/modules/admin/views/registration.php');
 nativeAdminAssert(str_contains($registration, "route('admin_registration_mode')"), 'registration mode route is missing');
 nativeAdminAssert(str_contains($registration, "route('admin_registration_invite_create')"), 'invite create route is missing');

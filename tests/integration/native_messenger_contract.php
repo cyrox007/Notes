@@ -30,6 +30,10 @@ nativeMessengerAssert(str_contains($view, '$view->e($contact[\'uid\'] ?? \'\')')
 nativeMessengerAssert(str_contains($view, "'socket_ticket' => \$socket_ticket ?? ''"), 'socket ticket is not propagated into native shell');
 nativeMessengerAssert(str_contains($view, "'socket_url' => \$socket_url ?? ''"), 'socket URL is not propagated into native shell');
 
+$messengerStyle = (string) file_get_contents($module . '/views/style.css');
+nativeMessengerAssert(str_contains($messengerStyle, '--msg-surface: var(--ui-surface'), 'Messenger no longer consumes shared theme surface tokens');
+nativeMessengerAssert(str_contains($messengerStyle, 'html[data-theme="dark"] .messenger-app'), 'Messenger dark-mode module contract is missing');
+
 foreach ([
     'messenger-app', 'messenger-connection', 'dialog-list', 'chat-active',
     'message-list', 'message-input', 'message-send-button', 'message-attach-button',

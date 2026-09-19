@@ -129,7 +129,9 @@ try {
   // The updater page must be a BASE_PATH-safe native admin surface even when
   // production trust/feed configuration has not yet been installed. Merely
   // opening the page performs no network update check.
-  const updatesLink = page.getByRole('link', { name: /Обновления/ });
+  const updatesLink = page
+    .getByRole('navigation', { name: 'Разделы админпанели' })
+    .getByRole('link', { name: 'Обновления', exact: true });
   const updatesHref = await updatesLink.getAttribute('href');
   if (!updatesHref?.startsWith(`${basePath}/admin/updates`)) {
     throw new Error(`Admin updates link escaped BASE_PATH: ${updatesHref}`);
