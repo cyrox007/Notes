@@ -101,7 +101,9 @@ try {
   await row.locator('.admin-status').filter({ hasText: 'Активен' }).waitFor({ state: 'visible' });
 
   // Open quota settings using the real generated link.
-  const settingsLink = page.getByRole('link', { name: /Настройки и квоты/ });
+  const settingsLink = page
+    .getByRole('navigation', { name: 'Разделы админпанели' })
+    .getByRole('link', { name: 'Системные настройки', exact: true });
   const settingsHref = await settingsLink.getAttribute('href');
   if (!settingsHref?.startsWith(`${basePath}/admin/settings`)) {
     throw new Error(`Admin settings link escaped BASE_PATH: ${settingsHref}`);
