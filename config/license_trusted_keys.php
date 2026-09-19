@@ -20,5 +20,5 @@ declare(strict_types=1);
  * @return array<string,string>
  */
 return [
-    // Intentionally empty until the production offline key ceremony is complete.
+    'prod-license-2026-01' => 'IeudHzvZ-NemtyhPrbs8OsqDiieInl4MO4meFmqfel4',
 ];

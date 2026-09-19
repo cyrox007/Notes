@@ -19,5 +19,5 @@ declare(strict_types=1);
  * @return array<string,string> key-id => base64url(raw Ed25519 public key)
  */
 return [
-    // 'update-prod-2026-01' => '<base64url-public-key>',
+    'update-prod-2026-01' => 'HFDLlfhevvFZQRlA-ZVZLnmpH1U5bcG8SJMw2uZOXL8',
 ];
