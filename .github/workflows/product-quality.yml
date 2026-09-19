@@ -89,8 +89,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq 'core/theme-refresh.css' app/views/styles.css
+          ! grep -Fq 'core/theme-refresh.css' app/views/styles.css
+          ! grep -Fq 'core/product-ux-013.css' app/views/styles.css
+          grep -Fq 'core/common.css' app/views/styles.css
           grep -Fq 'core/accessibility.css' app/views/styles.css
+          grep -Fq '/assets/css/workspace-ui-1.0.css' app/views/core/base.php
           grep -Fq 'id="main-content"' app/views/core/base.php
           grep -Fq 'class="skip-link"' app/views/core/base.php
           grep -Fq 'id="workspaceSidebar"' app/views/^shared/sidebar/index.php
@@ -138,7 +141,7 @@ jobs:
           ! grep -Fq 'IsAdmin::class' core/routerConfig.php
           grep -Fq "route('admin_toggle_user')" modules/admin/views/index.php
           grep -Fq "route('admin_delete_user')" modules/admin/views/index.php
-          grep -Fq "route('admin_settings')" modules/admin/views/index.php
+          grep -Fq "['/admin/settings', 'fa-sliders', 'Системные настройки']" modules/admin/assets/admin-settings-nav.js
           grep -Fq "route('admin_settings_user_quota')" modules/admin/views/settings.php
           grep -Fq 'StorageQuotaLimit::class' modules/files/FilesRuntimeProvider.php
           grep -Fq 'GET_LOCK' app/services/StorageQuotaService.php
