@@ -60,6 +60,8 @@ AUTH_RATE_LIMIT_WINDOW_SECONDS=60
 EOF
 chmod 600 .env
 
+php tests/support/ci_license_fixture.php
+
 HASH="$(php -r 'echo password_hash($argv[1], PASSWORD_ARGON2ID);' "$PASSWORD")"
 "${mysql_cmd[@]}" <<SQL
 DELETE FROM users WHERE username='${USERNAME}';
