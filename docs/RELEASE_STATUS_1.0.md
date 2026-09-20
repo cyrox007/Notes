@@ -9,11 +9,11 @@ The historical audit IDs are retained for continuity. A source item is reopened 
 | R01 Files baseline | Implemented | Files module quota asset/runtime fixes are merged; later Files lifecycle and HTTP workflows use module-owned paths | Exact-head browser/HTTP/durable regression | Source closed |
 | R02 Profile migration | Implemented | PR #146 merged; Profile is isolated and its lifecycle workflow is current | Exact-head Profile lifecycle | Source closed |
 | R03 module independence | Implemented | Admin/Messenger isolation, transitional loader removal, composition-aware DB ownership and Core recovery control plane are merged (#148–#152) | Exact-head composition/module regression | Source closed |
-| R04 CI convergence | Implemented | Final source convergence, refactor follow-up and stale CI-contract fixes are merged; the `1.0 -> master` release PR completed 61/61 checks and the first master push gates were green | Re-run exact-head gates after final release-metadata commit | Source closed; final metadata rerun pending |
-| R05 GitHub merge governance | Implemented and applied | Release governance contract and protection applicator are merged; repository-side protection is active on both `1.0` and `master`, including required status checks and force-push/deletion protection | Keep repository protection enabled through release publication | Complete |
+| R04 CI convergence | Implemented | 1.0.0 source convergence completed; post-tag module onboarding is merged and 1.0.1 adds signed user-seat licensing with updated release contracts | Re-run the complete exact-head gate set on the final 1.0.1 SHA | Source closed; 1.0.1 exact-head rerun pending |
+| R05 GitHub merge governance | Implemented; operator re-application required | Release governance contract and protection applicator are merged. Repository visibility was switched private/public during CI recovery, so protection/rulesets must be re-applied and verified before publication | Re-apply checked-in protection to `1.0` and `master`, verify required checks plus force-push/deletion denial, then keep it enabled through publication | Operator action pending |
 | R06 production trust roots | Public roots committed | Independent production license/update public Ed25519 roots are present under separate immutable key IDs; release CI verifies the registries are non-empty and independent | Confirm offline private-key custody and complete license/update canaries without exposing private material | Operator canaries pending |
 | R07 remaining 1.0 obligations | Implemented | Data-key rotation, nonce CSP, security observability, retention/permanent purge and cross-browser/load evidence harness are merged (#153, #154, #158–#160) | Exact-head evidence and operational acceptance | Source closed |
-| R08 final release acceptance | Release preparation in progress | `1.0` has been promoted to `master`; stable identity is `1.0.0`, and final release metadata is being frozen to the actual cut date | Exact-head CI, backup/restore + P0/P1 acceptance, immutable bundle, offline update signature, `v1.0.0` tag and GitHub Release | Final publication pending |
+| R08 final release acceptance | 1.0.1 release preparation in progress | `v1.0.0` remains an immutable historical cut; the maintenance candidate is `1.0.1` / version code `10001`, adding module onboarding and signed `max_users` licensing | Exact-head 1.0.1 CI/evidence, restored branch protection, backup/restore + P0/P1 acceptance, immutable 1.0.1 bundle, offline update signature, `v1.0.1` tag and GitHub Release | Final publication pending |
 
 ## Final source-convergence correction
 
@@ -63,6 +63,6 @@ After the operator boundary is complete:
 3. perform backup/restore and production-style operational acceptance;
 4. verify production trust canaries;
 5. build the immutable bundle, verify recorded SHA-256/source SHA, sign the update manifest and verify it;
-6. merge the accepted content to `master`, create `v1.0.0`, and publish only if every required gate is satisfied.
+6. merge the accepted 1.0.1 content to `master`, create `v1.0.1`, and publish only if every required gate is satisfied.
 
 See `docs/RELEASE_ACCEPTANCE.md`, `docs/RELEASE_GOVERNANCE.md`, and `docs/PRODUCTION_TRUST_CEREMONY.md` for the authoritative procedures.
