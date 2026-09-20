@@ -19,10 +19,12 @@ use Throwable;
 final class LicenseSeatPolicy
 {
     private DatabaseManager $db;
+    private LicenseService $licenses;
 
-    public function __construct(?DatabaseManager $db = null)
+    public function __construct(?DatabaseManager $db = null, ?LicenseService $licenses = null)
     {
         $this->db = $db ?? DatabaseManager::getInstance();
+        $this->licenses = $licenses ?? new LicenseService($this->db);
     }
 
     /**
@@ -36,7 +38,7 @@ final class LicenseSeatPolicy
         return $this->withinTransaction(function () use ($operation): mixed {
             $this->lockLicenseRow();
 
-            $status = (new LicenseService($this->db))->status();
+            $status = $this->licenses->status();
             $maxUsers = $this->enforcedMaxUsers($status);
             if ($maxUsers !== null) {
                 $activeUsers = $this->activeUsers();
