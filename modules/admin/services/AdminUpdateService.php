@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use Core\UpdateArchiveInspector;
+use Core\UpdateDownloadCredentials;
 use Core\UpdateHttpsTransport;
 use Core\UpdateManifestVerifier;
 use Core\UpdatePackageStager;
@@ -70,6 +71,19 @@ final class AdminUpdateService
         $canManageStage = $this->permissions->hasRole($actorId, 'superadmin');
 
         $issues = [];
+        $accessReady = true;
+        try {
+            $credentials = UpdateDownloadCredentials::fromEnvironment();
+            if ($credentials !== null) {
+                $credentials->headersFor($feedUrl);
+                if (!hash_equals((new LicenseService())->installationId(), $credentials->installationId())) {
+                    throw new RuntimeException('Доступ к обновлениям активирован для другой установки.');
+                }
+            }
+        } catch (\Throwable $e) {
+            $accessReady = false;
+            $issues[] = $e->getMessage();
+        }
         if (!$trustConfigured) {
             $issues[] = 'В сборке не настроен публичный ключ проверки обновлений.';
         }
@@ -89,6 +103,7 @@ final class AdminUpdateService
         }
 
         $canCheck = $trustConfigured
+            && $accessReady
             && $opensslAvailable
             && $feedConfigured
             && str_starts_with(strtolower($feedUrl), 'https://')
@@ -161,7 +176,7 @@ final class AdminUpdateService
 
     private function delivery(): UpdateRemoteDelivery
     {
-        $transport = $this->transport ?? new UpdateHttpsTransport(
+        $transport = $this->transport ?? UpdateHttpsTransport::fromEnvironment(
             self::UI_CONNECT_TIMEOUT_SECONDS,
             self::UI_READ_TIMEOUT_SECONDS
         );

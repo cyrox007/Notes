@@ -2,6 +2,11 @@
 
 Workspace Organizer 1.0 uses one offline-verifiable license per installation.
 
+Optional server-controlled access to official update packages is documented in
+[ONLINE_UPDATE_ACCESS.md](ONLINE_UPDATE_ACCESS.md). The vendor registry stores
+the signed license and update entitlement. It does not replace local runtime
+verification or make normal application use depend on network availability.
+
 ## Trust model
 
 - Every installation has a stable `installation_id` stored in `system_settings`.

@@ -7,6 +7,8 @@ namespace Core;
 use RuntimeException;
 use Throwable;
 
+require_once __DIR__ . '/UpdateDownloadCredentials.php';
+
 interface UpdateRemoteTransport
 {
     public function fetchText(string $url, int $maxBytes): string;
@@ -76,7 +78,8 @@ final class UpdateHttpsTransport implements UpdateRemoteTransport
 
     public function __construct(
         private int $connectTimeoutSeconds = 10,
-        private int $readTimeoutSeconds = 30
+        private int $readTimeoutSeconds = 30,
+        private ?UpdateDownloadCredentials $credentials = null
     ) {
         if ($connectTimeoutSeconds < 1 || $connectTimeoutSeconds > 60) {
             throw new RuntimeException('Updater HTTPS connect timeout is invalid');
@@ -86,6 +89,37 @@ final class UpdateHttpsTransport implements UpdateRemoteTransport
         }
         if (!extension_loaded('openssl')) {
             throw new RuntimeException('PHP openssl extension is required for remote update delivery');
+        }
+    }
+
+    public static function fromEnvironment(int $connectTimeout = 10, int $readTimeout = 30): self
+    {
+        return new self($connectTimeout, $readTimeout, UpdateDownloadCredentials::fromEnvironment());
+    }
+
+    /** Activation only: bounded HTTPS POST using the same TLS/DNS/redirect rules as downloads. */
+    public function activate(string $baseUrl, string $installationId, string $activationCode): array
+    {
+        UpdateDownloadCredentials::validateBaseUrl($baseUrl);
+        if ($this->credentials !== null) {
+            throw new RuntimeException('Activation requires a transport without download credentials');
+        }
+        $body = json_encode(['installation_id' => $installationId, 'activation_code' => $activationCode], JSON_THROW_ON_ERROR);
+        if (strlen($body) > 1024) {
+            throw new RuntimeException('Activation request is too large');
+        }
+        [$stream, $length] = $this->openResponse($baseUrl . 'activate', $body);
+        try {
+            if ($length < 1 || $length > 4096) {
+                throw new RuntimeException('Invalid activation response size');
+            }
+            $result = json_decode($this->readExactString($stream, $length), true, 8, JSON_THROW_ON_ERROR);
+            if (!is_array($result)) {
+                throw new RuntimeException('Invalid activation response');
+            }
+            return $result;
+        } finally {
+            fclose($stream);
         }
     }
 
@@ -185,8 +219,9 @@ final class UpdateHttpsTransport implements UpdateRemoteTransport
     }
 
     /** @return array{0:resource,1:int} */
-    private function openResponse(string $url): array
+    private function openResponse(string $url, ?string $jsonBody = null): array
     {
+        $authHeaders = $this->credentials?->headersFor($url) ?? '';
         $target = $this->parseHttpsUrl($url);
         $ip = $this->resolvePublicAddress($target['host']);
         $endpointIp = str_contains($ip, ':') ? '[' . $ip . ']' : $ip;
@@ -215,18 +250,24 @@ final class UpdateHttpsTransport implements UpdateRemoteTransport
         }
         stream_set_timeout($stream, $this->readTimeoutSeconds);
 
-        $request = "GET {$target['request_target']} HTTP/1.1\r\n"
+        $method = $jsonBody === null ? 'GET' : 'POST';
+        $request = "{$method} {$target['request_target']} HTTP/1.1\r\n"
             . "Host: {$target['host']}\r\n"
             . "User-Agent: Workspace-Organizer-Updater/1.0\r\n"
             . "Accept: application/octet-stream, application/json;q=0.9, text/plain;q=0.8\r\n"
             . "Accept-Encoding: identity\r\n"
-            . "Connection: close\r\n\r\n";
+            . $authHeaders
+            . ($jsonBody === null ? '' : "Content-Type: application/json\r\nContent-Length: " . strlen($jsonBody) . "\r\n")
+            . "Connection: close\r\n\r\n" . ($jsonBody ?? '');
         try {
             $this->writeAll($stream, $request);
             [$status, $headers] = $this->readHeaders($stream);
             if ($status !== 200) {
                 if ($status >= 300 && $status < 400) {
                     throw new RuntimeException('Remote update server redirects are not allowed');
+                }
+                if ($status === 401 || $status === 403) {
+                    throw new RuntimeException('Сервер отказал в доступе к обновлениям: проверьте активацию и право лицензии на обновления', $status);
                 }
                 throw new RuntimeException("Remote update server returned HTTP {$status}");
             }

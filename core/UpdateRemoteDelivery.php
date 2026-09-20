@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Core;
 
+require_once __DIR__ . '/UpdatePath.php';
+
 use JsonException;
 use RuntimeException;
 use Throwable;
@@ -428,48 +430,21 @@ final class UpdateRemoteDelivery
 
     private function isAbsolutePath(string $path): bool
     {
-        return str_starts_with($path, '/')
-            || preg_match('/^[A-Za-z]:[\\\\\/]/', $path) === 1
-            || str_starts_with($path, '\\\\');
+        return UpdatePath::isAbsolute($path);
     }
 
     private function normalize(string $path): string
     {
-        $path = rtrim(str_replace('\\', '/', $path), '/');
-        if (PHP_OS_FAMILY === 'Windows' && preg_match('/^[A-Za-z]:/', $path) === 1) {
-            $path = strtolower($path[0]) . substr($path, 1);
-        }
-        return $path;
+        return UpdatePath::normalize($path);
     }
 
     private function inside(string $path, string $parent): bool
     {
-        $path = $this->normalize($path);
-        $parent = $this->normalize($parent);
-        if (PHP_OS_FAMILY === 'Windows') {
-            $path = strtolower($path);
-            $parent = strtolower($parent);
-        }
-        return $path === $parent || str_starts_with($path . '/', $parent . '/');
+        return UpdatePath::inside($path, $parent);
     }
 
     private function removeTree(string $dir): void
     {
-        $items = scandir($dir);
-        if (!is_array($items)) {
-            return;
-        }
-        foreach ($items as $item) {
-            if ($item === '.' || $item === '..') {
-                continue;
-            }
-            $child = $dir . DIRECTORY_SEPARATOR . $item;
-            if (is_dir($child) && !is_link($child)) {
-                $this->removeTree($child);
-            } else {
-                @unlink($child);
-            }
-        }
-        @rmdir($dir);
+        UpdatePath::removeTree($dir);
     }
 }

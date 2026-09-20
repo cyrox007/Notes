@@ -159,7 +159,6 @@ jobs:
             core/DatabaseControll.php \
             core/DatabaseManager.php \
             core/ORM.php \
-            core/model.php \
             core/view.php \
             core/request.php \
             core/controller.php \

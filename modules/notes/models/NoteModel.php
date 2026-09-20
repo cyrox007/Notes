@@ -1,8 +1,6 @@
 <?php
 namespace App\Models;
 
-use Core\Model;
-use Core\Config;
 use Core\ORM;
 
     class NoteModel extends ORM {

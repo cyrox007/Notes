@@ -40,7 +40,6 @@ $coreFiles = [
     '/core/DatabaseManager.php',
     '/core/ModuleLifecycleStore.php',
     '/core/ORM.php',
-    '/core/model.php',
     '/core/view.php',
     '/core/request.php',
     '/core/helper.php',
