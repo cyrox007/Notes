@@ -97,7 +97,10 @@ jobs:
         run: php tests/integration/user_action_log_contract.php
 
       - name: Verify retention CLI preview
-        run: php bin/audit_log.php --json | tee /tmp/audit-preview.json && grep -Fq '"status": "ok"' /tmp/audit-preview.json
+        run: |
+          set -euo pipefail
+          php bin/audit_log.php --json | tee /tmp/audit-preview.json
+          grep -Fq '"status": "ok"' /tmp/audit-preview.json
 
       - name: Verify upgrade migration is idempotent
         run: |
