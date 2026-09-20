@@ -37,7 +37,7 @@ class AuthController extends Controller
     public function sigin(Request $request): void
     {
         $login = trim((string) $request->post('login'));
-        $password = (string) $request->post('password');
+        $password = (string) $request->rawPost('password');
 
         $user = UserModel::select()->where('username', '=', $login)->first();
         if (!$user || !CryptMethods::verifyPassword($password, $user->password_hash)) {
@@ -155,7 +155,7 @@ class AuthController extends Controller
 
         $input = [
             'login' => trim((string) $request->post('login')),
-            'password' => (string) $request->post('password'),
+            'password' => (string) $request->rawPost('password'),
             'first_name' => trim((string) $request->post('first_name')),
             'patronymic' => trim((string) $request->post('patronymic')),
             'surname' => trim((string) $request->post('surname')),

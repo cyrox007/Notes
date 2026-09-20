@@ -32,3 +32,6 @@
   .sidebar.sidebar--collapsed .sidebar__brand,.sidebar.sidebar--collapsed .sidebar__menu-link,.sidebar.sidebar--collapsed .sidebar__utility{justify-content:flex-start;padding-inline:10px}
   .sidebar.sidebar--collapsed .sidebar__theme{grid-template-columns:repeat(3,1fr)}
 }
+@media(min-width:901px){
+  .sidebar.sidebar--collapsed .sidebar__menu{flex:0 1 auto}
+}

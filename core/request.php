@@ -165,6 +165,18 @@ class Request
         return $this->sanitize($data);
     }
 
+    /**
+     * Return the original POST value without HTML escaping.
+     *
+     * Use this only when exact input bytes are part of the application contract
+     * (for example passwords). Callers must escape the value at the output
+     * boundary before rendering it into HTML.
+     */
+    public function rawPost($key = null, $default = null)
+    {
+        return $key === null ? $this->post : ($this->post[$key] ?? $default);
+    }
+
     public function files($key = null, $default = null)
     {
         return $key === null ? $this->files : ($this->files[$key] ?? $default);
