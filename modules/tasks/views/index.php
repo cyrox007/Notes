@@ -99,7 +99,7 @@ ob_start();
 
     <div id="create-task-modal" class="modal" hidden>
         <div class="modal-content">
-            <button class="close-modal" type="button" aria-label="Закрыть">&times;</button>
+            <button class="modal-close-button" type="button" data-task-modal-close aria-label="Закрыть">&times;</button>
             <h2>Новая задача</h2>
             <form action="<?= $view->e($view->route('task_create')) ?>" method="post" class="task-form">
                 <?= $view->csrfInput() ?>
@@ -112,7 +112,7 @@ ob_start();
                     </div>
                     <div class="form-group"><label for="due_date">Срок выполнения</label><input type="datetime-local" id="due_date" name="due_date"></div>
                 </div>
-                <div class="form-actions"><button type="submit" class="btn-primary">Создать задачу</button><button type="button" class="btn-secondary close-modal">Отмена</button></div>
+                <div class="form-actions"><button type="button" class="btn-secondary" data-task-modal-close>Отмена</button><button type="submit" class="btn-primary">Создать задачу</button></div>
             </form>
         </div>
     </div>
