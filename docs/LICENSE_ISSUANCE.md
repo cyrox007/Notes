@@ -62,9 +62,9 @@ $LicenseId = "lic-customer-001"
   --key-id=prod-license-2026-01 `
   --installation-id=$InstallationId `
   --license-id=$LicenseId `
-  --edition=standard `
+  --edition=team `
   --max-users=20 `
-  --features=notes,tasks,files,messenger
+  --features=workspace.notes,workspace.tasks,workspace.files,workspace.messenger,workspace.profile,workspace.admin
 ```
 
 Команда выводит одну строку вида:
@@ -89,9 +89,10 @@ wo1.prod-license-2026-01.<payload>.<signature>
   --key-id=prod-license-2026-01 `
   --installation-id=$InstallationId `
   --license-id=$LicenseId `
-  --edition=standard `
+  --edition=team `
   --expires-at=1798761600 `
-  --features=notes,tasks,files,messenger
+  --max-users=20 `
+  --features=workspace.notes,workspace.tasks,workspace.files,workspace.messenger,workspace.profile,workspace.admin
 ```
 
 Без `--expires-at` лицензия бессрочная.
@@ -113,8 +114,9 @@ $LicenseToken = (& $PHP tools\vendor-license\issue.php `
   --key-id=prod-license-2026-01 `
   --installation-id=$InstallationId `
   --license-id=$LicenseId `
-  --edition=standard `
-  --features=notes,tasks,files,messenger).Trim()
+  --edition=team `
+  --max-users=20 `
+  --features=workspace.notes,workspace.tasks,workspace.files,workspace.messenger,workspace.profile,workspace.admin).Trim()
 
 $env:LICENSE_TOKEN = $LicenseToken
 $env:INSTALLATION_ID = $InstallationId
