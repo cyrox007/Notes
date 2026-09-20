@@ -106,6 +106,10 @@ $updateController = (string) file_get_contents($root . '/modules/admin/controlle
 nativeAdminAssert(str_contains($updateController, "render_template('@admin/updates'"), 'admin controller does not render the module view directly');
 nativeAdminAssert(!str_contains($updateController, "'stage_dir' =>"), 'signed updater controller persists absolute stage path into UI state');
 
+$runtime = (string) file_get_contents($root . '/modules/admin/runtime.php');
+nativeAdminAssert(str_contains($runtime, "'/middlewares/RequireAdminAuditView.php'"), 'Admin runtime does not load audit permission middleware');
+nativeAdminAssert(str_contains($runtime, "'/controllers/AuditController.php'"), 'Admin runtime does not load the audit controller');
+
 $router = (string) file_get_contents($root . '/modules/admin/AdminRuntimeProvider.php');
 nativeAdminAssert(str_contains($router, "->add('GET', '/updates'"), 'signed updater page route missing');
 nativeAdminAssert(str_contains($router, "->add('GET', '/updates/check'"), 'signed updater read-only check route missing');
