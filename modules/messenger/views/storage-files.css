@@ -8,7 +8,9 @@
 .messenger-storage-item__copy{min-width:0;display:grid;gap:2px}.messenger-storage-item__copy strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}.messenger-storage-item__copy small{color:var(--msg-muted);font-size:10px}
 .messenger-storage-item__date{color:var(--msg-muted);font-size:10px;white-space:nowrap}
 .messenger-storage-empty{padding:26px 14px;text-align:center;color:var(--msg-muted);font-size:12px}
+.messenger-storage-empty[hidden]{display:none!important}
 .messenger-storage-selected{display:grid;grid-template-columns:30px minmax(0,1fr);gap:9px;align-items:center;margin:0 14px 12px;padding:9px 10px;border-radius:9px;background:var(--msg-accent-soft);color:var(--msg-accent)}
+.messenger-storage-selected[hidden]{display:none!important}
 .messenger-storage-selected div{min-width:0;display:grid;gap:2px}.messenger-storage-selected strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}.messenger-storage-selected span{color:var(--msg-muted);font-size:10px}
 .messenger-storage-actions{display:flex;justify-content:flex-end;gap:8px;padding:12px 14px;border-top:1px solid var(--msg-border)}
 .messenger-storage-actions button{min-height:36px}

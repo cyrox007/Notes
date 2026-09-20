@@ -109,6 +109,12 @@ $visualRefresh = (string) file_get_contents($module . '/views/visual-refresh.css
 nativeMessengerAssert(str_contains($visualRefresh, 'grid-template-columns:clamp(248px,23vw,304px)'), 'Messenger balanced desktop column contract is missing');
 nativeMessengerAssert(str_contains($visualRefresh, '@media(max-width:1020px)'), 'Messenger medium-width layout breakpoint is missing');
 nativeMessengerAssert(str_contains($visualRefresh, '@media(max-width:760px)'), 'Messenger mobile single-pane breakpoint is missing');
+$workspaceCss = (string) file_get_contents($module . '/views/workspace-actions.css');
+$storageCss = (string) file_get_contents($module . '/views/storage-files.css');
+nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-task-fields[hidden]{display:none!important}'), 'workspace task fields ignore hidden state');
+nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-source[hidden]{display:none!important}'), 'workspace source context ignores hidden state');
+nativeMessengerAssert(str_contains($storageCss, '.messenger-storage-selected[hidden]{display:none!important}'), 'storage selected-file panel ignores hidden state');
+nativeMessengerAssert(str_contains($storageCss, '.messenger-storage-empty[hidden]{display:none!important}'), 'storage empty state ignores hidden state');
 nativeMessengerAssert(str_contains($mediaCss, 'max-width:min(420px,100%)'), 'Messenger media containment contract is missing');
 
 $controllerPath = $module . '/controllers/MessagerController.php';
