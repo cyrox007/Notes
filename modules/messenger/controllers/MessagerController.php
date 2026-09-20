@@ -55,7 +55,7 @@ final class MessagerController extends Controller
             error_log('WebSocket public endpoint is invalid: ' . $e->getMessage());
         }
 
-        $workspaceActions = ['notes' => false, 'tasks' => false];
+        $workspaceActions = ['notes' => false, 'tasks' => false, 'files' => false];
         try {
             $permissions = new PermissionService();
             $capabilities = ModuleRuntimeLoader::getInstance()->capabilities();
@@ -64,6 +64,8 @@ final class MessagerController extends Controller
                     && $permissions->hasPermission((int) $user->id, 'notes.use'),
                 'tasks' => $capabilities->has('workspace.tasks')
                     && $permissions->hasPermission((int) $user->id, 'tasks.use'),
+                'files' => $capabilities->has('workspace.files')
+                    && $permissions->hasPermission((int) $user->id, 'files.use'),
             ];
         } catch (\Throwable $e) {
             error_log('Messenger workspace actions are unavailable: ' . $e->getMessage());

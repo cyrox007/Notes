@@ -6,6 +6,7 @@ namespace Modules\Files;
 use App\Controllers\FileController;
 use App\Controllers\FileDeleteController;
 use App\Controllers\FileQuotaController;
+use App\Controllers\FileShareController;
 use App\Middlewares\EnforceFileFolderPolicy;
 use App\Middlewares\EnforceFileUploadPolicy;
 use App\Middlewares\LoginRequared;
@@ -52,6 +53,9 @@ final class FilesRuntimeProvider implements ModuleRuntimeProvider
             ->add('POST', '/delete/', [FileDeleteController::class, 'delete'], [LoginRequared::class, RequireFilesUse::class], 'files_delete')
             ->add('POST', '/rename/', [FileController::class, 'rename'], [LoginRequared::class, RequireFilesUse::class, StorageMutationLock::class], 'files_rename')
             ->add('GET', '/get/{int:fileId}/', [FileController::class, 'getFile'], [LoginRequared::class, RequireFilesUse::class], 'files_get')
+            ->add('POST', '/share/{str:uid}', [FileShareController::class, 'create'], [LoginRequared::class, RequireFilesUse::class], 'files_share')
+            ->add('POST', '/unshare/{str:uid}', [FileShareController::class, 'revoke'], [LoginRequared::class, RequireFilesUse::class], 'files_unshare')
+            ->add('GET', '/shared/{str:token}', [FileShareController::class, 'download'], [], 'files_shared')
             ->endGroup();
     }
 }

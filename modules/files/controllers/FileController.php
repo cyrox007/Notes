@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Models\FileModel;
 use App\Models\UserModel;
+use App\Services\RolePolicyService;
 use Core\Controller;
 use Core\DatabaseManager;
 use Core\Request;
@@ -73,6 +74,7 @@ class FileController extends Controller
             'files' => $files,
             'current_folder' => null,
             'breadcrumb' => [['name' => 'Главная', 'id' => 0]],
+            'can_share_files' => $this->canShareFiles((int) $user->id),
         ]);
     }
 
@@ -109,6 +111,7 @@ class FileController extends Controller
             'files' => $files,
             'current_folder' => $folder,
             'breadcrumb' => $this->buildBreadcrumb($folderId, (int) $user->id),
+            'can_share_files' => $this->canShareFiles((int) $user->id),
         ]);
     }
 
@@ -451,6 +454,16 @@ class FileController extends Controller
             UPLOAD_ERR_EXTENSION => 'Загрузка остановлена расширением PHP',
             default => 'Ошибка загрузки файла',
         };
+    }
+
+    private function canShareFiles(int $userId): bool
+    {
+        try {
+            return (bool) (new RolePolicyService())->effectiveValue($userId, 'files', 'can_share');
+        } catch (\Throwable $e) {
+            error_log('File share role policy evaluation failed: ' . $e->getMessage());
+            return false;
+        }
     }
 
     private function formatBytes(int $bytes): string

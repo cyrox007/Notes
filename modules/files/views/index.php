@@ -8,6 +8,7 @@ $access = isset($workspaceAccess) && is_array($workspaceAccess) ? $workspaceAcce
 $fileItems = isset($files) && is_array($files) ? $files : [];
 $currentFolder = isset($current_folder) && is_array($current_folder) ? $current_folder : null;
 $crumbs = isset($breadcrumb) && is_array($breadcrumb) ? $breadcrumb : [];
+$canShareFiles = !empty($can_share_files);
 $siteName = isset($sitename) ? (string) $sitename : 'Workspace Organizer';
 $workspaceVersion = isset($version) ? (string) $version : '';
 $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
@@ -134,6 +135,7 @@ ob_start();
                     ?>
                     <div class="file-manager__item"
                          data-id="<?= $view->e($id) ?>"
+                         data-uid="<?= $view->e($file['uid'] ?? '') ?>"
                          data-type="<?= $view->e($type) ?>"
                          data-name="<?= $view->e($name) ?>"
                          data-extension="<?= $view->e($extension) ?>"
@@ -154,6 +156,11 @@ ob_start();
                                 <a href="<?= $view->e($view->route('files_get', ['fileId' => $id])) ?>" class="file-manager__action-btn" title="Открыть" aria-label="Открыть <?= $view->e($name) ?>" target="_blank" rel="noopener">
                                     <i class="fa fa-eye" aria-hidden="true"></i>
                                 </a>
+                            <?php endif; ?>
+                            <?php if ($canShareFiles && $type !== 'folder' && !empty($file['uid'])): ?>
+                                <button type="button" class="file-manager__action-btn file-manager__action-btn--share btn-share" title="Поделиться ссылкой" aria-label="Поделиться <?= $view->e($name) ?>">
+                                    <i class="fa fa-link" aria-hidden="true"></i>
+                                </button>
                             <?php endif; ?>
                             <button type="button" class="file-manager__action-btn file-manager__action-btn--rename btn-rename" title="Переименовать" aria-label="Переименовать <?= $view->e($name) ?>">
                                 <i class="fa fa-pencil" aria-hidden="true"></i>
@@ -263,5 +270,6 @@ echo $view->layout('core/base', [
         $view->moduleAsset('files', 'quota.js'),
         $view->moduleAsset('files', 'polish.js'),
         $view->moduleAsset('files', 'drop-upload.js'),
+        $view->moduleAsset('files', 'share.js'),
     ],
 ], $content);

@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Services\MessengerMediaService;
 use App\Services\MessengerService;
 use Core\Controller;
 use Core\ModuleRuntimeLoader;
 use Core\Request;
+use Core\WorkspaceFileProvider;
 use Core\WorkspaceNoteCreator;
 use Core\WorkspaceTaskCreator;
 use DomainException;
@@ -113,6 +115,95 @@ final class MessengerWorkspaceController extends Controller
             error_log('Messenger workspace task create failed: ' . $e->getMessage());
             $this->jsonError('Не удалось создать задачу', 500);
         }
+    }
+
+    public function files(Request $request): void
+    {
+        try {
+            $userId = $this->userId($request);
+            $query = trim((string) $request->get('q', ''));
+            $provider = $this->fileProvider();
+            $this->responseJson([
+                'success' => true,
+                'files' => $provider->listWorkspaceFiles($userId, $query, 100),
+                'can_share' => $provider->canShareWorkspaceFiles($userId),
+            ]);
+        } catch (DomainException $e) {
+            $this->jsonError($e->getMessage(), $this->statusFrom($e, 403));
+        } catch (InvalidArgumentException $e) {
+            $this->jsonError($e->getMessage(), 422);
+        } catch (Throwable $e) {
+            error_log('Messenger workspace file list failed: ' . $e->getMessage());
+            $this->jsonError('Не удалось загрузить личное хранилище', 500);
+        }
+    }
+
+    public function attachFile(Request $request): void
+    {
+        try {
+            $userId = $this->userId($request);
+            $dialogUid = trim((string) $request->post('dialog_uid', ''));
+            $fileUid = trim((string) $request->post('file_uid', ''));
+            if ($dialogUid === '' || $fileUid === '') {
+                throw new InvalidArgumentException('Не выбран диалог или файл');
+            }
+
+            $file = $this->fileProvider()->exportWorkspaceFile($userId, $fileUid);
+            $attachment = (new MessengerMediaService())->importWorkspaceFile($userId, $dialogUid, $file);
+
+            $this->responseJson([
+                'success' => true,
+                'attachment' => $attachment,
+            ]);
+        } catch (DomainException $e) {
+            $this->jsonError($e->getMessage(), $this->statusFrom($e, 403));
+        } catch (InvalidArgumentException $e) {
+            $this->jsonError($e->getMessage(), 422);
+        } catch (Throwable $e) {
+            error_log('Messenger workspace file attach failed: ' . $e->getMessage());
+            $this->jsonError('Не удалось подготовить файл для отправки', 500);
+        }
+    }
+
+    public function shareFile(Request $request): void
+    {
+        try {
+            $userId = $this->userId($request);
+            $fileUid = trim((string) $request->post('file_uid', ''));
+            $expiresHours = (int) $request->post('expires_hours', 0);
+            if ($fileUid === '') {
+                throw new InvalidArgumentException('Файл не выбран');
+            }
+            if ($expiresHours < 0 || $expiresHours > 8760) {
+                throw new InvalidArgumentException('Некорректный срок действия ссылки');
+            }
+
+            $share = $this->fileProvider()->createWorkspaceFileShare($userId, $fileUid, $expiresHours);
+            $this->responseJson([
+                'success' => true,
+                'share_url' => $this->viewContext->route('files_shared', ['token' => $share['token']]),
+                'expires_at' => $share['expires_at'],
+                'file' => $share['file'],
+            ]);
+        } catch (DomainException $e) {
+            $this->jsonError($e->getMessage(), $this->statusFrom($e, 403));
+        } catch (InvalidArgumentException $e) {
+            $this->jsonError($e->getMessage(), 422);
+        } catch (Throwable $e) {
+            error_log('Messenger workspace file share failed: ' . $e->getMessage());
+            $this->jsonError('Не удалось создать ссылку на файл', 500);
+        }
+    }
+
+    private function fileProvider(): WorkspaceFileProvider
+    {
+        $registry = ModuleRuntimeLoader::getInstance()->capabilities();
+        if (!$registry->has('workspace.files')) {
+            throw new DomainException('Модуль файлов недоступен', 409);
+        }
+        /** @var WorkspaceFileProvider $provider */
+        $provider = $registry->require('workspace.files', WorkspaceFileProvider::class);
+        return $provider;
     }
 
     private function userId(Request $request): int

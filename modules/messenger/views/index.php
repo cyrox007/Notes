@@ -20,8 +20,8 @@ $readModuleAsset = static function (string $file): string {
     $source = file_get_contents($path);
     return is_string($source) ? $source : '';
 };
-$cssFiles = ['style.css', 'media.css', 'forwarding.css', 'reactions.css', 'voice.css', 'group.css', 'search.css', 'workspace-actions.css'];
-$jsFiles = ['protocol-origin.js', 'script.js', 'activity.js', 'dialog-actions.js', 'receipts.js', 'media.js', 'forwarding.js', 'reactions.js', 'voice.js', 'group.js', 'search.js', 'workspace-actions.js'];
+$cssFiles = ['style.css', 'media.css', 'forwarding.css', 'reactions.css', 'voice.css', 'group.css', 'search.css', 'workspace-actions.css', 'storage-files.css'];
+$jsFiles = ['protocol-origin.js', 'script.js', 'activity.js', 'dialog-actions.js', 'receipts.js', 'media.js', 'forwarding.js', 'reactions.js', 'voice.js', 'group.js', 'search.js', 'workspace-actions.js', 'storage-files.js'];
 $literalOpen = '{' . 'literal}';
 $literalClose = '{/' . 'literal}';
 
@@ -50,6 +50,7 @@ ob_start();
     data-user-name="<?= $view->e(trim((string) ($currentUser['firstname'] ?? '') . ' ' . (string) ($currentUser['lastname'] ?? ''))) ?>"
     data-can-create-note="<?= !empty($workspaceActions['notes']) ? '1' : '0' ?>"
     data-can-create-task="<?= !empty($workspaceActions['tasks']) ? '1' : '0' ?>"
+    data-can-use-files="<?= !empty($workspaceActions['files']) ? '1' : '0' ?>"
 >
     <aside class="messenger-list" aria-label="Список диалогов">
         <header class="messenger-list__header">
@@ -110,6 +111,9 @@ ob_start();
                         <?php endif; ?>
                     </div>
                 </div>
+                <?php if (!empty($workspaceActions['files'])): ?>
+                    <button class="messenger-icon-button" id="message-storage-button" type="button" title="Файл из личного хранилища" aria-label="Файл из личного хранилища"><i class="fa fa-cloud" aria-hidden="true"></i></button>
+                <?php endif; ?>
                 <button class="messenger-icon-button" id="message-attach-button" type="button" title="Прикрепить файл" aria-label="Прикрепить файл"><i class="fa fa-paperclip" aria-hidden="true"></i></button>
                 <input class="messenger-file-input" id="message-file-input" type="file" multiple accept="image/jpeg,image/png,image/gif,image/webp,audio/*,video/mp4,video/webm,video/quicktime,.pdf,.txt,.md,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp" aria-label="Выбрать вложение">
                 <textarea id="message-input" rows="1" maxlength="4096" placeholder="Сообщение" aria-label="Текст сообщения"></textarea>
@@ -139,6 +143,30 @@ ob_start();
             <?php endif; ?>
         </div>
         <footer><button class="messenger-secondary-button" value="cancel">Отмена</button><button class="messenger-primary-button" id="create-chat-button" type="button">Создать чат</button></footer>
+    </form>
+</dialog>
+
+<dialog class="messenger-dialog-modal messenger-storage-dialog" id="storage-file-dialog">
+    <form method="dialog" class="messenger-dialog-modal__surface messenger-storage-dialog__surface">
+        <header>
+            <div><strong>Личное хранилище</strong><span>Выберите файл и отправьте его вложением или публичной ссылкой.</span></div>
+            <button class="messenger-icon-button" value="cancel" aria-label="Закрыть"><i class="fa fa-times" aria-hidden="true"></i></button>
+        </header>
+        <div class="messenger-storage-search">
+            <i class="fa fa-search" aria-hidden="true"></i>
+            <input id="storage-file-search" type="search" autocomplete="off" placeholder="Поиск файлов">
+        </div>
+        <div class="messenger-storage-list" id="storage-file-list" aria-live="polite"></div>
+        <div class="messenger-storage-empty" id="storage-file-empty" hidden>Файлы не найдены</div>
+        <div class="messenger-storage-selected" id="storage-file-selected" hidden>
+            <i class="fa fa-file-o" aria-hidden="true"></i>
+            <div><strong id="storage-file-selected-name"></strong><span id="storage-file-selected-meta"></span></div>
+        </div>
+        <footer class="messenger-storage-actions">
+            <button class="messenger-secondary-button" value="cancel">Отмена</button>
+            <button class="messenger-secondary-button" id="storage-send-link" type="button" disabled><i class="fa fa-link" aria-hidden="true"></i> Отправить ссылкой</button>
+            <button class="messenger-primary-button" id="storage-send-attachment" type="button" disabled><i class="fa fa-paperclip" aria-hidden="true"></i> Отправить файлом</button>
+        </footer>
     </form>
 </dialog>
 

@@ -40,14 +40,15 @@ nativeMessengerAssert(!str_contains($messengerStyle, '100dvh -'), 'Messenger ret
 foreach ([
     'messenger-app', 'messenger-connection', 'dialog-list', 'chat-active',
     'message-list', 'message-input', 'message-send-button', 'message-attach-button',
-    'message-file-input', 'workspace-create-button', 'workspace-create-menu', 'workspace-action-dialog',
+    'message-file-input', 'message-storage-button', 'storage-file-dialog', 'storage-file-list',
+    'workspace-create-button', 'workspace-create-menu', 'workspace-action-dialog',
     'workspace-action-form', 'new-chat-dialog', 'group-info-dialog', 'group-member-list',
 ] as $id) {
     nativeMessengerAssert(str_contains($view, 'id="' . $id . '"'), "Messenger DOM hook {$id} is missing");
 }
 
-$cssFiles = ['style.css', 'media.css', 'forwarding.css', 'reactions.css', 'voice.css', 'group.css', 'search.css', 'workspace-actions.css'];
-$jsFiles = ['protocol-origin.js', 'script.js', 'activity.js', 'dialog-actions.js', 'receipts.js', 'media.js', 'forwarding.js', 'reactions.js', 'voice.js', 'group.js', 'search.js', 'workspace-actions.js'];
+$cssFiles = ['style.css', 'media.css', 'forwarding.css', 'reactions.css', 'voice.css', 'group.css', 'search.css', 'workspace-actions.css', 'storage-files.css'];
+$jsFiles = ['protocol-origin.js', 'script.js', 'activity.js', 'dialog-actions.js', 'receipts.js', 'media.js', 'forwarding.js', 'reactions.js', 'voice.js', 'group.js', 'search.js', 'workspace-actions.js', 'storage-files.js'];
 foreach (array_merge($cssFiles, $jsFiles) as $asset) {
     nativeMessengerAssert(str_contains($view, "'{$asset}'"), "Messenger native view does not load {$asset}");
     nativeMessengerAssert(is_file($module . '/views/' . $asset), "Messenger module asset {$asset} is missing");
@@ -74,6 +75,13 @@ $workspaceActions = (string) file_get_contents($module . '/views/workspace-actio
 nativeMessengerAssert(str_contains($workspaceActions, "appPath('/messenger/workspace/' + kind)"), 'Messenger workspace actions are not BASE_PATH-aware');
 nativeMessengerAssert(str_contains($workspaceActions, "data-workspace-kind"), 'Messenger workspace task/note switch is missing');
 nativeMessengerAssert(str_contains($workspaceActions, 'sourceMessage'), 'Messenger cannot create a workspace object from an existing message');
+
+$storageFiles = (string) file_get_contents($module . '/views/storage-files.js');
+nativeMessengerAssert(str_contains($storageFiles, "appPath('/messenger/workspace/files')"), 'Messenger storage picker is not BASE_PATH-aware');
+nativeMessengerAssert(str_contains($storageFiles, "appPath('/messenger/workspace/file-attachment')"), 'Messenger storage attachment action is missing');
+nativeMessengerAssert(str_contains($storageFiles, "appPath('/messenger/workspace/file-link')"), 'Messenger storage public-link action is missing');
+nativeMessengerAssert(str_contains($storageFiles, "MediaSocket:send"), 'Messenger storage attachment is not handed to the media socket');
+nativeMessengerAssert(str_contains($storageFiles, "MessangerSocket:message_send"), 'Messenger storage public link is not sent through the normal message path');
 
 $media = (string) file_get_contents($module . '/views/media.js');
 nativeMessengerAssert(str_contains($media, 'pendingPasteFiles'), 'clipboard attachment staging state is missing');
@@ -106,18 +114,30 @@ nativeMessengerAssert(is_file($workspaceControllerPath), 'Messenger workspace ac
 $workspaceController = (string) file_get_contents($workspaceControllerPath);
 nativeMessengerAssert(str_contains($workspaceController, "require('workspace.notes', WorkspaceNoteCreator::class)"), 'Messenger note action bypasses the module capability registry');
 nativeMessengerAssert(str_contains($workspaceController, "require('workspace.tasks', WorkspaceTaskCreator::class)"), 'Messenger task action bypasses the module capability registry');
+nativeMessengerAssert(str_contains($workspaceController, "require('workspace.files', WorkspaceFileProvider::class)"), 'Messenger file actions bypass the module capability registry');
+nativeMessengerAssert(str_contains($workspaceController, 'importWorkspaceFile'), 'Messenger cannot import a private-storage file as a chat attachment');
+nativeMessengerAssert(str_contains($workspaceController, 'createWorkspaceFileShare'), 'Messenger cannot create a public file link');
 nativeMessengerAssert(str_contains($workspaceController, 'messageForWorkspaceAction'), 'Messenger workspace action does not validate source-message access');
 nativeMessengerAssert(str_contains($workspaceController, "route('messenger')"), 'workspace object source reference does not link back to Messenger');
 
 $provider = (string) file_get_contents($module . '/MessengerRuntimeProvider.php');
 nativeMessengerAssert(str_contains($provider, "'/workspace/note'"), 'Messenger note-create route is missing');
 nativeMessengerAssert(str_contains($provider, "'/workspace/task'"), 'Messenger task-create route is missing');
+nativeMessengerAssert(str_contains($provider, "'/workspace/files'"), 'Messenger private-storage browse route is missing');
+nativeMessengerAssert(str_contains($provider, "'/workspace/file-attachment'"), 'Messenger private-storage attachment route is missing');
+nativeMessengerAssert(str_contains($provider, "'/workspace/file-link'"), 'Messenger private-storage link route is missing');
 nativeMessengerAssert(str_contains($provider, 'MessengerWorkspaceController::class'), 'Messenger workspace routes are not module-owned');
 
 $coreNoteBoundary = (string) file_get_contents($root . '/core/WorkspaceNoteCreator.php');
 $coreTaskBoundary = (string) file_get_contents($root . '/core/WorkspaceTaskCreator.php');
+$coreFileBoundary = (string) file_get_contents($root . '/core/WorkspaceFileProvider.php');
 nativeMessengerAssert(str_contains($coreNoteBoundary, 'interface WorkspaceNoteCreator'), 'shared note creation boundary is missing');
 nativeMessengerAssert(str_contains($coreTaskBoundary, 'interface WorkspaceTaskCreator'), 'shared task creation boundary is missing');
+nativeMessengerAssert(str_contains($coreFileBoundary, 'interface WorkspaceFileProvider'), 'shared private-file boundary is missing');
+
+$mediaService = (string) file_get_contents($module . '/services/MessengerMediaService.php');
+nativeMessengerAssert(str_contains($mediaService, 'importWorkspaceFile('), 'Messenger media service cannot copy a private-storage file into message storage');
+nativeMessengerAssert(str_contains($mediaService, "'messenger', 'max_attachment_bytes'"), 'private-storage attachment import bypasses Messenger role size policy');
 
 $connectionBoundary = $module . '/socket/SocketConnection.php';
 nativeMessengerAssert(is_file($connectionBoundary), 'transport-neutral SocketConnection is missing');

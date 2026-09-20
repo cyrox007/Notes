@@ -12,6 +12,7 @@ foreach ([
     '/controllers/FileController.php',
     '/controllers/FileDeleteController.php',
     '/controllers/FileQuotaController.php',
+    '/controllers/FileShareController.php',
     '/FilesRuntimeProvider.php',
 ] as $relativePath) {
     $path = $moduleRoot . $relativePath;

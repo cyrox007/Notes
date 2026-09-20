@@ -124,6 +124,15 @@ foreach ([
     }
 }
 
+$filesActive = in_array('files', $composition, true);
+if ($filesActive) {
+    require_once $root . '/core/WorkspaceFileProvider.php';
+    runtimeCompositionAssert(
+        $capabilities->require('workspace.files', \Core\WorkspaceFileProvider::class) instanceof \Core\WorkspaceFileProvider,
+        'Files runtime capability does not implement WorkspaceFileProvider'
+    );
+}
+
 $messengerActive = in_array('messenger', $composition, true);
 runtimeCompositionAssert($capabilities->has('workspace.messenger') === $messengerActive, 'Messenger capability availability drifted');
 if ($messengerActive) {

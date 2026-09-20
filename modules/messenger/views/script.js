@@ -400,7 +400,7 @@
 
             const body = document.createElement('div');
             body.className = 'messenger-message__text';
-            body.textContent = message.message || '';
+            this.renderMessageText(body, message.message || '');
             bubble.append(body);
 
             const meta = document.createElement('div');
@@ -712,6 +712,42 @@
             if (!input) return;
             input.style.height = 'auto';
             input.style.height = `${Math.min(input.scrollHeight, 132)}px`;
+        }
+
+        renderMessageText(container, value) {
+            const text = String(value || '');
+            const urlPattern = /https?:\/\/[^\s<>"']+/giu;
+            let offset = 0;
+            for (const match of text.matchAll(urlPattern)) {
+                const index = Number(match.index || 0);
+                if (index > offset) container.append(document.createTextNode(text.slice(offset, index)));
+
+                let urlText = match[0];
+                let trailing = '';
+                while (/[),.!?;:]$/.test(urlText)) {
+                    trailing = urlText.slice(-1) + trailing;
+                    urlText = urlText.slice(0, -1);
+                }
+
+                try {
+                    const url = new URL(urlText);
+                    if (url.protocol === 'http:' || url.protocol === 'https:') {
+                        const link = document.createElement('a');
+                        link.href = url.href;
+                        link.target = '_blank';
+                        link.rel = 'noopener noreferrer';
+                        link.textContent = urlText;
+                        container.append(link);
+                    } else {
+                        container.append(document.createTextNode(urlText));
+                    }
+                } catch (_) {
+                    container.append(document.createTextNode(urlText));
+                }
+                if (trailing) container.append(document.createTextNode(trailing));
+                offset = index + match[0].length;
+            }
+            if (offset < text.length) container.append(document.createTextNode(text.slice(offset)));
         }
 
         createAvatar(title, className) {
