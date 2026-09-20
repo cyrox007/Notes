@@ -62,8 +62,9 @@ $LicenseId = "lic-customer-001"
   --key-id=prod-license-2026-01 `
   --installation-id=$InstallationId `
   --license-id=$LicenseId `
-  --edition=standard `
-  --features=notes,tasks,files,messenger
+  --edition=team `
+  --max-users=20 `
+  --features=workspace.notes,workspace.tasks,workspace.files,workspace.messenger,workspace.profile,workspace.admin
 ```
 
 Команда выводит одну строку вида:
@@ -88,9 +89,10 @@ wo1.prod-license-2026-01.<payload>.<signature>
   --key-id=prod-license-2026-01 `
   --installation-id=$InstallationId `
   --license-id=$LicenseId `
-  --edition=standard `
+  --edition=team `
   --expires-at=1798761600 `
-  --features=notes,tasks,files,messenger
+  --max-users=20 `
+  --features=workspace.notes,workspace.tasks,workspace.files,workspace.messenger,workspace.profile,workspace.admin
 ```
 
 Без `--expires-at` лицензия бессрочная.
@@ -99,7 +101,8 @@ wo1.prod-license-2026-01.<payload>.<signature>
 
 - `--not-before=<UNIX_TIMESTAMP>` — лицензия начнёт действовать не раньше указанного времени;
 - `--customer="Название клиента"` — подпись клиента в payload;
-- `--features=...` — список разрешённых features в подписанном payload.
+- `--features=...` — список разрешённых features в подписанном payload;
+- `--max-users=N` — максимальное количество активных аккаунтов в установке. Заблокированный аккаунт занимает место, деактивированный (`is_active=0`) освобождает его. Если параметр не указан, лимит пользователей отсутствует.
 
 ## Проверка до передачи клиенту
 
@@ -111,13 +114,14 @@ $LicenseToken = (& $PHP tools\vendor-license\issue.php `
   --key-id=prod-license-2026-01 `
   --installation-id=$InstallationId `
   --license-id=$LicenseId `
-  --edition=standard `
-  --features=notes,tasks,files,messenger).Trim()
+  --edition=team `
+  --max-users=20 `
+  --features=workspace.notes,workspace.tasks,workspace.files,workspace.messenger,workspace.profile,workspace.admin).Trim()
 
 $env:LICENSE_TOKEN = $LicenseToken
 $env:INSTALLATION_ID = $InstallationId
 
-& $PHP -r 'require "app/services/LicenseVerifier.php"; $v=new App\Services\LicenseVerifier(); $s=$v->verify(getenv("LICENSE_TOKEN"), getenv("INSTALLATION_ID")); if (!($s["valid"] ?? false)) { fwrite(STDERR, json_encode($s, JSON_UNESCAPED_UNICODE).PHP_EOL); exit(1); } echo "LICENSE OK".PHP_EOL;'
+& $PHP -r 'require "app/services/LicenseVerifier.php"; $v=new App\Services\LicenseVerifier(); $s=$v->verify(getenv("LICENSE_TOKEN"), getenv("INSTALLATION_ID")); $p=$s["payload"]??[]; if (!($s["valid"]??false) || ($p["edition"]??"")!=="team" || ($p["max_users"]??null)!==20) { fwrite(STDERR, json_encode($s, JSON_UNESCAPED_UNICODE).PHP_EOL); exit(1); } echo "LICENSE OK: team / max_users=20".PHP_EOL;'
 
 Remove-Item Env:LICENSE_TOKEN
 Remove-Item Env:INSTALLATION_ID
@@ -126,7 +130,7 @@ Remove-Item Env:INSTALLATION_ID
 Ожидаемый результат:
 
 ```text
-LICENSE OK
+LICENSE OK: team / max_users=20
 ```
 
 ## Активация на установке клиента
@@ -163,9 +167,27 @@ php bin/control.php license activate --token-file=/secure/path/license.txt
 - точное совпадение `installation_id`;
 - `issued_at`;
 - `not_before`, если указан;
-- `expires_at`, если указан.
+- `expires_at`, если указан;
+- `max_users`, если указан: лимит подписан тем же Ed25519 ключом и не может быть изменён без нарушения подписи.
 
 Если лицензия отсутствует или недействительна, приложение не удаляет данные. Установка переходит в read-only: чтение остаётся доступным, а обычные изменения данных блокируются. Recovery-операции лицензии остаются доступны.
+
+## Лимит пользователей
+
+При наличии `max_users` система считает аккаунты с `is_active=1`. Создание пользователя через Admin и self-registration, а также повторная активация деактивированного аккаунта блокируются, когда лимит исчерпан.
+
+Активация нового ключа также отклоняется, если его `max_users` меньше текущего количества активных аккаунтов. Это предотвращает случайный downgrade лицензии ниже фактического использования.
+
+Пример тарифов:
+
+```text
+Personal   --max-users=5
+Team       --max-users=20
+Business   --max-users=100
+Enterprise параметр не указывается для unlimited
+```
+
+Старые корректные лицензии без `max_users` остаются совместимыми и считаются unlimited.
 
 ## Перенос на другую установку
 

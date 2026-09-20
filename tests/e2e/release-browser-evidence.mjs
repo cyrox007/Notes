@@ -45,6 +45,24 @@ async function assertDocumentFits(page, label) {
   }
 }
 
+async function waitForSocketTicket(page, label) {
+  // The shared shell starts notifications after DOMContentLoaded. A load event
+  // alone does not guarantee its fetch has finished before the next navigation.
+  const response = await page.waitForResponse(
+    response => response.url() === baseUrl + '/messenger/socket-ticket'
+      && response.request().method() === 'POST',
+    { timeout: 15000 },
+  );
+  const error = await response.finished();
+  if (error || response.status() !== 200) {
+    throw new Error(label + ': notification ticket failed: ' + (error || response.status()));
+  }
+  const payload = await response.json();
+  if (payload.status !== 'ok' || typeof payload.ticket !== 'string' || payload.ticket === '') {
+    throw new Error(label + ': notification ticket response is invalid');
+  }
+}
+
 async function login(page, scenarioName) {
   const response = await page.goto(baseUrl + '/auth/login/', { waitUntil: 'load' });
   if (!response || response.status() !== 200) {
@@ -54,6 +72,7 @@ async function login(page, scenarioName) {
   await page.locator('#login').fill(username);
   await page.locator('#password').fill(password);
   await Promise.all([
+    waitForSocketTicket(page, scenarioName + ' home'),
     page.waitForURL(url => !url.pathname.includes('/auth/login'), { timeout: 15000 }),
     page.getByRole('button', { name: 'Войти' }).click(),
   ]);
@@ -124,7 +143,10 @@ for (const scenario of scenarios) {
     }
 
     for (const module of modules) {
-      const response = await page.goto(baseUrl + module.path, { waitUntil: 'load' });
+      const [, response] = await Promise.all([
+        waitForSocketTicket(page, scenario.name + ' ' + module.path),
+        page.goto(baseUrl + module.path, { waitUntil: 'load' }),
+      ]);
       if (!response || response.status() !== 200) {
         throw new Error(scenario.name + ': ' + module.path + ' returned ' + (response ? response.status() : 'no response'));
       }

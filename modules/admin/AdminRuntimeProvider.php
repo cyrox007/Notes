@@ -1,8 +1,8 @@
 <?php
 declare(strict_types=1);
 namespace Modules\Admin;
-use App\Controllers\Admin\{AdminController,LicenseController,RegistrationSettingsController,RoleManagementController,SettingsController,UpdateController,UserProvisioningController};
-use App\Middlewares\{CSRFMiddleware,LoginRequared,RequireAdminAccess,RequireAdminRolesManage,RequireAdminSettingsManage,RequireAdminUsersManage};
+use App\Controllers\Admin\{AdminController,AuditController,LicenseController,RegistrationSettingsController,RoleManagementController,SettingsController,UpdateController,UserProvisioningController};
+use App\Middlewares\{CSRFMiddleware,LoginRequared,RequireAdminAccess,RequireAdminAuditView,RequireAdminRolesManage,RequireAdminSettingsManage,RequireAdminUsersManage};
 use Core\{ModuleRuntimeProvider,Router};
 final class AdminRuntimeProvider implements ModuleRuntimeProvider
 {
@@ -16,6 +16,7 @@ final class AdminRuntimeProvider implements ModuleRuntimeProvider
     {
         $router->group('/admin')
             ->add('GET', '/', [AdminController::class, 'index'], [LoginRequared::class, RequireAdminAccess::class], 'adminpanel')
+            ->add('GET', '/audit', [AuditController::class, 'index'], [LoginRequared::class, RequireAdminAuditView::class], 'admin_audit')
             ->add('POST', '/', [AdminController::class, 'saveCustomFields'], [LoginRequared::class, RequireAdminUsersManage::class], 'save_custom_fields')
             ->add('POST', '/users/create', [UserProvisioningController::class, 'create'], [LoginRequared::class, RequireAdminUsersManage::class, CSRFMiddleware::class], 'admin_create_user')
             ->add('POST', '/users/toggle-status', [AdminController::class, 'toggleUserStatus'], [LoginRequared::class, RequireAdminUsersManage::class], 'admin_toggle_user')

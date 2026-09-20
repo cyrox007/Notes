@@ -92,6 +92,9 @@ jobs:
       - name: Verify retention and permanent purge contract
         run: php tests/integration/retention_purge_contract.php
 
+      - name: Verify legacy templates are removed
+        run: php tests/integration/no_legacy_templates_contract.php
+
       - name: Verify release evidence contract
         run: php tests/integration/release_evidence_contract.php
 
@@ -122,14 +125,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.0'
-          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10000'
+          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.1'
+          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10001'
           test "$(php -r "require 'core/Version.php'; echo Core\\Version::STATUS;")" = 'stable'
           test "$(php -r "require 'core/Version.php'; echo Core\\Version::RELEASE_DATE;")" = '2026-09-20'
-          grep -Fq '**Версия:** `1.0.0`' README.md
-          grep -Fq '## 1.0.0 — 2026-09-20' CHANGELOG.md
-          test -s docs/releases/v1.0.0.md
-          grep -Fq '# Workspace Organizer 1.0.0' docs/releases/v1.0.0.md
+          grep -Fq '**Версия:** `1.0.1`' README.md
+          grep -Fq '## 1.0.1 — 2026-09-20' CHANGELOG.md
+          test -s docs/releases/v1.0.1.md
+          grep -Fq '# Workspace Organizer 1.0.1' docs/releases/v1.0.1.md
 
       - name: Verify migration manifest contract
         shell: bash
@@ -152,14 +155,32 @@ jobs:
             database/user_fields_schema.sql \
             database/tasks_schema.sql \
             database/access_control_schema.sql \
+            database/audit_schema.sql \
             database/settings_schema.sql \
             database/module_lifecycle_schema.sql
           do
             mysql -h 127.0.0.1 -uroot -proot workspace_release_gate < "$schema"
           done
           count="$(mysql -N -h 127.0.0.1 -uroot -proot workspace_release_gate -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE();")"
-          test "$count" -eq 32
+          test "$count" -eq 34
           test "$(mysql -N -h 127.0.0.1 -uroot -proot workspace_release_gate -e "SELECT setting_value FROM system_settings WHERE setting_key='file_manager_default_quota_bytes'")" = '1073741824'
+
+      - name: Verify user action audit contract
+        env:
+          DBDRIVER: mysql
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: workspace_release_gate
+          PRIVATE_STORAGE_PATH: /tmp/workspace-release-audit-private
+          AUDIT_LOG_RETENTION_DAYS: 180
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$PRIVATE_STORAGE_PATH" "$PRIVATE_STORAGE_PATH/logs"
+          php tests/integration/user_action_log_contract.php
+          php bin/audit_log.php --json > /tmp/workspace-audit-preview.json
+          grep -Fq '"status": "ok"' /tmp/workspace-audit-preview.json
 
       - name: Run data-integrity integration contracts
         env:
@@ -274,4 +295,4 @@ jobs:
           test -f "$bundle/core/MigrationManifest.php"
           test -f "$bundle/core/UpdateMigrationPreflight.php"
           test -f "$bundle/database/migrations/manifest.json"
-          test -f "$bundle/docs/releases/v1.0.0.md"
+          test -f "$bundle/docs/releases/v1.0.1.md"

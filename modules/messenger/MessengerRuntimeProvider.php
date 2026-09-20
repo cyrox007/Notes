@@ -7,6 +7,7 @@ namespace Modules\Messenger;
 use App\Controllers\MessagerController;
 use App\Controllers\MessengerGroupController;
 use App\Controllers\MessengerVoiceController;
+use App\Controllers\MessengerWorkspaceController;
 use App\Middlewares\EnforceMessengerUploadPolicy;
 use App\Middlewares\LoginRequared;
 use App\Middlewares\RequireMessengerUse;
@@ -46,6 +47,11 @@ final class MessengerRuntimeProvider implements ModuleRuntimeProvider
             ->add('POST', '/socket-ticket', [MessagerController::class, 'socketTicket'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_socket_ticket')
             ->add('POST', '/upload', [MessagerController::class, 'uploadFile'], [LoginRequared::class, RequireMessengerUse::class, UploadRateLimit::class, EnforceMessengerUploadPolicy::class], 'messenger_upload')
             ->add('POST', '/voice-upload', [MessengerVoiceController::class, 'upload'], [LoginRequared::class, RequireMessengerUse::class, UploadRateLimit::class, EnforceMessengerUploadPolicy::class], 'messenger_voice_upload')
+            ->add('POST', '/workspace/note', [MessengerWorkspaceController::class, 'createNote'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_workspace_note')
+            ->add('POST', '/workspace/task', [MessengerWorkspaceController::class, 'createTask'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_workspace_task')
+            ->add('GET', '/workspace/files', [MessengerWorkspaceController::class, 'files'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_workspace_files')
+            ->add('POST', '/workspace/file-attachment', [MessengerWorkspaceController::class, 'attachFile'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_workspace_file_attachment')
+            ->add('POST', '/workspace/file-link', [MessengerWorkspaceController::class, 'shareFile'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_workspace_file_link')
             ->add('GET', '/media/{str:uid}', [MessagerController::class, 'media'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_media')
             ->add('GET', '/group-avatar/{str:uid}', [MessengerGroupController::class, 'avatar'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_group_avatar')
             ->add('POST', '/group-avatar/{str:uid}', [MessengerGroupController::class, 'uploadAvatar'], [LoginRequared::class, RequireMessengerUse::class, UploadRateLimit::class], 'messenger_group_avatar_upload')

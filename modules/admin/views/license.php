@@ -14,6 +14,7 @@ $isValid = !empty($licenseState['valid']);
 $canManage = !empty($licenseState['can_manage']);
 $trustConfigured = !empty($licenseState['trust_configured']);
 $hasToken = !empty($licenseState['has_token']);
+$seatUsage = isset($licenseState['seat_usage']) && is_array($licenseState['seat_usage']) ? $licenseState['seat_usage'] : [];
 $statusClass = $isValid ? 'success' : (($licenseState['code'] ?? '') === 'unlicensed' ? 'warning' : 'error');
 $formatDate = static function (mixed $timestamp): string {
     $value = is_numeric($timestamp) ? (int) $timestamp : 0;
@@ -69,9 +70,17 @@ ob_start();
                 <div><small>Выпущена</small><strong><?= $view->e($formatDate($licenseState['issued_at'] ?? null)) ?></strong></div>
                 <div><small>Действует до</small><strong><?= ($licenseState['expires_at'] ?? null) === null ? 'Бессрочно' : $view->e($formatDate($licenseState['expires_at'])) ?></strong></div>
                 <div><small>Ключ подписи</small><strong><?= $view->e($licenseState['key_id'] ?? '') ?></strong></div>
+                <div>
+                    <small>Пользователи</small>
+                    <strong>
+                        <?= $view->e((string) ($seatUsage['active_users'] ?? 0)) ?>
+                        /
+                        <?= ($seatUsage['max_users'] ?? null) === null ? '∞' : $view->e((string) $seatUsage['max_users']) ?>
+                    </strong>
+                </div>
             </div>
             <?php if (!empty($licenseState['features']) && is_array($licenseState['features'])): ?>
-                <p><strong>Возможности:</strong> <?= $view->e(implode(', ', array_map('strval', $licenseState['features']))) ?></p>
+                <p class="admin-license-features"><strong>Возможности:</strong> <?= $view->e(implode(', ', array_map('strval', $licenseState['features']))) ?></p>
             <?php endif; ?>
         <?php endif; ?>
     </section>

@@ -25,6 +25,7 @@ final class LicenseVerifier
     public const PAYLOAD_VERSION = 1;
     public const MAX_TOKEN_LENGTH = 16384;
     public const CLOCK_SKEW_SECONDS = 300;
+    public const MAX_USERS_HARD_LIMIT = 1_000_000;
 
     /** @var array<string,string> raw Ed25519 public keys */
     private array $trustedKeys = [];
@@ -201,6 +202,16 @@ final class LicenseVerifier
         }
         if (!is_string($payload['edition']) || preg_match('/^[a-z][a-z0-9._-]{1,63}$/', $payload['edition']) !== 1) {
             return 'Некорректный edition';
+        }
+
+        if (array_key_exists('max_users', $payload) && $payload['max_users'] !== null) {
+            if (
+                !is_int($payload['max_users'])
+                || $payload['max_users'] < 1
+                || $payload['max_users'] > self::MAX_USERS_HARD_LIMIT
+            ) {
+                return 'Некорректный max_users';
+            }
         }
 
         if (isset($payload['customer']) && $payload['customer'] !== null) {

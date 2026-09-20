@@ -42,12 +42,18 @@ nativeShellAssert(str_contains($base, 'data-list-page'), 'native shell dropped p
 
 $header = (string) file_get_contents($root . '/app/views/^shared/header/index.php');
 $sidebar = (string) file_get_contents($root . '/app/views/^shared/sidebar/index.php');
+$sidebarStyle = (string) file_get_contents($root . '/app/views/^shared/sidebar/style.css');
 $main = (string) file_get_contents($root . '/app/views/main_page/index.php');
 foreach ([$header, $sidebar, $main] as $source) {
     nativeShellAssert(!str_contains($source, "['role'] == 1"), 'native navigation still depends on legacy numeric role checks');
 }
 nativeShellAssert(str_contains($header, '$access[\'admin\']'), 'native header does not use RBAC-derived admin access');
 nativeShellAssert(str_contains($sidebar, '$access[\'notes\']'), 'native sidebar does not use RBAC-derived module access');
+nativeShellAssert(
+    str_contains($sidebarStyle, '@media(min-width:901px)')
+        && str_contains($sidebarStyle, '.sidebar.sidebar--collapsed .sidebar__menu{flex:0 1 auto}'),
+    'collapsed desktop sidebar still stretches the navigation across the full viewport height'
+);
 nativeShellAssert(str_contains($main, '$view->layout(\'core/base\''), 'native main page does not use native application shell');
 nativeShellAssert(str_contains($main, '$access[\'messenger\']'), 'native main page does not gate module cards by RBAC-derived access');
 

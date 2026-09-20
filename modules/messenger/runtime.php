@@ -26,6 +26,7 @@ $runtimeFiles = [
     '/middlewares/RequireMessengerUse.php',
     '/middlewares/EnforceMessengerUploadPolicy.php',
     '/controllers/MessagerController.php',
+    '/controllers/MessengerWorkspaceController.php',
     '/controllers/MessengerGroupController.php',
     '/controllers/MessengerVoiceController.php',
     '/socket/SocketConnection.php',

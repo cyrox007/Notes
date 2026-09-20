@@ -244,6 +244,46 @@ expectInvalid(
 
 $requestReflection = new ReflectionClass(Request::class);
 $request = $requestReflection->newInstanceWithoutConstructor();
+
+$rawPassword = <<<'PASSWORD'
+C0mpl&x'"<>$Pass123
+PASSWORD;
+$postProperty = $requestReflection->getProperty('post');
+$postProperty->setAccessible(true);
+$postProperty->setValue($request, ['password' => $rawPassword]);
+if ($request->rawPost('password') !== $rawPassword) {
+    failSecurityContract('raw POST credential bytes were changed before password verification');
+}
+if ($request->post('password') === $rawPassword) {
+    failSecurityContract('normal POST accessor unexpectedly bypassed the existing HTML-sanitizing contract');
+}
+
+$credentialConsumers = [
+    $root . '/app/controllers/AuthController.php' => [
+        "rawPost('password')",
+    ],
+    $root . '/modules/admin/controllers/UserProvisioningController.php' => [
+        "rawPost('password')",
+    ],
+    $root . '/modules/profile/controllers/ProfileController.php' => [
+        "rawPost('old-password'",
+        "rawPost('new-password'",
+        "rawPost('repeat-new-password'",
+        "rawPost('current_password'",
+    ],
+];
+foreach ($credentialConsumers as $sourcePath => $requiredFragments) {
+    $source = file_get_contents($sourcePath);
+    if (!is_string($source)) {
+        failSecurityContract('cannot read credential consumer: ' . $sourcePath);
+    }
+    foreach ($requiredFragments as $fragment) {
+        if (!str_contains($source, $fragment)) {
+            failSecurityContract('credential consumer does not preserve raw password bytes: ' . $sourcePath);
+        }
+    }
+}
+
 $decodeJson = $requestReflection->getMethod('decodeJsonBody');
 
 $decodeJson->invoke($request, '{"message":"<b>ok</b>"}', 1024);

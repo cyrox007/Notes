@@ -61,6 +61,8 @@ jobs:
           grep -Fq '"20260914_storage_quota_legacy_reconcile.sql"' database/migrations/manifest.json
           grep -Fq '"20260913_system_settings_storage_quota.sql"' database/migrations/manifest.json
           grep -Fq '"20260915_rbac_foundation.sql"' database/migrations/manifest.json
+          ! grep -Fq 'RENAME COLUMN' database/migrations/20260913_messenger_v2.sql
+          grep -Fq 'CHANGE COLUMN `surname` `lastname`' database/migrations/20260913_messenger_v2.sql
           test -f database/settings_schema.sql
           test -f database/access_control_schema.sql
           grep -Fq 'does **not** use migrations as the canonical source' docs/DB_ARCHITECTURE.md

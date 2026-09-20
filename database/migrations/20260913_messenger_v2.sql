@@ -1,5 +1,5 @@
 -- Notes Messenger v2 migration
--- Target: MySQL 8+, existing databases created from the repository's legacy messenger schema.
+-- Target: MySQL 5.7+ / 8.x, existing databases created from the repository's legacy messenger schema.
 -- Take a backup before applying this migration.
 
 DELIMITER $$
@@ -33,7 +33,7 @@ BEGIN
         SELECT 1 FROM information_schema.columns
         WHERE table_schema = DATABASE() AND table_name = 'users' AND column_name = 'lastname'
     ) THEN
-        ALTER TABLE `users` RENAME COLUMN `surname` TO `lastname`;
+        ALTER TABLE `users` CHANGE COLUMN `surname` `lastname` VARCHAR(80) NOT NULL DEFAULT '';
     END IF;
 
     IF EXISTS (
@@ -43,7 +43,7 @@ BEGIN
         SELECT 1 FROM information_schema.columns
         WHERE table_schema = DATABASE() AND table_name = 'users' AND column_name = 'avatar'
     ) THEN
-        ALTER TABLE `users` RENAME COLUMN `user_image` TO `avatar`;
+        ALTER TABLE `users` CHANGE COLUMN `user_image` `avatar` VARCHAR(255) NULL;
     END IF;
 
     IF NOT EXISTS (
@@ -127,7 +127,7 @@ BEGIN
         SELECT 1 FROM information_schema.columns
         WHERE table_schema = DATABASE() AND table_name = 'messages' AND column_name = 'from_user_id'
     ) THEN
-        ALTER TABLE `messages` RENAME COLUMN `sender_id` TO `from_user_id`;
+        ALTER TABLE `messages` CHANGE COLUMN `sender_id` `from_user_id` INT NOT NULL;
     END IF;
 
     IF EXISTS (
@@ -137,7 +137,7 @@ BEGIN
         SELECT 1 FROM information_schema.columns
         WHERE table_schema = DATABASE() AND table_name = 'messages' AND column_name = 'message'
     ) THEN
-        ALTER TABLE `messages` RENAME COLUMN `content` TO `message`;
+        ALTER TABLE `messages` CHANGE COLUMN `content` `message` LONGTEXT NOT NULL COMMENT 'Encrypted versioned payload for textual content/caption';
     END IF;
 
     IF EXISTS (
@@ -147,7 +147,7 @@ BEGIN
         SELECT 1 FROM information_schema.columns
         WHERE table_schema = DATABASE() AND table_name = 'messages' AND column_name = 'message_type'
     ) THEN
-        ALTER TABLE `messages` RENAME COLUMN `content_type` TO `message_type`;
+        ALTER TABLE `messages` CHANGE COLUMN `content_type` `message_type` ENUM('text','image','audio','video','file','voice','service') NOT NULL DEFAULT 'text';
     END IF;
 
     IF NOT EXISTS (

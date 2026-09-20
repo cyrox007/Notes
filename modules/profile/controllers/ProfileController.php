@@ -140,9 +140,9 @@ final class ProfileController extends Controller
     public function changeUserPass(Request $request): void
     {
         $user = $this->currentUser($request, true);
-        $newPassword = (string) $request->post('new-password', '');
-        $repeatPassword = (string) $request->post('repeat-new-password', '');
-        $oldPassword = (string) $request->post('old-password', '');
+        $newPassword = (string) $request->rawPost('new-password', '');
+        $repeatPassword = (string) $request->rawPost('repeat-new-password', '');
+        $oldPassword = (string) $request->rawPost('old-password', '');
 
         $errors = [];
         if (!CryptMethods::verifyPassword($oldPassword, (string) $user->password_hash)) {
@@ -193,7 +193,7 @@ final class ProfileController extends Controller
     {
         $user = $this->currentUser($request, true);
         $confirmation = (string) $request->post('confirm_delete', '');
-        $password = (string) $request->post('current_password', '');
+        $password = (string) $request->rawPost('current_password', '');
 
         if ($confirmation !== 'yes' || !CryptMethods::verifyPassword($password, (string) $user->password_hash)) {
             $this->renderProfile($user, [[

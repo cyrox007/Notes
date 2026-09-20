@@ -57,6 +57,14 @@ nativeControlsAssert(str_contains($controls, '--control-radius:9px'), 'shared co
 nativeControlsAssert(str_contains($controls, 'var(--ui-border-strong)'), 'controls are not using current border tokens');
 nativeControlsAssert(str_contains($controls, 'var(--ui-primary)'), 'controls are not using current primary token');
 nativeControlsAssert(str_contains($controls, '.form-input_input'), 'legacy FormInput markup bridge missing');
+nativeControlsAssert(
+    str_contains($controls, ':is(.btn-primary,.button--primary,input[type="submit"]:not(.btn-secondary):not(.btn-danger))'),
+    'primary button color rule must have enough specificity to beat the shared bare button inheritance'
+);
+nativeControlsAssert(
+    str_contains($controls, ':is(.btn-danger,.button--danger)'),
+    'danger button color rule must have enough specificity to beat the shared bare button inheritance'
+);
 
 foreach (['.profile__card-info--edit--set-input', '.profile__card-info--edit--set-save', '.profile__edit_user-info'] as $profileSelector) {
     nativeControlsAssert(

@@ -59,6 +59,7 @@ $runtimeConfig = json_encode([
     'basePath' => $basePath,
     'licenseReadOnly' => $licenseReadOnly,
     'licenseCode' => isset($licenseState['code']) ? (string) $licenseState['code'] : '',
+    'adminAudit' => !empty($access['admin_audit']),
 ], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_THROW_ON_ERROR);
 $partialData = [
     'sitename' => $siteName,
@@ -133,6 +134,7 @@ if (is_file($controlsPath) && is_readable($controlsPath)) {
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/theme-mode.js')) ?>" defer></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/findability.js')) ?>" defer></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/feedback.js')) ?>" defer></script>
+    <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/messenger-global-notifications.js')) ?>" defer></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/usability-actions.js')) ?>" defer></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/release-polish.js')) ?>" defer></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/messenger-connection-ux.js')) ?>" defer></script>

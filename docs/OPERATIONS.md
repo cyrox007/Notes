@@ -272,3 +272,25 @@ Recommended production operation:
 6. run preview again; only intentionally blocked/newly retained rows should remain.
 
 A cron/systemd timer may run preview frequently. If automatic permanent purge is enabled, use a separate reviewed timer with explicit `--apply --yes`, capture JSON output and alert on any non-zero exit status.
+
+
+## User action audit retention
+
+Authenticated mutating HTTP actions and mutating Messenger WebSocket actions are recorded in the core-owned `user_action_log` table. The journal is metadata-only: request bodies, Notes/Messenger content, passwords, tokens, cookies, session/CSRF values and file bytes are not stored. Sensitive detail keys are redacted before persistence.
+
+Admins granted `admin.audit.view` can inspect and filter the journal at `/admin/audit`. Deleted users do not erase history: the foreign key is nulled while actor UID/username snapshots remain.
+
+Default retention is `AUDIT_LOG_RETENTION_DAYS=180`. Preview does not modify data:
+
+```bash
+php bin/audit_log.php --json
+php bin/audit_log.php --days=180 --json
+```
+
+Permanent purge is explicit and bounded:
+
+```bash
+php bin/audit_log.php --apply --yes --days=180 --limit=1000 --json
+```
+
+Treat audit retention independently from user-content retention. Archive/export requirements, if any, must be satisfied before purge.

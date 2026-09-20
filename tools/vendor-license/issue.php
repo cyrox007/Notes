@@ -19,12 +19,13 @@ $options = getopt('', [
     'not-before:',
     'customer:',
     'features:',
+    'max-users:',
     'help',
 ]);
 
 if (isset($options['help'])) {
     fwrite(STDOUT, "Usage:\n");
-    fwrite(STDOUT, "  php tools/vendor-license/issue.php \\\n    --private-key=/secure/offline/path/key.license-secret \\\n    --key-id=prod-YYYY-NN \\\n    --installation-id=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx \\\n    --license-id=lic-customer-001 \\\n    --edition=standard [--expires-at=UNIX] [--not-before=UNIX] \\\n    [--customer='Customer name'] [--features=notes,tasks,messenger]\n\n");
+    fwrite(STDOUT, "  php tools/vendor-license/issue.php \\\n    --private-key=/secure/offline/path/key.license-secret \\\n    --key-id=prod-YYYY-NN \\\n    --installation-id=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx \\\n    --license-id=lic-customer-001 \\\n    --edition=team [--expires-at=UNIX] [--not-before=UNIX] \\\n    [--customer='Customer name'] [--max-users=20] \\\n    [--features=workspace.notes,workspace.tasks,workspace.files,workspace.messenger,workspace.profile,workspace.admin]\n\n");
     fwrite(STDOUT, "The signed wo1 token is written to stdout. The private key is never printed or copied.\n");
     exit(0);
 }
@@ -70,6 +71,21 @@ $payload = [
 ];
 if ($notBefore !== null) {
     $payload['not_before'] = $notBefore;
+}
+
+if (array_key_exists('max-users', $options)) {
+    $maxUsersRaw = trim((string) $options['max-users']);
+    if (
+        $maxUsersRaw === ''
+        || preg_match('/^[1-9][0-9]*$/D', $maxUsersRaw) !== 1
+        || (int) $maxUsersRaw > LicenseVerifier::MAX_USERS_HARD_LIMIT
+    ) {
+        vendorLicenseFail(
+            'max-users must be an integer between 1 and '
+            . LicenseVerifier::MAX_USERS_HARD_LIMIT . '.'
+        );
+    }
+    $payload['max_users'] = (int) $maxUsersRaw;
 }
 
 $customer = trim((string) ($options['customer'] ?? ''));

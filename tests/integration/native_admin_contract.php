@@ -19,6 +19,7 @@ $views = [
     'modules/admin/views/roles.php',
     'modules/admin/views/updates.php',
     'modules/admin/views/license.php',
+    'modules/admin/views/audit.php',
 ];
 foreach ($views as $relative) {
     $path = $root . '/' . $relative;
@@ -53,7 +54,19 @@ nativeAdminAssert(!str_contains($index, 'data-findability-slot'), 'Admin user li
 
 $adminNav = (string) file_get_contents($root . '/modules/admin/assets/admin-settings-nav.js');
 nativeAdminAssert(str_contains($adminNav, "['/admin/updates', 'fa-refresh', 'Обновления']"), 'Admin section navigation does not expose signed updates');
+nativeAdminAssert(str_contains($adminNav, "['/admin/audit', 'fa-history', 'Журнал действий']"), 'Admin section navigation does not expose the user action journal');
+nativeAdminAssert(str_contains($adminNav, 'window.wspaceRuntime?.adminAudit'), 'Admin audit navigation is not permission-aware');
 nativeAdminAssert(!str_contains($index, '<div class="admin-user-actions">\n            <a class="admin-action admin-action--secondary" href="<?= $view->e($view->route(\'admin_registration\')) ?>">'), 'Admin hero still duplicates the section navigation');
+
+$audit = (string) file_get_contents($root . '/modules/admin/views/audit.php');
+nativeAdminAssert(str_contains($audit, 'class="admin-toolbar admin-audit-toolbar"'), 'audit journal does not use the responsive Admin audit toolbar');
+nativeAdminAssert(str_contains($audit, "moduleAsset('admin', 'admin-settings-nav.js')"), 'audit journal is disconnected from Admin section navigation');
+
+$licenseView = (string) file_get_contents($root . '/modules/admin/views/license.php');
+$licenseStyle = (string) file_get_contents($root . '/modules/admin/assets/license.css');
+nativeAdminAssert(str_contains($licenseView, 'class="admin-license-features"'), 'license features row does not use owned spacing');
+nativeAdminAssert(str_contains($licenseStyle, '.admin-license-grid>div:last-child:nth-child(3n+1){grid-column:1/-1}'), 'license grid still leaves an empty grey remainder row');
+nativeAdminAssert(str_contains($licenseStyle, '.admin-license-features{'), 'license feature copy is not styled inside the status card');
 
 $registration = (string) file_get_contents($root . '/modules/admin/views/registration.php');
 nativeAdminAssert(str_contains($registration, "route('admin_registration_mode')"), 'registration mode route is missing');
@@ -92,6 +105,10 @@ nativeAdminAssert(str_contains($updates, 'class="admin-status-card"'), 'signed u
 $updateController = (string) file_get_contents($root . '/modules/admin/controllers/UpdateController.php');
 nativeAdminAssert(str_contains($updateController, "render_template('@admin/updates'"), 'admin controller does not render the module view directly');
 nativeAdminAssert(!str_contains($updateController, "'stage_dir' =>"), 'signed updater controller persists absolute stage path into UI state');
+
+$runtime = (string) file_get_contents($root . '/modules/admin/runtime.php');
+nativeAdminAssert(str_contains($runtime, "'/middlewares/RequireAdminAuditView.php'"), 'Admin runtime does not load audit permission middleware');
+nativeAdminAssert(str_contains($runtime, "'/controllers/AuditController.php'"), 'Admin runtime does not load the audit controller');
 
 $router = (string) file_get_contents($root . '/modules/admin/AdminRuntimeProvider.php');
 nativeAdminAssert(str_contains($router, "->add('GET', '/updates'"), 'signed updater page route missing');

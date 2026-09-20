@@ -91,6 +91,14 @@ class Controller
         $basePath = $basePathSegment !== '' ? '/' . $basePathSegment : '';
         $baseUrl = $basePath;
         $workspaceAccess = $this->workspaceAccess();
+        $socketUrl = '';
+        if (!empty($workspaceAccess['messenger'])) {
+            try {
+                $socketUrl = WebSocketEndpoint::browserUrl();
+            } catch (\Throwable $e) {
+                error_log('Global Messenger endpoint is unavailable: ' . $e->getMessage());
+            }
+        }
 
         $viewData = [
             'base_url' => $baseUrl,
@@ -100,6 +108,7 @@ class Controller
             'product_name' => Version::PRODUCT_NAME,
             'workspaceAccess' => $workspaceAccess,
             'licenseRuntime' => $this->licenseRuntimeState($workspaceAccess),
+            'socket_url' => $socketUrl,
         ];
 
         if ($data !== null) {
@@ -114,7 +123,7 @@ class Controller
         $this->renderer->render($template, $viewData);
     }
 
-    /** @return array{notes:bool,tasks:bool,files:bool,messenger:bool,profile:bool,admin:bool,license_manage:bool} */
+    /** @return array{notes:bool,tasks:bool,files:bool,messenger:bool,profile:bool,admin:bool,admin_audit:bool,license_manage:bool} */
     private function workspaceAccess(): array
     {
         $access = [
@@ -124,6 +133,7 @@ class Controller
             'messenger' => false,
             'profile' => false,
             'admin' => false,
+            'admin_audit' => false,
             'license_manage' => false,
         ];
 
@@ -141,6 +151,7 @@ class Controller
                 'messenger' => in_array('messenger.use', $permissions, true),
                 'profile' => in_array('profile.use', $permissions, true),
                 'admin' => in_array('admin.access', $permissions, true),
+                'admin_audit' => in_array('admin.audit.view', $permissions, true),
                 'license_manage' => in_array('admin.settings.manage', $permissions, true),
             ];
         } catch (\Throwable $e) {
@@ -150,7 +161,7 @@ class Controller
     }
 
     /**
-     * @param array{notes:bool,tasks:bool,files:bool,messenger:bool,profile:bool,admin:bool,license_manage:bool} $access
+     * @param array{notes:bool,tasks:bool,files:bool,messenger:bool,profile:bool,admin:bool,admin_audit:bool,license_manage:bool} $access
      * @return array{enforced:bool,writable:bool,code:string,message:string,can_manage:bool}
      */
     private function licenseRuntimeState(array $access): array

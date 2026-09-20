@@ -44,15 +44,65 @@ jobs:
       - name: Lint licensing boundary
         run: |
           php -l app/services/LicenseVerifier.php
+          php -l app/services/LicenseSeatPolicy.php
           php -l app/services/LicenseService.php
+          php -l app/services/UserProvisioningService.php
+          php -l modules/admin/services/AdminUserService.php
           php -l modules/admin/controllers/LicenseController.php
           php -l modules/admin/views/license.php
           php -l tests/integration/license_verifier_contract.php
+          php -l tests/integration/license_user_limit_contract.php
+          php -l tools/vendor-license/issue.php
           php -l bin/migrate.php
           php -l core/routerConfig.php
 
       - name: Verify Ed25519 contract
         run: php tests/integration/license_verifier_contract.php
+
+      - name: Verify signed user-seat enforcement
+        shell: bash
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: notes_license_user_limit
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot -e 'CREATE DATABASE notes_license_user_limit CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;'
+          mysql -h 127.0.0.1 -uroot -proot notes_license_user_limit < database/core_identity_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_license_user_limit < database/core_settings_schema.sql
+          php tests/integration/license_user_limit_contract.php
+          grep -Fq 'LicenseSeatPolicy' app/services/UserProvisioningService.php
+          grep -Fq 'LicenseSeatPolicy' modules/admin/services/AdminUserService.php
+          grep -Fq -- '--max-users=' tools/vendor-license/issue.php
+
+      - name: Verify offline issuer max_users payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f /tmp/license-seat-ci.secret /tmp/license-seat-ci.token
+          php tools/vendor-license/keygen.php             --key-id=seat-ci             --private-out=/tmp/license-seat-ci.secret >/tmp/license-seat-keygen.txt
+          TOKEN="$(php tools/vendor-license/issue.php             --private-key=/tmp/license-seat-ci.secret             --key-id=seat-ci             --installation-id=11111111-2222-4333-8444-555555555555             --license-id=lic-seat-ci             --edition=team             --max-users=20             --features=workspace.notes,workspace.tasks)"
+          TOKEN="$TOKEN" php -r '
+            $parts = explode(".", (string) getenv("TOKEN"));
+            if (count($parts) !== 4) { exit(1); }
+            $encoded = $parts[2];
+            $padding = (4 - (strlen($encoded) % 4)) % 4;
+            $json = base64_decode(strtr($encoded, "-_", "+/") . str_repeat("=", $padding), true);
+            $payload = is_string($json) ? json_decode($json, true) : null;
+            if (!is_array($payload)
+                || ($payload["edition"] ?? null) !== "team"
+                || ($payload["max_users"] ?? null) !== 20
+                || ($payload["features"] ?? null) !== ["workspace.notes", "workspace.tasks"]) {
+                exit(1);
+            }
+          '
+          if php tools/vendor-license/issue.php             --private-key=/tmp/license-seat-ci.secret             --key-id=seat-ci             --installation-id=11111111-2222-4333-8444-555555555555             --license-id=lic-seat-invalid             --edition=team             --max-users=0 >/dev/null 2>&1; then
+            echo 'issuer accepted max-users=0' >&2
+            exit 1
+          fi
+          rm -f /tmp/license-seat-ci.secret /tmp/license-seat-keygen.txt
 
       - name: Verify installation-wide storage and admin routes
         shell: bash
@@ -94,6 +144,7 @@ jobs:
             database/user_fields_schema.sql \
             database/tasks_schema.sql \
             database/access_control_schema.sql \
+            database/audit_schema.sql \
             database/settings_schema.sql \
             database/module_lifecycle_schema.sql; do
             mysql -h 127.0.0.1 -uroot -proot notes_license_contract < "$schema"

@@ -40,7 +40,7 @@ https://example.com/workspace/install.php
 ## Что installer делает автоматически
 
 - при наличии MySQL privilege создаёт отсутствующую БД;
-- импортирует canonical schemas и проверяет текущий contract из **32 обязательных таблиц**;
+- импортирует canonical schemas и проверяет текущий contract из **33 обязательных таблиц**;
 - создаёт RBAC + `role_module_policies`, shared task boards, settings/quota и module lifecycle schema;
 - создаёт private storage вне document root;
 - создаёт пространства `file_manager`, `messenger`, `notes`, `users`, `rate-limit`, `logs`, `legacy`;

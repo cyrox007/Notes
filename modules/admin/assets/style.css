@@ -343,3 +343,44 @@
     margin-top:4px
   }
 }
+
+/* Audit journal has more filters than the user list. Give every field its own
+   responsive grid cell so controls never squeeze into an overflowing single row. */
+.admin-audit-toolbar{
+  grid-template-columns:minmax(240px,.8fr) minmax(0,2fr)
+}
+.admin-audit-toolbar .admin-toolbar__options{
+  width:100%;
+  display:grid;
+  grid-template-columns:repeat(4,minmax(120px,1fr));
+  gap:10px
+}
+.admin-audit-toolbar .admin-toolbar__field input,
+.admin-audit-toolbar .admin-toolbar__field select{
+  width:100%;
+  min-height:38px
+}
+.admin-audit-toolbar .admin-action{
+  min-height:38px
+}
+@media(max-width:1100px){
+  .admin-audit-toolbar{
+    grid-template-columns:1fr
+  }
+  .admin-audit-toolbar .admin-toolbar__options{
+    grid-template-columns:repeat(3,minmax(120px,1fr))
+  }
+}
+@media(max-width:720px){
+  .admin-audit-toolbar .admin-toolbar__options{
+    grid-template-columns:1fr 1fr
+  }
+  .admin-audit-toolbar .admin-action{
+    width:100%
+  }
+}
+@media(max-width:520px){
+  .admin-audit-toolbar .admin-toolbar__options{
+    grid-template-columns:1fr
+  }
+}

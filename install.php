@@ -419,6 +419,7 @@ function writeEnvironmentFile(string $file, array $data): void
         '',
         'LOG_LEVEL=INFO',
         'LOG_FILE=' . envQuoted($privateStorage . '/logs/app.log'),
+        'AUDIT_LOG_RETENTION_DAYS=180',
         'SESSION_LIFETIME=3600',
         'MAX_LOGIN_ATTEMPTS=5',
         'AUTH_RATE_LIMIT_WINDOW_SECONDS=300',

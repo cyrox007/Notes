@@ -1,12 +1,12 @@
 # Workspace Organizer
 
-**Версия:** `1.0.0`  
+**Версия:** `1.0.1`  
 **Актуально на:** 20 сентября 2026  
 **Статус:** stable
 
 Workspace Organizer — self-hosted PHP-приложение для корпоративной работы: заметки, личные и общие задачи, файлы, профиль, администрирование и real-time Messenger.
 
-`1.0.0` фиксирует stable platform contract: vendor-free PHP runtime, native view/WebSocket infrastructure, persisted RBAC и module policies, installation-bound offline Ed25519 licensing, signed remote updater с external staging, transactional code+MySQL rollback и проверенный upgrade path с `0.14.0-beta.4`.
+`1.0.1` сохраняет stable platform contract `1.0.0` и добавляет штатное подключение независимых модулей, подписанные лимиты пользователей, durable аудит, acceptance-fixes для Auth/Notes/Admin/Sidebar и новые Workspace-интеграции Messenger с Notes/Tasks/File Manager. Базовый stable contract: vendor-free PHP runtime, native view/WebSocket infrastructure, persisted RBAC и module policies, installation-bound offline Ed25519 licensing, signed remote updater с external staging, transactional code+MySQL rollback и проверенный upgrade path с `0.14.0-beta.4`.
 
 ## Возможности
 
@@ -83,7 +83,7 @@ Web-installer автоматически:
 
 - проверяет PHP 8.1+, необходимые extensions и Argon2id; production runtime не требует `vendor/`;
 - пытается создать отсутствующую БД, если MySQL account это разрешает;
-- импортирует 8 canonical schemas и создаёт current contract из 32 обязательных таблиц;
+- импортирует composition-aware canonical schemas и создаёт current contract из 34 обязательных таблиц;
 - создаёт `cache`/`compile`;
 - подбирает и создаёт `PRIVATE_STORAGE_PATH` вне document root;
 - создаёт private пространства `file_manager`, `messenger`, `notes`, `users`, `rate-limit`, `logs`, `legacy`;
@@ -131,11 +131,12 @@ database/file_manager_schema.sql
 database/user_fields_schema.sql
 database/tasks_schema.sql
 database/access_control_schema.sql
+database/audit_schema.sql
 database/settings_schema.sql
 database/module_lifecycle_schema.sql
 ```
 
-Fresh contract включает 32 обязательные таблицы: persisted `module_lifecycle`, RBAC + `role_module_policies`, а также `task_boards`, `task_board_members`, `task_board_items` и `task_board_assignees`. `system_settings` хранит редактируемые системные значения, а `user_storage_quotas` — только персональные overrides лимита; фактический used space всегда рассчитывается из canonical `user_files`, чтобы не поддерживать рассинхронизируемый usage counter. `install.php` предназначен только для новой/пустой БД. Для существующих установок используются compatibility upgrade SQL; они не заменяют canonical `*_schema.sql` как описание текущей схемы.
+Fresh contract включает 34 обязательные таблицы: persisted `module_lifecycle`, RBAC + `role_module_policies`, а также `task_boards`, `task_board_members`, `task_board_items` и `task_board_assignees`. `system_settings` хранит редактируемые системные значения, а `user_storage_quotas` — только персональные overrides лимита; фактический used space всегда рассчитывается из canonical `user_files`, чтобы не поддерживать рассинхронизируемый usage counter. `install.php` предназначен только для новой/пустой БД. Для существующих установок используются compatibility upgrade SQL; они не заменяют canonical `*_schema.sql` как описание текущей схемы.
 
 После успешной установки наличие `.env` блокирует повторный запуск web-installer.
 
@@ -392,6 +393,7 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 - isolated module-owned runtime и composition-aware database/install/update/health ownership;
 - signed staged updater с transactional apply, durable recovery и code+DB rollback;
 - installation-wide licensing и Core recovery control plane;
+- production license/update Ed25519 keypairs прошли offline ceremony; в репозитории и customer bundle остаются только public trust roots;
 - structured security observability и operational alert thresholds;
 - resumable/rollback-safe rotation `UNIQUE_KEY` / `MSG_SECRET_KEY`;
 - nonce-based CSP без `unsafe-inline`;
@@ -399,13 +401,13 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 - browser lifecycle coverage для основных product modules и Beta4 → 1.0 upgrade/rollback drill;
 - cross-browser/mobile + authenticated load/soak release-evidence harness.
 
-Перед окончательным cut/tag `v1.0.0` остаются только release-ceremony gates, а не новые platform features:
+Перед окончательным cut/tag `v1.0.1` остаются только release-ceremony gates, а не новые platform features:
 
-1. включить GitHub branch protection/ruleset для `1.0` согласно `docs/RELEASE_GOVERNANCE.md`;
-2. офлайн выпустить независимые production license/update Ed25519 keypairs и закоммитить только public trust roots;
-3. получить green cross-browser/mobile + load/soak release evidence на exact release head;
-4. подтвердить свежий backup/restore drill, exact Beta4 upgrade/rollback и отсутствие открытых P0/P1 data-loss/security дефектов;
-5. собрать финальный immutable bundle, подписать update manifest, слить exact release head в `master` и поставить tag `v1.0.0`.
+1. восстановить и проверить GitHub branch protection/ruleset для `master` и `1.0` после переключения visibility репозитория;
+2. получить green full CI + cross-browser/mobile + load/soak release evidence на exact 1.0.1 release head;
+3. подтвердить fresh backup/restore drill, exact Beta4 → 1.0.1 upgrade/rollback, production trust canaries и отсутствие открытых P0/P1 data-loss/security/release blockers;
+4. собрать immutable `workspace-organizer-v1.0.1.zip`, сверить SHA-256/source SHA и подписать exact update manifest offline production update key;
+5. после strict acceptance слить exact release head в `master`, поставить `v1.0.1` и публиковать только проверенные immutable artifacts.
 
 Scalable encrypted-search redesign не является release blocker сам по себе; он требуется только если измерения на заявленном масштабе покажут, что bounded decrypt scan не выдерживает принятого performance envelope.
 

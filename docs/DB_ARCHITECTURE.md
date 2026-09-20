@@ -4,16 +4,11 @@
 
 Workspace Organizer does **not** use migrations as the canonical source of the database schema.
 
-The authoritative database contract for a fresh installation is the set of schema files in `database/`:
+The authoritative database contract for a fresh installation is the composition-aware schema set resolved by `Core\\DatabaseOwnership`: core-owned schemas plus the schema files declared by each packaged module's `module.json`.
 
-1. `messenger_schema.sql`
-2. `notes_schema.sql`
-3. `file_manager_schema.sql`
-4. `user_fields_schema.sql`
-5. `tasks_schema.sql`
-6. `settings_schema.sql`
+Core-owned fresh schemas currently include identity, RBAC/access control, the user-action audit journal, system settings and module lifecycle. Notes, Tasks, Files, Messenger and Profile contribute their own schema ownership through module manifests.
 
-`install.php` imports these schema files directly. A clean installation must be reproducible from these files without consulting upgrade history.
+`install.php` imports this resolved schema set directly. A clean installation must be reproducible from these files without consulting upgrade history.
 
 ## Existing installations
 

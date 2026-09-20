@@ -57,6 +57,7 @@ ownershipAssert(in_array('dialogs', $full->tables(), true), 'Messenger tables ar
 ownershipAssert(in_array('notes', $full->tables(), true), 'Notes tables are included in full package');
 ownershipAssert(in_array('user_storage_quotas', $full->tables(), true), 'Files quota is included in full package');
 ownershipAssert(in_array('database/core_identity_schema.sql', $full->schemaFiles(), true), 'core identity schema is canonical');
+ownershipAssert(in_array('database/audit_schema.sql', $full->schemaFiles(), true), 'core audit schema is canonical');
 ownershipAssert(in_array('database/file_storage_quota_schema.sql', $full->schemaFiles(), true), 'Files owns quota fresh schema');
 ownershipAssert(
     $full->migrationNamesInCanonicalOrder($canonical['migrations']) === $canonical['migrations'],
@@ -68,7 +69,7 @@ try {
     $coreOnly = DatabaseOwnership::fromPackageRoot($coreFixture);
     ownershipAssert($coreOnly->tables() === [
         'users', 'system_settings', 'roles', 'permissions', 'role_permissions',
-        'user_roles', 'role_module_policies', 'module_lifecycle',
+        'user_roles', 'role_module_policies', 'module_lifecycle', 'user_action_log',
     ], 'core-only package requires only platform tables');
     ownershipAssert(!in_array('dialogs', $coreOnly->tables(), true), 'core-only does not require Messenger tables');
     ownershipAssert(!in_array('user_storage_quotas', $coreOnly->tables(), true), 'core-only does not require Files quota');
