@@ -2,7 +2,7 @@ name: Registration browser lifecycle
 
 on:
   pull_request:
-    branches: [master]
+    branches: [master, '1.0']
   push:
     branches: [0.14-beta3-registration-policy]
 
@@ -133,6 +133,12 @@ jobs:
           CSRF_ENABLED=true
           ENV
           chmod 600 .env
+
+      - name: Activate ephemeral CI license
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/support/ci_license_fixture.php
 
       - name: Start subdirectory application
         shell: bash

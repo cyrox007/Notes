@@ -2,7 +2,7 @@ name: 0.14 module lifecycle contract
 
 on:
   pull_request:
-    branches: [master]
+    branches: [master, '1.0']
   push:
     branches: [0.14-phase5-module-lifecycle]
 
