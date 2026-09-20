@@ -113,6 +113,9 @@ $workspaceCss = (string) file_get_contents($module . '/views/workspace-actions.c
 $storageCss = (string) file_get_contents($module . '/views/storage-files.css');
 nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-task-fields[hidden]{display:none!important}'), 'workspace task fields ignore hidden state');
 nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-source[hidden]{display:none!important}'), 'workspace source context ignores hidden state');
+nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-menu{position:absolute'), 'workspace create menu lost floating popover styling');
+nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-menu[hidden]{display:none!important}'), 'workspace create menu ignores hidden state');
+nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-menu__item{'), 'workspace create menu items lost native styling');
 nativeMessengerAssert(str_contains($storageCss, '.messenger-storage-selected[hidden]{display:none!important}'), 'storage selected-file panel ignores hidden state');
 nativeMessengerAssert(str_contains($storageCss, '.messenger-storage-empty[hidden]{display:none!important}'), 'storage empty state ignores hidden state');
 nativeMessengerAssert(str_contains($storageCss, '.messenger-storage-list[hidden]{display:none!important}'), 'storage empty result still reserves list space');
