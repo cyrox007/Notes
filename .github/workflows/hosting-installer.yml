@@ -178,7 +178,7 @@ jobs:
           done
 
           TABLES=$(mysql -N -h 127.0.0.1 -uroot -proot -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='notes_hosting_test';")
-          test "$TABLES" -eq 32
+          test "$TABLES" -eq 33
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='module_lifecycle'")" = "1"
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('system_settings','user_storage_quotas')")" = "2"
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('roles','permissions','role_permissions','user_roles','role_module_policies')")" = "5"
@@ -196,7 +196,7 @@ jobs:
           test ! -e vendor
           php bin/healthcheck.php --json | tee /tmp/hosting-health.json
           grep -Fq '"status": "ok"' /tmp/hosting-health.json
-          grep -Fq '32 required tables present' /tmp/hosting-health.json
+          grep -Fq '33 required tables present' /tmp/hosting-health.json
 
       - name: Installer locks after completion
         shell: bash
