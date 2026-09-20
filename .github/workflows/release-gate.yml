@@ -122,14 +122,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.0'
-          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10000'
+          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.1'
+          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10001'
           test "$(php -r "require 'core/Version.php'; echo Core\\Version::STATUS;")" = 'stable'
           test "$(php -r "require 'core/Version.php'; echo Core\\Version::RELEASE_DATE;")" = '2026-09-20'
-          grep -Fq '**Версия:** `1.0.0`' README.md
-          grep -Fq '## 1.0.0 — 2026-09-20' CHANGELOG.md
-          test -s docs/releases/v1.0.0.md
-          grep -Fq '# Workspace Organizer 1.0.0' docs/releases/v1.0.0.md
+          grep -Fq '**Версия:** `1.0.1`' README.md
+          grep -Fq '## 1.0.1 — 2026-09-20' CHANGELOG.md
+          test -s docs/releases/v1.0.1.md
+          grep -Fq '# Workspace Organizer 1.0.1' docs/releases/v1.0.1.md
 
       - name: Verify migration manifest contract
         shell: bash
@@ -274,4 +274,4 @@ jobs:
           test -f "$bundle/core/MigrationManifest.php"
           test -f "$bundle/core/UpdateMigrationPreflight.php"
           test -f "$bundle/database/migrations/manifest.json"
-          test -f "$bundle/docs/releases/v1.0.0.md"
+          test -f "$bundle/docs/releases/v1.0.1.md"
