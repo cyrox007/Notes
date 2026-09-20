@@ -51,7 +51,7 @@ foreach ([
     'Gate F — defect acceptance',
     'Gate G — immutable artifact and signing',
     'Gate H — final merge and tag',
-    'v1.0.0',
+    'v1.0.1',
     'no open P0/P1 data-loss defects',
     'no open P0/P1 security defects',
     'build-only',
@@ -74,7 +74,7 @@ foreach ([
     'production_public_trust_roots',
     'release_evidence_harness',
     'private_signing_material_absent',
-    "Version::VERSION === '1.0.0'",
+    "Version::VERSION === '1.0.1'",
     "Version::STATUS === 'stable'",
     'exit(3)',
 ] as $marker) {

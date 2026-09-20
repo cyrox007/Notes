@@ -231,6 +231,7 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/user_fields_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/tasks_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/access_control_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/audit_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/settings_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_product_test < database/module_lifecycle_schema.sql
 
@@ -422,7 +423,7 @@ jobs:
           chmod 700 "$PRIVATE_STORAGE_PATH"
           php bin/healthcheck.php --json | tee /tmp/healthcheck.json
           grep -Fq '"status": "ok"' /tmp/healthcheck.json
-          grep -Fq '32 required tables present' /tmp/healthcheck.json
+          grep -Fq '33 required tables present' /tmp/healthcheck.json
           grep -Fq 'storage_quota_setting' /tmp/healthcheck.json
           grep -Fq 'private_storage_outside_app_root' /tmp/healthcheck.json
           grep -Fq 'websocket_allowed_origins' /tmp/healthcheck.json
@@ -433,9 +434,10 @@ jobs:
           set -euo pipefail
           grep -Fq 'database/tasks_schema.sql' README.md
           grep -Fq 'database/access_control_schema.sql' README.md
+          grep -Fq 'database/audit_schema.sql' README.md
           grep -Fq 'database/settings_schema.sql' README.md
           grep -Fq 'database/module_lifecycle_schema.sql' README.md
-          grep -Fq '32 обязательных таблиц' README.md
+          grep -Fq '33 обязательных таблиц' README.md
           grep -Fq 'php bin/migrate.php' README.md
           grep -Fq 'php bin/migrate_crypto.php' README.md
           grep -Fq 'Saved Messages' README.md

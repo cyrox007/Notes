@@ -48,6 +48,7 @@ controlPlaneAssert(str_contains($adminSource, "'/license'"), 'Admin UI compatibi
 controlPlaneAssert(str_contains($cliSource, '--token-file='), 'CLI secure token-file input is missing');
 controlPlaneAssert(str_contains($cliSource, '--stdin'), 'CLI STDIN token input is missing');
 controlPlaneAssert(!str_contains($cliSource, '--token='), 'CLI must not accept raw license token in process arguments');
+controlPlaneAssert(str_contains($cliSource, 'modules install <module-id>'), 'CLI module install command is missing');
 
 $reflection = new ReflectionClass(LocalControlPlaneContext::class);
 $constructor = $reflection->getConstructor();

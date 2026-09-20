@@ -33,6 +33,23 @@ try {
   await page.locator('#file-manager-sort').waitFor({ state: 'visible' });
   await page.locator('.file-manager-dropzone').waitFor({ state: 'attached', timeout: 5000 });
 
+  await page.getByRole('button', { name: 'Плитка' }).click();
+  if (await page.locator('.file-manager').getAttribute('data-view') !== 'grid') throw new Error('Grid view was not applied');
+  const gridLayout = await page.locator('.file-manager__grid').evaluate((node) => {
+    const style = getComputedStyle(node);
+    const item = node.querySelector('.file-manager__item');
+    return {
+      backgroundColor: style.backgroundColor,
+      columnGap: Number.parseFloat(style.columnGap || '0'),
+      itemWidth: item ? item.getBoundingClientRect().width : 0,
+      itemBorderWidth: item ? getComputedStyle(item).borderTopWidth : '0px',
+    };
+  });
+  if (gridLayout.backgroundColor !== 'rgba(0, 0, 0, 0)') throw new Error(`Grid empty tracks leak background: ${gridLayout.backgroundColor}`);
+  if (gridLayout.columnGap < 8) throw new Error(`Grid card gap is too small: ${gridLayout.columnGap}`);
+  if (gridLayout.itemWidth > 240) throw new Error(`Grid card stretched unexpectedly: ${gridLayout.itemWidth}`);
+  if (gridLayout.itemBorderWidth === '0px') throw new Error('Grid card has no own border');
+
   await page.getByRole('button', { name: 'Список' }).click();
   if (await page.locator('.file-manager').getAttribute('data-view') !== 'list') throw new Error('List view was not applied');
   if (await page.evaluate(() => localStorage.getItem('wspace:file-manager:view')) !== 'list') throw new Error('List view preference was not persisted');

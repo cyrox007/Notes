@@ -44,8 +44,8 @@ grep -Fq "'/registration/mode', [RegistrationSettingsController::class, 'saveMod
 grep -Fq "'/registration/invites/create', [RegistrationSettingsController::class, 'createInvite'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class]" modules/admin/AdminRuntimeProvider.php
 grep -Fq "'/registration/invites/revoke', [RegistrationSettingsController::class, 'revokeInvite'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class]" modules/admin/AdminRuntimeProvider.php
 
-grep -Fq "registration_mode == 'open'" app/views/login_page/login_view.tpl
-grep -Fq "registration_mode == 'invite'" app/views/login_page/login_view.tpl
+grep -Fq "\$registrationMode === 'open'" app/views/login_page/login_view.php
+grep -Fq "\$registrationMode === 'invite'" app/views/login_page/login_view.php
 grep -Fq "admin_create_user" modules/admin/views/index.php
 grep -Fq "admin_registration_invite_create" modules/admin/views/registration.php
 grep -Fq "hash('sha256', \$code)" app/services/RegistrationPolicyService.php

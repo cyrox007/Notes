@@ -4,9 +4,35 @@
 
 ## Unreleased
 
-После stable `1.0.0` изменения ведутся как отдельный maintenance/feature cycle без ретроактивного изменения опубликованных migration и trust contracts.
+Следующие изменения после `1.0.1` ведутся отдельным maintenance/feature cycle без ретроактивного изменения опубликованных migration и trust contracts.
 
-## 1.0.0 — 2026-09-16
+## 1.0.1 — 2026-09-20
+
+### Commercial licensing
+- В подписанный installation-bound Ed25519 payload добавлено опциональное поле `max_users`; старые корректные лицензии без него остаются unlimited.
+- Лимит применяется к активным аккаунтам (`users.is_active=1`): blocked-аккаунт занимает место, deactivated-аккаунт освобождает его.
+- Admin provisioning, self-registration/invite registration и повторная активация деактивированного пользователя проходят через единый seat-policy boundary.
+- Активация лицензии с лимитом ниже текущего количества активных аккаунтов отклоняется до замены сохранённого токена.
+- Seat-changing операции сериализуются блокировкой licensing-row, чтобы параллельные регистрации не могли превысить подписанный лимит.
+- Offline issuer получил `--max-users=N`; Admin/Core license UI показывает текущее использование мест.
+
+### Module onboarding
+- Добавлена практическая `docs/MODULE_DEVELOPMENT.md`: структура независимого модуля, manifest/runtime provider, routes, views/assets, capabilities, DB ownership, установка и проверка.
+- Core control plane получил `php bin/control.php modules install <module-id>`, закрывающий штатный переход `discovered -> installed -> enabled` для non-bundled модулей.
+- CI теперь проверяет реальный lifecycle independently installed fixture-module.
+
+### Audit / maintenance
+- Добавлен durable `user_action_log` для authenticated mutating HTTP/WebSocket операций с snapshot пользователя, фильтрацией в Admin UI и отдельным `admin.audit.view`.
+- Журнал хранит только операционные метаданные: request bodies, содержимое Notes/Messenger, пароли, токены, cookie/session/CSRF не журналируются; чувствительные detail keys редактируются.
+- Добавлен явный retention CLI `php bin/audit_log.php`: preview по умолчанию, irreversible purge только с `--apply --yes`; default retention — 180 дней.
+- Удалён неиспользуемый legacy `.tpl` runtime tail; CI запрещает его повторное появление.
+
+### Compatibility / release
+- Version поднят до `1.0.1` / version code `10001`; schema и published 1.0.0 migrations не переписываются.
+- Beta4 upgrade/rollback и stable release gates переведены на exact `1.0.1` identity.
+- Обновлены release acceptance, production trust ceremony и инструкция выпуска лицензионных ключей.
+
+## 1.0.0 — 2026-09-20
 
 ### Stable runtime / security boundary
 - Runtime полностью отвязан от Composer `vendor/`: собственный Environment loader, native PHP view renderer и native RFC6455 WebSocket server работают из release bundle без сторонних PHP runtime packages.

@@ -1,0 +1,115 @@
+name: 1.0.1 user action audit log
+
+on:
+  pull_request:
+    branches: [master, '1.0']
+    paths:
+      - 'core/UserActionLog.php'
+      - 'core/Router.php'
+      - 'core/DatabaseOwnership.php'
+      - 'database/audit_schema.sql'
+      - 'database/migrations/20260920_user_action_log.sql'
+      - 'database/migrations/manifest.json'
+      - 'modules/admin/**'
+      - 'modules/messenger/socket/NativeMessengerServer.php'
+      - 'bin/audit_log.php'
+      - 'default.env'
+      - 'install.php'
+      - 'tests/integration/user_action_log_contract.php'
+      - 'tests/integration/no_legacy_templates_contract.php'
+      - '.github/workflows/user-action-log.yml'
+      - '.github/workflows/release-gate.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'core/UserActionLog.php'
+      - 'database/audit_schema.sql'
+      - 'database/migrations/20260920_user_action_log.sql'
+      - 'tests/integration/user_action_log_contract.php'
+      - 'tests/integration/no_legacy_templates_contract.php'
+
+permissions:
+  contents: read
+
+jobs:
+  audit-log:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      matrix:
+        php: ['8.1', '8.3']
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: workspace_audit_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      DBDRIVER: mysql
+      DBHOST: 127.0.0.1
+      DBPORT: 3306
+      DBUSER: root
+      DBPASS: root
+      DBNAME: workspace_audit_test
+      PRIVATE_STORAGE_PATH: /tmp/workspace-audit-private
+      AUDIT_LOG_RETENTION_DAYS: 180
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: pdo_mysql, mysqli, mbstring, sodium
+          coverage: none
+
+      - name: Lint audit boundary
+        run: |
+          php -l core/UserActionLog.php
+          php -l core/Router.php
+          php -l modules/admin/controllers/AuditController.php
+          php -l modules/admin/middlewares/RequireAdminAuditView.php
+          php -l modules/admin/views/audit.php
+          php -l modules/messenger/socket/NativeMessengerServer.php
+          php -l bin/audit_log.php
+          php -l tests/integration/user_action_log_contract.php
+          php -l tests/integration/no_legacy_templates_contract.php
+
+      - name: Import fresh audit contract
+        run: |
+          mysql -h 127.0.0.1 -uroot -proot workspace_audit_test < database/core_identity_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot workspace_audit_test < database/access_control_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot workspace_audit_test < database/audit_schema.sql
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot workspace_audit_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='user_action_log'")" = "1"
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot workspace_audit_test -e "SELECT COUNT(*) FROM role_permissions rp JOIN roles r ON r.id=rp.role_id JOIN permissions p ON p.id=rp.permission_id WHERE p.code='admin.audit.view' AND r.code IN ('admin','superadmin')")" = "2"
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot workspace_audit_test -e "SELECT COUNT(*) FROM role_permissions rp JOIN roles r ON r.id=rp.role_id JOIN permissions p ON p.id=rp.permission_id WHERE p.code='admin.audit.view' AND r.code='user'")" = "0"
+
+      - name: Verify user action journal contract
+        run: php tests/integration/user_action_log_contract.php
+
+      - name: Verify retention CLI preview
+        run: |
+          set -euo pipefail
+          php bin/audit_log.php --json | tee /tmp/audit-preview.json
+          grep -Fq '"status": "ok"' /tmp/audit-preview.json
+
+      - name: Verify upgrade migration is idempotent
+        run: |
+          mysql -h 127.0.0.1 -uroot -proot -e "DROP DATABASE IF EXISTS workspace_audit_upgrade; CREATE DATABASE workspace_audit_upgrade CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          mysql -h 127.0.0.1 -uroot -proot workspace_audit_upgrade < database/core_identity_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot workspace_audit_upgrade < database/access_control_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot workspace_audit_upgrade < database/migrations/20260920_user_action_log.sql
+          mysql -h 127.0.0.1 -uroot -proot workspace_audit_upgrade < database/migrations/20260920_user_action_log.sql
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot workspace_audit_upgrade -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='user_action_log'")" = "1"
+
+      - name: Verify legacy template tail is absent
+        run: php tests/integration/no_legacy_templates_contract.php

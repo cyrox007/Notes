@@ -106,3 +106,40 @@ jobs:
           fi
           php bin/control.php modules enable admin --json
           test "$(mysql -N -h 127.0.0.1 -uroot -proot core_control_plane_test -e "SELECT configured_state FROM module_lifecycle WHERE module_id='admin'")" = 'enabled'
+
+          mkdir -p modules/controlfixture
+          cat > modules/controlfixture/module.json <<'JSON'
+          {
+            "schema": 1,
+            "id": "controlfixture",
+            "name": "Control Fixture",
+            "version": "1.0.0",
+            "core": {"min": "1.0.0", "max_exclusive": "2.0.0"},
+            "dependencies": [],
+            "capabilities": ["fixture.control"],
+            "package": {"bundled": false, "default_enabled": false},
+            "license": {"feature": null},
+            "runtime": {"mode": "isolated", "entrypoint": "runtime.php"},
+            "storage_namespaces": [],
+            "database": {"tables": [], "schemas": [], "migrations": []}
+          }
+          JSON
+          cat > modules/controlfixture/runtime.php <<'PHP'
+          <?php
+          return new class implements \Core\ModuleRuntimeProvider {
+              public function moduleId(): string { return 'controlfixture'; }
+              public function boot(): void {}
+              public function capabilities(): array { return ['fixture.control' => new stdClass()]; }
+              public function registerRoutes(\Core\Router $router): void {}
+          };
+          PHP
+
+          php bin/control.php modules list --json
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot core_control_plane_test -e "SELECT configured_state FROM module_lifecycle WHERE module_id='controlfixture'")" = 'discovered'
+          php bin/control.php modules install controlfixture --json
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot core_control_plane_test -e "SELECT configured_state FROM module_lifecycle WHERE module_id='controlfixture'")" = 'installed'
+          php bin/control.php modules enable controlfixture --json
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot core_control_plane_test -e "SELECT configured_state FROM module_lifecycle WHERE module_id='controlfixture'")" = 'enabled'
+          php bin/control.php modules disable controlfixture --json
+          rm -rf modules/controlfixture
+          mysql -h 127.0.0.1 -uroot -proot core_control_plane_test -e "DELETE FROM module_lifecycle WHERE module_id='controlfixture'"

@@ -49,7 +49,9 @@ final class AdminController extends Controller
                 $query['limit'],
                 $query['offset']
             );
-            $canManageRoles = (new PermissionService())->hasPermission($actorId, 'admin.roles.manage');
+            $permissionService = new PermissionService();
+            $canManageRoles = $permissionService->hasPermission($actorId, 'admin.roles.manage');
+            $canViewAudit = $permissionService->hasPermission($actorId, 'admin.audit.view');
         } catch (DomainException $e) {
             http_response_code($this->exceptionStatus($e, 403));
             return;
@@ -64,6 +66,7 @@ final class AdminController extends Controller
             'users' => $result['items'],
             'pagination' => ListQuery::pagination($query, (int) $result['total']),
             'canManageRoles' => $canManageRoles,
+            'canViewAudit' => $canViewAudit,
             'admin_flash' => is_array($flash) ? $flash : null,
         ]);
     }

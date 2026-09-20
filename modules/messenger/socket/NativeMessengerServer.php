@@ -13,6 +13,7 @@ use Closure;
 use Core\DatabaseManager;
 use Core\ModuleLifecycleStore;
 use Core\ModuleRegistry;
+use Core\UserActionLog;
 use Core\Version;
 use RuntimeException;
 use Throwable;
@@ -600,10 +601,33 @@ final class NativeMessengerServer
         }
         unset($payload['user_uid'], $payload['user_id'], $payload['from_user_id']);
 
+        $mutatingAction = !$this->isReadOnlyAction($className, $methodName);
         try {
             $handler = new $fullClassName();
             $handler->$methodName($this->connections, $client, $client->uid, $payload);
+            if ($mutatingAction) {
+                UserActionLog::emit(
+                    $client->userId,
+                    'ws.' . strtolower($className . '.' . $methodName),
+                    'messenger',
+                    'websocket',
+                    'success',
+                    null,
+                    ['action' => $action]
+                );
+            }
         } catch (Throwable $e) {
+            if ($mutatingAction) {
+                UserActionLog::emit(
+                    $client->userId,
+                    'ws.' . strtolower($className . '.' . $methodName),
+                    'messenger',
+                    'websocket',
+                    'failure',
+                    null,
+                    ['action' => $action, 'error_type' => get_debug_type($e)]
+                );
+            }
             error_log(sprintf('WebSocket handler failure for %s: %s', $action, $e->getMessage()));
         }
     }

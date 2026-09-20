@@ -116,6 +116,7 @@ final class LicenseService
         $status['can_manage'] = $this->permissions->hasRole($actorId, 'superadmin');
         $status['trusted_key_ids'] = $this->verifier->trustedKeyIds();
         $status['trust_configured'] = $this->verifier->hasTrustedKeys();
+        $status['seat_usage'] = (new LicenseSeatPolicy($this->db))->usage($status);
         return $status;
     }
 
@@ -226,11 +227,17 @@ final class LicenseService
             throw new DomainException((string) $verification['message'], 422);
         }
 
-        $this->db->execute(
-            "INSERT INTO system_settings (setting_key,setting_value,setting_type,category,description,is_editable)
-             VALUES (:key,:value,'string','licensing','Signed installation-wide Workspace Organizer license token',0)
-             ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = CURRENT_TIMESTAMP",
-            [':key' => self::LICENSE_TOKEN_KEY, ':value' => $token]
+        $payload = is_array($verification['payload'] ?? null) ? $verification['payload'] : [];
+        (new LicenseSeatPolicy($this->db))->withLicenseActivation(
+            $payload,
+            function () use ($token): void {
+                $this->db->execute(
+                    "INSERT INTO system_settings (setting_key,setting_value,setting_type,category,description,is_editable)
+                     VALUES (:key,:value,'string','licensing','Signed installation-wide Workspace Organizer license token',0)
+                     ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = CURRENT_TIMESTAMP",
+                    [':key' => self::LICENSE_TOKEN_KEY, ':value' => $token]
+                );
+            }
         );
 
         return $this->status();
@@ -278,6 +285,9 @@ final class LicenseService
             'issued_at' => $payload !== null && isset($payload['issued_at']) ? (int) $payload['issued_at'] : null,
             'expires_at' => $payload !== null && array_key_exists('expires_at', $payload) && $payload['expires_at'] !== null
                 ? (int) $payload['expires_at']
+                : null,
+            'max_users' => $payload !== null && array_key_exists('max_users', $payload) && $payload['max_users'] !== null
+                ? (int) $payload['max_users']
                 : null,
             'features' => $payload !== null && isset($payload['features']) && is_array($payload['features'])
                 ? array_values(array_map('strval', $payload['features']))

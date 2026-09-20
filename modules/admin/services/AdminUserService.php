@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+require_once dirname(__DIR__, 3) . '/app/services/LicenseSeatPolicy.php';
+
 use Core\DatabaseManager;
 use DomainException;
 use InvalidArgumentException;
@@ -102,14 +104,25 @@ final class AdminUserService
             throw new DomainException('Сначала активируйте деактивированный аккаунт', 409);
         }
 
-        $this->db->execute(
-            'UPDATE users SET account_status = :account_status, is_active = 1, updated_at = :updated_at WHERE id = :id',
-            [
-                ':account_status' => $status,
-                ':updated_at' => date('Y-m-d H:i:s'),
-                ':id' => $targetId,
-            ]
-        );
+        $applyStatus = function () use ($status, $targetId): void {
+            $this->db->execute(
+                'UPDATE users SET account_status = :account_status, is_active = 1, updated_at = :updated_at WHERE id = :id',
+                [
+                    ':account_status' => $status,
+                    ':updated_at' => date('Y-m-d H:i:s'),
+                    ':id' => $targetId,
+                ]
+            );
+        };
+
+        $needsSeat = $status === 'active'
+            && ((int) $target['is_active'] !== 1 || (string) $target['account_status'] === 'inactive');
+
+        if ($needsSeat) {
+            (new LicenseSeatPolicy($this->db))->withAvailableSeat($applyStatus);
+        } else {
+            $applyStatus();
+        }
 
         return $status === 'blocked' ? 'Пользователь заблокирован' : 'Пользователь активирован';
     }

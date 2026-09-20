@@ -14,6 +14,7 @@ $isValid = !empty($licenseState['valid']);
 $canManage = !empty($licenseState['can_manage']);
 $trustConfigured = !empty($licenseState['trust_configured']);
 $hasToken = !empty($licenseState['has_token']);
+$seatUsage = isset($licenseState['seat_usage']) && is_array($licenseState['seat_usage']) ? $licenseState['seat_usage'] : [];
 $licenseCode = (string) ($licenseState['code'] ?? 'unknown');
 $statusClass = $isValid ? 'success' : ($licenseCode === 'unlicensed' ? 'warning' : 'error');
 
@@ -78,6 +79,14 @@ ob_start();
             <div class="license-recovery__metric">
                 <dt>Ключ подписи</dt>
                 <dd><?= $view->e($licenseState['key_id'] ?? '—') ?></dd>
+            </div>
+            <div class="license-recovery__metric">
+                <dt>Пользователи</dt>
+                <dd>
+                    <?= $view->e((string) ($seatUsage['active_users'] ?? 0)) ?>
+                    /
+                    <?= ($seatUsage['max_users'] ?? null) === null ? '∞' : $view->e((string) $seatUsage['max_users']) ?>
+                </dd>
             </div>
         </dl>
 

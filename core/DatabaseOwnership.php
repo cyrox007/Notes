@@ -26,12 +26,14 @@ final class DatabaseOwnership
         'user_roles',
         'role_module_policies',
         'module_lifecycle',
+        'user_action_log',
     ];
 
     /** @var list<string> */
     private const CORE_SCHEMAS = [
         'database/core_identity_schema.sql',
         'database/access_control_schema.sql',
+        'database/audit_schema.sql',
         'database/core_settings_schema.sql',
         'database/module_lifecycle_schema.sql',
     ];
@@ -51,6 +53,7 @@ final class DatabaseOwnership
         'database/migrations/20260915_role_module_policies.sql',
         'database/migrations/20260915_module_lifecycle.sql',
         'database/migrations/20260915_installation_license.sql',
+        'database/migrations/20260920_user_action_log.sql',
     ];
 
     /** @param array<string,ModuleManifest> $modules */
