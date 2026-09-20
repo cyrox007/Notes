@@ -49,8 +49,8 @@ $record = static function (string $name, bool $ok, string $details = '') use (&$
 
 $record(
     'release_identity',
-    Version::VERSION === '1.0.0'
-        && Version::VERSION_CODE === 10000
+    Version::VERSION === '1.0.1'
+        && Version::VERSION_CODE === 10001
         && Version::STATUS === 'stable',
     Version::VERSION . ' / ' . Version::VERSION_CODE . ' / ' . Version::STATUS
 );
@@ -68,7 +68,7 @@ $record('governance_source_contract', $governanceOk, 'master + 1.0 / release-gat
 foreach ([
     'README.md',
     'CHANGELOG.md',
-    'docs/releases/v1.0.0.md',
+    'docs/releases/v1.0.1.md',
     'docs/RELEASE_ACCEPTANCE.md',
     'docs/RELEASE_GOVERNANCE.md',
     'docs/PRODUCTION_TRUST_CEREMONY.md',
