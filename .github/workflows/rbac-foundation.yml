@@ -53,7 +53,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq "20260915_rbac_foundation.sql" bin/migrate.php
-          grep -Fq "access_control_schema.sql" install.php
+          grep -Fq '"20260915_rbac_foundation.sql"' database/migrations/manifest.json
+          grep -Fq "'database/migrations/20260915_rbac_foundation.sql'" core/DatabaseOwnership.php
+          grep -Fq "'database/access_control_schema.sql'" core/DatabaseOwnership.php
+          grep -Fq 'DatabaseOwnership::fromPackageRoot' install.php
           grep -Fq "account_status" database/messenger_schema.sql
           grep -Fq "unknown permission must fail closed" tests/integration/rbac_permission_runtime.php
