@@ -6,6 +6,7 @@ declare(strict_types=1);
 $currentUser = isset($user) && is_array($user) ? $user : [];
 $access = isset($workspaceAccess) && is_array($workspaceAccess) ? $workspaceAccess : [];
 $contactRows = isset($contacts) && is_array($contacts) ? $contacts : [];
+$workspaceActions = isset($workspace_actions) && is_array($workspace_actions) ? $workspace_actions : [];
 $siteName = isset($sitename) ? (string) $sitename : 'Workspace Organizer';
 $workspaceVersion = isset($version) ? (string) $version : '';
 $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
@@ -19,8 +20,8 @@ $readModuleAsset = static function (string $file): string {
     $source = file_get_contents($path);
     return is_string($source) ? $source : '';
 };
-$cssFiles = ['style.css', 'media.css', 'forwarding.css', 'reactions.css', 'voice.css', 'group.css', 'search.css'];
-$jsFiles = ['protocol-origin.js', 'script.js', 'activity.js', 'dialog-actions.js', 'receipts.js', 'media.js', 'forwarding.js', 'reactions.js', 'voice.js', 'group.js', 'search.js'];
+$cssFiles = ['style.css', 'media.css', 'forwarding.css', 'reactions.css', 'voice.css', 'group.css', 'search.css', 'workspace-actions.css', 'storage-files.css', 'visual-refresh.css'];
+$jsFiles = ['protocol-origin.js', 'script.js', 'activity.js', 'dialog-actions.js', 'receipts.js', 'media.js', 'forwarding.js', 'reactions.js', 'voice.js', 'group.js', 'search.js', 'workspace-actions.js', 'storage-files.js'];
 $literalOpen = '{' . 'literal}';
 $literalClose = '{/' . 'literal}';
 
@@ -42,7 +43,17 @@ ob_start();
 .messenger-message__status[data-state="read"] { color:var(--msg-accent); }
 </style>
 
-<section class="messenger-app" id="messenger-app" data-user-uid="<?= $view->e($currentUser['uid'] ?? '') ?>" data-user-name="<?= $view->e(trim((string) ($currentUser['firstname'] ?? '') . ' ' . (string) ($currentUser['lastname'] ?? ''))) ?>">
+<section
+    class="messenger-app"
+    id="messenger-app"
+    data-user-uid="<?= $view->e($currentUser['uid'] ?? '') ?>"
+    data-user-name="<?= $view->e(trim((string) ($currentUser['firstname'] ?? '') . ' ' . (string) ($currentUser['lastname'] ?? ''))) ?>"
+    data-can-create-note="<?= !empty($workspaceActions['notes']) ? '1' : '0' ?>"
+    data-can-create-task="<?= !empty($workspaceActions['tasks']) ? '1' : '0' ?>"
+    data-can-use-files="<?= !empty($workspaceActions['files']) ? '1' : '0' ?>"
+    data-socket-url="<?= $view->e($socket_url ?? '') ?>"
+    data-socket-ticket="<?= $view->e($socket_ticket ?? '') ?>"
+>
     <aside class="messenger-list" aria-label="Список диалогов">
         <header class="messenger-list__header">
             <div>
@@ -85,8 +96,30 @@ ob_start();
             <div class="messenger-upload-status" id="messenger-upload-status" hidden aria-live="polite"><span id="messenger-upload-text">Загрузка вложения…</span><span id="messenger-upload-percent">0%</span><progress id="messenger-upload-progress" max="100" value="0"></progress></div>
 
             <footer class="messenger-composer">
-                <button class="messenger-icon-button" id="message-attach-button" type="button" title="Прикрепить файл" aria-label="Прикрепить файл"><i class="fa fa-paperclip" aria-hidden="true"></i></button>
-                <input class="messenger-file-input" id="message-file-input" type="file" multiple accept="image/jpeg,image/png,image/gif,image/webp,audio/*,video/mp4,video/webm,video/quicktime,.pdf,.txt,.md,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp" aria-label="Выбрать вложение">
+                <div class="messenger-composer__tools" aria-label="Вложения и действия">
+                    <div class="messenger-workspace-create">
+                        <button class="messenger-icon-button" id="workspace-create-button" type="button" title="Создать задачу или заметку" aria-label="Создать задачу или заметку" aria-expanded="false" aria-controls="workspace-create-menu"><i class="fa fa-plus" aria-hidden="true"></i></button>
+                        <div class="messenger-workspace-menu" id="workspace-create-menu" hidden>
+                            <?php if (!empty($workspaceActions['tasks'])): ?>
+                                <button class="messenger-workspace-menu__item" type="button" data-create-workspace="task">
+                                    <i class="fa fa-check-square-o" aria-hidden="true"></i>
+                                    <span><strong>Создать задачу</strong><small>Не выходя из чата</small></span>
+                                </button>
+                            <?php endif; ?>
+                            <?php if (!empty($workspaceActions['notes'])): ?>
+                                <button class="messenger-workspace-menu__item" type="button" data-create-workspace="note">
+                                    <i class="fa fa-sticky-note-o" aria-hidden="true"></i>
+                                    <span><strong>Создать заметку</strong><small>Сохранить мысль в Notes</small></span>
+                                </button>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <?php if (!empty($workspaceActions['files'])): ?>
+                        <button class="messenger-icon-button" id="message-storage-button" type="button" title="Файл из личного хранилища" aria-label="Файл из личного хранилища"><i class="fa fa-cloud" aria-hidden="true"></i></button>
+                    <?php endif; ?>
+                    <button class="messenger-icon-button" id="message-attach-button" type="button" title="Прикрепить файл" aria-label="Прикрепить файл"><i class="fa fa-paperclip" aria-hidden="true"></i></button>
+                    <input class="messenger-file-input" id="message-file-input" type="file" multiple accept="image/jpeg,image/png,image/gif,image/webp,audio/*,video/mp4,video/webm,video/quicktime,.pdf,.txt,.md,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp" aria-label="Выбрать вложение">
+                </div>
                 <textarea id="message-input" rows="1" maxlength="4096" placeholder="Сообщение" aria-label="Текст сообщения"></textarea>
                 <button class="messenger-send-button" id="message-send-button" type="button" aria-label="Отправить"><i class="fa fa-paper-plane" aria-hidden="true"></i></button>
             </footer>
@@ -114,6 +147,76 @@ ob_start();
             <?php endif; ?>
         </div>
         <footer><button class="messenger-secondary-button" value="cancel">Отмена</button><button class="messenger-primary-button" id="create-chat-button" type="button">Создать чат</button></footer>
+    </form>
+</dialog>
+
+<dialog class="messenger-dialog-modal messenger-storage-dialog" id="storage-file-dialog">
+    <form method="dialog" class="messenger-dialog-modal__surface messenger-storage-dialog__surface">
+        <header>
+            <div><strong>Личное хранилище</strong><span>Выберите файл и отправьте его вложением или публичной ссылкой.</span></div>
+            <button class="messenger-icon-button" value="cancel" aria-label="Закрыть"><i class="fa fa-times" aria-hidden="true"></i></button>
+        </header>
+        <div class="messenger-storage-search">
+            <i class="fa fa-search" aria-hidden="true"></i>
+            <input id="storage-file-search" type="search" autocomplete="off" placeholder="Поиск файлов">
+        </div>
+        <div class="messenger-storage-list" id="storage-file-list" aria-live="polite"></div>
+        <div class="messenger-storage-empty" id="storage-file-empty" hidden>Файлы не найдены</div>
+        <div class="messenger-storage-selected" id="storage-file-selected" hidden>
+            <i class="fa fa-file-o" aria-hidden="true"></i>
+            <div><strong id="storage-file-selected-name"></strong><span id="storage-file-selected-meta"></span></div>
+        </div>
+        <footer class="messenger-storage-actions">
+            <button class="messenger-secondary-button" value="cancel">Отмена</button>
+            <button class="messenger-secondary-button" id="storage-send-link" type="button" disabled><i class="fa fa-link" aria-hidden="true"></i> Отправить ссылкой</button>
+            <button class="messenger-primary-button" id="storage-send-attachment" type="button" disabled><i class="fa fa-paperclip" aria-hidden="true"></i> Отправить файлом</button>
+        </footer>
+    </form>
+</dialog>
+
+<dialog class="messenger-dialog-modal messenger-workspace-dialog" id="workspace-action-dialog">
+    <form class="messenger-dialog-modal__surface messenger-workspace-dialog__surface" id="workspace-action-form" data-kind="task">
+        <header>
+            <div><strong id="workspace-action-heading">Новая задача</strong><span id="workspace-action-subtitle">Создайте задачу, не выходя из Messenger.</span></div>
+            <button class="messenger-icon-button" id="workspace-action-close" type="button" aria-label="Закрыть"><i class="fa fa-times" aria-hidden="true"></i></button>
+        </header>
+        <div class="messenger-workspace-kind" role="tablist" aria-label="Тип объекта">
+            <button type="button" role="tab" data-workspace-kind="task" aria-selected="true"><i class="fa fa-check-square-o" aria-hidden="true"></i> Задача</button>
+            <button type="button" role="tab" data-workspace-kind="note" aria-selected="false"><i class="fa fa-sticky-note-o" aria-hidden="true"></i> Заметка</button>
+        </div>
+        <div class="messenger-workspace-form">
+            <div class="messenger-workspace-source" id="workspace-action-source" hidden>
+                <strong>Источник — сообщение из этого чата</strong>
+                <span id="workspace-action-source-text"></span>
+            </div>
+            <label class="messenger-workspace-field">
+                <span>Название</span>
+                <input id="workspace-action-title" type="text" maxlength="255" required autocomplete="off">
+            </label>
+            <label class="messenger-workspace-field">
+                <span>Описание</span>
+                <textarea id="workspace-action-body" maxlength="60000" rows="5" placeholder="Добавьте детали"></textarea>
+            </label>
+            <div class="messenger-workspace-task-fields" id="workspace-task-fields">
+                <label class="messenger-workspace-field">
+                    <span>Приоритет</span>
+                    <select id="workspace-action-priority">
+                        <option value="low">Низкий</option>
+                        <option value="medium" selected>Средний</option>
+                        <option value="high">Высокий</option>
+                        <option value="urgent">Срочный</option>
+                    </select>
+                </label>
+                <label class="messenger-workspace-field">
+                    <span>Срок</span>
+                    <input id="workspace-action-due" type="datetime-local">
+                </label>
+            </div>
+            <div class="messenger-workspace-submit">
+                <button class="messenger-secondary-button" type="button" id="workspace-action-cancel">Отмена</button>
+                <button class="messenger-primary-button" type="submit" id="workspace-action-submit">Создать задачу</button>
+            </div>
+        </div>
     </form>
 </dialog>
 

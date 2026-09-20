@@ -28,7 +28,8 @@
   "database": {
     "tables": [
       "user_files",
-      "user_storage_quotas"
+      "user_storage_quotas",
+      "file_shares"
     ],
     "schemas": [
       "database/file_manager_module_schema.sql",
@@ -36,7 +37,9 @@
     ],
     "migrations": [
       "database/migrations/20260914_storage_quota_legacy_reconcile.sql",
-      "database/migrations/20260913_system_settings_storage_quota.sql"
+      "database/migrations/20260913_system_settings_storage_quota.sql",
+      "database/migrations/20260920_file_public_shares.sql",
+      "database/migrations/20260920_file_uid_backfill.sql"
     ]
   }
 }

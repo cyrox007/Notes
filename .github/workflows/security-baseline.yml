@@ -73,12 +73,19 @@ jobs:
             modules/messenger/views/dialog-actions.js \
             modules/messenger/views/receipts.js \
             modules/messenger/views/media.js \
-            modules/messenger/views/group.js
+            modules/messenger/views/group.js \
+            modules/messenger/views/workspace-actions.js \
+            modules/messenger/views/storage-files.js
           do
             target="/tmp/$(basename "$source")"
             sed '/^{literal}$/d;/^{\/literal}$/d' "$source" > "$target"
             node --check "$target"
           done
+
+      - name: File Manager JavaScript syntax
+        if: always()
+        shell: bash
+        run: node --check modules/files/assets/share.js
 
       - name: Messenger clean-install schema smoke test
         shell: bash

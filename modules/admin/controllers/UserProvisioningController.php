@@ -22,7 +22,7 @@ final class UserProvisioningController extends Controller
                 [
                     'login' => $request->post('login'),
                     'email' => $request->post('email'),
-                    'password' => $request->post('password'),
+                    'password' => $request->rawPost('password'),
                     'first_name' => $request->post('first_name'),
                     'patronymic' => $request->post('patronymic'),
                     'surname' => $request->post('surname'),

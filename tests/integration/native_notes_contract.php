@@ -135,6 +135,29 @@ $listJs = (string) file_get_contents($moduleRoot . '/assets/notes-list.js');
 nativeNotesAssert(!str_contains($listJs, '{literal}'), 'notes-list.js still contains Smarty literal markers');
 nativeNotesAssert(str_contains($listJs, "classList.toggle('visible'"), 'notes admin list toggle behavior is missing');
 
+$draftJs = (string) file_get_contents($moduleRoot . '/assets/notes-draft.js');
+nativeNotesAssert(
+    str_contains($draftJs, "submit.insertAdjacentElement('afterend', status)"),
+    'draft status is still injected inside the save-button container'
+);
+
+$editorCss = (string) file_get_contents($moduleRoot . '/assets/editor-013.css');
+nativeNotesAssert(
+    str_contains($editorCss, 'grid-template-columns:auto minmax(160px,1fr) auto'),
+    'note save row does not reserve independent space for button, status and hint'
+);
+nativeNotesAssert(
+    str_contains($editorCss, '.note-editor-013 .share-form{display:grid;gap:10px}'),
+    'note share form spacing regression is not protected'
+);
+
+$capability = (string) file_get_contents($moduleRoot . '/NotesCapability.php');
+nativeNotesAssert(str_contains($capability, 'WorkspaceNoteCreator'), 'Notes capability does not expose the shared workspace creation boundary');
+nativeNotesAssert(str_contains($capability, 'createWorkspaceNote('), 'Notes capability cannot create notes for cross-module actions');
+nativeNotesAssert(str_contains($capability, "requirePermission(\$userId, 'notes.use')"), 'cross-module note creation bypasses Notes RBAC');
+nativeNotesAssert(str_contains($capability, "'notes', 'max_notes'"), 'cross-module note creation bypasses the role note limit');
+nativeNotesAssert(str_contains($capability, 'CryptMethods::encrypt'), 'cross-module note creation bypasses note encryption');
+
 $shareController = (string) file_get_contents($moduleRoot . '/controllers/NoteShareController.php');
 nativeNotesAssert(str_contains($shareController, "header('Cache-Control: no-store, max-age=0')"), 'shared-note no-store header contract is missing');
 nativeNotesAssert(str_contains($shareController, "header('Referrer-Policy: no-referrer')"), 'shared-note referrer protection is missing');

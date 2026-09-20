@@ -6,7 +6,7 @@
 
 Workspace Organizer — self-hosted PHP-приложение для корпоративной работы: заметки, личные и общие задачи, файлы, профиль, администрирование и real-time Messenger.
 
-`1.0.1` сохраняет stable platform contract `1.0.0` и добавляет штатное подключение независимых модулей, подписанные лимиты пользователей в коммерческой лицензии и durable журнал authenticated mutating-действий с Admin-фильтрацией/retention. Базовый stable contract: vendor-free PHP runtime, native view/WebSocket infrastructure, persisted RBAC и module policies, installation-bound offline Ed25519 licensing, signed remote updater с external staging, transactional code+MySQL rollback и проверенный upgrade path с `0.14.0-beta.4`.
+`1.0.1` сохраняет stable platform contract `1.0.0` и добавляет штатное подключение независимых модулей, подписанные лимиты пользователей, durable аудит, acceptance-fixes для Auth/Notes/Admin/Sidebar и новые Workspace-интеграции Messenger с Notes/Tasks/File Manager. Базовый stable contract: vendor-free PHP runtime, native view/WebSocket infrastructure, persisted RBAC и module policies, installation-bound offline Ed25519 licensing, signed remote updater с external staging, transactional code+MySQL rollback и проверенный upgrade path с `0.14.0-beta.4`.
 
 ## Возможности
 
@@ -83,7 +83,7 @@ Web-installer автоматически:
 
 - проверяет PHP 8.1+, необходимые extensions и Argon2id; production runtime не требует `vendor/`;
 - пытается создать отсутствующую БД, если MySQL account это разрешает;
-- импортирует composition-aware canonical schemas и создаёт current contract из 33 обязательных таблиц;
+- импортирует composition-aware canonical schemas и создаёт current contract из 34 обязательных таблиц;
 - создаёт `cache`/`compile`;
 - подбирает и создаёт `PRIVATE_STORAGE_PATH` вне document root;
 - создаёт private пространства `file_manager`, `messenger`, `notes`, `users`, `rate-limit`, `logs`, `legacy`;
@@ -136,7 +136,7 @@ database/settings_schema.sql
 database/module_lifecycle_schema.sql
 ```
 
-Fresh contract включает 33 обязательные таблицы: persisted `module_lifecycle`, RBAC + `role_module_policies`, а также `task_boards`, `task_board_members`, `task_board_items` и `task_board_assignees`. `system_settings` хранит редактируемые системные значения, а `user_storage_quotas` — только персональные overrides лимита; фактический used space всегда рассчитывается из canonical `user_files`, чтобы не поддерживать рассинхронизируемый usage counter. `install.php` предназначен только для новой/пустой БД. Для существующих установок используются compatibility upgrade SQL; они не заменяют canonical `*_schema.sql` как описание текущей схемы.
+Fresh contract включает 34 обязательные таблицы: persisted `module_lifecycle`, RBAC + `role_module_policies`, а также `task_boards`, `task_board_members`, `task_board_items` и `task_board_assignees`. `system_settings` хранит редактируемые системные значения, а `user_storage_quotas` — только персональные overrides лимита; фактический used space всегда рассчитывается из canonical `user_files`, чтобы не поддерживать рассинхронизируемый usage counter. `install.php` предназначен только для новой/пустой БД. Для существующих установок используются compatibility upgrade SQL; они не заменяют canonical `*_schema.sql` как описание текущей схемы.
 
 После успешной установки наличие `.env` блокирует повторный запуск web-installer.
 

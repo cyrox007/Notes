@@ -33,8 +33,12 @@
 .subtasks-list{display:grid;gap:4px}.subtask-item{display:flex;align-items:center;gap:7px;min-height:28px}.subtask-item.completed .subtask-title{text-decoration:line-through;color:var(--ui-muted)}.subtask-title{font-size:12px}
 .task-subtasks-empty{color:var(--ui-muted);font-size:12px}
 .btn-sm{min-height:28px;padding:0 8px;font-size:12px}
-.modal-content{padding:16px}.close-modal{float:right;width:30px;height:30px;border:0;border-radius:8px;background:transparent;color:var(--ui-muted);cursor:pointer}.close-modal:hover{background:var(--ui-surface-soft);color:var(--ui-text)}
-.task-form{display:grid;gap:11px}.task-form .form-group{display:grid;gap:5px}.task-form label{font-size:12px;font-weight:800;color:var(--ui-muted)}.task-form textarea{min-height:100px}.form-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.form-actions{display:flex;justify-content:flex-end;gap:7px;margin-top:4px}
+.modal-content{position:relative;padding:18px}
+.modal-content>h2{margin:0 38px 16px 0;font-size:20px;line-height:1.25}
+.modal-close-button{position:absolute;top:12px;right:12px;width:30px;height:30px;display:grid;place-items:center;border:0;border-radius:8px;background:transparent;color:var(--ui-muted);cursor:pointer;font-size:18px;line-height:1}
+.modal-close-button:hover{background:var(--ui-surface-soft);color:var(--ui-text)}
+.task-form{display:grid;gap:11px}.task-form .form-group{display:grid;gap:5px}.task-form label{font-size:12px;font-weight:800;color:var(--ui-muted)}.task-form textarea{min-height:100px}.form-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.form-actions{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:4px;padding-top:12px;border-top:1px solid var(--ui-border)}
+.form-actions>.btn-primary,.form-actions>.btn-secondary{min-width:108px}
 .tasks__shared-boards-link{color:var(--module-accent);font-weight:700}
 @media(max-width:900px){.tasks__stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:620px){.tasks__stats{grid-template-columns:1fr 1fr}.tasks__controls{align-items:stretch;flex-direction:column}.task-header{flex-direction:column}.task-actions{width:100%;justify-content:flex-end}.form-row{grid-template-columns:1fr}}

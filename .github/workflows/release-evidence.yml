@@ -196,6 +196,21 @@ jobs:
             exit 1
           fi
 
+          php ws_server/server.php run >/tmp/workspace-release-evidence-ws.log 2>&1 &
+          echo $! >/tmp/workspace-release-evidence-ws-shell.pid
+          ws_ready=0
+          for i in {1..80}; do
+            if php ws_server/server.php status >/dev/null 2>&1; then
+              ws_ready=1
+              break
+            fi
+            sleep 0.25
+          done
+          if [[ "$ws_ready" != '1' ]]; then
+            cat /tmp/workspace-release-evidence-ws.log >&2
+            exit 1
+          fi
+
       - name: Cross-browser and mobile release evidence
         shell: bash
         run: |
@@ -267,6 +282,7 @@ jobs:
         shell: bash
         run: |
           cat /tmp/workspace-release-evidence-http.log || true
+          cat /tmp/workspace-release-evidence-ws.log || true
           cat /tmp/release-browser-evidence.json || true
           cat /tmp/release-load-evidence.json || true
           cat /tmp/release-health.json || true

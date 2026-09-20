@@ -51,6 +51,12 @@ final class RolePolicyService
                 'default' => true,
                 'help' => 'Можно ли пользователям этой роли создавать новые папки.',
             ],
+            'can_share' => [
+                'label' => 'Публичные ссылки на файлы',
+                'type' => 'bool',
+                'default' => true,
+                'help' => 'Разрешить создание отзывных публичных ссылок на файлы из личного хранилища.',
+            ],
         ],
         'messenger' => [
             'messages_per_minute' => [

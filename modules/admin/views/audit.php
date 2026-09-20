@@ -52,7 +52,7 @@ ob_start();
         <div class="admin-panel-card__header">
             <div><h2 id="audit-filter-title">Фильтры</h2><p>Всего найдено: <?= $view->e($total) ?></p></div>
         </div>
-        <form action="<?= $view->e($view->route('admin_audit')) ?>" method="get" class="admin-toolbar" role="search" aria-label="Фильтры журнала действий">
+        <form action="<?= $view->e($view->route('admin_audit')) ?>" method="get" class="admin-toolbar admin-audit-toolbar" role="search" aria-label="Фильтры журнала действий">
             <input type="hidden" name="page" value="1">
             <label class="admin-toolbar__search" for="audit-q"><span>Поиск</span><input id="audit-q" type="search" name="q" maxlength="120" value="<?= $view->e($filters['q'] ?? '') ?>" placeholder="Пользователь, UID, модуль или действие"></label>
             <div class="admin-toolbar__options">
@@ -118,4 +118,7 @@ echo $view->layout('core/base', [
     'socket_ticket' => $socket_ticket ?? '',
     'socket_url' => $socket_url ?? '',
     'module_styles' => [$view->moduleAsset('admin', 'style.css')],
+    'module_scripts' => [
+        $view->moduleAsset('admin', 'admin-settings-nav.js'),
+    ],
 ], $content);

@@ -14,6 +14,9 @@
 .sidebar__menu-icon{width:24px;height:24px;flex:0 0 24px;display:grid;place-items:center;border-radius:7px;font-size:14px}
 .sidebar__menu-link[aria-current="page"] .sidebar__menu-icon{background:color-mix(in srgb,var(--ui-primary) 10%,transparent)}
 .sidebar__menu-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sidebar__menu-link[data-nav-key="messenger"]{position:relative}
+.sidebar__menu-badge{min-width:20px;height:20px;margin-left:auto;display:inline-grid;place-items:center;padding:0 6px;border-radius:999px;background:var(--ui-action);color:#fff;font-size:10px;font-weight:800;line-height:1;box-shadow:0 0 0 2px var(--ui-surface-soft)}
+.sidebar__menu-badge[hidden]{display:none}
 .sidebar__bottom{display:grid;gap:6px;padding:10px;border-top:1px solid var(--ui-border)}
 .sidebar__theme{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:3px;border:1px solid var(--ui-border);border-radius:10px;background:var(--ui-surface-soft)}
 .sidebar__theme button{height:30px;border:0;border-radius:7px;background:transparent;color:var(--ui-muted);cursor:pointer}
@@ -23,6 +26,7 @@
 .sidebar.sidebar--collapsed{width:var(--ui-sidebar-collapsed)}
 .sidebar.sidebar--collapsed .sidebar__brand-copy,.sidebar.sidebar--collapsed .sidebar__menu-label{display:none}
 .sidebar.sidebar--collapsed .sidebar__brand,.sidebar.sidebar--collapsed .sidebar__menu-link,.sidebar.sidebar--collapsed .sidebar__utility{justify-content:center;padding-inline:0}
+.sidebar.sidebar--collapsed .sidebar__menu-badge{position:absolute;top:3px;right:3px;min-width:16px;height:16px;padding:0 4px;font-size:9px;box-shadow:0 0 0 2px var(--ui-surface-soft)}
 .sidebar.sidebar--collapsed .sidebar__theme{grid-template-columns:1fr}
 .sidebar.sidebar--collapsed .sidebar__collapse .sidebar__menu-icon i{transform:rotate(180deg)}
 @media(max-width:900px){
@@ -31,4 +35,7 @@
   .sidebar.sidebar--collapsed .sidebar__brand-copy,.sidebar.sidebar--collapsed .sidebar__menu-label{display:block}
   .sidebar.sidebar--collapsed .sidebar__brand,.sidebar.sidebar--collapsed .sidebar__menu-link,.sidebar.sidebar--collapsed .sidebar__utility{justify-content:flex-start;padding-inline:10px}
   .sidebar.sidebar--collapsed .sidebar__theme{grid-template-columns:repeat(3,1fr)}
+}
+@media(min-width:901px){
+  .sidebar.sidebar--collapsed .sidebar__menu{flex:0 1 auto}
 }

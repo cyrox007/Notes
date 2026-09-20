@@ -74,6 +74,8 @@ foreach (['task_create', 'create_category', 'task_boards'] as $route) {
 }
 nativeTasksAssert(str_contains($index, '$view->csrfInput()'), 'Tasks forms lost CSRF inputs');
 nativeTasksAssert(str_contains($index, 'data-shared-task-boards-link'), 'shared boards navigation hook is missing');
+nativeTasksAssert(str_contains($index, 'data-task-modal-close'), 'task modal close controls are not explicit');
+nativeTasksAssert(!str_contains($index, 'btn-secondary close-modal'), 'task modal cancel action still inherits close-icon geometry');
 
 $item = (string) file_get_contents($moduleRoot . '/views/elements/task_item/index.php');
 foreach (['delete_task', 'update_task'] as $route) {
@@ -95,8 +97,13 @@ foreach (['tasks-page.js','tasks-kanban.js','task-boards.js','task-boards-nav.js
 }
 $tasksJs = (string) file_get_contents($moduleRoot . '/assets/tasks-page.js');
 nativeTasksAssert(str_contains($tasksJs, 'window.wspace?.path'), 'Tasks API paths are not BASE_PATH-aware');
+nativeTasksAssert(str_contains($tasksJs, "querySelectorAll('[data-task-modal-close]')"), 'task modal JS does not bind explicit close controls');
 nativeTasksAssert(str_contains($tasksJs, 'syncSubtaskProgress'), 'subtask progress synchronization is missing');
 nativeTasksAssert(str_contains($tasksJs, "markSaveState(this, 'saving')"), 'task status save feedback is missing');
+$taskStyle = (string) file_get_contents($moduleRoot . '/assets/style.css');
+nativeTasksAssert(str_contains($taskStyle, '.modal-close-button{'), 'task modal close icon style is missing');
+nativeTasksAssert(!str_contains($taskStyle, '.close-modal{'), 'modal cancel button still shares close-icon styling');
+
 $kanban = (string) file_get_contents($moduleRoot . '/assets/tasks-kanban.js');
 nativeTasksAssert(str_contains($kanban, 'shiftStats'), 'live Tasks stats synchronization is missing');
 
@@ -106,6 +113,12 @@ nativeTasksAssert(str_contains($boardController, 'TaskBoardService'), 'shared bo
 $taskController = (string) file_get_contents($moduleRoot . '/controllers/TaskController.php');
 nativeTasksAssert(str_contains($taskController, "render_template('@tasks/index'"), 'Task controller is not using isolated view namespace');
 nativeTasksAssert(str_contains($taskController, 't.user_id = :user_id'), 'personal Tasks ownership query boundary is missing');
+
+$capability = (string) file_get_contents($moduleRoot . '/TasksCapability.php');
+nativeTasksAssert(str_contains($capability, 'WorkspaceTaskCreator'), 'Tasks capability does not expose the shared workspace creation boundary');
+nativeTasksAssert(str_contains($capability, 'createWorkspaceTask('), 'Tasks capability cannot create tasks for cross-module actions');
+nativeTasksAssert(str_contains($capability, "requirePermission(\$userId, 'tasks.use')"), 'cross-module task creation bypasses Tasks RBAC');
+nativeTasksAssert(str_contains($capability, "'tasks', 'max_personal_tasks'"), 'cross-module task creation bypasses the personal task limit');
 
 $base = (string) file_get_contents($root . '/app/views/core/base.php');
 nativeTasksAssert(!str_contains($base, 'tasks_page/'), 'shared shell still inlines Tasks styles');

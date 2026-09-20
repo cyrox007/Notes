@@ -9,7 +9,7 @@ for schema in messenger_schema.sql notes_schema.sql file_manager_schema.sql user
 done
 
 TABLE_COUNT=$("${MYSQL[@]}" -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='rbac_fresh';")
-test "$TABLE_COUNT" = "31"
+test "$TABLE_COUNT" = "32"
 test "$("${MYSQL[@]}" rbac_fresh -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='role_module_policies';")" = "1"
 test "$("${MYSQL[@]}" rbac_fresh -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('task_boards','task_board_members','task_board_items','task_board_assignees');")" = "4"
 

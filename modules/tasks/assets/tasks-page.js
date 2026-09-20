@@ -9,7 +9,7 @@
         const appPath = (path) => window.wspace?.path ? window.wspace.path(path) : path;
         const modal = document.getElementById('create-task-modal');
         const openBtn = document.getElementById('open-create-task');
-        const closeBtns = document.querySelectorAll('.close-modal');
+        const closeBtns = document.querySelectorAll('[data-task-modal-close]');
 
         const safeColor = (value) => /^#[0-9a-f]{6}$/i.test(String(value || '')) ? String(value) : '#3498db';
         root.querySelectorAll('[data-task-priority-color]').forEach((node) => {

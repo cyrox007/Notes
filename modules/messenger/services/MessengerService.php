@@ -265,6 +265,79 @@ final class MessengerService
         ];
     }
 
+    /**
+     * Resolve one visible message for a cross-module workspace action.
+     *
+     * @return array{dialog:array<string,mixed>,message:array<string,mixed>}
+     */
+    public function messageForWorkspaceAction(int $userId, string $dialogUid, string $messageUid): array
+    {
+        if ($userId <= 0) {
+            throw new DomainException('Требуется авторизация');
+        }
+        $identity = $this->db->fetchOne(
+            'SELECT uid FROM users WHERE id = :id AND is_active = 1 LIMIT 1',
+            [':id' => $userId]
+        );
+        if (!$identity) {
+            throw new DomainException('Пользователь не найден или заблокирован');
+        }
+
+        $userUid = (string) $identity['uid'];
+        [$user, $dialog] = $this->requireAccess($userUid, $dialogUid);
+        $row = $this->db->fetchOne(
+            'SELECT
+                m.id,
+                m.uid,
+                m.dialog_id,
+                m.from_user_id,
+                m.reply_to_message_id,
+                m.message,
+                m.message_type,
+                m.media_url,
+                m.meta_data,
+                m.message_status,
+                m.edited_at,
+                m.created_at,
+                u.uid AS user_uid,
+                u.username,
+                u.firstname,
+                u.lastname,
+                u.avatar,
+                reply.uid AS reply_uid,
+                reply.message AS reply_message,
+                reply.message_type AS reply_message_type,
+                reply_user.uid AS reply_user_uid,
+                reply_user.firstname AS reply_user_firstname,
+                reply_user.lastname AS reply_user_lastname
+             FROM messages m
+             INNER JOIN users u ON u.id = m.from_user_id
+             LEFT JOIN messages reply ON reply.id = m.reply_to_message_id AND reply.is_deleted = 0
+             LEFT JOIN users reply_user ON reply_user.id = reply.from_user_id
+             WHERE m.uid = :message_uid
+               AND m.dialog_id = :dialog_id
+               AND m.is_deleted = 0
+               AND NOT EXISTS (
+                    SELECT 1 FROM message_user_deletions mud
+                    WHERE mud.message_id = m.id AND mud.user_id = :viewer_id
+               )
+             LIMIT 1',
+            [
+                ':message_uid' => $messageUid,
+                ':dialog_id' => (int) $dialog['id'],
+                ':viewer_id' => (int) $user['id'],
+            ]
+        );
+        if (!$row) {
+            throw new DomainException('Сообщение не найдено или недоступно');
+        }
+
+        return [
+            'dialog' => $this->getDialogInfo($userUid, $dialogUid),
+            'message' => $this->hydrateMessage($row),
+        ];
+    }
+
     /** @return array<string, mixed> */
     public function createDialog(
         string $userUid,

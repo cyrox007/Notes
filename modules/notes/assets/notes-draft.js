@@ -18,7 +18,12 @@
         status.setAttribute('role', 'status');
         status.setAttribute('aria-live', 'polite');
         const submit = form.querySelector('.note__submit');
-        (submit || form).appendChild(status);
+        const saveRow = form.querySelector('.note-editor-013__save-row');
+        if (saveRow && submit) {
+            submit.insertAdjacentElement('afterend', status);
+        } else {
+            (submit || form).appendChild(status);
+        }
 
         function currentDraft() {
             return { title: title.value, content: content.value, savedAt: Date.now() };

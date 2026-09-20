@@ -11,8 +11,10 @@
         const base = String(window.wspace?.basePath || '').replace(/\/+$/, '');
         const relative = base && current.startsWith(base) ? (current.slice(base.length) || '/') : current;
 
+        const canViewAudit = Boolean(window.wspaceRuntime?.adminAudit);
         const items = [
             ['/admin', 'fa-users', 'Пользователи'],
+            ...(canViewAudit ? [['/admin/audit', 'fa-history', 'Журнал действий']] : []),
             ['/admin/roles', 'fa-shield', 'Роли и доступ'],
             ['/admin/registration', 'fa-user-plus', 'Регистрация'],
             ['/admin/settings', 'fa-sliders', 'Системные настройки'],

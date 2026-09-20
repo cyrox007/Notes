@@ -131,6 +131,103 @@ final class MessengerMediaService
         ];
     }
 
+    /** @param array{uid:string,name:string,extension:string,type:string,mime_type:string,size:int,path:string} $file @return array<string,mixed> */
+    public function importWorkspaceFile(int $userId, string $dialogUid, array $file): array
+    {
+        if ($userId <= 0 || trim($dialogUid) === '') {
+            throw new DomainException('Требуется авторизация и диалог');
+        }
+
+        $membership = $this->membershipByUserId($userId, $dialogUid);
+        $sourcePath = realpath((string) ($file['path'] ?? ''));
+        if ($sourcePath === false || !is_file($sourcePath) || !is_readable($sourcePath)) {
+            throw new RuntimeException('Файл из хранилища недоступен');
+        }
+
+        $extension = strtolower(trim((string) ($file['extension'] ?? '')));
+        if ($extension === '' || !isset(self::ALLOWED_UPLOADS[$extension])) {
+            throw new InvalidArgumentException('Этот тип файла нельзя отправить в Messenger');
+        }
+
+        $size = (int) filesize($sourcePath);
+        if ($size <= 0 || $size > $this->maxUploadSize()) {
+            throw new InvalidArgumentException('Файл пустой или превышает лимит Messenger');
+        }
+
+        $rolePolicy = new RolePolicyService($this->db);
+        $roleMax = (int) $rolePolicy->effectiveValue($userId, 'messenger', 'max_attachment_bytes');
+        if ($roleMax > 0 && $size > $roleMax) {
+            throw new DomainException('Размер файла превышает лимит вложений для вашей роли', 403);
+        }
+        $allowedExtensions = $rolePolicy->effectiveValue($userId, 'messenger', 'allowed_attachment_extensions');
+        if (is_array($allowedExtensions) && $allowedExtensions !== [] && !in_array($extension, $allowedExtensions, true)) {
+            throw new DomainException('Этот тип вложений запрещён для вашей роли', 403);
+        }
+
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
+        $mimeType = (string) $finfo->file($sourcePath);
+        if ($mimeType === '' || !in_array($mimeType, self::ALLOWED_UPLOADS[$extension], true)) {
+            throw new InvalidArgumentException('Расширение файла не соответствует его содержимому');
+        }
+
+        $originalBase = trim((string) ($file['name'] ?? 'file'));
+        $originalName = $this->safeOriginalName($originalBase . '.' . $extension);
+        $mediaKind = $this->mediaKind($mimeType, false);
+        $attachmentUid = UUID::v4();
+        $directory = $this->messengerStorageRoot()
+            . DIRECTORY_SEPARATOR . (int) $membership['dialog_id']
+            . DIRECTORY_SEPARATOR . $userId;
+        if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) {
+            throw new RuntimeException('Не удалось подготовить защищённое хранилище Messenger');
+        }
+
+        $storedPath = $directory . DIRECTORY_SEPARATOR . bin2hex(random_bytes(24)) . '.' . $extension;
+        if (!copy($sourcePath, $storedPath)) {
+            throw new RuntimeException('Не удалось скопировать файл в Messenger');
+        }
+        @chmod($storedPath, 0600);
+
+        try {
+            $this->db->execute(
+                'INSERT INTO messenger_attachments (
+                    uid, dialog_id, uploader_user_id, message_id,
+                    original_name, stored_path, mime_type, extension,
+                    media_kind, size, created_at, is_deleted
+                 ) VALUES (
+                    :uid, :dialog_id, :uploader_user_id, NULL,
+                    :original_name, :stored_path, :mime_type, :extension,
+                    :media_kind, :size, :created_at, 0
+                 )',
+                [
+                    ':uid' => $attachmentUid,
+                    ':dialog_id' => (int) $membership['dialog_id'],
+                    ':uploader_user_id' => $userId,
+                    ':original_name' => $originalName,
+                    ':stored_path' => $storedPath,
+                    ':mime_type' => $mimeType,
+                    ':extension' => $extension,
+                    ':media_kind' => $mediaKind,
+                    ':size' => $size,
+                    ':created_at' => date('Y-m-d H:i:s'),
+                ]
+            );
+        } catch (\Throwable $e) {
+            @unlink($storedPath);
+            throw $e;
+        }
+
+        return [
+            'uid' => $attachmentUid,
+            'dialog_uid' => $dialogUid,
+            'name' => $originalName,
+            'mime_type' => $mimeType,
+            'extension' => $extension,
+            'media_kind' => $mediaKind,
+            'size' => $size,
+            'media_url' => $this->mediaUrl($attachmentUid),
+        ];
+    }
+
     /** @return array<string,mixed> */
     public function send(
         string $userUid,

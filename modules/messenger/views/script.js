@@ -13,6 +13,11 @@
             this.typingTimer = null;
             this.typingSent = false;
             this.pendingOpenUid = null;
+            const deepLink = new URLSearchParams(window.location.search);
+            this.requestedDialogUid = String(deepLink.get('dialog') || '').trim();
+            this.requestedMessageUid = String(deepLink.get('message') || '').trim();
+            this.requestedMessageAttempts = 0;
+            if (this.requestedDialogUid) this.pendingOpenUid = this.requestedDialogUid;
 
             this.dialogs = [];
             this.dialogMap = new Map();
@@ -90,8 +95,39 @@
         }
 
         connect() {
-            const config = window.wspace?.socketConfig || {};
-            if (!config.url || !config.ticket) {
+            const wspace = window.wspace = window.wspace || {};
+            const runtime = window.wspaceRuntime && typeof window.wspaceRuntime === 'object'
+                ? window.wspaceRuntime
+                : {};
+            const existing = wspace.socketConfig && typeof wspace.socketConfig === 'object'
+                ? wspace.socketConfig
+                : {};
+            const rawUrl = String(
+                existing.url
+                || runtime.socketUrl
+                || this.root.dataset.socketUrl
+                || ''
+            ).trim();
+            const ticket = String(
+                existing.ticket
+                || runtime.socketTicket
+                || this.root.dataset.socketTicket
+                || ''
+            ).trim();
+            const resolveSocketUrl = typeof window.wspaceResolveSocketUrl === 'function'
+                ? window.wspaceResolveSocketUrl
+                : (value) => {
+                    if (!value || !value.startsWith('/')) return value;
+                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    return `${protocol}//${window.location.host}${value}`;
+                };
+            const url = resolveSocketUrl(rawUrl);
+
+            // Messenger must stay self-contained even when the shared deferred
+            // runtime bootstrap is delayed or blocked by a browser/cache race.
+            wspace.socketConfig = { url, ticket };
+
+            if (!url || !ticket) {
                 this.setConnectionState('offline', 'WebSocket не настроен');
                 return;
             }
@@ -99,8 +135,8 @@
             this.setConnectionState('connecting', this.reconnectAttempt ? 'Переподключение…' : 'Подключение…');
 
             try {
-                const separator = config.url.includes('?') ? '&' : '?';
-                this.socket = new WebSocket(`${config.url}${separator}ticket=${encodeURIComponent(config.ticket)}`);
+                const separator = url.includes('?') ? '&' : '?';
+                this.socket = new WebSocket(`${url}${separator}ticket=${encodeURIComponent(ticket)}`);
             } catch (error) {
                 console.error(error);
                 this.scheduleReconnect();
@@ -206,6 +242,9 @@
             this.dialogs = dialogs;
             this.dialogMap = new Map(dialogs.map((dialog) => [dialog.uid, dialog]));
             this.renderDialogs();
+            document.dispatchEvent(new CustomEvent('wspace:messenger-dialogs', {
+                detail: { dialogs: this.dialogs }
+            }));
 
             if (this.currentDialog && this.dialogMap.has(this.currentDialog.uid)) {
                 this.currentDialog = this.dialogMap.get(this.currentDialog.uid);
@@ -334,6 +373,7 @@
             this.hasMore = Boolean(data.has_more);
             this.el.loadOlder.hidden = !this.hasMore;
             this.markCurrentRead();
+            this.focusRequestedMessage();
         }
 
         renderMessages(options = {}) {
@@ -394,7 +434,7 @@
 
             const body = document.createElement('div');
             body.className = 'messenger-message__text';
-            body.textContent = message.message || '';
+            this.renderMessageText(body, message.message || '');
             bubble.append(body);
 
             const meta = document.createElement('div');
@@ -661,6 +701,33 @@
             return others.some((member) => Number(this.readCursors.get(member.uid) || 0) >= Number(message.id));
         }
 
+        focusRequestedMessage() {
+            if (!this.requestedMessageUid || !this.currentDialog) return;
+            if (this.requestedDialogUid && this.currentDialog.uid !== this.requestedDialogUid) return;
+
+            const found = this.messages.some((message) => message.uid === this.requestedMessageUid);
+            if (found) {
+                const uid = this.requestedMessageUid;
+                this.requestedMessageUid = '';
+                this.requestedMessageAttempts = 0;
+                requestAnimationFrame(() => this.scrollToMessage(uid));
+                return;
+            }
+
+            if (this.hasMore && this.messages.length > 0 && this.requestedMessageAttempts < 8) {
+                this.requestedMessageAttempts += 1;
+                this.sendEvent('MessangerSocket:load', {
+                    dialog_uid: this.currentDialog.uid,
+                    before_id: Number(this.messages[0].id)
+                });
+                return;
+            }
+
+            this.requestedMessageUid = '';
+            this.requestedMessageAttempts = 0;
+            this.showToast('Исходное сообщение больше недоступно');
+        }
+
         scrollToMessage(uid) {
             const node = Array.from(this.el.messageList.querySelectorAll('.messenger-message'))
                 .find((element) => element.dataset.uid === uid);
@@ -677,8 +744,46 @@
         autosizeComposer() {
             const input = this.el.input;
             if (!input) return;
+            const maxHeight = 120;
             input.style.height = 'auto';
-            input.style.height = `${Math.min(input.scrollHeight, 132)}px`;
+            input.style.height = `${Math.min(input.scrollHeight, maxHeight)}px`;
+            input.style.overflowY = input.scrollHeight > maxHeight ? 'auto' : 'hidden';
+        }
+
+        renderMessageText(container, value) {
+            const text = String(value || '');
+            const urlPattern = /https?:\/\/[^\s<>"']+/giu;
+            let offset = 0;
+            for (const match of text.matchAll(urlPattern)) {
+                const index = Number(match.index || 0);
+                if (index > offset) container.append(document.createTextNode(text.slice(offset, index)));
+
+                let urlText = match[0];
+                let trailing = '';
+                while (/[),.!?;:]$/.test(urlText)) {
+                    trailing = urlText.slice(-1) + trailing;
+                    urlText = urlText.slice(0, -1);
+                }
+
+                try {
+                    const url = new URL(urlText);
+                    if (url.protocol === 'http:' || url.protocol === 'https:') {
+                        const link = document.createElement('a');
+                        link.href = url.href;
+                        link.target = '_blank';
+                        link.rel = 'noopener noreferrer';
+                        link.textContent = urlText;
+                        container.append(link);
+                    } else {
+                        container.append(document.createTextNode(urlText));
+                    }
+                } catch (_) {
+                    container.append(document.createTextNode(urlText));
+                }
+                if (trailing) container.append(document.createTextNode(trailing));
+                offset = index + match[0].length;
+            }
+            if (offset < text.length) container.append(document.createTextNode(text.slice(offset)));
         }
 
         createAvatar(title, className) {

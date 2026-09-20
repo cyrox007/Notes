@@ -7,6 +7,8 @@
         const composer = document.querySelector('.messenger-composer');
         if (!app || !composer || !app.el?.input) return;
 
+        const composerTools = composer.querySelector('.messenger-composer__tools') || composer;
+        const appPath = (path) => window.wspace?.path ? window.wspace.path(path) : path;
         const attachButton = document.getElementById('message-attach-button');
         const sendButton = document.getElementById('message-send-button');
         const uploadStatus = document.getElementById('messenger-upload-status');
@@ -24,7 +26,7 @@
         micIcon.className = 'fa fa-microphone';
         micIcon.setAttribute('aria-hidden', 'true');
         micButton.append(micIcon);
-        composer.insertBefore(micButton, sendButton || null);
+        composerTools.append(micButton);
 
         const recorderBar = document.createElement('div');
         recorderBar.className = 'messenger-voice-recorder';
@@ -59,7 +61,15 @@
             && window.MediaRecorder
         );
         if (!supportsRecording) {
-            micButton.hidden = true;
+            const insecureContext = window.isSecureContext === false;
+            const unavailableMessage = insecureContext
+                ? 'Для записи голосовых сообщений откройте Workspace по HTTPS.'
+                : 'Этот браузер не поддерживает запись голосовых сообщений.';
+            micButton.classList.add('messenger-voice-button--unavailable');
+            micButton.setAttribute('aria-disabled', 'true');
+            micButton.title = unavailableMessage;
+            micButton.setAttribute('aria-label', unavailableMessage);
+            micButton.addEventListener('click', () => app.showToast(unavailableMessage));
             return;
         }
 
@@ -160,7 +170,7 @@
             form.append('voice', file, file.name);
 
             const xhr = new XMLHttpRequest();
-            xhr.open('POST', '/messenger/voice-upload', true);
+            xhr.open('POST', appPath('/messenger/voice-upload'), true);
             xhr.responseType = 'json';
             xhr.upload.addEventListener('progress', (event) => {
                 if (!event.lengthComputable) return;
@@ -352,7 +362,11 @@
 
             const nativeAudio = row.querySelector('.messenger-media--voice audio');
             if (!nativeAudio) return row;
+            row.classList.add('messenger-message--voice');
             nativeAudio.classList.add('messenger-voice-native-audio');
+            nativeAudio.hidden = true;
+            nativeAudio.setAttribute('aria-hidden', 'true');
+            nativeAudio.tabIndex = -1;
 
             const player = document.createElement('div');
             player.className = 'messenger-voice-player';
@@ -368,6 +382,20 @@
 
             const body = document.createElement('div');
             body.className = 'messenger-voice-player__body';
+
+            const waveform = document.createElement('div');
+            waveform.className = 'messenger-voice-player__waveform';
+            const bars = [];
+            const seed = String(message.uid || message.id || 'voice');
+            for (let index = 0; index < 34; index += 1) {
+                const bar = document.createElement('span');
+                const code = seed.charCodeAt(index % seed.length) || 17;
+                const height = 24 + ((code * (index + 7)) % 68);
+                bar.style.setProperty('--voice-bar-height', `${height}%`);
+                waveform.append(bar);
+                bars.push(bar);
+            }
+
             const progress = document.createElement('input');
             progress.type = 'range';
             progress.min = '0';
@@ -375,10 +403,18 @@
             progress.value = '0';
             progress.className = 'messenger-voice-player__progress';
             progress.setAttribute('aria-label', 'Позиция голосового сообщения');
-            const time = document.createElement('span');
-            time.className = 'messenger-voice-player__time';
-            time.textContent = '0:00';
-            body.append(progress, time);
+            waveform.append(progress);
+
+            const timing = document.createElement('div');
+            timing.className = 'messenger-voice-player__timing';
+            const currentTime = document.createElement('span');
+            currentTime.className = 'messenger-voice-player__time messenger-voice-player__time--current';
+            currentTime.textContent = '0:00';
+            const durationTime = document.createElement('span');
+            durationTime.className = 'messenger-voice-player__time messenger-voice-player__time--duration';
+            durationTime.textContent = '0:00';
+            timing.append(currentTime, durationTime);
+            body.append(waveform, timing);
 
             const speed = document.createElement('button');
             speed.type = 'button';
@@ -389,10 +425,12 @@
             const updateTime = () => {
                 const duration = Number.isFinite(nativeAudio.duration) ? nativeAudio.duration : 0;
                 const current = Number.isFinite(nativeAudio.currentTime) ? nativeAudio.currentTime : 0;
-                progress.value = duration > 0 ? String(Math.round((current / duration) * 1000)) : '0';
-                time.textContent = duration > 0
-                    ? `${formatDuration(current)} / ${formatDuration(duration)}`
-                    : formatDuration(current);
+                const ratio = duration > 0 ? Math.max(0, Math.min(1, current / duration)) : 0;
+                progress.value = String(Math.round(ratio * 1000));
+                currentTime.textContent = formatDuration(current);
+                durationTime.textContent = formatDuration(duration);
+                const playedBars = Math.round(ratio * bars.length);
+                bars.forEach((bar, index) => bar.classList.toggle('is-played', index < playedBars));
             };
 
             play.addEventListener('click', async () => {
