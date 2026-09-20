@@ -303,16 +303,15 @@ class DatabaseManager
         $this->queryCount++;
 
         $queryType = $this->queryType($query);
-        $started = null;
         if ($this->enableLogging) {
             $this->log(
                 "[execute] #{$this->queryCount} {$queryType}: " . $this->maskQuery($query, $params),
                 LogLevel::DEBUG
             );
-            $started = microtime(true);
         }
 
         $stmt = $this->pdo->prepare($query);
+        $started = $this->enableLogging ? microtime(true) : null;
         $stmt->execute($params);
 
         if ($started !== null) {
