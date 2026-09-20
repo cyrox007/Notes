@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+require_once __DIR__ . '/LicenseVerifier.php';
+require_once __DIR__ . '/LicenseService.php';
+
 use Core\DatabaseManager;
 use DomainException;
 use RuntimeException;
