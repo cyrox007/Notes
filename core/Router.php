@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Core;
 
+require_once __DIR__ . '/RouteTemplate.php';
+
 use InvalidArgumentException;
 use RuntimeException;
 
@@ -19,6 +21,9 @@ class Router
 
     /** @var string|null */
     private ?string $groupPrefix = null;
+
+    /** @var array<string,string> normalized route path => compiled regex */
+    private array $compiledPatterns = [];
 
     private function __construct() {}
 
@@ -88,36 +93,7 @@ class Router
 
     private function createPattern(string $path): string
     {
-        $tokens = preg_split(
-            '/(\{(?:int|str):[A-Za-z_][A-Za-z0-9_]*\})/',
-            $path,
-            -1,
-            PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY
-        );
-
-        if ($tokens === false) {
-            throw new RuntimeException('Unable to compile route pattern');
-        }
-
-        $pattern = '';
-        $names = [];
-        foreach ($tokens as $token) {
-            if (preg_match('/^\{(int|str):([A-Za-z_][A-Za-z0-9_]*)\}$/', $token, $matches) === 1) {
-                $name = $matches[2];
-                if (isset($names[$name])) {
-                    throw new RuntimeException("Duplicate route parameter: {$name}");
-                }
-                $names[$name] = true;
-
-                $valuePattern = $matches[1] === 'int' ? '\\d+' : '[A-Za-z0-9_-]+';
-                $pattern .= '(?P<' . $name . '>' . $valuePattern . ')';
-                continue;
-            }
-
-            $pattern .= preg_quote($token, '~');
-        }
-
-        return '~^' . $pattern . '$~D';
+        return RouteTemplate::compile($path);
     }
 
     /**
@@ -126,41 +102,12 @@ class Router
      */
     private function clearParams(array|null $matched, string $routePath): array
     {
-        if ($matched === null) {
-            return [];
-        }
-
-        $types = [];
-        if (preg_match_all('/\{(int|str):([A-Za-z_][A-Za-z0-9_]*)\}/', $routePath, $definitions, PREG_SET_ORDER)) {
-            foreach ($definitions as $definition) {
-                $types[(string) $definition[2]] = (string) $definition[1];
-            }
-        }
-
-        $filtered = array_filter(
-            $matched,
-            static fn ($key): bool => !is_int($key),
-            ARRAY_FILTER_USE_KEY
-        );
-
-        foreach ($filtered as $key => $value) {
-            if (($types[$key] ?? null) === 'int' && is_string($value) && ctype_digit($value)) {
-                $filtered[$key] = (int) $value;
-            }
-        }
-
-        return $filtered;
+        return RouteTemplate::typedParams($matched, $routePath);
     }
 
     private function normalizePath(string $path): string
     {
-        if (str_contains($path, "\0") || preg_match('/[\x00-\x1F\x7F]/', $path) === 1) {
-            throw new InvalidArgumentException('Route path contains control characters');
-        }
-
-        $path = trim($path, '/');
-        $path = "/{$path}/";
-        return (string) preg_replace('#/{2,}#', '/', $path);
+        return RouteTemplate::normalize($path);
     }
 
     /**
@@ -192,7 +139,9 @@ class Router
 
         // Invalid placeholders and duplicate parameter names fail during route
         // registration rather than on the first request that reaches the route.
-        $this->createPattern($path);
+        // Cache the compiled pattern so dispatch does not rebuild the same regex
+        // on every request.
+        $compiledPattern = $this->createPattern($path);
 
         foreach ($this->routes as $existing) {
             if ($existing['method'] === $method && $existing['path'] === $path) {
@@ -215,6 +164,7 @@ class Router
         }
 
         $this->routes[] = $route;
+        $this->compiledPatterns[$path] = $compiledPattern;
 
         return $this;
     }
@@ -241,7 +191,7 @@ class Router
         $allowedMethods = [];
 
         foreach ($this->routes as $route) {
-            $pathPattern = $this->createPattern($route['path']);
+            $pathPattern = $this->compiledPatterns[$route['path']] ?? $this->createPattern($route['path']);
             $params = null;
             if (preg_match($pathPattern, $requestUrl, $params) !== 1) {
                 continue;
@@ -399,40 +349,7 @@ class Router
      */
     private function buildUrlFromRoute(string $path, array $params): string
     {
-        foreach ($params as $key => $value) {
-            if (!is_string($key) || preg_match('/^[A-Za-z0-9_]+$/', $key) !== 1) {
-                throw new InvalidArgumentException('Invalid route parameter name');
-            }
-
-            $pattern = '/\{(int|str):' . preg_quote($key, '/') . '\}/';
-            if (preg_match($pattern, $path, $matches) !== 1) {
-                throw new RuntimeException("Parameter {$key} not found in route path");
-            }
-
-            $type = $matches[1];
-            if ($type === 'int') {
-                if (!(is_int($value) || (is_string($value) && ctype_digit($value)))) {
-                    throw new InvalidArgumentException("Route parameter {$key} must be an integer");
-                }
-                $replacement = (string) $value;
-            } else {
-                if (!(is_string($value) || is_int($value))) {
-                    throw new InvalidArgumentException("Route parameter {$key} must be a scalar string identifier");
-                }
-                $replacement = (string) $value;
-                if (preg_match('/^[A-Za-z0-9_-]+$/', $replacement) !== 1) {
-                    throw new InvalidArgumentException("Route parameter {$key} contains invalid characters");
-                }
-            }
-
-            $path = (string) preg_replace($pattern, $replacement, $path, 1);
-        }
-
-        if (preg_match('/\{(?:int|str):[A-Za-z_][A-Za-z0-9_]*\}/', $path) === 1) {
-            throw new RuntimeException('Missing parameter for named route redirect');
-        }
-
-        return $this->normalizePath($path);
+        return RouteTemplate::bind($path, $params);
     }
 
     /**
