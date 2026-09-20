@@ -73,7 +73,8 @@ jobs:
             modules/messenger/views/dialog-actions.js \
             modules/messenger/views/receipts.js \
             modules/messenger/views/media.js \
-            modules/messenger/views/group.js
+            modules/messenger/views/group.js \
+            modules/messenger/views/workspace-actions.js
           do
             target="/tmp/$(basename "$source")"
             sed '/^{literal}$/d;/^{\/literal}$/d' "$source" > "$target"

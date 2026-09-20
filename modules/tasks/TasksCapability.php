@@ -4,11 +4,16 @@ declare(strict_types=1);
 
 namespace Modules\Tasks;
 
+use App\Services\PermissionService;
+use App\Services\RolePolicyService;
 use Core\DatabaseManager;
 use Core\ProfileContentProvider;
+use Core\WorkspaceTaskCreator;
+use DateTimeImmutable;
+use DomainException;
 use InvalidArgumentException;
 
-final class TasksCapability implements ProfileContentProvider
+final class TasksCapability implements ProfileContentProvider, WorkspaceTaskCreator
 {
     public function moduleId(): string
     {
@@ -79,6 +84,92 @@ final class TasksCapability implements ProfileContentProvider
         return [
             'tasks_count' => max(0, (int) ($row['tasks_count'] ?? 0)),
             'open_tasks_count' => max(0, (int) ($row['open_tasks_count'] ?? 0)),
+        ];
+    }
+
+    /** @return array{uid:string,title:string,priority:string,due_date:?string} */
+    public function createWorkspaceTask(
+        int $userId,
+        string $title,
+        string $description,
+        string $priority = 'medium',
+        ?string $dueDate = null
+    ): array {
+        if ($userId <= 0) {
+            throw new DomainException('Требуется авторизация', 401);
+        }
+
+        $db = $this->db();
+        (new PermissionService($db))->requirePermission($userId, 'tasks.use');
+
+        $title = trim((string) preg_replace('/\s+/u', ' ', $title));
+        if ($title === '' || mb_strlen($title) > 255) {
+            throw new InvalidArgumentException('Название задачи должно содержать от 1 до 255 символов');
+        }
+
+        $description = trim($description);
+        if (mb_strlen($description) > 10000) {
+            throw new InvalidArgumentException('Описание задачи слишком длинное');
+        }
+
+        $priority = strtolower(trim($priority));
+        if (!in_array($priority, ['low', 'medium', 'high', 'urgent'], true)) {
+            throw new InvalidArgumentException('Некорректный приоритет задачи');
+        }
+
+        $normalizedDueDate = null;
+        $dueDate = trim((string) $dueDate);
+        if ($dueDate !== '') {
+            foreach (['Y-m-d\\TH:i', 'Y-m-d\\TH:i:s', 'Y-m-d H:i:s'] as $format) {
+                $date = DateTimeImmutable::createFromFormat($format, $dueDate);
+                if ($date instanceof DateTimeImmutable && $date->format($format) === $dueDate) {
+                    $normalizedDueDate = $date->format('Y-m-d H:i:s');
+                    break;
+                }
+            }
+            if ($normalizedDueDate === null) {
+                throw new InvalidArgumentException('Некорректная дата выполнения');
+            }
+        }
+
+        $limit = (int) (new RolePolicyService($db))->effectiveValue($userId, 'tasks', 'max_personal_tasks');
+        if ($limit > 0) {
+            $count = (int) $db->fetchValue(
+                'SELECT COUNT(*) FROM tasks WHERE user_id = :user_id AND is_deleted = 0',
+                [':user_id' => $userId]
+            );
+            if ($count >= $limit) {
+                throw new DomainException('Достигнут лимит личных задач для вашей роли', 403);
+            }
+        }
+
+        $uid = bin2hex(random_bytes(16));
+        $now = date('Y-m-d H:i:s');
+        $db->execute(
+            'INSERT INTO tasks (
+                uid,user_id,title,description,status,priority,due_date,completed_at,
+                is_deleted,deleted_at,created_at,updated_at
+             ) VALUES (
+                :uid,:user_id,:title,:description,"pending",:priority,:due_date,NULL,
+                0,NULL,:created_at,:updated_at
+             )',
+            [
+                ':uid' => $uid,
+                ':user_id' => $userId,
+                ':title' => $title,
+                ':description' => $description === '' ? null : $description,
+                ':priority' => $priority,
+                ':due_date' => $normalizedDueDate,
+                ':created_at' => $now,
+                ':updated_at' => $now,
+            ]
+        );
+
+        return [
+            'uid' => $uid,
+            'title' => $title,
+            'priority' => $priority,
+            'due_date' => $normalizedDueDate,
         ];
     }
 

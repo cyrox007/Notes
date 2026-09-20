@@ -13,6 +13,11 @@
             this.typingTimer = null;
             this.typingSent = false;
             this.pendingOpenUid = null;
+            const deepLink = new URLSearchParams(window.location.search);
+            this.requestedDialogUid = String(deepLink.get('dialog') || '').trim();
+            this.requestedMessageUid = String(deepLink.get('message') || '').trim();
+            this.requestedMessageAttempts = 0;
+            if (this.requestedDialogUid) this.pendingOpenUid = this.requestedDialogUid;
 
             this.dialogs = [];
             this.dialogMap = new Map();
@@ -334,6 +339,7 @@
             this.hasMore = Boolean(data.has_more);
             this.el.loadOlder.hidden = !this.hasMore;
             this.markCurrentRead();
+            this.focusRequestedMessage();
         }
 
         renderMessages(options = {}) {
@@ -659,6 +665,33 @@
             if (!this.currentDialog || message.user?.uid !== this.userUid) return false;
             const others = (this.currentDialog.participants || []).filter((member) => member.uid !== this.userUid);
             return others.some((member) => Number(this.readCursors.get(member.uid) || 0) >= Number(message.id));
+        }
+
+        focusRequestedMessage() {
+            if (!this.requestedMessageUid || !this.currentDialog) return;
+            if (this.requestedDialogUid && this.currentDialog.uid !== this.requestedDialogUid) return;
+
+            const found = this.messages.some((message) => message.uid === this.requestedMessageUid);
+            if (found) {
+                const uid = this.requestedMessageUid;
+                this.requestedMessageUid = '';
+                this.requestedMessageAttempts = 0;
+                requestAnimationFrame(() => this.scrollToMessage(uid));
+                return;
+            }
+
+            if (this.hasMore && this.messages.length > 0 && this.requestedMessageAttempts < 8) {
+                this.requestedMessageAttempts += 1;
+                this.sendEvent('MessangerSocket:load', {
+                    dialog_uid: this.currentDialog.uid,
+                    before_id: Number(this.messages[0].id)
+                });
+                return;
+            }
+
+            this.requestedMessageUid = '';
+            this.requestedMessageAttempts = 0;
+            this.showToast('Исходное сообщение больше недоступно');
         }
 
         scrollToMessage(uid) {

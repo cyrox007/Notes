@@ -107,6 +107,12 @@ $taskController = (string) file_get_contents($moduleRoot . '/controllers/TaskCon
 nativeTasksAssert(str_contains($taskController, "render_template('@tasks/index'"), 'Task controller is not using isolated view namespace');
 nativeTasksAssert(str_contains($taskController, 't.user_id = :user_id'), 'personal Tasks ownership query boundary is missing');
 
+$capability = (string) file_get_contents($moduleRoot . '/TasksCapability.php');
+nativeTasksAssert(str_contains($capability, 'WorkspaceTaskCreator'), 'Tasks capability does not expose the shared workspace creation boundary');
+nativeTasksAssert(str_contains($capability, 'createWorkspaceTask('), 'Tasks capability cannot create tasks for cross-module actions');
+nativeTasksAssert(str_contains($capability, "requirePermission(\$userId, 'tasks.use')"), 'cross-module task creation bypasses Tasks RBAC');
+nativeTasksAssert(str_contains($capability, "'tasks', 'max_personal_tasks'"), 'cross-module task creation bypasses the personal task limit');
+
 $base = (string) file_get_contents($root . '/app/views/core/base.php');
 nativeTasksAssert(!str_contains($base, 'tasks_page/'), 'shared shell still inlines Tasks styles');
 nativeTasksAssert(!str_contains($base, '/assets/js/tasks-kanban.js'), 'shared shell still loads Tasks kanban globally');

@@ -7,7 +7,9 @@ namespace App\Controllers;
 use App\Handlers\SocketTicket;
 use App\Models\UserModel;
 use App\Services\MessengerMediaService;
+use App\Services\PermissionService;
 use Core\Controller;
+use Core\ModuleRuntimeLoader;
 use Core\Request;
 use Core\WebSocketEndpoint;
 use DomainException;
@@ -53,9 +55,24 @@ final class MessagerController extends Controller
             error_log('WebSocket public endpoint is invalid: ' . $e->getMessage());
         }
 
+        $workspaceActions = ['notes' => false, 'tasks' => false];
+        try {
+            $permissions = new PermissionService();
+            $capabilities = ModuleRuntimeLoader::getInstance()->capabilities();
+            $workspaceActions = [
+                'notes' => $capabilities->has('workspace.notes')
+                    && $permissions->hasPermission((int) $user->id, 'notes.use'),
+                'tasks' => $capabilities->has('workspace.tasks')
+                    && $permissions->hasPermission((int) $user->id, 'tasks.use'),
+            ];
+        } catch (\Throwable $e) {
+            error_log('Messenger workspace actions are unavailable: ' . $e->getMessage());
+        }
+
         $this->render_template('@messenger/index', [
             'user' => get_object_vars($user),
             'contacts' => $contacts,
+            'workspace_actions' => $workspaceActions,
             'socket_ticket' => $socketTicket,
             'socket_url' => $socketUrl,
         ]);

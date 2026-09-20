@@ -151,6 +151,13 @@ nativeNotesAssert(
     'note share form spacing regression is not protected'
 );
 
+$capability = (string) file_get_contents($moduleRoot . '/NotesCapability.php');
+nativeNotesAssert(str_contains($capability, 'WorkspaceNoteCreator'), 'Notes capability does not expose the shared workspace creation boundary');
+nativeNotesAssert(str_contains($capability, 'createWorkspaceNote('), 'Notes capability cannot create notes for cross-module actions');
+nativeNotesAssert(str_contains($capability, "requirePermission(\$userId, 'notes.use')"), 'cross-module note creation bypasses Notes RBAC');
+nativeNotesAssert(str_contains($capability, "'notes', 'max_notes'"), 'cross-module note creation bypasses the role note limit');
+nativeNotesAssert(str_contains($capability, 'CryptMethods::encrypt'), 'cross-module note creation bypasses note encryption');
+
 $shareController = (string) file_get_contents($moduleRoot . '/controllers/NoteShareController.php');
 nativeNotesAssert(str_contains($shareController, "header('Cache-Control: no-store, max-age=0')"), 'shared-note no-store header contract is missing');
 nativeNotesAssert(str_contains($shareController, "header('Referrer-Policy: no-referrer')"), 'shared-note referrer protection is missing');
