@@ -403,7 +403,7 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 Перед окончательным cut/tag `v1.0.1` остаются только release-ceremony gates, а не новые platform features:
 
 1. восстановить и проверить GitHub branch protection/ruleset для `master` и `1.0` после переключения visibility репозитория;
-2. получить green full CI + cross-browser/mobile/load release evidence на exact 1.0.1 release head;
+2. получить green full CI + cross-browser/mobile + load/soak release evidence на exact 1.0.1 release head;
 3. подтвердить fresh backup/restore drill, exact Beta4 → 1.0.1 upgrade/rollback, production trust canaries и отсутствие открытых P0/P1 data-loss/security/release blockers;
 4. собрать immutable `workspace-organizer-v1.0.1.zip`, сверить SHA-256/source SHA и подписать exact update manifest offline production update key;
 5. после strict acceptance слить exact release head в `master`, поставить `v1.0.1` и публиковать только проверенные immutable artifacts.
