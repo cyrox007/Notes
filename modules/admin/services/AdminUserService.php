@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+require_once dirname(__DIR__, 3) . '/app/services/LicenseSeatPolicy.php';
+
 use Core\DatabaseManager;
 use DomainException;
 use InvalidArgumentException;
