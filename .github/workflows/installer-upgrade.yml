@@ -47,17 +47,20 @@ jobs:
           set -euo pipefail
           php -l install.php
           php -l bin/migrate.php
-          grep -Fq "'tasks'" install.php
-          grep -Fq "'messenger_attachments'" install.php
-          grep -Fq "tasks_schema.sql' => 5" install.php
-          grep -Fq "access_control_schema.sql' => 6" install.php
+          php -l core/DatabaseOwnership.php
+          php -l core/MigrationManifest.php
+          grep -Fq 'DatabaseOwnership::fromPackageRoot' install.php
+          grep -Fq 'DatabaseOwnership::fromPackageRoot' bin/migrate.php
+          grep -Fq 'MigrationManifest($root)' bin/migrate.php
+          grep -Fq '"messenger_attachments"' modules/messenger/module.json
+          grep -Fq '"tasks"' modules/tasks/module.json
           grep -Fq 'PROFILE_AVATAR_MAX_SIZE=2097152' install.php
           grep -Fq 'Web-installer не изменяет существующие данные' install.php
-          grep -Fq '20260913_messenger_membership_contract.sql' bin/migrate.php
-          grep -Fq '20260913_tasks_contract.sql' bin/migrate.php
-          grep -Fq '20260914_storage_quota_legacy_reconcile.sql' bin/migrate.php
-          grep -Fq '20260913_system_settings_storage_quota.sql' bin/migrate.php
-          grep -Fq '20260915_rbac_foundation.sql' bin/migrate.php
+          grep -Fq '"20260913_messenger_membership_contract.sql"' database/migrations/manifest.json
+          grep -Fq '"20260913_tasks_contract.sql"' database/migrations/manifest.json
+          grep -Fq '"20260914_storage_quota_legacy_reconcile.sql"' database/migrations/manifest.json
+          grep -Fq '"20260913_system_settings_storage_quota.sql"' database/migrations/manifest.json
+          grep -Fq '"20260915_rbac_foundation.sql"' database/migrations/manifest.json
           test -f database/settings_schema.sql
           test -f database/access_control_schema.sql
           grep -Fq 'does **not** use migrations as the canonical source' docs/DB_ARCHITECTURE.md
