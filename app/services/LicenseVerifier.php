@@ -203,6 +203,16 @@ final class LicenseVerifier
             return 'Некорректный edition';
         }
 
+        if (array_key_exists('max_users', $payload) && $payload['max_users'] !== null) {
+            if (
+                !is_int($payload['max_users'])
+                || $payload['max_users'] < 1
+                || $payload['max_users'] > LicenseSeatPolicy::MAX_USERS_HARD_LIMIT
+            ) {
+                return 'Некорректный max_users';
+            }
+        }
+
         if (isset($payload['customer']) && $payload['customer'] !== null) {
             if (!is_string($payload['customer']) || trim($payload['customer']) === '' || mb_strlen($payload['customer']) > 160) {
                 return 'Некорректный customer';
