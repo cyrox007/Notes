@@ -27,6 +27,14 @@
 - Добавлен явный retention CLI `php bin/audit_log.php`: preview по умолчанию, irreversible purge только с `--apply --yes`; default retention — 180 дней.
 - Удалён неиспользуемый legacy `.tpl` runtime tail; CI запрещает его повторное появление.
 
+### 1.0.1 maintenance fixes / workspace integration
+- Password consumers now read byte-exact POST values at credential boundaries, so complex passwords containing HTML-sensitive characters verify correctly without weakening normal request sanitization.
+- Notes editor save/share controls, compact desktop sidebar, Admin license layout and Audit navigation received regression fixes discovered during local acceptance.
+- Messenger received a responsive visual refresh, a single custom voice-message player, unread/global notification integration and more stable WebSocket bootstrap.
+- Messenger can create Notes and Tasks directly (including from an existing message) through module capability boundaries with RBAC/role-limit enforcement and source backlinks.
+- Personal File Manager content can be selected in Messenger as a copied chat attachment or revocable public link; legacy files receive stable UID backfill and link creation is controlled by the `files.can_share` role policy.
+- Task/Workspace/File picker modal regressions found during acceptance are covered by native module contracts.
+
 ### Compatibility / release
 - Version поднят до `1.0.1` / version code `10001`; schema и published 1.0.0 migrations не переписываются.
 - Beta4 upgrade/rollback и stable release gates переведены на exact `1.0.1` identity.
