@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+require_once __DIR__ . '/LicenseSeatPolicy.php';
+
 use App\Helpers\CryptMethods;
 use Core\Config;
 use Core\DatabaseManager;
