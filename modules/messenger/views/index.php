@@ -166,4 +166,5 @@ echo $view->layout('core/base', [
     'workspaceAccess' => $access,
     'socket_ticket' => $socket_ticket ?? '',
     'socket_url' => $socket_url ?? '',
+    'body_class' => 'workspace-viewport workspace-viewport--messenger',
 ], $content);

@@ -1,60 +1,63 @@
 # Open Server 6+: Messenger WebSocket
 
-## OSPanel / OpenServer 5.2.2 + HTTP: простой локальный режим
+## Fresh install: профиль OpenServer local
 
-OpenServer 5.2.2 использует старую структуру `domains\...` и не поддерживает project-local `.osp\Apache` / `.osp\Nginx` конфигурацию из Open Server 6. Для локальной разработки на **одном Windows-компьютере** reverse proxy можно вообще не использовать.
+Web-installer распознаёт локальную Windows-структуру OpenServer/OSPanel вида `...\\domains\\<host>` и предлагает профиль **OpenServer / локальная Windows-установка**.
 
-Если сайт открыт как:
-
-```text
-http://notes.local
-```
-
-используйте:
+Для обычного HTTP local-domain, например `http://notes.local`, Messenger теперь подключается **напрямую к тому же hostname**, но к native WebSocket порту:
 
 ```env
 SITEURL=http://notes.local
 BASE_PATH=/
 WS_HOST=127.0.0.1
 WS_PORT=27800
-WS_PUBLIC_URL=ws://127.0.0.1:27800
+WS_PUBLIC_URL=ws://notes.local:27800
 WS_ALLOWED_ORIGINS=http://notes.local
-WS_MAX_CONNECTIONS=256
-WS_MAX_PAYLOAD_BYTES=2097152
 ```
 
-`WS_TICKET_SECRET` должен оставаться отдельным случайным секретом длиной не менее 32 символов.
+Это важное отличие от `ws://127.0.0.1:27800`: browser-origin и WebSocket endpoint используют один и тот же local hostname, поэтому для HTTP OpenServer не нужен Apache/Nginx WebSocket proxy и не создаётся отдельный cross-host loopback access.
 
-В этом режиме браузер, запущенный **на том же компьютере**, подключается напрямую к loopback listener. Apache/Nginx WebSocket proxy не требуется. Это режим только для локальной HTTP-разработки; для HTTPS/production используйте same-origin `wss://.../ws` через reverse proxy.
+Native server всё равно слушает только `127.0.0.1:27800`; имя `notes.local` должно резолвиться OpenServer/hosts в loopback, как и сам HTTP-сайт.
 
-HTTP не мешает запуску native server. `php ws_server/server.php start` — отдельный CLI process. На Windows успешный запуск работает в foreground: окно/терминал остаётся занятым процессом сервера.
-
-Из корня проекта:
+После установки запустите:
 
 ```powershell
-php ws_server/server.php status
-php bin/ws_doctor.php
 php ws_server/server.php start
 ```
 
-Или в отдельном background process PowerShell:
+Окно с процессом оставьте работающим. В другом терминале:
 
 ```powershell
-Start-Process -FilePath (Get-Command php).Source `
-  -ArgumentList "ws_server/server.php","start" `
-  -WorkingDirectory (Get-Location)
-
 php ws_server/server.php status
 php bin/ws_doctor.php
 ```
 
-Если `start` завершается сразу, новый startup boundary печатает причину и путь к log. Проверяйте также:
+Ожидаемый режим doctor:
 
-```powershell
-Get-Content "$env:TEMP\workspace-organizer-ws-startup.log" -Tail 100
+```text
+[INFO] Deployment mode — direct/custom WebSocket endpoint
+[OK] OpenServer direct-host mode
+[OK] Native WebSocket listener reachable — 127.0.0.1:27800
 ```
 
-Если вы хотите именно `ws://notes.local/ws`, тогда нужен Apache/Nginx WebSocket proxy. В OpenServer 5.2.2 сначала можно попробовать встроенный `.htaccess` bridge проекта при включённых `mod_proxy` + `mod_proxy_wstunnel`. Путь `.osp\Apache\notes.local.conf` из раздела Open Server 6 к версии 5.2.2 **не относится**.
+Для **HTTPS** direct mode не используется: native listener не завершает TLS. При `https://notes.local` нужен `wss://notes.local/ws` через Apache/Nginx reverse proxy на `127.0.0.1:27800`.
+
+## OSPanel / OpenServer 5.2.2
+
+OpenServer 5.2.2 использует старую структуру `domains\\...` и не поддерживает project-local `.osp\\Apache` / `.osp\\Nginx` конфигурацию Open Server 6.
+
+Для HTTP локальной разработки используйте direct-host режим:
+
+```env
+SITEURL=http://notes.local
+BASE_PATH=/
+WS_HOST=127.0.0.1
+WS_PORT=27800
+WS_PUBLIC_URL=ws://notes.local:27800
+WS_ALLOWED_ORIGINS=http://notes.local
+```
+
+Такой режим специально нужен, чтобы Messenger можно было тестировать на OpenServer 5.x без настройки reverse proxy.
 
 ## Почему одного PHP-сайта недостаточно
 

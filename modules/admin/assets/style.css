@@ -1,5 +1,5 @@
-.admin-page{display:grid;gap:12px}
-.admin-page__hero{display:block;padding:0 2px}
+.admin-page{display:grid;gap:16px}
+.admin-page__hero{display:block;padding:2px 4px}
 .admin-page__hero h1,.admin-panel-card h2{margin:0;color:var(--ui-text)}
 .admin-page__hero h1{font-size:24px;letter-spacing:-.025em}
 .admin-panel-card h2{font-size:14px}
@@ -9,10 +9,10 @@
 .admin-page__flash--success{border-color:color-mix(in srgb,var(--ui-success) 36%,var(--ui-border));background:var(--ui-success-soft)}
 .admin-page__flash--error{border-color:color-mix(in srgb,var(--ui-danger) 36%,var(--ui-border));background:var(--ui-danger-soft)}
 .admin-panel-card{overflow:hidden;border:1px solid var(--ui-border);border-radius:13px;background:var(--ui-surface);box-shadow:var(--ui-shadow-sm)}
-.admin-panel-card__header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid var(--ui-border)}
+.admin-panel-card__header{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 18px;border-bottom:1px solid var(--ui-border)}
 .admin-users-table-wrap{overflow:auto}
 .admin-users-table{width:100%;border-collapse:collapse;min-width:720px}
-.admin-users-table th,.admin-users-table td{padding:9px 11px;border-bottom:1px solid var(--ui-border);text-align:left;vertical-align:middle;font-size:12px}
+.admin-users-table th,.admin-users-table td{padding:12px 14px;border-bottom:1px solid var(--ui-border);text-align:left;vertical-align:middle;font-size:12px}
 .admin-users-table th{background:var(--ui-surface-soft);color:var(--ui-muted);font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
 .admin-users-table tbody tr:last-child td{border-bottom:0}
 .admin-users-table tbody tr:hover td{background:var(--ui-surface-soft)}
@@ -23,7 +23,7 @@
 .admin-user-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.admin-user-actions form{display:inline-flex;margin:0}.admin-user-actions__locked{color:var(--ui-muted);font-size:12px}
 .admin-action{min-height:31px;display:inline-flex;align-items:center;justify-content:center;gap:5px;border:1px solid transparent;border-radius:8px;padding:0 9px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}.admin-action:hover{filter:brightness(.97)}
 .admin-action--primary{background:var(--ui-action);color:#fff}.admin-action--secondary{border-color:var(--ui-border);background:var(--ui-surface);color:var(--ui-text)}.admin-action--danger{border-color:color-mix(in srgb,var(--ui-danger) 28%,var(--ui-border));background:var(--ui-danger-soft);color:var(--ui-danger)}
-.custom-fields-form{display:grid;gap:10px;padding:12px 14px}
+.custom-fields-form{display:grid;gap:12px;padding:14px 18px 16px}
 .custom-fields-list{display:grid;gap:8px}
 .custom-field{padding:10px;border:1px solid var(--ui-border);border-radius:10px;background:var(--ui-surface-soft)}
 .custom-field__grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
@@ -49,6 +49,297 @@
 .admin-create-user[open] summary::after{content:"−"}
 .admin-create-user summary h2{color:var(--ui-primary);font-size:13px}
 .admin-create-user[open] summary{border-bottom:1px solid var(--ui-border)}
-.admin-result-count{display:inline-block;margin-left:10px;font-size:12px;font-weight:400;color:var(--ui-muted)}
-.admin-users-search{padding:12px 16px;border-bottom:1px solid var(--ui-border)}
+.admin-result-count{display:inline-block;margin-left:8px;font-size:12px;font-weight:400;color:var(--ui-muted)}
 .admin-role{display:inline-flex;padding:3px 8px;border-radius:6px;background:var(--ui-primary-soft);color:var(--ui-primary);font-size:12px}
+
+
+/* A cached pre-separation findability.js can still inject the obsolete Admin toolbar.
+   Keep legacy generic controls invisible on Admin; the server-rendered .admin-toolbar is canonical. */
+.admin-page .list-findability,
+.admin-page .list-pagination{
+  display:none!important
+}
+
+/* Admin owns its user-list controls. Do not couple this surface to generic findability UI. */
+.admin-toolbar{
+  display:grid;
+  grid-template-columns:minmax(280px,1fr) auto auto;
+  align-items:end;
+  gap:14px;
+  padding:16px 18px 18px;
+  border-bottom:1px solid var(--ui-border);
+  background:var(--ui-surface)
+}
+.admin-toolbar__search,
+.admin-toolbar__field{
+  min-width:0;
+  display:grid;
+  gap:6px
+}
+.admin-toolbar__search>span,
+.admin-toolbar__field>span{
+  color:var(--ui-muted);
+  font-size:11px;
+  font-weight:800
+}
+.admin-toolbar__search input{
+  width:100%;
+  min-height:38px;
+  background:var(--ui-surface-soft)
+}
+.admin-toolbar__options{
+  display:flex;
+  align-items:end;
+  gap:10px
+}
+.admin-toolbar__field select{
+  min-height:38px
+}
+.admin-toolbar__field:not(.admin-toolbar__field--sort):not(.admin-toolbar__field--direction) select{
+  width:76px
+}
+.admin-toolbar__field--sort select{
+  width:150px
+}
+.admin-toolbar__field--direction select{
+  width:68px;
+  text-align:center
+}
+.admin-toolbar__actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px
+}
+.admin-toolbar__actions .admin-action{
+  min-height:38px
+}
+.admin-pagination{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  flex-wrap:wrap;
+  padding:14px 18px;
+  border-top:1px solid var(--ui-border);
+  background:var(--ui-surface-soft)
+}
+.admin-pagination__link{
+  min-height:30px;
+  display:inline-flex;
+  align-items:center;
+  padding:0 9px;
+  border:1px solid var(--ui-border);
+  border-radius:8px;
+  background:var(--ui-surface);
+  color:var(--ui-text);
+  font-size:11px
+}
+.admin-pagination__link:hover{
+  border-color:var(--ui-border-strong);
+  background:var(--ui-surface-soft)
+}
+.admin-pagination__link[aria-disabled="true"]{
+  opacity:.4;
+  pointer-events:none
+}
+.admin-pagination__summary{
+  color:var(--ui-muted);
+  font-size:11px
+}
+
+/* Update status surfaces are read-only status cards, not editable field grids. */
+.admin-status-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:12px;
+  padding:16px 18px
+}
+.admin-status-card{
+  min-width:0;
+  min-height:88px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  gap:5px;
+  padding:14px;
+  border:1px solid var(--ui-border);
+  border-radius:10px;
+  background:var(--ui-surface-soft)
+}
+.admin-status-card label{
+  color:var(--ui-muted);
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.03em;
+  text-transform:uppercase
+}
+.admin-status-card strong{
+  min-width:0;
+  color:var(--ui-text);
+  font-size:14px;
+  line-height:1.3;
+  overflow-wrap:anywhere
+}
+.admin-status-card code{
+  color:inherit;
+  font:600 11px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace
+}
+.admin-update-keys{
+  margin:2px 18px 14px;
+  padding:0;
+  color:var(--ui-muted);
+  font-size:11px;
+  line-height:1.5
+}
+.admin-update-keys strong{
+  color:var(--ui-text)
+}
+.admin-update-alert{
+  margin:0 18px 18px;
+  padding:12px 14px;
+  line-height:1.5
+}
+.admin-update-alert ul{
+  margin:8px 0 0;
+  padding-left:20px
+}
+.admin-update-alert li+li{
+  margin-top:4px
+}
+.admin-update-detail{
+  margin:0 18px 18px;
+  padding:12px 14px;
+  border:1px solid var(--ui-border);
+  border-radius:9px;
+  background:var(--ui-surface-soft);
+  color:var(--ui-muted);
+  font-size:11px;
+  overflow-wrap:anywhere
+}
+.admin-update-detail strong{
+  display:block;
+  margin-bottom:5px;
+  color:var(--ui-text);
+  font-size:10px;
+  text-transform:uppercase;
+  letter-spacing:.03em
+}
+.admin-update-detail code{
+  display:block;
+  color:var(--ui-text);
+  font:600 11px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;
+  overflow-wrap:anywhere
+}
+.admin-safety-list{
+  margin:0;
+  padding:16px 38px 18px;
+  color:var(--ui-muted);
+  font-size:12px
+}
+.admin-safety-list li+li{
+  margin-top:5px
+}
+
+@media(max-width:980px){
+  .admin-toolbar{
+    grid-template-columns:minmax(220px,1fr) auto
+  }
+  .admin-toolbar__actions{
+    grid-column:1/-1;
+    justify-content:flex-end
+  }
+  .admin-status-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr))
+  }
+}
+
+@media(max-width:720px){
+  .admin-toolbar{
+    grid-template-columns:1fr
+  }
+  .admin-toolbar__options{
+    display:grid;
+    grid-template-columns:1fr 1fr 82px
+  }
+  .admin-toolbar__field:not(.admin-toolbar__field--sort):not(.admin-toolbar__field--direction) select,
+  .admin-toolbar__field--sort select,
+  .admin-toolbar__field--direction select{
+    width:100%
+  }
+  .admin-toolbar__actions{
+    grid-column:1;
+    justify-content:stretch
+  }
+  .admin-toolbar__actions .admin-action{
+    flex:1
+  }
+}
+
+@media(max-width:560px){
+  .admin-toolbar__options{
+    grid-template-columns:1fr 1fr
+  }
+  .admin-toolbar__field--sort{
+    grid-column:1/-1
+  }
+  .admin-status-grid{
+    grid-template-columns:1fr
+  }
+}
+
+
+/* Updates page: keep the local-state card on the same spacing grid as the rest of Admin. */
+.admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-panel-card__header,
+.admin-panel-card[aria-labelledby="updates-result-title"] .admin-panel-card__header{
+  align-items:flex-start;
+  padding:18px
+}
+.admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-panel-card__header>div,
+.admin-panel-card[aria-labelledby="updates-result-title"] .admin-panel-card__header>div{
+  min-width:0;
+  flex:1
+}
+.admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-panel-card__header .admin-action,
+.admin-panel-card[aria-labelledby="updates-result-title"] .admin-panel-card__header .admin-action{
+  flex:0 0 auto;
+  align-self:flex-start;
+  min-height:38px;
+  margin-top:2px
+}
+.admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-status-grid,
+.admin-panel-card[aria-labelledby="updates-result-title"] .admin-status-grid{
+  gap:14px;
+  padding:18px
+}
+.admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-status-card,
+.admin-panel-card[aria-labelledby="updates-result-title"] .admin-status-card{
+  min-height:92px;
+  padding:14px 15px
+}
+.admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-update-keys{
+  margin:0 18px 16px
+}
+.admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-update-alert{
+  margin:0 18px 18px;
+  padding:14px 16px
+}
+.admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-update-alert strong{
+  display:block;
+  margin-bottom:6px
+}
+.admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-update-alert ul{
+  margin:0;
+  padding-left:20px
+}
+@media(max-width:860px){
+  .admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-panel-card__header,
+  .admin-panel-card[aria-labelledby="updates-result-title"] .admin-panel-card__header{
+    flex-direction:column
+  }
+  .admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-panel-card__header .admin-action,
+  .admin-panel-card[aria-labelledby="updates-result-title"] .admin-panel-card__header .admin-action{
+    width:100%;
+    margin-top:4px
+  }
+}

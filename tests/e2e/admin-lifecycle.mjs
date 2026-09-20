@@ -72,6 +72,15 @@ try {
   const adminResponse = await page.goto(`${baseUrl}/admin/`, { waitUntil: 'domcontentloaded' });
   if (!adminResponse || adminResponse.status() !== 200) throw new Error(`Admin page returned ${adminResponse?.status()}`);
 
+  // Admin owns its user-list controls server-side; generic findability JS must not build this surface.
+  await page.locator('.admin-toolbar').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('#admin-search').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('#admin-sort').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('#admin-direction').waitFor({ state: 'visible', timeout: 10000 });
+  if (await page.locator('[data-findability-slot]').count()) {
+    throw new Error('Admin still exposes a generic findability slot');
+  }
+
   // Prove the Admin JS asset loads under BASE_PATH by exercising its dynamic field UI.
   await page.locator('#add-field-btn').click();
   const transientField = page.locator('#custom-fields-container .custom-field[data-field-key^="new_"]').last();
@@ -146,6 +155,9 @@ try {
   await page.getByText('Updater пока не готов:', { exact: false }).waitFor({ state: 'visible', timeout: 10000 });
   await page.getByText('UPDATE_FEED_URL не настроен.', { exact: true }).waitFor({ state: 'visible', timeout: 10000 });
   await page.getByRole('button', { name: 'Проверка недоступна' }).waitFor({ state: 'visible', timeout: 10000 });
+  if (await page.locator('.admin-status-grid .admin-status-card').count() < 6) {
+    throw new Error('Updater local state is not rendered as status cards');
+  }
   if (await page.locator('form[action*="/admin/updates/stage"]').count()) {
     throw new Error('Updater staging form rendered without a verified update_available result');
   }

@@ -45,6 +45,11 @@ nativeAdminAssert(str_contains($index, 'id="add-field-btn"'), 'custom field add-
 nativeAdminAssert(str_contains($index, 'data-confirm-deactivate'), 'safe deactivation confirmation hook is missing');
 nativeAdminAssert(str_contains($index, "moduleAsset('admin', 'admin-page.js')"), 'module-owned admin behavior bundle is missing');
 nativeAdminAssert(str_contains($index, '$canManageRoles'), 'role manager navigation guard is missing');
+nativeAdminAssert(str_contains($index, 'class="admin-toolbar"'), 'Admin user list does not own its server-rendered toolbar');
+nativeAdminAssert(str_contains($index, 'id="admin-search"'), 'Admin user search input is missing');
+nativeAdminAssert(str_contains($index, 'id="admin-sort"'), 'Admin user sort control is missing');
+nativeAdminAssert(str_contains($index, 'class="admin-pagination"'), 'Admin user list does not own server-rendered pagination');
+nativeAdminAssert(!str_contains($index, 'data-findability-slot'), 'Admin user list still delegates controls to generic findability JS');
 
 $adminNav = (string) file_get_contents($root . '/modules/admin/assets/admin-settings-nav.js');
 nativeAdminAssert(str_contains($adminNav, "['/admin/updates', 'fa-refresh', 'Обновления']"), 'Admin section navigation does not expose signed updates');
@@ -81,6 +86,8 @@ nativeAdminAssert(str_contains($updates, '$view->csrfInput()'), 'signed updater 
 nativeAdminAssert(str_contains($updates, 'Live-файлы не менялись'), 'signed updater UI lost non-destructive staging boundary copy');
 nativeAdminAssert(!str_contains($updates, "route('admin_updates_apply')"), 'first signed updater UI slice exposes live apply route');
 nativeAdminAssert(!str_contains($updates, 'stage_dir'), 'signed updater UI exposes absolute stage path');
+nativeAdminAssert(str_contains($updates, 'class="admin-status-grid"'), 'signed updater local/result state is not using Admin status cards');
+nativeAdminAssert(str_contains($updates, 'class="admin-status-card"'), 'signed updater status card contract is missing');
 
 $updateController = (string) file_get_contents($root . '/modules/admin/controllers/UpdateController.php');
 nativeAdminAssert(str_contains($updateController, "render_template('@admin/updates'"), 'admin controller does not render the module view directly');
@@ -103,6 +110,10 @@ foreach ([
 ] as $legacyPath) {
     nativeAdminAssert(!file_exists($root . '/' . $legacyPath), "legacy Admin ownership remains: {$legacyPath}");
 }
+
+$findability = (string) file_get_contents($root . '/assets/js/findability.js');
+nativeAdminAssert(!str_contains($findability, "relative.startsWith('/admin')"), 'generic findability JS still owns Admin list controls');
+nativeAdminAssert(!str_contains($findability, "kind === 'admin'"), 'generic findability JS still contains Admin-specific UI branches');
 
 $manifest = json_decode((string) file_get_contents($root . '/modules/admin/module.json'), true, 32, JSON_THROW_ON_ERROR);
 nativeAdminAssert(($manifest['runtime']['mode'] ?? null) === 'isolated', 'Admin manifest is not isolated');

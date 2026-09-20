@@ -87,12 +87,36 @@ wsDoctorLine('OK', 'SITEURL', $siteUrl);
 wsDoctorLine('OK', 'Browser WebSocket URL', $publicUrl);
 wsDoctorLine('OK', 'Native WebSocket listener', sprintf('tcp://%s:%d', $bindHost, $port));
 wsDoctorLine('INFO', 'Deployment mode', $sameOriginProxy ? 'same-origin reverse proxy' : 'direct/custom WebSocket endpoint');
+$siteHostForMode = strtolower((string) parse_url($siteUrl, PHP_URL_HOST));
+$publicHostForMode = strtolower((string) parse_url($publicUrl, PHP_URL_HOST));
+$publicPortForMode = (int) (parse_url($publicUrl, PHP_URL_PORT) ?? 0);
+$openServerSameHostDirect = PHP_OS_FAMILY === 'Windows'
+    && strtolower((string) parse_url($siteUrl, PHP_URL_SCHEME)) === 'http'
+    && $siteHostForMode !== ''
+    && $siteHostForMode === $publicHostForMode
+    && $publicPortForMode === $port;
+if ($openServerSameHostDirect) {
+    wsDoctorLine(
+        'OK',
+        'OpenServer direct-host mode',
+        'browser connects to ' . $publicUrl . ' while the hostname resolves locally; Apache/Nginx WebSocket proxy is not required'
+    );
+}
 if (!$sameOriginProxy && PHP_OS_FAMILY === 'Windows') {
     $siteScheme = strtolower((string) parse_url($siteUrl, PHP_URL_SCHEME));
+    $siteHost = strtolower((string) parse_url($siteUrl, PHP_URL_HOST));
     $publicScheme = strtolower((string) parse_url($publicUrl, PHP_URL_SCHEME));
     $publicHost = strtolower((string) parse_url($publicUrl, PHP_URL_HOST));
-    if ($siteScheme === 'http' && $publicScheme === 'ws' && in_array($publicHost, ['127.0.0.1', 'localhost', '::1'], true)) {
-        wsDoctorLine('OK', 'OpenServer local HTTP mode', 'browser connects directly to the loopback native listener; Apache WebSocket proxy is not required');
+    if ($publicScheme === 'ws' && in_array($publicHost, ['127.0.0.1', 'localhost', '::1'], true)) {
+        if ($siteScheme === 'http' && in_array($siteHost, ['127.0.0.1', 'localhost', '::1'], true)) {
+            wsDoctorLine('OK', 'Loopback browser mode', 'page and WebSocket endpoint are both loopback-trustworthy');
+        } else {
+            wsDoctorLine(
+                'WARN',
+                'Direct loopback browser mode',
+                'modern Chromium Local Network Access restrictions can block WebSocket connections from custom/non-secure origins to loopback; prefer same-origin /ws proxy'
+            );
+        }
     }
 }
 if ($sameOriginProxy) {
@@ -127,24 +151,25 @@ if (is_resource($socket)) {
 $legacyOpenServerLayout = PHP_OS_FAMILY === 'Windows'
     && preg_match('#(?:^|[\\\\/])domains[\\\\/]#i', $root) === 1;
 
-if ($sameOriginProxy && $legacyOpenServerLayout) {
+if ($legacyOpenServerLayout) {
     wsDoctorLine(
         'WARN',
         'Legacy OpenServer layout detected',
         'project path uses domains\\...; Open Server 6 .osp project-local proxy paths do not apply'
     );
     $siteScheme = strtolower((string) parse_url($siteUrl, PHP_URL_SCHEME));
-    if ($siteScheme === 'http') {
+    if ($siteScheme === 'http' && !$openServerSameHostDirect) {
+        $siteHost = (string) parse_url($siteUrl, PHP_URL_HOST);
         wsDoctorLine(
             'INFO',
             'Recommended OSPanel 5.x local mode',
-            'set WS_PUBLIC_URL=ws://127.0.0.1:' . $port . ' and WS_ALLOWED_ORIGINS=' . $siteUrl . ', then restart HTTP/PHP and the WebSocket process'
+            'set WS_PUBLIC_URL=ws://' . $siteHost . ':' . $port . ' and WS_ALLOWED_ORIGINS=' . $siteUrl . '; this avoids both Apache proxy setup and cross-host loopback access'
         );
-    } else {
+    } elseif ($siteScheme === 'https' && $sameOriginProxy) {
         wsDoctorLine(
             'INFO',
-            'HTTPS requirement',
-            'configure a real WebSocket reverse proxy for ' . $proxyPath . '; direct ws://127.0.0.1 is blocked from an HTTPS page'
+            'HTTPS OpenServer mode',
+            'keep ' . $proxyPath . ' and configure Apache/Nginx WebSocket proxy to ' . $backend
         );
     }
 }

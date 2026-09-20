@@ -2,7 +2,7 @@ Options -Indexes
 
 RewriteEngine On
 
-# Same-origin WebSocket bridge for the default Workerman listener.
+# Same-origin WebSocket bridge for the native Messenger listener.
 # In .htaccess context the pattern is relative to this application directory,
 # so the same rule also serves BASE_PATH installations (for example /workspace/ws).
 # The backend is deliberately fixed to loopback; clients cannot influence it.
