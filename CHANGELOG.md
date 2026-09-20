@@ -6,7 +6,7 @@
 
 После stable `1.0.0` изменения ведутся как отдельный maintenance/feature cycle без ретроактивного изменения опубликованных migration и trust contracts.
 
-## 1.0.0 — 2026-09-16
+## 1.0.0 — 2026-09-20
 
 ### Stable runtime / security boundary
 - Runtime полностью отвязан от Composer `vendor/`: собственный Environment loader, native PHP view renderer и native RFC6455 WebSocket server работают из release bundle без сторонних PHP runtime packages.
