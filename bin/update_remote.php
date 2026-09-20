@@ -97,7 +97,7 @@ try {
     $delivery = new UpdateRemoteDelivery(
         $root,
         $verifier,
-        new UpdateHttpsTransport(),
+        UpdateHttpsTransport::fromEnvironment(),
         new UpdatePackageStager($root),
         new UpdateArchiveInspector()
     );
