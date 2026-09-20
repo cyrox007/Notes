@@ -50,7 +50,7 @@ function lifecycleFixture(
         'capabilities' => ['fixture.' . $id],
         'package' => ['bundled' => $bundled, 'default_enabled' => $defaultEnabled],
         'license' => ['feature' => 'fixture.' . $id],
-        'runtime' => ['mode' => 'isolated'],
+        'runtime' => ['mode' => 'isolated', 'entrypoint' => 'runtime.php'],
         'storage_namespaces' => [],
     ];
     file_put_contents(
