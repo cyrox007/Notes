@@ -112,6 +112,8 @@ nativeMessengerAssert(str_contains($visualRefresh, '@media(max-width:760px)'), '
 $workspaceCss = (string) file_get_contents($module . '/views/workspace-actions.css');
 $storageCss = (string) file_get_contents($module . '/views/storage-files.css');
 nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-task-fields[hidden]{display:none!important}'), 'workspace task fields ignore hidden state');
+nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-form[data-kind="note"] .messenger-workspace-task-fields{display:none!important}'), 'workspace note mode can still expose task-only fields');
+nativeMessengerAssert(str_contains($workspaceActions, 'form.dataset.kind = kind'), 'workspace modal does not expose mode state to CSS');
 nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-source[hidden]{display:none!important}'), 'workspace source context ignores hidden state');
 nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-menu{position:absolute'), 'workspace create menu lost floating popover styling');
 nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-menu[hidden]{display:none!important}'), 'workspace create menu ignores hidden state');

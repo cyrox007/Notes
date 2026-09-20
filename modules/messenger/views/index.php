@@ -175,9 +175,9 @@ ob_start();
 </dialog>
 
 <dialog class="messenger-dialog-modal messenger-workspace-dialog" id="workspace-action-dialog">
-    <form class="messenger-dialog-modal__surface messenger-workspace-dialog__surface" id="workspace-action-form">
+    <form class="messenger-dialog-modal__surface messenger-workspace-dialog__surface" id="workspace-action-form" data-kind="task">
         <header>
-            <div><strong>Создать в Workspace</strong><span>Задача или заметка сохранятся сразу, без перехода из Messenger.</span></div>
+            <div><strong id="workspace-action-heading">Новая задача</strong><span id="workspace-action-subtitle">Создайте задачу, не выходя из Messenger.</span></div>
             <button class="messenger-icon-button" id="workspace-action-close" type="button" aria-label="Закрыть"><i class="fa fa-times" aria-hidden="true"></i></button>
         </header>
         <div class="messenger-workspace-kind" role="tablist" aria-label="Тип объекта">

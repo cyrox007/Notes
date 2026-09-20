@@ -21,6 +21,8 @@
         const source = document.getElementById('workspace-action-source');
         const sourceText = document.getElementById('workspace-action-source-text');
         const submit = document.getElementById('workspace-action-submit');
+        const heading = document.getElementById('workspace-action-heading');
+        const subtitle = document.getElementById('workspace-action-subtitle');
         const close = document.getElementById('workspace-action-close');
         const cancel = document.getElementById('workspace-action-cancel');
         const kindButtons = Array.from(document.querySelectorAll('[data-workspace-kind]'));
@@ -57,6 +59,8 @@
             if (nextKind === 'task' && !canTask) nextKind = 'note';
             if (nextKind === 'note' && !canNote) nextKind = 'task';
             kind = nextKind;
+            if (form) form.dataset.kind = kind;
+            if (dialog) dialog.dataset.kind = kind;
             kindButtons.forEach((button) => {
                 const selected = button.dataset.workspaceKind === kind;
                 button.hidden = (button.dataset.workspaceKind === 'task' && !canTask)
@@ -68,6 +72,10 @@
                 bodyInput.maxLength = kind === 'task' ? 10000 : 60000;
                 bodyInput.previousElementSibling.textContent = kind === 'task' ? 'Описание' : 'Содержимое';
             }
+            if (heading) heading.textContent = kind === 'task' ? 'Новая задача' : 'Новая заметка';
+            if (subtitle) subtitle.textContent = kind === 'task'
+                ? 'Создайте задачу, не выходя из Messenger.'
+                : 'Сохраните заметку, не выходя из Messenger.';
             if (submit) submit.textContent = kind === 'task' ? 'Создать задачу' : 'Создать заметку';
         }
 
