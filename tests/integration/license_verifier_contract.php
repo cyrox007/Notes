@@ -55,6 +55,22 @@ $status = $verifier->verify($token, $installationId);
 licenseAssert($status['valid'] === true && $status['code'] === 'valid', 'valid license was rejected');
 licenseAssert(($status['payload']['license_id'] ?? '') === 'lic-test-001', 'license payload was not preserved');
 
+$limitedPayload = $payload;
+$limitedPayload['max_users'] = 20;
+$status = $verifier->verify(licenseToken($keyId, $limitedPayload, $secretKey), $installationId);
+licenseAssert($status['valid'] === true, 'license with max_users was rejected');
+licenseAssert(($status['payload']['max_users'] ?? null) === 20, 'max_users was not preserved');
+
+foreach ([0, -1, '20', LicenseVerifier::MAX_USERS_HARD_LIMIT + 1] as $invalidLimit) {
+    $invalidLimitPayload = $payload;
+    $invalidLimitPayload['max_users'] = $invalidLimit;
+    $status = $verifier->verify(licenseToken($keyId, $invalidLimitPayload, $secretKey), $installationId);
+    licenseAssert(
+        $status['valid'] === false && $status['code'] === 'invalid_payload',
+        'invalid max_users value was accepted'
+    );
+}
+
 $otherInstallation = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
 $status = $verifier->verify($token, $otherInstallation);
 licenseAssert($status['valid'] === false && $status['code'] === 'wrong_installation', 'cross-installation token was accepted');
