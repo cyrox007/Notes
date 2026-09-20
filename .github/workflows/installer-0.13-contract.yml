@@ -2,7 +2,7 @@ name: 0.14 installer schema contract
 
 on:
   pull_request:
-    branches: [master]
+    branches: [master, '1.0']
   push:
     branches: [master, 0.13-installer-regression]
 
