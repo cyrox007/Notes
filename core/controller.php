@@ -114,7 +114,7 @@ class Controller
         $this->renderer->render($template, $viewData);
     }
 
-    /** @return array{notes:bool,tasks:bool,files:bool,messenger:bool,profile:bool,admin:bool,license_manage:bool} */
+    /** @return array{notes:bool,tasks:bool,files:bool,messenger:bool,profile:bool,admin:bool,admin_audit:bool,license_manage:bool} */
     private function workspaceAccess(): array
     {
         $access = [
@@ -124,6 +124,7 @@ class Controller
             'messenger' => false,
             'profile' => false,
             'admin' => false,
+            'admin_audit' => false,
             'license_manage' => false,
         ];
 
@@ -141,6 +142,7 @@ class Controller
                 'messenger' => in_array('messenger.use', $permissions, true),
                 'profile' => in_array('profile.use', $permissions, true),
                 'admin' => in_array('admin.access', $permissions, true),
+                'admin_audit' => in_array('admin.audit.view', $permissions, true),
                 'license_manage' => in_array('admin.settings.manage', $permissions, true),
             ];
         } catch (\Throwable $e) {
@@ -150,7 +152,7 @@ class Controller
     }
 
     /**
-     * @param array{notes:bool,tasks:bool,files:bool,messenger:bool,profile:bool,admin:bool,license_manage:bool} $access
+     * @param array{notes:bool,tasks:bool,files:bool,messenger:bool,profile:bool,admin:bool,admin_audit:bool,license_manage:bool} $access
      * @return array{enforced:bool,writable:bool,code:string,message:string,can_manage:bool}
      */
     private function licenseRuntimeState(array $access): array

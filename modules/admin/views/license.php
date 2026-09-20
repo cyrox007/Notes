@@ -80,7 +80,7 @@ ob_start();
                 </div>
             </div>
             <?php if (!empty($licenseState['features']) && is_array($licenseState['features'])): ?>
-                <p><strong>Возможности:</strong> <?= $view->e(implode(', ', array_map('strval', $licenseState['features']))) ?></p>
+                <p class="admin-license-features"><strong>Возможности:</strong> <?= $view->e(implode(', ', array_map('strval', $licenseState['features']))) ?></p>
             <?php endif; ?>
         <?php endif; ?>
     </section>
