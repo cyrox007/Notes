@@ -45,7 +45,7 @@ function lifecycleFixture(
         'id' => $id,
         'name' => ucfirst($id),
         'version' => '0.14.0-beta.1',
-        'core' => $core !== [] ? $core : ['min' => '0.13.0-alpha', 'max_exclusive' => '0.15.0'],
+        'core' => $core !== [] ? $core : ['min' => '0.13.0-alpha', 'max_exclusive' => '2.0.0'],
         'dependencies' => $dependencies,
         'capabilities' => ['fixture.' . $id],
         'package' => ['bundled' => $bundled, 'default_enabled' => $defaultEnabled],
