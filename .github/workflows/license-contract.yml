@@ -144,6 +144,7 @@ jobs:
             database/user_fields_schema.sql \
             database/tasks_schema.sql \
             database/access_control_schema.sql \
+            database/audit_schema.sql \
             database/settings_schema.sql \
             database/module_lifecycle_schema.sql; do
             mysql -h 127.0.0.1 -uroot -proot notes_license_contract < "$schema"
