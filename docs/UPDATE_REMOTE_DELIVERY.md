@@ -1,5 +1,9 @@
 # Remote signed update delivery
 
+For authenticated delivery with server-side license revocation, see
+[ONLINE_UPDATE_ACCESS.md](ONLINE_UPDATE_ACCESS.md). Both this CLI and the admin
+update page use `UPDATE_ACCESS_MODE` and external `UPDATE_CREDENTIALS_FILE`.
+
 Workspace Organizer 1.0 can discover and stage a signed update from a vendor-controlled HTTPS feed without giving the network layer any authority to mutate the live installation.
 
 The boundary is deliberately split:

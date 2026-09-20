@@ -116,6 +116,7 @@ jobs:
               --exclude 'notes-private-storage' \
               --exclude 'tools/vendor-license' \
               --exclude 'tools/vendor-update' \
+              --exclude 'tools/license-server' \
               --exclude '*.license-secret' \
               --exclude 'workspace-license-*.secret' \
               --exclude '*.update-secret' \
