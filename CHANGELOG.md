@@ -21,6 +21,12 @@
 - Core control plane получил `php bin/control.php modules install <module-id>`, закрывающий штатный переход `discovered -> installed -> enabled` для non-bundled модулей.
 - CI теперь проверяет реальный lifecycle independently installed fixture-module.
 
+### Audit / maintenance
+- Добавлен durable `user_action_log` для authenticated mutating HTTP/WebSocket операций с snapshot пользователя, фильтрацией в Admin UI и отдельным `admin.audit.view`.
+- Журнал хранит только операционные метаданные: request bodies, содержимое Notes/Messenger, пароли, токены, cookie/session/CSRF не журналируются; чувствительные detail keys редактируются.
+- Добавлен явный retention CLI `php bin/audit_log.php`: preview по умолчанию, irreversible purge только с `--apply --yes`; default retention — 180 дней.
+- Удалён неиспользуемый legacy `.tpl` runtime tail; CI запрещает его повторное появление.
+
 ### Compatibility / release
 - Version поднят до `1.0.1` / version code `10001`; schema и published 1.0.0 migrations не переписываются.
 - Beta4 upgrade/rollback и stable release gates переведены на exact `1.0.1` identity.

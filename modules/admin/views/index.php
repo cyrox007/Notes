@@ -9,6 +9,7 @@ $listedUsers = isset($users) && is_array($users) ? $users : [];
 $customFieldRows = isset($customFields) && is_array($customFields) ? $customFields : [];
 $flash = isset($admin_flash) && is_array($admin_flash) ? $admin_flash : null;
 $canManageRoles = !empty($canManageRoles);
+$canViewAudit = !empty($canViewAudit);
 $siteName = isset($sitename) ? (string) $sitename : 'Workspace Organizer';
 $workspaceVersion = isset($version) ? (string) $version : '';
 $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
@@ -51,6 +52,9 @@ ob_start();
         <div>
             <h1>Админпанель</h1>
         </div>
+        <?php if ($canViewAudit): ?>
+            <a class="admin-action admin-action--secondary" href="<?= $view->e($view->route('admin_audit')) ?>"><i class="fa fa-history" aria-hidden="true"></i> Журнал действий</a>
+        <?php endif; ?>
     </header>
 
     <?php if ($flash !== null): ?>

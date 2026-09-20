@@ -21,6 +21,7 @@
     "20260915_module_lifecycle.sql",
     "20260915_installation_license.sql",
     "20260918_notes_retention_timestamps.sql",
-    "20260918_messenger_retention_timestamps.sql"
+    "20260918_messenger_retention_timestamps.sql",
+    "20260920_user_action_log.sql"
   ]
 }

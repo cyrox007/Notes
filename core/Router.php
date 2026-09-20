@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Core;
 
 require_once __DIR__ . '/RouteTemplate.php';
+require_once __DIR__ . '/UserActionLog.php';
 
 use InvalidArgumentException;
 use RuntimeException;
@@ -239,6 +240,12 @@ class Router
 
             $params = $this->clearParams($params, $route['path']);
 
+            UserActionLog::registerHttpMutation(
+                (int) $request->session('user_id', 0),
+                $requestMethod,
+                (string) ($route['name'] ?? ''),
+                (string) $route['path']
+            );
             $this->invokeController($controllerInstance, $methodName, $request, $params);
 
             return;
