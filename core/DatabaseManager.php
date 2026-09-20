@@ -303,16 +303,22 @@ class DatabaseManager
         $this->queryCount++;
 
         $queryType = $this->queryType($query);
-        $this->log(
-            "[execute] #{$this->queryCount} {$queryType}: " . $this->maskQuery($query, $params),
-            LogLevel::DEBUG
-        );
+        $started = null;
+        if ($this->enableLogging) {
+            $this->log(
+                "[execute] #{$this->queryCount} {$queryType}: " . $this->maskQuery($query, $params),
+                LogLevel::DEBUG
+            );
+            $started = microtime(true);
+        }
 
         $stmt = $this->pdo->prepare($query);
-        $started = microtime(true);
         $stmt->execute($params);
-        $elapsed = round((microtime(true) - $started) * 1000, 2);
-        $this->log("[execute] Завершено за {$elapsed}мс", LogLevel::DEBUG);
+
+        if ($started !== null) {
+            $elapsed = round((microtime(true) - $started) * 1000, 2);
+            $this->log("[execute] Завершено за {$elapsed}мс", LogLevel::DEBUG);
+        }
 
         return match ($queryType) {
             'SELECT', 'SHOW', 'DESCRIBE', 'EXPLAIN', 'WITH' => $stmt,
