@@ -392,6 +392,7 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 - isolated module-owned runtime и composition-aware database/install/update/health ownership;
 - signed staged updater с transactional apply, durable recovery и code+DB rollback;
 - installation-wide licensing и Core recovery control plane;
+- production license/update Ed25519 keypairs прошли offline ceremony; в репозитории и customer bundle остаются только public trust roots;
 - structured security observability и operational alert thresholds;
 - resumable/rollback-safe rotation `UNIQUE_KEY` / `MSG_SECRET_KEY`;
 - nonce-based CSP без `unsafe-inline`;
