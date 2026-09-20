@@ -13,11 +13,16 @@ use InvalidArgumentException;
 final class UserProvisioningService
 {
     private PermissionService $permissions;
+    private LicenseSeatPolicy $seatPolicy;
 
-    public function __construct(private ?DatabaseManager $db = null, ?PermissionService $permissions = null)
-    {
+    public function __construct(
+        private ?DatabaseManager $db = null,
+        ?PermissionService $permissions = null,
+        ?LicenseSeatPolicy $seatPolicy = null
+    ) {
         $this->db ??= DatabaseManager::getInstance();
         $this->permissions = $permissions ?? new PermissionService($this->db);
+        $this->seatPolicy = $seatPolicy ?? new LicenseSeatPolicy($this->db);
     }
 
     /** @param array<string,mixed> $input */
@@ -38,7 +43,7 @@ final class UserProvisioningService
     {
         $data = $this->normalizeAndValidate($input);
 
-        return (new LicenseSeatPolicy($this->db))->withAvailableSeat(function () use ($data): int {
+        return $this->seatPolicy->withAvailableSeat(function () use ($data): int {
             $existing = $this->db->fetchOne(
                 'SELECT id,username,email FROM users WHERE username = :username OR email = :email LIMIT 1',
                 [':username' => $data['username'], ':email' => $data['email']]
