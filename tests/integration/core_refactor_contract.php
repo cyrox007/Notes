@@ -7,9 +7,11 @@ $root = dirname(__DIR__, 2);
 require_once $root . '/core/RouteTemplate.php';
 require_once $root . '/core/DatabaseSqlInspector.php';
 require_once $root . '/core/UpdateProcessRunner.php';
+require_once $root . '/core/UpdatePath.php';
 
 use Core\DatabaseSqlInspector;
 use Core\RouteTemplate;
+use Core\UpdatePath;
 use Core\UpdateProcessRunner;
 
 function coreRefactorAssert(bool $condition, string $message): void
@@ -76,6 +78,57 @@ try {
     $unsafeIdentifierRejected = true;
 }
 coreRefactorAssert($unsafeIdentifierRejected, 'unsafe SQL identifier was accepted');
+
+coreRefactorAssert(UpdatePath::safeRelative('core/Version.php'), 'safe updater relative path was rejected');
+coreRefactorAssert(!UpdatePath::safeRelative('../escape.php'), 'updater traversal path was accepted');
+coreRefactorAssert(!UpdatePath::safeRelative('core\\escape.php'), 'updater backslash path was accepted');
+coreRefactorAssert(UpdatePath::safeTopLevel('core'), 'safe updater top-level name was rejected');
+coreRefactorAssert(!UpdatePath::safeTopLevel('../core'), 'unsafe updater top-level name was accepted');
+coreRefactorAssert(
+    UpdatePath::inside('/srv/workspace/core', '/srv/workspace'),
+    'updater child path relation changed'
+);
+coreRefactorAssert(
+    !UpdatePath::inside('/srv/workspace-other', '/srv/workspace'),
+    'updater sibling path was treated as inside'
+);
+
+coreRefactorAssert(!is_file($root . '/core/model.php'), 'unused legacy Core\\Model implementation still exists');
+$coreBootstrap = file_get_contents($root . '/core.php');
+coreRefactorAssert(
+    is_string($coreBootstrap) && !str_contains($coreBootstrap, '/core/model.php'),
+    'core bootstrap still loads the removed legacy Model'
+);
+$noteModel = file_get_contents($root . '/modules/notes/models/NoteModel.php');
+coreRefactorAssert(
+    is_string($noteModel) && !str_contains($noteModel, 'use Core\\Model;'),
+    'NoteModel still imports the removed legacy Model'
+);
+
+$routerSource = file_get_contents($root . '/core/Router.php');
+coreRefactorAssert(
+    is_string($routerSource)
+        && str_contains($routerSource, 'compiledPatterns')
+        && str_contains($routerSource, 'routeNameIndex'),
+    'Router does not retain compiled-pattern and named-route indexes'
+);
+
+$databaseSource = file_get_contents($root . '/core/DatabaseManager.php');
+coreRefactorAssert(
+    is_string($databaseSource)
+        && str_contains($databaseSource, 'if ($this->enableLogging)')
+        && str_contains($databaseSource, 'DatabaseSqlInspector::diagnosticQuery'),
+    'DatabaseManager logging fast path is not wired to the extracted inspector'
+);
+
+$liveApplierSource = file_get_contents($root . '/core/UpdateLiveApplier.php');
+coreRefactorAssert(
+    is_string($liveApplierSource)
+        && str_contains($liveApplierSource, 'UpdateCandidateVerifier')
+        && str_contains($liveApplierSource, 'UpdateCodeSwitcher')
+        && str_contains($liveApplierSource, 'UpdateDatabaseRestorer'),
+    'UpdateLiveApplier responsibilities were not split into dedicated boundaries'
+);
 
 $runner = new UpdateProcessRunner();
 $result = $runner->run(
