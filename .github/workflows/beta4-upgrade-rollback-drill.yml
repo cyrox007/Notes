@@ -171,7 +171,7 @@ jobs:
           php tools/vendor-update/build-manifest.php \
             --package="$DRILL/workspace-organizer-1.0.1-drill-fail.zip" \
             --version=1.0.1-drill-fail \
-            --version-code=10001 \
+            --version-code=10002 \
             --channel=stable \
             --source-commit="$GITHUB_SHA" \
             --min-source-version-code=1404 \
