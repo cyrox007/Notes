@@ -77,6 +77,33 @@ jobs:
           grep -Fq 'LicenseSeatPolicy' modules/admin/services/AdminUserService.php
           grep -Fq -- '--max-users=' tools/vendor-license/issue.php
 
+      - name: Verify offline issuer max_users payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f /tmp/license-seat-ci.secret /tmp/license-seat-ci.token
+          php tools/vendor-license/keygen.php             --key-id=seat-ci             --private-out=/tmp/license-seat-ci.secret >/tmp/license-seat-keygen.txt
+          TOKEN="$(php tools/vendor-license/issue.php             --private-key=/tmp/license-seat-ci.secret             --key-id=seat-ci             --installation-id=11111111-2222-4333-8444-555555555555             --license-id=lic-seat-ci             --edition=team             --max-users=20             --features=workspace.notes,workspace.tasks)"
+          TOKEN="$TOKEN" php -r '
+            $parts = explode(".", (string) getenv("TOKEN"));
+            if (count($parts) !== 4) { exit(1); }
+            $encoded = $parts[2];
+            $padding = (4 - (strlen($encoded) % 4)) % 4;
+            $json = base64_decode(strtr($encoded, "-_", "+/") . str_repeat("=", $padding), true);
+            $payload = is_string($json) ? json_decode($json, true) : null;
+            if (!is_array($payload)
+                || ($payload["edition"] ?? null) !== "team"
+                || ($payload["max_users"] ?? null) !== 20
+                || ($payload["features"] ?? null) !== ["workspace.notes", "workspace.tasks"]) {
+                exit(1);
+            }
+          '
+          if php tools/vendor-license/issue.php             --private-key=/tmp/license-seat-ci.secret             --key-id=seat-ci             --installation-id=11111111-2222-4333-8444-555555555555             --license-id=lic-seat-invalid             --edition=team             --max-users=0 >/dev/null 2>&1; then
+            echo 'issuer accepted max-users=0' >&2
+            exit 1
+          fi
+          rm -f /tmp/license-seat-ci.secret /tmp/license-seat-keygen.txt
+
       - name: Verify installation-wide storage and admin routes
         shell: bash
         run: |
