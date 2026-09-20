@@ -48,7 +48,7 @@ grep -Fq 'RequireAdminUsersManage::class' modules/admin/AdminRuntimeProvider.php
 grep -Fq 'RequireAdminSettingsManage::class' modules/admin/AdminRuntimeProvider.php
 grep -Fq "admin.users.manage" modules/admin/services/AdminUserService.php
 grep -Fq "admin.settings.manage" app/services/StorageQuotaService.php
-grep -Fq "messenger.use" ws_server/server.php
+grep -Fq "messenger.use" modules/messenger/socket/NativeMessengerServer.php
 grep -Fq "account_status" app/controllers/AuthController.php
 grep -Fq "account_status" app/middlewares/LoginRequared.php
 
