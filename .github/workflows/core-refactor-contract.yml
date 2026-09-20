@@ -1,0 +1,47 @@
+name: Core refactor contract
+
+on:
+  pull_request:
+    branches: [dev, '1.0', master]
+  push:
+    branches: [refactor/core-boundaries]
+
+permissions:
+  contents: read
+
+jobs:
+  core-refactor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.3']
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+
+      - name: Lint refactored core boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l core/RouteTemplate.php
+          php -l core/Router.php
+          php -l core/DatabaseSqlInspector.php
+          php -l core/DatabaseManager.php
+          php -l core/UpdateProcessRunner.php
+          php -l core/UpdateApplyCommand.php
+          php -l tests/integration/core_refactor_contract.php
+
+      - name: Verify extracted boundaries
+        run: php tests/integration/core_refactor_contract.php
+
+      - name: Verify legacy router security contract still passes
+        run: php tests/integration/router_session_security_contract.php
