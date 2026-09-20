@@ -69,3 +69,15 @@
   .messenger-composer__tools{max-width:82px}
   .messenger-message{max-width:96%}
 }
+
+/* Critical composer popover contract. Kept in the final visual layer so global
+   button/layout rules cannot turn workspace actions into inline native buttons. */
+.messenger-composer__tools,.messenger-workspace-create{overflow:visible}
+#workspace-create-menu{position:absolute!important;left:-4px!important;bottom:calc(100% + 12px)!important;z-index:120!important;width:248px!important;display:grid!important;grid-template-columns:1fr!important;gap:4px!important;padding:6px!important;border:1px solid var(--msg-border)!important;border-radius:12px!important;background:var(--msg-surface)!important;box-shadow:0 18px 42px rgba(16,28,48,.18)!important}
+#workspace-create-menu[hidden]{display:none!important}
+#workspace-create-menu>.messenger-workspace-menu__item{appearance:none!important;-webkit-appearance:none!important;width:100%!important;min-height:44px!important;display:grid!important;grid-template-columns:26px minmax(0,1fr)!important;align-items:center!important;gap:9px!important;padding:8px 10px!important;border:0!important;border-radius:9px!important;background:transparent!important;color:var(--msg-text)!important;text-align:left!important;font:inherit!important;cursor:pointer!important}
+#workspace-create-menu>.messenger-workspace-menu__item:hover,#workspace-create-menu>.messenger-workspace-menu__item:focus-visible{outline:0!important;background:var(--msg-accent-soft)!important}
+#workspace-create-menu>.messenger-workspace-menu__item>span{min-width:0;display:grid!important;gap:2px!important}
+#workspace-create-menu>.messenger-workspace-menu__item strong{display:block!important;font-size:12px!important;line-height:1.2!important}
+#workspace-create-menu>.messenger-workspace-menu__item small{display:block!important;color:var(--msg-muted)!important;font-size:10px!important;line-height:1.25!important;white-space:normal!important}
+@media(max-width:760px){#workspace-create-menu{position:fixed!important;left:12px!important;right:12px!important;bottom:76px!important;width:auto!important}}

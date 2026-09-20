@@ -116,6 +116,8 @@ nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-source[h
 nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-menu{position:absolute'), 'workspace create menu lost floating popover styling');
 nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-menu[hidden]{display:none!important}'), 'workspace create menu ignores hidden state');
 nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-menu__item{'), 'workspace create menu items lost native styling');
+nativeMessengerAssert(str_contains($visualRefresh, '#workspace-create-menu{position:absolute!important'), 'final visual layer does not harden workspace popover positioning');
+nativeMessengerAssert(str_contains($visualRefresh, '#workspace-create-menu[hidden]{display:none!important}'), 'final visual layer can expose hidden workspace popover');
 nativeMessengerAssert(str_contains($storageCss, '.messenger-storage-selected[hidden]{display:none!important}'), 'storage selected-file panel ignores hidden state');
 nativeMessengerAssert(str_contains($storageCss, '.messenger-storage-empty[hidden]{display:none!important}'), 'storage empty state ignores hidden state');
 nativeMessengerAssert(str_contains($storageCss, '.messenger-storage-list[hidden]{display:none!important}'), 'storage empty result still reserves list space');
