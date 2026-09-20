@@ -1,48 +1,52 @@
 <?php
-// Include vendor/autoload.php if exists
-if (file_exists(SITEPATH . '/vendor/autoload.php')) {
-    require SITEPATH . '/vendor/autoload.php';
+
+// Environment loading and all 1.0 runtime infrastructure are internal. Runtime
+// boot must therefore remain independent from Composer/vendor so the application
+// can start from the release bundle with no third-party PHP packages installed.
+$environmentLoader = SITEPATH . '/core/Environment.php';
+if (!is_file($environmentLoader)) {
+    throw new RuntimeException('Core environment loader is missing.');
 }
+require_once $environmentLoader;
+\Core\Environment::load(SITEPATH . '/.env');
 
-// Include Dotenv (or equivalent logic)
-if (class_exists('Dotenv\\Dotenv')) {
-    try {
-        Dotenv\Dotenv::createUnsafeImmutable(SITEPATH)->load();
-    } catch (\Dotenv\Exception\InvalidPathException $e) {
-        throw new \Exception("Environment configuration file (.env) not found. Please create a .env file in the project root directory.", 500);
-    }
+$runtimeAutoloader = SITEPATH . '/core/RuntimeAutoloader.php';
+if (!is_file($runtimeAutoloader)) {
+    throw new RuntimeException('Core runtime autoloader is missing.');
 }
+require_once $runtimeAutoloader;
+\Core\RuntimeAutoloader::register(SITEPATH);
 
-// Register the autoload function
-spl_autoload_register(function ($class) {
-    $classPath = SITEPATH . '/' . str_replace('\\', '/', $class) . '.php';
-
-    if (file_exists($classPath)) {
-        require_once $classPath;
-    } else {
-        error_log("Class file for {$class} not found at path: {$classPath}");
-    }
-});
-
-// Core files. Paths intentionally match repository casing because production Linux
-// filesystems are case-sensitive.
+// Core files are still bootstrapped explicitly where ordering matters. The
+// runtime autoloader only resolves known core/shared-App namespace roots; it does
+// not own module classes. Isolated module classes are loaded by their runtime.php.
 $coreFiles = [
     '/core/config.php',
     '/core/Version.php',
+    '/core/RequestOrigin.php',
     '/core/SessionSecurity.php',
+    '/core/SecurityHeaders.php',
     '/core/RedirectPolicy.php',
     '/core/WebSocketEndpoint.php',
+    '/core/ProfileContentProvider.php',
+    '/core/AccountDeactivationGuard.php',
     '/core/ModuleManifest.php',
     '/core/ModuleRegistry.php',
+    '/core/ModuleRuntimeProvider.php',
+    '/core/ModuleCapabilityRegistry.php',
+    '/core/ModuleRuntimeLoader.php',
+    '/core/ModuleAssetController.php',
     '/core/DatabaseControll.php',
     '/core/DatabaseManager.php',
     '/core/ModuleLifecycleStore.php',
     '/core/ORM.php',
-    '/core/model.php',
     '/core/view.php',
     '/core/request.php',
-    '/core/controller.php',
     '/core/helper.php',
+    '/core/ViewRenderer.php',
+    '/core/ViewContext.php',
+    '/core/NativeViewRenderer.php',
+    '/core/controller.php',
     '/core/images.php'
 ];
 
@@ -54,64 +58,31 @@ foreach ($coreFiles as $file) {
     }
 }
 
-// Session cookie/security settings must be fixed before any Request can call
-// session_start(). Fail closed if PHP refuses the configured policy.
+// UUID is a historical global helper rather than a namespaced shared service.
+// Keep it as one explicit compatibility include instead of scanning app/handlers.
+$uuidHelper = SITEPATH . '/app/handlers/UUID.php';
+if (!is_file($uuidHelper) || is_link($uuidHelper)) {
+    throw new RuntimeException('Shared UUID helper is missing or unsafe.');
+}
+require_once $uuidHelper;
+
 \Core\SessionSecurity::configure();
 
-// 0.14 module-platform boundary: every product module must have a validated
-// manifest before legacy application code is loaded. Normal HTTP/CLI entrypoints
-// also reconcile persisted lifecycle state here. Pre-fork runtimes (Workerman)
-// can deliberately defer only the database-backed reconciliation until their
-// worker process starts, avoiding an inherited PDO connection while preserving
-// fail-closed manifest discovery in the master process.
 $deferModuleLifecyclePersistence = defined('WORKSPACE_DEFER_MODULE_LIFECYCLE')
     && WORKSPACE_DEFER_MODULE_LIFECYCLE === true;
-
-\Core\ModuleRegistry::boot(
+$moduleLifecycleStore = $deferModuleLifecyclePersistence
+    ? null
+    : new \Core\ModuleLifecycleStore(\Core\DatabaseManager::getInstance());
+$moduleRegistry = \Core\ModuleRegistry::boot(
     SITEPATH . '/modules',
     \Core\Version::VERSION,
-    $deferModuleLifecyclePersistence
-        ? null
-        : new \Core\ModuleLifecycleStore(\Core\DatabaseManager::getInstance())
+    $moduleLifecycleStore
 );
 
-$directories = [
-    '/app/models/',
-    '/app/services/',
-    '/app/controllers/',
-    '/app/socket/',
-    '/app/handlers/',
-    '/app/middlewares/'
-];
-
-// Load each directory files if directory exists
-array_walk($directories, function ($directory) {
-    $path = SITEPATH . $directory;
-    if (is_dir($path)) {
-        loadDirectoryFiles($path);
-    } else {
-        // Services are optional for older installs; all other directories are expected.
-        if ($directory !== '/app/services/') {
-            error_log("Directory {$path} does not exist.");
-        }
-    }
-});
-
-/**
- * Loads all PHP files in a given directory.
- *
- * @param string $directory Directory path
- * @return void
- */
-function loadDirectoryFiles(string $directory): void {
-    $files = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($directory, RecursiveDirectoryIterator::SKIP_DOTS),
-        RecursiveIteratorIterator::LEAVES_ONLY
-    );
-
-    foreach ($files as $file) {
-        if ($file->isFile() && $file->getExtension() === 'php') {
-            require_once $file->getRealPath();
-        }
-    }
-}
+// Normal runtime uses the reconciled persisted enabled composition. Entrypoints
+// that deliberately defer lifecycle persistence may request the package default
+// composition, but isolated providers are always loaded only through runtime.php.
+$moduleRuntimeComposition = $moduleLifecycleStore !== null
+    ? $moduleRegistry->enabledComposition()
+    : $moduleRegistry->defaultComposition();
+\Core\ModuleRuntimeLoader::boot($moduleRegistry, $moduleRuntimeComposition);

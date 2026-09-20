@@ -2,12 +2,17 @@ name: File Manager HTTP integrity
 
 on:
   pull_request:
-    branches: [master]
+    branches: [master, '1.0']
   push:
-    branches: [usable-baseline-0.12-phase3]
+    branches: ['1.0']
     paths:
+      - 'modules/files/**'
+      - 'app/services/StorageQuotaService.php'
+      - 'app/middlewares/StorageQuotaLimit.php'
+      - 'app/middlewares/StorageMutationLock.php'
       - 'bin/migrate.php'
       - 'database/migrations/**'
+      - 'tests/integration/file_manager_*.sh'
       - 'tests/integration/storage_quota_legacy_migration.sh'
       - '.github/workflows/file-manager-http-integrity.yml'
 
@@ -44,13 +49,12 @@ jobs:
           extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo
           coverage: none
 
-      - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
-
       - name: Static integrity contracts
         shell: bash
         run: |
           set -euo pipefail
+          rm -rf vendor
+          test ! -e vendor
           bash -n tests/integration/queued_write_callers.sh
           bash -n tests/integration/file_manager_http_quota.sh
           bash -n tests/integration/file_manager_admin_quota_race.sh
@@ -58,15 +62,18 @@ jobs:
           bash -n tests/integration/storage_quota_legacy_migration.sh
           bash tests/integration/queued_write_callers.sh
           php -l bin/migrate.php
-          php -l app/controllers/FileController.php
-          php -l app/controllers/FileQuotaController.php
+          php -l modules/files/controllers/FileController.php
+          php -l modules/files/controllers/FileQuotaController.php
+          php -l modules/files/middlewares/EnforceFileUploadPolicy.php
           php -l app/middlewares/StorageQuotaLimit.php
           php -l app/middlewares/StorageMutationLock.php
           php -l app/services/PermissionService.php
           php -l app/services/StorageQuotaService.php
-          grep -Fq "[LoginRequared::class, UploadRateLimit::class, StorageQuotaLimit::class]" core/routerConfig.php
-          grep -Fq "'files_quota'" core/routerConfig.php
+          grep -Fq "StorageQuotaLimit::class" modules/files/FilesRuntimeProvider.php
+          grep -Fq "'files_quota'" modules/files/FilesRuntimeProvider.php
           grep -Fq "admin.settings.manage" app/services/StorageQuotaService.php
+          test ! -e app/controllers/FileController.php
+          test ! -e app/views/file_manager/index.tpl
 
       - name: Reconcile supported legacy storage schema and reject ambiguity
         shell: bash
@@ -85,10 +92,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mysql -h 127.0.0.1 -uroot -proot file_manager_http_test < database/messenger_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot file_manager_http_test < database/core_identity_schema.sql
           mysql -h 127.0.0.1 -uroot -proot file_manager_http_test < database/file_manager_schema.sql
           mysql -h 127.0.0.1 -uroot -proot file_manager_http_test < database/access_control_schema.sql
           mysql -h 127.0.0.1 -uroot -proot file_manager_http_test < database/settings_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot file_manager_http_test < database/file_storage_quota_schema.sql
           mysql -h 127.0.0.1 -uroot -proot file_manager_http_test < database/module_lifecycle_schema.sql
 
       - name: Real HTTP multipart auth CSRF quota and failure flow

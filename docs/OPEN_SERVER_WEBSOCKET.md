@@ -1,8 +1,67 @@
 # Open Server 6+: Messenger WebSocket
 
-## Почему одного Workerman недостаточно
+## Fresh install: профиль OpenServer local
 
-Workspace Organizer намеренно запускает Workerman как внутренний plain-WebSocket listener:
+Web-installer распознаёт локальную Windows-структуру OpenServer/OSPanel вида `...\\domains\\<host>` и предлагает профиль **OpenServer / локальная Windows-установка**.
+
+Для обычного HTTP local-domain, например `http://notes.local`, Messenger теперь подключается **напрямую к тому же hostname**, но к native WebSocket порту:
+
+```env
+SITEURL=http://notes.local
+BASE_PATH=/
+WS_HOST=127.0.0.1
+WS_PORT=27800
+WS_PUBLIC_URL=ws://notes.local:27800
+WS_ALLOWED_ORIGINS=http://notes.local
+```
+
+Это важное отличие от `ws://127.0.0.1:27800`: browser-origin и WebSocket endpoint используют один и тот же local hostname, поэтому для HTTP OpenServer не нужен Apache/Nginx WebSocket proxy и не создаётся отдельный cross-host loopback access.
+
+Native server всё равно слушает только `127.0.0.1:27800`; имя `notes.local` должно резолвиться OpenServer/hosts в loopback, как и сам HTTP-сайт.
+
+После установки запустите:
+
+```powershell
+php ws_server/server.php start
+```
+
+Окно с процессом оставьте работающим. В другом терминале:
+
+```powershell
+php ws_server/server.php status
+php bin/ws_doctor.php
+```
+
+Ожидаемый режим doctor:
+
+```text
+[INFO] Deployment mode — direct/custom WebSocket endpoint
+[OK] OpenServer direct-host mode
+[OK] Native WebSocket listener reachable — 127.0.0.1:27800
+```
+
+Для **HTTPS** direct mode не используется: native listener не завершает TLS. При `https://notes.local` нужен `wss://notes.local/ws` через Apache/Nginx reverse proxy на `127.0.0.1:27800`.
+
+## OSPanel / OpenServer 5.2.2
+
+OpenServer 5.2.2 использует старую структуру `domains\\...` и не поддерживает project-local `.osp\\Apache` / `.osp\\Nginx` конфигурацию Open Server 6.
+
+Для HTTP локальной разработки используйте direct-host режим:
+
+```env
+SITEURL=http://notes.local
+BASE_PATH=/
+WS_HOST=127.0.0.1
+WS_PORT=27800
+WS_PUBLIC_URL=ws://notes.local:27800
+WS_ALLOWED_ORIGINS=http://notes.local
+```
+
+Такой режим специально нужен, чтобы Messenger можно было тестировать на OpenServer 5.x без настройки reverse proxy.
+
+## Почему одного PHP-сайта недостаточно
+
+Workspace Organizer 1.0 запускает собственный native PHP WebSocket listener:
 
 ```text
 tcp://127.0.0.1:27800
@@ -14,7 +73,7 @@ tcp://127.0.0.1:27800
 wss://notes.local/ws
 ```
 
-Это два разных endpoint. Между ними нужен WebSocket reverse proxy веб-сервера:
+Между ними нужен WebSocket reverse proxy веб-сервера:
 
 ```text
 Firefox / Chrome
@@ -25,28 +84,27 @@ Open Server Apache/Nginx (TLS + Upgrade)
     |
     | ws://127.0.0.1:27800
     v
-Workerman
+Workspace native WebSocket server
 ```
 
-Статус Workerman `[ok]` означает только, что внутренний listener запущен. Он не подтверждает, что `/ws` виртуального хоста проксируется на listener.
+Статус native listener `[OK]` означает только, что внутренний процесс запущен. Он не подтверждает, что `/ws` виртуального хоста проксируется на listener.
 
-Не исправляйте HTTPS-сайт заменой `WS_PUBLIC_URL` на `ws://127.0.0.1:27800`: браузер заблокирует mixed content. Также `wss://notes.local:27800` не заработает сам по себе, потому что стандартный listener Workerman в проекте не завершает TLS.
+Не исправляйте HTTPS-сайт заменой `WS_PUBLIC_URL` на `ws://127.0.0.1:27800`: браузер заблокирует mixed content. Также `wss://notes.local:27800` не заработает сам по себе, потому что TLS намеренно завершается на Apache/Nginx.
 
 ## Рекомендуемый `.env` для `https://notes.local`
 
 ```env
 SITEURL=https://notes.local
 BASE_PATH=/
-
 WS_HOST=127.0.0.1
 WS_PORT=27800
 WS_PUBLIC_URL=wss://notes.local/ws
 WS_ALLOWED_ORIGINS=https://notes.local
+WS_MAX_CONNECTIONS=256
+WS_MAX_PAYLOAD_BYTES=2097152
 ```
 
-`WS_TICKET_SECRET` оставьте текущим секретным значением.
-
-После изменения `.env` перезапустите HTTP/PHP окружение и Workerman, чтобы оба процесса увидели одинаковую конфигурацию.
+`WS_TICKET_SECRET` оставьте текущим секретным значением. После изменения `.env` перезапустите HTTP/PHP окружение и native WebSocket process, чтобы оба процесса увидели одинаковую конфигурацию.
 
 ## Apache в Open Server 6+: стандартный случай
 
@@ -58,9 +116,9 @@ RewriteCond %{HTTP:Connection} (^|,)\s*upgrade\s*(,|$) [NC]
 RewriteRule ^ws/?$ ws://127.0.0.1:27800/ [P,L]
 ```
 
-Правило активируется только при наличии Apache proxy modules и проксирует только фиксированный loopback backend. В `.htaccess`-контексте оно работает и при установке приложения в подкаталог: запрос `/workspace/ws` попадает в относительный `^ws/?$` внутри каталога приложения.
+Правило проксирует только фиксированный loopback backend и работает также при установке приложения в подкаталог.
 
-После обновления `.htaccess` **перезапустите Open Server**, затем запустите/перезапустите Workerman:
+После обновления `.htaccess` перезапустите Open Server, затем native WebSocket server:
 
 ```bat
 php ws_server/server.php restart
@@ -72,7 +130,12 @@ php ws_server/server.php restart
 php ws_server/server.php start
 ```
 
-Если proxy modules доступны, дополнительный `.osp`-файл для стандартного порта не нужен.
+Проверка:
+
+```bat
+php ws_server/server.php status
+php bin/ws_doctor.php
+```
 
 ## Apache: fallback / нестандартный порт
 
@@ -90,7 +153,7 @@ ProxyPass "/ws" "http://127.0.0.1:27800/" upgrade=websocket
 ProxyPassReverse "/ws" "http://127.0.0.1:27800/"
 ```
 
-Для старого Apache, где `upgrade=websocket` недоступен:
+Для старого Apache:
 
 ```apache
 ProxyPreserveHost On
@@ -102,13 +165,11 @@ ProxyPassReverse "/ws" "ws://127.0.0.1:27800/"
 
 ## Nginx в Open Server
 
-Если проект использует Nginx, `.htaccess` не применяется. Создайте project-local extension:
+Если проект использует Nginx, создайте:
 
 ```text
 C:\OSPanel\home\notes.local\.osp\Nginx\notes.local.conf
 ```
-
-Добавьте в server context:
 
 ```nginx
 location /ws {
@@ -126,13 +187,11 @@ location /ws {
 
 ## Приложение в подкаталоге
 
-При `BASE_PATH=/workspace/` публичный endpoint должен быть:
+При `BASE_PATH=/workspace/` публичный endpoint:
 
 ```text
 wss://example.local/workspace/ws
 ```
-
-Проектный Apache `.htaccess` bridge продолжает работать автоматически, потому что правило применяется относительно каталога приложения.
 
 Для внешнего virtual-host proxy path должен быть `/workspace/ws`:
 
@@ -141,63 +200,37 @@ ProxyPass "/workspace/ws" "http://127.0.0.1:27800/" upgrade=websocket
 ProxyPassReverse "/workspace/ws" "http://127.0.0.1:27800/"
 ```
 
-Не используйте `/ws`, если `WS_PUBLIC_URL` указывает на `/workspace/ws`.
-
 ## Диагностика
-
-После запуска Workerman выполните из корня проекта:
 
 ```bat
 php bin/ws_doctor.php
 ```
 
-Команда показывает:
+Команда показывает SITEURL, browser WS URL, внутренний native listener, proxy backend и доступность TCP listener, а также готовые Apache/Nginx snippets.
 
-- фактический `SITEURL`;
-- URL, куда идёт браузер;
-- внутренний listener Workerman;
-- требуемый proxy path/backend;
-- доступен ли TCP listener;
-- готовые Apache и Nginx snippets;
-- на Windows — fallback `.osp` пути для текущего домена.
+Успешное browser соединение в DevTools → Network → WS должно получить `101 Switching Protocols`, затем прикладное сообщение `Authorized`.
 
-`php bin/healthcheck.php` также показывает canonical WebSocket URL и proxy contract, но `ws_doctor.php` дополнительно проверяет доступность listener.
+Если listener `[OK]`, а браузер не подключается, проверяйте:
 
-Затем откройте Messenger и проверьте DevTools → Network → WS. Успешное соединение должно получить:
-
-```text
-101 Switching Protocols
-```
-
-После handshake сервер первым прикладным сообщением отправляет `Authorized`.
-
-## Если listener `[OK]`, а браузер всё ещё не подключается
-
-Проверяйте по порядку:
-
-1. Open Server был перезапущен после обновления `.htaccess` или `.osp` config.
-2. Если используется Apache, proxy modules доступны; если Nginx — создан Nginx host extension.
+1. Open Server перезапущен после `.htaccess`/`.osp` изменений.
+2. Apache proxy modules доступны либо настроен Nginx host extension.
 3. `WS_PUBLIC_URL` совпадает с proxy path.
-4. `WS_ALLOWED_ORIGINS` содержит browser origin, например `https://notes.local`.
-5. `WS_TICKET_SECRET` одинаков у HTTP/PHP и Workerman процессов.
+4. `WS_ALLOWED_ORIGINS` содержит фактический browser origin.
+5. `WS_TICKET_SECRET` одинаков у HTTP и native WS процессов.
 6. Порт `27800` не занят другим процессом.
-7. В логах веб-сервера нет `502`, `503` или ошибки proxy module.
-8. В `LOG_FILE` / Workerman log нет `Rejected WebSocket origin` или ошибки ticket validation.
+7. В web-server log нет `502/503`.
+8. В `LOG_FILE` нет `Rejected WebSocket origin`/ticket errors.
 
 ## Production / VPS
 
-Та же схема применяется на production:
+Та же схема:
 
 ```text
-Internet -> HTTPS/WSS reverse proxy -> 127.0.0.1:27800 -> Workerman
+Internet -> HTTPS/WSS reverse proxy -> 127.0.0.1:27800 -> native PHP WebSocket server
 ```
 
-Workerman не нужно выставлять на `0.0.0.0` только ради браузерного подключения, если reverse proxy находится на том же сервере. Публичный TLS-сертификат и WSS обслуживает фронтовый Apache/Nginx/Caddy.
+Не выставляйте внутренний listener на `0.0.0.0`, если reverse proxy находится на том же сервере.
 
-На shared hosting realtime Messenger поддерживается только если тариф позволяет одновременно:
+На shared hosting realtime Messenger поддерживается только если тариф позволяет долгоживущий PHP CLI process, WebSocket Upgrade proxy и доступ proxy к локальному listener. Если нет — HTTP-модули продолжают работать, realtime Messenger нет.
 
-- долгоживущий PHP CLI process;
-- WebSocket reverse proxy/Upgrade;
-- доступ proxy к локальному listener Workerman.
-
-Если этих возможностей нет, обычные HTTP-модули могут работать, но realtime Messenger корректно развернуть нельзя.
+Composer/Workerman для 1.0 runtime не требуются.

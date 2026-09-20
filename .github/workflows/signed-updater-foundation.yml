@@ -1,0 +1,199 @@
+name: 1.0 signed updater foundation
+
+on:
+  pull_request:
+    branches: [master, '1.0']
+  push:
+    branches: ['1.0-signed-updater-foundation']
+
+permissions:
+  contents: read
+
+jobs:
+  signed-updater:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      matrix:
+        php: ['8.1', '8.3']
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: sodium, mbstring
+          coverage: none
+
+      - name: Lint updater boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            config/update_trusted_keys.php \
+            core/UpdateManifestVerifier.php \
+            core/UpdatePackageStager.php \
+            bin/update.php \
+            tools/vendor-update/lib.php \
+            tools/vendor-update/keygen.php \
+            tools/vendor-update/build-manifest.php \
+            tools/vendor-update/sign-manifest.php \
+            tests/integration/signed_update_foundation_contract.php; do
+            php -l "$file"
+          done
+
+      - name: Verify updater integration contract
+        run: php tests/integration/signed_update_foundation_contract.php
+
+      - name: Validate committed public trust registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -r '
+            require "core/UpdateManifestVerifier.php";
+            $v = new Core\UpdateManifestVerifier();
+            foreach ($v->trustedKeyIds() as $id) {
+              if (!is_string($id) || $id === "") { exit(1); }
+            }
+            echo "Update public registry parsed: " . count($v->trustedKeyIds()) . " key(s)\n";
+          '
+          if grep -R -E 'UPDATE_PRIVATE|UPDATE_SIGNING_PRIVATE|PRIVATE_UPDATE_SIGNING_KEY' app core config database default.env; then
+            echo 'Runtime tree contains a forbidden update private-key marker'
+            exit 1
+          fi
+          ! find . -type f \( -name '*.update-secret' -o -name 'workspace-update-*.secret' \) -print -quit | grep -q .
+
+      - name: Refuse repository-local update private key
+        shell: bash
+        run: |
+          set -euo pipefail
+          if php tools/vendor-update/keygen.php \
+            --key-id=update-ci-reject \
+            --private-out="$GITHUB_WORKSPACE/update-ci-reject.update-secret" \
+            > /tmp/update-keygen-reject.out 2>&1; then
+            echo 'keygen unexpectedly allowed private key inside repository'
+            exit 1
+          fi
+          test ! -e "$GITHUB_WORKSPACE/update-ci-reject.update-secret"
+          grep -Fq 'must not be stored inside the repository tree' /tmp/update-keygen-reject.out
+
+      - name: Build sign verify and stage ephemeral update
+        shell: bash
+        run: |
+          set -euo pipefail
+          WORK=/tmp/wo-signed-update-ci
+          rm -rf "$WORK"
+          mkdir -m 700 -p "$WORK/package-source" "$WORK/stage" "$WORK/tampered"
+
+          cp core/Version.php "$WORK/package-source/Version.php"
+          (cd "$WORK/package-source" && zip -q "$WORK/workspace-organizer-v-ci.zip" Version.php)
+
+          KEY_ID="update-ci-${{ matrix.php }}"
+          KEY_ID="${KEY_ID//./_}"
+          KEY_FILE="$WORK/update-ci.update-secret"
+          KEYGEN_OUT="$WORK/keygen.out"
+          php tools/vendor-update/keygen.php \
+            --key-id="$KEY_ID" \
+            --private-out="$KEY_FILE" \
+            > "$KEYGEN_OUT"
+
+          PUBLIC_KEY="$(awk -F': ' '/^Public key:/ {print $2}' "$KEYGEN_OUT")"
+          test -n "$PUBLIC_KEY"
+          ! grep -Fq 'wo-update-ed25519-secret-v1:' "$KEYGEN_OUT"
+          if [[ "$(uname -s)" != MINGW* ]]; then
+            test "$(stat -c '%a' "$KEY_FILE")" = '600'
+          fi
+
+          CURRENT_CODE="$(php -r 'require "core/Version.php"; echo Core\Version::VERSION_CODE;')"
+          TARGET_CODE="$((CURRENT_CODE + 1))"
+          php tools/vendor-update/build-manifest.php \
+            --package="$WORK/workspace-organizer-v-ci.zip" \
+            --version="1.0.0-ci.${{ matrix.php }}" \
+            --version-code="$TARGET_CODE" \
+            --channel=beta \
+            --source-commit="$GITHUB_SHA" \
+            --min-source-version-code="$CURRENT_CODE" \
+            --requires-php=8.1.0 \
+            --out="$WORK/update.json"
+
+          php tools/vendor-update/sign-manifest.php \
+            --private-key="$KEY_FILE" \
+            --key-id="$KEY_ID" \
+            --manifest="$WORK/update.json" \
+            --signature-out="$WORK/update.sig"
+
+          cat > config/update_trusted_keys.php <<EOF
+          <?php
+          declare(strict_types=1);
+          return [
+              '$KEY_ID' => '$PUBLIC_KEY',
+          ];
+          EOF
+
+          php bin/update.php \
+            --manifest="$WORK/update.json" \
+            --signature="$WORK/update.sig" \
+            --package="$WORK/workspace-organizer-v-ci.zip" \
+            --verify-only --json \
+            > "$WORK/verify.json"
+          php -r '$j=json_decode(file_get_contents($argv[1]),true,32,JSON_THROW_ON_ERROR); if(($j["status"]??"")!=="verified") exit(1);' "$WORK/verify.json"
+
+          php bin/update.php \
+            --manifest="$WORK/update.json" \
+            --signature="$WORK/update.sig" \
+            --package="$WORK/workspace-organizer-v-ci.zip" \
+            --stage-root="$WORK/stage" --json \
+            > "$WORK/stage1.json"
+          php bin/update.php \
+            --manifest="$WORK/update.json" \
+            --signature="$WORK/update.sig" \
+            --package="$WORK/workspace-organizer-v-ci.zip" \
+            --stage-root="$WORK/stage" --json \
+            > "$WORK/stage2.json"
+
+          STAGE1="$(php -r '$j=json_decode(file_get_contents($argv[1]),true,32,JSON_THROW_ON_ERROR); echo $j["stage_dir"]??"";' "$WORK/stage1.json")"
+          STAGE2="$(php -r '$j=json_decode(file_get_contents($argv[1]),true,32,JSON_THROW_ON_ERROR); echo $j["stage_dir"]??"";' "$WORK/stage2.json")"
+          test -n "$STAGE1"
+          test "$STAGE1" = "$STAGE2"
+          test -f "$STAGE1/manifest.json"
+          test -f "$STAGE1/manifest.sig"
+          test -f "$STAGE1/stage.json"
+          test -f "$STAGE1/workspace-organizer-v-ci.zip"
+
+          cp "$WORK/workspace-organizer-v-ci.zip" "$WORK/tampered/workspace-organizer-v-ci.zip"
+          printf 'tamper' >> "$WORK/tampered/workspace-organizer-v-ci.zip"
+          if php bin/update.php \
+            --manifest="$WORK/update.json" \
+            --signature="$WORK/update.sig" \
+            --package="$WORK/tampered/workspace-organizer-v-ci.zip" \
+            --verify-only > "$WORK/tamper.out" 2>&1; then
+            echo 'tampered package unexpectedly passed signed updater verification'
+            exit 1
+          fi
+          grep -Eq 'size|SHA-256' "$WORK/tamper.out"
+
+          rm -rf "$GITHUB_WORKSPACE/cache/update-ci-stage"
+          if php bin/update.php \
+            --manifest="$WORK/update.json" \
+            --signature="$WORK/update.sig" \
+            --package="$WORK/workspace-organizer-v-ci.zip" \
+            --stage-root="$GITHUB_WORKSPACE/cache/update-ci-stage" \
+            > "$WORK/inside.out" 2>&1; then
+            echo 'updater unexpectedly staged inside live application tree'
+            exit 1
+          fi
+          grep -Fq 'outside the live application tree' "$WORK/inside.out"
+          rm -rf "$GITHUB_WORKSPACE/cache/update-ci-stage"
+
+      - name: Prove customer bundle excludes update signer
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq -- "--exclude 'tools'" .github/workflows/hosting-package.yml
+          grep -Fq -- "--exclude '*.update-secret'" .github/workflows/hosting-package.yml
+          grep -Fq 'test ! -e "$ROOT/tools"' .github/workflows/hosting-package.yml
+          grep -Fq 'config/update_trusted_keys.php' .github/workflows/hosting-package.yml
+          grep -Fq 'bin/update.php' .github/workflows/hosting-package.yml

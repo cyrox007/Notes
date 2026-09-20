@@ -80,11 +80,52 @@ Restore считается проверенным только после вос
 
 ### `UNIQUE_KEY` и `MSG_SECRET_KEY`
 
-**Не меняйте эти значения напрямую.** Текущие note/message ciphertext привязаны к действующим ключам; простая замена переменной сделает существующие данные нечитаемыми.
+**Не меняйте эти значения напрямую.** Штатная смена master keys выполняется только через maintenance-команду `bin/rotate_data_keys.php`.
 
-До ротации data keys требуется отдельная maintenance-процедура re-encryption с old+new key одновременно, backup и verify. `bin/migrate_crypto.php` предназначен для legacy-format migration и проверки текущих ciphertext, но не является инструментом смены master key.
+Перед ротацией:
 
-Поэтому production contract такой: data-encryption keys считаются долгоживущими secrets; их аварийная ротация выполняется только через отдельную re-encryption maintenance операцию, а не редактированием `.env`.
+1. сделать полный backup и иметь актуальный restore drill;
+2. выполнить `php bin/migrate_crypto.php --scope=all --dry-run --limit=10000`; Messenger должен быть в v2, а encrypted Notes — в текущем формате;
+3. подготовить old/new secrets в отдельных файлах вне application tree с правами `0600`; raw key values намеренно не принимаются аргументами CLI;
+4. включить maintenance с уникальным transaction id. HTTP и WebSocket mutation-paths блокируются на всё время операции.
+
+Пример:
+
+```bash
+php bin/maintenance.php \
+  --action=enter \
+  --transaction=keyrotate-2026-09 \
+  --reason='Data encryption key rotation'
+
+php bin/rotate_data_keys.php \
+  --transaction=keyrotate-2026-09 \
+  --scope=all \
+  --old-unique-key-file=/secure/old-unique.key \
+  --new-unique-key-file=/secure/new-unique.key \
+  --old-msg-key-file=/secure/old-msg.key \
+  --new-msg-key-file=/secure/new-msg.key
+```
+
+Rotator использует небольшие DB-транзакции и внешний checkpoint. Если процесс завершится после DB commit, но до записи checkpoint, повторный запуск безопасен: строка сначала аутентифицируется target key и не шифруется повторно. State содержит только SHA-256 fingerprints, checkpoints и counters — не сами ключи.
+
+Notes rotation охватывает `notes.content` и encrypted snapshots `note_history.old_content/new_content`; исторический plaintext в note history остаётся byte-identical. Messenger rotation охватывает `messages.message`. Notes/Messenger attachments этими master keys сейчас не шифруются и в эту процедуру не входят.
+
+`--max-batches=N` позволяет контролируемо остановить операцию и затем продолжить той же командой. До `complete + verified` maintenance не снимается.
+
+Для отмены **до переключения .env/secret manager** запустите ту же команду с `--rollback`. Она переводит уже обновлённые строки обратно на old keys и пропускает строки, которые ещё не были переведены.
+
+После успешного forward:
+
+1. оставить maintenance активным;
+2. заменить `UNIQUE_KEY` / `MSG_SECRET_KEY` в secret manager или `.env`;
+3. перезапустить HTTP workers и WebSocket process;
+4. выполнить `php bin/healthcheck.php` и smoke-проверить encrypted Note и Messenger message;
+5. снять maintenance той же transaction id;
+6. удалить old secrets только после принятого backup/rollback окна.
+
+`DATA_KEY_ROTATION_STATE_PATH` может задавать отдельный внешний state-каталог. Если он пуст, используется `UPDATE_STATE_PATH/data-key-rotation`, затем `PRIVATE_STORAGE_PATH/key-rotation`.
+
+`bin/migrate_crypto.php` остаётся legacy-format migrator; `bin/rotate_data_keys.php` — штатный путь смены master keys.
 
 ## 5. Rate limiting и reverse proxy
 
@@ -142,3 +183,92 @@ php bin/cleanup_messenger_orphans.php
 - `bin/healthcheck.php` проходит на target environment;
 - существует свежий проверенный backup и зафиксирован restore drill;
 - encryption keys и `.env` не входят в публичный release/backup archive.
+
+
+## Security observability
+
+Workspace Organizer writes structured security/audit events as append-only JSONL outside the application tree. By default the file is:
+
+`PRIVATE_STORAGE_PATH/logs/security-events.jsonl`
+
+Set `SECURITY_EVENT_LOG_PATH` only when a dedicated absolute external path is required. The directory is created with mode 0700 and the event file is kept at 0600 on POSIX systems.
+
+Current 1.0 events cover:
+
+- authentication success/failure/blocked-account/logout;
+- authentication rate-limit denials and rate-limiter failures;
+- license activation/clear operations;
+- module lifecycle transitions;
+- updater apply/recovery success and failure.
+
+Sensitive context keys such as passwords, tokens, secrets, authorization/cookie/session/CSRF values are redacted by the logger before serialization. License tokens and signing/private keys must never be logged.
+
+Operational summary:
+
+```bash
+php bin/observability.php
+php bin/observability.php --window=900 --json
+```
+
+The command exits with code 3 when alert thresholds are crossed. Defaults:
+
+- any critical event in the observation window;
+- 10 authentication failures/blocked attempts;
+- 3 rate-limit denials.
+
+Tune with `OBSERVABILITY_CRITICAL_ALERT`, `OBSERVABILITY_AUTH_FAILURE_ALERT`, `OBSERVABILITY_RATE_LIMIT_ALERT` and `OBSERVABILITY_WINDOW_SECONDS`.
+
+Recommended production scheduling is a cron/systemd timer that runs `php bin/observability.php --json` every few minutes and forwards non-zero/alert results to the operator's existing monitoring channel. This release intentionally does not require a specific external monitoring vendor.
+
+`php bin/healthcheck.php` also verifies that security event storage resolves outside the live application tree and is writable.
+
+
+## Retention and permanent purge
+
+Workspace Organizer 1.0 separates ordinary user-facing soft-delete/deactivation from irreversible physical purge.
+
+Default retention windows are configured through:
+
+- `RETENTION_SOFT_DELETE_DAYS=30`;
+- `RETENTION_DEACTIVATED_ACCOUNT_DAYS=30`.
+
+Soft-deleted Notes, Note attachments, File Manager entries, Messenger messages/attachments, Tasks, shared-board items and deleted task categories are retained until their applicable cutoff. Deactivated accounts are retained independently from content soft-delete.
+
+Preview is the default and never changes data:
+
+```bash
+php bin/retention.php
+php bin/retention.php --soft-days=30 --account-days=30 --json
+```
+
+Permanent purge is deliberately explicit and irreversible:
+
+```bash
+php bin/retention.php --apply --yes --json
+```
+
+Do not schedule `--apply --yes` until backup/restore drill evidence exists for the deployment.
+
+Safety rules:
+
+1. Physical managed files are deleted before the corresponding DB metadata is hard-deleted. If a file cannot be removed safely, the row remains for retry.
+2. Paths outside managed private/legacy upload roots and symlink escapes are blocked.
+3. Old soft-deleted attachment rows that predate the 1.0 timestamp contract start their retention clock at migration time; they are not purged immediately after upgrade.
+4. A soft-deleted Note is not physically removed while any attachment has not yet completed its own retention window.
+5. Deactivated administrative identities are never purged automatically.
+6. A deactivated account remains blocked from purge while it still owns a Messenger group or a shared/all-active Task board. Ownership must be transferred or the collaborative object explicitly retired first.
+7. User-facing deactivation stays non-destructive; the existing Admin action only disables authentication and removes the avatar. Permanent account deletion exists only in the retention CLI.
+8. Backup archives are outside the live retention policy. Purging live data does not rewrite or erase previously created backups; backup retention is controlled by the operator's backup policy.
+
+The purge command emits structured security events including `retention.purge_completed`, `retention.account_blocked`, `retention.account_purged` and failure events. Review them through the security observability pipeline.
+
+Recommended production operation:
+
+1. run preview and archive the JSON result;
+2. confirm a recent successful backup/restore drill;
+3. resolve blocked ownership;
+4. run `--apply --yes --json`;
+5. investigate exit code 3, which indicates blocked/failed filesystem cleanup or account failures;
+6. run preview again; only intentionally blocked/newly retained rows should remain.
+
+A cron/systemd timer may run preview frequently. If automatic permanent purge is enabled, use a separate reviewed timer with explicit `--apply --yes`, capture JSON output and alert on any non-zero exit status.

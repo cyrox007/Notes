@@ -1,7 +1,10 @@
 -- ============================================================
--- Notes Messenger v2 - canonical schema
--- Fresh-install source of truth for users, dialogs, messages and attachments.
--- Existing installations should use database/migrations/*.sql.
+-- Legacy full-schema compatibility aggregate.
+--
+-- New composition-aware installs MUST use database/core_identity_schema.sql
+-- plus the Messenger-owned database/messenger_module_schema.sql declared by
+-- modules/messenger/module.json. This file remains only for pre-1.0 tooling and
+-- test fixtures that historically expected messenger_schema.sql to create users.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS `users` (
@@ -39,8 +42,7 @@ CREATE TABLE IF NOT EXISTS `dialogs` (
     UNIQUE KEY `uq_dialogs_uid` (`uid`),
     KEY `idx_dialogs_updated` (`updated_at`),
     KEY `idx_dialogs_creator` (`created_by`),
-    CONSTRAINT `fk_dialogs_creator`
-        FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+    CONSTRAINT `fk_dialogs_creator` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `user_to_dialogs` (
@@ -58,10 +60,8 @@ CREATE TABLE IF NOT EXISTS `user_to_dialogs` (
     UNIQUE KEY `uq_dialog_member` (`dialog_id`, `user_id`),
     KEY `idx_dialog_member_user` (`user_id`, `is_deleted`),
     KEY `idx_dialog_member_dialog` (`dialog_id`, `is_deleted`),
-    CONSTRAINT `fk_dialog_member_dialog`
-        FOREIGN KEY (`dialog_id`) REFERENCES `dialogs` (`id`) ON DELETE CASCADE,
-    CONSTRAINT `fk_dialog_member_user`
-        FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+    CONSTRAINT `fk_dialog_member_dialog` FOREIGN KEY (`dialog_id`) REFERENCES `dialogs` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_dialog_member_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `messages` (
@@ -85,12 +85,9 @@ CREATE TABLE IF NOT EXISTS `messages` (
     KEY `idx_messages_sender` (`from_user_id`, `created_at`),
     KEY `idx_messages_reply` (`reply_to_message_id`),
     KEY `idx_messages_unread` (`dialog_id`, `is_deleted`, `id`),
-    CONSTRAINT `fk_messages_dialog`
-        FOREIGN KEY (`dialog_id`) REFERENCES `dialogs` (`id`) ON DELETE CASCADE,
-    CONSTRAINT `fk_messages_sender`
-        FOREIGN KEY (`from_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-    CONSTRAINT `fk_messages_reply`
-        FOREIGN KEY (`reply_to_message_id`) REFERENCES `messages` (`id`) ON DELETE SET NULL
+    CONSTRAINT `fk_messages_dialog` FOREIGN KEY (`dialog_id`) REFERENCES `dialogs` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_messages_sender` FOREIGN KEY (`from_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_messages_reply` FOREIGN KEY (`reply_to_message_id`) REFERENCES `messages` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `messenger_attachments` (
@@ -107,16 +104,15 @@ CREATE TABLE IF NOT EXISTS `messenger_attachments` (
     `size` BIGINT UNSIGNED NOT NULL,
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `is_deleted` TINYINT(1) NOT NULL DEFAULT 0,
+    `deleted_at` DATETIME DEFAULT NULL,
     UNIQUE KEY `uq_messenger_attachment_uid` (`uid`),
+    KEY `idx_messenger_attachments_deleted` (`is_deleted`, `deleted_at`),
     KEY `idx_messenger_attachment_dialog` (`dialog_id`, `created_at`),
     KEY `idx_messenger_attachment_message` (`message_id`),
     KEY `idx_messenger_attachment_uploader` (`uploader_user_id`, `created_at`),
-    CONSTRAINT `fk_messenger_attachment_dialog`
-        FOREIGN KEY (`dialog_id`) REFERENCES `dialogs` (`id`) ON DELETE CASCADE,
-    CONSTRAINT `fk_messenger_attachment_uploader`
-        FOREIGN KEY (`uploader_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
-    CONSTRAINT `fk_messenger_attachment_message`
-        FOREIGN KEY (`message_id`) REFERENCES `messages` (`id`) ON DELETE CASCADE
+    CONSTRAINT `fk_messenger_attachment_dialog` FOREIGN KEY (`dialog_id`) REFERENCES `dialogs` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_messenger_attachment_uploader` FOREIGN KEY (`uploader_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_messenger_attachment_message` FOREIGN KEY (`message_id`) REFERENCES `messages` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `message_reactions` (
@@ -130,21 +126,16 @@ CREATE TABLE IF NOT EXISTS `message_reactions` (
     UNIQUE KEY `uq_message_reaction_user` (`message_id`, `user_id`, `reaction_code`),
     KEY `idx_message_reaction_message` (`message_id`, `reaction_code`, `is_active`),
     KEY `idx_message_reaction_user` (`user_id`, `message_id`, `is_active`),
-    CONSTRAINT `fk_message_reaction_message`
-        FOREIGN KEY (`message_id`) REFERENCES `messages` (`id`) ON DELETE CASCADE,
-    CONSTRAINT `fk_message_reaction_user`
-        FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+    CONSTRAINT `fk_message_reaction_message` FOREIGN KEY (`message_id`) REFERENCES `messages` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_message_reaction_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Telegram-style "delete only for me" without mutating the message for others.
 CREATE TABLE IF NOT EXISTS `message_user_deletions` (
     `message_id` BIGINT UNSIGNED NOT NULL,
     `user_id` INT NOT NULL,
     `deleted_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`message_id`, `user_id`),
     KEY `idx_message_user_deletions_user` (`user_id`, `message_id`),
-    CONSTRAINT `fk_message_user_deletion_message`
-        FOREIGN KEY (`message_id`) REFERENCES `messages` (`id`) ON DELETE CASCADE,
-    CONSTRAINT `fk_message_user_deletion_user`
-        FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+    CONSTRAINT `fk_message_user_deletion_message` FOREIGN KEY (`message_id`) REFERENCES `messages` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_message_user_deletion_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

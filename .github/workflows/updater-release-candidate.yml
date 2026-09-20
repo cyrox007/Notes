@@ -1,0 +1,190 @@
+name: 1.0 updater release candidate
+
+on:
+  pull_request:
+    branches: [master, '1.0']
+  push:
+    branches: ['1.0-updater-release-candidate']
+
+permissions:
+  contents: read
+
+jobs:
+  release-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.3']
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, sodium, zlib
+          coverage: none
+
+      - name: Lint release candidate boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l core/UpdateReleaseCandidate.php
+          php -l bin/update_candidate.php
+          php -l tests/integration/update_release_candidate_contract.php
+
+      - name: Verify extraction and tree contract
+        run: php tests/integration/update_release_candidate_contract.php
+
+      - name: Full signed stage to backup checkpoint to candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          PHP_TAG="${{ matrix.php }}"
+          SAFE_TAG="${PHP_TAG//./_}"
+          WORK="/tmp/wo-update-candidate-cli-$SAFE_TAG"
+          rm -rf "$WORK"
+          mkdir -m 700 -p "$WORK/bundle/workspace-organizer-v-candidate-ci/core" \
+            "$WORK/bundle/workspace-organizer-v-candidate-ci/bin" \
+            "$WORK/bundle/workspace-organizer-v-candidate-ci/config" \
+            "$WORK/stage" "$WORK/state" "$WORK/backups" "$WORK/releases" "$WORK/private"
+
+          CURRENT_CODE="$(php -r 'require "core/Version.php"; echo Core\Version::VERSION_CODE;')"
+          TARGET_CODE="$((CURRENT_CODE + 1))"
+          TARGET_VERSION="0.14.0-candidate-ci-$SAFE_TAG"
+          BUNDLE="$WORK/bundle/workspace-organizer-v-candidate-ci"
+
+          printf '%s\n' '<?php echo "index";' > "$BUNDLE/index.php"
+          printf '%s\n' '<?php echo "install";' > "$BUNDLE/install.php"
+          printf '%s\n' '<?php echo "core";' > "$BUNDLE/core.php"
+          printf '%s\n' '<?php echo "migrate";' > "$BUNDLE/bin/migrate.php"
+          printf '%s\n' '<?php echo "health";' > "$BUNDLE/bin/healthcheck.php"
+          cp config/update_trusted_keys.php "$BUNDLE/config/update_trusted_keys.php"
+          cat > "$BUNDLE/core/Version.php" <<EOF
+          <?php
+          declare(strict_types=1);
+          namespace Core;
+          class Version {
+              public const VERSION = '$TARGET_VERSION';
+              public const VERSION_CODE = $TARGET_CODE;
+          }
+          EOF
+          printf 'candidate payload %s\n' "$SAFE_TAG" > "$BUNDLE/payload.txt"
+          (cd "$WORK/bundle" && zip -qr "$WORK/workspace-organizer-candidate-ci.zip" workspace-organizer-v-candidate-ci)
+
+          KEY_ID="candidate-ci-$SAFE_TAG"
+          KEY_FILE="$WORK/update.update-secret"
+          KEYGEN_OUT="$WORK/keygen.out"
+          php tools/vendor-update/keygen.php --key-id="$KEY_ID" --private-out="$KEY_FILE" > "$KEYGEN_OUT"
+          PUBLIC_KEY="$(awk -F': ' '/^Public key:/ {print $2}' "$KEYGEN_OUT")"
+          test -n "$PUBLIC_KEY"
+
+          php tools/vendor-update/build-manifest.php \
+            --package="$WORK/workspace-organizer-candidate-ci.zip" \
+            --version="$TARGET_VERSION" \
+            --version-code="$TARGET_CODE" \
+            --channel=beta \
+            --source-commit="$GITHUB_SHA" \
+            --min-source-version-code="$CURRENT_CODE" \
+            --requires-php=8.1.0 \
+            --out="$WORK/update.json"
+          php tools/vendor-update/sign-manifest.php \
+            --private-key="$KEY_FILE" \
+            --key-id="$KEY_ID" \
+            --manifest="$WORK/update.json" \
+            --signature-out="$WORK/update.sig"
+
+          cat > config/update_trusted_keys.php <<EOF
+          <?php
+          declare(strict_types=1);
+          return [
+              '$KEY_ID' => '$PUBLIC_KEY',
+          ];
+          EOF
+
+          php bin/update.php \
+            --manifest="$WORK/update.json" \
+            --signature="$WORK/update.sig" \
+            --package="$WORK/workspace-organizer-candidate-ci.zip" \
+            --stage-root="$WORK/stage" --json > "$WORK/stage-result.json"
+          STAGE_DIR="$(php -r '$j=json_decode(file_get_contents($argv[1]),true,32,JSON_THROW_ON_ERROR); echo $j["stage_dir"]??"";' "$WORK/stage-result.json")"
+          PACKAGE_SHA="$(php -r '$j=json_decode(file_get_contents($argv[1]),true,32,JSON_THROW_ON_ERROR); echo $j["package_sha256"]??"";' "$WORK/stage-result.json")"
+          test -n "$STAGE_DIR"
+          test -n "$PACKAGE_SHA"
+
+          TX="candidate-cli-$SAFE_TAG-001"
+          php bin/maintenance.php --action=enter --transaction="$TX" --reason='Candidate CLI CI' --state-root="$WORK/state"
+
+          mkdir -m 700 -p "$WORK/backups/$TX/code"
+          cat > "$WORK/backups/$TX/backup.json" <<EOF
+          {
+            "schema": 1,
+            "transaction_id": "$TX",
+            "code": {"files": 1},
+            "database": {"tables": 1}
+          }
+          EOF
+          BACKUP_SHA="$(sha256sum "$WORK/backups/$TX/backup.json" | awk '{print $1}')"
+
+          php -r '
+            require "core/UpdateTransactionJournal.php";
+            require "core/Version.php";
+            $j=new Core\UpdateTransactionJournal($argv[1], getcwd());
+            $j->initialize([
+              "transaction_id"=>$argv[2],
+              "installed_version"=>Core\Version::VERSION,
+              "installed_version_code"=>Core\Version::VERSION_CODE,
+              "target_version"=>$argv[3],
+              "target_version_code"=>(int)$argv[4],
+              "package_sha256"=>$argv[5],
+              "stage_dir"=>$argv[6],
+            ]);
+            $j->recordBackups($argv[2],[
+              "backup_dir"=>$argv[7],
+              "manifest_path"=>$argv[8],
+              "manifest_sha256"=>$argv[9],
+              "code"=>["files"=>1],
+              "database"=>["tables"=>1],
+            ]);
+          ' "$WORK/state" "$TX" "$TARGET_VERSION" "$TARGET_CODE" "$PACKAGE_SHA" "$STAGE_DIR" "$WORK/backups/$TX" "$WORK/backups/$TX/backup.json" "$BACKUP_SHA"
+
+          php bin/update_candidate.php \
+            --transaction="$TX" \
+            --state-root="$WORK/state" \
+            --candidate-root="$WORK/releases" \
+            --json > "$WORK/candidate-result.json"
+          CANDIDATE_DIR="$(php -r '$j=json_decode(file_get_contents($argv[1]),true,32,JSON_THROW_ON_ERROR); if(($j["status"]??"")!=="candidate_verified") exit(1); if(($j["live_files_changed"]??true)!==false) exit(1); if(($j["live_mutation_started"]??true)!==false) exit(1); echo $j["candidate_dir"]??"";' "$WORK/candidate-result.json")"
+          test -n "$CANDIDATE_DIR"
+          test -f "$CANDIDATE_DIR/.workspace-release-tree.json"
+          grep -Fq "$TARGET_VERSION" "$CANDIDATE_DIR/core/Version.php"
+          test -f "$CANDIDATE_DIR/payload.txt"
+
+          printf 'tampered\n' > "$CANDIDATE_DIR/index.php"
+          if php bin/update_candidate.php \
+            --transaction="$TX" \
+            --state-root="$WORK/state" \
+            --candidate-root="$WORK/releases" \
+            > "$WORK/tamper.out" 2>&1; then
+            echo 'tampered release candidate unexpectedly passed re-verification'
+            exit 1
+          fi
+          grep -Fq 'verification failed' "$WORK/tamper.out"
+
+          php bin/maintenance.php --action=leave --transaction="$TX" --state-root="$WORK/state"
+
+      - name: Prove release candidate layer cannot switch live code
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -Fq -- '--apply' bin/update_candidate.php
+          ! grep -Fq 'bin/migrate.php' bin/update_candidate.php
+          ! grep -Fq 'DatabaseManager' bin/update_candidate.php
+          grep -Fq "'backup_verified'" bin/update_candidate.php
+          grep -Fq "'live_mutation_started'" bin/update_candidate.php
+          grep -Fq 'UPDATE_RELEASE_PATH' bin/update_candidate.php
+          grep -Fq 'core/UpdateReleaseCandidate.php' .github/workflows/hosting-package.yml
+          grep -Fq 'bin/update_candidate.php' .github/workflows/hosting-package.yml

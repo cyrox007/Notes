@@ -1,0 +1,135 @@
+name: 1.0 installation license contract
+
+on:
+  pull_request:
+    branches: [master, '1.0']
+  push:
+    branches: ['1.0-installation-licensing']
+
+permissions:
+  contents: read
+
+jobs:
+  license-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      matrix:
+        php: ['8.1', '8.3']
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: sodium, mbstring, mysqli, pdo_mysql
+          coverage: none
+
+      - name: Lint licensing boundary
+        run: |
+          php -l app/services/LicenseVerifier.php
+          php -l app/services/LicenseService.php
+          php -l modules/admin/controllers/LicenseController.php
+          php -l modules/admin/views/license.php
+          php -l tests/integration/license_verifier_contract.php
+          php -l bin/migrate.php
+          php -l core/routerConfig.php
+
+      - name: Verify Ed25519 contract
+        run: php tests/integration/license_verifier_contract.php
+
+      - name: Verify installation-wide storage and admin routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq "'installation_id'" database/settings_schema.sql
+          grep -Fq "'workspace_license_token'" database/settings_schema.sql
+          grep -Fq "'installation_id'" database/migrations/20260915_installation_license.sql
+          grep -Fq '20260915_installation_license.sql' database/migrations/manifest.json
+          grep -Fq 'MigrationManifest' bin/migrate.php
+          grep -Fq 'DatabaseOwnership' bin/migrate.php
+          ! grep -Fq '$manifest = [' bin/migrate.php
+          grep -Fq "'/license'" modules/admin/AdminRuntimeProvider.php
+          grep -Fq "'/license/activate'" modules/admin/AdminRuntimeProvider.php
+          grep -Fq "'/license/clear'" modules/admin/AdminRuntimeProvider.php
+          grep -F "'/license/activate'" modules/admin/AdminRuntimeProvider.php | grep -Fq 'CSRFMiddleware::class'
+          grep -F "'/license/clear'" modules/admin/AdminRuntimeProvider.php | grep -Fq 'CSRFMiddleware::class'
+          grep -Fq "hasRole(\$actorId, 'superadmin')" app/services/LicenseService.php
+          grep -Fq "admin.settings.manage" app/services/LicenseService.php
+          grep -Fq 'sodium_crypto_sign_verify_detached' app/services/LicenseVerifier.php
+          ! grep -R -F 'sodium_crypto_sign_secretkey(' app/services app/controllers core
+          ! grep -R -E 'LICENSE_PRIVATE|SIGNING_PRIVATE|PRIVATE_SIGNING_KEY' app core database default.env
+
+      - name: Verify fresh and upgrade licensing settings in MySQL
+        shell: bash
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: notes_license_contract
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot -e 'CREATE DATABASE notes_license_contract CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;'
+          for schema in \
+            database/messenger_schema.sql \
+            database/notes_schema.sql \
+            database/file_manager_schema.sql \
+            database/user_fields_schema.sql \
+            database/tasks_schema.sql \
+            database/access_control_schema.sql \
+            database/settings_schema.sql \
+            database/module_lifecycle_schema.sql; do
+            mysql -h 127.0.0.1 -uroot -proot notes_license_contract < "$schema"
+          done
+
+          FRESH_ID=$(mysql -N -h 127.0.0.1 -uroot -proot notes_license_contract -e "SELECT setting_value FROM system_settings WHERE setting_key='installation_id'")
+          [[ "$FRESH_ID" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_license_contract -e "SELECT COUNT(*) FROM system_settings WHERE setting_key IN ('installation_id','workspace_license_token') AND setting_type='string' AND category='licensing' AND is_editable=0")" = "2"
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_license_contract -e "SELECT setting_value FROM system_settings WHERE setting_key='workspace_license_token'")" = ""
+
+          # Simulate a fully migrated pre-license 1.0 database. Canonical schema
+          # already contains the new rows, so remove only those two settings and
+          # mark every earlier migration as applied with its real checksum.
+          mysql -h 127.0.0.1 -uroot -proot notes_license_contract -e "DELETE FROM system_settings WHERE setting_key IN ('installation_id','workspace_license_token');"
+          mysql -h 127.0.0.1 -uroot -proot notes_license_contract -e "CREATE TABLE schema_migrations (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,migration VARCHAR(190) NOT NULL,checksum CHAR(64) NOT NULL,applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE KEY uq_schema_migrations_name (migration)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;"
+          for migration in database/migrations/*.sql; do
+            name=$(basename "$migration")
+            if [[ "$name" == '20260915_installation_license.sql' ]]; then
+              continue
+            fi
+            checksum=$(sha256sum "$migration" | awk '{print $1}')
+            mysql -h 127.0.0.1 -uroot -proot notes_license_contract \
+              -e "INSERT INTO schema_migrations (migration,checksum) VALUES ('$name','$checksum');"
+          done
+
+          php bin/migrate.php --status | tee /tmp/license-status-before.txt
+          grep -Fq 'PENDING  20260915_installation_license.sql' /tmp/license-status-before.txt
+          php bin/migrate.php | tee /tmp/license-migrate.txt
+          grep -Fq 'Schema contract: OK' /tmp/license-migrate.txt
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_license_contract -e "SELECT COUNT(*) FROM schema_migrations WHERE migration='20260915_installation_license.sql'")" = "1"
+
+          UPGRADED_ID=$(mysql -N -h 127.0.0.1 -uroot -proot notes_license_contract -e "SELECT setting_value FROM system_settings WHERE setting_key='installation_id'")
+          [[ "$UPGRADED_ID" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_license_contract -e "SELECT setting_value FROM system_settings WHERE setting_key='workspace_license_token'")" = ""
+
+          php bin/migrate.php --status | tee /tmp/license-status-after.txt
+          grep -Fq 'PENDING' /tmp/license-status-after.txt && exit 1 || true
+          grep -Fq 'Schema contract: OK' /tmp/license-status-after.txt
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_license_contract -e "SELECT setting_value FROM system_settings WHERE setting_key='installation_id'")" = "$UPGRADED_ID"

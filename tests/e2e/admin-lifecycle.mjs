@@ -72,6 +72,15 @@ try {
   const adminResponse = await page.goto(`${baseUrl}/admin/`, { waitUntil: 'domcontentloaded' });
   if (!adminResponse || adminResponse.status() !== 200) throw new Error(`Admin page returned ${adminResponse?.status()}`);
 
+  // Admin owns its user-list controls server-side; generic findability JS must not build this surface.
+  await page.locator('.admin-toolbar').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('#admin-search').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('#admin-sort').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('#admin-direction').waitFor({ state: 'visible', timeout: 10000 });
+  if (await page.locator('[data-findability-slot]').count()) {
+    throw new Error('Admin still exposes a generic findability slot');
+  }
+
   // Prove the Admin JS asset loads under BASE_PATH by exercising its dynamic field UI.
   await page.locator('#add-field-btn').click();
   const transientField = page.locator('#custom-fields-container .custom-field[data-field-key^="new_"]').last();
@@ -101,7 +110,9 @@ try {
   await row.locator('.admin-status').filter({ hasText: 'Активен' }).waitFor({ state: 'visible' });
 
   // Open quota settings using the real generated link.
-  const settingsLink = page.getByRole('link', { name: /Настройки и квоты/ });
+  const settingsLink = page
+    .getByRole('navigation', { name: 'Разделы админпанели' })
+    .getByRole('link', { name: 'Системные настройки', exact: true });
   const settingsHref = await settingsLink.getAttribute('href');
   if (!settingsHref?.startsWith(`${basePath}/admin/settings`)) {
     throw new Error(`Admin settings link escaped BASE_PATH: ${settingsHref}`);
@@ -125,6 +136,31 @@ try {
     throw new Error('Updated storage quota did not persist in Admin UI');
   }
   await updatedQuotaRow.getByText('25 МБ', { exact: false }).waitFor({ state: 'visible', timeout: 10000 });
+
+  // The updater page must be a BASE_PATH-safe native admin surface even when
+  // production trust/feed configuration has not yet been installed. Merely
+  // opening the page performs no network update check.
+  const updatesLink = page
+    .getByRole('navigation', { name: 'Разделы админпанели' })
+    .getByRole('link', { name: 'Обновления', exact: true });
+  const updatesHref = await updatesLink.getAttribute('href');
+  if (!updatesHref?.startsWith(`${basePath}/admin/updates`)) {
+    throw new Error(`Admin updates link escaped BASE_PATH: ${updatesHref}`);
+  }
+  await Promise.all([
+    page.waitForURL((url) => url.pathname.replace(/\/+$/, '') === `${basePath}/admin/updates`, { timeout: 15000 }),
+    updatesLink.click(),
+  ]);
+  await page.getByRole('heading', { name: 'Обновления Workspace' }).waitFor({ state: 'visible', timeout: 10000 });
+  await page.getByText('Updater пока не готов:', { exact: false }).waitFor({ state: 'visible', timeout: 10000 });
+  await page.getByText('UPDATE_FEED_URL не настроен.', { exact: true }).waitFor({ state: 'visible', timeout: 10000 });
+  await page.getByRole('button', { name: 'Проверка недоступна' }).waitFor({ state: 'visible', timeout: 10000 });
+  if (await page.locator('.admin-status-grid .admin-status-card').count() < 6) {
+    throw new Error('Updater local state is not rendered as status cards');
+  }
+  if (await page.locator('form[action*="/admin/updates/stage"]').count()) {
+    throw new Error('Updater staging form rendered without a verified update_available result');
+  }
 
   if (pageErrors.length) throw pageErrors[0];
   if (escapedRequests.length) {

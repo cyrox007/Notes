@@ -97,11 +97,12 @@ try {
   ]);
 
   await page.locator('#main-content').waitFor({ state: 'visible' });
-  await page.locator('.sidebar__user-panel').waitFor({ state: 'visible' });
+  await page.locator('#workspaceSidebar').waitFor({ state: 'attached' });
+  await page.locator('.sidebar__brand').waitFor({ state: 'visible' });
 
-  const homeHref = await page.locator('.navbar__home').getAttribute('href');
+  const homeHref = await page.locator('.sidebar__brand').getAttribute('href');
   if (homeHref !== `${basePath}/`) {
-    throw new Error(`Header home link escaped BASE_PATH: ${homeHref}`);
+    throw new Error(`Sidebar home link escaped BASE_PATH: ${homeHref}`);
   }
 
   const fontAwesomeHref = await page.locator('link[href*="font-awesome.min.css"]').getAttribute('href');
@@ -126,9 +127,15 @@ try {
   await assertPage('/files/', '.file-manager');
   await page.locator('[data-quota-status]').waitFor({ state: 'visible' });
 
-  const quotaScriptSrc = await page.locator('script[src*="file_manager/quota.js"]').getAttribute('src');
-  if (!quotaScriptSrc?.includes(`${basePath}/assets/js/file_manager/quota.js`)) {
-    throw new Error(`Quota script escaped BASE_PATH: ${quotaScriptSrc}`);
+  const quotaScriptSrc = await page
+    .locator('script[src*="/module-assets"][src*="module=files"][src*="file=quota.js"]')
+    .getAttribute('src');
+  if (
+    !quotaScriptSrc?.includes(`${basePath}/module-assets`)
+    || !quotaScriptSrc.includes('module=files')
+    || !quotaScriptSrc.includes('file=quota.js')
+  ) {
+    throw new Error(`Quota module asset escaped BASE_PATH: ${quotaScriptSrc}`);
   }
 
   try {

@@ -43,16 +43,16 @@ php tests/integration/rbac_enforcement_runtime.php
 ! grep -Fq 'Config::canAuthenticate' ws_server/server.php
 ! grep -Fq 'IsAdmin::class' core/routerConfig.php
 
-grep -Fq 'RequireAdminAccess::class' core/routerConfig.php
-grep -Fq 'RequireAdminUsersManage::class' core/routerConfig.php
-grep -Fq 'RequireAdminSettingsManage::class' core/routerConfig.php
-grep -Fq "admin.users.manage" app/services/AdminUserService.php
+grep -Fq 'RequireAdminAccess::class' modules/admin/AdminRuntimeProvider.php
+grep -Fq 'RequireAdminUsersManage::class' modules/admin/AdminRuntimeProvider.php
+grep -Fq 'RequireAdminSettingsManage::class' modules/admin/AdminRuntimeProvider.php
+grep -Fq "admin.users.manage" modules/admin/services/AdminUserService.php
 grep -Fq "admin.settings.manage" app/services/StorageQuotaService.php
-grep -Fq "messenger.use" ws_server/server.php
+grep -Fq "messenger.use" modules/messenger/socket/NativeMessengerServer.php
 grep -Fq "account_status" app/controllers/AuthController.php
 grep -Fq "account_status" app/middlewares/LoginRequared.php
 
-if grep -Eq 'UPDATE users SET[^\n]*role[[:space:]]*=' app/services/AdminUserService.php; then
+if grep -Eq 'UPDATE users SET[^\n]*role[[:space:]]*=' modules/admin/services/AdminUserService.php; then
   echo 'AdminUserService still rewrites legacy role during status changes' >&2
   exit 1
 fi

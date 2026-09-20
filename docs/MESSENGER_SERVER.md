@@ -1,19 +1,19 @@
 # Messenger WebSocket server — запуск и эксплуатация
 
-Workspace Organizer использует отдельный долгоживущий **Workerman**-процесс для realtime Messenger. Матрица совместимости Open Server 5.4/6+, shared hosting и VPS вынесена в `docs/DEPLOYMENT_COMPATIBILITY.md`. Обычного PHP-FPM/Apache недостаточно: web-приложение выдаёт короткоживущий WebSocket ticket, а браузер затем подключается к отдельному Workerman listener.
+Workspace Organizer 1.0 использует собственный PHP WebSocket runtime. Сторонний Workerman и Composer `vendor/` для работы приложения не требуются. Обычные HTTP-запросы обслуживаются PHP-FPM/Apache, а realtime Messenger — отдельным долгоживущим процессом `ws_server/server.php`.
 
-## 1. Архитектура
+## Архитектура
 
 ```text
 Browser
   |
   | HTTPS / WSS
   v
-Nginx / reverse proxy
+Nginx / Apache reverse proxy
   |                     |
   | HTTP/FastCGI        | /ws + Upgrade
   v                     v
-PHP-FPM / Apache        Workerman
+PHP-FPM / Apache        Native PHP WebSocket server
                         127.0.0.1:27800
   |                     |
   +----------+----------+
@@ -21,130 +21,80 @@ PHP-FPM / Apache        Workerman
       MySQL + private storage
 ```
 
-Workerman entrypoint проекта:
+TLS завершается на reverse proxy. Внутренний listener использует `stream_socket_server()` + `stream_select()`, собственный RFC6455 handshake/frame codec и общий Messenger transport boundary.
 
-```text
-ws_server/server.php
-```
+## Требования
 
-Он создаёт listener из `WS_HOST` + `WS_PORT`, использует `Workerman\Protocols\Websocket`, проверяет `Origin`, валидирует `WS_TICKET_SECRET`, повторно проверяет активность/роль пользователя и только после этого разрешает Messenger actions.
+- PHP 8.1+
+- `mysqli`, `pdo_mysql`, `mbstring`, `json`, `fileinfo`, `sodium`
+- долгоживущий PHP process
+- WebSocket reverse proxy для production WSS
 
-## 2. Зависимости
+Composer install для runtime не нужен.
 
-В production bundle `vendor/` уже включён. При установке из Git checkout выполните:
-
-```bash
-composer install --no-dev --optimize-autoloader
-```
-
-В `composer.json` проект использует `workerman/workerman ^4.1`.
-
-Проверка PHP:
-
-```bash
-php -v
-php -m | grep -E 'mysqli|pdo_mysql|mbstring|json|fileinfo|sodium'
-```
-
-## 3. Обязательные переменные `.env`
-
-Минимальный production-пример:
+## Переменные `.env`
 
 ```env
 SITEURL=https://workspace.example.com
 BASE_PATH=/
-
 WS_HOST=127.0.0.1
 WS_PORT=27800
 WS_PUBLIC_URL=wss://workspace.example.com/ws
 WS_ALLOWED_ORIGINS=https://workspace.example.com
 WS_TICKET_SECRET=<random-at-least-32-chars>
-
-LOG_LEVEL=INFO
-LOG_FILE=/var/log/workspace-organizer/app.log
+WS_MAX_CONNECTIONS=256
+WS_MAX_PAYLOAD_BYTES=2097152
 ```
 
-Для установки в подкаталог, например `/workspace/`:
+`WS_ALLOWED_ORIGINS` содержит browser origins, а не URL-пути. `WS_TICKET_SECRET` должен быть отдельным случайным секретом.
 
-```env
-SITEURL=https://example.com
-BASE_PATH=/workspace/
-WS_PUBLIC_URL=wss://example.com/workspace/ws
-WS_ALLOWED_ORIGINS=https://example.com
-```
-
-`WS_ALLOWED_ORIGINS` — список browser origins через запятую. Это **origin**, а не путь: для `https://example.com/workspace/` origin остаётся `https://example.com`.
-
-Секрет генерируйте отдельно от остальных ключей:
-
-```bash
-openssl rand -hex 32
-```
-
-Не публикуйте `WS_TICKET_SECRET` и не используйте один секрет для prod/stage/dev.
-
-## 4. Ручной запуск и диагностика
+## Управление процессом
 
 Из корня приложения:
 
 ```bash
 php ws_server/server.php start
-```
-
-Запуск daemon mode:
-
-```bash
-php ws_server/server.php start -d
-```
-
-Workerman также поддерживает штатные команды управления этим entrypoint:
-
-```bash
 php ws_server/server.php status
 php ws_server/server.php restart
 php ws_server/server.php stop
 ```
 
-Проверить, что listener поднялся:
+На Unix при наличии `pcntl` доступен daemon mode:
 
 ```bash
-ss -ltnp | grep 27800
+php ws_server/server.php start -d
 ```
 
-или:
+В systemd/Supervisor используйте foreground `start`, а не `-d`.
+
+Диагностика:
 
 ```bash
-nc -zv 127.0.0.1 27800
+php bin/ws_doctor.php
+php bin/healthcheck.php
 ```
 
-Raw TCP connect подтверждает только наличие listener. Полную авторизацию проверяйте через браузер Messenger или HTTPS/WSS smoke, потому что WebSocket connection требует корректные `Origin` и ticket.
+`ws_doctor` проверяет конфигурацию и доступность внутреннего listener. Открытый TCP port сам по себе не доказывает успешную WebSocket авторизацию.
 
-## 5. Nginx: `/ws` → Workerman
+## Security boundary
 
-В production браузер должен подключаться к `wss://`, а порт `27800` лучше оставлять только на loopback.
+При WebSocket Upgrade сервер:
 
-Минимальный location:
+1. проверяет `Origin` по `WS_ALLOWED_ORIGINS`;
+2. валидирует короткоживущий подписанный `SocketTicket`;
+3. проверяет `messenger.use`;
+4. повторно проверяет permission на каждом входящем сообщении;
+5. принимает только allowlisted Messenger actions;
+6. удаляет клиентские `user_uid`, `user_id`, `from_user_id` перед dispatch;
+7. ограничивает число соединений и размер WebSocket payload;
+8. обслуживает heartbeat и закрывает зависшие соединения.
+
+## Nginx
 
 ```nginx
 location /ws {
     proxy_pass http://127.0.0.1:27800;
     proxy_http_version 1.1;
-
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_set_header Host $http_host;
-    proxy_set_header Origin $http_origin;
-
-    proxy_read_timeout 60s;
-}
-```
-
-Для приложения в подкаталоге proxy-location должен совпадать с `WS_PUBLIC_URL`, например:
-
-```nginx
-location /workspace/ws {
-    proxy_pass http://127.0.0.1:27800;
-    proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";
     proxy_set_header Host $http_host;
@@ -153,15 +103,13 @@ location /workspace/ws {
 }
 ```
 
-Не проксируйте приватное хранилище и не открывайте `27800` наружу, если reverse proxy работает на том же сервере.
+Не публикуйте `27800` в Internet, если reverse proxy работает на том же сервере.
 
-## 6. systemd для VPS/dedicated
-
-Пример `/etc/systemd/system/workspace-messenger.service`:
+## systemd
 
 ```ini
 [Unit]
-Description=Workspace Organizer Messenger WebSocket
+Description=Workspace Organizer native Messenger WebSocket
 After=network.target mysql.service
 
 [Service]
@@ -170,7 +118,6 @@ User=www-data
 Group=www-data
 WorkingDirectory=/var/www/workspace-organizer
 ExecStart=/usr/bin/php /var/www/workspace-organizer/ws_server/server.php start
-ExecReload=/usr/bin/php /var/www/workspace-organizer/ws_server/server.php reload
 ExecStop=/usr/bin/php /var/www/workspace-organizer/ws_server/server.php stop
 Restart=on-failure
 RestartSec=3
@@ -180,27 +127,15 @@ TimeoutStopSec=20
 WantedBy=multi-user.target
 ```
 
-После создания/изменения unit:
+После deploy кода, затрагивающего `app/socket`, Messenger services или ticket validation:
 
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now workspace-messenger
-sudo systemctl status workspace-messenger
+sudo systemctl restart workspace-messenger
+php bin/ws_doctor.php
+php bin/healthcheck.php
 ```
 
-Логи systemd:
-
-```bash
-journalctl -u workspace-messenger -f
-```
-
-Путь, user/group и PHP binary скорректируйте под сервер. Service account должен иметь доступ к application files, `.env`, MySQL и `PRIVATE_STORAGE_PATH`, но не должен работать от root.
-
-> Если конкретная схема запуска Workerman через `Type=simple` конфликтует с политикой вашего process manager, используйте foreground mode без `-d`, как в примере выше. Не запускайте daemon mode внутри systemd.
-
-## 7. Supervisor — альтернатива systemd
-
-Пример:
+## Supervisor
 
 ```ini
 [program:workspace-messenger]
@@ -211,111 +146,44 @@ autorestart=true
 stopasgroup=true
 killasgroup=true
 user=www-data
-stdout_logfile=/var/log/workspace-organizer/ws-supervisor.log
-stderr_logfile=/var/log/workspace-organizer/ws-supervisor-error.log
 ```
 
-После изменения:
+## Shared hosting / Open Server
 
-```bash
-sudo supervisorctl reread
-sudo supervisorctl update
-sudo supervisorctl status workspace-messenger
-```
+Realtime Messenger требует возможность держать отдельный PHP process и проксировать `/ws` на `WS_PORT`. Если hosting этого не поддерживает, Notes/Tasks/Files/Profile продолжают работать, но realtime Messenger корректно запустить нельзя.
 
-## 8. Shared hosting / панели
+Для Open Server используйте `docs/OPEN_SERVER_WEBSOCKET.md`.
 
-Realtime Messenger требует **долгоживущего PHP process + WebSocket reverse proxy**.
+## Проверка после deploy
 
-Если панель предоставляет Background processes / Supervisor / WebSocket proxy:
+1. `php bin/healthcheck.php`
+2. `php ws_server/server.php status`
+3. `php bin/ws_doctor.php`
+4. проверить конфигурацию Nginx/Apache;
+5. открыть Messenger двумя пользователями;
+6. в DevTools → Network → WS увидеть `101 Switching Protocols`;
+7. отправить сообщение и убедиться, что второй browser context получает его без reload.
 
-```bash
-php /home/account/public_html/workspace/ws_server/server.php start
-```
+Repository CI выполняет аналогичный production-like Chromium smoke через TLS Nginx + PHP + **native WebSocket server**, причём runtime проверяется без каталога `vendor/`.
 
-и настройте публичный `/workspace/ws` или `/ws` на локальный `WS_PORT`.
+## Частые проблемы
 
-Если тариф убивает долгоживущие процессы и не умеет WebSocket proxy, web-модули Notes/Tasks/Files/Profile будут работать, но realtime Messenger на таком тарифе развернуть корректно нельзя.
-
-## 9. Проверка после deploy
-
-1. Проверить приложение:
-
-```bash
-php bin/healthcheck.php
-```
-
-2. Проверить service:
-
-```bash
-systemctl is-active workspace-messenger
-ss -ltn | grep 27800
-```
-
-3. Проверить Nginx configuration:
-
-```bash
-sudo nginx -t
-```
-
-4. Войти в приложение двумя пользователями и открыть Messenger.
-5. В DevTools → Network → WS убедиться, что соединение идёт к `WS_PUBLIC_URL` и получает `101 Switching Protocols`.
-6. Отправить сообщение из первого browser session и убедиться, что второе получает его без reload.
-
-Repository CI делает аналогичный production-like smoke через TLS Nginx + PHP + Workerman + два Chromium contexts.
-
-## 10. Рестарт после обновления
-
-После deploy кода, который затрагивает `app/socket`, Messenger services, ticket validation или `ws_server/server.php`, перезапустите Workerman:
-
-```bash
-sudo systemctl restart workspace-messenger
-```
-
-или при ручном управлении:
-
-```bash
-php ws_server/server.php restart
-```
-
-После рестарта выполните healthcheck и Messenger smoke.
-
-При ротации `WS_TICKET_SECRET` HTTP/PHP и WebSocket процессы должны увидеть одно и то же новое значение. Старые socket tickets после ротации становятся недействительными.
-
-## 11. Логи и частые проблемы
-
-### `Connection refused`
-
-Проверьте:
-
-- Workerman process запущен;
-- `WS_HOST`/`WS_PORT` совпадают с reverse proxy;
-- порт слушается;
-- firewall не мешает локальному proxy connection.
+### Connection refused
+Проверьте native process, `WS_HOST`, `WS_PORT`, firewall и reverse proxy backend.
 
 ### WebSocket сразу закрывается
+Проверьте `WS_ALLOWED_ORIGINS`, `SITEURL`, `BASE_PATH`, `WS_PUBLIC_URL`, общий `WS_TICKET_SECRET`, статус/роль пользователя и системное время.
 
-Проверьте:
-
-- `WS_ALLOWED_ORIGINS` содержит фактический origin браузера;
-- `SITEURL`, `BASE_PATH`, `WS_PUBLIC_URL` согласованы;
-- `WS_TICKET_SECRET` одинаков у web- и WS-процессов;
-- пользователь активен и его роль допускает login;
-- часы сервера синхронизированы, потому что ticket короткоживущий.
-
-### `502 Bad Gateway` на `/ws`
-
-Обычно reverse proxy не может подключиться к `WS_HOST:WS_PORT` либо Workerman упал. Смотрите одновременно Nginx error log, systemd/supervisor status и `LOG_FILE`.
+### 502 Bad Gateway на `/ws`
+Reverse proxy не может подключиться к listener либо native process остановлен. Проверяйте `ws_server/server.php status`, `ws_doctor`, web-server error log и `LOG_FILE`.
 
 ### Соединение есть, realtime не работает
+Проверьте browser WS frames и наличие `Authorized`. Сервер принимает только allowlisted actions.
 
-Проверьте browser WS frames, application log и наличие `Authorized` frame. После авторизации сервер принимает только allowlisted actions; произвольный dynamic dispatch заблокирован.
+## Нельзя
 
-## 12. Что нельзя делать
-
-- не открывайте `ws://0.0.0.0:27800` в public Internet вместо WSS proxy;
-- не отключайте Origin/ticket checks ради «починки» соединения;
-- не запускайте Workerman от root;
-- не храните secrets в unit-файле или репозитории, если уже используется `.env`;
-- не размещайте `PRIVATE_STORAGE_PATH` в document root;
-- не считайте простой открытый TCP port доказательством успешной Messenger авторизации.
+- открывать внутренний WS port публично вместо WSS proxy;
+- отключать Origin/ticket/RBAC checks;
+- запускать process от root;
+- хранить секреты в unit-файле/репозитории;
+- считать открытый TCP port доказательством успешной Messenger авторизации.

@@ -2,7 +2,7 @@ name: 0.14 RBAC runtime enforcement
 
 on:
   pull_request:
-    branches: [master]
+    branches: [master, '1.0']
   push:
     branches: [0.14-phase4-rbac-enforcement]
 
@@ -47,11 +47,11 @@ jobs:
             app/middlewares/LoginRequared.php \
             app/middlewares/IsAdmin.php \
             app/middlewares/RequirePermission.php \
-            app/middlewares/RequireAdminAccess.php \
-            app/middlewares/RequireAdminUsersManage.php \
-            app/middlewares/RequireAdminSettingsManage.php \
+            modules/admin/middlewares/RequireAdminAccess.php \
+            modules/admin/middlewares/RequireAdminUsersManage.php \
+            modules/admin/middlewares/RequireAdminSettingsManage.php \
             app/services/PermissionService.php \
-            app/services/AdminUserService.php \
+            modules/admin/services/AdminUserService.php \
             app/services/StorageQuotaService.php \
             core/routerConfig.php \
             ws_server/server.php \

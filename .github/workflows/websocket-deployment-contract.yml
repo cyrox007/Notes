@@ -2,9 +2,9 @@ name: WebSocket deployment contract
 
 on:
   pull_request:
-    branches: [master]
+    branches: [master, '1.0']
   push:
-    branches: [0.14-beta2-websocket-deployment]
+    branches: [0.14-beta2-websocket-deployment, '1.0']
 
 permissions:
   contents: read
@@ -27,30 +27,72 @@ jobs:
           php-version: ${{ matrix.php }}
           coverage: none
 
-      - name: Lint WebSocket deployment boundary
+      - name: Lint native WebSocket deployment boundary
         run: |
           php -l core/WebSocketEndpoint.php
-          php -l app/controllers/MessagerController.php
+          php -l modules/messenger/controllers/MessagerController.php
+          php -l modules/messenger/socket/SocketConnection.php
+          php -l modules/messenger/socket/SocketHandshake.php
+          php -l modules/messenger/socket/SocketFrameCodec.php
+          php -l modules/messenger/socket/NativeSocketConnection.php
+          php -l modules/messenger/socket/NativeMessengerServer.php
+          php -l modules/messenger/socket/MessangerSocket.php
           php -l ws_server/server.php
           php -l bin/ws_doctor.php
           php -l bin/healthcheck.php
           php -l tests/integration/websocket_endpoint_contract.php
+          php -l tests/integration/native_websocket_protocol_contract.php
+          php -l tests/integration/native_websocket_runtime_regressions.php
+          php -l tests/integration/messenger_activity_wiring_contract.php
+          php -l tests/integration/native_messenger_contract.php
+          php -l tests/integration/vendor_free_runtime_contract.php
 
-      - name: Verify endpoint contract
-        run: php tests/integration/websocket_endpoint_contract.php
+      - name: Verify endpoint, RFC6455 and vendor-free contracts
+        run: |
+          rm -rf vendor
+          php tests/integration/vendor_free_runtime_contract.php
+          php tests/integration/websocket_endpoint_contract.php
+          php tests/integration/native_websocket_protocol_contract.php
+          php tests/integration/native_websocket_runtime_regressions.php
+          php tests/integration/messenger_activity_wiring_contract.php
+          php tests/integration/native_messenger_contract.php
 
-      - name: Verify safe deployment defaults
+      - name: Verify vendor-free native deployment defaults
         shell: bash
         run: |
           set -euo pipefail
+          test ! -e vendor
           grep -Fq 'WS_HOST=127.0.0.1' default.env
           grep -Fq 'WS_PUBLIC_URL=ws://localhost/ws' default.env
           grep -Fq 'php bin/ws_doctor.php' default.env
-          grep -Fq 'WebSocketEndpoint::publicUrl()' app/controllers/MessagerController.php
-          grep -Fq 'WebSocketEndpoint::bindHost()' ws_server/server.php
+          grep -Fq 'WebSocketEndpoint::browserUrl()' modules/messenger/controllers/MessagerController.php
+          grep -Fq 'WebSocketEndpoint::allowedOrigins()' ws_server/server.php
+          grep -Fq 'NativeMessengerServer' ws_server/server.php
+          grep -Fq 'stream_socket_server(' modules/messenger/socket/NativeMessengerServer.php
+          grep -Fq 'stream_select(' modules/messenger/socket/NativeMessengerServer.php
+          grep -Fq 'SocketHandshake::tryParse' modules/messenger/socket/NativeMessengerServer.php
+          grep -Fq 'SocketTicket::validate' modules/messenger/socket/NativeMessengerServer.php
+          grep -Fq "messenger.use" modules/messenger/socket/NativeMessengerServer.php
+          grep -Fq 'enforceCloseDeadline' modules/messenger/socket/NativeMessengerServer.php
+          grep -Fq 'decodeClosePayload' modules/messenger/socket/NativeMessengerServer.php
+          ! grep -R -F 'Workerman\\' modules/messenger/socket ws_server core.php
+          ! test -e modules/messenger/socket/WorkermanConnectionAdapter.php
+          ! test -e app/socket/NativeMessengerServer.php
+          ! grep -Fq 'vendor/autoload.php' core.php
+          set +e
+          php ws_server/server.php status >/tmp/workspace-ws-status.txt 2>&1
+          WS_STATUS=$?
+          set -e
+          test "$WS_STATUS" -eq 1
+          grep -Fq 'WebSocket server is not running.' /tmp/workspace-ws-status.txt
           grep -Fq 'websocket_proxy_contract' bin/healthcheck.php
           grep -Fq 'RewriteCond %{HTTP:Upgrade} ^websocket$ [NC]' .htaccess
           grep -Fq 'RewriteRule ^ws/?$ ws://127.0.0.1:27800/ [P,L]' .htaccess
           grep -Fq 'C:\OSPanel\home\notes.local\.osp\Apache\notes.local.conf' docs/OPEN_SERVER_WEBSOCKET.md
+          grep -Fq 'OSPanel / OpenServer 5.2.2' docs/OPEN_SERVER_WEBSOCKET.md
+          grep -Fq 'WS_PUBLIC_URL=ws://notes.local:27800' docs/OPEN_SERVER_WEBSOCKET.md
+          grep -Fq 'OpenServer direct-host mode' bin/ws_doctor.php
+          grep -Fq 'PowerShell background launch' bin/ws_doctor.php
+          grep -Fq 'Run: php bin/ws_doctor.php' ws_server/server.php
           grep -Fq 'ProxyPass "/ws" "http://127.0.0.1:27800/" upgrade=websocket' docs/OPEN_SERVER_WEBSOCKET.md
           ! grep -Fq "getenv('WS_HOST') ?: '0.0.0.0'" ws_server/server.php

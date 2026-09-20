@@ -1,0 +1,11 @@
+.license-readonly-banner{width:min(100%,var(--ui-content));margin:16px auto 0;padding:0 24px}
+.license-readonly-banner__inner{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--ui-warning) 45%,var(--ui-border));border-radius:12px;background:var(--ui-warning-soft);color:var(--ui-text)}
+.license-readonly-banner__copy{display:flex;align-items:center;gap:11px;min-width:0}
+.license-readonly-banner__icon{width:34px;height:34px;flex:0 0 34px;display:grid;place-items:center;border-radius:9px;background:color-mix(in srgb,var(--ui-warning) 18%,transparent);color:var(--ui-warning)}
+.license-readonly-banner__text{min-width:0}
+.license-readonly-banner__title{display:block;font-size:13px}
+.license-readonly-banner__message,.license-readonly-banner__hint{margin:2px 0 0;color:var(--ui-muted);font-size:12px}
+.license-readonly-banner__action{flex:0 0 auto;height:34px;display:inline-flex;align-items:center;padding:0 11px;border:1px solid color-mix(in srgb,var(--ui-warning) 55%,var(--ui-border));border-radius:9px;background:var(--ui-surface);font-size:12px;font-weight:700}
+.license-readonly-banner__action:hover{border-color:var(--ui-warning)}
+@media(max-width:900px){.license-readonly-banner{width:100%;padding:0 16px;margin-top:12px}}
+@media(max-width:620px){.license-readonly-banner__inner{align-items:flex-start;flex-direction:column}.license-readonly-banner__action{width:100%;justify-content:center}}

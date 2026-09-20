@@ -1,0 +1,108 @@
+name: 1.0 core control plane
+
+on:
+  pull_request:
+    branches: [master, '1.0']
+    paths:
+      - 'core/LocalControlPlaneContext.php'
+      - 'core/routerConfig.php'
+      - 'app/controllers/LicenseRecoveryController.php'
+      - 'app/middlewares/RequireLicenseManage.php'
+      - 'app/middlewares/EnforceLicenseMutation.php'
+      - 'app/services/LicenseService.php'
+      - 'app/views/core/base.php'
+      - 'app/views/core/license_recovery.php'
+      - 'bin/control.php'
+      - 'tests/integration/core_control_plane_contract.php'
+      - '.github/workflows/core-control-plane.yml'
+  push:
+    branches: ['1.0']
+    paths:
+      - 'core/LocalControlPlaneContext.php'
+      - 'core/routerConfig.php'
+      - 'app/controllers/LicenseRecoveryController.php'
+      - 'app/middlewares/RequireLicenseManage.php'
+      - 'app/middlewares/EnforceLicenseMutation.php'
+      - 'app/services/LicenseService.php'
+      - 'app/views/core/base.php'
+      - 'app/views/core/license_recovery.php'
+      - 'bin/control.php'
+      - 'tests/integration/core_control_plane_contract.php'
+
+permissions:
+  contents: read
+
+jobs:
+  control-plane:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      matrix:
+        php: ['8.1', '8.3']
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      DBHOST: 127.0.0.1
+      DBPORT: 3306
+      DBUSER: root
+      DBPASS: root
+      DBNAME: core_control_plane_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: sodium, mysqli, pdo_mysql, mbstring
+          coverage: none
+
+      - name: Lint control-plane boundary
+        run: |
+          php -l core/LocalControlPlaneContext.php
+          php -l app/controllers/LicenseRecoveryController.php
+          php -l app/middlewares/RequireLicenseManage.php
+          php -l app/middlewares/EnforceLicenseMutation.php
+          php -l app/services/LicenseService.php
+          php -l app/views/core/license_recovery.php
+          php -l bin/control.php
+          php -l tests/integration/core_control_plane_contract.php
+
+      - name: Prepare Core database contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot -e 'CREATE DATABASE core_control_plane_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;'
+          for schema in             database/core_identity_schema.sql             database/core_settings_schema.sql             database/access_control_schema.sql             database/module_lifecycle_schema.sql; do
+            mysql -h 127.0.0.1 -uroot -proot core_control_plane_test < "$schema"
+          done
+
+      - name: Verify service and lifecycle independence
+        run: php tests/integration/core_control_plane_contract.php
+
+      - name: Verify local CLI recovery surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          php bin/control.php modules list --json
+          php bin/control.php modules disable admin --json
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot core_control_plane_test -e "SELECT configured_state FROM module_lifecycle WHERE module_id='admin'")" = 'disabled'
+          php bin/control.php license status --json
+          if php bin/control.php license clear --json; then
+            echo 'license clear unexpectedly succeeded without --yes' >&2
+            exit 1
+          fi
+          php bin/control.php modules enable admin --json
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot core_control_plane_test -e "SELECT configured_state FROM module_lifecycle WHERE module_id='admin'")" = 'enabled'

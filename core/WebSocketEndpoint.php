@@ -47,6 +47,53 @@ final class WebSocketEndpoint
         return self::normalizePublicUrl($configured, $siteUrl);
     }
 
+    /**
+     * Browser-facing endpoint.
+     *
+     * Same-origin reverse-proxy deployments deliberately return only a path.
+     * The browser can then bind that path to the protocol/authority of the
+     * request that actually loaded the page (http -> ws, https -> wss), instead
+     * of being pinned to the SITEURL scheme captured during installation.
+     * Explicit external WebSocket endpoints remain absolute.
+     */
+    public static function browserUrl(): string
+    {
+        return self::usesSameOriginProxy() ? self::proxyPath() : self::publicUrl();
+    }
+
+    /**
+     * Origins accepted by the native WebSocket listener.
+     *
+     * A same-origin proxy is scheme-neutral at runtime: the exact same app host
+     * may legitimately be opened through HTTP or HTTPS. Add only the counterpart
+     * scheme for the configured SITEURL authority; never wildcard arbitrary hosts.
+     *
+     * @return list<string>
+     */
+    public static function allowedOrigins(): array
+    {
+        $raw = (string) (getenv('WS_ALLOWED_ORIGINS') ?: getenv('SITEURL') ?: '');
+        $origins = [];
+        foreach (explode(',', $raw) as $value) {
+            $origin = rtrim(trim($value), '/');
+            if ($origin !== '') {
+                $origins[$origin] = true;
+            }
+        }
+
+        if (self::usesSameOriginProxy()) {
+            $site = parse_url(self::siteUrl());
+            if (is_array($site) && !empty($site['host'])) {
+                $host = self::formatHost((string) $site['host']);
+                $port = isset($site['port']) ? ':' . (int) $site['port'] : '';
+                $origins['http://' . $host . $port] = true;
+                $origins['https://' . $host . $port] = true;
+            }
+        }
+
+        return array_keys($origins);
+    }
+
     public static function siteUrl(): string
     {
         $siteUrl = rtrim(trim((string) (getenv('SITEURL') ?: 'http://localhost')), '/');

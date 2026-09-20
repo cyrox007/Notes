@@ -1,0 +1,25 @@
+:root{--control-height:38px;--control-radius:9px}
+:where(input[type="text"],input[type="email"],input[type="password"],input[type="tel"],input[type="search"],input[type="url"],input[type="number"],input[type="date"],input[type="time"],input[type="datetime-local"],select,textarea){
+  width:100%;border:1px solid var(--ui-border-strong);border-radius:var(--control-radius);background:var(--ui-surface);color:var(--ui-text);transition:border-color .15s ease,box-shadow .15s ease,background .15s ease
+}
+:where(input[type="text"],input[type="email"],input[type="password"],input[type="tel"],input[type="search"],input[type="url"],input[type="number"],input[type="date"],input[type="time"],input[type="datetime-local"],select){min-height:var(--control-height);padding:0 11px}
+:where(textarea){min-height:94px;padding:9px 11px;resize:vertical}
+:where(input,textarea)::placeholder{color:var(--ui-subtle)}
+:where(input,textarea,select):hover:not(:disabled):not([readonly]){border-color:color-mix(in srgb,var(--ui-primary) 38%,var(--ui-border-strong))}
+:where(input,textarea,select):focus{outline:0;border-color:var(--ui-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--ui-primary) 14%,transparent)}
+:where(input,textarea,select):disabled,:where(input,textarea)[readonly]{opacity:.62;cursor:not-allowed;background:var(--ui-surface-soft)}
+:where(input[type="checkbox"],input[type="radio"]){accent-color:var(--ui-primary)}
+:where(input[type="file"])::file-selector-button{height:34px;margin-right:10px;border:0;border-radius:8px;padding:0 11px;background:var(--ui-primary-soft);color:var(--ui-primary);font-weight:700;cursor:pointer}
+:where(.btn,.btn-primary,.btn-secondary,.button,input[type="submit"],input[type="button"],input[type="reset"],button[type="submit"]){
+  min-height:36px;border:1px solid transparent;border-radius:9px;padding:0 13px;display:inline-flex;align-items:center;justify-content:center;gap:7px;font-weight:700;line-height:1;cursor:pointer;transition:.15s ease
+}
+:where(.btn,.btn-primary,.btn-secondary,.button,input[type="submit"],input[type="button"],input[type="reset"],button[type="submit"]):disabled{opacity:.5;cursor:not-allowed}
+:where(.btn-primary,.button--primary,input[type="submit"]:not(.btn-secondary):not(.btn-danger)){background:var(--ui-action);color:#fff}
+:where(.btn-primary,.button--primary,input[type="submit"]:not(.btn-secondary):not(.btn-danger)):hover:not(:disabled){background:var(--ui-action-hover)}
+:where(.btn-secondary,.button--secondary){border-color:var(--ui-border);background:var(--ui-surface);color:var(--ui-text)}
+:where(.btn-secondary,.button--secondary):hover:not(:disabled){background:var(--ui-surface-soft);border-color:var(--ui-border-strong)}
+:where(.btn-danger,.button--danger){background:var(--ui-danger);color:#fff}
+.form-input_row{display:grid;gap:6px;margin-bottom:14px}
+.form-input_label{font-size:12px;font-weight:700;color:var(--ui-muted)}
+.form-input_label span{color:var(--ui-danger)}
+.form-input_input.error,.form-input_input[aria-invalid="true"]{border-color:var(--ui-danger)}

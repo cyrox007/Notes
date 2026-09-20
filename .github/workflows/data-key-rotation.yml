@@ -1,0 +1,132 @@
+name: 1.0 data-key rotation
+
+on:
+  pull_request:
+    branches: [master, '1.0']
+    paths:
+      - 'app/handlers/CryptMethods.php'
+      - 'app/services/DataKeyRotationService.php'
+      - 'app/services/MaintenanceModeService.php'
+      - 'modules/messenger/handlers/MessengerCrypto.php'
+      - 'modules/messenger/socket/NativeMessengerServer.php'
+      - 'bin/rotate_data_keys.php'
+      - 'tests/integration/data_key_rotation_contract.php'
+      - 'tests/integration/license_websocket_policy_contract.php'
+      - 'docs/OPERATIONS.md'
+      - 'default.env'
+      - '.github/workflows/data-key-rotation.yml'
+  push:
+    branches: ['1.0']
+    paths:
+      - 'app/handlers/CryptMethods.php'
+      - 'app/services/DataKeyRotationService.php'
+      - 'modules/messenger/handlers/MessengerCrypto.php'
+      - 'modules/messenger/socket/NativeMessengerServer.php'
+      - 'bin/rotate_data_keys.php'
+      - 'tests/integration/data_key_rotation_contract.php'
+
+permissions:
+  contents: read
+
+jobs:
+  data-key-rotation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        php: ['8.1', '8.3']
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: data_key_rotation_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      DBHOST: 127.0.0.1
+      DBPORT: 3306
+      DBUSER: root
+      DBPASS: root
+      DBNAME: data_key_rotation_test
+      PRIVATE_STORAGE_PATH: /tmp/notes-key-rotation/private
+      UPDATE_STATE_PATH: /tmp/notes-key-rotation/maintenance
+      DATA_KEY_ROTATION_STATE_PATH: /tmp/notes-key-rotation/state
+      TEST_OLD_UNIQUE_KEY: old-unique-key-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      TEST_NEW_UNIQUE_KEY: new-unique-key-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      TEST_OLD_MSG_KEY: old-message-key-cccccccccccccccccccccccccccccccccccccccccccccccc
+      TEST_NEW_MSG_KEY: new-message-key-dddddddddddddddddddddddddddddddddddddddddddddddd
+      UNIQUE_KEY: old-unique-key-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      MSG_SECRET_KEY: old-message-key-cccccccccccccccccccccccccccccccccccccccccccccccc
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: sodium, openssl, mysqli, pdo_mysql, mbstring
+          coverage: none
+
+      - name: Lint rotation boundary
+        run: |
+          php -l app/handlers/CryptMethods.php
+          php -l modules/messenger/handlers/MessengerCrypto.php
+          php -l modules/messenger/socket/NativeMessengerServer.php
+          php -l app/services/DataKeyRotationService.php
+          php -l bin/rotate_data_keys.php
+          php -l tests/integration/data_key_rotation_contract.php
+          php -l tests/integration/license_websocket_policy_contract.php
+
+      - name: Prepare encrypted database fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/notes-key-rotation
+          mkdir -p "$PRIVATE_STORAGE_PATH" "$UPDATE_STATE_PATH" "$DATA_KEY_ROTATION_STATE_PATH"
+          chmod 700 "$PRIVATE_STORAGE_PATH" "$UPDATE_STATE_PATH" "$DATA_KEY_ROTATION_STATE_PATH"
+          mysql -h 127.0.0.1 -uroot -proot data_key_rotation_test < database/core_identity_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot data_key_rotation_test < database/notes_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot data_key_rotation_test < database/messenger_module_schema.sql
+
+      - name: Verify resumable forward and rollback service
+        run: php tests/integration/data_key_rotation_contract.php
+
+      - name: Verify CLI secret handling and restartability
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s\n' "$TEST_OLD_UNIQUE_KEY" > /tmp/old-unique.key
+          printf '%s\n' "$TEST_NEW_UNIQUE_KEY" > /tmp/new-unique.key
+          printf '%s\n' "$TEST_OLD_MSG_KEY" > /tmp/old-msg.key
+          printf '%s\n' "$TEST_NEW_MSG_KEY" > /tmp/new-msg.key
+          chmod 600 /tmp/old-unique.key /tmp/new-unique.key /tmp/old-msg.key /tmp/new-msg.key
+
+          php bin/maintenance.php --action=enter --transaction=keyrotate-cli --reason='CI key rotation'
+          php bin/rotate_data_keys.php             --transaction=keyrotate-cli --scope=all --batch-size=1 --max-batches=1 --json             --old-unique-key-file=/tmp/old-unique.key --new-unique-key-file=/tmp/new-unique.key             --old-msg-key-file=/tmp/old-msg.key --new-msg-key-file=/tmp/new-msg.key             | tee /tmp/key-rotation-partial.json
+          grep -Fq '"complete": false' /tmp/key-rotation-partial.json
+
+          php bin/rotate_data_keys.php             --transaction=keyrotate-cli --scope=all --batch-size=1 --json             --old-unique-key-file=/tmp/old-unique.key --new-unique-key-file=/tmp/new-unique.key             --old-msg-key-file=/tmp/old-msg.key --new-msg-key-file=/tmp/new-msg.key             | tee /tmp/key-rotation-forward.json
+          grep -Fq '"complete": true' /tmp/key-rotation-forward.json
+          grep -Fq '"verified": true' /tmp/key-rotation-forward.json
+
+          php bin/rotate_data_keys.php             --transaction=keyrotate-cli --scope=all --batch-size=1 --rollback --json             --old-unique-key-file=/tmp/old-unique.key --new-unique-key-file=/tmp/new-unique.key             --old-msg-key-file=/tmp/old-msg.key --new-msg-key-file=/tmp/new-msg.key             | tee /tmp/key-rotation-rollback.json
+          grep -Fq '"complete": true' /tmp/key-rotation-rollback.json
+          grep -Fq '"verified": true' /tmp/key-rotation-rollback.json
+          php bin/maintenance.php --action=leave --transaction=keyrotate-cli
+
+          ! grep -Fq "$TEST_OLD_UNIQUE_KEY" "$DATA_KEY_ROTATION_STATE_PATH"/*.json
+          ! grep -Fq "$TEST_NEW_UNIQUE_KEY" "$DATA_KEY_ROTATION_STATE_PATH"/*.json
+          ! grep -Fq "$TEST_OLD_MSG_KEY" "$DATA_KEY_ROTATION_STATE_PATH"/*.json
+          ! grep -Fq "$TEST_NEW_MSG_KEY" "$DATA_KEY_ROTATION_STATE_PATH"/*.json
+
+      - name: Verify WebSocket maintenance mutation gate
+        run: php tests/integration/license_websocket_policy_contract.php

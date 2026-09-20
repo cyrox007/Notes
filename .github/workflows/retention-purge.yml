@@ -1,0 +1,284 @@
+name: 1.0 retention and permanent purge
+
+on:
+  pull_request:
+    branches: [master, '1.0']
+    paths:
+      - 'app/services/RetentionService.php'
+      - 'bin/retention.php'
+      - 'database/notes_schema.sql'
+      - 'database/messenger_module_schema.sql'
+      - 'database/migrations/manifest.json'
+      - 'database/migrations/20260918_*_retention_timestamps.sql'
+      - 'modules/notes/**'
+      - 'modules/messenger/**'
+      - 'default.env'
+      - 'docs/OPERATIONS.md'
+      - 'tests/integration/retention_purge_contract.php'
+      - '.github/workflows/retention-purge.yml'
+      - '.github/workflows/release-gate.yml'
+  push:
+    branches: ['1.0']
+    paths:
+      - 'app/services/RetentionService.php'
+      - 'bin/retention.php'
+      - 'database/migrations/20260918_*_retention_timestamps.sql'
+      - 'tests/integration/retention_purge_contract.php'
+
+permissions:
+  contents: read
+
+jobs:
+  retention-purge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: notes_retention
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql, mbstring, sodium
+          coverage: none
+
+      - name: Lint and verify retention contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l app/services/RetentionService.php
+          php -l bin/retention.php
+          php -l modules/notes/controllers/NoteAttachmentController.php
+          php -l modules/notes/controllers/NoteController.php
+          php -l modules/messenger/services/MessengerMediaCleanupService.php
+          php -l tests/integration/retention_purge_contract.php
+          php tests/integration/retention_purge_contract.php
+
+      - name: Prepare composition-aware database
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot notes_retention < database/core_identity_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_retention < database/access_control_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_retention < database/core_settings_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_retention < database/module_lifecycle_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_retention < database/messenger_module_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_retention < database/notes_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_retention < database/file_manager_module_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_retention < database/file_storage_quota_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_retention < database/tasks_schema.sql
+
+      - name: Prepare external private storage and environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/notes-retention /tmp/notes-retention-outside.bin
+          mkdir -p /tmp/notes-retention/private/{notes,messenger,file_manager,users/102/avatar,logs}
+          chmod -R 700 /tmp/notes-retention
+          printf 'old-note-attachment\n' > /tmp/notes-retention/private/notes/old-note.bin
+          printf 'young-note-attachment\n' > /tmp/notes-retention/private/notes/young-note.bin
+          printf 'old-file-manager\n' > /tmp/notes-retention/private/file_manager/old-file.bin
+          printf 'old-message-attachment\n' > /tmp/notes-retention/private/messenger/old-message.bin
+          printf 'account-file\n' > /tmp/notes-retention/private/file_manager/account-file.bin
+          printf 'account-avatar\n' > /tmp/notes-retention/private/users/102/avatar/avatar.jpg
+
+          cat > .env <<'ENV'
+          DBDRIVER=mysql
+          DBHOST=127.0.0.1
+          DBPORT=3306
+          DBUSER=root
+          DBPASS=root
+          DBNAME=notes_retention
+          PRIVATE_STORAGE_PATH=/tmp/notes-retention/private
+          SECURITY_EVENT_LOG_PATH=/tmp/notes-retention/private/logs/security-events.jsonl
+          RETENTION_SOFT_DELETE_DAYS=30
+          RETENTION_DEACTIVATED_ACCOUNT_DAYS=30
+          SITEURL=http://localhost
+          BASE_PATH=/
+          ENV
+          chmod 600 .env
+
+      - name: Seed retained and purgeable fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot notes_retention <<'SQL'
+          INSERT INTO users
+            (id,uid,username,email,password_hash,firstname,lastname,role,is_active,account_status,created_at,updated_at)
+          VALUES
+            (101,'00000000-0000-4000-8000-000000000101','retention_owner','owner@example.test','fixture','Retention','Owner',888,1,'active','2026-07-01 00:00:00','2026-07-01 00:00:00'),
+            (102,'00000000-0000-4000-8000-000000000102','retention_purge','purge@example.test','fixture','Retention','Purge',888,0,'inactive','2026-07-01 00:00:00','2026-07-01 00:00:00'),
+            (103,'00000000-0000-4000-8000-000000000103','retention_blocked','blocked@example.test','fixture','Retention','Blocked',888,0,'inactive','2026-07-01 00:00:00','2026-07-01 00:00:00');
+
+          INSERT INTO notes
+            (id,uid,user_id,notename,content,is_deleted,deleted_at,created_note,updated_note)
+          VALUES
+            (301,'retention-active-note',101,'Active note','fixture',0,NULL,'2026-07-01 00:00:00','2026-07-01 00:00:00'),
+            (302,'retention-old-note',101,'Old deleted note','fixture',1,'2026-07-01 00:00:00','2026-07-01 00:00:00','2026-07-01 00:00:00');
+
+          INSERT INTO note_attachments
+            (id,note_id,file_uid,file_name,file_path,file_type,mime_type,file_size,is_encrypted,uploaded_at,is_deleted,deleted_at)
+          VALUES
+            (401,301,'retention-note-old','old-note.bin','/tmp/notes-retention/private/notes/old-note.bin','document','application/octet-stream',20,0,'2026-07-01 00:00:00',1,'2026-07-01 00:00:00'),
+            (402,302,'retention-note-young','young-note.bin','/tmp/notes-retention/private/notes/young-note.bin','document','application/octet-stream',22,0,'2026-07-01 00:00:00',1,CURRENT_TIMESTAMP);
+
+          INSERT INTO user_files
+            (id,uid,user_id,parent_id,name,type,mime_type,size,path,extension,is_deleted,is_profile_public,created_at,updated_at)
+          VALUES
+            (201,'retention-file-old',101,NULL,'old-file.bin','file','application/octet-stream',18,'/tmp/notes-retention/private/file_manager/old-file.bin','bin',1,0,'2026-07-01 00:00:00','2026-07-01 00:00:00'),
+            (202,'retention-account-file',102,NULL,'account-file.bin','file','application/octet-stream',13,'/tmp/notes-retention/private/file_manager/account-file.bin','bin',0,0,'2026-07-01 00:00:00','2026-07-01 00:00:00');
+
+          INSERT INTO dialogs
+            (id,uid,type,name,created_by,created_at,updated_at)
+          VALUES
+            (501,'00000000-0000-4000-8000-000000000501','private','Retention dialog',101,'2026-07-01 00:00:00','2026-07-01 00:00:00');
+
+          INSERT INTO messages
+            (id,uid,dialog_id,from_user_id,message,message_type,message_status,is_deleted,deleted_at,created_at,updated_at)
+          VALUES
+            (601,'00000000-0000-4000-8000-000000000601',501,101,'fixture','text','deleted',1,'2026-07-01 00:00:00','2026-07-01 00:00:00','2026-07-01 00:00:00');
+
+          INSERT INTO messenger_attachments
+            (id,uid,dialog_id,uploader_user_id,message_id,original_name,stored_path,mime_type,extension,media_kind,size,created_at,is_deleted,deleted_at)
+          VALUES
+            (701,'00000000-0000-4000-8000-000000000701',501,101,601,'old-message.bin','/tmp/notes-retention/private/messenger/old-message.bin','application/octet-stream','bin','file',24,'2026-07-01 00:00:00',0,NULL);
+
+          INSERT INTO task_categories
+            (id,user_id,name,color,icon,sort_order,is_deleted,created_at,updated_at)
+          VALUES
+            (801,101,'Old category','#3498db','fa-folder',0,1,'2026-07-01 00:00:00','2026-07-01 00:00:00');
+
+          INSERT INTO tasks
+            (id,uid,user_id,title,status,priority,is_deleted,deleted_at,created_at,updated_at)
+          VALUES
+            (901,'00000000000000000000000000000901',101,'Old task','cancelled','medium',1,'2026-07-01 00:00:00','2026-07-01 00:00:00','2026-07-01 00:00:00');
+
+          INSERT INTO task_boards
+            (id,uid,owner_user_id,name,audience,is_archived,created_at,updated_at)
+          VALUES
+            (1001,'00000000000000000000000000001001',103,'Shared safety board','all_active',0,'2026-07-01 00:00:00','2026-07-01 00:00:00'),
+            (1002,'00000000000000000000000000001002',101,'Owner private board','members',0,'2026-07-01 00:00:00','2026-07-01 00:00:00');
+
+          INSERT INTO task_board_items
+            (id,uid,board_id,creator_user_id,title,status,priority,is_deleted,deleted_at,created_at,updated_at)
+          VALUES
+            (1101,'00000000000000000000000000001101',1002,101,'Old board item','cancelled','medium',1,'2026-07-01 00:00:00','2026-07-01 00:00:00','2026-07-01 00:00:00');
+          SQL
+
+      - name: Prove preview is non-destructive and safety-aware
+        shell: bash
+        run: |
+          set -euo pipefail
+          php bin/retention.php --soft-days=30 --account-days=30 --json | tee /tmp/retention-preview.json
+          test "$(jq -r '.status' /tmp/retention-preview.json)" = 'preview'
+          test "$(jq -r '.soft_delete_candidates.note_attachments' /tmp/retention-preview.json)" = '1'
+          test "$(jq -r '.soft_delete_candidates.notes' /tmp/retention-preview.json)" = '0'
+          test "$(jq -r '.soft_delete_candidates.user_files' /tmp/retention-preview.json)" = '1'
+          test "$(jq -r '.soft_delete_candidates.messages' /tmp/retention-preview.json)" = '1'
+          test "$(jq -r '.soft_delete_candidates.tasks' /tmp/retention-preview.json)" = '1'
+          test "$(jq -r '.soft_delete_candidates.task_board_items' /tmp/retention-preview.json)" = '1'
+          test "$(jq -r '.soft_delete_candidates.task_categories' /tmp/retention-preview.json)" = '1'
+          test "$(jq -r '.account_candidates.eligible' /tmp/retention-preview.json)" = '1'
+          test "$(jq -r '.account_candidates.blocked' /tmp/retention-preview.json)" = '1'
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM users WHERE id=102;')" = '1'
+          test -f /tmp/notes-retention/private/file_manager/account-file.bin
+
+      - name: Refuse irreversible purge without explicit confirmation
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          php bin/retention.php --apply --soft-days=30 --account-days=30 --json > /tmp/retention-unconfirmed.json
+          status=$?
+          set -e
+          test "$status" -eq 1
+          grep -Fq 'Permanent purge requires explicit --yes confirmation' /tmp/retention-unconfirmed.json
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM users WHERE id=102;')" = '1'
+
+      - name: Apply permanent purge and verify DB plus filesystem
+        shell: bash
+        run: |
+          set -euo pipefail
+          php bin/retention.php --apply --yes --soft-days=30 --account-days=30 --json | tee /tmp/retention-apply.json
+          test "$(jq -r '.status' /tmp/retention-apply.json)" = 'applied'
+          test "$(jq -r '.purged.note_attachments' /tmp/retention-apply.json)" = '1'
+          test "$(jq -r '.purged.notes' /tmp/retention-apply.json)" = '0'
+          test "$(jq -r '.purged.user_files' /tmp/retention-apply.json)" = '1'
+          test "$(jq -r '.purged.messages' /tmp/retention-apply.json)" = '1'
+          test "$(jq -r '.purged.tasks' /tmp/retention-apply.json)" = '1'
+          test "$(jq -r '.purged.task_board_items' /tmp/retention-apply.json)" = '1'
+          test "$(jq -r '.purged.task_categories' /tmp/retention-apply.json)" = '1'
+          test "$(jq -r '.accounts_purged' /tmp/retention-apply.json)" = '1'
+          test "$(jq -r '.accounts_blocked' /tmp/retention-apply.json)" = '1'
+          test "$(jq -r '.files_blocked' /tmp/retention-apply.json)" = '0'
+          test "$(jq -r '.files_failed' /tmp/retention-apply.json)" = '0'
+
+          test ! -e /tmp/notes-retention/private/notes/old-note.bin
+          test -f /tmp/notes-retention/private/notes/young-note.bin
+          test ! -e /tmp/notes-retention/private/file_manager/old-file.bin
+          test ! -e /tmp/notes-retention/private/messenger/old-message.bin
+          test ! -e /tmp/notes-retention/private/file_manager/account-file.bin
+          test ! -e /tmp/notes-retention/private/users/102/avatar/avatar.jpg
+
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM note_attachments WHERE id=401;')" = '0'
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM notes WHERE id=302;')" = '1'
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM note_attachments WHERE id=402;')" = '1'
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM messages WHERE id=601;')" = '0'
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM messenger_attachments WHERE id=701;')" = '0'
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM users WHERE id=102;')" = '0'
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM users WHERE id=103;')" = '1'
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM task_boards WHERE id=1001;')" = '1'
+
+      - name: Prove child retention delays parent Note purge
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot notes_retention -e "UPDATE note_attachments SET deleted_at='2026-07-01 00:00:00' WHERE id=402;"
+          php bin/retention.php --apply --yes --soft-days=30 --account-days=30 --json | tee /tmp/retention-note-release.json
+          test "$(jq -r '.purged.note_attachments' /tmp/retention-note-release.json)" = '1'
+          test "$(jq -r '.purged.notes' /tmp/retention-note-release.json)" = '1'
+          test ! -e /tmp/notes-retention/private/notes/young-note.bin
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM notes WHERE id=302;')" = '0'
+
+      - name: Prove unmanaged paths fail closed and remain retryable
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'outside-managed-storage\n' > /tmp/notes-retention-outside.bin
+          mysql -h 127.0.0.1 -uroot -proot notes_retention <<'SQL'
+          INSERT INTO user_files
+            (id,uid,user_id,parent_id,name,type,mime_type,size,path,extension,is_deleted,is_profile_public,created_at,updated_at)
+          VALUES
+            (203,'retention-file-blocked',101,NULL,'blocked.bin','file','application/octet-stream',24,'/tmp/notes-retention-outside.bin','bin',1,0,'2026-07-01 00:00:00','2026-07-01 00:00:00');
+          SQL
+          set +e
+          php bin/retention.php --apply --yes --soft-days=30 --account-days=30 --json > /tmp/retention-blocked.json
+          status=$?
+          set -e
+          test "$status" -eq 3
+          test "$(jq -r '.files_blocked' /tmp/retention-blocked.json)" = '1'
+          test -f /tmp/notes-retention-outside.bin
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM user_files WHERE id=203;')" = '1'
+
+      - name: Verify retention audit events
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s /tmp/notes-retention/private/logs/security-events.jsonl
+          grep -Fq '"event":"retention.purge_completed"' /tmp/notes-retention/private/logs/security-events.jsonl
+          grep -Fq '"event":"retention.account_purged"' /tmp/notes-retention/private/logs/security-events.jsonl
+          grep -Fq '"event":"retention.account_blocked"' /tmp/notes-retention/private/logs/security-events.jsonl

@@ -2,9 +2,20 @@ name: Tasks contract
 
 on:
   pull_request:
-    branches: [master]
+    branches: ['1.0']
+    paths:
+      - 'modules/tasks/**'
+      - 'database/tasks_schema.sql'
+      - 'tests/integration/native_tasks_contract.php'
+      - 'tests/integration/tasks_acl_contract.php'
+      - '.github/workflows/tasks-contract.yml'
   push:
-    branches: [tasks-contract-hardening]
+    branches: ['1.0']
+    paths:
+      - 'modules/tasks/**'
+      - 'database/tasks_schema.sql'
+      - 'tests/integration/native_tasks_contract.php'
+      - 'tests/integration/tasks_acl_contract.php'
 
 permissions:
   contents: read
@@ -29,197 +40,47 @@ jobs:
           --health-retries=10
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup PHP 8.3
-        uses: shivammathur/setup-php@v2
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           extensions: mbstring, pdo_mysql, mysqli
           coverage: none
 
-      - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
-
-      - name: PHP and UI contract
+      - name: Prove vendor-free isolated Tasks runtime
         shell: bash
         run: |
           set -euo pipefail
-          php -l app/controllers/TaskController.php
-          php -l app/models/TaskModel.php
-          php -l app/models/SubtaskModel.php
-          php -l app/models/TaskCategoryModel.php
-          php -l app/models/TaskCategoryRelationModel.php
-          php -l app/models/TaskReminderModel.php
-          php -l core/routerConfig.php
-          php -l install.php
-          grep -Fq 'SORT_COLUMNS' app/controllers/TaskController.php
-          grep -Fq 'INSERT IGNORE INTO task_category_relations' app/controllers/TaskController.php
-          ! grep -Fq '$task->user_id' app/controllers/TaskController.php
-          ! grep -Fq '$task.getPriorityColor()' app/views/'^elements'/task_item/index.tpl
-          ! grep -Fq '$task.isOverdue()' app/views/'^elements'/task_item/index.tpl
-          grep -Fq 'task-complete-toggle' app/views/tasks_page/index.tpl
-          grep -Fq 'subtask-toggle' app/views/tasks_page/index.tpl
-          grep -Fq 'attach-category-btn' app/views/tasks_page/index.tpl
-          grep -Fq 'tasks_page/style.css' app/views/styles.css
+          rm -rf vendor
+          test ! -e vendor
+          ! grep -R -Fq 'vendor/autoload.php' modules/tasks tests/integration/tasks_acl_contract.php
+          find modules/tasks -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          php -l tests/integration/native_tasks_contract.php
+          php -l tests/integration/tasks_acl_contract.php
+          php tests/integration/native_tasks_contract.php
 
-      - name: Clean schema
+      - name: Verify canonical Tasks schema
         shell: bash
         run: |
           set -euo pipefail
-          mysql -h 127.0.0.1 -uroot -proot tasks_contract_test < database/messenger_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot tasks_contract_test < database/core_identity_schema.sql
           mysql -h 127.0.0.1 -uroot -proot tasks_contract_test < database/tasks_schema.sql
           TABLES="$(mysql -N -h 127.0.0.1 -uroot -proot tasks_contract_test -e \
             "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('tasks','subtasks','task_categories','task_category_relations','task_reminders')")"
-          test "$TABLES" = "5"
+          test "$TABLES" = '5'
           UID_TYPE="$(mysql -N -h 127.0.0.1 -uroot -proot tasks_contract_test -e \
             "SELECT COLUMN_TYPE FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='tasks' AND column_name='uid'")"
-          test "$UID_TYPE" = "char(32)"
+          test "$UID_TYPE" = 'char(32)'
           UNIQUE_REL="$(mysql -N -h 127.0.0.1 -uroot -proot tasks_contract_test -e \
             "SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='task_category_relations' AND index_name='uq_task_category_relation' AND non_unique=0")"
-          test "$UNIQUE_REL" = "2"
+          test "$UNIQUE_REL" = '2'
 
-      - name: Task ACL and state integration
+      - name: Verify Tasks ACL and state transitions
         shell: bash
-        run: |
-          set -euo pipefail
-          DBHOST=127.0.0.1 DBPORT=3306 DBUSER=root DBPASS=root DBNAME=tasks_contract_test php <<'PHP'
-          <?php
-          declare(strict_types=1);
-
-          if (!defined('SITEPATH')) define('SITEPATH', getcwd());
-          $_SERVER['HTTP_HOST'] = 'localhost';
-          require SITEPATH . '/vendor/autoload.php';
-          require SITEPATH . '/core/config.php';
-          require SITEPATH . '/core/DatabaseManager.php';
-          require SITEPATH . '/core/request.php';
-          require SITEPATH . '/core/controller.php';
-          require SITEPATH . '/app/controllers/TaskController.php';
-
-          final class TaskHarnessRequest extends \Core\Request {
-              public function __construct(
-                  private int $userId,
-                  private array $postData = [],
-                  private array $serverData = []
-              ) {}
-              public function session($key = null, $default = null) {
-                  $data = ['user_id' => $this->userId];
-                  return $key === null ? $data : ($data[$key] ?? $default);
-              }
-              public function post($key = null, $default = null) {
-                  return $key === null ? $this->postData : ($this->postData[$key] ?? $default);
-              }
-              public function server($key = null, $default = null) {
-                  return $key === null ? $this->serverData : ($this->serverData[$key] ?? $default);
-              }
-          }
-
-          function callJson(object $controller, string $method, TaskHarnessRequest $request, array $args = []): array {
-              http_response_code(200);
-              ob_start();
-              $controller->{$method}($request, ...$args);
-              $raw = (string) ob_get_clean();
-              $data = json_decode($raw, true);
-              if (!is_array($data)) {
-                  throw new RuntimeException($method . ' did not return JSON: ' . $raw);
-              }
-              $data['_status'] = http_response_code();
-              return $data;
-          }
-
-          $db = \Core\DatabaseManager::getInstance();
-          $now = date('Y-m-d H:i:s');
-          $hash = password_hash('ci-password', PASSWORD_ARGON2ID);
-          foreach ([
-              ['91000000-0000-4000-8000-000000000001','tasks-alice'],
-              ['91000000-0000-4000-8000-000000000002','tasks-bob'],
-          ] as [$uid,$username]) {
-              $db->execute(
-                  'INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active,created_at,updated_at)
-                   VALUES (:uid,:username,:email,:hash,"Task","User",888,1,:created_at,:updated_at)',
-                  [':uid'=>$uid,':username'=>$username,':email'=>$username.'@example.test',':hash'=>$hash,':created_at'=>$now,':updated_at'=>$now]
-              );
-          }
-          $alice = (int) $db->fetchValue('SELECT id FROM users WHERE username="tasks-alice"');
-          $bob = (int) $db->fetchValue('SELECT id FROM users WHERE username="tasks-bob"');
-          $taskUid = '11111111111111111111111111111111';
-          $db->execute(
-              'INSERT INTO tasks (uid,user_id,title,status,priority,is_deleted,created_at,updated_at)
-               VALUES (:uid,:user_id,"Alice task","pending","medium",0,:created_at,:updated_at)',
-              [':uid'=>$taskUid,':user_id'=>$alice,':created_at'=>$now,':updated_at'=>$now]
-          );
-
-          $controller = (new ReflectionClass(\App\Controllers\TaskController::class))->newInstanceWithoutConstructor();
-          $jsonServer = ['HTTP_ACCEPT' => 'application/json', 'HTTP_X_REQUESTED_WITH' => 'XMLHttpRequest'];
-
-          $result = callJson($controller, 'update', new TaskHarnessRequest($alice, ['status'=>'completed'], $jsonServer), [$taskUid]);
-          if (($result['success'] ?? false) !== true || $result['_status'] !== 200) throw new RuntimeException('Owner update failed');
-          $row = $db->fetchOne('SELECT status,completed_at FROM tasks WHERE uid=:uid', [':uid'=>$taskUid]);
-          if (($row['status'] ?? '') !== 'completed' || empty($row['completed_at'])) throw new RuntimeException('completed_at was not set');
-
-          $result = callJson($controller, 'update', new TaskHarnessRequest($alice, ['status'=>'pending'], $jsonServer), [$taskUid]);
-          $row = $db->fetchOne('SELECT status,completed_at FROM tasks WHERE uid=:uid', [':uid'=>$taskUid]);
-          if (($row['status'] ?? '') !== 'pending' || $row['completed_at'] !== null) throw new RuntimeException('completed_at was not cleared');
-
-          $result = callJson($controller, 'update', new TaskHarnessRequest($alice, ['due_date'=>'2026-09-14T15:45'], $jsonServer), [$taskUid]);
-          if (($result['success'] ?? false) !== true) throw new RuntimeException('datetime-local update failed');
-          $dueDate = (string) $db->fetchValue('SELECT due_date FROM tasks WHERE uid=:uid', [':uid'=>$taskUid]);
-          if ($dueDate !== '2026-09-14 15:45:00') throw new RuntimeException('datetime-local was not normalized: ' . $dueDate);
-
-          $result = callJson($controller, 'update', new TaskHarnessRequest($alice, ['status'=>'hacked'], $jsonServer), [$taskUid]);
-          if (($result['success'] ?? true) !== false || $result['_status'] !== 422) throw new RuntimeException('Invalid status was accepted');
-          $status = (string) $db->fetchValue('SELECT status FROM tasks WHERE uid=:uid', [':uid'=>$taskUid]);
-          if ($status !== 'pending') throw new RuntimeException('Invalid status changed persisted state');
-
-          $result = callJson($controller, 'update', new TaskHarnessRequest($bob, ['status'=>'completed'], $jsonServer), [$taskUid]);
-          if (($result['success'] ?? true) !== false || $result['_status'] !== 404) throw new RuntimeException('Outsider updated task');
-
-          $result = callJson($controller, 'addSubtask', new TaskHarnessRequest($alice, ['title'=>'Checklist item'], $jsonServer), [$taskUid]);
-          $subtaskId = (int) ($result['subtask']['id'] ?? 0);
-          if ($subtaskId <= 0) throw new RuntimeException('Subtask id not returned');
-
-          $result = callJson($controller, 'toggleSubtask', new TaskHarnessRequest($bob, [], $jsonServer), [$subtaskId]);
-          if (($result['success'] ?? true) !== false || $result['_status'] !== 404) throw new RuntimeException('Outsider toggled subtask');
-          $result = callJson($controller, 'toggleSubtask', new TaskHarnessRequest($alice, [], $jsonServer), [$subtaskId]);
-          if ((int) ($result['is_completed'] ?? 0) !== 1) throw new RuntimeException('Owner toggle failed');
-
-          $db->execute(
-              'INSERT INTO task_categories (user_id,name,color,icon,sort_order,is_deleted,created_at,updated_at)
-               VALUES (:user_id,"Alice category","#112233","fa-folder",0,0,:created_at,:updated_at)',
-              [':user_id'=>$alice,':created_at'=>$now,':updated_at'=>$now]
-          );
-          $aliceCategory = (int) $db->getPdo()->lastInsertId();
-          $db->execute(
-              'INSERT INTO task_categories (user_id,name,color,icon,sort_order,is_deleted,created_at,updated_at)
-               VALUES (:user_id,"Bob category","#445566","fa-folder",0,0,:created_at,:updated_at)',
-              [':user_id'=>$bob,':created_at'=>$now,':updated_at'=>$now]
-          );
-          $bobCategory = (int) $db->getPdo()->lastInsertId();
-          $db->execute(
-              'INSERT INTO task_categories (user_id,name,color,icon,sort_order,is_deleted,created_at,updated_at)
-               VALUES (NULL,"Global category","#778899","fa-star",0,0,:created_at,:updated_at)',
-              [':created_at'=>$now,':updated_at'=>$now]
-          );
-          $globalCategory = (int) $db->getPdo()->lastInsertId();
-
-          foreach ([$aliceCategory, $aliceCategory, $globalCategory] as $categoryId) {
-              $result = callJson($controller, 'attachCategory', new TaskHarnessRequest($alice, [], $jsonServer), [$taskUid, $categoryId]);
-              if (($result['success'] ?? false) !== true) throw new RuntimeException('Accessible category attach failed');
-          }
-          $count = (int) $db->fetchValue(
-              'SELECT COUNT(*) FROM task_category_relations r INNER JOIN tasks t ON t.id=r.task_id WHERE t.uid=:uid',
-              [':uid'=>$taskUid]
-          );
-          if ($count !== 2) throw new RuntimeException('Category relation is not idempotent');
-
-          $result = callJson($controller, 'attachCategory', new TaskHarnessRequest($alice, [], $jsonServer), [$taskUid, $bobCategory]);
-          if (($result['success'] ?? true) !== false || $result['_status'] !== 404) throw new RuntimeException('Cross-user category attached');
-
-          $result = callJson($controller, 'deleteSubtask', new TaskHarnessRequest($bob, [], $jsonServer), [$subtaskId]);
-          if (($result['success'] ?? true) !== false || $result['_status'] !== 404) throw new RuntimeException('Outsider deleted subtask');
-          $result = callJson($controller, 'deleteSubtask', new TaskHarnessRequest($alice, [], $jsonServer), [$subtaskId]);
-          if (($result['success'] ?? false) !== true || $db->fetchValue('SELECT id FROM subtasks WHERE id=:id', [':id'=>$subtaskId]) !== null) {
-              throw new RuntimeException('Owner subtask delete failed');
-          }
-          PHP
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: tasks_contract_test
+        run: php tests/integration/tasks_acl_contract.php

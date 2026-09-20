@@ -2,7 +2,7 @@ name: Profile user contract
 
 on:
   pull_request:
-    branches: [master]
+    branches: [master, '1.0']
   push:
     branches: [profile-user-hardening]
 
@@ -46,23 +46,25 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          php -l app/controllers/ProfileController.php
-          php -l app/services/UserAvatarService.php
-          php -l app/services/ProfilePublicationService.php
+          php -l modules/profile/controllers/ProfileController.php
+          php -l modules/profile/services/UserAvatarService.php
+          php -l modules/profile/services/ProfilePublicationService.php
+          php -l modules/profile/ProfileRuntimeProvider.php
+          php tests/integration/native_profile_contract.php
           php -l core/routerConfig.php
           php -l ws_server/server.php
-          sed '/^{literal}$/d;/^{\/literal}$/d' app/views/profile_page/script.js > /tmp/profile.js
+          sed '/^{literal}$/d;/^{\/literal}$/d' modules/profile/assets/profile.js > /tmp/profile.js
           node --check /tmp/profile.js
-          grep -Fq "'/avatar/{str:uid}'" core/routerConfig.php
-          grep -Fq "'/avatar/delete'" core/routerConfig.php
+          grep -Fq "'/avatar/{str:uid}'" modules/profile/ProfileRuntimeProvider.php
+          grep -Fq "'/avatar/delete'" modules/profile/ProfileRuntimeProvider.php
           grep -Fq 'PROFILE_AVATAR_MAX_SIZE=2097152' default.env
-          grep -Fq "group_owner_transfer_required" app/controllers/ProfileController.php
-          grep -Fq 'SET is_active = 0, account_status' app/controllers/ProfileController.php
-          grep -Fq 'messenger.use' ws_server/server.php
-          ! grep -Fq 'Config::canAuthenticate' ws_server/server.php
-          ! grep -Fq 'role = :inactive_role' app/controllers/ProfileController.php
-          ! grep -Fq '/uploads/users/' app/controllers/ProfileController.php
-          ! grep -Fq 'profile__write-message-btn' app/views/profile_page/index.tpl
+          grep -Fq "group_owner_transfer_required" modules/messenger/MessengerCapability.php
+          grep -Fq 'SET is_active = 0, account_status' modules/profile/controllers/ProfileController.php
+          grep -Fq 'messenger.use' modules/messenger/socket/NativeMessengerServer.php
+          ! grep -Fq 'Config::canAuthenticate' modules/messenger/socket/NativeMessengerServer.php
+          ! grep -Fq 'role = :inactive_role' modules/profile/controllers/ProfileController.php
+          ! grep -Fq '/uploads/users/' modules/profile/controllers/ProfileController.php
+          ! grep -Fq 'profile__write-message-btn' modules/profile/views/index.php
 
       - name: Prepare profile schema and fixtures
         shell: bash
@@ -117,7 +119,7 @@ jobs:
           require SITEPATH . '/core/config.php';
           require SITEPATH . '/core/DatabaseManager.php';
           require SITEPATH . '/core/images.php';
-          require SITEPATH . '/app/services/UserAvatarService.php';
+          require SITEPATH . '/modules/profile/services/UserAvatarService.php';
           header('Content-Type: application/json');
           try {
               $db = \Core\DatabaseManager::getInstance();
@@ -153,42 +155,32 @@ jobs:
           STATUS="$(curl -sS -o /tmp/profile-invalid.json -w '%{http_code}' -F 'avatar=@/tmp/profile-not-image.png;type=image/png' http://127.0.0.1:18082/)"
           test "$STATUS" = "422"
 
-      - name: Group owner cannot deactivate account
+      - name: Group owner capability blocks account deactivation
         shell: bash
         run: |
           set -euo pipefail
           DBHOST=127.0.0.1 DBPORT=3306 DBUSER=root DBPASS=root DBNAME=notes_profile_test \
-          PRIVATE_STORAGE_PATH=/tmp/notes-profile-private SITEURL=http://localhost BASE_PATH=/ \
-          php <<'PHP' >/tmp/profile-owner-guard.html
+          php <<'PHP'
           <?php
           declare(strict_types=1);
           if (!defined('SITEPATH')) define('SITEPATH', getcwd());
           $_SERVER['HTTP_HOST'] = 'localhost';
-          require SITEPATH . '/vendor/autoload.php';
           require SITEPATH . '/core/config.php';
           require SITEPATH . '/core/DatabaseManager.php';
-          require SITEPATH . '/core/Router.php';
-          require SITEPATH . '/core/request.php';
-          require SITEPATH . '/core/helper.php';
-          require SITEPATH . '/app/middlewares/CSRFMiddleware.php';
-          require SITEPATH . '/core/Version.php';
-          require SITEPATH . '/core/controller.php';
-          require SITEPATH . '/core/images.php';
-          require SITEPATH . '/app/handlers/CryptMethods.php';
-          require SITEPATH . '/app/services/UserAvatarService.php';
-          require SITEPATH . '/app/services/ProfilePublicationService.php';
-          require SITEPATH . '/app/controllers/ProfileController.php';
-          $_SERVER['REQUEST_METHOD']='GET';
-          if (session_status() === PHP_SESSION_NONE) session_start();
-          $_SESSION['user_id']=(int)\Core\DatabaseManager::getInstance()->fetchValue('SELECT id FROM users WHERE username="profile-alice"');
-          $_POST=['confirm_delete'=>'yes','current_password'=>'profile-ci-password'];
-          $request = new \Core\Request();
-          $controller = new \App\Controllers\ProfileController();
-          $controller->deleteUser($request);
-          if (http_response_code() !== 409) throw new RuntimeException('Owner guard did not return 409');
+          require SITEPATH . '/core/AccountDeactivationGuard.php';
+          require SITEPATH . '/modules/messenger/MessengerCapability.php';
+
+          $db = \Core\DatabaseManager::getInstance();
+          $userId = (int) $db->fetchValue('SELECT id FROM users WHERE username="profile-alice"');
+          $blocker = (new \Modules\Messenger\MessengerCapability())->accountDeactivationBlocker($userId);
+          if (($blocker['code'] ?? null) !== 'group_owner_transfer_required') {
+              throw new RuntimeException('Messenger capability did not block group-owner deactivation');
+          }
+          if (!str_contains((string) ($blocker['message'] ?? ''), 'передайте владение группой')) {
+              throw new RuntimeException('Group-owner blocker message is missing');
+          }
           PHP
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_profile_test -e "SELECT CONCAT(role,':',is_active,':',account_status) FROM users WHERE username='profile-alice'")" = "888:1:active"
-          grep -Fq 'передайте владение группой' /tmp/profile-owner-guard.html
 
       - name: Deactivation preserves related data
         shell: bash
@@ -211,12 +203,17 @@ jobs:
           require SITEPATH . '/core/helper.php';
           require SITEPATH . '/app/middlewares/CSRFMiddleware.php';
           require SITEPATH . '/core/Version.php';
+          require SITEPATH . '/core/ModuleRuntimeLoader.php';
+          require SITEPATH . '/core/AccountDeactivationGuard.php';
+          require SITEPATH . '/core/ViewRenderer.php';
+          require SITEPATH . '/core/ViewContext.php';
+          require SITEPATH . '/core/NativeViewRenderer.php';
           require SITEPATH . '/core/controller.php';
           require SITEPATH . '/core/images.php';
           require SITEPATH . '/app/handlers/CryptMethods.php';
-          require SITEPATH . '/app/services/UserAvatarService.php';
-          require SITEPATH . '/app/services/ProfilePublicationService.php';
-          require SITEPATH . '/app/controllers/ProfileController.php';
+          require SITEPATH . '/modules/profile/services/UserAvatarService.php';
+          require SITEPATH . '/modules/profile/services/ProfilePublicationService.php';
+          require SITEPATH . '/modules/profile/controllers/ProfileController.php';
           $_SERVER['REQUEST_METHOD']='GET';
           $db=\Core\DatabaseManager::getInstance();
           if (session_status() === PHP_SESSION_NONE) session_start();

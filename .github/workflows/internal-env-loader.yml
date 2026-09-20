@@ -1,0 +1,77 @@
+name: 1.0 internal environment loader
+
+on:
+  push:
+    branches: [master, '1.0']
+    paths:
+      - 'core/Environment.php'
+      - 'core.php'
+      - 'bin/healthcheck.php'
+      - 'bin/migrate.php'
+      - 'bin/migrate_crypto.php'
+      - 'bin/ws_doctor.php'
+      - 'ws_server/server.php'
+      - 'composer.json'
+      - 'composer.lock'
+      - 'tests/integration/environment_loader_contract.php'
+      - 'tests/integration/environment_entrypoints_contract.php'
+      - '.github/workflows/internal-env-loader.yml'
+  pull_request:
+    paths:
+      - 'core/Environment.php'
+      - 'core.php'
+      - 'bin/healthcheck.php'
+      - 'bin/migrate.php'
+      - 'bin/migrate_crypto.php'
+      - 'bin/ws_doctor.php'
+      - 'ws_server/server.php'
+      - 'composer.json'
+      - 'composer.lock'
+      - 'tests/integration/environment_loader_contract.php'
+      - 'tests/integration/environment_entrypoints_contract.php'
+      - '.github/workflows/internal-env-loader.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  environment-loader:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.1', '8.3']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - name: Validate dependency contract
+        run: |
+          # This repository is an application, not a publishable Composer package;
+          # validate schema/lock consistency without package-publishing metadata.
+          composer validate --no-check-publish
+          composer install --no-dev --prefer-dist --no-progress --no-interaction
+          php -r '$c=json_decode(file_get_contents("composer.json"), true, 512, JSON_THROW_ON_ERROR); if (isset($c["require"]["vlucas/phpdotenv"])) { fwrite(STDERR, "phpdotenv is still a direct dependency\n"); exit(1); }'
+          test ! -d vendor/vlucas/phpdotenv
+          ! grep -R --line-number --fixed-strings 'Dotenv\\Dotenv' core.php core bin ws_server
+      - name: Lint environment bootstrap sources
+        run: |
+          php -l core/Environment.php
+          php -l bin/healthcheck.php
+          php -l bin/migrate.php
+          php -l bin/migrate_crypto.php
+          php -l bin/ws_doctor.php
+          php -l tests/integration/environment_loader_contract.php
+          php -l tests/integration/environment_entrypoints_contract.php
+      - name: Run environment contracts
+        run: |
+          php tests/integration/environment_loader_contract.php
+          php tests/integration/environment_entrypoints_contract.php
+      - name: Prove CLI bootstrap does not require vendor for environment loading
+        run: |
+          mv vendor vendor.off
+          php bin/migrate.php --help
+          php bin/migrate_crypto.php --help
+          mv vendor.off vendor

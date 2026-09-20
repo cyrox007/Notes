@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Core;
 
+require_once __DIR__ . '/SecurityEventLog.php';
+
 use InvalidArgumentException;
 use RuntimeException;
 
@@ -218,6 +220,20 @@ final class ModuleLifecycleStore
         );
 
         $rows = $this->reconcile($modules, $coreVersion);
+        SecurityEventLog::emit(
+            'module.lifecycle_changed',
+            in_array($targetState, ['disabled', 'degraded', 'quarantined', 'uninstalled'], true) ? 'warning' : 'info',
+            'module_lifecycle',
+            'system',
+            null,
+            [
+                'module_id' => $moduleId,
+                'from' => $current,
+                'to' => $targetState,
+                'reason' => $reason,
+                'effective_state' => (string) ($rows[$moduleId]['effective_state'] ?? ''),
+            ]
+        );
         return $rows[$moduleId];
     }
 

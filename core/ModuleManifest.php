@@ -15,6 +15,9 @@ final class ModuleManifest
     /** @param list<string> $dependencies */
     /** @param list<string> $capabilities */
     /** @param list<string> $storageNamespaces */
+    /** @param list<string> $databaseTables */
+    /** @param list<string> $databaseSchemas */
+    /** @param list<string> $databaseMigrations */
     private function __construct(
         private readonly string $id,
         private readonly string $name,
@@ -27,7 +30,11 @@ final class ModuleManifest
         private readonly bool $defaultEnabled,
         private readonly ?string $licenseFeature,
         private readonly string $runtimeMode,
+        private readonly ?string $runtimeEntrypoint,
         private readonly array $storageNamespaces,
+        private readonly array $databaseTables,
+        private readonly array $databaseSchemas,
+        private readonly array $databaseMigrations,
         private readonly string $manifestPath,
         private readonly string $integrityHash,
     ) {
@@ -112,8 +119,21 @@ final class ModuleManifest
         if (!is_string($runtimeMode) || !in_array($runtimeMode, ['legacy', 'isolated'], true)) {
             throw new RuntimeException("Module {$id} runtime mode must be legacy or isolated");
         }
+        $runtimeEntrypoint = self::parseRuntimeEntrypoint($runtime, $id, $runtimeMode);
 
         $storageNamespaces = self::identifierList($data['storage_namespaces'] ?? [], "{$id}.storage_namespaces");
+
+        $database = $data['database'] ?? [];
+        if (!is_array($database)) {
+            throw new RuntimeException("Module {$id} database metadata must be an object");
+        }
+        $databaseTables = self::identifierList($database['tables'] ?? [], "{$id}.database.tables");
+        $databaseSchemas = self::sqlPathList($database['schemas'] ?? [], "{$id}.database.schemas", 'database/');
+        $databaseMigrations = self::sqlPathList(
+            $database['migrations'] ?? [],
+            "{$id}.database.migrations",
+            'database/migrations/'
+        );
 
         return new self(
             $id,
@@ -127,7 +147,11 @@ final class ModuleManifest
             $defaultEnabled,
             $licenseFeature,
             $runtimeMode,
+            $runtimeEntrypoint,
             $storageNamespaces,
+            $databaseTables,
+            $databaseSchemas,
+            $databaseMigrations,
             $manifestPath,
             hash('sha256', $raw),
         );
@@ -196,10 +220,33 @@ final class ModuleManifest
         return $this->runtimeMode;
     }
 
+    public function runtimeEntrypoint(): ?string
+    {
+        return $this->runtimeEntrypoint;
+    }
+
     /** @return list<string> */
     public function storageNamespaces(): array
     {
         return $this->storageNamespaces;
+    }
+
+    /** @return list<string> */
+    public function databaseTables(): array
+    {
+        return $this->databaseTables;
+    }
+
+    /** @return list<string> */
+    public function databaseSchemas(): array
+    {
+        return $this->databaseSchemas;
+    }
+
+    /** @return list<string> */
+    public function databaseMigrations(): array
+    {
+        return $this->databaseMigrations;
     }
 
     public function manifestPath(): string
@@ -210,6 +257,32 @@ final class ModuleManifest
     public function integrityHash(): string
     {
         return $this->integrityHash;
+    }
+
+    private static function parseRuntimeEntrypoint(array $runtime, string $moduleId, string $mode): ?string
+    {
+        $value = $runtime['entrypoint'] ?? null;
+        if ($mode === 'legacy') {
+            if ($value !== null) {
+                throw new RuntimeException("Legacy module {$moduleId} must not declare an isolated runtime entrypoint");
+            }
+            return null;
+        }
+
+        if (!is_string($value)) {
+            throw new RuntimeException("Isolated module {$moduleId} must declare runtime.entrypoint");
+        }
+        $value = trim($value);
+        if (
+            $value === ''
+            || str_starts_with($value, '/')
+            || str_contains($value, '..')
+            || str_contains($value, '\\')
+            || preg_match('/^[A-Za-z0-9_.\/-]+\.php$/D', $value) !== 1
+        ) {
+            throw new RuntimeException("Isolated module {$moduleId} has an invalid runtime.entrypoint");
+        }
+        return $value;
     }
 
     private static function requireIdentifier(array $data, string $key): string
@@ -273,6 +346,36 @@ final class ModuleManifest
         }
 
         sort($result, SORT_STRING);
+        return $result;
+    }
+
+    /** @return list<string> */
+    private static function sqlPathList(mixed $value, string $field, string $requiredPrefix): array
+    {
+        if (!is_array($value) || !array_is_list($value)) {
+            throw new InvalidArgumentException("{$field} must be a list");
+        }
+
+        $result = [];
+        foreach ($value as $entry) {
+            if (
+                !is_string($entry)
+                || $entry === ''
+                || str_starts_with($entry, '/')
+                || str_contains($entry, '..')
+                || str_contains($entry, '\\')
+                || !str_starts_with($entry, $requiredPrefix)
+                || preg_match('/^[A-Za-z0-9_.\/-]+\.sql$/D', $entry) !== 1
+            ) {
+                throw new InvalidArgumentException("{$field} contains an invalid SQL path");
+            }
+            $result[] = $entry;
+        }
+
+        if (count($result) !== count(array_unique($result))) {
+            throw new InvalidArgumentException("{$field} contains duplicate SQL paths");
+        }
+
         return $result;
     }
 }

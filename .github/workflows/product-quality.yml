@@ -2,7 +2,7 @@ name: Product UI and production quality
 
 on:
   pull_request:
-    branches: [master]
+    branches: [master, '1.0']
   push:
     branches: [product-ui-production-refresh]
 
@@ -49,15 +49,15 @@ jobs:
           for source in \
             core.php \
             app/controllers/AuthController.php \
-            app/controllers/Admin/AdminController.php \
-            app/controllers/Admin/SettingsController.php \
+            modules/admin/controllers/AdminController.php \
+            modules/admin/controllers/SettingsController.php \
             app/services/PermissionService.php \
-            app/services/AdminUserService.php \
+            modules/admin/services/AdminUserService.php \
             app/services/StorageQuotaService.php \
             app/middlewares/RequirePermission.php \
-            app/middlewares/RequireAdminAccess.php \
-            app/middlewares/RequireAdminUsersManage.php \
-            app/middlewares/RequireAdminSettingsManage.php \
+            modules/admin/middlewares/RequireAdminAccess.php \
+            modules/admin/middlewares/RequireAdminUsersManage.php \
+            modules/admin/middlewares/RequireAdminSettingsManage.php \
             app/middlewares/AuthRateLimit.php \
             app/middlewares/UploadRateLimit.php \
             app/middlewares/StorageQuotaLimit.php \
@@ -74,8 +74,8 @@ jobs:
         run: |
           set -euo pipefail
           node --check assets/js/reg-script.js
-          node --check assets/js/file_manager/script.js
-          node --check assets/js/admin-page.js
+          node --check modules/files/assets/script.js
+          node --check modules/admin/assets/admin-page.js
 
           sed \
             -e '/^{literal}$/d' \
@@ -89,62 +89,65 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq 'core/theme-refresh.css' app/views/styles.css
+          ! grep -Fq 'core/theme-refresh.css' app/views/styles.css
+          ! grep -Fq 'core/product-ux-013.css' app/views/styles.css
+          grep -Fq 'core/common.css' app/views/styles.css
           grep -Fq 'core/accessibility.css' app/views/styles.css
-          grep -Fq 'id="main-content"' app/views/core/base.tpl
-          grep -Fq 'class="skip-link"' app/views/core/base.tpl
-          grep -Fq 'id="workspaceSidebar"' app/views/^shared/sidebar/index.tpl
+          grep -Fq '/assets/css/workspace-ui-1.0.css' app/views/core/base.php
+          grep -Fq 'id="main-content"' app/views/core/base.php
+          grep -Fq 'class="skip-link"' app/views/core/base.php
+          grep -Fq 'id="workspaceSidebar"' app/views/^shared/sidebar/index.php
           grep -Fq "backdrop.className = 'sidebar-backdrop'" app/views/core/common.js
           grep -Fq "setAttribute('aria-current', 'page')" app/views/core/common.js
-          grep -Fq 'aria-live="polite"' app/views/^shared/header/index.tpl
-          grep -Fq 'workspace-home__grid' app/views/main_page/index.tpl
-          grep -Fq 'autocomplete="username"' app/views/login_page/login_view.tpl
-          grep -Fq 'autocomplete="current-password"' app/views/login_page/login_view.tpl
-          grep -Fq 'autocomplete="new-password"' app/views/login_page/register_view.tpl
-          grep -Fq 'minlength="10"' app/views/login_page/register_view.tpl
-          ! grep -Fq 'name="userphoto"' app/views/login_page/register_view.tpl
+          grep -Fq 'aria-live="polite"' app/views/^shared/header/index.php
+          grep -Fq 'workspace-home__grid' app/views/main_page/index.php
+          grep -Fq 'autocomplete="username"' app/views/login_page/login_view.php
+          grep -Fq 'autocomplete="current-password"' app/views/login_page/login_view.php
+          grep -Fq 'autocomplete="new-password"' app/views/login_page/register_view.php
+          grep -Fq 'minlength="10"' app/views/login_page/register_view.php
+          ! grep -Fq 'name="userphoto"' app/views/login_page/register_view.php
           ! grep -R -E 'fonts\.googleapis\.com|fonts\.gstatic\.com' app/views assets/css
-          ! grep -Fq 'notes.loc' app/views/^shared/header/index.tpl
+          ! grep -Fq 'notes.loc' app/views/^shared/header/index.php
 
       - name: File Manager safe preview contract
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq 'text-preview-modal' app/views/file_manager/index.tpl
-          grep -Fq 'read-only' assets/js/file_manager/script.js
-          ! grep -Fq 'cdnjs.cloudflare.com' app/views/file_manager/index.tpl
-          ! grep -Fq 'ace.js' app/views/file_manager/index.tpl
-          ! grep -Fq 'runCodeInSandbox' assets/js/file_manager/script.js
-          ! grep -Fq 'btn-run-code' app/views/file_manager/index.tpl
-          ! grep -Fq 'btn-save-code' app/views/file_manager/index.tpl
+          grep -Fq 'text-preview-modal' modules/files/views/index.php
+          grep -Fq 'read-only' modules/files/assets/script.js
+          ! grep -Fq 'cdnjs.cloudflare.com' modules/files/views/index.php
+          ! grep -Fq 'ace.js' modules/files/views/index.php
+          ! grep -Fq 'runCodeInSandbox' modules/files/assets/script.js
+          ! grep -Fq 'btn-run-code' modules/files/views/index.php
+          ! grep -Fq 'btn-save-code' modules/files/views/index.php
 
       - name: Admin lifecycle and settings static contract
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq 'AdminUserService' app/controllers/Admin/AdminController.php
-          grep -Fq 'INSERT INTO user_fields' app/controllers/Admin/AdminController.php
-          grep -Fq 'UPDATE user_fields' app/controllers/Admin/AdminController.php
-          ! grep -Eq "queue(Insert|Update|Delete).*['\"]fields['\"]" app/controllers/Admin/AdminController.php
-          ! grep -Fq 'DELETE FROM users' app/controllers/Admin/AdminController.php
-          ! grep -Fq 'DELETE FROM users' app/services/AdminUserService.php
-          grep -Fq "account_status = 'inactive'" app/services/AdminUserService.php
-          grep -Fq "admin.users.manage" app/services/AdminUserService.php
+          grep -Fq 'AdminUserService' modules/admin/controllers/AdminController.php
+          grep -Fq 'INSERT INTO user_fields' modules/admin/controllers/AdminController.php
+          grep -Fq 'UPDATE user_fields' modules/admin/controllers/AdminController.php
+          ! grep -Eq "queue(Insert|Update|Delete).*['\"]fields['\"]" modules/admin/controllers/AdminController.php
+          ! grep -Fq 'DELETE FROM users' modules/admin/controllers/AdminController.php
+          ! grep -Fq 'DELETE FROM users' modules/admin/services/AdminUserService.php
+          grep -Fq "account_status = 'inactive'" modules/admin/services/AdminUserService.php
+          grep -Fq "admin.users.manage" modules/admin/services/AdminUserService.php
           grep -Fq "admin.settings.manage" app/services/StorageQuotaService.php
-          grep -Fq "d.type = 'group'" app/services/AdminUserService.php
-          grep -Fq 'RequireAdminAccess::class' core/routerConfig.php
-          grep -Fq 'RequireAdminUsersManage::class' core/routerConfig.php
-          grep -Fq 'RequireAdminSettingsManage::class' core/routerConfig.php
+          grep -Fq "d.type = 'group'" modules/admin/services/AdminUserService.php
+          grep -Fq 'RequireAdminAccess::class' modules/admin/AdminRuntimeProvider.php
+          grep -Fq 'RequireAdminUsersManage::class' modules/admin/AdminRuntimeProvider.php
+          grep -Fq 'RequireAdminSettingsManage::class' modules/admin/AdminRuntimeProvider.php
           ! grep -Fq 'IsAdmin::class' core/routerConfig.php
-          grep -Fq "route_path name='admin_toggle_user'" app/views/admin-page/index.tpl
-          grep -Fq "route_path name='admin_delete_user'" app/views/admin-page/index.tpl
-          grep -Fq "route_path name='admin_settings'" app/views/admin-page/index.tpl
-          grep -Fq "route_path name='admin_settings_user_quota'" app/views/admin-page/settings.tpl
-          grep -Fq 'StorageQuotaLimit::class' core/routerConfig.php
+          grep -Fq "route('admin_toggle_user')" modules/admin/views/index.php
+          grep -Fq "route('admin_delete_user')" modules/admin/views/index.php
+          grep -Fq "['/admin/settings', 'fa-sliders', 'Системные настройки']" modules/admin/assets/admin-settings-nav.js
+          grep -Fq "route('admin_settings_user_quota')" modules/admin/views/settings.php
+          grep -Fq 'StorageQuotaLimit::class' modules/files/FilesRuntimeProvider.php
           grep -Fq 'GET_LOCK' app/services/StorageQuotaService.php
           grep -Fq 'RELEASE_LOCK' app/services/StorageQuotaService.php
-          grep -Fq 'data-confirm-deactivate' app/views/admin-page/index.tpl
-          ! grep -Fq 'onclick=' app/views/admin-page/index.tpl
+          grep -Fq 'data-confirm-deactivate' modules/admin/views/index.php
+          ! grep -Fq 'onclick=' modules/admin/views/index.php
 
       - name: Linux bootstrap path contract
         shell: bash
@@ -156,7 +159,6 @@ jobs:
             core/DatabaseControll.php \
             core/DatabaseManager.php \
             core/ORM.php \
-            core/model.php \
             core/view.php \
             core/request.php \
             core/controller.php \
@@ -172,18 +174,20 @@ jobs:
         run: |
           set -euo pipefail
           grep -Fq 'AuthRateLimit::class' core/routerConfig.php
-          grep -Fq 'UploadRateLimit::class' core/routerConfig.php
-          grep -Fq 'StorageQuotaLimit::class' core/routerConfig.php
+          grep -Fq 'UploadRateLimit::class' modules/notes/NotesRuntimeProvider.php
+          grep -Fq 'UploadRateLimit::class' modules/files/FilesRuntimeProvider.php
+          grep -Fq 'UploadRateLimit::class' modules/messenger/MessengerRuntimeProvider.php
+          grep -Fq 'StorageQuotaLimit::class' modules/files/FilesRuntimeProvider.php
           grep -Fq 'REGISTRATION_INVITE_CODE' app/controllers/AuthController.php
           grep -Fq 'AUTH_RATE_LIMIT_WINDOW_SECONDS=300' default.env
           grep -Fq 'UPLOAD_RATE_LIMIT_ATTEMPTS=60' default.env
-          grep -Fq "object-src 'none'" .htaccess
+          grep -Fq "object-src 'none'" core/SecurityHeaders.php
           grep -Fq 'Permissions-Policy' .htaccess
           grep -Fq 'Cross-Origin-Opener-Policy' .htaccess
-          grep -Fq '(?:app|bin|core|database|docs|vendor|ws_server' .htaccess
+          grep -Fq '(?:app|bin|config|core|database|docs|modules|tests|tools|vendor|ws_server' .htaccess
           grep -Fq 'default\.env' .htaccess
-          ! grep -Fq "'unsafe-eval'" .htaccess
-          ! grep -Fq 'cdnjs.cloudflare.com' .htaccess
+          ! grep -Fq "'unsafe-eval'" core/SecurityHeaders.php
+          ! grep -Fq 'cdnjs.cloudflare.com' core/SecurityHeaders.php
           ! grep -Fq 'notes.loc' .htaccess
 
       - name: Rate limiter integration
@@ -252,8 +256,8 @@ jobs:
           require getcwd() . '/core/config.php';
           require getcwd() . '/core/DatabaseManager.php';
           require getcwd() . '/app/services/PermissionService.php';
-          require getcwd() . '/app/services/UserAvatarService.php';
-          require getcwd() . '/app/services/AdminUserService.php';
+          require getcwd() . '/modules/profile/services/UserAvatarService.php';
+          require getcwd() . '/modules/admin/services/AdminUserService.php';
 
           use App\Services\AdminUserService;
           use App\Services\PermissionService;
@@ -418,7 +422,7 @@ jobs:
           chmod 700 "$PRIVATE_STORAGE_PATH"
           php bin/healthcheck.php --json | tee /tmp/healthcheck.json
           grep -Fq '"status": "ok"' /tmp/healthcheck.json
-          grep -Fq '27 required tables present' /tmp/healthcheck.json
+          grep -Fq '32 required tables present' /tmp/healthcheck.json
           grep -Fq 'storage_quota_setting' /tmp/healthcheck.json
           grep -Fq 'private_storage_outside_app_root' /tmp/healthcheck.json
           grep -Fq 'websocket_allowed_origins' /tmp/healthcheck.json
@@ -431,7 +435,7 @@ jobs:
           grep -Fq 'database/access_control_schema.sql' README.md
           grep -Fq 'database/settings_schema.sql' README.md
           grep -Fq 'database/module_lifecycle_schema.sql' README.md
-          grep -Fq '27 обязательных таблиц' README.md
+          grep -Fq '32 обязательных таблиц' README.md
           grep -Fq 'php bin/migrate.php' README.md
           grep -Fq 'php bin/migrate_crypto.php' README.md
           grep -Fq 'Saved Messages' README.md

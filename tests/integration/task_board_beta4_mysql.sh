@@ -34,7 +34,7 @@ require SITEPATH . '/core/config.php';
 require SITEPATH . '/core/DatabaseManager.php';
 require SITEPATH . '/app/services/PermissionService.php';
 require SITEPATH . '/app/services/RolePolicyService.php';
-require SITEPATH . '/app/services/TaskBoardService.php';
+require SITEPATH . '/modules/tasks/services/TaskBoardService.php';
 
 use App\Services\TaskBoardService;
 use Core\DatabaseManager;
@@ -75,7 +75,7 @@ foreach ($fixtures as [$uid, $username, $firstname, $lastname, $status, $active]
     );
 }
 
-$id = static fn(string $username): int => (int) $db->fetchValue(
+$id = static fn (string $username): int => (int) $db->fetchValue(
     'SELECT id FROM users WHERE username = :username',
     [':username' => $username]
 );
@@ -163,5 +163,5 @@ if (!$policyDenied) {
     throw new RuntimeException('Role policy did not block shared-board creation');
 }
 
-echo "Beta 4 shared task board contract: OK\n";
+echo "Shared task board contract: OK\n";
 PHP

@@ -2,7 +2,7 @@ name: Messenger group permissions
 
 on:
   pull_request:
-    branches: [master]
+    branches: [master, '1.0']
   push:
     branches: [messenger-groups]
 
@@ -46,10 +46,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          php -l app/services/MessengerGroupService.php
-          php -l app/services/MessengerGroupAvatarService.php
-          php -l app/controllers/MessengerGroupController.php
-          php -l app/socket/GroupSocket.php
+          php -l modules/messenger/services/MessengerGroupService.php
+          php -l modules/messenger/services/MessengerGroupAvatarService.php
+          php -l modules/messenger/controllers/MessengerGroupController.php
+          php -l modules/messenger/socket/GroupSocket.php
           php -l core/routerConfig.php
           php -l ws_server/server.php
 
@@ -57,7 +57,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sed '/^{literal}$/d;/^{\/literal}$/d' app/views/messager_page/group.js > /tmp/messenger-group.js
+          sed '/^{literal}$/d;/^{\/literal}$/d' modules/messenger/views/group.js > /tmp/messenger-group.js
           node --check /tmp/messenger-group.js
 
       - name: Prepare messenger schema
@@ -89,10 +89,10 @@ jobs:
           require __DIR__ . '/core/config.php';
           require __DIR__ . '/core/DatabaseManager.php';
           require __DIR__ . '/app/handlers/UUID.php';
-          require __DIR__ . '/app/handlers/MessengerCrypto.php';
-          require __DIR__ . '/app/services/MessengerService.php';
-          require __DIR__ . '/app/services/MessengerGroupService.php';
-          require __DIR__ . '/app/services/MessengerGroupAvatarService.php';
+          require __DIR__ . '/modules/messenger/handlers/MessengerCrypto.php';
+          require __DIR__ . '/modules/messenger/services/MessengerService.php';
+          require __DIR__ . '/modules/messenger/services/MessengerGroupService.php';
+          require __DIR__ . '/modules/messenger/services/MessengerGroupAvatarService.php';
 
           $db = \Core\DatabaseManager::getInstance();
           $now = date('Y-m-d H:i:s');

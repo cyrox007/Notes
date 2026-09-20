@@ -3,11 +3,48 @@
   "id": "messenger",
   "name": "Messenger",
   "version": "0.13.0",
-  "core": {"min": "0.13.0-alpha", "max_exclusive": "0.15.0"},
+  "core": {
+    "min": "0.13.0-alpha",
+    "max_exclusive": "2.0.0"
+  },
   "dependencies": [],
-  "capabilities": ["workspace.messenger"],
-  "package": {"bundled": true, "default_enabled": true},
-  "license": {"feature": "workspace.messenger"},
-  "runtime": {"mode": "legacy"},
-  "storage_namespaces": ["messenger"]
+  "capabilities": [
+    "workspace.messenger"
+  ],
+  "package": {
+    "bundled": true,
+    "default_enabled": true
+  },
+  "license": {
+    "feature": "workspace.messenger"
+  },
+  "runtime": {
+    "mode": "isolated",
+    "entrypoint": "runtime.php"
+  },
+  "storage_namespaces": [
+    "messenger"
+  ],
+  "database": {
+    "tables": [
+      "dialogs",
+      "user_to_dialogs",
+      "messages",
+      "message_user_deletions",
+      "messenger_attachments",
+      "message_reactions"
+    ],
+    "schemas": [
+      "database/messenger_module_schema.sql"
+    ],
+    "migrations": [
+      "database/migrations/20260913_messenger_v2.sql",
+      "database/migrations/20260913_messenger_membership_contract.sql",
+      "database/migrations/20260913_messenger_attachments.sql",
+      "database/migrations/20260913_messenger_delivery_receipts.sql",
+      "database/migrations/20260913_messenger_reactions.sql",
+      "database/migrations/20260913_messenger_saved_dialog.sql",
+      "database/migrations/20260918_messenger_retention_timestamps.sql"
+    ]
+  }
 }

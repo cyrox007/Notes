@@ -1,0 +1,67 @@
+name: 1.0 license read-only enforcement
+
+on:
+  pull_request:
+    branches: [master, '1.0']
+  push:
+    branches: ['1.0-license-readonly-enforcement']
+
+permissions:
+  contents: read
+
+jobs:
+  license-readonly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        php: ['8.1', '8.3']
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: sodium, mbstring
+          coverage: none
+
+      - name: Lint license enforcement boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            app/services/LicenseRuntimePolicy.php \
+            app/middlewares/EnforceLicenseMutation.php \
+            modules/messenger/socket/NativeMessengerServer.php \
+            core/Router.php \
+            core/routerConfig.php \
+            core/controller.php \
+            app/views/core/base.php \
+            tests/integration/license_runtime_policy_contract.php \
+            tests/integration/license_websocket_policy_contract.php; do
+            php -l "$file"
+          done
+
+      - name: Verify recovery-safe HTTP enforcement
+        run: php tests/integration/license_runtime_policy_contract.php
+
+      - name: Verify WebSocket read-only classification
+        run: php tests/integration/license_websocket_policy_contract.php
+
+      - name: Preserve offline license verification contract
+        run: php tests/integration/license_verifier_contract.php
+
+      - name: Verify integration wiring
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'addGlobalMiddleware(EnforceLicenseMutation::class)' core/routerConfig.php
+          grep -Fq 'executeMiddlewares($this->globalMiddlewares, $request)' core/Router.php
+          grep -Fq 'READ_ONLY_ROUTES' modules/messenger/socket/NativeMessengerServer.php
+          grep -Fq 'LicenseReadOnly' modules/messenger/socket/NativeMessengerServer.php
+          grep -Fq 'license-readonly-banner' app/views/core/base.php
+          grep -Fq "'licenseReadOnly' => \$licenseReadOnly" app/views/core/base.php
+          ! grep -R -E 'LICENSE_PRIVATE|SIGNING_PRIVATE|PRIVATE_SIGNING_KEY' app core database default.env

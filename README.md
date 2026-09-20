@@ -1,12 +1,12 @@
 # Workspace Organizer
 
-**Версия:** `0.14.0-beta.4`  
-**Актуально на:** 15 сентября 2026  
-**Статус:** beta.4 / role policies and shared task boards; следующая основная цель — `1.0.0` stable
+**Версия:** `1.0.0`  
+**Актуально на:** 16 сентября 2026  
+**Статус:** stable
 
-Workspace Organizer — внутреннее PHP-приложение для корпоративной работы: заметки, личные и общие задачи, файлы, профиль, администрирование и real-time Messenger.
+Workspace Organizer — self-hosted PHP-приложение для корпоративной работы: заметки, личные и общие задачи, файлы, профиль, администрирование и real-time Messenger.
 
-Версия `0.14.0-beta.4` добавляет полноценное управление ролями поверх persisted RBAC, отдельный слой типизированных ограничений модулей и совместные task boards для выбранных пользователей или всех активных аккаунтов. Ограничения применяются server-side в Notes, Tasks, File Manager и Messenger, а навигация отражает эффективные разрешения текущего пользователя. Сохраняются managed registration beta.3, WebSocket deployment fixes beta.2 и совместимость PHP 8.1+. Следующая основная цель — `1.0.0` stable: vendor-free runtime, signed updater/recovery, installation-wide licensing и остальные stable blockers.
+`1.0.0` фиксирует stable platform contract: vendor-free PHP runtime, native view/WebSocket infrastructure, persisted RBAC и module policies, installation-bound offline Ed25519 licensing, signed remote updater с external staging, transactional code+MySQL rollback и проверенный upgrade path с `0.14.0-beta.4`.
 
 ## Возможности
 
@@ -46,7 +46,7 @@ Workspace Organizer — внутреннее PHP-приложение для к�
 - PHP `8.1+` — технический compatibility floor; для Internet-facing production рекомендуется поддерживаемая ветка PHP, сейчас `8.3+`;
 - MySQL `8.x` — основной проверяемый CI path;
 - PHP extensions: `mysqli`, `pdo_mysql`, `mbstring`, `fileinfo`, `sodium`, `gd`;
-- для realtime Messenger/Workerman: POSIX-compatible host, PHP CLI, `pcntl`, `posix`, long-running process и WebSocket reverse proxy;
+- для realtime Messenger/native WebSocket runtime: POSIX-compatible host, PHP CLI, `pcntl`, long-running process и WebSocket reverse proxy;
 - Argon2id support в `password_hash`;
 - Apache + `mod_rewrite` либо Nginx с эквивалентным front-controller routing;
 - writable private storage вне document root;
@@ -54,7 +54,7 @@ Workspace Organizer — внутреннее PHP-приложение для к�
 
 Подробная матрица Open Server 6+, legacy-compatible Open Server 5.4.x, shared hosting и VPS/VDS: [`docs/DEPLOYMENT_COMPATIBILITY.md`](docs/DEPLOYMENT_COMPATIBILITY.md).
 
-**Composer на конечном shared hosting не обязателен**, если используется готовый hosting bundle из GitHub Release. Composer нужен при установке непосредственно из source tree и для development/CI.
+**Composer не является runtime-зависимостью 1.0.** Готовый hosting bundle и source tree запускаются без `vendor/`; Composer может использоваться только как development/tooling utility, но production package не зависит от него.
 
 ## Fresh install на обычном хостинге
 
@@ -81,7 +81,7 @@ https://example.com/workspace/install.php
 
 Web-installer автоматически:
 
-- проверяет PHP 8.1+, extensions, Argon2id и наличие production `vendor/`;
+- проверяет PHP 8.1+, необходимые extensions и Argon2id; production runtime не требует `vendor/`;
 - пытается создать отсутствующую БД, если MySQL account это разрешает;
 - импортирует 8 canonical schemas и создаёт current contract из 32 обязательных таблиц;
 - создаёт `cache`/`compile`;
@@ -99,13 +99,7 @@ Web-installer автоматически:
 
 ### Установка из исходников
 
-Для development, VPS или собственного build pipeline:
-
-```bash
-composer install --no-dev --optimize-autoloader
-```
-
-После этого также можно использовать `/install.php`; вручную копировать `default.env` и импортировать SQL для **fresh install** не требуется.
+Исходный tree 1.0 является vendor-free и не требует `composer install` для запуска. После checkout/deploy можно использовать `/install.php`; вручную копировать `default.env` и импортировать SQL для **fresh install** не требуется.
 
 ### Private storage
 
@@ -170,7 +164,7 @@ WS_HOST=127.0.0.1
 WS_PORT=27800
 ```
 
-На production hosting маршрут `/ws` должен проксироваться на локальный Workerman process. Это единственная часть, которую невозможно универсально стартовать web-installer'ом на каждом типе shared hosting: тариф должен поддерживать long-running PHP process/WebSocket proxy.
+На production hosting маршрут `/ws` должен проксироваться на локальный native WebSocket process. Это единственная часть, которую невозможно универсально стартовать web-installer'ом на каждом типе shared hosting: тариф должен поддерживать long-running PHP process/WebSocket proxy.
 
 Development/VPS:
 
@@ -178,7 +172,7 @@ Development/VPS:
 php ws_server/server.php start
 ```
 
-Production: запускайте Workerman через hosting background-process manager, systemd/supervisor/container orchestration и публикуйте браузеру только через WSS reverse proxy. Полный runbook: [`docs/MESSENGER_SERVER.md`](docs/MESSENGER_SERVER.md).
+Production: запускайте native WebSocket server через hosting background-process manager, systemd/supervisor/container orchestration и публикуйте браузеру только через WSS reverse proxy. Полный runbook: [`docs/MESSENGER_SERVER.md`](docs/MESSENGER_SERVER.md).
 
 ## Upgrade existing DB
 
@@ -247,23 +241,23 @@ Single-node limiter хранит state под `PRIVATE_STORAGE_PATH/rate-limit` 
 
 ## HTTP / CSP baseline
 
-Repository `.htaccess`:
+Repository `.htaccess` отвечает за static/access headers и routing; Content-Security-Policy формируется PHP Core:
 
 - запрещает directory listing;
 - закрывает от прямой HTTP-выдачи `app`, `bin`, `core`, `database`, `docs`, `vendor`, `ws_server`, `.github`, `.git`, `.logs`, `.env/default.env` и repository metadata;
 - блокирует `install.php` после появления `.env`;
 - задаёт `nosniff`, Referrer Policy, SAMEORIGIN, Permissions Policy и COOP;
-- CSP запрещает objects, ограничивает base/forms/frame ancestors;
+- Core CSP запрещает objects, ограничивает base/forms/frame ancestors и использует per-request nonce;
 - внешние JS CDN не требуются;
 - `unsafe-eval` удалён после отказа от браузерного code runner в File Manager.
 
-Пока остаётся `unsafe-inline`, потому что часть legacy Smarty templates содержит inline script/style blocks. Это известный CSP-hardening debt, а не разрешение для новых inline-скриптов.
+CSP формируется Core на каждый HTML request с криптографическим nonce. `script-src-attr 'none'` и `style-src-attr 'none'` запрещают inline event/style attributes, а `unsafe-inline` больше не входит в policy. Intentional inline `<script>/<style>` допускаются только с per-request nonce и контролируются отдельным CSP contract.
 
 HSTS намеренно задаётся на production TLS reverse proxy, а не в repository `.htaccess`.
 
 ## UI / UX 0.13 + beta.4 collaboration
 
-Интерфейс остаётся server-rendered Smarty без отдельного frontend build pipeline.
+Интерфейс остаётся server-rendered на native PHP views без отдельного frontend build pipeline; bundled product modules больше не зависят от Smarty runtime.
 
 Текущий product UI layer включает:
 
@@ -389,21 +383,29 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 - [`TASKS_MODULE_README.md`](TASKS_MODULE_README.md) — дополнительная документация Tasks.
 - [`default.env`](default.env) — environment variables и security comments.
 
-## 0.14 beta и путь к `1.0.0` stable
+## 1.0 release readiness
 
-`0.14.0-beta.1` — первая официальная beta-точка. Beta patch releases при необходимости публикуются как `v0.14.0-beta.N`; они не открывают новый feature cycle. Основная ветка после beta.1 развивается в сторону `1.0.0` stable.
+Основные platform/stability blockers исходного beta-аудита уже закрыты в ветке `1.0`:
 
-Перед `1.0.0` должны быть закрыты оставшиеся platform/stability blockers:
+- vendor-free distributable runtime;
+- isolated module-owned runtime и composition-aware database/install/update/health ownership;
+- signed staged updater с transactional apply, durable recovery и code+DB rollback;
+- installation-wide licensing и Core recovery control plane;
+- structured security observability и operational alert thresholds;
+- resumable/rollback-safe rotation `UNIQUE_KEY` / `MSG_SECRET_KEY`;
+- nonce-based CSP без `unsafe-inline`;
+- explicit retention/permanent-purge contract с filesystem/DB safety guards;
+- browser lifecycle coverage для основных product modules и Beta4 → 1.0 upgrade/rollback drill;
+- cross-browser/mobile + authenticated load/soak release-evidence harness.
 
-- полный отказ от сторонних runtime-библиотек в distributable application;
-- module-owned bootstrap/routes/assets/socket registration и фактическая изоляция отключённых модулей;
-- deterministic package compositions и dependency preflight для разных наборов модулей;
-- signed core/module update metadata, staged transactional update, rollback/recovery и health verification;
-- installation-wide licensing/entitlement contract с безопасным offline/expiry behavior без удаления пользовательских данных;
-- structured observability, security/audit events, metrics/alerts, load/soak и cross-browser/mobile regression evidence;
-- transactional/resumable re-encryption procedure для безопасной ротации `UNIQUE_KEY` / `MSG_SECRET_KEY`;
-- постепенный вынос inline Smarty JS/CSS для CSP без `unsafe-inline`;
-- явный retention/permanent-purge contract и подтверждённый beta-период без P0/P1 data-loss/security дефектов;
-- scalable encrypted-search architecture только если beta load tests покажут, что bounded decrypt scan не соответствует заявленному масштабу.
+Перед окончательным cut/tag `v1.0.0` остаются только release-ceremony gates, а не новые platform features:
 
-Подробный hardening roadmap: [`docs/BETA_HARDENING_0.14.md`](docs/BETA_HARDENING_0.14.md).
+1. включить GitHub branch protection/ruleset для `1.0` согласно `docs/RELEASE_GOVERNANCE.md`;
+2. офлайн выпустить независимые production license/update Ed25519 keypairs и закоммитить только public trust roots;
+3. получить green cross-browser/mobile + load/soak release evidence на exact release head;
+4. подтвердить свежий backup/restore drill, exact Beta4 upgrade/rollback и отсутствие открытых P0/P1 data-loss/security дефектов;
+5. собрать финальный immutable bundle, подписать update manifest, слить exact release head в `master` и поставить tag `v1.0.0`.
+
+Scalable encrypted-search redesign не является release blocker сам по себе; он требуется только если измерения на заявленном масштабе покажут, что bounded decrypt scan не выдерживает принятого performance envelope.
+
+Финальный порядок действий: [`docs/RELEASE_ACCEPTANCE.md`](docs/RELEASE_ACCEPTANCE.md). Исторический hardening roadmap: [`docs/BETA_HARDENING_0.14.md`](docs/BETA_HARDENING_0.14.md).

@@ -2,17 +2,23 @@
 
 declare(strict_types=1);
 
+use App\Sockets\NativeMessengerServer;
+use Core\WebSocketEndpoint;
+
 ini_set('display_errors', '0');
 if (!defined('SITEPATH')) {
     define('SITEPATH', dirname(__FILE__) . '/..');
 }
-if (!defined('WORKSPACE_DEFER_MODULE_LIFECYCLE')) {
-    define('WORKSPACE_DEFER_MODULE_LIFECYCLE', true);
-}
 error_reporting(E_ALL);
 ini_set('error_log', sys_get_temp_dir() . '/workspace-organizer-ws-startup.log');
 
-require_once SITEPATH . '/core.php';
+// Process lifecycle commands must remain usable even when the application DB is
+// unavailable. Load only the internal environment parser first so status/stop can
+// locate the installation-specific PID file without booting the full application.
+require_once SITEPATH . '/core/Environment.php';
+if (is_file(SITEPATH . '/.env')) {
+    \Core\Environment::load(SITEPATH . '/.env');
+}
 
 $configuredLog = trim((string) (getenv('LOG_FILE') ?: ''));
 if ($configuredLog !== '') {
@@ -22,248 +28,238 @@ if ($configuredLog !== '') {
     }
 }
 
-use App\Handlers\SocketTicket;
-use App\Models\UserModel;
-use App\Services\PermissionService;
-use Core\WebSocketEndpoint;
-use Workerman\Connection\TcpConnection;
-use Workerman\Lib\Timer;
-use Workerman\Protocols\Websocket;
-use Workerman\Worker;
+function workspaceWsPidFile(): string
+{
+    $configured = trim((string) (getenv('WS_PID_FILE') ?: ''));
+    if ($configured !== '') {
+        return $configured;
+    }
 
-/** @var array<string,array<int,TcpConnection>> $connections */
-$connections = [];
-$host = WebSocketEndpoint::bindHost();
-$port = WebSocketEndpoint::port();
-$publicUrl = WebSocketEndpoint::publicUrl();
+    $privateStorage = trim((string) (getenv('PRIVATE_STORAGE_PATH') ?: ''));
+    if ($privateStorage !== '') {
+        return rtrim($privateStorage, '/\\') . DIRECTORY_SEPARATOR . 'runtime' . DIRECTORY_SEPARATOR . 'ws-server.pid';
+    }
 
-// Use an explicit TCP listener + Workerman protocol class instead of relying on
-// URI-scheme protocol probing. TLS terminates at the public reverse proxy; this
-// process intentionally stays on an internal plain WebSocket listener.
-$worker = new Worker(sprintf('tcp://%s:%d', $host, $port));
-$worker->name = 'workspace-messenger';
-$worker->protocol = Websocket::class;
-
-error_log(sprintf(
-    'WebSocket listener configured: tcp://%s:%d; public=%s',
-    $host,
-    $port,
-    $publicUrl
-));
-if (WebSocketEndpoint::usesSameOriginProxy()) {
-    error_log(sprintf(
-        'WebSocket reverse proxy required: %s -> %s',
-        WebSocketEndpoint::proxyPath(),
-        WebSocketEndpoint::proxyBackendUrl()
-    ));
+    return rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'workspace-organizer-ws.pid';
 }
 
-$allowedRoutes = [
-    'PingSocket' => ['index'],
-    'MessangerSocket' => [
-        'get_dialogs',
-        'load',
-        'create_dialog',
-        'message_send',
-        'edit_message',
-        'delete_message',
-        'mark_read',
-        'user_typing',
-        'stop_typing',
-    ],
-    'DialogStateSocket' => [
-        'list',
-        'pin',
-        'archive',
-        'mute',
-    ],
-    'ReceiptSocket' => [
-        'list',
-        'delivered',
-    ],
-    'MediaSocket' => [
-        'send',
-    ],
-    'GroupSocket' => [
-        'info',
-        'refresh',
-        'rename',
-        'add_members',
-        'remove_member',
-        'set_role',
-        'transfer_owner',
-        'leave',
-    ],
-    'SearchSocket' => [
-        'all',
-        'messages',
-        'dialogs',
-    ],
-    'ForwardSocket' => [
-        'saved',
-        'save_message',
-        'forward',
-    ],
-    'ReactionSocket' => [
-        'list',
-        'toggle',
-    ],
-];
+function workspaceWsReadPid(string $pidFile): ?int
+{
+    if (!is_file($pidFile)) {
+        return null;
+    }
+    $value = trim((string) @file_get_contents($pidFile));
+    if ($value === '' || !ctype_digit($value)) {
+        return null;
+    }
+    $pid = (int) $value;
+    return $pid > 0 ? $pid : null;
+}
 
-$allowedOrigins = array_values(array_filter(array_map(
-    static fn (string $origin): string => rtrim(trim($origin), '/'),
-    explode(',', (string) (getenv('WS_ALLOWED_ORIGINS') ?: getenv('SITEURL') ?: ''))
-)));
+function workspaceWsProcessExists(int $pid): bool
+{
+    if ($pid <= 0) {
+        return false;
+    }
+    if (function_exists('posix_kill')) {
+        return @posix_kill($pid, 0);
+    }
+    if (PHP_OS_FAMILY === 'Linux' && is_dir('/proc/' . $pid)) {
+        return true;
+    }
+    if (PHP_OS_FAMILY === 'Windows') {
+        if (function_exists('exec')) {
+            $output = [];
+            $status = 1;
+            @exec('tasklist /FI "PID eq ' . $pid . '" /FO CSV /NH', $output, $status);
+            return $status === 0 && isset($output[0]) && str_contains($output[0], (string) $pid);
+        }
 
-// Instantiate the RBAC service lazily after Workerman has entered the worker
-// process. This avoids creating a PDO connection in a pre-fork master process.
-$canUseMessenger = static function (int $userId): bool {
-    return (new PermissionService())->hasPermission($userId, 'messenger.use');
-};
-
-$removeConnection = static function (TcpConnection $connection) use (&$connections): void {
-    if (!isset($connection->uid)) {
-        return;
+        // Some Windows/OpenServer CLI profiles disable exec(). In that case a
+        // stale PID file must not permanently block startup. The listener bind
+        // remains the authoritative duplicate-process guard.
+        return false;
     }
 
-    $uid = (string) $connection->uid;
-    unset($connections[$uid][spl_object_id($connection)]);
-    if (empty($connections[$uid])) {
-        unset($connections[$uid]);
+    // Unknown process API on other platforms: be conservative.
+    return true;
+}
+
+function workspaceWsWritePid(string $pidFile): void
+{
+    $directory = dirname($pidFile);
+    if (!is_dir($directory) && !@mkdir($directory, 0700, true) && !is_dir($directory)) {
+        throw new RuntimeException('Unable to create WebSocket runtime directory: ' . $directory);
     }
-};
+    if (!is_writable($directory)) {
+        throw new RuntimeException('WebSocket runtime directory is not writable: ' . $directory);
+    }
+    if (@file_put_contents($pidFile, (string) getmypid(), LOCK_EX) === false) {
+        throw new RuntimeException('Unable to write WebSocket PID file: ' . $pidFile);
+    }
+    @chmod($pidFile, 0600);
+}
 
-$worker->onConnect = function (TcpConnection $connection) use (&$connections, $allowedOrigins, $canUseMessenger): void {
-    $connection->authenticated = false;
-    $connection->pingWithoutResponseCount = 0;
+function workspaceWsStop(string $pidFile): int
+{
+    $pid = workspaceWsReadPid($pidFile);
+    if ($pid === null || !workspaceWsProcessExists($pid)) {
+        @unlink($pidFile);
+        fwrite(STDOUT, "WebSocket server is not running.\n");
+        return 0;
+    }
 
-    $connection->onWebSocketConnect = function (TcpConnection $connection) use (&$connections, $allowedOrigins, $canUseMessenger): void {
-        $origin = rtrim((string) ($_SERVER['HTTP_ORIGIN'] ?? ''), '/');
-        if ($allowedOrigins !== [] && ($origin === '' || !in_array($origin, $allowedOrigins, true))) {
-            error_log('Rejected WebSocket origin: ' . ($origin ?: '[missing]'));
-            $connection->close();
-            return;
-        }
+    $sent = false;
+    if (function_exists('posix_kill') && defined('SIGTERM')) {
+        $sent = @posix_kill($pid, SIGTERM);
+    } elseif (PHP_OS_FAMILY === 'Windows' && function_exists('exec')) {
+        $output = [];
+        $status = 1;
+        @exec('taskkill /PID ' . $pid . ' /T /F', $output, $status);
+        $sent = $status === 0;
+    }
 
-        $ticket = (string) ($_GET['ticket'] ?? '');
-        try {
-            $userId = SocketTicket::validate($ticket);
-        } catch (\Throwable $e) {
-            error_log('WebSocket ticket validation failed: ' . $e->getMessage());
-            $connection->close();
-            return;
-        }
+    if (!$sent) {
+        fwrite(STDERR, "Unable to signal WebSocket process {$pid}; stop it through the OS process manager.\n");
+        return 1;
+    }
 
-        if ($userId === null || !$canUseMessenger($userId)) {
-            $connection->close();
-            return;
-        }
+    $deadline = microtime(true) + 8.0;
+    while (microtime(true) < $deadline && workspaceWsProcessExists($pid)) {
+        usleep(100_000);
+    }
 
-        $user = UserModel::select('uid')->where('id', '=', $userId)->first();
-        if (!$user || empty($user->uid)) {
-            $connection->close();
-            return;
-        }
+    if (workspaceWsProcessExists($pid)) {
+        fwrite(STDERR, "WebSocket process {$pid} did not stop within timeout.\n");
+        return 1;
+    }
 
-        $connection->uid = (string) $user->uid;
-        $connection->userId = $userId;
-        $connection->authenticated = true;
-        $connectionKey = spl_object_id($connection);
-        $connections[$connection->uid][$connectionKey] = $connection;
+    @unlink($pidFile);
+    fwrite(STDOUT, "WebSocket server stopped.\n");
+    return 0;
+}
 
-        $connection->send(json_encode([
-            'action' => 'Authorized',
-            'user_uid' => $connection->uid,
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-    };
-};
+function workspaceWsDaemonize(): void
+{
+    if (PHP_OS_FAMILY === 'Windows' || !function_exists('pcntl_fork')) {
+        fwrite(STDERR, "Daemon mode requires pcntl on Unix. Use foreground mode with Open Server/background process manager on Windows.\n");
+        exit(2);
+    }
 
-$worker->onClose = function (TcpConnection $connection) use ($removeConnection): void {
-    $removeConnection($connection);
-};
+    $pid = pcntl_fork();
+    if ($pid === -1) {
+        throw new RuntimeException('Unable to fork WebSocket daemon');
+    }
+    if ($pid > 0) {
+        fwrite(STDOUT, "WebSocket daemon starting with PID {$pid}.\n");
+        exit(0);
+    }
 
-$worker->onWorkerStart = function () use (&$connections): void {
-    // core.php validates module manifests in the pre-fork master, but deliberately
-    // defers persisted lifecycle reconciliation. Reset any accidentally inherited
-    // singleton connection, then create the lifecycle store inside this worker so
-    // every PDO handle is process-local.
-    \Core\DatabaseManager::resetInstance();
-    \Core\ModuleRegistry::boot(
-        SITEPATH . '/modules',
-        \Core\Version::VERSION,
-        new \Core\ModuleLifecycleStore(\Core\DatabaseManager::getInstance())
-    );
+    if (function_exists('posix_setsid')) {
+        @posix_setsid();
+    }
+}
 
-    Timer::add(5, function () use (&$connections): void {
-        foreach (array_keys($connections) as $uid) {
-            foreach ($connections[$uid] ?? [] as $connectionKey => $connection) {
-                if ($connection->pingWithoutResponseCount >= 3) {
-                    unset($connections[$uid][$connectionKey]);
-                    $connection->destroy();
-                    continue;
-                }
+$command = strtolower((string) ($argv[1] ?? 'start'));
+$daemon = in_array('-d', $argv, true) || in_array('--daemon', $argv, true);
+$pidFile = workspaceWsPidFile();
 
-                $connection->send(json_encode(['action' => 'Ping']));
-                $connection->pingWithoutResponseCount++;
-            }
+if ($command === 'status') {
+    $pid = workspaceWsReadPid($pidFile);
+    if ($pid !== null && workspaceWsProcessExists($pid)) {
+        fwrite(STDOUT, "WebSocket server is running (PID {$pid}).\n");
+        exit(0);
+    }
+    @unlink($pidFile);
+    fwrite(STDOUT, "WebSocket server is not running.\n");
+    exit(1);
+}
 
-            if (empty($connections[$uid])) {
-                unset($connections[$uid]);
-            }
+if ($command === 'stop') {
+    exit(workspaceWsStop($pidFile));
+}
+
+if ($command === 'restart') {
+    $stopStatus = workspaceWsStop($pidFile);
+    if ($stopStatus !== 0) {
+        exit($stopStatus);
+    }
+    $command = 'start';
+}
+
+if (!in_array($command, ['start', 'run'], true)) {
+    fwrite(STDERR, "Usage: php ws_server/server.php start [-d] | status | stop | restart\n");
+    exit(2);
+}
+
+// From this point onward a real server process is being started. Keep every
+// startup failure inside one diagnostic boundary: Windows/OpenServer users
+// should never get a silent exit just because display_errors is disabled.
+try {
+    // Load the complete application stack including persisted module lifecycle state.
+    require_once SITEPATH . '/core.php';
+
+    // A disabled Messenger module must not have a parallel always-on WebSocket
+    // runtime. status/stop remain DB-independent above, while start/run fail
+    // closed unless the isolated Messenger provider is in the effective composition.
+    $moduleRuntime = \Core\ModuleRuntimeLoader::getInstance();
+    if (!isset($moduleRuntime->providers()['messenger'])) {
+        throw new RuntimeException('Messenger module is disabled in the effective module composition.');
+    }
+
+    $existingPid = workspaceWsReadPid($pidFile);
+    if ($existingPid !== null && workspaceWsProcessExists($existingPid)) {
+        throw new RuntimeException("WebSocket server is already running (PID {$existingPid}).");
+    }
+    @unlink($pidFile);
+
+    if ($daemon) {
+        workspaceWsDaemonize();
+    }
+
+    workspaceWsWritePid($pidFile);
+    $currentPid = getmypid();
+    register_shutdown_function(static function () use ($pidFile, $currentPid): void {
+        if (workspaceWsReadPid($pidFile) === $currentPid) {
+            @unlink($pidFile);
         }
     });
-};
 
-$worker->onMessage = function (TcpConnection $connection, string $message) use (&$connections, $allowedRoutes, $removeConnection, $canUseMessenger): void {
-    if (($connection->authenticated ?? false) !== true || !isset($connection->uid, $connection->userId)) {
-        $connection->close();
-        return;
+    $host = WebSocketEndpoint::bindHost();
+    $port = WebSocketEndpoint::port();
+    $publicUrl = WebSocketEndpoint::publicUrl();
+    $allowedOrigins = WebSocketEndpoint::allowedOrigins();
+    $maxConnections = (int) (getenv('WS_MAX_CONNECTIONS') ?: 256);
+    $maxPayloadBytes = (int) (getenv('WS_MAX_PAYLOAD_BYTES') ?: \App\Sockets\SocketFrameCodec::DEFAULT_MAX_PAYLOAD_BYTES);
+
+    error_log(sprintf(
+        'WebSocket listener configured: tcp://%s:%d; public=%s; runtime=native',
+        $host,
+        $port,
+        $publicUrl
+    ));
+    if (WebSocketEndpoint::usesSameOriginProxy()) {
+        error_log(sprintf(
+            'WebSocket reverse proxy required: %s -> %s',
+            WebSocketEndpoint::proxyPath(),
+            WebSocketEndpoint::proxyBackendUrl()
+        ));
     }
 
-    // Re-check the effective permission for every inbound message. Blocking,
-    // deactivation, role removal or module-permission revocation therefore takes
-    // effect without waiting for a new WebSocket connection.
-    if (!$canUseMessenger((int) $connection->userId)) {
-        $removeConnection($connection);
-        $connection->close();
-        return;
+    (new NativeMessengerServer(
+        $host,
+        $port,
+        $allowedOrigins,
+        $maxConnections,
+        $maxPayloadBytes
+    ))->run();
+} catch (Throwable $e) {
+    $logPath = (string) ini_get('error_log');
+    error_log('Native WebSocket server startup/runtime failure: ' . $e->getMessage());
+    fwrite(STDERR, "WebSocket server failed: " . $e->getMessage() . PHP_EOL);
+    if ($logPath !== '') {
+        fwrite(STDERR, "Startup/runtime log: {$logPath}" . PHP_EOL);
     }
-
-    $data = json_decode($message, true);
-    if (!is_array($data) || !is_string($data['action'] ?? null)) {
-        return;
-    }
-
-    $action = $data['action'];
-    if (substr_count($action, ':') !== 1) {
-        return;
-    }
-
-    [$className, $methodName] = explode(':', $action, 2);
-    if (!isset($allowedRoutes[$className]) || !in_array($methodName, $allowedRoutes[$className], true)) {
-        error_log(sprintf('Rejected WebSocket action: %s', $action));
-        return;
-    }
-
-    $fullClassName = 'App\\Sockets\\' . $className;
-    if (!class_exists($fullClassName) || !method_exists($fullClassName, $methodName)) {
-        error_log(sprintf('Configured WebSocket action is unavailable: %s', $action));
-        return;
-    }
-
-    $payload = $data['data'] ?? [];
-    if (!is_array($payload)) {
-        return;
-    }
-
-    unset($payload['user_uid'], $payload['user_id'], $payload['from_user_id']);
-
-    try {
-        $handler = new $fullClassName();
-        $handler->$methodName($connections, $connection, (string) $connection->uid, $payload);
-    } catch (\Throwable $e) {
-        error_log(sprintf('WebSocket handler failure for %s: %s', $action, $e->getMessage()));
-    }
-};
-
-Worker::runAll();
+    fwrite(STDERR, "Run: php bin/ws_doctor.php" . PHP_EOL);
+    exit(1);
+}

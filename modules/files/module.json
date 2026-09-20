@@ -3,11 +3,40 @@
   "id": "files",
   "name": "File Manager",
   "version": "0.13.0",
-  "core": {"min": "0.13.0-alpha", "max_exclusive": "0.15.0"},
+  "core": {
+    "min": "0.13.0-alpha",
+    "max_exclusive": "2.0.0"
+  },
   "dependencies": [],
-  "capabilities": ["workspace.files"],
-  "package": {"bundled": true, "default_enabled": true},
-  "license": {"feature": "workspace.files"},
-  "runtime": {"mode": "legacy"},
-  "storage_namespaces": ["file_manager"]
+  "capabilities": [
+    "workspace.files"
+  ],
+  "package": {
+    "bundled": true,
+    "default_enabled": true
+  },
+  "license": {
+    "feature": "workspace.files"
+  },
+  "runtime": {
+    "mode": "isolated",
+    "entrypoint": "runtime.php"
+  },
+  "storage_namespaces": [
+    "file_manager"
+  ],
+  "database": {
+    "tables": [
+      "user_files",
+      "user_storage_quotas"
+    ],
+    "schemas": [
+      "database/file_manager_module_schema.sql",
+      "database/file_storage_quota_schema.sql"
+    ],
+    "migrations": [
+      "database/migrations/20260914_storage_quota_legacy_reconcile.sql",
+      "database/migrations/20260913_system_settings_storage_quota.sql"
+    ]
+  }
 }

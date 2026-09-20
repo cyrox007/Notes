@@ -2,7 +2,7 @@ name: Registration browser lifecycle
 
 on:
   pull_request:
-    branches: [master]
+    branches: [master, '1.0']
   push:
     branches: [0.14-beta3-registration-policy]
 
@@ -54,8 +54,8 @@ jobs:
         run: |
           set -euo pipefail
           php -l app/controllers/AuthController.php
-          php -l app/controllers/Admin/UserProvisioningController.php
-          php -l app/controllers/Admin/RegistrationSettingsController.php
+          php -l modules/admin/controllers/UserProvisioningController.php
+          php -l modules/admin/controllers/RegistrationSettingsController.php
           php -l app/services/UserProvisioningService.php
           php -l app/services/RegistrationPolicyService.php
           php -l tests/e2e/router.php
@@ -133,6 +133,12 @@ jobs:
           CSRF_ENABLED=true
           ENV
           chmod 600 .env
+
+      - name: Activate ephemeral CI license
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/support/ci_license_fixture.php
 
       - name: Start subdirectory application
         shell: bash

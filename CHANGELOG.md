@@ -1,10 +1,42 @@
 # История версий Workspace Organizer
 
-Формат основан на принципах Keep a Changelog. Начиная с 0.14 проект находится в beta: совместимость upgrade-path и пользовательских данных является частью release contract; до 1.0 внутренние platform contracts ещё могут меняться через явные compatibility migrations. Canonical `*_schema.sql` остаются источником текущей схемы fresh install.
+Формат основан на принципах Keep a Changelog. Начиная с `1.0.0` проект имеет stable platform contract: совместимость upgrade-path и пользовательских данных является release contract, а изменения схемы выполняются через явные compatibility migrations. Canonical `*_schema.sql` остаются источником текущей схемы fresh install.
 
 ## Unreleased
 
-Основная цель после первого beta — `1.0.0` stable. Крупный пользовательский feature scope остаётся заморожен; приоритеты: отказ от сторонних runtime-библиотек, полная runtime-изоляция модулей, package compositions, signed updater/recovery, installation-wide licensing, observability, upgrade/load/soak/cross-browser evidence, key re-encryption и CSP hardening.
+После stable `1.0.0` изменения ведутся как отдельный maintenance/feature cycle без ретроактивного изменения опубликованных migration и trust contracts.
+
+## 1.0.0 — 2026-09-16
+
+### Stable runtime / security boundary
+- Runtime полностью отвязан от Composer `vendor/`: собственный Environment loader, native PHP view renderer и native RFC6455 WebSocket server работают из release bundle без сторонних PHP runtime packages.
+- Notes, Tasks, Files, Profile, Admin и Messenger работают через isolated module runtime; Core использует deterministic composition, module-owned DB metadata и composition-aware install/update/health contracts.
+- Request/Router boundary получил bounded strict JSON parsing, duplicate-route validation, fail-closed malformed requests, корректный 405 и типизированные route params.
+- CSP переведён на per-request cryptographic nonce: `unsafe-inline` удалён, inline event/style attributes запрещены contract-ом.
+- Hosting package исключает `.env`, `vendor/`, vendor signing tools и private signing material.
+
+### Installation-bound licensing
+- Добавлены стабильный `installation_id`, offline Ed25519 license, admin activation и recovery-safe read-only enforcement.
+- License trust registry содержит только public keys; private license signing key существует только в offline vendor domain.
+
+### Signed updater / rollback
+- Реализован независимый update-signing trust domain, signed manifest, SHA-256/compatibility verification, hardened public HTTPS delivery и immutable external staging.
+- ZIP audit выполняется до extraction; release candidate распаковывается вне live tree и проверяется по CRC, size и SHA-256 tree manifest.
+- Перед live mutation создаются и повторно проверяются code + consistent MySQL rollback backups и durable external transaction journal.
+- Migration preflight до destructive boundary является data-only: current updater читает candidate JSON/SQL и DB ledger без исполнения candidate PHP.
+- Controlled live switch, migrations, post-health/version/schema verification и WebSocket restart входят в одну recovery story; ошибка после boundary автоматически восстанавливает code + MySQL.
+- Crash recovery продолжает rollback по durable journal; при непроверенном rollback installation остаётся в maintenance с `rollback_failed`.
+
+### Delivery / release evidence
+- Admin UI умеет проверить signed feed и подготовить verified staged package, не открывая browser one-click destructive apply.
+- Trusted external `bin/update_bootstrap.php` закрывает первый переход с опубликованной `0.14.0-beta.4`, которая предшествует updater runtime.
+- CI drill устанавливает точную Beta4 через HTTP installer, доказывает signed upgrade до 1.0 и отдельно принудительный post-switch failure с automatic code + DB rollback до здоровой Beta4.
+- Добавлена resumable/rollback-safe ротация `UNIQUE_KEY` / `MSG_SECRET_KEY` с maintenance boundary, checkpoints и post-rotation verification.
+- Security observability пишет structured JSONL events вне application tree, редактирует чувствительный context и предоставляет threshold-based CLI summary/alerts.
+- Retention contract отделяет soft-delete/deactivation от irreversible purge, использует explicit preview/apply CLI, retention timestamps и fail-closed filesystem/account ownership guards.
+- Browser lifecycle coverage охватывает Notes, Tasks, Files, Profile и Admin; отдельный HTTPS/WSS smoke проверяет native Messenger realtime/reconnect path.
+- Добавлен release-evidence harness для Chromium/Firefox/WebKit desktop+mobile smoke и authenticated load/soak; финальный релиз требует green evidence на точном frozen SHA.
+- Завершён residual branch audit: полезные security/updater хвосты перенесены адаптированно, устаревшие ветки не мержились целиком.
 
 ## 0.14.0-beta.4 — 2026-09-15
 

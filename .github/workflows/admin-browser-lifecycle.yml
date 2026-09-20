@@ -4,7 +4,7 @@ on:
   push:
     branches: [usable-baseline-0.12-phase8]
   pull_request:
-    branches: [master, usable-baseline-0.12-phase7]
+    branches: [master, usable-baseline-0.12-phase7, '1.0']
 
 permissions:
   contents: read
@@ -36,7 +36,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
+          extensions: mysqli, pdo_mysql, mbstring, sodium, openssl, fileinfo, gd
           coverage: none
 
       - name: Install dependencies
@@ -49,27 +49,27 @@ jobs:
           npm install --no-save playwright@1.55.0
           npx playwright install --with-deps chromium
 
-      - name: Syntax contracts
+      - name: Syntax and isolated ownership contracts
         shell: bash
         run: |
           set -euo pipefail
-          php -l app/controllers/Admin/AdminController.php
-          php -l app/controllers/Admin/SettingsController.php
-          php -l app/services/PermissionService.php
-          php -l app/services/AdminUserService.php
-          php -l app/services/StorageQuotaService.php
-          php -l app/middlewares/RequirePermission.php
-          php -l app/middlewares/RequireAdminAccess.php
-          php -l app/middlewares/RequireAdminUsersManage.php
-          php -l app/middlewares/RequireAdminSettingsManage.php
+          find modules/admin -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          php -l tests/integration/native_admin_contract.php
+          php -l core/routerConfig.php
           php -l tests/e2e/router.php
+          php tests/integration/native_admin_contract.php
+          node --check modules/admin/assets/admin-page.js
+          node --check modules/admin/assets/admin-settings-nav.js
           node --check tests/e2e/admin-lifecycle.mjs
-          grep -Fq 'RequireAdminAccess::class' core/routerConfig.php
-          grep -Fq 'RequireAdminUsersManage::class' core/routerConfig.php
-          grep -Fq 'RequireAdminSettingsManage::class' core/routerConfig.php
-          ! grep -Fq 'IsAdmin::class' core/routerConfig.php
-          grep -Fq 'src="{$base_url}/assets/js/admin-page.js"' app/views/admin-page/index.tpl
-          ! grep -Fq 'src="/assets/js/admin-page.js"' app/views/admin-page/index.tpl
+          grep -Fq '"mode": "isolated"' modules/admin/module.json
+          grep -Fq 'RequireAdminAccess::class' modules/admin/AdminRuntimeProvider.php
+          grep -Fq 'RequireAdminUsersManage::class' modules/admin/AdminRuntimeProvider.php
+          grep -Fq 'RequireAdminSettingsManage::class' modules/admin/AdminRuntimeProvider.php
+          grep -Fq "admin_updates_stage" modules/admin/AdminRuntimeProvider.php
+          test ! -e app/controllers/Admin
+          test ! -e app/views/admin-page
+          test ! -e assets/js/admin-page.js
+          test ! -e assets/js/admin-settings-nav.js
 
       - name: Prepare canonical database
         shell: bash
@@ -174,6 +174,12 @@ jobs:
           printf 'E2E_USER=%s\n' 'admin-lifecycle-user' >> "$GITHUB_ENV"
           printf 'E2E_TARGET_USER=%s\n' 'admin-target-user' >> "$GITHUB_ENV"
           printf 'E2E_PASSWORD=%s\n' "$TEST_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Activate ephemeral CI license
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/support/ci_license_fixture.php
 
       - name: Start subdirectory application
         shell: bash

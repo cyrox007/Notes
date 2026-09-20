@@ -4,85 +4,41 @@ declare(strict_types=1);
 
 namespace Core;
 
-use Smarty\Smarty;
-use Smarty\Template;
 use App\Middlewares\CSRFMiddleware;
+use App\Services\LicenseRuntimePolicy;
 use App\Services\PermissionService;
 
 /**
- * Базовый класс контроллера
- * 
- * Предоставляет общую функциональность для всех контроллеров:
- * - Инициализация Smarty шаблонизатора
- * - Регистрация пользовательских функций для шаблонов
- * - CSRF защита для всех POST-запросов
- * - Методы рендеринга шаблонов и JSON ответов
- * 
- * @package Core
+ * Base HTTP controller.
+ *
+ * From 1.0 onward application views are rendered exclusively by the internal
+ * NativeViewRenderer. There is no Smarty/legacy fallback in the HTTP runtime.
  */
 class Controller
 {
-    /**
-     * @var Smarty Экземпляр Smarty
-     */
-    protected Smarty $smarty;
-    
-    /**
-     * @var Request Объект текущего запроса
-     */
     protected Request $request;
+    protected ViewRenderer $renderer;
+    protected ViewContext $viewContext;
 
-    /**
-     * Конструктор контроллера
-     * 
-     * Инициализирует:
-     * - Буферизацию вывода
-     * - Объект запроса
-     * - Smarty шаблонизатор с настройками путей
-     * - Пользовательские функции для шаблонов
-     * - CSRF middleware для защиты POST-запросов
-     */
     public function __construct()
     {
         ob_start();
         $this->request = new Request();
+        $this->viewContext = new ViewContext($this->request);
+        $moduleViewRoots = ModuleRuntimeLoader::isBooted()
+            ? ModuleRuntimeLoader::getInstance()->viewRoots()
+            : [];
+        $this->renderer = new NativeViewRenderer(
+            SITEPATH . '/app/views',
+            $this->viewContext,
+            $moduleViewRoots,
+        );
 
-        $this->smarty = new Smarty();
-        
-        // Настройка путей Smarty
-        $this->smarty->setTemplateDir(SITEPATH . '/app/views');
-        $this->smarty->setConfigDir(SITEPATH . '/config');
-        $this->smarty->setCompileDir(SITEPATH . '/compile');
-        $this->smarty->setCacheDir(SITEPATH . '/cache');
-
-        // Автоматическое экранирование HTML для безопасности
-        $this->smarty->setEscapeHtml(true);
-        
-        // Регистрация пользовательских функций для шаблонов
-        $this->smarty->registerPlugin('function', 'route_path', [$this, 'getRoutePath']);
-        $this->smarty->registerPlugin('function', 'csrf_token', [$this, 'getCSRFInputTag']);
-        $this->smarty->registerPlugin('function', 'session', [$this, 'getSession']);
-        $this->smarty->registerPlugin('function', 'jsonParse', [$this, 'jsonParse']);
-        $this->smarty->registerPlugin('function', 'file_get_contents', [$this, 'smarty_function_file_get_contents']);
-
-        // Регистрация PHP функций для использования в шаблонах
-        $this->smarty->registerPlugin('modifier', 'strpos', 'strpos');
-        $this->smarty->registerPlugin('modifier', 'round', 'round');
-        $this->smarty->registerPlugin('modifier', 'count', 'count');
-        $this->smarty->registerPlugin('modifier', 'in_array', 'in_array');
-
-        // Добавляем CSRF проверку для всех POST-запросов
-        $csrfMiddleware = new CSRFMiddleware();
-        $csrfMiddleware->handle();
+        // CSRF validation remains global for mutating HTTP requests and is
+        // independent from the selected presentation engine.
+        (new CSRFMiddleware())->handle();
     }
 
-    /**
-     * Деструктор контроллера
-     * 
-     * Обрабатывает буферизированный вывод:
-     * - Строки выводятся напрямую
-     * - Массивы/объекты конвертируются в JSON ответ
-     */
     public function __destruct()
     {
         $output = ob_get_clean();
@@ -96,175 +52,140 @@ class Controller
     }
 
     /**
-     * Генерирует URL для именованного маршрута
-     * 
-     * Используется в шаблонах как {route_path name='route_name' param1='value1'}
-     * 
-     * @param array<string, mixed> $params Параметры из шаблона:
-     *   - name: имя маршрута (обязательно)
-     *   - другие ключи: параметры для подстановки в маршрут
-     * @return string Сгенерированный URL или пустая строка если маршрут не найден
+     * Backward-compatible public helper retained for callers/tests while route
+     * generation is owned by ViewContext.
+     *
+     * @param array<string,mixed> $params
      */
     public function getRoutePath(array $params): string
     {
-        $routeManager = Router::getInstance();
-        
-        if (!isset($params['name'])) {
-            return '';
-        }
-
-        $route = $routeManager->getRoute($params['name']);
-        if ($route === '') {
-            return '';
-        }
-
-        // Заменяем параметры вида {type:param} на их значения
-        foreach ($params as $key => $value) {
-            if ($key !== 'name') {
-                $pattern = sprintf('/{%s:%s}/', '[a-zA-Z]+', $key);
-                $route = (string) preg_replace($pattern, (string) $value, $route);
-            }
-        }
-
-        return $route;
+        return $this->viewContext->routePath($params);
     }
 
-    /**
-     * Возвращает HTML input поле с CSRF токеном
-     * 
-     * Используется в шаблонах как {csrf_token}
-     * 
-     * @return string HTML код скрытого input поля с CSRF токеном
-     */
     public function getCSRFInputTag(): string
     {
-        return Helper::getCSRFInputTag();
+        return $this->viewContext->csrfInput();
     }
 
-    /**
-     * Получает значение из сессии
-     * 
-     * Используется в шаблонах как {session key='user_uid'}
-     * 
-     * @param array<string, mixed> $params Параметры из шаблона:
-     *   - key: ключ сессионной переменной
-     * @return string|null Значение сессии
-     */
+    /** @param array<string,mixed> $params */
     public function getSession(array $params): ?string
     {
-        return $this->request->session($params['key']) ?? null;
+        return $this->viewContext->sessionPlugin($params);
     }
 
     /**
-     * Парсит JSON строку и назначает результат в переменную шаблона.
-     * Smarty 5 передаёт в function-plugin текущий Template, а не Smarty engine.
+     * Render a logical application view through the internal native PHP engine.
+     * Isolated module views use the `@module-id/path` namespace and are resolved
+     * only from view roots registered by the active ModuleRuntimeLoader.
      *
-     * @param array<string, mixed> $params
-     */
-    public function jsonParse(array $params, Template $template): void
-    {
-        $template->assign($params['assign'], json_decode($params['json'], true));
-    }
-
-    /**
-     * Читает содержимое файла.
+     * `base_url` is intentionally a same-origin path prefix, not SITEURL. Static
+     * resources and in-app links must follow the protocol/authority of the HTTP
+     * request that actually loaded the page. SITEURL remains the canonical
+     * installation origin for the few services that explicitly need one.
      *
-     * @param array<string, mixed> $params
-     */
-    public function smarty_function_file_get_contents(array $params, Template $template): string
-    {
-        return file_get_contents($params['file']) ?: '';
-    }
-
-    /**
-     * Рендерит шаблон с данными
-     * 
-     * @param string $template Имя шаблона без расширения .tpl
-     * @param array<string, mixed>|null $data Ассоциативный массив данных для передачи в шаблон
+     * @param array<string,mixed>|null $data
      */
     protected function render_template(string $template, ?array $data = null): void
     {
-        $siteUrl = rtrim((string) getenv('SITEURL'), '/');
         $basePathSegment = trim((string) getenv('BASE_PATH'), '/');
         $basePath = $basePathSegment !== '' ? '/' . $basePathSegment : '';
-        $baseUrl = $siteUrl . $basePath;
-        
-        // Назначаем базовые переменные для всех шаблонов. base_url и base_path
-        // никогда не заканчиваются '/', поэтому HTML и JS могут безопасно
-        // строить пути как для корневой, так и для subdirectory установки.
-        $this->smarty->assign('base_url', $baseUrl);
-        $this->smarty->assign('base_path', $basePath);
-        $this->smarty->assign('sitename', getenv('SITENAME') ?: 'Workspace Organizer');
-        $this->smarty->assign('version', \Core\Version::VERSION);
-        $this->smarty->assign('product_name', \Core\Version::PRODUCT_NAME);
+        $baseUrl = $basePath;
+        $workspaceAccess = $this->workspaceAccess();
 
-        // Shared navigation follows the same persisted RBAC checks as routes.
-        // This is presentation only; middleware remains the authorization boundary.
-        $workspaceAccess = [
+        $viewData = [
+            'base_url' => $baseUrl,
+            'base_path' => $basePath,
+            'sitename' => getenv('SITENAME') ?: 'Workspace Organizer',
+            'version' => Version::VERSION,
+            'product_name' => Version::PRODUCT_NAME,
+            'workspaceAccess' => $workspaceAccess,
+            'licenseRuntime' => $this->licenseRuntimeState($workspaceAccess),
+        ];
+
+        if ($data !== null) {
+            $normalized = $this->convertObjectsToArray($data);
+            if (is_array($normalized)) {
+                // Preserve the legacy controller contract where explicitly
+                // supplied view variables can override common defaults.
+                $viewData = array_merge($viewData, $normalized);
+            }
+        }
+
+        $this->renderer->render($template, $viewData);
+    }
+
+    /** @return array{notes:bool,tasks:bool,files:bool,messenger:bool,profile:bool,admin:bool,license_manage:bool} */
+    private function workspaceAccess(): array
+    {
+        $access = [
             'notes' => false,
             'tasks' => false,
             'files' => false,
             'messenger' => false,
             'profile' => false,
             'admin' => false,
+            'license_manage' => false,
         ];
+
         $viewerId = (int) $this->request->session('user_id', 0);
-        if ($viewerId > 0) {
-            try {
-                $effectivePermissions = (new PermissionService())->permissionsForUser($viewerId);
-                $workspaceAccess = [
-                    'notes' => in_array('notes.use', $effectivePermissions, true),
-                    'tasks' => in_array('tasks.use', $effectivePermissions, true),
-                    'files' => in_array('files.use', $effectivePermissions, true),
-                    'messenger' => in_array('messenger.use', $effectivePermissions, true),
-                    'profile' => in_array('profile.use', $effectivePermissions, true),
-                    'admin' => in_array('admin.access', $effectivePermissions, true),
-                ];
-            } catch (\Throwable $e) {
-                error_log('Navigation RBAC evaluation failed: ' . $e->getMessage());
-            }
-        }
-        $this->smarty->assign('workspaceAccess', $workspaceAccess);
-
-        if ($data !== null) {
-            $data = $this->convertObjectsToArray($data);
-            foreach ($data as $varKey => $varValue) {
-                if (is_array($varValue)) {
-                    $data[$varKey] = $this->convertObjectsToArray($varValue);
-                }
-                $this->smarty->assign($varKey, $varValue);
-            }
+        if ($viewerId <= 0) {
+            return $access;
         }
 
-        $this->smarty->display("{$template}.tpl");
+        try {
+            $permissions = (new PermissionService())->permissionsForUser($viewerId);
+            return [
+                'notes' => in_array('notes.use', $permissions, true),
+                'tasks' => in_array('tasks.use', $permissions, true),
+                'files' => in_array('files.use', $permissions, true),
+                'messenger' => in_array('messenger.use', $permissions, true),
+                'profile' => in_array('profile.use', $permissions, true),
+                'admin' => in_array('admin.access', $permissions, true),
+                'license_manage' => in_array('admin.settings.manage', $permissions, true),
+            ];
+        } catch (\Throwable $e) {
+            error_log('Navigation RBAC evaluation failed: ' . $e->getMessage());
+            return $access;
+        }
     }
 
     /**
-     * Рекурсивно конвертирует объекты в массивы
-     * 
-     * @param mixed $data Данные для конвертации
-     * @return mixed
+     * @param array{notes:bool,tasks:bool,files:bool,messenger:bool,profile:bool,admin:bool,license_manage:bool} $access
+     * @return array{enforced:bool,writable:bool,code:string,message:string,can_manage:bool}
      */
+    private function licenseRuntimeState(array $access): array
+    {
+        if ((int) $this->request->session('user_id', 0) <= 0) {
+            return [
+                'enforced' => false,
+                'writable' => true,
+                'code' => 'anonymous',
+                'message' => '',
+                'can_manage' => false,
+            ];
+        }
+
+        $state = (new LicenseRuntimePolicy())->state();
+        $state['can_manage'] = (bool) ($access['license_manage'] ?? false);
+        return $state;
+    }
+
     private function convertObjectsToArray(mixed $data): mixed
     {
         if (is_object($data)) {
             $data = get_object_vars($data);
         }
-        
+
         if (is_array($data)) {
             foreach ($data as $key => $value) {
                 $data[$key] = $this->convertObjectsToArray($value);
             }
         }
-        
+
         return $data;
     }
 
-    /**
-     * Отправляет JSON ответ
-     * 
-     * @param array<string, mixed> $data Данные для кодирования
-     */
+    /** @param array<string,mixed> $data */
     protected function responseJson(array $data): void
     {
         header('Content-Type: application/json');

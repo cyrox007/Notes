@@ -1,10 +1,15 @@
 name: File Manager browser lifecycle
 
 on:
-  push:
-    branches: [usable-baseline-0.12-phase6, 0.13-file-manager-polish, 0.13-file-manager-drop-upload]
   pull_request:
-    branches: [master, usable-baseline-0.12-phase5, 0.13-ux-foundation, 0.13-file-manager-polish]
+    branches: [master, '1.0']
+  push:
+    branches: ['1.0']
+    paths:
+      - 'modules/files/**'
+      - 'app/views/core/base.php'
+      - 'tests/e2e/file-manager-*.mjs'
+      - '.github/workflows/file-manager-browser-lifecycle.yml'
 
 permissions:
   contents: read
@@ -39,8 +44,34 @@ jobs:
           extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
           coverage: none
 
-      - name: Install dependencies
-        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress
+      - name: Prove vendor-free isolated Files runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf vendor
+          test ! -e vendor
+          php -l modules/files/runtime.php
+          find modules/files -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          php -l tests/e2e/router.php
+          node --check modules/files/assets/script.js
+          node --check modules/files/assets/quota.js
+          node --check modules/files/assets/polish.js
+          node --check modules/files/assets/drop-upload.js
+          node --check tests/e2e/file-manager-lifecycle.mjs
+          node --check tests/e2e/file-manager-ux-contract.mjs
+          grep -Fq "'mode': 'isolated'" <(python3 - <<'PY'
+          import json
+          print(repr(json.load(open('modules/files/module.json'))['runtime']))
+          PY
+          )
+          grep -Fq "moduleAsset('files', 'script.js')" modules/files/views/index.php
+          grep -Fq "moduleAsset('files', 'quota.css')" modules/files/views/index.php
+          grep -Fq "moduleAsset('files', 'quota.js')" modules/files/views/index.php
+          test -s modules/files/assets/quota.css
+          ! grep -Fq '/assets/css/file_manager/quota.css' modules/files/assets/quota.js
+          test ! -e app/views/file_manager/index.tpl
+          test ! -e app/controllers/FileController.php
+          test ! -e assets/js/file_manager/script.js
 
       - name: Install Chromium
         shell: bash
@@ -48,24 +79,6 @@ jobs:
           set -euo pipefail
           npm install --no-save playwright@1.55.0
           npx playwright install --with-deps chromium
-
-      - name: Syntax contracts
-        shell: bash
-        run: |
-          set -euo pipefail
-          php -l app/controllers/FileController.php
-          php -l app/controllers/FileDeleteController.php
-          php -l app/controllers/FileQuotaController.php
-          php -l tests/e2e/router.php
-          node --check assets/js/file-manager-polish.js
-          node --check assets/js/file-manager-drop-upload.js
-          node --check tests/e2e/file-manager-lifecycle.mjs
-          node --check tests/e2e/file-manager-ux-contract.mjs
-          grep -Fq "route_path name='files_quota'" app/views/file_manager/index.tpl
-          grep -Fq 'assets/js/file-manager-polish.js' app/views/core/base.tpl
-          grep -Fq 'assets/js/file-manager-drop-upload.js' app/views/core/base.tpl
-          ! grep -Fq 'href="/files/' app/views/file_manager/index.tpl
-          ! grep -Fq 'src="/assets/' app/views/file_manager/index.tpl
 
       - name: Prepare canonical database
         shell: bash
@@ -168,6 +181,12 @@ jobs:
           printf 'E2E_USER=%s\n' 'file-manager-lifecycle-user' >> "$GITHUB_ENV"
           printf 'E2E_PASSWORD=%s\n' "$TEST_PASSWORD" >> "$GITHUB_ENV"
 
+      - name: Activate ephemeral CI license
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/support/ci_license_fixture.php
+
       - name: Start subdirectory application
         shell: bash
         run: |
@@ -188,7 +207,7 @@ jobs:
             exit 1
           fi
 
-      - name: Run File Manager 0.13 UX contract
+      - name: Run File Manager UX contract
         shell: bash
         env:
           E2E_ORIGIN: http://127.0.0.1:18091

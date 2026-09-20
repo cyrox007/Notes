@@ -8,14 +8,14 @@ if (PHP_SAPI !== 'cli') {
 }
 
 $root = dirname(__DIR__);
-require $root . '/vendor/autoload.php';
-if (class_exists(Dotenv\Dotenv::class) && is_file($root . '/.env')) {
-    Dotenv\Dotenv::createUnsafeImmutable($root)->safeLoad();
+require_once $root . '/core/Environment.php';
+if (is_file($root . '/.env')) {
+    \Core\Environment::load($root . '/.env');
 }
 require $root . '/core/config.php';
 require $root . '/core/DatabaseManager.php';
 require $root . '/app/handlers/CryptMethods.php';
-require $root . '/app/handlers/MessengerCrypto.php';
+require $root . '/modules/messenger/handlers/MessengerCrypto.php';
 require $root . '/app/services/CryptoMigrationService.php';
 
 $options = getopt('', [

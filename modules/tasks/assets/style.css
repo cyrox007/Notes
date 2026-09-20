@@ -1,0 +1,51 @@
+.tasks{width:100%;max-width:100%;min-width:0;display:grid;gap:12px;overflow-x:hidden}
+.tasks__stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.stat-card{position:relative;overflow:hidden;min-height:62px;padding:12px 14px;display:flex;align-items:center;gap:12px;border:1px solid var(--ui-border);border-radius:12px;background:var(--ui-surface);box-shadow:var(--ui-shadow-sm)}
+.stat-card::after{content:"";position:absolute;inset:auto 0 0;height:3px;background:var(--ui-border)}
+.stat-pending::after{background:var(--ui-warning)}.stat-in_progress::after{background:var(--ui-info)}.stat-completed::after{background:var(--ui-success)}.stat-overdue::after{background:var(--ui-danger)}
+.stat-value{display:block;font-size:23px;font-weight:800;line-height:1}.stat-label{display:block;margin-top:0;color:var(--ui-muted);font-size:12px;font-weight:700}
+.tasks__controls{min-width:0;display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;padding:0;background:transparent}
+.tasks__filters{min-width:0;max-width:100%;display:flex;align-items:center;gap:4px;min-width:0;overflow:auto}
+.filter-btn,.tasks-view-switch__button{height:32px;border:0;border-radius:8px;padding:0 10px;background:transparent;color:var(--ui-muted);font-weight:700;white-space:nowrap;cursor:pointer}
+.filter-btn:hover,.filter-btn.active,.tasks-view-switch__button.active{background:var(--module-soft);color:var(--module-accent)}
+.btn-primary{background:var(--ui-action);color:#fff}.btn-primary:hover{filter:brightness(.96)}
+.btn-secondary{border:1px solid var(--ui-border);background:var(--ui-surface);color:var(--ui-text)}
+.btn-secondary:hover{background:var(--ui-surface-soft)}
+.tasks__list{display:grid;gap:8px}
+.tasks__empty{padding:40px 20px;border:1px dashed var(--ui-border-strong);border-radius:12px;text-align:center;color:var(--ui-muted);background:var(--ui-surface)}
+.task-item{position:relative;padding:13px 14px;border:1px solid var(--ui-border);border-radius:12px;background:var(--ui-surface);box-shadow:var(--ui-shadow-sm)}
+.task-header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.task-title-section{min-width:0;display:flex;align-items:flex-start;gap:8px}
+.task-complete-toggle,.subtask-toggle{accent-color:var(--module-accent)}
+.task-title{margin:0;font-size:14px;font-weight:750;line-height:1.3}.task-title.completed{text-decoration:line-through;color:var(--ui-muted)}
+.task-priority-badge,.category-badge{display:inline-flex;align-items:center;min-height:22px;padding:0 7px;border-radius:999px;background:var(--ui-surface-soft);color:var(--ui-muted);font-size:12px;font-weight:800}
+.task-priority-low{--priority:#5b9cf0}.task-priority-medium{--priority:#d6a039}.task-priority-high{--priority:#e17749}.task-priority-urgent{--priority:var(--ui-danger)}
+.task-item[class*="task-priority-"]{border-left:3px solid var(--priority,var(--ui-border))}
+.task-actions{display:flex;gap:4px;flex:0 0 auto}.task-status-toggle{min-width:110px}
+.btn-icon{width:30px;height:30px;display:grid;place-items:center;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--ui-muted);cursor:pointer}.btn-icon:hover{background:var(--ui-surface-soft);color:var(--ui-text)}.delete-task:hover{background:var(--ui-danger-soft);color:var(--ui-danger)}
+.task-description{margin:8px 0 0;color:var(--ui-muted);font-size:12px}.task-description p{margin:0}
+.task-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:9px;color:var(--ui-muted);font-size:12px}
+.task-due-date.overdue{color:var(--ui-danger)}
+.task-categories{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px}
+.task-info{display:flex;gap:8px;align-items:center}
+.task-subtasks{margin-top:10px;padding:10px;border-radius:10px;background:var(--ui-surface-soft)}
+.subtasks-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;font-size:12px;font-weight:800;color:var(--ui-muted)}
+.subtasks-list{display:grid;gap:4px}.subtask-item{display:flex;align-items:center;gap:7px;min-height:28px}.subtask-item.completed .subtask-title{text-decoration:line-through;color:var(--ui-muted)}.subtask-title{font-size:12px}
+.task-subtasks-empty{color:var(--ui-muted);font-size:12px}
+.btn-sm{min-height:28px;padding:0 8px;font-size:12px}
+.modal-content{padding:16px}.close-modal{float:right;width:30px;height:30px;border:0;border-radius:8px;background:transparent;color:var(--ui-muted);cursor:pointer}.close-modal:hover{background:var(--ui-surface-soft);color:var(--ui-text)}
+.task-form{display:grid;gap:11px}.task-form .form-group{display:grid;gap:5px}.task-form label{font-size:12px;font-weight:800;color:var(--ui-muted)}.task-form textarea{min-height:100px}.form-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.form-actions{display:flex;justify-content:flex-end;gap:7px;margin-top:4px}
+.tasks__shared-boards-link{color:var(--module-accent);font-weight:700}
+@media(max-width:900px){.tasks__stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.tasks__stats{grid-template-columns:1fr 1fr}.tasks__controls{align-items:stretch;flex-direction:column}.task-header{flex-direction:column}.task-actions{width:100%;justify-content:flex-end}.form-row{grid-template-columns:1fr}}
+
+.tasks-view-switch{margin-right:auto}
+.tasks__filter-panel{position:relative}
+.tasks__filter-panel summary,.tasks__category-create summary{min-height:36px;display:flex;align-items:center;gap:7px;padding:0 10px;cursor:pointer;color:var(--ui-muted);font-size:13px;list-style:none}
+.tasks__filter-panel summary{border:1px solid var(--ui-border);border-radius:9px;background:var(--ui-surface)}
+.tasks__filter-panel[open]{flex-basis:100%;order:2;display:grid;gap:10px;padding:10px;border:1px solid var(--ui-border);border-radius:10px;background:var(--ui-surface)}
+.tasks__category-create{order:5}
+.tasks__category-create[open] .category-create-form{padding:12px}
+.tasks__sort-form select{width:auto;max-width:100%}
+.tasks__sort-form label{display:flex;align-items:center;gap:8px}
+@media(max-width:620px){.tasks__controls{flex-direction:row}.tasks-view-switch{width:100%}.tasks__sort-form label{align-items:stretch;flex-direction:column}.tasks__controls>.btn-primary{margin-left:auto}.tasks__controls>.btn-secondary{font-size:12px}}

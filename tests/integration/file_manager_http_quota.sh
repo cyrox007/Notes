@@ -81,6 +81,8 @@ MAX_UPLOAD_SIZE=10485760
 EOF
 chmod 600 .env
 
+php tests/support/ci_license_fixture.php
+
 checkpoint 'seed user and valid minimum quota'
 HASH="$(php -r 'echo password_hash($argv[1], PASSWORD_ARGON2ID);' "$PASSWORD")"
 "${mysql_cmd[@]}" <<SQL
@@ -136,16 +138,17 @@ login_session() {
   local token_file="$2"
   local html="${jar}.login.html"
   local headers="${jar}.login.headers"
-  rm -f "$jar" "$html" "$headers"
+  local authenticated_html="${jar}.authenticated.html"
+  rm -f "$jar" "$html" "$headers" "$authenticated_html"
   curl -sS -c "$jar" -b "$jar" "${BASE_URL}/auth/login/" > "$html"
-  local token
-  token="$(extract_csrf "$html")"
+  local anonymous_token
+  anonymous_token="$(extract_csrf "$html")"
   local status
   status="$(curl -sS -o /tmp/file-http-login-post.html -D "$headers" -w '%{http_code}' \
     -c "$jar" -b "$jar" \
     --data-urlencode "login=${USERNAME}" \
     --data-urlencode "password=${PASSWORD}" \
-    --data-urlencode "csrf_token=${token}" \
+    --data-urlencode "csrf_token=${anonymous_token}" \
     "${BASE_URL}/auth/login/")"
   if [[ "$status" != '302' ]]; then
     echo "login returned HTTP ${status}" >&2
@@ -153,7 +156,23 @@ login_session() {
     return 1
   fi
   grep -Eiq '^Location: /' "$headers"
-  printf '%s' "$token" > "$token_file"
+
+  # Login intentionally rotates both the session ID and CSRF token. Fetch an
+  # authenticated native page and use the fresh token exactly as a browser does.
+  local authenticated_status
+  authenticated_status="$(curl -sS -o "$authenticated_html" -w '%{http_code}' -c "$jar" -b "$jar" "${BASE_URL}/files/")"
+  if [[ "$authenticated_status" != '200' ]]; then
+    echo "authenticated Files page returned HTTP ${authenticated_status}" >&2
+    cat "$authenticated_html" >&2 || true
+    return 1
+  fi
+  local authenticated_token
+  authenticated_token="$(extract_csrf "$authenticated_html")"
+  if [[ "$authenticated_token" == "$anonymous_token" ]]; then
+    echo 'CSRF token was not rotated across authentication boundary' >&2
+    return 1
+  fi
+  printf '%s' "$authenticated_token" > "$token_file"
 }
 
 upload_file() {

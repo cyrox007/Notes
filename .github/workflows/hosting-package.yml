@@ -2,12 +2,17 @@ name: Build hosting package
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version label, for example v1.0.0'
+        required: true
+        type: string
   push:
     tags:
       - 'v*'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   package:
@@ -22,20 +27,61 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
+          extensions: mysqli, pdo_mysql, mbstring, sodium, openssl, fileinfo, gd
           coverage: none
 
-      - name: Install production dependencies
-        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress
+      - name: Verify vendor-free application runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf vendor
+          test ! -e vendor
+          test "$(php -r '$j=json_decode(file_get_contents("composer.lock"),true); echo count($j["packages"] ?? []);')" = '0'
+          ! grep -Fq 'vendor/autoload.php' core.php
+          ! grep -R -F 'Workerman\\' modules/messenger/socket ws_server core.php
+          php -l core.php
+          php -l install.php
+          php -l ws_server/server.php
+          php -l bin/update.php
+          php -l bin/update_remote.php
+          php -l bin/update_backup.php
+          php -l bin/update_candidate.php
+          php -l bin/update_apply.php
+          php -l core/UpdateManifestVerifier.php
+          php -l core/UpdatePackageStager.php
+          php -l core/UpdateArchiveInspector.php
+          php -l core/UpdateRemoteTransport.php
+          php -l core/UpdateRemoteDelivery.php
+          php -l core/UpdateTransactionJournal.php
+          php -l core/UpdateTransactionStateMachine.php
+          php -l core/UpdateBackupManager.php
+          php -l core/UpdateReleaseCandidate.php
+          php -l core/UpdateLiveApplier.php
+          php -l core/UpdateApplyOperationLock.php
+          php -l core/UpdateRollbackCodeRestorer.php
+          php -l core/MigrationManifest.php
+          php -l core/UpdateMigrationPreflight.php
+          php -l core/UpdateApplyCommand.php
+          php -r '$m=json_decode(file_get_contents("database/migrations/manifest.json"),true,32,JSON_THROW_ON_ERROR); if (($m["schema"]??null)!==1 || ($m["product"]??null)!=="workspace-organizer" || !is_array($m["migrations"]??null)) exit(1);'
+          php tests/integration/native_view_renderer_contract.php
+          php tests/integration/native_websocket_protocol_contract.php
+          php tests/integration/signed_update_foundation_contract.php
+          php tests/integration/updater_remote_delivery_contract.php
+          php tests/integration/update_release_candidate_contract.php
+          php tests/integration/updater_live_apply_contract.php
+          php tests/integration/updater_recovery_invariants_contract.php
 
       - name: Build hosting bundle
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="${GITHUB_REF_NAME:-manual}"
-          if [[ "$VERSION" == "hosting-installer-e2e" || "$VERSION" == "master" ]]; then
-            VERSION="manual-${GITHUB_SHA::8}"
+          EXPECTED_VERSION="v$(php -r 'require "core/Version.php"; echo Core\Version::VERSION;')"
+          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+            VERSION="$GITHUB_REF_NAME"
+          else
+            VERSION="${{ inputs.version }}"
           fi
+          test "$VERSION" = "$EXPECTED_VERSION"
           NAME="workspace-organizer-${VERSION}"
           ROOT="/tmp/$NAME"
           rm -rf "$ROOT"
@@ -45,13 +91,49 @@ jobs:
             --exclude '.github' \
             --exclude '.env' \
             --exclude '.logs' \
+            --exclude 'tests' \
+            --exclude 'tools' \
+            --exclude 'vendor' \
             --exclude 'cache/*' \
             --exclude 'compile/*' \
             --exclude 'notes-private-storage' \
+            --exclude '*.license-secret' \
+            --exclude 'workspace-license-*.secret' \
+            --exclude '*.update-secret' \
+            --exclude 'workspace-update-*.secret' \
             --exclude '*.log'
           mkdir -p "$ROOT/cache" "$ROOT/compile"
-          test -f "$ROOT/vendor/autoload.php"
+          test ! -e "$ROOT/vendor"
+          test ! -e "$ROOT/tests"
+          test ! -e "$ROOT/tools"
           test -f "$ROOT/install.php"
+          test -f "$ROOT/core/NativeViewRenderer.php"
+          test -f "$ROOT/modules/messenger/socket/NativeMessengerServer.php"
+          test ! -e "$ROOT/app/socket/NativeMessengerServer.php"
+          test -f "$ROOT/config/license_trusted_keys.php"
+          test -f "$ROOT/config/update_trusted_keys.php"
+          test -f "$ROOT/bin/update.php"
+          test -f "$ROOT/bin/update_remote.php"
+          test -f "$ROOT/bin/update_backup.php"
+          test -f "$ROOT/bin/update_candidate.php"
+          test -f "$ROOT/bin/update_apply.php"
+          test -f "$ROOT/bin/maintenance.php"
+          test -f "$ROOT/core/UpdateManifestVerifier.php"
+          test -f "$ROOT/core/UpdatePackageStager.php"
+          test -f "$ROOT/core/UpdateArchiveInspector.php"
+          test -f "$ROOT/core/UpdateRemoteTransport.php"
+          test -f "$ROOT/core/UpdateRemoteDelivery.php"
+          test -f "$ROOT/core/UpdateTransactionJournal.php"
+          test -f "$ROOT/core/UpdateTransactionStateMachine.php"
+          test -f "$ROOT/core/UpdateBackupManager.php"
+          test -f "$ROOT/core/UpdateReleaseCandidate.php"
+          test -f "$ROOT/core/UpdateLiveApplier.php"
+          test -f "$ROOT/core/UpdateApplyOperationLock.php"
+          test -f "$ROOT/core/UpdateRollbackCodeRestorer.php"
+          test -f "$ROOT/core/MigrationManifest.php"
+          test -f "$ROOT/core/UpdateMigrationPreflight.php"
+          test -f "$ROOT/core/UpdateApplyCommand.php"
+          test -f "$ROOT/database/migrations/manifest.json"
           test ! -e "$ROOT/.env"
           cd /tmp
           zip -qr "$GITHUB_WORKSPACE/$NAME.zip" "$NAME"
@@ -62,18 +144,86 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          unzip -l "$BUNDLE" | grep -F 'vendor/autoload.php'
           unzip -l "$BUNDLE" | grep -F 'install.php'
+          unzip -l "$BUNDLE" | grep -F 'core/NativeViewRenderer.php'
+          unzip -l "$BUNDLE" | grep -F 'modules/messenger/socket/NativeMessengerServer.php'
+          if unzip -l "$BUNDLE" | grep -Fq 'app/socket/NativeMessengerServer.php'; then
+            echo 'Bundle contains obsolete pre-isolation Messenger socket path' >&2
+            exit 1
+          fi
+          unzip -l "$BUNDLE" | grep -F 'config/license_trusted_keys.php'
+          unzip -l "$BUNDLE" | grep -F 'config/update_trusted_keys.php'
+          unzip -l "$BUNDLE" | grep -F 'bin/update.php'
+          unzip -l "$BUNDLE" | grep -F 'bin/update_remote.php'
+          unzip -l "$BUNDLE" | grep -F 'bin/update_backup.php'
+          unzip -l "$BUNDLE" | grep -F 'bin/update_candidate.php'
+          unzip -l "$BUNDLE" | grep -F 'bin/update_apply.php'
+          unzip -l "$BUNDLE" | grep -F 'bin/maintenance.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateManifestVerifier.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdatePackageStager.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateArchiveInspector.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateRemoteTransport.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateRemoteDelivery.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateTransactionJournal.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateTransactionStateMachine.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateBackupManager.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateReleaseCandidate.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateLiveApplier.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateApplyOperationLock.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateRollbackCodeRestorer.php'
+          unzip -l "$BUNDLE" | grep -F 'core/MigrationManifest.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateMigrationPreflight.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateApplyCommand.php'
+          unzip -l "$BUNDLE" | grep -F 'database/migrations/manifest.json'
+          if unzip -l "$BUNDLE" | grep -Eq '/vendor/'; then
+            echo 'Vendor-free bundle must not contain vendor/'
+            exit 1
+          fi
+          if unzip -l "$BUNDLE" | grep -Eq '/tests/|/tools/'; then
+            echo 'Customer bundle must not contain tests/ or internal tools/' >&2
+            exit 1
+          fi
           if unzip -l "$BUNDLE" | grep -Eq '/\.env$'; then
             echo 'Bundle must not contain .env'
             exit 1
           fi
+          if unzip -l "$BUNDLE" | grep -Eq '/tools/vendor-license/|\.license-secret$|workspace-license-[^/]*\.secret$'; then
+            echo 'Customer bundle must not contain license vendor signing tools or private signing material'
+            exit 1
+          fi
+          if unzip -l "$BUNDLE" | grep -Eq '/tools/vendor-update/|\.update-secret$|workspace-update-[^/]*\.secret$'; then
+            echo 'Customer bundle must not contain update vendor signing tools or private update-signing material'
+            exit 1
+          fi
 
-      - name: Upload workflow artifact
+      - name: Record immutable bundle checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUNDLE_DIR="$(dirname "$BUNDLE")"
+          BUNDLE_FILE="$(basename "$BUNDLE")"
+          CHECKSUM_FILE="$BUNDLE.sha256"
+          SOURCE_SHA_FILE="$BUNDLE.source-sha"
+          (
+            cd "$BUNDLE_DIR"
+            sha256sum "$BUNDLE_FILE"
+          ) > "$CHECKSUM_FILE"
+          printf '%s\n' "$GITHUB_SHA" > "$SOURCE_SHA_FILE"
+          test -s "$CHECKSUM_FILE"
+          test "$(cat "$SOURCE_SHA_FILE")" = "$GITHUB_SHA"
+          cat "$CHECKSUM_FILE"
+          echo "Source SHA: $GITHUB_SHA"
+          echo "BUNDLE_CHECKSUM=$CHECKSUM_FILE" >> "$GITHUB_ENV"
+          echo "BUNDLE_SOURCE_SHA=$SOURCE_SHA_FILE" >> "$GITHUB_ENV"
+
+      - name: Upload immutable release-candidate artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.BUNDLE_NAME }}
-          path: ${{ env.BUNDLE }}
+          path: |
+            ${{ env.BUNDLE }}
+            ${{ env.BUNDLE_CHECKSUM }}
+            ${{ env.BUNDLE_SOURCE_SHA }}
           if-no-files-found: error
           retention-days: 14
 
@@ -85,31 +235,3 @@ jobs:
           EXPECTED_TAG="v$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")"
           test "$GITHUB_REF_NAME" = "$EXPECTED_TAG"
           echo "Release tag matches application version: $EXPECTED_TAG"
-
-      - name: Publish tagged release asset
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          RELEASE_FLAGS=()
-          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
-            RELEASE_FLAGS+=(--prerelease)
-          fi
-
-          NOTES_FLAGS=(--generate-notes)
-          NOTES_FILE="docs/releases/${GITHUB_REF_NAME}.md"
-          if [[ -f "$NOTES_FILE" ]]; then
-            NOTES_FLAGS=(--notes-file "$NOTES_FILE")
-          fi
-
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "$BUNDLE" --clobber
-          else
-            gh release create "$GITHUB_REF_NAME" "$BUNDLE" \
-              --title "$GITHUB_REF_NAME" \
-              "${RELEASE_FLAGS[@]}" \
-              "${NOTES_FLAGS[@]}"
-          fi

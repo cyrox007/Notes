@@ -152,6 +152,12 @@ try {
   // Playwright dragTo does not consistently preserve an HTML5 DataTransfer in
   // headless Chromium. Dispatch the browser's native DragEvent sequence with one
   // DataTransfer object so the product dragstart/drop handlers are exercised.
+  const statusSave = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return response.request().method() === 'POST'
+      && url.pathname.endsWith(`/tasks/${taskUid}/update`);
+  }, { timeout: 10000 });
+
   await page.evaluate((uid) => {
     const item = document.querySelector(`.task-item[data-task-id="${uid}"]`);
     const handle = item?.querySelector('.tasks-board__drag-handle');
@@ -165,16 +171,35 @@ try {
     handle.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer: transfer }));
   }, taskUid);
 
-  await page.waitForFunction(
-    (uid) => {
-      const item = document.querySelector(`.task-item[data-task-id="${uid}"]`);
-      return item?.parentElement?.dataset.status === 'completed'
-        && item?.querySelector('.task-status-toggle')?.value === 'completed'
-        && item?.querySelector('.task-complete-toggle')?.checked === true;
-    },
-    taskUid,
-    { timeout: 10000 }
-  );
+  const statusResponse = await statusSave;
+  if (!statusResponse.ok()) {
+    throw new Error(`Kanban status save returned HTTP ${statusResponse.status()}`);
+  }
+
+  await page.waitForFunction((uid) => {
+    const item = document.querySelector(`.task-item[data-task-id="${uid}"]`);
+    return item?.dataset.status === 'completed';
+  }, taskUid, { timeout: 5000 });
+
+  const dragState = await page.evaluate((uid) => {
+    const item = document.querySelector(`.task-item[data-task-id="${uid}"]`);
+    return {
+      exists: Boolean(item),
+      status: item?.dataset.status || null,
+      column: item?.closest('.tasks-board__dropzone')?.dataset.status || null,
+      select: item?.querySelector('.task-status-toggle')?.value || null,
+      complete: item?.querySelector('.task-complete-toggle')?.checked ?? null,
+      saveState: item?.dataset.saveState || null,
+    };
+  }, taskUid);
+  if (
+    dragState.status !== 'completed'
+    || dragState.column !== 'completed'
+    || dragState.select !== 'completed'
+    || dragState.complete !== true
+  ) {
+    throw new Error(`Kanban UI did not synchronize completed status: ${JSON.stringify(dragState)}`);
+  }
   if (page.url() !== inlineUrl) throw new Error('Kanban drag unexpectedly navigated the page');
 
   await page.getByRole('button', { name: /Список/ }).click();
@@ -185,6 +210,9 @@ try {
   await page.locator(`.tasks-board__dropzone[data-status="completed"] .task-item[data-task-id="${taskUid}"]`)
     .waitFor({ state: 'visible', timeout: 5000 });
 
+  if (await page.locator('.tasks__filter-panel').getAttribute('open') === null) {
+    await page.locator('.tasks__filter-panel > summary').click();
+  }
   await page.locator('.tasks__sort-form select[name="sort"]').selectOption('title');
   await page.locator('.tasks__sort-form select[name="direction"]').selectOption('asc');
   await Promise.all([

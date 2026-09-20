@@ -3,11 +3,43 @@
   "id": "notes",
   "name": "Notes",
   "version": "0.13.0",
-  "core": {"min": "0.13.0-alpha", "max_exclusive": "0.15.0"},
+  "core": {
+    "min": "0.13.0-alpha",
+    "max_exclusive": "2.0.0"
+  },
   "dependencies": [],
-  "capabilities": ["workspace.notes"],
-  "package": {"bundled": true, "default_enabled": true},
-  "license": {"feature": "workspace.notes"},
-  "runtime": {"mode": "legacy"},
-  "storage_namespaces": ["notes"]
+  "capabilities": [
+    "workspace.notes"
+  ],
+  "package": {
+    "bundled": true,
+    "default_enabled": true
+  },
+  "license": {
+    "feature": "workspace.notes"
+  },
+  "runtime": {
+    "mode": "isolated",
+    "entrypoint": "runtime.php"
+  },
+  "storage_namespaces": [
+    "notes"
+  ],
+  "database": {
+    "tables": [
+      "notes",
+      "note_attachments",
+      "shared_notes",
+      "note_history",
+      "note_tags",
+      "note_tag_relations"
+    ],
+    "schemas": [
+      "database/notes_schema.sql"
+    ],
+    "migrations": [
+      "database/migrations/20260913_notes_private_attachments.sql",
+      "database/migrations/20260918_notes_retention_timestamps.sql"
+    ]
+  }
 }

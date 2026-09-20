@@ -2,7 +2,7 @@ name: Messenger media cleanup
 
 on:
   pull_request:
-    branches: [master]
+    branches: [master, '1.0']
   push:
     branches: [messenger-groups]
 
@@ -44,7 +44,7 @@ jobs:
 
       - name: Cleanup PHP syntax
         run: |
-          php -l app/services/MessengerMediaCleanupService.php
+          php -l modules/messenger/services/MessengerMediaCleanupService.php
           php -l bin/cleanup_messenger_orphans.php
 
       - name: Prepare schema
@@ -74,7 +74,7 @@ jobs:
 
           require __DIR__ . '/core/config.php';
           require __DIR__ . '/core/DatabaseManager.php';
-          require __DIR__ . '/app/services/MessengerMediaCleanupService.php';
+          require __DIR__ . '/modules/messenger/services/MessengerMediaCleanupService.php';
 
           $db = \Core\DatabaseManager::getInstance();
           $now = date('Y-m-d H:i:s');

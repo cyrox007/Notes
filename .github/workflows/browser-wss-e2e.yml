@@ -2,7 +2,7 @@ name: Browser HTTPS and WSS E2E
 
 on:
   pull_request:
-    branches: [master]
+    branches: [master, '1.0']
   push:
     branches: [browser-wss-e2e]
 
@@ -39,8 +39,16 @@ jobs:
           extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
           coverage: none
 
-      - name: Install PHP dependencies
-        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress
+      - name: Prove vendor-free runtime checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf vendor
+          test ! -e vendor
+          test "$(php -r '$j=json_decode(file_get_contents("composer.lock"),true); echo count($j["packages"] ?? []);')" = '0'
+          ! grep -Fq 'vendor/autoload.php' core.php
+          ! grep -R -F 'Workerman\\' modules/messenger/socket ws_server core.php
+          ! test -e app/socket/NativeMessengerServer.php
 
       - name: Install browser and TLS proxy
         shell: bash
@@ -57,19 +65,33 @@ jobs:
           set -euo pipefail
           php -l index.php
           php -l core/config.php
+          php -l core/RequestOrigin.php
+          php -l core/SessionSecurity.php
           php -l app/services/PermissionService.php
+          php -l modules/messenger/socket/SocketConnection.php
+          php -l modules/messenger/socket/SocketHandshake.php
+          php -l modules/messenger/socket/SocketFrameCodec.php
+          php -l modules/messenger/socket/NativeSocketConnection.php
+          php -l modules/messenger/socket/NativeMessengerServer.php
           php -l ws_server/server.php
           php -l tests/e2e/router.php
+          php -l tests/integration/native_websocket_protocol_contract.php
           node --check tests/e2e/browser-smoke.mjs
           grep -Fq "'/core/routerConfig.php'" index.php
           ! grep -Fq "'/core/RouterConfig.php'" index.php
           ! grep -Fq 'fonts.googleapis.com' index.php
           ! grep -Fq "display_errors', 1" index.php
-          grep -Fq 'Workerman\Protocols\Websocket' ws_server/server.php
-          grep -Fq "new Worker(sprintf('tcp://%s:%d'" ws_server/server.php
-          grep -Fq "messenger.use" ws_server/server.php
-          ! grep -Fq 'Config::canAuthenticate' ws_server/server.php
+          grep -Fq 'NativeMessengerServer' ws_server/server.php
+          grep -Fq 'stream_socket_server(' modules/messenger/socket/NativeMessengerServer.php
+          grep -Fq 'stream_select(' modules/messenger/socket/NativeMessengerServer.php
+          grep -Fq 'SocketHandshake::tryParse' modules/messenger/socket/NativeMessengerServer.php
+          grep -Fq 'SocketTicket::validate' modules/messenger/socket/NativeMessengerServer.php
+          grep -Fq "messenger.use" modules/messenger/socket/NativeMessengerServer.php
+          ! grep -Fq 'Workerman\\' ws_server/server.php
+          ! grep -Fq 'Config::canAuthenticate' modules/messenger/socket/NativeMessengerServer.php
           grep -Fq "getenv('SITEURL')" core/config.php
+          grep -Fq 'TRUSTED_PROXY_IPS' core/RequestOrigin.php
+          php tests/integration/native_websocket_protocol_contract.php
 
       - name: Prepare canonical database
         shell: bash
@@ -81,6 +103,7 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot notes_browser_e2e < database/user_fields_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_browser_e2e < database/tasks_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_browser_e2e < database/access_control_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_browser_e2e < database/migrations/20260915_role_module_policies.sql
           mysql -h 127.0.0.1 -uroot -proot notes_browser_e2e < database/settings_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_browser_e2e < database/module_lifecycle_schema.sql
 
@@ -162,11 +185,14 @@ jobs:
           WS_HOST=127.0.0.1
           WS_PORT=27800
           WS_PUBLIC_URL=wss://127.0.0.1:8443/ws
-          WS_ALLOWED_ORIGINS=https://127.0.0.1:8443
+          WS_ALLOWED_ORIGINS=https://127.0.0.1:8443,http://127.0.0.1:8081
+          WS_MAX_CONNECTIONS=64
+          WS_MAX_PAYLOAD_BYTES=2097152
           MAX_LOGIN_ATTEMPTS=20
           AUTH_RATE_LIMIT_WINDOW_SECONDS=60
           UPLOAD_RATE_LIMIT_ATTEMPTS=60
           UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60
+          TRUSTED_PROXY_IPS=127.0.0.1
           LOG_LEVEL=INFO
           LOG_FILE=/tmp/workspace-browser-private/logs/app.log
           CSRF_ENABLED=true
@@ -183,7 +209,7 @@ jobs:
             -subj '/CN=127.0.0.1' \
             -addext 'subjectAltName=IP:127.0.0.1'
 
-      - name: Start PHP and Workerman
+      - name: Start PHP and native WebSocket server
         shell: bash
         run: |
           set -euo pipefail
@@ -191,7 +217,8 @@ jobs:
           php -S 127.0.0.1:8080 tests/e2e/router.php >/tmp/workspace-http.log 2>&1 &
           echo $! >/tmp/workspace-http.pid
 
-          php ws_server/server.php start -d >/tmp/workspace-ws-start.log 2>&1
+          php ws_server/server.php start >/tmp/workspace-ws-start.log 2>&1 &
+          echo $! >/tmp/workspace-ws-shell.pid
 
           HTTP_READY=0
           WS_READY=0
@@ -205,6 +232,7 @@ jobs:
               WS_READY=1
             fi
             if [[ "$HTTP_READY" == '1' && "$WS_READY" == '1' ]]; then
+              php ws_server/server.php status
               exit 0
             fi
             sleep 1
@@ -217,13 +245,13 @@ jobs:
           cat /tmp/workspace-http.log || true
           echo '--- Startup log ---'
           cat /tmp/workspace-organizer-startup.log || true
-          echo '--- Workerman start ---'
+          echo '--- Native WebSocket server ---'
           cat /tmp/workspace-ws-start.log || true
-          echo '--- Application / Workerman log ---'
+          echo '--- Application / WebSocket log ---'
           cat /tmp/workspace-browser-private/logs/app.log || true
           exit 1
 
-      - name: Start HTTPS/WSS Nginx proxy
+      - name: Start HTTP/HTTPS WS/WSS Nginx proxy
         shell: bash
         run: |
           set -euo pipefail
@@ -234,6 +262,7 @@ jobs:
           events { worker_connections 256; }
           http {
             access_log /tmp/workspace-e2e-nginx-access.log;
+
             server {
               listen 8443 ssl;
               server_name 127.0.0.1;
@@ -260,11 +289,39 @@ jobs:
                 proxy_set_header X-Real-IP $remote_addr;
               }
             }
+
+            # Reproduce Beta4's protocol mismatch intentionally. SITEURL remains
+            # https://127.0.0.1:8443 while the browser enters through this HTTP
+            # origin. Assets/session/WS must follow the request, not SITEURL.
+            server {
+              listen 8081;
+              server_name 127.0.0.1;
+
+              location /ws {
+                proxy_pass http://127.0.0.1:27800;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection "upgrade";
+                proxy_set_header Host $http_host;
+                proxy_set_header Origin $http_origin;
+                proxy_read_timeout 60s;
+              }
+
+              location / {
+                proxy_pass http://127.0.0.1:8080;
+                proxy_http_version 1.1;
+                proxy_set_header Host $http_host;
+                proxy_set_header X-Forwarded-Proto http;
+                proxy_set_header X-Forwarded-Host $http_host;
+                proxy_set_header X-Real-IP $remote_addr;
+              }
+            }
           }
           NGINX
           sudo nginx -c /tmp/workspace-e2e-nginx.conf
           for i in {1..20}; do
-            if curl -kfsS https://127.0.0.1:8443/auth/login >/dev/null; then
+            if curl -kfsS https://127.0.0.1:8443/auth/login >/dev/null \
+              && curl -fsS http://127.0.0.1:8081/auth/login >/dev/null; then
               exit 0
             fi
             sleep 1
@@ -276,6 +333,18 @@ jobs:
         shell: bash
         env:
           E2E_BASE_URL: https://127.0.0.1:8443
+          E2E_ALICE_USER: e2e_alice
+          E2E_ALICE_PASSWORD: E2eAlicePass123!
+          E2E_BOB_USER: e2e_bob
+          E2E_BOB_PASSWORD: E2eBobPass123!
+          E2E_BOB_UID: 22222222-2222-4222-8222-222222222222
+        run: node tests/e2e/browser-smoke.mjs
+
+      - name: Run Chromium HTTP/WS mismatch smoke
+        shell: bash
+        env:
+          E2E_BASE_URL: http://127.0.0.1:8081
+          E2E_CONNECTIVITY_ONLY: '1'
           E2E_ALICE_USER: e2e_alice
           E2E_ALICE_PASSWORD: E2eAlicePass123!
           E2E_BOB_USER: e2e_bob
@@ -302,9 +371,9 @@ jobs:
           cat /tmp/workspace-http.log || true
           echo '--- Startup log ---'
           cat /tmp/workspace-organizer-startup.log || true
-          echo '--- Workerman start ---'
+          echo '--- Native WebSocket server ---'
           cat /tmp/workspace-ws-start.log || true
-          echo '--- Application / Workerman log ---'
+          echo '--- Application / WebSocket log ---'
           cat /tmp/workspace-browser-private/logs/app.log || true
           echo '--- Nginx error ---'
           cat /tmp/workspace-e2e-nginx-error.log || true

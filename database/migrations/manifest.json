@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "product": "workspace-organizer",
+  "migrations": [
+    "20260913_messenger_v2.sql",
+    "20260913_user_contract_v2.sql",
+    "20260913_messenger_membership_contract.sql",
+    "20260913_messenger_attachments.sql",
+    "20260913_messenger_delivery_receipts.sql",
+    "20260913_messenger_reactions.sql",
+    "20260913_messenger_saved_dialog.sql",
+    "20260913_notes_private_attachments.sql",
+    "20260913_user_fields_contract.sql",
+    "20260913_tasks_contract.sql",
+    "20260914_storage_quota_legacy_reconcile.sql",
+    "20260913_system_settings_storage_quota.sql",
+    "20260914_profile_publication.sql",
+    "20260915_rbac_foundation.sql",
+    "20260915_role_module_policies.sql",
+    "20260915_shared_task_boards.sql",
+    "20260915_module_lifecycle.sql",
+    "20260915_installation_license.sql",
+    "20260918_notes_retention_timestamps.sql",
+    "20260918_messenger_retention_timestamps.sql"
+  ]
+}

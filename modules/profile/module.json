@@ -3,11 +3,38 @@
   "id": "profile",
   "name": "Profile",
   "version": "0.13.0",
-  "core": {"min": "0.13.0-alpha", "max_exclusive": "0.15.0"},
+  "core": {
+    "min": "0.13.0-alpha",
+    "max_exclusive": "2.0.0"
+  },
   "dependencies": [],
-  "capabilities": ["workspace.profile"],
-  "package": {"bundled": true, "default_enabled": true},
-  "license": {"feature": "workspace.profile"},
-  "runtime": {"mode": "legacy"},
-  "storage_namespaces": ["users"]
+  "capabilities": [
+    "workspace.profile"
+  ],
+  "package": {
+    "bundled": true,
+    "default_enabled": true
+  },
+  "license": {
+    "feature": "workspace.profile"
+  },
+  "runtime": {
+    "mode": "isolated",
+    "entrypoint": "runtime.php"
+  },
+  "storage_namespaces": [
+    "users"
+  ],
+  "database": {
+    "tables": [
+      "user_fields"
+    ],
+    "schemas": [
+      "database/user_fields_schema.sql"
+    ],
+    "migrations": [
+      "database/migrations/20260913_user_fields_contract.sql",
+      "database/migrations/20260914_profile_publication.sql"
+    ]
+  }
 }

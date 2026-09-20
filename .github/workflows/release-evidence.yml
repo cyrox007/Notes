@@ -1,0 +1,271 @@
+name: 1.0 release evidence
+
+on:
+  pull_request:
+    branches: [master, '1.0']
+    paths:
+      - 'app/**'
+      - 'core/**'
+      - 'modules/**'
+      - 'assets/**'
+      - 'tests/e2e/release-browser-evidence.mjs'
+      - 'tests/e2e/release-load-soak.mjs'
+      - 'tests/e2e/router.php'
+      - 'tests/integration/release_evidence_contract.php'
+      - 'docs/RELEASE_EVIDENCE.md'
+      - '.github/workflows/release-evidence.yml'
+      - '.github/workflows/release-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: notes_release_evidence
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
+          coverage: none
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install browser evidence runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium firefox webkit
+
+      - name: Verify evidence sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check tests/e2e/release-browser-evidence.mjs
+          node --check tests/e2e/release-load-soak.mjs
+          php -l tests/e2e/router.php
+          php -l tests/integration/release_evidence_contract.php
+          php tests/integration/release_evidence_contract.php
+
+      - name: Prepare canonical database
+        shell: bash
+        run: |
+          set -euo pipefail
+          for schema in \
+            database/messenger_schema.sql \
+            database/notes_schema.sql \
+            database/file_manager_schema.sql \
+            database/user_fields_schema.sql \
+            database/tasks_schema.sql \
+            database/access_control_schema.sql \
+            database/settings_schema.sql \
+            database/module_lifecycle_schema.sql
+          do
+            mysql -h 127.0.0.1 -uroot -proot notes_release_evidence < "$schema"
+          done
+
+      - name: Seed release evidence user and environment
+        shell: bash
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: notes_release_evidence
+        run: |
+          set -euo pipefail
+          TEST_PASSWORD="$(php -r 'echo bin2hex(random_bytes(18));')"
+          APP_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
+          MESSAGE_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
+          TICKET_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
+          echo "::add-mask::$TEST_PASSWORD"
+          echo "::add-mask::$APP_KEY"
+          echo "::add-mask::$MESSAGE_KEY"
+          echo "::add-mask::$TICKET_KEY"
+          export TEST_PASSWORD
+
+          php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          $pdo = new PDO(
+              sprintf(
+                  'mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4',
+                  getenv('DBHOST'),
+                  getenv('DBPORT'),
+                  getenv('DBNAME')
+              ),
+              getenv('DBUSER'),
+              getenv('DBPASS'),
+              [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+          );
+          $stmt = $pdo->prepare(
+              'INSERT INTO users '
+              . '(uid,username,email,password_hash,firstname,lastname,role,is_active,account_status,created_at,updated_at) '
+              . "VALUES (:uid,:username,:email,:password_hash,'Release','Evidence',888,1,'active',NOW(),NOW())"
+          );
+          $stmt->execute([
+              ':uid' => 'ba5e0000-0000-4000-8000-000000000030',
+              ':username' => 'release-evidence-user',
+              ':email' => 'release-evidence@example.test',
+              ':password_hash' => password_hash((string) getenv('TEST_PASSWORD'), PASSWORD_ARGON2ID),
+          ]);
+          PHP
+
+          rm -rf /tmp/workspace-release-evidence
+          mkdir -p /tmp/workspace-release-evidence/{logs,file_manager,messenger,notes,users,rate-limit}
+          mkdir -p compile cache
+          chmod -R 700 /tmp/workspace-release-evidence
+          : > /tmp/workspace-release-evidence-http.log
+
+          cat > .env <<ENV
+          DBDRIVER=mysql
+          DBHOST=127.0.0.1
+          DBPORT=3306
+          DBUSER=root
+          DBPASS=root
+          DBNAME=notes_release_evidence
+          UNIQUE_KEY=${APP_KEY}
+          MSG_SECRET_KEY=${MESSAGE_KEY}
+          WS_TICKET_SECRET=${TICKET_KEY}
+          PRIVATE_STORAGE_PATH=/tmp/workspace-release-evidence
+          SECURITY_EVENT_LOG_PATH=/tmp/workspace-release-evidence/logs/security-events.jsonl
+          SITEURL=http://127.0.0.1:18100
+          BASE_PATH=/workspace/
+          REGISTRATION_INVITE_CODE=
+          WS_HOST=127.0.0.1
+          WS_PORT=28100
+          WS_PUBLIC_URL=ws://127.0.0.1:28100/workspace/ws
+          WS_ALLOWED_ORIGINS=http://127.0.0.1:18100
+          AUTH_RATE_LIMIT_ATTEMPTS=100
+          AUTH_RATE_LIMIT_WINDOW_SECONDS=60
+          UPLOAD_RATE_LIMIT_ATTEMPTS=100
+          UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60
+          LOG_LEVEL=INFO
+          LOG_FILE=/tmp/workspace-release-evidence/logs/app.log
+          CSRF_ENABLED=true
+          ENV
+          chmod 600 .env
+
+          printf 'E2E_USER=%s\n' 'release-evidence-user' >> "$GITHUB_ENV"
+          printf 'E2E_PASSWORD=%s\n' "$TEST_PASSWORD" >> "$GITHUB_ENV"
+          printf 'E2E_ORIGIN=%s\n' 'http://127.0.0.1:18100' >> "$GITHUB_ENV"
+          printf 'E2E_BASE_PATH=%s\n' '/workspace' >> "$GITHUB_ENV"
+          printf 'E2E_COOKIE_OUT=%s\n' '/tmp/release-evidence-cookie.txt' >> "$GITHUB_ENV"
+          printf 'E2E_BROWSER_RESULT_OUT=%s\n' '/tmp/release-browser-evidence.json' >> "$GITHUB_ENV"
+          printf 'E2E_LOAD_RESULT_OUT=%s\n' '/tmp/release-load-evidence.json' >> "$GITHUB_ENV"
+
+      - name: Start release candidate application
+        shell: bash
+        run: |
+          set -euo pipefail
+          PHP_CLI_SERVER_WORKERS=8 php -S 127.0.0.1:18100 tests/e2e/router.php >/tmp/workspace-release-evidence-http.log 2>&1 &
+          echo $! >/tmp/workspace-release-evidence-http.pid
+          ready=0
+          for i in {1..80}; do
+            if curl -fsS http://127.0.0.1:18100/workspace/auth/login/ >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 0.25
+          done
+          if [[ "$ready" != '1' ]]; then
+            cat /tmp/workspace-release-evidence-http.log >&2
+            exit 1
+          fi
+
+      - name: Cross-browser and mobile release evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tests/e2e/release-browser-evidence.mjs
+          jq -e '.status == "ok"' /tmp/release-browser-evidence.json >/dev/null
+          test "$(jq '.scenarios | length' /tmp/release-browser-evidence.json)" -eq 5
+
+      - name: Authenticated load and soak evidence
+        shell: bash
+        env:
+          E2E_COOKIE_FILE: /tmp/release-evidence-cookie.txt
+          LOAD_TOTAL_REQUESTS: '600'
+          LOAD_CONCURRENCY: '12'
+          SOAK_SECONDS: '45'
+          SOAK_CONCURRENCY: '4'
+          MAX_P95_MS: '2500'
+          MIN_LOAD_RPS: '5'
+          MIN_SOAK_RPS: '3'
+        run: |
+          set -euo pipefail
+          node tests/e2e/release-load-soak.mjs
+          jq -e '.status == "ok"' /tmp/release-load-evidence.json >/dev/null
+          jq -e '.load.errors == 0 and .soak.errors == 0' /tmp/release-load-evidence.json >/dev/null
+
+      - name: Post-evidence production healthcheck
+        shell: bash
+        env:
+          DBDRIVER: mysql
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: notes_release_evidence
+          SITEURL: http://127.0.0.1:18100
+          BASE_PATH: /workspace/
+          WS_PUBLIC_URL: ws://127.0.0.1:28100/workspace/ws
+          WS_ALLOWED_ORIGINS: http://127.0.0.1:18100
+          PRIVATE_STORAGE_PATH: /tmp/workspace-release-evidence
+          SECURITY_EVENT_LOG_PATH: /tmp/workspace-release-evidence/logs/security-events.jsonl
+          DEPLOYMENT_NODE_COUNT: '1'
+        run: |
+          set -euo pipefail
+          php bin/healthcheck.php --json > /tmp/release-health.json
+          jq -e '.status == "ok"' /tmp/release-health.json >/dev/null
+
+      - name: Require clean PHP runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -Eiq 'Fatal error|Uncaught|Parse error' /tmp/workspace-release-evidence-http.log; then
+            cat /tmp/workspace-release-evidence-http.log >&2
+            exit 1
+          fi
+
+      - name: Upload release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-evidence-${{ github.sha }}
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            /tmp/release-browser-evidence.json
+            /tmp/release-load-evidence.json
+            /tmp/release-health.json
+
+      - name: Show diagnostics on failure
+        if: failure()
+        shell: bash
+        run: |
+          cat /tmp/workspace-release-evidence-http.log || true
+          cat /tmp/release-browser-evidence.json || true
+          cat /tmp/release-load-evidence.json || true
+          cat /tmp/release-health.json || true

@@ -1,7 +1,10 @@
 -- ============================================
--- Файловый менеджер: Структура базы данных
--- Версия: 1.2
--- Описание: Таблицы для хранения личных файлов пользователей
+-- Legacy File Manager compatibility aggregate.
+--
+-- New composition-aware installs MUST use database/file_manager_module_schema.sql
+-- plus database/file_storage_quota_schema.sql as declared by modules/files/module.json.
+-- This aggregate remains for pre-1.0 tooling and test fixtures that historically
+-- imported one File Manager schema file.
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS `user_files` (
@@ -27,6 +30,17 @@ CREATE TABLE IF NOT EXISTS `user_files` (
     INDEX `idx_files_profile_public` (`user_id`, `is_profile_public`, `is_deleted`, `updated_at`),
     FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE,
     FOREIGN KEY (`parent_id`) REFERENCES `user_files`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `user_storage_quotas` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `user_id` INT NOT NULL,
+    `quota_bytes` BIGINT UNSIGNED NOT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY `uq_user_storage_quota_user` (`user_id`),
+    CONSTRAINT `fk_user_storage_quota_user`
+        FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------

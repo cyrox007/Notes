@@ -27,7 +27,7 @@ function assertWebSocketEndpoint(bool $condition, string $message): void
 
 function setWebSocketEnv(array $values): void
 {
-    foreach (['SITEURL', 'BASE_PATH', 'WS_PUBLIC_URL', 'WS_HOST', 'WS_PORT'] as $key) {
+    foreach (['SITEURL', 'BASE_PATH', 'WS_PUBLIC_URL', 'WS_ALLOWED_ORIGINS', 'WS_HOST', 'WS_PORT'] as $key) {
         putenv($key);
     }
     foreach ($values as $key => $value) {
@@ -45,9 +45,13 @@ assertWebSocketEndpoint(
     WebSocketEndpoint::publicUrl() === 'wss://example.test/ws',
     'HTTPS root install must derive same-origin /ws'
 );
+assertWebSocketEndpoint(WebSocketEndpoint::browserUrl() === '/ws', 'same-origin browser URL must be scheme-neutral');
 assertWebSocketEndpoint(WebSocketEndpoint::proxyPath() === '/ws', 'root proxy path drifted');
 assertWebSocketEndpoint(WebSocketEndpoint::proxyBackendUrl() === 'http://127.0.0.1:27800', 'loopback backend drifted');
 assertWebSocketEndpoint(WebSocketEndpoint::usesSameOriginProxy(), 'root same-origin proxy was not detected');
+$origins = WebSocketEndpoint::allowedOrigins();
+assertWebSocketEndpoint(in_array('https://example.test', $origins, true), 'configured HTTPS origin missing');
+assertWebSocketEndpoint(in_array('http://example.test', $origins, true), 'HTTP counterpart for same-origin proxy missing');
 
 setWebSocketEnv([
     'SITEURL' => 'https://example.test',
@@ -59,6 +63,7 @@ assertWebSocketEndpoint(
     WebSocketEndpoint::publicUrl() === 'wss://example.test/workspace/ws',
     'subdirectory install must include BASE_PATH in public WebSocket URL'
 );
+assertWebSocketEndpoint(WebSocketEndpoint::browserUrl() === '/workspace/ws', 'subdirectory browser path drifted');
 assertWebSocketEndpoint(WebSocketEndpoint::proxyPath() === '/workspace/ws', 'subdirectory proxy path drifted');
 
 setWebSocketEnv([
@@ -68,25 +73,66 @@ setWebSocketEnv([
     'WS_PORT' => '27800',
 ]);
 assertWebSocketEndpoint(WebSocketEndpoint::publicUrl() === 'ws://notes.local/ws', 'HTTP local URL derivation failed');
+assertWebSocketEndpoint(WebSocketEndpoint::browserUrl() === '/ws', 'HTTP same-origin browser endpoint must stay relative');
+$origins = WebSocketEndpoint::allowedOrigins();
+assertWebSocketEndpoint(in_array('http://notes.local', $origins, true), 'HTTP origin missing');
+assertWebSocketEndpoint(in_array('https://notes.local', $origins, true), 'HTTPS counterpart missing');
+
+setWebSocketEnv([
+    'SITEURL' => 'http://notes.local',
+    'BASE_PATH' => '/',
+    'WS_PUBLIC_URL' => 'ws://127.0.0.1:27800',
+    'WS_ALLOWED_ORIGINS' => 'http://notes.local',
+    'WS_HOST' => '127.0.0.1',
+    'WS_PORT' => '27800',
+]);
+assertWebSocketEndpoint(
+    WebSocketEndpoint::publicUrl() === 'ws://127.0.0.1:27800',
+    'OpenServer local HTTP direct listener URL changed'
+);
+assertWebSocketEndpoint(
+    WebSocketEndpoint::browserUrl() === 'ws://127.0.0.1:27800',
+    'direct local browser endpoint must remain absolute'
+);
+assertWebSocketEndpoint(
+    !WebSocketEndpoint::usesSameOriginProxy(),
+    'direct OpenServer listener must not be classified as same-origin proxy'
+);
+assertWebSocketEndpoint(
+    WebSocketEndpoint::allowedOrigins() === ['http://notes.local'],
+    'direct listener must preserve the configured browser origin without broadening'
+);
 
 setWebSocketEnv([
     'SITEURL' => 'https://notes.local',
     'BASE_PATH' => '/',
     'WS_PUBLIC_URL' => 'wss://notes.local/ws',
+    'WS_ALLOWED_ORIGINS' => 'https://notes.local',
     'WS_HOST' => '127.0.0.1',
     'WS_PORT' => '27800',
 ]);
 assertWebSocketEndpoint(WebSocketEndpoint::publicUrl() === 'wss://notes.local/ws', 'explicit same-origin URL changed');
+assertWebSocketEndpoint(WebSocketEndpoint::browserUrl() === '/ws', 'explicit same-origin browser endpoint must be relative');
 assertWebSocketEndpoint(WebSocketEndpoint::usesSameOriginProxy(), 'explicit same-origin proxy not detected');
+$origins = WebSocketEndpoint::allowedOrigins();
+assertWebSocketEndpoint(in_array('https://notes.local', $origins, true), 'explicit allowed origin missing');
+assertWebSocketEndpoint(in_array('http://notes.local', $origins, true), 'scheme counterpart was not added');
 
 setWebSocketEnv([
     'SITEURL' => 'https://notes.local',
     'BASE_PATH' => '/',
     'WS_PUBLIC_URL' => 'wss://socket.example.test/ws',
+    'WS_ALLOWED_ORIGINS' => 'https://notes.local',
     'WS_HOST' => '127.0.0.1',
     'WS_PORT' => '27800',
 ]);
 assertWebSocketEndpoint(!WebSocketEndpoint::usesSameOriginProxy(), 'external endpoint must not be classified as same-origin proxy');
+assertWebSocketEndpoint(
+    WebSocketEndpoint::browserUrl() === 'wss://socket.example.test/ws',
+    'external WebSocket browser endpoint must stay absolute'
+);
+$origins = WebSocketEndpoint::allowedOrigins();
+assertWebSocketEndpoint($origins === ['https://notes.local'], 'external endpoint must not broaden origin allowlist');
 
 setWebSocketEnv([
     'SITEURL' => 'https://notes.local',
