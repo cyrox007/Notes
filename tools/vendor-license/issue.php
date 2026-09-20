@@ -25,7 +25,7 @@ $options = getopt('', [
 
 if (isset($options['help'])) {
     fwrite(STDOUT, "Usage:\n");
-    fwrite(STDOUT, "  php tools/vendor-license/issue.php \\\n    --private-key=/secure/offline/path/key.license-secret \\\n    --key-id=prod-YYYY-NN \\\n    --installation-id=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx \\\n    --license-id=lic-customer-001 \\\n    --edition=standard [--expires-at=UNIX] [--not-before=UNIX] \\\n    [--customer='Customer name'] [--features=notes,tasks,messenger] [--max-users=20]\n\n");
+    fwrite(STDOUT, "  php tools/vendor-license/issue.php \\\n    --private-key=/secure/offline/path/key.license-secret \\\n    --key-id=prod-YYYY-NN \\\n    --installation-id=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx \\\n    --license-id=lic-customer-001 \\\n    --edition=team [--expires-at=UNIX] [--not-before=UNIX] \\\n    [--customer='Customer name'] [--max-users=20] \\\n    [--features=workspace.notes,workspace.tasks,workspace.files,workspace.messenger,workspace.profile,workspace.admin]\n\n");
     fwrite(STDOUT, "The signed wo1 token is written to stdout. The private key is never printed or copied.\n");
     exit(0);
 }
