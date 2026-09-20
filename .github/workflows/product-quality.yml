@@ -432,7 +432,7 @@ jobs:
           chmod 700 "$PRIVATE_STORAGE_PATH"
           php bin/healthcheck.php --json | tee /tmp/healthcheck.json
           grep -Fq '"status": "ok"' /tmp/healthcheck.json
-          grep -Fq '33 required tables present' /tmp/healthcheck.json
+          grep -Fq '34 required tables present' /tmp/healthcheck.json
           grep -Fq 'storage_quota_setting' /tmp/healthcheck.json
           grep -Fq 'private_storage_outside_app_root' /tmp/healthcheck.json
           grep -Fq 'websocket_allowed_origins' /tmp/healthcheck.json
@@ -446,7 +446,7 @@ jobs:
           grep -Fq 'database/audit_schema.sql' README.md
           grep -Fq 'database/settings_schema.sql' README.md
           grep -Fq 'database/module_lifecycle_schema.sql' README.md
-          grep -Fq '33 обязательных таблиц' README.md
+          grep -Fq '34 обязательных таблиц' README.md
           grep -Fq 'php bin/migrate.php' README.md
           grep -Fq 'php bin/migrate_crypto.php' README.md
           grep -Fq 'Saved Messages' README.md

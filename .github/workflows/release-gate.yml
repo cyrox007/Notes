@@ -162,7 +162,7 @@ jobs:
             mysql -h 127.0.0.1 -uroot -proot workspace_release_gate < "$schema"
           done
           count="$(mysql -N -h 127.0.0.1 -uroot -proot workspace_release_gate -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE();")"
-          test "$count" -eq 33
+          test "$count" -eq 34
           test "$(mysql -N -h 127.0.0.1 -uroot -proot workspace_release_gate -e "SELECT setting_value FROM system_settings WHERE setting_key='file_manager_default_quota_bytes'")" = '1073741824'
 
       - name: Verify user action audit contract

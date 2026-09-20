@@ -83,7 +83,7 @@ Web-installer автоматически:
 
 - проверяет PHP 8.1+, необходимые extensions и Argon2id; production runtime не требует `vendor/`;
 - пытается создать отсутствующую БД, если MySQL account это разрешает;
-- импортирует composition-aware canonical schemas и создаёт current contract из 33 обязательных таблиц;
+- импортирует composition-aware canonical schemas и создаёт current contract из 34 обязательных таблиц;
 - создаёт `cache`/`compile`;
 - подбирает и создаёт `PRIVATE_STORAGE_PATH` вне document root;
 - создаёт private пространства `file_manager`, `messenger`, `notes`, `users`, `rate-limit`, `logs`, `legacy`;
@@ -136,7 +136,7 @@ database/settings_schema.sql
 database/module_lifecycle_schema.sql
 ```
 
-Fresh contract включает 33 обязательные таблицы: persisted `module_lifecycle`, RBAC + `role_module_policies`, а также `task_boards`, `task_board_members`, `task_board_items` и `task_board_assignees`. `system_settings` хранит редактируемые системные значения, а `user_storage_quotas` — только персональные overrides лимита; фактический used space всегда рассчитывается из canonical `user_files`, чтобы не поддерживать рассинхронизируемый usage counter. `install.php` предназначен только для новой/пустой БД. Для существующих установок используются compatibility upgrade SQL; они не заменяют canonical `*_schema.sql` как описание текущей схемы.
+Fresh contract включает 34 обязательные таблицы: persisted `module_lifecycle`, RBAC + `role_module_policies`, а также `task_boards`, `task_board_members`, `task_board_items` и `task_board_assignees`. `system_settings` хранит редактируемые системные значения, а `user_storage_quotas` — только персональные overrides лимита; фактический used space всегда рассчитывается из canonical `user_files`, чтобы не поддерживать рассинхронизируемый usage counter. `install.php` предназначен только для новой/пустой БД. Для существующих установок используются compatibility upgrade SQL; они не заменяют canonical `*_schema.sql` как описание текущей схемы.
 
 После успешной установки наличие `.env` блокирует повторный запуск web-installer.
 
