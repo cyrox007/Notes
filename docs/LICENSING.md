@@ -56,7 +56,7 @@ Required payload fields:
 }
 ```
 
-`expires_at` may be `null` for a perpetual license. Optional fields currently understood by the verifier are `not_before`, `customer`, and `features`.
+`expires_at` may be `null` for a perpetual license. Optional fields currently understood by the verifier are `not_before`, `customer`, `features`, and `max_users`. A positive integer `max_users` limits the installation's active accounts; absence of the field means unlimited for backward compatibility.
 
 ## Key rotation
 
@@ -122,12 +122,26 @@ php tools/vendor-license/issue.php \
   --edition=standard \
   --expires-at=1798761599 \
   --customer='Customer name' \
+  --max-users=20 \
   --features=notes,tasks,files,messenger
 ```
 
 If `--expires-at` is omitted the issued license is perpetual. Optional `--not-before` is a Unix timestamp. The issuer writes only the final `wo1...` token to stdout, derives the public key from the external private key, self-verifies the generated token with `LicenseVerifier`, and zeroes the loaded secret before exit.
 
 Do not pipe issuer stdout to shared CI logs or ticketing systems: a license token is not a signing secret, but it is still customer-specific entitlement material.
+
+## User-seat enforcement
+
+When a valid signed payload contains `max_users`, Workspace Organizer enforces that limit against accounts with `users.is_active = 1`.
+
+- blocked accounts still consume a seat because they remain active identities;
+- deactivated accounts release a seat;
+- Admin provisioning and public/invite registration share the same central provisioning boundary;
+- reactivating a deactivated account consumes a seat;
+- license activation is rejected when the new signed limit is lower than the current active-user count;
+- license-token row locking serializes seat-changing operations so concurrent registrations cannot intentionally or accidentally overrun the limit.
+
+Licenses issued before this field existed remain valid and unlimited. User-limit enforcement is an entitlement boundary only: exceeding the limit never deletes or disables existing customer accounts automatically.
 
 ## Runtime enforcement and recovery
 
