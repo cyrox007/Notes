@@ -51,6 +51,8 @@ ob_start();
     data-can-create-note="<?= !empty($workspaceActions['notes']) ? '1' : '0' ?>"
     data-can-create-task="<?= !empty($workspaceActions['tasks']) ? '1' : '0' ?>"
     data-can-use-files="<?= !empty($workspaceActions['files']) ? '1' : '0' ?>"
+    data-socket-url="<?= $view->e($socket_url ?? '') ?>"
+    data-socket-ticket="<?= $view->e($socket_ticket ?? '') ?>"
 >
     <aside class="messenger-list" aria-label="Список диалогов">
         <header class="messenger-list__header">

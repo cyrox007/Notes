@@ -29,6 +29,8 @@ nativeMessengerAssert(str_contains($view, '$view->e($currentUser[\'uid\'] ?? \'\
 nativeMessengerAssert(str_contains($view, '$view->e($contact[\'uid\'] ?? \'\')'), 'Messenger contact UID is not escaped');
 nativeMessengerAssert(str_contains($view, "'socket_ticket' => \$socket_ticket ?? ''"), 'socket ticket is not propagated into native shell');
 nativeMessengerAssert(str_contains($view, "'socket_url' => \$socket_url ?? ''"), 'socket URL is not propagated into native shell');
+nativeMessengerAssert(str_contains($view, 'data-socket-url="<?= $view->e($socket_url ?? \'\') ?>"'), 'Messenger root does not carry a direct socket URL fallback');
+nativeMessengerAssert(str_contains($view, 'data-socket-ticket="<?= $view->e($socket_ticket ?? \'\') ?>"'), 'Messenger root does not carry a direct socket ticket fallback');
 
 $messengerStyle = (string) file_get_contents($module . '/views/style.css');
 nativeMessengerAssert(str_contains($messengerStyle, '--msg-surface:var(--ui-surface)'), 'Messenger no longer consumes shared theme surface tokens');
@@ -67,6 +69,8 @@ foreach ($jsFiles as $asset) {
 $script = (string) file_get_contents($module . '/views/script.js');
 nativeMessengerAssert(str_contains($script, 'window.wspace.messenger = app'), 'Messenger app bootstrap contract is missing');
 nativeMessengerAssert(str_contains($script, 'socketConfig'), 'Messenger client no longer consumes socket runtime config');
+nativeMessengerAssert(str_contains($script, 'runtime.socketUrl'), 'Messenger socket bootstrap does not fall back to native runtime config');
+nativeMessengerAssert(str_contains($script, 'this.root.dataset.socketUrl'), 'Messenger socket bootstrap does not fall back to server-rendered DOM config');
 nativeMessengerAssert(str_contains($script, "deepLink.get('dialog')"), 'Messenger cannot deep-link back to a source dialog');
 nativeMessengerAssert(str_contains($script, "deepLink.get('message')"), 'Messenger cannot deep-link back to a source message');
 nativeMessengerAssert(str_contains($script, 'focusRequestedMessage()'), 'Messenger source-message highlighting contract is missing');
@@ -150,6 +154,8 @@ $voiceCss = (string) file_get_contents($module . '/views/voice.css');
 nativeMessengerAssert(str_contains($voice, "nativeAudio.hidden = true"), 'voice player still exposes duplicate native audio controls');
 nativeMessengerAssert(str_contains($voice, "messenger-voice-player__waveform"), 'voice player waveform UI is missing');
 nativeMessengerAssert(str_contains($voice, "appPath('/messenger/voice-upload')"), 'voice upload is not BASE_PATH-aware');
+nativeMessengerAssert(str_contains($voice, 'window.isSecureContext === false'), 'voice recording does not explain insecure HTTP contexts');
+nativeMessengerAssert(str_contains($voice, 'messenger-voice-button--unavailable'), 'voice recording control disappears instead of exposing an unavailable state');
 nativeMessengerAssert(str_contains($voiceCss, '.messenger-voice-native-audio{display:none!important}'), 'native voice audio control is not visually suppressed');
 nativeMessengerAssert(str_contains($voiceCss, '.messenger-message--own.messenger-message--voice .messenger-message__bubble'), 'own voice messages do not use the refreshed readable surface');
 

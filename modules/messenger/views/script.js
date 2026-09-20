@@ -95,8 +95,39 @@
         }
 
         connect() {
-            const config = window.wspace?.socketConfig || {};
-            if (!config.url || !config.ticket) {
+            const wspace = window.wspace = window.wspace || {};
+            const runtime = window.wspaceRuntime && typeof window.wspaceRuntime === 'object'
+                ? window.wspaceRuntime
+                : {};
+            const existing = wspace.socketConfig && typeof wspace.socketConfig === 'object'
+                ? wspace.socketConfig
+                : {};
+            const rawUrl = String(
+                existing.url
+                || runtime.socketUrl
+                || this.root.dataset.socketUrl
+                || ''
+            ).trim();
+            const ticket = String(
+                existing.ticket
+                || runtime.socketTicket
+                || this.root.dataset.socketTicket
+                || ''
+            ).trim();
+            const resolveSocketUrl = typeof window.wspaceResolveSocketUrl === 'function'
+                ? window.wspaceResolveSocketUrl
+                : (value) => {
+                    if (!value || !value.startsWith('/')) return value;
+                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    return `${protocol}//${window.location.host}${value}`;
+                };
+            const url = resolveSocketUrl(rawUrl);
+
+            // Messenger must stay self-contained even when the shared deferred
+            // runtime bootstrap is delayed or blocked by a browser/cache race.
+            wspace.socketConfig = { url, ticket };
+
+            if (!url || !ticket) {
                 this.setConnectionState('offline', 'WebSocket не настроен');
                 return;
             }
@@ -104,8 +135,8 @@
             this.setConnectionState('connecting', this.reconnectAttempt ? 'Переподключение…' : 'Подключение…');
 
             try {
-                const separator = config.url.includes('?') ? '&' : '?';
-                this.socket = new WebSocket(`${config.url}${separator}ticket=${encodeURIComponent(config.ticket)}`);
+                const separator = url.includes('?') ? '&' : '?';
+                this.socket = new WebSocket(`${url}${separator}ticket=${encodeURIComponent(ticket)}`);
             } catch (error) {
                 console.error(error);
                 this.scheduleReconnect();

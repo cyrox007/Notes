@@ -61,7 +61,15 @@
             && window.MediaRecorder
         );
         if (!supportsRecording) {
-            micButton.hidden = true;
+            const insecureContext = window.isSecureContext === false;
+            const unavailableMessage = insecureContext
+                ? 'Для записи голосовых сообщений откройте Workspace по HTTPS.'
+                : 'Этот браузер не поддерживает запись голосовых сообщений.';
+            micButton.classList.add('messenger-voice-button--unavailable');
+            micButton.setAttribute('aria-disabled', 'true');
+            micButton.title = unavailableMessage;
+            micButton.setAttribute('aria-label', unavailableMessage);
+            micButton.addEventListener('click', () => app.showToast(unavailableMessage));
             return;
         }
 
