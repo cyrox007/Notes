@@ -134,10 +134,10 @@ jobs:
             test ! -e "$root/.env"
           }
 
-          SUCCESS_ROOT="$DRILL/workspace-organizer-1.0.0"
-          FAILURE_ROOT="$DRILL/workspace-organizer-1.0.0-drill-fail"
-          build_target "$SUCCESS_ROOT" '1.0.0' 10000
-          build_target "$FAILURE_ROOT" '1.0.0-drill-fail' 10001
+          SUCCESS_ROOT="$DRILL/workspace-organizer-1.0.1"
+          FAILURE_ROOT="$DRILL/workspace-organizer-1.0.1-drill-fail"
+          build_target "$SUCCESS_ROOT" '1.0.1' 10001
+          build_target "$FAILURE_ROOT" '1.0.1-drill-fail' 10002
 
           cat > "$FAILURE_ROOT/bin/healthcheck.php" <<'PHP'
           <?php
@@ -148,14 +148,14 @@ jobs:
           php -l "$FAILURE_ROOT/bin/healthcheck.php"
 
           cd "$DRILL"
-          zip -qr "$DRILL/workspace-organizer-1.0.0.zip" "$(basename "$SUCCESS_ROOT")"
-          zip -qr "$DRILL/workspace-organizer-1.0.0-drill-fail.zip" "$(basename "$FAILURE_ROOT")"
+          zip -qr "$DRILL/workspace-organizer-1.0.1.zip" "$(basename "$SUCCESS_ROOT")"
+          zip -qr "$DRILL/workspace-organizer-1.0.1-drill-fail.zip" "$(basename "$FAILURE_ROOT")"
           cd "$GITHUB_WORKSPACE"
 
           php tools/vendor-update/build-manifest.php \
-            --package="$DRILL/workspace-organizer-1.0.0.zip" \
-            --version=1.0.0 \
-            --version-code=10000 \
+            --package="$DRILL/workspace-organizer-1.0.1.zip" \
+            --version=1.0.1 \
+            --version-code=10001 \
             --channel=stable \
             --source-commit="$GITHUB_SHA" \
             --min-source-version-code=1404 \
@@ -169,8 +169,8 @@ jobs:
             --signature-out="$DRILL/success.update.sig"
 
           php tools/vendor-update/build-manifest.php \
-            --package="$DRILL/workspace-organizer-1.0.0-drill-fail.zip" \
-            --version=1.0.0-drill-fail \
+            --package="$DRILL/workspace-organizer-1.0.1-drill-fail.zip" \
+            --version=1.0.1-drill-fail \
             --version-code=10001 \
             --channel=stable \
             --source-commit="$GITHUB_SHA" \
@@ -280,7 +280,7 @@ jobs:
             --app-root="$LIVE" \
             --manifest="$DRILL/success.update.json" \
             --signature="$DRILL/success.update.sig" \
-            --package="$DRILL/workspace-organizer-1.0.0.zip" \
+            --package="$DRILL/workspace-organizer-1.0.1.zip" \
             --transaction="$TX" \
             --expected-source-version=0.14.0-beta.4 \
             --expected-source-version-code=1404 \
@@ -291,8 +291,8 @@ jobs:
             --json | tee "$DRILL/success-bootstrap.json"
 
           grep -Fq '"status": "committed"' "$DRILL/success-bootstrap.json"
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.0'
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10000'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.1'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10001'
           test -f "$LIVE/modules/admin/services/AdminUpdateService.php"
           test -f "$LIVE/bin/update_apply.php"
           test -f "$LIVE/bin/update_bootstrap.php"
@@ -319,7 +319,7 @@ jobs:
             --app-root="$LIVE" \
             --manifest="$DRILL/failure.update.json" \
             --signature="$DRILL/failure.update.sig" \
-            --package="$DRILL/workspace-organizer-1.0.0-drill-fail.zip" \
+            --package="$DRILL/workspace-organizer-1.0.1-drill-fail.zip" \
             --transaction="$TX" \
             --expected-source-version=0.14.0-beta.4 \
             --expected-source-version-code=1404 \
@@ -362,7 +362,7 @@ jobs:
             --app-root="$LIVE" \
             --manifest="$DRILL/success.update.json" \
             --signature="$DRILL/success.update.sig" \
-            --package="$DRILL/workspace-organizer-1.0.0.zip" \
+            --package="$DRILL/workspace-organizer-1.0.1.zip" \
             --transaction=wrong-source-001 \
             --expected-source-version=0.14.0-beta.3 \
             --expected-source-version-code=1403 \
