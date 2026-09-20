@@ -1,12 +1,12 @@
 # Workspace Organizer
 
-**Версия:** `1.0.0`  
+**Версия:** `1.0.1`  
 **Актуально на:** 20 сентября 2026  
 **Статус:** stable
 
 Workspace Organizer — self-hosted PHP-приложение для корпоративной работы: заметки, личные и общие задачи, файлы, профиль, администрирование и real-time Messenger.
 
-`1.0.0` фиксирует stable platform contract: vendor-free PHP runtime, native view/WebSocket infrastructure, persisted RBAC и module policies, installation-bound offline Ed25519 licensing, signed remote updater с external staging, transactional code+MySQL rollback и проверенный upgrade path с `0.14.0-beta.4`.
+`1.0.1` сохраняет stable platform contract `1.0.0` и добавляет штатное подключение независимых модулей и подписанные лимиты пользователей в коммерческой лицензии. Базовый stable contract: vendor-free PHP runtime, native view/WebSocket infrastructure, persisted RBAC и module policies, installation-bound offline Ed25519 licensing, signed remote updater с external staging, transactional code+MySQL rollback и проверенный upgrade path с `0.14.0-beta.4`.
 
 ## Возможности
 
