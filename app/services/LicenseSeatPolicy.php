@@ -18,8 +18,6 @@ use Throwable;
  */
 final class LicenseSeatPolicy
 {
-    public const MAX_USERS_HARD_LIMIT = 1_000_000;
-
     private DatabaseManager $db;
 
     public function __construct(?DatabaseManager $db = null)
@@ -125,7 +123,7 @@ final class LicenseSeatPolicy
         }
 
         $value = $status['max_users'];
-        if (!is_int($value) || $value < 1 || $value > self::MAX_USERS_HARD_LIMIT) {
+        if (!is_int($value) || $value < 1 || $value > LicenseVerifier::MAX_USERS_HARD_LIMIT) {
             throw new RuntimeException('License status contains an invalid max_users value');
         }
 
@@ -140,7 +138,7 @@ final class LicenseSeatPolicy
         }
 
         $value = $payload['max_users'];
-        if (!is_int($value) || $value < 1 || $value > self::MAX_USERS_HARD_LIMIT) {
+        if (!is_int($value) || $value < 1 || $value > LicenseVerifier::MAX_USERS_HARD_LIMIT) {
             throw new RuntimeException('Verified license payload contains an invalid max_users value');
         }
 
