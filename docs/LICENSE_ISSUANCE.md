@@ -121,7 +121,7 @@ $LicenseToken = (& $PHP tools\vendor-license\issue.php `
 $env:LICENSE_TOKEN = $LicenseToken
 $env:INSTALLATION_ID = $InstallationId
 
-& $PHP -r 'require "app/services/LicenseVerifier.php"; $v=new App\Services\LicenseVerifier(); $s=$v->verify(getenv("LICENSE_TOKEN"), getenv("INSTALLATION_ID")); if (!($s["valid"] ?? false)) { fwrite(STDERR, json_encode($s, JSON_UNESCAPED_UNICODE).PHP_EOL); exit(1); } echo "LICENSE OK".PHP_EOL;'
+& $PHP -r 'require "app/services/LicenseVerifier.php"; $v=new App\Services\LicenseVerifier(); $s=$v->verify(getenv("LICENSE_TOKEN"), getenv("INSTALLATION_ID")); $p=$s["payload"]??[]; if (!($s["valid"]??false) || ($p["edition"]??"")!=="team" || ($p["max_users"]??null)!==20) { fwrite(STDERR, json_encode($s, JSON_UNESCAPED_UNICODE).PHP_EOL); exit(1); } echo "LICENSE OK: team / max_users=20".PHP_EOL;'
 
 Remove-Item Env:LICENSE_TOKEN
 Remove-Item Env:INSTALLATION_ID
@@ -130,7 +130,7 @@ Remove-Item Env:INSTALLATION_ID
 Ожидаемый результат:
 
 ```text
-LICENSE OK
+LICENSE OK: team / max_users=20
 ```
 
 ## Активация на установке клиента
