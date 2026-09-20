@@ -211,6 +211,9 @@
             this.dialogs = dialogs;
             this.dialogMap = new Map(dialogs.map((dialog) => [dialog.uid, dialog]));
             this.renderDialogs();
+            document.dispatchEvent(new CustomEvent('wspace:messenger-dialogs', {
+                detail: { dialogs: this.dialogs }
+            }));
 
             if (this.currentDialog && this.dialogMap.has(this.currentDialog.uid)) {
                 this.currentDialog = this.dialogMap.get(this.currentDialog.uid);
@@ -710,8 +713,10 @@
         autosizeComposer() {
             const input = this.el.input;
             if (!input) return;
+            const maxHeight = 120;
             input.style.height = 'auto';
-            input.style.height = `${Math.min(input.scrollHeight, 132)}px`;
+            input.style.height = `${Math.min(input.scrollHeight, maxHeight)}px`;
+            input.style.overflowY = input.scrollHeight > maxHeight ? 'auto' : 'hidden';
         }
 
         renderMessageText(container, value) {

@@ -74,8 +74,12 @@ jobs:
         run: |
           set -euo pipefail
           node --check assets/js/reg-script.js
+          node --check assets/js/messenger-global-notifications.js
           node --check modules/files/assets/script.js
           node --check modules/admin/assets/admin-page.js
+
+          sed -e '/^{literal}$/d' -e '/^{\/literal}$/d' modules/messenger/views/script.js > /tmp/messenger-script.js
+          node --check /tmp/messenger-script.js
 
           sed \
             -e '/^{literal}$/d' \
@@ -97,6 +101,11 @@ jobs:
           grep -Fq 'id="main-content"' app/views/core/base.php
           grep -Fq 'class="skip-link"' app/views/core/base.php
           grep -Fq 'id="workspaceSidebar"' app/views/^shared/sidebar/index.php
+          grep -Fq 'id="messenger-unread-badge"' app/views/^shared/sidebar/index.php
+          grep -Fq '/assets/js/messenger-global-notifications.js' app/views/core/base.php
+          grep -Fq "DialogStateSocket:list" assets/js/messenger-global-notifications.js
+          grep -Fq "wspace:messenger-dialogs" modules/messenger/views/script.js
+          grep -Fq "input.style.overflowY = input.scrollHeight > maxHeight ? 'auto' : 'hidden';" modules/messenger/views/script.js
           grep -Fq "backdrop.className = 'sidebar-backdrop'" app/views/core/common.js
           grep -Fq "setAttribute('aria-current', 'page')" app/views/core/common.js
           grep -Fq 'aria-live="polite"' app/views/^shared/header/index.php

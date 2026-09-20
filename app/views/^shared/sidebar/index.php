@@ -50,6 +50,7 @@ $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
             <a href="<?= $view->e($view->route('messenger')) ?>" class="sidebar__menu-link" data-nav-key="messenger" title="Мессенджер">
                 <span class="sidebar__menu-icon"><i class="fa fa-comment-o" aria-hidden="true"></i></span>
                 <span class="sidebar__menu-label">Мессенджер</span>
+                <span class="sidebar__menu-badge" id="messenger-unread-badge" hidden aria-live="polite" aria-label="Непрочитанных сообщений: 0">0</span>
             </a>
         <?php endif; ?>
 
