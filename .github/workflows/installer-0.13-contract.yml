@@ -44,15 +44,20 @@ jobs:
           set -euo pipefail
           php -l install.php
           php -l bin/migrate.php
+          php -l core/DatabaseOwnership.php
+          php -l core/MigrationManifest.php
           test -f database/migrations/20260914_profile_publication.sql
           test -f database/migrations/20260915_rbac_foundation.sql
           test -f database/migrations/20260915_role_module_policies.sql
           test -f database/migrations/20260915_shared_task_boards.sql
           test -f database/access_control_schema.sql
-          grep -Fq '20260914_profile_publication.sql' bin/migrate.php
-          grep -Fq '20260915_rbac_foundation.sql' bin/migrate.php
-          grep -Fq '20260915_role_module_policies.sql' bin/migrate.php
-          grep -Fq '20260915_shared_task_boards.sql' bin/migrate.php
+          grep -Fq '"20260914_profile_publication.sql"' database/migrations/manifest.json
+          grep -Fq '"20260915_rbac_foundation.sql"' database/migrations/manifest.json
+          grep -Fq '"20260915_role_module_policies.sql"' database/migrations/manifest.json
+          grep -Fq '"20260915_shared_task_boards.sql"' database/migrations/manifest.json
+          grep -Fq 'MigrationManifest($root)' bin/migrate.php
+          grep -Fq 'DatabaseOwnership::fromPackageRoot' bin/migrate.php
+          grep -Fq 'DatabaseOwnership::fromPackageRoot' install.php
           grep -Fq 'WS_HOST=127.0.0.1' install.php
           grep -Fq 'WS_PORT=27800' install.php
           grep -Fq 'WS_PUBLIC_URL=' install.php
