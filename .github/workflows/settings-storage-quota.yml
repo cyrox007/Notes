@@ -51,7 +51,7 @@ jobs:
           grep -Fq "'database/migrations/20260913_system_settings_storage_quota.sql'" core/DatabaseOwnership.php
           grep -Fq 'GET_LOCK' app/services/StorageQuotaService.php
           grep -Fq 'RELEASE_LOCK' app/services/StorageQuotaService.php
-          grep -Fq "route('admin_settings')" modules/admin/views/index.php
+          grep -Fq "['/admin/settings'" modules/admin/assets/admin-settings-nav.js
           grep -Fq "route('admin_settings_user_quota')" modules/admin/views/settings.php
       - name: Prepare canonical schema
         shell: bash
