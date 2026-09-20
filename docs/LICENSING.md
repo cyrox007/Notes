@@ -119,11 +119,11 @@ php tools/vendor-license/issue.php \
   --key-id=prod-2026-01 \
   --installation-id=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx \
   --license-id=lic-customer-001 \
-  --edition=standard \
+  --edition=team \
   --expires-at=1798761599 \
   --customer='Customer name' \
   --max-users=20 \
-  --features=notes,tasks,files,messenger
+  --features=workspace.notes,workspace.tasks,workspace.files,workspace.messenger,workspace.profile,workspace.admin
 ```
 
 If `--expires-at` is omitted the issued license is perpetual. Optional `--not-before` is a Unix timestamp. The issuer writes only the final `wo1...` token to stdout, derives the public key from the external private key, self-verifies the generated token with `LicenseVerifier`, and zeroes the loaded secret before exit.
