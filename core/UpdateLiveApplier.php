@@ -44,8 +44,9 @@ final class UpdateLiveApplier
 
     public function __construct(?string $appRoot = null)
     {
-        $app = realpath($appRoot ?? dirname(__DIR__));
-        if (!is_string($app) || !is_dir($app) || is_link($appRoot ?? $app)) {
+        $input = $appRoot ?? dirname(__DIR__);
+        $app = realpath($input);
+        if (!is_string($app) || !is_dir($app) || is_link($input)) {
             throw new RuntimeException('Live application root cannot be resolved safely');
         }
         $this->appRoot = UpdatePath::normalize($app);
