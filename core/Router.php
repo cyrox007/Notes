@@ -25,6 +25,9 @@ class Router
     /** @var array<string,string> normalized route path => compiled regex */
     private array $compiledPatterns = [];
 
+    /** @var array<string,int> route name => index in $routes */
+    private array $routeNameIndex = [];
+
     private function __construct() {}
 
     private function __clone() {}
@@ -147,9 +150,9 @@ class Router
             if ($existing['method'] === $method && $existing['path'] === $path) {
                 throw new RuntimeException("Duplicate route registration: {$method} {$path}");
             }
-            if ($name !== '' && ($existing['name'] ?? '') === $name) {
-                throw new RuntimeException("Duplicate route name: {$name}");
-            }
+        }
+        if ($name !== '' && isset($this->routeNameIndex[$name])) {
+            throw new RuntimeException("Duplicate route name: {$name}");
         }
 
         $route = [
@@ -164,7 +167,11 @@ class Router
         }
 
         $this->routes[] = $route;
+        $routeIndex = array_key_last($this->routes);
         $this->compiledPatterns[$path] = $compiledPattern;
+        if ($name !== '' && is_int($routeIndex)) {
+            $this->routeNameIndex[$name] = $routeIndex;
+        }
 
         return $this;
     }
@@ -357,12 +364,8 @@ class Router
      */
     private function findRouteByName(string $name): ?array
     {
-        foreach ($this->routes as $route) {
-            if (isset($route['name']) && $route['name'] === $name) {
-                return $route;
-            }
-        }
-        return null;
+        $index = $this->routeNameIndex[$name] ?? null;
+        return is_int($index) ? ($this->routes[$index] ?? null) : null;
     }
 
     public function getRoute(string $name): string
