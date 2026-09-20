@@ -101,6 +101,7 @@ function controlUsage(): void
     echo "  php bin/control.php license activate --token-file=/secure/path/license.txt [--json]\n";
     echo "  php bin/control.php license clear --yes [--json]\n";
     echo "  php bin/control.php modules list [--json]\n";
+    echo "  php bin/control.php modules install <module-id> [--json]\n";
     echo "  php bin/control.php modules enable <module-id> [--json]\n";
     echo "  php bin/control.php modules disable <module-id> [--json]\n";
 }
@@ -173,18 +174,22 @@ try {
                 'status' => 'ok',
                 'modules' => array_values($registry->lifecycle()),
             ];
-        } elseif (in_array($action, ['enable', 'disable'], true)) {
+        } elseif (in_array($action, ['install', 'enable', 'disable'], true)) {
             $moduleId = trim((string) ($args[2] ?? ''));
             if ($moduleId === '') {
                 throw new RuntimeException('Module id is required');
             }
-            $target = $action === 'enable' ? 'enabled' : 'disabled';
+            $target = match ($action) {
+                'install' => 'installed',
+                'enable' => 'enabled',
+                'disable' => 'disabled',
+            };
             $result = [
                 'status' => 'ok',
                 'module' => $registry->transitionLifecycle($moduleId, $target),
             ];
         } else {
-            throw new RuntimeException('Unknown modules action; use list, enable or disable');
+            throw new RuntimeException('Unknown modules action; use list, install, enable or disable');
         }
 
         controlEmit($result, $json);

@@ -374,6 +374,7 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 
 - [`CHANGELOG.md`](CHANGELOG.md) — история и Unreleased.
 - [`docs/CORE.md`](docs/CORE.md) — архитектура ядра.
+- [`docs/MODULE_DEVELOPMENT.md`](docs/MODULE_DEVELOPMENT.md) — создание, установка и lifecycle нового модуля.
 - [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) — пользовательские сценарии.
 - [`docs/HOSTING_INSTALL.md`](docs/HOSTING_INSTALL.md) — fresh install на shared hosting без Composer/CLI.
 - [`docs/PRODUCTION.md`](docs/PRODUCTION.md) — deployment, WSS, rate limiting и production checklist.
