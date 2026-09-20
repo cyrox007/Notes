@@ -1,4 +1,3 @@
-.messenger-app[data-can-use-files="1"] .messenger-composer{grid-template-columns:auto auto auto minmax(0,1fr) auto}
 .messenger-storage-dialog__surface{width:min(620px,calc(100vw - 28px));max-height:min(760px,calc(100dvh - 36px))}
 .messenger-storage-search{display:flex;align-items:center;gap:8px;margin:0 14px 10px;padding:0 10px;border:1px solid var(--msg-border);border-radius:9px;background:var(--msg-soft)}
 .messenger-storage-search i{color:var(--msg-muted)}.messenger-storage-search input{width:100%;min-height:38px;border:0;background:transparent;outline:0}
@@ -14,4 +13,4 @@
 .messenger-storage-actions{display:flex;justify-content:flex-end;gap:8px;padding:12px 14px;border-top:1px solid var(--msg-border)}
 .messenger-storage-actions button{min-height:36px}
 .messenger-message__text a{color:inherit;text-decoration:underline;text-underline-offset:2px;overflow-wrap:anywhere}
-@media(max-width:640px){.messenger-app[data-can-use-files="1"] .messenger-composer{grid-template-columns:auto auto auto minmax(0,1fr) auto}.messenger-storage-actions{display:grid;grid-template-columns:1fr 1fr}.messenger-storage-actions .messenger-secondary-button:first-child{grid-column:1/-1;order:3}.messenger-storage-item{grid-template-columns:34px minmax(0,1fr)}.messenger-storage-item__date{grid-column:2}.messenger-storage-dialog__surface{max-height:calc(100dvh - 18px)}}
+@media(max-width:640px){.messenger-storage-actions{display:grid;grid-template-columns:1fr 1fr}.messenger-storage-actions .messenger-secondary-button:first-child{grid-column:1/-1;order:3}.messenger-storage-item{grid-template-columns:34px minmax(0,1fr)}.messenger-storage-item__date{grid-column:2}.messenger-storage-dialog__surface{max-height:calc(100dvh - 18px)}}

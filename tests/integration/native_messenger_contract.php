@@ -47,7 +47,7 @@ foreach ([
     nativeMessengerAssert(str_contains($view, 'id="' . $id . '"'), "Messenger DOM hook {$id} is missing");
 }
 
-$cssFiles = ['style.css', 'media.css', 'forwarding.css', 'reactions.css', 'voice.css', 'group.css', 'search.css', 'workspace-actions.css', 'storage-files.css'];
+$cssFiles = ['style.css', 'media.css', 'forwarding.css', 'reactions.css', 'voice.css', 'group.css', 'search.css', 'workspace-actions.css', 'storage-files.css', 'visual-refresh.css'];
 $jsFiles = ['protocol-origin.js', 'script.js', 'activity.js', 'dialog-actions.js', 'receipts.js', 'media.js', 'forwarding.js', 'reactions.js', 'voice.js', 'group.js', 'search.js', 'workspace-actions.js', 'storage-files.js'];
 foreach (array_merge($cssFiles, $jsFiles) as $asset) {
     nativeMessengerAssert(str_contains($view, "'{$asset}'"), "Messenger native view does not load {$asset}");
@@ -99,6 +99,12 @@ nativeMessengerAssert(str_contains($connectionUx, 'nextSubject !== activeTicketS
 $mediaCss = (string) file_get_contents($module . '/views/media.css');
 nativeMessengerAssert(str_contains($messengerStyle, '.messenger-message{'), 'Messenger bubble layout contract is missing');
 nativeMessengerAssert(str_contains($messengerStyle, 'max-width:76%'), 'Messenger bubble containment contract is missing');
+nativeMessengerAssert(str_contains($view, 'class="messenger-composer__tools"'), 'Messenger composer tools are not grouped for stable medium-width layout');
+
+$visualRefresh = (string) file_get_contents($module . '/views/visual-refresh.css');
+nativeMessengerAssert(str_contains($visualRefresh, 'grid-template-columns:clamp(248px,23vw,304px)'), 'Messenger balanced desktop column contract is missing');
+nativeMessengerAssert(str_contains($visualRefresh, '@media(max-width:1020px)'), 'Messenger medium-width layout breakpoint is missing');
+nativeMessengerAssert(str_contains($visualRefresh, '@media(max-width:760px)'), 'Messenger mobile single-pane breakpoint is missing');
 nativeMessengerAssert(str_contains($mediaCss, 'max-width:min(420px,100%)'), 'Messenger media containment contract is missing');
 
 $controllerPath = $module . '/controllers/MessagerController.php';
@@ -138,6 +144,14 @@ nativeMessengerAssert(str_contains($coreFileBoundary, 'interface WorkspaceFilePr
 $mediaService = (string) file_get_contents($module . '/services/MessengerMediaService.php');
 nativeMessengerAssert(str_contains($mediaService, 'importWorkspaceFile('), 'Messenger media service cannot copy a private-storage file into message storage');
 nativeMessengerAssert(str_contains($mediaService, "'messenger', 'max_attachment_bytes'"), 'private-storage attachment import bypasses Messenger role size policy');
+
+$voice = (string) file_get_contents($module . '/views/voice.js');
+$voiceCss = (string) file_get_contents($module . '/views/voice.css');
+nativeMessengerAssert(str_contains($voice, "nativeAudio.hidden = true"), 'voice player still exposes duplicate native audio controls');
+nativeMessengerAssert(str_contains($voice, "messenger-voice-player__waveform"), 'voice player waveform UI is missing');
+nativeMessengerAssert(str_contains($voice, "appPath('/messenger/voice-upload')"), 'voice upload is not BASE_PATH-aware');
+nativeMessengerAssert(str_contains($voiceCss, '.messenger-voice-native-audio{display:none!important}'), 'native voice audio control is not visually suppressed');
+nativeMessengerAssert(str_contains($voiceCss, '.messenger-message--own.messenger-message--voice .messenger-message__bubble'), 'own voice messages do not use the refreshed readable surface');
 
 $connectionBoundary = $module . '/socket/SocketConnection.php';
 nativeMessengerAssert(is_file($connectionBoundary), 'transport-neutral SocketConnection is missing');

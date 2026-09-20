@@ -20,7 +20,7 @@ $readModuleAsset = static function (string $file): string {
     $source = file_get_contents($path);
     return is_string($source) ? $source : '';
 };
-$cssFiles = ['style.css', 'media.css', 'forwarding.css', 'reactions.css', 'voice.css', 'group.css', 'search.css', 'workspace-actions.css', 'storage-files.css'];
+$cssFiles = ['style.css', 'media.css', 'forwarding.css', 'reactions.css', 'voice.css', 'group.css', 'search.css', 'workspace-actions.css', 'storage-files.css', 'visual-refresh.css'];
 $jsFiles = ['protocol-origin.js', 'script.js', 'activity.js', 'dialog-actions.js', 'receipts.js', 'media.js', 'forwarding.js', 'reactions.js', 'voice.js', 'group.js', 'search.js', 'workspace-actions.js', 'storage-files.js'];
 $literalOpen = '{' . 'literal}';
 $literalClose = '{/' . 'literal}';
@@ -94,28 +94,30 @@ ob_start();
             <div class="messenger-upload-status" id="messenger-upload-status" hidden aria-live="polite"><span id="messenger-upload-text">Загрузка вложения…</span><span id="messenger-upload-percent">0%</span><progress id="messenger-upload-progress" max="100" value="0"></progress></div>
 
             <footer class="messenger-composer">
-                <div class="messenger-workspace-create">
-                    <button class="messenger-icon-button" id="workspace-create-button" type="button" title="Создать задачу или заметку" aria-label="Создать задачу или заметку" aria-expanded="false" aria-controls="workspace-create-menu"><i class="fa fa-plus" aria-hidden="true"></i></button>
-                    <div class="messenger-workspace-menu" id="workspace-create-menu" hidden>
-                        <?php if (!empty($workspaceActions['tasks'])): ?>
-                            <button class="messenger-workspace-menu__item" type="button" data-create-workspace="task">
-                                <i class="fa fa-check-square-o" aria-hidden="true"></i>
-                                <span><strong>Создать задачу</strong><small>Не выходя из чата</small></span>
-                            </button>
-                        <?php endif; ?>
-                        <?php if (!empty($workspaceActions['notes'])): ?>
-                            <button class="messenger-workspace-menu__item" type="button" data-create-workspace="note">
-                                <i class="fa fa-sticky-note-o" aria-hidden="true"></i>
-                                <span><strong>Создать заметку</strong><small>Сохранить мысль в Notes</small></span>
-                            </button>
-                        <?php endif; ?>
+                <div class="messenger-composer__tools" aria-label="Вложения и действия">
+                    <div class="messenger-workspace-create">
+                        <button class="messenger-icon-button" id="workspace-create-button" type="button" title="Создать задачу или заметку" aria-label="Создать задачу или заметку" aria-expanded="false" aria-controls="workspace-create-menu"><i class="fa fa-plus" aria-hidden="true"></i></button>
+                        <div class="messenger-workspace-menu" id="workspace-create-menu" hidden>
+                            <?php if (!empty($workspaceActions['tasks'])): ?>
+                                <button class="messenger-workspace-menu__item" type="button" data-create-workspace="task">
+                                    <i class="fa fa-check-square-o" aria-hidden="true"></i>
+                                    <span><strong>Создать задачу</strong><small>Не выходя из чата</small></span>
+                                </button>
+                            <?php endif; ?>
+                            <?php if (!empty($workspaceActions['notes'])): ?>
+                                <button class="messenger-workspace-menu__item" type="button" data-create-workspace="note">
+                                    <i class="fa fa-sticky-note-o" aria-hidden="true"></i>
+                                    <span><strong>Создать заметку</strong><small>Сохранить мысль в Notes</small></span>
+                                </button>
+                            <?php endif; ?>
+                        </div>
                     </div>
+                    <?php if (!empty($workspaceActions['files'])): ?>
+                        <button class="messenger-icon-button" id="message-storage-button" type="button" title="Файл из личного хранилища" aria-label="Файл из личного хранилища"><i class="fa fa-cloud" aria-hidden="true"></i></button>
+                    <?php endif; ?>
+                    <button class="messenger-icon-button" id="message-attach-button" type="button" title="Прикрепить файл" aria-label="Прикрепить файл"><i class="fa fa-paperclip" aria-hidden="true"></i></button>
+                    <input class="messenger-file-input" id="message-file-input" type="file" multiple accept="image/jpeg,image/png,image/gif,image/webp,audio/*,video/mp4,video/webm,video/quicktime,.pdf,.txt,.md,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp" aria-label="Выбрать вложение">
                 </div>
-                <?php if (!empty($workspaceActions['files'])): ?>
-                    <button class="messenger-icon-button" id="message-storage-button" type="button" title="Файл из личного хранилища" aria-label="Файл из личного хранилища"><i class="fa fa-cloud" aria-hidden="true"></i></button>
-                <?php endif; ?>
-                <button class="messenger-icon-button" id="message-attach-button" type="button" title="Прикрепить файл" aria-label="Прикрепить файл"><i class="fa fa-paperclip" aria-hidden="true"></i></button>
-                <input class="messenger-file-input" id="message-file-input" type="file" multiple accept="image/jpeg,image/png,image/gif,image/webp,audio/*,video/mp4,video/webm,video/quicktime,.pdf,.txt,.md,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp" aria-label="Выбрать вложение">
                 <textarea id="message-input" rows="1" maxlength="4096" placeholder="Сообщение" aria-label="Текст сообщения"></textarea>
                 <button class="messenger-send-button" id="message-send-button" type="button" aria-label="Отправить"><i class="fa fa-paper-plane" aria-hidden="true"></i></button>
             </footer>
