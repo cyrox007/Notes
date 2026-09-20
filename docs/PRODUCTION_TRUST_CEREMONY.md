@@ -81,8 +81,9 @@ php tools/vendor-license/issue.php \
   --key-id=prod-license-2026-01 \
   --installation-id=11111111-2222-4333-8444-555555555555 \
   --license-id=lic-release-canary-001 \
-  --edition=standard \
-  --features=notes,tasks,files,messenger
+  --edition=team \
+  --max-users=20 \
+  --features=workspace.notes,workspace.tasks,workspace.files,workspace.messenger,workspace.profile,workspace.admin
 ```
 
 Verify the resulting token against a build containing the committed public registry. Do not commit the canary token.
