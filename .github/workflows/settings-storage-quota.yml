@@ -44,10 +44,11 @@ jobs:
           php -l modules/admin/controllers/SettingsController.php
           php -l bin/migrate.php
           php -l bin/healthcheck.php
-          grep -Fq 'StorageQuotaLimit::class' core/routerConfig.php
+          grep -Fq 'StorageQuotaLimit::class' modules/files/FilesRuntimeProvider.php
           grep -Fq 'RequireAdminSettingsManage::class' modules/admin/AdminRuntimeProvider.php
           grep -Fq "admin.settings.manage" app/services/StorageQuotaService.php
-          grep -Fq "'20260913_system_settings_storage_quota.sql'" bin/migrate.php
+          grep -Fq '"20260913_system_settings_storage_quota.sql"' database/migrations/manifest.json
+          grep -Fq "'database/migrations/20260913_system_settings_storage_quota.sql'" core/DatabaseOwnership.php
           grep -Fq 'GET_LOCK' app/services/StorageQuotaService.php
           grep -Fq 'RELEASE_LOCK' app/services/StorageQuotaService.php
           grep -Fq "route('admin_settings')" modules/admin/views/index.php
