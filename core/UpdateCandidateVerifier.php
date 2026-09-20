@@ -54,9 +54,9 @@ final class UpdateCandidateVerifier
         $seen = [];
         $bytes = 0;
         $topLevel = [];
-        $iterator = new \\RecursiveIteratorIterator(
-            new \\RecursiveDirectoryIterator($candidateDir, \\FilesystemIterator::SKIP_DOTS),
-            \\RecursiveIteratorIterator::LEAVES_ONLY
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($candidateDir, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::LEAVES_ONLY
         );
         foreach ($iterator as $file) {
             if (!$file->isFile() || $file->isLink()) {
