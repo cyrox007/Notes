@@ -91,6 +91,14 @@ class Controller
         $basePath = $basePathSegment !== '' ? '/' . $basePathSegment : '';
         $baseUrl = $basePath;
         $workspaceAccess = $this->workspaceAccess();
+        $socketUrl = '';
+        if (!empty($workspaceAccess['messenger'])) {
+            try {
+                $socketUrl = WebSocketEndpoint::browserUrl();
+            } catch (\Throwable $e) {
+                error_log('Global Messenger endpoint is unavailable: ' . $e->getMessage());
+            }
+        }
 
         $viewData = [
             'base_url' => $baseUrl,
@@ -100,6 +108,7 @@ class Controller
             'product_name' => Version::PRODUCT_NAME,
             'workspaceAccess' => $workspaceAccess,
             'licenseRuntime' => $this->licenseRuntimeState($workspaceAccess),
+            'socket_url' => $socketUrl,
         ];
 
         if ($data !== null) {
