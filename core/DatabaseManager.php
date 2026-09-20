@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Core;
 
+require_once __DIR__ . '/DatabaseSqlInspector.php';
+
 use Exception;
 use PDO;
 use PDOException;
@@ -320,35 +322,12 @@ class DatabaseManager
 
     private function queryType(string $query): string
     {
-        if (!preg_match('/^\s*([A-Za-z]+)/', $query, $matches)) {
-            return 'UNKNOWN';
-        }
-
-        return strtoupper($matches[1]);
+        return DatabaseSqlInspector::queryType($query);
     }
 
     private function maskQuery(string $query, array $params): string
     {
-        $masked = $query;
-        foreach ($params as $key => $value) {
-            if (is_array($value) || is_object($value)) {
-                $rendered = '[complex]';
-            } elseif ($value === null) {
-                $rendered = 'NULL';
-            } elseif (is_bool($value)) {
-                $rendered = $value ? '1' : '0';
-            } else {
-                $rendered = (string) $value;
-                if (strlen($rendered) > 20) {
-                    $rendered = substr($rendered, 0, 20) . '...';
-                }
-            }
-
-            $placeholder = is_int($key) ? '?' : (string) $key;
-            $masked = str_replace($placeholder, $rendered, $masked);
-        }
-
-        return $masked;
+        return DatabaseSqlInspector::diagnosticQuery($query, $params);
     }
 
     public function fetchAll(string $query, array $params = []): array
@@ -442,9 +421,7 @@ class DatabaseManager
 
     private function assertIdentifier(string $identifier): void
     {
-        if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $identifier)) {
-            throw new Exception('Unsafe SQL identifier: ' . $identifier);
-        }
+        DatabaseSqlInspector::assertIdentifier($identifier);
     }
 
     public function __destruct()
