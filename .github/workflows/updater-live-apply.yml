@@ -2,7 +2,7 @@ name: 1.0 updater live apply rollback
 
 on:
   pull_request:
-    branches: [master, '1.0']
+    branches: [master, '1.0', dev]
   push:
     branches: ['1.0-data-only-migration-preflight']
 
@@ -49,6 +49,10 @@ jobs:
           php -l core/MigrationManifest.php
           php -l core/UpdateMigrationPreflight.php
           php -l core/UpdateTransactionStateMachine.php
+          php -l core/UpdatePath.php
+          php -l core/UpdateCandidateVerifier.php
+          php -l core/UpdateCodeSwitcher.php
+          php -l core/UpdateDatabaseRestorer.php
           php -l core/UpdateLiveApplier.php
           php -l core/UpdateApplyOperationLock.php
           php -l core/UpdateRollbackCodeRestorer.php
@@ -129,8 +133,11 @@ jobs:
           ! grep -Fq -- "candidateRoot . '/bin/migrate.php'" core/UpdateApplyCommand.php
           grep -Fq "'restart', '-d'" core/UpdateApplyCommand.php
           grep -Fq 'PRESERVED_ROOTS' core/UpdateLiveApplier.php
-          grep -Fq 'mkdir($path, 0755, true)' core/UpdateLiveApplier.php
-          grep -Fq 'DROP TABLE IF EXISTS' core/UpdateLiveApplier.php
+          grep -Fq 'UpdateCandidateVerifier' core/UpdateLiveApplier.php
+          grep -Fq 'UpdateCodeSwitcher' core/UpdateLiveApplier.php
+          grep -Fq 'UpdateDatabaseRestorer' core/UpdateLiveApplier.php
+          grep -Fq 'mkdir($path, 0755, true)' core/UpdateCodeSwitcher.php
+          grep -Fq 'DROP TABLE IF EXISTS' core/UpdateDatabaseRestorer.php
           grep -Fq 'rollback_failed' core/UpdateTransactionStateMachine.php
           ! grep -Fq 'verifyCandidateTree($artifacts' core/UpdateApplyCommand.php
           ! grep -Fq 'unzip ' bin/update_apply.php

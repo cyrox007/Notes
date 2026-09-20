@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Core;
 
+require_once __DIR__ . '/UpdatePath.php';
+
 use RuntimeException;
 use Throwable;
 
@@ -295,44 +297,21 @@ final class UpdatePackageStager
 
     private function isAbsolutePath(string $path): bool
     {
-        return str_starts_with($path, '/')
-            || preg_match('/^[A-Za-z]:[\\\\\/]/', $path) === 1
-            || str_starts_with($path, '\\\\');
+        return UpdatePath::isAbsolute($path);
     }
 
     private function normalizePath(string $path): string
     {
-        return rtrim(str_replace('\\', '/', $path), '/');
+        return UpdatePath::normalize($path, false);
     }
 
     private function pathInside(string $path, string $parent): bool
     {
-        $path = $this->normalizePath($path);
-        $parent = $this->normalizePath($parent);
-        if (PHP_OS_FAMILY === 'Windows') {
-            $path = strtolower($path);
-            $parent = strtolower($parent);
-        }
-        return $path === $parent || str_starts_with($path . '/', $parent . '/');
+        return UpdatePath::inside($path, $parent);
     }
 
     private function removeTree(string $dir): void
     {
-        $items = scandir($dir);
-        if (!is_array($items)) {
-            return;
-        }
-        foreach ($items as $item) {
-            if ($item === '.' || $item === '..') {
-                continue;
-            }
-            $path = $dir . DIRECTORY_SEPARATOR . $item;
-            if (is_dir($path) && !is_link($path)) {
-                $this->removeTree($path);
-            } else {
-                @unlink($path);
-            }
-        }
-        @rmdir($dir);
+        UpdatePath::removeTree($dir);
     }
 }

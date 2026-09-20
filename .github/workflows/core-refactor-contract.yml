@@ -1,0 +1,87 @@
+name: Core refactor contract
+
+on:
+  pull_request:
+    branches: [dev, '1.0', master]
+  push:
+    branches: [refactor/core-boundaries]
+
+permissions:
+  contents: read
+
+jobs:
+  core-refactor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.3']
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: core_refactor_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: pdo_mysql, mysqli
+          coverage: none
+
+      - name: Lint refactored core boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l core/RouteTemplate.php
+          php -l core/Router.php
+          php -l core/DatabaseSqlInspector.php
+          php -l core/DatabaseManager.php
+          php -l core/UpdateProcessRunner.php
+          php -l core/UpdatePath.php
+          php -l core/UpdateCandidateVerifier.php
+          php -l core/UpdateCodeSwitcher.php
+          php -l core/UpdateDatabaseRestorer.php
+          php -l core/UpdateLiveApplier.php
+          php -l core/UpdateBackupManager.php
+          php -l core/UpdateReleaseCandidate.php
+          php -l core/UpdateRollbackCodeRestorer.php
+          php -l core/UpdatePackageStager.php
+          php -l core/UpdateTransactionJournal.php
+          php -l core/UpdateTransactionStateMachine.php
+          php -l core/UpdateRemoteDelivery.php
+          php -l core/UpdateApplyCommand.php
+          php -l core.php
+          php -l modules/notes/models/NoteModel.php
+          php -l tests/integration/core_refactor_contract.php
+
+      - name: Verify extracted boundaries
+        run: php tests/integration/core_refactor_contract.php
+
+      - name: Verify DatabaseManager transaction semantics
+        env:
+          DBDRIVER: mysql
+          DBHOST: 127.0.0.1
+          DBPORT: '3306'
+          DBUSER: root
+          DBPASS: root
+          DBNAME: core_refactor_test
+          SITEURL: http://localhost
+        run: php tests/integration/database_queue_integrity.php
+
+      - name: Verify legacy router security contract still passes
+        run: php tests/integration/router_session_security_contract.php

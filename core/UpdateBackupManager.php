@@ -661,15 +661,7 @@ final class UpdateBackupManager
 
     private function safeRelativePath(string $path): bool
     {
-        if ($path === '' || str_contains($path, '\\') || str_contains($path, "\0") || str_starts_with($path, '/')) {
-            return false;
-        }
-        foreach (explode('/', $path) as $part) {
-            if ($part === '' || $part === '.' || $part === '..') {
-                return false;
-            }
-        }
-        return true;
+        return UpdatePath::safeRelative($path);
     }
 
     private function validateTransactionId(string $transactionId): void
@@ -681,48 +673,22 @@ final class UpdateBackupManager
 
     private function isAbsolute(string $path): bool
     {
-        return str_starts_with($path, '/')
-            || str_starts_with($path, '\\\\')
-            || preg_match('/^[A-Za-z]:[\\\\\/]/', $path) === 1;
+        return UpdatePath::isAbsolute($path);
     }
 
     private function normalize(string $path): string
     {
-        $path = rtrim(str_replace('\\', '/', $path), '/');
-        if (PHP_OS_FAMILY === 'Windows' && preg_match('/^[A-Za-z]:/', $path) === 1) {
-            $path = strtolower($path[0]) . substr($path, 1);
-        }
-        return $path;
+        return UpdatePath::normalize($path);
     }
 
     private function pathInside(string $path, string $parent): bool
     {
-        $path = $this->normalize($path);
-        $parent = $this->normalize($parent);
-        if (PHP_OS_FAMILY === 'Windows') {
-            $path = strtolower($path);
-            $parent = strtolower($parent);
-        }
-        return $path === $parent || str_starts_with($path . '/', $parent . '/');
+        return UpdatePath::inside($path, $parent);
     }
 
     private function removeTree(string $dir): void
     {
-        $items = scandir($dir);
-        if (!is_array($items)) {
-            return;
-        }
-        foreach ($items as $item) {
-            if ($item === '.' || $item === '..') {
-                continue;
-            }
-            $path = $dir . DIRECTORY_SEPARATOR . $item;
-            if (is_dir($path) && !is_link($path)) {
-                $this->removeTree($path);
-            } else {
-                @unlink($path);
-            }
-        }
-        @rmdir($dir);
+        UpdatePath::removeTree($dir);
     }
+
 }
