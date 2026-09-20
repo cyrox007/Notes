@@ -399,13 +399,13 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 - browser lifecycle coverage для основных product modules и Beta4 → 1.0 upgrade/rollback drill;
 - cross-browser/mobile + authenticated load/soak release-evidence harness.
 
-Перед окончательным cut/tag `v1.0.0` остаются только release-ceremony gates, а не новые platform features:
+Перед окончательным cut/tag `v1.0.1` остаются только release-ceremony gates, а не новые platform features:
 
-1. включить GitHub branch protection/ruleset для `1.0` согласно `docs/RELEASE_GOVERNANCE.md`;
-2. офлайн выпустить независимые production license/update Ed25519 keypairs и закоммитить только public trust roots;
-3. получить green cross-browser/mobile + load/soak release evidence на exact release head;
-4. подтвердить свежий backup/restore drill, exact Beta4 upgrade/rollback и отсутствие открытых P0/P1 data-loss/security дефектов;
-5. собрать финальный immutable bundle, подписать update manifest, слить exact release head в `master` и поставить tag `v1.0.0`.
+1. восстановить и проверить GitHub branch protection/ruleset для `master` и `1.0` после переключения visibility репозитория;
+2. получить green full CI + cross-browser/mobile/load release evidence на exact 1.0.1 release head;
+3. подтвердить fresh backup/restore drill, exact Beta4 → 1.0.1 upgrade/rollback, production trust canaries и отсутствие открытых P0/P1 data-loss/security/release blockers;
+4. собрать immutable `workspace-organizer-v1.0.1.zip`, сверить SHA-256/source SHA и подписать exact update manifest offline production update key;
+5. после strict acceptance слить exact release head в `master`, поставить `v1.0.1` и публиковать только проверенные immutable artifacts.
 
 Scalable encrypted-search redesign не является release blocker сам по себе; он требуется только если измерения на заявленном масштабе покажут, что bounded decrypt scan не выдерживает принятого performance envelope.
 
