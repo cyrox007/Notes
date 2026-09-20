@@ -1,5 +1,7 @@
 # Workspace Organizer 0.14 — Module Platform Contract
 
+Practical developer/operator instructions for adding a new module are in [`MODULE_DEVELOPMENT.md`](MODULE_DEVELOPMENT.md).
+
 This document defines the target contract for independently distributable product modules. Phase 1 introduced the manifest/registry control plane. Phase 5 adds persisted lifecycle state while current product code remains explicitly marked `runtime.mode = legacy`.
 
 ## Core versus module
