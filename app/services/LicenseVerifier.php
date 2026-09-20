@@ -25,6 +25,7 @@ final class LicenseVerifier
     public const PAYLOAD_VERSION = 1;
     public const MAX_TOKEN_LENGTH = 16384;
     public const CLOCK_SKEW_SECONDS = 300;
+    public const MAX_USERS_HARD_LIMIT = 1_000_000;
 
     /** @var array<string,string> raw Ed25519 public keys */
     private array $trustedKeys = [];
@@ -207,7 +208,7 @@ final class LicenseVerifier
             if (
                 !is_int($payload['max_users'])
                 || $payload['max_users'] < 1
-                || $payload['max_users'] > LicenseSeatPolicy::MAX_USERS_HARD_LIMIT
+                || $payload['max_users'] > self::MAX_USERS_HARD_LIMIT
             ) {
                 return 'Некорректный max_users';
             }
