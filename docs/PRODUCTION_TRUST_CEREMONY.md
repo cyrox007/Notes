@@ -93,9 +93,9 @@ Create a disposable ZIP package outside the repository or use the exact release-
 
 ```bash
 php tools/vendor-update/build-manifest.php \
-  --package=/secure/release/workspace-organizer-v1.0.0.zip \
-  --version=1.0.0 \
-  --version-code=10000 \
+  --package=/secure/release/workspace-organizer-v1.0.1.zip \
+  --version=1.0.1 \
+  --version-code=10001 \
   --channel=stable \
   --source-commit=<FULL_40_HEX_RELEASE_COMMIT> \
   --min-source-version-code=1404 \
