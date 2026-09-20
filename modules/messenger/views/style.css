@@ -187,6 +187,17 @@ html[data-theme="dark"] .workspace-viewport--messenger{
   background:var(--msg-surface);
   color:var(--msg-text)
 }
+.messenger-primary-button:disabled,
+.messenger-secondary-button:disabled{
+  opacity:.45;
+  cursor:not-allowed;
+  filter:none
+}
+.messenger-primary-button:focus-visible,
+.messenger-secondary-button:focus-visible{
+  outline:0;
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--msg-accent) 16%,transparent)
+}
 @media(max-width:620px){
   .messenger-dialog-modal{
     width:calc(100vw - 20px);

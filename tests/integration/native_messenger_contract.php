@@ -115,6 +115,9 @@ nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-task-fie
 nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-source[hidden]{display:none!important}'), 'workspace source context ignores hidden state');
 nativeMessengerAssert(str_contains($storageCss, '.messenger-storage-selected[hidden]{display:none!important}'), 'storage selected-file panel ignores hidden state');
 nativeMessengerAssert(str_contains($storageCss, '.messenger-storage-empty[hidden]{display:none!important}'), 'storage empty state ignores hidden state');
+nativeMessengerAssert(str_contains($storageCss, '.messenger-storage-list[hidden]{display:none!important}'), 'storage empty result still reserves list space');
+nativeMessengerAssert(str_contains($storageFiles, 'list.hidden = !hasFiles'), 'storage picker does not collapse an empty file list');
+nativeMessengerAssert(str_contains($messengerStyle, '.messenger-primary-button:disabled'), 'Messenger modal actions do not expose disabled state');
 nativeMessengerAssert(str_contains($mediaCss, 'max-width:min(420px,100%)'), 'Messenger media containment contract is missing');
 
 $controllerPath = $module . '/controllers/MessagerController.php';

@@ -60,6 +60,11 @@
             button.disabled = active;
             sendAttachment.disabled = active || !selected;
             sendLink.disabled = active || !selected || !canShare;
+            if (active && files.length === 0) {
+                list.hidden = true;
+                empty.hidden = false;
+                empty.textContent = 'Загрузка файлов…';
+            }
         }
 
         function setSelected(file) {
@@ -78,7 +83,10 @@
 
         function render() {
             list.replaceChildren();
-            empty.hidden = files.length !== 0;
+            const hasFiles = files.length !== 0;
+            list.hidden = !hasFiles;
+            empty.hidden = hasFiles;
+            empty.textContent = 'Файлы не найдены';
             files.forEach((file) => {
                 const item = document.createElement('button');
                 item.type = 'button';
