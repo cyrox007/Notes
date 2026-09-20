@@ -26,6 +26,7 @@
 .messenger-workspace-field input,.messenger-workspace-field textarea,.messenger-workspace-field select{width:100%;min-height:40px}
 .messenger-workspace-field textarea{min-height:112px;max-height:220px;resize:vertical}
 .messenger-workspace-task-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:10px}
+.messenger-workspace-task-fields[hidden]{display:none!important}
 .messenger-workspace-task-fields[hidden],
 .messenger-workspace-form[data-kind="note"] .messenger-workspace-task-fields{display:none!important}
 .messenger-workspace-submit{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin:2px -18px 0;padding:12px 18px;border-top:1px solid var(--msg-border);background:var(--msg-soft)}
