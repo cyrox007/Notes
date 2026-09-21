@@ -1,37 +1,37 @@
-# Beta4 -> 1.0 trusted bootstrap update
+# Доверенное bootstrap-обновление Beta4 -> 1.0
 
-`v0.14.0-beta.4` is a published release from before the signed updater runtime existed. The tag resolves to commit `743d9283f3bb4fca8f536ad133d542a7078af3a9`; that release does not contain `bin/update.php`, `UpdateManifestVerifier`, maintenance ownership, rollback backups, release candidates, or live apply/recovery.
+`v0.14.0-beta.4` — опубликованный релиз, выпущенный до появления runtime подписанного updater-а. Tag указывает на commit `743d9283f3bb4fca8f536ad133d542a7078af3a9`; этот release не содержит `bin/update.php`, `UpdateManifestVerifier`, maintenance ownership, rollback backups, release candidates или live apply/recovery.
 
-For that reason the first supported upgrade from Beta4 to 1.0 cannot truthfully be a self-update started by the installed Beta4 tree. It requires one explicit trusted bootstrap step. After 1.0 is installed, normal future signed updates run from the installed updater runtime.
+Поэтому первое поддерживаемое обновление Beta4 -> 1.0 не может честно быть self-update, запущенным из установленного дерева Beta4. Нужен один явный trusted bootstrap step. После установки 1.0 дальнейшие обычные signed updates запускаются уже установленным updater runtime.
 
-## Trust boundary
+## Граница доверия
 
-The bootstrap runner is `bin/update_bootstrap.php` from a separately trusted 1.0 release bundle extracted **outside** the live Beta4 application tree.
+Bootstrap runner — это `bin/update_bootstrap.php` из отдельно доверенного release bundle 1.0, распакованного **вне** live application tree Beta4.
 
-The runner:
+Runner:
 
-- accepts no private signing key;
-- trusts only public Ed25519 update keys in the runner's `config/update_trusted_keys.php`;
-- requires the operator to pin the exact expected source version and version code;
-- loads `Core\Version` from the live legacy installation, not from the runner, so the existing `updater_version_mismatch` protection remains bound to the source tree;
-- reuses the production `UpdateManifestVerifier`, `UpdatePackageStager`, `UpdateArchiveInspector`, `MaintenanceModeService`, `UpdateTransactionJournal`, `UpdateBackupManager`, `UpdateReleaseCandidate`, and `UpdateApplyCommand` implementations;
-- never writes a package directly over the live tree;
-- keeps transaction journal, staging, rollback backup and release candidate outside the live application root.
+- не принимает private signing key;
+- доверяет только public Ed25519 update keys из `config/update_trusted_keys.php` самого runner;
+- требует от оператора закрепить точные expected source version и version code;
+- загружает `Core\Version` из live legacy installation, а не из runner, поэтому существующая защита `updater_version_mismatch` остаётся привязанной к source tree;
+- повторно использует production-реализации `UpdateManifestVerifier`, `UpdatePackageStager`, `UpdateArchiveInspector`, `MaintenanceModeService`, `UpdateTransactionJournal`, `UpdateBackupManager`, `UpdateReleaseCandidate` и `UpdateApplyCommand`;
+- никогда не записывает package напрямую поверх live tree;
+- хранит transaction journal, staging, rollback backup и release candidate вне live application root.
 
-The bootstrap runner is an orchestration boundary, not a second updater implementation.
+Bootstrap runner — это orchestration boundary, а не вторая реализация updater.
 
-## Required operator inputs
+## Обязательные входные данные оператора
 
-Before starting, obtain through the normal release channel:
+Перед запуском получите через обычный release channel:
 
-1. the trusted 1.0 release/runner bundle;
-2. the detached signed update manifest;
-3. the detached manifest signature;
-4. the exact ZIP package referenced by that signed manifest.
+1. доверенный release/runner bundle 1.0;
+2. detached signed update manifest;
+3. detached signature manifest;
+4. точный ZIP package, на который ссылается подписанный manifest.
 
-The production update public key must already be present in the trusted runner bundle. The private update-signing key must remain offline/vendor-side and is never supplied to the customer command.
+Production update public key уже должен присутствовать в trusted runner bundle. Private update-signing key остаётся офлайн у поставщика и никогда не передаётся в customer command.
 
-Use external directories for all recovery artifacts. Example:
+Используйте внешние каталоги для всех recovery artifacts. Пример:
 
 ```bash
 php /opt/workspace-1.0-bootstrap/bin/update_bootstrap.php \
@@ -49,13 +49,13 @@ php /opt/workspace-1.0-bootstrap/bin/update_bootstrap.php \
   --json
 ```
 
-The command verifies the signed manifest/package before maintenance, then performs the same transaction pipeline used by 1.0:
+Команда проверяет signed manifest/package до входа в maintenance, затем выполняет тот же transaction pipeline, что и 1.0:
 
 `verify -> ZIP audit -> immutable external stage -> maintenance -> journal -> verified code/MySQL backup -> reverify stage -> external release candidate -> pre-health/migration dry-run -> live switch -> migrations -> post-health/version/schema verification -> commit -> maintenance off`
 
-## Recovery
+## Восстановление
 
-If the process dies after the destructive boundary, do not start a new transaction and do not delete recovery artifacts. Run recovery from the same trusted external runner and the same external state/backup roots:
+Если process завершился после destructive boundary, не начинайте новую transaction и не удаляйте recovery artifacts. Запустите recovery из того же trusted external runner с теми же external state/backup roots:
 
 ```bash
 php /opt/workspace-1.0-bootstrap/bin/update_bootstrap.php \
@@ -67,20 +67,20 @@ php /opt/workspace-1.0-bootstrap/bin/update_bootstrap.php \
   --json
 ```
 
-Recovery follows the durable journal. A transaction with failed/unverified rollback remains in maintenance; operators must not remove the marker simply to reopen the application.
+Recovery следует durable journal. Transaction с failed/unverified rollback остаётся в maintenance; оператор не должен удалять marker только ради повторного открытия приложения.
 
 ## Release drill
 
-`.github/workflows/beta4-upgrade-rollback-drill.yml` is the release gate for this boundary. It uses only ephemeral CI signing material and never production private keys.
+`.github/workflows/beta4-upgrade-rollback-drill.yml` является release gate этой boundary. Он использует только ephemeral signing material CI и никогда не использует production private keys.
 
-The workflow proves all of the following against exact `v0.14.0-beta.4`:
+Workflow доказывает для exact `v0.14.0-beta.4`:
 
-- the published Beta4 tag/commit really lacks the signed updater runtime;
-- two Beta4 installations are created through the real HTTP installer on MySQL;
-- a current 1.0 candidate is packaged with drill target version `1.0.0 / 10000` and signed with an ephemeral Ed25519 update key;
-- a normal transaction reaches `committed`, passes health/migration checks and preserves existing settings/data;
-- a second signed candidate intentionally fails only at post-switch healthcheck, after migrations have run;
-- automatic rollback restores Beta4 code and the pre-update MySQL snapshot, removes 1.0-only licensing state, reaches `rollback_verified`, and releases maintenance;
-- an incorrect source-version pin is rejected before maintenance/backup creation.
+- опубликованный Beta4 tag/commit действительно не содержит signed updater runtime;
+- две установки Beta4 создаются через реальный HTTP installer на MySQL;
+- текущий candidate 1.0 упаковывается с drill target version `1.0.0 / 10000` и подписывается ephemeral Ed25519 update key;
+- normal transaction достигает `committed`, проходит health/migration checks и сохраняет существующие settings/data;
+- второй signed candidate намеренно ломается только на post-switch healthcheck после выполнения migrations;
+- automatic rollback восстанавливает код Beta4 и pre-update MySQL snapshot, удаляет licensing state только 1.0, достигает `rollback_verified` и снимает maintenance;
+- неверный source-version pin отклоняется до создания maintenance/backup.
 
-The drill key is generated under `/tmp`, its public half is injected only into the CI runner copy of the trust registry, and the private key is deleted before either live transaction starts.
+Drill key генерируется под `/tmp`, его public half внедряется только в копию trust registry CI runner, а private key удаляется до начала любой live transaction.
