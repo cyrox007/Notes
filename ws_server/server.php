@@ -126,7 +126,7 @@ function workspaceWsStop(string $pidFile): int
 
     $deadline = microtime(true) + 8.0;
     while (microtime(true) < $deadline && workspaceWsProcessExists($pid)) {
-        usleep(100_000);
+        usleep(100000);
     }
 
     if (workspaceWsProcessExists($pid)) {
