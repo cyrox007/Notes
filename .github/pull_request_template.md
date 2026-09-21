@@ -1,25 +1,25 @@
-## Scope
+## Объём изменений
 
-<!-- What changes, and what intentionally does not? -->
+<!-- Что меняется и что намеренно не входит в этот PR? -->
 
-## Release checklist
+## Checklist релиза
 
-- [ ] The PR has one focused responsibility and no unrelated refactor.
-- [ ] `Master release gate` and relevant module/browser workflows pass on the current head.
-- [ ] Browser-impacting behavior is covered by an existing lifecycle test or this PR adds/updates one.
-- [ ] Root install and `BASE_PATH=/workspace/` behavior were considered for URLs, redirects and assets.
-- [ ] User-visible success is emitted only after durable DB/storage work succeeds.
-- [ ] DB changes follow `docs/DB_ARCHITECTURE.md`: canonical `*_schema.sql` for current shape, compatibility upgrade SQL only for installed legacy shapes.
-- [ ] Storage lifecycle changes preserve DB↔filesystem reconciliation/cleanup guarantees.
-- [ ] Security-sensitive changes preserve `role + is_active`, CSRF and ownership/access checks.
-- [ ] Documentation/changelog impact was considered.
+- [ ] У PR одна сфокусированная задача и нет несвязанных refactor.
+- [ ] `Master release gate` и релевантные module/browser workflows проходят на текущем head.
+- [ ] Изменения, влияющие на browser, покрыты существующим lifecycle test либо PR добавляет/обновляет такой test.
+- [ ] Для URL, redirects и assets учтены root install и `BASE_PATH=/workspace/`.
+- [ ] Видимый пользователю success выдаётся только после успешной durable DB/storage операции.
+- [ ] Изменения БД соответствуют `docs/DB_ARCHITECTURE.md`: canonical `*_schema.sql` описывает текущую схему, compatibility upgrade SQL используется только для ранее установленных legacy-форм.
+- [ ] Изменения storage lifecycle сохраняют гарантии reconciliation/cleanup между DB и filesystem.
+- [ ] Security-sensitive изменения сохраняют проверки `role + is_active`, CSRF и ownership/access.
+- [ ] Учтено влияние на документацию и changelog.
 
-## Review policy
+## Политика review
 
-- [ ] Branch is up to date with `master` before merge.
-- [ ] If another qualified participant exists, at least one independent approval is present.
-- [ ] No administrator bypass is planned for a failing required check.
+- [ ] Branch актуальна относительно `master` перед merge.
+- [ ] Если есть другой квалифицированный участник, присутствует хотя бы один независимый approval.
+- [ ] Не планируется administrator bypass для падающего required check.
 
-## Verification
+## Проверка
 
-<!-- List concrete CI jobs, local commands or browser flows used. -->
+<!-- Перечислите конкретные CI jobs, локальные команды или browser flows, использованные для проверки. -->
