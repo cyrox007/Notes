@@ -10,6 +10,13 @@
             this.socket = null;
             this.reconnectTimer = null;
             this.reconnectAttempt = 0;
+            this.transportMode = 'websocket';
+            this.eventCursor = Math.max(0, Number.parseInt(root.dataset.transportCursor || '0', 10) || 0);
+            this.seenEventIds = new Set();
+            this.seenEventOrder = [];
+            this.longPollActive = false;
+            this.longPollAbortController = null;
+            this.longPollFailureCount = 0;
             this.typingTimer = null;
             this.typingSent = false;
             this.pendingOpenUid = null;
@@ -123,46 +130,92 @@
                 };
             const url = resolveSocketUrl(rawUrl);
 
-            // Messenger must stay self-contained even when the shared deferred
-            // runtime bootstrap is delayed or blocked by a browser/cache race.
             wspace.socketConfig = { url, ticket };
 
-            if (!url || !ticket) {
-                this.setConnectionState('offline', 'WebSocket не настроен');
+            if (!url || !ticket || typeof WebSocket !== 'function') {
+                this.startLongPoll('Совместимый режим');
+                if (url && typeof WebSocket === 'function') this.scheduleReconnect();
                 return;
             }
 
-            this.setConnectionState('connecting', this.reconnectAttempt ? 'Переподключение…' : 'Подключение…');
+            if (
+                this.socket
+                && (this.socket.readyState === WebSocket.CONNECTING || this.socket.readyState === WebSocket.OPEN)
+            ) {
+                return;
+            }
 
+            if (!this.longPollActive) {
+                this.setConnectionState(
+                    'connecting',
+                    this.reconnectAttempt ? 'Переподключение…' : 'Подключение…'
+                );
+            }
+
+            let socket;
             try {
                 const separator = url.includes('?') ? '&' : '?';
-                this.socket = new WebSocket(`${url}${separator}ticket=${encodeURIComponent(ticket)}`);
+                socket = new WebSocket(
+                    `${url}${separator}ticket=${encodeURIComponent(ticket)}&cursor=${encodeURIComponent(String(this.eventCursor))}`
+                );
+                this.socket = socket;
             } catch (error) {
                 console.error(error);
+                this.startLongPoll('Совместимый режим');
                 this.scheduleReconnect();
                 return;
             }
 
-            this.socket.addEventListener('open', () => {
+            socket.addEventListener('open', () => {
                 this.reconnectAttempt = 0;
             });
 
-            this.socket.addEventListener('message', (event) => this.handleSocketMessage(event));
-            this.socket.addEventListener('error', () => this.setConnectionState('offline', 'Ошибка соединения'));
-            this.socket.addEventListener('close', () => {
-                this.setConnectionState('offline', 'Нет соединения');
+            socket.addEventListener('message', (event) => this.handleIncomingEvent(event));
+            socket.addEventListener('error', () => {
+                this.startLongPoll('Совместимый режим');
+            });
+            socket.addEventListener('close', () => {
+                if (this.socket === socket) this.socket = null;
+                this.startLongPoll('Совместимый режим');
                 this.scheduleReconnect();
             });
         }
 
         scheduleReconnect() {
             if (this.reconnectTimer) return;
-            const delay = Math.min(10000, 1000 * (2 ** Math.min(this.reconnectAttempt, 3)));
+            const delay = Math.min(15000, 1000 * (2 ** Math.min(this.reconnectAttempt, 4)));
             this.reconnectAttempt += 1;
             this.reconnectTimer = window.setTimeout(() => {
                 this.reconnectTimer = null;
                 this.connect();
             }, delay);
+        }
+
+        handleIncomingEvent(event) {
+            let data;
+            try {
+                data = JSON.parse(event.data);
+            } catch (error) {
+                console.warn('Invalid messenger payload', error);
+                return;
+            }
+
+            const eventId = Number.parseInt(String(data?.event_id || '0'), 10);
+            if (eventId > 0) {
+                if (this.seenEventIds.has(eventId)) return;
+                this.seenEventIds.add(eventId);
+                this.seenEventOrder.push(eventId);
+                if (this.seenEventOrder.length > 500) {
+                    const expired = this.seenEventOrder.shift();
+                    if (expired) this.seenEventIds.delete(expired);
+                }
+                this.eventCursor = Math.max(this.eventCursor, eventId);
+            }
+
+            this.handleSocketMessage({
+                data: JSON.stringify(data),
+                transport: event.transport || 'websocket'
+            });
         }
 
         handleSocketMessage(event) {
@@ -179,6 +232,14 @@
                     this.sendEvent('PingSocket:index', { ping: 'Pong' });
                     break;
                 case 'Authorized':
+                    if (Number.isFinite(Number(data.transport_cursor))) {
+                        this.eventCursor = Math.max(
+                            this.eventCursor,
+                            Number.parseInt(String(data.transport_cursor), 10) || 0
+                        );
+                    }
+                    this.transportMode = 'websocket';
+                    this.stopLongPoll();
                     this.setConnectionState('online', 'В сети');
                     this.sendEvent('MessangerSocket:get_dialogs', {});
                     break;
@@ -223,12 +284,136 @@
         }
 
         sendEvent(action, data = {}) {
-            if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-                this.showToast('Нет соединения с сервером');
-                return false;
+            if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+                this.socket.send(JSON.stringify({ action, data }));
+                return true;
             }
-            this.socket.send(JSON.stringify({ action, data }));
+
+            this.startLongPoll('Совместимый режим');
+            void this.sendHttpEvent(action, data);
             return true;
+        }
+
+        async sendHttpEvent(action, data = {}) {
+            const params = new URLSearchParams();
+            params.set('action', String(action || ''));
+            params.set('payload', JSON.stringify(data || {}));
+            params.set('cursor', String(this.eventCursor));
+
+            try {
+                const response = await fetch(this.appPath('/messenger/transport/send'), {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: params.toString()
+                });
+                const body = await response.json().catch(() => null);
+                if (!response.ok || !body || body.status === 'error' && !Array.isArray(body.events)) {
+                    throw new Error(body?.message || `HTTP ${response.status}`);
+                }
+                this.consumeTransportEnvelope(body);
+            } catch (error) {
+                console.warn('Messenger fallback send failed', error);
+                this.setConnectionState('offline', 'Связь недоступна');
+                this.showToast('Не удалось связаться с Messenger');
+            }
+        }
+
+        startLongPoll(label = 'Совместимый режим') {
+            if (this.longPollActive) return;
+
+            this.transportMode = 'long_poll';
+            this.longPollActive = true;
+            this.longPollFailureCount = 0;
+            this.setConnectionState('online', `В сети · ${label}`);
+
+            // Refresh current UI state through the same action contract. Any push
+            // events created while WebSocket was failing are consumed by cursor.
+            void this.sendHttpEvent('MessangerSocket:get_dialogs', {});
+            void this.longPollLoop();
+        }
+
+        stopLongPoll() {
+            this.longPollActive = false;
+            if (this.longPollAbortController) {
+                this.longPollAbortController.abort();
+                this.longPollAbortController = null;
+            }
+            this.longPollFailureCount = 0;
+        }
+
+        async longPollLoop() {
+            while (this.longPollActive) {
+                const controller = typeof AbortController === 'function'
+                    ? new AbortController()
+                    : null;
+                this.longPollAbortController = controller;
+
+                try {
+                    const response = await fetch(
+                        this.appPath('/messenger/transport/poll')
+                            + '?cursor=' + encodeURIComponent(String(this.eventCursor)),
+                        {
+                            method: 'GET',
+                            credentials: 'same-origin',
+                            headers: {
+                                'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest'
+                            },
+                            signal: controller?.signal
+                        }
+                    );
+                    const body = await response.json().catch(() => null);
+                    if (!response.ok || !body || body.status !== 'ok') {
+                        throw new Error(body?.message || `HTTP ${response.status}`);
+                    }
+
+                    this.longPollFailureCount = 0;
+                    this.consumeTransportEnvelope(body);
+                    if (this.longPollActive) {
+                        this.setConnectionState('online', 'В сети · совместимый режим');
+                    }
+                } catch (error) {
+                    if (!this.longPollActive || error?.name === 'AbortError') break;
+                    this.longPollFailureCount += 1;
+                    console.warn('Messenger long-poll failed', error);
+                    if (this.longPollFailureCount >= 3) {
+                        this.setConnectionState('offline', 'Связь недоступна');
+                    }
+                    const delay = Math.min(5000, 500 * (2 ** Math.min(this.longPollFailureCount, 3)));
+                    await new Promise((resolve) => window.setTimeout(resolve, delay));
+                } finally {
+                    if (this.longPollAbortController === controller) {
+                        this.longPollAbortController = null;
+                    }
+                }
+            }
+        }
+
+        consumeTransportEnvelope(body) {
+            const events = Array.isArray(body?.events) ? body.events : [];
+            events.forEach((payload) => {
+                if (!payload || typeof payload !== 'object') return;
+                this.handleIncomingEvent({
+                    data: JSON.stringify(payload),
+                    transport: 'long_poll'
+                });
+            });
+
+            const cursor = Number.parseInt(String(body?.cursor || '0'), 10);
+            if (cursor > 0) {
+                this.eventCursor = Math.max(this.eventCursor, cursor);
+            }
+        }
+
+        appPath(path) {
+            return typeof window.wspace?.path === 'function'
+                ? window.wspace.path(path)
+                : path;
         }
 
         setConnectionState(state, text) {
