@@ -5,18 +5,23 @@ declare(strict_types=1);
 namespace App\Sockets;
 
 use App\Services\MessengerMediaService;
+use App\Services\MessengerRealtimePublisher;
 use App\Services\MessengerService;
 use DomainException;
 use InvalidArgumentException;
 
 final class MediaSocket
 {
+    private MessengerRealtimePublisher $publisher;
+
     public function __construct(
         private ?MessengerMediaService $media = null,
-        private ?MessengerService $messenger = null
+        private ?MessengerService $messenger = null,
+        ?MessengerRealtimePublisher $publisher = null
     ) {
         $this->media ??= new MessengerMediaService();
         $this->messenger ??= new MessengerService();
+        $this->publisher = $publisher ?? new MessengerRealtimePublisher();
     }
 
     public function send(array $connections, SocketConnection $connection, string $userUid, array $payload = []): void
@@ -42,11 +47,7 @@ final class MediaSocket
 
     private function sendToUser(array $connections, string $userUid, array $payload): void
     {
-        foreach ($connections[$userUid] ?? [] as $userConnection) {
-            if ($userConnection instanceof SocketConnection) {
-                $this->sendPayload($userConnection, $payload);
-            }
-        }
+        $this->publisher->publishToUser($connections, $userUid, $payload);
     }
 
     private function requiredString(array $payload, string $key): string
