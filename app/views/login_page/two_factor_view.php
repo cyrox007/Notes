@@ -46,7 +46,7 @@ ob_start();
                         name="code"
                         id="two-factor-code"
                         placeholder="123456 или резервный код"
-                        inputmode="numeric"
+                        inputmode="text"
                         autocomplete="one-time-code"
                         autocapitalize="characters"
                         spellcheck="false"
