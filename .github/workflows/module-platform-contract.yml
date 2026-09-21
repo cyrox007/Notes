@@ -36,6 +36,7 @@ jobs:
           php -l index.php
           php -l tests/integration/module_registry_contract.php
           php -l tests/integration/database_ownership_contract.php
+          php -l tests/integration/module_user_avatar_contract.php
           php -l tests/e2e/router.php
 
       - name: Verify module registry, isolated runtime and capability contracts
@@ -43,6 +44,9 @@ jobs:
 
       - name: Verify database ownership compositions
         run: php tests/integration/database_ownership_contract.php
+
+      - name: Verify module user avatar context
+        run: php tests/integration/module_user_avatar_contract.php
 
       - name: Verify module package web boundary
         shell: bash

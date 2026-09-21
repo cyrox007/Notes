@@ -293,7 +293,7 @@ final class NoteController extends Controller
     {
         $id = (int) $request->session('user_id', 0);
         $user = $id > 0
-            ? UserModel::select('id', 'uid', 'username', 'firstname', 'lastname', 'role', 'is_active')
+            ? UserModel::select('id', 'uid', 'username', 'firstname', 'lastname', 'avatar', 'role', 'is_active')
                 ->where('id', '=', $id)
                 ->where('is_active', '=', 1)
                 ->first()
