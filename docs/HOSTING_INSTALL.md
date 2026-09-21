@@ -21,7 +21,7 @@ Composer, Smarty и Workerman для runtime не требуются.
 
 Если тариф не позволяет long-running process/WebSocket proxy, остальные web-модули устанавливаются и работают, но realtime Messenger на таком тарифе не развёрнут.
 
-## Fresh install без CLI
+## Чистая установка без CLI
 
 1. Скачайте ZIP `workspace-organizer-v*.zip` из GitHub Release.
 2. Загрузите и распакуйте его, например в `public_html/workspace`.
@@ -59,7 +59,7 @@ Installer сначала пробует создать её сам. Если MyS
 
 Не импортируйте SQL вручную — web-installer делает это сам.
 
-## Private storage
+## Приватное хранилище
 
 Типичный shared hosting:
 
@@ -75,7 +75,7 @@ Private storage должен находиться выше web-root, напри�
 
 Если hosting запрещает PHP запись вне `public_html`, такой тариф не соответствует security contract проекта.
 
-## WebSocket / realtime Messenger
+## WebSocket / realtime-мессенджер
 
 Installer записывает примерно:
 
@@ -88,7 +88,7 @@ WS_MAX_CONNECTIONS=256
 WS_MAX_PAYLOAD_BYTES=2097152
 ```
 
-### Штатный режим: native WS рядом с приложением
+### Штатный режим: native WebSocket рядом с приложением
 
 Web-installer не может универсально запустить долгоживущий process на любой панели, поэтому realtime Messenger запускается отдельно:
 
@@ -107,7 +107,7 @@ php bin/ws_doctor.php
 
 Если панель предлагает **Background processes / Supervisor / WebSocket / Reverse proxy**, используйте их для `php ws_server/server.php start` и проксирования публичного `/ws` на `127.0.0.1:27800`.
 
-### Отдельный WebSocket сервер
+### Отдельный WebSocket-сервер
 
 Допускается один отдельный WS-узел. В таком режиме `WS_PUBLIC_URL` может указывать, например, на:
 
@@ -124,7 +124,7 @@ WS_ALLOWED_ORIGINS=https://example.com
 
 Полная инструкция для обоих режимов — `docs/MESSENGER_SERVER.md`. Для Open Server/OSPanel — `docs/OPEN_SERVER_WEBSOCKET.md`.
 
-## Upgrade существующей установки
+## Обновление существующей установки
 
 Web-installer предназначен только для fresh install. Upgrade выполняется compatibility migration runner:
 
