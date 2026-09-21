@@ -17,6 +17,12 @@
 - Добавлен Windows compatibility gate на `windows-latest` для PHP 8.1/8.3: updater path semantics, signed staging/remote delivery, release candidate, retention и portable runtime contracts. Финальная OSPanel 5.2.2 приёмка остаётся отдельным ручным release evidence, а не подменяется CI.
 - Hosting package gate теперь явно требует `bin/update_retention.php` и `core/UpdateArtifactCleaner.php` в customer ZIP.
 
+### Hosting / WebSocket
+- WebSocket launcher теперь остаётся parseable достаточно долго, чтобы при ошибочном legacy CLI PHP вывести явное требование PHP 8.1+ и фактический CLI binary/version вместо неочевидного parse error.
+- `php ws_server/server.php start` выполняет подробный startup preflight: extensions/socket API, runtime paths, WebSocket endpoint/origins/proxy mode, limits и пробный bind порта; критичная ошибка выводит причину и действие `[FIX]` и блокирует запуск.
+- Добавлена diagnostics-only команда `php ws_server/server.php check`; `[RUNNING]` печатается только после успешного реального bind listener.
+- Документирован поддерживаемый вариант одного отдельного WS-узла и явно зафиксировано, что multi-instance/HA WebSocket без cross-node pub/sub/fan-out пока не является поддерживаемой topology.
+
 ### Release direction
 - `1.0.2` является последним stabilization patch перед feature-cycle `1.1.0`.
 - Основной оставшийся scope: production signed feed/manifest delivery, повтор exact `1.0.1 -> 1.0.2` на финальных production-signed artifacts и финальная ручная OSPanel 5.2.2 acceptance.
