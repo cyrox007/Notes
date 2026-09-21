@@ -52,3 +52,9 @@ DELIMITER ;
 
 CALL `migrate_notes_totp_two_factor`();
 DROP PROCEDURE `migrate_notes_totp_two_factor`;
+
+INSERT INTO `system_settings`
+    (`setting_key`,`setting_value`,`setting_type`,`category`,`description`,`is_editable`)
+VALUES
+    ('two_factor_required','0','boolean','security','Require TOTP two-factor authentication for every active user',1)
+ON DUPLICATE KEY UPDATE `setting_key` = VALUES(`setting_key`);
