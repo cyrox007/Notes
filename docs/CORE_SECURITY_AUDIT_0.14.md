@@ -1,28 +1,28 @@
-# Workspace Organizer 0.14 — Core/Security Audit Ledger
+# Workspace Organizer 0.14 — журнал аудита Core/Security
 
-Status: **active audit**. This file is the release evidence ledger for the 0.14 beta hardening cycle. It is intentionally not a one-time prose review: every security-sensitive surface must end in an explicit reviewed/fixed/regression-covered state before beta can be declared.
+Статус: **активный аудит**. Этот файл является журналом release evidence для цикла beta hardening 0.14. Это намеренно не одноразовый текстовый обзор: каждая security-sensitive поверхность должна завершиться явным состоянием reviewed/fixed/regression-covered до объявления beta.
 
-## Audit rule
+## Правило аудита
 
-A row is complete only when the relevant code has been reviewed against its threat model and any Critical/High finding is fixed with regression coverage. `reviewed` without evidence is not sufficient for beta.
+Строка считается завершённой только когда соответствующий код проверен относительно своей threat model, а все Critical/High findings исправлены и имеют regression coverage. Статуса `reviewed` без evidence недостаточно для beta.
 
-Status values:
+Значения status:
 
-- `not-reviewed` — no 0.14 audit evidence yet;
-- `reviewing` — audit in progress;
-- `finding` — one or more unresolved findings;
-- `fixed` — known finding fixed, regression test still pending or partial;
-- `covered` — reviewed and protected by a repeatable contract/test where practical.
+- `not-reviewed` — evidence аудита 0.14 ещё нет;
+- `reviewing` — аудит идёт;
+- `finding` — есть одно или несколько нерешённых findings;
+- `fixed` — известный finding исправлен, regression test ещё отсутствует или неполон;
+- `covered` — поверхность проверена и, где это практически возможно, защищена повторяемым contract/test.
 
-## Surface matrix
+## Матрица поверхностей
 
-| Surface | Status | Required evidence |
+| Поверхность | Статус | Требуемые evidence |
 |---|---|---|
-| Bootstrap/autoload/startup errors | finding | explicit load boundary, no secret/path disclosure, fail-closed startup tests |
-| Module discovery/manifest/registry | reviewing | schema validation, path confinement, dependency/cycle/core-version tests |
-| Web-server/source/package exposure | fixed | production deny boundary mirrored by E2E router and regression coverage |
-| Router/path parsing/redirects | not-reviewed | route parser fuzz/negative cases, safe redirects, method handling |
-| Request parsing/input boundaries | not-reviewed | malformed JSON, oversized/nested input, raw-vs-escaped contract |
+| Bootstrap/autoload/startup errors | finding | явная load boundary, отсутствие disclosure secrets/paths, fail-closed startup tests |
+| Module discovery/manifest/registry | reviewing | schema validation, path confinement, tests dependencies/cycle/core-version |
+| Web-server/source/package exposure | fixed | production deny boundary, повторённая E2E router и regression coverage |
+| Router/path parsing/redirects | not-reviewed | fuzz/negative cases route parser, safe redirects, method handling |
+| Request parsing/input boundaries | not-reviewed | malformed JSON, oversized/nested input, contract raw-vs-escaped |
 | Session/cookie lifecycle | not-reviewed | fixation, cookie flags, logout invalidation, concurrent session behavior |
 | Authentication/registration | not-reviewed | brute force/rate limit, credential errors, invite lifecycle, password contract |
 | Authorization/ACL/admin | not-reviewed | object-level access matrix, blocked/inactive revocation, privilege transitions |
@@ -34,83 +34,83 @@ Status values:
 | Notes crypto | not-reviewed | key/AAD/error behavior, corruption/truncation, key rotation design |
 | Messenger crypto/WSS | not-reviewed | ticket/origin/ACL/reconnect/replay/abuse boundaries |
 | Secrets/config/proxy trust | not-reviewed | missing/weak secrets, forwarded headers, deployment fail-closed behavior |
-| Dependencies/supply chain | not-reviewed | Composer audit plus package provenance/update signature design |
+| Dependencies/supply chain | not-reviewed | Composer audit и дизайн package provenance/update signature |
 | Update manager | not-reviewed | signed metadata/package, downgrade protection, atomicity/recovery |
 | License/entitlement manager | not-reviewed | signed entitlement, offline/grace behavior, tamper/failure behavior |
-| Logging/observability | not-reviewed | no secret leakage, correlation IDs, audit events, alertable failures |
-| Backup/restore/data retention | not-reviewed | restore drill, module disable/uninstall retention, purge semantics |
+| Logging/observability | not-reviewed | отсутствие утечки secrets, correlation IDs, audit events, alertable failures |
+| Backup/restore/data retention | not-reviewed | restore drill, retention при module disable/uninstall, purge semantics |
 | Multi-node/concurrency | not-reviewed | locks/shared state/duplicate workers/idempotency |
 | Browser/client JS boundaries | not-reviewed | DOM XSS, unsafe HTML, URL handling, CSP-compatible assets |
 
 ## Findings
 
-### A14-001 — Bootstrap exception details exposed to HTTP client
+### A14-001 — детали bootstrap exception попадали HTTP-клиенту
 
 **Severity:** Medium  
-**State:** fixed in Phase 1; regression coverage to be added to the startup/security contract.
+**State:** исправлено в Phase 1; regression coverage нужно добавить в startup/security contract.
 
-`index.php` logged the bootstrap exception and then passed the same exception message into the public HTML error page. Startup exceptions can contain filesystem/configuration details and occur exactly when normal application error handling is unavailable.
+`index.php` логировал bootstrap exception, а затем передавал то же exception message в публичную HTML error page. Startup exceptions могут содержать filesystem/configuration details и возникают именно тогда, когда обычная application error handling ещё недоступна.
 
-Phase 1 changes the public response to an opaque incident identifier while keeping the exception class/message in the server log. No stack trace or raw bootstrap exception is rendered to the browser.
+Phase 1 заменяет публичный ответ на непрозрачный incident identifier, сохраняя exception class/message только в server log. Ни stack trace, ни raw bootstrap exception браузеру не отображаются.
 
-### A14-002 — Implicit recursive `app/*` loading is an oversized execution boundary
+### A14-002 — неявная рекурсивная загрузка `app/*` создаёт слишком широкую execution boundary
 
 **Severity:** Medium architectural/security risk  
 **State:** finding / migration started.
 
-`core.php` recursively requires PHP from models, services, controllers, socket handlers and middleware directories. The mechanism predates the modular distribution goal and makes package composition implicit: code presence on disk is effectively enough to join the runtime bootstrap.
+`core.php` рекурсивно подключает PHP из каталогов models, services, controllers, socket handlers и middleware. Механизм появился до цели модульной поставки и делает package composition неявной: одного присутствия кода на диске фактически достаточно, чтобы он вошёл в runtime bootstrap.
 
-This is not treated as a standalone remote-code-execution vulnerability: an attacker able to write arbitrary PHP into the application tree already has a strong primitive. It is nevertheless incompatible with signed module packages, deterministic composition, quarantine and license/update enforcement.
+Это не рассматривается как самостоятельная remote-code-execution vulnerability: атакующий, способный записать произвольный PHP в application tree, уже обладает сильной примитивой. Однако такое поведение несовместимо с signed module packages, deterministic composition, quarantine и license/update enforcement.
 
-Phase 1 introduces validated module manifests and a fail-closed registry before legacy application loading. Later 0.14 phases must eliminate recursive product-module loading in favour of explicit isolated module bootstrap/routes.
+Phase 1 добавляет validated module manifests и fail-closed registry до legacy application loading. Последующие фазы 0.14 должны убрать рекурсивную загрузку product modules в пользу явных isolated module bootstrap/routes.
 
-### A14-003 — Current product modules have no cryptographically authenticated package identity
+### A14-003 — у текущих product modules нет криптографически аутентифицированной package identity
 
-**Severity:** High for the future remote-update threat model; not yet an exposed remote-update vulnerability because an update channel is not implemented.  
+**Severity:** High для будущей threat model remote update; сейчас это ещё не exposed remote-update vulnerability, потому что update channel не реализован.  
 **State:** finding / planned.
 
-The Phase 1 manifest integrity hash detects manifest content identity inside the running installation but is **not** a package signature. Before any remote core/module update feature is enabled, 0.14 must verify signed release metadata and package content with a public verification key embedded in/trusted by the core. Private signing keys must never ship with the application.
+Manifest integrity hash из Phase 1 обнаруживает identity содержимого manifest внутри running installation, но **не является package signature**. До включения любого remote core/module update в 0.14 нужно проверять signed release metadata и package contents через public verification key, встроенный в core или явно доверенный ему. Private signing keys никогда не должны поставляться вместе с приложением.
 
-### A14-004 — Central router and legacy runtime couple module availability to source presence
+### A14-004 — central router и legacy runtime связывают доступность module с наличием исходников
 
 **Severity:** Architectural  
 **State:** finding / planned.
 
-`core/routerConfig.php` imports and registers every product controller centrally. A disabled/missing module therefore cannot yet disappear as a coherent capability. The module registry added in Phase 1 is metadata/control-plane groundwork only; route ownership will migrate to module-owned route providers in a separate PR.
+`core/routerConfig.php` централизованно импортирует и регистрирует каждый product controller. Поэтому disabled/missing module пока не может исчезнуть как цельная capability. Module registry из Phase 1 — только metadata/control-plane foundation; ownership routes будет перенесён в module-owned route providers отдельным PR.
 
-### A14-005 — Module/source directories were not consistently modelled as non-public content
+### A14-005 — каталоги module/source не были последовательно смоделированы как непубличный контент
 
 **Severity:** Medium  
-**State:** fixed in Phase 1; browser/static regression coverage is provided by the existing E2E suites running through the hardened router.
+**State:** исправлено в Phase 1; browser/static regression coverage обеспечивают существующие E2E suites через hardened router.
 
-The production Apache baseline already denied direct access to source/config directories, but the newly introduced `modules/` directory was not yet present in that deny list. In addition, `tests/e2e/router.php` served any existing repository file directly, so browser CI did not reproduce the production source boundary.
+Production baseline Apache уже запрещал прямой доступ к source/config directories, но новый каталог `modules/` ещё не входил в deny list. Кроме того, `tests/e2e/router.php` напрямую отдавал любой существующий repository file, поэтому browser CI не воспроизводил production source boundary.
 
-Phase 1 adds `modules` to the Apache private-source deny rule and makes the PHP E2E router deny the same source/package segments and sensitive root metadata before its static-file fast path. This prevents module manifests/future module code from being treated as browser assets and makes browser CI exercise the intended boundary.
+Phase 1 добавляет `modules` в private-source deny rule Apache и заставляет PHP E2E router запрещать те же source/package segments и sensitive root metadata до static-file fast path. Это не позволяет считать module manifests/будущий module code браузерными assets и заставляет browser CI проверять целевую boundary.
 
-## Phase 1 evidence
+## Evidence Phase 1
 
-Phase 1 adds:
+Phase 1 добавляет:
 
-- `Core\\ModuleManifest` with strict JSON schema/type/identifier/core-version validation;
-- `Core\\ModuleRegistry` with root confinement, symlink rejection at the module boundary, unique capability ownership, dependency existence checks and cycle rejection;
+- `Core\ModuleManifest` со строгой проверкой JSON schema/type/identifier/core-version;
+- `Core\ModuleRegistry` с root confinement, отказом от symlink на module boundary, уникальным ownership capabilities, проверкой наличия dependencies и отказом от cycles;
 - deterministic dependency-aware composition resolution;
-- explicit manifests for current Notes, Tasks, Files, Messenger, Profile and Administration product modules;
-- explicit `runtime.mode = legacy` so the repository cannot pretend current modules are isolated before they actually are;
-- dedicated `module-platform-contract` CI with real positive/negative registry fixtures;
-- bootstrap validation of all module manifests before legacy application code is loaded;
-- removal of raw bootstrap exception details from HTTP responses;
-- Apache and browser-E2E denial of direct `modules/`/source-package access.
+- явные manifests для текущих product modules Notes, Tasks, Files, Messenger, Profile и Administration;
+- явный `runtime.mode = legacy`, чтобы репозиторий не выдавал текущие modules за isolated до фактической изоляции;
+- отдельный CI `module-platform-contract` с реальными positive/negative registry fixtures;
+- bootstrap validation всех module manifests до загрузки legacy application code;
+- удаление raw bootstrap exception details из HTTP responses;
+- запрет Apache и browser-E2E на прямой доступ к `modules/`/source-package.
 
-## Required next audit/implementation sequence
+## Обязательная следующая последовательность аудита/реализации
 
-1. Harden Router/Request/session boundaries and add negative/fuzz-style contracts.
-2. Introduce persisted module installation/lifecycle state (`installed/enabled/disabled/incompatible/degraded/quarantined`) and reconcile it with signed manifests.
-3. Move route registration behind module providers; migrate one low-coupling module end-to-end as the reference isolated module.
-4. Split module migrations/assets/storage/healthchecks into owned namespaces and enforce cross-module boundaries.
-5. Implement signed package/update metadata and update transaction/recovery state machine.
-6. Implement centralized signed entitlement verification after the module/update trust boundary is stable.
-7. Complete the remaining audit matrix and close every Critical/High finding before `0.14.0-beta.1`.
+1. Усилить boundaries Router/Request/session и добавить negative/fuzz-style contracts.
+2. Добавить persisted module installation/lifecycle state (`installed/enabled/disabled/incompatible/degraded/quarantined`) и reconciliation с signed manifests.
+3. Перенести route registration за module providers; мигрировать один low-coupling module end-to-end как reference isolated module.
+4. Разделить module migrations/assets/storage/healthchecks по owned namespaces и enforce cross-module boundaries.
+5. Реализовать signed package/update metadata и state machine update transaction/recovery.
+6. Реализовать централизованную signed entitlement verification после стабилизации module/update trust boundary.
+7. Завершить оставшуюся audit matrix и закрыть каждый Critical/High finding до `0.14.0-beta.1`.
 
-## Beta blocking rule
+## Beta-blocking rule
 
-`0.14.0-beta.1` must not be tagged while any audit row remains `not-reviewed`, or while any Critical/High finding remains unresolved. Medium findings require either a fix or an explicit documented risk acceptance with regression containment and a stable-target owner.
+`0.14.0-beta.1` нельзя помечать tag, пока хотя бы одна audit row остаётся `not-reviewed` или хотя бы один Critical/High finding остаётся нерешённым. Medium findings требуют либо fix, либо явного документированного принятия риска с regression containment и ответственным владельцем stable target.
