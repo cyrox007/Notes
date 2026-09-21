@@ -18,6 +18,7 @@ abstract class SocketConnection
     public ?string $uid = null;
     public ?int $userId = null;
     public float $lastMessengerSearchAt = 0.0;
+    public int $transportCursor = 0;
 
     abstract public function send(string $payload): void;
 
