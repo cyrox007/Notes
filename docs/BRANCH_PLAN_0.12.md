@@ -1,12 +1,12 @@
-# Workspace 0.12 — six-PR execution plan
+# Workspace 0.12 — план выполнения через шесть PR
 
-The remaining 0.12 work is intentionally split into six independently reviewable branches/PRs:
+Оставшаяся работа по 0.12 намеренно разделена на шесть независимых веток/PR, которые можно проверять отдельно:
 
-1. `0.12-db-architecture` — canonical schema + compatibility upgrade contract.
-2. `0.12-product-e2e` — Profile, Admin and fault-injection browser lifecycles.
-3. `0.12-usability` — shared feedback/confirmation UX, fewer disruptive reloads and module usability improvements.
-4. `0.12-findability` — server-side search, pagination and URL-preserved sorting/filtering for Notes, Tasks and Admin users.
-5. `0.12-governance` — release/browser checks and documented review/merge policy.
-6. `0.12-release-alpha` — final 0.12 usable-alpha release closure after the preceding contracts land.
+1. `0.12-db-architecture` — каноническая схема БД и контракт совместимых обновлений.
+2. `0.12-product-e2e` — браузерные жизненные циклы Profile, Admin и сценарии с искусственными отказами.
+3. `0.12-usability` — единый UX обратной связи/подтверждений, меньше мешающих перезагрузок и улучшение удобства модулей.
+4. `0.12-findability` — серверный поиск, пагинация и сохранение сортировки/фильтров в URL для Notes, Tasks и списка пользователей Admin.
+5. `0.12-governance` — release/browser проверки и документированная политика review/merge.
+6. `0.12-release-alpha` — финальное закрытие usable-alpha 0.12 после объединения предыдущих контрактов.
 
-All six branches start from the same `master` baseline so review scope stays isolated. The release branch is a final integration/release gate and must be refreshed after the first five PRs merge.
+Все шесть веток начинаются от одной базовой версии `master`, чтобы область проверки оставалась изолированной. Release-ветка является финальным интеграционным/release gate и должна быть обновлена после слияния первых пяти PR.
