@@ -400,16 +400,17 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 - resumable/rollback-safe rotation `UNIQUE_KEY` / `MSG_SECRET_KEY`;
 - nonce-based CSP без `unsafe-inline`;
 - explicit retention/permanent-purge contract с filesystem/DB safety guards;
-- browser lifecycle coverage для основных product modules и Beta4 → 1.0 upgrade/rollback drill;
+- browser lifecycle coverage для основных product modules и exact published 1.0.1 → 1.0.2 upgrade/rollback drill;
 - cross-browser/mobile + authenticated load/soak release-evidence harness.
 
-Перед окончательным cut/tag `v1.0.1` остаются только release-ceremony gates, а не новые platform features:
+Перед окончательным cut/tag `v1.0.2` остаются только release-ceremony gates, а не новые platform features:
 
-1. восстановить и проверить GitHub branch protection/ruleset для `master` и `1.0` после переключения visibility репозитория;
-2. получить green full CI + cross-browser/mobile + load/soak release evidence на exact 1.0.1 release head;
-3. подтвердить fresh backup/restore drill, exact Beta4 → 1.0.1 upgrade/rollback, production trust canaries и отсутствие открытых P0/P1 data-loss/security/release blockers;
-4. собрать immutable `workspace-organizer-v1.0.1.zip`, сверить SHA-256/source SHA и подписать exact update manifest offline production update key;
-5. после strict acceptance слить exact release head в `master`, поставить `v1.0.1` и публиковать только проверенные immutable artifacts.
+1. проверить GitHub branch protection/ruleset для `master` и `1.0`;
+2. получить green full CI + cross-browser/mobile + load/soak release evidence на exact 1.0.2 release head;
+3. подтвердить fresh backup/restore drill, exact published 1.0.1 → 1.0.2 upgrade/rollback, production trust canaries, Windows compatibility CI и финальную ручную OSPanel 5.2.2 acceptance;
+4. подтвердить отсутствие открытых P0/P1 data-loss/security/release blockers;
+5. собрать immutable `workspace-organizer-v1.0.2.zip`, сверить SHA-256/source SHA и подписать exact update manifest offline production update key;
+6. после strict acceptance слить exact release head в `master`, поставить `v1.0.2` и публиковать только проверенные immutable artifacts.
 
 Scalable encrypted-search redesign не является release blocker сам по себе; он требуется только если измерения на заявленном масштабе покажут, что bounded decrypt scan не выдерживает принятого performance envelope.
 
