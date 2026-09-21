@@ -47,6 +47,7 @@ jobs:
           php -l bin/update_backup.php
           php -l bin/update_candidate.php
           php -l bin/update_apply.php
+          php -l bin/update_run.php
           php -l core/UpdateManifestVerifier.php
           php -l core/UpdatePackageStager.php
           php -l core/UpdateArchiveInspector.php
@@ -117,6 +118,7 @@ jobs:
           test -f "$ROOT/bin/update_backup.php"
           test -f "$ROOT/bin/update_candidate.php"
           test -f "$ROOT/bin/update_apply.php"
+          test -f "$ROOT/bin/update_run.php"
           test -f "$ROOT/bin/maintenance.php"
           test -f "$ROOT/core/UpdateManifestVerifier.php"
           test -f "$ROOT/core/UpdatePackageStager.php"
@@ -158,6 +160,7 @@ jobs:
           unzip -l "$BUNDLE" | grep -F 'bin/update_backup.php'
           unzip -l "$BUNDLE" | grep -F 'bin/update_candidate.php'
           unzip -l "$BUNDLE" | grep -F 'bin/update_apply.php'
+          unzip -l "$BUNDLE" | grep -F 'bin/update_run.php'
           unzip -l "$BUNDLE" | grep -F 'bin/maintenance.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdateManifestVerifier.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdatePackageStager.php'
