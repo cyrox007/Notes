@@ -95,12 +95,21 @@ foreach ($journals as $id => $fixture) {
     $backupDir = $backups . '/' . $id;
     retentionMkdir($backupDir);
     file_put_contents($backupDir . '/payload.bin', str_repeat('x', 32));
+    file_put_contents($backupDir . '/backup.json', "backup:" . $id . "\n");
+    $backupManifestHash = hash_file('sha256', $backupDir . '/backup.json');
+    retentionAssert(is_string($backupManifestHash), 'cannot hash backup marker fixture');
 
     $candidateDir = $candidates . '/candidate-' . substr($fixture['package_sha256'], 0, 16);
     if (!is_dir($candidateDir)) {
         retentionMkdir($candidateDir);
         file_put_contents($candidateDir . '/candidate.bin', str_repeat('y', 48));
+        file_put_contents(
+            $candidateDir . '/.workspace-release-tree.json',
+            "candidate:" . $fixture['package_sha256'] . "\n"
+        );
     }
+    $candidateTreeHash = hash_file('sha256', $candidateDir . '/.workspace-release-tree.json');
+    retentionAssert(is_string($candidateTreeHash), 'cannot hash candidate marker fixture');
 
     retentionWriteJson($transactions . '/' . $id . '.json', [
         'schema' => 1,
@@ -110,9 +119,11 @@ foreach ($journals as $id => $fixture) {
         'updated_at' => $fixture['updated_at'],
         'backups' => [
             'backup_dir' => $backupDir,
+            'manifest_sha256' => $backupManifestHash,
         ],
         'candidate' => [
             'candidate_dir' => $candidateDir,
+            'tree_sha256' => $candidateTreeHash,
         ],
     ]);
 }
