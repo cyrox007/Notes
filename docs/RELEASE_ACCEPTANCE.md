@@ -1,10 +1,10 @@
-# Workspace Organizer 1.0 final release acceptance
+# Финальная приёмка релиза Workspace Organizer 1.0
 
-This document is the final cut checklist for `v1.0.1`. It deliberately separates repository correctness, CI evidence and operator-only actions. A release is accepted only on one exact commit; evidence from an older head does not transfer automatically.
+Этот документ — финальный checklist для выпуска `v1.0.1`. Он намеренно разделяет корректность репозитория, CI evidence и действия, которые выполняет только оператор. Релиз принимается только на одном точном commit; evidence со старого head автоматически не переносится.
 
-## Release candidate identity
+## Идентичность release candidate
 
-The accepted release candidate must report:
+Принятый release candidate должен сообщать:
 
 - version: `1.0.1`;
 - version code: `10001`;
@@ -13,55 +13,55 @@ The accepted release candidate must report:
 - final release branch: `master`;
 - tag: `v1.0.1`.
 
-Record the exact 40-character commit SHA in the release notes before building the final bundle.
+До сборки финального bundle зафиксируйте точный 40-символьный commit SHA в release notes.
 
-## Gate A — repository/source contract
+## Gate A — контракт репозитория/исходников
 
-Before final RC testing:
+До финального тестирования RC:
 
-1. All intended 1.0 engineering PRs are merged into `1.0`.
-2. No unrelated or unreviewed branches are merged for convenience.
-3. `php bin/release_acceptance.php --json` reports no source-contract failures.
-4. The release tree contains no private license/update signing keys.
-5. README, CHANGELOG and `docs/releases/v1.0.1.md` describe the same version/status.
-6. Migration manifest and module ownership metadata are current and historical applied SQL has not been rewritten.
-7. The release-evidence harness is present before strict acceptance.
+1. Все запланированные engineering PR для 1.0 объединены в `1.0`.
+2. Несвязанные или непроверенные ветки не сливаются «для удобства».
+3. `php bin/release_acceptance.php --json` не сообщает об ошибках source contract.
+4. В release tree нет приватных ключей подписи лицензий/обновлений.
+5. README, CHANGELOG и `docs/releases/v1.0.1.md` описывают одинаковые version/status.
+6. Manifest миграций и metadata ownership модулей актуальны, а исторический уже применённый SQL не переписан.
+7. Release-evidence harness присутствует до strict acceptance.
 
-A `pending` result from the non-strict preflight is expected while external ceremony gates are still incomplete.
+Результат `pending` от non-strict preflight ожидаем, пока внешние ceremony gates ещё не завершены.
 
-## Gate B — repository governance
+## Gate B — управление репозиторием
 
-Repository Settings are external to Git history. The repository owner/admin must verify:
+Repository Settings находятся вне Git history. Владелец/admin репозитория должен проверить:
 
-- `1.0` is protected;
-- pull requests are required;
-- branch must be up to date before merge;
-- the always-on `release-gate` is required;
-- the final `master` policy requires the release gate plus Notes/Tasks/Files/Profile/Admin browser lifecycle and storage DB-failure checks listed in `.github/release-governance.json`;
-- stale approvals are dismissed after new commits;
-- force push and branch deletion are blocked;
-- independent approval is required when another qualified reviewer exists.
+- `1.0` защищена;
+- pull requests обязательны;
+- branch должна быть актуальна перед merge;
+- always-on `release-gate` является обязательным;
+- финальная policy `master` требует release gate, а также Notes/Tasks/Files/Profile/Admin browser lifecycle и storage DB-failure checks из `.github/release-governance.json`;
+- stale approvals сбрасываются после новых commits;
+- force push и удаление branch запрещены;
+- независимый approval обязателен, когда существует другой квалифицированный reviewer.
 
-Do not mark this gate complete merely because `.github/release-governance.json` is correct.
+Не отмечайте gate завершённым только потому, что `.github/release-governance.json` корректен.
 
 ## Gate C — production trust roots
 
-Follow `docs/PRODUCTION_TRUST_CEREMONY.md`.
+Следуйте `docs/PRODUCTION_TRUST_CEREMONY.md`.
 
-Required evidence:
+Обязательные evidence:
 
-1. license and update signing use independent Ed25519 keypairs;
-2. private keys exist only in controlled offline vendor storage;
-3. only public keys are committed to `config/license_trusted_keys.php` and `config/update_trusted_keys.php`;
-4. license canary verifies against the release candidate;
-5. update-manifest canary verifies against the release candidate;
-6. no private-key file or raw private key appears in Git, CI artifacts, release bundle or support/chat logs.
+1. подпись лицензий и обновлений использует независимые Ed25519 keypairs;
+2. private keys существуют только в контролируемом офлайн vendor storage;
+3. в `config/license_trusted_keys.php` и `config/update_trusted_keys.php` коммитятся только public keys;
+4. license canary успешно проверяется на release candidate;
+5. update-manifest canary успешно проверяется на release candidate;
+6. private-key file или raw private key нигде не появляется в Git, CI artifacts, release bundle или support/chat logs.
 
-## Gate D — exact-head automated evidence
+## Gate D — автоматические evidence на точном head
 
-After the final source commit is frozen, run all release-relevant checks on that exact SHA.
+После заморозки финального source commit запустите все release-relevant checks на этом точном SHA.
 
-Required evidence includes:
+Обязательные evidence включают:
 
 - Stable release gate;
 - module isolation/runtime/database ownership;
@@ -72,55 +72,55 @@ Required evidence includes:
 - Notes/Tasks/Files/Profile/Admin browser lifecycle;
 - HTTPS/WSS browser smoke;
 - signed updater/staging/apply/backup/recovery;
-- exact published `0.14.0-beta.4 -> 1.0.1` upgrade and rollback drill;
+- upgrade/rollback drill exact published `0.14.0-beta.4 -> 1.0.1`;
 - hosting installer/package;
 - cross-browser/mobile release evidence;
 - authenticated load/soak release evidence.
 
-No result from a previous commit may substitute for a failed, skipped or unrun check on the frozen release head.
+Результат с предыдущего commit не может заменить failed, skipped или unrun check на frozen release head.
 
-## Gate E — operational acceptance
+## Gate E — эксплуатационная приёмка
 
-On a deployment representative of production:
+На deployment, репрезентативном для production:
 
-1. create a fresh verified backup of MySQL + `PRIVATE_STORAGE_PATH`;
-2. complete a restore drill into an isolated environment;
-3. run `php bin/healthcheck.php --json`;
-4. verify HTTPS and WSS through the production reverse proxy;
-5. verify one encrypted Note and one encrypted Messenger message;
-6. verify protected File Manager/Notes/Messenger media access;
-7. review `php bin/observability.php --json` and retention preview;
-8. confirm adequate DB/private-storage free space and writable external state paths.
+1. создайте свежий проверенный backup MySQL + `PRIVATE_STORAGE_PATH`;
+2. выполните restore drill в изолированной среде;
+3. запустите `php bin/healthcheck.php --json`;
+4. проверьте HTTPS и WSS через production reverse proxy;
+5. проверьте одну зашифрованную Note и одно зашифрованное Messenger message;
+6. проверьте защищённый доступ к File Manager/Notes/Messenger media;
+7. просмотрите `php bin/observability.php --json` и retention preview;
+8. подтвердите достаточное свободное место DB/private storage и writable external state paths.
 
-## Gate F — defect acceptance
+## Gate F — приёмка дефектов
 
-Before the release owner declares the RC accepted:
+До того как владелец релиза объявит RC принятым:
 
-- no open P0/P1 data-loss defects;
-- no open P0/P1 security defects;
-- no unresolved release-blocking regression;
-- any known lower-severity limitation is documented and consciously accepted.
+- нет открытых P0/P1 дефектов с потерей данных;
+- нет открытых P0/P1 security-дефектов;
+- нет нерешённых release-blocking regressions;
+- любое известное ограничение меньшей критичности документировано и осознанно принято.
 
-Automated CI cannot fabricate this decision. If no representative human beta cohort was run, record that fact explicitly rather than claiming beta coverage.
+Автоматический CI не может подменить это решение. Если репрезентативная группа реальных beta-пользователей не участвовала в тестировании, зафиксируйте этот факт явно вместо заявления о несуществующем beta coverage.
 
-## Gate G — immutable artifact and signing
+## Gate G — immutable artifact и подпись
 
-Build the final upload-ready bundle from the exact accepted SHA. The `Build hosting package` workflow is deliberately **build-only**: for a manual pre-tag build, run it against the exact accepted commit/ref with `version=v1.0.1`. It verifies that version against `core/Version.php`, then stores the ZIP, its SHA-256 and the exact source SHA as one workflow artifact. It must not create or update a public GitHub Release before offline signing is complete.
+Соберите финальный upload-ready bundle из точного принятого SHA. Workflow `Build hosting package` намеренно работает **только как сборка**: для ручной pre-tag сборки запустите его на точном принятом commit/ref с `version=v1.0.1`. Он проверяет version по `core/Version.php`, затем сохраняет ZIP, его SHA-256 и точный source SHA как один workflow artifact. До завершения офлайн подписи он не должен создавать или обновлять публичный GitHub Release.
 
-Then:
+Далее:
 
-1. download the exact workflow ZIP + checksum + source-SHA artifact; verify both the recorded bundle SHA-256 and source SHA against the accepted commit;
-2. build the update manifest with the exact source commit/version/version-code;
-3. sign the exact manifest bytes with the offline update-domain private key;
-4. verify manifest signature and package hash with the public registry shipped in the bundle;
-5. verify the bundle excludes `.env`, private storage, vendor signing tools, private signing keys and transient state;
-6. do not modify/repack the ZIP after the recorded SHA-256 and signature are accepted.
+1. скачайте точный workflow ZIP + checksum + source-SHA artifact; проверьте записанные bundle SHA-256 и source SHA относительно принятого commit;
+2. соберите update manifest с точными source commit/version/version-code;
+3. подпишите точные bytes manifest офлайн private key домена обновлений;
+4. проверьте manifest signature и hash package по public registry, входящему в bundle;
+5. убедитесь, что bundle не содержит `.env`, private storage, vendor signing tools, private signing keys и transient state;
+6. не изменяйте и не перепаковывайте ZIP после принятия записанного SHA-256 и подписи.
 
-## Gate H — final merge and tag
+## Gate H — финальный merge и tag
 
-Only after Gates A-G are complete:
+Только после завершения Gates A-G:
 
-1. run the strict preflight with operator attestations:
+1. запустите strict preflight с operator attestations:
 
 ```bash
 php bin/release_acceptance.php --strict --json \
@@ -134,10 +134,10 @@ php bin/release_acceptance.php --strict --json \
   --artifact-signed
 ```
 
-2. merge the exact accepted `1.0` head to `master` without introducing source changes;
-3. verify `master` points at the intended release content;
-4. create signed/annotated tag `v1.0.1` according to repository release policy;
-5. publish the exact previously accepted ZIP together with the update manifest and detached signature; do not rebuild or repack the ZIP after signing;
-6. verify the published download checksum and release metadata once more.
+2. слейте точный принятый head `1.0` в `master`, не добавляя изменений исходников;
+3. убедитесь, что `master` указывает на ожидаемое release content;
+4. создайте signed/annotated tag `v1.0.1` согласно release policy репозитория;
+5. опубликуйте ровно тот ранее принятый ZIP вместе с update manifest и detached signature; после подписи ZIP не пересобирайте и не перепаковывайте;
+6. ещё раз проверьте checksum опубликованной загрузки и release metadata.
 
-If any source change is required after RC acceptance, invalidate the previous exact-head evidence and repeat the affected gates on the new SHA.
+Если после приёмки RC требуется любое изменение исходников, предыдущие exact-head evidence становятся недействительными, а затронутые gates нужно повторить на новом SHA.
