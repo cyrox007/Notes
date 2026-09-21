@@ -1,0 +1,145 @@
+name: 1.0.2 Windows hosting compatibility
+
+on:
+  pull_request:
+    branches: [dev, '1.0', master]
+    paths:
+      - 'core/**'
+      - 'bin/**'
+      - 'modules/**'
+      - 'tests/integration/windows_path_contract.php'
+      - 'tests/integration/signed_update_foundation_contract.php'
+      - 'tests/integration/updater_remote_delivery_contract.php'
+      - 'tests/integration/update_release_candidate_contract.php'
+      - 'tests/integration/updater_artifact_retention_contract.php'
+      - 'tests/integration/native_view_renderer_contract.php'
+      - 'tests/integration/module_registry_contract.php'
+      - 'tests/integration/hosting_package_source_contract.php'
+      - 'tests/integration/deployment_surface_contract.php'
+      - '.github/workflows/windows-hosting-compat.yml'
+      - '.github/workflows/hosting-package.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-contract:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.3']
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, sodium, openssl, fileinfo, gd, zlib
+          coverage: none
+
+      - name: Show Windows runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          php -v
+          $family = php -r "echo PHP_OS_FAMILY;"
+          if ($family -ne 'Windows') {
+            throw 'Windows compatibility workflow is not running on PHP_OS_FAMILY=Windows'
+          }
+
+      - name: Lint release PHP surface
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $paths = @(
+            'core/UpdatePath.php',
+            'core/UpdateManifestVerifier.php',
+            'core/UpdatePackageStager.php',
+            'core/UpdateArchiveInspector.php',
+            'core/UpdateRemoteTransport.php',
+            'core/UpdateRemoteDelivery.php',
+            'core/UpdateTransactionJournal.php',
+            'core/UpdateTransactionStateMachine.php',
+            'core/UpdateBackupManager.php',
+            'core/UpdateReleaseCandidate.php',
+            'core/UpdateLiveApplier.php',
+            'core/UpdateApplyOperationLock.php',
+            'core/UpdateRollbackCodeRestorer.php',
+            'core/UpdateApplyCommand.php',
+            'core/UpdateReadiness.php',
+            'core/UpdateArtifactCleaner.php',
+            'bin/update.php',
+            'bin/update_remote.php',
+            'bin/update_backup.php',
+            'bin/update_candidate.php',
+            'bin/update_apply.php',
+            'bin/update_run.php',
+            'bin/update_doctor.php',
+            'bin/update_retention.php',
+            'bin/update_bootstrap.php'
+          )
+          foreach ($path in $paths) {
+            php -l $path
+            if ($LASTEXITCODE -ne 0) { throw "PHP lint failed: $path" }
+          }
+
+      - name: Verify Windows path boundary
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          php tests/integration/windows_path_contract.php
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify portable updater contracts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tests = @(
+            'tests/integration/signed_update_foundation_contract.php',
+            'tests/integration/updater_remote_delivery_contract.php',
+            'tests/integration/update_release_candidate_contract.php',
+            'tests/integration/updater_artifact_retention_contract.php'
+          )
+          foreach ($test in $tests) {
+            Write-Host "=== $test ==="
+            php $test
+            if ($LASTEXITCODE -ne 0) { throw "Contract failed: $test" }
+          }
+
+      - name: Verify portable application contracts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tests = @(
+            'tests/integration/native_view_renderer_contract.php',
+            'tests/integration/module_registry_contract.php',
+            'tests/integration/hosting_package_source_contract.php',
+            'tests/integration/deployment_surface_contract.php'
+          )
+          foreach ($test in $tests) {
+            Write-Host "=== $test ==="
+            php $test
+            if ($LASTEXITCODE -ne 0) { throw "Contract failed: $test" }
+          }
+
+      - name: Verify Windows operator CLI is discoverable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $doctor = php bin/update_doctor.php --help
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (($doctor -join "\n") -notmatch 'readiness') { throw 'update_doctor help marker missing' }
+
+          $run = php bin/update_run.php --help
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (($run -join "\n") -notmatch '--yes') { throw 'update_run confirmation marker missing' }
+
+          $retention = php bin/update_retention.php --help
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (($retention -join "\n") -notmatch '--apply --yes') { throw 'update_retention destructive confirmation marker missing' }
