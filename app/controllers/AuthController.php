@@ -9,6 +9,7 @@ require_once dirname(__DIR__, 2) . '/core/SecurityEventLog.php';
 use App\Helpers\CryptMethods;
 use App\Models\UserModel;
 use App\Services\RegistrationPolicyService;
+use App\Services\TwoFactorPolicyService;
 use App\Services\TwoFactorService;
 use App\Services\UserProvisioningService;
 use Core\Controller;
@@ -87,6 +88,12 @@ class AuthController extends Controller
             return;
         }
 
+        if ((new TwoFactorPolicyService())->required()) {
+            $this->beginRequiredTwoFactorEnrollment($request, (int) $user->id, (string) $user->uid);
+            Router::getInstance()->redirect('auth_two_factor_setup', 'name');
+            return;
+        }
+
         $this->completeLogin($request, (int) $user->id, (string) $user->uid, false, false);
     }
 
@@ -156,6 +163,183 @@ class AuthController extends Controller
         );
     }
 
+    public function requiredTwoFactorSetup(Request $request): void
+    {
+        $enrollment = $this->pendingRequiredTwoFactorEnrollment($request);
+        if ($enrollment === null) {
+            $this->clearTwoFactorPending($request);
+            Router::getInstance()->redirect('authpage', 'name');
+            return;
+        }
+
+        $this->renderRequiredTwoFactorSetup($enrollment);
+    }
+
+    public function confirmRequiredTwoFactorSetup(Request $request): void
+    {
+        $enrollment = $this->pendingRequiredTwoFactorEnrollment($request);
+        if ($enrollment === null) {
+            $this->clearTwoFactorPending($request);
+            Router::getInstance()->redirect('authpage', 'name');
+            return;
+        }
+
+        $code = trim((string) $request->rawPost('code', ''));
+        $service = new TwoFactorService();
+        $counter = $service->matchingCounter((string) $enrollment['secret'], $code);
+        if ($counter === null) {
+            SecurityEventLog::emit(
+                'auth.two_factor_required_enrollment_failed',
+                'warning',
+                'auth',
+                'user',
+                (int) $enrollment['id'],
+                ['client_ip' => RequestOrigin::clientIp($_SERVER)]
+            );
+            $this->renderRequiredTwoFactorSetup($enrollment, [[
+                'CODE' => 'two_factor_setup_error',
+                'MESSAGE' => 'Код аутентификатора неверен или уже устарел',
+            ]]);
+            return;
+        }
+
+        $recoveryCodes = $service->generateRecoveryCodes();
+        DatabaseManager::getInstance()->execute(
+            'UPDATE users SET totp_enabled = 1, totp_secret = :secret, '
+            . 'totp_last_counter = :counter, totp_recovery_codes = :recovery_codes, '
+            . 'totp_confirmed_at = :confirmed_at, updated_at = :updated_at '
+            . 'WHERE id = :id AND is_active = 1 AND account_status = \'active\'',
+            [
+                ':secret' => (string) $enrollment['encrypted_secret'],
+                ':counter' => $counter,
+                ':recovery_codes' => $service->hashRecoveryCodes($recoveryCodes),
+                ':confirmed_at' => date('Y-m-d H:i:s'),
+                ':updated_at' => date('Y-m-d H:i:s'),
+                ':id' => (int) $enrollment['id'],
+            ]
+        );
+
+        $this->clearTwoFactorPending($request);
+        $request->setSession('two_factor_recovery_codes', $recoveryCodes);
+
+        SecurityEventLog::emit(
+            'auth.two_factor_required_enrollment_completed',
+            'info',
+            'auth',
+            'user',
+            (int) $enrollment['id'],
+            ['client_ip' => RequestOrigin::clientIp($_SERVER)]
+        );
+
+        $this->completeLogin(
+            $request,
+            (int) $enrollment['id'],
+            (string) $enrollment['uid'],
+            true,
+            false,
+            'auth_two_factor_recovery'
+        );
+    }
+
+    public function recoveryCodes(Request $request): void
+    {
+        $codes = $request->session('two_factor_recovery_codes', []);
+        $codes = is_array($codes) ? array_values(array_filter($codes, 'is_string')) : [];
+        $request->unsetSession('two_factor_recovery_codes');
+
+        if ($codes === []) {
+            Router::getInstance()->redirect('main', 'name');
+            return;
+        }
+
+        $this->noStoreAuthPage();
+        $this->render_template('login_page/two_factor_recovery_view', [
+            'recovery_codes' => $codes,
+        ]);
+    }
+
+    private function beginRequiredTwoFactorEnrollment(Request $request, int $userId, string $userUid): void
+    {
+        if (!session_regenerate_id(true)) {
+            throw new RuntimeException('Не удалось обновить идентификатор сессии');
+        }
+
+        $service = new TwoFactorService();
+        $secret = $service->generateSecret();
+
+        $request->unsetSession('auth');
+        $request->unsetSession('user_id');
+        $request->unsetSession('user_uid');
+        $request->setSession('two_factor_required_enrollment', [
+            'user_id' => $userId,
+            'secret' => $service->encryptSecret($secret, $userUid),
+            'started_at' => time(),
+        ]);
+        $request->setSession('_csrf_token', bin2hex(random_bytes(32)));
+    }
+
+    /**
+     * @return array{id:int,uid:string,username:string,secret:string,encrypted_secret:string,uri:string}|null
+     */
+    private function pendingRequiredTwoFactorEnrollment(Request $request): ?array
+    {
+        $state = $request->session('two_factor_required_enrollment');
+        if (!is_array($state) || !(new TwoFactorPolicyService())->required()) {
+            return null;
+        }
+
+        $userId = (int) ($state['user_id'] ?? 0);
+        $startedAt = (int) ($state['started_at'] ?? 0);
+        $encryptedSecret = (string) ($state['secret'] ?? '');
+        if ($userId <= 0 || $startedAt <= 0 || (time() - $startedAt) > 600 || $encryptedSecret === '') {
+            return null;
+        }
+
+        $user = DatabaseManager::getInstance()->fetchOne(
+            'SELECT id,uid,username,totp_enabled FROM users '
+            . 'WHERE id = :id AND is_active = 1 AND account_status = \'active\' LIMIT 1',
+            [':id' => $userId]
+        );
+        if (!$user || (int) ($user['totp_enabled'] ?? 0) === 1) {
+            return null;
+        }
+
+        try {
+            $service = new TwoFactorService();
+            $secret = $service->decryptSecret($encryptedSecret, (string) $user['uid']);
+            return [
+                'id' => (int) $user['id'],
+                'uid' => (string) $user['uid'],
+                'username' => (string) $user['username'],
+                'secret' => $secret,
+                'encrypted_secret' => $encryptedSecret,
+                'uri' => $service->provisioningUri(
+                    (string) $user['username'],
+                    'Workspace Organizer',
+                    $secret
+                ),
+            ];
+        } catch (Throwable $e) {
+            error_log('Required two-factor enrollment state could not be decrypted: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /** @param array<int,array{CODE:string,MESSAGE:string}> $errors */
+    private function renderRequiredTwoFactorSetup(array $enrollment, array $errors = []): void
+    {
+        $this->noStoreAuthPage();
+        $data = [
+            'account' => (string) ($enrollment['username'] ?? ''),
+            'secret' => (string) ($enrollment['secret'] ?? ''),
+            'uri' => (string) ($enrollment['uri'] ?? ''),
+        ];
+        if ($errors !== []) {
+            $data['errors'] = $errors;
+        }
+        $this->render_template('login_page/two_factor_setup_view', $data);
+    }
+
     private function beginTwoFactor(Request $request, int $userId): void
     {
         if (!session_regenerate_id(true)) {
@@ -192,6 +376,7 @@ class AuthController extends Controller
     {
         $request->unsetSession('two_factor_pending_user_id');
         $request->unsetSession('two_factor_pending_started_at');
+        $request->unsetSession('two_factor_required_enrollment');
     }
 
     private function completeLogin(
@@ -199,7 +384,8 @@ class AuthController extends Controller
         int $userId,
         string $userUid,
         bool $twoFactorVerified,
-        bool $usedRecoveryCode
+        bool $usedRecoveryCode,
+        string $redirectRoute = 'main'
     ): void {
         if (!session_regenerate_id(true)) {
             throw new RuntimeException('Не удалось обновить идентификатор сессии');
@@ -223,7 +409,7 @@ class AuthController extends Controller
                 'used_recovery_code' => $usedRecoveryCode,
             ]
         );
-        Router::getInstance()->redirect('main', 'name');
+        Router::getInstance()->redirect($redirectRoute, 'name');
     }
 
     /** @param array<int,array{CODE:string,MESSAGE:string}> $errors */
