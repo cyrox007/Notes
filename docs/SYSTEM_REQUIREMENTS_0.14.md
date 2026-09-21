@@ -19,7 +19,7 @@
 
 Current Composer lock также не поднимает floor выше 8.1: зафиксированные Workerman, Smarty и phpdotenv поддерживают более старые PHP ветки, поэтому нижнюю границу задаёт именно код Workspace Organizer, а не vendor dependencies.
 
-### Production recommendation
+### Рекомендация для production
 
 PHP 8.1 является **compatibility floor**, а не рекомендацией для нового Internet-facing deployment. Для production следует использовать поддерживаемую upstream ветку PHP; для текущего 0.14 baseline рекомендуется **PHP 8.3+**.
 
