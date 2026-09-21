@@ -279,6 +279,39 @@ php bin/update_run.php \
 
 The existing individual commands remain supported for diagnostics and controlled manual operation.
 
+## Retention cleanup for recovery artifacts
+
+Verified rollback backups and external release candidates are deliberately kept after a transaction reaches a terminal state. `1.0.2` adds a separate retention command so these large artifacts do not grow without bound:
+
+```bash
+php bin/update_retention.php --json
+```
+
+Preview is the default. The default policy considers terminal artifacts older than 30 days while always keeping the two newest terminal transactions. Change those values explicitly when needed:
+
+```bash
+php bin/update_retention.php --older-than-days=60 --keep=3 --json
+```
+
+Deletion requires both destructive flags:
+
+```bash
+php bin/update_retention.php --apply --yes --older-than-days=30 --keep=2 --json
+```
+
+Safety contract:
+
+- only journals in terminal `committed` or `rollback_verified` states are eligible;
+- `rollback_failed` and every incomplete/pre-mutation/live-mutation recovery state are never deleted by retention;
+- transaction journals are preserved as lightweight historical evidence;
+- signed staged packages are preserved; retention removes only transaction rollback-backup directories and external release candidates;
+- a candidate still referenced by any retained/non-terminal transaction is protected;
+- corrupt journals or unsafe/out-of-root artifact paths make destructive cleanup fail closed;
+- cleanup refuses to run destructively while updater maintenance is active;
+- dry-run requires no `--yes` and changes nothing.
+
+The command shares the updater transaction lock while planning/deleting journal-owned artifacts, so journal state cannot change underneath the retention decision.
+
 ## Updater maintenance mode
 
 Updater maintenance is file-backed and deliberately independent from MySQL. Its marker must live outside the application tree so it remains readable while database migrations or code replacement are in progress.
@@ -436,7 +469,7 @@ It still does **not**:
 
 - expose destructive maintenance/backup/candidate/apply/recovery operations in the administrator UI;
 - create the production license/update private keys (production key ceremony is intentionally still pending);
-- automatically delete old verified backup/candidate/scratch recovery artifacts;
+- automatically delete old scratch/network-ingress temporary artifacts that are not journal-owned;
 - replace an external process supervisor's own drain/restart policy;
 - eliminate the requirement for the final real Beta4 -> 1.0 upgrade/rollback release drill.
 
