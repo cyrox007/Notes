@@ -16,6 +16,7 @@ function hostingPackageAssert(bool $condition, string $message): void
 hostingPackageAssert(is_file($workflowPath), 'hosting-package.yml is missing');
 $workflow = file_get_contents($workflowPath);
 hostingPackageAssert(is_string($workflow), 'hosting-package.yml cannot be read');
+$workflow = str_replace("\r\n", "\n", $workflow);
 
 $moduleSocket = 'modules/messenger/socket/NativeMessengerServer.php';
 $legacySocket = 'app/socket/NativeMessengerServer.php';
@@ -68,6 +69,12 @@ hostingPackageAssert(
 hostingPackageAssert(
     str_contains($workflow, 'Customer bundle must not contain tests/ or internal tools/'),
     'release ZIP inspection must reject tests or internal tools'
+);
+
+hostingPackageAssert(
+    substr_count($workflow, 'bin/update_retention.php') >= 3
+        && substr_count($workflow, 'core/UpdateArtifactCleaner.php') >= 3,
+    '1.0.2 release bundle must lint, require and inspect updater retention runtime'
 );
 
 hostingPackageAssert(

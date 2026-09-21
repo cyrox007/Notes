@@ -19,7 +19,6 @@ require_once $root . '/app/services/MaintenanceModeService.php';
 use App\Services\MaintenanceModeService;
 use Core\SecurityEventLog;
 use Core\UpdateArtifactCleaner;
-use Throwable;
 
 $options = getopt('', [
     'state-root:',
