@@ -55,7 +55,7 @@ Many-to-many связь roles → permissions.
 
 Many-to-many связь users → roles. Поддерживается несколько ролей на одного пользователя. Хранятся время назначения и, если применимо, actor `assigned_by`.
 
-## Account state
+## Состояние аккаунта
 
 В `users` вводится:
 
