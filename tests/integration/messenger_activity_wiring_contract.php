@@ -28,7 +28,7 @@ $activity = activityContractSource($module . '/views/activity.js');
 $voice = activityContractSource($module . '/views/voice.js');
 $media = activityContractSource($module . '/views/media.js');
 $socket = activityContractSource($module . '/socket/MessangerSocket.php');
-$server = activityContractSource($module . '/socket/NativeMessengerServer.php');
+$dispatcher = activityContractSource($module . '/socket/MessengerActionDispatcher.php');
 
 activityContractAssert(
     strpos($index, "'protocol-origin.js', 'script.js', 'activity.js'") !== false,
