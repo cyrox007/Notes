@@ -1,8 +1,8 @@
-# Workspace Organizer — production operations
+# Workspace Organizer — эксплуатация в production
 
 Этот документ описывает эксплуатационный минимум после установки. Fresh install на обычном shared hosting остаётся web-only через `/install.php`; команды ниже нужны оператору для обновлений, резервного копирования и production-проверок.
 
-## 1. Pre-release / post-deploy checks
+## 1. Проверки перед релизом и после deployment
 
 Перед релизом и сразу после обновления:
 
@@ -21,7 +21,7 @@ php bin/healthcheck.php
 
 Realtime Messenger требует запущенный native PHP WebSocket process (`ws_server/server.php`) и TLS/WSS endpoint. Process может работать рядом с HTTP-приложением либо на одном отдельном WS-узле. После изменения `WS_TICKET_SECRET`, `WS_ALLOWED_ORIGINS`, `SITEURL` или WebSocket topology перезапускайте WS process и выполняйте browser/WSS smoke. Для remote WS topology обязательны одинаковый release/commit, общая application DB, одинаковые Messenger/ticket secrets, общий Messenger private storage и общий `UPDATE_STATE_PATH`; полный контракт описан в `docs/MESSENGER_SERVER.md`.
 
-## 2. Backup contract
+## 2. Контракт резервного копирования
 
 Backup считается полным только если содержит:
 
@@ -49,7 +49,7 @@ mysqldump \
 
 После создания backup обязательно сохраните SHA-256 для dump/archive и отправьте копию вне основного сервера.
 
-## 3. Restore drill
+## 3. Проверка восстановления
 
 Restore считается проверенным только после восстановления в **отдельную временную БД и отдельный private-storage path**. Не проверяйте backup первым восстановлением поверх production.
 
@@ -65,7 +65,7 @@ Restore считается проверенным только после вос
 
 Минимальная частота: перед крупным релизом и регулярно по внутреннему RPO/RTO. Наличие backup без успешного restore drill не считается доказанной стратегией восстановления.
 
-## 4. Encryption key rotation
+## 4. Ротация ключей шифрования
 
 ### `WS_TICKET_SECRET`
 
@@ -127,7 +127,7 @@ Notes rotation охватывает `notes.content` и encrypted snapshots `note
 
 `bin/migrate_crypto.php` остаётся legacy-format migrator; `bin/rotate_data_keys.php` — штатный путь смены master keys.
 
-## 4.1. Remote WebSocket node
+## 4.1. Отдельный WebSocket-узел
 
 Для одной installation допускается один отдельный realtime-узел. Он не является stateless proxy: native WS process загружает application runtime и обращается к общей MySQL БД, RBAC/module lifecycle, license/runtime policy и Messenger storage.
 
@@ -146,7 +146,7 @@ Notes rotation охватывает `notes.content` и encrypted snapshots `note
 
 См. `docs/MESSENGER_SERVER.md`.
 
-## 5. Rate limiting и reverse proxy
+## 5. Ограничение частоты запросов и reverse proxy
 
 На одном узле limiter по умолчанию использует `PRIVATE_STORAGE_PATH/rate-limit` и `flock`.
 
@@ -164,7 +164,7 @@ TRUSTED_PROXY_IPS=10.0.0.10,10.0.0.11
 
 Multi-node deployment дополнительно требует sticky PHP sessions или общий session backend. Это инфраструктурный контракт: приложение не объявляет локальные PHP sessions распределёнными автоматически.
 
-## 6. Private storage
+## 6. Приватное хранилище
 
 `PRIVATE_STORAGE_PATH` и `RATE_LIMIT_STORAGE_PATH` должны находиться вне application/document root. Web-server не должен раздавать их напрямую.
 
@@ -175,7 +175,7 @@ Multi-node deployment дополнительно требует sticky PHP sessi
 - web/PHP process получает только необходимые права;
 - backup process получает read-only доступ к пользовательским private directories, если архитектура хостинга это позволяет.
 
-## 7. Scheduled maintenance
+## 7. Регламентные задачи
 
 Messenger orphan cleanup запускайте cron/systemd timer каждые 15–60 минут:
 
@@ -204,112 +204,112 @@ php bin/cleanup_messenger_orphans.php
 - encryption keys и `.env` не входят в публичный release/backup archive.
 
 
-## Security observability
+## Наблюдаемость безопасности
 
-Workspace Organizer writes structured security/audit events as append-only JSONL outside the application tree. By default the file is:
+Workspace Organizer записывает структурированные security/audit events в append-only JSONL вне дерева приложения. По умолчанию используется файл:
 
 `PRIVATE_STORAGE_PATH/logs/security-events.jsonl`
 
-Set `SECURITY_EVENT_LOG_PATH` only when a dedicated absolute external path is required. The directory is created with mode 0700 and the event file is kept at 0600 on POSIX systems.
+Задавайте `SECURITY_EVENT_LOG_PATH` только когда требуется отдельный абсолютный внешний path. Каталог создаётся с mode 0700, а event file хранится с 0600 на POSIX-системах.
 
-Current 1.0 events cover:
+Текущие события линии 1.0 покрывают:
 
-- authentication success/failure/blocked-account/logout;
-- authentication rate-limit denials and rate-limiter failures;
-- license activation/clear operations;
-- module lifecycle transitions;
-- updater apply/recovery success and failure.
+- успешную/неуспешную аутентификацию, blocked-account и logout;
+- отказы authentication rate limit и сбои rate limiter;
+- операции активации/очистки лицензии;
+- lifecycle transitions модулей;
+- успешные и неуспешные apply/recovery updater.
 
-Sensitive context keys such as passwords, tokens, secrets, authorization/cookie/session/CSRF values are redacted by the logger before serialization. License tokens and signing/private keys must never be logged.
+Чувствительные context keys — passwords, tokens, secrets, authorization/cookie/session/CSRF values — редактируются logger до serialization. License tokens и signing/private keys никогда не должны попадать в logs.
 
-Operational summary:
+Операционная сводка:
 
 ```bash
 php bin/observability.php
 php bin/observability.php --window=900 --json
 ```
 
-The command exits with code 3 when alert thresholds are crossed. Defaults:
+Команда завершается с code 3 при превышении alert thresholds. Значения по умолчанию:
 
-- any critical event in the observation window;
+- любое critical event в observation window;
 - 10 authentication failures/blocked attempts;
-- 3 rate-limit denials.
+- 3 отказа rate limit.
 
-Tune with `OBSERVABILITY_CRITICAL_ALERT`, `OBSERVABILITY_AUTH_FAILURE_ALERT`, `OBSERVABILITY_RATE_LIMIT_ALERT` and `OBSERVABILITY_WINDOW_SECONDS`.
+Пороговые значения настраиваются через `OBSERVABILITY_CRITICAL_ALERT`, `OBSERVABILITY_AUTH_FAILURE_ALERT`, `OBSERVABILITY_RATE_LIMIT_ALERT` и `OBSERVABILITY_WINDOW_SECONDS`.
 
-Recommended production scheduling is a cron/systemd timer that runs `php bin/observability.php --json` every few minutes and forwards non-zero/alert results to the operator's existing monitoring channel. This release intentionally does not require a specific external monitoring vendor.
+Рекомендуемый production-вариант — cron/systemd timer, который каждые несколько минут запускает `php bin/observability.php --json` и отправляет non-zero/alert results в существующий канал мониторинга оператора. Релиз намеренно не требует конкретного внешнего monitoring vendor.
 
-`php bin/healthcheck.php` also verifies that security event storage resolves outside the live application tree and is writable.
+`php bin/healthcheck.php` также проверяет, что security event storage расположен вне live application tree и доступен на запись.
 
 
-## Retention and permanent purge
+## Retention и безвозвратная очистка
 
-Workspace Organizer 1.0 separates ordinary user-facing soft-delete/deactivation from irreversible physical purge.
+Workspace Organizer 1.0 отделяет обычные пользовательские soft-delete/deactivation от необратимого физического purge.
 
-Default retention windows are configured through:
+Retention windows по умолчанию задаются через:
 
 - `RETENTION_SOFT_DELETE_DAYS=30`;
 - `RETENTION_DEACTIVATED_ACCOUNT_DAYS=30`.
 
-Soft-deleted Notes, Note attachments, File Manager entries, Messenger messages/attachments, Tasks, shared-board items and deleted task categories are retained until their applicable cutoff. Deactivated accounts are retained independently from content soft-delete.
+Soft-deleted Notes, attachments заметок, entries File Manager, Messenger messages/attachments, Tasks, items общих досок и удалённые task categories сохраняются до соответствующего cutoff. Deactivated accounts хранятся независимо от content soft-delete.
 
-Preview is the default and never changes data:
+По умолчанию выполняется preview, который никогда не изменяет данные:
 
 ```bash
 php bin/retention.php
 php bin/retention.php --soft-days=30 --account-days=30 --json
 ```
 
-Permanent purge is deliberately explicit and irreversible:
+Permanent purge намеренно требует явного запуска и необратим:
 
 ```bash
 php bin/retention.php --apply --yes --json
 ```
 
-Do not schedule `--apply --yes` until backup/restore drill evidence exists for the deployment.
+Не планируйте автоматический `--apply --yes`, пока для deployment нет актуального evidence backup/restore drill.
 
-Safety rules:
+Правила безопасности:
 
-1. Physical managed files are deleted before the corresponding DB metadata is hard-deleted. If a file cannot be removed safely, the row remains for retry.
-2. Paths outside managed private/legacy upload roots and symlink escapes are blocked.
-3. Old soft-deleted attachment rows that predate the 1.0 timestamp contract start their retention clock at migration time; they are not purged immediately after upgrade.
-4. A soft-deleted Note is not physically removed while any attachment has not yet completed its own retention window.
-5. Deactivated administrative identities are never purged automatically.
-6. A deactivated account remains blocked from purge while it still owns a Messenger group or a shared/all-active Task board. Ownership must be transferred or the collaborative object explicitly retired first.
-7. User-facing deactivation stays non-destructive; the existing Admin action only disables authentication and removes the avatar. Permanent account deletion exists only in the retention CLI.
-8. Backup archives are outside the live retention policy. Purging live data does not rewrite or erase previously created backups; backup retention is controlled by the operator's backup policy.
+1. Physical managed files удаляются до hard-delete соответствующих DB metadata. Если файл нельзя безопасно удалить, row остаётся для повторной попытки.
+2. Paths вне managed private/legacy upload roots и symlink escapes блокируются.
+3. Старые soft-deleted attachment rows, существовавшие до timestamp contract 1.0, начинают retention clock с момента migration и не очищаются сразу после upgrade.
+4. Soft-deleted Note физически не удаляется, пока хотя бы одно attachment не завершило собственное retention window.
+5. Deactivated administrative identities никогда не удаляются автоматически.
+6. Deactivated account нельзя purge, пока он владеет Messenger group или shared/all-active Task board. Сначала ownership нужно передать либо явно вывести collaborative object из эксплуатации.
+7. Пользовательская deactivation остаётся неразрушительной: существующий Admin action только отключает authentication и удаляет avatar. Permanent account deletion существует только в retention CLI.
+8. Backup archives находятся вне live retention policy. Purge live data не переписывает и не удаляет ранее созданные backups; их retention управляется отдельной backup policy оператора.
 
-The purge command emits structured security events including `retention.purge_completed`, `retention.account_blocked`, `retention.account_purged` and failure events. Review them through the security observability pipeline.
+Purge command создаёт structured security events, включая `retention.purge_completed`, `retention.account_blocked`, `retention.account_purged` и failure events. Просматривайте их через security observability pipeline.
 
-Recommended production operation:
+Рекомендуемая production-процедура:
 
-1. run preview and archive the JSON result;
-2. confirm a recent successful backup/restore drill;
-3. resolve blocked ownership;
-4. run `--apply --yes --json`;
-5. investigate exit code 3, which indicates blocked/failed filesystem cleanup or account failures;
-6. run preview again; only intentionally blocked/newly retained rows should remain.
+1. запустить preview и сохранить JSON result;
+2. подтвердить недавний успешный backup/restore drill;
+3. устранить blocked ownership;
+4. запустить `--apply --yes --json`;
+5. расследовать exit code 3 — он означает blocked/failed filesystem cleanup или account failures;
+6. снова запустить preview; остаться должны только намеренно blocked/newly retained rows.
 
-A cron/systemd timer may run preview frequently. If automatic permanent purge is enabled, use a separate reviewed timer with explicit `--apply --yes`, capture JSON output and alert on any non-zero exit status.
+Cron/systemd timer может часто запускать preview. Если включён автоматический permanent purge, используйте отдельный проверенный timer с явным `--apply --yes`, сохраняйте JSON output и создавайте alert при любом non-zero exit status.
 
 
-## User action audit retention
+## Retention журнала действий пользователей
 
-Authenticated mutating HTTP actions and mutating Messenger WebSocket actions are recorded in the core-owned `user_action_log` table. The journal is metadata-only: request bodies, Notes/Messenger content, passwords, tokens, cookies, session/CSRF values and file bytes are not stored. Sensitive detail keys are redacted before persistence.
+Авторизованные mutating HTTP actions и mutating WebSocket actions Messenger записываются в принадлежащую Core таблицу `user_action_log`. Журнал хранит только metadata: request bodies, содержимое Notes/Messenger, passwords, tokens, cookies, session/CSRF values и bytes файлов не сохраняются. Чувствительные detail keys редактируются до persistence.
 
-Admins granted `admin.audit.view` can inspect and filter the journal at `/admin/audit`. Deleted users do not erase history: the foreign key is nulled while actor UID/username snapshots remain.
+Admins с `admin.audit.view` могут просматривать и фильтровать журнал в `/admin/audit`. Удаление пользователя не стирает историю: foreign key становится null, а snapshots actor UID/username сохраняются.
 
-Default retention is `AUDIT_LOG_RETENTION_DAYS=180`. Preview does not modify data:
+Retention по умолчанию — `AUDIT_LOG_RETENTION_DAYS=180`. Preview не изменяет данные:
 
 ```bash
 php bin/audit_log.php --json
 php bin/audit_log.php --days=180 --json
 ```
 
-Permanent purge is explicit and bounded:
+Permanent purge запускается явно и ограничен по объёму:
 
 ```bash
 php bin/audit_log.php --apply --yes --days=180 --limit=1000 --json
 ```
 
-Treat audit retention independently from user-content retention. Archive/export requirements, if any, must be satisfied before purge.
+Рассматривайте audit retention отдельно от user-content retention. Требования archive/export, если они есть, должны быть выполнены до purge.
