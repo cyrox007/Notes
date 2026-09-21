@@ -6,14 +6,18 @@ namespace App\Controllers;
 
 use App\Handlers\SocketTicket;
 use App\Models\UserModel;
+use App\Services\MessengerEventJournal;
 use App\Services\MessengerMediaService;
 use App\Services\PermissionService;
+use App\Sockets\BufferedSocketConnection;
+use App\Sockets\MessengerActionDispatcher;
 use Core\Controller;
 use Core\ModuleRuntimeLoader;
 use Core\Request;
 use Core\WebSocketEndpoint;
 use DomainException;
 use InvalidArgumentException;
+use JsonException;
 use RuntimeException;
 
 final class MessagerController extends Controller
@@ -55,6 +59,13 @@ final class MessagerController extends Controller
             error_log('WebSocket public endpoint is invalid: ' . $e->getMessage());
         }
 
+        $transportCursor = 0;
+        try {
+            $transportCursor = (new MessengerEventJournal())->cursorForUserId((int) $user->id);
+        } catch (\Throwable $e) {
+            error_log('Messenger transport cursor is unavailable: ' . $e->getMessage());
+        }
+
         $workspaceActions = ['notes' => false, 'tasks' => false, 'files' => false];
         try {
             $permissions = new PermissionService();
@@ -77,6 +88,7 @@ final class MessagerController extends Controller
             'workspace_actions' => $workspaceActions,
             'socket_ticket' => $socketTicket,
             'socket_url' => $socketUrl,
+            'transport_cursor' => $transportCursor,
         ]);
     }
 
@@ -120,6 +132,145 @@ final class MessagerController extends Controller
             $this->responseJson([
                 'status' => 'error',
                 'message' => 'WebSocket временно недоступен',
+            ]);
+        }
+    }
+
+    /**
+     * Cursor-based HTTP compatibility transport. The request intentionally
+     * releases the PHP session lock before waiting so other Messenger actions
+     * from the same browser are never serialized behind the poll.
+     */
+    public function transportPoll(Request $request): void
+    {
+        $user = $this->transportUser($request);
+        if ($user === null) {
+            return;
+        }
+
+        $cursorRaw = trim((string) $request->get('cursor', '0'));
+        $cursor = ctype_digit($cursorRaw) ? (int) $cursorRaw : 0;
+        $timeout = $this->longPollTimeoutSeconds();
+        $deadline = microtime(true) + $timeout;
+        $journal = new MessengerEventJournal();
+
+        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+        header('Pragma: no-cache');
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+
+        try {
+            do {
+                $batch = $journal->readSince((int) $user->id, $cursor, 100);
+                if ($batch['events'] !== []) {
+                    $this->responseJson([
+                        'status' => 'ok',
+                        'transport' => 'long_poll',
+                        'cursor' => (int) $batch['cursor'],
+                        'events' => $batch['events'],
+                    ]);
+                    return;
+                }
+
+                if (connection_aborted()) {
+                    return;
+                }
+                usleep(250000);
+            } while (microtime(true) < $deadline);
+
+            $this->responseJson([
+                'status' => 'ok',
+                'transport' => 'long_poll',
+                'cursor' => $cursor,
+                'events' => [],
+            ]);
+        } catch (\Throwable $e) {
+            error_log('Messenger long-poll read failed: ' . $e->getMessage());
+            http_response_code(503);
+            $this->responseJson([
+                'status' => 'error',
+                'transport' => 'long_poll',
+                'message' => 'Совместимый транспорт Messenger временно недоступен',
+            ]);
+        }
+    }
+
+    /**
+     * Execute a normal Messenger socket action over authenticated HTTP.
+     *
+     * State-changing requests are protected by CSRFMiddleware. The shared
+     * MessengerActionDispatcher retains the exact WebSocket allowlist,
+     * anti-impersonation stripping, RBAC, maintenance and license boundaries.
+     */
+    public function transportSend(Request $request): void
+    {
+        $user = $this->transportUser($request);
+        if ($user === null) {
+            return;
+        }
+
+        $action = trim((string) $request->rawPost('action', ''));
+        $payloadJson = (string) $request->rawPost('payload', '{}');
+        $cursorRaw = trim((string) $request->rawPost('cursor', '0'));
+        $cursor = ctype_digit($cursorRaw) ? (int) $cursorRaw : 0;
+
+        if ($action === '' || strlen($action) > 128) {
+            $this->jsonError('Некорректное действие Messenger', 422);
+            return;
+        }
+
+        try {
+            $payload = json_decode($payloadJson, true, 64, JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            $this->jsonError('Некорректные данные Messenger', 400);
+            return;
+        }
+        if (!is_array($payload)) {
+            $this->jsonError('Данные Messenger должны быть объектом', 400);
+            return;
+        }
+
+        $connection = new BufferedSocketConnection();
+        $connection->authenticated = true;
+        $connection->userId = (int) $user->id;
+        $connection->uid = (string) $user->uid;
+        $connection->transportCursor = max(0, $cursor);
+
+        try {
+            $ok = (new MessengerActionDispatcher())->dispatch(
+                [],
+                $connection,
+                $action,
+                $payload,
+                'long_poll'
+            );
+
+            // Direct request/response messages are not journaled. Push events are
+            // journaled, so read the caller's own stream from the supplied cursor
+            // before advancing it. This prevents a concurrent event from being
+            // skipped merely because this POST created a later event id.
+            $directEvents = $connection->drain();
+            $batch = (new MessengerEventJournal())->readSince(
+                (int) $user->id,
+                $cursor,
+                100
+            );
+
+            header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+            $this->responseJson([
+                'status' => $ok ? 'ok' : 'error',
+                'transport' => 'long_poll',
+                'cursor' => (int) $batch['cursor'],
+                'events' => array_merge($directEvents, $batch['events']),
+            ]);
+        } catch (\Throwable $e) {
+            error_log('Messenger long-poll send failed: ' . $e->getMessage());
+            http_response_code(503);
+            $this->responseJson([
+                'status' => 'error',
+                'transport' => 'long_poll',
+                'message' => 'Не удалось выполнить действие Messenger',
             ]);
         }
     }
@@ -274,6 +425,36 @@ final class MessagerController extends Controller
             fclose($handle);
         }
         exit;
+    }
+
+    private function transportUser(Request $request): ?object
+    {
+        $userId = (int) $request->session('user_id', 0);
+        if ($userId <= 0) {
+            $this->jsonError('Требуется авторизация', 401);
+            return null;
+        }
+
+        $user = UserModel::select('id', 'uid', 'is_active', 'account_status')
+            ->where('id', '=', $userId)
+            ->first();
+        if (
+            !$user
+            || (int) $user->is_active !== 1
+            || (string) ($user->account_status ?? '') !== 'active'
+        ) {
+            $this->jsonError('Пользователь недоступен', 403);
+            return null;
+        }
+
+        return $user;
+    }
+
+    private function longPollTimeoutSeconds(): int
+    {
+        $raw = trim((string) (getenv('MESSENGER_LONG_POLL_TIMEOUT_SECONDS') ?: ''));
+        $timeout = ctype_digit($raw) ? (int) $raw : 20;
+        return max(2, min(25, $timeout));
     }
 
     private function rangeNotSatisfiable(int $size): void
