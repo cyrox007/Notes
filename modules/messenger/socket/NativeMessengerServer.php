@@ -117,13 +117,13 @@ final class NativeMessengerServer
         ?callable $maintenanceStateResolver = null
     ) {
         if ($this->port < 1 || $this->port > 65535) {
-            throw new RuntimeException('Invalid WebSocket listener port');
+            throw new RuntimeException('Некорректный порт WebSocket listener');
         }
         if ($this->maxConnections < 1 || $this->maxConnections > 10000) {
-            throw new RuntimeException('Invalid WebSocket connection limit');
+            throw new RuntimeException('Некорректный лимит WebSocket-соединений');
         }
         if ($this->maxPayloadBytes < 1024 || $this->maxPayloadBytes > 16_777_216) {
-            throw new RuntimeException('Invalid WebSocket payload limit');
+            throw new RuntimeException('Некорректный лимит WebSocket payload');
         }
 
         $normalized = [];
