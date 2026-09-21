@@ -6,6 +6,7 @@ namespace App\Sockets;
 
 use App\Models\DialogModel;
 use App\Services\MessengerService;
+use App\Services\MessengerRealtimePublisher;
 use App\Services\RolePolicyService;
 use Core\DatabaseManager;
 use DomainException;
@@ -27,15 +28,18 @@ final class MessangerSocket
 
     private RolePolicyService $policies;
     private DatabaseManager $db;
+    private MessengerRealtimePublisher $publisher;
 
     public function __construct(
         private ?MessengerService $messenger = null,
         ?RolePolicyService $policies = null,
-        ?DatabaseManager $db = null
+        ?DatabaseManager $db = null,
+        ?MessengerRealtimePublisher $publisher = null
     ) {
         $this->db = $db ?? DatabaseManager::getInstance();
         $this->messenger ??= new MessengerService($this->db);
         $this->policies = $policies ?? new RolePolicyService($this->db);
+        $this->publisher = $publisher ?? new MessengerRealtimePublisher();
     }
 
     public function get_dialogs(
@@ -353,11 +357,7 @@ final class MessangerSocket
 
     private function sendToUser(array $connections, string $userUid, array $payload): void
     {
-        foreach ($connections[$userUid] ?? [] as $userConnection) {
-            if ($userConnection instanceof SocketConnection) {
-                $this->send($userConnection, $payload);
-            }
-        }
+        $this->publisher->publishToUser($connections, $userUid, $payload);
     }
 
     private function guard(SocketConnection $connection, callable $callback): void
