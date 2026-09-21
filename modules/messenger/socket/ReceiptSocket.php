@@ -5,14 +5,20 @@ declare(strict_types=1);
 namespace App\Sockets;
 
 use App\Services\MessengerReceiptService;
+use App\Services\MessengerRealtimePublisher;
 use DomainException;
 use InvalidArgumentException;
 
 final class ReceiptSocket
 {
-    public function __construct(private ?MessengerReceiptService $receipts = null)
-    {
+    private MessengerRealtimePublisher $publisher;
+
+    public function __construct(
+        private ?MessengerReceiptService $receipts = null,
+        ?MessengerRealtimePublisher $publisher = null
+    ) {
         $this->receipts ??= new MessengerReceiptService();
+        $this->publisher = $publisher ?? new MessengerRealtimePublisher();
     }
 
     public function list(array $connections, SocketConnection $connection, string $userUid, array $payload = []): void
@@ -45,11 +51,7 @@ final class ReceiptSocket
 
     private function sendToUser(array $connections, string $userUid, array $payload): void
     {
-        foreach ($connections[$userUid] ?? [] as $userConnection) {
-            if ($userConnection instanceof SocketConnection) {
-                $this->send($userConnection, $payload);
-            }
-        }
+        $this->publisher->publishToUser($connections, $userUid, $payload);
     }
 
     private function requiredString(array $payload, string $key): string
