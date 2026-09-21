@@ -9,6 +9,8 @@
 - Destructive flow требует явный `--yes`; до начала live mutation wrapper может безопасно снять собственный maintenance, а после начала mutation rollback/recovery полностью остаются во владении `UpdateApplyCommand`.
 - Для прерванной транзакции предусмотрен единый recovery-вход через `bin/update_run.php --recover --transaction=... --yes`.
 - Добавлен отдельный regression contract для operator flow; прямые shell-execution shortcuts не допускаются.
+- Добавлен read-only `bin/update_doctor.php`: он без сети и мутаций проверяет update trust root, PHP extensions, `proc_open`, HTTPS feed/channel, online credentials, внешние updater paths и DB configuration.
+- Admin Updates показывает отдельный статус operator readiness, безопасную diagnostic command и единый CLI install/recovery flow, не добавляя destructive web endpoint.
 
 ### Release direction
 - `1.0.2` является последним stabilization patch перед feature-cycle `1.1.0`.
