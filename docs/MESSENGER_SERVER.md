@@ -220,7 +220,7 @@ Messenger attachment сначала загружается HTTP-приложен
 - `PRIVATE_STORAGE_PATH/messenger` должен быть доступен WS-узлу;
 - для текущего контракта shared storage должен быть смонтирован **под тем же абсолютным путём** на обоих узлах;
 - путь должен оставаться вне document root;
-- WS service account должен иметь необходимые права на чтение/проверку Messenger media;
+- текущий полный runtime/`healthcheck.php` ожидает writable `PRIVATE_STORAGE_PATH`, поэтому поддерживаемый профиль — общий private storage, доступный WS service account на запись; не пытайтесь обходить это read-only mount без отдельной доработки;
 - HTTP application сохраняет обычные права на запись upload bytes.
 
 Пример:
