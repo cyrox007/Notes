@@ -24,6 +24,7 @@
     "20260918_messenger_retention_timestamps.sql",
     "20260920_user_action_log.sql",
     "20260920_file_uid_backfill.sql",
-    "20260920_file_public_shares.sql"
+    "20260920_file_public_shares.sql",
+    "20260921_messenger_transport_events.sql"
   ]
 }
