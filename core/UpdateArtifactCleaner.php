@@ -119,7 +119,13 @@ final class UpdateArtifactCleaner
                             ? (string) $transaction['transaction_id']
                             : 'candidate-' . substr((string) $transaction['package_sha256'], 0, 16);
 
-                        $bytes = $this->deleteDirectory($path, $root, $expected);
+                        $bytes = $this->deleteDirectory(
+                            $path,
+                            $root,
+                            $expected,
+                            isset($artifact['marker_file']) ? (string) $artifact['marker_file'] : null,
+                            isset($artifact['marker_sha256']) ? (string) $artifact['marker_sha256'] : null
+                        );
                         $artifact['action'] = 'deleted';
                         $artifact['deleted_bytes'] = $bytes;
                         $transaction[$kind] = $artifact;
@@ -234,10 +240,16 @@ final class UpdateArtifactCleaner
                     if ($backupPath === '') {
                         throw new RuntimeException('Terminal updater journal is missing rollback backup path');
                     }
+                    $backupHash = strtolower(trim((string) ($journal['backups']['manifest_sha256'] ?? '')));
+                    if (preg_match('/^[0-9a-f]{64}$/', $backupHash) !== 1) {
+                        throw new RuntimeException('Terminal updater journal has invalid rollback backup manifest hash');
+                    }
                     $row['backup'] = $this->planDirectory(
                         $backupPath,
                         $this->backupRoot,
-                        $id
+                        $id,
+                        'backup.json',
+                        $backupHash
                     );
 
                     if (isset($protectedPackages[(string) $journal['package_sha256']])) {
@@ -248,10 +260,16 @@ final class UpdateArtifactCleaner
                             'path' => $candidatePath,
                         ];
                     } else {
+                        $candidateHash = strtolower(trim((string) ($journal['candidate']['tree_sha256'] ?? '')));
+                        if (preg_match('/^[0-9a-f]{64}$/', $candidateHash) !== 1) {
+                            throw new RuntimeException('Terminal updater journal has invalid release candidate tree hash');
+                        }
                         $row['candidate'] = $this->planDirectory(
                             $this->candidatePath($journal),
                             $this->candidateRoot,
-                            'candidate-' . substr((string) $journal['package_sha256'], 0, 16)
+                            'candidate-' . substr((string) $journal['package_sha256'], 0, 16),
+                            '.workspace-release-tree.json',
+                            $candidateHash
                         );
                     }
                 } catch (Throwable $e) {
@@ -349,8 +367,13 @@ final class UpdateArtifactCleaner
     }
 
     /** @return array<string,mixed> */
-    private function planDirectory(string $path, string $root, string $expectedBasename): array
-    {
+    private function planDirectory(
+        string $path,
+        string $root,
+        string $expectedBasename,
+        ?string $markerFile = null,
+        ?string $markerSha256 = null
+    ): array {
         if (!file_exists($path) && !is_link($path)) {
             return [
                 'action' => 'absent',
@@ -360,25 +383,57 @@ final class UpdateArtifactCleaner
         }
 
         $real = $this->validateArtifactDirectory($path, $root, $expectedBasename);
+        if ($markerFile !== null || $markerSha256 !== null) {
+            $this->validateMarker($real, (string) $markerFile, (string) $markerSha256);
+        }
         return [
             'action' => 'delete',
             'path' => $real,
             'bytes' => $this->directoryBytes($real),
+            'marker_file' => $markerFile,
+            'marker_sha256' => $markerSha256,
         ];
     }
 
-    private function deleteDirectory(string $path, string $root, string $expectedBasename): int
-    {
+    private function deleteDirectory(
+        string $path,
+        string $root,
+        string $expectedBasename,
+        ?string $markerFile = null,
+        ?string $markerSha256 = null
+    ): int {
         if (!file_exists($path) && !is_link($path)) {
             return 0;
         }
         $real = $this->validateArtifactDirectory($path, $root, $expectedBasename);
+        if ($markerFile !== null || $markerSha256 !== null) {
+            $this->validateMarker($real, (string) $markerFile, (string) $markerSha256);
+        }
         $bytes = $this->directoryBytes($real);
         UpdatePath::removeTree($real);
         if (file_exists($real) || is_link($real)) {
             throw new RuntimeException('Updater retention could not remove artifact directory');
         }
         return $bytes;
+    }
+
+    private function validateMarker(string $directory, string $filename, string $expectedSha256): void
+    {
+        if ($filename === '' || str_contains($filename, '/') || str_contains($filename, '\\')) {
+            throw new RuntimeException('Updater retention artifact marker name is invalid');
+        }
+        if (preg_match('/^[0-9a-f]{64}$/', $expectedSha256) !== 1) {
+            throw new RuntimeException('Updater retention artifact marker hash is invalid');
+        }
+
+        $path = $directory . DIRECTORY_SEPARATOR . $filename;
+        if (!is_file($path) || is_link($path)) {
+            throw new RuntimeException('Updater retention artifact verification marker is missing or unsafe');
+        }
+        $actual = hash_file('sha256', $path);
+        if (!is_string($actual) || !hash_equals($expectedSha256, $actual)) {
+            throw new RuntimeException('Updater retention artifact verification marker hash mismatch');
+        }
     }
 
     private function validateArtifactDirectory(string $path, string $root, string $expectedBasename): string
