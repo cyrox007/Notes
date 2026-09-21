@@ -53,6 +53,7 @@ ob_start();
     data-can-use-files="<?= !empty($workspaceActions['files']) ? '1' : '0' ?>"
     data-socket-url="<?= $view->e($socket_url ?? '') ?>"
     data-socket-ticket="<?= $view->e($socket_ticket ?? '') ?>"
+    data-transport-cursor="<?= (int) ($transport_cursor ?? 0) ?>"
 >
     <aside class="messenger-list" aria-label="Список диалогов">
         <header class="messenger-list__header">
