@@ -18,7 +18,7 @@ Workspace Organizer — self-hosted PHP-приложение для корпор
 - **Admin panel** — создание и lifecycle пользователей, managed registration `disabled/open/invite`, ограниченные/revocable инвайты, Role Manager с permission assignment и module policies, custom profile fields, системный лимит File Manager и персональные storage quota overrides без physical delete связанных данных.
 - **Responsive UI** — единый design system, desktop/mobile navigation, обновлённые формы/карточки/модалки, keyboard focus, reduced-motion support и общий feedback layer.
 
-## Security model
+## Модель безопасности
 
 Ключевые свойства текущего contract:
 
@@ -46,7 +46,7 @@ Workspace Organizer — self-hosted PHP-приложение для корпор
 - PHP `8.1+` — технический compatibility floor; для Internet-facing production рекомендуется поддерживаемая ветка PHP, сейчас `8.3+`;
 - MySQL `8.x` — основной проверяемый CI path;
 - PHP extensions: `mysqli`, `pdo_mysql`, `mbstring`, `fileinfo`, `sodium`, `gd`;
-- для realtime Messenger/native WebSocket runtime: POSIX-compatible host, PHP CLI, `pcntl`, long-running process и WebSocket reverse proxy;
+- для realtime Messenger/native WebSocket runtime: PHP CLI, возможность держать long-running process и WebSocket endpoint/proxy; daemon mode на Unix дополнительно требует `pcntl`;
 - Argon2id support в `password_hash`;
 - Apache + `mod_rewrite` либо Nginx с эквивалентным front-controller routing;
 - writable private storage вне document root;
@@ -56,9 +56,9 @@ Workspace Organizer — self-hosted PHP-приложение для корпор
 
 **Composer не является runtime-зависимостью 1.0.** Готовый hosting bundle и source tree запускаются без `vendor/`; Composer может использоваться только как development/tooling utility, но production package не зависит от него.
 
-## Fresh install на обычном хостинге
+## Чистая установка на обычном хостинге
 
-Fresh install должен поднимать проект **без ручного импорта SQL, ручного создания `.env` и запуска Composer/CLI на хостинге**.
+Чистая установка должна поднимать проект **без ручного импорта SQL, ручного создания `.env` и запуска Composer/CLI на хостинге**.
 
 Рекомендуемый сценарий:
 
@@ -101,7 +101,7 @@ Web-installer автоматически:
 
 Исходный tree 1.0 является vendor-free и не требует `composer install` для запуска. После checkout/deploy можно использовать `/install.php`; вручную копировать `default.env` и импортировать SQL для **fresh install** не требуется.
 
-### Private storage
+### Приватное хранилище
 
 Пример production-структуры:
 
@@ -120,7 +120,7 @@ Canonical root вложений Notes — `PRIVATE_STORAGE_PATH/notes/`; browser
 
 На shared hosting installer предпочитает каталог в домашнем каталоге аккаунта, **выше `public_html` / document root**. Если тариф запрещает PHP запись вне web-root, такой тариф не соответствует security contract проекта.
 
-### Database
+### База данных
 
 Canonical fresh schemas:
 
@@ -140,7 +140,7 @@ Fresh contract включает 34 обязательные таблицы: pers
 
 После успешной установки наличие `.env` блокирует повторный запуск web-installer.
 
-### Registration
+### Регистрация
 
 По умолчанию публичная регистрация закрыта. Администратор управляет политикой в `/admin/registration` и может выбрать один из трёх режимов:
 
@@ -178,7 +178,7 @@ php bin/ws_doctor.php
 
 Полный runbook для локального и удалённого режима: [`docs/MESSENGER_SERVER.md`](docs/MESSENGER_SERVER.md). Open Server/OSPanel: [`docs/OPEN_SERVER_WEBSOCKET.md`](docs/OPEN_SERVER_WEBSOCKET.md).
 
-## Upgrade existing DB
+## Обновление существующей БД
 
 Web-installer **не используется для upgrade** и намеренно отказывается изменять старую/частичную БД.
 
@@ -204,7 +204,7 @@ php bin/migrate.php
 
 `bin/migrate.php` — upgrade runner для уже существующих SQL-скриптов совместимости, а не источник canonical schema. Внутренняя таблица `schema_migrations` хранит filename + SHA-256 checksum уже применённых upgrade scripts, чтобы повторный запуск был идемпотентным и изменение ранее применённого SQL обнаруживалось fail-closed. Уже применённый upgrade SQL не переписывается задним числом — добавляется новый compatibility script.
 
-### Legacy crypto migration
+### Миграция legacy-криптографии
 
 Сначала dry-run:
 
@@ -230,9 +230,9 @@ php bin/healthcheck.php
 php bin/healthcheck.php --json
 ```
 
-Healthcheck проверяет PHP/extensions, secrets, private storage и его размещение вне application root, HTTPS/WSS/origin consistency, DB connection и current 32-table schema contract. Ненулевой exit code означает, что deployment нельзя считать healthy.
+Healthcheck проверяет PHP/extensions, secrets, private storage и его размещение вне application root, HTTPS/WSS/origin consistency, DB connection и текущий composition-aware schema contract. Ненулевой exit code означает, что deployment нельзя считать healthy.
 
-## Rate limiting
+## Ограничение частоты запросов
 
 ```env
 MAX_LOGIN_ATTEMPTS=5
@@ -243,7 +243,7 @@ UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60
 
 Single-node limiter хранит state под `PRIVATE_STORAGE_PATH/rate-limit` и использует `flock`. Для multi-node deployment задайте отдельный `RATE_LIMIT_STORAGE_PATH` на общем POSIX volume с рабочими advisory locks; `DEPLOYMENT_NODE_COUNT>1` заставляет healthcheck требовать такой shared path. Заголовки `X-Real-IP`/`X-Forwarded-For` учитываются только от адресов из явного `TRUSTED_PROXY_IPS`.
 
-## HTTP / CSP baseline
+## Базовая защита HTTP / CSP
 
 Repository `.htaccess` отвечает за static/access headers и routing; Content-Security-Policy формируется PHP Core:
 
@@ -259,7 +259,7 @@ CSP формируется Core на каждый HTML request с криптог
 
 HSTS намеренно задаётся на production TLS reverse proxy, а не в repository `.htaccess`.
 
-## UI / UX 0.13 + beta.4 collaboration
+## Интерфейс 0.13 + совместная работа beta.4
 
 Интерфейс остаётся server-rendered на native PHP views без отдельного frontend build pipeline; bundled product modules больше не зависят от Smarty runtime.
 
@@ -303,9 +303,9 @@ HSTS намеренно задаётся на production TLS reverse proxy, а �
 
 Полный route contract: `core/routerConfig.php`.
 
-## Module notes
+## Модули
 
-### Notes
+### Заметки
 
 - writing-first 0.13 editor и first-class voice attachments;
 - server-side search/pagination/sort allowlist;
@@ -316,21 +316,21 @@ HSTS намеренно задаётся на production TLS reverse proxy, а �
 - encrypted text fail-closed;
 - beta.4 role policies ограничивают количество заметок, sharing и attachment limits/types.
 
-### Tasks
+### Задачи
 
 `database/tasks_schema.sql` входит в canonical install. Личные задачи сохраняют прежний ownership contract и поддерживают kanban/list views, drag-and-drop status, statuses/priorities/due dates/subtasks/categories и server-side search/filter/sort/pagination. Beta.4 добавляет отдельные shared boards для выбранной команды или `all_active`, board-level ACL, несколько исполнителей и ограничения на создание/размер досок через role policies.
 
-### Messenger v2
+### Мессенджер v2
 
 Current contract включает private/group dialogs, Saved Messages, forwarding, media/voice, replies/edit/delete, delivered/read cursors, reactions, multi-device fanout, pin/mute/archive, group ownership/admin roles/avatars, orphan cleanup, bounded encrypted search и reconnect/offline/session-ended UI с fresh WebSocket ticket перед reconnect. Beta.4 применяет server-side role policies к message rate, attachment limits/types, созданию/размеру групп и voice messages.
 
 Encrypted search не хранит plaintext index: он расшифровывает только ограниченное число последних доступных сообщений (`MESSENGER_SEARCH_SCAN_LIMIT`, default `1000`).
 
-### Profile
+### Профиль
 
 Private avatar выдаётся через authenticated endpoint. Self-delete заменён на deactivation (`is_active=0`), данные не каскадно удаляются; group owner должен сначала передать ownership. Собственный hub показывает bounded workspace metrics и storage quota; чужой профиль получает только whitelist metadata объектов, явно опубликованных владельцем через `is_profile_public`.
 
-### Admin
+### Администрирование
 
 Admin lifecycle использует safe deactivation вместо physical delete. Administrative targets и group owners защищены отдельными checks. Custom profile fields используют canonical `user_fields`.
 
@@ -338,7 +338,7 @@ Admin lifecycle использует safe deactivation вместо physical del
 
 `/admin/settings` управляет default File Manager quota и персональными overrides. Изменение квоты повторно авторизуется внутри service-layer; File Manager upload проверяет эффективный лимит до физической записи файла. Для одного пользователя concurrent uploads сериализуются advisory lock, поэтому параллельные запросы не могут независимо занять один и тот же остаток квоты.
 
-## Scheduled maintenance
+## Регламентные задачи
 
 Messenger orphan cleanup:
 
@@ -360,11 +360,11 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 
 `System settings and storage quota` проверяет canonical settings schema, admin ACL, default/per-user quota, live usage из `user_files`, reset override и quota overflow denial на MySQL 8.4.
 
-`Hosting installer` выполняет настоящий HTTP fresh-install через cookies/CSRF на MySQL в hosting-like `public_html/workspace`, проверяет subdirectory detection, private storage вне document root, 32-table contract, quota seed, admin account, generated `.env`, блокировку повторного installer и итоговый healthcheck.
+`Hosting installer` выполняет настоящий HTTP fresh-install через cookies/CSRF на MySQL в hosting-like `public_html/workspace`, проверяет subdirectory detection, private storage вне document root, текущий composition-aware database contract, quota seed, admin account, generated `.env`, блокировку повторного installer и итоговый healthcheck.
 
-`Build hosting package` собирает upload-ready ZIP с production `vendor/`; теги `v*-*` публикуются как GitHub prerelease, а stable tag без suffix — как обычные Release.
+`Build hosting package` собирает upload-ready vendor-free ZIP без `.env`, private storage и vendor signing tools; публикация stable release выполняется только после финальной проверки и подписи release artifacts.
 
-`Browser HTTPS and WSS E2E` поднимает PHP + Workerman + TLS Nginx + MySQL и реальные Chromium-сессии: проверяет login, основные модули, authenticated WSS, realtime delivery и 0.13 reconnect recovery.
+`Browser HTTPS and WSS E2E` поднимает PHP + native WebSocket server + TLS Nginx + MySQL и реальные Chromium-сессии: проверяет login, основные модули, authenticated WSS, realtime delivery и reconnect recovery.
 
 Отдельные browser lifecycle workflows проверяют Notes, Tasks, File Manager, Profile и Admin, включая реальную quota-ошибку и DB/storage fault injection без production test hooks.
 
@@ -380,15 +380,15 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 - [`docs/CORE.md`](docs/CORE.md) — архитектура ядра.
 - [`docs/MODULE_DEVELOPMENT.md`](docs/MODULE_DEVELOPMENT.md) — создание, установка и lifecycle нового модуля.
 - [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) — пользовательские сценарии.
-- [`docs/HOSTING_INSTALL.md`](docs/HOSTING_INSTALL.md) — fresh install на shared hosting без Composer/CLI.
-- [`docs/PRODUCTION.md`](docs/PRODUCTION.md) — deployment, WSS, rate limiting и production checklist.
-- [`docs/OPERATIONS.md`](docs/OPERATIONS.md) — backup/restore drill, multi-node rate limiting, trusted proxies и key-rotation procedures.
-- [`docs/RELEASE_GOVERNANCE.md`](docs/RELEASE_GOVERNANCE.md) — required checks, branch protection и review policy.
+- [`docs/HOSTING_INSTALL.md`](docs/HOSTING_INSTALL.md) — чистая установка на shared hosting без Composer/CLI.
+- [`docs/PRODUCTION.md`](docs/PRODUCTION.md) — production-развёртывание, WSS, rate limiting и checklist.
+- [`docs/OPERATIONS.md`](docs/OPERATIONS.md) — эксплуатация, backup/restore drill, multi-node rate limiting, trusted proxies и ротация ключей.
+- [`docs/RELEASE_GOVERNANCE.md`](docs/RELEASE_GOVERNANCE.md) — обязательные checks, branch protection и политика review.
 - [`docs/PRODUCT_UX_0.13.md`](docs/PRODUCT_UX_0.13.md) — закрытый 0.13 scope и beta backlog.
 - [`TASKS_MODULE_README.md`](TASKS_MODULE_README.md) — дополнительная документация Tasks.
-- [`default.env`](default.env) — environment variables и security comments.
+- [`default.env`](default.env) — переменные окружения и комментарии по безопасности.
 
-## 1.0 release readiness
+## Готовность релиза 1.0
 
 Основные platform/stability blockers исходного beta-аудита уже закрыты в ветке `1.0`:
 
