@@ -220,6 +220,53 @@ When a compatible update is available, a superadmin may explicitly download, re-
 
 This first UI slice stops at staging. It has no browser action for maintenance entry, transaction-journal creation, rollback backup, release-candidate extraction, migrations, live code switch, apply or recovery. Those destructive operations remain CLI/operator transaction boundaries until a separately reviewed browser transaction flow exists.
 
+## Single-command operator flow
+
+`1.0.2` adds an operator wrapper over the already existing updater transaction boundaries. It does not introduce a second updater implementation and it does not weaken signature, backup, candidate or rollback verification.
+
+For the normal production path:
+
+```bash
+php bin/update_run.php --yes --json
+```
+
+The command performs these existing phases in order:
+
+```text
+signed remote stage
+  -> enter maintenance
+  -> verified code + MySQL rollback backup
+  -> verified external release candidate
+  -> transactional live apply
+  -> migrations + health/version/schema verification
+  -> commit + maintenance release
+```
+
+A custom transaction id and external roots may be supplied explicitly:
+
+```bash
+php bin/update_run.php \
+  --transaction=update-2026-001 \
+  --stage-root=/var/lib/notes/update-staging \
+  --state-root=/var/lib/notes/update-state \
+  --backup-root=/var/lib/notes/update-backups \
+  --candidate-root=/var/lib/notes/update-releases \
+  --yes --json
+```
+
+The wrapper releases maintenance automatically only when a failure occurs **before** live apply is invoked. Once the destructive boundary is crossed, `UpdateApplyCommand` remains the only owner of rollback/recovery and maintenance release. The wrapper never force-opens writes after an apply failure.
+
+Crash/interruption recovery uses the same transaction journal:
+
+```bash
+php bin/update_run.php \
+  --recover \
+  --transaction=update-2026-001 \
+  --yes --json
+```
+
+The existing individual commands remain supported for diagnostics and controlled manual operation.
+
 ## Updater maintenance mode
 
 Updater maintenance is file-backed and deliberately independent from MySQL. Its marker must live outside the application tree so it remains readable while database migrations or code replacement are in progress.
