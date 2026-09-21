@@ -17,6 +17,7 @@ on:
       - 'tests/integration/hosting_package_source_contract.php'
       - 'tests/integration/deployment_surface_contract.php'
       - '.github/workflows/windows-hosting-compat.yml'
+      - '.github/workflows/hosting-package.yml'
   workflow_dispatch:
 
 permissions:
