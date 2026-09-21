@@ -5,6 +5,7 @@ namespace Modules\Profile;
 
 use App\Controllers\ProfileController;
 use App\Controllers\PublicProfileController;
+use App\Middlewares\CSRFMiddleware;
 use App\Middlewares\LoginRequared;
 use App\Middlewares\RequireProfileUse;
 use Core\ModuleRuntimeProvider;
@@ -45,6 +46,10 @@ final class ProfileRuntimeProvider implements ModuleRuntimeProvider
             ->add('GET', '/avatar/{str:uid}', [ProfileController::class, 'avatar'], [LoginRequared::class, RequireProfileUse::class], 'profile-avatar')
             ->add('POST', '/avatar/delete', [ProfileController::class, 'removeAvatar'], [LoginRequared::class, RequireProfileUse::class], 'profile-avatar-delete')
             ->add('POST', '/change-pass', [ProfileController::class, 'changeUserPass'], [LoginRequared::class, RequireProfileUse::class], 'profile-password-set')
+            ->add('POST', '/two-factor/start', [ProfileController::class, 'startTwoFactorSetup'], [LoginRequared::class, RequireProfileUse::class, CSRFMiddleware::class], 'profile-two-factor-start')
+            ->add('POST', '/two-factor/confirm', [ProfileController::class, 'confirmTwoFactorSetup'], [LoginRequared::class, RequireProfileUse::class, CSRFMiddleware::class], 'profile-two-factor-confirm')
+            ->add('POST', '/two-factor/recovery-codes', [ProfileController::class, 'regenerateTwoFactorRecoveryCodes'], [LoginRequared::class, RequireProfileUse::class, CSRFMiddleware::class], 'profile-two-factor-recovery')
+            ->add('POST', '/two-factor/disable', [ProfileController::class, 'disableTwoFactor'], [LoginRequared::class, RequireProfileUse::class, CSRFMiddleware::class], 'profile-two-factor-disable')
             ->add('POST', '/delete-user', [ProfileController::class, 'deleteUser'], [LoginRequared::class, RequireProfileUse::class], 'profile-delete')
             ->endGroup();
     }
