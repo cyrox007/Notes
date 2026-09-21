@@ -144,6 +144,17 @@ final class MessengerEventJournal
         return ['events' => $events, 'cursor' => $nextCursor];
     }
 
+    /** @param array<string,mixed> $payload */
+    private static function retentionSecondsForPayload(array $payload): int
+    {
+        $action = (string) ($payload['action'] ?? '');
+        if (in_array($action, ['activity', 'user_typing', 'typing_stop'], true)) {
+            return 15;
+        }
+
+        return self::retentionSeconds();
+    }
+
     public static function retentionSeconds(): int
     {
         $raw = trim((string) (getenv('MESSENGER_EVENT_RETENTION_SECONDS') ?: ''));
