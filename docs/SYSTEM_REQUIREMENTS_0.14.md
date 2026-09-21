@@ -17,7 +17,7 @@
 
 Поэтому PHP 8.0 и ниже не являются поддерживаемыми даже если отдельные legacy-файлы на них синтаксически совместимы.
 
-Current Composer lock также не поднимает floor выше 8.1: зафиксированные Workerman, Smarty и phpdotenv поддерживают более старые PHP ветки, поэтому нижнюю границу задаёт именно код Workspace Organizer, а не vendor dependencies.
+В актуальной линии 1.x production runtime vendor-free и не зависит от Composer packages. Нижнюю границу PHP задаёт сам код Workspace Organizer и его встроенные platform primitives.
 
 ### Рекомендация для production
 
@@ -37,19 +37,18 @@ CI обязан доказывать совместимость с 8.1 отде�
 
 `json` является частью современного PHP runtime и отдельно как optional extension не рассматривается.
 
-## 3. Realtime Messenger / Workerman
+## 3. Realtime Messenger / native WebSocket
 
 Realtime Messenger имеет дополнительные требования, которые **не должны искусственно блокировать установку остальных модулей**:
 
 - PHP CLI той же поддерживаемой версии (technical minimum 8.1+);
-- POSIX-compatible production OS;
-- PHP extensions `pcntl` и `posix`;
-- возможность держать long-running process;
+- возможность держать long-running PHP process;
+- для Unix daemon mode — `pcntl`; при запуске под systemd/Supervisor foreground mode не требует daemonization;
 - reverse proxy с WebSocket Upgrade;
 - production browser traffic через WSS;
 - `ext-event`/аналогичный event backend — optional performance improvement, не базовый hard requirement.
 
-Если hosting не предоставляет `pcntl`/`posix`, background process или WebSocket proxy, Notes/Tasks/Files/Profile/Admin могут оставаться совместимыми, но Messenger realtime runtime должен считаться недоступным/degraded.
+Если hosting не позволяет держать background process или публиковать WebSocket endpoint/proxy, Notes/Tasks/Files/Profile/Admin могут оставаться совместимыми, но realtime Messenger следует считать недоступным.
 
 Это важно для 0.14 module platform: системные требования должны вычисляться по **активной композиции модулей**, а не быть одним глобальным списком на все возможные поставки.
 
@@ -69,13 +68,13 @@ MariaDB/MySQL 5.x не объявляются совместимыми без о
 - для production — HTTPS;
 - права файлов/каталогов, позволяющие сохранять private data без public static exposure.
 
-Для установки из готового GitHub Release Composer на hosting не требуется. При deploy из source tree требуется Composer 2 и успешный `composer install --no-dev --optimize-autoloader`.
+Готовый release bundle и актуальный source tree 1.x запускаются без Composer и каталога `vendor/`. Composer может использоваться только как development/tooling utility, но не является production runtime requirement.
 
 ## 6. Compatibility proof
 
 0.14 вводит два уровня проверки:
 
-1. `PHP runtime compatibility` — matrix PHP 8.1 / 8.2 / 8.3, Composer platform requirements, полный PHP lint и core/module security contracts.
+1. `PHP runtime compatibility` — matrix поддерживаемых PHP versions, полный PHP lint и core/module security contracts без требования production `vendor/`.
 2. `Hosting installer` — настоящий HTTP fresh install + MySQL + generated `.env` + final healthcheck выполняется на **PHP 8.1**, то есть на минимально заявленной версии.
 
 Основные security/browser workflows могут продолжать работать на PHP 8.3 как production reference environment. Это не отменяет minimum-version gate.
