@@ -355,7 +355,7 @@ function workspaceWsPreflight(bool $daemon): bool
 }
 
 // Process lifecycle commands must remain usable even when the application DB is
-// unдоступна. Load only the internal environment parser first so status/stop can
+// unavailable. Load only the internal environment parser first so status/stop can
 // locate the installation-specific PID-файл without booting the full application.
 require_once SITEPATH . '/core/Environment.php';
 if (is_file(SITEPATH . '/.env')) {
@@ -590,14 +590,14 @@ try {
     $maxPayloadBytes = (int) (getenv('WS_MAX_PAYLOAD_BYTES') ?: \App\Sockets\SocketFrameCodec::DEFAULT_MAX_PAYLOAD_BYTES);
 
     error_log(sprintf(
-        'WebSocket listener configured: tcp://%s:%d; public=%s; runtime=native',
+        'WebSocket listener настроен: tcp://%s:%d; public=%s; runtime=native',
         $host,
         $port,
         $publicUrl
     ));
     if (WebSocketEndpoint::usesSameOriginProxy()) {
         error_log(sprintf(
-            'WebSocket reverse proxy required: %s -> %s',
+            'Требуется WebSocket reverse proxy: %s -> %s',
             WebSocketEndpoint::proxyPath(),
             WebSocketEndpoint::proxyBackendUrl()
         ));
