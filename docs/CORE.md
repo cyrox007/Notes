@@ -2,7 +2,7 @@
 
 Актуально для `0.11.0-alpha`, 13.09.2026.
 
-## 1. Bootstrap
+## 1. Загрузка приложения
 
 HTTP entry point — `index.php`. Он определяет `SITEPATH`, настраивает runtime/error logging, подключает `core.php`, затем Router и route config.
 
@@ -16,7 +16,7 @@ HTTP entry point — `index.php`. Он определяет `SITEPATH`, наст
 
 Имена bootstrap-файлов должны совпадать с реальным регистром имени на диске. Это обязательный Linux contract: `core/config.php`, `core/view.php`, `core/request.php` и другие lowercase-файлы нельзя подключать как `Config.php`/`View.php`.
 
-## 2. Router
+## 2. Маршрутизация
 
 Route source of truth — `core/routerConfig.php`.
 
@@ -38,7 +38,7 @@ Router нормализует URL, проверяет method, выполняет
 
 Именованные routes используются через `Router::redirect()` и Smarty `{route_path ...}`.
 
-## 3. Request / CSRF
+## 3. Запросы / CSRF
 
 `Core\Request` инкапсулирует GET, POST, FILES, SERVER, JSON body и session.
 
@@ -56,7 +56,7 @@ Sanitize не заменяет domain validation. Enum, длины, ID/UID, owne
 
 State-changing HTTP action не должен использовать GET. Unsafe methods проходят CSRF policy; browser bootstrap также автоматически добавляет CSRF header для same-origin `fetch`/XHR.
 
-## 4. Controller / Smarty
+## 4. Контроллеры / Smarty
 
 `Core\Controller` инициализирует Smarty, helpers и общий request/render contract.
 
@@ -86,7 +86,7 @@ Template helpers:
 
 Middleware определяет класс доступа к endpoint, но не заменяет resource ACL. Note/File/Dialog/Message/Task ownership проверяется в Controller/Service.
 
-## 6. Database layer
+## 6. Слой базы данных
 
 В проекте остаются два слоя:
 
@@ -107,7 +107,7 @@ Middleware определяет класс доступа к endpoint, но не
 
 Постепенно новый security-sensitive код следует писать через явные Service + DatabaseManager contracts вместо добавления новой магии в legacy ORM.
 
-## 7. Database schema and migrations
+## 7. Схема базы данных и обновления
 
 Canonical fresh schemas:
 
@@ -134,7 +134,7 @@ Runner использует явный dependency order, delimiter-aware parsing
 
 Web installer предназначен для empty/fresh DB и не заменяет upgrade runner.
 
-## 8. Crypto
+## 8. Криптография
 
 ### Notes
 
@@ -163,7 +163,7 @@ Unknown legacy Notes payload не должен автоматически тра
 
 `WS_TICKET_SECRET` можно ротировать с coordinated restart HTTP/WS процессов; ранее выданные socket tickets после смены секрета перестают проходить проверку. `UNIQUE_KEY` и `MSG_SECRET_KEY` нельзя заменять напрямую в `.env`: для них требуется отдельный old-key -> new-key re-encryption process с верификацией.
 
-## 9. Private storage
+## 9. Приватное хранилище
 
 ```env
 PRIVATE_STORAGE_PATH=/var/lib/notes/private
@@ -194,7 +194,7 @@ PRIVATE_STORAGE_PATH/
 
 Notes attachment bytes сейчас private + ACL, но не отдельно encrypted at-rest; `is_encrypted=0` является намеренным contract.
 
-## 10. File Manager browser and quota contract
+## 10. Браузерный и quota-контракт File Manager
 
 File Manager не является code execution environment.
 
@@ -223,9 +223,9 @@ Security contract:
 
 Socket handler должен оставаться transport layer; authorization/business logic живёт в Service.
 
-Production-like E2E поднимает настоящий Workerman за TLS Nginx reverse proxy и проверяет две независимые Chromium-сессии, authenticated WSS и realtime message fan-out.
+Production-like E2E поднимает настоящий native PHP WebSocket server за TLS Nginx reverse proxy и проверяет две независимые Chromium-сессии, authenticated WSS и realtime message fan-out.
 
-## 12. UI architecture
+## 12. Архитектура интерфейса
 
 UI остаётся server-rendered Smarty без Node build pipeline.
 
@@ -241,7 +241,7 @@ UI остаётся server-rendered Smarty без Node build pipeline.
 
 CSP сейчас не требует `unsafe-eval`; `unsafe-inline` остаётся временно из-за legacy inline Smarty blocks. Целевое направление — static assets + nonce/hash CSP.
 
-## 13. Registration / rate limiting
+## 13. Регистрация / rate limiting
 
 Web-registration закрыта без:
 
@@ -260,7 +260,7 @@ UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60
 
 Single-node deployment использует private file-backed limiter. Multi-node deployment задаёт `DEPLOYMENT_NODE_COUNT>1` и отдельный shared `RATE_LIMIT_STORAGE_PATH`; healthcheck отклоняет multi-node config с локальным storage. `X-Real-IP`/`X-Forwarded-For` доверяются только если immediate proxy входит в `TRUSTED_PROXY_IPS`.
 
-## 14. Healthcheck
+## 14. Проверка состояния
 
 ```bash
 php bin/healthcheck.php
@@ -284,7 +284,7 @@ Healthcheck — deployment gate, а не замена application monitoring.
 7. добавить integration/runtime workflow;
 8. обновить README/CHANGELOG/USER_GUIDE/CORE при изменении contract.
 
-## 16. Security invariants
+## 16. Инварианты безопасности
 
 Обязательные правила:
 
@@ -300,7 +300,7 @@ Healthcheck — deployment gate, а не замена application monitoring.
 - deactivated/blocked account не продолжает authenticated HTTP/WS actions;
 - новый production-sensitive contract сопровождается integration test.
 
-## 17. Production operations
+## 17. Эксплуатация в production
 
 Deployment, reverse proxy, WSS, healthcheck и release checklist описаны в [`PRODUCTION.md`](PRODUCTION.md). Backup/restore drill, shared rate limiting, trusted proxy contract и key-rotation procedures описаны в [`OPERATIONS.md`](OPERATIONS.md).
 
