@@ -94,12 +94,12 @@ Create a disposable ZIP package outside the repository or use the exact release-
 
 ```bash
 php tools/vendor-update/build-manifest.php \
-  --package=/secure/release/workspace-organizer-v1.0.1.zip \
-  --version=1.0.1 \
-  --version-code=10001 \
+  --package=/secure/release/workspace-organizer-v1.0.2.zip \
+  --version=1.0.2 \
+  --version-code=10002 \
   --channel=stable \
   --source-commit=<FULL_40_HEX_RELEASE_COMMIT> \
-  --min-source-version-code=1404 \
+  --min-source-version-code=10001 \
   --requires-php=8.1.0 \
   --out=/secure/release/update.json
 ```
