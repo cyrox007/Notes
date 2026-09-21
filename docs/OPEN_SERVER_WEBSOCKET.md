@@ -223,7 +223,7 @@ php bin/ws_doctor.php
 
 ## Production / VPS
 
-Та же схема:
+Штатная схема на одной машине:
 
 ```text
 Internet -> HTTPS/WSS reverse proxy -> 127.0.0.1:27800 -> native PHP WebSocket server
@@ -231,6 +231,12 @@ Internet -> HTTPS/WSS reverse proxy -> 127.0.0.1:27800 -> native PHP WebSocket s
 
 Не выставляйте внутренний listener на `0.0.0.0`, если reverse proxy находится на том же сервере.
 
-На shared hosting realtime Messenger поддерживается только если тариф позволяет долгоживущий PHP CLI process, WebSocket Upgrade proxy и доступ proxy к локальному listener. Если нет — HTTP-модули продолжают работать, realtime Messenger нет.
+WebSocket process также можно вынести на **один отдельный сервер**. Тогда browser endpoint может быть, например, `wss://ws.example.com/ws`, а отдельный WS-узел должен использовать тот же release/commit, application DB, `WS_TICKET_SECRET`, `MSG_SECRET_KEY`, общий Messenger private storage и общий `UPDATE_STATE_PATH`.
+
+Несколько одновременно активных WS instances одной installation пока не поддерживаются: connection registry находится в памяти process, а cross-node pub/sub/fan-out отсутствует.
+
+Полная инструкция remote deployment: `docs/MESSENGER_SERVER.md`.
+
+На shared hosting realtime Messenger поддерживается только если тариф позволяет долгоживущий PHP CLI process, WebSocket Upgrade proxy и доступ proxy к native listener. Если нет — HTTP-модули продолжают работать, realtime Messenger нет.
 
 Composer/Workerman для 1.0 runtime не требуются.
