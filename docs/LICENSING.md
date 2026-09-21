@@ -1,49 +1,46 @@
-# Installation-wide licensing
+# Лицензирование установки
 
-Workspace Organizer 1.0 uses one offline-verifiable license per installation.
+Workspace Organizer 1.0 использует одну офлайн-проверяемую лицензию на каждую установку.
 
-Optional server-controlled access to official update packages is documented in
-[ONLINE_UPDATE_ACCESS.md](ONLINE_UPDATE_ACCESS.md). The vendor registry stores
-the signed license and update entitlement. It does not replace local runtime
-verification or make normal application use depend on network availability.
+Необязательный управляемый сервером доступ к официальным пакетам обновлений описан в [ONLINE_UPDATE_ACCESS.md](ONLINE_UPDATE_ACCESS.md). Реестр поставщика хранит подписанную лицензию и право на обновления. Он не заменяет локальную runtime-проверку и не делает обычную работу приложения зависимой от доступности сети.
 
-## Trust model
+## Модель доверия
 
-- Every installation has a stable `installation_id` stored in `system_settings`.
-- A license is an Ed25519-signed token bound to exactly that `installation_id`.
-- Runtime installations contain **public verification keys only**.
-- The Ed25519 private signing key must never be committed to this repository, copied into a hosting bundle, written to `.env`, installed on a customer server, attached to a CI artifact, or placed in a support archive/application backup.
-- Verification is offline. Normal license checks do not contact a licensing server.
-- Invalid, missing, expired, or foreign-installation licenses never delete, rewrite, encrypt, or otherwise damage user data.
-- Runtime enforcement is dormant while the release public trust registry is empty. Once a trusted public key is shipped, invalid license state is recovery-safe read-only: reads/login/logout/license recovery remain available while data mutations are blocked.
+- У каждой установки есть стабильный `installation_id`, хранящийся в `system_settings`.
+- Лицензия — это подписанный Ed25519 token, привязанный ровно к этому `installation_id`.
+- Runtime-установки содержат **только публичные ключи проверки**.
+- Приватный Ed25519 signing key нельзя коммитить в репозиторий, копировать в hosting bundle, записывать в `.env`, устанавливать на сервер клиента, прикладывать к CI artifact или помещать в support archive/application backup.
+- Проверка выполняется офлайн. Обычные проверки лицензии не обращаются к licensing server.
+- Неверная, отсутствующая, истёкшая или принадлежащая другой установке лицензия никогда не удаляет, не переписывает, не шифрует и иным образом не повреждает пользовательские данные.
+- Runtime enforcement неактивен, пока публичный trust registry релиза пуст. После поставки доверенного публичного ключа некорректное состояние лицензии переводит систему в recovery-safe режим только для чтения: чтение, login/logout и восстановление лицензии остаются доступны, а изменение данных блокируется.
 
-## Public trust registry
+## Публичный реестр доверия
 
-Production public keys live in the data-only file:
+Production public keys находятся в data-only файле:
 
 ```text
 config/license_trusted_keys.php
 ```
 
-The registry returns a map of immutable key id to base64url-encoded raw 32-byte Ed25519 **public** key. `LicenseVerifier` loads this registry by default; tests may inject ephemeral public keys directly.
+Реестр возвращает map из immutable key id в base64url-кодированный сырой 32-byte Ed25519 **public** key. `LicenseVerifier` по умолчанию загружает этот реестр; тесты могут напрямую внедрять временные public keys.
 
-Do not put key generation, private key paths, tokens, customer secrets, or signing credentials into that file. A normal customer release must contain the public registry but must not contain `tools/vendor-license/` or any private-key file.
+Не помещайте в этот файл генерацию ключей, пути к приватным ключам, tokens, customer secrets или signing credentials. Обычный клиентский релиз обязан содержать public registry, но не должен содержать `tools/vendor-license/` или какие-либо файлы приватных ключей.
 
-An empty registry is intentional before the production key ceremony. It keeps enforcement disabled rather than silently trusting a generated/local key.
+Пустой реестр до production key ceremony является намеренным состоянием. Он оставляет enforcement отключённым вместо неявного доверия локально сгенерированному ключу.
 
-## Token format
+## Формат token
 
 ```text
 wo1.<key-id>.<base64url-json-payload>.<base64url-ed25519-signature>
 ```
 
-The signature covers the exact ASCII bytes:
+Подпись покрывает точные ASCII bytes:
 
 ```text
 wo1.<key-id>.<base64url-json-payload>
 ```
 
-Required payload fields:
+Обязательные поля payload:
 
 ```json
 {
@@ -56,30 +53,30 @@ Required payload fields:
 }
 ```
 
-`expires_at` may be `null` for a perpetual license. Optional fields currently understood by the verifier are `not_before`, `customer`, `features`, and `max_users`. A positive integer `max_users` limits the installation's active accounts; absence of the field means unlimited for backward compatibility.
+`expires_at` может быть `null` для бессрочной лицензии. Дополнительные поля, которые сейчас понимает verifier: `not_before`, `customer`, `features` и `max_users`. Положительное целое `max_users` ограничивает количество активных аккаунтов установки; отсутствие поля означает отсутствие лимита для обратной совместимости.
 
-## Key rotation
+## Ротация ключей
 
-The token carries a `key-id`. `LicenseVerifier` accepts a map of trusted public keys, so a release can contain both the retiring and replacement public key during a rotation window.
+Token содержит `key-id`. `LicenseVerifier` принимает map доверенных публичных ключей, поэтому в течение окна ротации релиз может содержать одновременно старый и новый public key.
 
-Rotation procedure:
+Порядок ротации:
 
-1. Generate the replacement pair in the offline vendor signing environment.
-2. Add only the replacement public key to `config/license_trusted_keys.php` while keeping the retiring public key.
-3. Release that dual-trust build first.
-4. Start issuing new licenses with the replacement key id.
-5. Reissue/allow expiry of licenses that still depend on the retiring key.
-6. Remove the retiring public key only in a later release after its dependency window is closed.
+1. Создайте новую пару в офлайн vendor signing environment.
+2. Добавьте только новый public key в `config/license_trusted_keys.php`, сохранив старый public key.
+3. Сначала выпустите сборку с двойным доверием.
+4. Начните выдавать новые лицензии с новым key id.
+5. Перевыпустите лицензии, зависящие от старого ключа, либо дождитесь их окончания.
+6. Удалите старый public key только в одном из последующих релизов после закрытия окна зависимости.
 
-Removing a public key immediately makes licenses signed only by that key unverifiable, so key retirement is a release-management action, not routine cleanup.
+Немедленное удаление public key делает лицензии, подписанные только им, непроверяемыми. Поэтому вывод ключа из обращения — это release-management операция, а не обычная очистка.
 
-## Production signing-key ceremony
+## Production-церемония ключа подписи
 
-Vendor-only CLI helpers live in `tools/vendor-license/` in the source repository. The hosting-package workflow explicitly excludes that directory from customer release ZIPs. These helpers contain no production secret themselves.
+CLI helpers только для поставщика находятся в `tools/vendor-license/` исходного репозитория. Workflow hosting-package явно исключает этот каталог из клиентских release ZIP. Сами helpers не содержат production secret.
 
-### 1. Generate the pair on the controlled/offline signing machine
+### 1. Создайте пару на контролируемой/офлайн машине подписи
 
-Use an absolute private-key path outside the repository tree:
+Используйте абсолютный путь приватного ключа вне дерева репозитория:
 
 ```bash
 php tools/vendor-license/keygen.php \
@@ -87,19 +84,19 @@ php tools/vendor-license/keygen.php \
   --private-out=/secure/offline/workspace-prod-2026-01.license-secret
 ```
 
-The command:
+Команда:
 
-- refuses to write the private key inside the repository tree;
-- refuses to overwrite an existing private key;
-- writes the private key with mode `0600` on Unix-like systems;
-- prints only the public key/registry entry, never the private key;
-- zeroes in-process secret buffers before exiting.
+- отказывается записывать private key внутрь дерева репозитория;
+- не перезаписывает существующий private key;
+- создаёт private key с mode `0600` на Unix-like системах;
+- выводит только public key/registry entry и никогда не выводит private key;
+- обнуляет secret buffers внутри процесса перед завершением.
 
-Back up the private key only in the vendor's secure offline/secret storage according to the organization's recovery policy.
+Резервную копию private key храните только в защищённом офлайн/secret storage поставщика в соответствии с политикой восстановления организации.
 
-### 2. Add only the public key to the release registry
+### 2. Добавьте в release registry только публичный ключ
 
-Copy the printed registry entry into `config/license_trusted_keys.php`, for example:
+Скопируйте выведенную registry entry в `config/license_trusted_keys.php`, например:
 
 ```php
 return [
@@ -107,11 +104,11 @@ return [
 ];
 ```
 
-Commit/review the public-key-only change and run the licensing plus full release CI. Inspect the built customer ZIP and confirm it includes the public registry but not `tools/vendor-license/`, `*.license-secret`, or any other signing material.
+Закоммитьте и проверьте изменение, содержащее только public key, затем запустите licensing CI и полный release CI. Проверьте собранный клиентский ZIP: он должен содержать public registry, но не `tools/vendor-license/`, `*.license-secret` или иной signing material.
 
-### 3. Issue a license offline
+### 3. Выпустите лицензию офлайн
 
-Copy the customer's exact Installation ID from `/admin/license` and run on the offline signing machine:
+Скопируйте точный Installation ID клиента из `/admin/license` и запустите на офлайн signing machine:
 
 ```bash
 php tools/vendor-license/issue.php \
@@ -126,38 +123,38 @@ php tools/vendor-license/issue.php \
   --features=workspace.notes,workspace.tasks,workspace.files,workspace.messenger,workspace.profile,workspace.admin
 ```
 
-If `--expires-at` is omitted the issued license is perpetual. Optional `--not-before` is a Unix timestamp. The issuer writes only the final `wo1...` token to stdout, derives the public key from the external private key, self-verifies the generated token with `LicenseVerifier`, and zeroes the loaded secret before exit.
+Если `--expires-at` не указан, лицензия бессрочная. Необязательный `--not-before` — Unix timestamp. Issuer выводит в stdout только конечный token `wo1...`, выводит public key из внешнего private key, сам проверяет созданный token через `LicenseVerifier` и обнуляет загруженный secret перед завершением.
 
-Do not pipe issuer stdout to shared CI logs or ticketing systems: a license token is not a signing secret, but it is still customer-specific entitlement material.
+Не направляйте stdout issuer в общие CI logs или ticketing systems: license token не является signing secret, но это всё равно привязанный к конкретному клиенту entitlement material.
 
-## User-seat enforcement
+## Ограничение количества пользователей
 
-When a valid signed payload contains `max_users`, Workspace Organizer enforces that limit against accounts with `users.is_active = 1`.
+Если валидный подписанный payload содержит `max_users`, Workspace Organizer применяет этот лимит к аккаунтам с `users.is_active = 1`.
 
-- blocked accounts still consume a seat because they remain active identities;
-- deactivated accounts release a seat;
-- Admin provisioning and public/invite registration share the same central provisioning boundary;
-- reactivating a deactivated account consumes a seat;
-- license activation is rejected when the new signed limit is lower than the current active-user count;
-- license-token row locking serializes seat-changing operations so concurrent registrations cannot intentionally or accidentally overrun the limit.
+- заблокированные аккаунты продолжают занимать место, потому что остаются активными identity;
+- деактивированные аккаунты освобождают место;
+- создание пользователя администратором и публичная/invite регистрация используют одну центральную provisioning boundary;
+- реактивация деактивированного аккаунта занимает место;
+- активация лицензии отклоняется, если новый подписанный лимит ниже текущего количества активных пользователей;
+- row lock license-token сериализует операции, меняющие количество мест, чтобы параллельные регистрации не могли намеренно или случайно превысить лимит.
 
-Licenses issued before this field existed remain valid and unlimited. User-limit enforcement is an entitlement boundary only: exceeding the limit never deletes or disables existing customer accounts automatically.
+Лицензии, выпущенные до появления этого поля, остаются валидными и безлимитными. Ограничение пользователей — только entitlement boundary: превышение лимита никогда автоматически не удаляет и не отключает существующие клиентские аккаунты.
 
-## Runtime enforcement and recovery
+## Runtime enforcement и восстановление
 
-Once at least one trusted production public key is present, invalid/missing/expired license state places the application into recovery-safe read-only mode:
+После появления хотя бы одного доверенного production public key неверная/отсутствующая/истёкшая лицензия переводит приложение в recovery-safe режим только для чтения:
 
-- GET/HEAD/OPTIONS and normal read views remain available subject to RBAC/ACL;
-- login and logout remain available;
-- `/admin/license` activation/removal remains available for recovery;
-- ordinary HTTP mutations are denied;
-- Messenger may reconnect/read/search, while message/reaction/receipt/media/dialog/group mutations are denied;
-- open WebSocket connections re-check the license before each mutating action, so expiry cannot be bypassed by keeping a socket open.
+- GET/HEAD/OPTIONS и обычные read views остаются доступны с учётом RBAC/ACL;
+- login и logout остаются доступны;
+- активация/удаление лицензии в `/admin/license` остаётся доступна для восстановления;
+- обычные HTTP mutations отклоняются;
+- Messenger может reconnect/read/search, но mutations сообщений/reactions/receipts/media/dialogs/groups запрещены;
+- открытые WebSocket connections повторно проверяют лицензию перед каждым mutating action, поэтому expiry нельзя обойти, просто оставив socket открытым.
 
-A license verification failure never performs destructive data actions.
+Ошибка проверки лицензии никогда не выполняет разрушительных операций с данными.
 
-## Administration
+## Администрирование
 
-`/admin/license` shows the stable Installation ID and current verification state. Users with `admin.settings.manage` may view the state; activation/removal additionally requires the actual `superadmin` role. Activation verifies the signature, installation binding and time window **before** replacing the stored token.
+`/admin/license` показывает стабильный Installation ID и текущее состояние проверки. Пользователи с `admin.settings.manage` могут просматривать состояние; активация/удаление дополнительно требует реальной роли `superadmin`. Активация проверяет signature, binding установки и time window **до** замены сохранённого token.
 
-Removing a token clears only `workspace_license_token`; user content and the installation identifier remain untouched.
+Удаление token очищает только `workspace_license_token`; пользовательские данные и identifier установки остаются без изменений.
