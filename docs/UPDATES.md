@@ -232,6 +232,43 @@ It performs no network request and no mutation. It verifies the local trust regi
 
 The Admin Updates page exposes the same local operator-readiness summary without exposing private credential contents or absolute staged-package paths.
 
+## First transition from 1.0.1 to 1.0.2
+
+Published `1.0.1` already contains the signed transaction/apply/bootstrap runtime, but it predates the `1.0.2` convenience wrapper `bin/update_run.php`, readiness doctor and retention command. Do **not** copy individual new updater PHP files into the live 1.0.1 tree.
+
+The supported first transition is the existing **trusted external bootstrap** boundary:
+
+1. Obtain the official 1.0.2 hosting ZIP, `update.json`, `update.sig` and published SHA-256 through the release channel.
+2. Verify the release ZIP checksum before using it as a bootstrap runner source.
+3. Extract that trusted 1.0.2 bundle to a temporary directory **separate from the live 1.0.1 application tree**. The bundle contains only the public update trust root; the private signing key is never present.
+4. Keep the signed 1.0.2 ZIP/manifest/signature as local files and run the bootstrap from the temporary 1.0.2 tree against the exact live source:
+
+```bash
+php /secure/workspace-1.0.2-runner/bin/update_bootstrap.php \
+  --app-root=/srv/workspace \
+  --manifest=/secure/release/update.json \
+  --signature=/secure/release/update.sig \
+  --package=/secure/release/workspace-organizer-v1.0.2.zip \
+  --transaction=update-1-0-1-to-1-0-2 \
+  --expected-source-version=1.0.1 \
+  --expected-source-version-code=10001 \
+  --stage-root=/var/lib/notes/update-staging \
+  --state-root=/var/lib/notes/update-state \
+  --backup-root=/var/lib/notes/update-backups \
+  --candidate-root=/var/lib/notes/update-releases \
+  --json
+```
+
+The bootstrap verifies the exact installed source version, the signed manifest/package, creates rollback artifacts, builds a verified external candidate, switches code transactionally, runs migrations/health checks and automatically rolls back code + database when post-switch verification fails. The runner directory must never overlap the live application tree.
+
+After the successful 1.0.2 transition, future updates use the installed operator wrapper:
+
+```bash
+php bin/update_run.php --yes --json
+```
+
+The release CI contains an exact `v1.0.1` → synthetic signed `1.0.2` success/rollback drill pinned to the published 1.0.1 commit. Production release acceptance still repeats the transition with the final production-signed 1.0.2 artifacts.
+
 ## Single-command operator flow
 
 `1.0.2` adds an operator wrapper over the already existing updater transaction boundaries. It does not introduce a second updater implementation and it does not weaken signature, backup, candidate or rollback verification.

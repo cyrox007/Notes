@@ -1,0 +1,416 @@
+name: 1.0.2 exact 1.0.1 upgrade and rollback drill
+
+on:
+  pull_request:
+    branches: [dev]
+  push:
+    branches: ['1.0.2-upgrade-drill']
+
+permissions:
+  contents: read
+
+jobs:
+  one-zero-one-upgrade-rollback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout 1.0.2 runner candidate with tags
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql, mbstring, sodium, openssl, fileinfo, gd, zlib
+          coverage: none
+
+      - name: Verify bootstrap boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l bin/update_bootstrap.php
+          php bin/update_bootstrap.php --help >/tmp/bootstrap-help.txt
+          grep -Fq 'trusted external bootstrap updater' /tmp/bootstrap-help.txt
+          grep -Fq -- '--expected-source-version=' /tmp/bootstrap-help.txt
+          grep -Fq 'No private signing key is accepted' /tmp/bootstrap-help.txt
+          grep -Fq 'require_once $liveVersionFile' bin/update_bootstrap.php
+          ! grep -Fq "/core/Version.php'" bin/update_bootstrap.php
+          ! grep -Fq "'private-key:'" bin/update_bootstrap.php
+          grep -Fq 'new UpdateApplyCommand($appRoot' bin/update_bootstrap.php
+          grep -Fq 'new UpdateBackupManager($backupRoot, $appRoot' bin/update_bootstrap.php
+          grep -Fq 'new UpdateReleaseCandidate($appRoot)' bin/update_bootstrap.php
+
+      - name: Materialize exact published 1.0.1 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/workspace-upgrade-drill
+          mkdir -p /tmp/workspace-upgrade-drill/source-src
+          git fetch --tags --force
+          SOURCE_COMMIT="$(git rev-parse 'v1.0.1^{commit}')"
+          test "$SOURCE_COMMIT" = '0e6e4a3b352cfb7436db6b749fd869bbb07310c9'
+          git archive "$SOURCE_COMMIT" | tar -x -C /tmp/workspace-upgrade-drill/source-src
+          grep -Fq "public const VERSION = '1.0.1';" /tmp/workspace-upgrade-drill/source-src/core/Version.php
+          grep -Fq 'public const VERSION_CODE = 10001;' /tmp/workspace-upgrade-drill/source-src/core/Version.php
+          test -f /tmp/workspace-upgrade-drill/source-src/bin/update.php
+          test -f /tmp/workspace-upgrade-drill/source-src/bin/update_bootstrap.php
+          test -f /tmp/workspace-upgrade-drill/source-src/bin/update_apply.php
+          test -f /tmp/workspace-upgrade-drill/source-src/core/UpdateManifestVerifier.php
+          test ! -e /tmp/workspace-upgrade-drill/source-src/bin/update_run.php
+          test ! -e /tmp/workspace-upgrade-drill/source-src/bin/update_doctor.php
+          test ! -e /tmp/workspace-upgrade-drill/source-src/bin/update_retention.php
+          test ! -e /tmp/workspace-upgrade-drill/source-src/core/UpdateArtifactCleaner.php
+          test ! -e /tmp/workspace-upgrade-drill/source-src/vendor
+
+      - name: Build signed 1.0.2 drill targets with ephemeral key
+        shell: bash
+        run: |
+          set -euo pipefail
+          DRILL=/tmp/workspace-upgrade-drill
+          KEY_ID=ci-101-to-102-drill
+          PRIVATE_KEY="$DRILL/$KEY_ID.update-secret"
+
+          php tools/vendor-update/keygen.php \
+            --key-id="$KEY_ID" \
+            --private-out="$PRIVATE_KEY" | tee "$DRILL/keygen.txt"
+          PUBLIC_KEY="$(sed -n 's/^Public key: //p' "$DRILL/keygen.txt" | head -n1)"
+          test -n "$PUBLIC_KEY"
+          test -s "$PRIVATE_KEY"
+
+          cat > config/update_trusted_keys.php <<PHP
+          <?php
+          declare(strict_types=1);
+          return [
+              '$KEY_ID' => '$PUBLIC_KEY',
+          ];
+          PHP
+          php -l config/update_trusted_keys.php
+
+          build_target() {
+            local root="$1"
+            local version="$2"
+            local code="$3"
+            rm -rf "$root"
+            mkdir -p "$root"
+            rsync -a ./ "$root/" \
+              --exclude '.git' \
+              --exclude '.github' \
+              --exclude '.env' \
+              --exclude '.logs' \
+              --exclude 'vendor' \
+              --exclude 'cache/*' \
+              --exclude 'compile/*' \
+              --exclude 'notes-private-storage' \
+              --exclude 'tools/vendor-license' \
+              --exclude 'tools/vendor-update' \
+              --exclude 'tools/license-server' \
+              --exclude '*.license-secret' \
+              --exclude 'workspace-license-*.secret' \
+              --exclude '*.update-secret' \
+              --exclude 'workspace-update-*.secret' \
+              --exclude '*.log'
+            mkdir -p "$root/cache" "$root/compile"
+            perl -0pi -e "s/public const VERSION = '[^']+';/public const VERSION = '$version';/" "$root/core/Version.php"
+            perl -0pi -e "s/public const STATUS = '[^']+';/public const STATUS = 'stable';/" "$root/core/Version.php"
+            perl -0pi -e "s/public const VERSION_CODE = [0-9]+;/public const VERSION_CODE = $code;/" "$root/core/Version.php"
+            perl -0pi -e "s/public const RELEASE_DATE = '[^']+';/public const RELEASE_DATE = '2026-09-21';/" "$root/core/Version.php"
+            grep -Fq "public const VERSION = '$version';" "$root/core/Version.php"
+            grep -Fq "public const VERSION_CODE = $code;" "$root/core/Version.php"
+            test ! -e "$root/vendor"
+            test ! -e "$root/tools/vendor-update"
+            test ! -e "$root/.env"
+          }
+
+          SUCCESS_ROOT="$DRILL/workspace-organizer-1.0.2"
+          FAILURE_ROOT="$DRILL/workspace-organizer-1.0.2-drill-fail"
+          build_target "$SUCCESS_ROOT" '1.0.2' 10002
+          build_target "$FAILURE_ROOT" '1.0.2-drill-fail' 10003
+
+          cat > "$FAILURE_ROOT/bin/healthcheck.php" <<'PHP'
+          <?php
+          declare(strict_types=1);
+          mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+          $db = new mysqli(
+              (string) (getenv('DBHOST') ?: '127.0.0.1'),
+              (string) getenv('DBUSER'),
+              (string) getenv('DBPASS'),
+              (string) getenv('DBNAME'),
+              (int) (getenv('DBPORT') ?: 3306)
+          );
+          $db->set_charset('utf8mb4');
+          $db->query(
+              "UPDATE system_settings SET setting_value='987654321' "
+              . "WHERE setting_key='file_manager_default_quota_bytes'"
+          );
+          $db->close();
+          fwrite(STDERR, "Intentional post-switch healthcheck failure for 1.0.2 rollback drill.\n");
+          exit(97);
+          PHP
+          php -l "$FAILURE_ROOT/bin/healthcheck.php"
+
+          cd "$DRILL"
+          zip -qr "$DRILL/workspace-organizer-1.0.2.zip" "$(basename "$SUCCESS_ROOT")"
+          zip -qr "$DRILL/workspace-organizer-1.0.2-drill-fail.zip" "$(basename "$FAILURE_ROOT")"
+          cd "$GITHUB_WORKSPACE"
+
+          php tools/vendor-update/build-manifest.php \
+            --package="$DRILL/workspace-organizer-1.0.2.zip" \
+            --version=1.0.2 \
+            --version-code=10002 \
+            --channel=stable \
+            --source-commit="$GITHUB_SHA" \
+            --min-source-version-code=10001 \
+            --requires-php=8.1.0 \
+            --notes='Exact 1.0.1 to 1.0.2 release drill success target' \
+            --out="$DRILL/success.update.json"
+          php tools/vendor-update/sign-manifest.php \
+            --private-key="$PRIVATE_KEY" \
+            --key-id="$KEY_ID" \
+            --manifest="$DRILL/success.update.json" \
+            --signature-out="$DRILL/success.update.sig"
+
+          php tools/vendor-update/build-manifest.php \
+            --package="$DRILL/workspace-organizer-1.0.2-drill-fail.zip" \
+            --version=1.0.2-drill-fail \
+            --version-code=10003 \
+            --channel=stable \
+            --source-commit="$GITHUB_SHA" \
+            --min-source-version-code=10001 \
+            --requires-php=8.1.0 \
+            --notes='Intentional post-switch health and DB mutation failure for automatic rollback drill' \
+            --out="$DRILL/failure.update.json"
+          php tools/vendor-update/sign-manifest.php \
+            --private-key="$PRIVATE_KEY" \
+            --key-id="$KEY_ID" \
+            --manifest="$DRILL/failure.update.json" \
+            --signature-out="$DRILL/failure.update.sig"
+
+          rm -f "$PRIVATE_KEY"
+          test ! -e "$PRIVATE_KEY"
+          php -r '$r=require "config/update_trusted_keys.php"; if (array_keys($r)!==["ci-101-to-102-drill"]) exit(1);'
+
+      - name: Install two exact 1.0.1 instances through HTTP wizard
+        shell: bash
+        run: |
+          set -euo pipefail
+          DRILL=/tmp/workspace-upgrade-drill
+          HTTP_ROOT="$DRILL/http-root"
+          rm -rf "$HTTP_ROOT"
+          mkdir -p "$HTTP_ROOT/success" "$HTTP_ROOT/rollback"
+          rsync -a "$DRILL/source-src/" "$HTTP_ROOT/success/"
+          rsync -a "$DRILL/source-src/" "$HTTP_ROOT/rollback/"
+
+          php -S 127.0.0.1:8090 -t "$HTTP_ROOT" >"$DRILL/source-http.log" 2>&1 &
+          echo $! >"$DRILL/source-http.pid"
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:8090/success/install.php >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+
+          install_101() {
+            local name="$1"
+            local db="$2"
+            local private="$3"
+            local cookie="$DRILL/$name.cookie"
+            local base="http://127.0.0.1:8090/$name"
+
+            rm -rf "$private"
+            mkdir -p "$private"
+            mysql -h 127.0.0.1 -uroot -proot -e "DROP DATABASE IF EXISTS $db;"
+
+            curl -fsS -c "$cookie" -b "$cookie" "$base/install.php?step=2" -o "$DRILL/$name-step2.html"
+            local csrf
+            csrf="$(sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' "$DRILL/$name-step2.html" | head -n1)"
+            test -n "$csrf"
+
+            curl -fsS -D "$DRILL/$name-step2.headers" -o "$DRILL/$name-step2.post" \
+              -c "$cookie" -b "$cookie" \
+              --data-urlencode "csrf_token=$csrf" \
+              --data-urlencode 'step=2' \
+              --data-urlencode 'db_host=127.0.0.1' \
+              --data-urlencode 'db_port=3306' \
+              --data-urlencode "db_name=$db" \
+              --data-urlencode 'db_user=root' \
+              --data-urlencode 'db_pass=root' \
+              --data-urlencode "private_storage_path=$private" \
+              --data-urlencode 'site_url=http://127.0.0.1:8090' \
+              --data-urlencode "base_path=/$name/" \
+              --data-urlencode "ws_public_url=ws://127.0.0.1:8090/$name/ws" \
+              "$base/install.php"
+            grep -Eiq '^Location: install\.php\?step=3' "$DRILL/$name-step2.headers"
+
+            curl -fsS -c "$cookie" -b "$cookie" "$base/install.php?step=3" -o "$DRILL/$name-step3.html"
+            csrf="$(sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' "$DRILL/$name-step3.html" | head -n1)"
+            test -n "$csrf"
+
+            curl -fsS -c "$cookie" -b "$cookie" \
+              --data-urlencode "csrf_token=$csrf" \
+              --data-urlencode 'step=3' \
+              --data-urlencode 'admin_firstname=Upgrade' \
+              --data-urlencode 'admin_lastname=Drill' \
+              --data-urlencode "admin_username=$name-admin" \
+              --data-urlencode "admin_email=$name-admin@example.test" \
+              --data-urlencode 'admin_password=StrongUpgradePass123!' \
+              --data-urlencode 'admin_password_confirm=StrongUpgradePass123!' \
+              "$base/install.php" -o "$DRILL/$name-finished.html"
+            grep -Fq 'Установка завершена' "$DRILL/$name-finished.html"
+
+            (cd "$HTTP_ROOT/$name" && php bin/healthcheck.php --json) | tee "$DRILL/$name-source-health.json"
+            grep -Fq '"status": "ok"' "$DRILL/$name-source-health.json"
+            grep -Fq "public const VERSION = '1.0.1';" "$HTTP_ROOT/$name/core/Version.php"
+            mysql -h 127.0.0.1 -uroot -proot "$db" -e \
+              "UPDATE system_settings SET setting_value='123456789' WHERE setting_key='file_manager_default_quota_bytes';"
+            local installation_id
+            installation_id="$(mysql -N -h 127.0.0.1 -uroot -proot "$db" -e "SELECT setting_value FROM system_settings WHERE setting_key='installation_id';")"
+            test -n "$installation_id"
+            printf '%s\n' "$installation_id" > "$DRILL/$name-installation-id.txt"
+            test "$(mysql -N -h 127.0.0.1 -uroot -proot "$db" -e "SELECT setting_value FROM system_settings WHERE setting_key='file_manager_default_quota_bytes';")" = '123456789'
+            test "$(mysql -N -h 127.0.0.1 -uroot -proot "$db" -e "SELECT COUNT(*) FROM users WHERE username='$name-admin';")" = '1'
+          }
+
+          install_101 success notes_upgrade_success "$DRILL/private-success"
+          install_101 rollback notes_upgrade_rollback "$DRILL/private-rollback"
+
+      - name: Upgrade exact 1.0.1 to signed 1.0.2 target
+        shell: bash
+        run: |
+          set -euo pipefail
+          DRILL=/tmp/workspace-upgrade-drill
+          LIVE="$DRILL/http-root/success"
+          TX=one-zero-one-success-001
+
+          php bin/update_bootstrap.php \
+            --app-root="$LIVE" \
+            --manifest="$DRILL/success.update.json" \
+            --signature="$DRILL/success.update.sig" \
+            --package="$DRILL/workspace-organizer-1.0.2.zip" \
+            --transaction="$TX" \
+            --expected-source-version=1.0.1 \
+            --expected-source-version-code=10001 \
+            --stage-root="$DRILL/success-stage" \
+            --state-root="$DRILL/success-state" \
+            --backup-root="$DRILL/success-backups" \
+            --candidate-root="$DRILL/success-releases" \
+            --json | tee "$DRILL/success-bootstrap.json"
+
+          grep -Fq '"status": "committed"' "$DRILL/success-bootstrap.json"
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.2'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10002'
+          test -f "$LIVE/bin/update_apply.php"
+          test -f "$LIVE/bin/update_bootstrap.php"
+          test -f "$LIVE/bin/update_run.php"
+          test -f "$LIVE/bin/update_doctor.php"
+          test -f "$LIVE/bin/update_retention.php"
+          test -f "$LIVE/core/UpdateArtifactCleaner.php"
+          test ! -e "$LIVE/vendor"
+
+          (cd "$LIVE" && php bin/healthcheck.php --json) | tee "$DRILL/success-1.0.2-health.json"
+          grep -Fq '"status": "ok"' "$DRILL/success-1.0.2-health.json"
+          (cd "$LIVE" && php bin/migrate.php --status) | tee "$DRILL/success-migrations.txt"
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_success -e "SELECT setting_value FROM system_settings WHERE setting_key='installation_id';")" = "$(cat "$DRILL/success-installation-id.txt")"
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_success -e "SELECT setting_value FROM system_settings WHERE setting_key='file_manager_default_quota_bytes';")" = '123456789'
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_success -e "SELECT COUNT(*) FROM users WHERE username='success-admin';")" = '1'
+          test "$(jq -r '.state' "$DRILL/success-state/transactions/$TX.json")" = 'committed'
+          test ! -e "$DRILL/success-state/workspace-maintenance.json"
+
+      - name: Force post-switch failure and prove automatic code plus DB rollback
+        shell: bash
+        run: |
+          set -euo pipefail
+          DRILL=/tmp/workspace-upgrade-drill
+          LIVE="$DRILL/http-root/rollback"
+          TX=one-zero-one-rollback-001
+
+          set +e
+          php bin/update_bootstrap.php \
+            --app-root="$LIVE" \
+            --manifest="$DRILL/failure.update.json" \
+            --signature="$DRILL/failure.update.sig" \
+            --package="$DRILL/workspace-organizer-1.0.2-drill-fail.zip" \
+            --transaction="$TX" \
+            --expected-source-version=1.0.1 \
+            --expected-source-version-code=10001 \
+            --stage-root="$DRILL/rollback-stage" \
+            --state-root="$DRILL/rollback-state" \
+            --backup-root="$DRILL/rollback-backups" \
+            --candidate-root="$DRILL/rollback-releases" \
+            --json >"$DRILL/rollback-bootstrap.json" 2>"$DRILL/rollback-bootstrap.stderr"
+          STATUS=$?
+          set -e
+          cat "$DRILL/rollback-bootstrap.json"
+          cat "$DRILL/rollback-bootstrap.stderr"
+          test "$STATUS" -ne 0
+          test "$(jq -r '.code' "$DRILL/rollback-bootstrap.json")" = 'apply_rolled_back'
+          test "$(jq -r '.maintenance_active' "$DRILL/rollback-bootstrap.json")" = 'false'
+
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.1'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10001'
+          test -f "$LIVE/bin/update_apply.php"
+          test -f "$LIVE/bin/update_bootstrap.php"
+          test ! -e "$LIVE/bin/update_run.php"
+          test ! -e "$LIVE/bin/update_doctor.php"
+          test ! -e "$LIVE/bin/update_retention.php"
+          test ! -e "$LIVE/core/UpdateArtifactCleaner.php"
+          test ! -e "$LIVE/vendor"
+
+          (cd "$LIVE" && php bin/healthcheck.php --json) | tee "$DRILL/rollback-1.0.1-health.json"
+          grep -Fq '"status": "ok"' "$DRILL/rollback-1.0.1-health.json"
+          (cd "$LIVE" && php bin/migrate.php --status) | tee "$DRILL/rollback-migrations.txt"
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_rollback -e "SELECT setting_value FROM system_settings WHERE setting_key='installation_id';")" = "$(cat "$DRILL/rollback-installation-id.txt")"
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_rollback -e "SELECT setting_value FROM system_settings WHERE setting_key='file_manager_default_quota_bytes';")" = '123456789'
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_rollback -e "SELECT COUNT(*) FROM users WHERE username='rollback-admin';")" = '1'
+          test "$(jq -r '.state' "$DRILL/rollback-state/transactions/$TX.json")" = 'rollback_verified'
+          test "$(jq -r '.live_mutation_started' "$DRILL/rollback-state/transactions/$TX.json")" = 'true'
+          test ! -e "$DRILL/rollback-state/workspace-maintenance.json"
+
+      - name: Prove bootstrap mismatch fails before maintenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          DRILL=/tmp/workspace-upgrade-drill
+          LIVE="$DRILL/http-root/rollback"
+          set +e
+          php bin/update_bootstrap.php \
+            --app-root="$LIVE" \
+            --manifest="$DRILL/success.update.json" \
+            --signature="$DRILL/success.update.sig" \
+            --package="$DRILL/workspace-organizer-1.0.2.zip" \
+            --transaction=wrong-source-101-001 \
+            --expected-source-version=1.0.0 \
+            --expected-source-version-code=10000 \
+            --stage-root="$DRILL/mismatch-stage" \
+            --state-root="$DRILL/mismatch-state" \
+            --backup-root="$DRILL/mismatch-backups" \
+            --candidate-root="$DRILL/mismatch-releases" \
+            --json >"$DRILL/mismatch.json"
+          STATUS=$?
+          set -e
+          test "$STATUS" -ne 0
+          test "$(jq -r '.code' "$DRILL/mismatch.json")" = 'source_version_mismatch'
+          test ! -e "$DRILL/mismatch-state/workspace-maintenance.json"
+          test ! -d "$DRILL/mismatch-backups/wrong-source-101-001"
+
+      - name: Show drill diagnostics on failure
+        if: failure()
+        shell: bash
+        run: |
+          cat /tmp/workspace-upgrade-drill/source-http.log || true
+          find /tmp/workspace-upgrade-drill -maxdepth 4 -type f -name '*.json' -print -exec sh -c 'echo "--- $1"; cat "$1"' _ {} \; || true
