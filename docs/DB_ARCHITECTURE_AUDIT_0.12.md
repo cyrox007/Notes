@@ -1,31 +1,31 @@
-# 0.12 Database architecture audit
+# 0.12 — аудит архитектуры базы данных
 
-## Finding
+## Вывод
 
-Workspace Organizer historically provisions its database by importing canonical SQL schema files directly. The current `install.php` still follows that model and imports `database/*.sql`; it does not bootstrap the database by replaying `database/migrations/`.
+Исторически Workspace Organizer разворачивает базу данных прямым импортом канонических SQL-файлов схем. Текущий `install.php` по-прежнему следует этой модели и импортирует `database/*.sql`; он не создаёт базу путём последовательного выполнения `database/migrations/`.
 
-The versioned runner `bin/migrate.php`, `database/migrations/` and the `schema_migrations` ledger were introduced later as compatibility tooling for upgrades from older database shapes. Treating the total number of those files/ledger rows as part of the application contract was architectural drift.
+Версионируемый runner `bin/migrate.php`, каталог `database/migrations/` и журнал `schema_migrations` появились позже как compatibility-инструменты для обновления старых форм базы данных. Считать общее количество этих файлов/строк журнала частью контракта приложения было архитектурным отклонением.
 
-## 0.12 decision
+## Решение для 0.12
 
-For 0.12 the project uses:
+В 0.12 проект использует:
 
-- **canonical schema** — `database/*_schema.sql`, authoritative for a clean installation;
-- **compatibility upgrade SQL** — historical scripts under `database/migrations/`, used only to bring supported older installations to the canonical contract;
-- **upgrade ledger** — `schema_migrations`, retained only to prevent reapplication and protect checksums of already-applied upgrade scripts.
+- **каноническую схему** — `database/*_schema.sql`, авторитетную для чистой установки;
+- **совместимые SQL-обновления** — исторические скрипты в `database/migrations/`, используемые только для приведения поддерживаемых старых установок к каноническому контракту;
+- **журнал обновлений** — `schema_migrations`, который нужен только для защиты от повторного применения и контроля checksum уже выполненных upgrade scripts.
 
-No runtime feature may depend on the history count.
+Ни одна runtime-функция не должна зависеть от количества записей в истории.
 
-## Audit changes
+## Изменения по итогам аудита
 
-- documented the database architecture in `docs/DB_ARCHITECTURE.md`;
-- kept existing compatibility SQL intact to avoid invalidating already-deployed upgrade history;
-- changed installer/upgrade CI to assert schema outcomes and specific required upgrades rather than exactly `12` ledger rows;
-- added an explicit fresh-install assertion that canonical schema import does not create `schema_migrations`;
-- preserved checksum immutability and idempotent upgrade checks.
+- архитектура базы данных описана в `docs/DB_ARCHITECTURE.md`;
+- существующие compatibility SQL оставлены без изменений, чтобы не нарушить уже развёрнутую историю обновлений;
+- installer/upgrade CI переведён на проверку результата схемы и конкретных обязательных обновлений вместо требования ровно `12` строк журнала;
+- добавлена явная проверка, что импорт канонической схемы при чистой установке не создаёт `schema_migrations`;
+- сохранены checksum-неизменяемость и проверки идемпотентности обновлений.
 
-## Follow-up policy
+## Дальнейшая политика
 
-New database work must update the canonical schema first. Add compatibility SQL only when an already-installed supported version requires ALTER/backfill/reconciliation work.
+Новые изменения БД сначала вносятся в каноническую схему. Compatibility SQL добавляется только тогда, когда уже установленной поддерживаемой версии действительно требуется `ALTER`, backfill или reconciliation.
 
-A future major release may rename the historical `migrations` paths and ledger, but doing so in 0.12 would create compatibility churn without improving the actual database contract.
+В будущем major release может переименовать исторические пути `migrations` и журнал, но делать это в 0.12 означало бы создать лишнюю compatibility-нагрузку без улучшения фактического контракта базы данных.
