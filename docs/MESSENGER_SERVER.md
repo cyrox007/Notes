@@ -23,6 +23,18 @@ HTTP-приложение выдаёт браузеру короткоживущ
 
 `WS_TICKET_SECRET` не передаётся браузеру. В браузер уходит только короткоживущий ticket.
 
+### Требования к WS runtime
+
+- PHP 8.1+; для production рекомендуется поддерживаемая ветка PHP, сейчас 8.3+;
+- extensions `mysqli`, `pdo_mysql`, `mbstring`, `json`, `fileinfo`, `sodium`;
+- PHP CLI и возможность держать долгоживущий process;
+- доступ к application MySQL;
+- корректные Messenger/application secrets;
+- WSS endpoint через reverse proxy/TLS для публичного production;
+- доступ к private/runtime state согласно выбранной topology.
+
+Composer install для runtime не нужен.
+
 ## 2. Штатный режим: WebSocket server на той же машине
 
 Рекомендуемая production-схема по умолчанию:
@@ -169,12 +181,26 @@ WS_PUBLIC_URL=wss://ws.example.com/ws
 WS_ALLOWED_ORIGINS=https://app.example.com
 WS_MAX_CONNECTIONS=256
 WS_MAX_PAYLOAD_BYTES=2097152
+# PID должен быть локальным для WS-машины, а не лежать на shared PRIVATE_STORAGE_PATH.
+WS_PID_FILE=/run/workspace-organizer/ws-server.pid
 
 PRIVATE_STORAGE_PATH=/srv/workspace-private
 UPDATE_STATE_PATH=/srv/workspace-shared/update-state
 ```
 
 Не копируйте `.env` через публичные артефакты или Git. Секреты передаются на WS-узел через ваш защищённый deployment/secret-management канал.
+
+Для remote topology задайте `WS_PID_FILE` в **локальном runtime-каталоге WS-узла**. По умолчанию PID file может попадать под `PRIVATE_STORAGE_PATH/runtime`; если `PRIVATE_STORAGE_PATH` общий между машинами, такой PID file тоже станет общим. PID процесса не является cluster state и не должен шариться между хостами.
+
+Пример:
+
+```bash
+sudo install -d -o www-data -g www-data -m 0750 /run/workspace-organizer
+```
+
+```env
+WS_PID_FILE=/run/workspace-organizer/ws-server.pid
+```
 
 ### 3.1. Что обязательно должно быть общим
 
@@ -319,10 +345,11 @@ Firewall должен разрешать `10.20.0.15:27800` только от re
 4. Передайте на узел те же необходимые application secrets.
 5. Смонтируйте shared `PRIVATE_STORAGE_PATH` под тем же absolute path.
 6. Смонтируйте/настройте общий `UPDATE_STATE_PATH`.
-7. Настройте `WS_PUBLIC_URL` и `WS_ALLOWED_ORIGINS`.
-8. Настройте TLS reverse proxy.
-9. Запустите native process через systemd/Supervisor.
-10. Проверьте локальный runtime и затем browser end-to-end.
+7. Задайте локальный `WS_PID_FILE`, не расположенный на shared storage.
+8. Настройте `WS_PUBLIC_URL` и `WS_ALLOWED_ORIGINS`.
+9. Настройте TLS reverse proxy.
+10. Запустите native process через systemd/Supervisor.
+11. Проверьте локальный runtime и затем browser end-to-end.
 
 Проверка на **WS-узле**:
 
@@ -458,6 +485,7 @@ Sticky sessions проблему не решают: они удерживают 
 Для remote topology дополнительно:
 
 - не публикуйте `.env`, private storage и update state;
+- держите `WS_PID_FILE` локальным для конкретного WS-узла;
 - не открывайте DB всему Internet;
 - используйте WSS;
 - ограничьте native WS port loopback/private firewall scope;
