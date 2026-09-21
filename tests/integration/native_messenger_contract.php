@@ -211,10 +211,13 @@ foreach ($handlerFiles as $handlerFile) {
 
 $nativeConnectionPath = $module . '/socket/NativeSocketConnection.php';
 $nativeServerPath = $module . '/socket/NativeMessengerServer.php';
+$dispatcherPath = $module . '/socket/MessengerActionDispatcher.php';
 nativeMessengerAssert(is_file($nativeConnectionPath), 'native stream connection implementation is missing');
 nativeMessengerAssert(is_file($nativeServerPath), 'native Messenger WebSocket server is missing');
+nativeMessengerAssert(is_file($dispatcherPath), 'shared Messenger action dispatcher is missing');
 $nativeConnectionSource = (string) file_get_contents($nativeConnectionPath);
 $nativeServerSource = (string) file_get_contents($nativeServerPath);
+$dispatcherSource = (string) file_get_contents($dispatcherPath);
 nativeMessengerAssert(str_contains($nativeConnectionSource, 'extends SocketConnection'), 'native connection does not implement SocketConnection boundary');
 nativeMessengerAssert(str_contains($nativeConnectionSource, 'SocketFrameCodec::encodeText'), 'native connection does not frame outgoing text messages');
 nativeMessengerAssert(str_contains($nativeConnectionSource, 'SocketFrameCodec::decodeClientFrames'), 'native connection does not decode RFC6455 client frames');
