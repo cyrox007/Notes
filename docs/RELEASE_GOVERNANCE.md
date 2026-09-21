@@ -1,32 +1,32 @@
-# Release governance
+# Управление релизами
 
-Workspace Organizer treats `master` as the release branch and `1.0` as the stable release-candidate branch. Repository code defines and verifies the intended policy, but **GitHub branch-protection settings live outside Git history** and must be enforced in repository Settings by a user with Administration permission.
+Workspace Organizer использует `master` как release branch, а `1.0` — как стабильную ветку release candidate. Код репозитория определяет и проверяет ожидаемую policy, но **настройки GitHub branch protection находятся вне Git history** и должны применяться в Settings репозитория пользователем с правом Administration.
 
-## Required `1.0` protection
+## Обязательная защита `1.0`
 
-The stabilization branch must be protected before the final 1.0 release ceremony:
+Ветка стабилизации должна быть защищена перед финальной release ceremony 1.0:
 
-1. Require a pull request before merging.
-2. Require the branch to be up to date before merging.
-3. Require the always-on `release-gate` status check.
-4. Dismiss stale pull-request approvals when new commits are pushed.
-5. Block force pushes and branch deletion.
-6. If another independent participant can review changes, require one approving review.
+1. Требовать pull request перед merge.
+2. Требовать актуальность branch относительно target перед merge.
+3. Требовать always-on status check `release-gate`.
+4. Сбрасывать устаревшие approvals PR при появлении новых commits.
+5. Блокировать force push и удаление ветки.
+6. Если доступен другой независимый участник, способный проводить review, требовать одно approving review.
 
-Only checks that run on **every** pull request to `1.0` may be configured as required repository checks. Path-filtered workflows remain mandatory evidence when they run, but making them repository-required would deadlock unrelated pull requests that legitimately do not trigger them.
+Как repository-required можно настраивать только checks, запускающиеся **на каждом** PR в `1.0`. Workflows с path filters остаются обязательным evidence, когда они запускаются, но делать их repository-required нельзя: иначе несвязанный PR, который корректно их не запускает, окажется заблокирован навсегда.
 
-## Required `master` protection
+## Обязательная защита `master`
 
-The target policy is:
+Целевая policy:
 
-1. Require a pull request before merging.
-2. Require branches to be up to date before merging.
-3. Require the status checks listed in `.github/release-governance.json`.
-4. Dismiss stale pull-request approvals when new commits are pushed.
-5. Block force pushes and branch deletion.
-6. If the repository has another independent participant who can review changes, require one approving review. A PR author's own approval does not satisfy the independent-review requirement.
+1. Требовать pull request перед merge.
+2. Требовать актуальность branch перед merge.
+3. Требовать status checks, перечисленные в `.github/release-governance.json`.
+4. Сбрасывать устаревшие approvals PR при появлении новых commits.
+5. Блокировать force push и удаление ветки.
+6. Если в репозитории есть другой независимый участник, способный проводить review, требовать одно approving review. Approval самого автора PR не удовлетворяет требованию независимого review.
 
-The required status checks are:
+Обязательные status checks:
 
 - `release-gate`
 - `notes-browser-lifecycle`
@@ -36,61 +36,61 @@ The required status checks are:
 - `admin-browser-lifecycle`
 - `storage-db-failure`
 
-These seven checks are deliberately configured to run on every pull request to `master`; none uses a pull-request path filter. This prevents GitHub branch protection from waiting forever for a required check that never started. Other release-relevant workflows may remain path-filtered, but they are not configured as repository-required contexts.
+Эти семь checks намеренно настроены на запуск для каждого PR в `master`; ни один не использует pull-request path filter. Это не позволяет branch protection бесконечно ждать обязательный check, который не запустился. Другие release-relevant workflows могут оставаться path-filtered, но не настраиваются как repository-required contexts.
 
-Source-level policy verification does not substitute for repository-side enforcement; apply the checked-in policy with the owner/admin command below.
+Проверка policy на уровне исходников не заменяет enforcement на стороне репозитория; применяйте checked-in policy командой owner/admin ниже.
 
-## Merge rule
+## Правило merge
 
-A PR targeting `1.0` or `master` is release-eligible only when:
+PR в `1.0` или `master` допускается к релизу только если:
 
-- all release-relevant checks pass on the current head;
-- the branch is up to date with its target;
-- DB changes follow `docs/DB_ARCHITECTURE.md`;
-- user-visible storage mutations do not report success before durable persistence;
-- root and `BASE_PATH=/workspace/` behavior is not regressed;
-- browser-impacting changes either extend an existing lifecycle test or explain why no lifecycle update is needed;
-- an independent approval is present whenever another qualified reviewer exists.
+- все release-relevant checks прошли на текущем head;
+- branch актуальна относительно target;
+- изменения БД соответствуют `docs/DB_ARCHITECTURE.md`;
+- пользовательские storage mutations не сообщают об успехе до durable persistence;
+- поведение root и `BASE_PATH=/workspace/` не регрессировало;
+- изменения, влияющие на browser, либо расширяют существующий lifecycle test, либо объясняют, почему обновление lifecycle не требуется;
+- независимый approval присутствует, если существует другой квалифицированный reviewer.
 
-Do not use administrator bypass to merge a red or stale PR for normal development. Emergency bypasses should be followed by a corrective PR and a written reason in the PR timeline.
+Не используйте administrator bypass для merge красного или устаревшего PR в обычной разработке. После аварийного bypass должен следовать corrective PR и письменная причина в timeline PR.
 
-## Applying the repository-side protection
+## Применение защиты на стороне репозитория
 
-The repository includes `tools/release/apply-github-protection.sh` for the owner/admin to apply the checked-in policy through the authenticated GitHub CLI.
+В репозитории есть `tools/release/apply-github-protection.sh`, с помощью которого owner/admin применяет checked-in policy через авторизованный GitHub CLI.
 
-From a trusted checkout of the current `1.0` branch:
+Из доверенного checkout текущей ветки `1.0`:
 
 ```bash
 bash tools/release/apply-github-protection.sh cyrox007/Notes
 ```
 
-The script:
+Скрипт:
 
-- reads required check IDs from `.github/release-governance.json`;
-- protects both `1.0` and `master`;
-- requires branches to be current before merge;
-- blocks force-push and deletion;
-- dismisses stale reviews;
-- enforces the policy for administrators as well;
-- detects whether another direct collaborator with write/maintain/admin permission exists and requires one approval only in that case;
-- prints the resulting GitHub protection state for verification.
+- читает required check IDs из `.github/release-governance.json`;
+- защищает одновременно `1.0` и `master`;
+- требует актуальность branches перед merge;
+- блокирует force-push и удаление;
+- сбрасывает stale reviews;
+- применяет policy также к администраторам;
+- определяет, существует ли другой direct collaborator с permission write/maintain/admin, и только в этом случае требует один approval;
+- выводит итоговое состояние GitHub protection для проверки.
 
-The script changes GitHub repository settings only. It does not create, store, or modify credentials beyond using the already authenticated `gh` session.
+Скрипт меняет только настройки GitHub repository. Он не создаёт, не хранит и не изменяет credentials, кроме использования уже авторизованной session `gh`.
 
-## Why the policy is split between code and Settings
+## Почему policy разделена между кодом и Settings
 
-GitHub Actions and repository files cannot safely grant themselves Administration permission. The repository therefore stores the expected protection contract in `.github/release-governance.json` and validates the parts that are observable from source. Repository-side enforcement remains an explicit owner/admin operation and is tracked separately from source correctness.
+GitHub Actions и repository files не могут безопасно самостоятельно выдавать себе Administration permission. Поэтому репозиторий хранит ожидаемый protection contract в `.github/release-governance.json` и проверяет части, наблюдаемые из source. Enforcement на стороне репозитория остаётся явной owner/admin операцией и отслеживается отдельно от корректности исходников.
 
-## Verification
+## Проверка
 
-`tests/integration/release_governance_contract.php` checks that:
+`tests/integration/release_governance_contract.php` проверяет:
 
-- the policy file is valid and names both `master` and `1.0`;
-- `1.0` requires the always-on `release-gate`;
-- all required check IDs correspond to workflow job IDs present in the repository;
-- every required master check is always-on for pull requests and has no path filter;
-- the release gate runs on pull requests to both `master` and `1.0`;
-- the pull-request template contains the release/browser/database review prompts;
-- the release gate executes the governance contract itself.
+- policy file валиден и содержит `master` и `1.0`;
+- `1.0` требует always-on `release-gate`;
+- все required check IDs соответствуют workflow job IDs, присутствующим в репозитории;
+- каждый required master check always-on для pull requests и не имеет path filter;
+- release gate запускается на pull requests как в `master`, так и в `1.0`;
+- pull-request template содержит release/browser/database review prompts;
+- release gate сам запускает governance contract.
 
-This prevents policy documentation from silently drifting away from the workflows that are supposed to protect the release branch.
+Это не позволяет policy documentation незаметно разойтись с workflows, которые должны защищать release branch.
