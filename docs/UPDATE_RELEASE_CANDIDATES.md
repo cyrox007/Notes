@@ -1,39 +1,39 @@
-# Verified update release candidates
+# Проверенные release candidates обновления
 
-This layer prepares a signed Workspace Organizer update for a later live switch **without changing the live application tree or database**.
+Этот слой подготавливает подписанное обновление Workspace Organizer к последующему переключению live-системы **без изменения live application tree или базы данных**.
 
-## Preconditions
+## Предварительные условия
 
-Before running candidate extraction, all of the following must already be true:
+Перед извлечением candidate должны одновременно выполняться все условия:
 
-- the update manifest/signature/package passed `bin/update.php` verification and external staging;
-- the same transaction owns updater maintenance mode;
-- `bin/update_backup.php` completed successfully;
-- the transaction journal is in `backup_verified` state;
-- `live_mutation_started` is still `false`.
+- manifest/signature/package обновления успешно прошли проверку `bin/update.php` и external staging;
+- эта же транзакция владеет updater maintenance mode;
+- `bin/update_backup.php` успешно завершён;
+- transaction journal находится в состоянии `backup_verified`;
+- `live_mutation_started` всё ещё равно `false`.
 
-If any precondition is not true, `bin/update_candidate.php` fails closed.
+Если хотя бы одно условие не выполнено, `bin/update_candidate.php` завершается fail-closed.
 
-## Configuration
+## Конфигурация
 
-Recommended production path:
+Рекомендуемый production path:
 
 ```dotenv
 UPDATE_RELEASE_PATH=/var/lib/notes/update-releases
 ```
 
-The path must be absolute, writable by PHP and outside the live application/document-root tree. If it is omitted, the updater falls back to `<PRIVATE_STORAGE_PATH>/update-releases`.
+Путь должен быть абсолютным, доступным PHP на запись и находиться вне live application/document-root tree. Если он не задан, updater использует `<PRIVATE_STORAGE_PATH>/update-releases`.
 
-Do not serve this directory directly through the web server.
+Не публикуйте этот каталог напрямую через web server.
 
-## Command
+## Команда
 
 ```bash
 php bin/update_candidate.php \
   --transaction=update-2026-001
 ```
 
-Optional overrides:
+Дополнительные overrides:
 
 ```bash
 php bin/update_candidate.php \
@@ -43,24 +43,24 @@ php bin/update_candidate.php \
   --json
 ```
 
-The command re-verifies:
+Команда повторно проверяет:
 
-- maintenance ownership;
-- `backup_verified` transaction journal state;
+- ownership режима maintenance;
+- состояние `backup_verified` в transaction journal;
 - `live_mutation_started=false`;
-- staged manifest/signature against the current update public trust registry;
-- package compatibility, signed filename/size/SHA-256 and ZIP safety contract;
-- stage metadata against the transaction journal and signed package.
+- staged manifest/signature по текущему публичному trust registry обновлений;
+- совместимость пакета, подписанные filename/size/SHA-256 и ZIP safety contract;
+- stage metadata относительно transaction journal и подписанного пакета.
 
-Only then is the archive extracted to a temporary external candidate directory.
+Только после этого архив извлекается во временный внешний каталог candidate.
 
-## Extraction safety
+## Безопасность распаковки
 
-`Core\UpdateReleaseCandidate` does not call shell `unzip` and does not depend on `ZipArchive`. It uses the narrow ZIP subset already accepted by `UpdateArchiveInspector` and supports only stored/deflated regular files and directories.
+`Core\UpdateReleaseCandidate` не вызывает shell `unzip` и не зависит от `ZipArchive`. Он использует узкое подмножество ZIP, уже принятое `UpdateArchiveInspector`, и поддерживает только обычные файлы/каталоги с методами stored/deflated.
 
-During extraction it re-checks local/central ZIP metadata, streams payloads, enforces declared uncompressed size and verifies CRC32 for every file. The extracted package must contain exactly one top-level bundle directory.
+Во время распаковки повторно проверяются local/central ZIP metadata, данные читаются потоково, контролируется заявленный uncompressed size и для каждого файла проверяется CRC32. Извлечённый пакет должен содержать ровно один верхнеуровневый bundle-каталог.
 
-The candidate must contain at least:
+Candidate обязан содержать как минимум:
 
 - `index.php`
 - `install.php`
@@ -70,29 +70,29 @@ The candidate must contain at least:
 - `bin/healthcheck.php`
 - `config/update_trusted_keys.php`
 
-The candidate is rejected if it contains `.env`, `tools/vendor-license`, or `tools/vendor-update`.
+Candidate отклоняется, если содержит `.env`, `tools/vendor-license` или `tools/vendor-update`.
 
-`core/Version.php` inside the candidate must exactly match the signed manifest `version` and `version_code`.
+`core/Version.php` внутри candidate должен в точности соответствовать подписанным значениям `version` и `version_code` из manifest.
 
-## Tree verification
+## Проверка дерева файлов
 
-Every extracted regular file is recorded with SHA-256 and byte size in:
+Каждый извлечённый regular file записывается с SHA-256 и размером в байтах в:
 
 ```text
 .workspace-release-tree.json
 ```
 
-The candidate directory is published by atomic rename only after this tree contract succeeds. Re-running extraction for the same package does not overwrite the candidate; it re-hashes the existing tree and fails if any file was modified.
+Каталог candidate публикуется атомарным rename только после успешной проверки этого tree contract. Повторное извлечение того же пакета не перезаписывает candidate: существующее дерево повторно хешируется, и команда завершается ошибкой, если какой-либо файл был изменён.
 
-## Current safety boundary
+## Текущая граница безопасности
 
-A successful command returns `candidate_verified`, but still:
+Успешная команда возвращает `candidate_verified`, но при этом всё ещё:
 
-- does not overwrite live application files;
-- does not edit `.env`;
-- does not run migrations;
-- does not restart PHP/WebSocket processes;
-- does not change the active release;
-- does not release maintenance mode.
+- не перезаписывает файлы live application;
+- не изменяет `.env`;
+- не запускает migrations;
+- не перезапускает PHP/WebSocket processes;
+- не меняет active release;
+- не снимает maintenance mode.
 
-The next updater layer must re-verify this candidate immediately before any live switch. A historical `candidate_verified` result is not sufficient authorization by itself.
+Следующий слой updater обязан повторно проверить candidate непосредственно перед любым live switch. Исторический результат `candidate_verified` сам по себе не является достаточным разрешением.
