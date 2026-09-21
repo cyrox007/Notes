@@ -1,178 +1,129 @@
-# Модуль «Ежедневник / Задачи»
+# Модуль «Задачи»
 
-Документ описывает актуальный контракт Tasks для Workspace Organizer. Модуль предназначен для персональных задач пользователя: статусы, приоритеты, сроки, подзадачи и категории.
+Документ описывает текущий контракт изолированного модуля Tasks в Workspace Organizer 1.x. «Задачи» и будущий модуль «Ежедневник + Calendar» — разные модули: Tasks отвечает за задачи, доски и исполнителей, а Ежедневник будет отвечать за время и календарное планирование.
+
+## Runtime и ownership
+
+Manifest модуля:
+
+```text
+modules/tasks/module.json
+```
+
+Tasks работает как изолированный bundled module:
+
+```text
+runtime.mode = isolated
+runtime.entrypoint = runtime.php
+capability = workspace.tasks
+```
+
+Модулю принадлежат routes, controllers/services/models/views/assets, task policies и database ownership. Межмодульная интеграция должна идти через объявленные capabilities, а не через прямое подключение внутренних файлов другого module.
 
 ## Возможности
+
+### Личные задачи
 
 - создание, редактирование и soft-delete задач;
 - статусы `pending`, `in_progress`, `completed`, `cancelled`;
 - приоритеты `low`, `medium`, `high`, `urgent`;
-- срок выполнения и признак просрочки;
-- фильтры «все / сегодня / неделя / просроченные / по статусу»;
-- безопасная сортировка по явному allowlist;
+- сроки выполнения и признак просрочки;
+- kanban/list views;
+- drag-and-drop изменения status;
+- фильтры, server-side поиск, сортировка и пагинация;
 - checklist-подзадачи;
 - личные и системные категории;
-- статистика по всем активным задачам пользователя.
+- role policies для количественных ограничений.
+
+### Общие доски
+
+- отдельные shared task boards;
+- выбранные участники либо аудитория `all_active`;
+- board ACL: `owner`, `manager`, `member`, `viewer`;
+- несколько исполнителей;
+- status/priority/due date;
+- отдельный Kanban;
+- ограничения по role policies на создание, количество досок, размер команды и assignment.
 
 ## База данных
 
-Canonical fresh-install schema: `database/tasks_schema.sql`.
+Каноническая схема:
 
-Перед Tasks schema должна существовать canonical таблица `users`, которую на fresh install создаёт `database/messenger_schema.sql`.
-
-```bash
-mysql -u root -p workspace < database/messenger_schema.sql
-mysql -u root -p workspace < database/tasks_schema.sql
+```text
+database/tasks_schema.sql
 ```
 
-Tasks schema содержит пять реально используемых таблиц:
+Текущий manifest объявляет ownership таблиц:
 
-| Таблица | Назначение |
-|---|---|
-| `tasks` | задачи пользователя |
-| `subtasks` | checklist задачи |
-| `task_categories` | личные и системные категории |
-| `task_category_relations` | many-to-many task/category |
-| `task_reminders` | база для будущего механизма напоминаний |
+```text
+tasks
+subtasks
+task_categories
+task_category_relations
+task_reminders
+task_boards
+task_board_members
+task_board_items
+task_board_assignees
+```
 
-`task_category_relations` имеет UNIQUE `(task_id, category_id)`, поэтому повторное назначение категории идемпотентно.
+Compatibility upgrade scripts:
 
-> `task_history` в текущем приложении не реализован и не входит в canonical schema. Напоминания имеют таблицу/модель, но пользовательский scheduler/notification flow пока не подключён.
+```text
+database/migrations/20260913_tasks_contract.sql
+database/migrations/20260915_shared_task_boards.sql
+```
 
-## Модели
+Каноническая schema описывает текущее состояние fresh install. Уже применённые compatibility migrations не переписываются.
 
-- `TaskModel` — задача и legacy helper-методы домена;
-- `SubtaskModel` — подзадача;
-- `TaskCategoryModel` — категория;
-- `TaskCategoryRelationModel` — связь задачи с категорией;
-- `TaskReminderModel` — данные будущих напоминаний.
+## ACL и авторизация
 
-UI не зависит от вызова методов ORM-объекта из Smarty. `TaskController` формирует явный view-model: `priority_color`, `status_label`, `is_overdue`, `completion_percentage`, `categories`, `subtasks`.
+Доступ к Tasks начинается с persisted RBAC и permission `tasks.use`.
 
-## HTTP routes
+Для личных задач пользователь работает только со своими objects. Для shared boards дополнительно применяется board-level ACL. Значения ID/UID из DOM, URL или JavaScript сами по себе никогда не считаются доказательством права доступа.
 
-Маршруты объявлены в `core/routerConfig.php` и защищены `LoginRequared`.
-
-| Метод | Route | Назначение |
-|---|---|---|
-| GET | `/tasks/` | список, фильтры, статистика |
-| POST | `/tasks/` | создать задачу |
-| POST | `/tasks/{uid}/update` | изменить поля/статус |
-| POST | `/tasks/{uid}/delete` | soft-delete задачи |
-| POST | `/tasks/{taskUid}/subtask` | добавить подзадачу |
-| POST | `/tasks/subtask/{id}/toggle` | переключить подзадачу |
-| POST | `/tasks/subtask/{id}/delete` | удалить подзадачу |
-| POST | `/tasks/category` | создать личную категорию |
-| POST | `/tasks/{taskUid}/category/{id}` | назначить категорию |
-| DELETE | `/tasks/{taskUid}/category/{id}` | снять категорию |
-
-State-changing запросы проходят общую CSRF-защиту. `core/common.js` автоматически добавляет `X-CSRF-Token` к same-origin `fetch`/XHR; обычные формы содержат `{csrf_token}`.
-
-## ACL
-
-Задача всегда принадлежит одному `user_id`.
-
-Пользователь может:
-- видеть и менять только свои задачи;
-- добавлять/переключать/удалять подзадачи только внутри своих задач;
-- создавать личные категории;
-- назначать своим задачам только собственные категории или системные категории с `user_id IS NULL`;
-- не может использовать чужую персональную категорию, даже зная её ID.
-
-Проверка ACL выполняется на сервере. Значения из DOM, URL или JavaScript не считаются подтверждением права доступа.
+State-changing HTTP actions проходят CSRF и server-side authorization. UI visibility не заменяет Service/Controller checks.
 
 ## Валидация
 
-Controller использует явные allowlist:
+Domain values принимаются только из server-side allowlists. В частности:
 
 - status: `pending`, `in_progress`, `completed`, `cancelled`;
 - priority: `low`, `medium`, `high`, `urgent`;
-- sort: `created_at`, `updated_at`, `title`, `due_date`, `priority`, `status`;
-- direction: только ASC/DESC;
-- category color: только `#RRGGBB`;
-- category icon: только `fa-*` безопасного формата.
+- sort/direction — только разрешённые поля и направления;
+- category color/icon — только безопасный формат;
+- даты нормализуются на сервере.
 
-Название задачи — до 255 символов, описание — до 10 000, название категории — до 120, название подзадачи — до 255.
+При переходе task в `completed` фиксируется `completed_at`; при возврате в другой status timestamp очищается.
 
-`datetime-local` нормализуется на сервере в MySQL `DATETIME`. При переходе задачи в `completed` выставляется `completed_at`; при возврате в другой статус `completed_at` очищается.
+## Управление module lifecycle
 
-## Пользовательская инструкция
+Bundled Tasks обычно включается при установке. Проверить effective state можно через:
 
-### Создать задачу
-
-1. Откройте **Ежедневник** (`/tasks/`).
-2. Нажмите **+ Новая задача**.
-3. Введите название, при необходимости описание, приоритет и срок.
-4. Нажмите **Создать задачу**.
-
-### Изменить статус
-
-Статус можно поменять селектором в карточке. Checkbox слева быстро переводит задачу в `completed`; снятие отметки возвращает её в `pending`.
-
-### Редактировать задачу
-
-Нажмите кнопку с карандашом. В карточке откроется форма редактирования названия, описания, статуса, приоритета и срока. Сохранение выполняется через `POST /tasks/{uid}/update`.
-
-### Подзадачи
-
-Нажмите **+ Добавить** в блоке подзадач, введите название. Подзадачу можно отметить выполненной или удалить. Процент выполнения считается по текущему checklist.
-
-### Категории
-
-Новая категория создаётся на странице задач: имя, цвет и одна из разрешённых иконок. Затем выберите категорию в карточке задачи и нажмите **Добавить категорию**. Кнопка `×` на badge снимает категорию с задачи.
-
-### Фильтры и сортировка
-
-Фильтры не меняют статистические карточки: статистика показывает состояние всех активных задач пользователя. Список можно отдельно сортировать по созданию, изменению, сроку, приоритету, статусу или названию.
-
-## JSON contract для интерактивных действий
-
-AJAX-запросы отправляют `Accept: application/json` и `X-Requested-With: XMLHttpRequest`.
-
-Успех:
-
-```json
-{"success": true}
+```bash
+php bin/control.php modules list
 ```
 
-Ошибка ACL/валидации:
+Отключение выполняется через control plane, а не удалением каталога:
 
-```json
-{"success": false, "error": "Описание ошибки"}
+```bash
+php bin/control.php modules disable tasks
+php bin/control.php modules enable tasks
 ```
 
-Например, quick status update:
+Disable не удаляет пользовательские данные.
 
-```text
-POST /tasks/11111111111111111111111111111111/update
-Content-Type: application/x-www-form-urlencoded
-Accept: application/json
+## Проверка после установки/обновления
 
-status=completed
+```bash
+php bin/migrate.php --status
+php bin/healthcheck.php
 ```
 
-## CI
+Для разработки и CI используются module/runtime contracts и browser lifecycle Tasks. Изменение routes, schema ownership, module capability или lifecycle должно сопровождаться соответствующим regression coverage.
 
-Workflow `.github/workflows/tasks-contract.yml` проверяет:
+## Текущая граница с будущим Ежедневником
 
-- PHP syntax и отсутствие старого undefined `$task` ACL;
-- clean import `messenger_schema.sql + tasks_schema.sql`;
-- наличие всех canonical Tasks tables;
-- UNIQUE relation task/category;
-- owner/outsider update ACL;
-- корректную установку/очистку `completed_at`;
-- owner/outsider ACL для subtasks;
-- запрет назначения чужой категории;
-- доступ к системной категории;
-- идемпотентность повторного attach.
+`task_reminders` остаётся частью исторического Tasks schema, но наличие таблицы не означает, что Tasks становится календарём.
 
-## Ограничения текущей версии
-
-Пока не реализованы scheduler/уведомления для `task_reminders`, рекуррентные задачи, совместные задачи, комментарии, task attachments и календарный view. Эти функции не следует считать частью текущего контракта только из-за наличия таблицы/модели-заготовки.
-
-## Требования
-
-- PHP 8.3+;
-- MySQL 8.x / совместимая MariaDB;
-- Composer dependencies проекта;
-- Smarty и общий Workspace Organizer core.
+Будущий модуль «Ежедневник + Calendar» описан в `docs/ROADMAP.md` и должен быть отдельным isolated module. Связь Tasks ↔ Calendar должна проходить через публичные module capabilities/contracts.
