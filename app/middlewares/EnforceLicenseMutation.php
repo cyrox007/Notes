@@ -29,6 +29,10 @@ final class EnforceLicenseMutation
         '/admin/license/activate',
         '/admin/license/clear',
         '/messenger/socket-ticket',
+        // Generic fallback transport must also carry read-only Messenger actions.
+        // MessengerActionDispatcher still enforces license/maintenance for every
+        // mutating action, so this is not a mutation-policy bypass.
+        '/messenger/transport/send',
     ];
 
     public function __construct(private ?LicenseRuntimePolicy $policy = null)
