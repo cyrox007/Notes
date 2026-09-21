@@ -1,33 +1,29 @@
-# Module development and installation guide
+# Руководство по разработке и установке модулей
 
-This guide is the practical companion to `docs/MODULE_PLATFORM_0.14.md` and
-`docs/MODULE_RUNTIME_ISOLATION_1.0.md`. It describes how to add a new isolated
-module to Workspace Organizer 1.x and how an operator introduces a non-bundled
-module into an existing installation.
+Это практическое дополнение к `docs/MODULE_PLATFORM_0.14.md` и `docs/MODULE_RUNTIME_ISOLATION_1.0.md`. Здесь описано, как добавить новый изолированный модуль в Workspace Organizer 1.x и как оператор подключает non-bundled модуль к существующей установке.
 
-## 1. Module lifecycle in one minute
+## 1. Lifecycle модуля за одну минуту
 
-Workspace Organizer discovers modules from:
+Workspace Organizer обнаруживает модули по пути:
 
 ```text
 modules/<module-id>/module.json
 ```
 
-A valid non-bundled module is **not auto-enabled**. On first discovery it is
-registered in `module_lifecycle` with:
+Валидный non-bundled модуль **не включается автоматически**. При первом обнаружении он регистрируется в `module_lifecycle` со значениями:
 
 ```text
 configured_state = discovered
 effective_state  = discovered
 ```
 
-The supported operator flow is:
+Поддерживаемый операторский flow:
 
 ```text
 copy package -> discovered -> installed -> enabled
 ```
 
-Commands:
+Команды:
 
 ```bash
 php bin/control.php modules list
@@ -35,19 +31,17 @@ php bin/control.php modules install <module-id>
 php bin/control.php modules enable <module-id>
 ```
 
-To stop a module without deleting its data:
+Чтобы остановить модуль без удаления его данных:
 
 ```bash
 php bin/control.php modules disable <module-id>
 ```
 
-A dependency must already be effectively enabled before a dependent module can
-be enabled. The platform rejects invalid lifecycle transitions and refuses to
-disable a dependency while another enabled module requires it.
+Dependency должна уже находиться в effective state `enabled`, прежде чем можно включить зависимый module. Платформа отклоняет недопустимые lifecycle transitions и не позволяет отключить dependency, пока она требуется другому enabled module.
 
-## 2. Recommended module layout
+## 2. Рекомендуемая структура модуля
 
-A small isolated module should look like this:
+Небольшой изолированный module рекомендуется оформлять так:
 
 ```text
 modules/example/
@@ -66,24 +60,21 @@ modules/example/
     └── style.css
 ```
 
-Only `module.json` and the configured runtime entrypoint are mandatory at the
-filesystem level. Controllers, services, models, views and assets are optional
-and should live inside the module when they belong to that module.
+На filesystem level обязательны только `module.json` и настроенный runtime entrypoint. Controllers, services, models, views и assets необязательны и должны находиться внутри module, если принадлежат ему.
 
-Do not add product runtime files to shared `app/controllers`,
-`app/services`, `app/models` or `core/` just to make the module load.
+Не добавляйте product runtime files в общие `app/controllers`, `app/services`, `app/models` или `core/` только ради того, чтобы module начал загружаться.
 
-## 3. Module identifier rules
+## 3. Правила идентификатора модуля
 
-The directory name and manifest `id` must be identical.
+Имя каталога и `id` в manifest должны быть идентичны.
 
-Valid identifiers match:
+Валидные identifiers соответствуют выражению:
 
 ```text
 ^[a-z][a-z0-9_.-]{1,63}$
 ```
 
-Examples:
+Примеры:
 
 ```text
 calendar
@@ -91,7 +82,7 @@ crm.contacts
 inventory-tools
 ```
 
-Examples that are rejected:
+Примеры, которые будут отклонены:
 
 ```text
 Calendar
@@ -100,12 +91,11 @@ my module
 a
 ```
 
-Capability identifiers use the same identifier format and must be globally
-unique among active modules.
+Capability identifiers используют тот же формат и должны быть глобально уникальными среди активных modules.
 
-## 4. Minimal module.json
+## 4. Минимальный module.json
 
-Example for a non-bundled module with no database ownership:
+Пример non-bundled module без ownership базы данных:
 
 ```json
 {
@@ -141,35 +131,24 @@ Example for a non-bundled module with no database ownership:
 }
 ```
 
-Important fields:
+Важные поля:
 
-- `core.min` / `core.max_exclusive` define compatibility with the running
-  Core. A valid but incompatible module is recorded as `incompatible` and is
-  never runtime-enabled.
-- `dependencies` contains module IDs, not PHP package names.
-- `capabilities` declares every service exported to other modules.
-- `package.bundled=false` is the normal value for an independently installed
-  module.
-- `package.default_enabled` does not auto-enable a newly discovered
-  non-bundled module. Explicit operator installation and enablement are still
-  required.
-- `license.feature` is the central entitlement identifier. Use `null` for a
-  module that has no separate entitlement. A module must not implement its own
-  license-signing trust root.
-- production modules must use `runtime.mode = isolated`.
-- `runtime.entrypoint` must be a relative PHP path inside the module root.
-- `storage_namespaces` declares private-storage namespaces owned by the
-  module.
-- `database` declares database ownership used by install/update/health
-  composition.
+- `core.min` / `core.max_exclusive` задают совместимость с запущенным Core. Валидный, но несовместимый module записывается как `incompatible` и никогда не включается в runtime.
+- `dependencies` содержит IDs модулей, а не имена PHP packages.
+- `capabilities` объявляет каждый service, экспортируемый другим modules.
+- `package.bundled=false` — обычное значение для независимо устанавливаемого module.
+- `package.default_enabled` не включает автоматически новый обнаруженный non-bundled module. Явная установка и включение оператором всё равно обязательны.
+- `license.feature` — центральный entitlement identifier. Используйте `null`, если у модуля нет отдельного entitlement. Module не должен реализовывать собственный trust root подписи лицензий.
+- production modules обязаны использовать `runtime.mode = isolated`.
+- `runtime.entrypoint` должен быть относительным PHP path внутри module root.
+- `storage_namespaces` объявляет private-storage namespaces, принадлежащие module.
+- `database` объявляет ownership БД, используемый при composition install/update/health.
 
 ## 5. runtime.php
 
-The Core runtime autoloader deliberately does not recursively autoload module
-namespaces. An isolated module loads its own classes explicitly and returns one
-`Core\ModuleRuntimeProvider`.
+Runtime autoloader Core намеренно не загружает namespaces модулей рекурсивно. Изолированный module явно подключает собственные classes и возвращает один `Core\ModuleRuntimeProvider`.
 
-Example:
+Пример:
 
 ```php
 <?php
@@ -193,26 +172,24 @@ foreach ([
 return new \Modules\Example\ExampleRuntimeProvider();
 ```
 
-The entrypoint is loaded only when the module belongs to the effective runtime
-composition.
+Entrypoint загружается только когда module входит в effective runtime composition.
 
 ## 6. Runtime provider
 
-Every isolated module returns an object implementing:
+Каждый изолированный module возвращает объект, реализующий:
 
 ```php
 Core\ModuleRuntimeProvider
 ```
 
-The provider has four responsibilities:
+У provider четыре обязанности:
 
-- `moduleId()` — must exactly match `module.json.id`;
-- `boot()` — initialize module-owned runtime services that do not mutate the
-  router;
-- `capabilities()` — export concrete service objects;
-- `registerRoutes()` — register only routes owned by this module.
+- `moduleId()` — должен точно совпадать с `module.json.id`;
+- `boot()` — инициализирует module-owned runtime services, которые не меняют router;
+- `capabilities()` — экспортирует concrete service objects;
+- `registerRoutes()` — регистрирует только routes, принадлежащие этому module.
 
-Minimal example:
+Минимальный пример:
 
 ```php
 <?php
@@ -266,14 +243,11 @@ final class ExampleRuntimeProvider implements ModuleRuntimeProvider
 }
 ```
 
-The exported capability names must match the manifest capability list
-**exactly**. Missing, extra or duplicate active capability providers fail
-closed.
+Имена экспортируемых capabilities должны **в точности** совпадать со списком в manifest. Missing, extra или duplicate active capability providers приводят к fail-closed.
 
-## 7. Controller and module view
+## 7. Controller и view модуля
 
-A module controller can extend `Core\Controller` and render a module-owned
-view with the `@module-id/path` namespace:
+Controller модуля может наследоваться от `Core\Controller` и отрисовывать module-owned view через namespace `@module-id/path`:
 
 ```php
 <?php
@@ -296,13 +270,13 @@ final class ExampleController extends Controller
 }
 ```
 
-The template is then:
+Template располагается по адресу:
 
 ```text
 modules/example/views/index.php
 ```
 
-Example view:
+Пример view:
 
 ```php
 <?php
@@ -314,13 +288,11 @@ Example view:
 </section>
 ```
 
-Module assets are served only from the active module's `assets/` directory
-through the Core module-asset route. Do not expose the whole module directory as
-a public web root.
+Assets module отдаются только из каталога `assets/` активного module через Core module-asset route. Не публикуйте весь каталог module как public web root.
 
-## 8. Cross-module access
+## 8. Межмодульный доступ
 
-A module must not require another module's internal files by path.
+Module не должен подключать internal files другого module по path.
 
 Provider:
 
@@ -339,7 +311,7 @@ $service = \Core\ModuleRuntimeLoader::getInstance()
     ->require('example.api');
 ```
 
-When a stable interface exists, request the expected type:
+Если есть стабильный interface, запрашивайте ожидаемый type:
 
 ```php
 $service = \Core\ModuleRuntimeLoader::getInstance()
@@ -347,12 +319,11 @@ $service = \Core\ModuleRuntimeLoader::getInstance()
     ->require('example.api', ExampleContract::class);
 ```
 
-Dependencies that affect boot order must also be declared in
-`module.json.dependencies`.
+Dependencies, влияющие на boot order, также должны быть объявлены в `module.json.dependencies`.
 
-## 9. Database-backed modules
+## 9. Модули с собственной БД
 
-A module that owns tables declares them in `module.json`:
+Module, владеющий tables, объявляет их в `module.json`:
 
 ```json
 "database": {
@@ -368,20 +339,16 @@ A module that owns tables declares them in `module.json`:
 }
 ```
 
-Current 1.x SQL ownership paths are application-root paths under
-`database/` and `database/migrations/`. The manifest owns those paths even
-though the SQL files are physically stored in the common database tree.
+В текущем 1.x SQL ownership paths являются путями от application root внутри `database/` и `database/migrations/`. Manifest владеет этими paths, даже если SQL files физически лежат в общем database tree.
 
-For a new migration:
+Для новой migration:
 
-1. add a new immutable SQL file under `database/migrations/`;
-2. append its filename to `database/migrations/manifest.json` in canonical
-   order;
-3. declare its full path in the owning module's `database.migrations`;
-4. never rewrite a migration that has already been applied on customer
-   installations.
+1. добавьте новый immutable SQL file в `database/migrations/`;
+2. добавьте его filename в `database/migrations/manifest.json` в каноническом порядке;
+3. объявите его полный path в `database.migrations` owning module;
+4. никогда не переписывайте migration, уже применённую на customer installations.
 
-For an existing installation:
+Для существующей установки:
 
 ```bash
 php bin/migrate.php --status
@@ -389,12 +356,11 @@ php bin/migrate.php --dry-run
 php bin/migrate.php
 ```
 
-A module must not write another module's tables directly as its integration
-contract.
+Module не должен напрямую записывать tables другого module как свой integration contract.
 
 ## 10. Private storage
 
-If the module owns files outside the database, declare a unique namespace:
+Если module владеет файлами вне базы данных, объявите уникальный namespace:
 
 ```json
 "storage_namespaces": [
@@ -402,16 +368,13 @@ If the module owns files outside the database, declare a unique namespace:
 ]
 ```
 
-Runtime data belongs below the installation's configured private-storage root,
-not below the public module directory. Do not store customer uploads, secrets
-or generated state in `modules/<id>/`.
+Runtime data должны находиться ниже настроенного private-storage root установки, а не в public directory module. Не храните customer uploads, secrets или generated state в `modules/<id>/`.
 
-## 11. Installing a non-bundled module on an existing installation
+## 11. Установка non-bundled module в существующую установку
 
-Before changing an existing installation, make a current database/private
-storage backup.
+Перед изменением существующей installation сделайте актуальный backup database/private storage.
 
-Copy the complete module package into the application. At minimum:
+Скопируйте полный package module в приложение. Минимум:
 
 ```text
 modules/example/module.json
@@ -419,22 +382,21 @@ modules/example/runtime.php
 ...
 ```
 
-If the module owns SQL, also deploy its declared schema/migration files before
-running the migration command.
+Если module владеет SQL, также разверните объявленные schema/migration files до запуска команды migration.
 
-Then verify discovery:
+Проверьте discovery:
 
 ```bash
 php bin/control.php modules list
 ```
 
-Expected first state for a new non-bundled module:
+Ожидаемое первое состояние нового non-bundled module:
 
 ```text
 example      configured=discovered  effective=discovered
 ```
 
-If it has database migrations:
+Если у него есть database migrations:
 
 ```bash
 php bin/migrate.php --status
@@ -442,60 +404,55 @@ php bin/migrate.php --dry-run
 php bin/migrate.php
 ```
 
-Mark the package installed:
+Пометьте package установленным:
 
 ```bash
 php bin/control.php modules install example
 ```
 
-Expected state:
+Ожидаемое состояние:
 
 ```text
 example: configured=installed effective=installed
 ```
 
-Enable it:
+Включите его:
 
 ```bash
 php bin/control.php modules enable example
 ```
 
-Expected state:
+Ожидаемое состояние:
 
 ```text
 example: configured=enabled effective=enabled
 ```
 
-Then run:
+Затем выполните:
 
 ```bash
 php bin/healthcheck.php
 ```
 
-and smoke-test the module's routes.
+и smoke-test routes module.
 
-If `enable` fails because a dependency is disabled, install/enable dependencies
-first. If it fails because the module is incompatible, do not bypass the
-compatibility check; update the module or Core version range instead.
+Если `enable` не проходит из-за disabled dependency, сначала установите/включите dependencies. Если причина — incompatibility module, не обходите compatibility check; вместо этого обновите module или диапазон Core version.
 
-## 12. Disabling a module
+## 12. Отключение модуля
 
-Use the control plane:
+Используйте control plane:
 
 ```bash
 php bin/control.php modules disable example
 ```
 
-Disabling is non-destructive. It removes the module from the effective runtime
-composition but does not purge its customer data.
+Отключение неразрушительно. Module удаляется из effective runtime composition, но его customer data не очищаются.
 
-Do not simply delete a module directory while the lifecycle row still says the
-module is installed/enabled/disabled. The platform intentionally treats a
-registered module that unexpectedly disappears from disk as a startup error.
+Не удаляйте каталог module вручную, пока lifecycle row сообщает, что module установлен/enabled/disabled. Платформа намеренно считает startup error ситуацию, когда зарегистрированный module неожиданно исчезает с диска.
 
-## 13. Bundled versus independently installed modules
+## 13. Bundled и independently installed modules
 
-A first-party module shipped as part of the product may use:
+First-party module, поставляемый как часть продукта, может использовать:
 
 ```json
 "package": {
@@ -504,7 +461,7 @@ A first-party module shipped as part of the product may use:
 }
 ```
 
-A third-party/optional package normally uses:
+Third-party/optional package обычно использует:
 
 ```json
 "package": {
@@ -513,13 +470,11 @@ A third-party/optional package normally uses:
 }
 ```
 
-Bundled modules are reconciled on first installation according to
-`default_enabled`. Non-bundled modules always require an explicit lifecycle
-transition from `discovered`.
+Bundled modules согласуются при первой installation по `default_enabled`. Non-bundled modules всегда требуют явного lifecycle transition из `discovered`.
 
-## 14. Validation before distribution
+## 14. Проверка перед распространением
 
-At minimum:
+Минимум:
 
 ```bash
 php -l modules/example/runtime.php
@@ -529,9 +484,7 @@ php bin/control.php modules list --json
 php bin/healthcheck.php
 ```
 
-For a module developed inside the main repository, also run the module
-contracts and update their expected module set when intentionally adding a new
-repository-owned package:
+Для module, разрабатываемого внутри основного репозитория, также запустите module contracts и обновите ожидаемый module set, если вы намеренно добавляете новый repository-owned package:
 
 ```bash
 php tests/integration/module_registry_contract.php
@@ -539,32 +492,29 @@ php tests/integration/module_runtime_composition_contract.php
 php tests/integration/module_lifecycle_runtime.php
 ```
 
-The normal PR CI must remain green.
+Обычный PR CI должен оставаться зелёным.
 
-## 15. Fail-closed conditions
+## 15. Условия fail-closed
 
-Startup/discovery intentionally fails for:
+Startup/discovery намеренно завершается ошибкой при:
 
-- malformed or missing `module.json`;
-- module-directory/manifest ID mismatch;
-- symlinked module roots/manifests/entrypoints;
-- missing dependencies;
+- malformed или missing `module.json`;
+- несовпадении module-directory/manifest ID;
+- symlink module roots/manifests/entrypoints;
+- отсутствующих dependencies;
 - dependency cycles;
 - duplicate active capabilities;
-- isolated module without a valid in-root entrypoint;
-- provider ID mismatch;
-- capability exports that differ from the manifest;
-- registered module unexpectedly missing from disk;
+- isolated module без валидного in-root entrypoint;
+- несовпадении provider ID;
+- capability exports, отличающихся от manifest;
+- неожиданном отсутствии зарегистрированного module на диске;
 - invalid lifecycle state.
 
-These failures are security/integrity boundaries. Do not work around them by
-editing Core discovery checks.
+Это security/integrity boundaries. Не обходите их изменением проверок discovery в Core.
 
-## 16. Current 1.x packaging limitation
+## 16. Текущее ограничение packaging в 1.x
 
-The runtime boundary is module-local, but database schema/migration files still
-use canonical application-root `database/` paths. Therefore a DB-backed
-independently distributed module package currently contains both:
+Runtime boundary локальна для module, но database schema/migration files всё ещё используют канонические application-root paths `database/`. Поэтому independently distributed module с БД сейчас содержит одновременно:
 
 ```text
 modules/<id>/...
@@ -572,20 +522,16 @@ database/<module-schema>.sql
 database/migrations/<module-migration>.sql
 ```
 
-and must integrate its migration filename into
-`database/migrations/manifest.json`.
+и должен добавить filename своей migration в `database/migrations/manifest.json`.
 
-A future module-package format can move these SQL artifacts fully under the
-module package only after installer/migrator/database-ownership contracts are
-updated together. Do not invent an alternative layout that the current 1.x
-runtime does not understand.
+Будущий module-package format сможет полностью перенести SQL artifacts внутрь package module только после совместного обновления contracts installer/migrator/database-ownership. Не придумывайте альтернативную layout, которую текущий runtime 1.x не понимает.
 
-## Related documentation
+## Связанная документация
 
-- `docs/MODULE_PLATFORM_0.14.md` — manifest, composition and lifecycle model.
-- `docs/MODULE_RUNTIME_ISOLATION_1.0.md` — physical runtime-isolation contract.
-- `core/ModuleManifest.php` — authoritative manifest validation.
-- `core/ModuleRegistry.php` — discovery, dependencies and composition.
+- `docs/MODULE_PLATFORM_0.14.md` — model manifest, composition и lifecycle.
+- `docs/MODULE_RUNTIME_ISOLATION_1.0.md` — контракт физической runtime isolation.
+- `core/ModuleManifest.php` — авторитетная validation manifest.
+- `core/ModuleRegistry.php` — discovery, dependencies и composition.
 - `core/ModuleLifecycleStore.php` — persisted lifecycle transitions.
-- `core/ModuleRuntimeLoader.php` — isolated runtime loading and capability registry.
-- `bin/control.php` — operator module lifecycle CLI.
+- `core/ModuleRuntimeLoader.php` — isolated runtime loading и capability registry.
+- `bin/control.php` — operator CLI управления lifecycle модулей.
