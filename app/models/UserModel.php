@@ -23,6 +23,12 @@ class UserModel extends ORM
     public mixed $property = null;
     public int $role = 0;
     public int $is_active = 0;
+    public string $account_status = 'active';
+    public int $totp_enabled = 0;
+    public ?string $totp_secret = null;
+    public ?int $totp_last_counter = null;
+    public mixed $totp_recovery_codes = null;
+    public ?string $totp_confirmed_at = null;
     public string $created_at = '';
     public string $updated_at = '';
 }
