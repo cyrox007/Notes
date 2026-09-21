@@ -71,6 +71,14 @@ hostingPackageAssert(
 );
 
 hostingPackageAssert(
+    str_contains($workflow, 'test -f "$ROOT/bin/update_retention.php"')
+        && str_contains($workflow, "unzip -l \"$BUNDLE\" | grep -F 'bin/update_retention.php'")
+        && str_contains($workflow, 'test -f "$ROOT/core/UpdateArtifactCleaner.php"')
+        && str_contains($workflow, "unzip -l \"$BUNDLE\" | grep -F 'core/UpdateArtifactCleaner.php'"),
+    '1.0.2 release bundle must require and inspect updater retention runtime'
+);
+
+hostingPackageAssert(
     !str_contains($workflow, 'gh release create')
         && !str_contains($workflow, 'gh release upload')
         && !str_contains($workflow, 'contents: write'),
