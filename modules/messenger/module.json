@@ -32,7 +32,8 @@
       "messages",
       "message_user_deletions",
       "messenger_attachments",
-      "message_reactions"
+      "message_reactions",
+      "messenger_transport_events"
     ],
     "schemas": [
       "database/messenger_module_schema.sql"
@@ -44,7 +45,8 @@
       "database/migrations/20260913_messenger_delivery_receipts.sql",
       "database/migrations/20260913_messenger_reactions.sql",
       "database/migrations/20260913_messenger_saved_dialog.sql",
-      "database/migrations/20260918_messenger_retention_timestamps.sql"
+      "database/migrations/20260918_messenger_retention_timestamps.sql",
+      "database/migrations/20260921_messenger_transport_events.sql"
     ]
   }
 }
