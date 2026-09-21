@@ -1,6 +1,6 @@
-# Workspace Organizer 0.14 — Beta Hardening / Modular Platform
+# Workspace Organizer 0.14 — усиление безопасности / модульная платформа
 
-> Release channel: **beta**. `0.14.0-beta.1` фиксирует первый hardening baseline; незакрытые P0/P1 пункты этого документа продолжаются в `master` как blockers на пути к `1.0.0` stable.
+> Канал релиза: **beta**. `0.14.0-beta.1` фиксирует первый hardening baseline; незакрытые P0/P1 пункты этого документа продолжаются в `master` как blockers на пути к `1.0.0` stable.
 
 ## Цель релиза
 
@@ -18,7 +18,7 @@
 
 0.14 включает повторный аудит ядра уже не на уровне отдельных найденных уязвимостей, а как системный threat-model review.
 
-### Attack surface
+### Поверхность атаки
 
 Обязательный аудит:
 
@@ -99,7 +99,7 @@
 
 Функциональные подсистемы не должны попадать в core только потому, что они исторически существовали там.
 
-### Module manifest
+### Manifest модуля
 
 Каждый модуль получает manifest — например `module.json` или эквивалентный immutable PHP descriptor.
 
@@ -199,7 +199,7 @@ uninstalled
 
 Installer/package builder должен уметь формировать и проверять разные product compositions.
 
-### Package profiles
+### Профили пакета
 
 Нужен machine-readable package profile, например:
 
@@ -227,7 +227,7 @@ Package resolver обязан:
 - выполнять preflight до изменения DB/filesystem;
 - сохранять установленную composition в system registry.
 
-### Disable / uninstall
+### Отключение / удаление
 
 `disable` и `uninstall` — разные операции.
 
@@ -243,7 +243,7 @@ Package resolver обязан:
 
 0.14 должен заложить production-grade update subsystem вместо ручной замены файлов.
 
-### Update metadata
+### Метаданные обновления
 
 Update source предоставляет signed metadata:
 
@@ -260,7 +260,7 @@ Update source предоставляет signed metadata:
 - security severity;
 - package URL/reference.
 
-### Supply-chain security
+### Безопасность цепочки поставки
 
 - update metadata проверяется цифровой подписью;
 - package checksum проверяется до распаковки;
@@ -272,7 +272,7 @@ Update source предоставляет signed metadata:
 - downgrade запрещён по умолчанию;
 - rollback не может установить неподписанный artifact.
 
-### Update lifecycle
+### Lifecycle обновления
 
 Обязательная последовательность:
 
@@ -292,7 +292,7 @@ Update source предоставляет signed metadata:
 
 Для DB rollback предпочтение отдаётся backup/snapshot/recovery plan, а не предположению, что любой `DOWN migration` безопасно обратим.
 
-### Core/module independence
+### Независимость core/module
 
 - core update не должен молча ломать enabled modules;
 - несовместимый module блокирует update до явного решения либо получает совместимую версию в том же transaction plan;
@@ -300,7 +300,7 @@ Update source предоставляет signed metadata:
 - module updater не должен писать в чужой module namespace;
 - update state и installed checksums фиксируются в registry.
 
-### Security updates
+### Обновления безопасности
 
 Критические security updates ядра должны иметь отдельный приоритет и не должны искусственно блокироваться коммерческой лицензией, если это создаёт риск для уже установленной системы.
 
@@ -310,7 +310,7 @@ Update source предоставляет signed metadata:
 
 Лицензирование должно быть отдельным entitlement layer, а не разрозненными `if ($license)` внутри модулей.
 
-### License model
+### Модель лицензии
 
 Поддержать:
 
@@ -324,7 +324,7 @@ Update source предоставляет signed metadata:
 - offline signed license document;
 - online activation/refresh как дополнительный режим, а не единственный способ boot.
 
-### Cryptographic model
+### Криптографическая модель
 
 - license подписывает только license authority;
 - приложение содержит public key для проверки;
@@ -334,7 +334,7 @@ Update source предоставляет signed metadata:
 - поддерживается key rotation;
 - system clock manipulation и expiry behavior должны иметь явно описанный contract.
 
-### Runtime behavior
+### Поведение runtime
 
 License failure не должен повреждать данные.
 
@@ -346,7 +346,7 @@ License failure не должен повреждать данные.
 - security-critical core fixes не должны превращаться в заложника billing state;
 - license server outage не должен немедленно превращать локальную установку в неработоспособную, если используется валидный ранее выданный signed entitlement.
 
-### Module + license contract
+### Контракт module + license
 
 Manifest может объявлять `license_feature`, но решение принимает единый `LicenseManager/EntitlementService`.
 
@@ -377,7 +377,7 @@ Manifest может объявлять `license_feature`, но решение п
 
 ---
 
-## P1 — Upgrade / compatibility matrix
+## P1 — матрица upgrade / compatibility
 
 0.14 должен проверяться не только на fresh install.
 
@@ -397,7 +397,7 @@ Manifest может объявлять `license_feature`, но решение п
 
 ---
 
-## P1 — Cross-browser / mobile / soak / load
+## P1 — кроссбраузерные / мобильные / soak / load проверки
 
 Сохраняем ранее запланированный beta scope:
 
@@ -412,7 +412,7 @@ Manifest может объявлять `license_feature`, но решение п
 
 ---
 
-## P1 — Data retention / module ownership contract
+## P1 — контракт retention данных / ownership модулей
 
 Необходимо определить:
 
@@ -426,7 +426,7 @@ Manifest может объявлять `license_feature`, но решение п
 
 ---
 
-## P1 — Release governance
+## P1 — управление релизом
 
 0.14 также должен закрыть repository-side enforcement:
 
@@ -440,7 +440,7 @@ Manifest может объявлять `license_feature`, но решение п
 
 ---
 
-## Architecture Definition of Done 0.14
+## Архитектурные критерии готовности 0.14
 
 0.14 нельзя считать beta-ready, пока не выполнены все пункты ниже:
 
@@ -482,7 +482,7 @@ Manifest может объявлять `license_feature`, но решение п
 11. Upgrade/composition/browser/fault-injection matrix.
 12. 0.14 beta readiness + release candidate.
 
-## Scope discipline
+## Дисциплина scope
 
 0.14 не должен превращаться в очередной feature release. Пользовательские функции допускаются только если они необходимы для:
 
