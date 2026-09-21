@@ -1,4 +1,4 @@
-# Workspace Organizer — Development Roadmap
+# Workspace Organizer — дорожная карта разработки
 
 Актуально: 21 сентября 2026.
 
@@ -25,11 +25,11 @@
 
 ### Оставшиеся P0 blockers перед 1.0.0
 
-#### File Manager browser lifecycle regression
+#### Регрессия browser lifecycle File Manager
 
 После #145 на чистой ветке `1.0` воспроизводится красный `File Manager browser lifecycle`, при этом `File Manager HTTP integrity` остаётся зелёным. Регрессия должна быть исправлена отдельным изменением Files lifecycle до финального GO. Она не относится к #136/#137/#138 и не должна маскироваться изменениями других модулей.
 
-#### Physical module runtime isolation
+#### Физическая runtime-изоляция модулей
 
 Физическая изоляция уже частично выполнена; универсальное утверждение «все production modules остаются legacy» больше не соответствует состоянию проекта.
 
@@ -62,7 +62,7 @@ Core после миграции загружает только platform/shared
 
 Release gate остаётся прежним: ни один bundled production module не должен оставаться `runtime.mode = legacy` к стабильному 1.0.0.
 
-#### Repository convergence / dead-code cleanup
+#### Схождение репозитория / очистка мёртвого кода
 
 После подтверждения runtime coverage:
 
@@ -72,7 +72,7 @@ Release gate остаётся прежним: ни один bundled production m
 - удалить тесты только когда их invariant полностью покрыт более сильным contract/E2E, а не ради уменьшения количества файлов;
 - release bundle не должен содержать исторические runtime artifacts, которые никогда не исполняются.
 
-#### Release ceremony
+#### Процедура выпуска релиза
 
 Перед тегом 1.0.0:
 
@@ -88,7 +88,7 @@ Release gate остаётся прежним: ни один bundled production m
 
 Наличие стабильного значения `Core\Version` само по себе не является GO-сигналом для релиза.
 
-## 1.0.2 — stabilization before 1.1.0
+## 1.0.2 — стабилизация перед 1.1.0
 
 `1.0.1` опубликован как stable release. Перед открытием feature-cycle `1.1.0` выпускается ещё один patch-релиз `1.0.2`, сфокусированный на эксплуатации и updater delivery, а не на новых продуктовых модулях.
 
@@ -125,7 +125,7 @@ Scope `1.0.2`:
 
 Tasks и Ежедневник взаимодействуют, но остаются двумя независимыми модулями: Tasks управляет задачами и досками, Ежедневник — временем, расписанием и календарным контекстом.
 
-## 1.2 — Media playback extension
+## 1.2 — расширение воспроизведения медиа
 
 Исторический README упоминал мультимедиа-плеер. Актуальная продуктовая модель: это прежде всего **расширение платформы и модулей**, а не самостоятельный пользовательский раздел, дублирующий Files.
 
@@ -174,7 +174,7 @@ Repository layer следующего этапа:
 
 Дальнейшее развитие может добавить project overview, markdown/README rendering, lightweight issues/discussions, code review и другие GitHub-подобные функции. Выполнение произвольного кода, shell/terminal, build/test runner и remote Git credentials не входят автоматически в trusted core: для них потребуется отдельный sandbox/permission/security design.
 
-## Module platform after 1.0
+## Модульная платформа после 1.0
 
 После физической изоляции first-party modules платформа развивается в сторону безопасно распространяемых packages:
 
@@ -191,7 +191,7 @@ Repository layer следующего этапа:
 
 Никакой downloaded module code не исполняется до signature/integrity/core-compatibility/dependency validation.
 
-## Product evolution after restored capabilities
+## Развитие продукта после восстановления запланированных возможностей
 
 После Ежедневника/Calendar, media playback extension и CodeExplorer приоритет определяется реальным использованием. Кандидаты:
 
@@ -204,7 +204,7 @@ Repository layer следующего этапа:
 
 Эти пункты не считаются обещанием конкретной версии, пока не имеют отдельного approved design/contract.
 
-## Architecture rules for all future modules
+## Архитектурные правила для всех будущих модулей
 
 Новые модули не получают legacy exception. С первого коммита они должны:
 
@@ -219,6 +219,6 @@ Repository layer следующего этапа:
 
 Cross-module extensions вроде media playback не отменяют изоляцию: они должны предоставляться через стабильный capability/service contract, а не через прямой доступ к внутренностям хост-модуля.
 
-## Definition of roadmap completion
+## Критерии завершения пунктов дорожной карты
 
 Пункт считается завершённым только когда реализация, migration/recovery story, runtime tests, packaging и документация согласованы. Наличие UI или manifest без физического runtime boundary не считается завершённой модульностью.
