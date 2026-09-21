@@ -1,8 +1,8 @@
-# Workspace Organizer 0.12 usable-alpha release candidate
+# Workspace Organizer 0.12 — release candidate usable-alpha
 
 Эта ветка закрывает 0.12 Usable Baseline и должна мержиться только после полностью зелёной PR-матрицы.
 
-## Prerequisite PRs
+## Предварительные PR
 
 Все пять prerequisite-блоков уже находятся в `master`:
 
@@ -14,7 +14,7 @@
 
 Release branch пересобрана поверх объединённого `master`, поэтому PR содержит только финальную release-фиксацию и последний usability polish.
 
-## Definition of Done evidence
+## Evidence критериев готовности
 
 В одном source tree подтверждены:
 
@@ -33,15 +33,15 @@ Release branch пересобрана поверх объединённого `m
 
 `tests/integration/usable_alpha_readiness.php` валидирует эти source-level evidence и печатает каждую отсутствующую предпосылку отдельно.
 
-## Database contract
+## Контракт базы данных
 
 Fresh install строится из canonical `database/*_schema.sql`. `bin/migrate.php` используется только как compatibility-upgrade runner для существующих установок; `schema_migrations` — внутренний ledger filename/checksum, а не отдельный источник canonical schema.
 
-## Repository governance boundary
+## Граница управления репозиторием
 
 Repository-side policy, checklist и drift checks входят в release. Фактическое включение branch-protection enforcement относится к GitHub Administration state и выполняется one-time через Settings по `docs/RELEASE_GOVERNANCE.md`; GitHub App соединение проекта не имеет права самостоятельно менять эту настройку.
 
-## Final verification
+## Финальная проверка
 
 Перед merge этого PR должны быть зелёными:
 
