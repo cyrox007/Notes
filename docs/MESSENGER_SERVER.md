@@ -53,10 +53,41 @@ WS_MAX_PAYLOAD_BYTES=2097152
 Из корня приложения:
 
 ```bash
+php ws_server/server.php check
 php ws_server/server.php start
 php ws_server/server.php status
 php ws_server/server.php restart
 php ws_server/server.php stop
+```
+
+`check` выполняет тот же preflight, что и `start`, но не запускает долгоживущий процесс. `start` всегда сначала выполняет preflight и прекращает запуск при любой критичной проблеме.
+
+Startup report показывает фактический CLI PHP binary/version, путь приложения и `.env`, обязательные PHP extensions/socket API, режим foreground/daemon, состояние `WS_TICKET_SECRET` без раскрытия секрета, PID/runtime/log paths, `SITEURL`, browser-facing `WS_PUBLIC_URL`, native `WS_HOST:WS_PORT`, deployment/proxy mode, reverse-proxy mapping, allowed origins, connection/payload limits и результат тестового bind порта. Для каждой критичной ошибки выводятся отдельные строки `[FAIL]` с причиной и `[FIX]` с рекомендуемым действием.
+
+После успешного application bootstrap дополнительно подтверждаются database/module lifecycle и включённый Messenger module. Строка `[RUNNING]` появляется только после успешного реального bind native listener, поэтому означает, что процесс действительно занял указанный адрес и порт.
+
+Пример сокращённого успешного запуска:
+
+```text
+[OK] PHP CLI runtime — 8.3.x | binary=/usr/bin/php83 | sapi=cli
+[OK] Browser WebSocket URL — wss://workspace.example.com/ws
+[OK] Native listener — tcp://127.0.0.1:27800
+[OK] Deployment mode — same-origin reverse proxy
+[INFO] Reverse proxy — /ws -> http://127.0.0.1:27800
+[OK] Allowed WebSocket origins — https://workspace.example.com
+[OK] Listener bind test — tcp://127.0.0.1:27800 is available
+[OK] Startup preflight — all critical checks passed; starting WebSocket runtime
+[OK] Application bootstrap — core runtime loaded; database and persisted module lifecycle initialized
+[OK] Messenger module — enabled in the effective runtime composition
+[RUNNING] WebSocket server — Native WebSocket listener started: tcp://127.0.0.1:27800; ...
+```
+
+При ошибке запуск останавливается до long-running loop, например:
+
+```text
+[FAIL] PHP extension sodium — missing from the active CLI PHP binary
+[FIX] PHP extension sodium — enable/install sodium for /usr/bin/php81
+[FAIL] Startup preflight — 1 critical problem(s) found; WebSocket server was not started
 ```
 
 На Unix при наличии `pcntl` доступен daemon mode:
