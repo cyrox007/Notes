@@ -1,7 +1,7 @@
 (() => {
     'use strict';
 
-    const MAX_RECONNECT_DELAY = 10000;
+    const MAX_RECONNECT_DELAY = 15000;
     const PREVIEW_LIMIT = 120;
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -12,12 +12,23 @@
 
         const dialogs = new Map();
         const states = new Map();
+        const seenEventIds = new Set();
+        const seenEventOrder = [];
         let socket = null;
         let connecting = false;
         let reconnectTimer = null;
         let reconnectAttempt = 0;
         let stopped = false;
         let userUid = '';
+        let eventCursor = 0;
+        let cursorReady = false;
+        let longPollActive = false;
+        let longPollAbortController = null;
+        let longPollFailures = 0;
+
+        function appPath(path) {
+            return typeof wspace.path === 'function' ? wspace.path(path) : path;
+        }
 
         function totalUnread() {
             let total = 0;
@@ -52,24 +63,9 @@
             applyDialogs(event?.detail?.dialogs);
         });
 
-        // The Messenger page already owns a full WebSocket client. It publishes
-        // dialog updates through wspace:messenger-dialogs, so opening a second
-        // socket here would duplicate realtime traffic and notifications.
+        // The Messenger page owns the full transport client and publishes dialog
+        // state into this shell through wspace:messenger-dialogs.
         if (document.getElementById('messenger-app')) return;
-
-        const socketUrl = String(wspace.socketConfig?.url || '');
-        if (socketUrl === '') return;
-
-        function send(action, data = {}) {
-            if (!socket || socket.readyState !== WebSocket.OPEN) return false;
-            socket.send(JSON.stringify({ action, data }));
-            return true;
-        }
-
-        function requestState() {
-            send('MessangerSocket:get_dialogs', {});
-            send('DialogStateSocket:list', {});
-        }
 
         function displayUser(user) {
             const name = String((user?.firstname || '') + ' ' + (user?.lastname || '')).trim();
@@ -116,21 +112,168 @@
             }
         }
 
+        function acceptEvent(data) {
+            const eventId = Number.parseInt(String(data?.event_id || '0'), 10);
+            if (eventId <= 0) return true;
+            if (seenEventIds.has(eventId)) return false;
+
+            seenEventIds.add(eventId);
+            seenEventOrder.push(eventId);
+            if (seenEventOrder.length > 500) {
+                const expired = seenEventOrder.shift();
+                if (expired) seenEventIds.delete(expired);
+            }
+            eventCursor = Math.max(eventCursor, eventId);
+            return true;
+        }
+
+        function handlePayload(data) {
+            if (!data || typeof data !== 'object' || !acceptEvent(data)) return;
+
+            switch (data?.action) {
+                case 'Ping':
+                    send('PingSocket:index', { ping: 'Pong' });
+                    break;
+                case 'Authorized':
+                    userUid = String(data.user_uid || '');
+                    eventCursor = Math.max(
+                        eventCursor,
+                        Number.parseInt(String(data.transport_cursor || '0'), 10) || 0
+                    );
+                    stopLongPoll();
+                    requestState();
+                    break;
+                case 'get_dialogs':
+                    applyDialogs(data.dialogs);
+                    break;
+                case 'dialog_states':
+                    states.clear();
+                    (Array.isArray(data.states) ? data.states : []).forEach((state) => {
+                        if (state?.dialog_uid) states.set(state.dialog_uid, state);
+                    });
+                    break;
+                case 'dialog_state':
+                    if (data.dialog_uid) {
+                        states.set(data.dialog_uid, {
+                            ...(states.get(data.dialog_uid) || {}),
+                            ...data
+                        });
+                    }
+                    break;
+                case 'send_message':
+                    showIncoming(data);
+                    send('MessangerSocket:get_dialogs', {});
+                    break;
+                case 'new_dialog':
+                case 'message_edited':
+                case 'message_deleted':
+                case 'read_update':
+                    send('MessangerSocket:get_dialogs', {});
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        function consumeEnvelope(body) {
+            (Array.isArray(body?.events) ? body.events : []).forEach(handlePayload);
+            const cursor = Number.parseInt(String(body?.cursor || '0'), 10);
+            if (cursor > 0) eventCursor = Math.max(eventCursor, cursor);
+        }
+
+        async function ensureCursor() {
+            if (cursorReady) return true;
+            try {
+                const response = await fetch(
+                    appPath('/messenger/transport/poll') + '?cursor=latest',
+                    {
+                        method: 'GET',
+                        credentials: 'same-origin',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    }
+                );
+                if (response.status === 401 || response.status === 403) {
+                    stopped = true;
+                    return false;
+                }
+                const body = await response.json().catch(() => null);
+                if (!response.ok || !body || body.status !== 'ok') {
+                    throw new Error(body?.message || 'Cursor bootstrap failed');
+                }
+                eventCursor = Math.max(0, Number.parseInt(String(body.cursor || '0'), 10) || 0);
+                cursorReady = true;
+                return true;
+            } catch (error) {
+                console.warn('Messenger fallback cursor is temporarily unavailable', error);
+                return false;
+            }
+        }
+
+        async function sendHttp(action, data = {}) {
+            if (!(await ensureCursor()) || stopped) return false;
+
+            const params = new URLSearchParams();
+            params.set('action', String(action || ''));
+            params.set('payload', JSON.stringify(data || {}));
+            params.set('cursor', String(eventCursor));
+
+            try {
+                const response = await fetch(appPath('/messenger/transport/send'), {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: params.toString()
+                });
+                if (response.status === 401 || response.status === 403) {
+                    stopped = true;
+                    stopLongPoll();
+                    return false;
+                }
+                const body = await response.json().catch(() => null);
+                if (!response.ok || !body || !Array.isArray(body.events)) {
+                    throw new Error(body?.message || 'Messenger fallback send failed');
+                }
+                consumeEnvelope(body);
+                return body.status === 'ok';
+            } catch (error) {
+                console.warn('Global Messenger fallback send failed', error);
+                return false;
+            }
+        }
+
+        function send(action, data = {}) {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({ action, data }));
+                return true;
+            }
+            void sendHttp(action, data);
+            return true;
+        }
+
+        function requestState() {
+            send('MessangerSocket:get_dialogs', {});
+            send('DialogStateSocket:list', {});
+        }
+
         function scheduleReconnect() {
             if (stopped || reconnectTimer || navigator.onLine === false) return;
-            const delay = Math.min(MAX_RECONNECT_DELAY, 1000 * (2 ** Math.min(reconnectAttempt, 3)));
+            const delay = Math.min(MAX_RECONNECT_DELAY, 1000 * (2 ** Math.min(reconnectAttempt, 4)));
             reconnectAttempt += 1;
             reconnectTimer = window.setTimeout(() => {
                 reconnectTimer = null;
-                connect();
+                void connect();
             }, delay);
         }
 
         async function freshTicket() {
-            const endpoint = typeof wspace.path === 'function'
-                ? wspace.path('/messenger/socket-ticket')
-                : '/messenger/socket-ticket';
-            const response = await fetch(endpoint, {
+            const response = await fetch(appPath('/messenger/socket-ticket'), {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: { 'Accept': 'application/json' }
@@ -151,6 +294,79 @@
             return data.ticket;
         }
 
+        function resolveSocketUrl(value) {
+            const raw = String(value || '').trim();
+            if (raw === '' || !raw.startsWith('/')) return raw;
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            return protocol + '//' + window.location.host + raw;
+        }
+
+        function stopLongPoll() {
+            longPollActive = false;
+            if (longPollAbortController) {
+                longPollAbortController.abort();
+                longPollAbortController = null;
+            }
+            longPollFailures = 0;
+        }
+
+        async function longPollLoop() {
+            while (longPollActive && !stopped) {
+                const controller = typeof AbortController === 'function'
+                    ? new AbortController()
+                    : null;
+                longPollAbortController = controller;
+
+                try {
+                    const response = await fetch(
+                        appPath('/messenger/transport/poll')
+                            + '?cursor=' + encodeURIComponent(String(eventCursor)),
+                        {
+                            method: 'GET',
+                            credentials: 'same-origin',
+                            headers: {
+                                'Accept': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest'
+                            },
+                            signal: controller?.signal
+                        }
+                    );
+                    if (response.status === 401 || response.status === 403) {
+                        stopped = true;
+                        break;
+                    }
+                    const body = await response.json().catch(() => null);
+                    if (!response.ok || !body || body.status !== 'ok') {
+                        throw new Error(body?.message || 'Messenger long-poll failed');
+                    }
+                    longPollFailures = 0;
+                    consumeEnvelope(body);
+                } catch (error) {
+                    if (!longPollActive || error?.name === 'AbortError') break;
+                    longPollFailures += 1;
+                    console.warn('Global Messenger long-poll is temporarily unavailable', error);
+                    const delay = Math.min(5000, 500 * (2 ** Math.min(longPollFailures, 3)));
+                    await new Promise((resolve) => window.setTimeout(resolve, delay));
+                } finally {
+                    if (longPollAbortController === controller) {
+                        longPollAbortController = null;
+                    }
+                }
+            }
+        }
+
+        async function startLongPoll() {
+            if (longPollActive || stopped || navigator.onLine === false) return;
+            if (!(await ensureCursor()) || stopped) {
+                scheduleReconnect();
+                return;
+            }
+            longPollActive = true;
+            longPollFailures = 0;
+            requestState();
+            void longPollLoop();
+        }
+
         async function connect() {
             if (
                 stopped
@@ -162,13 +378,34 @@
                 return;
             }
 
+            if (!(await ensureCursor()) || stopped) {
+                await startLongPoll();
+                scheduleReconnect();
+                return;
+            }
+
+            // Keep the compatibility stream alive until WebSocket has actually
+            // authorized. That closes the network/handshake gap without losing
+            // journaled events.
+            await startLongPoll();
+
+            const socketUrl = resolveSocketUrl(String(wspace.socketConfig?.url || ''));
+            if (socketUrl === '' || typeof WebSocket !== 'function') {
+                return;
+            }
+
             connecting = true;
             try {
                 const ticket = await freshTicket();
                 if (ticket === '' || stopped) return;
 
                 const separator = socketUrl.includes('?') ? '&' : '?';
-                const nextSocket = new WebSocket(socketUrl + separator + 'ticket=' + encodeURIComponent(ticket));
+                const nextSocket = new WebSocket(
+                    socketUrl
+                    + separator
+                    + 'ticket=' + encodeURIComponent(ticket)
+                    + '&cursor=' + encodeURIComponent(String(eventCursor))
+                );
                 socket = nextSocket;
 
                 nextSocket.addEventListener('open', () => {
@@ -181,55 +418,19 @@
                     } catch (_) {
                         return;
                     }
-
-                    switch (data?.action) {
-                        case 'Ping':
-                            send('PingSocket:index', { ping: 'Pong' });
-                            break;
-                        case 'Authorized':
-                            userUid = String(data.user_uid || '');
-                            requestState();
-                            break;
-                        case 'get_dialogs':
-                            applyDialogs(data.dialogs);
-                            break;
-                        case 'dialog_states':
-                            states.clear();
-                            (Array.isArray(data.states) ? data.states : []).forEach((state) => {
-                                if (state?.dialog_uid) states.set(state.dialog_uid, state);
-                            });
-                            break;
-                        case 'dialog_state':
-                            if (data.dialog_uid) {
-                                states.set(data.dialog_uid, {
-                                    ...(states.get(data.dialog_uid) || {}),
-                                    ...data
-                                });
-                            }
-                            break;
-                        case 'send_message':
-                            showIncoming(data);
-                            send('MessangerSocket:get_dialogs', {});
-                            break;
-                        case 'new_dialog':
-                        case 'message_edited':
-                        case 'message_deleted':
-                        case 'read_update':
-                            send('MessangerSocket:get_dialogs', {});
-                            break;
-                        default:
-                            break;
-                    }
+                    handlePayload(data);
                 });
                 nextSocket.addEventListener('close', () => {
                     if (socket === nextSocket) socket = null;
+                    void startLongPoll();
                     scheduleReconnect();
                 });
                 nextSocket.addEventListener('error', () => {
-                    // close will schedule the retry; keep console noise out of normal offline transitions.
+                    void startLongPoll();
                 });
             } catch (error) {
-                console.warn('Global Messenger notifications are temporarily unavailable', error);
+                console.warn('Global Messenger WebSocket is temporarily unavailable', error);
+                await startLongPoll();
                 scheduleReconnect();
             } finally {
                 connecting = false;
@@ -241,7 +442,8 @@
                 window.clearTimeout(reconnectTimer);
                 reconnectTimer = null;
             }
-            connect();
+            void startLongPoll();
+            void connect();
         });
 
         window.addEventListener('offline', () => {
@@ -249,8 +451,9 @@
                 window.clearTimeout(reconnectTimer);
                 reconnectTimer = null;
             }
+            stopLongPoll();
         });
 
-        connect();
+        void connect();
     });
 })();
