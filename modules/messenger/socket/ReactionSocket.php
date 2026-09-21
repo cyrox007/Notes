@@ -5,14 +5,20 @@ declare(strict_types=1);
 namespace App\Sockets;
 
 use App\Services\MessengerReactionService;
+use App\Services\MessengerRealtimePublisher;
 use DomainException;
 use InvalidArgumentException;
 
 final class ReactionSocket
 {
-    public function __construct(private ?MessengerReactionService $reactions = null)
-    {
+    private MessengerRealtimePublisher $publisher;
+
+    public function __construct(
+        private ?MessengerReactionService $reactions = null,
+        ?MessengerRealtimePublisher $publisher = null
+    ) {
         $this->reactions ??= new MessengerReactionService();
+        $this->publisher = $publisher ?? new MessengerRealtimePublisher();
     }
 
     public function list(array $connections, SocketConnection $connection, string $userUid, array $payload = []): void
@@ -62,11 +68,7 @@ final class ReactionSocket
 
     private function sendToUser(array $connections, string $userUid, array $payload): void
     {
-        foreach ($connections[$userUid] ?? [] as $userConnection) {
-            if ($userConnection instanceof SocketConnection) {
-                $this->send($userConnection, $payload);
-            }
-        }
+        $this->publisher->publishToUser($connections, $userUid, $payload);
     }
 
     private function guard(SocketConnection $connection, callable $callback): void
