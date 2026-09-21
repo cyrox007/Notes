@@ -103,6 +103,7 @@ final class UpdateArtifactCleaner
 
             $deletedDirectories = 0;
             $deletedBytes = 0;
+            $deletedPaths = [];
             if ($apply) {
                 foreach ($plan['transactions'] as &$transaction) {
                     if (!($transaction['eligible'] ?? false)) {
@@ -114,6 +115,16 @@ final class UpdateArtifactCleaner
                             continue;
                         }
                         $path = (string) ($artifact['path'] ?? '');
+                        $pathKey = PHP_OS_FAMILY === 'Windows'
+                            ? strtolower(UpdatePath::normalize($path))
+                            : UpdatePath::normalize($path);
+                        if (isset($deletedPaths[$pathKey])) {
+                            $artifact['action'] = 'already_deleted';
+                            $artifact['deleted_bytes'] = 0;
+                            $transaction[$kind] = $artifact;
+                            continue;
+                        }
+
                         $root = $kind === 'backup' ? $this->backupRoot : $this->candidateRoot;
                         $expected = $kind === 'backup'
                             ? (string) $transaction['transaction_id']
@@ -129,6 +140,7 @@ final class UpdateArtifactCleaner
                         $artifact['action'] = 'deleted';
                         $artifact['deleted_bytes'] = $bytes;
                         $transaction[$kind] = $artifact;
+                        $deletedPaths[$pathKey] = true;
                         $deletedDirectories++;
                         $deletedBytes += $bytes;
                     }
@@ -448,6 +460,15 @@ final class UpdateArtifactCleaner
         $real = UpdatePath::normalize($real);
         if (!UpdatePath::inside($real, $root) || $real === $root) {
             throw new RuntimeException('Updater retention artifact escaped its configured external root');
+        }
+        $parent = UpdatePath::normalize(dirname($real));
+        $expectedParent = UpdatePath::normalize($root);
+        if (PHP_OS_FAMILY === 'Windows') {
+            $parent = strtolower($parent);
+            $expectedParent = strtolower($expectedParent);
+        }
+        if ($parent !== $expectedParent) {
+            throw new RuntimeException('Updater retention artifact must be a direct child of its configured root');
         }
         if (basename($real) !== $expectedBasename) {
             throw new RuntimeException('Updater retention artifact name does not match transaction/package identity');
