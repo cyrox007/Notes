@@ -2,9 +2,18 @@
 
 Формат основан на принципах Keep a Changelog. Начиная с `1.0.0` проект имеет stable platform contract: совместимость upgrade-path и пользовательских данных является release contract, а изменения схемы выполняются через явные compatibility migrations. Canonical `*_schema.sql` остаются источником текущей схемы fresh install.
 
-## Unreleased
+## 1.0.2 — Unreleased
 
-Следующие изменения после `1.0.1` ведутся отдельным maintenance/feature cycle без ретроактивного изменения опубликованных migration и trust contracts.
+### Updater operations
+- Добавлен единый CLI operator flow `bin/update_run.php`, который использует существующие подписанные границы: remote staging, maintenance ownership, verified code+MySQL rollback backup, external release candidate и transactional live apply.
+- Destructive flow требует явный `--yes`; до начала live mutation wrapper может безопасно снять собственный maintenance, а после начала mutation rollback/recovery полностью остаются во владении `UpdateApplyCommand`.
+- Для прерванной транзакции предусмотрен единый recovery-вход через `bin/update_run.php --recover --transaction=... --yes`.
+- Добавлен отдельный regression contract для operator flow; прямые shell-execution shortcuts не допускаются.
+
+### Release direction
+- `1.0.2` является последним stabilization patch перед feature-cycle `1.1.0`.
+- Основной оставшийся scope: production signed feed/manifest delivery, реальный `1.0.1 -> 1.0.2` upgrade/rollback drill, дальнейший Admin Updates UX и operations cleanup.
+- Published migration/trust history `1.0.0/1.0.1` не переписывается.
 
 ## 1.0.1 — 2026-09-20
 

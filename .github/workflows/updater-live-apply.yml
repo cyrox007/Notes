@@ -58,6 +58,8 @@ jobs:
           php -l core/UpdateRollbackCodeRestorer.php
           php -l core/UpdateApplyCommand.php
           php -l bin/update_apply.php
+          php -l bin/update_run.php
+          php -l tests/integration/updater_operator_flow_contract.php
           php -l tests/integration/updater_migration_preflight_contract.php
           php -l tests/integration/updater_live_apply_contract.php
           php -l tests/integration/updater_live_permissions_contract.php
@@ -110,6 +112,7 @@ jobs:
           php tests/integration/updater_live_apply_contract.php
           php tests/integration/updater_live_permissions_contract.php
           php tests/integration/updater_recovery_invariants_contract.php
+          php tests/integration/updater_operator_flow_contract.php
 
       - name: Verify CLI and destructive-boundary invariants
         shell: bash
@@ -117,6 +120,9 @@ jobs:
           set -euo pipefail
           HELP_OUTPUT="$(php bin/update_apply.php --help)"
           grep -Fq 'transactional live updater' <<<"$HELP_OUTPUT"
+          RUN_HELP_OUTPUT="$(php bin/update_run.php --help)"
+          grep -Fq 'end-to-end signed updater operator flow' <<<"$RUN_HELP_OUTPUT"
+          grep -Fq -- '--yes' <<<"$RUN_HELP_OUTPUT"
           grep -Fq 'UpdateApplyCommand' bin/update_apply.php
           grep -Fq 'UpdateApplyOperationLock' core/UpdateApplyCommand.php
           grep -Fq 'operation_busy' core/UpdateApplyCommand.php

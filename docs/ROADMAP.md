@@ -1,6 +1,6 @@
 # Workspace Organizer — Development Roadmap
 
-Актуально: 17 сентября 2026.
+Актуально: 21 сентября 2026.
 
 Этот документ — текущая рабочая дорожная карта. Он не заменяет исторические audit/runbook документы и не объявляет незавершённую работу готовой. Статусы ниже отражают фактическое состояние ветки `1.0` на момент обновления.
 
@@ -88,18 +88,21 @@ Release gate остаётся прежним: ни один bundled production m
 
 Наличие стабильного значения `Core\Version` само по себе не является GO-сигналом для релиза.
 
-## 1.0.x — stabilization after release
+## 1.0.2 — stabilization before 1.1.0
 
-Первые patch-релизы не расширяют продукт хаотично. Приоритет — production evidence:
+`1.0.1` опубликован как stable release. Перед открытием feature-cycle `1.1.0` выпускается ещё один patch-релиз `1.0.2`, сфокусированный на эксплуатации и updater delivery, а не на новых продуктовых модулях.
 
-- canary/shadow installation перед широким rollout;
-- повторяемые fresh-install / upgrade / rollback drills;
-- backup + restore drills с измеряемым временем восстановления;
-- structured health/operational metrics;
-- error/incident taxonomy и эксплуатационный audit trail;
-- проверка updater/recovery на реальных hosting profiles;
-- performance/resource budgets для HTTP, DB и native WebSocket runtime;
-- security regression review после каждого изменения module/runtime boundary.
+Scope `1.0.2`:
+
+- единый operator flow поверх существующего signed updater: remote staging → maintenance → verified code+MySQL rollback backup → external release candidate → transactional live apply;
+- fail-closed recovery: после начала live mutation только `UpdateApplyCommand` владеет rollback/recovery и снятием maintenance;
+- production signed feed/manifest/signature delivery и реальный upgrade drill `1.0.1 -> 1.0.2`;
+- дальнейшая доработка Admin Updates UX без прямого unzip/overwrite и без обхода transaction journal;
+- проверка updater/recovery на Windows/OSPanel и Linux hosting profiles;
+- повторяемые backup/restore drills и эксплуатационные health/incident checks;
+- актуализация release/runbook документации после фактической проверки обновления.
+
+`1.0.2` считается завершённым только после exact-head CI, реального upgrade/rollback drill и публикации подписанного update manifest. После этого development переключается на `1.1.0`.
 
 ## 1.1 — Ежедневник + Calendar
 
