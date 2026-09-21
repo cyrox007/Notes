@@ -13,14 +13,14 @@ Reverse proxy (Nginx/Apache/LB)
   |                    |
   | FastCGI/HTTP       | WebSocket proxy
   v                    v
-PHP-FPM / Apache PHP   Workerman
+PHP-FPM / Apache PHP   native WebSocket server
   |                    |
   +----------+---------+
              |
       MySQL + private storage
 ```
 
-Browser не должен иметь прямого доступа к `PRIVATE_STORAGE_PATH`, MySQL или внутреннему Workerman port.
+Browser не должен иметь прямого доступа к `PRIVATE_STORAGE_PATH`, MySQL или внутреннему native WebSocket server port.
 
 ## 2. Pre-deploy requirements
 
@@ -28,19 +28,15 @@ Browser не должен иметь прямого доступа к `PRIVATE_S
 
 - PHP 8.1+ как технический compatibility floor; для Internet-facing production используйте поддерживаемую ветку PHP, сейчас рекомендуется 8.3+;
 - MySQL 8.x;
-- Composer dependencies установлены с production flags;
+- runtime не требует Composer/vendor dependencies;
 - extensions `mysqli`, `pdo_mysql`, `mbstring`, `json`, `fileinfo`, `sodium`, `gd`;
 - writable `PRIVATE_STORAGE_PATH` вне document root;
 - TLS certificate;
 - WSS reverse proxy;
-- для Workerman runtime: POSIX-compatible OS, PHP CLI, extensions `pcntl` и `posix`;
+- для native WebSocket runtime: PHP CLI и возможность держать long-running process; `pcntl`/`posix` рекомендуются на Unix для daemon/signal/process-control функций;
 - уникальные secrets для этого environment.
 
-Установка dependencies:
-
-```bash
-composer install --no-dev --optimize-autoloader
-```
+Production package является vendor-free; `composer install` для запуска приложения и WebSocket runtime не требуется.
 
 ## 3. Secrets
 
@@ -159,11 +155,13 @@ WS_PUBLIC_URL=wss://workspace.example.com/ws
 WS_ALLOWED_ORIGINS=https://workspace.example.com
 ```
 
-Workerman слушает внутренний port. Reverse proxy должен проксировать `/ws` с Upgrade/Connection headers.
+Native WebSocket server слушает внутренний port. Reverse proxy должен проксировать `/ws` с Upgrade/Connection headers.
 
 Не публикуйте raw `ws://host:27800` в Internet production environment.
 
-Workerman запускайте как managed service (systemd/supervisor/container), с restart policy и отдельным service account.
+Native WebSocket process запускайте как managed service (systemd/Supervisor/container/hosting process manager), с restart policy и отдельным service account. Перед первым стартом используйте `php ws_server/server.php check`, после запуска — `php bin/ws_doctor.php`.
+
+Допускается один отдельный WS-узел. Он должен работать на том же release/commit, использовать ту же application DB, `WS_TICKET_SECRET`, `MSG_SECRET_KEY`, Messenger private storage и общий `UPDATE_STATE_PATH`. Несколько одновременно активных WS instances одной installation пока не поддерживаются как HA/load-balancing topology.
 
 ## 9. CSP and browser security
 
@@ -264,7 +262,7 @@ Restore drill должен проверять:
 - auth 429/503;
 - upload failures/413/415/429;
 - PHP errors/exceptions;
-- Workerman disconnect/restart rate;
+- native WebSocket server disconnect/restart rate;
 - DB connection errors;
 - migration/healthcheck failures;
 - disk usage private storage;
