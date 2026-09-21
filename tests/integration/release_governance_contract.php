@@ -107,7 +107,7 @@ foreach ([
     'Master release gate',
     'BASE_PATH=/workspace/',
     'DB_ARCHITECTURE.md',
-    'independent approval',
+    'независимый approval',
     'durable DB/storage',
 ] as $marker) {
     if (!str_contains($template, $marker)) {
@@ -124,10 +124,10 @@ if (preg_match("/pull_request:\\s*\\n\\s*branches:\\s*\\[master,\\s*'1\\.0'\\]/m
 }
 
 $docs = requireFileText($root . '/docs/RELEASE_GOVERNANCE.md');
-if (!str_contains($docs, 'GitHub branch-protection settings live outside Git history')) {
+if (!str_contains($docs, 'настройки GitHub branch protection находятся вне Git history')) {
     failContract('governance documentation must state the external Settings boundary');
 }
-if (!str_contains($docs, 'Required `1.0` protection')) {
+if (!str_contains($docs, 'Обязательная защита `1.0`')) {
     failContract('governance documentation must define 1.0 protection');
 }
 
