@@ -1,4 +1,4 @@
-# Messenger WebSocket server — запуск, перенос на отдельный сервер и эксплуатация
+# WebSocket-сервер Messenger — запуск, перенос на отдельный сервер и эксплуатация
 
 Workspace Organizer использует собственный native PHP WebSocket runtime. Сторонний Workerman и Composer `vendor/` для работы realtime Messenger не требуются. Обычные HTTP-запросы обслуживаются PHP-FPM/Apache, а realtime Messenger — отдельным долгоживущим процессом `ws_server/server.php`.
 
@@ -543,11 +543,11 @@ php bin/ws_doctor.php
 
 ## 11. Частые проблемы
 
-### Connection refused
+### Ошибка Connection refused
 
 Проверьте native process, `WS_HOST`, `WS_PORT`, firewall и reverse proxy backend.
 
-### WebSocket сразу закрывается
+### WebSocket-соединение сразу закрывается
 
 Проверьте:
 
