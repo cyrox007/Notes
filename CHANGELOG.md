@@ -14,6 +14,7 @@
 - Vendor update/license service получил read-only health state, CLI `--status --json` и минимальный HTTPS `/health` endpoint для deployment monitoring без раскрытия credentials, лицензий или package paths.
 - Добавлен retention CLI `bin/update_retention.php`: dry-run по умолчанию, destructive cleanup только с `--apply --yes`; удаляются только старые rollback backup/release-candidate directories terminal-транзакций `committed`/`rollback_verified`, при этом journals, staged packages, `rollback_failed` и любые незавершённые recovery states сохраняются.
 - Добавлен release drill из exact published `v1.0.1` в synthetic signed `1.0.2`: success-path сохраняет installation/data settings, fault-path намеренно меняет БД и ломает post-switch healthcheck, после чего проверяется автоматический code + DB rollback обратно в 1.0.1.
+- Документирован поддерживаемый WebSocket deployment contract: штатный native WS рядом с приложением либо один отдельный WS-узел с общей DB/secrets/private storage/maintenance state; multi-instance WS явно отложен до отдельной реализации cross-node pub/sub/fan-out.
 
 ### Release direction
 - `1.0.2` является последним stabilization patch перед feature-cycle `1.1.0`.
