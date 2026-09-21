@@ -80,6 +80,29 @@ final class LicenseServer
         return $activation;
     }
 
+    /** @return array{status:string,registry:bool,license_trust:bool,update_trust:bool} */
+    public function health(): array
+    {
+        $registryReady = false;
+        try {
+            $value = $this->db->query("SELECT 1")->fetchColumn();
+            $registryReady = (int) $value === 1;
+        } catch (Throwable) {
+            $registryReady = false;
+        }
+
+        $licenseTrust = $this->licenses->hasTrustedKeys();
+        $updateTrust = $this->updates->hasTrustedKeys();
+        $ok = $registryReady && $licenseTrust && $updateTrust;
+
+        return [
+            'status' => $ok ? 'ok' : 'degraded',
+            'registry' => $registryReady,
+            'license_trust' => $licenseTrust,
+            'update_trust' => $updateTrust,
+        ];
+    }
+
     public function setStatus(string $installation, string $status): void
     {
         if (!in_array($status, ['active', 'revoked'], true)) {
