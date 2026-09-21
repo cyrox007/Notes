@@ -50,6 +50,21 @@ pdo_sqlite, без Composer. Оно не входит в клиентский ho
 php tools/license-server/manage.php --db=/var/lib/notes-license/licenses.sqlite --init
 ```
 
+После инициализации проверьте локальное состояние сервиса:
+
+```bash
+php tools/license-server/manage.php \
+  --db=/var/lib/notes-license/licenses.sqlite --status --json
+```
+
+После запуска HTTPS endpoint доступна безопасная unauthenticated health-проверка:
+
+```text
+GET https://updates.example.com/health
+```
+
+Она возвращает только состояние registry/license-trust/update-trust и не раскрывает Installation ID, лицензии, credentials, пути к пакетам или содержимое SQLite. Для production monitoring ожидается HTTP 200 + `{"status":"ok",...}`; degraded service отвечает 503.
+
 Все запросы домена направляйте только в `tools/license-server/public/index.php`.
 Не добавляйте статический alias к пакетам и не оставляйте публичные копии тех же
 пакетов в GitHub Releases, CDN или object storage.
