@@ -19,7 +19,7 @@ php bin/migrate.php
 php bin/healthcheck.php
 ```
 
-Realtime Messenger требует запущенный Workerman и TLS reverse proxy для `/ws`. После изменения `WS_TICKET_SECRET`, `WS_ALLOWED_ORIGINS`, `SITEURL` или WebSocket topology перезапускайте WS process и выполняйте browser/WSS smoke.
+Realtime Messenger требует запущенный native PHP WebSocket process (`ws_server/server.php`) и TLS/WSS endpoint. Process может работать рядом с HTTP-приложением либо на одном отдельном WS-узле. После изменения `WS_TICKET_SECRET`, `WS_ALLOWED_ORIGINS`, `SITEURL` или WebSocket topology перезапускайте WS process и выполняйте browser/WSS smoke. Для remote WS topology обязательны одинаковый release/commit, общая application DB, одинаковые Messenger/ticket secrets, общий Messenger private storage и общий `UPDATE_STATE_PATH`; полный контракт описан в `docs/MESSENGER_SERVER.md`.
 
 ## 2. Backup contract
 
@@ -73,7 +73,7 @@ Restore считается проверенным только после вос
 
 1. сгенерировать новый случайный secret (минимум 32 байта/достаточная энтропия);
 2. заменить secret в secret manager / `.env`;
-3. одновременно перезапустить HTTP workers и Workerman;
+3. одновременно перезапустить HTTP workers и native WebSocket process;
 4. проверить новый login + WSS connection.
 
 Старые короткоживущие socket tickets после ротации перестанут проходить проверку — это ожидаемо.
@@ -127,6 +127,25 @@ Notes rotation охватывает `notes.content` и encrypted snapshots `note
 
 `bin/migrate_crypto.php` остаётся legacy-format migrator; `bin/rotate_data_keys.php` — штатный путь смены master keys.
 
+## 4.1. Remote WebSocket node
+
+Для одной installation допускается один отдельный realtime-узел. Он не является stateless proxy: native WS process загружает application runtime и обращается к общей MySQL БД, RBAC/module lifecycle, license/runtime policy и Messenger storage.
+
+Операционный минимум remote WS deployment:
+
+- HTTP и WS узлы работают на одном release/commit;
+- `WS_TICKET_SECRET` и `MSG_SECRET_KEY` совпадают;
+- `PRIVATE_STORAGE_PATH/messenger` доступен обоим узлам под тем же absolute path;
+- `UPDATE_STATE_PATH` является общим, чтобы WS mutations видели updater maintenance;
+- `WS_ALLOWED_ORIGINS` содержит origin HTTP-приложения;
+- наружу публикуется WSS endpoint, native listener остаётся loopback/private;
+- `php bin/ws_doctor.php` запускается на самом WS-узле;
+- после deploy выполняется browser smoke text + attachment + reconnect.
+
+Несколько активных WS instances для одной installation пока не поддерживаются: live connection registry локален процессу, а cross-node pub/sub/fan-out отсутствует. Не используйте второй WS process как HA/load-balancing решение до отдельной реализации multi-instance contract.
+
+См. `docs/MESSENGER_SERVER.md`.
+
 ## 5. Rate limiting и reverse proxy
 
 На одном узле limiter по умолчанию использует `PRIVATE_STORAGE_PATH/rate-limit` и `flock`.
@@ -167,7 +186,7 @@ php bin/cleanup_messenger_orphans.php
 Регулярно контролируйте:
 
 - свободное место private storage и DB;
-- PHP/Workerman error logs;
+- PHP/native WebSocket error logs;
 - результат `bin/healthcheck.php`;
 - срок последнего успешного backup и restore drill;
 - наличие legacy crypto rows через `migrate_crypto.php --dry-run`;
