@@ -149,12 +149,22 @@ final class MessagerController extends Controller
         }
 
         $cursorRaw = trim((string) $request->get('cursor', '0'));
-        $cursor = ctype_digit($cursorRaw) ? (int) $cursorRaw : 0;
-        $timeout = $this->longPollTimeoutSeconds();
-        $deadline = microtime(true) + $timeout;
         $journal = new MessengerEventJournal();
 
         header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+        if ($cursorRaw === 'latest') {
+            $this->responseJson([
+                'status' => 'ok',
+                'transport' => 'long_poll',
+                'cursor' => $journal->cursorForUserId((int) $user->id),
+                'events' => [],
+            ]);
+            return;
+        }
+
+        $cursor = ctype_digit($cursorRaw) ? (int) $cursorRaw : 0;
+        $timeout = $this->longPollTimeoutSeconds();
+        $deadline = microtime(true) + $timeout;
         header('Pragma: no-cache');
         if (session_status() === PHP_SESSION_ACTIVE) {
             session_write_close();
