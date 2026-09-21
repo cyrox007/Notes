@@ -15,11 +15,11 @@
 - возможность PHP записывать в каталог приложения во время установки;
 - возможность PHP создать private storage вне document root;
 - Apache `mod_rewrite` либо эквивалентный routing в Nginx/панели;
-- для realtime Messenger — PHP CLI, возможность держать долгоживущий native PHP process и WebSocket reverse proxy `/ws`.
+- для оптимального realtime Messenger — PHP CLI, долгоживущий native PHP process и WebSocket endpoint/proxy; без них Messenger автоматически использует встроенный Long Poll compatibility transport.
 
 Composer, Smarty и Workerman для runtime не требуются.
 
-Если тариф не позволяет long-running process/WebSocket proxy, остальные web-модули устанавливаются и работают, но realtime Messenger на таком тарифе не развёрнут.
+Если тариф не позволяет long-running process/WebSocket proxy, отдельный VPS для базовой работы Messenger не требуется: browser автоматически переключается на authenticated Long Poll. WebSocket можно подключить позже как более эффективный transport.
 
 ## Fresh install без CLI
 
@@ -88,7 +88,7 @@ WS_MAX_CONNECTIONS=256
 WS_MAX_PAYLOAD_BYTES=2097152
 ```
 
-Web-installer не может универсально запустить долгоживущий процесс на любой панели, поэтому realtime Messenger запускается отдельно:
+Web-installer не может универсально запустить долгоживущий процесс на любой панели. Если хостинг это позволяет, включите предпочтительный WebSocket transport:
 
 ```bash
 php ws_server/server.php check
@@ -102,7 +102,7 @@ php ws_server/server.php status
 php bin/ws_doctor.php
 ```
 
-В production встроенный native WebSocket server должен работать под process manager с automatic restart, а браузер подключается через `wss://` reverse proxy, не напрямую к `27800`.
+При наличии WebSocket в production native server должен работать под process manager с automatic restart, а браузер подключается через `wss://` reverse proxy, не напрямую к `27800`. Если listener/proxy недоступен, browser автоматически продолжит через same-origin Long Poll; это совместимый, но более ресурсоёмкий режим.
 
 Полная инструкция — `docs/MESSENGER_SERVER.md`. Для Open Server — `docs/OPEN_SERVER_WEBSOCKET.md`.
 
