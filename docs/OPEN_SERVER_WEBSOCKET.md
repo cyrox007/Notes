@@ -1,6 +1,6 @@
-# Open Server 6+: Messenger WebSocket
+# Open Server 6+: WebSocket для Messenger
 
-## Fresh install: профиль OpenServer local
+## Чистая установка: локальный профиль OpenServer
 
 Web-installer распознаёт локальную Windows-структуру OpenServer/OSPanel вида `...\\domains\\<host>` и предлагает профиль **OpenServer / локальная Windows-установка**.
 
@@ -137,7 +137,7 @@ php ws_server/server.php status
 php bin/ws_doctor.php
 ```
 
-## Apache: fallback / нестандартный порт
+## Apache: резервный вариант / нестандартный порт
 
 Если автоматический bridge не сработал либо `WS_PORT` изменён, создайте project-local host extension:
 
