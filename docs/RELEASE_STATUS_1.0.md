@@ -1,5 +1,7 @@
 # Workspace Organizer 1.0 release task ledger
 
+> **Status update — 21 September 2026.** `v1.0.1` is published. The table below is retained as the historical 1.0/1.0.1 stabilization ledger. Active maintenance development has moved to `1.0.2`, whose scope is production updater delivery/operator flow and operational verification before `1.1.0`. See `docs/ROADMAP.md` and `docs/releases/v1.0.2.md`.
+
 This file is the stop/reopen ledger for the 1.0 stabilization work. It separates **source implementation**, **operator-only release actions**, and the **final exact-head test phase** so a completed engineering item is not reopened merely because release evidence is still pending.
 
 The historical audit IDs are retained for continuity. A source item is reopened only for a new reproducible violation of its acceptance contract.
