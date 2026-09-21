@@ -13,10 +13,11 @@
 - Admin Updates показывает отдельный статус operator readiness, безопасную diagnostic command и единый CLI install/recovery flow, не добавляя destructive web endpoint.
 - Vendor update/license service получил read-only health state, CLI `--status --json` и минимальный HTTPS `/health` endpoint для deployment monitoring без раскрытия credentials, лицензий или package paths.
 - Добавлен retention CLI `bin/update_retention.php`: dry-run по умолчанию, destructive cleanup только с `--apply --yes`; удаляются только старые rollback backup/release-candidate directories terminal-транзакций `committed`/`rollback_verified`, при этом journals, staged packages, `rollback_failed` и любые незавершённые recovery states сохраняются.
+- Добавлен release drill из exact published `v1.0.1` в synthetic signed `1.0.2`: success-path сохраняет installation/data settings, fault-path намеренно меняет БД и ломает post-switch healthcheck, после чего проверяется автоматический code + DB rollback обратно в 1.0.1.
 
 ### Release direction
 - `1.0.2` является последним stabilization patch перед feature-cycle `1.1.0`.
-- Основной оставшийся scope: production signed feed/manifest delivery, реальный `1.0.1 -> 1.0.2` upgrade/rollback drill и финальная Windows/Linux acceptance.
+- Основной оставшийся scope: production signed feed/manifest delivery, повтор exact `1.0.1 -> 1.0.2` на финальных production-signed artifacts и финальная Windows/Linux acceptance.
 - Published migration/trust history `1.0.0/1.0.1` не переписывается.
 
 ## 1.0.1 — 2026-09-20
