@@ -88,7 +88,9 @@ WS_MAX_CONNECTIONS=256
 WS_MAX_PAYLOAD_BYTES=2097152
 ```
 
-Web-installer не может универсально запустить долгоживущий процесс на любой панели, поэтому realtime Messenger запускается отдельно:
+### Штатный режим: native WS рядом с приложением
+
+Web-installer не может универсально запустить долгоживущий process на любой панели, поэтому realtime Messenger запускается отдельно:
 
 ```bash
 php ws_server/server.php start
@@ -101,11 +103,26 @@ php ws_server/server.php status
 php bin/ws_doctor.php
 ```
 
-В production встроенный native WebSocket server должен работать под process manager с automatic restart, а браузер подключается через `wss://` reverse proxy, не напрямую к `27800`.
-
-Полная инструкция — `docs/MESSENGER_SERVER.md`. Для Open Server — `docs/OPEN_SERVER_WEBSOCKET.md`.
+В production native WebSocket server должен работать под process manager с automatic restart, а браузер подключается через `wss://` reverse proxy, не напрямую к `27800`.
 
 Если панель предлагает **Background processes / Supervisor / WebSocket / Reverse proxy**, используйте их для `php ws_server/server.php start` и проксирования публичного `/ws` на `127.0.0.1:27800`.
+
+### Отдельный WebSocket сервер
+
+Допускается один отдельный WS-узел. В таком режиме `WS_PUBLIC_URL` может указывать, например, на:
+
+```env
+WS_PUBLIC_URL=wss://ws.example.com/ws
+WS_ALLOWED_ORIGINS=https://example.com
+```
+
+Удалённый WS-узел не является stateless relay: он загружает application runtime. Поэтому он должен использовать тот же release/commit, ту же MySQL БД, тот же `WS_TICKET_SECRET` и `MSG_SECRET_KEY`, иметь общий Messenger private storage и видеть тот же maintenance state через общий `UPDATE_STATE_PATH`.
+
+Из-за physical `stored_path` для Messenger attachments shared `PRIVATE_STORAGE_PATH/messenger` в текущем контракте должен быть смонтирован на web- и WS-узле под тем же абсолютным путём.
+
+Несколько одновременно активных native WS instances для одной installation **пока не поддерживаются**: connection/presence registry находится в памяти процесса, а cross-node pub/sub/fan-out отсутствует. Это отдельная задача развития, а не deployment option текущей версии.
+
+Полная инструкция для обоих режимов — `docs/MESSENGER_SERVER.md`. Для Open Server/OSPanel — `docs/OPEN_SERVER_WEBSOCKET.md`.
 
 ## Upgrade существующей установки
 
