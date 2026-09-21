@@ -17,8 +17,6 @@ require_once $root . '/app/services/MaintenanceModeService.php';
 
 use App\Services\MaintenanceModeService;
 use Core\UpdateProcessRunner;
-use RuntimeException;
-use Throwable;
 
 $options = getopt('', [
     'transaction:',
