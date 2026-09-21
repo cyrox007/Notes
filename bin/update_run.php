@@ -168,6 +168,13 @@ $applyInvoked = false;
 $stateRoot = trim((string) ($options['state-root'] ?? ''));
 
 try {
+    $doctorCommand = updateRunBaseCommand('update_doctor.php');
+    $doctorCommand[] = '--json';
+    $readiness = updateRunJsonCommand($runner, $doctorCommand, $root, 30, 'updater readiness');
+    if (empty($readiness['ready_for_apply'])) {
+        throw new RuntimeException('Updater readiness doctor did not approve live apply prerequisites');
+    }
+
     $stageCommand = updateRunBaseCommand('update_remote.php');
     $stageCommand[] = '--json';
     foreach (['feed-url', 'channel', 'stage-root'] as $option) {
