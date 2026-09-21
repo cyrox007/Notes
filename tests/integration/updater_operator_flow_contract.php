@@ -19,6 +19,7 @@ updateRunContract(str_contains($source, "PHP_SAPI !== 'cli'"), 'operator flow mu
 updateRunContract(str_contains($source, "'yes'"), 'operator flow lost explicit destructive confirmation');
 updateRunContract(str_contains($source, 'confirmation_required'), 'operator flow does not fail closed without --yes');
 updateRunContract(str_contains($source, 'UpdateProcessRunner'), 'operator flow must use bounded argv subprocess runner');
+updateRunContract(str_contains($source, "update_doctor.php"), 'operator flow lost readiness preflight');
 updateRunContract(str_contains($source, "update_remote.php"), 'operator flow lost signed remote staging');
 updateRunContract(str_contains($source, "update_backup.php"), 'operator flow lost rollback backup checkpoint');
 updateRunContract(str_contains($source, "update_candidate.php"), 'operator flow lost verified release candidate');

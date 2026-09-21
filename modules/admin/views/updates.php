@@ -16,6 +16,10 @@ $trustedKeys = isset($state['trusted_key_ids']) && is_array($state['trusted_key_
 $canCheck = !empty($state['can_check']);
 $canStage = !empty($state['can_stage']);
 $canManageStage = !empty($state['can_manage_stage']);
+$operatorReady = !empty($state['operator_ready']);
+$operatorIssues = isset($state['operator_issues']) && is_array($state['operator_issues']) ? $state['operator_issues'] : [];
+$operatorCommand = isset($state['operator_command']) ? (string) $state['operator_command'] : 'php bin/update_run.php --yes --json';
+$doctorCommand = isset($state['doctor_command']) ? (string) $state['doctor_command'] : 'php bin/update_doctor.php --json';
 $checkedUpdateAvailable = $result !== null
     && ($result['kind'] ?? '') === 'check'
     && ($result['status'] ?? '') === 'update_available'
@@ -82,6 +86,7 @@ ob_start();
             <div class="admin-status-card"><label>Update trust root</label><strong><?= !empty($state['trust_configured']) ? 'Настроен' : 'Не настроен' ?></strong></div>
             <div class="admin-status-card"><label>HTTPS runtime</label><strong><?= !empty($state['openssl_available']) ? 'OpenSSL доступен' : 'OpenSSL недоступен' ?></strong></div>
             <div class="admin-status-card"><label>External staging</label><strong><?= !empty($state['stage_configured']) ? 'Настроен' : 'Не настроен' ?></strong></div>
+            <div class="admin-status-card"><label>Operator apply</label><strong><?= $operatorReady ? 'Готов' : 'Требует настройки' ?></strong></div>
         </div>
 
         <?php if ($trustedKeys !== []): ?>
@@ -160,6 +165,43 @@ ob_start();
                     <p class="admin-update-detail">Проверка доступна, но installation-wide staging разрешён только суперадминистратору.</p>
                 <?php endif; ?>
             <?php endif; ?>
+        </section>
+    <?php endif; ?>
+
+    <?php if ($canManageStage): ?>
+        <section class="admin-panel-card" aria-labelledby="updates-operator-title">
+            <div class="admin-panel-card__header">
+                <div>
+                    <span class="admin-panel-card__kicker">1.0.2 operator flow</span>
+                    <h2 id="updates-operator-title">Проверка и установка через CLI</h2>
+                    <p>Web UI по-прежнему не меняет live-код. Полная установка выполняется единым CLI flow поверх проверенных maintenance/backup/candidate/apply boundaries.</p>
+                </div>
+            </div>
+
+            <?php if ($operatorReady): ?>
+                <div class="admin-page__flash admin-page__flash--success admin-update-alert" role="status">
+                    Локальные prerequisites для operator flow готовы. Перед установкой сначала выполните readiness doctor, затем команду установки.
+                </div>
+            <?php else: ?>
+                <div class="admin-page__flash admin-page__flash--error admin-update-alert" role="status">
+                    <strong>Operator flow пока не готов:</strong>
+                    <ul>
+                        <?php foreach ($operatorIssues as $issue): ?>
+                            <li><?= $view->e((string) $issue) ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            <?php endif; ?>
+
+            <div class="admin-update-detail">
+                <strong>Диагностика</strong>
+                <code><?= $view->e($doctorCommand) ?></code>
+            </div>
+            <div class="admin-update-detail">
+                <strong>Установка следующего подписанного обновления</strong>
+                <code><?= $view->e($operatorCommand) ?></code>
+            </div>
+            <p class="admin-update-detail">При прерывании после начала live mutation используйте сохранённый transaction id с <code>php bin/update_run.php --recover --transaction=&lt;id&gt; --yes --json</code>. Не удаляйте maintenance marker вручную.</p>
         </section>
     <?php endif; ?>
 

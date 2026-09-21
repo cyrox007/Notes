@@ -220,6 +220,18 @@ When a compatible update is available, a superadmin may explicitly download, re-
 
 This first UI slice stops at staging. It has no browser action for maintenance entry, transaction-journal creation, rollback backup, release-candidate extraction, migrations, live code switch, apply or recovery. Those destructive operations remain CLI/operator transaction boundaries until a separately reviewed browser transaction flow exists.
 
+## Updater readiness diagnostics
+
+Before checking or applying an update, run the read-only readiness doctor:
+
+```bash
+php bin/update_doctor.php --json
+```
+
+It performs no network request and no mutation. It verifies the local trust registry, required PHP extensions, `proc_open`, HTTPS feed/channel configuration, online credential shape when enabled, external staging/state/backup/release paths and the DB configuration needed by rollback backup.
+
+The Admin Updates page exposes the same local operator-readiness summary without exposing private credential contents or absolute staged-package paths.
+
 ## Single-command operator flow
 
 `1.0.2` adds an operator wrapper over the already existing updater transaction boundaries. It does not introduce a second updater implementation and it does not weaken signature, backup, candidate or rollback verification.
