@@ -16,6 +16,7 @@ function hostingPackageAssert(bool $condition, string $message): void
 hostingPackageAssert(is_file($workflowPath), 'hosting-package.yml is missing');
 $workflow = file_get_contents($workflowPath);
 hostingPackageAssert(is_string($workflow), 'hosting-package.yml cannot be read');
+$workflow = str_replace("\r\n", "\n", $workflow);
 
 $moduleSocket = 'modules/messenger/socket/NativeMessengerServer.php';
 $legacySocket = 'app/socket/NativeMessengerServer.php';
