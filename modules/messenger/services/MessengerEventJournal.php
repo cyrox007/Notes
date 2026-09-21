@@ -69,7 +69,10 @@ final class MessengerEventJournal
         }
 
         $now = time();
-        $expiresAt = date('Y-m-d H:i:s', $now + self::retentionSeconds());
+        $expiresAt = date(
+            'Y-m-d H:i:s',
+            $now + self::retentionSecondsForPayload($payload)
+        );
         $this->db->execute(
             'INSERT INTO messenger_transport_events (user_id,payload,created_at,expires_at)
              VALUES (:user_id,:payload,:created_at,:expires_at)',
