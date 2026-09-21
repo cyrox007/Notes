@@ -1,59 +1,59 @@
-# Database architecture
+# Архитектура базы данных
 
-## Decision
+## Принятое решение
 
-Workspace Organizer does **not** use migrations as the canonical source of the database schema.
+Workspace Organizer **не** использует миграции как канонический источник схемы базы данных.
 
-The authoritative database contract for a fresh installation is the composition-aware schema set resolved by `Core\\DatabaseOwnership`: core-owned schemas plus the schema files declared by each packaged module's `module.json`.
+Авторитетным контрактом базы данных для чистой установки является composition-aware набор схем, который разрешает `Core\DatabaseOwnership`: схемы, принадлежащие ядру, плюс файлы схем, объявленные каждым упакованным модулем в его `module.json`.
 
-Core-owned fresh schemas currently include identity, RBAC/access control, the user-action audit journal, system settings and module lifecycle. Notes, Tasks, Files, Messenger and Profile contribute their own schema ownership through module manifests.
+К каноническим схемам ядра для чистой установки сейчас относятся identity, RBAC/access control, журнал действий пользователей, системные настройки и lifecycle модулей. Notes, Tasks, Files, Messenger и Profile добавляют собственные схемы через manifests модулей.
 
-`install.php` imports this resolved schema set directly. A clean installation must be reproducible from these files without consulting upgrade history.
+`install.php` импортирует этот разрешённый набор схем напрямую. Чистая установка должна полностью воспроизводиться из этих файлов без обращения к истории обновлений.
 
-## Existing installations
+## Существующие установки
 
-SQL files currently stored in `database/migrations/` are retained as **compatibility upgrade scripts** for installations created by older versions of Workspace Organizer. They are not the canonical description of the current database.
+SQL-файлы в `database/migrations/` сохраняются как **compatibility upgrade scripts** для установок, созданных старыми версиями Workspace Organizer. Они не являются каноническим описанием текущей базы данных.
 
-`bin/migrate.php` is therefore an upgrade runner retained for backward compatibility. Its `schema_migrations` table is an implementation detail used to prevent an already-applied compatibility script from being applied twice and to detect edited upgrade scripts by checksum.
+Поэтому `bin/migrate.php` — это runner обновлений, сохранённый для обратной совместимости. Его таблица `schema_migrations` является внутренней деталью реализации: она предотвращает повторное применение уже выполненного compatibility-скрипта и по checksum обнаруживает изменение уже применённых upgrade scripts.
 
-The application runtime must never depend on:
+Runtime приложения никогда не должен зависеть от:
 
-- the number of rows in `schema_migrations`;
-- a particular historical sequence length;
-- `schema_migrations` being present on a fresh installation;
-- reconstructing the current schema by replaying every historical upgrade script.
+- количества строк в `schema_migrations`;
+- конкретной длины исторической последовательности;
+- наличия `schema_migrations` в чистой установке;
+- восстановления текущей схемы путём повторного проигрывания всех исторических upgrade scripts.
 
-The runtime depends only on the current schema contract.
+Runtime зависит только от текущего контракта схемы.
 
-## Rules for schema changes
+## Правила изменения схемы
 
-### Fresh-install contract
+### Контракт чистой установки
 
-Every schema change must first be reflected in the appropriate canonical `database/*_schema.sql` file. Fresh installations are validated by importing the canonical schema files into an empty database.
+Любое изменение схемы сначала должно быть отражено в соответствующем каноническом файле `database/*_schema.sql`. Чистые установки проверяются импортом канонических файлов схем в пустую базу данных.
 
-### Upgrade contract
+### Контракт обновления
 
-If an existing supported installation needs ALTER/backfill/reconciliation work, add an explicit compatibility SQL upgrade script. The script must:
+Если существующей поддерживаемой установке требуется `ALTER`, backfill или reconciliation, добавьте отдельный compatibility SQL upgrade script. Скрипт должен:
 
-- preserve existing user data unless the change explicitly documents otherwise;
-- validate ambiguous/incompatible legacy state and fail closed rather than guess;
-- be safe to execute through the compatibility upgrade runner;
-- end with the database matching the same contract produced by a fresh install.
+- сохранять существующие пользовательские данные, если изменение явно не документирует иное;
+- проверять неоднозначное/несовместимое legacy-состояние и завершаться fail-closed вместо попыток угадать;
+- безопасно выполняться через compatibility upgrade runner;
+- завершаться базой данных, соответствующей тому же контракту, который создаёт чистая установка.
 
-### CI contract
+### Контракт CI
 
-CI verifies outcomes, not history length. Tests may verify that a required compatibility upgrade was recorded, but must not assert an exact total number of historical scripts.
+CI проверяет результат, а не длину истории. Тесты могут проверять, что обязательное совместимое обновление записано, но не должны требовать точное общее количество исторических скриптов.
 
-Required checks are:
+Обязательные проверки:
 
-- canonical schema imports successfully into an empty database;
-- required tables, columns, indexes, foreign keys and seed values match the current contract;
-- supported legacy fixtures upgrade to that same contract without data loss;
-- a second upgrade run performs no additional schema/data mutation;
-- modified already-applied compatibility scripts are rejected by checksum protection.
+- каноническая схема успешно импортируется в пустую базу;
+- обязательные таблицы, столбцы, индексы, внешние ключи и seed-значения соответствуют текущему контракту;
+- поддерживаемые legacy fixtures обновляются до того же контракта без потери данных;
+- повторный запуск обновления не вносит дополнительных изменений схемы/данных;
+- изменение уже применённого compatibility script отклоняется checksum-защитой.
 
-## Terminology
+## Терминология
 
-Use **schema** for the authoritative current database definition and **upgrade script** for compatibility SQL that transforms an older supported installation.
+Используйте **schema** для авторитетного текущего определения базы данных и **upgrade script** для совместимого SQL, который преобразует старую поддерживаемую установку.
 
-The historical file/directory names `bin/migrate.php`, `database/migrations/` and `schema_migrations` remain temporarily for compatibility. New documentation and CI should describe their purpose as database upgrades, not as the primary schema architecture. Renaming/removing those compatibility names would itself require an upgrade/deprecation cycle and is intentionally outside the 0.12 usable-baseline scope.
+Исторические имена файлов/каталогов `bin/migrate.php`, `database/migrations/` и `schema_migrations` временно сохраняются ради совместимости. Новая документация и CI должны описывать их назначение как обновление базы данных, а не как основную архитектуру схемы. Переименование или удаление этих compatibility-имен само потребует цикла обновления/deprecation и намеренно не входит в scope usable-baseline 0.12.
