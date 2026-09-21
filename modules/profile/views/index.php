@@ -16,6 +16,7 @@ $avatarPath = ltrim($avatarUrl, '/');
 $twoFactorEnrollment = isset($two_factor_enrollment) && is_array($two_factor_enrollment) ? $two_factor_enrollment : null;
 $twoFactorRecoveryCodes = isset($two_factor_recovery_codes) && is_array($two_factor_recovery_codes) ? $two_factor_recovery_codes : [];
 $twoFactorEnabled = !empty($currentUser['totp_enabled']);
+$twoFactorRequired = !empty($two_factor_required);
 $fullName = trim((string) ($currentUser['firstname'] ?? '') . ' ' . (string) ($currentUser['lastname'] ?? ''));
 $username = (string) ($currentUser['username'] ?? '');
 
@@ -211,6 +212,11 @@ ob_start();
                         <strong><?= $twoFactorEnabled ? 'включена' : 'выключена' ?></strong>.
                         Используется стандартный TOTP, совместимый с Google Authenticator и другими приложениями-аутентификаторами.
                     </p>
+                    <?php if ($twoFactorRequired): ?>
+                        <p><strong>Политика Workspace:</strong> администратор сделал 2FA обязательной для всех активных пользователей.</p>
+                    <?php else: ?>
+                        <p>2FA включается только для вашей учётной записи и не влияет на других пользователей.</p>
+                    <?php endif; ?>
 
                     <?php if ($twoFactorRecoveryCodes !== []): ?>
                         <div class="auth-errors" role="status">
@@ -277,19 +283,24 @@ ob_start();
                             <button class="profile__card-info--edit--set-save" type="submit">Создать новые резервные коды</button>
                         </form>
 
-                        <form action="<?= $view->e($view->route('profile-two-factor-disable')) ?>" method="post" autocomplete="off" data-confirm-message="Выключить двухфакторную аутентификацию? Резервные коды также будут отозваны." data-confirm-native="true" data-confirm-title="Отключение 2FA" data-confirm-text="Отключить">
-                            <?= $view->csrfInput() ?>
-                            <h4>Отключить 2FA</h4>
-                            <div class="profile__card-info--edit--form-group">
-                                <label for="two-factor-disable-password">Текущий пароль:</label>
-                                <input class="profile__card-info--edit--set-input" type="password" name="current_password" id="two-factor-disable-password" required autocomplete="current-password">
-                            </div>
-                            <div class="profile__card-info--edit--form-group">
-                                <label for="two-factor-disable-code">Код 2FA или резервный код:</label>
-                                <input class="profile__card-info--edit--set-input" type="text" name="code" id="two-factor-disable-code" maxlength="32" required autocomplete="one-time-code">
-                            </div>
-                            <button class="profile__card-info--edit--delete" type="submit">Отключить 2FA</button>
-                        </form>
+                        <?php if ($twoFactorRequired): ?>
+                            <p>Отключение 2FA недоступно, пока администратор сохраняет обязательную политику.</p>
+                        <?php else: ?>
+                            <form action="<?= $view->e($view->route('profile-two-factor-disable')) ?>" method="post" autocomplete="off" data-confirm-message="Выключить двухфакторную аутентификацию? Резервные коды также будут отозваны." data-confirm-native="true" data-confirm-title="Отключение 2FA" data-confirm-text="Отключить">
+                                <?= $view->csrfInput() ?>
+                                <h4>Отключить 2FA</h4>
+                                <div class="profile__card-info--edit--form-group">
+                                    <label for="two-factor-disable-password">Текущий пароль:</label>
+                                    <input class="profile__card-info--edit--set-input" type="password" name="current_password" id="two-factor-disable-password" required autocomplete="current-password">
+                                </div>
+                                <div class="profile__card-info--edit--form-group">
+                                    <label for="two-factor-disable-code">Код 2FA или резервный код:</label>
+                                    <input class="profile__card-info--edit--set-input" type="text" name="code" id="two-factor-disable-code" maxlength="32" required autocomplete="one-time-code">
+                                </div>
+                                <button class="profile__card-info--edit--delete" type="submit">Отключить 2FA</button>
+                            </form>
+    
+                        <?php endif; ?>
                     <?php endif; ?>
                 </section>
 
