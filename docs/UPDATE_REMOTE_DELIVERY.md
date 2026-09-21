@@ -1,12 +1,10 @@
-# Remote signed update delivery
+# Удалённая доставка подписанных обновлений
 
-For authenticated delivery with server-side license revocation, see
-[ONLINE_UPDATE_ACCESS.md](ONLINE_UPDATE_ACCESS.md). Both this CLI and the admin
-update page use `UPDATE_ACCESS_MODE` and external `UPDATE_CREDENTIALS_FILE`.
+Для авторизованной доставки с server-side отзывом лицензии см. [ONLINE_UPDATE_ACCESS.md](ONLINE_UPDATE_ACCESS.md). И этот CLI, и admin-страница обновлений используют `UPDATE_ACCESS_MODE` и внешний `UPDATE_CREDENTIALS_FILE`.
 
-Workspace Organizer 1.0 can discover and stage a signed update from a vendor-controlled HTTPS feed without giving the network layer any authority to mutate the live installation.
+Workspace Organizer 1.0 умеет обнаруживать и помещать в staging подписанное обновление из vendor-controlled HTTPS feed, не предоставляя сетевому слою никаких полномочий изменять live installation.
 
-The boundary is deliberately split:
+Граница намеренно разделена:
 
 ```text
 remote feed
@@ -18,11 +16,11 @@ remote feed
   -> STOP
 ```
 
-Maintenance entry, backup, release-candidate extraction, live apply and rollback remain separate transaction steps.
+Вход в maintenance, backup, извлечение release candidate, live apply и rollback остаются отдельными transaction steps.
 
-## Configuration
+## Конфигурация
 
-Recommended production `.env` settings:
+Рекомендуемые production-настройки `.env`:
 
 ```dotenv
 UPDATE_FEED_URL=https://updates.example.com/workspace-organizer/stable/feed.json
@@ -30,29 +28,29 @@ UPDATE_CHANNEL=stable
 UPDATE_STAGING_PATH=/var/lib/notes/update-staging
 ```
 
-Supported channels are `alpha`, `beta` and `stable`.
+Поддерживаемые channels: `alpha`, `beta`, `stable`.
 
-Remote delivery additionally requires the PHP `openssl` extension. The rest of the application can continue to run when this optional network capability is unavailable; `bin/update_remote.php` fails closed instead of weakening TLS verification.
+Remote delivery дополнительно требует PHP extension `openssl`. Остальная часть приложения продолжает работать, если эта необязательная network capability недоступна; `bin/update_remote.php` завершается fail-closed и не ослабляет TLS verification.
 
-`UPDATE_FEED_URL` must be a public HTTPS URL. The built-in transport deliberately rejects:
+`UPDATE_FEED_URL` должен быть public HTTPS URL. Встроенный transport намеренно отклоняет:
 
-- plain HTTP;
-- embedded URL credentials;
-- non-443 ports;
+- обычный HTTP;
+- встроенные URL credentials;
+- порты, отличные от 443;
 - literal IP addresses;
-- DNS results in private/reserved/special-use ranges;
+- DNS results из private/reserved/special-use ranges;
 - redirects;
 - transfer-encoded/chunked responses;
 - compressed HTTP response bodies;
-- missing or ambiguous `Content-Length`;
-- raw ASCII control characters or spaces in the URL/request target;
-- TLS certificates/peer names that do not verify.
+- отсутствующий или неоднозначный `Content-Length`;
+- raw ASCII control characters или spaces в URL/request target;
+- TLS certificates/peer names, не прошедшие verification.
 
-DNS is resolved before connecting and the validated public address is pinned for the TLS socket while certificate verification still uses the original DNS host name. This prevents a checked public name from being silently re-resolved to a private address for the actual connection.
+DNS разрешается до соединения, а проверенный public address закрепляется за TLS socket; certificate verification при этом по-прежнему использует исходное DNS host name. Это не позволяет уже проверенному public name незаметно разрешиться в private address в момент реального соединения.
 
-## Feed contract
+## Контракт feed
 
-The feed is intentionally small and **not itself a trust root**:
+Feed намеренно небольшой и **сам по себе не является trust root**:
 
 ```json
 {
@@ -64,9 +62,9 @@ The feed is intentionally small and **not itself a trust root**:
 }
 ```
 
-`manifest` and `signature` must be simple file names in the same HTTPS directory as the feed. Paths, absolute URLs and traversal are rejected.
+`manifest` и `signature` должны быть простыми filenames в том же HTTPS directory, что и feed. Paths, absolute URLs и traversal отклоняются.
 
-The feed may be modified by an untrusted intermediary without granting update authority. The updater only trusts a manifest whose exact bytes pass the configured Ed25519 update-key verification. The verified manifest then controls:
+Feed может быть изменён недоверенным посредником без получения полномочий на обновление. Updater доверяет только manifest, точные bytes которого проходят настроенную Ed25519 verification update key. Проверенный manifest затем определяет:
 
 - product/version/version code;
 - channel;
@@ -77,15 +75,15 @@ The feed may be modified by an untrusted intermediary without granting update au
 - **package byte size**;
 - **package SHA-256**.
 
-The package URL is derived from that signed package filename in the same feed directory. An unsigned `package` field in the feed is ignored.
+Package URL выводится из подписанного package filename в том же feed directory. Неподписанное поле `package` в feed игнорируется.
 
-## Check without package download
+## Проверка без скачивания package
 
 ```bash
 php bin/update_remote.php --check-only
 ```
 
-or explicitly:
+или явно:
 
 ```bash
 php bin/update_remote.php \
@@ -94,24 +92,24 @@ php bin/update_remote.php \
   --check-only --json
 ```
 
-The command downloads only the feed, manifest and detached signature. It verifies the signature, authenticates the signed metadata and classifies the result without fetching package bytes:
+Команда скачивает только feed, manifest и detached signature. Она проверяет signature, аутентифицирует signed metadata и классифицирует результат без получения bytes package:
 
-- `update_available` — newer signed update is compatible;
-- `up_to_date` — signed feed points to the installed `VERSION_CODE`;
-- `ahead_of_feed` — this installation is newer than the signed feed;
-- `update_incompatible` — a newer signed update exists but fails source-version or PHP compatibility policy.
+- `update_available` — доступно более новое совместимое signed update;
+- `up_to_date` — signed feed указывает на установленный `VERSION_CODE`;
+- `ahead_of_feed` — эта installation новее signed feed;
+- `update_incompatible` — более новое signed update существует, но не проходит policy source-version или PHP compatibility.
 
-All four read-only states return normally with `package_downloaded=false` and `live_files_changed=false`. The command does **not** enter maintenance, create a transaction or modify live files.
+Все четыре read-only состояния нормально возвращаются с `package_downloaded=false` и `live_files_changed=false`. Команда **не** входит в maintenance, не создаёт transaction и не изменяет live files.
 
-This is the intended primitive for a future administrator update UI.
+Это intended primitive для будущего administrator update UI.
 
-## Download and immutable stage
+## Скачивание и immutable staging
 
 ```bash
 php bin/update_remote.php --json
 ```
 
-Optional explicit staging root:
+Необязательный явный staging root:
 
 ```bash
 php bin/update_remote.php \
@@ -119,47 +117,47 @@ php bin/update_remote.php \
   --json
 ```
 
-The action path is stricter than read-only check: same-version, downgrade, source-floor and PHP incompatibility are rejected before package download or stage creation.
+Action path строже read-only check: same-version, downgrade, source-floor и PHP incompatibility отклоняются до скачивания package или создания stage.
 
-The package path is not accepted from the feed. After manifest verification the updater derives the package URL from the signed filename, then requires the HTTP `Content-Length` to equal the signed size and streams exactly that many bytes into a private external temporary directory while calculating SHA-256.
+Package path не принимается из feed. После verification manifest updater выводит package URL из подписанного filename, затем требует, чтобы HTTP `Content-Length` совпадал с signed size, и потоково записывает ровно это количество bytes во временный приватный внешний directory, одновременно рассчитывая SHA-256.
 
-A remote package larger than 512 MiB is rejected before download even if a signed manifest requests it. This is an additional network-ingress resource limit, not a replacement for the signed size check.
+Remote package больше 512 MiB отклоняется до скачивания, даже если signed manifest запрашивает больший размер. Это дополнительный resource limit network ingress, а не замена проверке signed size.
 
-After download the existing local updater contracts run again:
+После скачивания снова запускаются существующие local updater contracts:
 
-1. `UpdatePackageStager::verifyPackage()` validates signed filename, size, SHA-256 and ZIP magic;
-2. `UpdateArchiveInspector` performs the non-extracting ZIP structural/safety audit;
-3. `UpdatePackageStager::stage()` copies the exact manifest/signature/package into the normal immutable external stage and verifies the package again after copy;
-4. temporary network download bytes are removed.
+1. `UpdatePackageStager::verifyPackage()` проверяет signed filename, size, SHA-256 и ZIP magic;
+2. `UpdateArchiveInspector` выполняет ZIP structural/safety audit без распаковки;
+3. `UpdatePackageStager::stage()` копирует точные manifest/signature/package в обычный immutable external stage и повторно проверяет package после копирования;
+4. временные network download bytes удаляются.
 
-The resulting stage is therefore interchangeable with a manually supplied stage from `bin/update.php`. Downstream backup/candidate/apply commands do not need to know whether the verified package originally arrived through local media or the remote feed.
+Итоговый stage полностью взаимозаменяем с вручную подготовленным stage из `bin/update.php`. Downstream backup/candidate/apply commands не нужно знать, пришёл проверенный package через local media или remote feed.
 
 ## Concurrency
 
-Remote package delivery uses a non-blocking lock under the external staging root. Concurrent remote downloads cannot write through the same ingress path at the same time. The existing immutable staging lock still serializes final stage publication.
+Remote package delivery использует non-blocking lock под external staging root. Параллельные remote downloads не могут одновременно писать через один ingress path. Существующий immutable staging lock продолжает сериализовать финальную публикацию stage.
 
-## Trust and failure behavior
+## Доверие и поведение при ошибках
 
-Remote delivery fails closed when:
+Remote delivery завершается fail-closed, если:
 
-- no trusted update public key is configured;
-- TLS, URL framing or DNS policy cannot be verified;
-- the feed shape/product/channel is invalid;
-- manifest/signature names are unsafe;
-- signature verification fails;
-- signed manifest channel differs from configured channel;
-- package size exceeds the remote ingress ceiling;
-- package transport size/hash differs from the signed manifest;
-- ZIP structural audit fails;
-- staging root is inside the application tree.
+- не настроен trusted update public key;
+- TLS, framing URL или DNS policy нельзя проверить;
+- feed shape/product/channel некорректны;
+- manifest/signature names небезопасны;
+- signature verification не проходит;
+- signed manifest channel отличается от configured channel;
+- package size превышает remote ingress ceiling;
+- transport size/hash package отличается от signed manifest;
+- ZIP structural audit завершается ошибкой;
+- staging root находится внутри application tree.
 
-Additionally, the **stage action** fails closed when the signed target is not newer or is incompatible with the current source/runtime. Read-only `--check-only` reports those valid signed states as data instead of treating them as network errors.
+Кроме того, **stage action** завершается fail-closed, если signed target не новее или несовместим с текущими source/runtime. Read-only `--check-only` сообщает эти валидные signed states как данные, а не превращает их в network errors.
 
-No failure in this layer should require rollback because this layer never crosses the live mutation boundary.
+Ни одна ошибка этого слоя не должна требовать rollback, потому что слой никогда не пересекает live mutation boundary.
 
-## Operational publishing rule
+## Правило публикации
 
-Publish a channel directory as immutable release assets plus one small mutable feed pointer. A typical directory is:
+Публикуйте directory канала как immutable release assets плюс один небольшой mutable feed pointer. Типичный directory:
 
 ```text
 /stable/feed.json
@@ -168,6 +166,6 @@ Publish a channel directory as immutable release assets plus one small mutable f
 /stable/workspace-organizer-v1.0.0.zip
 ```
 
-The feed can move to a newer signed manifest, but previously published signed manifest/signature/package triples should remain byte-identical for reproducibility and incident investigation.
+Feed может переключаться на более новый signed manifest, но ранее опубликованные triples manifest/signature/package должны оставаться byte-identical для reproducibility и расследования incident.
 
-Do not host the production update-signing private key on the update web server. The server only distributes already signed public artifacts.
+Не размещайте production update-signing private key на update web server. Сервер только распространяет уже подписанные public artifacts.
