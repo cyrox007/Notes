@@ -2,7 +2,7 @@ name: WebSocket deployment contract
 
 on:
   pull_request:
-    branches: [master, '1.0']
+    branches: [dev, master, '1.0']
   push:
     branches: [0.14-beta2-websocket-deployment, '1.0']
 
@@ -31,7 +31,11 @@ jobs:
         run: |
           php -l core/WebSocketEndpoint.php
           php -l modules/messenger/controllers/MessagerController.php
+          php -l modules/messenger/services/MessengerEventJournal.php
+          php -l modules/messenger/services/MessengerRealtimePublisher.php
           php -l modules/messenger/socket/SocketConnection.php
+          php -l modules/messenger/socket/BufferedSocketConnection.php
+          php -l modules/messenger/socket/MessengerActionDispatcher.php
           php -l modules/messenger/socket/SocketHandshake.php
           php -l modules/messenger/socket/SocketFrameCodec.php
           php -l modules/messenger/socket/NativeSocketConnection.php
@@ -44,6 +48,7 @@ jobs:
           php -l tests/integration/native_websocket_protocol_contract.php
           php -l tests/integration/native_websocket_runtime_regressions.php
           php -l tests/integration/messenger_activity_wiring_contract.php
+          php -l tests/integration/messenger_long_poll_contract.php
           php -l tests/integration/native_messenger_contract.php
           php -l tests/integration/vendor_free_runtime_contract.php
 
@@ -55,6 +60,7 @@ jobs:
           php tests/integration/native_websocket_protocol_contract.php
           php tests/integration/native_websocket_runtime_regressions.php
           php tests/integration/messenger_activity_wiring_contract.php
+          php tests/integration/messenger_long_poll_contract.php
           php tests/integration/native_messenger_contract.php
 
       - name: Verify vendor-free native deployment defaults
