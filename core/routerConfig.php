@@ -9,6 +9,7 @@ use App\Middlewares\LoginRequared;
 use App\Middlewares\RequireLicenseManage;
 use App\Middlewares\AuthRateLimit;
 use App\Middlewares\CSRFMiddleware;
+use App\Middlewares\TwoFactorRateLimit;
 use App\Middlewares\EnforceLicenseMutation;
 use Core\Router;
 
@@ -26,6 +27,8 @@ $router->group('/system')
 $router->group('/auth')
     ->add('GET', '/login', [AuthController::class, 'login'], [], 'authpage')
     ->add('POST', '/login', [AuthController::class, 'sigin'], [AuthRateLimit::class])
+    ->add('GET', '/two-factor', [AuthController::class, 'twoFactor'], [], 'auth_two_factor')
+    ->add('POST', '/two-factor', [AuthController::class, 'verifyTwoFactor'], [TwoFactorRateLimit::class, CSRFMiddleware::class], 'auth_two_factor_verify')
     ->add('POST', '/logout', [AuthController::class, 'logout'], [LoginRequared::class], 'logout')
     ->add('GET', '/registration', [AuthController::class, 'registration'], [], 'registration')
     ->add('GET', '/registration/{str:invite_code}', [AuthController::class, 'registration'], [], 'registration_invite')
