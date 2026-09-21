@@ -5,6 +5,27 @@ declare(strict_types=1);
 use App\Sockets\NativeMessengerServer;
 use Core\WebSocketEndpoint;
 
+// Keep this guard before loading any application source. The supported runtime
+// uses PHP 8.1 language features, but this launcher intentionally remains
+// parseable on common legacy CLI versions so a hosting shell with the wrong PHP
+// binary reports a useful diagnostic instead of an unrelated syntax error.
+if (PHP_VERSION_ID < 80100) {
+    fwrite(
+        STDERR,
+        'Workspace Organizer WebSocket server requires PHP CLI 8.1+; running '
+        . PHP_VERSION
+        . ' via '
+        . PHP_BINARY
+        . PHP_EOL
+    );
+    fwrite(
+        STDERR,
+        'Check the SSH/CLI PHP selection with: php -v && command -v php'
+        . PHP_EOL
+    );
+    exit(2);
+}
+
 ini_set('display_errors', '0');
 if (!defined('SITEPATH')) {
     define('SITEPATH', dirname(__FILE__) . '/..');
@@ -126,7 +147,7 @@ function workspaceWsStop(string $pidFile): int
 
     $deadline = microtime(true) + 8.0;
     while (microtime(true) < $deadline && workspaceWsProcessExists($pid)) {
-        usleep(100_000);
+        usleep(100000);
     }
 
     if (workspaceWsProcessExists($pid)) {
