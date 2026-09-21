@@ -10,11 +10,11 @@ namespace Core;
 
 class Version
 {
-    public const VERSION = '1.0.1';
+    public const VERSION = '1.0.2';
     public const PRODUCT_NAME = 'Workspace Organizer';
     public const STATUS = 'stable';
-    public const VERSION_CODE = 10001;
-    public const RELEASE_DATE = '2026-09-20';
+    public const VERSION_CODE = 10002;
+    public const RELEASE_DATE = '2026-09-21';
 
     public static function getFullVersion(): string
     {

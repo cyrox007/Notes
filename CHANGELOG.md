@@ -2,7 +2,7 @@
 
 Формат основан на принципах Keep a Changelog. Начиная с `1.0.0` проект имеет stable platform contract: совместимость upgrade-path и пользовательских данных является release contract, а изменения схемы выполняются через явные compatibility migrations. Canonical `*_schema.sql` остаются источником текущей схемы fresh install.
 
-## 1.0.2 — Unreleased
+## 1.0.2 — 2026-09-21
 
 ### Updater operations
 - Добавлен единый CLI operator flow `bin/update_run.php`, который использует существующие подписанные границы: remote staging, maintenance ownership, verified code+MySQL rollback backup, external release candidate и transactional live apply.
@@ -16,6 +16,12 @@
 - Добавлен release drill из exact published `v1.0.1` в synthetic signed `1.0.2`: success-path сохраняет installation/data settings, fault-path намеренно меняет БД и ломает post-switch healthcheck, после чего проверяется автоматический code + DB rollback обратно в 1.0.1.
 - Добавлен Windows compatibility gate на `windows-latest` для PHP 8.1/8.3: updater path semantics, signed staging/remote delivery, release candidate, retention и portable runtime contracts. Финальная OSPanel 5.2.2 приёмка остаётся отдельным ручным release evidence, а не подменяется CI.
 - Hosting package gate теперь явно требует `bin/update_retention.php` и `core/UpdateArtifactCleaner.php` в customer ZIP.
+
+### Hosting / WebSocket
+- WebSocket launcher теперь остаётся parseable достаточно долго, чтобы при ошибочном legacy CLI PHP вывести явное требование PHP 8.1+ и фактический CLI binary/version вместо неочевидного parse error.
+- `php ws_server/server.php start` выполняет подробный startup preflight: extensions/socket API, runtime paths, WebSocket endpoint/origins/proxy mode, limits и пробный bind порта; критичная ошибка выводит причину и действие `[FIX]` и блокирует запуск.
+- Добавлена diagnostics-only команда `php ws_server/server.php check`; `[RUNNING]` печатается только после успешного реального bind listener.
+- Документирован поддерживаемый вариант одного отдельного WS-узла и явно зафиксировано, что multi-instance/HA WebSocket без cross-node pub/sub/fan-out пока не является поддерживаемой topology.
 
 ### Release direction
 - `1.0.2` является последним stabilization patch перед feature-cycle `1.1.0`.

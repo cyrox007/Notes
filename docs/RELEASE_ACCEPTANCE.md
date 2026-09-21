@@ -1,17 +1,17 @@
-# Workspace Organizer 1.0 final release acceptance
+# Workspace Organizer 1.0.2 final release acceptance
 
-This document is the final cut checklist for `v1.0.1`. It deliberately separates repository correctness, CI evidence and operator-only actions. A release is accepted only on one exact commit; evidence from an older head does not transfer automatically.
+This document is the final cut checklist for `v1.0.2`. It deliberately separates repository correctness, CI evidence and operator-only actions. A release is accepted only on one exact commit; evidence from an older head does not transfer automatically.
 
 ## Release candidate identity
 
 The accepted release candidate must report:
 
-- version: `1.0.1`;
-- version code: `10001`;
+- version: `1.0.2`;
+- version code: `10002`;
 - status: `stable`;
 - release branch: `1.0`;
 - final release branch: `master`;
-- tag: `v1.0.1`.
+- tag: `v1.0.2`.
 
 Record the exact 40-character commit SHA in the release notes before building the final bundle.
 
@@ -23,7 +23,7 @@ Before final RC testing:
 2. No unrelated or unreviewed branches are merged for convenience.
 3. `php bin/release_acceptance.php --json` reports no source-contract failures.
 4. The release tree contains no private license/update signing keys.
-5. README, CHANGELOG and `docs/releases/v1.0.1.md` describe the same version/status.
+5. README, CHANGELOG and `docs/releases/v1.0.2.md` describe the same version/status.
 6. Migration manifest and module ownership metadata are current and historical applied SQL has not been rewritten.
 7. The release-evidence harness is present before strict acceptance.
 
@@ -72,10 +72,11 @@ Required evidence includes:
 - Notes/Tasks/Files/Profile/Admin browser lifecycle;
 - HTTPS/WSS browser smoke;
 - signed updater/staging/apply/backup/recovery;
-- exact published `0.14.0-beta.4 -> 1.0.1` upgrade and rollback drill;
+- exact published `v1.0.1` (`0e6e4a3b352cfb7436db6b749fd869bbb07310c9`) -> `1.0.2` upgrade and rollback drill;
 - hosting installer/package;
 - cross-browser/mobile release evidence;
-- authenticated load/soak release evidence.
+- authenticated load/soak release evidence;
+- Windows hosting compatibility CI on PHP 8.1/8.3 and final manual OSPanel 5.2.2 acceptance on the production-signed artifacts.
 
 No result from a previous commit may substitute for a failed, skipped or unrun check on the frozen release head.
 
@@ -105,7 +106,7 @@ Automated CI cannot fabricate this decision. If no representative human beta coh
 
 ## Gate G — immutable artifact and signing
 
-Build the final upload-ready bundle from the exact accepted SHA. The `Build hosting package` workflow is deliberately **build-only**: for a manual pre-tag build, run it against the exact accepted commit/ref with `version=v1.0.1`. It verifies that version against `core/Version.php`, then stores the ZIP, its SHA-256 and the exact source SHA as one workflow artifact. It must not create or update a public GitHub Release before offline signing is complete.
+Build the final upload-ready bundle from the exact accepted SHA. The `Build hosting package` workflow is deliberately **build-only**: for a manual pre-tag build, run it against the exact accepted commit/ref with `version=v1.0.2`. It verifies that version against `core/Version.php`, then stores the ZIP, its SHA-256 and the exact source SHA as one workflow artifact. It must not create or update a public GitHub Release before offline signing is complete.
 
 Then:
 
@@ -128,7 +129,7 @@ php bin/release_acceptance.php --strict --json \
   --ci-green \
   --release-evidence-green \
   --backup-restore-current \
-  --beta4-drill-green \
+  --one-zero-one-drill-green \
   --p0p1-clear \
   --trust-canaries-green \
   --artifact-signed
@@ -136,7 +137,7 @@ php bin/release_acceptance.php --strict --json \
 
 2. merge the exact accepted `1.0` head to `master` without introducing source changes;
 3. verify `master` points at the intended release content;
-4. create signed/annotated tag `v1.0.1` according to repository release policy;
+4. create signed/annotated tag `v1.0.2` according to repository release policy;
 5. publish the exact previously accepted ZIP together with the update manifest and detached signature; do not rebuild or repack the ZIP after signing;
 6. verify the published download checksum and release metadata once more.
 

@@ -51,7 +51,7 @@ foreach ([
     'Gate F — defect acceptance',
     'Gate G — immutable artifact and signing',
     'Gate H — final merge and tag',
-    'v1.0.1',
+    'v1.0.2',
     'no open P0/P1 data-loss defects',
     'no open P0/P1 security defects',
     'build-only',
@@ -67,14 +67,14 @@ foreach ([
     "'ci-green'",
     "'release-evidence-green'",
     "'backup-restore-current'",
-    "'beta4-drill-green'",
+    "'one-zero-one-drill-green'",
     "'p0p1-clear'",
     "'trust-canaries-green'",
     "'artifact-signed'",
     'production_public_trust_roots',
     'release_evidence_harness',
     'private_signing_material_absent',
-    "Version::VERSION === '1.0.1'",
+    "Version::VERSION === '1.0.2'",
     "Version::STATUS === 'stable'",
     'exit(3)',
 ] as $marker) {
@@ -103,4 +103,4 @@ releaseAcceptanceAssert(
     'Stable release gate does not execute non-strict release preflight'
 );
 
-fwrite(STDOUT, "[OK] final 1.0 release acceptance contract\n");
+fwrite(STDOUT, "[OK] final 1.0.2 release acceptance contract\n");
