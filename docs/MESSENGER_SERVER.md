@@ -1,6 +1,12 @@
-# Messenger WebSocket server — запуск и эксплуатация
+# Messenger WebSocket server — запуск, отдельный WS-узел и эксплуатация
 
-Workspace Organizer 1.0 использует собственный PHP WebSocket runtime. Сторонний Workerman и Composer `vendor/` для работы приложения не требуются. Обычные HTTP-запросы обслуживаются PHP-FPM/Apache, а realtime Messenger — отдельным долгоживущим процессом `ws_server/server.php`.
+Workspace Organizer 1.0 использует собственный native PHP WebSocket runtime. Сторонний Workerman и Composer `vendor/` для realtime Messenger не требуются. Обычные HTTP-запросы обслуживаются PHP-FPM/Apache, а realtime Messenger — отдельным долгоживущим процессом `ws_server/server.php`.
+
+Поддерживаемый production-контракт:
+
+- одна installation Workspace Organizer использует один активный WebSocket process;
+- этот process может работать рядом с HTTP-приложением либо на одном отдельном WS-узле;
+- несколько одновременно активных WS instances одной installation пока не поддерживаются: connection registry находится в памяти процесса, а cross-node pub/sub/fan-out отсутствует.
 
 ## Архитектура
 
@@ -31,6 +37,38 @@ TLS завершается на reverse proxy. Внутренний listener и�
 - WebSocket reverse proxy для production WSS
 
 Composer install для runtime не нужен.
+
+## Штатная topology: WebSocket рядом с приложением
+
+По умолчанию native listener работает на той же машине, что и HTTP-приложение, слушает loopback `127.0.0.1:27800`, а публичный `/ws` проксируется через Nginx/Apache. Это рекомендуемый и самый простой production-режим.
+
+## Один отдельный WebSocket-узел
+
+Допускается вынести realtime Messenger на **одну отдельную машину**. Это не stateless proxy: WS-узел загружает application runtime, проверяет RBAC/module lifecycle и работает с теми же Messenger-данными.
+
+Обязательные условия remote topology:
+
+- HTTP и WS узлы работают на одном release/commit;
+- используется одна и та же application MySQL DB;
+- `WS_TICKET_SECRET`, `MSG_SECRET_KEY` и installation crypto context совпадают;
+- `PRIVATE_STORAGE_PATH/messenger` доступен WS-узлу с теми же данными;
+- `UPDATE_STATE_PATH` общий, чтобы WS mutations видели updater maintenance;
+- `WS_ALLOWED_ORIGINS` содержит origin HTTP-приложения, а не hostname WS-сервера;
+- native listener остаётся loopback/private, наружу публикуется только WSS endpoint;
+- PID file должен быть локальным для WS-машины, а не лежать на shared storage.
+
+Пример внешнего endpoint:
+
+```env
+SITEURL=https://app.example.com
+WS_PUBLIC_URL=wss://ws.example.com/ws
+WS_ALLOWED_ORIGINS=https://app.example.com
+WS_HOST=127.0.0.1
+WS_PORT=27800
+WS_PID_FILE=/run/workspace-organizer/ws-server.pid
+```
+
+На WS-узле запускайте `php ws_server/server.php check` перед первым стартом и `php bin/ws_doctor.php` после запуска. Несколько WS процессов одной installation нельзя использовать как HA/load-balancing topology до отдельной реализации cross-node fan-out/presence.
 
 ## Переменные `.env`
 
@@ -181,7 +219,7 @@ user=www-data
 
 ## Shared hosting / Open Server
 
-Realtime Messenger требует возможность держать отдельный PHP process и проксировать `/ws` на `WS_PORT`. Если hosting этого не поддерживает, Notes/Tasks/Files/Profile продолжают работать, но realtime Messenger корректно запустить нельзя.
+Realtime Messenger требует возможность держать отдельный PHP process и предоставить браузеру WebSocket endpoint. На том же сервере это обычно reverse proxy `/ws` → `WS_PORT`; альтернативой может быть один отдельный WS-узел по контракту выше. Если hosting не поддерживает long-running PHP process/WebSocket Upgrade и отдельный WS-узел недоступен, Notes/Tasks/Files/Profile продолжают работать, но realtime Messenger корректно запустить нельзя.
 
 Для Open Server используйте `docs/OPEN_SERVER_WEBSOCKET.md`.
 
