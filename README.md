@@ -321,3 +321,97 @@ HSTS намеренно задаётся на production TLS reverse proxy, а �
 `database/tasks_schema.sql` входит в canonical install. Личные задачи сохраняют прежний ownership contract и поддерживают kanban/list views, drag-and-drop status, statuses/priorities/due dates/subtasks/categories и server-side search/filter/sort/pagination. Beta.4 добавляет отдельные shared boards для выбранной команды или `all_active`, board-level ACL, несколько исполнителей и ограничения на создание/размер досок через role policies.
 
 ### Messenger v2
+
+Current contract включает private/group dialogs, Saved Messages, forwarding, media/voice, replies/edit/delete, delivered/read cursors, reactions, multi-device fanout, pin/mute/archive, group ownership/admin roles/avatars, orphan cleanup, bounded encrypted search и reconnect/offline/session-ended UI с fresh WebSocket ticket перед reconnect. Beta.4 применяет server-side role policies к message rate, attachment limits/types, созданию/размеру групп и voice messages.
+
+Encrypted search не хранит plaintext index: он расшифровывает только ограниченное число последних доступных сообщений (`MESSENGER_SEARCH_SCAN_LIMIT`, default `1000`).
+
+### Profile
+
+Private avatar выдаётся через authenticated endpoint. Self-delete заменён на deactivation (`is_active=0`), данные не каскадно удаляются; group owner должен сначала передать ownership. Собственный hub показывает bounded workspace metrics и storage quota; чужой профиль получает только whitelist metadata объектов, явно опубликованных владельцем через `is_profile_public`.
+
+### Admin
+
+Admin lifecycle использует safe deactivation вместо physical delete. Administrative targets и group owners защищены отдельными checks. Custom profile fields используют canonical `user_fields`.
+
+`/admin/roles` позволяет superadmin создавать прикладные роли, назначать роли пользователям, управлять boolean permissions и отдельными типизированными policies Notes/Tasks/Files/Messenger. Системные роли не удаляются, текущий superadmin защищён от самоблокировки/самоснятия, а изменения доступа применяются через persisted RBAC при следующей серверной проверке.
+
+`/admin/settings` управляет default File Manager quota и персональными overrides. Изменение квоты повторно авторизуется внутри service-layer; File Manager upload проверяет эффективный лимит до физической записи файла. Для одного пользователя concurrent uploads сериализуются advisory lock, поэтому параллельные запросы не могут независимо занять один и тот же остаток квоты.
+
+## Scheduled maintenance
+
+Messenger orphan cleanup:
+
+```bash
+php bin/cleanup_messenger_orphans.php
+```
+
+Рекомендуемый cron/systemd timer: каждые 15–60 минут.
+
+Также контролируйте disk space, права private storage, compatibility-upgrade state, logs, backup/restore tests и удаление временных legacy keys.
+
+## CI
+
+GitHub Actions покрывают security baseline, PHP/Composer, clean schemas, DB compatibility upgrades, crypto migration, Notes/Tasks/Profile contracts и Messenger groups/media/search/voice/reactions/forwarding. Workflow `Product UI and production quality` дополнительно проверяет UI/accessibility wiring, File Manager safe preview, Linux bootstrap paths, rate limit middleware, CSP/web-root protection, healthcheck contract и freshness документации.
+
+`0.14 installer schema contract` явно проверяет publication fields Notes/Tasks/Files, voice-note duration, settings/quota schemas, persisted RBAC/module policies и shared task-board tables.
+
+`0.14 Beta 4 role policies` и `0.14 Beta 4 shared task boards` проверяют policy composition/enforcement, Role Manager wiring, board ACL и compatibility migrations.
+
+`System settings and storage quota` проверяет canonical settings schema, admin ACL, default/per-user quota, live usage из `user_files`, reset override и quota overflow denial на MySQL 8.4.
+
+`Hosting installer` выполняет настоящий HTTP fresh-install через cookies/CSRF на MySQL в hosting-like `public_html/workspace`, проверяет subdirectory detection, private storage вне document root, 32-table contract, quota seed, admin account, generated `.env`, блокировку повторного installer и итоговый healthcheck.
+
+`Build hosting package` собирает upload-ready ZIP с production `vendor/`; теги `v*-*` публикуются как GitHub prerelease, а stable tag без suffix — как обычные Release.
+
+`Browser HTTPS and WSS E2E` поднимает PHP + Workerman + TLS Nginx + MySQL и реальные Chromium-сессии: проверяет login, основные модули, authenticated WSS, realtime delivery и 0.13 reconnect recovery.
+
+Отдельные browser lifecycle workflows проверяют Notes, Tasks, File Manager, Profile и Admin, включая реальную quota-ошибку и DB/storage fault injection без production test hooks.
+
+`Production operations` проверяет shared rate-limit storage, trusted proxy contract, positive/negative multi-node healthcheck, MySQL dump/checksum/restore, private-storage restore и rotation `WS_TICKET_SECRET`.
+
+`0.14 beta readiness` проверяет beta identity, module/security lifecycle artifacts, release publishing contract и синхронизацию Version/README/CHANGELOG.
+
+`Master release gate` запускается на каждом PR и после каждого push/merge в `master`: повторно проверяет объединённый commit — Composer/security audit, полный PHP/JS lint, canonical schema import, production healthcheck, согласованность версии, governance contract и upload-ready hosting bundle.
+
+## Документация
+
+- [`CHANGELOG.md`](CHANGELOG.md) — история и Unreleased.
+- [`docs/CORE.md`](docs/CORE.md) — архитектура ядра.
+- [`docs/MODULE_DEVELOPMENT.md`](docs/MODULE_DEVELOPMENT.md) — создание, установка и lifecycle нового модуля.
+- [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) — пользовательские сценарии.
+- [`docs/HOSTING_INSTALL.md`](docs/HOSTING_INSTALL.md) — fresh install на shared hosting без Composer/CLI.
+- [`docs/PRODUCTION.md`](docs/PRODUCTION.md) — deployment, WSS, rate limiting и production checklist.
+- [`docs/OPERATIONS.md`](docs/OPERATIONS.md) — backup/restore drill, multi-node rate limiting, trusted proxies и key-rotation procedures.
+- [`docs/RELEASE_GOVERNANCE.md`](docs/RELEASE_GOVERNANCE.md) — required checks, branch protection и review policy.
+- [`docs/PRODUCT_UX_0.13.md`](docs/PRODUCT_UX_0.13.md) — закрытый 0.13 scope и beta backlog.
+- [`TASKS_MODULE_README.md`](TASKS_MODULE_README.md) — дополнительная документация Tasks.
+- [`default.env`](default.env) — environment variables и security comments.
+
+## 1.0 release readiness
+
+Основные platform/stability blockers исходного beta-аудита уже закрыты в ветке `1.0`:
+
+- vendor-free distributable runtime;
+- isolated module-owned runtime и composition-aware database/install/update/health ownership;
+- signed staged updater с transactional apply, durable recovery и code+DB rollback;
+- installation-wide licensing и Core recovery control plane;
+- production license/update Ed25519 keypairs прошли offline ceremony; в репозитории и customer bundle остаются только public trust roots;
+- structured security observability и operational alert thresholds;
+- resumable/rollback-safe rotation `UNIQUE_KEY` / `MSG_SECRET_KEY`;
+- nonce-based CSP без `unsafe-inline`;
+- explicit retention/permanent-purge contract с filesystem/DB safety guards;
+- browser lifecycle coverage для основных product modules и Beta4 → 1.0 upgrade/rollback drill;
+- cross-browser/mobile + authenticated load/soak release-evidence harness.
+
+Перед окончательным cut/tag `v1.0.1` остаются только release-ceremony gates, а не новые platform features:
+
+1. восстановить и проверить GitHub branch protection/ruleset для `master` и `1.0` после переключения visibility репозитория;
+2. получить green full CI + cross-browser/mobile + load/soak release evidence на exact 1.0.1 release head;
+3. подтвердить fresh backup/restore drill, exact Beta4 → 1.0.1 upgrade/rollback, production trust canaries и отсутствие открытых P0/P1 data-loss/security/release blockers;
+4. собрать immutable `workspace-organizer-v1.0.1.zip`, сверить SHA-256/source SHA и подписать exact update manifest offline production update key;
+5. после strict acceptance слить exact release head в `master`, поставить `v1.0.1` и публиковать только проверенные immutable artifacts.
+
+Scalable encrypted-search redesign не является release blocker сам по себе; он требуется только если измерения на заявленном масштабе покажут, что bounded decrypt scan не выдерживает принятого performance envelope.
+
+Финальный порядок действий: [`docs/RELEASE_ACCEPTANCE.md`](docs/RELEASE_ACCEPTANCE.md). Исторический hardening roadmap: [`docs/BETA_HARDENING_0.14.md`](docs/BETA_HARDENING_0.14.md).
