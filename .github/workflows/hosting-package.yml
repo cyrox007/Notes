@@ -48,6 +48,7 @@ jobs:
           php -l bin/update_candidate.php
           php -l bin/update_apply.php
           php -l bin/update_run.php
+          php -l bin/update_doctor.php
           php -l core/UpdateManifestVerifier.php
           php -l core/UpdatePackageStager.php
           php -l core/UpdateArchiveInspector.php
@@ -63,6 +64,7 @@ jobs:
           php -l core/MigrationManifest.php
           php -l core/UpdateMigrationPreflight.php
           php -l core/UpdateApplyCommand.php
+          php -l core/UpdateReadiness.php
           php -r '$m=json_decode(file_get_contents("database/migrations/manifest.json"),true,32,JSON_THROW_ON_ERROR); if (($m["schema"]??null)!==1 || ($m["product"]??null)!=="workspace-organizer" || !is_array($m["migrations"]??null)) exit(1);'
           php tests/integration/native_view_renderer_contract.php
           php tests/integration/native_websocket_protocol_contract.php
@@ -71,6 +73,7 @@ jobs:
           php tests/integration/update_release_candidate_contract.php
           php tests/integration/updater_live_apply_contract.php
           php tests/integration/updater_recovery_invariants_contract.php
+          php tests/integration/updater_readiness_contract.php
 
       - name: Build hosting bundle
         shell: bash
@@ -119,6 +122,7 @@ jobs:
           test -f "$ROOT/bin/update_candidate.php"
           test -f "$ROOT/bin/update_apply.php"
           test -f "$ROOT/bin/update_run.php"
+          test -f "$ROOT/bin/update_doctor.php"
           test -f "$ROOT/bin/maintenance.php"
           test -f "$ROOT/core/UpdateManifestVerifier.php"
           test -f "$ROOT/core/UpdatePackageStager.php"
@@ -135,6 +139,7 @@ jobs:
           test -f "$ROOT/core/MigrationManifest.php"
           test -f "$ROOT/core/UpdateMigrationPreflight.php"
           test -f "$ROOT/core/UpdateApplyCommand.php"
+          test -f "$ROOT/core/UpdateReadiness.php"
           test -f "$ROOT/database/migrations/manifest.json"
           test ! -e "$ROOT/.env"
           cd /tmp
@@ -161,6 +166,7 @@ jobs:
           unzip -l "$BUNDLE" | grep -F 'bin/update_candidate.php'
           unzip -l "$BUNDLE" | grep -F 'bin/update_apply.php'
           unzip -l "$BUNDLE" | grep -F 'bin/update_run.php'
+          unzip -l "$BUNDLE" | grep -F 'bin/update_doctor.php'
           unzip -l "$BUNDLE" | grep -F 'bin/maintenance.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdateManifestVerifier.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdatePackageStager.php'
@@ -177,6 +183,7 @@ jobs:
           unzip -l "$BUNDLE" | grep -F 'core/MigrationManifest.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdateMigrationPreflight.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdateApplyCommand.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateReadiness.php'
           unzip -l "$BUNDLE" | grep -F 'database/migrations/manifest.json'
           if unzip -l "$BUNDLE" | grep -Eq '/vendor/'; then
             echo 'Vendor-free bundle must not contain vendor/'
