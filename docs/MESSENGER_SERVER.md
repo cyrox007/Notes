@@ -2,9 +2,12 @@
 
 Workspace Organizer 1.0 использует собственный native PHP WebSocket runtime. Сторонний Workerman и Composer `vendor/` для realtime Messenger не требуются. Обычные HTTP-запросы обслуживаются PHP-FPM/Apache, а realtime Messenger — отдельным долгоживущим процессом `ws_server/server.php`.
 
-Поддерживаемый production-контракт:
+Поддерживаемый transport-контракт:
 
-- одна installation Workspace Organizer использует один активный WebSocket process;
+- браузер всегда предпочитает WebSocket, если native listener/proxy доступен;
+- при недоступном WebSocket клиент автоматически переключается на authenticated same-origin **Long Poll** и продолжает работу без отдельного VPS;
+- переключение использует encrypted DB event journal + cursor, поэтому события между WebSocket и Long Poll не расходятся;
+- одна installation Workspace Organizer использует не более одного активного native WebSocket process;
 - этот process может работать рядом с HTTP-приложением либо на одном отдельном WS-узле;
 - несколько одновременно активных WS instances одной installation пока не поддерживаются: connection registry находится в памяти процесса, а cross-node pub/sub/fan-out отсутствует.
 
@@ -37,6 +40,25 @@ TLS завершается на reverse proxy. Внутренний listener и�
 - WebSocket reverse proxy для production WSS
 
 Composer install для runtime не нужен.
+
+## Автоматический Long Poll fallback
+
+Long Poll является встроенным compatibility transport, а не отдельной урезанной реализацией Messenger. HTTP fallback и native WebSocket используют один action dispatcher: одинаковые action allowlist, RBAC, anti-impersonation stripping, maintenance и license checks.
+
+Push-события сначала записываются в `messenger_transport_events`, зашифрованные существующим XChaCha20-Poly1305 application crypto boundary, и получают monotonic cursor. WebSocket и Long Poll читают тот же поток. При переключении browser передаёт последний cursor, поэтому событие, возникшее между падением WebSocket и открытием HTTP poll, не теряется. Durable состояние сообщений/диалогов по-прежнему хранится в canonical Messenger tables; transport journal является короткоживущим мостом, а не вторым хранилищем сообщений.
+
+Defaults:
+
+```env
+MESSENGER_LONG_POLL_TIMEOUT_SECONDS=20
+MESSENGER_EVENT_RETENTION_SECONDS=600
+```
+
+Для activity/typing journal TTL принудительно короче, чтобы устаревший статус «печатает…» не воспроизводился после долгого разрыва.
+
+На shared hosting без long-running process или WebSocket reverse proxy Messenger остаётся рабочим через Long Poll. Цена compatibility mode — больше HTTP/DB запросов и немного более высокая задержка по сравнению с WebSocket. Как только WebSocket снова становится доступен, клиент автоматически возвращается на него.
+
+`php bin/ws_doctor.php` остаётся диагностикой именно WebSocket acceleration path: его FAIL означает, что WebSocket transport не готов, но сам Messenger может продолжать работать через Long Poll.
 
 ## Штатная topology: WebSocket рядом с приложением
 
@@ -219,7 +241,7 @@ user=www-data
 
 ## Shared hosting / Open Server
 
-Realtime Messenger требует возможность держать отдельный PHP process и предоставить браузеру WebSocket endpoint. На том же сервере это обычно reverse proxy `/ws` → `WS_PORT`; альтернативой может быть один отдельный WS-узел по контракту выше. Если hosting не поддерживает long-running PHP process/WebSocket Upgrade и отдельный WS-узел недоступен, Notes/Tasks/Files/Profile продолжают работать, но realtime Messenger корректно запустить нельзя.
+WebSocket остаётся предпочтительным transport: при его наличии нужен отдельный PHP process и browser WebSocket endpoint. На том же сервере это обычно reverse proxy `/ws` → `WS_PORT`; альтернативой может быть один отдельный WS-узел по контракту выше. Если hosting не поддерживает long-running PHP process/WebSocket Upgrade, **отдельный VPS не обязателен**: Messenger автоматически работает через встроенный Long Poll compatibility mode.
 
 Для Open Server используйте `docs/OPEN_SERVER_WEBSOCKET.md`.
 
