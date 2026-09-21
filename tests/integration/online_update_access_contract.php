@@ -65,6 +65,10 @@ try {
     $licenses = new LicenseVerifier(['test' => $encode(sodium_crypto_sign_publickey($licensePair))]);
     $updates = new UpdateManifestVerifier(['test' => $encode(sodium_crypto_sign_publickey($updatePair))]);
     $server = new LicenseServer($work . '/registry.sqlite', $licenses, $updates, true);
+    $health = $server->health();
+    accessAssert(($health['status'] ?? '') === 'ok', 'Initialized update service must report healthy');
+    accessAssert(($health['registry'] ?? false) === true, 'Update service registry health missing');
+    accessAssert(($health['license_trust'] ?? false) === true && ($health['update_trust'] ?? false) === true, 'Update service trust roots are not healthy');
     $token = $makeLicense($installation, $licensePair);
     accessDenied(fn () => $server->register($installation, $makeLicense($installation, sodium_crypto_sign_keypair()), null, null), 403);
     accessDenied(fn () => $server->register($other, $token, null, null), 403);
