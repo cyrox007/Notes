@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Sockets;
 
 use App\Services\MessengerGroupService;
+use App\Services\MessengerRealtimePublisher;
 use App\Services\MessengerService;
 use App\Services\RolePolicyService;
 use DomainException;
@@ -13,15 +14,18 @@ use InvalidArgumentException;
 final class GroupSocket
 {
     private RolePolicyService $policies;
+    private MessengerRealtimePublisher $publisher;
 
     public function __construct(
         private ?MessengerGroupService $groups = null,
         private ?MessengerService $messenger = null,
-        ?RolePolicyService $policies = null
+        ?RolePolicyService $policies = null,
+        ?MessengerRealtimePublisher $publisher = null
     ) {
         $this->groups ??= new MessengerGroupService();
         $this->messenger ??= new MessengerService();
         $this->policies = $policies ?? new RolePolicyService();
+        $this->publisher = $publisher ?? new MessengerRealtimePublisher();
     }
 
     public function info(array $connections, SocketConnection $connection, string $userUid, array $payload = []): void
@@ -200,11 +204,7 @@ final class GroupSocket
 
     private function sendToUser(array $connections, string $userUid, array $payload): void
     {
-        foreach ($connections[$userUid] ?? [] as $userConnection) {
-            if ($userConnection instanceof SocketConnection) {
-                $this->send($userConnection, $payload);
-            }
-        }
+        $this->publisher->publishToUser($connections, $userUid, $payload);
     }
 
     private function requiredString(array $payload, string $key): string
