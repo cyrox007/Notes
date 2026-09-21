@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Sockets;
 
 use App\Services\MessengerForwardService;
+use App\Services\MessengerRealtimePublisher;
 use App\Services\MessengerSavedService;
 use App\Services\MessengerService;
 use DomainException;
@@ -12,14 +13,18 @@ use InvalidArgumentException;
 
 final class ForwardSocket
 {
+    private MessengerRealtimePublisher $publisher;
+
     public function __construct(
         private ?MessengerForwardService $forwarder = null,
         private ?MessengerSavedService $saved = null,
-        private ?MessengerService $messenger = null
+        private ?MessengerService $messenger = null,
+        ?MessengerRealtimePublisher $publisher = null
     ) {
         $this->forwarder ??= new MessengerForwardService();
         $this->saved ??= new MessengerSavedService();
         $this->messenger ??= new MessengerService();
+        $this->publisher = $publisher ?? new MessengerRealtimePublisher();
     }
 
     public function saved(array $connections, SocketConnection $connection, string $userUid, array $payload = []): void
@@ -94,11 +99,7 @@ final class ForwardSocket
 
     private function sendToUser(array $connections, string $userUid, array $payload): void
     {
-        foreach ($connections[$userUid] ?? [] as $userConnection) {
-            if ($userConnection instanceof SocketConnection) {
-                $this->send($userConnection, $payload);
-            }
-        }
+        $this->publisher->publishToUser($connections, $userUid, $payload);
     }
 
     private function guard(SocketConnection $connection, callable $callback): void
