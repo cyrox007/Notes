@@ -188,5 +188,24 @@ try {
 }
 assertWebSocketEndpoint($portRejected, 'out-of-range WS_PORT was accepted');
 
+$serverSource = file_get_contents($root . '/ws_server/server.php');
+assertWebSocketEndpoint(is_string($serverSource), 'cannot read WebSocket launcher source');
+assertWebSocketEndpoint(
+    str_contains($serverSource, 'PHP_VERSION_ID < 80100'),
+    'WebSocket launcher must reject unsupported CLI PHP before application bootstrap'
+);
+$runtimeGuardPosition = strpos($serverSource, 'PHP_VERSION_ID < 80100');
+$environmentBootstrapPosition = strpos($serverSource, "require_once SITEPATH . '/core/Environment.php'");
+assertWebSocketEndpoint(
+    is_int($runtimeGuardPosition)
+    && is_int($environmentBootstrapPosition)
+    && $runtimeGuardPosition < $environmentBootstrapPosition,
+    'CLI PHP version guard must run before loading PHP 8.1 application source'
+);
+assertWebSocketEndpoint(
+    !str_contains($serverSource, 'usleep(100_000)'),
+    'launcher must stay parseable on legacy CLI long enough to print the PHP 8.1 requirement'
+);
+
 restore_error_handler();
 fwrite(STDOUT, "WebSocket endpoint contract: OK\n");
