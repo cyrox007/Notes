@@ -1,4 +1,4 @@
-# Deployment compatibility
+# Совместимость развёртывания
 
 Этот документ разделяет техническую совместимость, проверяемые CI-сценарии и рекомендуемое production-окружение Workspace Organizer 1.0.
 
@@ -13,7 +13,7 @@
 | Open Server 5.4.x + PHP 8.1+ | Да | Да при корректном Apache/Nginx proxy | Legacy-compatible local development |
 | Windows/Open Server как Internet-facing production | Технически возможно | Технически возможно | Не рекомендуется; production baseline — Linux |
 
-## Общий runtime contract 1.0
+## Общий runtime-контракт 1.0
 
 Приложение не требует Composer packages или каталога `vendor/` в production. HTTP views рендерятся внутренним `NativeViewRenderer`, а realtime Messenger обслуживается собственным PHP RFC6455 runtime на `stream_socket_server()` + `stream_select()`.
 
@@ -47,7 +47,7 @@ php bin/ws_doctor.php
 
 Открытый `127.0.0.1:27800` сам по себе не означает, что публичный WSS proxy работает. Подробности — `docs/OPEN_SERVER_WEBSOCKET.md`.
 
-## Shared hosting
+## Обычный shared hosting
 
 Fresh web-installation не требует Composer: используйте release ZIP и откройте `install.php`.
 
@@ -60,7 +60,7 @@ Fresh web-installation не требует Composer: используйте rele
 
 Если тариф завершает CLI-процессы или не позволяет WebSocket Upgrade proxy, realtime Messenger на таком тарифе не поддерживается. Остальные HTTP-модули продолжают работать.
 
-## VPS/VDS production
+## Production на VPS/VDS
 
 Рекомендуемый baseline:
 
