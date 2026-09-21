@@ -6,13 +6,17 @@ namespace App\Controllers;
 
 use App\Helpers\CryptMethods;
 use App\Services\ProfilePublicationService;
+use App\Services\TwoFactorService;
 use App\Services\UserAvatarService;
 use Core\AccountDeactivationGuard;
 use Core\Controller;
 use Core\DatabaseManager;
 use Core\ModuleRuntimeLoader;
 use Core\Request;
+use Core\RequestOrigin;
 use Core\Router;
+use Core\SecurityEventLog;
+use Core\SessionSecurity;
 use DomainException;
 use InvalidArgumentException;
 
@@ -20,7 +24,22 @@ final class ProfileController extends Controller
 {
     public function index(Request $request): void
     {
-        $this->renderProfile($this->currentUser($request));
+        $user = $this->currentUser($request);
+        $recoveryCodes = $request->session('two_factor_recovery_codes', []);
+        $recoveryCodes = is_array($recoveryCodes)
+            ? array_values(array_filter($recoveryCodes, 'is_string'))
+            : [];
+        if ($recoveryCodes !== []) {
+            $request->unsetSession('two_factor_recovery_codes');
+            $this->noStoreSensitivePage();
+        }
+
+        $enrollment = $this->twoFactorEnrollment($request, $user);
+        if ($enrollment !== null) {
+            $this->noStoreSensitivePage();
+        }
+
+        $this->renderProfile($user, [], 200, $enrollment, $recoveryCodes);
     }
 
     public function setPublication(Request $request): void
@@ -137,6 +156,226 @@ final class ProfileController extends Controller
         }
     }
 
+    public function startTwoFactorSetup(Request $request): void
+    {
+        $user = $this->currentUser($request, true);
+        $password = (string) $request->rawPost('current_password', '');
+
+        if ((int) ($user->totp_enabled ?? 0) === 1) {
+            $this->renderProfile($user, [[
+                'CODE' => 'two_factor_already_enabled',
+                'MESSAGE' => 'Двухфакторная аутентификация уже включена',
+            ]], 409);
+            return;
+        }
+        if (!CryptMethods::verifyPassword($password, (string) $user->password_hash)) {
+            $this->renderProfile($user, [[
+                'CODE' => 'two_factor_password_invalid',
+                'MESSAGE' => 'Неверный текущий пароль',
+            ]], 422);
+            return;
+        }
+
+        $service = new TwoFactorService();
+        $secret = $service->generateSecret();
+        $request->setSession('two_factor_enrollment', [
+            'user_id' => (int) $user->id,
+            'secret' => $service->encryptSecret($secret, (string) $user->uid),
+            'started_at' => time(),
+        ]);
+
+        SecurityEventLog::emit(
+            'auth.two_factor_enrollment_started',
+            'info',
+            'auth',
+            'user',
+            (int) $user->id,
+            ['client_ip' => RequestOrigin::clientIp($_SERVER)]
+        );
+        Router::getInstance()->redirect('profile', 'name');
+    }
+
+    public function confirmTwoFactorSetup(Request $request): void
+    {
+        $user = $this->currentUser($request, true);
+        $enrollment = $this->twoFactorEnrollment($request, $user);
+        if ($enrollment === null) {
+            $this->renderProfile($user, [[
+                'CODE' => 'two_factor_setup_expired',
+                'MESSAGE' => 'Настройка двухфакторной аутентификации истекла. Начните заново.',
+            ]], 409);
+            return;
+        }
+
+        $password = (string) $request->rawPost('current_password', '');
+        $code = trim((string) $request->rawPost('code', ''));
+        if (!CryptMethods::verifyPassword($password, (string) $user->password_hash)) {
+            $this->noStoreSensitivePage();
+            $this->renderProfile($user, [[
+                'CODE' => 'two_factor_password_invalid',
+                'MESSAGE' => 'Неверный текущий пароль',
+            ]], 422, $enrollment);
+            return;
+        }
+
+        $service = new TwoFactorService();
+        $counter = $service->matchingCounter((string) $enrollment['secret'], $code);
+        if ($counter === null) {
+            SecurityEventLog::emit(
+                'auth.two_factor_enrollment_failed',
+                'warning',
+                'auth',
+                'user',
+                (int) $user->id,
+                ['client_ip' => RequestOrigin::clientIp($_SERVER)]
+            );
+            $this->noStoreSensitivePage();
+            $this->renderProfile($user, [[
+                'CODE' => 'two_factor_code_invalid',
+                'MESSAGE' => 'Код аутентификатора неверен или уже устарел',
+            ]], 422, $enrollment);
+            return;
+        }
+
+        $recoveryCodes = $service->generateRecoveryCodes();
+        $db = DatabaseManager::getInstance();
+        $db->execute(
+            'UPDATE users SET totp_enabled = 1, totp_secret = :secret, '
+            . 'totp_last_counter = :counter, totp_recovery_codes = :recovery_codes, '
+            . 'totp_confirmed_at = :confirmed_at, updated_at = :updated_at '
+            . 'WHERE id = :id AND is_active = 1 AND account_status = \'active\'',
+            [
+                ':secret' => (string) $enrollment['encrypted_secret'],
+                ':counter' => $counter,
+                ':recovery_codes' => $service->hashRecoveryCodes($recoveryCodes),
+                ':confirmed_at' => date('Y-m-d H:i:s'),
+                ':updated_at' => date('Y-m-d H:i:s'),
+                ':id' => (int) $user->id,
+            ]
+        );
+
+        $request->unsetSession('two_factor_enrollment');
+        $request->setSession('two_factor_recovery_codes', $recoveryCodes);
+        $this->rotateAuthenticatedSession($request);
+
+        SecurityEventLog::emit(
+            'auth.two_factor_enabled',
+            'info',
+            'auth',
+            'user',
+            (int) $user->id,
+            ['client_ip' => RequestOrigin::clientIp($_SERVER)]
+        );
+        Router::getInstance()->redirect('profile', 'name');
+    }
+
+    public function regenerateTwoFactorRecoveryCodes(Request $request): void
+    {
+        $user = $this->currentUser($request, true);
+        $password = (string) $request->rawPost('current_password', '');
+        $code = trim((string) $request->rawPost('code', ''));
+
+        if (
+            (int) ($user->totp_enabled ?? 0) !== 1
+            || !CryptMethods::verifyPassword($password, (string) $user->password_hash)
+        ) {
+            $this->renderProfile($user, [[
+                'CODE' => 'two_factor_recovery_denied',
+                'MESSAGE' => 'Не удалось подтвердить учётную запись',
+            ]], 422);
+            return;
+        }
+
+        $service = new TwoFactorService();
+        $verification = $service->verifyAndConsume(DatabaseManager::getInstance(), (int) $user->id, $code);
+        if (!$verification['ok']) {
+            $this->renderProfile($user, [[
+                'CODE' => 'two_factor_code_invalid',
+                'MESSAGE' => 'Неверный или уже использованный код подтверждения',
+            ]], 422);
+            return;
+        }
+
+        $recoveryCodes = $service->generateRecoveryCodes();
+        DatabaseManager::getInstance()->execute(
+            'UPDATE users SET totp_recovery_codes = :codes, updated_at = :updated_at WHERE id = :id',
+            [
+                ':codes' => $service->hashRecoveryCodes($recoveryCodes),
+                ':updated_at' => date('Y-m-d H:i:s'),
+                ':id' => (int) $user->id,
+            ]
+        );
+        $request->setSession('two_factor_recovery_codes', $recoveryCodes);
+        $this->rotateAuthenticatedSession($request);
+
+        SecurityEventLog::emit(
+            'auth.two_factor_recovery_codes_regenerated',
+            'warning',
+            'auth',
+            'user',
+            (int) $user->id,
+            [
+                'client_ip' => RequestOrigin::clientIp($_SERVER),
+                'used_recovery_code' => (bool) $verification['used_recovery'],
+            ]
+        );
+        Router::getInstance()->redirect('profile', 'name');
+    }
+
+    public function disableTwoFactor(Request $request): void
+    {
+        $user = $this->currentUser($request, true);
+        $password = (string) $request->rawPost('current_password', '');
+        $code = trim((string) $request->rawPost('code', ''));
+
+        if (
+            (int) ($user->totp_enabled ?? 0) !== 1
+            || !CryptMethods::verifyPassword($password, (string) $user->password_hash)
+        ) {
+            $this->renderProfile($user, [[
+                'CODE' => 'two_factor_disable_denied',
+                'MESSAGE' => 'Не удалось подтвердить учётную запись',
+            ]], 422);
+            return;
+        }
+
+        $service = new TwoFactorService();
+        $verification = $service->verifyAndConsume(DatabaseManager::getInstance(), (int) $user->id, $code);
+        if (!$verification['ok']) {
+            $this->renderProfile($user, [[
+                'CODE' => 'two_factor_code_invalid',
+                'MESSAGE' => 'Неверный или уже использованный код подтверждения',
+            ]], 422);
+            return;
+        }
+
+        DatabaseManager::getInstance()->execute(
+            'UPDATE users SET totp_enabled = 0, totp_secret = NULL, totp_last_counter = NULL, '
+            . 'totp_recovery_codes = NULL, totp_confirmed_at = NULL, updated_at = :updated_at '
+            . 'WHERE id = :id',
+            [
+                ':updated_at' => date('Y-m-d H:i:s'),
+                ':id' => (int) $user->id,
+            ]
+        );
+        $request->unsetSession('two_factor_enrollment');
+        $request->unsetSession('two_factor_recovery_codes');
+        $this->rotateAuthenticatedSession($request);
+
+        SecurityEventLog::emit(
+            'auth.two_factor_disabled',
+            'warning',
+            'auth',
+            'user',
+            (int) $user->id,
+            [
+                'client_ip' => RequestOrigin::clientIp($_SERVER),
+                'used_recovery_code' => (bool) $verification['used_recovery'],
+            ]
+        );
+        Router::getInstance()->redirect('profile', 'name');
+    }
+
     public function changeUserPass(Request $request): void
     {
         $user = $this->currentUser($request, true);
@@ -241,8 +480,8 @@ final class ProfileController extends Controller
         }
 
         $columns = $withPassword
-            ? 'id,uid,username,email,password_hash,firstname,patronymic,lastname,phone,avatar,property,role,is_active,account_status,created_at,updated_at'
-            : 'id,uid,username,email,firstname,patronymic,lastname,phone,avatar,property,role,is_active,account_status,created_at,updated_at';
+            ? 'id,uid,username,email,password_hash,firstname,patronymic,lastname,phone,avatar,property,role,is_active,account_status,totp_enabled,totp_confirmed_at,created_at,updated_at'
+            : 'id,uid,username,email,firstname,patronymic,lastname,phone,avatar,property,role,is_active,account_status,totp_enabled,totp_confirmed_at,created_at,updated_at';
 
         $user = DatabaseManager::getInstance()->fetchOne(
             "SELECT {$columns} FROM users WHERE id = :id AND is_active = 1 AND account_status = 'active' LIMIT 1",
@@ -336,7 +575,13 @@ final class ProfileController extends Controller
     }
 
     /** @param list<array{CODE:string,MESSAGE:string}> $errors */
-    private function renderProfile(object $user, array $errors = [], int $status = 200): void
+    private function renderProfile(
+        object $user,
+        array $errors = [],
+        int $status = 200,
+        ?array $twoFactorEnrollment = null,
+        array $twoFactorRecoveryCodes = []
+    ): void
     {
         if ($status !== 200) {
             http_response_code($status);
@@ -356,7 +601,66 @@ final class ProfileController extends Controller
             'avatar_url' => $avatarUrl,
             'errors' => $errors,
             'publication_items' => (new ProfilePublicationService())->ownerItems((int) $user->id),
+            'two_factor_enrollment' => $twoFactorEnrollment,
+            'two_factor_recovery_codes' => $twoFactorRecoveryCodes,
         ]);
+    }
+
+    /**
+     * @return array{secret:string,encrypted_secret:string,uri:string}|null
+     */
+    private function twoFactorEnrollment(Request $request, object $user): ?array
+    {
+        $state = $request->session('two_factor_enrollment');
+        if (!is_array($state)) {
+            return null;
+        }
+
+        $startedAt = (int) ($state['started_at'] ?? 0);
+        $encryptedSecret = (string) ($state['secret'] ?? '');
+        if (
+            (int) ($state['user_id'] ?? 0) !== (int) $user->id
+            || $startedAt <= 0
+            || (time() - $startedAt) > 600
+            || $encryptedSecret === ''
+        ) {
+            $request->unsetSession('two_factor_enrollment');
+            return null;
+        }
+
+        try {
+            $service = new TwoFactorService();
+            $secret = $service->decryptSecret($encryptedSecret, (string) $user->uid);
+            return [
+                'secret' => $secret,
+                'encrypted_secret' => $encryptedSecret,
+                'uri' => $service->provisioningUri(
+                    (string) $user->username,
+                    'Workspace Organizer',
+                    $secret
+                ),
+            ];
+        } catch (\Throwable $e) {
+            $request->unsetSession('two_factor_enrollment');
+            error_log('Two-factor enrollment state could not be decrypted: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    private function rotateAuthenticatedSession(Request $request): void
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE || !session_regenerate_id(true)) {
+            throw new \RuntimeException('Не удалось обновить идентификатор сессии');
+        }
+        $request->setSession('_csrf_token', bin2hex(random_bytes(32)));
+        SessionSecurity::refreshCurrentSessionCookie();
+    }
+
+    private function noStoreSensitivePage(): void
+    {
+        header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+        header('Pragma: no-cache');
+        header('Expires: 0');
     }
 
     /** @return array{code:string,message:string}|null */
