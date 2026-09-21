@@ -1,4 +1,4 @@
-# Workspace Organizer 0.13 — Product UX
+# Workspace Organizer 0.13 — пользовательский интерфейс
 
 Статус релиза: **закрыт**.
 
@@ -17,7 +17,7 @@
 - [x] Ключевые экраны избавлены от ощущения больших пустых технических форм.
 - [x] Новые layouts учитывают reduced-motion и responsive breakpoints.
 
-### Tasks
+### Задачи
 
 - [x] Kanban board: «Новые», «В работе», «Готово», «Отменено».
 - [x] Компактные task cards.
@@ -26,7 +26,7 @@
 - [x] List/board переключатель с локальным сохранением режима.
 - [x] Existing bounded server-side search/filter/sort contract сохранён.
 
-### Notes / Voice notes
+### Заметки / голосовые заметки
 
 - [x] Writing-first editor shell вместо legacy textarea layout.
 - [x] Title/actions/autosave state/writing canvas собраны в единый editor workspace.
@@ -36,7 +36,7 @@
 - [x] Несколько voice attachments поддерживаются существующей моделью.
 - [x] Private-storage/MIME/size ограничения и browser/backend lifecycle сохранены.
 
-### Profile hub / publication
+### Профиль / публикация
 
 - [x] Компактный собственный Profile hub.
 - [x] Быстрые переходы в Notes / Tasks / Files.
@@ -48,29 +48,29 @@
 - [x] Share/capability link сам по себе не публикует объект в профиле.
 - [x] Public Profile использует whitelist metadata и не раскрывает content, storage path, private URL или share token.
 
-### File Manager
+### Файловый менеджер
 
 - [x] Toolbar/navigation hierarchy, локальный поиск и сортировка.
 - [x] Grid/list workspace views с сохранением выбора.
 - [x] Drag/drop upload использует существующий hardened upload pipeline.
 - [x] Quota/storage contract и durable File Manager lifecycle не ослаблены.
 
-### Messenger
+### Мессенджер
 
-- [x] Production runbook Workerman/WSS: `docs/MESSENGER_SERVER.md`.
+- [x] Production runbook native WebSocket/WSS: `docs/MESSENGER_SERVER.md`.
 - [x] Messenger reconnect/offline UX: online / reconnecting / offline / session-ended states.
 - [x] Fresh short-lived WebSocket ticket перед reconnect.
 - [x] Recovery после browser online/sleep/background с bounded backoff.
 - [x] HTTPS/WSS Chromium regression доказывает reconnect и последующую realtime delivery.
 
-### Installer / release safety
+### Установщик / безопасность релиза
 
 - [x] Hosting installer проходит реальный HTTP wizard при `BASE_PATH=/workspace/`.
 - [x] Compatibility upgrade проверяется отдельным migration contract.
-- [x] HTTPS/WSS E2E реально запускает PHP + Workerman + Nginx proxy и Chromium smoke.
+- [x] HTTPS/WSS E2E реально запускает PHP + native WebSocket server + Nginx proxy и Chromium smoke.
 - [x] 0.13 installer schema contract явно проверяет publication fields, voice duration и Messenger config.
 
-## Definition of Done 0.13
+## Критерии готовности 0.13
 
 - [x] 0.12 durable-data/security baseline сохранён.
 - [x] Tasks имеет настоящий kanban flow без потери lifecycle guarantees.
@@ -82,7 +82,7 @@
 - [x] Fresh install / compatibility upgrade / production release gate остаются зелёными.
 - [x] `Core\Version`, README, CHANGELOG и readiness contract синхронизированы для `0.13.0-alpha` в release PR.
 
-## 0.14 beta backlog
+## Backlog для beta 0.14
 
 Следующие пункты осознанно **не блокируют 0.13 alpha**. Они переходят в beta-hardening, где новые крупные функции заморожены.
 
