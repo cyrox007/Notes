@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Helpers\CryptMethods;
 use App\Services\ProfilePublicationService;
+use App\Services\TwoFactorPolicyService;
 use App\Services\TwoFactorService;
 use App\Services\UserAvatarService;
 use Core\AccountDeactivationGuard;
@@ -325,6 +326,14 @@ final class ProfileController extends Controller
     public function disableTwoFactor(Request $request): void
     {
         $user = $this->currentUser($request, true);
+        if ((new TwoFactorPolicyService())->required()) {
+            $this->renderProfile($user, [[
+                'CODE' => 'two_factor_required_by_policy',
+                'MESSAGE' => 'Администратор сделал двухфакторную аутентификацию обязательной для всех пользователей',
+            ]], 409);
+            return;
+        }
+
         $password = (string) $request->rawPost('current_password', '');
         $code = trim((string) $request->rawPost('code', ''));
 
@@ -603,6 +612,7 @@ final class ProfileController extends Controller
             'publication_items' => (new ProfilePublicationService())->ownerItems((int) $user->id),
             'two_factor_enrollment' => $twoFactorEnrollment,
             'two_factor_recovery_codes' => $twoFactorRecoveryCodes,
+            'two_factor_required' => (new TwoFactorPolicyService())->required(),
         ]);
     }
 
