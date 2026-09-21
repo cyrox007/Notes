@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Helpers\CryptMethods;
 use Core\DatabaseManager;
 use JsonException;
 use RuntimeException;
@@ -68,6 +69,7 @@ final class MessengerEventJournal
             throw new RuntimeException('Messenger event payload is not JSON-serializable', 0, $e);
         }
 
+        $encryptedPayload = CryptMethods::encrypt($encoded, self::eventAad($userId));
         $now = time();
         $expiresAt = date(
             'Y-m-d H:i:s',
@@ -78,7 +80,7 @@ final class MessengerEventJournal
              VALUES (:user_id,:payload,:created_at,:expires_at)',
             [
                 ':user_id' => $userId,
-                ':payload' => $encoded,
+                ':payload' => $encryptedPayload,
                 ':created_at' => date('Y-m-d H:i:s', $now),
                 ':expires_at' => $expiresAt,
             ]
@@ -128,9 +130,13 @@ final class MessengerEventJournal
             $nextCursor = max($nextCursor, $eventId);
 
             try {
-                $payload = json_decode((string) ($row['payload'] ?? ''), true, 64, JSON_THROW_ON_ERROR);
-            } catch (JsonException $e) {
-                error_log('Messenger event journal payload decode failed for event ' . $eventId . ': ' . $e->getMessage());
+                $plaintext = CryptMethods::decrypt(
+                    (string) ($row['payload'] ?? ''),
+                    self::eventAad($userId)
+                );
+                $payload = json_decode($plaintext, true, 64, JSON_THROW_ON_ERROR);
+            } catch (\Throwable $e) {
+                error_log('Messenger event journal payload decrypt/decode failed for event ' . $eventId . ': ' . $e->getMessage());
                 continue;
             }
 
@@ -142,6 +148,11 @@ final class MessengerEventJournal
         }
 
         return ['events' => $events, 'cursor' => $nextCursor];
+    }
+
+    private static function eventAad(int $userId): string
+    {
+        return 'messenger-transport-event:user:' . $userId;
     }
 
     /** @param array<string,mixed> $payload */
