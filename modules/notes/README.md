@@ -1,15 +1,23 @@
-# Notes module runtime ownership
+# Runtime ownership модуля Notes
 
-This directory is being migrated from the shared legacy `app/*` runtime into the isolated module contract. Until the migration PR is complete, `module.json` must not be changed to `runtime.mode = isolated`.
+Каталог `modules/notes/` содержит изолированный runtime модуля Notes. Миграция из общего legacy `app/*` завершена; manifest должен оставаться:
 
-Owned runtime surfaces:
+```text
+runtime.mode = isolated
+runtime.entrypoint = runtime.php
+```
 
-- note list/create/edit/delete HTTP routes;
-- share/unshare/public share routes;
-- attachment upload/download/delete/shared-download routes;
-- Notes controllers/services/models/policies;
-- Notes views and module assets;
-- `notes` private-storage namespace;
-- notes schema/migration ownership metadata.
+Модулю Notes принадлежат:
 
-Cross-module dependencies must remain explicit platform/module contracts rather than direct inclusion of another module's internal files. Module-owned views/assets move behind the same isolated runtime boundary rather than remaining globally coupled through `app/views`.
+- HTTP routes списка, создания, редактирования и удаления заметок;
+- routes share/unshare/public share;
+- upload/download/delete/shared-download вложений;
+- controllers/services/models/policies Notes;
+- views и assets модуля;
+- private-storage namespace `notes`;
+- schema/migration ownership metadata;
+- capability `workspace.notes`.
+
+Cross-module dependencies должны оставаться явными platform/module contracts. Нельзя подключать internal files другого module напрямую или возвращать Notes product runtime в общие `app/controllers`, `app/services`, `app/models` или `core/`.
+
+Module-owned views/assets обслуживаются через isolated runtime boundary и общие безопасные renderer/asset contracts.
