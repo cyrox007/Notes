@@ -108,12 +108,11 @@
         app.sendActivity = (activity, active, dialogUid = app.currentDialog?.uid || '') => {
             const uid = String(dialogUid || '');
             if (!uid || !Object.hasOwn(labels, activity)) return false;
-            if (!app.socket || app.socket.readyState !== WebSocket.OPEN) return false;
-            app.socket.send(JSON.stringify({
-                action: 'MessangerSocket:activity',
-                data: { dialog_uid: uid, activity, active: Boolean(active) }
-            }));
-            return true;
+            return app.sendEvent('MessangerSocket:activity', {
+                dialog_uid: uid,
+                activity,
+                active: Boolean(active)
+            });
         };
 
         app.setLocalActivity = (activity, active, dialogUid = app.currentDialog?.uid || '') => {
@@ -192,6 +191,7 @@
             if (!socket || socket.datasetActivityCleanup) return;
             socket.datasetActivityCleanup = true;
             socket.addEventListener('close', () => {
+                if (app.longPollActive) return;
                 localActivities.clear();
                 for (const state of remoteActivities.values()) {
                     if (state.timerId) window.clearTimeout(state.timerId);
