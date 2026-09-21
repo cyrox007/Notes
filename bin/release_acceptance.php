@@ -19,7 +19,8 @@ $options = getopt('', [
     'ci-green',
     'release-evidence-green',
     'backup-restore-current',
-    'beta4-drill-green',
+    'one-zero-one-drill-green',
+    'beta4-drill-green', // compatibility alias for older operator scripts
     'p0p1-clear',
     'trust-canaries-green',
     'artifact-signed',
@@ -49,8 +50,8 @@ $record = static function (string $name, bool $ok, string $details = '') use (&$
 
 $record(
     'release_identity',
-    Version::VERSION === '1.0.1'
-        && Version::VERSION_CODE === 10001
+    Version::VERSION === '1.0.2'
+        && Version::VERSION_CODE === 10002
         && Version::STATUS === 'stable',
     Version::VERSION . ' / ' . Version::VERSION_CODE . ' / ' . Version::STATUS
 );
@@ -68,7 +69,7 @@ $record('governance_source_contract', $governanceOk, 'master + 1.0 / release-gat
 foreach ([
     'README.md',
     'CHANGELOG.md',
-    'docs/releases/v1.0.1.md',
+    'docs/releases/v1.0.2.md',
     'docs/RELEASE_ACCEPTANCE.md',
     'docs/RELEASE_GOVERNANCE.md',
     'docs/PRODUCTION_TRUST_CEREMONY.md',
@@ -184,7 +185,7 @@ $manualGates = [
     'exact_head_ci' => 'ci-green',
     'cross_browser_load_evidence' => 'release-evidence-green',
     'backup_restore' => 'backup-restore-current',
-    'beta4_upgrade_rollback' => 'beta4-drill-green',
+    'one_zero_one_upgrade_rollback' => 'one-zero-one-drill-green',
     'p0_p1_acceptance' => 'p0p1-clear',
     'production_trust_canaries' => 'trust-canaries-green',
     'immutable_artifact_signed' => 'artifact-signed',
@@ -192,7 +193,11 @@ $manualGates = [
 
 $attestations = [];
 foreach ($manualGates as $gate => $flag) {
-    $attestations[$gate] = isset($options[$flag]);
+    $confirmed = isset($options[$flag]);
+    if ($gate === 'one_zero_one_upgrade_rollback' && isset($options['beta4-drill-green'])) {
+        $confirmed = true;
+    }
+    $attestations[$gate] = $confirmed;
     if (!$attestations[$gate]) {
         $pending[] = $gate;
     }
