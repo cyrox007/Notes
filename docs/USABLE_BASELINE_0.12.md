@@ -1,8 +1,8 @@
-# Workspace 0.12 — Usable Baseline
+# Workspace 0.12 — рабочий baseline
 
 Цель релиза: довести существующие модули до состояния, в котором ежедневные пользовательские сценарии надёжны, предсказуемы и защищены от потери/рассинхронизации данных.
 
-## P0 — Data integrity и File Manager
+## P0 — целостность данных и File Manager
 
 - [x] Ввести единый контракт для queued DB writes: ошибка commit не может молча превращаться в успешный пользовательский ответ.
 - [x] Пройти все callers `queueInsert/queueUpdate/queueDelete + commit()` и убрать unchecked commits.
@@ -13,7 +13,7 @@
 - [x] Добавить reconciliation-команду для расхождений DB ↔ filesystem.
 - [x] Исправить регистрацию: не редиректить на login после неудачного commit.
 
-## P0 — Storage quotas / merged PR #61
+## P0 — storage quotas / merged PR #61
 
 - [x] Закрыть false-success upload при неудачной записи metadata через общий fail-closed commit contract.
 - [x] Добавить настоящий HTTP multipart integration test через router/middleware/controller chain.
@@ -21,13 +21,13 @@
 - [x] Сделать compatibility upgrade settings/quota безопасным для partial legacy schema.
 - [x] Показывать обычному пользователю `used / quota / remaining` в File Manager.
 
-## P0 — BASE_PATH contract
+## P0 — контракт BASE_PATH
 
 - [x] Убрать root-relative application URLs из шаблонов и JS там, где они ломают subdirectory install.
 - [x] Унифицировать URL generation через `route_path`, `base_url` и JS base-path helper.
 - [x] Добавить E2E установки и работы приложения в `/workspace/`.
 
-## P1 — Product browser E2E
+## P1 — браузерный E2E продукта
 
 Минимальные реальные browser flows:
 
@@ -38,7 +38,7 @@
 - [x] Admin: user status → quota update.
 - [x] Fault injection: DB failure не должен давать success и не должен оставлять опасную storage inconsistency.
 
-## P1 — Usability pass
+## P1 — проход по удобству
 
 - [x] Общий toast/inline-error/confirmation component вместо `alert/confirm/prompt` для основных пользовательских действий.
 - [x] Сократить full-page reload для мелких операций.
@@ -46,21 +46,21 @@
 - [x] Tasks: поиск и более быстрые inline actions.
 - [x] Files: поиск и сортировка текущей папки; upload показывает имя файла, progress и понятную ошибку.
 
-## P1 — Pagination / findability
+## P1 — пагинация / поиск
 
 - [x] Notes: server-side `q/page/limit/sort`.
 - [x] Tasks: server-side `q/page/limit/sort`.
 - [x] Admin users: server-side `q/page/limit/sort`.
 - [x] Сохранять фильтры и сортировку в URL.
 
-## P1 — Security / governance hardening
+## P1 — усиление security / governance
 
 - [x] `LoginRequared` должен проверять и `role`, и `is_active`.
 - [x] `IsAdmin` должен проверять и `role`, и `is_active`.
 - [x] Зафиксировать machine-readable policy обязательных release/browser checks и проверять её в `Master release gate`; one-time включение enforcement в GitHub Settings документировано в `docs/RELEASE_GOVERNANCE.md`.
 - [x] Политика независимого approval зафиксирована: при наличии второго квалифицированного участника требуется минимум одно независимое approval.
 
-## P2 — После Usable Baseline
+## P2 — после рабочего baseline
 
 - [ ] Полезный dashboard: ближайшие задачи, последние заметки, непрочитанные сообщения, storage usage, быстрые действия.
 - [ ] Улучшенный Notes editor.
@@ -68,7 +68,7 @@
 - [ ] Unified command/search.
 - [ ] Постепенное удаление legacy inline JS/CSS и `unsafe-inline`.
 
-## Definition of Done для 0.12
+## Критерии готовности 0.12
 
 Релиз можно считать usable alpha, когда:
 
