@@ -2,7 +2,7 @@
 
 Формат основан на принципах Keep a Changelog. Начиная с `1.0.0` проект имеет stable platform contract: совместимость upgrade-path и пользовательских данных является release contract, а изменения схемы выполняются через явные compatibility migrations. Canonical `*_schema.sql` остаются источником текущей схемы fresh install.
 
-## 1.0.2 — Unreleased
+## 1.0.2 — 2026-09-21
 
 ### Updater operations
 - Добавлен единый CLI operator flow `bin/update_run.php`, который использует существующие подписанные границы: remote staging, maintenance ownership, verified code+MySQL rollback backup, external release candidate и transactional live apply.
