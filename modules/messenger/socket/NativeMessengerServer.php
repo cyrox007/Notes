@@ -7,13 +7,13 @@ namespace App\Sockets;
 use App\Handlers\SocketTicket;
 use App\Models\UserModel;
 use App\Services\LicenseRuntimePolicy;
+use App\Services\MessengerEventJournal;
 use App\Services\MaintenanceModeService;
 use App\Services\PermissionService;
 use Closure;
 use Core\DatabaseManager;
 use Core\ModuleLifecycleStore;
 use Core\ModuleRegistry;
-use Core\UserActionLog;
 use Core\Version;
 use RuntimeException;
 use Throwable;
@@ -29,57 +29,7 @@ final class NativeMessengerServer
 {
     private const HEARTBEAT_INTERVAL_SECONDS = 5.0;
     private const HANDSHAKE_TIMEOUT_SECONDS = 10.0;
-
-    /** @var array<string,list<string>> */
-    private const ALLOWED_ROUTES = [
-        'PingSocket' => ['index'],
-        'MessangerSocket' => [
-            'get_dialogs',
-            'load',
-            'create_dialog',
-            'message_send',
-            'edit_message',
-            'delete_message',
-            'mark_read',
-            'user_typing',
-            'stop_typing',
-            'activity',
-        ],
-        'DialogStateSocket' => ['list', 'pin', 'archive', 'mute'],
-        'ReceiptSocket' => ['list', 'delivered'],
-        'MediaSocket' => ['send'],
-        'GroupSocket' => [
-            'info',
-            'refresh',
-            'rename',
-            'add_members',
-            'remove_member',
-            'set_role',
-            'transfer_owner',
-            'leave',
-        ],
-        'SearchSocket' => ['all', 'messages', 'dialogs'],
-        'ForwardSocket' => ['saved', 'save_message', 'forward'],
-        'ReactionSocket' => ['list', 'toggle'],
-    ];
-
-    /**
-     * Actions proven not to persist user/application state. All other allowed
-     * actions are treated as mutations and require a valid installation license
-     * once a production trust root is configured. Activity/typing notifications
-     * are ephemeral presence only and therefore remain available in read-only.
-     *
-     * @var array<string,list<string>>
-     */
-    private const READ_ONLY_ROUTES = [
-        'PingSocket' => ['index'],
-        'MessangerSocket' => ['get_dialogs', 'load', 'user_typing', 'stop_typing', 'activity'],
-        'DialogStateSocket' => ['list'],
-        'ReceiptSocket' => ['list'],
-        'GroupSocket' => ['info', 'refresh'],
-        'SearchSocket' => ['all', 'messages', 'dialogs'],
-        'ReactionSocket' => ['list'],
-    ];
+    private const TRANSPORT_PUMP_INTERVAL_SECONDS = 0.20;
 
     /** @var resource|null */
     private $listener = null;
@@ -98,8 +48,11 @@ final class NativeMessengerServer
     private Closure $ticketValidator;
     private Closure $messengerPermissionChecker;
     private Closure $userUidResolver;
+    private MessengerActionDispatcher $actionDispatcher;
+    private MessengerEventJournal $eventJournal;
     private bool $running = false;
     private float $lastHeartbeatAt = 0.0;
+    private float $lastTransportPumpAt = 0.0;
 
     /**
      * @param list<string> $allowedOrigins
@@ -114,7 +67,8 @@ final class NativeMessengerServer
         ?callable $ticketValidator = null,
         ?callable $messengerPermissionChecker = null,
         ?callable $userUidResolver = null,
-        ?callable $maintenanceStateResolver = null
+        ?callable $maintenanceStateResolver = null,
+        ?MessengerEventJournal $eventJournal = null
     ) {
         if ($this->port < 1 || $this->port > 65535) {
             throw new RuntimeException('Invalid WebSocket listener port');
@@ -150,6 +104,12 @@ final class NativeMessengerServer
                 $user = UserModel::select('uid')->where('id', '=', $userId)->first();
                 return $user && !empty($user->uid) ? (string) $user->uid : null;
             };
+        $this->eventJournal = $eventJournal ?? new MessengerEventJournal();
+        $this->actionDispatcher = new MessengerActionDispatcher(
+            $this->licensePolicy,
+            $this->maintenanceStateResolver,
+            $this->messengerPermissionChecker
+        );
     }
 
     public function run(): void
@@ -158,6 +118,7 @@ final class NativeMessengerServer
         $this->listener = $this->createListener();
         $this->running = true;
         $this->lastHeartbeatAt = microtime(true);
+        $this->lastTransportPumpAt = microtime(true);
         $this->installSignalHandlers();
 
         $startedMessage = sprintf(
@@ -412,7 +373,7 @@ final class NativeMessengerServer
             return false;
         }
 
-        if (!is_int($userId) || $userId < 1 || !$this->canUseMessenger($userId)) {
+        if (!is_int($userId) || $userId < 1 || !$this->actionDispatcher->canUseMessenger($userId)) {
             $client->rejectHttp(403, 'Forbidden');
             return false;
         }
@@ -429,8 +390,16 @@ final class NativeMessengerServer
             return false;
         }
 
+        $highWaterCursor = $this->eventJournal->cursorForUserId($userId);
+        $requestedCursorValue = $query['cursor'] ?? null;
+        $requestedCursor = is_scalar($requestedCursorValue)
+            && ctype_digit((string) $requestedCursorValue)
+                ? (int) $requestedCursorValue
+                : $highWaterCursor;
+
         $client->uid = $userUid;
         $client->userId = $userId;
+        $client->transportCursor = min(max(0, $requestedCursor), $highWaterCursor);
         $client->authenticated = true;
         $client->handshakeComplete = true;
         $this->connections[$client->uid][$client->id()] = $client;
@@ -439,8 +408,9 @@ final class NativeMessengerServer
         $this->sendJson($client, [
             'action' => 'Authorized',
             'user_uid' => $client->uid,
+            'transport_cursor' => $client->transportCursor,
         ]);
-        $this->sendReadOnlyLicenseState($client);
+        $this->actionDispatcher->sendReadOnlyLicenseState($client);
 
         return true;
     }
@@ -542,62 +512,8 @@ final class NativeMessengerServer
             return;
         }
 
-        if (!$this->canUseMessenger($client->userId)) {
-            $client->closeWithCode(1008, 'Permission revoked');
-            return;
-        }
-
         $data = json_decode($message, true);
         if (!is_array($data) || !is_string($data['action'] ?? null)) {
-            return;
-        }
-
-        $action = $data['action'];
-        if (substr_count($action, ':') !== 1) {
-            return;
-        }
-
-        [$className, $methodName] = explode(':', $action, 2);
-        if (!isset(self::ALLOWED_ROUTES[$className])
-            || !in_array($methodName, self::ALLOWED_ROUTES[$className], true)) {
-            error_log('Rejected WebSocket action: ' . $action);
-            return;
-        }
-
-        if (!$this->isReadOnlyAction($className, $methodName)) {
-            try {
-                $maintenanceState = ($this->maintenanceStateResolver)();
-            } catch (Throwable $e) {
-                error_log('WebSocket maintenance state evaluation failed: ' . $e->getMessage());
-                $this->sendJson($client, [
-                    'action' => 'MaintenanceMode',
-                    'message' => 'Workspace maintenance state could not be verified safely.',
-                ]);
-                return;
-            }
-            if (!empty($maintenanceState['active'])) {
-                $this->sendJson($client, [
-                    'action' => 'MaintenanceMode',
-                    'reason' => (string) ($maintenanceState['reason'] ?? ''),
-                    'transaction_id' => $maintenanceState['transaction_id'] ?? null,
-                ]);
-                return;
-            }
-
-            $licenseState = $this->licensePolicy->state();
-            if ($licenseState['enforced'] && !$licenseState['writable']) {
-                $this->sendJson($client, [
-                    'action' => 'LicenseReadOnly',
-                    'code' => $licenseState['code'],
-                    'message' => $licenseState['message'],
-                ]);
-                return;
-            }
-        }
-
-        $fullClassName = __NAMESPACE__ . '\\' . $className;
-        if (!class_exists($fullClassName) || !method_exists($fullClassName, $methodName)) {
-            error_log('Configured WebSocket action is unavailable: ' . $action);
             return;
         }
 
@@ -605,67 +521,14 @@ final class NativeMessengerServer
         if (!is_array($payload)) {
             return;
         }
-        unset($payload['user_uid'], $payload['user_id'], $payload['from_user_id']);
 
-        $mutatingAction = !$this->isReadOnlyAction($className, $methodName);
-        try {
-            $handler = new $fullClassName();
-            $handler->$methodName($this->connections, $client, $client->uid, $payload);
-            if ($mutatingAction) {
-                UserActionLog::emit(
-                    $client->userId,
-                    'ws.' . strtolower($className . '.' . $methodName),
-                    'messenger',
-                    'websocket',
-                    'success',
-                    null,
-                    ['action' => $action]
-                );
-            }
-        } catch (Throwable $e) {
-            if ($mutatingAction) {
-                UserActionLog::emit(
-                    $client->userId,
-                    'ws.' . strtolower($className . '.' . $methodName),
-                    'messenger',
-                    'websocket',
-                    'failure',
-                    null,
-                    ['action' => $action, 'error_type' => get_debug_type($e)]
-                );
-            }
-            error_log(sprintf('WebSocket handler failure for %s: %s', $action, $e->getMessage()));
-        }
-    }
-
-    private function isReadOnlyAction(string $className, string $methodName): bool
-    {
-        return isset(self::READ_ONLY_ROUTES[$className])
-            && in_array($methodName, self::READ_ONLY_ROUTES[$className], true);
-    }
-
-    private function sendReadOnlyLicenseState(SocketConnection $client): void
-    {
-        $state = $this->licensePolicy->state();
-        if (!$state['enforced'] || $state['writable']) {
-            return;
-        }
-
-        $this->sendJson($client, [
-            'action' => 'LicenseReadOnly',
-            'code' => $state['code'],
-            'message' => $state['message'],
-        ]);
-    }
-
-    private function canUseMessenger(int $userId): bool
-    {
-        try {
-            return (bool) ($this->messengerPermissionChecker)($userId);
-        } catch (Throwable $e) {
-            error_log('Messenger permission evaluation failed: ' . $e->getMessage());
-            return false;
-        }
+        $this->actionDispatcher->dispatch(
+            $this->connections,
+            $client,
+            (string) $data['action'],
+            $payload,
+            'websocket'
+        );
     }
 
     /** @param array<string,mixed> $payload */
@@ -680,6 +543,11 @@ final class NativeMessengerServer
     private function tick(): void
     {
         $now = microtime(true);
+
+        if (($now - $this->lastTransportPumpAt) >= self::TRANSPORT_PUMP_INTERVAL_SECONDS) {
+            $this->lastTransportPumpAt = $now;
+            $this->pumpTransportEvents();
+        }
 
         foreach ($this->clients as $client) {
             $client->enforceCloseDeadline($now);
@@ -723,6 +591,43 @@ final class NativeMessengerServer
             $client->enforceCloseDeadline($now);
             if ($client->isDestroyed()) {
                 $this->dropClient($client);
+            }
+        }
+    }
+
+    private function pumpTransportEvents(): void
+    {
+        foreach ($this->connections as $userConnections) {
+            foreach ($userConnections as $connection) {
+                if (
+                    !$connection instanceof NativeSocketConnection
+                    || !$connection->authenticated
+                    || $connection->userId === null
+                    || $connection->isClosing()
+                    || $connection->isDestroyed()
+                ) {
+                    continue;
+                }
+
+                try {
+                    $batch = $this->eventJournal->readSince(
+                        $connection->userId,
+                        $connection->transportCursor,
+                        100
+                    );
+                    foreach ($batch['events'] as $event) {
+                        $this->sendJson($connection, $event);
+                    }
+                    $connection->transportCursor = max(
+                        $connection->transportCursor,
+                        (int) $batch['cursor']
+                    );
+                } catch (Throwable $e) {
+                    error_log(
+                        'Messenger WebSocket transport journal pump failed for user '
+                        . $connection->userId . ': ' . $e->getMessage()
+                    );
+                }
             }
         }
     }
