@@ -1,50 +1,50 @@
-# Transactional live apply and rollback
+# Транзакционное live-применение и rollback
 
-This document covers the destructive half of the Workspace Organizer 1.0 signed updater. It assumes the signed artifact has already passed verification, ZIP audit, immutable external staging, maintenance entry, transaction-journal initialization, verified code/MySQL rollback backup and verified external release-candidate extraction.
+Этот документ описывает destructive-половину подписанного updater Workspace Organizer 1.0. Предполагается, что signed artifact уже прошёл verification, ZIP audit, immutable external staging, вход в maintenance, инициализацию transaction journal, проверенный code/MySQL rollback backup и извлечение проверенного внешнего release candidate.
 
-The live apply layer does **not** download updates and never performs `unzip` over the active application tree.
+Live apply layer **не** скачивает обновления и никогда не выполняет `unzip` поверх active application tree.
 
-## Safety boundary
+## Граница безопасности
 
-Before live mutation, the transaction must be in the external journal and the same transaction must own maintenance mode. `bin/update_apply.php --apply` first acquires a non-blocking transaction-scoped operation lock under the external updater state root. That lock is held for the entire apply/recover command, including maintenance validation, live mutation, rollback and maintenance release. A second apply/recover process for the same transaction fails with `operation_busy` instead of entering the destructive path concurrently.
+До live mutation transaction должна существовать во внешнем journal, а эта же transaction должна владеть maintenance mode. `bin/update_apply.php --apply` сначала получает non-blocking operation lock, привязанный к transaction, под внешним updater state root. Lock удерживается на протяжении всей команды apply/recover, включая проверку maintenance, live mutation, rollback и снятие maintenance. Второй apply/recover process для той же transaction получает `operation_busy` и не входит параллельно в destructive path.
 
-The apply path then executes these gates:
+Затем apply path выполняет gates:
 
-1. re-verify the rollback backup manifest, code snapshot and MySQL dump;
-2. re-hash the complete release candidate tree;
-3. confirm the currently installed version still matches the journal checkpoint;
-4. run the current `bin/healthcheck.php --json`;
-5. run candidate `bin/migrate.php --dry-run` so migration checksums/schema policy are validated against the live database without applying migrations;
-6. re-verify candidate and backup again immediately before the destructive boundary;
-7. record WebSocket running state;
-8. move the journal to `preflight_verified` and then durably record `live_mutation_started=true`.
+1. повторно проверяет manifest rollback backup, code snapshot и MySQL dump;
+2. заново хеширует полное дерево release candidate;
+3. подтверждает, что установленная версия всё ещё соответствует checkpoint в journal;
+4. запускает текущий `bin/healthcheck.php --json`;
+5. запускает candidate `bin/migrate.php --dry-run`, чтобы проверить migration checksums/schema policy на live database без применения migrations;
+6. повторно проверяет candidate и backup непосредственно перед destructive boundary;
+7. фиксирует, работал ли WebSocket;
+8. переводит journal в `preflight_verified`, затем надёжно записывает `live_mutation_started=true`.
 
-Once `live_mutation_started` is recorded, any process failure requires `--recover`; a fresh `--apply` is refused.
+После записи `live_mutation_started` любой сбой process требует `--recover`; новый `--apply` отклоняется.
 
-## Controlled code switch
+## Контролируемое переключение кода
 
-The current installation layout is not a release-symlink layout, so replacing the entire application root would also replace installation-specific state such as `.env` and mutable storage. Instead the updater creates a private sibling scratch directory on the same filesystem and prepares release-owned top-level entries there.
+Текущая installation layout не является release-symlink layout, поэтому замена всего application root одновременно заменила бы installation-specific state вроде `.env` и mutable storage. Вместо этого updater создаёт приватный sibling scratch directory на том же filesystem и готовит там release-owned top-level entries.
 
-The switch uses filesystem `rename()` for those top-level release entries. It does not copy files one-by-one over the running tree.
+Переключение использует filesystem `rename()` для этих top-level release entries. Файлы не копируются по одному поверх работающего дерева.
 
-The following installation/mutable roots are preserved rather than replaced:
+Следующие installation/mutable roots сохраняются и не заменяются:
 
-- `.env` and `.env.*`;
+- `.env` и `.env.*`;
 - `.git`;
-- `vendor` (legacy/excluded; the 1.0 runtime itself is vendor-free);
+- `vendor` — legacy/excluded; runtime 1.0 сам vendor-free;
 - `cache`;
 - `compile`;
 - `uploads`;
 - `notes-private-storage`;
 - `.logs`.
 
-Configured mutable paths such as `PRIVATE_STORAGE_PATH`, upload locations, updater state/staging/backup/release roots, log path and WebSocket PID path are checked before apply. If a mutable path is nested under a release-owned top-level directory, apply fails before mutation because such a layout cannot be switched safely.
+Configured mutable paths — `PRIVATE_STORAGE_PATH`, upload locations, updater state/staging/backup/release roots, log path и WebSocket PID path — проверяются до apply. Если mutable path вложен в release-owned top-level directory, apply завершается до mutation, потому что такую layout нельзя безопасно переключить.
 
-Scratch containers remain private (`0700`), but directories that are promoted into live runtime are created as `0755`; file modes are retained from the verified candidate/snapshot. A private `0700` backup directory therefore cannot accidentally make the restored application inaccessible to the web/PHP service account.
+Scratch containers остаются private (`0700`), но directories, продвигаемые в live runtime, создаются как `0755`; file modes сохраняются из проверенного candidate/snapshot. Поэтому private `0700` backup directory не может случайно сделать восстановленное приложение недоступным для web/PHP service account.
 
-## Apply sequence
+## Последовательность применения
 
-After the destructive boundary:
+После destructive boundary:
 
 ```text
 live_mutation_started
@@ -54,7 +54,7 @@ live_mutation_started
   -> committed
 ```
 
-The operational sequence is:
+Операционная последовательность:
 
 ```text
 controlled code switch
@@ -67,11 +67,11 @@ controlled code switch
 -> maintenance release
 ```
 
-`committed` is a terminal success state. If removing the maintenance marker fails after commit, the updater does **not** roll back a healthy committed release. It reports `maintenance_release_failed` and leaves maintenance active; the operator reruns `--recover`, which re-verifies the committed version, health and migration status before releasing maintenance.
+`committed` — terminal success state. Если удаление maintenance marker после commit не удалось, updater **не** откатывает исправный committed release. Он сообщает `maintenance_release_failed` и оставляет maintenance активным; оператор повторяет `--recover`, который заново проверяет committed version, health и migration status перед снятием maintenance.
 
-## Automatic rollback
+## Автоматический rollback
 
-Any failure after `live_mutation_started` but before `committed` starts rollback while maintenance stays active:
+Любая ошибка после `live_mutation_started`, но до `committed`, запускает rollback при активном maintenance:
 
 ```text
 rollback_started
@@ -80,25 +80,25 @@ rollback_started
   -> rollback_verified
 ```
 
-After the destructive boundary the verified pre-update backup is the authoritative recovery artifact. The release candidate is **not** required for rollback and may already have been deleted or damaged. Rollback performs the following:
+После destructive boundary проверенный pre-update backup является авторитетным recovery artifact. Release candidate **не требуется** для rollback и к этому моменту уже может быть удалён или повреждён. Rollback:
 
-1. re-verifies the external rollback backup, including the code manifest/files and MySQL dump metadata;
-2. enumerates the current live release-owned top-level entries, quarantines the failed release tree, and restores code from the verified pre-update snapshot while leaving `.env` and preserved mutable roots untouched;
-3. restores MySQL from the verified consistent snapshot, including removal of objects introduced by a failed migration;
-4. verifies the exact pre-update `Version.php`;
-5. runs the restored healthcheck;
-6. runs restored `bin/migrate.php --status`;
-7. restarts WebSocket if it was running before apply;
-8. records `rollback_verified`;
-9. only then releases maintenance.
+1. повторно проверяет внешний rollback backup, включая code manifest/files и MySQL dump metadata;
+2. перечисляет текущие live release-owned top-level entries, переносит failed release tree в quarantine и восстанавливает code из проверенного pre-update snapshot, не затрагивая `.env` и preserved mutable roots;
+3. восстанавливает MySQL из проверенного consistent snapshot, включая удаление objects, добавленных failed migration;
+4. проверяет точный pre-update `Version.php`;
+5. запускает восстановленный healthcheck;
+6. запускает восстановленный `bin/migrate.php --status`;
+7. перезапускает WebSocket, если он работал до apply;
+8. записывает `rollback_verified`;
+9. только после этого снимает maintenance.
 
-Because mutable paths under release-owned top-level directories are rejected before apply, rollback can safely treat every non-preserved live top-level entry as release-owned. This allows target-only entries to be removed without consulting the candidate tree.
+Так как mutable paths под release-owned top-level directories отклоняются до apply, rollback может безопасно считать каждый non-preserved live top-level entry принадлежащим релизу. Это позволяет удалять target-only entries без обращения к candidate tree.
 
-If any rollback step cannot be verified, the journal records `rollback_failed` where possible and maintenance remains active. Recovery artifacts are not deleted.
+Если любой шаг rollback нельзя проверить, journal по возможности записывает `rollback_failed`, а maintenance остаётся активным. Recovery artifacts не удаляются.
 
-## Crash recovery
+## Восстановление после сбоя
 
-Recovery does not rely on the original PHP process surviving. Run:
+Recovery не зависит от выживания исходного PHP process. Запустите:
 
 ```bash
 php bin/update_apply.php \
@@ -106,24 +106,24 @@ php bin/update_apply.php \
   --recover
 ```
 
-Optional `--state-root` and `--backup-root` override the configured external updater locations.
+Дополнительные `--state-root` и `--backup-root` переопределяют настроенные external updater locations.
 
-The journal is the durable source of truth. Recovery is phase-aware:
+Journal — durable source of truth. Recovery учитывает фазу:
 
-- `backup_verified`, `candidate_verified`, `preflight_verified` with `live_mutation_started=false`: no live mutation occurred, so maintenance can be released;
-- `live_mutation_started`, `code_switched`, `migrations_applied`, `postcheck_verified`: start rollback from the verified checkpoint;
-- `rollback_started`: repeat/finish code restore, which is intentionally idempotent when the previous process died before the phase marker was written;
-- `code_restored`: continue with database restore rather than trying to restart the state graph;
-- `database_restored`: continue with restored-version/health/schema verification;
-- `rollback_failed`: retry rollback from the verified checkpoint;
-- `rollback_verified`: re-verify the restored installation and release maintenance;
-- `committed`: re-verify the target installation and release maintenance.
+- `backup_verified`, `candidate_verified`, `preflight_verified` при `live_mutation_started=false`: live mutation не происходила, maintenance можно снять;
+- `live_mutation_started`, `code_switched`, `migrations_applied`, `postcheck_verified`: начать rollback от проверенного checkpoint;
+- `rollback_started`: повторить/закончить code restore; операция намеренно идемпотентна, если предыдущий process умер до записи phase marker;
+- `code_restored`: продолжить database restore вместо попытки начать state graph заново;
+- `database_restored`: продолжить verification restored version/health/schema;
+- `rollback_failed`: повторить rollback от проверенного checkpoint;
+- `rollback_verified`: повторно проверить восстановленную installation и снять maintenance;
+- `committed`: повторно проверить target installation и снять maintenance.
 
-If recovery itself fails, do not force maintenance off merely to reopen the UI. Inspect the external transaction journal and preserve the verified backup. The original candidate is useful for diagnostics but is not a rollback dependency after `live_mutation_started`.
+Если recovery тоже завершается ошибкой, не выключайте maintenance force-способом только ради открытия UI. Изучите внешний transaction journal и сохраните verified backup. Исходный candidate полезен для diagnostics, но не является rollback dependency после `live_mutation_started`.
 
 ## CLI
 
-Apply a candidate already attached to the same verified updater transaction:
+Применение candidate, уже привязанного к той же verified updater transaction:
 
 ```bash
 php bin/update_apply.php \
@@ -132,7 +132,7 @@ php bin/update_apply.php \
   --apply
 ```
 
-Machine-readable output:
+Машиночитаемый вывод:
 
 ```bash
 php bin/update_apply.php ... --apply --json
@@ -146,47 +146,47 @@ php bin/update_apply.php \
   --recover --json
 ```
 
-The command intentionally requires maintenance to already be active and owned by the same transaction. The earlier staging/backup/candidate commands remain separate checkpoints so an operator can inspect artifacts before crossing the destructive boundary.
+Команда намеренно требует, чтобы maintenance уже был активен и принадлежал той же transaction. Предыдущие staging/backup/candidate commands остаются отдельными checkpoints, чтобы оператор мог проверить artifacts до пересечения destructive boundary.
 
-Only one live apply/recover command may own a transaction at a time. If another process already holds the transaction operation lock, the command exits with `operation_busy` and makes no updater-state transition.
+Одновременно transaction может принадлежать только одной live apply/recover команде. Если другой process уже удерживает transaction operation lock, команда завершается с `operation_busy` и не меняет updater state.
 
-## WebSocket lifecycle
+## Lifecycle WebSocket
 
-Before mutation the updater records whether the native WebSocket process is running. If it was running, a successful apply or rollback uses:
+До mutation updater фиксирует, запущен ли native WebSocket process. Если он был запущен, successful apply или rollback использует:
 
 ```bash
 php ws_server/server.php restart -d
 ```
 
-and confirms `status` afterwards. Daemon restart requires Unix `pcntl`. If WebSocket is running but the updater cannot safely restart it, apply fails **before** `live_mutation_started`. Installations managed by an external process supervisor may instead stop/drain the socket service through that supervisor before apply; the updater then records it as not running and does not invent a restart mechanism it cannot verify.
+и после этого подтверждает `status`. Daemon restart требует Unix `pcntl`. Если WebSocket работает, но updater не может безопасно его перезапустить, apply завершается **до** `live_mutation_started`. Установки, управляемые внешним process supervisor, могут вместо этого stop/drain socket service через supervisor до apply; тогда updater фиксирует его как неработающий и не придумывает restart mechanism, который не способен проверить.
 
-## Recovery artifacts and cleanup
+## Recovery artifacts и очистка
 
-The apply/rollback critical path deliberately does not delete:
+Critical path apply/rollback намеренно не удаляет:
 
 - verified staged package;
 - verified release candidate;
 - verified rollback backup;
 - transaction journal;
-- sibling switch/rollback scratch retained after the operation.
+- sibling switch/rollback scratch, оставшийся после операции.
 
-Cleanup/retention is a separate post-commit maintenance concern. The rollback backup and transaction journal must not disappear merely because the update reached a terminal state. Candidate retention remains desirable for diagnostics/reproducibility, but rollback correctness does not depend on it after the destructive boundary.
+Cleanup/retention — отдельная post-commit maintenance задача. Rollback backup и transaction journal не должны исчезать только потому, что update достиг terminal state. Retention candidate желателен для diagnostics/reproducibility, но rollback correctness после destructive boundary от него не зависит.
 
-## Required validation before merge/release
+## Обязательная проверка перед merge/release
 
-The live-apply gate must pass on supported PHP versions and real MySQL. It covers:
+Live-apply gate должен проходить на поддерживаемых версиях PHP и реальном MySQL. Он проверяет:
 
-- candidate re-hashing;
+- повторное хеширование candidate;
 - controlled release-owned code switch;
-- preservation of `.env`, cache and uploads;
-- rejection of mutable paths nested below release-owned roots;
-- directory permission contract;
-- transaction-scoped single-owner apply/recover locking;
-- verified code rollback with the original candidate absent;
-- removal/quarantine of target-only top-level entries from a failed release;
-- complete MySQL rollback including removal of a failed-migration table;
-- trigger/data restoration;
-- journal transition and rollback retry contract;
-- CLI destructive-boundary invariants.
+- сохранение `.env`, cache и uploads;
+- отказ от mutable paths, вложенных в release-owned roots;
+- контракт directory permissions;
+- transaction-scoped single-owner locking apply/recover;
+- verified code rollback при отсутствии исходного candidate;
+- удаление/quarantine target-only top-level entries failed release;
+- полный MySQL rollback, включая удаление таблицы failed migration;
+- восстановление triggers/data;
+- journal transitions и rollback retry contract;
+- CLI invariants destructive boundary.
 
-A later release drill must still exercise a complete signed Beta4 -> 1.0 upgrade and an injected post-mutation failure against a real installed application before the 1.0 release gate is considered complete.
+Поздний release drill всё равно обязан проверить полный signed upgrade Beta4 -> 1.0 и injected post-mutation failure на реальном установленном приложении до того, как release gate 1.0 считается завершённым.
