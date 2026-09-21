@@ -8,6 +8,7 @@ use App\Controllers\MessagerController;
 use App\Controllers\MessengerGroupController;
 use App\Controllers\MessengerVoiceController;
 use App\Controllers\MessengerWorkspaceController;
+use App\Middlewares\CSRFMiddleware;
 use App\Middlewares\EnforceMessengerUploadPolicy;
 use App\Middlewares\LoginRequared;
 use App\Middlewares\RequireMessengerUse;
@@ -45,6 +46,8 @@ final class MessengerRuntimeProvider implements ModuleRuntimeProvider
         $router->group('/messenger')
             ->add('GET', '/', [MessagerController::class, 'index'], [LoginRequared::class, RequireMessengerUse::class], 'messenger')
             ->add('POST', '/socket-ticket', [MessagerController::class, 'socketTicket'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_socket_ticket')
+            ->add('GET', '/transport/poll', [MessagerController::class, 'transportPoll'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_transport_poll')
+            ->add('POST', '/transport/send', [MessagerController::class, 'transportSend'], [LoginRequared::class, RequireMessengerUse::class, CSRFMiddleware::class], 'messenger_transport_send')
             ->add('POST', '/upload', [MessagerController::class, 'uploadFile'], [LoginRequared::class, RequireMessengerUse::class, UploadRateLimit::class, EnforceMessengerUploadPolicy::class], 'messenger_upload')
             ->add('POST', '/voice-upload', [MessengerVoiceController::class, 'upload'], [LoginRequared::class, RequireMessengerUse::class, UploadRateLimit::class, EnforceMessengerUploadPolicy::class], 'messenger_voice_upload')
             ->add('POST', '/workspace/note', [MessengerWorkspaceController::class, 'createNote'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_workspace_note')
