@@ -160,13 +160,19 @@ final class NativeMessengerServer
         $this->lastHeartbeatAt = microtime(true);
         $this->installSignalHandlers();
 
-        error_log(sprintf(
-            'Native WebSocket listener started: tcp://%s:%d; max_connections=%d; max_payload=%d',
+        $startedMessage = sprintf(
+            'Native WebSocket listener started: tcp://%s:%d; pid=%d; max_connections=%d; max_payload=%d bytes',
             $this->host,
             $this->port,
+            getmypid(),
             $this->maxConnections,
             $this->maxPayloadBytes
-        ));
+        );
+        error_log($startedMessage);
+        if (defined('STDOUT')) {
+            fwrite(STDOUT, '[RUNNING] WebSocket server — ' . $startedMessage . PHP_EOL);
+            fwrite(STDOUT, '[INFO] Stop with Ctrl+C or the configured process manager.' . PHP_EOL);
+        }
 
         try {
             while ($this->running) {

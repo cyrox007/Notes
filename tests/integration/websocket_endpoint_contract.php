@@ -207,5 +207,49 @@ assertWebSocketEndpoint(
     'launcher must stay parseable on legacy CLI long enough to print the PHP 8.1 requirement'
 );
 
+assertWebSocketEndpoint(
+    str_contains($serverSource, 'workspaceWsPreflight($daemon)'),
+    'start/check must run the WebSocket startup preflight'
+);
+assertWebSocketEndpoint(
+    str_contains($serverSource, "'Listener bind test'"),
+    'startup preflight must explain listener bind availability'
+);
+assertWebSocketEndpoint(
+    str_contains($serverSource, "'PHP CLI runtime'"),
+    'startup preflight must report the actual CLI PHP runtime'
+);
+assertWebSocketEndpoint(
+    str_contains($serverSource, "'Browser WebSocket URL'"),
+    'startup preflight must report the browser-facing WebSocket URL'
+);
+assertWebSocketEndpoint(
+    str_contains($serverSource, "'Reverse proxy'"),
+    'startup preflight must report same-origin reverse proxy configuration'
+);
+assertWebSocketEndpoint(
+    str_contains($serverSource, "'value hidden'"),
+    'startup preflight must confirm WS_TICKET_SECRET without disclosing it'
+);
+assertWebSocketEndpoint(
+    str_contains($serverSource, "'check'"),
+    'launcher must provide a diagnostics-only check command'
+);
+$preflightCallPosition = strpos($serverSource, 'if (!workspaceWsPreflight($daemon))');
+$coreBootstrapPosition = strpos($serverSource, "require_once SITEPATH . '/core.php'");
+assertWebSocketEndpoint(
+    is_int($preflightCallPosition)
+    && is_int($coreBootstrapPosition)
+    && $preflightCallPosition < $coreBootstrapPosition,
+    'startup preflight must run before full application bootstrap'
+);
+
+$nativeServerSource = file_get_contents($root . '/modules/messenger/socket/NativeMessengerServer.php');
+assertWebSocketEndpoint(is_string($nativeServerSource), 'cannot read native WebSocket server source');
+assertWebSocketEndpoint(
+    str_contains($nativeServerSource, "'[RUNNING] WebSocket server"),
+    'native runtime must print a bind-confirmed RUNNING message after listener creation'
+);
+
 restore_error_handler();
 fwrite(STDOUT, "WebSocket endpoint contract: OK\n");
