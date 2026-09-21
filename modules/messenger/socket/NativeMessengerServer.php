@@ -161,7 +161,7 @@ final class NativeMessengerServer
         $this->installSignalHandlers();
 
         $startedMessage = sprintf(
-            'Native WebSocket listener started: tcp://%s:%d; pid=%d; max_connections=%d; max_payload=%d bytes',
+            'Внутренний WebSocket listener запущен: tcp://%s:%d; pid=%d; max_connections=%d; max_payload=%d байт',
             $this->host,
             $this->port,
             getmypid(),
@@ -170,8 +170,8 @@ final class NativeMessengerServer
         );
         error_log($startedMessage);
         if (defined('STDOUT')) {
-            fwrite(STDOUT, '[RUNNING] WebSocket server — ' . $startedMessage . PHP_EOL);
-            fwrite(STDOUT, '[INFO] Stop with Ctrl+C or the configured process manager.' . PHP_EOL);
+            fwrite(STDOUT, '[RUNNING] WebSocket-сервер — ' . $startedMessage . PHP_EOL);
+            fwrite(STDOUT, '[INFO] Для остановки нажмите Ctrl+C или используйте настроенный менеджер процессов.' . PHP_EOL);
         }
 
         try {
@@ -213,10 +213,10 @@ final class NativeMessengerServer
         );
         if (!is_resource($listener)) {
             throw new RuntimeException(sprintf(
-                'Unable to start WebSocket listener on %s:%d: %s (%d)',
+                'Не удалось запустить WebSocket listener на %s:%d: %s (%d)',
                 $this->host,
                 $this->port,
-                $errstr !== '' ? $errstr : 'unknown socket error',
+                $errstr !== '' ? $errstr : 'неизвестная ошибка сокета',
                 $errno
             ));
         }
@@ -248,7 +248,7 @@ final class NativeMessengerServer
     private function iterate(): void
     {
         if (!is_resource($this->listener)) {
-            throw new RuntimeException('WebSocket listener is not available');
+            throw new RuntimeException('WebSocket listener недоступен');
         }
 
         $read = [$this->listener];
