@@ -22,6 +22,7 @@ Native server всё равно слушает только `127.0.0.1:27800`; �
 После установки запустите:
 
 ```powershell
+php ws_server/server.php check
 php ws_server/server.php start
 ```
 
