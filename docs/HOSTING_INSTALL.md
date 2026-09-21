@@ -91,6 +91,7 @@ WS_MAX_PAYLOAD_BYTES=2097152
 Web-installer не может универсально запустить долгоживущий процесс на любой панели, поэтому realtime Messenger запускается отдельно:
 
 ```bash
+php ws_server/server.php check
 php ws_server/server.php start
 ```
 

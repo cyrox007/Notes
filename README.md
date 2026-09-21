@@ -46,7 +46,7 @@ Workspace Organizer — self-hosted PHP-приложение для корпор
 - PHP `8.1+` — технический compatibility floor; для Internet-facing production рекомендуется поддерживаемая ветка PHP, сейчас `8.3+`;
 - MySQL `8.x` — основной проверяемый CI path;
 - PHP extensions: `mysqli`, `pdo_mysql`, `mbstring`, `fileinfo`, `sodium`, `gd`;
-- для realtime Messenger/native WebSocket runtime: POSIX-compatible host, PHP CLI, `pcntl`, long-running process и WebSocket reverse proxy;
+- для realtime Messenger/native WebSocket runtime: PHP CLI, возможность держать long-running process и WebSocket endpoint/proxy; daemon mode на Unix дополнительно требует `pcntl`;
 - Argon2id support в `password_hash`;
 - Apache + `mod_rewrite` либо Nginx с эквивалентным front-controller routing;
 - writable private storage вне document root;
@@ -165,15 +165,17 @@ WS_HOST=127.0.0.1
 WS_PORT=27800
 ```
 
-На production hosting маршрут `/ws` должен проксироваться на локальный native WebSocket process. Это единственная часть, которую невозможно универсально стартовать web-installer'ом на каждом типе shared hosting: тариф должен поддерживать long-running PHP process/WebSocket proxy.
-
-Development/VPS:
+На production hosting публичный `/ws` обычно проксируется на локальный native WebSocket process. Long-running PHP process запускается отдельно через hosting background-process manager, systemd/Supervisor или аналогичный process manager:
 
 ```bash
+php ws_server/server.php check
 php ws_server/server.php start
+php bin/ws_doctor.php
 ```
 
-Production: запускайте native WebSocket server через hosting background-process manager, systemd/supervisor/container orchestration и публикуйте браузеру только через WSS reverse proxy. Полный runbook: [`docs/MESSENGER_SERVER.md`](docs/MESSENGER_SERVER.md).
+Поддерживается также **один отдельный WebSocket-узел**, например `wss://ws.example.com/ws`, при условии одинакового release/commit, общей application DB, согласованных `WS_TICKET_SECRET`/`MSG_SECRET_KEY`, общего Messenger private storage и общего maintenance `UPDATE_STATE_PATH`. Несколько одновременно активных WS instances одной installation пока не поддерживаются как HA/load-balancing topology.
+
+Полный runbook: [`docs/MESSENGER_SERVER.md`](docs/MESSENGER_SERVER.md).
 
 ## Upgrade existing DB
 
@@ -361,7 +363,7 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 
 `Build hosting package` собирает upload-ready ZIP с production `vendor/`; теги `v*-*` публикуются как GitHub prerelease, а stable tag без suffix — как обычные Release.
 
-`Browser HTTPS and WSS E2E` поднимает PHP + Workerman + TLS Nginx + MySQL и реальные Chromium-сессии: проверяет login, основные модули, authenticated WSS, realtime delivery и 0.13 reconnect recovery.
+`Browser HTTPS and WSS E2E` поднимает PHP + native WebSocket server + TLS Nginx + MySQL и реальные Chromium-сессии: проверяет login, основные модули, authenticated WSS, realtime delivery и 0.13 reconnect recovery.
 
 Отдельные browser lifecycle workflows проверяют Notes, Tasks, File Manager, Profile и Admin, включая реальную quota-ошибку и DB/storage fault injection без production test hooks.
 
