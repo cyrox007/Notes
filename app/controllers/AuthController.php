@@ -9,8 +9,10 @@ require_once dirname(__DIR__, 2) . '/core/SecurityEventLog.php';
 use App\Helpers\CryptMethods;
 use App\Models\UserModel;
 use App\Services\RegistrationPolicyService;
+use App\Services\TwoFactorService;
 use App\Services\UserProvisioningService;
 use Core\Controller;
+use Core\DatabaseManager;
 use Core\Request;
 use Core\RequestOrigin;
 use Core\Router;
@@ -36,6 +38,7 @@ class AuthController extends Controller
 
     public function sigin(Request $request): void
     {
+        $this->clearTwoFactorPending($request);
         $login = trim((string) $request->post('login'));
         $password = (string) $request->rawPost('password');
 
@@ -78,16 +81,133 @@ class AuthController extends Controller
             return;
         }
 
+        if ((int) ($user->totp_enabled ?? 0) === 1) {
+            $this->beginTwoFactor($request, (int) $user->id);
+            Router::getInstance()->redirect('auth_two_factor', 'name');
+            return;
+        }
+
+        $this->completeLogin($request, (int) $user->id, (string) $user->uid, false, false);
+    }
+
+    public function twoFactor(Request $request): void
+    {
+        $user = $this->pendingTwoFactorUser($request);
+        if ($user === null) {
+            $this->clearTwoFactorPending($request);
+            Router::getInstance()->redirect('authpage', 'name');
+            return;
+        }
+
+        $this->renderTwoFactor($user);
+    }
+
+    public function verifyTwoFactor(Request $request): void
+    {
+        $user = $this->pendingTwoFactorUser($request);
+        if ($user === null) {
+            $this->clearTwoFactorPending($request);
+            Router::getInstance()->redirect('authpage', 'name');
+            return;
+        }
+
+        $code = trim((string) $request->rawPost('code', ''));
+        $result = (new TwoFactorService())->verifyAndConsume(
+            DatabaseManager::getInstance(),
+            (int) $user['id'],
+            $code
+        );
+
+        if (!$result['ok']) {
+            SecurityEventLog::emit(
+                'auth.two_factor_failed',
+                'warning',
+                'auth',
+                'user',
+                (int) $user['id'],
+                ['client_ip' => RequestOrigin::clientIp($_SERVER)]
+            );
+            $this->renderTwoFactor($user, [[
+                'CODE' => 'two_factor_error',
+                'MESSAGE' => 'Неверный или уже использованный код подтверждения',
+            ]]);
+            return;
+        }
+
+        SecurityEventLog::emit(
+            'auth.two_factor_success',
+            'info',
+            'auth',
+            'user',
+            (int) $user['id'],
+            [
+                'client_ip' => RequestOrigin::clientIp($_SERVER),
+                'used_recovery_code' => (bool) $result['used_recovery'],
+            ]
+        );
+
+        $this->clearTwoFactorPending($request);
+        $this->completeLogin(
+            $request,
+            (int) $user['id'],
+            (string) $user['uid'],
+            true,
+            (bool) $result['used_recovery']
+        );
+    }
+
+    private function beginTwoFactor(Request $request, int $userId): void
+    {
+        if (!session_regenerate_id(true)) {
+            throw new RuntimeException('Не удалось обновить идентификатор сессии');
+        }
+
+        $request->unsetSession('auth');
+        $request->unsetSession('user_id');
+        $request->unsetSession('user_uid');
+        $request->setSession('two_factor_pending_user_id', $userId);
+        $request->setSession('two_factor_pending_started_at', time());
+        $request->setSession('_csrf_token', bin2hex(random_bytes(32)));
+    }
+
+    /**
+     * @return array{id:int,uid:string,username:string}|null
+     */
+    private function pendingTwoFactorUser(Request $request): ?array
+    {
+        $userId = (int) $request->session('two_factor_pending_user_id', 0);
+        $startedAt = (int) $request->session('two_factor_pending_started_at', 0);
+        if ($userId <= 0 || $startedAt <= 0 || (time() - $startedAt) > 300) {
+            return null;
+        }
+
+        return DatabaseManager::getInstance()->fetchOne(
+            'SELECT id,uid,username FROM users '
+            . 'WHERE id = :id AND is_active = 1 AND account_status = \'active\' AND totp_enabled = 1 LIMIT 1',
+            [':id' => $userId]
+        );
+    }
+
+    private function clearTwoFactorPending(Request $request): void
+    {
+        $request->unsetSession('two_factor_pending_user_id');
+        $request->unsetSession('two_factor_pending_started_at');
+    }
+
+    private function completeLogin(
+        Request $request,
+        int $userId,
+        string $userUid,
+        bool $twoFactorVerified,
+        bool $usedRecoveryCode
+    ): void {
         if (!session_regenerate_id(true)) {
             throw new RuntimeException('Не удалось обновить идентификатор сессии');
         }
 
         $request->setSession('auth', true);
-        $request->setSession('user_id', $user->id);
-        $request->setSession('user_uid', $user->uid);
-        // Rotate the form token together with the authenticated session id. This
-        // prevents a token from an anonymous/stale login page from surviving the
-        // authentication boundary.
+        $request->setSession('user_id', $userId);
+        $request->setSession('user_uid', $userUid);
         $request->setSession('_csrf_token', bin2hex(random_bytes(32)));
         SessionSecurity::refreshCurrentSessionCookie();
 
@@ -96,10 +216,25 @@ class AuthController extends Controller
             'info',
             'auth',
             'user',
-            (int) $user->id,
-            ['client_ip' => RequestOrigin::clientIp($_SERVER)]
+            $userId,
+            [
+                'client_ip' => RequestOrigin::clientIp($_SERVER),
+                'two_factor_verified' => $twoFactorVerified,
+                'used_recovery_code' => $usedRecoveryCode,
+            ]
         );
         Router::getInstance()->redirect('main', 'name');
+    }
+
+    /** @param array<int,array{CODE:string,MESSAGE:string}> $errors */
+    private function renderTwoFactor(array $user, array $errors = []): void
+    {
+        $this->noStoreAuthPage();
+        $data = ['account' => (string) ($user['username'] ?? '')];
+        if ($errors !== []) {
+            $data['errors'] = $errors;
+        }
+        $this->render_template('login_page/two_factor_view', $data);
     }
 
     public function logout(Request $request): void
