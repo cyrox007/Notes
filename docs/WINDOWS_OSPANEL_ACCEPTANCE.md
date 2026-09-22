@@ -100,7 +100,10 @@ Also verify through the browser:
 - previously created Notes/Tasks/Files/Profile data is present;
 - Admin -> Updates opens without PHP/HTTP errors;
 - the application works under the configured OSPanel hostname/base path;
-- no updater maintenance marker remains active after commit.
+- no updater maintenance marker remains active after commit;
+- with two Messenger users and WebSocket running, both show «WebSocket · в сети» and a message is delivered without reload;
+- stop the native WS process and verify both clients automatically move to «Long Poll · резервный канал» while durable messages still synchronize;
+- start the native WS process again and verify the clients automatically return to «WebSocket · в сети» without page reload.
 
 ### 5. Rollback evidence
 
@@ -120,6 +123,6 @@ Record:
 - update signing key ID reported by verification;
 - bootstrap JSON result;
 - post-upgrade healthcheck result;
-- browser smoke-check result.
+- browser smoke-check result, including WebSocket → Long Poll → WebSocket recovery.
 
 Only after this manual row is green should the release notes say that OSPanel 5.2.2 acceptance has passed.
