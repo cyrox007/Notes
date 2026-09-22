@@ -95,10 +95,12 @@ On a deployment representative of production:
 9. review `php bin/observability.php --json` and retention preview;
 10. confirm adequate DB/private-storage free space and writable external state paths.
 
-## Gate F — defect acceptance
+## Gate F — defect and human acceptance
 
 Before the release owner declares the RC accepted:
 
+- the exact frozen RC/artifact has passed the live visual acceptance tracked by #172, including light/dark/system and compact laptop-width review;
+- the exact frozen RC/artifact has passed the OSPanel 5.2.2 transport acceptance tracked by #173: WebSocket `101` + `Authorized`, automatic Long Poll fallback, durable delivery and automatic return to WebSocket;
 - no open P0/P1 data-loss defects;
 - no open P0/P1 security defects;
 - no unresolved release-blocking regression;
@@ -131,6 +133,9 @@ php bin/release_acceptance.php --strict --json \
   --ci-green \
   --release-evidence-green \
   --backup-restore-current \
+  --operational-acceptance-green \
+  --visual-acceptance-green \
+  --ospanel-acceptance-green \
   --one-zero-one-drill-green \
   --p0p1-clear \
   --trust-canaries-green \
