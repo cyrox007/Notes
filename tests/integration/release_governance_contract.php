@@ -157,7 +157,7 @@ if (preg_match("/pull_request:\\s*\\n\\s*branches:\\s*\\[master,\\s*'1\\.0'\\]/m
 }
 
 $docs = requireFileText($root . '/docs/RELEASE_GOVERNANCE.md');
-if (!str_contains($docs, 'Настройки branch protection живут вне истории Git')) {
+if (preg_match('/Настройки branch\\s+protection живут вне истории Git/u', $docs) !== 1) {
     failContract('документация должна явно описывать внешнюю границу GitHub Settings');
 }
 if (!str_contains($docs, 'Защита ветки 1.0')) {
