@@ -8,8 +8,14 @@
             this.userUid = root.dataset.userUid || '';
             this.userName = root.dataset.userName || 'Вы';
             this.socket = null;
+            this.socketAuthorized = false;
             this.reconnectTimer = null;
             this.reconnectAttempt = 0;
+            this.longPollActive = false;
+            this.longPollCursor = '';
+            this.longPollAbortController = null;
+            this.longPollGeneration = 0;
+            this.longPollRetryTimer = null;
             this.typingTimer = null;
             this.typingSent = false;
             this.pendingOpenUid = null;
@@ -128,17 +134,23 @@
             wspace.socketConfig = { url, ticket };
 
             if (!url || !ticket) {
-                this.setConnectionState('offline', 'WebSocket не настроен');
+                this.startLongPoll('WebSocket не настроен');
                 return;
             }
 
-            this.setConnectionState('connecting', this.reconnectAttempt ? 'Переподключение…' : 'Подключение…');
+            this.setConnectionState(
+                this.longPollActive ? 'fallback' : 'connecting',
+                this.longPollActive
+                    ? 'Long Poll · WebSocket переподключается'
+                    : (this.reconnectAttempt ? 'Переподключение…' : 'Подключение…')
+            );
 
             try {
                 const separator = url.includes('?') ? '&' : '?';
                 this.socket = new WebSocket(`${url}${separator}ticket=${encodeURIComponent(ticket)}`);
             } catch (error) {
                 console.error(error);
+                this.startLongPoll('WebSocket недоступен');
                 this.scheduleReconnect();
                 return;
             }
@@ -148,9 +160,13 @@
             });
 
             this.socket.addEventListener('message', (event) => this.handleSocketMessage(event));
-            this.socket.addEventListener('error', () => this.setConnectionState('offline', 'Ошибка соединения'));
+            this.socket.addEventListener('error', () => {
+                this.socketAuthorized = false;
+                this.startLongPoll('WebSocket недоступен');
+            });
             this.socket.addEventListener('close', () => {
-                this.setConnectionState('offline', 'Нет соединения');
+                this.socketAuthorized = false;
+                this.startLongPoll('WebSocket отключён');
                 this.scheduleReconnect();
             });
         }
@@ -179,7 +195,9 @@
                     this.sendEvent('PingSocket:index', { ping: 'Pong' });
                     break;
                 case 'Authorized':
-                    this.setConnectionState('online', 'В сети');
+                    this.socketAuthorized = true;
+                    this.stopLongPoll();
+                    this.setConnectionState('online', 'WebSocket · в сети');
                     this.sendEvent('MessangerSocket:get_dialogs', {});
                     break;
                 case 'get_dialogs':
@@ -223,19 +241,154 @@
         }
 
         sendEvent(action, data = {}) {
-            if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-                this.showToast('Нет соединения с сервером');
+            if (this.socket && this.socket.readyState === WebSocket.OPEN && this.socketAuthorized) {
+                this.socket.send(JSON.stringify({ action, data }));
+                return true;
+            }
+
+            return this.sendHttpEvent(action, data);
+        }
+
+        sendHttpEvent(action, data = {}) {
+            if (navigator.onLine === false) {
+                this.showToast('Нет подключения к интернету');
                 return false;
             }
-            this.socket.send(JSON.stringify({ action, data }));
+
+            const body = new URLSearchParams();
+            body.set('action', String(action || ''));
+            body.set('data', JSON.stringify(data || {}));
+
+            const endpoint = typeof window.wspace?.path === 'function'
+                ? window.wspace.path('/messenger/realtime/action')
+                : '/messenger/realtime/action';
+
+            void (async () => {
+                try {
+                    const response = await fetch(endpoint, {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        headers: { 'Accept': 'application/json' },
+                        body
+                    });
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    const payload = await response.json();
+                    if (payload?.status !== 'ok') {
+                        throw new Error(payload?.message || 'Long Poll action failed');
+                    }
+                    this.dispatchRealtimeEvents(payload.events);
+                } catch (error) {
+                    console.warn('Messenger HTTP fallback action failed', error);
+                    this.showToast('Резервный канал временно недоступен');
+                }
+            })();
+
             return true;
+        }
+
+        dispatchRealtimeEvents(events) {
+            (Array.isArray(events) ? events : []).forEach((payload) => {
+                if (!payload || typeof payload !== 'object') return;
+                this.handleSocketMessage({ data: JSON.stringify(payload) });
+            });
+        }
+
+        startLongPoll(reason = '') {
+            if (navigator.onLine === false) {
+                this.setConnectionState('offline', 'Нет интернета');
+                return;
+            }
+            if (this.longPollActive) {
+                this.setConnectionState('fallback', 'Long Poll · резервный канал');
+                return;
+            }
+
+            this.longPollActive = true;
+            this.longPollCursor = '';
+            const generation = ++this.longPollGeneration;
+            this.setConnectionState(
+                'fallback',
+                reason ? `Long Poll · ${reason}` : 'Long Poll · резервный канал'
+            );
+            void this.runLongPoll(generation);
+        }
+
+        stopLongPoll() {
+            if (!this.longPollActive && !this.longPollAbortController) return;
+            this.longPollActive = false;
+            this.longPollGeneration += 1;
+            this.longPollCursor = '';
+            if (this.longPollRetryTimer) {
+                window.clearTimeout(this.longPollRetryTimer);
+                this.longPollRetryTimer = null;
+            }
+            if (this.longPollAbortController) {
+                this.longPollAbortController.abort();
+                this.longPollAbortController = null;
+            }
+        }
+
+        async runLongPoll(generation) {
+            while (this.longPollActive && generation === this.longPollGeneration) {
+                const query = new URLSearchParams();
+                if (this.longPollCursor) query.set('cursor', this.longPollCursor);
+                if (this.currentDialog?.uid) query.set('dialog_uid', this.currentDialog.uid);
+
+                const path = `/messenger/realtime/poll?${query.toString()}`;
+                const endpoint = typeof window.wspace?.path === 'function'
+                    ? window.wspace.path(path)
+                    : path;
+                const controller = new AbortController();
+                this.longPollAbortController = controller;
+
+                try {
+                    const response = await fetch(endpoint, {
+                        method: 'GET',
+                        credentials: 'same-origin',
+                        cache: 'no-store',
+                        headers: { 'Accept': 'application/json' },
+                        signal: controller.signal
+                    });
+                    if (!this.longPollActive || generation !== this.longPollGeneration) return;
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+
+                    const payload = await response.json();
+                    if (payload?.status !== 'ok') {
+                        throw new Error(payload?.message || 'Long Poll failed');
+                    }
+                    if (typeof payload.cursor === 'string' && payload.cursor) {
+                        this.longPollCursor = payload.cursor;
+                    }
+                    if (payload.changed) {
+                        this.dispatchRealtimeEvents(payload.events);
+                    }
+                    this.setConnectionState('fallback', 'Long Poll · резервный канал');
+                } catch (error) {
+                    if (error?.name === 'AbortError') return;
+                    if (!this.longPollActive || generation !== this.longPollGeneration) return;
+                    console.warn('Messenger long poll failed', error);
+                    this.setConnectionState('offline', 'Резервный канал недоступен');
+                    await new Promise((resolve) => {
+                        this.longPollRetryTimer = window.setTimeout(resolve, 1800);
+                    });
+                    this.longPollRetryTimer = null;
+                } finally {
+                    if (this.longPollAbortController === controller) {
+                        this.longPollAbortController = null;
+                    }
+                }
+            }
         }
 
         setConnectionState(state, text) {
             if (!this.el.connection) return;
             this.el.connection.dataset.state = state;
             if (this.el.connectionText) this.el.connectionText.textContent = text;
-            if (this.el.send) this.el.send.disabled = state !== 'online';
+            if (this.el.send) this.el.send.disabled = state !== 'online' && state !== 'fallback';
         }
 
         applyDialogs(dialogs) {

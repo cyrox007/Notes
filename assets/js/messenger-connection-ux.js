@@ -124,18 +124,28 @@
         function updateCountdown() {
             if (!reconnectAt) return;
             const remaining = Math.max(0, Math.ceil((reconnectAt - Date.now()) / 1000));
-            const text = remaining > 0
-                ? `Связь потеряна · повтор через ${remaining} с`
-                : 'Восстанавливаем соединение…';
-            originalSetConnectionState('connecting', text);
-            root.dataset.connectionState = 'connecting';
+            const fallback = app.longPollActive === true;
+            const state = fallback ? 'fallback' : 'connecting';
+            const text = fallback
+                ? (remaining > 0
+                    ? `Long Poll · WebSocket через ${remaining} с`
+                    : 'Long Poll · проверяем WebSocket…')
+                : (remaining > 0
+                    ? `Связь потеряна · повтор через ${remaining} с`
+                    : 'Восстанавливаем соединение…');
+            originalSetConnectionState(state, text);
+            root.dataset.connectionState = state;
             banner.hidden = false;
-            banner.dataset.state = 'connecting';
+            banner.dataset.state = state;
             banner.dataset.reason = 'server';
-            bannerIcon.className = 'fa fa-refresh';
-            bannerText.textContent = remaining > 0
-                ? `Соединение прервано. Повторная попытка через ${remaining} с.`
-                : 'Восстанавливаем соединение с сервером…';
+            bannerIcon.className = fallback ? 'fa fa-exchange' : 'fa fa-refresh';
+            bannerText.textContent = fallback
+                ? (remaining > 0
+                    ? `Работа продолжается через Long Poll. WebSocket переподключится через ${remaining} с.`
+                    : 'Работа продолжается через Long Poll. Проверяем WebSocket…')
+                : (remaining > 0
+                    ? `Соединение прервано. Повторная попытка через ${remaining} с.`
+                    : 'Восстанавливаем соединение с сервером…');
             bannerAction.hidden = true;
         }
 
@@ -198,10 +208,17 @@
                     return true;
                 } catch (error) {
                     console.warn('Messenger reconnect ticket refresh failed', error);
-                    renderState('offline', 'Сервер временно недоступен', {
-                        reason: 'server',
-                        bannerText: 'Не удалось восстановить соединение. Повторим попытку автоматически.'
-                    });
+                    if (app.longPollActive === true) {
+                        renderState('fallback', 'Long Poll · WebSocket недоступен', {
+                            reason: 'server',
+                            bannerText: 'Messenger работает через Long Poll. WebSocket будет проверен повторно.'
+                        });
+                    } else {
+                        renderState('offline', 'Сервер временно недоступен', {
+                            reason: 'server',
+                            bannerText: 'Не удалось восстановить соединение. Повторим попытку автоматически.'
+                        });
+                    }
                     return false;
                 } finally {
                     refreshPromise = null;
@@ -232,11 +249,17 @@
             }
 
             reconnectInFlight = true;
-            renderState('connecting', 'Восстанавливаем соединение…', {
-                reason: 'server',
-                bannerText: 'Восстанавливаем соединение с сервером…',
-                hideRetry: true
-            });
+            renderState(
+                app.longPollActive === true ? 'fallback' : 'connecting',
+                app.longPollActive === true ? 'Long Poll · проверяем WebSocket…' : 'Восстанавливаем соединение…',
+                {
+                    reason: 'server',
+                    bannerText: app.longPollActive === true
+                        ? 'Messenger продолжает работать через Long Poll. Проверяем WebSocket в фоне…'
+                        : 'Восстанавливаем соединение с сервером…',
+                    hideRetry: true
+                }
+            );
 
             try {
                 const refreshed = await refreshTicket();
@@ -287,7 +310,7 @@
                 return;
             }
             clearReconnectTimer();
-            if (app.socket && app.socket.readyState === WebSocket.OPEN) return;
+            if (app.socket && app.socket.readyState === WebSocket.OPEN && app.socketAuthorized === true) return;
             app.scheduleReconnect({ immediate: true });
         }
 
