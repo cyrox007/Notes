@@ -3,18 +3,6 @@ name: 1.0 release evidence
 on:
   pull_request:
     branches: [master, '1.0']
-    paths:
-      - 'app/**'
-      - 'core/**'
-      - 'modules/**'
-      - 'assets/**'
-      - 'tests/e2e/release-browser-evidence.mjs'
-      - 'tests/e2e/release-load-soak.mjs'
-      - 'tests/e2e/router.php'
-      - 'tests/integration/release_evidence_contract.php'
-      - 'docs/RELEASE_EVIDENCE.md'
-      - '.github/workflows/release-evidence.yml'
-      - '.github/workflows/release-gate.yml'
   workflow_dispatch:
 
 permissions:
