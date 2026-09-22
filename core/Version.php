@@ -14,7 +14,7 @@ class Version
     public const PRODUCT_NAME = 'Workspace Organizer';
     public const STATUS = 'stable';
     public const VERSION_CODE = 10002;
-    public const RELEASE_DATE = '2026-09-21';
+    public const RELEASE_DATE = '2026-09-22';
 
     public static function getFullVersion(): string
     {
