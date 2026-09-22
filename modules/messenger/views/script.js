@@ -227,6 +227,9 @@
                 case 'read_update':
                     this.receiveReadUpdate(data);
                     break;
+                case 'sync_required':
+                    this.syncDurableState();
+                    break;
                 case 'user_typing':
                     this.receiveTyping(data, true);
                     break;
@@ -238,6 +241,15 @@
                     break;
                 default:
                     break;
+            }
+        }
+
+        syncDurableState() {
+            this.sendEvent('MessangerSocket:get_dialogs', {});
+            this.sendEvent('DialogStateSocket:list', {});
+            if (this.currentDialog?.uid) {
+                this.sendEvent('MessangerSocket:load', { dialog_uid: this.currentDialog.uid });
+                this.sendEvent('ReceiptSocket:list', { dialog_uid: this.currentDialog.uid });
             }
         }
 

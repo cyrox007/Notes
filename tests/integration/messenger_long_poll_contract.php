@@ -26,6 +26,7 @@ $runtime = file_get_contents($root . '/modules/messenger/runtime.php');
 $provider = file_get_contents($root . '/modules/messenger/MessengerRuntimeProvider.php');
 $controller = file_get_contents($root . '/modules/messenger/controllers/MessengerRealtimeController.php');
 $service = file_get_contents($root . '/modules/messenger/services/MessengerLongPollService.php');
+$revisionService = file_get_contents($root . '/modules/messenger/services/MessengerRealtimeRevisionService.php');
 $connection = file_get_contents($root . '/modules/messenger/socket/BufferedSocketConnection.php');
 $server = file_get_contents($root . '/modules/messenger/socket/NativeMessengerServer.php');
 $client = file_get_contents($root . '/modules/messenger/views/script.js');
@@ -36,6 +37,7 @@ foreach ([
     'provider' => $provider,
     'controller' => $controller,
     'service' => $service,
+    'revision service' => $revisionService,
     'connection' => $connection,
     'server' => $server,
     'client' => $client,
@@ -46,6 +48,7 @@ foreach ([
 
 assertLongPollContract(
     str_contains($runtime, "/services/MessengerLongPollService.php")
+    && str_contains($runtime, "/services/MessengerRealtimeRevisionService.php")
     && str_contains($runtime, "/controllers/MessengerRealtimeController.php")
     && str_contains($runtime, "/socket/BufferedSocketConnection.php"),
     'isolated Messenger runtime does not own all fallback components'
@@ -71,9 +74,23 @@ assertLongPollContract(
     'fallback actions must preserve exact message bytes instead of HTML-sanitizing JSON text'
 );
 assertLongPollContract(
+    str_contains($controller, 'isDurableMutationAction')
+    && str_contains($controller, 'MessengerRealtimeRevisionService')
+    && str_contains($controller, '->bump()'),
+    'durable HTTP fallback mutations must publish a shared realtime revision'
+);
+assertLongPollContract(
     str_contains($service, 'MESSENGER_LONG_POLL_TIMEOUT_SECONDS')
     && str_contains($controller, 'connection_aborted()'),
     'long-poll wait must be bounded and abort-aware'
+);
+
+assertLongPollContract(
+    str_contains($revisionService, "messenger_realtime_revision")
+    && str_contains($revisionService, 'system_settings')
+    && str_contains($revisionService, 'ON DUPLICATE KEY UPDATE')
+    && str_contains($revisionService, 'setting_value = CAST('),
+    'realtime revision bridge must use an atomic shared-database revision'
 );
 
 assertLongPollContract(
@@ -86,6 +103,12 @@ assertLongPollContract(
     str_contains($server, 'public function dispatchTransportMessage')
     && str_contains($server, '$handlerConnections = $connections ?? $this->connections'),
     'WebSocket server must expose the same allow-listed handler dispatcher to fallback transport'
+);
+assertLongPollContract(
+    str_contains($server, 'FALLBACK_REVISION_CHECK_INTERVAL_SECONDS')
+    && str_contains($server, 'pollFallbackRevisionBridge')
+    && str_contains($server, "'action' => 'sync_required'"),
+    'WebSocket server must bridge durable HTTP fallback revisions to connected clients'
 );
 
 assertLongPollContract(
@@ -103,6 +126,13 @@ assertLongPollContract(
     str_contains($connectionUx, 'pauseLongPollRequest')
     && str_contains($connectionUx, 'resumeLongPoll'),
     'WebSocket ticket recovery must release a long-poll worker before HTTP refresh'
+);
+assertLongPollContract(
+    str_contains($client, "case 'sync_required':")
+    && str_contains($client, 'syncDurableState()')
+    && str_contains($client, "MessangerSocket:get_dialogs")
+    && str_contains($client, "MessangerSocket:load"),
+    'WebSocket clients must resync canonical durable state after a fallback revision'
 );
 assertLongPollContract(
     str_contains($client, "state !== 'online' && state !== 'fallback'"),
