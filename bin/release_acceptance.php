@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 if (PHP_SAPI !== 'cli') {
-    fwrite(STDERR, "This command is CLI-only.\n");
+    fwrite(STDERR, "Команда доступна только из CLI.\n");
     exit(2);
 }
 
@@ -23,7 +23,7 @@ $options = getopt('', [
     'visual-acceptance-green',
     'ospanel-acceptance-green',
     'one-zero-one-drill-green',
-    'beta4-drill-green', // compatibility alias for older operator scripts
+    'beta4-drill-green', // Совместимый alias для старых операторских сценариев
     'p0p1-clear',
     'trust-canaries-green',
     'artifact-signed',
@@ -31,9 +31,9 @@ $options = getopt('', [
 ]);
 
 if (isset($options['help'])) {
-    echo "Usage: php bin/release_acceptance.php [--json] [--strict <operator attestations>]\n";
-    echo "Non-strict mode reports source failures plus pending external release gates.\n";
-    echo "Strict mode exits non-zero until every production/manual gate is explicitly confirmed.\n";
+    echo "Использование: php bin/release_acceptance.php [--json] [--strict <подтверждения оператора>]\n";
+    echo "Обычный режим показывает ошибки исходников и ожидающие внешние релизные проверки.\n";
+    echo "Строгий режим завершается с ошибкой, пока каждая production/manual проверка явно не подтверждена.\n";
     exit(0);
 }
 
@@ -117,7 +117,7 @@ foreach ($iterator as $file) {
 $record(
     'private_signing_material_absent',
     $privateMatches === [],
-    $privateMatches === [] ? 'no forbidden private signing files' : implode(', ', $privateMatches)
+    $privateMatches === [] ? 'запрещённые файлы приватных signing keys не найдены' : implode(', ', $privateMatches)
 );
 
 $decodePublic = static function (string $token): ?string {
@@ -131,7 +131,7 @@ $decodePublic = static function (string $token): ?string {
 
 $licenseRegistry = require $root . '/config/license_trusted_keys.php';
 $updateRegistry = require $root . '/config/update_trusted_keys.php';
-$record('license_registry_type', is_array($licenseRegistry), 'public keys only');
+$record('license_registry_type', is_array($licenseRegistry), 'только публичные ключи');
 $record('update_registry_type', is_array($updateRegistry), 'public keys only');
 
 $trustRootsReady = is_array($licenseRegistry)
@@ -145,7 +145,7 @@ if (is_array($licenseRegistry)) {
     foreach ($licenseRegistry as $id => $token) {
         $raw = is_string($token) ? $decodePublic($token) : null;
         if (!is_string($id) || $raw === null) {
-            $record('license_public_key_format', false, 'invalid key id/public key');
+            $record('license_public_key_format', false, 'некорректный key ID или публичный ключ');
             break;
         }
         $licenseFingerprints[$id] = hash('sha256', $raw);
@@ -167,7 +167,7 @@ if ($trustRootsReady) {
         'production_trust_domains_independent',
         array_intersect(array_keys($licenseFingerprints), array_keys($updateFingerprints)) === []
             && array_intersect(array_values($licenseFingerprints), array_values($updateFingerprints)) === [],
-        'independent ids and Ed25519 key material'
+        'независимые ID и Ed25519 key material'
     );
 } else {
     $pending[] = 'production_public_trust_roots';
@@ -240,12 +240,17 @@ if ($json) {
         JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
     ) . PHP_EOL;
 } else {
-    echo 'Workspace Organizer ' . Version::VERSION . ' release acceptance: ' . strtoupper($status) . PHP_EOL;
+    $statusLabel = match ($status) {
+        'ready' => 'ГОТОВО',
+        'pending' => 'ОЖИДАЕТ ПОДТВЕРЖДЕНИЙ',
+        default => 'ОШИБКА',
+    };
+    echo 'Workspace Organizer ' . Version::VERSION . ' — приёмка релиза: ' . $statusLabel . PHP_EOL;
     foreach ($checks as $name => $check) {
         echo sprintf("  [%s] %s%s\n", $check['ok'] ? 'OK' : 'FAIL', $name, $check['details'] !== '' ? ' — ' . $check['details'] : '');
     }
     if ($pending !== []) {
-        echo "Pending release gates:\n";
+        echo "Ожидающие релизные проверки:\n";
         foreach ($pending as $gate) {
             echo '  - ' . $gate . PHP_EOL;
         }
