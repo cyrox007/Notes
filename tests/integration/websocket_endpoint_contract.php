@@ -228,7 +228,9 @@ assertWebSocketEndpoint(
     'startup preflight must report same-origin reverse proxy configuration'
 );
 assertWebSocketEndpoint(
-    str_contains($serverSource, "'value hidden'"),
+    str_contains($serverSource, "'WS_TICKET_SECRET'")
+    && str_contains($serverSource, 'value hidden')
+    && str_contains($serverSource, 'strlen($ticketSecret)'),
     'startup preflight must confirm WS_TICKET_SECRET without disclosing it'
 );
 assertWebSocketEndpoint(
