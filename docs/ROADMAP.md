@@ -4,18 +4,16 @@
 
 Этот документ описывает текущее состояние и следующий продуктовый план. Исторические аудиты и старые PR сохраняются как свидетельства развития, но их закрытые пункты не являются текущими блокерами без нового воспроизводимого дефекта.
 
-## 1.0.x — текущее состояние
+## Линия 1.0.x — текущее состояние
 
-### Что уже завершено
-
-Линия 1.0 прошла основную архитектурную стабилизацию:
+### Завершённая архитектурная стабилизация
 
 - все шесть встроенных production-модулей `admin`, `files`, `messenger`, `notes`, `profile`, `tasks` используют `runtime.mode = isolated`;
-- рекурсивный загрузчик product-кода из `app/*` удалён из runtime-контракта;
-- межмодульные интеграции используют capabilities/contracts вместо прямого чтения внутренних файлов соседнего модуля;
+- переходный рекурсивный загрузчик product-кода из `app/*` удалён из runtime-контракта;
+- межмодульные интеграции используют capabilities/contracts вместо прямого доступа к внутренним файлам соседнего модуля;
 - browser lifecycle для Notes, Tasks, Files, Profile и Admin, HTTPS/WSS E2E, WebSocket deployment и storage fault injection входят в релизную матрицу;
-- published baseline — `v1.0.1`;
-- File Manager regression, перенос Profile/Admin/Messenger и пустые production trust roots из старых аудитов закрыты и не должны возвращаться в работу без новой регрессии.
+- опубликованный baseline — `v1.0.1`;
+- старые дефекты File Manager lifecycle, перенос Profile/Admin/Messenger и пустые production trust roots закрыты и не должны возвращаться в работу без новой регрессии.
 
 Историческая последовательность PR #136–#146 остаётся полезной для понимания миграции, но больше не является списком незавершённых задач.
 
@@ -23,23 +21,31 @@
 
 `1.0.2` — patch-релиз, сфокусированный на надёжности Messenger, signed updater и эксплуатационной готовности.
 
-В текущий состав входят:
+В состав входят:
 
 - WebSocket как основной realtime-транспорт Messenger;
-- аутентифицированный HTTP Long Poll как автоматический fallback с возвратом на WebSocket после восстановления;
-- исправление границы Long Poll timeout без потери события;
-- сохранение неподтверждённого черновика Messenger при 403/503/network/handler failure;
+- аутентифицированный HTTP Long Poll как автоматический резервный транспорт с возвратом на WebSocket после восстановления;
+- исправление границы Long Poll timeout без пропуска события;
+- сохранение неподтверждённого черновика Messenger при HTTP 403/503, сетевом отказе и ошибке обработчика;
 - явная CSRF-защита HTTP mutation fallback;
-- exact upgrade drill `v1.0.1 -> 1.0.2` с принудительным post-switch failure и проверкой автоматического отката кода и БД;
+- exact upgrade drill `v1.0.1 -> 1.0.2` с принудительным отказом после переключения и проверкой автоматического отката кода и БД;
 - Windows/PHP 8.1/8.3 compatibility checks и ручная приёмка OSPanel 5.2.2;
 - единый обязательный набор release checks для `1.0` и `master`;
-- неизменяемый production ZIP, manifest/signature и trust canaries как финальная операторская граница.
+- production ZIP, manifest/signature и trust canaries как финальная операторская граница.
 
 Финальная процедура и открытые human/operator gates ведутся в `docs/RELEASE_STATUS_1.0.md` и `docs/RELEASE_ACCEPTANCE.md`.
 
 ### 2FA/TOTP
 
-2FA/TOTP остаётся отдельным незавершённым пользовательским запросом. В текущем release contract она **не включена в 1.0.2** и не должна механически подмешиваться в уже замороженный RC. Это не означает отмену функции: перед интеграцией необходимо закрыть ротацию `UNIQUE_KEY` для TOTP-секретов, восстановление доступа и полный upgrade/login lifecycle.
+2FA/TOTP остаётся отдельным незавершённым пользовательским запросом. В текущем release contract она **не включена в 1.0.2** и не должна механически подмешиваться в уже замороженный RC.
+
+Это не отменяет функцию. Перед интеграцией необходимо:
+
+- включить TOTP-секреты в безопасную ротацию `UNIQUE_KEY`;
+- проверить прерывание, возобновление и rollback ротации;
+- определить согласованный recovery-сценарий резервных кодов;
+- пройти clean install и upgrade с опубликованной 1.0.1;
+- выполнить полный login lifecycle до и после ротации.
 
 ### Историческая граница 1.0
 
@@ -47,119 +53,127 @@
 
 ## 1.1 — Ежедневник + Calendar
 
-Исторический README от 15 апреля 2024 года (commit `786a321b844661539ac36e6e4e885809eb874b02`) отдельно перечислял **«Ежедневник»**. Это отдельный будущий модуль личного планирования, связанный с календарём. Он не является названием или частью модуля Tasks.
+Исторический README отдельно предусматривал «Ежедневник». Это будущий модуль личного планирования, связанный с календарём, а не переименование Tasks.
 
-Текущий Tasks отвечает за персональные и совместные доски задач: work items, kanban/list представления, статусы, категории, сроки, приоритеты и shared boards.
+Целевой объём:
 
-Целевой Ежедневник / Calendar contract:
+- представления день/неделя/месяц;
+- agenda и планирование дня;
+- события и повторяющиеся события;
+- напоминания и уведомления;
+- временные блоки;
+- связь события с Task/Note/File через публичные module contracts;
+- личные и при необходимости общие календари;
+- корректная работа часовых поясов;
+- import/export как последующая capability;
+- собственные permissions/storage/schema/migrations и isolated package с первого дня.
 
-- day/week/month calendar views;
-- agenda/day planner view;
-- события и recurring events;
-- reminders и уведомления;
-- time blocks и планирование дня;
-- связь календарного события с Task/Note/File через публичные module contracts;
-- личные календари и, при необходимости, shared calendars;
-- timezone-safe storage/rendering;
-- import/export interoperability как post-MVP capability;
-- собственные permissions/storage/schema/migrations и isolated module package с первого дня.
+Tasks и Ежедневник взаимодействуют, но остаются независимыми: Tasks управляет задачами и досками, Ежедневник — временем и календарным контекстом.
 
-Tasks и Ежедневник взаимодействуют, но остаются двумя независимыми модулями: Tasks управляет задачами и досками, Ежедневник — временем, расписанием и календарным контекстом.
+## 1.2 — общее воспроизведение медиа
 
-## 1.2 — Media playback extension
+Исторический план включал мультимедиа-плеер. Актуальная модель — общее расширение платформы, которым пользуются Files, Notes, Messenger и будущие модули.
 
-Исторический README упоминал мультимедиа-плеер. Актуальная продуктовая модель: это прежде всего **расширение платформы и модулей**, а не самостоятельный пользовательский раздел, дублирующий Files.
+Целевой объём:
 
-Целевой media capability:
+- единый viewer/player contract;
+- audio/video из разрешённых ресурсов разных модулей;
+- встроенный preview без дублирования исходных файлов;
+- range requests и streaming больших файлов;
+- сохранение позиции воспроизведения там, где это уместно;
+- metadata, duration, thumbnails/covers и безопасный media probing;
+- playlists/queue как возможность host-модуля;
+- интеграция через capability, без прямого чтения чужих таблиц;
+- явное декларирование поддерживаемых codec/container capabilities.
 
-- единый viewer/player contract для модулей, которые работают с медиа;
-- воспроизведение audio/video из Files, Notes attachments, Messenger attachments и будущих модулей;
-- inline preview без дублирования исходных file bytes;
-- range requests / streaming для больших файлов;
-- общий resume position/history там, где это уместно;
-- metadata, duration, thumbnails/covers и media probing;
-- playlists/queue могут предоставляться хост-модулем поверх общего player API;
-- capability-based integration: модуль передаёт разрешённый media resource, player не читает чужие внутренние таблицы напрямую;
-- codec/container support развивается через безопасные backend/browser adapters и явно заявленные capabilities.
-
-Архитектурно это reusable platform extension/service с UI-компонентами, которым пользуются изолированные модули. Отдельный полноэкранный медиаплеер может появиться позже как оболочка над тем же API, но не является обязательным ядром функции.
+Отдельный полноэкранный медиаплеер может появиться позже как оболочка над тем же API.
 
 ## 1.3 — CodeExplorer / Workspace IDE
 
-Исторический CodeExplorer задумывался значительно шире простого syntax-highlighted viewer. Целевое направление — собственное IDE-подобное рабочее пространство и постепенно **«GitHub на минималках»** внутри self-hosted Workspace Organizer.
+Целевое направление — IDE-подобное рабочее пространство и постепенно «GitHub на минималках» внутри self-hosted Workspace Organizer.
 
-Базовый IDE contract:
+Базовый объём:
 
-- project/repository tree;
-- открытие нескольких файлов/tabs;
-- syntax highlighting для основных языков;
+- дерево проекта/репозитория;
+- несколько открытых файлов;
+- подсветка синтаксиса;
 - поиск по файлам и содержимому;
-- безопасное редактирование text/code resources;
+- безопасное редактирование текстовых ресурсов;
 - diff viewer;
-- file history;
-- keyboard-oriented editor workflow;
-- workspace/repository ACL;
-- explicit autosave/manual-save policy и recovery drafts.
+- история файлов;
+- клавиатурный сценарий работы редактора;
+- ACL рабочего пространства/репозитория;
+- явная политика autosave/manual save и восстановление черновиков.
 
-Repository layer следующего этапа:
+Следующий слой Git:
 
-- Git repository discovery/creation/import;
-- status, staged/unstaged changes;
+- обнаружение/создание/import репозиториев;
+- status и staged/unstaged changes;
 - commits и история;
 - branches/tags;
-- diffs между revisions;
+- diff между revisions;
 - blame/history navigation;
-- lightweight merge/change-review workflow;
-- локальные repositories как основной сценарий, remote sync как отдельная capability;
-- интеграция с Notes/Tasks для issue-like work items и документации через публичные contracts.
+- облегчённый merge/review workflow;
+- локальные репозитории как основной сценарий;
+- remote sync как отдельная capability;
+- интеграция с Notes/Tasks через публичные contracts.
 
-Дальнейшее развитие может добавить project overview, markdown/README rendering, lightweight issues/discussions, code review и другие GitHub-подобные функции. Выполнение произвольного кода, shell/terminal, build/test runner и remote Git credentials не входят автоматически в trusted core: для них потребуется отдельный sandbox/permission/security design.
+Произвольный shell, выполнение кода, build/test runner и remote Git credentials не входят автоматически в trusted core и требуют отдельного sandbox/permission/security design.
 
-## Module platform after 1.0
+## Развитие модульной платформы после 1.0
 
-После физической изоляции first-party modules платформа развивается в сторону безопасно распространяемых packages:
+Платформа развивается в сторону безопасно распространяемых пакетов:
 
-- signed module packages и publisher trust metadata;
-- package integrity до исполнения кода;
-- dependency/version resolver;
-- module-owned migrations с transactional upgrade/rollback story;
+- подписанные module packages и publisher trust metadata;
+- проверка integrity до исполнения кода;
+- resolver зависимостей и версий;
+- module-owned migrations с транзакционным upgrade/rollback;
 - install/enable/disable/quarantine/uninstall hooks;
-- central entitlement service вместо локальных license checks;
-- compatibility preflight перед activation;
-- health state per module;
-- curated first-party catalog, затем возможность controlled third-party distribution;
-- module package builder использует тот же manifest/dependency resolver, что installer/updater.
+- центральный entitlement service;
+- compatibility preflight перед активацией;
+- health state каждого модуля;
+- curated first-party catalog, затем контролируемая third-party distribution;
+- общий manifest/dependency resolver для builder и installer/updater.
 
-Никакой downloaded module code не исполняется до signature/integrity/core-compatibility/dependency validation.
+Загруженный module code не исполняется до проверки подписи, integrity, core compatibility и зависимостей.
 
-## Product evolution after restored capabilities
+## Возможные направления после восстановленных функций
 
-После Ежедневника/Calendar, media playback extension и CodeExplorer приоритет определяется реальным использованием. Кандидаты:
+После Ежедневника/Calendar, общего медиа-слоя и CodeExplorer приоритет определяется реальным использованием. Кандидаты:
 
-- cross-module universal search/index;
-- notification/reminder center;
-- richer shared workspace/team layer;
-- automation/workflows between module events;
-- PWA/offline capabilities только для flows, где conflict/recovery semantics определены;
-- public API/webhook surface поверх тех же contracts, которые используют modules.
+- универсальный межмодульный поиск/индекс;
+- центр уведомлений и напоминаний;
+- расширенный общий workspace/team layer;
+- automation/workflows между событиями модулей;
+- PWA/offline только для сценариев с определённой conflict/recovery semantics;
+- публичный API/webhooks поверх тех же contracts, которые используют модули.
 
-Эти пункты не считаются обещанием конкретной версии, пока не имеют отдельного approved design/contract.
+Эти пункты не являются обещанием конкретной версии без отдельного согласованного design/contract.
 
-## Architecture rules for all future modules
+## Архитектурные правила будущих модулей
 
-Новые модули не получают legacy exception. С первого коммита они должны:
+Новый модуль с первого коммита должен:
 
 - жить под `modules/<id>/`;
 - использовать `runtime.mode = isolated`;
-- объявлять зависимости/capabilities/storage/schema ownership;
-- не добавлять product routes/controllers/services в общий core;
-- не читать и не писать internal data другого модуля напрямую;
+- объявлять dependencies/capabilities/storage/schema ownership;
+- не добавлять product routes/controllers/services в общий Core;
+- не читать и не изменять внутренние данные другого модуля напрямую;
 - иметь install/update/disable/recovery tests пропорционально риску;
-- корректно отсутствовать из composition без fatal errors в core;
+- корректно отсутствовать из composition без fatal error ядра;
 - не расширять trusted core только ради удобства реализации.
 
-Cross-module extensions вроде media playback не отменяют изоляцию: они должны предоставляться через стабильный capability/service contract, а не через прямой доступ к внутренностям хост-модуля.
+Межмодульное расширение не отменяет изоляцию: оно предоставляется через стабильный capability/service contract.
 
-## Definition of roadmap completion
+## Когда пункт roadmap считается завершённым
 
-Пункт считается завершённым только когда реализация, migration/recovery story, runtime tests, packaging и документация согласованы. Наличие UI или manifest без физического runtime boundary не считается завершённой модульностью.
+Пункт закрывается только когда согласованы:
+
+- реализация;
+- migration/recovery story;
+- runtime/integration tests;
+- packaging;
+- документация;
+- критерий приёмки и зафиксированное доказательство.
+
+Наличие только UI, manifest или незавершённой ветки не считается готовой функцией.
