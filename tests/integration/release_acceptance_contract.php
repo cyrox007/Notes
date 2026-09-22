@@ -48,7 +48,7 @@ foreach ([
     'Gate C — production trust roots',
     'Gate D — exact-head automated evidence',
     'Gate E — operational acceptance',
-    'Gate F — defect acceptance',
+    'Gate F — defect and human acceptance',
     'visual acceptance',
     'OSPanel 5.2.2',
     'Gate G — immutable artifact and signing',
