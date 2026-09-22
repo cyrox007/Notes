@@ -1,0 +1,55 @@
+name: Messenger realtime fallback
+
+on:
+  pull_request:
+    branches: [dev, '1.0', master]
+  push:
+    branches: [dev]
+    paths:
+      - 'modules/messenger/**'
+      - 'tests/integration/messenger_long_poll_**'
+      - '.github/workflows/messenger-realtime-fallback.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  messenger-realtime-fallback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql
+          coverage: none
+
+      - name: Подготовить Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Проверить синтаксис
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l modules/messenger/services/MessengerLongPollService.php
+          php -l tests/integration/messenger_long_poll_boundary_runtime.php
+          sed '/^{literal}$/d;/^{\/literal}$/d' modules/messenger/views/script.js > /tmp/messenger-script.js
+          node --check /tmp/messenger-script.js
+          node --check tests/integration/messenger_long_poll_composer_runtime.mjs
+
+      - name: Проверить контракт резервного транспорта
+        run: php tests/integration/messenger_long_poll_contract.php
+
+      - name: Проверить границу Long Poll timeout
+        run: php tests/integration/messenger_long_poll_boundary_runtime.php
+
+      - name: Проверить сохранение черновика HTTP fallback
+        run: node tests/integration/messenger_long_poll_composer_runtime.mjs

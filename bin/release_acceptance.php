@@ -19,7 +19,11 @@ $options = getopt('', [
     'ci-green',
     'release-evidence-green',
     'backup-restore-current',
-    'beta4-drill-green',
+    'operational-acceptance-green',
+    'visual-acceptance-green',
+    'ospanel-acceptance-green',
+    'one-zero-one-drill-green',
+    'beta4-drill-green', // compatibility alias for older operator scripts
     'p0p1-clear',
     'trust-canaries-green',
     'artifact-signed',
@@ -49,8 +53,8 @@ $record = static function (string $name, bool $ok, string $details = '') use (&$
 
 $record(
     'release_identity',
-    Version::VERSION === '1.0.1'
-        && Version::VERSION_CODE === 10001
+    Version::VERSION === '1.0.2'
+        && Version::VERSION_CODE === 10002
         && Version::STATUS === 'stable',
     Version::VERSION . ' / ' . Version::VERSION_CODE . ' / ' . Version::STATUS
 );
@@ -59,16 +63,24 @@ $governancePath = $root . '/.github/release-governance.json';
 $governance = is_file($governancePath)
     ? json_decode((string) file_get_contents($governancePath), true)
     : null;
+$requiredChecks = is_array($governance) ? ($governance['required_checks'] ?? null) : null;
+$stabilizationChecks = is_array($governance) ? ($governance['stabilization_required_checks'] ?? null) : null;
+$candidateChecks = is_array($governance) ? ($governance['release_candidate_required_checks'] ?? null) : null;
 $governanceOk = is_array($governance)
     && ($governance['protected_branch'] ?? null) === 'master'
     && ($governance['stabilization_branch'] ?? null) === '1.0'
-    && ($governance['stabilization_required_checks'] ?? null) === ['release-gate'];
-$record('governance_source_contract', $governanceOk, 'master + 1.0 / release-gate');
+    && is_array($requiredChecks)
+    && $requiredChecks !== []
+    && $stabilizationChecks === $requiredChecks
+    && $candidateChecks === $requiredChecks
+    && in_array('one-zero-one-upgrade-rollback', $requiredChecks, true)
+    && in_array('messenger-realtime-fallback', $requiredChecks, true);
+$record('governance_source_contract', $governanceOk, 'master + 1.0 / единый обязательный набор checks');
 
 foreach ([
     'README.md',
     'CHANGELOG.md',
-    'docs/releases/v1.0.1.md',
+    'docs/releases/v1.0.2.md',
     'docs/RELEASE_ACCEPTANCE.md',
     'docs/RELEASE_GOVERNANCE.md',
     'docs/PRODUCTION_TRUST_CEREMONY.md',
@@ -184,7 +196,10 @@ $manualGates = [
     'exact_head_ci' => 'ci-green',
     'cross_browser_load_evidence' => 'release-evidence-green',
     'backup_restore' => 'backup-restore-current',
-    'beta4_upgrade_rollback' => 'beta4-drill-green',
+    'operational_acceptance' => 'operational-acceptance-green',
+    'visual_acceptance' => 'visual-acceptance-green',
+    'ospanel_acceptance' => 'ospanel-acceptance-green',
+    'one_zero_one_upgrade_rollback' => 'one-zero-one-drill-green',
     'p0_p1_acceptance' => 'p0p1-clear',
     'production_trust_canaries' => 'trust-canaries-green',
     'immutable_artifact_signed' => 'artifact-signed',
@@ -192,7 +207,11 @@ $manualGates = [
 
 $attestations = [];
 foreach ($manualGates as $gate => $flag) {
-    $attestations[$gate] = isset($options[$flag]);
+    $confirmed = isset($options[$flag]);
+    if ($gate === 'one_zero_one_upgrade_rollback' && isset($options['beta4-drill-green'])) {
+        $confirmed = true;
+    }
+    $attestations[$gate] = $confirmed;
     if (!$attestations[$gate]) {
         $pending[] = $gate;
     }

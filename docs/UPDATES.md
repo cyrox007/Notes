@@ -220,6 +220,135 @@ When a compatible update is available, a superadmin may explicitly download, re-
 
 This first UI slice stops at staging. It has no browser action for maintenance entry, transaction-journal creation, rollback backup, release-candidate extraction, migrations, live code switch, apply or recovery. Those destructive operations remain CLI/operator transaction boundaries until a separately reviewed browser transaction flow exists.
 
+## Updater readiness diagnostics
+
+Before checking or applying an update, run the read-only readiness doctor:
+
+```bash
+php bin/update_doctor.php --json
+```
+
+It performs no network request and no mutation. It verifies the local trust registry, required PHP extensions, `proc_open`, HTTPS feed/channel configuration, online credential shape when enabled, external staging/state/backup/release paths and the DB configuration needed by rollback backup.
+
+The Admin Updates page exposes the same local operator-readiness summary without exposing private credential contents or absolute staged-package paths.
+
+## First transition from 1.0.1 to 1.0.2
+
+Published `1.0.1` already contains the signed transaction/apply/bootstrap runtime, but it predates the `1.0.2` convenience wrapper `bin/update_run.php`, readiness doctor and retention command. Do **not** copy individual new updater PHP files into the live 1.0.1 tree.
+
+The supported first transition is the existing **trusted external bootstrap** boundary:
+
+1. Obtain the official 1.0.2 hosting ZIP, `update.json`, `update.sig` and published SHA-256 through the release channel.
+2. Verify the release ZIP checksum before using it as a bootstrap runner source.
+3. Extract that trusted 1.0.2 bundle to a temporary directory **separate from the live 1.0.1 application tree**. The bundle contains only the public update trust root; the private signing key is never present.
+4. Keep the signed 1.0.2 ZIP/manifest/signature as local files and run the bootstrap from the temporary 1.0.2 tree against the exact live source:
+
+```bash
+php /secure/workspace-1.0.2-runner/bin/update_bootstrap.php \
+  --app-root=/srv/workspace \
+  --manifest=/secure/release/update.json \
+  --signature=/secure/release/update.sig \
+  --package=/secure/release/workspace-organizer-v1.0.2.zip \
+  --transaction=update-1-0-1-to-1-0-2 \
+  --expected-source-version=1.0.1 \
+  --expected-source-version-code=10001 \
+  --stage-root=/var/lib/notes/update-staging \
+  --state-root=/var/lib/notes/update-state \
+  --backup-root=/var/lib/notes/update-backups \
+  --candidate-root=/var/lib/notes/update-releases \
+  --json
+```
+
+The bootstrap verifies the exact installed source version, the signed manifest/package, creates rollback artifacts, builds a verified external candidate, switches code transactionally, runs migrations/health checks and automatically rolls back code + database when post-switch verification fails. The runner directory must never overlap the live application tree.
+
+After the successful 1.0.2 transition, future updates use the installed operator wrapper:
+
+```bash
+php bin/update_run.php --yes --json
+```
+
+The release CI contains an exact `v1.0.1` → synthetic signed `1.0.2` success/rollback drill pinned to the published 1.0.1 commit. Production release acceptance still repeats the transition with the final production-signed 1.0.2 artifacts.
+
+## Single-command operator flow
+
+`1.0.2` adds an operator wrapper over the already existing updater transaction boundaries. It does not introduce a second updater implementation and it does not weaken signature, backup, candidate or rollback verification.
+
+For the normal production path:
+
+```bash
+php bin/update_run.php --yes --json
+```
+
+The command performs these existing phases in order:
+
+```text
+signed remote stage
+  -> enter maintenance
+  -> verified code + MySQL rollback backup
+  -> verified external release candidate
+  -> transactional live apply
+  -> migrations + health/version/schema verification
+  -> commit + maintenance release
+```
+
+A custom transaction id and external roots may be supplied explicitly:
+
+```bash
+php bin/update_run.php \
+  --transaction=update-2026-001 \
+  --stage-root=/var/lib/notes/update-staging \
+  --state-root=/var/lib/notes/update-state \
+  --backup-root=/var/lib/notes/update-backups \
+  --candidate-root=/var/lib/notes/update-releases \
+  --yes --json
+```
+
+The wrapper releases maintenance automatically only when a failure occurs **before** live apply is invoked. Once the destructive boundary is crossed, `UpdateApplyCommand` remains the only owner of rollback/recovery and maintenance release. The wrapper never force-opens writes after an apply failure.
+
+Crash/interruption recovery uses the same transaction journal:
+
+```bash
+php bin/update_run.php \
+  --recover \
+  --transaction=update-2026-001 \
+  --yes --json
+```
+
+The existing individual commands remain supported for diagnostics and controlled manual operation.
+
+## Retention cleanup for recovery artifacts
+
+Verified rollback backups and external release candidates are deliberately kept after a transaction reaches a terminal state. `1.0.2` adds a separate retention command so these large artifacts do not grow without bound:
+
+```bash
+php bin/update_retention.php --json
+```
+
+Preview is the default. The default policy considers terminal artifacts older than 30 days while always keeping the two newest terminal transactions. Change those values explicitly when needed:
+
+```bash
+php bin/update_retention.php --older-than-days=60 --keep=3 --json
+```
+
+Deletion requires both destructive flags:
+
+```bash
+php bin/update_retention.php --apply --yes --older-than-days=30 --keep=2 --json
+```
+
+Safety contract:
+
+- only journals in terminal `committed` or `rollback_verified` states are eligible;
+- `rollback_failed` and every incomplete/pre-mutation/live-mutation recovery state are never deleted by retention;
+- transaction journals are preserved as lightweight historical evidence;
+- signed staged packages are preserved; retention removes only transaction rollback-backup directories and external release candidates;
+- a candidate still referenced by any retained/non-terminal transaction is protected;
+- corrupt journals or unsafe/out-of-root artifact paths make destructive cleanup fail closed;
+- cleanup refuses to run destructively while updater maintenance is active;
+- dry-run requires no `--yes` and changes nothing.
+
+The command shares the updater transaction lock while planning/deleting journal-owned artifacts, so journal state cannot change underneath the retention decision.
+
 ## Updater maintenance mode
 
 Updater maintenance is file-backed and deliberately independent from MySQL. Its marker must live outside the application tree so it remains readable while database migrations or code replacement are in progress.
@@ -377,7 +506,7 @@ It still does **not**:
 
 - expose destructive maintenance/backup/candidate/apply/recovery operations in the administrator UI;
 - create the production license/update private keys (production key ceremony is intentionally still pending);
-- automatically delete old verified backup/candidate/scratch recovery artifacts;
+- automatically delete old scratch/network-ingress temporary artifacts that are not journal-owned;
 - replace an external process supervisor's own drain/restart policy;
 - eliminate the requirement for the final real Beta4 -> 1.0 upgrade/rollback release drill.
 

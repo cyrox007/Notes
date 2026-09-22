@@ -11,6 +11,7 @@ use Core\UpdateManifestVerifier;
 use Core\UpdatePackageStager;
 use Core\UpdateRemoteDelivery;
 use Core\UpdateRemoteTransport;
+use Core\UpdateReadiness;
 use Core\Version;
 use DomainException;
 use InvalidArgumentException;
@@ -22,6 +23,8 @@ require_once $updateCoreRoot . '/core/UpdatePackageStager.php';
 require_once $updateCoreRoot . '/core/UpdateArchiveInspector.php';
 require_once $updateCoreRoot . '/core/UpdateRemoteTransport.php';
 require_once $updateCoreRoot . '/core/UpdateRemoteDelivery.php';
+require_once $updateCoreRoot . '/core/UpdateDownloadCredentials.php';
+require_once $updateCoreRoot . '/core/UpdateReadiness.php';
 
 /**
  * Web-facing read/check/stage facade for the signed updater.
@@ -70,6 +73,7 @@ final class AdminUpdateService
         $stageConfigured = $stageRoot !== '';
         $canManageStage = $this->permissions->hasRole($actorId, 'superadmin');
 
+        $operator = (new UpdateReadiness($this->appRoot, $this->verifier))->inspect();
         $issues = [];
         $accessReady = true;
         try {
@@ -123,6 +127,10 @@ final class AdminUpdateService
             'can_check' => $canCheck,
             'can_stage' => $canCheck && $stageConfigured && $canManageStage,
             'can_manage_stage' => $canManageStage,
+            'operator_ready' => (bool) ($operator['ready_for_apply'] ?? false),
+            'operator_issues' => is_array($operator['issues'] ?? null) ? $operator['issues'] : [],
+            'operator_command' => 'php bin/update_run.php --yes --json',
+            'doctor_command' => 'php bin/update_doctor.php --json',
             'issues' => $issues,
         ];
     }

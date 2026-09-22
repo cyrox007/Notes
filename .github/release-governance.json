@@ -14,10 +14,49 @@
     "file-manager-browser-lifecycle",
     "profile-browser-lifecycle",
     "admin-browser-lifecycle",
-    "storage-db-failure"
+    "storage-db-failure",
+    "browser-wss-e2e",
+    "release-evidence",
+    "one-zero-one-upgrade-rollback",
+    "windows-contract (8.1)",
+    "windows-contract (8.3)",
+    "websocket-deployment-contract (8.1)",
+    "websocket-deployment-contract (8.3)",
+    "messenger-realtime-fallback"
   ],
   "stabilization_required_checks": [
-    "release-gate"
+    "release-gate",
+    "notes-browser-lifecycle",
+    "tasks-browser-lifecycle",
+    "file-manager-browser-lifecycle",
+    "profile-browser-lifecycle",
+    "admin-browser-lifecycle",
+    "storage-db-failure",
+    "browser-wss-e2e",
+    "release-evidence",
+    "one-zero-one-upgrade-rollback",
+    "windows-contract (8.1)",
+    "windows-contract (8.3)",
+    "websocket-deployment-contract (8.1)",
+    "websocket-deployment-contract (8.3)",
+    "messenger-realtime-fallback"
   ],
-  "required_checks_after_product_e2e_merge": []
+  "required_checks_after_product_e2e_merge": [],
+  "release_candidate_required_checks": [
+    "release-gate",
+    "notes-browser-lifecycle",
+    "tasks-browser-lifecycle",
+    "file-manager-browser-lifecycle",
+    "profile-browser-lifecycle",
+    "admin-browser-lifecycle",
+    "storage-db-failure",
+    "browser-wss-e2e",
+    "release-evidence",
+    "one-zero-one-upgrade-rollback",
+    "windows-contract (8.1)",
+    "windows-contract (8.3)",
+    "websocket-deployment-contract (8.1)",
+    "websocket-deployment-contract (8.3)",
+    "messenger-realtime-fallback"
+  ]
 }

@@ -8,8 +8,15 @@
             this.userUid = root.dataset.userUid || '';
             this.userName = root.dataset.userName || 'Вы';
             this.socket = null;
+            this.socketAuthorized = false;
             this.reconnectTimer = null;
             this.reconnectAttempt = 0;
+            this.longPollActive = false;
+            this.longPollCursor = '';
+            this.longPollAbortController = null;
+            this.longPollGeneration = 0;
+            this.longPollRetryTimer = null;
+            this.longPollFallbackTimer = null;
             this.typingTimer = null;
             this.typingSent = false;
             this.pendingOpenUid = null;
@@ -26,6 +33,7 @@
             this.readCursors = new Map();
             this.replyTo = null;
             this.editing = null;
+            this.composerPending = false;
             this.hasMore = false;
 
             this.el = {
@@ -128,17 +136,23 @@
             wspace.socketConfig = { url, ticket };
 
             if (!url || !ticket) {
-                this.setConnectionState('offline', 'WebSocket не настроен');
+                this.startLongPoll('WebSocket не настроен');
                 return;
             }
 
-            this.setConnectionState('connecting', this.reconnectAttempt ? 'Переподключение…' : 'Подключение…');
+            this.setConnectionState(
+                this.longPollActive ? 'fallback' : 'connecting',
+                this.longPollActive
+                    ? 'Long Poll · WebSocket переподключается'
+                    : (this.reconnectAttempt ? 'Переподключение…' : 'Подключение…')
+            );
 
             try {
                 const separator = url.includes('?') ? '&' : '?';
                 this.socket = new WebSocket(`${url}${separator}ticket=${encodeURIComponent(ticket)}`);
             } catch (error) {
                 console.error(error);
+                this.scheduleLongPollFallback('WebSocket недоступен');
                 this.scheduleReconnect();
                 return;
             }
@@ -148,9 +162,13 @@
             });
 
             this.socket.addEventListener('message', (event) => this.handleSocketMessage(event));
-            this.socket.addEventListener('error', () => this.setConnectionState('offline', 'Ошибка соединения'));
+            this.socket.addEventListener('error', () => {
+                this.socketAuthorized = false;
+                this.scheduleLongPollFallback('WebSocket недоступен');
+            });
             this.socket.addEventListener('close', () => {
-                this.setConnectionState('offline', 'Нет соединения');
+                this.socketAuthorized = false;
+                this.scheduleLongPollFallback('WebSocket отключён');
                 this.scheduleReconnect();
             });
         }
@@ -179,7 +197,9 @@
                     this.sendEvent('PingSocket:index', { ping: 'Pong' });
                     break;
                 case 'Authorized':
-                    this.setConnectionState('online', 'В сети');
+                    this.socketAuthorized = true;
+                    this.stopLongPoll();
+                    this.setConnectionState('online', 'WebSocket · в сети');
                     this.sendEvent('MessangerSocket:get_dialogs', {});
                     break;
                 case 'get_dialogs':
@@ -208,6 +228,9 @@
                 case 'read_update':
                     this.receiveReadUpdate(data);
                     break;
+                case 'sync_required':
+                    this.syncDurableState();
+                    break;
                 case 'user_typing':
                     this.receiveTyping(data, true);
                     break;
@@ -222,20 +245,242 @@
             }
         }
 
+        syncDurableState() {
+            this.sendEvent('MessangerSocket:get_dialogs', {});
+            this.sendEvent('DialogStateSocket:list', {});
+            if (this.currentDialog?.uid) {
+                this.sendEvent('MessangerSocket:load', { dialog_uid: this.currentDialog.uid });
+                this.sendEvent('ReceiptSocket:list', { dialog_uid: this.currentDialog.uid });
+            }
+        }
+
         sendEvent(action, data = {}) {
-            if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-                this.showToast('Нет соединения с сервером');
+            if (this.socket && this.socket.readyState === WebSocket.OPEN && this.socketAuthorized) {
+                this.socket.send(JSON.stringify({ action, data }));
+                return true;
+            }
+
+            return this.sendHttpEvent(action, data);
+        }
+
+        async sendEventConfirmed(action, data = {}) {
+            if (this.socket && this.socket.readyState === WebSocket.OPEN && this.socketAuthorized) {
+                this.socket.send(JSON.stringify({ action, data }));
+                return true;
+            }
+
+            return this.sendHttpEventConfirmed(action, data);
+        }
+
+        sendHttpEvent(action, data = {}) {
+            if (navigator.onLine === false) {
+                this.showToast('Нет подключения к интернету');
                 return false;
             }
-            this.socket.send(JSON.stringify({ action, data }));
+
+            void this.performHttpEvent(action, data).catch((error) => {
+                console.warn('Messenger HTTP fallback action failed', error);
+                this.showToast('Резервный канал временно недоступен');
+            });
             return true;
+        }
+
+        async sendHttpEventConfirmed(action, data = {}) {
+            if (navigator.onLine === false) {
+                this.showToast('Нет подключения к интернету');
+                return false;
+            }
+
+            try {
+                await this.performHttpEvent(action, data);
+                return true;
+            } catch (error) {
+                console.warn('Messenger HTTP fallback action failed', error);
+                this.showToast('Резервный канал временно недоступен');
+                return false;
+            }
+        }
+
+        async performHttpEvent(action, data = {}) {
+            const body = new URLSearchParams();
+            body.set('action', String(action || ''));
+            body.set('data', JSON.stringify(data || {}));
+
+            const endpoint = typeof window.wspace?.path === 'function'
+                ? window.wspace.path('/messenger/realtime/action')
+                : '/messenger/realtime/action';
+
+            const resumeLongPoll = this.pauseLongPollRequest();
+            try {
+                const csrfToken = String(window.wspace?.security?.getCSRFToken?.() || '').trim();
+                const headers = { 'Accept': 'application/json' };
+                if (csrfToken) {
+                    headers['X-CSRF-Token'] = csrfToken;
+                }
+
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers,
+                    body
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const payload = await response.json();
+                if (payload?.status !== 'ok') {
+                    throw new Error(payload?.message || 'Резервный обработчик отклонил действие');
+                }
+
+                this.dispatchRealtimeEvents(payload.events);
+                return payload;
+            } finally {
+                if (resumeLongPoll && this.longPollActive && !this.socketAuthorized) {
+                    this.resumeLongPoll();
+                }
+            }
+        }
+
+        dispatchRealtimeEvents(events) {
+            (Array.isArray(events) ? events : []).forEach((payload) => {
+                if (!payload || typeof payload !== 'object') return;
+                this.handleSocketMessage({ data: JSON.stringify(payload) });
+            });
+        }
+
+        scheduleLongPollFallback(reason = '', delay = 1500) {
+            if (this.socketAuthorized || this.longPollActive || this.longPollFallbackTimer) {
+                return;
+            }
+
+            this.longPollFallbackTimer = window.setTimeout(() => {
+                this.longPollFallbackTimer = null;
+                if (this.socketAuthorized) return;
+                this.startLongPoll(reason);
+            }, Math.max(0, delay));
+        }
+
+        startLongPoll(reason = '') {
+            if (this.longPollFallbackTimer) {
+                window.clearTimeout(this.longPollFallbackTimer);
+                this.longPollFallbackTimer = null;
+            }
+            if (navigator.onLine === false) {
+                this.setConnectionState('offline', 'Нет интернета');
+                return;
+            }
+            if (this.longPollActive) {
+                this.setConnectionState('fallback', 'Long Poll · резервный канал');
+                return;
+            }
+
+            this.longPollActive = true;
+            this.longPollCursor = '';
+            const generation = ++this.longPollGeneration;
+            this.setConnectionState(
+                'fallback',
+                reason ? `Long Poll · ${reason}` : 'Long Poll · резервный канал'
+            );
+            void this.runLongPoll(generation);
+        }
+
+        stopLongPoll() {
+            if (this.longPollFallbackTimer) {
+                window.clearTimeout(this.longPollFallbackTimer);
+                this.longPollFallbackTimer = null;
+            }
+            if (!this.longPollActive && !this.longPollAbortController) return;
+            this.longPollActive = false;
+            this.longPollGeneration += 1;
+            this.longPollCursor = '';
+            if (this.longPollRetryTimer) {
+                window.clearTimeout(this.longPollRetryTimer);
+                this.longPollRetryTimer = null;
+            }
+            if (this.longPollAbortController) {
+                this.longPollAbortController.abort();
+                this.longPollAbortController = null;
+            }
+        }
+
+        pauseLongPollRequest() {
+            if (!this.longPollActive) return false;
+            this.longPollGeneration += 1;
+            if (this.longPollAbortController) {
+                this.longPollAbortController.abort();
+                this.longPollAbortController = null;
+            }
+            return true;
+        }
+
+        resumeLongPoll() {
+            if (!this.longPollActive || this.socketAuthorized || this.longPollAbortController) {
+                return;
+            }
+            const generation = ++this.longPollGeneration;
+            void this.runLongPoll(generation);
+        }
+
+        async runLongPoll(generation) {
+            while (this.longPollActive && generation === this.longPollGeneration) {
+                const query = new URLSearchParams();
+                if (this.longPollCursor) query.set('cursor', this.longPollCursor);
+                if (this.currentDialog?.uid) query.set('dialog_uid', this.currentDialog.uid);
+
+                const path = `/messenger/realtime/poll?${query.toString()}`;
+                const endpoint = typeof window.wspace?.path === 'function'
+                    ? window.wspace.path(path)
+                    : path;
+                const controller = new AbortController();
+                this.longPollAbortController = controller;
+
+                try {
+                    const response = await fetch(endpoint, {
+                        method: 'GET',
+                        credentials: 'same-origin',
+                        cache: 'no-store',
+                        headers: { 'Accept': 'application/json' },
+                        signal: controller.signal
+                    });
+                    if (!this.longPollActive || generation !== this.longPollGeneration) return;
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+
+                    const payload = await response.json();
+                    if (payload?.status !== 'ok') {
+                        throw new Error(payload?.message || 'Long Poll failed');
+                    }
+                    if (typeof payload.cursor === 'string' && payload.cursor) {
+                        this.longPollCursor = payload.cursor;
+                    }
+                    if (payload.changed) {
+                        this.dispatchRealtimeEvents(payload.events);
+                    }
+                    this.setConnectionState('fallback', 'Long Poll · резервный канал');
+                } catch (error) {
+                    if (error?.name === 'AbortError') return;
+                    if (!this.longPollActive || generation !== this.longPollGeneration) return;
+                    console.warn('Messenger long poll failed', error);
+                    this.setConnectionState('offline', 'Резервный канал недоступен');
+                    await new Promise((resolve) => {
+                        this.longPollRetryTimer = window.setTimeout(resolve, 1800);
+                    });
+                    this.longPollRetryTimer = null;
+                } finally {
+                    if (this.longPollAbortController === controller) {
+                        this.longPollAbortController = null;
+                    }
+                }
+            }
         }
 
         setConnectionState(state, text) {
             if (!this.el.connection) return;
             this.el.connection.dataset.state = state;
             if (this.el.connectionText) this.el.connectionText.textContent = text;
-            if (this.el.send) this.el.send.disabled = state !== 'online';
+            if (this.el.send) this.el.send.disabled = state !== 'online' && state !== 'fallback';
         }
 
         applyDialogs(dialogs) {
@@ -575,31 +820,52 @@
             if (this.el.composeContextText) this.el.composeContextText.textContent = '';
         }
 
-        submitComposer() {
-            if (!this.currentDialog) return;
-            const text = (this.el.input.value || '').trim();
+        async submitComposer() {
+            if (!this.currentDialog || this.composerPending) return;
+
+            const draftValue = this.el.input.value || '';
+            const text = draftValue.trim();
             if (!text) return;
 
-            let sent = false;
-            if (this.editing) {
-                sent = this.sendEvent('MessangerSocket:edit_message', {
-                    dialog_uid: this.currentDialog.uid,
-                    message_uid: this.editing.uid,
-                    new_text: text
-                });
-            } else {
-                sent = this.sendEvent('MessangerSocket:message_send', {
-                    dialog_uid: this.currentDialog.uid,
-                    message: text,
-                    reply_to_uid: this.replyTo?.uid || null
-                });
-            }
+            const submittedEditing = this.editing;
+            const submittedReply = this.replyTo;
+            this.composerPending = true;
+            if (this.el.send) this.el.send.disabled = true;
 
-            if (!sent) return;
-            this.el.input.value = '';
-            this.autosizeComposer();
-            this.stopTyping();
-            this.clearComposeContext();
+            try {
+                let sent = false;
+                if (submittedEditing) {
+                    sent = await this.sendEventConfirmed('MessangerSocket:edit_message', {
+                        dialog_uid: this.currentDialog.uid,
+                        message_uid: submittedEditing.uid,
+                        new_text: text
+                    });
+                } else {
+                    sent = await this.sendEventConfirmed('MessangerSocket:message_send', {
+                        dialog_uid: this.currentDialog.uid,
+                        message: text,
+                        reply_to_uid: submittedReply?.uid || null
+                    });
+                }
+
+                if (!sent) return;
+
+                // Очищаем только тот черновик, который действительно был
+                // подтверждён. Текст, набранный во время ожидания HTTP-ответа,
+                // и новый reply/edit context не должны исчезнуть из-за позднего ответа.
+                if (this.el.input.value === draftValue) {
+                    this.el.input.value = '';
+                    this.autosizeComposer();
+                    this.stopTyping();
+
+                    if (this.editing === submittedEditing && this.replyTo === submittedReply) {
+                        this.clearComposeContext();
+                    }
+                }
+            } finally {
+                this.composerPending = false;
+                if (this.el.send) this.el.send.disabled = false;
+            }
         }
 
         deleteMessage(message, forAll) {

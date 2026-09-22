@@ -30,7 +30,13 @@ try {
         new \Core\UpdateManifestVerifier()
     );
     $method = $_SERVER['REQUEST_METHOD'] ?? '';
-    if ($path === 'activate' && $method === 'POST') {
+    if ($path === 'health' && $method === 'GET') {
+        $health = $server->health();
+        $response = ['body' => json_encode($health, JSON_THROW_ON_ERROR), 'type' => 'application/json'];
+        if (($health['status'] ?? '') !== 'ok') {
+            http_response_code(503);
+        }
+    } elseif ($path === 'activate' && $method === 'POST') {
         if ((int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 1024) {
             throw new RuntimeException('Request too large', 413);
         }

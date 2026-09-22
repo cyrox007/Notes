@@ -9,7 +9,7 @@ if (PHP_SAPI !== 'cli') {
 require_once __DIR__ . '/LicenseServer.php';
 
 $options = getopt('', ['db:', 'init', 'register', 'revoke', 'restore', 'publish', 'installation-id:',
-    'license-file:', 'activation-out:', 'updates-until:', 'max-version:', 'manifest:', 'signature:', 'package:', 'help']);
+    'license-file:', 'activation-out:', 'updates-until:', 'max-version:', 'manifest:', 'signature:', 'package:', 'status', 'json', 'help']);
 if (isset($options['help'])) {
     echo "Vendor license registry (PHP sqlite3, sodium, mbstring required)\n"
         . "  --db=/private/licenses.sqlite --init\n"
@@ -17,6 +17,7 @@ if (isset($options['help'])) {
         . "    --activation-out=/private/customer.activation [--updates-until=UNIX] [--max-version=10001]\n"
         . "  --db=... --revoke|--restore --installation-id=UUID\n"
         . "  --db=... --publish --manifest=/private/release.json --signature=/private/release.sig --package=/private/release.zip\n"
+        . "  --db=... --status [--json]\n"
         . "Registering again rotates credentials and consumes a new activation code. Output files must not exist.\n";
     exit;
 }
@@ -24,7 +25,7 @@ if (isset($options['help'])) {
 $activationOutput = null;
 $activationPath = null;
 try {
-    $actions = array_intersect(['init', 'register', 'revoke', 'restore', 'publish'], array_keys($options));
+    $actions = array_intersect(['init', 'register', 'revoke', 'restore', 'publish', 'status'], array_keys($options));
     if (count($actions) !== 1) {
         throw new RuntimeException('Choose exactly one action; see --help');
     }
@@ -69,6 +70,19 @@ try {
     } elseif (isset($options['publish'])) {
         $server->publish((string) ($options['manifest'] ?? ''), (string) ($options['signature'] ?? ''), (string) ($options['package'] ?? ''));
         echo "Signed release registered. Serve packages only through the authenticated endpoint.\n";
+    } elseif (isset($options['status'])) {
+        $health = $server->health();
+        if (isset($options['json'])) {
+            echo json_encode($health, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
+        } else {
+            echo 'Update service: ' . strtoupper((string) $health['status']) . "\n";
+            echo 'Registry:       ' . ($health['registry'] ? 'READY' : 'NOT READY') . "\n";
+            echo 'License trust:  ' . ($health['license_trust'] ? 'READY' : 'NOT READY') . "\n";
+            echo 'Update trust:   ' . ($health['update_trust'] ? 'READY' : 'NOT READY') . "\n";
+        }
+        if (($health['status'] ?? '') !== 'ok') {
+            exit(3);
+        }
     } else {
         echo "Registry initialized.\n";
     }

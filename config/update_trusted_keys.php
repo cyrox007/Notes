@@ -13,8 +13,8 @@ declare(strict_types=1);
  * - key ids are immutable. During rotation, ship old + new public keys together
  *   before retiring the old key in a later release.
  *
- * The registry intentionally remains empty until the production update-signing
- * key ceremony is completed on a controlled/offline vendor machine.
+ * The production update public trust root is committed below. The corresponding
+ * private signing key remains offline and must never be committed or distributed.
  *
  * @return array<string,string> key-id => base64url(raw Ed25519 public key)
  */

@@ -167,12 +167,40 @@ try {
   ]);
   await page.getByText('Base Path Folder', { exact: true }).waitFor({ timeout: 15000 });
 
+  const uploadResponsePromise = page.waitForResponse(response => (
+    response.request().method() === 'POST'
+    && new URL(response.url()).pathname === `${basePath}/files/upload/`
+  ), { timeout: 15000 });
+  const uploadNavigationPromise = page
+    .waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 })
+    .catch(error => error);
   await page.locator('#file-input').setInputFiles({
     name: 'base-path.txt',
     mimeType: 'text/plain',
     buffer: Buffer.from('base path upload contract'),
   });
-  await page.waitForLoadState('domcontentloaded');
+  const uploadResponse = await uploadResponsePromise;
+  if (uploadResponse.status() !== 200) {
+    let uploadBody = '<response body unavailable>';
+    try {
+      uploadBody = await uploadResponse.text();
+    } catch (_) {
+      // A browser navigation can evict the response body. Status plus network
+      // diagnostics still identify the failed upload contract.
+    }
+    throw new Error(
+      `File upload failed: HTTP ${uploadResponse.status()} body=${uploadBody} `
+      + `consoleErrors=${JSON.stringify(consoleErrors)} failedResponses=${JSON.stringify(failedResponses)}`
+    );
+  }
+
+  const uploadNavigation = await uploadNavigationPromise;
+  if (uploadNavigation instanceof Error) {
+    throw new Error(
+      `Successful file upload did not reload the File Manager: ${uploadNavigation.message} `
+      + `consoleErrors=${JSON.stringify(consoleErrors)} failedResponses=${JSON.stringify(failedResponses)}`
+    );
+  }
   const fileItem = page.locator('.file-manager__item[data-name="base-path"]');
   await fileItem.waitFor({ state: 'visible', timeout: 15000 });
 

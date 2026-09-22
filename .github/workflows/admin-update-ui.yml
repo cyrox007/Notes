@@ -2,7 +2,7 @@ name: 1.0 admin update UI
 
 on:
   pull_request:
-    branches: [master, '1.0']
+    branches: [master, '1.0', dev]
   push:
     branches: ['1.0-admin-update-ui']
 
@@ -26,18 +26,21 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
-          extensions: pdo_mysql, sodium, openssl, zlib
+          extensions: mysqli, pdo_mysql, sodium, openssl, zlib
           coverage: none
 
       - name: Lint admin updater boundary
         shell: bash
         run: |
           set -euo pipefail
+          php -l core/UpdateReadiness.php
+          php -l bin/update_doctor.php
           php -l modules/admin/services/AdminUpdateService.php
           php -l modules/admin/controllers/UpdateController.php
           php -l modules/admin/views/updates.php
           php -l modules/admin/views/settings.php
           php -l core/routerConfig.php
+          php -l tests/integration/updater_readiness_contract.php
           php -l tests/integration/admin_update_ui_contract.php
           php -l tests/integration/native_admin_contract.php
 
@@ -45,6 +48,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          php tests/integration/updater_readiness_contract.php
           php tests/integration/admin_update_ui_contract.php
           php tests/integration/native_admin_contract.php
 
@@ -69,3 +73,5 @@ jobs:
           ! grep -Fq 'UpdateBackupManager' modules/admin/services/AdminUpdateService.php
           ! grep -Fq "'stage_dir' =>" modules/admin/controllers/UpdateController.php
           ! grep -Fq "admin_updates_apply" modules/admin/views/updates.php
+          grep -Fq 'UpdateReadiness' modules/admin/services/AdminUpdateService.php
+          grep -Fq 'bin/update_run.php --recover' modules/admin/views/updates.php

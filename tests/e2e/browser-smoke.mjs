@@ -169,6 +169,56 @@ try {
   await bobDialog.click();
   await waitForMessageBubble(bob.page, message);
 
+  // Prove the cross-process fallback bridge: Alice performs a durable Messenger
+  // mutation through authenticated HTTP while Bob stays on the native WebSocket.
+  // The HTTP process bumps the shared DB revision, the WS process emits
+  // sync_required, and Bob reloads canonical dialog state without reconnecting.
+  const fallbackMessage = `HTTP fallback bridge ${Date.now()}`;
+  const fallbackResult = await alice.page.evaluate(async (text) => {
+    const app = window.wspace?.messenger;
+    const dialogUid = app?.currentDialog?.uid || '';
+    if (!dialogUid) {
+      return { ok: false, status: 0, body: 'Alice dialog UID is unavailable' };
+    }
+
+    const body = new URLSearchParams();
+    body.set('action', 'MessangerSocket:message_send');
+    body.set('data', JSON.stringify({ dialog_uid: dialogUid, message: text }));
+
+    const response = await fetch('/messenger/realtime/action', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+      body,
+    });
+    return { ok: response.ok, status: response.status, body: await response.text() };
+  }, fallbackMessage);
+
+  if (!fallbackResult.ok) {
+    throw new Error(
+      `HTTP fallback message failed: HTTP ${fallbackResult.status} body=${fallbackResult.body}`
+    );
+  }
+
+  let fallbackPayload;
+  try {
+    fallbackPayload = JSON.parse(fallbackResult.body);
+  } catch (_) {
+    throw new Error(`HTTP fallback returned invalid JSON: ${fallbackResult.body}`);
+  }
+  if (fallbackPayload?.status !== 'ok') {
+    throw new Error(`HTTP fallback returned failure: ${fallbackResult.body}`);
+  }
+
+  await waitForMessageBubble(bob.page, fallbackMessage);
+  const bobSocketStillOpen = await bob.page.evaluate(() => (
+    window.wspace?.messenger?.socket?.readyState === WebSocket.OPEN
+    && window.wspace?.messenger?.socketAuthorized === true
+  ));
+  if (!bobSocketStillOpen) {
+    throw new Error('Bob WebSocket was not preserved across HTTP fallback bridge sync');
+  }
+
   // Reproduce the user-visible presence contract with two actual browser
   // sessions over the native WSS runtime. Typing is emitted by the real input
   // handler, not by a synthetic server call.

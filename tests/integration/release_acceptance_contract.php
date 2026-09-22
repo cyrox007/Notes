@@ -48,10 +48,12 @@ foreach ([
     'Gate C — production trust roots',
     'Gate D — exact-head automated evidence',
     'Gate E — operational acceptance',
-    'Gate F — defect acceptance',
+    'Gate F — defect and human acceptance',
+    'visual acceptance',
+    'OSPanel 5.2.2',
     'Gate G — immutable artifact and signing',
     'Gate H — final merge and tag',
-    'v1.0.1',
+    'v1.0.2',
     'no open P0/P1 data-loss defects',
     'no open P0/P1 security defects',
     'build-only',
@@ -67,14 +69,17 @@ foreach ([
     "'ci-green'",
     "'release-evidence-green'",
     "'backup-restore-current'",
-    "'beta4-drill-green'",
+    "'operational-acceptance-green'",
+    "'visual-acceptance-green'",
+    "'ospanel-acceptance-green'",
+    "'one-zero-one-drill-green'",
     "'p0p1-clear'",
     "'trust-canaries-green'",
     "'artifact-signed'",
     'production_public_trust_roots',
     'release_evidence_harness',
     'private_signing_material_absent',
-    "Version::VERSION === '1.0.1'",
+    "Version::VERSION === '1.0.2'",
     "Version::STATUS === 'stable'",
     'exit(3)',
 ] as $marker) {
@@ -87,11 +92,30 @@ $governance = json_decode(
     32,
     JSON_THROW_ON_ERROR
 );
-releaseAcceptanceAssert(($governance['stabilization_branch'] ?? null) === '1.0', '1.0 stabilization governance drifted');
+releaseAcceptanceAssert(($governance['stabilization_branch'] ?? null) === '1.0', 'ветка стабилизации должна быть 1.0');
+$requiredChecks = $governance['required_checks'] ?? null;
+releaseAcceptanceAssert(is_array($requiredChecks) && $requiredChecks !== [], 'финальный набор required checks отсутствует');
 releaseAcceptanceAssert(
-    ($governance['stabilization_required_checks'] ?? null) === ['release-gate'],
-    '1.0 required release gate drifted'
+    ($governance['stabilization_required_checks'] ?? null) === $requiredChecks,
+    '1.0 должна требовать тот же набор checks, что и master'
 );
+releaseAcceptanceAssert(
+    ($governance['release_candidate_required_checks'] ?? null) === $requiredChecks,
+    'release candidate check set расходится с branch protection policy'
+);
+foreach ([
+    'one-zero-one-upgrade-rollback',
+    'browser-wss-e2e',
+    'release-evidence',
+    'windows-contract (8.1)',
+    'windows-contract (8.3)',
+    'messenger-realtime-fallback',
+] as $requiredCheck) {
+    releaseAcceptanceAssert(
+        in_array($requiredCheck, $requiredChecks, true),
+        "в обязательном наборе отсутствует {$requiredCheck}"
+    );
+}
 
 $releaseGate = releaseAcceptanceText($root, '.github/workflows/release-gate.yml');
 releaseAcceptanceAssert(
@@ -103,4 +127,4 @@ releaseAcceptanceAssert(
     'Stable release gate does not execute non-strict release preflight'
 );
 
-fwrite(STDOUT, "[OK] final 1.0 release acceptance contract\n");
+fwrite(STDOUT, "[OK] final 1.0.2 release acceptance contract\n");

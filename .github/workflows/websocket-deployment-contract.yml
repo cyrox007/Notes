@@ -2,9 +2,9 @@ name: WebSocket deployment contract
 
 on:
   pull_request:
-    branches: [master, '1.0']
+    branches: [master, '1.0', dev]
   push:
-    branches: [0.14-beta2-websocket-deployment, '1.0']
+    branches: [0.14-beta2-websocket-deployment, '1.0', dev]
 
 permissions:
   contents: read
@@ -31,12 +31,16 @@ jobs:
         run: |
           php -l core/WebSocketEndpoint.php
           php -l modules/messenger/controllers/MessagerController.php
+          php -l modules/messenger/controllers/MessengerRealtimeController.php
           php -l modules/messenger/socket/SocketConnection.php
+          php -l modules/messenger/socket/BufferedSocketConnection.php
           php -l modules/messenger/socket/SocketHandshake.php
           php -l modules/messenger/socket/SocketFrameCodec.php
           php -l modules/messenger/socket/NativeSocketConnection.php
           php -l modules/messenger/socket/NativeMessengerServer.php
           php -l modules/messenger/socket/MessangerSocket.php
+          php -l modules/messenger/services/MessengerLongPollService.php
+          php -l modules/messenger/services/MessengerRealtimeRevisionService.php
           php -l ws_server/server.php
           php -l bin/ws_doctor.php
           php -l bin/healthcheck.php
@@ -45,6 +49,7 @@ jobs:
           php -l tests/integration/native_websocket_runtime_regressions.php
           php -l tests/integration/messenger_activity_wiring_contract.php
           php -l tests/integration/native_messenger_contract.php
+          php -l tests/integration/messenger_long_poll_contract.php
           php -l tests/integration/vendor_free_runtime_contract.php
 
       - name: Verify endpoint, RFC6455 and vendor-free contracts
@@ -56,6 +61,7 @@ jobs:
           php tests/integration/native_websocket_runtime_regressions.php
           php tests/integration/messenger_activity_wiring_contract.php
           php tests/integration/native_messenger_contract.php
+          php tests/integration/messenger_long_poll_contract.php
 
       - name: Verify vendor-free native deployment defaults
         shell: bash
@@ -84,15 +90,15 @@ jobs:
           WS_STATUS=$?
           set -e
           test "$WS_STATUS" -eq 1
-          grep -Fq 'WebSocket server is not running.' /tmp/workspace-ws-status.txt
+          grep -Fq 'WebSocket-сервер не запущен.' /tmp/workspace-ws-status.txt
           grep -Fq 'websocket_proxy_contract' bin/healthcheck.php
           grep -Fq 'RewriteCond %{HTTP:Upgrade} ^websocket$ [NC]' .htaccess
           grep -Fq 'RewriteRule ^ws/?$ ws://127.0.0.1:27800/ [P,L]' .htaccess
           grep -Fq 'C:\OSPanel\home\notes.local\.osp\Apache\notes.local.conf' docs/OPEN_SERVER_WEBSOCKET.md
           grep -Fq 'OSPanel / OpenServer 5.2.2' docs/OPEN_SERVER_WEBSOCKET.md
           grep -Fq 'WS_PUBLIC_URL=ws://notes.local:27800' docs/OPEN_SERVER_WEBSOCKET.md
-          grep -Fq 'OpenServer direct-host mode' bin/ws_doctor.php
-          grep -Fq 'PowerShell background launch' bin/ws_doctor.php
-          grep -Fq 'Run: php bin/ws_doctor.php' ws_server/server.php
+          grep -Fq 'Прямой режим OpenServer' bin/ws_doctor.php
+          grep -Fq 'Фоновый запуск PowerShell' bin/ws_doctor.php
+          grep -Fq 'Запустите: php bin/ws_doctor.php' ws_server/server.php
           grep -Fq 'ProxyPass "/ws" "http://127.0.0.1:27800/" upgrade=websocket' docs/OPEN_SERVER_WEBSOCKET.md
           ! grep -Fq "getenv('WS_HOST') ?: '0.0.0.0'" ws_server/server.php

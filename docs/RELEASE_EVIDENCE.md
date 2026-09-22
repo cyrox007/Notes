@@ -22,7 +22,7 @@ Each scenario must:
 
 Mobile scenarios additionally prove the real sidebar lifecycle: initially closed, open through the menu control, visible backdrop, and close through Escape with correct aria-expanded state.
 
-The existing Browser HTTPS and WSS E2E workflow remains the release evidence for authenticated Messenger realtime behavior, reconnect, messages and transient activity presence. This matrix does not duplicate that WSS test across three browser engines.
+The existing Browser HTTPS and WSS E2E workflow remains the release evidence for authenticated Messenger realtime behavior. It verifies the preferred WSS path, forced reconnect with fresh ticket, automatic HTTP long-poll fallback without starving the PHP worker pool, and delivery of a durable HTTP-fallback mutation to a client that remains connected through WebSocket via the shared DB revision bridge. Transient typing/activity remains a WebSocket enhancement. This matrix does not duplicate that transport test across three browser engines.
 
 ## Load and soak evidence
 

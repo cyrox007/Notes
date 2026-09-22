@@ -8,6 +8,7 @@ use App\Handlers\SocketTicket;
 use App\Models\UserModel;
 use App\Services\LicenseRuntimePolicy;
 use App\Services\MaintenanceModeService;
+use App\Services\MessengerRealtimeRevisionService;
 use App\Services\PermissionService;
 use Closure;
 use Core\DatabaseManager;
@@ -29,6 +30,7 @@ final class NativeMessengerServer
 {
     private const HEARTBEAT_INTERVAL_SECONDS = 5.0;
     private const HANDSHAKE_TIMEOUT_SECONDS = 10.0;
+    private const FALLBACK_REVISION_CHECK_INTERVAL_SECONDS = 0.75;
 
     /** @var array<string,list<string>> */
     private const ALLOWED_ROUTES = [
@@ -100,6 +102,9 @@ final class NativeMessengerServer
     private Closure $userUidResolver;
     private bool $running = false;
     private float $lastHeartbeatAt = 0.0;
+    private float $lastFallbackRevisionCheckAt = 0.0;
+    private int $lastFallbackRevision = 0;
+    private ?MessengerRealtimeRevisionService $fallbackRevisionService = null;
 
     /**
      * @param list<string> $allowedOrigins
@@ -117,13 +122,13 @@ final class NativeMessengerServer
         ?callable $maintenanceStateResolver = null
     ) {
         if ($this->port < 1 || $this->port > 65535) {
-            throw new RuntimeException('Invalid WebSocket listener port');
+            throw new RuntimeException('Некорректный порт WebSocket listener');
         }
         if ($this->maxConnections < 1 || $this->maxConnections > 10000) {
-            throw new RuntimeException('Invalid WebSocket connection limit');
+            throw new RuntimeException('Некорректный лимит WebSocket-соединений');
         }
         if ($this->maxPayloadBytes < 1024 || $this->maxPayloadBytes > 16_777_216) {
-            throw new RuntimeException('Invalid WebSocket payload limit');
+            throw new RuntimeException('Некорректный лимит WebSocket payload');
         }
 
         $normalized = [];
@@ -158,15 +163,23 @@ final class NativeMessengerServer
         $this->listener = $this->createListener();
         $this->running = true;
         $this->lastHeartbeatAt = microtime(true);
+        $this->lastFallbackRevisionCheckAt = $this->lastHeartbeatAt;
+        $this->initializeFallbackRevisionBridge();
         $this->installSignalHandlers();
 
-        error_log(sprintf(
-            'Native WebSocket listener started: tcp://%s:%d; max_connections=%d; max_payload=%d',
+        $startedMessage = sprintf(
+            'Внутренний WebSocket listener запущен: tcp://%s:%d; pid=%d; max_connections=%d; max_payload=%d байт',
             $this->host,
             $this->port,
+            getmypid(),
             $this->maxConnections,
             $this->maxPayloadBytes
-        ));
+        );
+        error_log($startedMessage);
+        if (defined('STDOUT')) {
+            fwrite(STDOUT, '[RUNNING] WebSocket-сервер — ' . $startedMessage . PHP_EOL);
+            fwrite(STDOUT, '[INFO] Для остановки нажмите Ctrl+C или используйте настроенный менеджер процессов.' . PHP_EOL);
+        }
 
         try {
             while ($this->running) {
@@ -180,6 +193,34 @@ final class NativeMessengerServer
     public function stop(): void
     {
         $this->running = false;
+    }
+
+    /**
+     * Dispatch one already-authenticated realtime payload through the same
+     * allow-list, maintenance/license gates and Messenger handlers used by the
+     * WebSocket runtime. HTTP long-poll fallback supplies an in-process
+     * SocketConnection and its own connection map.
+     *
+     * @param array<string,array<int,SocketConnection>>|null $connections
+     */
+    public function dispatchTransportMessage(
+        SocketConnection $client,
+        string $message,
+        ?array $connections = null,
+        string $transport = 'websocket'
+    ): void {
+        $this->dispatchText($client, $message, $connections, $transport);
+    }
+
+    public function isDurableMutationAction(string $action): bool
+    {
+        if (substr_count($action, ':') !== 1) {
+            return false;
+        }
+        [$className, $methodName] = explode(':', $action, 2);
+        return isset(self::ALLOWED_ROUTES[$className])
+            && in_array($methodName, self::ALLOWED_ROUTES[$className], true)
+            && !$this->isReadOnlyAction($className, $methodName);
     }
 
     private function bootLifecycleStore(): void
@@ -207,10 +248,10 @@ final class NativeMessengerServer
         );
         if (!is_resource($listener)) {
             throw new RuntimeException(sprintf(
-                'Unable to start WebSocket listener on %s:%d: %s (%d)',
+                'Не удалось запустить WebSocket listener на %s:%d: %s (%d)',
                 $this->host,
                 $this->port,
-                $errstr !== '' ? $errstr : 'unknown socket error',
+                $errstr !== '' ? $errstr : 'неизвестная ошибка сокета',
                 $errno
             ));
         }
@@ -242,7 +283,7 @@ final class NativeMessengerServer
     private function iterate(): void
     {
         if (!is_resource($this->listener)) {
-            throw new RuntimeException('WebSocket listener is not available');
+            throw new RuntimeException('WebSocket listener недоступен');
         }
 
         $read = [$this->listener];
@@ -524,7 +565,15 @@ final class NativeMessengerServer
         }
     }
 
-    private function dispatchText(NativeSocketConnection $client, string $message): void
+    /**
+     * @param array<string,array<int,SocketConnection>>|null $connections
+     */
+    private function dispatchText(
+        SocketConnection $client,
+        string $message,
+        ?array $connections = null,
+        string $transport = 'websocket'
+    ): void
     {
         if (preg_match('//u', $message) !== 1) {
             $client->closeWithCode(1007, 'Invalid UTF-8');
@@ -602,9 +651,10 @@ final class NativeMessengerServer
         unset($payload['user_uid'], $payload['user_id'], $payload['from_user_id']);
 
         $mutatingAction = !$this->isReadOnlyAction($className, $methodName);
+        $handlerConnections = $connections ?? $this->connections;
         try {
             $handler = new $fullClassName();
-            $handler->$methodName($this->connections, $client, $client->uid, $payload);
+            $handler->$methodName($handlerConnections, $client, $client->uid, $payload);
             if ($mutatingAction) {
                 UserActionLog::emit(
                     $client->userId,
@@ -613,7 +663,7 @@ final class NativeMessengerServer
                     'websocket',
                     'success',
                     null,
-                    ['action' => $action]
+                    ['action' => $action, 'transport' => $transport]
                 );
             }
         } catch (Throwable $e) {
@@ -625,10 +675,10 @@ final class NativeMessengerServer
                     'websocket',
                     'failure',
                     null,
-                    ['action' => $action, 'error_type' => get_debug_type($e)]
+                    ['action' => $action, 'transport' => $transport, 'error_type' => get_debug_type($e)]
                 );
             }
-            error_log(sprintf('WebSocket handler failure for %s: %s', $action, $e->getMessage()));
+            error_log(sprintf('Realtime handler failure for %s via %s: %s', $action, $transport, $e->getMessage()));
         }
     }
 
@@ -674,6 +724,7 @@ final class NativeMessengerServer
     private function tick(): void
     {
         $now = microtime(true);
+        $this->pollFallbackRevisionBridge($now);
 
         foreach ($this->clients as $client) {
             $client->enforceCloseDeadline($now);
@@ -717,6 +768,60 @@ final class NativeMessengerServer
             $client->enforceCloseDeadline($now);
             if ($client->isDestroyed()) {
                 $this->dropClient($client);
+            }
+        }
+    }
+
+    private function initializeFallbackRevisionBridge(): void
+    {
+        try {
+            $this->fallbackRevisionService = new MessengerRealtimeRevisionService();
+            $this->lastFallbackRevision = $this->fallbackRevisionService->current();
+        } catch (Throwable $e) {
+            $this->fallbackRevisionService = null;
+            error_log('Messenger fallback revision bridge unavailable at startup: ' . $e->getMessage());
+        }
+    }
+
+    private function pollFallbackRevisionBridge(float $now): void
+    {
+        if ($this->fallbackRevisionService === null || $this->connections === []) {
+            return;
+        }
+        if (($now - $this->lastFallbackRevisionCheckAt) < self::FALLBACK_REVISION_CHECK_INTERVAL_SECONDS) {
+            return;
+        }
+        $this->lastFallbackRevisionCheckAt = $now;
+
+        try {
+            $revision = $this->fallbackRevisionService->current();
+        } catch (Throwable $e) {
+            error_log('Messenger fallback revision bridge check failed: ' . $e->getMessage());
+            return;
+        }
+
+        if ($revision === $this->lastFallbackRevision) {
+            return;
+        }
+        $this->lastFallbackRevision = $revision;
+
+        foreach ($this->connections as $uid => $userConnections) {
+            foreach ($userConnections as $connectionId => $connection) {
+                if (!$connection instanceof NativeSocketConnection || $connection->isDestroyed()) {
+                    unset($this->connections[$uid][$connectionId]);
+                    continue;
+                }
+                if ($connection->isClosing()) {
+                    continue;
+                }
+                $this->sendJson($connection, [
+                    'action' => 'sync_required',
+                    'reason' => 'http_fallback_revision',
+                    'revision' => $revision,
+                ]);
+            }
+            if (empty($this->connections[$uid])) {
+                unset($this->connections[$uid]);
             }
         }
     }

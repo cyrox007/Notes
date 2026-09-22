@@ -23,5 +23,14 @@ abstract class SocketConnection
 
     abstract public function close(): void;
 
+    /**
+     * Transport-neutral close with an optional protocol code. Non-WebSocket
+     * transports may ignore the code and simply close their response channel.
+     */
+    public function closeWithCode(int $code, string $reason = ''): void
+    {
+        $this->close();
+    }
+
     abstract public function destroy(): void;
 }
