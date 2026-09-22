@@ -2,7 +2,7 @@ name: 1.0 protocol and origin contract
 
 on:
   pull_request:
-    branches: ['1.0']
+    branches: ['1.0', dev]
     paths:
       - 'core/controller.php'
       - 'core/WebSocketEndpoint.php'
