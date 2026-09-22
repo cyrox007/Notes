@@ -188,6 +188,23 @@ final class NativeMessengerServer
         $this->running = false;
     }
 
+    /**
+     * Dispatch one already-authenticated realtime payload through the same
+     * allow-list, maintenance/license gates and Messenger handlers used by the
+     * WebSocket runtime. HTTP long-poll fallback supplies an in-process
+     * SocketConnection and its own connection map.
+     *
+     * @param array<string,array<int,SocketConnection>>|null $connections
+     */
+    public function dispatchTransportMessage(
+        SocketConnection $client,
+        string $message,
+        ?array $connections = null,
+        string $transport = 'websocket'
+    ): void {
+        $this->dispatchText($client, $message, $connections, $transport);
+    }
+
     private function bootLifecycleStore(): void
     {
         DatabaseManager::resetInstance();
@@ -530,7 +547,15 @@ final class NativeMessengerServer
         }
     }
 
-    private function dispatchText(NativeSocketConnection $client, string $message): void
+    /**
+     * @param array<string,array<int,SocketConnection>>|null $connections
+     */
+    private function dispatchText(
+        SocketConnection $client,
+        string $message,
+        ?array $connections = null,
+        string $transport = 'websocket'
+    ): void
     {
         if (preg_match('//u', $message) !== 1) {
             $client->closeWithCode(1007, 'Invalid UTF-8');
@@ -608,9 +633,10 @@ final class NativeMessengerServer
         unset($payload['user_uid'], $payload['user_id'], $payload['from_user_id']);
 
         $mutatingAction = !$this->isReadOnlyAction($className, $methodName);
+        $handlerConnections = $connections ?? $this->connections;
         try {
             $handler = new $fullClassName();
-            $handler->$methodName($this->connections, $client, $client->uid, $payload);
+            $handler->$methodName($handlerConnections, $client, $client->uid, $payload);
             if ($mutatingAction) {
                 UserActionLog::emit(
                     $client->userId,
@@ -619,7 +645,7 @@ final class NativeMessengerServer
                     'websocket',
                     'success',
                     null,
-                    ['action' => $action]
+                    ['action' => $action, 'transport' => $transport]
                 );
             }
         } catch (Throwable $e) {
@@ -631,10 +657,10 @@ final class NativeMessengerServer
                     'websocket',
                     'failure',
                     null,
-                    ['action' => $action, 'error_type' => get_debug_type($e)]
+                    ['action' => $action, 'transport' => $transport, 'error_type' => get_debug_type($e)]
                 );
             }
-            error_log(sprintf('WebSocket handler failure for %s: %s', $action, $e->getMessage()));
+            error_log(sprintf('Realtime handler failure for %s via %s: %s', $action, $transport, $e->getMessage()));
         }
     }
 
