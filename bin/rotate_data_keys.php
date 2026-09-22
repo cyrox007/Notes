@@ -128,9 +128,16 @@ try {
     if ($json) {
         echo json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . PHP_EOL;
     } else {
+        $directionLabel = ($result['direction'] ?? '') === 'rollback' ? 'откат' : 'прямая ротация';
+        $scopeLabel = match ($result['scope'] ?? '') {
+            'all' => 'все защищённые данные',
+            'notes' => 'заметки',
+            'messenger' => 'Messenger',
+            default => (string) ($result['scope'] ?? ''),
+        };
         echo 'Ротация ключей данных: ' . ($result['complete'] ? 'ЗАВЕРШЕНА' : 'НЕ ЗАВЕРШЕНА; требуется продолжение') . PHP_EOL;
-        echo 'Направление: ' . $result['direction'] . PHP_EOL;
-        echo 'Область: ' . $result['scope'] . PHP_EOL;
+        echo 'Направление: ' . $directionLabel . PHP_EOL;
+        echo 'Область: ' . $scopeLabel . PHP_EOL;
         echo 'Пакетов в этом запуске: ' . $result['batches_this_run'] . PHP_EOL;
         echo 'Состояние: ' . $result['state_path'] . PHP_EOL;
         if ($result['complete']) {
