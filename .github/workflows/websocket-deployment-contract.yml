@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [master, '1.0', dev]
   push:
-    branches: [0.14-beta2-websocket-deployment, '1.0']
+    branches: [0.14-beta2-websocket-deployment, '1.0', dev]
 
 permissions:
   contents: read
