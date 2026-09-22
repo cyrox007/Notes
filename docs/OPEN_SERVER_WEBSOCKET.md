@@ -60,7 +60,21 @@ WS_ALLOWED_ORIGINS=http://notes.local
 
 Такой режим специально нужен, чтобы Messenger можно было тестировать на OpenServer 5.x без настройки reverse proxy.
 
-## Почему одного PHP-сайта недостаточно
+## Realtime fallback
+
+Messenger использует WebSocket как основной и самый быстрый realtime-транспорт. Если listener, Upgrade proxy или сам WebSocket временно недоступен, клиент автоматически переходит на аутентифицированный HTTP long poll. После восстановления WebSocket клиент получает новый короткоживущий socket ticket, переподключается и бесшовно отключает long poll.
+
+Состояния в интерфейсе:
+
+- **WebSocket · в сети** — основной realtime-канал;
+- **Long Poll · резервный канал** — сообщения и durable-состояние продолжают синхронизироваться через HTTP;
+- **WebSocket переподключается** — long poll продолжает обслуживать Messenger, пока клиент проверяет основной канал.
+
+Long poll использует те же Messenger handlers, permissions, license/maintenance gates и данные, что и WebSocket. Это не отдельная реализация мессенджера. Ephemeral presence/typing остаются ускорением WebSocket и могут быть менее оперативными в fallback-режиме.
+
+`MESSENGER_LONG_POLL_TIMEOUT_SECONDS` задаёт длительность одного long-poll ожидания (по умолчанию 15 секунд, допустимый диапазон 5–25). Перед HTTP-действием или обновлением socket ticket клиент прерывает текущий poll, чтобы не удерживать единственный доступный PHP worker.
+
+## Почему WebSocket всё равно рекомендуется
 
 Workspace Organizer 1.0 запускает собственный native PHP WebSocket listener:
 
@@ -232,6 +246,6 @@ Internet -> HTTPS/WSS reverse proxy -> 127.0.0.1:27800 -> native PHP WebSocket s
 
 Не выставляйте внутренний listener на `0.0.0.0`, если reverse proxy находится на том же сервере.
 
-На shared hosting realtime Messenger поддерживается только если тариф позволяет долгоживущий PHP CLI process, WebSocket Upgrade proxy и доступ proxy к локальному listener. Если нет — HTTP-модули продолжают работать, realtime Messenger нет.
+На shared hosting без долгоживущего PHP CLI process или WebSocket Upgrade proxy Messenger остаётся работоспособным через HTTP long poll. WebSocket рекомендуется включать, когда хостинг это позволяет: он уменьшает задержку, число HTTP-запросов и нагрузку на PHP workers. Для long poll хостинг должен разрешать обычные длительные HTTP-запросы и достаточную параллельность PHP/FPM; клиент освобождает poll перед собственными mutating HTTP-запросами и WS reconnect.
 
 Composer/Workerman для 1.0 runtime не требуются.
