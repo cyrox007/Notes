@@ -3,18 +3,19 @@
 declare(strict_types=1);
 
 /**
- * Workspace Organizer production license trust registry.
+ * Production trust registry лицензий Workspace Organizer.
  *
- * Values are base64url-encoded raw 32-byte Ed25519 PUBLIC keys only.
- * Never place a private/secret signing key in this file, anywhere else in the
- * repository, in .env, CI artifacts, release bundles, support archives or a
+ * Здесь допускаются только raw 32-byte ПУБЛИЧНЫЕ ключи Ed25519 в base64url.
+ * Никогда не помещайте private/secret signing key в этот файл, в другие файлы
+ * репозитория, .env, CI artifacts, release bundles, support archives или
  * customer installation.
  *
- * Key rotation: temporarily keep both the retiring and replacement public keys
- * here. New licenses should use the replacement key id. Remove the old public
- * key only after every license that depends on it has been replaced/expired.
+ * Ротация ключей: временно храните здесь и выводимый из эксплуатации, и новый
+ * публичный ключ. Новые лицензии должны использовать новый key ID. Удаляйте
+ * старый public key только после замены или истечения всех зависящих от него
+ * лицензий.
  *
- * Example (documentation only; not a real production key):
+ * Пример только для документации, это не реальный production key:
  *   'prod-2026-01' => '<base64url-encoded-public-key>',
  *
  * @return array<string,string>
