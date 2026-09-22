@@ -314,6 +314,10 @@
         }
 
         startLongPoll(reason = '') {
+            if (this.longPollFallbackTimer) {
+                window.clearTimeout(this.longPollFallbackTimer);
+                this.longPollFallbackTimer = null;
+            }
             if (navigator.onLine === false) {
                 this.setConnectionState('offline', 'Нет интернета');
                 return;
