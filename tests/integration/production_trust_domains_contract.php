@@ -6,7 +6,7 @@ $root = dirname(__DIR__, 2);
 
 function trustFail(string $message): never
 {
-    fwrite(STDERR, "[FAIL] production trust domains: {$message}\n");
+    fwrite(STDERR, "[ОШИБКА] production trust domains: {$message}\n");
     exit(1);
 }
 
@@ -20,30 +20,30 @@ function trustAssert(bool $condition, string $message): void
 function trustDecodePublic(string $encoded, string $domain, string $keyId): string
 {
     if ($encoded === '' || preg_match('/^[A-Za-z0-9_-]+$/D', $encoded) !== 1) {
-        trustFail("{$domain} public key {$keyId} is not canonical base64url");
+        trustFail("{$domain} public key {$keyId} не является canonical base64url");
     }
     $padding = (4 - (strlen($encoded) % 4)) % 4;
     $raw = base64_decode(strtr($encoded, '-_', '+/') . str_repeat('=', $padding), true);
     if (!is_string($raw) || strlen($raw) !== SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES) {
-        trustFail("{$domain} public key {$keyId} is not a raw Ed25519 public key");
+        trustFail("{$domain} public key {$keyId} не является raw Ed25519 public key");
     }
     return $raw;
 }
 
-trustAssert(extension_loaded('sodium'), 'sodium extension is required');
+trustAssert(extension_loaded('sodium'), 'требуется расширение sodium');
 
 $license = require $root . '/config/license_trusted_keys.php';
 $update = require $root . '/config/update_trusted_keys.php';
-trustAssert(is_array($license), 'license trust registry must return an array');
-trustAssert(is_array($update), 'update trust registry must return an array');
+trustAssert(is_array($license), 'license trust registry должен возвращать массив');
+trustAssert(is_array($update), 'update trust registry должен возвращать массив');
 
 $licenseFingerprints = [];
 foreach ($license as $keyId => $encoded) {
     trustAssert(
         is_string($keyId) && preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$/D', $keyId) === 1,
-        'invalid license key id'
+        'некорректный license key ID'
     );
-    trustAssert(is_string($encoded), "license public key {$keyId} must be a string");
+    trustAssert(is_string($encoded), "license public key {$keyId} должен быть строкой");
     $licenseFingerprints[$keyId] = hash('sha256', trustDecodePublic($encoded, 'license', $keyId));
 }
 
@@ -51,52 +51,52 @@ $updateFingerprints = [];
 foreach ($update as $keyId => $encoded) {
     trustAssert(
         is_string($keyId) && preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$/D', $keyId) === 1,
-        'invalid update key id'
+        'некорректный update key ID'
     );
-    trustAssert(is_string($encoded), "update public key {$keyId} must be a string");
+    trustAssert(is_string($encoded), "update public key {$keyId} должен быть строкой");
     $updateFingerprints[$keyId] = hash('sha256', trustDecodePublic($encoded, 'update', $keyId));
 }
 
 trustAssert(
     array_intersect(array_keys($licenseFingerprints), array_keys($updateFingerprints)) === [],
-    'license and update key ids must be independent'
+    'license и update key ID должны быть независимыми'
 );
 trustAssert(
     array_intersect(array_values($licenseFingerprints), array_values($updateFingerprints)) === [],
-    'license and update signing domains must not reuse the same Ed25519 keypair'
+    'license и update signing domains не должны использовать одну пару Ed25519'
 );
 
 $licenseLib = (string) file_get_contents($root . '/tools/vendor-license/lib.php');
 $updateLib = (string) file_get_contents($root . '/tools/vendor-update/lib.php');
 trustAssert(
     str_contains($licenseLib, "WORKSPACE_LICENSE_SECRET_PREFIX = 'wo-ed25519-secret-v1:'"),
-    'license private-key file domain prefix drifted'
+    'изменился domain prefix файла private key лицензии'
 );
 trustAssert(
     str_contains($updateLib, "WORKSPACE_UPDATE_SECRET_PREFIX = 'wo-update-ed25519-secret-v1:'"),
-    'update private-key file domain prefix drifted'
+    'изменился domain prefix файла private key обновления'
 );
 trustAssert(
     !str_contains($licenseLib, "wo-update-ed25519-secret-v1:"),
-    'license tooling recognizes the update private-key file domain'
+    'license tooling ошибочно распознаёт domain private key обновления'
 );
 trustAssert(
     !str_contains($updateLib, "wo-ed25519-secret-v1:"),
-    'update tooling recognizes the license private-key file domain'
+    'update tooling ошибочно распознаёт domain private key лицензии'
 );
 
 $releaseGate = (string) file_get_contents($root . '/.github/workflows/release-gate.yml');
 trustAssert(
     str_contains($releaseGate, 'Production license public key registry is empty'),
-    'master release gate does not require production license public keys'
+    'master release gate не требует production license public keys'
 );
 trustAssert(
     str_contains($releaseGate, 'Production update public key registry is empty'),
-    'master release gate does not require production update public keys'
+    'master release gate не требует production update public keys'
 );
 trustAssert(
     str_contains($releaseGate, 'License/update public keys must use independent key material'),
-    'master release gate does not enforce independent signing key material'
+    'master release gate не проверяет независимость signing key material'
 );
 
 $ceremony = (string) file_get_contents($root . '/docs/PRODUCTION_TRUST_CEREMONY.md');
@@ -106,9 +106,9 @@ foreach ([
     'config/update_trusted_keys.php',
     'tools/vendor-license/keygen.php',
     'tools/vendor-update/keygen.php',
-    'Never commit',
+    'Никогда не коммитьте',
 ] as $marker) {
-    trustAssert(str_contains($ceremony, $marker), "trust ceremony runbook is missing marker: {$marker}");
+    trustAssert(str_contains($ceremony, $marker), "runbook trust ceremony не содержит marker: {$marker}");
 }
 
-fwrite(STDOUT, "[OK] production license and update trust domains remain independent\n");
+fwrite(STDOUT, "[OK] production trust domains лицензий и обновлений остаются независимыми\n");
