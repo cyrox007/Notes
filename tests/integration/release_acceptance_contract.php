@@ -92,11 +92,30 @@ $governance = json_decode(
     32,
     JSON_THROW_ON_ERROR
 );
-releaseAcceptanceAssert(($governance['stabilization_branch'] ?? null) === '1.0', '1.0 stabilization governance drifted');
+releaseAcceptanceAssert(($governance['stabilization_branch'] ?? null) === '1.0', 'ветка стабилизации должна быть 1.0');
+$requiredChecks = $governance['required_checks'] ?? null;
+releaseAcceptanceAssert(is_array($requiredChecks) && $requiredChecks !== [], 'финальный набор required checks отсутствует');
 releaseAcceptanceAssert(
-    ($governance['stabilization_required_checks'] ?? null) === ['release-gate'],
-    '1.0 required release gate drifted'
+    ($governance['stabilization_required_checks'] ?? null) === $requiredChecks,
+    '1.0 должна требовать тот же набор checks, что и master'
 );
+releaseAcceptanceAssert(
+    ($governance['release_candidate_required_checks'] ?? null) === $requiredChecks,
+    'release candidate check set расходится с branch protection policy'
+);
+foreach ([
+    'one-zero-one-upgrade-rollback',
+    'browser-wss-e2e',
+    'release-evidence',
+    'windows-contract (8.1)',
+    'windows-contract (8.3)',
+    'messenger-realtime-fallback',
+] as $requiredCheck) {
+    releaseAcceptanceAssert(
+        in_array($requiredCheck, $requiredChecks, true),
+        "в обязательном наборе отсутствует {$requiredCheck}"
+    );
+}
 
 $releaseGate = releaseAcceptanceText($root, '.github/workflows/release-gate.yml');
 releaseAcceptanceAssert(
