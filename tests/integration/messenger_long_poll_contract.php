@@ -72,7 +72,7 @@ assertLongPollContract(
 );
 assertLongPollContract(
     str_contains($service, 'MESSENGER_LONG_POLL_TIMEOUT_SECONDS')
-    && str_contains($service, 'connection_aborted'),
+    && str_contains($controller, 'connection_aborted()'),
     'long-poll wait must be bounded and abort-aware'
 );
 
