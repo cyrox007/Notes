@@ -22,6 +22,9 @@
 - `php ws_server/server.php start` выполняет подробный startup preflight: extensions/socket API, runtime paths, WebSocket endpoint/origins/proxy mode, limits и пробный bind порта; критичная ошибка выводит причину и действие `[FIX]` и блокирует запуск.
 - Добавлена diagnostics-only команда `php ws_server/server.php check`; `[RUNNING]` печатается только после успешного реального bind listener.
 - Документирован поддерживаемый вариант одного отдельного WS-узла и явно зафиксировано, что multi-instance/HA WebSocket без cross-node pub/sub/fan-out пока не является поддерживаемой topology.
+- Messenger получил WebSocket-first transport с автоматическим HTTP long-poll fallback: при недоступном/оборванном WS durable chat state продолжает синхронизироваться через HTTP, а клиент в фоне восстанавливает WebSocket и после успешной авторизации отключает fallback.
+- HTTP fallback переиспользует canonical Messenger dispatcher, RBAC, role policies, maintenance/license gates и socket handlers; long-poll request освобождает PHP session lock и прерывается перед собственными mutating HTTP requests/ticket refresh, чтобы не блокировать малое число PHP workers.
+- Durable HTTP fallback mutations публикуют shared DB realtime revision; native WS process отслеживает её и отправляет `sync_required`, поэтому клиенты, остающиеся на WebSocket, видят изменения fallback-клиентов без reconnect. Ephemeral typing/activity остаются WebSocket enhancement.
 
 ### Release direction
 - `1.0.2` является последним stabilization patch перед feature-cycle `1.1.0`.
