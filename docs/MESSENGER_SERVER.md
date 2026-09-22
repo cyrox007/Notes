@@ -1,12 +1,14 @@
 # Messenger WebSocket server — запуск, отдельный WS-узел и эксплуатация
 
-Workspace Organizer 1.0 использует собственный native PHP WebSocket runtime. Сторонний Workerman и Composer `vendor/` для realtime Messenger не требуются. Обычные HTTP-запросы обслуживаются PHP-FPM/Apache, а realtime Messenger — отдельным долгоживущим процессом `ws_server/server.php`.
+Workspace Organizer 1.0 использует WebSocket-first realtime transport: собственный native PHP WebSocket runtime является основным низколатентным каналом, а authenticated HTTP long poll — автоматическим резервным каналом. Сторонний Workerman и Composer `vendor/` для realtime Messenger не требуются. Обычные HTTP-запросы и fallback обслуживаются PHP-FPM/Apache, а ускоренный realtime — отдельным долгоживущим процессом `ws_server/server.php`.
 
 Поддерживаемый production-контракт:
 
-- одна installation Workspace Organizer использует один активный WebSocket process;
+- при включённом WebSocket одна installation Workspace Organizer использует один активный WebSocket process;
 - этот process может работать рядом с HTTP-приложением либо на одном отдельном WS-узле;
-- несколько одновременно активных WS instances одной installation пока не поддерживаются: connection registry находится в памяти процесса, а cross-node pub/sub/fan-out отсутствует.
+- при недоступном WebSocket Messenger автоматически продолжает durable realtime через HTTP long poll и параллельно пытается восстановить WS;
+- durable mutations из HTTP fallback публикуют shared DB realtime revision, поэтому активные WS-клиенты получают `sync_required` и перечитывают canonical state без reconnect;
+- несколько одновременно активных WS instances одной installation пока не поддерживаются: connection registry находится в памяти процесса, а полноценный multi-node pub/sub/presence отсутствует.
 
 ## Архитектура
 
@@ -27,14 +29,14 @@ PHP-FPM / Apache        Native PHP WebSocket server
       MySQL + private storage
 ```
 
-TLS завершается на reverse proxy. Внутренний listener использует `stream_socket_server()` + `stream_select()`, собственный RFC6455 handshake/frame codec и общий Messenger transport boundary.
+TLS завершается на reverse proxy. Внутренний listener использует `stream_socket_server()` + `stream_select()`, собственный RFC6455 handshake/frame codec и общий Messenger transport boundary. HTTP fallback входит в тот же transport boundary: `/messenger/realtime/action` dispatch-ит те же allowlisted Messenger actions, а `/messenger/realtime/poll` ждёт изменения durable state и возвращает canonical snapshot.
 
 ## Требования
 
 - PHP 8.1+
 - `mysqli`, `pdo_mysql`, `mbstring`, `json`, `fileinfo`, `sodium`
-- долгоживущий PHP process
-- WebSocket reverse proxy для production WSS
+- обычные authenticated HTTP-запросы с возможностью long-poll ожидания 5–25 секунд и достаточной параллельностью PHP workers;
+- для рекомендуемого WebSocket fast path — долгоживущий PHP process и WebSocket reverse proxy для production WSS.
 
 Composer install для runtime не нужен.
 
@@ -68,7 +70,7 @@ WS_PORT=27800
 WS_PID_FILE=/run/workspace-organizer/ws-server.pid
 ```
 
-На WS-узле запускайте `php ws_server/server.php check` перед первым стартом и `php bin/ws_doctor.php` после запуска. Несколько WS процессов одной installation нельзя использовать как HA/load-balancing topology до отдельной реализации cross-node fan-out/presence.
+На WS-узле запускайте `php ws_server/server.php check` перед первым стартом и `php bin/ws_doctor.php` после запуска. HTTP-приложение и отдельный WS-узел должны видеть одну application DB: она используется не только Messenger-данными, но и realtime revision bridge для уведомления WS-клиентов о durable mutations из HTTP fallback. Несколько WS процессов одной installation нельзя использовать как HA/load-balancing topology до отдельной реализации cross-node fan-out/presence.
 
 ## Переменные `.env`
 
@@ -147,6 +149,8 @@ php bin/healthcheck.php
 
 ## Security boundary
 
+Оба транспорта используют один server-side Messenger authorization/dispatch boundary. HTTP fallback аутентифицируется обычной application session и проходит тот же action allow-list, permission checks, maintenance state и license read-only policy, что и WebSocket dispatcher.
+
 При WebSocket Upgrade сервер:
 
 1. проверяет `Origin` по `WS_ALLOWED_ORIGINS`;
@@ -219,7 +223,11 @@ user=www-data
 
 ## Shared hosting / Open Server
 
-Realtime Messenger требует возможность держать отдельный PHP process и предоставить браузеру WebSocket endpoint. На том же сервере это обычно reverse proxy `/ws` → `WS_PORT`; альтернативой может быть один отдельный WS-узел по контракту выше. Если hosting не поддерживает long-running PHP process/WebSocket Upgrade и отдельный WS-узел недоступен, Notes/Tasks/Files/Profile продолжают работать, но realtime Messenger корректно запустить нельзя.
+Messenger остаётся работоспособным без long-running WebSocket process: browser автоматически переходит на authenticated HTTP long poll. WebSocket на том же сервере (обычно reverse proxy `/ws` → `WS_PORT`) или один отдельный WS-узел по контракту выше рекомендуются как fast path, потому что уменьшают задержку, число HTTP-запросов и занятость PHP workers.
+
+Для fallback shared hosting должен разрешать обычные длительные HTTP requests и иметь достаточную параллельность PHP/FPM. Клиент освобождает PHP session lock на long-poll request, прерывает текущий poll перед собственным mutating HTTP action или refresh socket ticket и затем возобновляет ожидание. Значение `MESSENGER_LONG_POLL_TIMEOUT_SECONDS` по умолчанию равно 15 секундам и ограничивается диапазоном 5–25.
+
+Ephemeral typing/activity остаются WebSocket enhancement; сообщения, диалоги, read/delivery state, reactions и другие durable изменения синхронизируются через fallback. После восстановления WebSocket клиент получает свежий ticket, проходит `Authorized`, отменяет long poll и бесшовно возвращается на основной канал.
 
 Для Open Server используйте `docs/OPEN_SERVER_WEBSOCKET.md`.
 
@@ -230,10 +238,12 @@ Realtime Messenger требует возможность держать отде
 3. `php bin/ws_doctor.php`
 4. проверить конфигурацию Nginx/Apache;
 5. открыть Messenger двумя пользователями;
-6. в DevTools → Network → WS увидеть `101 Switching Protocols`;
-7. отправить сообщение и убедиться, что второй browser context получает его без reload.
+6. при доступном WebSocket в DevTools → Network → WS увидеть `101 Switching Protocols` и состояние «WebSocket · в сети»;
+7. отправить сообщение и убедиться, что второй browser context получает его без reload;
+8. временно остановить WS process или сделать endpoint недоступным, дождаться состояния «Long Poll · резервный канал», повторить отправку между двумя пользователями и убедиться, что durable state синхронизируется;
+9. вернуть WS process и убедиться, что клиент автоматически возвращается на WebSocket без reload.
 
-Repository CI выполняет аналогичный production-like Chromium smoke через TLS Nginx + PHP + **native WebSocket server**, причём runtime проверяется без каталога `vendor/`.
+Repository CI выполняет production-like Chromium smoke через TLS Nginx + PHP + **native WebSocket server**, проверяет reconnect, HTTP fallback/worker-release и bridge fallback-mutation → активный WS-клиент; runtime проверяется без каталога `vendor/`.
 
 ## Частые проблемы
 
