@@ -12,15 +12,15 @@ use Core\WebSocketEndpoint;
 if (PHP_VERSION_ID < 80100) {
     fwrite(
         STDERR,
-        'Workspace Organizer WebSocket server requires PHP CLI 8.1+; running '
+        'Для WebSocket-сервера Workspace Organizer требуется PHP CLI 8.1+; сейчас используется '
         . PHP_VERSION
-        . ' via '
+        . ' через '
         . PHP_BINARY
         . PHP_EOL
     );
     fwrite(
         STDERR,
-        'Check the SSH/CLI PHP selection with: php -v && command -v php'
+        'Проверьте выбранную версию PHP для SSH/CLI командой: php -v && command -v php'
         . PHP_EOL
     );
     exit(2);
@@ -56,33 +56,33 @@ function workspaceWsFormatBindHost(string $host): string
 
 /**
  * Validate everything that can be checked safely before the long-running
- * WebSocket process starts. Returns false instead of starting on any critical
+ * WebSocket-процесс starts. Returns false instead of starting on any critical
  * problem and never prints secret values.
  */
 function workspaceWsPreflight(bool $daemon): bool
 {
     $failures = 0;
 
-    fwrite(STDOUT, PHP_EOL . "Workspace Organizer WebSocket startup preflight\n");
+    fwrite(STDOUT, PHP_EOL . "Предварительная проверка запуска WebSocket Workspace Organizer\n");
     fwrite(STDOUT, "================================================\n");
 
-    workspaceWsStartupLine('OK', 'Application root', SITEPATH);
+    workspaceWsStartupLine('OK', 'Корень приложения', SITEPATH);
 
     $envFile = SITEPATH . '/.env';
     if (!is_file($envFile)) {
         workspaceWsStartupFail(
-            'Environment file',
-            'missing: ' . $envFile,
-            'create/configure .env before starting the WebSocket runtime'
+            'Файл окружения',
+            'не найден: ' . $envFile,
+            'создайте и настройте .env перед запуском WebSocket'
         );
         $failures++;
     } else {
-        workspaceWsStartupLine('OK', 'Environment file', $envFile . ' (loaded)');
+        workspaceWsStartupLine('OK', 'Файл окружения', $envFile . ' (загружен)');
     }
 
     workspaceWsStartupLine(
         'OK',
-        'PHP CLI runtime',
+        'Среда PHP CLI',
         PHP_VERSION . ' | binary=' . PHP_BINARY . ' | sapi=' . PHP_SAPI
     );
 
@@ -91,14 +91,14 @@ function workspaceWsPreflight(bool $daemon): bool
             $version = phpversion($extension);
             workspaceWsStartupLine(
                 'OK',
-                'PHP extension ' . $extension,
-                $version !== false ? 'loaded, version=' . $version : 'loaded'
+                'Расширение PHP ' . $extension,
+                $version !== false ? 'загружено, версия=' . $version : 'загружено'
             );
         } else {
             workspaceWsStartupFail(
-                'PHP extension ' . $extension,
-                'missing from the active CLI PHP binary',
-                'enable/install ' . $extension . ' for ' . PHP_BINARY
+                'Расширение PHP ' . $extension,
+                'отсутствует в активном CLI-интерпретаторе PHP',
+                'включите/установите ' . $extension . ' для ' . PHP_BINARY
             );
             $failures++;
         }
@@ -106,12 +106,12 @@ function workspaceWsPreflight(bool $daemon): bool
 
     foreach (['stream_socket_server', 'stream_select'] as $function) {
         if (function_exists($function)) {
-            workspaceWsStartupLine('OK', 'Socket API ' . $function, 'available');
+            workspaceWsStartupLine('OK', 'Функция Socket API ' . $function, 'доступна');
         } else {
             workspaceWsStartupFail(
-                'Socket API ' . $function,
-                'function is unavailable in this CLI runtime',
-                'use a PHP CLI build with standard stream socket support'
+                'Функция Socket API ' . $function,
+                'функция недоступна в этой среде PHP CLI',
+                'используйте сборку PHP CLI со стандартной поддержкой stream socket'
             );
             $failures++;
         }
@@ -119,22 +119,22 @@ function workspaceWsPreflight(bool $daemon): bool
 
     if (PHP_OS_FAMILY !== 'Windows') {
         if (function_exists('pcntl_signal')) {
-            workspaceWsStartupLine('OK', 'Signal handling', 'pcntl is available');
+            workspaceWsStartupLine('OK', 'Обработка сигналов', 'pcntl доступен');
         } else {
             workspaceWsStartupLine(
                 'WARN',
-                'Signal handling',
-                'pcntl is unavailable; foreground runtime can start, but graceful signal handling is limited'
+                'Обработка сигналов',
+                'pcntl недоступен; запуск в foreground возможен, но корректная обработка сигналов ограничена'
             );
         }
 
         if (function_exists('posix_kill')) {
-            workspaceWsStartupLine('OK', 'Process control', 'posix_kill is available');
+            workspaceWsStartupLine('OK', 'Управление процессом', 'posix_kill доступен');
         } else {
             workspaceWsStartupLine(
                 'WARN',
-                'Process control',
-                'posix_kill is unavailable; stop/restart may require the hosting process manager'
+                'Управление процессом',
+                'posix_kill недоступен; для stop/restart может потребоваться менеджер процессов хостинга'
             );
         }
     }
@@ -142,28 +142,28 @@ function workspaceWsPreflight(bool $daemon): bool
     if ($daemon) {
         if (PHP_OS_FAMILY === 'Windows') {
             workspaceWsStartupFail(
-                'Daemon mode',
-                'requested with -d/--daemon on Windows',
-                'run in foreground under a background process manager instead'
+                'Режим демона',
+                'параметр -d/--daemon запрошен в Windows',
+                'запускайте в foreground через менеджер фоновых процессов'
             );
             $failures++;
         } elseif (!function_exists('pcntl_fork')) {
             workspaceWsStartupFail(
-                'Daemon mode',
-                'pcntl_fork is unavailable',
-                'enable pcntl or start without -d under systemd/Supervisor/hosting process manager'
+                'Режим демона',
+                'pcntl_fork недоступен',
+                'включите pcntl или запускайте без -d через systemd/Supervisor/менеджер процессов хостинга'
             );
             $failures++;
         } else {
-            workspaceWsStartupLine('OK', 'Process mode', 'daemon requested; pcntl_fork is available');
+            workspaceWsStartupLine('OK', 'Режим процесса', 'запрошен daemon-режим; pcntl_fork доступен');
         }
     } else {
         workspaceWsStartupLine(
             'OK',
-            'Process mode',
+            'Режим процесса',
             PHP_OS_FAMILY === 'Windows'
-                ? 'foreground (use the hosting/OpenServer background process manager)'
-                : 'foreground (recommended for systemd/Supervisor/hosting process managers)'
+                ? 'foreground (используйте менеджер фоновых процессов хостинга/OpenServer)'
+                : 'foreground (рекомендуется для systemd/Supervisor/менеджера процессов хостинга)'
         );
     }
 
@@ -171,51 +171,51 @@ function workspaceWsPreflight(bool $daemon): bool
     if (strlen($ticketSecret) < 32) {
         workspaceWsStartupFail(
             'WS_TICKET_SECRET',
-            'not configured or shorter than 32 characters',
-            'set a separate random WS_TICKET_SECRET with at least 32 characters in .env'
+            'не настроен или короче 32 символов',
+            'задайте в .env отдельный случайный WS_TICKET_SECRET длиной не менее 32 символов'
         );
         $failures++;
     } else {
-        workspaceWsStartupLine('OK', 'WS_TICKET_SECRET', 'configured (' . strlen($ticketSecret) . ' characters; value hidden)');
+        workspaceWsStartupLine('OK', 'WS_TICKET_SECRET', 'настроен (' . strlen($ticketSecret) . ' символов; значение скрыто)');
     }
 
     $pidFile = workspaceWsPidFile();
     $pidDirectory = dirname($pidFile);
     if (!is_dir($pidDirectory) && !@mkdir($pidDirectory, 0700, true) && !is_dir($pidDirectory)) {
         workspaceWsStartupFail(
-            'Runtime directory',
-            'cannot create ' . $pidDirectory,
-            'create the directory and grant the CLI user write access'
+            'Каталог runtime',
+            'не удалось создать ' . $pidDirectory,
+            'создайте каталог и предоставьте пользователю CLI права на запись'
         );
         $failures++;
     } elseif (!is_writable($pidDirectory)) {
         workspaceWsStartupFail(
-            'Runtime directory',
-            'not writable: ' . $pidDirectory,
-            'grant the CLI user write permission or change WS_PID_FILE/PRIVATE_STORAGE_PATH'
+            'Каталог runtime',
+            'нет прав на запись: ' . $pidDirectory,
+            'предоставьте пользователю CLI права на запись или измените WS_PID_FILE/PRIVATE_STORAGE_PATH'
         );
         $failures++;
     } else {
-        workspaceWsStartupLine('OK', 'Runtime directory', $pidDirectory . ' (writable)');
+        workspaceWsStartupLine('OK', 'Каталог runtime', $pidDirectory . ' (доступен для записи)');
     }
-    workspaceWsStartupLine('INFO', 'PID file', $pidFile);
+    workspaceWsStartupLine('INFO', 'PID-файл', $pidFile);
 
     $logPath = (string) ini_get('error_log');
     workspaceWsStartupLine(
         'INFO',
-        'Runtime log',
-        $logPath !== '' ? $logPath : 'PHP error_log is not configured'
+        'Журнал runtime',
+        $logPath !== '' ? $logPath : 'PHP error_log не настроен'
     );
 
     $privateStorage = trim((string) (getenv('PRIVATE_STORAGE_PATH') ?: ''));
     if ($privateStorage !== '') {
         workspaceWsStartupLine(
             is_dir($privateStorage) && is_writable($privateStorage) ? 'OK' : 'WARN',
-            'Private storage',
+            'Приватное хранилище',
             $privateStorage
                 . (is_dir($privateStorage)
-                    ? (is_writable($privateStorage) ? ' (writable)' : ' (not writable)')
-                    : ' (directory does not exist yet)')
+                    ? (is_writable($privateStorage) ? ' (доступен для записи)' : ' (нет прав на запись)')
+                    : ' (каталог пока не существует)')
         );
     }
 
@@ -231,13 +231,13 @@ function workspaceWsPreflight(bool $daemon): bool
         $origins = WebSocketEndpoint::allowedOrigins();
         $sameOriginProxy = WebSocketEndpoint::usesSameOriginProxy();
 
-        workspaceWsStartupLine('OK', 'Site origin', $siteUrl);
-        workspaceWsStartupLine('OK', 'Browser WebSocket URL', $publicUrl);
-        workspaceWsStartupLine('OK', 'Native listener', 'tcp://' . workspaceWsFormatBindHost($bindHost) . ':' . $port);
+        workspaceWsStartupLine('OK', 'Origin сайта', $siteUrl);
+        workspaceWsStartupLine('OK', 'WebSocket URL для браузера', $publicUrl);
+        workspaceWsStartupLine('OK', 'Внутренний listener', 'tcp://' . workspaceWsFormatBindHost($bindHost) . ':' . $port);
         workspaceWsStartupLine(
             'OK',
-            'Deployment mode',
-            $sameOriginProxy ? 'same-origin reverse proxy' : 'direct/custom WebSocket endpoint'
+            'Режим развёртывания',
+            $sameOriginProxy ? 'reverse proxy в рамках того же origin' : 'прямой/пользовательский WebSocket endpoint'
         );
 
         if ($sameOriginProxy) {
@@ -250,19 +250,19 @@ function workspaceWsPreflight(bool $daemon): bool
 
         if ($origins === []) {
             workspaceWsStartupFail(
-                'Allowed WebSocket origins',
-                'allowlist is empty',
-                'set WS_ALLOWED_ORIGINS to the browser origin that serves Workspace Organizer'
+                'Разрешённые WebSocket origin',
+                'список разрешённых origin пуст',
+                'задайте WS_ALLOWED_ORIGINS равным origin, с которого браузер открывает Workspace Organizer'
             );
             $failures++;
         } else {
-            workspaceWsStartupLine('OK', 'Allowed WebSocket origins', implode(', ', $origins));
+            workspaceWsStartupLine('OK', 'Разрешённые WebSocket origin', implode(', ', $origins));
         }
     } catch (Throwable $e) {
         workspaceWsStartupFail(
-            'WebSocket configuration',
+            'Конфигурация WebSocket',
             $e->getMessage(),
-            'check SITEURL, BASE_PATH, WS_HOST, WS_PORT, WS_PUBLIC_URL and WS_ALLOWED_ORIGINS in .env'
+            'проверьте SITEURL, BASE_PATH, WS_HOST, WS_PORT, WS_PUBLIC_URL и WS_ALLOWED_ORIGINS в .env'
         );
         $failures++;
     }
@@ -270,43 +270,43 @@ function workspaceWsPreflight(bool $daemon): bool
     $maxConnections = (int) (getenv('WS_MAX_CONNECTIONS') ?: 256);
     if ($maxConnections < 1 || $maxConnections > 10000) {
         workspaceWsStartupFail(
-            'Connection limit',
-            'WS_MAX_CONNECTIONS=' . $maxConnections . ' is outside 1..10000',
-            'set WS_MAX_CONNECTIONS to a value between 1 and 10000'
+            'Лимит соединений',
+            'WS_MAX_CONNECTIONS=' . $maxConnections . ' вне диапазона 1..10000',
+            'задайте WS_MAX_CONNECTIONS в диапазоне от 1 до 10000'
         );
         $failures++;
     } else {
-        workspaceWsStartupLine('OK', 'Connection limit', (string) $maxConnections);
+        workspaceWsStartupLine('OK', 'Лимит соединений', (string) $maxConnections);
     }
 
     $maxPayloadBytes = (int) (getenv('WS_MAX_PAYLOAD_BYTES') ?: 2097152);
     if ($maxPayloadBytes < 1024 || $maxPayloadBytes > 16777216) {
         workspaceWsStartupFail(
-            'Payload limit',
-            'WS_MAX_PAYLOAD_BYTES=' . $maxPayloadBytes . ' is outside 1024..16777216',
-            'set WS_MAX_PAYLOAD_BYTES between 1024 bytes and 16 MiB'
+            'Лимит payload',
+            'WS_MAX_PAYLOAD_BYTES=' . $maxPayloadBytes . ' вне диапазона 1024..16777216',
+            'задайте WS_MAX_PAYLOAD_BYTES от 1024 байт до 16 MiB'
         );
         $failures++;
     } else {
         workspaceWsStartupLine(
             'OK',
-            'Payload limit',
-            $maxPayloadBytes . ' bytes (' . number_format($maxPayloadBytes / 1048576, 2, '.', '') . ' MiB)'
+            'Лимит payload',
+            $maxPayloadBytes . ' байт (' . number_format($maxPayloadBytes / 1048576, 2, '.', '') . ' MiB)'
         );
     }
 
     $existingPid = workspaceWsReadPid($pidFile);
     if ($existingPid !== null && workspaceWsProcessExists($existingPid)) {
         workspaceWsStartupFail(
-            'Existing WebSocket process',
-            'PID ' . $existingPid . ' is already running',
-            'use status/restart instead of starting a second listener'
+            'Существующий WebSocket-процесс',
+            'PID ' . $existingPid . ' уже запущен',
+            'используйте status/restart вместо запуска второго listener'
         );
         $failures++;
     } elseif ($existingPid !== null) {
-        workspaceWsStartupLine('WARN', 'Stale PID file', 'PID ' . $existingPid . ' is not running; stale file will be replaced');
+        workspaceWsStartupLine('WARN', 'Устаревший PID-файл', 'PID ' . $existingPid . ' не запущен; устаревший PID-файл будет заменён');
     } else {
-        workspaceWsStartupLine('OK', 'Existing WebSocket process', 'none detected');
+        workspaceWsStartupLine('OK', 'Существующий WebSocket-процесс', 'не обнаружен');
     }
 
     if ($bindHost !== null && $port !== null && function_exists('stream_socket_server')) {
@@ -323,14 +323,14 @@ function workspaceWsPreflight(bool $daemon): bool
             fclose($probe);
             workspaceWsStartupLine(
                 'OK',
-                'Listener bind test',
-                'tcp://' . workspaceWsFormatBindHost($bindHost) . ':' . $port . ' is available'
+                'Проверка привязки listener',
+                'tcp://' . workspaceWsFormatBindHost($bindHost) . ':' . $port . ' доступен'
             );
         } else {
             workspaceWsStartupFail(
-                'Listener bind test',
-                ($errstr !== '' ? $errstr : 'unable to bind') . ' (error ' . $errno . ')',
-                'check whether the port is already used, blocked, or unavailable to this hosting account'
+                'Проверка привязки listener',
+                ($errstr !== '' ? $errstr : 'не удалось привязать listener') . ' (ошибка ' . $errno . ')',
+                'проверьте, не занят ли порт, не заблокирован ли он и доступен ли он для этой учётной записи хостинга'
             );
             $failures++;
         }
@@ -340,23 +340,23 @@ function workspaceWsPreflight(bool $daemon): bool
         fwrite(STDOUT, "------------------------------------------------\n");
         workspaceWsStartupLine(
             'FAIL',
-            'Startup preflight',
-            $failures . ' critical problem(s) found; WebSocket server was not started'
+            'Предварительная проверка запуска',
+            'обнаружено критических проблем: ' . $failures . '; WebSocket-сервер не запущен'
         );
-        workspaceWsStartupLine('INFO', 'Extended diagnostics', '"' . PHP_BINARY . '" bin/ws_doctor.php');
+        workspaceWsStartupLine('INFO', 'Расширенная диагностика', '"' . PHP_BINARY . '" bin/ws_doctor.php');
         fwrite(STDOUT, PHP_EOL);
         return false;
     }
 
     fwrite(STDOUT, "------------------------------------------------\n");
-    workspaceWsStartupLine('OK', 'Startup preflight', 'all critical checks passed; starting WebSocket runtime');
+    workspaceWsStartupLine('OK', 'Предварительная проверка запуска', 'все критические проверки пройдены; запускается WebSocket runtime');
     fwrite(STDOUT, PHP_EOL);
     return true;
 }
 
 // Process lifecycle commands must remain usable even when the application DB is
 // unavailable. Load only the internal environment parser first so status/stop can
-// locate the installation-specific PID file without booting the full application.
+// locate the installation-specific PID-файл without booting the full application.
 require_once SITEPATH . '/core/Environment.php';
 if (is_file(SITEPATH . '/.env')) {
     \Core\Environment::load(SITEPATH . '/.env');
@@ -418,7 +418,7 @@ function workspaceWsProcessExists(int $pid): bool
         }
 
         // Some Windows/OpenServer CLI profiles disable exec(). In that case a
-        // stale PID file must not permanently block startup. The listener bind
+        // stale PID-файл must not permanently block startup. The listener bind
         // remains the authoritative duplicate-process guard.
         return false;
     }
@@ -431,13 +431,13 @@ function workspaceWsWritePid(string $pidFile): void
 {
     $directory = dirname($pidFile);
     if (!is_dir($directory) && !@mkdir($directory, 0700, true) && !is_dir($directory)) {
-        throw new RuntimeException('Unable to create WebSocket runtime directory: ' . $directory);
+        throw new RuntimeException('Не удалось создать runtime-каталог WebSocket: ' . $directory);
     }
     if (!is_writable($directory)) {
-        throw new RuntimeException('WebSocket runtime directory is not writable: ' . $directory);
+        throw new RuntimeException('Нет прав на запись в runtime-каталог WebSocket: ' . $directory);
     }
     if (@file_put_contents($pidFile, (string) getmypid(), LOCK_EX) === false) {
-        throw new RuntimeException('Unable to write WebSocket PID file: ' . $pidFile);
+        throw new RuntimeException('Не удалось записать PID-файл WebSocket: ' . $pidFile);
     }
     @chmod($pidFile, 0600);
 }
@@ -447,7 +447,7 @@ function workspaceWsStop(string $pidFile): int
     $pid = workspaceWsReadPid($pidFile);
     if ($pid === null || !workspaceWsProcessExists($pid)) {
         @unlink($pidFile);
-        fwrite(STDOUT, "WebSocket server is not running.\n");
+        fwrite(STDOUT, "WebSocket-сервер не запущен.\n");
         return 0;
     }
 
@@ -462,7 +462,7 @@ function workspaceWsStop(string $pidFile): int
     }
 
     if (!$sent) {
-        fwrite(STDERR, "Unable to signal WebSocket process {$pid}; stop it through the OS process manager.\n");
+        fwrite(STDERR, "Не удалось отправить сигнал WebSocket-процессу {$pid}; остановите его через менеджер процессов ОС.\n");
         return 1;
     }
 
@@ -472,28 +472,28 @@ function workspaceWsStop(string $pidFile): int
     }
 
     if (workspaceWsProcessExists($pid)) {
-        fwrite(STDERR, "WebSocket process {$pid} did not stop within timeout.\n");
+        fwrite(STDERR, "WebSocket-процесс {$pid} не остановился за отведённое время.\n");
         return 1;
     }
 
     @unlink($pidFile);
-    fwrite(STDOUT, "WebSocket server stopped.\n");
+    fwrite(STDOUT, "WebSocket-сервер остановлен.\n");
     return 0;
 }
 
 function workspaceWsDaemonize(): void
 {
     if (PHP_OS_FAMILY === 'Windows' || !function_exists('pcntl_fork')) {
-        fwrite(STDERR, "Daemon mode requires pcntl on Unix. Use foreground mode with Open Server/background process manager on Windows.\n");
+        fwrite(STDERR, "Daemon-режим требует pcntl в Unix. В Windows используйте foreground через Open Server/менеджер фоновых процессов.\n");
         exit(2);
     }
 
     $pid = pcntl_fork();
     if ($pid === -1) {
-        throw new RuntimeException('Unable to fork WebSocket daemon');
+        throw new RuntimeException('Не удалось создать дочерний процесс WebSocket-демона');
     }
     if ($pid > 0) {
-        fwrite(STDOUT, "WebSocket daemon starting with PID {$pid}.\n");
+        fwrite(STDOUT, "WebSocket-демон запускается с PID {$pid}.\n");
         exit(0);
     }
 
@@ -509,11 +509,11 @@ $pidFile = workspaceWsPidFile();
 if ($command === 'status') {
     $pid = workspaceWsReadPid($pidFile);
     if ($pid !== null && workspaceWsProcessExists($pid)) {
-        fwrite(STDOUT, "WebSocket server is running (PID {$pid}).\n");
+        fwrite(STDOUT, "WebSocket-сервер запущен (PID {$pid}).\n");
         exit(0);
     }
     @unlink($pidFile);
-    fwrite(STDOUT, "WebSocket server is not running.\n");
+    fwrite(STDOUT, "WebSocket-сервер не запущен.\n");
     exit(1);
 }
 
@@ -530,7 +530,7 @@ if ($command === 'restart') {
 }
 
 if (!in_array($command, ['start', 'run', 'check'], true)) {
-    fwrite(STDERR, "Usage: php ws_server/server.php start [-d] | check [-d] | status | stop | restart\n");
+    fwrite(STDERR, "Использование: php ws_server/server.php start [-d] | check [-d] | status | stop | restart\n");
     exit(2);
 }
 
@@ -550,22 +550,22 @@ try {
     require_once SITEPATH . '/core.php';
     workspaceWsStartupLine(
         'OK',
-        'Application bootstrap',
-        'core runtime loaded; database and persisted module lifecycle initialized'
+        'Инициализация приложения',
+        'core runtime загружен; база данных и сохранённое состояние модулей инициализированы'
     );
 
-    // A disabled Messenger module must not have a parallel always-on WebSocket
+    // A disabled Модуль Messenger must not have a parallel always-on WebSocket
     // runtime. status/stop remain DB-independent above, while start/run fail
     // closed unless the isolated Messenger provider is in the effective composition.
     $moduleRuntime = \Core\ModuleRuntimeLoader::getInstance();
     if (!isset($moduleRuntime->providers()['messenger'])) {
-        throw new RuntimeException('Messenger module is disabled in the effective module composition.');
+        throw new RuntimeException('Модуль Messenger отключён в текущей конфигурации модулей.');
     }
-    workspaceWsStartupLine('OK', 'Messenger module', 'enabled in the effective runtime composition');
+    workspaceWsStartupLine('OK', 'Модуль Messenger', 'включён в текущей runtime-конфигурации');
 
     $existingPid = workspaceWsReadPid($pidFile);
     if ($existingPid !== null && workspaceWsProcessExists($existingPid)) {
-        throw new RuntimeException("WebSocket server is already running (PID {$existingPid}).");
+        throw new RuntimeException("WebSocket-сервер уже запущен (PID {$existingPid}).");
     }
     @unlink($pidFile);
 
@@ -575,7 +575,7 @@ try {
 
     workspaceWsWritePid($pidFile);
     $currentPid = getmypid();
-    workspaceWsStartupLine('OK', 'Process identity', 'PID ' . $currentPid . ' | pid_file=' . $pidFile);
+    workspaceWsStartupLine('OK', 'Процесс', 'PID ' . $currentPid . ' | pid_file=' . $pidFile);
     register_shutdown_function(static function () use ($pidFile, $currentPid): void {
         if (workspaceWsReadPid($pidFile) === $currentPid) {
             @unlink($pidFile);
@@ -590,14 +590,14 @@ try {
     $maxPayloadBytes = (int) (getenv('WS_MAX_PAYLOAD_BYTES') ?: \App\Sockets\SocketFrameCodec::DEFAULT_MAX_PAYLOAD_BYTES);
 
     error_log(sprintf(
-        'WebSocket listener configured: tcp://%s:%d; public=%s; runtime=native',
+        'WebSocket listener настроен: tcp://%s:%d; public=%s; runtime=native',
         $host,
         $port,
         $publicUrl
     ));
     if (WebSocketEndpoint::usesSameOriginProxy()) {
         error_log(sprintf(
-            'WebSocket reverse proxy required: %s -> %s',
+            'Требуется WebSocket reverse proxy: %s -> %s',
             WebSocketEndpoint::proxyPath(),
             WebSocketEndpoint::proxyBackendUrl()
         ));
@@ -605,11 +605,11 @@ try {
 
     workspaceWsStartupLine(
         'INFO',
-        'Starting native listener',
+        'Запуск внутреннего listener',
         'tcp://' . workspaceWsFormatBindHost($host) . ':' . $port
             . ' | browser=' . $publicUrl
             . ' | max_connections=' . $maxConnections
-            . ' | max_payload=' . $maxPayloadBytes . ' bytes'
+            . ' | max_payload=' . $maxPayloadBytes . ' байт'
     );
 
     (new NativeMessengerServer(
@@ -620,18 +620,18 @@ try {
         $maxPayloadBytes
     ))->run();
 
-    workspaceWsStartupLine('INFO', 'WebSocket server', 'listener stopped normally');
+    workspaceWsStartupLine('INFO', 'WebSocket-сервер', 'listener штатно остановлен');
 } catch (Throwable $e) {
     $logPath = (string) ini_get('error_log');
-    error_log('Native WebSocket server startup/runtime failure: ' . $e->getMessage());
+    error_log('Ошибка запуска/работы native WebSocket-сервера: ' . $e->getMessage());
     workspaceWsStartupFail(
-        'WebSocket server',
+        'WebSocket-сервер',
         $e->getMessage(),
-        'review the startup report above and run "' . PHP_BINARY . '" bin/ws_doctor.php'
+        'проверьте отчёт запуска выше и выполните "' . PHP_BINARY . '" bin/ws_doctor.php'
     );
     if ($logPath !== '') {
-        fwrite(STDERR, "Startup/runtime log: {$logPath}" . PHP_EOL);
+        fwrite(STDERR, "Журнал запуска/runtime: {$logPath}" . PHP_EOL);
     }
-    fwrite(STDERR, "Run: php bin/ws_doctor.php" . PHP_EOL);
+    fwrite(STDERR, "Запустите: php bin/ws_doctor.php" . PHP_EOL);
     exit(1);
 }

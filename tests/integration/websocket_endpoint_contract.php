@@ -212,15 +212,15 @@ assertWebSocketEndpoint(
     'start/check must run the WebSocket startup preflight'
 );
 assertWebSocketEndpoint(
-    str_contains($serverSource, "'Listener bind test'"),
+    str_contains($serverSource, "'Проверка привязки listener'"),
     'startup preflight must explain listener bind availability'
 );
 assertWebSocketEndpoint(
-    str_contains($serverSource, "'PHP CLI runtime'"),
+    str_contains($serverSource, "'Среда PHP CLI'"),
     'startup preflight must report the actual CLI PHP runtime'
 );
 assertWebSocketEndpoint(
-    str_contains($serverSource, "'Browser WebSocket URL'"),
+    str_contains($serverSource, "'WebSocket URL для браузера'"),
     'startup preflight must report the browser-facing WebSocket URL'
 );
 assertWebSocketEndpoint(
@@ -229,7 +229,7 @@ assertWebSocketEndpoint(
 );
 assertWebSocketEndpoint(
     str_contains($serverSource, "'WS_TICKET_SECRET'")
-    && str_contains($serverSource, 'value hidden')
+    && str_contains($serverSource, 'значение скрыто')
     && str_contains($serverSource, 'strlen($ticketSecret)'),
     'startup preflight must confirm WS_TICKET_SECRET without disclosing it'
 );
@@ -249,7 +249,7 @@ assertWebSocketEndpoint(
 $nativeServerSource = file_get_contents($root . '/modules/messenger/socket/NativeMessengerServer.php');
 assertWebSocketEndpoint(is_string($nativeServerSource), 'cannot read native WebSocket server source');
 assertWebSocketEndpoint(
-    str_contains($nativeServerSource, "'[RUNNING] WebSocket server"),
+    str_contains($nativeServerSource, "'[RUNNING] WebSocket-сервер"),
     'native runtime must print a bind-confirmed RUNNING message after listener creation'
 );
 

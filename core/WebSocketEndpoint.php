@@ -17,7 +17,7 @@ final class WebSocketEndpoint
             || str_contains($host, '\\')
             || preg_match('/\s/', $host) === 1
         ) {
-            throw new InvalidArgumentException('WS_HOST is invalid');
+            throw new InvalidArgumentException('WS_HOST задан некорректно');
         }
         return $host;
     }
@@ -26,12 +26,12 @@ final class WebSocketEndpoint
     {
         $raw = trim((string) (getenv('WS_PORT') ?: '27800'));
         if ($raw === '' || !ctype_digit($raw)) {
-            throw new InvalidArgumentException('WS_PORT must be an integer');
+            throw new InvalidArgumentException('WS_PORT должен быть целым числом');
         }
 
         $port = (int) $raw;
         if ($port < 1 || $port > 65535) {
-            throw new InvalidArgumentException('WS_PORT must be between 1 and 65535');
+            throw new InvalidArgumentException('WS_PORT должен быть в диапазоне от 1 до 65535');
         }
         return $port;
     }
@@ -104,7 +104,7 @@ final class WebSocketEndpoint
         $pass = parse_url($siteUrl, PHP_URL_PASS);
 
         if (!in_array($scheme, ['http', 'https'], true) || $host === '' || ($path !== '' && $path !== '/') || $user !== null || $pass !== null) {
-            throw new InvalidArgumentException('SITEURL must be an http(s) origin without a path or credentials');
+            throw new InvalidArgumentException('SITEURL должен быть http(s) origin без пути и учётных данных');
         }
 
         $port = parse_url($siteUrl, PHP_URL_PORT);
@@ -119,7 +119,7 @@ final class WebSocketEndpoint
             return '/';
         }
         if (preg_match('#^/(?:[A-Za-z0-9._~-]+/)*$#', $path) !== 1) {
-            throw new InvalidArgumentException('BASE_PATH is invalid');
+            throw new InvalidArgumentException('BASE_PATH задан некорректно');
         }
         return $path;
     }
@@ -130,7 +130,7 @@ final class WebSocketEndpoint
         $scheme = strtolower((string) parse_url($siteUrl, PHP_URL_SCHEME));
         $host = (string) parse_url($siteUrl, PHP_URL_HOST);
         if (!in_array($scheme, ['http', 'https'], true) || $host === '') {
-            throw new InvalidArgumentException('Cannot derive WebSocket URL from invalid SITEURL');
+            throw new InvalidArgumentException('Не удалось сформировать WebSocket URL из некорректного SITEURL');
         }
 
         $port = parse_url($siteUrl, PHP_URL_PORT);
@@ -191,12 +191,12 @@ final class WebSocketEndpoint
         $fragment = parse_url($url, PHP_URL_FRAGMENT);
 
         if (!in_array($scheme, ['ws', 'wss'], true) || $host === '' || $user !== null || $pass !== null || $fragment !== null) {
-            throw new InvalidArgumentException('WS_PUBLIC_URL must be a ws(s) URL without credentials or fragment');
+            throw new InvalidArgumentException('WS_PUBLIC_URL должен быть ws(s) URL без учётных данных и fragment');
         }
 
         $siteScheme = strtolower((string) parse_url($siteUrl, PHP_URL_SCHEME));
         if ($siteScheme === 'https' && $scheme !== 'wss') {
-            throw new InvalidArgumentException('HTTPS SITEURL requires a wss:// WS_PUBLIC_URL');
+            throw new InvalidArgumentException('При HTTPS в SITEURL требуется WS_PUBLIC_URL с протоколом wss://');
         }
 
         $port = parse_url($url, PHP_URL_PORT);
