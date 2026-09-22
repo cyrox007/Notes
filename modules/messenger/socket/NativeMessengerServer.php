@@ -8,6 +8,7 @@ use App\Handlers\SocketTicket;
 use App\Models\UserModel;
 use App\Services\LicenseRuntimePolicy;
 use App\Services\MaintenanceModeService;
+use App\Services\MessengerRealtimeRevisionService;
 use App\Services\PermissionService;
 use Closure;
 use Core\DatabaseManager;
@@ -29,6 +30,7 @@ final class NativeMessengerServer
 {
     private const HEARTBEAT_INTERVAL_SECONDS = 5.0;
     private const HANDSHAKE_TIMEOUT_SECONDS = 10.0;
+    private const FALLBACK_REVISION_CHECK_INTERVAL_SECONDS = 0.75;
 
     /** @var array<string,list<string>> */
     private const ALLOWED_ROUTES = [
@@ -100,6 +102,9 @@ final class NativeMessengerServer
     private Closure $userUidResolver;
     private bool $running = false;
     private float $lastHeartbeatAt = 0.0;
+    private float $lastFallbackRevisionCheckAt = 0.0;
+    private int $lastFallbackRevision = 0;
+    private ?MessengerRealtimeRevisionService $fallbackRevisionService = null;
 
     /**
      * @param list<string> $allowedOrigins
@@ -158,6 +163,8 @@ final class NativeMessengerServer
         $this->listener = $this->createListener();
         $this->running = true;
         $this->lastHeartbeatAt = microtime(true);
+        $this->lastFallbackRevisionCheckAt = $this->lastHeartbeatAt;
+        $this->initializeFallbackRevisionBridge();
         $this->installSignalHandlers();
 
         $startedMessage = sprintf(
@@ -203,6 +210,17 @@ final class NativeMessengerServer
         string $transport = 'websocket'
     ): void {
         $this->dispatchText($client, $message, $connections, $transport);
+    }
+
+    public function isDurableMutationAction(string $action): bool
+    {
+        if (substr_count($action, ':') !== 1) {
+            return false;
+        }
+        [$className, $methodName] = explode(':', $action, 2);
+        return isset(self::ALLOWED_ROUTES[$className])
+            && in_array($methodName, self::ALLOWED_ROUTES[$className], true)
+            && !$this->isReadOnlyAction($className, $methodName);
     }
 
     private function bootLifecycleStore(): void
@@ -706,6 +724,7 @@ final class NativeMessengerServer
     private function tick(): void
     {
         $now = microtime(true);
+        $this->pollFallbackRevisionBridge($now);
 
         foreach ($this->clients as $client) {
             $client->enforceCloseDeadline($now);
@@ -749,6 +768,60 @@ final class NativeMessengerServer
             $client->enforceCloseDeadline($now);
             if ($client->isDestroyed()) {
                 $this->dropClient($client);
+            }
+        }
+    }
+
+    private function initializeFallbackRevisionBridge(): void
+    {
+        try {
+            $this->fallbackRevisionService = new MessengerRealtimeRevisionService();
+            $this->lastFallbackRevision = $this->fallbackRevisionService->current();
+        } catch (Throwable $e) {
+            $this->fallbackRevisionService = null;
+            error_log('Messenger fallback revision bridge unavailable at startup: ' . $e->getMessage());
+        }
+    }
+
+    private function pollFallbackRevisionBridge(float $now): void
+    {
+        if ($this->fallbackRevisionService === null || $this->connections === []) {
+            return;
+        }
+        if (($now - $this->lastFallbackRevisionCheckAt) < self::FALLBACK_REVISION_CHECK_INTERVAL_SECONDS) {
+            return;
+        }
+        $this->lastFallbackRevisionCheckAt = $now;
+
+        try {
+            $revision = $this->fallbackRevisionService->current();
+        } catch (Throwable $e) {
+            error_log('Messenger fallback revision bridge check failed: ' . $e->getMessage());
+            return;
+        }
+
+        if ($revision === $this->lastFallbackRevision) {
+            return;
+        }
+        $this->lastFallbackRevision = $revision;
+
+        foreach ($this->connections as $uid => $userConnections) {
+            foreach ($userConnections as $connectionId => $connection) {
+                if (!$connection instanceof NativeSocketConnection || $connection->isDestroyed()) {
+                    unset($this->connections[$uid][$connectionId]);
+                    continue;
+                }
+                if ($connection->isClosing()) {
+                    continue;
+                }
+                $this->sendJson($connection, [
+                    'action' => 'sync_required',
+                    'reason' => 'http_fallback_revision',
+                    'revision' => $revision,
+                ]);
+            }
+            if (empty($this->connections[$uid])) {
+                unset($this->connections[$uid]);
             }
         }
     }
