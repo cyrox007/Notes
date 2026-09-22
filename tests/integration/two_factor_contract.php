@@ -100,6 +100,8 @@ if ($service->consumeRecoveryCodeHashSet($afterFirstUse, $recoveryCodes[0]) !== 
 
 $manifest = file_get_contents($root . '/database/migrations/manifest.json');
 $identitySchema = file_get_contents($root . '/database/core_identity_schema.sql');
+$legacyMessengerSchema = file_get_contents($root . '/database/messenger_schema.sql');
+$databaseOwnership = file_get_contents($root . '/core/DatabaseOwnership.php');
 $authController = file_get_contents($root . '/app/controllers/AuthController.php');
 $router = file_get_contents($root . '/core/routerConfig.php');
 $profileController = file_get_contents($root . '/modules/profile/controllers/ProfileController.php');
@@ -111,6 +113,8 @@ $docs = file_get_contents($root . '/docs/TWO_FACTOR_AUTH.md');
 foreach ([
     'manifest' => $manifest,
     'identity schema' => $identitySchema,
+    'legacy messenger schema' => $legacyMessengerSchema,
+    'database ownership' => $databaseOwnership,
     'auth controller' => $authController,
     'router' => $router,
     'profile controller' => $profileController,
@@ -131,6 +135,15 @@ foreach (['totp_enabled', 'totp_secret', 'totp_last_counter', 'totp_recovery_cod
     if (!str_contains($identitySchema, $column)) {
         failTwoFactorContract('fresh identity schema is missing ' . $column);
     }
+}
+
+foreach (['totp_enabled', 'totp_secret', 'totp_last_counter', 'totp_recovery_codes', 'totp_confirmed_at'] as $column) {
+    if (!str_contains($legacyMessengerSchema, $column)) {
+        failTwoFactorContract('legacy full-schema compatibility fixture is missing ' . $column);
+    }
+}
+if (!str_contains($databaseOwnership, "'database/migrations/20260921_totp_two_factor.sql'")) {
+    failTwoFactorContract('database ownership does not declare the TOTP migration as core-owned');
 }
 foreach (['beginTwoFactor', 'verifyTwoFactor', 'verifyAndConsume', 'two_factor_pending_started_at'] as $fragment) {
     if (!str_contains($authController, $fragment)) {
