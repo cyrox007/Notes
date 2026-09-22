@@ -3,21 +3,6 @@ name: 1.0.2 Windows hosting compatibility
 on:
   pull_request:
     branches: [dev, '1.0', master]
-    paths:
-      - 'core/**'
-      - 'bin/**'
-      - 'modules/**'
-      - 'tests/integration/windows_path_contract.php'
-      - 'tests/integration/signed_update_foundation_contract.php'
-      - 'tests/integration/updater_remote_delivery_contract.php'
-      - 'tests/integration/update_release_candidate_contract.php'
-      - 'tests/integration/updater_artifact_retention_contract.php'
-      - 'tests/integration/native_view_renderer_contract.php'
-      - 'tests/integration/module_registry_contract.php'
-      - 'tests/integration/hosting_package_source_contract.php'
-      - 'tests/integration/deployment_surface_contract.php'
-      - '.github/workflows/windows-hosting-compat.yml'
-      - '.github/workflows/hosting-package.yml'
   workflow_dispatch:
 
 permissions:
