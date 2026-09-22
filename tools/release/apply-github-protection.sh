@@ -6,20 +6,20 @@ if [[ -z "$repo" ]]; then
   repo="$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)"
 fi
 if [[ -z "$repo" || "$repo" != */* ]]; then
-  echo "Usage: $0 owner/repo" >&2
+  echo "Использование: $0 owner/repo" >&2
   exit 2
 fi
 
 for command in gh php; do
   if ! command -v "$command" >/dev/null 2>&1; then
-    echo "Required command not found: $command" >&2
+    echo "Не найдена обязательная команда: $command" >&2
     exit 2
   fi
 done
 
 policy=".github/release-governance.json"
 if [[ ! -f "$policy" ]]; then
-  echo "Run from a checkout containing $policy" >&2
+  echo "Запустите из checkout, содержащего $policy" >&2
   exit 2
 fi
 
@@ -42,12 +42,12 @@ read_checks() {
     $policy = json_decode(file_get_contents($argv[1]), true, 32, JSON_THROW_ON_ERROR);
     $checks = $policy[$argv[2]] ?? null;
     if (!is_array($checks) || $checks === []) {
-        fwrite(STDERR, "Missing required checks for {$argv[2]}\\n");
+        fwrite(STDERR, "Не заданы обязательные checks для {$argv[2]}\\n");
         exit(2);
     }
     foreach ($checks as $check) {
         if (!is_string($check) || $check === "") {
-            fwrite(STDERR, "Invalid required check in {$argv[2]}\\n");
+            fwrite(STDERR, "Некорректный обязательный check в {$argv[2]}\\n");
             exit(2);
         }
         echo $check, PHP_EOL;
@@ -115,46 +115,46 @@ apply_branch() {
 
     $errors = [];
     if ($checks !== $expectedContexts) {
-        $errors[] = "required status checks mismatch: expected "
+        $errors[] = "набор required status checks не совпадает: ожидалось "
             . json_encode($expectedContexts, JSON_UNESCAPED_SLASHES)
-            . ", got "
+            . ", получено "
             . json_encode($checks, JSON_UNESCAPED_SLASHES);
     }
     if ($strict !== true) {
-        $errors[] = "required status checks are not strict";
+        $errors[] = "required status checks не работают в strict-режиме";
     }
     if ($dismissStale !== true) {
-        $errors[] = "stale approvals are not dismissed";
+        $errors[] = "устаревшие approvals не сбрасываются";
     }
     if ($approvals !== $expectedApprovals) {
-        $errors[] = "required approval count mismatch";
+        $errors[] = "количество обязательных approvals не совпадает";
     }
     if ($enforceAdmins !== true) {
-        $errors[] = "administrator enforcement is disabled";
+        $errors[] = "правила не применяются к администраторам";
     }
     if ($forcePushes !== false) {
-        $errors[] = "force pushes are not blocked";
+        $errors[] = "force-push не запрещён";
     }
     if ($deletions !== false) {
-        $errors[] = "branch deletion is not blocked";
+        $errors[] = "удаление ветки не запрещено";
     }
 
     if ($errors !== []) {
         foreach ($errors as $error) {
-            fwrite(STDERR, "Protection verification failed: {$error}" . PHP_EOL);
+            fwrite(STDERR, "Проверка branch protection не пройдена: {$error}" . PHP_EOL);
         }
         exit(1);
     }
   '
 
-  echo "Protected and verified $repo:$branch with checks: ${checks[*]}"
+  echo "Branch protection применён и проверен для $repo:$branch. Checks: ${checks[*]}"
 }
 
 apply_branch "1.0" "stabilization_required_checks"
 apply_branch "master" "required_checks"
 
-echo "Approvals required: $approvals (independent direct collaborators with write/maintain/admin: ${independent_count:-0})"
-echo "Verification:"
+echo "Обязательных approvals: $approvals (независимых direct collaborators с write/maintain/admin: ${independent_count:-0})"
+echo "Проверка фактических настроек:"
 for branch in 1.0 master; do
   gh api \
     -H 'Accept: application/vnd.github+json' \
