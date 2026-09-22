@@ -23,5 +23,6 @@ INSERT INTO `system_settings`
 VALUES
     ('installation_id',LOWER(UUID()),'string','licensing','Stable installation identifier used to bind signed licenses',0),
     ('workspace_license_token','','string','licensing','Signed installation-wide Workspace Organizer license token',0),
+    ('two_factor_required','0','boolean','security','Require TOTP two-factor authentication for every active user',1),
     ('file_manager_default_quota_bytes','1073741824','integer','file_manager','Default File Manager storage quota per user in bytes',1)
 ON DUPLICATE KEY UPDATE `setting_key` = VALUES(`setting_key`);
