@@ -110,6 +110,14 @@ foreach (['## Состав релиза', '## Совместимость', '## �
     );
 }
 
+$protectionScript = releaseAcceptanceText($root, 'tools/release/apply-github-protection.sh');
+releaseAcceptanceAssert(
+    str_contains($protectionScript, 'Проверка branch protection не пройдена:')
+    && str_contains($protectionScript, 'Проверка фактических настроек:')
+    && !str_contains($protectionScript, 'Protection verification failed:'),
+    'скрипт branch protection снова содержит английскую операторскую обратную связь'
+);
+
 $rotationCli = releaseAcceptanceText($root, 'bin/rotate_data_keys.php');
 releaseAcceptanceAssert(
     str_contains($preflight, 'Команда доступна только из CLI.')
