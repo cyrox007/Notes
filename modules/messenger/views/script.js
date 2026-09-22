@@ -33,6 +33,7 @@
             this.readCursors = new Map();
             this.replyTo = null;
             this.editing = null;
+            this.composerPending = false;
             this.hasMore = false;
 
             this.el = {
@@ -262,12 +263,45 @@
             return this.sendHttpEvent(action, data);
         }
 
+        async sendEventConfirmed(action, data = {}) {
+            if (this.socket && this.socket.readyState === WebSocket.OPEN && this.socketAuthorized) {
+                this.socket.send(JSON.stringify({ action, data }));
+                return true;
+            }
+
+            return this.sendHttpEventConfirmed(action, data);
+        }
+
         sendHttpEvent(action, data = {}) {
             if (navigator.onLine === false) {
                 this.showToast('Нет подключения к интернету');
                 return false;
             }
 
+            void this.performHttpEvent(action, data).catch((error) => {
+                console.warn('Messenger HTTP fallback action failed', error);
+                this.showToast('Резервный канал временно недоступен');
+            });
+            return true;
+        }
+
+        async sendHttpEventConfirmed(action, data = {}) {
+            if (navigator.onLine === false) {
+                this.showToast('Нет подключения к интернету');
+                return false;
+            }
+
+            try {
+                await this.performHttpEvent(action, data);
+                return true;
+            } catch (error) {
+                console.warn('Messenger HTTP fallback action failed', error);
+                this.showToast('Резервный канал временно недоступен');
+                return false;
+            }
+        }
+
+        async performHttpEvent(action, data = {}) {
             const body = new URLSearchParams();
             body.set('action', String(action || ''));
             body.set('data', JSON.stringify(data || {}));
@@ -276,34 +310,30 @@
                 ? window.wspace.path('/messenger/realtime/action')
                 : '/messenger/realtime/action';
 
-            void (async () => {
-                const resumeLongPoll = this.pauseLongPollRequest();
-                try {
-                    const response = await fetch(endpoint, {
-                        method: 'POST',
-                        credentials: 'same-origin',
-                        headers: { 'Accept': 'application/json' },
-                        body
-                    });
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`);
-                    }
-                    const payload = await response.json();
-                    if (payload?.status !== 'ok') {
-                        throw new Error(payload?.message || 'Long Poll action failed');
-                    }
-                    this.dispatchRealtimeEvents(payload.events);
-                } catch (error) {
-                    console.warn('Messenger HTTP fallback action failed', error);
-                    this.showToast('Резервный канал временно недоступен');
-                } finally {
-                    if (resumeLongPoll && this.longPollActive && !this.socketAuthorized) {
-                        this.resumeLongPoll();
-                    }
+            const resumeLongPoll = this.pauseLongPollRequest();
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Accept': 'application/json' },
+                    body
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
                 }
-            })();
 
-            return true;
+                const payload = await response.json();
+                if (payload?.status !== 'ok') {
+                    throw new Error(payload?.message || 'Резервный обработчик отклонил действие');
+                }
+
+                this.dispatchRealtimeEvents(payload.events);
+                return payload;
+            } finally {
+                if (resumeLongPoll && this.longPollActive && !this.socketAuthorized) {
+                    this.resumeLongPoll();
+                }
+            }
         }
 
         dispatchRealtimeEvents(events) {
@@ -784,31 +814,52 @@
             if (this.el.composeContextText) this.el.composeContextText.textContent = '';
         }
 
-        submitComposer() {
-            if (!this.currentDialog) return;
-            const text = (this.el.input.value || '').trim();
+        async submitComposer() {
+            if (!this.currentDialog || this.composerPending) return;
+
+            const draftValue = this.el.input.value || '';
+            const text = draftValue.trim();
             if (!text) return;
 
-            let sent = false;
-            if (this.editing) {
-                sent = this.sendEvent('MessangerSocket:edit_message', {
-                    dialog_uid: this.currentDialog.uid,
-                    message_uid: this.editing.uid,
-                    new_text: text
-                });
-            } else {
-                sent = this.sendEvent('MessangerSocket:message_send', {
-                    dialog_uid: this.currentDialog.uid,
-                    message: text,
-                    reply_to_uid: this.replyTo?.uid || null
-                });
-            }
+            const submittedEditing = this.editing;
+            const submittedReply = this.replyTo;
+            this.composerPending = true;
+            if (this.el.send) this.el.send.disabled = true;
 
-            if (!sent) return;
-            this.el.input.value = '';
-            this.autosizeComposer();
-            this.stopTyping();
-            this.clearComposeContext();
+            try {
+                let sent = false;
+                if (submittedEditing) {
+                    sent = await this.sendEventConfirmed('MessangerSocket:edit_message', {
+                        dialog_uid: this.currentDialog.uid,
+                        message_uid: submittedEditing.uid,
+                        new_text: text
+                    });
+                } else {
+                    sent = await this.sendEventConfirmed('MessangerSocket:message_send', {
+                        dialog_uid: this.currentDialog.uid,
+                        message: text,
+                        reply_to_uid: submittedReply?.uid || null
+                    });
+                }
+
+                if (!sent) return;
+
+                // Очищаем только тот черновик, который действительно был
+                // подтверждён. Текст, набранный во время ожидания HTTP-ответа,
+                // и новый reply/edit context не должны исчезнуть из-за позднего ответа.
+                if (this.el.input.value === draftValue) {
+                    this.el.input.value = '';
+                    this.autosizeComposer();
+                    this.stopTyping();
+
+                    if (this.editing === submittedEditing && this.replyTo === submittedReply) {
+                        this.clearComposeContext();
+                    }
+                }
+            } finally {
+                this.composerPending = false;
+                if (this.el.send) this.el.send.disabled = false;
+            }
         }
 
         deleteMessage(message, forAll) {
