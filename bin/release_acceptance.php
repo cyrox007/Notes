@@ -63,11 +63,19 @@ $governancePath = $root . '/.github/release-governance.json';
 $governance = is_file($governancePath)
     ? json_decode((string) file_get_contents($governancePath), true)
     : null;
+$requiredChecks = is_array($governance) ? ($governance['required_checks'] ?? null) : null;
+$stabilizationChecks = is_array($governance) ? ($governance['stabilization_required_checks'] ?? null) : null;
+$candidateChecks = is_array($governance) ? ($governance['release_candidate_required_checks'] ?? null) : null;
 $governanceOk = is_array($governance)
     && ($governance['protected_branch'] ?? null) === 'master'
     && ($governance['stabilization_branch'] ?? null) === '1.0'
-    && ($governance['stabilization_required_checks'] ?? null) === ['release-gate'];
-$record('governance_source_contract', $governanceOk, 'master + 1.0 / release-gate');
+    && is_array($requiredChecks)
+    && $requiredChecks !== []
+    && $stabilizationChecks === $requiredChecks
+    && $candidateChecks === $requiredChecks
+    && in_array('one-zero-one-upgrade-rollback', $requiredChecks, true)
+    && in_array('messenger-realtime-fallback', $requiredChecks, true);
+$record('governance_source_contract', $governanceOk, 'master + 1.0 / единый обязательный набор checks');
 
 foreach ([
     'README.md',
