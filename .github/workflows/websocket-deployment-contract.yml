@@ -40,6 +40,7 @@ jobs:
           php -l modules/messenger/socket/NativeMessengerServer.php
           php -l modules/messenger/socket/MessangerSocket.php
           php -l modules/messenger/services/MessengerLongPollService.php
+          php -l modules/messenger/services/MessengerRealtimeRevisionService.php
           php -l ws_server/server.php
           php -l bin/ws_doctor.php
           php -l bin/healthcheck.php
