@@ -128,9 +128,9 @@ jobs:
           test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.2'
           test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10002'
           test "$(php -r "require 'core/Version.php'; echo Core\\Version::STATUS;")" = 'stable'
-          test "$(php -r "require 'core/Version.php'; echo Core\\Version::RELEASE_DATE;")" = '2026-09-21'
+          test "$(php -r "require 'core/Version.php'; echo Core\\Version::RELEASE_DATE;")" = '2026-09-22'
           grep -Fq '**Версия:** `1.0.2`' README.md
-          grep -Fq '## 1.0.2 — 2026-09-21' CHANGELOG.md
+          grep -Fq '## 1.0.2 — 2026-09-22' CHANGELOG.md
           test -s docs/releases/v1.0.2.md
           grep -Fq '# Workspace Organizer 1.0.2' docs/releases/v1.0.2.md
 
@@ -232,16 +232,16 @@ jobs:
           php -r '
           foreach (["license"=>"config/license_trusted_keys.php","update"=>"config/update_trusted_keys.php"] as $domain=>$path) {
               $keys=require $path;
-              if (!is_array($keys)) { fwrite(STDERR,"$domain registry is not an array\n"); exit(1); }
+              if (!is_array($keys)) { fwrite(STDERR,"Registry $domain не является массивом\n"); exit(1); }
               foreach ($keys as $id=>$token) {
                   if (!is_string($id) || preg_match("/^[A-Za-z0-9][A-Za-z0-9._-]{2,95}$/",$id)!==1 || !is_string($token)) exit(1);
                   $raw=base64_decode(strtr($token,"-_","+/"),true);
-                  if ($raw===false || strlen($raw)!==32) { fwrite(STDERR,"invalid $domain public key: $id\n"); exit(1); }
+                  if ($raw===false || strlen($raw)!==32) { fwrite(STDERR,"Некорректный публичный ключ $domain: $id\n"); exit(1); }
               }
           }
           '
           if find . -type f \( -name '*.license-secret' -o -name 'workspace-license-*.secret' -o -name '*.update-secret' -o -name 'workspace-update-*.secret' \) -print -quit | grep -q .; then
-            echo 'Repository contains forbidden private signing material' >&2
+            echo 'Репозиторий содержит запрещённый приватный signing material' >&2
             exit 1
           fi
 
@@ -253,10 +253,10 @@ jobs:
           php -r '
           $license=require "config/license_trusted_keys.php";
           $update=require "config/update_trusted_keys.php";
-          if (!is_array($license) || $license===[]) { fwrite(STDERR,"Production license public key registry is empty\n"); exit(1); }
-          if (!is_array($update) || $update===[]) { fwrite(STDERR,"Production update public key registry is empty\n"); exit(1); }
-          if (array_intersect_key($license,$update)!==[]) { fwrite(STDERR,"License/update key ids must be independent\n"); exit(1); }
-          if (array_intersect(array_values($license),array_values($update))!==[]) { fwrite(STDERR,"License/update public keys must use independent key material\n"); exit(1); }
+          if (!is_array($license) || $license===[]) { fwrite(STDERR,"Production registry публичных license keys пуст\n"); exit(1); }
+          if (!is_array($update) || $update===[]) { fwrite(STDERR,"Production registry публичных update keys пуст\n"); exit(1); }
+          if (array_intersect_key($license,$update)!==[]) { fwrite(STDERR,"License/update key ID должны быть независимыми\n"); exit(1); }
+          if (array_intersect(array_values($license),array_values($update))!==[]) { fwrite(STDERR,"Публичные license/update keys должны использовать независимый key material\n"); exit(1); }
           '
 
       - name: Verify upload-ready vendor-free hosting bundle
