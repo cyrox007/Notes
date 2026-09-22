@@ -1,70 +1,147 @@
-# Workspace Organizer 1.0 release task ledger
+# Workspace Organizer 1.0.x release status ledger
 
-> **Status update — 21 September 2026.** `v1.0.1` is published. The table below is retained as the historical 1.0/1.0.1 stabilization ledger. Active maintenance development has moved to `1.0.2`, whose scope is production updater delivery/operator flow and operational verification before `1.1.0`. See `docs/ROADMAP.md` and `docs/releases/v1.0.2.md`.
+> **Status update — 22 September 2026.** `v1.0.1` is the published baseline. The active maintenance candidate is `1.0.2` / version code `10002`. This file is the current stop/reopen ledger for the final 1.0.2 release ceremony; historical 1.0.0/1.0.1 source tasks stay closed unless a new reproducible regression violates their acceptance contract.
 
-This file is the stop/reopen ledger for the 1.0 stabilization work. It separates **source implementation**, **operator-only release actions**, and the **final exact-head test phase** so a completed engineering item is not reopened merely because release evidence is still pending.
+## Current release topology
 
-The historical audit IDs are retained for continuity. A source item is reopened only for a new reproducible violation of its acceptance contract.
+- published baseline: `v1.0.1` at the exact published commit pinned by the upgrade drill;
+- active source branch: `dev`;
+- release-candidate promotion PR: #204, `dev -> 1.0`;
+- final release target after acceptance: `master` + tag `v1.0.2`;
+- feature work for `1.1.0` remains out of scope until the 1.0.2 release gates below are complete.
 
-| Audit item | Source state | Source evidence | Remaining release gate | Status before final test phase |
-|---|---|---|---|---|
-| R01 Files baseline | Implemented | Files module quota asset/runtime fixes are merged; later Files lifecycle and HTTP workflows use module-owned paths | Exact-head browser/HTTP/durable regression | Source closed |
-| R02 Profile migration | Implemented | PR #146 merged; Profile is isolated and its lifecycle workflow is current | Exact-head Profile lifecycle | Source closed |
-| R03 module independence | Implemented | Admin/Messenger isolation, transitional loader removal, composition-aware DB ownership and Core recovery control plane are merged (#148–#152) | Exact-head composition/module regression | Source closed |
-| R04 CI convergence | Implemented | 1.0.0 source convergence completed; post-tag module onboarding is merged and 1.0.1 adds signed user-seat licensing with updated release contracts | Re-run the complete exact-head gate set on the final 1.0.1 SHA | Source closed; 1.0.1 exact-head rerun pending |
-| R05 GitHub merge governance | Implemented; operator re-application required | Release governance contract and protection applicator are merged. Repository visibility was switched private/public during CI recovery, so protection/rulesets must be re-applied and verified before publication | Re-apply checked-in protection to `1.0` and `master`, verify required checks plus force-push/deletion denial, then keep it enabled through publication | Operator action pending |
-| R06 production trust roots | Public roots committed | Independent production license/update public Ed25519 roots are present under separate immutable key IDs; release CI verifies the registries are non-empty and independent | Confirm offline private-key custody and complete license/update canaries without exposing private material | Operator canaries pending |
-| R07 remaining 1.0 obligations | Implemented | Data-key rotation, nonce CSP, security observability, retention/permanent purge and cross-browser/load evidence harness are merged (#153, #154, #158–#160) | Exact-head evidence and operational acceptance | Source closed |
-| R08 final release acceptance | 1.0.1 release preparation in progress | `v1.0.0` remains an immutable historical cut; the maintenance candidate is `1.0.1` / version code `10001`, adding module onboarding, signed `max_users` licensing, durable user-action audit and legacy template cleanup | Exact-head 1.0.1 CI/evidence, restored branch protection, backup/restore + P0/P1 acceptance, immutable 1.0.1 bundle, offline update signature, `v1.0.1` tag and GitHub Release | Final publication pending |
+Do not freeze or sign an RC while another accepted 1.0.2 source change is still pending. Any source change after exact-head acceptance invalidates the affected evidence and requires the relevant gates to be repeated.
 
-## Final source-convergence correction
+## Source convergence
 
-A later repository-wide release-path audit found stale CI/package assumptions that were not visible in the original ledger closure. These are treated as concrete reproducible source violations rather than reopening completed architecture work.
+The original 1.0 audit items are source-closed. Current 1.0.2 stabilization adds operational/release hardening rather than reopening that architecture work.
 
-The final source-convergence patch corrects:
+| Area | Current source state | Evidence / implementation | Remaining gate |
+|---|---|---|---|
+| Module isolation / Core control plane | Implemented | module platform/isolation, lifecycle, router/security and browser lifecycle gates are current | exact-head rerun after final source freeze |
+| Signed updater / rollback | Implemented | unified operator flow, readiness doctor, remote delivery, external candidate, verified code+MySQL backup, automatic rollback/recovery and retention | final production-signed artifact ceremony + exact final upgrade acceptance |
+| Exact 1.0.1 -> 1.0.2 upgrade | Implemented in CI | published `v1.0.1` is installed through the real installer; signed synthetic 1.0.2 success and forced post-switch DB/code rollback are exercised | repeat required operator acceptance on final immutable production-signed artifacts |
+| Windows compatibility | Implemented in CI | PHP 8.1/8.3 Windows updater/path/runtime contracts | final manual OSPanel 5.2.2 acceptance on exact final artifacts |
+| Realtime Messenger | Implemented | native WebSocket fast path + automatic authenticated HTTP long-poll fallback; shared DB revision bridge; fresh-ticket recovery; worker/session-lock hardening | final OSPanel/browser transport acceptance (#173) |
+| WebSocket diagnostics | Implemented in current source line; final translation port pending acceptance | detailed startup preflight, CLI PHP diagnostics, bind-confirmed `[RUNNING]`, `ws_doctor`, single remote WS-node runbook | merge/accept the fresh Russian diagnostics port or explicitly exclude it before freeze |
+| Release documentation | Updated for 1.0.2 | release notes, hosting/deployment/operations/production docs describe WebSocket-first + HTTP fallback and current 34-table install contract | keep synchronized with the final frozen source |
+| Product visual system | Source implementation present | structural light/dark work and later UX fixes are in the 1.0 line | live visual/operator acceptance on exact final RC (#172) |
 
-- pre-isolation Messenger, Notes, Profile and Files paths still referenced by release-relevant workflows;
-- legacy 27-table expectations that survived after the composition-aware 32-table contract;
-- legacy readiness fixtures that still asserted historical source layout/version state instead of compatibility guarantees;
-- the hosting package path after Messenger isolation;
-- automatic public GitHub Release publication before the offline update-signing ceremony;
-- release-candidate provenance by recording ZIP SHA-256 plus exact source SHA;
-- customer bundle exposure of repository-only `tests/` and `tools/`, plus Apache denial of `config/`, `tests/`, `tools/` and direct `core.php` access;
-- the branch-protection applicator status-context serialization bug found during its first live application.
+## Current manual/operator gates
 
-No self-hosted runner migration is part of the 1.0 source candidate. Release workflows remain on GitHub-hosted runners unless explicitly changed by a later accepted source task.
+### G1 — repository governance
 
-## Current source freeze rule
+Before publication, verify repository-side protection for `1.0` and `master` against `.github/release-governance.json` / `docs/RELEASE_GOVERNANCE.md`:
 
-Do not start the final release test phase while a new source task is still being added. Once R05 and R06 operator setup is complete, choose one exact `1.0` SHA as the release candidate and run the complete agreed evidence set on that SHA.
+- PR-required merge flow;
+- required always-on checks;
+- up-to-date branch requirement;
+- stale approval dismissal;
+- force-push/deletion denial;
+- independent approval when another qualified reviewer exists.
 
-A failure during that phase must be classified before changing code:
+Repository settings live outside Git history. Source contracts cannot substitute for this verification. If the current GitHub integration cannot read branch-protection administration endpoints, record verification from an owner/admin `gh` session rather than inferring the state.
 
-1. product defect;
-2. test/fixture defect;
-3. CI environment defect;
-4. stale workflow/base defect.
+### G2 — final source freeze and exact-head CI
 
-Only a reproducible product/source violation reopens the corresponding R item. Infrastructure failures do not turn already accepted architecture work back into an open design task.
+After all accepted 1.0.2 source PRs are merged:
 
-## Operator boundary before final tests
+1. record one exact `dev`/PR #204 head SHA as the final source candidate;
+2. stop adding source changes;
+3. run every release-relevant workflow on that exact head;
+4. do not substitute an older green result for a failed/skipped/unrun check;
+5. classify any failure as product defect, test/fixture defect, CI environment defect or stale workflow/base defect before changing source.
 
-Two release actions intentionally cannot be completed by repository code alone:
+### G3 — manual visual acceptance (#172)
 
-- apply the checked-in GitHub protection policy with an authenticated repository owner/admin;
-- perform the production license/update Ed25519 key ceremony in controlled offline storage and commit only the public trust roots.
+Repeat live visual/operator QA on the exact frozen RC/artifact. Cover:
 
-Private signing material must never be committed, uploaded to CI, included in the release bundle, installed on a customer system, or pasted into issue/chat logs.
+- Home, Notes, Tasks, Files, Messenger, Profile and Admin;
+- light, dark and system themes;
+- compact laptop / narrow desktop layout;
+- previously fixed Messenger composer and global unread/notification behavior;
+- current Messenger connection states `WebSocket · в сети` and `Long Poll · резервный канал`.
 
-## Final test phase
+CI/DOM checks are supporting evidence, not a replacement for this decision.
 
-After the operator boundary is complete:
+### G4 — OSPanel 5.2.2 realtime + upgrade acceptance (#173)
 
-1. freeze the exact release-candidate SHA;
-2. run all release-relevant checks on that exact SHA using the checked-in GitHub-hosted workflow configuration;
-3. perform backup/restore and production-style operational acceptance;
-4. verify production trust canaries;
-5. build the immutable bundle, verify recorded SHA-256/source SHA, sign the update manifest and verify it;
-6. merge the accepted 1.0.1 content to `master`, create `v1.0.1`, and publish only if every required gate is satisfied.
+On the real target stack and exact final artifacts:
 
-See `docs/RELEASE_ACCEPTANCE.md`, `docs/RELEASE_GOVERNANCE.md`, and `docs/PRODUCTION_TRUST_CEREMONY.md` for the authoritative procedures.
+1. prove the local/browser WebSocket fast path reaches `101 Switching Protocols` + application `Authorized`;
+2. verify normal message delivery with state `WebSocket · в сети`;
+3. stop/block the WS endpoint and verify automatic `Long Poll · резервный канал` durable synchronization without reload;
+4. restore WS and verify automatic return to `WebSocket · в сети`;
+5. execute the final 1.0.1 -> 1.0.2 updater acceptance from `docs/WINDOWS_OSPANEL_ACCEPTANCE.md`;
+6. record PHP/OSPanel version, exact source SHA, bundle SHA-256, signing key ID, update result and healthcheck result.
+
+Previously recorded CLI smoke is useful history but does not replace this exact-final-artifact browser acceptance.
+
+### G5 — backup / restore / operational acceptance
+
+On a representative deployment:
+
+- create a fresh verified MySQL + `PRIVATE_STORAGE_PATH` backup;
+- complete an isolated restore drill;
+- run `php bin/healthcheck.php --json`;
+- verify protected Notes/Messenger/File Manager data;
+- review observability and retention preview;
+- confirm writable external updater/private state and adequate free space.
+
+### G6 — production trust and immutable artifacts
+
+Private signing material stays offline and must never be committed, uploaded to CI, included in a customer bundle or pasted into logs/chat.
+
+For the exact accepted SHA:
+
+1. build the final hosting ZIP once;
+2. verify recorded source SHA + ZIP SHA-256;
+3. build the update manifest for version `1.0.2` / code `10002`;
+4. sign the exact manifest bytes with the offline update-domain private key;
+5. verify package hash/signature with the public trust registry shipped in the bundle;
+6. run production license/update trust canaries;
+7. do not repack or otherwise modify the accepted ZIP after checksum/signature acceptance.
+
+## Final acceptance command
+
+Only after the preceding evidence exists, run the strict acceptance preflight with truthful operator attestations:
+
+```bash
+php bin/release_acceptance.php --strict --json \
+  --branch-protection-confirmed \
+  --ci-green \
+  --release-evidence-green \
+  --backup-restore-current \
+  --one-zero-one-drill-green \
+  --p0p1-clear \
+  --trust-canaries-green \
+  --artifact-signed
+```
+
+Do not pass an attestation merely to make the command green.
+
+## Final merge / publication sequence
+
+After strict acceptance succeeds:
+
+1. merge the exact accepted `dev -> 1.0` release-candidate content without introducing source changes;
+2. verify the resulting `1.0` content is the accepted candidate;
+3. promote that exact accepted content to `master` through the protected PR flow;
+4. create the signed/annotated tag `v1.0.2`;
+5. publish the exact previously accepted ZIP together with `update.json` and detached signature;
+6. verify published checksum, source provenance, update feed and download metadata;
+7. retain rollback/recovery evidence for the release window.
+
+If source changes after any acceptance/signing step, invalidate the affected evidence and repeat the corresponding gates.
+
+## Stop rule
+
+Do not reopen completed 1.0 architecture tasks because of historical audit text. Reopen only a concrete reproducible violation of the current contract. Conversely, do not close #172, #173, governance verification or production signing by inference: those are explicit human/operator boundaries.
+
+Authoritative procedures:
+
+- `docs/RELEASE_ACCEPTANCE.md`
+- `docs/RELEASE_GOVERNANCE.md`
+- `docs/PRODUCTION_TRUST_CEREMONY.md`
+- `docs/WINDOWS_OSPANEL_ACCEPTANCE.md`
+- `docs/releases/v1.0.2.md`
