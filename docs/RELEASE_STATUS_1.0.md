@@ -112,6 +112,9 @@ php bin/release_acceptance.php --strict --json \
   --ci-green \
   --release-evidence-green \
   --backup-restore-current \
+  --operational-acceptance-green \
+  --visual-acceptance-green \
+  --ospanel-acceptance-green \
   --one-zero-one-drill-green \
   --p0p1-clear \
   --trust-canaries-green \
