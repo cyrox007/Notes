@@ -16,7 +16,7 @@ on:
       - 'tests/integration/websocket_endpoint_contract.php'
       - '.github/workflows/protocol-origin-contract.yml'
   push:
-    branches: ['1.0']
+    branches: ['1.0', dev]
     paths:
       - 'core/controller.php'
       - 'core/WebSocketEndpoint.php'
