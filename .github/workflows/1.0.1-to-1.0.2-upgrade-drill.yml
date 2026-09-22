@@ -2,9 +2,10 @@ name: 1.0.2 exact 1.0.1 upgrade and rollback drill
 
 on:
   pull_request:
-    branches: [dev]
+    branches: [dev, '1.0', master]
   push:
     branches: ['1.0.2-upgrade-drill']
+  workflow_dispatch:
 
 permissions:
   contents: read
