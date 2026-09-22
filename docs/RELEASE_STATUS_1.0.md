@@ -23,7 +23,7 @@ The original 1.0 audit items are source-closed. Current 1.0.2 stabilization adds
 | Exact 1.0.1 -> 1.0.2 upgrade | Implemented in CI | published `v1.0.1` is installed through the real installer; signed synthetic 1.0.2 success and forced post-switch DB/code rollback are exercised | repeat required operator acceptance on final immutable production-signed artifacts |
 | Windows compatibility | Implemented in CI | PHP 8.1/8.3 Windows updater/path/runtime contracts | final manual OSPanel 5.2.2 acceptance on exact final artifacts |
 | Realtime Messenger | Implemented | native WebSocket fast path + automatic authenticated HTTP long-poll fallback; shared DB revision bridge; fresh-ticket recovery; worker/session-lock hardening | final OSPanel/browser transport acceptance (#173) |
-| WebSocket diagnostics | Implemented in current source line; final translation port pending acceptance | detailed startup preflight, CLI PHP diagnostics, bind-confirmed `[RUNNING]`, `ws_doctor`, single remote WS-node runbook | merge/accept the fresh Russian diagnostics port or explicitly exclude it before freeze |
+| WebSocket diagnostics | Implemented | detailed startup preflight, CLI PHP diagnostics, bind-confirmed `[RUNNING]`, `ws_doctor`, single remote WS-node runbook and fresh Russian diagnostics port (#211) | exact-head rerun after final source freeze |
 | Release documentation | Updated for 1.0.2 | release notes, hosting/deployment/operations/production docs describe WebSocket-first + HTTP fallback and current 34-table install contract | keep synchronized with the final frozen source |
 | Product visual system | Source implementation present | structural light/dark work and later UX fixes are in the 1.0 line | live visual/operator acceptance on exact final RC (#172) |
 
