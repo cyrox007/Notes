@@ -1,31 +1,31 @@
-# Windows / OSPanel release acceptance for 1.0.2
+# Релизная приёмка Windows / OSPanel для 1.0.2
 
-This checklist complements the automated `windows-latest` CI. Passing GitHub-hosted Windows proves PHP/filesystem/updater path compatibility on Windows, but it is **not** a substitute for the final OSPanel 5.2.2 acceptance on the actual target stack.
+Этот чек-лист дополняет автоматический CI на `windows-latest`. Успешный GitHub-hosted Windows подтверждает совместимость PHP/filesystem/updater paths в Windows, но **не заменяет** финальную приёмку OSPanel 5.2.2 на реальном целевом стеке.
 
-## Automated Windows gate
+## Автоматический Windows gate
 
-The workflow `.github/workflows/windows-hosting-compat.yml` runs on PHP 8.1 and PHP 8.3 and verifies:
+Workflow `.github/workflows/windows-hosting-compat.yml` работает на PHP 8.1 и PHP 8.3 и проверяет:
 
-- Windows drive-letter, slash/backslash, UNC and case-insensitive updater path boundaries;
-- signed manifest/package staging;
-- remote signed update delivery with an in-memory transport;
-- external release-candidate extraction and re-verification;
-- updater recovery-artifact retention;
+- границы updater paths Windows: drive-letter, slash/backslash, UNC и case-insensitive paths;
+- staging подписанных manifest/package;
+- remote signed update delivery через in-memory transport;
+- извлечение external release candidate и повторную проверку;
+- retention recovery-artifacts updater;
 - native view/module runtime contracts;
 - release-package/deployment surface contracts;
-- availability of `update_doctor.php`, `update_run.php` and `update_retention.php`.
+- наличие `update_doctor.php`, `update_run.php` и `update_retention.php`.
 
-No production signing secret is used by this gate.
+Этот gate не использует production signing secret.
 
-## Final OSPanel 5.2.2 acceptance
+## Финальная приёмка OSPanel 5.2.2
 
-Run this only on a disposable copy of the installation and database, or after making a verified backup. Do not use a production dataset for the intentional rollback drill.
+Выполняйте её только на disposable-копии установки и базы данных либо после создания проверенного backup. Не используйте production dataset для намеренного rollback drill.
 
 ### 1. Baseline
 
-Start from the exact published `v1.0.1` package.
+Начните с exact published package `v1.0.1`.
 
-Record:
+Зафиксируйте:
 
 ```powershell
 php -r "require 'core/Version.php'; echo Core\Version::VERSION, PHP_EOL;"
@@ -33,27 +33,27 @@ php -r "require 'core/Version.php'; echo Core\Version::VERSION_CODE, PHP_EOL;"
 php bin/healthcheck.php --json
 ```
 
-Expected source identity:
+Ожидаемая source identity:
 
 ```text
 1.0.1
 10001
 ```
 
-Confirm the application works through the OSPanel hostname and that the database/private storage contain disposable test data that can be checked after the upgrade.
+Убедитесь, что приложение работает через OSPanel hostname, а база данных/private storage содержат disposable test data, которые можно проверить после обновления.
 
-### 2. Prepare final 1.0.2 artifacts
+### 2. Подготовьте финальные artifacts 1.0.2
 
-Use only the final release artifacts:
+Используйте только финальные release artifacts:
 
 - `workspace-organizer-v1.0.2.zip`;
-- its published SHA-256;
+- его опубликованный SHA-256;
 - `update.json`;
 - `update.sig`.
 
-Verify the ZIP checksum before extracting a temporary runner.
+Проверьте checksum ZIP до извлечения временного runner.
 
-The temporary 1.0.2 runner directory and all updater state directories must be outside the live 1.0.1 application tree. Example layout:
+Временная директория runner 1.0.2 и все state directories updater должны находиться вне live application tree 1.0.1. Пример:
 
 ```text
 D:\OSPanel\domains\notes.local
@@ -64,19 +64,19 @@ D:\OSPanel\private\notes\update-backups
 D:\OSPanel\private\notes\update-releases
 ```
 
-### 3. Upgrade exact 1.0.1 through the trusted external bootstrap
+### 3. Обновите exact 1.0.1 через доверенный внешний bootstrap
 
-Run the following from PowerShell using the PHP binary/environment selected by OSPanel (shown as one line intentionally, so no PowerShell continuation escaping is required):
+Запустите следующую команду из PowerShell с PHP binary/environment, выбранным OSPanel. Команда намеренно приведена одной строкой, чтобы не требовалось экранирование переноса строк PowerShell:
 
 ```powershell
 php D:\OSPanel\update-runner\workspace-1.0.2\bin\update_bootstrap.php --app-root="D:\OSPanel\domains\notes.local" --manifest="D:\OSPanel\update-release\update.json" --signature="D:\OSPanel\update-release\update.sig" --package="D:\OSPanel\update-release\workspace-organizer-v1.0.2.zip" --transaction=update-1-0-1-to-1-0-2 --expected-source-version=1.0.1 --expected-source-version-code=10001 --stage-root="D:\OSPanel\private\notes\update-staging" --state-root="D:\OSPanel\private\notes\update-state" --backup-root="D:\OSPanel\private\notes\update-backups" --candidate-root="D:\OSPanel\private\notes\update-releases" --json
 ```
 
-The JSON result must report `committed`.
+JSON-результат должен сообщить `committed`.
 
-### 4. Post-upgrade checks
+### 4. Проверки после обновления
 
-From the live application directory:
+Из live application directory:
 
 ```powershell
 php -r "require 'core/Version.php'; echo Core\Version::VERSION, PHP_EOL;"
@@ -87,42 +87,42 @@ php bin/update_doctor.php --json
 php bin/update_retention.php --json
 ```
 
-Expected identity:
+Ожидаемая identity:
 
 ```text
 1.0.2
 10002
 ```
 
-Also verify through the browser:
+Также проверьте в браузере:
 
-- login still works;
-- previously created Notes/Tasks/Files/Profile data is present;
-- Admin -> Updates opens without PHP/HTTP errors;
-- the application works under the configured OSPanel hostname/base path;
-- no updater maintenance marker remains active after commit;
-- with two Messenger users and WebSocket running, both show «WebSocket · в сети» and a message is delivered without reload;
-- stop the native WS process and verify both clients automatically move to «Long Poll · резервный канал» while durable messages still synchronize;
-- start the native WS process again and verify the clients automatically return to «WebSocket · в сети» without page reload.
+- login по-прежнему работает;
+- ранее созданные данные Notes/Tasks/Files/Profile присутствуют;
+- Admin -> Updates открывается без PHP/HTTP errors;
+- приложение работает под настроенным OSPanel hostname/base path;
+- после commit не остаётся активного maintenance marker updater;
+- с двумя пользователями Messenger и запущенным WebSocket оба клиента показывают «WebSocket · в сети», а сообщение доставляется без reload;
+- остановите native WS process и убедитесь, что оба клиента автоматически переходят в «Long Poll · резервный канал», при этом durable messages продолжают синхронизироваться;
+- снова запустите native WS process и убедитесь, что клиенты автоматически возвращаются в «WebSocket · в сети» без page reload.
 
-### 5. Rollback evidence
+### 5. Доказательство rollback
 
-The automated Linux release drill forces a post-switch database mutation plus failed healthcheck and proves automatic code/database rollback to exact 1.0.1.
+Автоматический Linux release drill принудительно выполняет post-switch mutation базы данных, затем имитирует failed healthcheck и подтверждает автоматический rollback кода и базы данных до exact 1.0.1.
 
-For final OSPanel evidence, repeat destructive rollback testing only on a disposable cloned application plus cloned database. Never intentionally inject a failed candidate into the primary local or production copy.
+Для финального OSPanel evidence повторяйте destructive rollback testing только на disposable clone приложения и clone базы данных. Никогда намеренно не внедряйте failed candidate в основную локальную или production-копию.
 
-## Acceptance record
+## Запись приёмки
 
-Record:
+Зафиксируйте:
 
-- OSPanel version;
-- selected PHP version;
-- source `v1.0.1` commit;
-- final 1.0.2 release commit;
-- ZIP SHA-256;
-- update signing key ID reported by verification;
-- bootstrap JSON result;
-- post-upgrade healthcheck result;
-- browser smoke-check result, including WebSocket → Long Poll → WebSocket recovery.
+- версию OSPanel;
+- выбранную версию PHP;
+- source commit `v1.0.1`;
+- финальный release commit 1.0.2;
+- SHA-256 ZIP;
+- update signing key ID, сообщённый verification;
+- JSON-результат bootstrap;
+- результат post-upgrade healthcheck;
+- результат browser smoke-check, включая восстановление WebSocket → Long Poll → WebSocket.
 
-Only after this manual row is green should the release notes say that OSPanel 5.2.2 acceptance has passed.
+Только после успешного завершения этой ручной проверки в release notes можно указывать, что приёмка OSPanel 5.2.2 пройдена.

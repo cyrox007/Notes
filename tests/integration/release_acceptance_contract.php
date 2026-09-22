@@ -7,7 +7,7 @@ $root = dirname(__DIR__, 2);
 function releaseAcceptanceAssert(bool $condition, string $message): void
 {
     if (!$condition) {
-        fwrite(STDERR, "[FAIL] release acceptance contract: {$message}\n");
+        fwrite(STDERR, "[ОШИБКА] контракт release acceptance: {$message}\n");
         exit(1);
     }
 }
@@ -15,20 +15,20 @@ function releaseAcceptanceAssert(bool $condition, string $message): void
 function releaseAcceptanceText(string $root, string $path): string
 {
     $full = $root . '/' . $path;
-    releaseAcceptanceAssert(is_file($full), "missing file {$path}");
+    releaseAcceptanceAssert(is_file($full), "отсутствует файл {$path}");
     $text = file_get_contents($full);
-    releaseAcceptanceAssert(is_string($text), "cannot read {$path}");
+    releaseAcceptanceAssert(is_string($text), "не удалось прочитать {$path}");
     return $text;
 }
 
 $readme = releaseAcceptanceText($root, 'README.md');
 releaseAcceptanceAssert(
     !str_contains($readme, 'Пока остаётся'),
-    'README still contains the obsolete CSP debt statement'
+    'README всё ещё содержит устаревшее описание CSP debt'
 );
 releaseAcceptanceAssert(
     str_contains($readme, '## 1.0 release readiness'),
-    'README lacks current release-readiness section'
+    'README не содержит актуальный раздел release readiness'
 );
 foreach ([
     'nonce-based CSP без',
@@ -38,28 +38,28 @@ foreach ([
     'production license/update Ed25519 keypairs',
     'cross-browser/mobile + load/soak release evidence',
 ] as $marker) {
-    releaseAcceptanceAssert(str_contains($readme, $marker), "README readiness missing {$marker}");
+    releaseAcceptanceAssert(str_contains($readme, $marker), "README release readiness не содержит marker {$marker}");
 }
 
 $doc = releaseAcceptanceText($root, 'docs/RELEASE_ACCEPTANCE.md');
 foreach ([
-    'Gate A — repository/source contract',
-    'Gate B — repository governance',
+    'Gate A — контракт репозитория и исходников',
+    'Gate B — управление репозиторием',
     'Gate C — production trust roots',
-    'Gate D — exact-head automated evidence',
-    'Gate E — operational acceptance',
-    'Gate F — defect and human acceptance',
+    'Gate D — автоматические доказательства exact-head',
+    'Gate E — эксплуатационная приёмка',
+    'Gate F — дефекты и ручная приёмка',
     'visual acceptance',
     'OSPanel 5.2.2',
-    'Gate G — immutable artifact and signing',
-    'Gate H — final merge and tag',
+    'Gate G — неизменяемый артефакт и подпись',
+    'Gate H — финальный merge и tag',
     'v1.0.2',
-    'no open P0/P1 data-loss defects',
-    'no open P0/P1 security defects',
-    'build-only',
-    'must not create or update a public GitHub Release',
+    'нет открытых P0/P1 дефектов с риском потери данных',
+    'нет открытых P0/P1 дефектов безопасности',
+    'работает только как сборка',
+    'не должен создавать или обновлять публичный GitHub Release',
 ] as $marker) {
-    releaseAcceptanceAssert(str_contains($doc, $marker), "release acceptance runbook missing {$marker}");
+    releaseAcceptanceAssert(str_contains($doc, $marker), "runbook release acceptance не содержит marker {$marker}");
 }
 
 $preflight = releaseAcceptanceText($root, 'bin/release_acceptance.php');
@@ -83,7 +83,7 @@ foreach ([
     "Version::STATUS === 'stable'",
     'exit(3)',
 ] as $marker) {
-    releaseAcceptanceAssert(str_contains($preflight, $marker), "release preflight missing {$marker}");
+    releaseAcceptanceAssert(str_contains($preflight, $marker), "release preflight не содержит marker {$marker}");
 }
 
 $governance = json_decode(
@@ -120,11 +120,11 @@ foreach ([
 $releaseGate = releaseAcceptanceText($root, '.github/workflows/release-gate.yml');
 releaseAcceptanceAssert(
     str_contains($releaseGate, 'php tests/integration/release_acceptance_contract.php'),
-    'Stable release gate does not execute release acceptance contract'
+    'Stable release gate не запускает release acceptance contract'
 );
 releaseAcceptanceAssert(
     str_contains($releaseGate, 'php bin/release_acceptance.php --json'),
-    'Stable release gate does not execute non-strict release preflight'
+    'Stable release gate не запускает non-strict release preflight'
 );
 
-fwrite(STDOUT, "[OK] final 1.0.2 release acceptance contract\n");
+fwrite(STDOUT, "[OK] финальный контракт release acceptance 1.0.2 выполнен\n");

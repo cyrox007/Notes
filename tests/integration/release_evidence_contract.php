@@ -7,7 +7,7 @@ $root = dirname(__DIR__, 2);
 function releaseEvidenceAssert(bool $condition, string $message): void
 {
     if (!$condition) {
-        fwrite(STDERR, "[FAIL] release evidence contract: {$message}\n");
+        fwrite(STDERR, "[ОШИБКА] контракт release evidence: {$message}\n");
         exit(1);
     }
 }
@@ -15,9 +15,9 @@ function releaseEvidenceAssert(bool $condition, string $message): void
 function releaseEvidenceText(string $root, string $path): string
 {
     $full = $root . '/' . $path;
-    releaseEvidenceAssert(is_file($full), "missing file {$path}");
+    releaseEvidenceAssert(is_file($full), "отсутствует файл {$path}");
     $text = file_get_contents($full);
-    releaseEvidenceAssert(is_string($text), "cannot read {$path}");
+    releaseEvidenceAssert(is_string($text), "не удалось прочитать {$path}");
     return $text;
 }
 
@@ -38,7 +38,7 @@ foreach ([
     "uniqueSessions.length !== scenarios.length",
     "authenticated_sessions: uniqueSessions.length",
 ] as $marker) {
-    releaseEvidenceAssert(str_contains($browser, $marker), "browser evidence missing {$marker}");
+    releaseEvidenceAssert(str_contains($browser, $marker), "browser evidence не содержит marker {$marker}");
 }
 
 $load = releaseEvidenceText($root, 'tests/e2e/release-load-soak.mjs');
@@ -57,7 +57,7 @@ foreach ([
     "authenticated_sessions: sessionCookies.length",
     "process.exit(1)",
 ] as $marker) {
-    releaseEvidenceAssert(str_contains($load, $marker), "load/soak evidence missing {$marker}");
+    releaseEvidenceAssert(str_contains($load, $marker), "load/soak evidence не содержит marker {$marker}");
 }
 
 $workflow = releaseEvidenceText($root, '.github/workflows/release-evidence.yml');
@@ -74,26 +74,26 @@ foreach ([
     "PHP_CLI_SERVER_WORKERS=8",
     "BASE_PATH=/workspace",
 ] as $marker) {
-    releaseEvidenceAssert(str_contains($workflow, $marker), "release evidence workflow missing {$marker}");
+    releaseEvidenceAssert(str_contains($workflow, $marker), "workflow release evidence не содержит marker {$marker}");
 }
 
 $docs = releaseEvidenceText($root, 'docs/RELEASE_EVIDENCE.md');
 foreach ([
-    'five independent authenticated PHP sessions',
-    '600 requests with concurrency 12',
-    '45 seconds with concurrency 4',
-    'maximum p95 latency: 2500 ms',
-    'no open P0/P1 data-loss defects',
-    'no open P0/P1 security defects',
-    'does not fabricate human beta evidence',
+    'пять независимых аутентифицированных PHP sessions',
+    '600 запросов с concurrency 12',
+    '45 секунд с concurrency 4',
+    'максимальная p95 latency: 2500 мс',
+    'нет открытых P0/P1 дефектов с риском потери данных',
+    'нет открытых P0/P1 дефектов безопасности',
+    'не подменяют human beta evidence',
 ] as $marker) {
-    releaseEvidenceAssert(str_contains($docs, $marker), "release evidence docs missing {$marker}");
+    releaseEvidenceAssert(str_contains($docs, $marker), "документация release evidence не содержит marker {$marker}");
 }
 
 $releaseGate = releaseEvidenceText($root, '.github/workflows/release-gate.yml');
 releaseEvidenceAssert(
     str_contains($releaseGate, 'php tests/integration/release_evidence_contract.php'),
-    'Stable release gate does not run release evidence contract'
+    'Stable release gate не запускает release evidence contract'
 );
 
-fwrite(STDOUT, "[OK] release browser, mobile, load/soak and acceptance evidence contract\n");
+fwrite(STDOUT, "[OK] контракт browser/mobile/load/soak и release evidence выполнен\n");
