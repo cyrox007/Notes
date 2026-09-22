@@ -69,6 +69,11 @@ assertLongPollContract(
     && str_contains($provider, "'POST', '/realtime/action'"),
     'Messenger module does not register both fallback HTTP routes'
 );
+assertLongPollContract(
+    str_contains($provider, 'CSRFMiddleware::class')
+    && preg_match("/'\/realtime\/action'.*CSRFMiddleware::class/s", $provider) === 1,
+    'Messenger fallback mutation route must enforce CSRF'
+);
 
 assertLongPollContract(
     str_contains($controller, 'session_write_close()'),
@@ -129,6 +134,8 @@ assertLongPollContract(
     && str_contains($client, 'resumeLongPoll(')
     && str_contains($client, '/messenger/realtime/poll')
     && str_contains($client, '/messenger/realtime/action')
+    && str_contains($client, 'X-CSRF-Token')
+    && str_contains($client, 'getCSRFToken')
     && str_contains($client, 'this.socketAuthorized'),
     'Messenger client does not implement guarded WebSocket/long-poll failover'
 );
