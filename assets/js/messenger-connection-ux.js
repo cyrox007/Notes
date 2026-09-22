@@ -154,6 +154,8 @@
             if (refreshPromise) return refreshPromise;
 
             refreshPromise = (async () => {
+                const resumeLongPoll = app.pauseLongPollRequest?.() === true;
+                let refreshed = false;
                 try {
                     const endpoint = typeof window.wspace?.path === 'function'
                         ? window.wspace.path('/messenger/socket-ticket')
@@ -205,6 +207,7 @@
                     activeTicketSubject = nextSubject || activeTicketSubject;
                     window.wspace.socketConfig = window.wspace.socketConfig || {};
                     window.wspace.socketConfig.ticket = data.ticket;
+                    refreshed = true;
                     return true;
                 } catch (error) {
                     console.warn('Messenger reconnect ticket refresh failed', error);
@@ -219,8 +222,14 @@
                             bannerText: 'Не удалось восстановить соединение. Повторим попытку автоматически.'
                         });
                     }
+                    if (resumeLongPoll && !sessionUnavailable) {
+                        app.resumeLongPoll?.();
+                    }
                     return false;
                 } finally {
+                    if (!refreshed && resumeLongPoll && !sessionUnavailable && app.longPollActive === true) {
+                        app.resumeLongPoll?.();
+                    }
                     refreshPromise = null;
                 }
             })();

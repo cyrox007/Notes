@@ -16,6 +16,7 @@
             this.longPollAbortController = null;
             this.longPollGeneration = 0;
             this.longPollRetryTimer = null;
+            this.longPollFallbackTimer = null;
             this.typingTimer = null;
             this.typingSent = false;
             this.pendingOpenUid = null;
@@ -150,7 +151,7 @@
                 this.socket = new WebSocket(`${url}${separator}ticket=${encodeURIComponent(ticket)}`);
             } catch (error) {
                 console.error(error);
-                this.startLongPoll('WebSocket недоступен');
+                this.scheduleLongPollFallback('WebSocket недоступен');
                 this.scheduleReconnect();
                 return;
             }
@@ -162,11 +163,11 @@
             this.socket.addEventListener('message', (event) => this.handleSocketMessage(event));
             this.socket.addEventListener('error', () => {
                 this.socketAuthorized = false;
-                this.startLongPoll('WebSocket недоступен');
+                this.scheduleLongPollFallback('WebSocket недоступен');
             });
             this.socket.addEventListener('close', () => {
                 this.socketAuthorized = false;
-                this.startLongPoll('WebSocket отключён');
+                this.scheduleLongPollFallback('WebSocket отключён');
                 this.scheduleReconnect();
             });
         }
@@ -264,6 +265,7 @@
                 : '/messenger/realtime/action';
 
             void (async () => {
+                const resumeLongPoll = this.pauseLongPollRequest();
                 try {
                     const response = await fetch(endpoint, {
                         method: 'POST',
@@ -282,6 +284,10 @@
                 } catch (error) {
                     console.warn('Messenger HTTP fallback action failed', error);
                     this.showToast('Резервный канал временно недоступен');
+                } finally {
+                    if (resumeLongPoll && this.longPollActive && !this.socketAuthorized) {
+                        this.resumeLongPoll();
+                    }
                 }
             })();
 
@@ -295,7 +301,23 @@
             });
         }
 
+        scheduleLongPollFallback(reason = '', delay = 1500) {
+            if (this.socketAuthorized || this.longPollActive || this.longPollFallbackTimer) {
+                return;
+            }
+
+            this.longPollFallbackTimer = window.setTimeout(() => {
+                this.longPollFallbackTimer = null;
+                if (this.socketAuthorized) return;
+                this.startLongPoll(reason);
+            }, Math.max(0, delay));
+        }
+
         startLongPoll(reason = '') {
+            if (this.longPollFallbackTimer) {
+                window.clearTimeout(this.longPollFallbackTimer);
+                this.longPollFallbackTimer = null;
+            }
             if (navigator.onLine === false) {
                 this.setConnectionState('offline', 'Нет интернета');
                 return;
@@ -316,6 +338,10 @@
         }
 
         stopLongPoll() {
+            if (this.longPollFallbackTimer) {
+                window.clearTimeout(this.longPollFallbackTimer);
+                this.longPollFallbackTimer = null;
+            }
             if (!this.longPollActive && !this.longPollAbortController) return;
             this.longPollActive = false;
             this.longPollGeneration += 1;
@@ -328,6 +354,24 @@
                 this.longPollAbortController.abort();
                 this.longPollAbortController = null;
             }
+        }
+
+        pauseLongPollRequest() {
+            if (!this.longPollActive) return false;
+            this.longPollGeneration += 1;
+            if (this.longPollAbortController) {
+                this.longPollAbortController.abort();
+                this.longPollAbortController = null;
+            }
+            return true;
+        }
+
+        resumeLongPoll() {
+            if (!this.longPollActive || this.socketAuthorized || this.longPollAbortController) {
+                return;
+            }
+            const generation = ++this.longPollGeneration;
+            void this.runLongPoll(generation);
         }
 
         async runLongPoll(generation) {

@@ -89,12 +89,20 @@ assertLongPollContract(
 );
 
 assertLongPollContract(
-    str_contains($client, 'startLongPoll(')
+    str_contains($client, 'scheduleLongPollFallback(')
+    && str_contains($client, 'startLongPoll(')
     && str_contains($client, 'stopLongPoll(')
+    && str_contains($client, 'pauseLongPollRequest(')
+    && str_contains($client, 'resumeLongPoll(')
     && str_contains($client, '/messenger/realtime/poll')
     && str_contains($client, '/messenger/realtime/action')
     && str_contains($client, 'this.socketAuthorized'),
-    'Messenger client does not implement automatic WebSocket/long-poll failover'
+    'Messenger client does not implement guarded WebSocket/long-poll failover'
+);
+assertLongPollContract(
+    str_contains($connectionUx, 'pauseLongPollRequest')
+    && str_contains($connectionUx, 'resumeLongPoll'),
+    'WebSocket ticket recovery must release a long-poll worker before HTTP refresh'
 );
 assertLongPollContract(
     str_contains($client, "state !== 'online' && state !== 'fallback'"),

@@ -167,11 +167,29 @@ try {
   ]);
   await page.getByText('Base Path Folder', { exact: true }).waitFor({ timeout: 15000 });
 
+  const uploadResponsePromise = page.waitForResponse(response => (
+    response.request().method() === 'POST'
+    && new URL(response.url()).pathname === `${basePath}/files/upload/`
+  ), { timeout: 15000 });
   await page.locator('#file-input').setInputFiles({
     name: 'base-path.txt',
     mimeType: 'text/plain',
     buffer: Buffer.from('base path upload contract'),
   });
+  const uploadResponse = await uploadResponsePromise;
+  const uploadBody = await uploadResponse.text();
+  let uploadPayload = null;
+  try {
+    uploadPayload = JSON.parse(uploadBody);
+  } catch (error) {
+    throw new Error(`File upload returned invalid JSON: HTTP ${uploadResponse.status()} body=${uploadBody}`);
+  }
+  if (uploadResponse.status() !== 200 || uploadPayload?.success !== true) {
+    throw new Error(
+      `File upload failed: HTTP ${uploadResponse.status()} body=${uploadBody} `
+      + `consoleErrors=${JSON.stringify(consoleErrors)} failedResponses=${JSON.stringify(failedResponses)}`
+    );
+  }
   await page.waitForLoadState('domcontentloaded');
   const fileItem = page.locator('.file-manager__item[data-name="base-path"]');
   await fileItem.waitFor({ state: 'visible', timeout: 15000 });
