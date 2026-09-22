@@ -70,7 +70,7 @@ Required evidence includes:
 - retention/permanent purge;
 - data-key rotation;
 - Notes/Tasks/Files/Profile/Admin browser lifecycle;
-- HTTPS/WSS browser smoke;
+- HTTPS/WSS browser smoke including forced WebSocket loss, HTTP long-poll fallback, worker-release/reconnect and fallback-mutation → active-WS-client bridge;
 - signed updater/staging/apply/backup/recovery;
 - exact published `v1.0.1` (`0e6e4a3b352cfb7436db6b749fd869bbb07310c9`) -> `1.0.2` upgrade and rollback drill;
 - hosting installer/package;
@@ -88,10 +88,12 @@ On a deployment representative of production:
 2. complete a restore drill into an isolated environment;
 3. run `php bin/healthcheck.php --json`;
 4. verify HTTPS and WSS through the production reverse proxy;
-5. verify one encrypted Note and one encrypted Messenger message;
-6. verify protected File Manager/Notes/Messenger media access;
-7. review `php bin/observability.php --json` and retention preview;
-8. confirm adequate DB/private-storage free space and writable external state paths.
+5. with two authenticated Messenger users, verify WebSocket delivery, then temporarily stop/block the WS endpoint and verify automatic «Long Poll · резервный канал» delivery without reload;
+6. restore the WS endpoint and verify both clients automatically return to «WebSocket · в сети»;
+7. verify one encrypted Note and one encrypted Messenger message;
+8. verify protected File Manager/Notes/Messenger media access;
+9. review `php bin/observability.php --json` and retention preview;
+10. confirm adequate DB/private-storage free space and writable external state paths.
 
 ## Gate F — defect acceptance
 
