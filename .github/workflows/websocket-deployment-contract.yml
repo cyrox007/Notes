@@ -90,15 +90,15 @@ jobs:
           WS_STATUS=$?
           set -e
           test "$WS_STATUS" -eq 1
-          grep -Fq 'WebSocket server is not running.' /tmp/workspace-ws-status.txt
+          grep -Fq 'WebSocket-сервер не запущен.' /tmp/workspace-ws-status.txt
           grep -Fq 'websocket_proxy_contract' bin/healthcheck.php
           grep -Fq 'RewriteCond %{HTTP:Upgrade} ^websocket$ [NC]' .htaccess
           grep -Fq 'RewriteRule ^ws/?$ ws://127.0.0.1:27800/ [P,L]' .htaccess
           grep -Fq 'C:\OSPanel\home\notes.local\.osp\Apache\notes.local.conf' docs/OPEN_SERVER_WEBSOCKET.md
           grep -Fq 'OSPanel / OpenServer 5.2.2' docs/OPEN_SERVER_WEBSOCKET.md
           grep -Fq 'WS_PUBLIC_URL=ws://notes.local:27800' docs/OPEN_SERVER_WEBSOCKET.md
-          grep -Fq 'OpenServer direct-host mode' bin/ws_doctor.php
-          grep -Fq 'PowerShell background launch' bin/ws_doctor.php
-          grep -Fq 'Run: php bin/ws_doctor.php' ws_server/server.php
+          grep -Fq 'Прямой режим OpenServer' bin/ws_doctor.php
+          grep -Fq 'Фоновый запуск PowerShell' bin/ws_doctor.php
+          grep -Fq 'Запустите: php bin/ws_doctor.php' ws_server/server.php
           grep -Fq 'ProxyPass "/ws" "http://127.0.0.1:27800/" upgrade=websocket' docs/OPEN_SERVER_WEBSOCKET.md
           ! grep -Fq "getenv('WS_HOST') ?: '0.0.0.0'" ws_server/server.php
