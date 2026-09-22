@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use Closure;
 use Core\DatabaseManager;
 use JsonException;
 use RuntimeException;
@@ -15,17 +16,23 @@ final class MessengerLongPollService
     private const MAX_TIMEOUT_SECONDS = 25;
     private const POLL_INTERVAL_MICROSECONDS = 750000;
 
-    public function __construct(private ?DatabaseManager $db = null)
-    {
-        $this->db ??= DatabaseManager::getInstance();
+    public function __construct(
+        private ?DatabaseManager $db = null,
+        private ?Closure $fingerprintProvider = null,
+        private ?Closure $clock = null,
+        private ?Closure $sleeper = null
+    ) {
+        if ($this->db === null && $this->fingerprintProvider === null) {
+            $this->db = DatabaseManager::getInstance();
+        }
     }
 
     /**
-     * Wait until durable Messenger state visible to this user changes.
+     * Ждёт изменения устойчивого состояния Messenger, видимого пользователю.
      *
-     * The fingerprint deliberately covers dialog metadata, membership/read
-     * cursors, message bodies/status, reactions and per-user deletions. This
-     * makes the fallback independent from the in-memory WebSocket process.
+     * Отпечаток покрывает диалоги, membership/read cursors, сообщения,
+     * реакции и персональные удаления. Это делает резервный транспорт
+     * независимым от памяти WebSocket-процесса.
      *
      * @param callable():bool|null $aborted
      * @return array{cursor:string,changed:bool}
@@ -33,10 +40,10 @@ final class MessengerLongPollService
     public function waitForChange(int $userId, string $cursor, ?callable $aborted = null): array
     {
         if ($userId <= 0) {
-            throw new RuntimeException('Long-poll user is invalid');
+            throw new RuntimeException('Некорректный пользователь Long Poll');
         }
 
-        $deadline = microtime(true) + $this->timeoutSeconds();
+        $deadline = $this->now() + $this->timeoutSeconds();
         do {
             $next = $this->fingerprint($userId);
             if ($cursor === '' || !hash_equals($cursor, $next)) {
@@ -47,14 +54,33 @@ final class MessengerLongPollService
                 return ['cursor' => $next, 'changed' => false];
             }
 
-            usleep(self::POLL_INTERVAL_MICROSECONDS);
-        } while (microtime(true) < $deadline);
+            $this->sleep();
+        } while ($this->now() < $deadline);
 
-        return ['cursor' => $this->fingerprint($userId), 'changed' => false];
+        // После последней паузы состояние могло измениться. Нельзя продвигать
+        // cursor и одновременно сообщать changed=false: клиент тогда навсегда
+        // пропустит это изменение до следующего события.
+        $final = $this->fingerprint($userId);
+        return [
+            'cursor' => $final,
+            'changed' => $cursor === '' || !hash_equals($cursor, $final),
+        ];
     }
 
     public function fingerprint(int $userId): string
     {
+        if ($this->fingerprintProvider !== null) {
+            $value = ($this->fingerprintProvider)($userId);
+            if (!is_string($value) || $value === '') {
+                throw new RuntimeException('Провайдер отпечатка Long Poll вернул некорректное значение');
+            }
+            return $value;
+        }
+
+        if ($this->db === null) {
+            throw new RuntimeException('База данных Long Poll не инициализирована');
+        }
+
         $state = $this->db->fetchOne(
             'SELECT
                 (
@@ -127,10 +153,25 @@ final class MessengerLongPollService
         try {
             $encoded = json_encode($state, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
         } catch (JsonException $e) {
-            throw new RuntimeException('Unable to encode Messenger long-poll state', 0, $e);
+            throw new RuntimeException('Не удалось закодировать состояние Messenger Long Poll', 0, $e);
         }
 
         return hash('sha256', $encoded);
+    }
+
+    private function now(): float
+    {
+        return $this->clock !== null ? (float) ($this->clock)() : microtime(true);
+    }
+
+    private function sleep(): void
+    {
+        if ($this->sleeper !== null) {
+            ($this->sleeper)(self::POLL_INTERVAL_MICROSECONDS);
+            return;
+        }
+
+        usleep(self::POLL_INTERVAL_MICROSECONDS);
     }
 
     private function timeoutSeconds(): int
