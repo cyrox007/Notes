@@ -1,6 +1,6 @@
 # Production deployment — Workspace Organizer
 
-Этот документ дополняет `README.md` и описывает production-путь для текущего `0.10.0-alpha`. Alpha-статус сохраняется: перед критичным deployment обязательны staging, backup и restore test.
+Этот документ дополняет `README.md` и описывает production-путь для stable-линии `1.0.x` (актуальный release candidate — `1.0.2`). Перед критичным deployment обязательны staging, backup и restore test.
 
 ## 1. Рекомендуемая схема
 
@@ -31,9 +31,9 @@ Browser не должен иметь прямого доступа к `PRIVATE_S
 - runtime не требует Composer/vendor dependencies;
 - extensions `mysqli`, `pdo_mysql`, `mbstring`, `json`, `fileinfo`, `sodium`, `gd`;
 - writable `PRIVATE_STORAGE_PATH` вне document root;
-- TLS certificate;
-- WSS reverse proxy;
-- для native WebSocket runtime: PHP CLI и возможность держать long-running process; `pcntl`/`posix` рекомендуются на Unix для daemon/signal/process-control функций;
+- TLS certificate и HTTPS для browser traffic;
+- обычные long-lived HTTP requests и достаточная параллельность PHP workers для Messenger fallback;
+- для рекомендуемого native WebSocket fast path: WSS reverse proxy, PHP CLI и возможность держать long-running process; `pcntl`/`posix` рекомендуются на Unix для daemon/signal/process-control функций;
 - уникальные secrets для этого environment.
 
 Production package является vendor-free; `composer install` для запуска приложения и WebSocket runtime не требуется.
@@ -137,7 +137,7 @@ Repository `.htaccess` содержит application-level baseline headers дл�
 
 ### HSTS
 
-Включайте на TLS proxy только когда HTTP fallback больше не нужен, например:
+Включайте на TLS proxy после подтверждения, что installation постоянно обслуживается только по HTTPS. Messenger HTTP long-poll fallback работает поверх HTTPS и не требует сохранения plain HTTP, например:
 
 ```text
 Strict-Transport-Security: max-age=31536000; includeSubDomains
@@ -145,7 +145,7 @@ Strict-Transport-Security: max-age=31536000; includeSubDomains
 
 `preload` добавляйте только если понимаете последствия для всех subdomains.
 
-## 8. WebSocket / WSS
+## 8. Realtime Messenger: WebSocket / WSS + HTTP fallback
 
 Environment:
 
@@ -161,13 +161,13 @@ Native WebSocket server слушает внутренний port. Reverse proxy 
 
 Native WebSocket process запускайте как managed service (systemd/Supervisor/container/hosting process manager), с restart policy и отдельным service account. Перед первым стартом используйте `php ws_server/server.php check`, после запуска — `php bin/ws_doctor.php`.
 
-Допускается один отдельный WS-узел. Он должен работать на том же release/commit, использовать ту же application DB, `WS_TICKET_SECRET`, `MSG_SECRET_KEY`, Messenger private storage и общий `UPDATE_STATE_PATH`. Несколько одновременно активных WS instances одной installation пока не поддерживаются как HA/load-balancing topology.
+Если WebSocket недоступен, Messenger автоматически переходит на authenticated HTTP long poll через `/messenger/realtime/poll` и `/messenger/realtime/action`. Этот transport использует canonical Messenger dispatcher, RBAC/role policies, maintenance и license gates. Long-poll request освобождает PHP session lock; timeout задаётся `MESSENGER_LONG_POLL_TIMEOUT_SECONDS` (default 15, range 5–25). Клиент продолжает WS reconnect в фоне и после `Authorized` отменяет fallback.
+
+Допускается один отдельный WS-узел. Он должен работать на том же release/commit, использовать ту же application DB, `WS_TICKET_SECRET`, `MSG_SECRET_KEY`, Messenger private storage и общий `UPDATE_STATE_PATH`. Shared DB realtime revision bridge уведомляет активные WS-клиенты о durable mutations из HTTP fallback. Несколько одновременно активных WS instances одной installation пока не поддерживаются как HA/load-balancing topology.
 
 ## 9. CSP and browser security
 
-Current Apache baseline запрещает external JavaScript CDN и `unsafe-eval`. File Manager больше не выполняет пользовательский код в браузере; text/code files открываются read-only.
-
-Текущий известный debt — `unsafe-inline`, необходимый пока legacy Smarty templates содержат inline JS/style. Новые функции не должны увеличивать объём inline code; долгосрочная цель — вынести его в static assets и перейти на nonce/hash CSP.
+Current application CSP использует per-request cryptographic nonce для допустимого inline bootstrap, запрещает `unsafe-inline` и `unsafe-eval`, а CI фиксирует этот contract. File Manager не выполняет пользовательский код в браузере; text/code files открываются read-only. External JavaScript origins не добавляйте без отдельного review CSP/trust boundary.
 
 ## 10. Rate limiting
 
@@ -252,7 +252,8 @@ Restore drill должен проверять:
 - чтение Messenger history;
 - скачивание protected attachments;
 - Tasks/Profile state;
-- WebSocket connection.
+- WebSocket connection при включённом fast path;
+- Messenger delivery через HTTP long poll при недоступном WebSocket и автоматический возврат на WS после восстановления.
 
 ## 14. Observability
 
@@ -262,7 +263,7 @@ Restore drill должен проверять:
 - auth 429/503;
 - upload failures/413/415/429;
 - PHP errors/exceptions;
-- native WebSocket server disconnect/restart rate;
+- native WebSocket server disconnect/restart rate и HTTP errors/timeouts на `/messenger/realtime/*`;
 - DB connection errors;
 - migration/healthcheck failures;
 - disk usage private storage;
@@ -283,19 +284,15 @@ Restore drill должен проверять:
 7. выполнить нужный crypto migration;
 8. `php bin/healthcheck.php`;
 9. browser smoke: login -> Profile -> Notes -> Tasks -> Files -> Messenger;
-10. WSS reconnect/multi-tab smoke;
+10. WebSocket delivery + forced WebSocket loss → HTTP Long Poll → automatic WebSocket recovery smoke;
 11. production deploy;
 12. повторный healthcheck и monitoring review;
 13. rollback при несовместимом contract failure.
 
-## 16. Known alpha limitations
+## 16. Known production limitations
 
-До production release остаются инфраструктурные задачи:
-
-- automated browser/WSS E2E через реальный reverse proxy;
-- shared rate limiting для multi-node;
-- centralized metrics/log aggregation;
-- регулярный disaster recovery drill;
-- формализованная key rotation/re-encryption процедура;
-- CSP без `unsafe-inline`;
-- при больших объёмах Messenger — scalable encrypted search вместо bounded decrypt scan.
+- одна installation поддерживает один active native WS process; multi-instance WS HA/load-balancing с distributed presence пока не поддерживается;
+- typing/activity являются ephemeral WebSocket enhancement и в HTTP fallback не имеют той же оперативности, что durable state;
+- long poll зависит от способности web stack держать длительные HTTP requests и от достаточного числа PHP workers;
+- encrypted Messenger search остаётся bounded decrypt-scan, а не plaintext/full-text index;
+- centralized metrics/log aggregation и график disaster-recovery drills остаются обязанностью production-окружения/оператора.

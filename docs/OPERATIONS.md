@@ -19,7 +19,7 @@ php bin/migrate.php
 php bin/healthcheck.php
 ```
 
-Realtime Messenger требует запущенный Workerman и TLS reverse proxy для `/ws`. После изменения `WS_TICKET_SECRET`, `WS_ALLOWED_ORIGINS`, `SITEURL` или WebSocket topology перезапускайте WS process и выполняйте browser/WSS smoke.
+Messenger использует native WebSocket как рекомендуемый fast path и authenticated HTTP long poll как automatic fallback. Если WebSocket включён, держите `php ws_server/server.php start` под process manager и публикуйте `/ws` только через TLS reverse proxy. После изменения `WS_TICKET_SECRET`, `WS_ALLOWED_ORIGINS`, `SITEURL` или WebSocket topology перезапускайте HTTP workers + native WS process и выполняйте browser smoke WebSocket → Long Poll → WebSocket.
 
 ## 2. Backup contract
 
@@ -73,8 +73,8 @@ Restore считается проверенным только после вос
 
 1. сгенерировать новый случайный secret (минимум 32 байта/достаточная энтропия);
 2. заменить secret в secret manager / `.env`;
-3. одновременно перезапустить HTTP workers и Workerman;
-4. проверить новый login + WSS connection.
+3. одновременно перезапустить HTTP workers и native WebSocket process, если WebSocket fast path включён;
+4. проверить новый login, HTTP fallback и новый WSS ticket/connection.
 
 Старые короткоживущие socket tickets после ротации перестанут проходить проверку — это ожидаемо.
 
@@ -141,9 +141,10 @@ Notes rotation охватывает `notes.content` и encrypted snapshots `note
 - наружу публикуется WSS endpoint, native listener остаётся loopback/private;
 - `WS_PID_FILE` задаётся локальным для WS-машины;
 - `php ws_server/server.php check` выполняется до запуска, `php bin/ws_doctor.php` — после запуска;
-- после deploy выполняется browser smoke text + attachment + reconnect.
+- shared application DB доступна обоим узлам: через неё realtime revision bridge сообщает активным WS-клиентам о durable mutations из HTTP fallback;
+- после deploy выполняется browser smoke text + attachment + fallback + reconnect.
 
-Несколько активных WS instances для одной installation пока не поддерживаются: live connection registry локален процессу, а cross-node pub/sub/fan-out отсутствует. Не используйте второй WS process как HA/load-balancing решение до отдельной реализации multi-instance contract.
+Несколько активных WS instances для одной installation пока не поддерживаются: live connection registry локален процессу, а полноценный multi-node pub/sub/presence отсутствует. Не используйте второй WS process как HA/load-balancing решение до отдельной реализации multi-instance contract.
 
 См. `docs/MESSENGER_SERVER.md`.
 
@@ -191,7 +192,7 @@ php bin/cleanup_messenger_orphans.php
 - результат `bin/healthcheck.php`;
 - срок последнего успешного backup и restore drill;
 - наличие legacy crypto rows через `migrate_crypto.php --dry-run`;
-- доступность HTTPS и WSS снаружи reverse proxy.
+- доступность HTTPS; при включённом WebSocket — WSS снаружи reverse proxy; периодически проверяйте и HTTP long-poll fallback.
 
 ## 8. Release gate
 
@@ -199,7 +200,7 @@ php bin/cleanup_messenger_orphans.php
 
 - installer/upgrade CI зелёный;
 - security/domain regression workflows зелёные;
-- browser HTTPS/WSS smoke зелёный;
+- browser HTTPS/WSS + automatic long-poll fallback/recovery smoke зелёный;
 - `bin/healthcheck.php` проходит на target environment;
 - существует свежий проверенный backup и зафиксирован restore drill;
 - encryption keys и `.env` не входят в публичный release/backup archive.

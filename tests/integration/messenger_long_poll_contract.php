@@ -31,6 +31,11 @@ $connection = file_get_contents($root . '/modules/messenger/socket/BufferedSocke
 $server = file_get_contents($root . '/modules/messenger/socket/NativeMessengerServer.php');
 $client = file_get_contents($root . '/modules/messenger/views/script.js');
 $connectionUx = file_get_contents($root . '/assets/js/messenger-connection-ux.js');
+$messengerRunbook = file_get_contents($root . '/docs/MESSENGER_SERVER.md');
+$hostingRunbook = file_get_contents($root . '/docs/HOSTING_INSTALL.md');
+$deploymentCompatibility = file_get_contents($root . '/docs/DEPLOYMENT_COMPATIBILITY.md');
+$operationsRunbook = file_get_contents($root . '/docs/OPERATIONS.md');
+$releaseNotes = file_get_contents($root . '/docs/releases/v1.0.2.md');
 
 foreach ([
     'runtime' => $runtime,
@@ -42,6 +47,11 @@ foreach ([
     'server' => $server,
     'client' => $client,
     'connection UX' => $connectionUx,
+    'Messenger runbook' => $messengerRunbook,
+    'hosting runbook' => $hostingRunbook,
+    'deployment compatibility' => $deploymentCompatibility,
+    'operations runbook' => $operationsRunbook,
+    '1.0.2 release notes' => $releaseNotes,
 ] as $label => $source) {
     assertLongPollContract(is_string($source) && $source !== '', "cannot read {$label} source");
 }
@@ -142,6 +152,20 @@ assertLongPollContract(
     str_contains($connectionUx, 'app.longPollActive === true')
     && str_contains($connectionUx, "Long Poll"),
     'connection UX must keep fallback usable while WebSocket reconnects'
+);
+
+assertLongPollContract(
+    str_contains($messengerRunbook, 'authenticated HTTP long poll')
+    && str_contains($messengerRunbook, 'MESSENGER_LONG_POLL_TIMEOUT_SECONDS')
+    && str_contains($hostingRunbook, 'HTTP long poll')
+    && str_contains($deploymentCompatibility, 'HTTP long poll')
+    && str_contains($releaseNotes, 'HTTP long-poll fallback'),
+    'current release/deployment docs must describe the supported HTTP fallback'
+);
+assertLongPollContract(
+    !str_contains($operationsRunbook, 'требует запущенный Workerman')
+    && !str_contains($messengerRunbook, 'realtime Messenger корректно запустить нельзя'),
+    'current operations docs must not restore the pre-fallback/Workerman deployment contract'
 );
 
 restore_error_handler();

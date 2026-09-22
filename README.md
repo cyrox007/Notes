@@ -6,14 +6,14 @@
 
 Workspace Organizer — self-hosted PHP-приложение для корпоративной работы: заметки, личные и общие задачи, файлы, профиль, администрирование и real-time Messenger.
 
-`1.0.2` завершает stabilization-цикл 1.0: сохраняет stable platform contract `1.0.1`, добавляет единый signed-updater operator flow, readiness diagnostics, retention для updater artifacts, exact 1.0.1→1.0.2 upgrade/rollback drill, Windows hosting compatibility gate и расширенную диагностику native WebSocket startup. Базовый stable contract: vendor-free PHP runtime, native view/WebSocket infrastructure, persisted RBAC и module policies, installation-bound offline Ed25519 licensing, signed remote updater с external staging, transactional code+MySQL rollback и проверенный upgrade path с `0.14.0-beta.4`.
+`1.0.2` завершает stabilization-цикл 1.0: сохраняет stable platform contract `1.0.1`, добавляет единый signed-updater operator flow, readiness diagnostics, retention для updater artifacts, exact 1.0.1→1.0.2 upgrade/rollback drill, Windows hosting compatibility gate, расширенную диагностику native WebSocket startup и WebSocket-first Messenger с автоматическим HTTP long-poll fallback. Базовый stable contract: vendor-free PHP runtime, native view/WebSocket infrastructure, persisted RBAC и module policies, installation-bound offline Ed25519 licensing, signed remote updater с external staging, transactional code+MySQL rollback и проверенный upgrade path с `0.14.0-beta.4`.
 
 ## Возможности
 
 - **Notes** — XChaCha20-Poly1305 для текста, writing-first editor, private attachments, first-class voice notes с duration/playback, view-only sharing по токену, autosave/dirty-state, server-side поиск и role policies для количества заметок, вложений, типов/размера файлов и sharing.
 - **Tasks** — личные kanban/list задачи, drag-and-drop статусов, приоритеты, сроки, категории, подзадачи, фильтры и server-side поиск/пагинация; beta.4 добавляет общие task boards с ACL, участниками, исполнителями и audience `all_active`.
 - **File Manager** — личные папки/файлы вне document root, protected download, media/read-only text preview, grid/list workspace, поиск/сортировка, drag-and-drop upload, storage quota и role policies для размера/типов файлов, общей ёмкости и создания папок.
-- **Messenger v2** — private/group chats, Saved Messages, forwarding, media, voice, reply/edit/delete, delivery/read receipts, reactions, encrypted search, pin/mute/archive, group roles/avatars, multi-device realtime и reconnect/offline/session-ended UX; role policies ограничивают частоту сообщений, вложения, voice и group capabilities.
+- **Messenger v2** — private/group chats, Saved Messages, forwarding, media, voice, reply/edit/delete, delivery/read receipts, reactions, encrypted search, pin/mute/archive, group roles/avatars, multi-device realtime, WebSocket-first transport с HTTP long-poll fallback и reconnect/offline/session-ended UX; role policies ограничивают частоту сообщений, вложения, voice и group capabilities.
 - **Profile** — workspace hub с Notes/Tasks/Files/storage metrics, private avatar, account settings, безопасная деактивация и explicit `is_profile_public` publication model без раскрытия private content.
 - **Admin panel** — создание и lifecycle пользователей, managed registration `disabled/open/invite`, ограниченные/revocable инвайты, Role Manager с permission assignment и module policies, custom profile fields, системный лимит File Manager и персональные storage quota overrides без physical delete связанных данных.
 - **Responsive UI** — единый design system, desktop/mobile navigation, обновлённые формы/карточки/модалки, keyboard focus, reduced-motion support и общий feedback layer.
@@ -46,11 +46,11 @@ Workspace Organizer — self-hosted PHP-приложение для корпор
 - PHP `8.1+` — технический compatibility floor; для Internet-facing production рекомендуется поддерживаемая ветка PHP, сейчас `8.3+`;
 - MySQL `8.x` — основной проверяемый CI path;
 - PHP extensions: `mysqli`, `pdo_mysql`, `mbstring`, `fileinfo`, `sodium`, `gd`;
-- для realtime Messenger/native WebSocket runtime: PHP CLI, возможность держать long-running process и WebSocket endpoint/proxy; daemon mode на Unix дополнительно требует `pcntl`;
+- Messenger работает через обычный authenticated HTTP long poll даже без WebSocket process; для низкой задержки и меньшей нагрузки рекомендуется PHP CLI + long-running native WebSocket process и WebSocket endpoint/proxy; daemon mode на Unix дополнительно требует `pcntl`;
 - Argon2id support в `password_hash`;
 - Apache + `mod_rewrite` либо Nginx с эквивалентным front-controller routing;
 - writable private storage вне document root;
-- HTTPS + WSS для production Messenger.
+- HTTPS для production; WSS рекомендуется для низколатентного Messenger fast path, при его недоступности работает authenticated HTTP long poll.
 
 Подробная матрица Open Server 6+, legacy-compatible Open Server 5.4.x, shared hosting и VPS/VDS: [`docs/DEPLOYMENT_COMPATIBILITY.md`](docs/DEPLOYMENT_COMPATIBILITY.md).
 
@@ -165,7 +165,7 @@ WS_HOST=127.0.0.1
 WS_PORT=27800
 ```
 
-На production hosting публичный `/ws` обычно проксируется на локальный native WebSocket process. Long-running PHP process запускается отдельно через hosting background-process manager, systemd/Supervisor или аналогичный process manager:
+На production hosting WebSocket остаётся предпочтительным realtime transport: публичный `/ws` обычно проксируется на локальный native WebSocket process, а long-running PHP process запускается отдельно через hosting background-process manager, systemd/Supervisor или аналогичный process manager:
 
 ```bash
 php ws_server/server.php check
@@ -173,7 +173,9 @@ php ws_server/server.php start
 php bin/ws_doctor.php
 ```
 
-Поддерживается также **один отдельный WebSocket-узел**, например `wss://ws.example.com/ws`, при условии одинакового release/commit, общей application DB, согласованных `WS_TICKET_SECRET`/`MSG_SECRET_KEY`, общего Messenger private storage и общего maintenance `UPDATE_STATE_PATH`. Несколько одновременно активных WS instances одной installation пока не поддерживаются как HA/load-balancing topology.
+Если WebSocket недоступен, browser автоматически переключает Messenger на `/messenger/realtime/poll` + `/messenger/realtime/action`. Fallback использует те же server-side permissions/license/maintenance gates и тот же Messenger dispatcher; после восстановления WebSocket клиент бесшовно возвращается на него. `MESSENGER_LONG_POLL_TIMEOUT_SECONDS` по умолчанию равен 15 секундам (допустимо 5–25).
+
+Поддерживается также **один отдельный WebSocket-узел**, например `wss://ws.example.com/ws`, при условии одинакового release/commit, общей application DB, согласованных `WS_TICKET_SECRET`/`MSG_SECRET_KEY`, общего Messenger private storage и общего maintenance `UPDATE_STATE_PATH`. Shared DB realtime revision bridge синхронизирует durable HTTP-fallback mutations с активными WS-клиентами. Несколько одновременно активных WS instances одной installation пока не поддерживаются как HA/load-balancing topology.
 
 Полный runbook: [`docs/MESSENGER_SERVER.md`](docs/MESSENGER_SERVER.md).
 
@@ -321,7 +323,7 @@ HSTS намеренно задаётся на production TLS reverse proxy, а �
 
 ### Messenger v2
 
-Current contract включает private/group dialogs, Saved Messages, forwarding, media/voice, replies/edit/delete, delivered/read cursors, reactions, multi-device fanout, pin/mute/archive, group ownership/admin roles/avatars, orphan cleanup, bounded encrypted search и reconnect/offline/session-ended UI с fresh WebSocket ticket перед reconnect. Beta.4 применяет server-side role policies к message rate, attachment limits/types, созданию/размеру групп и voice messages.
+Current contract включает private/group dialogs, Saved Messages, forwarding, media/voice, replies/edit/delete, delivered/read cursors, reactions, multi-device fanout, pin/mute/archive, group ownership/admin roles/avatars, orphan cleanup, bounded encrypted search и WebSocket-first/HTTP-long-poll realtime recovery с fresh WebSocket ticket перед reconnect. Durable fallback mutations bridge-ятся через shared DB revision к активным WS-клиентам; typing/activity остаются WebSocket-only enhancement. Beta.4 применяет server-side role policies к message rate, attachment limits/types, созданию/размеру групп и voice messages.
 
 Encrypted search не хранит plaintext index: он расшифровывает только ограниченное число последних доступных сообщений (`MESSENGER_SEARCH_SCAN_LIMIT`, default `1000`).
 
