@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Models\UserModel;
 use App\Services\MessengerLongPollService;
+use App\Services\MessengerRealtimeRevisionService;
 use App\Sockets\BufferedSocketConnection;
 use App\Sockets\NativeMessengerServer;
 use Core\Controller;
@@ -46,6 +47,9 @@ final class MessengerRealtimeController extends Controller
                 JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
             );
             $server->dispatchTransportMessage($connection, $message, $connections, 'long_poll');
+            if ($server->isDurableMutationAction($action)) {
+                (new MessengerRealtimeRevisionService())->bump();
+            }
         } catch (\Throwable $e) {
             error_log('Messenger long-poll action failed: ' . $e->getMessage());
             $this->jsonFailure('Не удалось выполнить действие мессенджера', 500);
