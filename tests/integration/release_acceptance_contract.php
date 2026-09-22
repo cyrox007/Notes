@@ -86,6 +86,52 @@ foreach ([
     releaseAcceptanceAssert(str_contains($preflight, $marker), "release preflight не содержит marker {$marker}");
 }
 
+$roadmap = releaseAcceptanceText($root, 'docs/ROADMAP.md');
+releaseAcceptanceAssert(
+    str_contains($roadmap, 'все шесть встроенных production-модулей')
+    && !str_contains($roadmap, 'Оставшиеся P0 blockers перед 1.0.0')
+    && !str_contains($roadmap, 'Profile — PR #146, Draft'),
+    'ROADMAP снова содержит устаревшее состояние миграции 1.0'
+);
+
+$isolationDoc = releaseAcceptanceText($root, 'docs/MODULE_RUNTIME_ISOLATION_1.0.md');
+releaseAcceptanceAssert(
+    str_contains($isolationDoc, 'Изолированы все шесть встроенных модулей')
+    && str_contains($isolationDoc, 'Этот список теперь **исторический**')
+    && !str_contains($isolationDoc, 'core.php still contains a recursive'),
+    'документ изоляции модулей не соответствует текущему runtime'
+);
+
+$releaseNotes = releaseAcceptanceText($root, 'docs/releases/v1.0.2.md');
+foreach (['## Состав релиза', '## Совместимость', '## Граница перед 1.1.0'] as $marker) {
+    releaseAcceptanceAssert(
+        str_contains($releaseNotes, $marker),
+        "описание релиза 1.0.2 не содержит русский раздел {$marker}"
+    );
+}
+
+$protectionScript = releaseAcceptanceText($root, 'tools/release/apply-github-protection.sh');
+releaseAcceptanceAssert(
+    str_contains($protectionScript, 'Проверка branch protection не пройдена:')
+    && str_contains($protectionScript, 'Проверка фактических настроек:')
+    && !str_contains($protectionScript, 'Protection verification failed:'),
+    'скрипт branch protection снова содержит английскую операторскую обратную связь'
+);
+
+$rotationCli = releaseAcceptanceText($root, 'bin/rotate_data_keys.php');
+releaseAcceptanceAssert(
+    str_contains($preflight, 'Команда доступна только из CLI.')
+    && str_contains($preflight, 'Использование: php bin/release_acceptance.php')
+    && !str_contains($preflight, 'Non-strict mode reports source failures'),
+    'release acceptance CLI снова содержит английскую операторскую справку'
+);
+releaseAcceptanceAssert(
+    str_contains($rotationCli, 'Ротация ключей данных:')
+    && str_contains($rotationCli, 'Сырые значения ключей намеренно не принимаются')
+    && !str_contains($rotationCli, 'Data-key rotation:'),
+    'CLI ротации ключей снова содержит английскую операторскую обратную связь'
+);
+
 $governance = json_decode(
     releaseAcceptanceText($root, '.github/release-governance.json'),
     true,

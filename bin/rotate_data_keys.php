@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 if (PHP_SAPI !== 'cli') {
-    fwrite(STDERR, "This command is CLI-only.\n");
+    fwrite(STDERR, "Команда доступна только из CLI.\n");
     exit(2);
 }
 
@@ -39,17 +39,17 @@ $options = getopt('', [
 ]);
 
 if (isset($options['help'])) {
-    echo "Usage: php bin/rotate_data_keys.php --transaction=ID --scope=all|notes|messenger [options]\n";
-    echo "  --old-unique-key-file=PATH  Current UNIQUE_KEY in a chmod 600 file.\n";
-    echo "  --new-unique-key-file=PATH  Replacement UNIQUE_KEY in a chmod 600 file.\n";
-    echo "  --old-msg-key-file=PATH     Current MSG_SECRET_KEY in a chmod 600 file.\n";
-    echo "  --new-msg-key-file=PATH     Replacement MSG_SECRET_KEY in a chmod 600 file.\n";
-    echo "  --batch-size=N              Transaction batch size 1..5000 (default 250).\n";
-    echo "  --max-batches=N             Stop cleanly after N batches; 0 means complete all.\n";
-    echo "  --state-root=PATH           External resumable state directory.\n";
-    echo "  --rollback                  Re-encrypt new-key rows back to the old keys.\n";
-    echo "  --json                      Machine-readable result.\n";
-    echo "\nRaw key values are intentionally not accepted on the command line.\n";
+    echo "Использование: php bin/rotate_data_keys.php --transaction=ID --scope=all|notes|messenger [параметры]\n";
+    echo "  --old-unique-key-file=PATH  Текущий UNIQUE_KEY в файле с chmod 600.\n";
+    echo "  --new-unique-key-file=PATH  Новый UNIQUE_KEY в файле с chmod 600.\n";
+    echo "  --old-msg-key-file=PATH     Текущий MSG_SECRET_KEY в файле с chmod 600.\n";
+    echo "  --new-msg-key-file=PATH     Новый MSG_SECRET_KEY в файле с chmod 600.\n";
+    echo "  --batch-size=N              Размер транзакционного пакета 1..5000 (по умолчанию 250).\n";
+    echo "  --max-batches=N             Корректно остановиться после N пакетов; 0 — выполнить всё.\n";
+    echo "  --state-root=PATH           Внешний каталог возобновляемого состояния.\n";
+    echo "  --rollback                  Перешифровать строки с новыми ключами обратно старыми.\n";
+    echo "  --json                      Машиночитаемый результат.\n";
+    echo "\nСырые значения ключей намеренно не принимаются через командную строку.\n";
     exit(0);
 }
 
@@ -65,39 +65,39 @@ function rotationSecretFile(?string $path, string $label): string
 {
     $path = trim((string) $path);
     if ($path === '') {
-        throw new RuntimeException("{$label} is required");
+        throw new RuntimeException("Обязателен параметр {$label}");
     }
     if (is_link($path)) {
-        throw new RuntimeException("{$label} must not be a symlink");
+        throw new RuntimeException("{$label} не должен быть символической ссылкой");
     }
     $resolved = realpath($path);
     if ($resolved === false || !is_file($resolved) || !is_readable($resolved)) {
-        throw new RuntimeException("{$label} is missing or unreadable");
+        throw new RuntimeException("{$label}: файл отсутствует или недоступен для чтения");
     }
     $size = filesize($resolved);
     if (!is_int($size) || $size < 32 || $size > 4096) {
-        throw new RuntimeException("{$label} must contain 32..4096 bytes");
+        throw new RuntimeException("{$label} должен содержать от 32 до 4096 байт");
     }
     if (PHP_OS_FAMILY !== 'Windows') {
         $perms = fileperms($resolved);
         if (is_int($perms) && (($perms & 0077) !== 0)) {
-            throw new RuntimeException("{$label} permissions are too broad; chmod 600 is required");
+            throw new RuntimeException("{$label}: права слишком широкие; требуется chmod 600");
         }
     }
     $bytes = file_get_contents($resolved);
     $secret = is_string($bytes) ? trim($bytes) : '';
     if (strlen($secret) < 32) {
-        throw new RuntimeException("{$label} must contain at least 32 non-whitespace characters");
+        throw new RuntimeException("{$label} должен содержать не менее 32 непробельных символов");
     }
     return $secret;
 }
 
 try {
     if ($transaction === '') {
-        throw new RuntimeException('--transaction is required and must match active maintenance mode');
+        throw new RuntimeException('--transaction обязателен и должен совпадать с активным maintenance mode');
     }
     if (!in_array($scope, ['all', 'notes', 'messenger'], true)) {
-        throw new RuntimeException('--scope must be all, notes or messenger');
+        throw new RuntimeException('--scope должен быть all, notes или messenger');
     }
 
     $secrets = [];
@@ -128,17 +128,24 @@ try {
     if ($json) {
         echo json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . PHP_EOL;
     } else {
-        echo 'Data-key rotation: ' . ($result['complete'] ? 'COMPLETE' : 'INCOMPLETE; resume required') . PHP_EOL;
-        echo 'Direction: ' . $result['direction'] . PHP_EOL;
-        echo 'Scope: ' . $result['scope'] . PHP_EOL;
-        echo 'Batches this run: ' . $result['batches_this_run'] . PHP_EOL;
-        echo 'State: ' . $result['state_path'] . PHP_EOL;
+        $directionLabel = ($result['direction'] ?? '') === 'rollback' ? 'откат' : 'прямая ротация';
+        $scopeLabel = match ($result['scope'] ?? '') {
+            'all' => 'все защищённые данные',
+            'notes' => 'заметки',
+            'messenger' => 'Messenger',
+            default => (string) ($result['scope'] ?? ''),
+        };
+        echo 'Ротация ключей данных: ' . ($result['complete'] ? 'ЗАВЕРШЕНА' : 'НЕ ЗАВЕРШЕНА; требуется продолжение') . PHP_EOL;
+        echo 'Направление: ' . $directionLabel . PHP_EOL;
+        echo 'Область: ' . $scopeLabel . PHP_EOL;
+        echo 'Пакетов в этом запуске: ' . $result['batches_this_run'] . PHP_EOL;
+        echo 'Состояние: ' . $result['state_path'] . PHP_EOL;
         if ($result['complete']) {
-            echo "Verification: OK\n";
+            echo "Проверка: OK\n";
             if (!$rollback) {
-                echo "Keep maintenance active. Update UNIQUE_KEY/MSG_SECRET_KEY in the secret manager or .env, restart HTTP/WS workers, verify, then leave maintenance.\n";
+                echo "Оставьте maintenance активным. Обновите UNIQUE_KEY/MSG_SECRET_KEY в secret manager или .env, перезапустите HTTP/WS workers, выполните проверку и только затем выйдите из maintenance.\n";
             } else {
-                echo "Rollback verification: OK. The database is readable with the original keys again.\n";
+                echo "Проверка отката: OK. База данных снова читается исходными ключами.\n";
             }
         }
     }
@@ -151,7 +158,7 @@ try {
             'message' => $e->getMessage(),
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
     } else {
-        fwrite(STDERR, '[FAIL] ' . $e->getMessage() . PHP_EOL);
+        fwrite(STDERR, '[ОШИБКА] ' . $e->getMessage() . PHP_EOL);
     }
     exit(1);
 }
