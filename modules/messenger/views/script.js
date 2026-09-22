@@ -279,10 +279,15 @@
             void (async () => {
                 const resumeLongPoll = this.pauseLongPollRequest();
                 try {
+                    const csrfToken = String(window.wspace?.security?.getCSRFToken?.() || '').trim();
+                    const headers = { 'Accept': 'application/json' };
+                    if (csrfToken) {
+                        headers['X-CSRF-Token'] = csrfToken;
+                    }
                     const response = await fetch(endpoint, {
                         method: 'POST',
                         credentials: 'same-origin',
-                        headers: { 'Accept': 'application/json' },
+                        headers,
                         body
                     });
                     if (!response.ok) {
