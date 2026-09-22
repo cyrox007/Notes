@@ -23,6 +23,7 @@ $runtimeFiles = [
     '/services/MessengerSearchService.php',
     '/services/MessengerService.php',
     '/services/MessengerLongPollService.php',
+    '/services/MessengerRealtimeRevisionService.php',
     '/services/MessengerVoiceService.php',
     '/middlewares/RequireMessengerUse.php',
     '/middlewares/EnforceMessengerUploadPolicy.php',
