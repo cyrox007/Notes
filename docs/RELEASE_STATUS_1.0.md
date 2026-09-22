@@ -1,110 +1,111 @@
-# Workspace Organizer 1.0.x release status ledger
+# Статус релизной линии Workspace Organizer 1.0.x
 
-> **Status update — 22 September 2026.** `v1.0.1` is the published baseline. The active maintenance candidate is `1.0.2` / version code `10002`. This file is the current stop/reopen ledger for the final 1.0.2 release ceremony; historical 1.0.0/1.0.1 source tasks stay closed unless a new reproducible regression violates their acceptance contract.
+> **Обновлено 22 сентября 2026.** Опубликованный baseline — `v1.0.1`. Активный maintenance-кандидат — `1.0.2` / код версии `10002`. Этот файл — текущий stop/reopen ledger финальной церемонии выпуска 1.0.2; исторические задачи исходников для 1.0.0/1.0.1 остаются закрытыми, пока не появится новый воспроизводимый регресс, нарушающий их acceptance contract.
 
-## Current release topology
+## Текущая релизная топология
 
-- published baseline: `v1.0.1` at the exact published commit pinned by the upgrade drill;
-- active source branch: `dev`;
-- release-candidate promotion PR: #204, `dev -> 1.0`;
-- final release target after acceptance: `master` + tag `v1.0.2`;
-- feature work for `1.1.0` remains out of scope until the 1.0.2 release gates below are complete.
+- опубликованный baseline: `v1.0.1` на точном опубликованном commit, закреплённом upgrade-drill;
+- активная source-ветка: `dev`;
+- ветка стабилизации и заморозки RC: `1.0`;
+- финальная цель после приёмки: `master` + тег `v1.0.2`;
+- feature work для `1.1.0` остаётся вне scope, пока не завершены gates 1.0.2 ниже.
 
-Do not freeze or sign an RC while another accepted 1.0.2 source change is still pending. Any source change after exact-head acceptance invalidates the affected evidence and requires the relevant gates to be repeated.
+Не замораживайте и не подписывайте RC, пока остаётся хотя бы одно принятое изменение исходников 1.0.2. Любое source change после exact-head acceptance аннулирует затронутые доказательства и требует повторного прохождения соответствующих gates.
 
-## Source convergence
+## Сходимость исходников
 
-The original 1.0 audit items are source-closed. Current 1.0.2 stabilization adds operational/release hardening rather than reopening that architecture work.
+Исходные задачи аудита 1.0 закрыты на уровне кода. Текущая стабилизация 1.0.2 добавляет эксплуатационное и релизное укрепление, а не переоткрывает архитектурную работу.
 
-| Area | Current source state | Evidence / implementation | Remaining gate |
+| Область | Текущее состояние исходников | Доказательства / реализация | Оставшийся gate |
 |---|---|---|---|
-| Module isolation / Core control plane | Implemented | module platform/isolation, lifecycle, router/security and browser lifecycle gates are current | exact-head rerun after final source freeze |
-| Signed updater / rollback | Implemented | unified operator flow, readiness doctor, remote delivery, external candidate, verified code+MySQL backup, automatic rollback/recovery and retention | final production-signed artifact ceremony + exact final upgrade acceptance |
-| Exact 1.0.1 -> 1.0.2 upgrade | Implemented in CI | published `v1.0.1` is installed through the real installer; signed synthetic 1.0.2 success and forced post-switch DB/code rollback are exercised | repeat required operator acceptance on final immutable production-signed artifacts |
-| Windows compatibility | Implemented in CI | PHP 8.1/8.3 Windows updater/path/runtime contracts | final manual OSPanel 5.2.2 acceptance on exact final artifacts |
-| Realtime Messenger | Implemented | native WebSocket fast path + automatic authenticated HTTP long-poll fallback; shared DB revision bridge; fresh-ticket recovery; worker/session-lock hardening | final OSPanel/browser transport acceptance (#173) |
-| WebSocket diagnostics | Implemented | detailed startup preflight, CLI PHP diagnostics, bind-confirmed `[RUNNING]`, `ws_doctor`, single remote WS-node runbook and fresh Russian diagnostics port (#211) | exact-head rerun after final source freeze |
-| Release documentation | Updated for 1.0.2 | release notes, hosting/deployment/operations/production docs describe WebSocket-first + HTTP fallback and current 34-table install contract | keep synchronized with the final frozen source |
-| Product visual system | Source implementation present | structural light/dark work and later UX fixes are in the 1.0 line | live visual/operator acceptance on exact final RC (#172) |
+| Изоляция модулей / Core control plane | Реализовано | актуальны module platform/isolation, lifecycle, router/security и browser lifecycle gates | exact-head rerun после финальной source freeze |
+| Signed updater / rollback | Реализовано | единый operator flow, readiness doctor, remote delivery, external candidate, проверенный backup кода+MySQL, автоматический rollback/recovery и retention | финальная церемония production-signed artifact + exact final upgrade acceptance |
+| Точный upgrade 1.0.1 -> 1.0.2 | Реализовано в CI | опубликованный `v1.0.1` устанавливается реальным installer; проверяются подписанный synthetic 1.0.2 success и принудительный rollback БД/кода после switch | повторить обязательную operator acceptance на финальных неизменяемых production-signed artifacts |
+| Совместимость Windows | Реализовано в CI | Windows updater/path/runtime contracts для PHP 8.1/8.3 | финальная ручная приёмка OSPanel 5.2.2 на точных финальных artifacts |
+| Realtime Messenger | Реализовано | native WebSocket fast path + автоматический аутентифицированный HTTP long-poll fallback; общий DB revision bridge; recovery со свежим ticket; защита worker/session-lock | финальная OSPanel/browser transport acceptance (#173) |
+| Диагностика WebSocket | Реализовано | подробный startup preflight, диагностика CLI PHP, bind-confirmed `[RUNNING]`, `ws_doctor`, runbook одного удалённого WS-узла и актуальная русская диагностика | exact-head rerun после финальной source freeze |
+| Релизная документация | Актуализируется для 1.0.2 | release notes, hosting/deployment/operations/production docs должны описывать WebSocket-first + HTTP fallback и текущий контракт установки на 34 таблицы | сохранять синхронизацию с финальным frozen source |
+| Визуальная система продукта | Source implementation присутствует | структурная light/dark переработка и последующие UX fixes находятся в линии 1.0 | live visual/operator acceptance на exact final RC (#172) |
 
-## Current manual/operator gates
+## Текущие ручные и операторские gates
 
-### G1 — repository governance
+### G1 — управление репозиторием
 
-Before publication, verify repository-side protection for `1.0` and `master` against `.github/release-governance.json` / `docs/RELEASE_GOVERNANCE.md`:
+Перед публикацией проверьте фактическую защиту `1.0` и `master` по `.github/release-governance.json` / `docs/RELEASE_GOVERNANCE.md`:
 
-- PR-required merge flow;
-- required always-on checks;
-- up-to-date branch requirement;
-- stale approval dismissal;
-- force-push/deletion denial;
-- independent approval when another qualified reviewer exists.
+- merge только через PR;
+- обязательные always-on checks;
+- требование актуальной ветки;
+- сброс устаревших approvals;
+- запрет force-push и удаления;
+- независимый approval, если существует другой квалифицированный reviewer.
 
-Repository settings live outside Git history. Source contracts cannot substitute for this verification. If the current GitHub integration cannot read branch-protection administration endpoints, record verification from an owner/admin `gh` session rather than inferring the state.
+Настройки репозитория живут вне истории Git. Source contracts не заменяют эту проверку. Если текущая GitHub-интеграция не может читать administration endpoints branch protection, сохраните подтверждение из owner/admin-сессии `gh`, а не делайте вывод по косвенным признакам.
 
-### G2 — final source freeze and exact-head CI
+### G2 — финальная заморозка исходников и exact-head CI
 
-After all accepted 1.0.2 source PRs are merged:
+После merge всех принятых source PR для 1.0.2:
 
-1. record one exact `dev`/PR #204 head SHA as the final source candidate;
-2. stop adding source changes;
-3. run every release-relevant workflow on that exact head;
-4. do not substitute an older green result for a failed/skipped/unrun check;
-5. classify any failure as product defect, test/fixture defect, CI environment defect or stale workflow/base defect before changing source.
+1. зафиксируйте один точный HEAD `dev` как финальный source candidate;
+2. прекратите добавлять source changes;
+3. выполните все релизно-значимые workflows на этом точном HEAD;
+4. не подменяйте failed/skipped/unrun check зелёным результатом со старого SHA;
+5. до изменения исходников классифицируйте любое падение как product defect, test/fixture defect, CI environment defect или stale workflow/base defect;
+6. перенесите принятый exact source candidate в `1.0` и зафиксируйте новый frozen RC SHA.
 
-### G3 — manual visual acceptance (#172)
+### G3 — ручная визуальная приёмка (#172)
 
-Repeat live visual/operator QA on the exact frozen RC/artifact. Cover:
+Повторите live visual/operator QA на точном frozen RC/artifact. Проверьте:
 
-- Home, Notes, Tasks, Files, Messenger, Profile and Admin;
-- light, dark and system themes;
+- Home, Notes, Tasks, Files, Messenger, Profile и Admin;
+- light, dark и system themes;
 - compact laptop / narrow desktop layout;
-- previously fixed Messenger composer and global unread/notification behavior;
-- current Messenger connection states `WebSocket · в сети` and `Long Poll · резервный канал`.
+- ранее исправленное поведение Messenger composer и глобальных unread/notification;
+- текущие состояния подключения Messenger: `WebSocket · в сети` и `Long Poll · резервный канал`.
 
-CI/DOM checks are supporting evidence, not a replacement for this decision.
+CI/DOM checks являются поддерживающим доказательством, но не заменяют это решение.
 
 ### G4 — OSPanel 5.2.2 realtime + upgrade acceptance (#173)
 
-On the real target stack and exact final artifacts:
+На реальном целевом стеке и точных финальных artifacts:
 
-1. prove the local/browser WebSocket fast path reaches `101 Switching Protocols` + application `Authorized`;
-2. verify normal message delivery with state `WebSocket · в сети`;
-3. stop/block the WS endpoint and verify automatic `Long Poll · резервный канал` durable synchronization without reload;
-4. restore WS and verify automatic return to `WebSocket · в сети`;
-5. execute the final 1.0.1 -> 1.0.2 updater acceptance from `docs/WINDOWS_OSPANEL_ACCEPTANCE.md`;
-6. record PHP/OSPanel version, exact source SHA, bundle SHA-256, signing key ID, update result and healthcheck result.
+1. подтвердите, что local/browser WebSocket fast path достигает `101 Switching Protocols` + application `Authorized`;
+2. проверьте обычную доставку сообщений в состоянии `WebSocket · в сети`;
+3. остановите/заблокируйте WS endpoint и подтвердите автоматическую durable-синхронизацию через `Long Poll · резервный канал` без reload;
+4. восстановите WS и подтвердите автоматический возврат в `WebSocket · в сети`;
+5. выполните финальную updater acceptance `1.0.1 -> 1.0.2` по `docs/WINDOWS_OSPANEL_ACCEPTANCE.md`;
+6. зафиксируйте версии PHP/OSPanel, точный source SHA, SHA-256 bundle, signing key ID, результат обновления и healthcheck.
 
-Previously recorded CLI smoke is useful history but does not replace this exact-final-artifact browser acceptance.
+Ранее сохранённый CLI smoke полезен как история, но не заменяет browser acceptance exact-final-artifact.
 
-### G5 — backup / restore / operational acceptance
+### G5 — backup / restore / эксплуатационная приёмка
 
-On a representative deployment:
+На репрезентативном deployment:
 
-- create a fresh verified MySQL + `PRIVATE_STORAGE_PATH` backup;
-- complete an isolated restore drill;
-- run `php bin/healthcheck.php --json`;
-- verify protected Notes/Messenger/File Manager data;
-- review observability and retention preview;
-- confirm writable external updater/private state and adequate free space.
+- создайте свежий проверенный backup MySQL + `PRIVATE_STORAGE_PATH`;
+- выполните restore drill в изолированное окружение;
+- запустите `php bin/healthcheck.php --json`;
+- проверьте защищённые данные Notes/Messenger/File Manager;
+- просмотрите observability и retention preview;
+- подтвердите возможность записи во внешнее updater/private state и достаточное свободное место.
 
-### G6 — production trust and immutable artifacts
+### G6 — production trust и неизменяемые artifacts
 
-Private signing material stays offline and must never be committed, uploaded to CI, included in a customer bundle or pasted into logs/chat.
+Приватный signing material остаётся offline и никогда не должен коммититься, загружаться в CI, попадать в customer bundle или вставляться в логи/чат.
 
-For the exact accepted SHA:
+Для точного принятого SHA:
 
-1. build the final hosting ZIP once;
-2. verify recorded source SHA + ZIP SHA-256;
-3. build the update manifest for version `1.0.2` / code `10002`;
-4. sign the exact manifest bytes with the offline update-domain private key;
-5. verify package hash/signature with the public trust registry shipped in the bundle;
-6. run production license/update trust canaries;
-7. do not repack or otherwise modify the accepted ZIP after checksum/signature acceptance.
+1. один раз соберите финальный hosting ZIP;
+2. проверьте записанные source SHA + ZIP SHA-256;
+3. соберите update manifest для версии `1.0.2` / кода `10002`;
+4. подпишите точные bytes manifest offline-приватным ключом update-domain;
+5. проверьте package hash/signature публичным trust registry из bundle;
+6. выполните production license/update trust canaries;
+7. после принятия checksum/signature не перепаковывайте и не изменяйте принятый ZIP.
 
-## Final acceptance command
+## Финальная команда приёмки
 
-Only after the preceding evidence exists, run the strict acceptance preflight with truthful operator attestations:
+Только после появления всех предыдущих доказательств выполните строгий acceptance preflight с правдивыми operator attestations:
 
 ```bash
 php bin/release_acceptance.php --strict --json \
@@ -121,30 +122,29 @@ php bin/release_acceptance.php --strict --json \
   --artifact-signed
 ```
 
-Do not pass an attestation merely to make the command green.
+Не передавайте attestation только ради зелёного результата команды.
 
-## Final merge / publication sequence
+## Финальная последовательность merge / публикации
 
-After strict acceptance succeeds:
+После успешной строгой приёмки:
 
-1. merge the exact accepted `dev -> 1.0` release-candidate content without introducing source changes;
-2. verify the resulting `1.0` content is the accepted candidate;
-3. promote that exact accepted content to `master` through the protected PR flow;
-4. create the signed/annotated tag `v1.0.2`;
-5. publish the exact previously accepted ZIP together with `update.json` and detached signature;
-6. verify published checksum, source provenance, update feed and download metadata;
-7. retain rollback/recovery evidence for the release window.
+1. убедитесь, что exact frozen `1.0` содержит принятый source candidate без дополнительных изменений;
+2. перенесите это exact accepted content в `master` через защищённый PR flow;
+3. создайте подписанный/аннотированный тег `v1.0.2`;
+4. опубликуйте exact previously accepted ZIP вместе с `update.json` и detached signature;
+5. проверьте опубликованные checksum, source provenance, update feed и download metadata;
+6. сохраните rollback/recovery evidence на релизное окно.
 
-If source changes after any acceptance/signing step, invalidate the affected evidence and repeat the corresponding gates.
+Если после любого шага acceptance/signing меняются исходники, аннулируйте затронутые доказательства и повторите соответствующие gates.
 
-## Stop rule
+## Правило остановки
 
-Do not reopen completed 1.0 architecture tasks because of historical audit text. Reopen only a concrete reproducible violation of the current contract. Conversely, do not close #172, #173, governance verification or production signing by inference: those are explicit human/operator boundaries.
+Не переоткрывайте завершённые архитектурные задачи 1.0 только из-за исторического текста аудита. Переоткрывайте только конкретное воспроизводимое нарушение текущего contract. И наоборот, не закрывайте #172, #173, governance verification или production signing по предположению: это явные human/operator boundaries.
 
-Authoritative procedures:
+Авторитетные процедуры:
 
-- `docs/RELEASE_ACCEPTANCE.md`
-- `docs/RELEASE_GOVERNANCE.md`
-- `docs/PRODUCTION_TRUST_CEREMONY.md`
-- `docs/WINDOWS_OSPANEL_ACCEPTANCE.md`
-- `docs/releases/v1.0.2.md`
+- `docs/RELEASE_ACCEPTANCE.md`;
+- `docs/RELEASE_GOVERNANCE.md`;
+- `docs/PRODUCTION_TRUST_CEREMONY.md`;
+- `docs/WINDOWS_OSPANEL_ACCEPTANCE.md`;
+- `docs/releases/v1.0.2.md`.
