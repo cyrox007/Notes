@@ -15,11 +15,12 @@
 - возможность PHP записывать в каталог приложения во время установки;
 - возможность PHP создать private storage вне document root;
 - Apache `mod_rewrite` либо эквивалентный routing в Nginx/панели;
-- для realtime Messenger — PHP CLI, возможность держать долгоживущий native PHP process и WebSocket reverse proxy `/ws`.
+- для Messenger fallback — обычные длительные HTTP requests и достаточная параллельность PHP workers;
+- для рекомендуемого низколатентного WebSocket fast path — PHP CLI, возможность держать долгоживущий native PHP process и WebSocket reverse proxy `/ws`.
 
 Composer, Smarty и Workerman для runtime не требуются.
 
-Если тариф не позволяет long-running process/WebSocket proxy, остальные web-модули устанавливаются и работают, но realtime Messenger на таком тарифе не развёрнут.
+Если тариф не позволяет long-running process/WebSocket proxy, Messenger автоматически работает через authenticated HTTP long poll. WebSocket рекомендуется включать при возможности: он уменьшает задержку и нагрузку на PHP workers.
 
 ## Fresh install без CLI
 
@@ -40,7 +41,7 @@ https://example.com/workspace/install.php
 ## Что installer делает автоматически
 
 - при наличии MySQL privilege создаёт отсутствующую БД;
-- импортирует canonical schemas и проверяет текущий contract из **33 обязательных таблиц**;
+- импортирует canonical schemas и проверяет текущий contract из **34 обязательных таблиц**;
 - создаёт RBAC + `role_module_policies`, shared task boards, settings/quota и module lifecycle schema;
 - создаёт private storage вне document root;
 - создаёт пространства `file_manager`, `messenger`, `notes`, `users`, `rate-limit`, `logs`, `legacy`;
@@ -75,7 +76,7 @@ Private storage должен находиться выше web-root, напри�
 
 Если hosting запрещает PHP запись вне `public_html`, такой тариф не соответствует security contract проекта.
 
-## WebSocket / realtime Messenger
+## Realtime Messenger: WebSocket + HTTP fallback
 
 Installer записывает примерно:
 
@@ -88,7 +89,7 @@ WS_MAX_CONNECTIONS=256
 WS_MAX_PAYLOAD_BYTES=2097152
 ```
 
-Web-installer не может универсально запустить долгоживущий процесс на любой панели, поэтому realtime Messenger запускается отдельно:
+Web-installer не может универсально запустить долгоживущий процесс на любой панели. Messenger после web-install уже может работать через HTTP long poll; для рекомендуемого WebSocket fast path process запускается отдельно:
 
 ```bash
 php ws_server/server.php check
@@ -102,7 +103,9 @@ php ws_server/server.php status
 php bin/ws_doctor.php
 ```
 
-В production встроенный native WebSocket server должен работать под process manager с automatic restart, а браузер подключается через `wss://` reverse proxy, не напрямую к `27800`.
+В production при включённом WebSocket встроенный native server должен работать под process manager с automatic restart, а браузер подключается через `wss://` reverse proxy, не напрямую к `27800`. Если WS недоступен, клиент автоматически переключается на `/messenger/realtime/poll` и `/messenger/realtime/action`, продолжает durable-синхронизацию и в фоне пытается вернуть WebSocket.
+
+Fallback использует те же Messenger handlers, RBAC/role policies, maintenance и license gates. Long-poll request освобождает PHP session lock; `MESSENGER_LONG_POLL_TIMEOUT_SECONDS` по умолчанию равен 15 секундам (5–25).
 
 Полная инструкция — `docs/MESSENGER_SERVER.md`. Для Open Server — `docs/OPEN_SERVER_WEBSOCKET.md`.
 
