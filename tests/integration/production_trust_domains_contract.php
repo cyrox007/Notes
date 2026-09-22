@@ -87,15 +87,15 @@ trustAssert(
 
 $releaseGate = (string) file_get_contents($root . '/.github/workflows/release-gate.yml');
 trustAssert(
-    str_contains($releaseGate, 'Production license public key registry is empty'),
+    str_contains($releaseGate, 'Production registry публичных license keys пуст'),
     'master release gate не требует production license public keys'
 );
 trustAssert(
-    str_contains($releaseGate, 'Production update public key registry is empty'),
+    str_contains($releaseGate, 'Production registry публичных update keys пуст'),
     'master release gate не требует production update public keys'
 );
 trustAssert(
-    str_contains($releaseGate, 'License/update public keys must use independent key material'),
+    str_contains($releaseGate, 'Публичные license/update keys должны использовать независимый key material'),
     'master release gate не проверяет независимость signing key material'
 );
 
