@@ -50,7 +50,7 @@ Workspace Organizer — self-hosted PHP-приложение для корпор
 - Argon2id support в `password_hash`;
 - Apache + `mod_rewrite` либо Nginx с эквивалентным front-controller routing;
 - writable private storage вне document root;
-- HTTPS + WSS для production Messenger.
+- HTTPS для production; WSS рекомендуется для низколатентного Messenger fast path, при его недоступности работает authenticated HTTP long poll.
 
 Подробная матрица Open Server 6+, legacy-compatible Open Server 5.4.x, shared hosting и VPS/VDS: [`docs/DEPLOYMENT_COMPATIBILITY.md`](docs/DEPLOYMENT_COMPATIBILITY.md).
 
