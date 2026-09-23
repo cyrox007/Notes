@@ -1,6 +1,6 @@
 # Статус релизной линии Workspace Organizer 1.0.x
 
-> **Обновлено 22 сентября 2026.** Опубликованный baseline — `v1.0.1`. Активный maintenance-кандидат — `1.0.2` / код версии `10002`. Этот файл — текущий stop/reopen ledger финальной церемонии выпуска 1.0.2; исторические задачи исходников для 1.0.0/1.0.1 остаются закрытыми, пока не появится новый воспроизводимый регресс, нарушающий их acceptance contract.
+> **Обновлено 23 сентября 2026.** Опубликованный baseline — `v1.0.1`. Активный maintenance-кандидат — `1.0.2` / код версии `10002`. Этот файл — текущий stop/reopen ledger финальной церемонии выпуска 1.0.2; исторические задачи исходников для 1.0.0/1.0.1 остаются закрытыми, пока не появится новый воспроизводимый регресс, нарушающий их acceptance contract.
 
 ## Текущая релизная топология
 
@@ -23,6 +23,7 @@
 | Точный upgrade 1.0.1 -> 1.0.2 | Реализовано в CI | опубликованный `v1.0.1` устанавливается реальным installer; проверяются подписанный synthetic 1.0.2 success и принудительный rollback БД/кода после switch | повторить обязательную operator acceptance на финальных неизменяемых production-signed artifacts |
 | Совместимость Windows | Реализовано в CI | Windows updater/path/runtime contracts для PHP 8.1/8.3 | финальная ручная приёмка OSPanel 5.2.2 на точных финальных artifacts |
 | Realtime Messenger | Реализовано | native WebSocket fast path + автоматический аутентифицированный HTTP long-poll fallback; общий DB revision bridge; recovery со свежим ticket; защита worker/session-lock | финальная OSPanel/browser transport acceptance (#173) |
+| 2FA/TOTP | Реализовано в объединённом кандидате | персональная настройка в Profile; общесистемная обязательность в Admin; TOTP/recovery codes/rate limit/security events; ротация TOTP-секретов вместе с `UNIQUE_KEY`; отдельные PHP 8.1/8.3 checks | финальная ручная проверка персонального и обязательного сценария на exact frozen RC |
 | Диагностика WebSocket | Реализовано | подробный startup preflight, диагностика CLI PHP, bind-confirmed `[RUNNING]`, `ws_doctor`, runbook одного удалённого WS-узла и актуальная русская диагностика | exact-head rerun после финальной source freeze |
 | Релизная документация | Актуализируется для 1.0.2 | release notes, hosting/deployment/operations/production docs должны описывать WebSocket-first + HTTP fallback и текущий контракт установки на 34 таблицы | сохранять синхронизацию с финальным frozen source |
 | Визуальная система продукта | Source implementation присутствует | структурная light/dark переработка и последующие UX fixes находятся в линии 1.0 | live visual/operator acceptance на exact final RC (#172) |
@@ -78,7 +79,22 @@ CI/DOM checks являются поддерживающим доказатель
 
 Ранее сохранённый CLI smoke полезен как история, но не заменяет browser acceptance exact-final-artifact.
 
-### G5 — backup / restore / эксплуатационная приёмка
+### G5 — приёмка 2FA/TOTP
+
+На точном frozen RC подтвердите оба режима политики:
+
+1. при необязательной политике пользователь включает TOTP в Profile, повторный вход требует второй фактор;
+2. резервный код завершает вход только один раз;
+3. пользователь может перевыпустить резервные коды после подтверждения пароля и существующего второго фактора;
+4. администратор включает «Обязательно для всех пользователей» с подтверждением собственного пароля;
+5. аккаунт без TOTP после правильного пароля не получает обычную сессию и проходит обязательную настройку;
+6. при обязательной политике пользователь не может отключить собственную 2FA;
+7. после возврата политики в «По выбору пользователя» уже настроенная персональная 2FA сохраняется;
+8. прямая ротация `UNIQUE_KEY`, возобновление после прерывания и rollback сохраняют рабочие TOTP-секреты.
+
+Зафиксируйте точный source SHA и результат проверки. Не подтверждайте gate только на основании статического контракта или старой test-only ветки.
+
+### G6 — backup / restore / эксплуатационная приёмка
 
 На репрезентативном deployment:
 
@@ -89,7 +105,7 @@ CI/DOM checks являются поддерживающим доказатель
 - просмотрите observability и retention preview;
 - подтвердите возможность записи во внешнее updater/private state и достаточное свободное место.
 
-### G6 — production trust и неизменяемые artifacts
+### G7 — production trust и неизменяемые artifacts
 
 Приватный signing material остаётся offline и никогда не должен коммититься, загружаться в CI, попадать в customer bundle или вставляться в логи/чат.
 
@@ -116,6 +132,7 @@ php bin/release_acceptance.php --strict --json \
   --operational-acceptance-green \
   --visual-acceptance-green \
   --ospanel-acceptance-green \
+  --two-factor-acceptance-green \
   --one-zero-one-drill-green \
   --p0p1-clear \
   --trust-canaries-green \
