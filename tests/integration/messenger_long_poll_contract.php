@@ -11,7 +11,7 @@ $root = dirname(__DIR__, 2);
 
 function failLongPollContract(string $message): never
 {
-    fwrite(STDERR, "Messenger long-poll contract failed: {$message}\n");
+    fwrite(STDERR, "Контракт Messenger long-poll не выполнен: {$message}\n");
     exit(1);
 }
 
@@ -168,7 +168,7 @@ assertLongPollContract(
     && str_contains($hostingRunbook, 'HTTP long poll')
     && str_contains($deploymentCompatibility, 'HTTP long poll')
     && str_contains($releaseNotes, 'HTTP long-poll fallback'),
-    'current release/deployment docs must describe the supported HTTP fallback'
+    'актуальная release/deployment документация должна описывать поддерживаемый HTTP fallback'
 );
 assertLongPollContract(
     !str_contains($operationsRunbook, 'требует запущенный Workerman')
@@ -177,4 +177,4 @@ assertLongPollContract(
 );
 
 restore_error_handler();
-fwrite(STDOUT, "Messenger long-poll fallback contract: OK\n");
+fwrite(STDOUT, "Контракт Messenger long-poll fallback: OK\n");
