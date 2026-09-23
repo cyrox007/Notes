@@ -22,6 +22,7 @@ $options = getopt('', [
     'operational-acceptance-green',
     'visual-acceptance-green',
     'ospanel-acceptance-green',
+    'two-factor-acceptance-green',
     'one-zero-one-drill-green',
     'beta4-drill-green', // Совместимый alias для старых операторских сценариев
     'p0p1-clear',
@@ -74,7 +75,9 @@ $governanceOk = is_array($governance)
     && $stabilizationChecks === $requiredChecks
     && $candidateChecks === $requiredChecks
     && in_array('one-zero-one-upgrade-rollback', $requiredChecks, true)
-    && in_array('messenger-realtime-fallback', $requiredChecks, true);
+    && in_array('messenger-realtime-fallback', $requiredChecks, true)
+    && in_array('two-factor-contract (8.1)', $requiredChecks, true)
+    && in_array('two-factor-contract (8.3)', $requiredChecks, true);
 $record('governance_source_contract', $governanceOk, 'master + 1.0 / единый обязательный набор checks');
 
 foreach ([
@@ -84,6 +87,7 @@ foreach ([
     'docs/RELEASE_ACCEPTANCE.md',
     'docs/RELEASE_GOVERNANCE.md',
     'docs/PRODUCTION_TRUST_CEREMONY.md',
+    'docs/TWO_FACTOR_AUTH.md',
     'docs/OPERATIONS.md',
 ] as $relative) {
     $record(
@@ -132,7 +136,7 @@ $decodePublic = static function (string $token): ?string {
 $licenseRegistry = require $root . '/config/license_trusted_keys.php';
 $updateRegistry = require $root . '/config/update_trusted_keys.php';
 $record('license_registry_type', is_array($licenseRegistry), 'только публичные ключи');
-$record('update_registry_type', is_array($updateRegistry), 'public keys only');
+$record('update_registry_type', is_array($updateRegistry), 'только публичные ключи');
 
 $trustRootsReady = is_array($licenseRegistry)
     && is_array($updateRegistry)
@@ -155,7 +159,7 @@ if (is_array($updateRegistry)) {
     foreach ($updateRegistry as $id => $token) {
         $raw = is_string($token) ? $decodePublic($token) : null;
         if (!is_string($id) || $raw === null) {
-            $record('update_public_key_format', false, 'invalid key id/public key');
+            $record('update_public_key_format', false, 'некорректный key ID или публичный ключ');
             break;
         }
         $updateFingerprints[$id] = hash('sha256', $raw);
@@ -199,6 +203,7 @@ $manualGates = [
     'operational_acceptance' => 'operational-acceptance-green',
     'visual_acceptance' => 'visual-acceptance-green',
     'ospanel_acceptance' => 'ospanel-acceptance-green',
+    'two_factor_acceptance' => 'two-factor-acceptance-green',
     'one_zero_one_upgrade_rollback' => 'one-zero-one-drill-green',
     'p0_p1_acceptance' => 'p0p1-clear',
     'production_trust_canaries' => 'trust-canaries-green',
