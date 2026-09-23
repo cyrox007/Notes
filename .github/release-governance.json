@@ -22,7 +22,9 @@
     "windows-contract (8.3)",
     "websocket-deployment-contract (8.1)",
     "websocket-deployment-contract (8.3)",
-    "messenger-realtime-fallback"
+    "messenger-realtime-fallback",
+    "two-factor-contract (8.1)",
+    "two-factor-contract (8.3)"
   ],
   "stabilization_required_checks": [
     "release-gate",
@@ -39,7 +41,9 @@
     "windows-contract (8.3)",
     "websocket-deployment-contract (8.1)",
     "websocket-deployment-contract (8.3)",
-    "messenger-realtime-fallback"
+    "messenger-realtime-fallback",
+    "two-factor-contract (8.1)",
+    "two-factor-contract (8.3)"
   ],
   "required_checks_after_product_e2e_merge": [],
   "release_candidate_required_checks": [
@@ -57,6 +61,8 @@
     "windows-contract (8.3)",
     "websocket-deployment-contract (8.1)",
     "websocket-deployment-contract (8.3)",
-    "messenger-realtime-fallback"
+    "messenger-realtime-fallback",
+    "two-factor-contract (8.1)",
+    "two-factor-contract (8.3)"
   ]
 }

@@ -40,6 +40,7 @@ $options = getopt('', [
 
 if (isset($options['help'])) {
     echo "Использование: php bin/rotate_data_keys.php --transaction=ID --scope=all|notes|messenger [параметры]\n";
+    echo "  Область notes означает весь домен UNIQUE_KEY: заметки, историю заметок и TOTP-секреты.\n";
     echo "  --old-unique-key-file=PATH  Текущий UNIQUE_KEY в файле с chmod 600.\n";
     echo "  --new-unique-key-file=PATH  Новый UNIQUE_KEY в файле с chmod 600.\n";
     echo "  --old-msg-key-file=PATH     Текущий MSG_SECRET_KEY в файле с chmod 600.\n";
@@ -131,7 +132,7 @@ try {
         $directionLabel = ($result['direction'] ?? '') === 'rollback' ? 'откат' : 'прямая ротация';
         $scopeLabel = match ($result['scope'] ?? '') {
             'all' => 'все защищённые данные',
-            'notes' => 'заметки',
+            'notes' => 'данные UNIQUE_KEY (заметки, история и TOTP)',
             'messenger' => 'Messenger',
             default => (string) ($result['scope'] ?? ''),
         };

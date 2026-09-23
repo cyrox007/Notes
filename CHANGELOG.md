@@ -2,7 +2,7 @@
 
 Формат основан на принципах Keep a Changelog. Начиная с `1.0.0` проект имеет stable platform contract: совместимость upgrade-path и пользовательских данных является release contract, а изменения схемы выполняются через явные compatibility migrations. Canonical `*_schema.sql` остаются источником текущей схемы fresh install.
 
-## 1.0.2 — 2026-09-22
+## 1.0.2 — 2026-09-23
 
 ### Updater operations
 - Добавлен единый CLI operator flow `bin/update_run.php`, который использует существующие подписанные границы: remote staging, maintenance ownership, verified code+MySQL rollback backup, external release candidate и transactional live apply.
@@ -25,6 +25,17 @@
 - Messenger получил WebSocket-first transport с автоматическим HTTP long-poll fallback: при недоступном/оборванном WS durable chat state продолжает синхронизироваться через HTTP, а клиент в фоне восстанавливает WebSocket и после успешной авторизации отключает fallback.
 - HTTP fallback переиспользует canonical Messenger dispatcher, RBAC, role policies, maintenance/license gates и socket handlers; long-poll request освобождает PHP session lock и прерывается перед собственными mutating HTTP requests/ticket refresh, чтобы не блокировать малое число PHP workers.
 - Durable HTTP fallback mutations публикуют shared DB realtime revision; native WS process отслеживает её и отправляет `sync_required`, поэтому клиенты, остающиеся на WebSocket, видят изменения fallback-клиентов без reconnect. Ephemeral typing/activity остаются WebSocket enhancement.
+
+### Двухфакторная аутентификация
+- Добавлен стандартный TOTP по RFC 6238 с отдельным зашифрованным секретом каждого пользователя.
+- В профиле пользователь может самостоятельно включить 2FA, подтвердить настройку кодом, перевыпустить резервные коды и отключить 2FA с повторным подтверждением.
+- В Admin добавлена общесистемная политика: 2FA может оставаться добровольной либо быть обязательной для всех активных аккаунтов.
+- При обязательной политике пользователь без TOTP после правильного пароля проходит принудительную настройку до получения обычной сессии; самостоятельно отключить 2FA в этом режиме нельзя.
+- Выключение обязательной политики не удаляет персонально настроенные TOTP-секреты.
+- Резервные коды показываются один раз, хранятся только как SHA-256-хеши и поглощаются после использования.
+- Проверка второго фактора имеет отдельное ограничение частоты попыток и журналируется как событие безопасности.
+- Ротация `UNIQUE_KEY` теперь включает TOTP-секреты вместе с заметками: поддерживаются предварительная проверка, пакетная обработка, продолжение после прерывания, повторный проход и rollback.
+- Добавлена отдельная матрица TOTP для PHP 8.1/8.3 и включение контракта 2FA в Stable release gate.
 
 ### Release direction
 - `1.0.2` является последним stabilization patch перед feature-cycle `1.1.0`.
