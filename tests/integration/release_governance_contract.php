@@ -95,6 +95,8 @@ $workflowByCheck = [
     'websocket-deployment-contract (8.1)' => ['.github/workflows/websocket-deployment-contract.yml', 'websocket-deployment-contract'],
     'websocket-deployment-contract (8.3)' => ['.github/workflows/websocket-deployment-contract.yml', 'websocket-deployment-contract'],
     'messenger-realtime-fallback' => ['.github/workflows/messenger-realtime-fallback.yml', 'messenger-realtime-fallback'],
+    'two-factor-contract (8.1)' => ['.github/workflows/two-factor-auth.yml', 'two-factor-contract'],
+    'two-factor-contract (8.3)' => ['.github/workflows/two-factor-auth.yml', 'two-factor-contract'],
 ];
 
 $checkedWorkflows = [];
