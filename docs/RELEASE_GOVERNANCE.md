@@ -38,6 +38,7 @@ protection живут вне истории Git** и должны быть пр�
 - Windows/PHP 8.1 и 8.3 compatibility;
 - WebSocket deployment contract для PHP 8.1 и 8.3;
 - `messenger-realtime-fallback`.
+- `two-factor-contract (8.1)` и `two-factor-contract (8.3)` — TOTP, резервные коды, системная/персональная политика и контракт безопасной ротации секретов;
 
 Каждый обязательный workflow обязан запускаться **на каждом** pull request в
 `1.0` и `master`. Для pull_request-триггера запрещены `paths` и

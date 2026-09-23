@@ -13,6 +13,10 @@ $workspaceVersion = isset($version) ? (string) $version : '';
 $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
 $avatarUrl = isset($avatar_url) && is_string($avatar_url) ? $avatar_url : '';
 $avatarPath = ltrim($avatarUrl, '/');
+$twoFactorEnrollment = isset($two_factor_enrollment) && is_array($two_factor_enrollment) ? $two_factor_enrollment : null;
+$twoFactorRecoveryCodes = isset($two_factor_recovery_codes) && is_array($two_factor_recovery_codes) ? $two_factor_recovery_codes : [];
+$twoFactorEnabled = !empty($currentUser['totp_enabled']);
+$twoFactorRequired = !empty($two_factor_required);
 $fullName = trim((string) ($currentUser['firstname'] ?? '') . ' ' . (string) ($currentUser['lastname'] ?? ''));
 $username = (string) ($currentUser['username'] ?? '');
 
@@ -199,6 +203,106 @@ ob_start();
                     <span id="error-repeat" aria-live="polite"></span>
                     <button id="change-password-btn" class="profile__card-info--edit--set-save" type="submit">Изменить пароль</button>
                 </form>
+
+                <hr>
+                <section class="profile__two-factor" aria-labelledby="profile-two-factor-title">
+                    <h3 id="profile-two-factor-title">Двухфакторная аутентификация</h3>
+                    <p>
+                        Статус:
+                        <strong><?= $twoFactorEnabled ? 'включена' : 'выключена' ?></strong>.
+                        Используется стандартный TOTP, совместимый с Google Authenticator и другими приложениями-аутентификаторами.
+                    </p>
+                    <?php if ($twoFactorRequired): ?>
+                        <p><strong>Политика Workspace:</strong> администратор сделал 2FA обязательной для всех активных пользователей.</p>
+                    <?php else: ?>
+                        <p>2FA включается только для вашей учётной записи и не влияет на других пользователей.</p>
+                    <?php endif; ?>
+
+                    <?php if ($twoFactorRecoveryCodes !== []): ?>
+                        <div class="auth-errors" role="status">
+                            <p><strong>Сохраните резервные коды сейчас.</strong> Они показываются только один раз. Каждый код можно использовать только один раз.</p>
+                            <ul>
+                                <?php foreach ($twoFactorRecoveryCodes as $recoveryCode): ?>
+                                    <?php if (!is_string($recoveryCode)) { continue; } ?>
+                                    <li><code><?= $view->e($recoveryCode) ?></code></li>
+                                <?php endforeach; ?>
+                            </ul>
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if (!$twoFactorEnabled): ?>
+                        <?php if ($twoFactorEnrollment !== null): ?>
+                            <p>Добавьте аккаунт в приложение-аутентификатор вручную или откройте ссылку настройки на устройстве с установленным приложением.</p>
+                            <div class="profile__card-info--edit--form-group">
+                                <label>Секретный ключ:</label>
+                                <code><?= $view->e($twoFactorEnrollment['secret'] ?? '') ?></code>
+                            </div>
+                            <p>
+                                <a href="<?= $view->e($twoFactorEnrollment['uri'] ?? '') ?>">Открыть в приложении-аутентификаторе</a>
+                            </p>
+                            <form action="<?= $view->e($view->route('profile-two-factor-confirm')) ?>" method="post" autocomplete="off">
+                                <?= $view->csrfInput() ?>
+                                <div class="profile__card-info--edit--form-group">
+                                    <label for="two-factor-confirm-password">Текущий пароль:</label>
+                                    <input class="profile__card-info--edit--set-input" type="password" name="current_password" id="two-factor-confirm-password" required autocomplete="current-password">
+                                </div>
+                                <div class="profile__card-info--edit--form-group">
+                                    <label for="two-factor-confirm-code">Код из приложения:</label>
+                                    <input class="profile__card-info--edit--set-input" type="text" name="code" id="two-factor-confirm-code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required>
+                                </div>
+                                <button class="profile__card-info--edit--set-save" type="submit">Подтвердить и включить 2FA</button>
+                            </form>
+                        <?php else: ?>
+                            <p>После включения пароль останется первым фактором, а для завершения входа потребуется одноразовый код.</p>
+                            <form action="<?= $view->e($view->route('profile-two-factor-start')) ?>" method="post">
+                                <?= $view->csrfInput() ?>
+                                <div class="profile__card-info--edit--form-group">
+                                    <label for="two-factor-start-password">Текущий пароль:</label>
+                                    <input class="profile__card-info--edit--set-input" type="password" name="current_password" id="two-factor-start-password" required autocomplete="current-password">
+                                </div>
+                                <button class="profile__card-info--edit--set-save" type="submit">Настроить 2FA</button>
+                            </form>
+                        <?php endif; ?>
+                    <?php else: ?>
+                        <?php if (!empty($currentUser['totp_confirmed_at'])): ?>
+                            <p>Включена: <?= $view->e((string) $currentUser['totp_confirmed_at']) ?></p>
+                        <?php endif; ?>
+
+                        <form action="<?= $view->e($view->route('profile-two-factor-recovery')) ?>" method="post" autocomplete="off">
+                            <?= $view->csrfInput() ?>
+                            <h4>Новые резервные коды</h4>
+                            <p>Старый набор будет немедленно отозван.</p>
+                            <div class="profile__card-info--edit--form-group">
+                                <label for="two-factor-recovery-password">Текущий пароль:</label>
+                                <input class="profile__card-info--edit--set-input" type="password" name="current_password" id="two-factor-recovery-password" required autocomplete="current-password">
+                            </div>
+                            <div class="profile__card-info--edit--form-group">
+                                <label for="two-factor-recovery-code">Код 2FA или резервный код:</label>
+                                <input class="profile__card-info--edit--set-input" type="text" name="code" id="two-factor-recovery-code" maxlength="32" required autocomplete="one-time-code">
+                            </div>
+                            <button class="profile__card-info--edit--set-save" type="submit">Создать новые резервные коды</button>
+                        </form>
+
+                        <?php if ($twoFactorRequired): ?>
+                            <p>Отключение 2FA недоступно, пока администратор сохраняет обязательную политику.</p>
+                        <?php else: ?>
+                            <form action="<?= $view->e($view->route('profile-two-factor-disable')) ?>" method="post" autocomplete="off" data-confirm-message="Выключить двухфакторную аутентификацию? Резервные коды также будут отозваны." data-confirm-native="true" data-confirm-title="Отключение 2FA" data-confirm-text="Отключить">
+                                <?= $view->csrfInput() ?>
+                                <h4>Отключить 2FA</h4>
+                                <div class="profile__card-info--edit--form-group">
+                                    <label for="two-factor-disable-password">Текущий пароль:</label>
+                                    <input class="profile__card-info--edit--set-input" type="password" name="current_password" id="two-factor-disable-password" required autocomplete="current-password">
+                                </div>
+                                <div class="profile__card-info--edit--form-group">
+                                    <label for="two-factor-disable-code">Код 2FA или резервный код:</label>
+                                    <input class="profile__card-info--edit--set-input" type="text" name="code" id="two-factor-disable-code" maxlength="32" required autocomplete="one-time-code">
+                                </div>
+                                <button class="profile__card-info--edit--delete" type="submit">Отключить 2FA</button>
+                            </form>
+    
+                        <?php endif; ?>
+                    <?php endif; ?>
+                </section>
 
                 <hr>
                 <section class="profile__danger-zone">

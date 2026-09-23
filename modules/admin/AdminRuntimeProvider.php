@@ -32,6 +32,7 @@ final class AdminRuntimeProvider implements ModuleRuntimeProvider
             ->add('POST', '/registration/invites/create', [RegistrationSettingsController::class, 'createInvite'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_registration_invite_create')
             ->add('POST', '/registration/invites/revoke', [RegistrationSettingsController::class, 'revokeInvite'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_registration_invite_revoke')
             ->add('GET', '/settings', [SettingsController::class, 'index'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_settings')
+            ->add('POST', '/settings/two-factor', [SettingsController::class, 'saveTwoFactorPolicy'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_settings_two_factor')
             ->add('POST', '/settings/default-quota', [SettingsController::class, 'saveDefaultQuota'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_settings_default_quota')
             ->add('POST', '/settings/user-quota', [SettingsController::class, 'saveUserQuota'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_settings_user_quota')
             ->add('GET', '/license', [LicenseController::class, 'index'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_license')

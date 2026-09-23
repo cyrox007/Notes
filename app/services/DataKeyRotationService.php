@@ -132,6 +132,18 @@ final class DataKeyRotationService
                 }
             }
 
+            if (!$limitReached && ($scope === 'all' || $scope === 'notes') && empty($state['complete']['totp'])) {
+                $limitReached = $this->rotateTotpSecrets(
+                    $state,
+                    $statePath,
+                    (string) $source['unique'],
+                    (string) $target['unique'],
+                    $batchSize,
+                    $maxBatches,
+                    $batches
+                );
+            }
+
             if (!$limitReached && ($scope === 'all' || $scope === 'messenger') && empty($state['complete']['messenger'])) {
                 $limitReached = $this->rotateMessenger(
                     $state,
@@ -257,7 +269,7 @@ final class DataKeyRotationService
      */
     private function preflight(string $scope, array $source, array $target, array $normalized, bool $rollback): array
     {
-        $stats = ['notes' => 0, 'note_history_fields' => 0, 'messenger' => 0, 'plaintext_history_fields' => 0];
+        $stats = ['notes' => 0, 'note_history_fields' => 0, 'totp_secrets' => 0, 'messenger' => 0, 'plaintext_history_fields' => 0];
 
         if ($scope === 'all' || $scope === 'notes') {
             $after = 0;
@@ -320,6 +332,31 @@ final class DataKeyRotationService
                         }
                         $stats['plaintext_history_fields']++;
                     }
+                }
+            } while ($rows !== []);
+
+            $after = 0;
+            do {
+                $rows = $this->db->fetchAll(
+                    'SELECT id,uid,totp_secret FROM users '
+                    . "WHERE id > {$after} AND totp_enabled=1 AND totp_secret IS NOT NULL AND totp_secret <> '' "
+                    . 'ORDER BY id ASC LIMIT 1000'
+                );
+                foreach ($rows as $row) {
+                    $after = (int) $row['id'];
+                    $payload = (string) $row['totp_secret'];
+                    if (!CryptMethods::isCurrentPayload($payload)) {
+                        throw new RuntimeException(
+                            'TOTP-секрет пользователя ' . $after . ' имеет неподдерживаемый формат шифрования'
+                        );
+                    }
+                    $this->authenticateUniqueEither(
+                        $payload,
+                        $this->totpAad((string) $row['uid']),
+                        (string) $source['unique'],
+                        (string) $target['unique']
+                    );
+                    $stats['totp_secrets']++;
                 }
             } while ($rows !== []);
         }
@@ -491,6 +528,85 @@ final class DataKeyRotationService
     }
 
     /** @param array<string,mixed> $state */
+    private function rotateTotpSecrets(
+        array &$state,
+        string $statePath,
+        string $sourceSecret,
+        string $targetSecret,
+        int $batchSize,
+        int $maxBatches,
+        int &$batches,
+    ): bool {
+        while (true) {
+            if ($maxBatches > 0 && $batches >= $maxBatches) {
+                return true;
+            }
+
+            $after = (int) ($state['checkpoints']['totp_users'] ?? 0);
+            $rows = $this->db->fetchAll(
+                'SELECT id,uid,totp_secret FROM users '
+                . "WHERE id > {$after} AND totp_enabled=1 AND totp_secret IS NOT NULL AND totp_secret <> '' "
+                . "ORDER BY id ASC LIMIT {$batchSize}"
+            );
+            if ($rows === []) {
+                $state['complete']['totp'] = true;
+                $state['updated_at'] = time();
+                $this->writeState($statePath, $state);
+                return false;
+            }
+
+            $this->db->beginTransaction();
+            try {
+                foreach ($rows as $row) {
+                    $id = (int) $row['id'];
+                    $uid = (string) $row['uid'];
+                    $payload = (string) $row['totp_secret'];
+                    $aad = $this->totpAad($uid);
+
+                    $plaintext = $this->tryUniqueDecrypt($payload, $aad, $targetSecret);
+                    if ($plaintext !== null) {
+                        $state['counts']['totp_already_target']++;
+                    } else {
+                        $plaintext = CryptMethods::decryptWithSecret($payload, $aad, $sourceSecret);
+                        if (preg_match('/^[A-Z2-7]{16,128}$/D', $plaintext) !== 1) {
+                            throw new RuntimeException("TOTP-секрет пользователя {$id} после расшифровки некорректен");
+                        }
+
+                        $replacement = CryptMethods::encryptWithSecret($plaintext, $aad, $targetSecret);
+                        if (!hash_equals(
+                            $plaintext,
+                            CryptMethods::decryptWithSecret($replacement, $aad, $targetSecret)
+                        )) {
+                            throw new RuntimeException("Проверка TOTP-секрета пользователя {$id} новым ключом не пройдена");
+                        }
+
+                        $updated = $this->db->execute(
+                            'UPDATE users SET totp_secret=:replacement WHERE id=:id AND totp_secret=:original',
+                            [':replacement' => $replacement, ':id' => $id, ':original' => $payload]
+                        );
+                        if ($updated !== 1) {
+                            throw new RuntimeException(
+                                "TOTP-секрет пользователя {$id} изменился параллельно во время ротации ключа"
+                            );
+                        }
+                        $state['counts']['totp_converted']++;
+                    }
+
+                    $state['checkpoints']['totp_users'] = $id;
+                }
+                $this->db->endTransaction(true);
+            } catch (Throwable $e) {
+                $this->db->endTransaction(false);
+                throw $e;
+            }
+
+            $batches++;
+            $state['updated_at'] = time();
+            $this->writeState($statePath, $state);
+        }
+    }
+
+    /** @param array<string,mixed> $state */
     private function rotateMessenger(
         array &$state,
         string $statePath,
@@ -600,10 +716,19 @@ final class DataKeyRotationService
 
     private function authenticateNoteEither(string $payload, string $uid, string $sourceSecret, string $targetSecret): void
     {
-        if ($this->tryNoteDecrypt($payload, $uid, $targetSecret) !== null) {
+        $this->authenticateUniqueEither($payload, $uid, $sourceSecret, $targetSecret);
+    }
+
+    private function authenticateUniqueEither(
+        string $payload,
+        string $aad,
+        string $sourceSecret,
+        string $targetSecret
+    ): void {
+        if ($this->tryUniqueDecrypt($payload, $aad, $targetSecret) !== null) {
             return;
         }
-        CryptMethods::decryptWithSecret($payload, $uid, $sourceSecret);
+        CryptMethods::decryptWithSecret($payload, $aad, $sourceSecret);
     }
 
     private function authenticateMessengerEither(string $payload, string $uid, string $sourceSecret, string $targetSecret): void
@@ -616,11 +741,21 @@ final class DataKeyRotationService
 
     private function tryNoteDecrypt(string $payload, string $uid, string $secret): ?string
     {
+        return $this->tryUniqueDecrypt($payload, $uid, $secret);
+    }
+
+    private function tryUniqueDecrypt(string $payload, string $aad, string $secret): ?string
+    {
         try {
-            return CryptMethods::decryptWithSecret($payload, $uid, $secret);
+            return CryptMethods::decryptWithSecret($payload, $aad, $secret);
         } catch (Throwable) {
             return null;
         }
+    }
+
+    private function totpAad(string $uid): string
+    {
+        return 'two-factor-totp-secret:' . trim($uid);
     }
 
     private function tryMessengerDecrypt(string $payload, string $uid, string $secret): ?string
@@ -639,7 +774,7 @@ final class DataKeyRotationService
      */
     private function verifyTarget(string $scope, array $target, array $normalized, bool $rollback): array
     {
-        $verified = ['notes' => 0, 'note_history_fields' => 0, 'messenger' => 0, 'plaintext_history_fields' => 0];
+        $verified = ['notes' => 0, 'note_history_fields' => 0, 'totp_secrets' => 0, 'messenger' => 0, 'plaintext_history_fields' => 0];
 
         if ($scope === 'all' || $scope === 'notes') {
             $after = 0;
@@ -696,6 +831,24 @@ final class DataKeyRotationService
                     }
                 }
             } while ($rows !== []);
+
+            $after = 0;
+            do {
+                $rows = $this->db->fetchAll(
+                    'SELECT id,uid,totp_secret FROM users '
+                    . "WHERE id > {$after} AND totp_enabled=1 AND totp_secret IS NOT NULL AND totp_secret <> '' "
+                    . 'ORDER BY id ASC LIMIT 1000'
+                );
+                foreach ($rows as $row) {
+                    $after = (int) $row['id'];
+                    CryptMethods::decryptWithSecret(
+                        (string) $row['totp_secret'],
+                        $this->totpAad((string) $row['uid']),
+                        (string) $target['unique']
+                    );
+                    $verified['totp_secrets']++;
+                }
+            } while ($rows !== []);
         }
 
         if ($scope === 'all' || $scope === 'messenger') {
@@ -725,7 +878,9 @@ final class DataKeyRotationService
 
     private function requestedScopesComplete(string $scope, array $state): bool
     {
-        $notes = !empty($state['complete']['notes']) && !empty($state['complete']['note_history']);
+        $notes = !empty($state['complete']['notes'])
+            && !empty($state['complete']['note_history'])
+            && !empty($state['complete']['totp']);
         $messenger = !empty($state['complete']['messenger']);
 
         return match ($scope) {
@@ -805,14 +960,16 @@ final class DataKeyRotationService
                 'scope' => $scope,
                 'direction' => $direction,
                 'fingerprints' => $identity,
-                'checkpoints' => ['notes' => 0, 'note_history' => 0, 'messenger' => 0],
-                'complete' => ['notes' => false, 'note_history' => false, 'messenger' => false],
+                'checkpoints' => ['notes' => 0, 'note_history' => 0, 'totp_users' => 0, 'messenger' => 0],
+                'complete' => ['notes' => false, 'note_history' => false, 'totp' => false, 'messenger' => false],
                 'counts' => [
                     'notes_converted' => 0,
                     'notes_already_target' => 0,
                     'history_fields_converted' => 0,
                     'history_fields_already_target' => 0,
                     'history_fields_plaintext' => 0,
+                    'totp_converted' => 0,
+                    'totp_already_target' => 0,
                     'messenger_converted' => 0,
                     'messenger_already_target' => 0,
                 ],
@@ -845,6 +1002,10 @@ final class DataKeyRotationService
             || !is_array($state['counts'] ?? null)) {
             throw new RuntimeException('Data-key rotation state does not match this operation');
         }
+
+        $state['checkpoints'] += ['totp_users' => 0];
+        $state['complete'] += ['totp' => false];
+        $state['counts'] += ['totp_converted' => 0, 'totp_already_target' => 0];
 
         return $state;
     }

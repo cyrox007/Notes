@@ -19,5 +19,6 @@ INSERT INTO `system_settings`
     (`setting_key`,`setting_value`,`setting_type`,`category`,`description`,`is_editable`)
 VALUES
     ('installation_id',LOWER(UUID()),'string','licensing','Stable installation identifier used to bind signed licenses',0),
-    ('workspace_license_token','','string','licensing','Signed installation-wide Workspace Organizer license token',0)
+    ('workspace_license_token','','string','licensing','Signed installation-wide Workspace Organizer license token',0),
+    ('two_factor_required','0','boolean','security','Требовать TOTP-аутентификацию для каждого активного пользователя',1)
 ON DUPLICATE KEY UPDATE `setting_key` = VALUES(`setting_key`);

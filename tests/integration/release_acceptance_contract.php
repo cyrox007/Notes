@@ -72,6 +72,7 @@ foreach ([
     "'operational-acceptance-green'",
     "'visual-acceptance-green'",
     "'ospanel-acceptance-green'",
+    "'two-factor-acceptance-green'",
     "'one-zero-one-drill-green'",
     "'p0p1-clear'",
     "'trust-canaries-green'",
@@ -156,12 +157,22 @@ foreach ([
     'windows-contract (8.1)',
     'windows-contract (8.3)',
     'messenger-realtime-fallback',
+    'two-factor-contract (8.1)',
+    'two-factor-contract (8.3)',
 ] as $requiredCheck) {
     releaseAcceptanceAssert(
         in_array($requiredCheck, $requiredChecks, true),
         "в обязательном наборе отсутствует {$requiredCheck}"
     );
 }
+
+$twoFactorDoc = releaseAcceptanceText($root, 'docs/TWO_FACTOR_AUTH.md');
+releaseAcceptanceAssert(
+    str_contains($twoFactorDoc, 'Обязательно для всех пользователей')
+    && str_contains($twoFactorDoc, 'Персональный режим')
+    && str_contains($twoFactorDoc, 'Ротация UNIQUE_KEY'),
+    'документация 2FA не фиксирует системную/персональную политику и ротацию ключа'
+);
 
 $releaseGate = releaseAcceptanceText($root, '.github/workflows/release-gate.yml');
 releaseAcceptanceAssert(
@@ -171,6 +182,10 @@ releaseAcceptanceAssert(
 releaseAcceptanceAssert(
     str_contains($releaseGate, 'php bin/release_acceptance.php --json'),
     'Stable release gate не запускает non-strict release preflight'
+);
+releaseAcceptanceAssert(
+    str_contains($releaseGate, 'php tests/integration/two_factor_contract.php'),
+    'Stable release gate не запускает контракт двухфакторной аутентификации'
 );
 
 fwrite(STDOUT, "[OK] финальный контракт release acceptance 1.0.2 выполнен\n");
