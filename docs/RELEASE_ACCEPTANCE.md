@@ -101,6 +101,7 @@
 
 - exact frozen RC/artifact прошёл live visual acceptance из #172, включая light/dark/system и проверку компактной ширины ноутбука;
 - exact frozen RC/artifact прошёл OSPanel 5.2.2 transport acceptance из #173: WebSocket `101` + `Authorized`, автоматический Long Poll fallback, durable delivery и автоматический возврат к WebSocket;
+- exact frozen RC прошёл 2FA/TOTP acceptance: персональное включение/отключение, обязательная политика Admin, принудительная настройка аккаунта без TOTP, одноразовый recovery code и сохранение работоспособности после прямой/обратной ротации `UNIQUE_KEY`;
 - нет открытых P0/P1 дефектов с риском потери данных;
 - нет открытых P0/P1 дефектов безопасности;
 - нет неразрешённой release-blocking regression;
@@ -136,6 +137,7 @@ php bin/release_acceptance.php --strict --json \
   --operational-acceptance-green \
   --visual-acceptance-green \
   --ospanel-acceptance-green \
+  --two-factor-acceptance-green \
   --one-zero-one-drill-green \
   --p0p1-clear \
   --trust-canaries-green \
