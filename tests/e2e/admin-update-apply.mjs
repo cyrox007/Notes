@@ -89,9 +89,13 @@ try {
 
   await installUpdate(page);
 
-  await page.locator('.admin-page__flash')
-    .filter({ hasText: 'Обновление установлено. Workspace Organizer работает на новой версии.' })
-    .waitFor({ state: 'visible', timeout: 15000 });
+  const flash = page.locator('.admin-page__flash').first();
+  await flash.waitFor({ state: 'visible', timeout: 15000 });
+  const flashText = ((await flash.textContent()) || '').trim();
+  if (!flashText.includes('Обновление установлено. Workspace Organizer работает на новой версии.')) {
+    throw new Error(`Установка из Admin UI завершилась без подтверждения успеха: ${flashText}`);
+  }
+
   await page.getByRole('heading', { name: 'Обновление установлено', exact: true })
     .waitFor({ state: 'visible', timeout: 15000 });
   await page.getByText(`${expectedVersion} (${expectedVersionCode})`, { exact: true })
