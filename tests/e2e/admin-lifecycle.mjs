@@ -137,29 +137,34 @@ try {
   }
   await updatedQuotaRow.getByText('25 МБ', { exact: false }).waitFor({ state: 'visible', timeout: 10000 });
 
-  // The updater page must be a BASE_PATH-safe native admin surface even when
-  // production trust/feed configuration has not yet been installed. Merely
-  // opening the page performs no network update check.
+  // Страница обновлений должна сохранять BASE_PATH и показывать штатный
+  // автоматический доступ без сетевого запроса при простом открытии.
   const updatesLink = page
     .getByRole('navigation', { name: 'Разделы админпанели' })
     .getByRole('link', { name: 'Обновления', exact: true });
   const updatesHref = await updatesLink.getAttribute('href');
   if (!updatesHref?.startsWith(`${basePath}/admin/updates`)) {
-    throw new Error(`Admin updates link escaped BASE_PATH: ${updatesHref}`);
+    throw new Error(`Ссылка обновлений вышла за BASE_PATH: ${updatesHref}`);
   }
   await Promise.all([
     page.waitForURL((url) => url.pathname.replace(/\/+$/, '') === `${basePath}/admin/updates`, { timeout: 15000 }),
     updatesLink.click(),
   ]);
   await page.getByRole('heading', { name: 'Обновления Workspace' }).waitFor({ state: 'visible', timeout: 10000 });
-  await page.getByText('Updater пока не готов:', { exact: false }).waitFor({ state: 'visible', timeout: 10000 });
-  await page.getByText('UPDATE_FEED_URL не настроен.', { exact: true }).waitFor({ state: 'visible', timeout: 10000 });
-  await page.getByRole('button', { name: 'Проверка недоступна' }).waitFor({ state: 'visible', timeout: 10000 });
-  if (await page.locator('.admin-status-grid .admin-status-card').count() < 6) {
-    throw new Error('Updater local state is not rendered as status cards');
+  await page.getByText('jsinteractive.ru/api/notes/v1/stable/feed.json', { exact: true })
+    .waitFor({ state: 'visible', timeout: 10000 });
+  await page.getByText('Настроится автоматически', { exact: true })
+    .waitFor({ state: 'visible', timeout: 10000 });
+  await page.getByRole('link', { name: 'Проверить обновления' })
+    .waitFor({ state: 'visible', timeout: 10000 });
+  if (await page.getByText('Обновлятор пока не готов:', { exact: false }).count()) {
+    throw new Error('Штатный автоматический доступ ошибочно показан как неготовый');
+  }
+  if (await page.locator('.admin-status-grid .admin-status-card').count() < 8) {
+    throw new Error('Локальное состояние обновлятора отображается не полностью');
   }
   if (await page.locator('form[action*="/admin/updates/stage"]').count()) {
-    throw new Error('Updater staging form rendered without a verified update_available result');
+    throw new Error('Форма подготовки пакета показана без подтверждённого update_available');
   }
 
   if (pageErrors.length) throw pageErrors[0];
