@@ -128,10 +128,10 @@ jobs:
           printf 'E2E_PASSWORD=%s\n' "$TEST_PASSWORD" >> "$GITHUB_ENV"
           printf 'E2E_ORIGIN=%s\n' 'http://127.0.0.1:18094' >> "$GITHUB_ENV"
           printf 'E2E_BASE_PATH=%s\n' '/workspace' >> "$GITHUB_ENV"
-          printf 'E2E_SOURCE_VERSION=%s\n' '1.0.4' >> "$GITHUB_ENV"
-          printf 'E2E_SOURCE_VERSION_CODE=%s\n' '10004' >> "$GITHUB_ENV"
-          printf 'E2E_TARGET_VERSION=%s\n' '1.0.5-admin-e2e' >> "$GITHUB_ENV"
-          printf 'E2E_TARGET_VERSION_CODE=%s\n' '10005' >> "$GITHUB_ENV"
+          printf 'E2E_SOURCE_VERSION=%s\n' '1.0.3' >> "$GITHUB_ENV"
+          printf 'E2E_SOURCE_VERSION_CODE=%s\n' '10003' >> "$GITHUB_ENV"
+          printf 'E2E_TARGET_VERSION=%s\n' '1.0.4' >> "$GITHUB_ENV"
+          printf 'E2E_TARGET_VERSION_CODE=%s\n' '10004' >> "$GITHUB_ENV"
 
       - name: Подготовить отдельную живую установку 1.0.3
         shell: bash
@@ -383,106 +383,6 @@ jobs:
               if (!str_contains($v,"release-10004.json")) exit(1);
             '
 
-      - name: Выполнить штатный переход 1.0.3 → 1.0.4 через CLI
-        shell: bash
-        run: |
-          set -euo pipefail
-          DRILL=/tmp/workspace-admin-update-e2e
-          LIVE="$DRILL/live"
-
-          (
-            cd "$LIVE"
-            SSL_CERT_FILE="$DRILL/ca.crt" \
-              php -d "openssl.cafile=$DRILL/ca.crt" \
-              bin/update_run.php --yes --json
-          ) | tee "$DRILL/update-1.0.3-to-1.0.4.json"
-
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.4'
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10004'
-          grep -Fq '"status": "committed"' "$DRILL/update-1.0.3-to-1.0.4.json"
-          test ! -e "$DRILL/private/state/workspace-maintenance.json"
-
-      - name: Подготовить следующее подписанное обновление для проверки Admin UI
-        shell: bash
-        run: |
-          set -euo pipefail
-          DRILL=/tmp/workspace-admin-update-e2e
-          LIVE="$DRILL/live"
-          FEED_ROOT="$DRILL/feed-root"
-          FUTURE="$DRILL/workspace-organizer-v1.0.5-admin-e2e"
-          KEY_ID=ci-admin-update-e2e
-          PRIVATE_KEY="$DRILL/$KEY_ID.update-secret"
-          PUBLIC_KEY="$(cat "$DRILL/update-public-key.txt")"
-
-          test -s "$PRIVATE_KEY"
-          test -n "$PUBLIC_KEY"
-          rm -rf "$FUTURE"
-          mkdir -p "$FUTURE"
-          rsync -a "$GITHUB_WORKSPACE/" "$FUTURE/" \
-            --exclude '.git' \
-            --exclude '.github' \
-            --exclude '.env' \
-            --exclude 'vendor' \
-            --exclude 'node_modules' \
-            --exclude 'tests' \
-            --exclude 'tools' \
-            --exclude 'cache/*' \
-            --exclude 'compile/*' \
-            --exclude '*.license-secret' \
-            --exclude '*.update-secret' \
-            --exclude '*.log'
-          mkdir -p "$FUTURE/cache" "$FUTURE/compile"
-
-          # Сохраняем тот же тестовый публичный корень и в следующем пакете,
-          # чтобы результат обновления из Admin UI проверялся с валидной лицензией.
-          cp "$LIVE/config/license_trusted_keys.php" "$FUTURE/config/license_trusted_keys.php"
-          php -l "$FUTURE/config/license_trusted_keys.php"
-
-          perl -0pi -e "s/public const VERSION = '[^']+';/public const VERSION = '1.0.5-admin-e2e';/" "$FUTURE/core/Version.php"
-          perl -0pi -e "s/public const VERSION_CODE = [0-9]+;/public const VERSION_CODE = 10005;/" "$FUTURE/core/Version.php"
-
-          TEST_UPDATE_PUBLIC_KEY="$PUBLIC_KEY" php -r '
-            $path=$argv[1];
-            $keys=require $path;
-            $keys["ci-admin-update-e2e"]=getenv("TEST_UPDATE_PUBLIC_KEY");
-            $bytes="<?php\n\ndeclare(strict_types=1);\n\nreturn ".var_export($keys,true).";\n";
-            if (file_put_contents($path,$bytes,LOCK_EX)===false) exit(1);
-          ' "$FUTURE/config/update_trusted_keys.php"
-
-          test "$(php -r "require '$FUTURE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.5-admin-e2e'
-          test "$(php -r "require '$FUTURE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10005'
-
-          cd "$DRILL"
-          zip -qr "$DRILL/workspace-organizer-v1.0.5-admin-e2e.zip" "$(basename "$FUTURE")"
-          cd "$GITHUB_WORKSPACE"
-
-          php tools/vendor-update/build-manifest.php \
-            --package="$DRILL/workspace-organizer-v1.0.5-admin-e2e.zip" \
-            --version=1.0.5-admin-e2e \
-            --version-code=10005 \
-            --channel=stable \
-            --source-commit="$GITHUB_SHA" \
-            --min-source-version-code=10004 \
-            --requires-php=8.1.0 \
-            --notes='CI: установка следующего подписанного обновления из Admin UI' \
-            --out="$DRILL/release-10005.json"
-
-          php tools/vendor-update/sign-manifest.php \
-            --private-key="$PRIVATE_KEY" \
-            --key-id="$KEY_ID" \
-            --manifest="$DRILL/release-10005.json" \
-            --signature-out="$DRILL/release-10005.sig"
-
-          cp "$DRILL/release-10005.json" "$FEED_ROOT/stable/release-10005.json"
-          cp "$DRILL/release-10005.sig" "$FEED_ROOT/stable/release-10005.sig"
-          cp "$DRILL/workspace-organizer-v1.0.5-admin-e2e.zip" "$FEED_ROOT/stable/workspace-organizer-v1.0.5-admin-e2e.zip"
-          cat > "$FEED_ROOT/stable/feed.json" <<'JSON'
-          {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10005.json","signature":"release-10005.sig"}
-          JSON
-
-          rm -f "$PRIVATE_KEY" "$DRILL/update-public-key.txt"
-          test ! -e "$PRIVATE_KEY"
-
       - name: Запустить живую установку
         shell: bash
         run: |
@@ -524,7 +424,7 @@ jobs:
             exit 1
           fi
 
-      - name: Установить обновление кнопкой в Admin UI
+      - name: Установить exact 1.0.3 → 1.0.4 кнопкой в Admin UI
         shell: bash
         env:
           SSL_CERT_FILE: /tmp/workspace-admin-update-e2e/ca.crt
@@ -538,11 +438,11 @@ jobs:
           LIVE="$DRILL/live"
           PRIVATE="$DRILL/private"
 
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.5-admin-e2e'
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10005'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.4'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10004'
 
           mapfile -t JOURNALS < <(find "$PRIVATE/state/transactions" -maxdepth 1 -type f -name 'update-*.json' -print)
-          test "${#JOURNALS[@]}" -eq 2
+          test "${#JOURNALS[@]}" -eq 1
           for journal in "${JOURNALS[@]}"; do
             test "$(jq -r '.state' "$journal")" = 'committed'
             test "$(jq -r '.live_mutation_started' "$journal")" = 'true'
