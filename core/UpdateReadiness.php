@@ -7,13 +7,13 @@ namespace Core;
 use RuntimeException;
 use Throwable;
 
+require_once __DIR__ . '/UpdateAccessBootstrap.php';
+
 /**
- * Read-only configuration inspector for the signed updater.
+ * Проверка локальной готовности подписанного обновлятора.
  *
- * It never performs network I/O, creates directories, changes maintenance
- * state, downloads packages or touches the database. The goal is to explain
- * which local prerequisites are ready before an operator crosses any updater
- * boundary.
+ * Класс не выполняет сетевые запросы, не создаёт каталоги, не включает
+ * maintenance, не скачивает пакеты и не меняет БД.
  */
 final class UpdateReadiness
 {
@@ -66,42 +66,58 @@ final class UpdateReadiness
             $procOpen ? '' : 'PHP proc_open недоступен: единый operator flow не сможет запускать проверенные updater-команды.'
         );
 
-        $feed = trim((string) (getenv('UPDATE_FEED_URL') ?: ''));
+        try {
+            $feed = UpdateAccessBootstrap::feedUrl();
+        } catch (Throwable) {
+            $feed = '';
+        }
         $feedReady = $this->validFeedUrl($feed);
         $record(
             'feed_url',
             $feedReady,
-            $feedReady ? '' : 'UPDATE_FEED_URL должен быть настроен на абсолютный HTTPS URL (порт 443).'
+            $feedReady ? '' : 'Не удалось определить безопасный HTTPS-канал обновлений.'
         );
 
-        $channel = trim((string) (getenv('UPDATE_CHANNEL') ?: 'stable'));
-        $channelReady = in_array($channel, ['alpha', 'beta', 'stable'], true);
+        try {
+            $channel = UpdateAccessBootstrap::channel();
+            $channelReady = true;
+        } catch (Throwable) {
+            $channel = '';
+            $channelReady = false;
+        }
         $record(
             'channel',
             $channelReady,
-            $channelReady ? '' : 'UPDATE_CHANNEL должен быть alpha, beta или stable.'
+            $channelReady ? '' : 'Канал обновлений должен быть alpha, beta или stable.'
         );
 
-        $accessMode = trim((string) (getenv('UPDATE_ACCESS_MODE') ?: 'offline'));
-        $accessReady = in_array($accessMode, ['offline', 'online'], true);
-        if (!$accessReady) {
-            $record('update_access', false, 'UPDATE_ACCESS_MODE должен быть offline или online.');
-        } elseif ($accessMode === 'online') {
-            try {
-                $credentials = UpdateDownloadCredentials::fromEnvironment();
-                if ($credentials === null) {
-                    throw new RuntimeException('Online update credentials are not active');
+        try {
+            $accessMode = UpdateDownloadCredentials::accessMode();
+            $accessReady = true;
+            if ($accessMode !== 'offline') {
+                $credentials = null;
+                try {
+                    $credentials = UpdateDownloadCredentials::fromEnvironment();
+                } catch (Throwable) {
+                    // Старый, отсутствующий или повреждённый credential
+                    // восстанавливается автоматически по лицензии.
                 }
-                if ($feedReady) {
+
+                if ($credentials !== null && $feedReady) {
                     $credentials->headersFor($feed);
+                } else {
+                    UpdateDownloadCredentials::credentialsPath();
                 }
-                $record('update_access', true);
-            } catch (Throwable $e) {
-                $accessReady = false;
-                $record('update_access', false, 'Online-доступ к обновлениям не готов: ' . $e->getMessage());
             }
-        } else {
             $record('update_access', true);
+        } catch (Throwable $e) {
+            $accessMode = 'invalid';
+            $accessReady = false;
+            $record(
+                'update_access',
+                false,
+                'Автоматический доступ к обновлениям не готов: ' . $e->getMessage()
+            );
         }
 
         $private = trim((string) (getenv('PRIVATE_STORAGE_PATH') ?: ''));
