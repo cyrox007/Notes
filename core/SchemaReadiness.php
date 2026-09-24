@@ -46,8 +46,8 @@ final class SchemaReadiness
             $result = $db->query(
                 'SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()'
             );
-            while ($row = $result->fetch_assoc()) {
-                $existingTables[(string) $row['table_name']] = true;
+            while ($row = $result->fetch_row()) {
+                $existingTables[(string) ($row[0] ?? '')] = true;
             }
             $result->free();
 
@@ -64,8 +64,8 @@ final class SchemaReadiness
                     "SELECT column_name FROM information_schema.columns "
                     . "WHERE table_schema = DATABASE() AND table_name = 'users'"
                 );
-                while ($row = $columns->fetch_assoc()) {
-                    $existingUserColumns[(string) $row['column_name']] = true;
+                while ($row = $columns->fetch_row()) {
+                    $existingUserColumns[(string) ($row[0] ?? '')] = true;
                 }
                 $columns->free();
             }
