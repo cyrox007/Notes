@@ -405,14 +405,14 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 - browser lifecycle coverage для основных product modules и exact published 1.0.1 → 1.0.2 upgrade/rollback drill;
 - cross-browser/mobile + authenticated load/soak release-evidence harness.
 
-Перед окончательным cut/tag `v1.0.3` остаются только release-ceremony gates, а не новые platform features:
+Перед окончательным выпуском `v1.0.4` остаются только релизные проверки, а не новые возможности:
 
 1. проверить GitHub branch protection/ruleset для `master` и `1.0`;
-2. получить green full CI + cross-browser/mobile + load/soak release evidence на exact 1.0.3 release head;
-3. подтвердить fresh backup/restore drill, exact published 1.0.1 → 1.0.2 upgrade/rollback, обязательный Admin E2E: bootstrap `v1.0.2 → 1.0.3`, затем обновление из Admin на `1.0.3`, production trust canaries, Windows compatibility CI и финальную ручную OSPanel 5.2.2 acceptance;
+2. получить зелёный полный CI, cross-browser/mobile и load/soak evidence на exact release head `1.0.4`;
+3. подтвердить fresh backup/restore drill, обязательный Admin E2E `v1.0.3 → 1.0.4` с exact-схемой предыдущего релиза, Windows compatibility CI и ручную проверку OSPanel 5.2.2; исторический путь `1.0.2 → 1.0.3` остаётся отдельной совместимостью через bootstrap;
 4. подтвердить отсутствие открытых P0/P1 data-loss/security/release blockers;
-5. собрать immutable `workspace-organizer-v1.0.3.zip`, сверить SHA-256/source SHA и подписать exact update manifest offline production update key;
-6. после strict acceptance слить exact release head в `master`, поставить `v1.0.3` и публиковать только проверенные immutable artifacts.
+5. собрать immutable `workspace-organizer-v1.0.4.zip`, сверить SHA-256/source SHA и подписать exact update manifest production update key;
+6. после strict acceptance слить exact release head в `master`, поставить `v1.0.4` и публиковать только проверенные immutable artifacts.
 
 Scalable encrypted-search redesign не является release blocker сам по себе; он требуется только если измерения на заявленном масштабе покажут, что bounded decrypt scan не выдерживает принятого performance envelope.
 
