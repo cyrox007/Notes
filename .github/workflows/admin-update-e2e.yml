@@ -75,7 +75,7 @@ jobs:
             php -r '
               require "core/ModuleManifest.php";
               require "core/DatabaseOwnership.php";
-              foreach (Core\\DatabaseOwnership::fromPackageRoot(getcwd())->schemaFiles() as $path) {
+              foreach (Core\DatabaseOwnership::fromPackageRoot(getcwd())->schemaFiles() as $path) {
                   echo $path, PHP_EOL;
               }
             '
