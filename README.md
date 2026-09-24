@@ -403,7 +403,7 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 - nonce-based CSP без `unsafe-inline`;
 - explicit retention/permanent-purge contract с filesystem/DB safety guards;
 - browser lifecycle coverage для основных product modules и exact published 1.0.1 → 1.0.2 upgrade/rollback drill;
-- cross-browser/mobile + authenticated load/soak release-evidence harness.
+- кросс-браузерная и мобильная проверка, а также нагрузочный и длительный контур доказательств релиза.
 
 Перед окончательным выпуском `v1.0.4` остаются только релизные проверки, а не новые возможности:
 
