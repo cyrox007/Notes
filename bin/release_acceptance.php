@@ -23,6 +23,7 @@ $options = getopt('', [
     'visual-acceptance-green',
     'ospanel-acceptance-green',
     'update-bootstrap-acceptance-green',
+    'one-click-update-acceptance-green',
     'two-factor-acceptance-green',
     'one-zero-one-drill-green',
     'beta4-drill-green', // Совместимый alias для старых операторских сценариев
@@ -55,8 +56,8 @@ $record = static function (string $name, bool $ok, string $details = '') use (&$
 
 $record(
     'release_identity',
-    Version::VERSION === '1.0.4'
-        && Version::VERSION_CODE === 10004
+    Version::VERSION === '1.0.5'
+        && Version::VERSION_CODE === 10005
         && Version::STATUS === 'stable',
     Version::VERSION . ' / ' . Version::VERSION_CODE . ' / ' . Version::STATUS
 );
@@ -89,7 +90,7 @@ $record('governance_source_contract', $governanceOk, 'master + 1.0 / едины�
 foreach ([
     'README.md',
     'CHANGELOG.md',
-    'docs/releases/v1.0.4.md',
+    'docs/releases/v1.0.5.md',
     'docs/RELEASE_ACCEPTANCE.md',
     'docs/RELEASE_GOVERNANCE.md',
     'docs/PRODUCTION_TRUST_CEREMONY.md',
@@ -210,6 +211,7 @@ $manualGates = [
     'visual_acceptance' => 'visual-acceptance-green',
     'ospanel_acceptance' => 'ospanel-acceptance-green',
     'automatic_update_access' => 'update-bootstrap-acceptance-green',
+    'one_click_update' => 'one-click-update-acceptance-green',
     'two_factor_acceptance' => 'two-factor-acceptance-green',
     'one_zero_one_upgrade_rollback' => 'one-zero-one-drill-green',
     'p0_p1_acceptance' => 'p0p1-clear',
