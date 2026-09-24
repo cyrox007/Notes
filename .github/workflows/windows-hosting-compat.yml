@@ -113,6 +113,38 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "Contract failed: $test" }
           }
 
+      - name: Проверить определение PHP CLI exact 1.0.3 без ручной настройки
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $source = Join-Path $env:RUNNER_TEMP 'notes-v1.0.3-php-cli'
+          git worktree remove --force $source 2>$null
+          if (Test-Path $source) { Remove-Item -Recurse -Force $source }
+          git worktree add --detach $source v1.0.3
+          Remove-Item Env:UPDATE_PHP_BINARY -ErrorAction SilentlyContinue
+
+          $cgi = Get-Command php-cgi -ErrorAction SilentlyContinue
+          if ($null -eq $cgi) {
+            throw 'php-cgi недоступен: нельзя проверить web-SAPI определение PHP CLI exact v1.0.3'
+          }
+
+          $probe = Join-Path $env:RUNNER_TEMP 'notes-v1.0.3-php-cli-probe.php'
+          @"
+          <?php
+          declare(strict_types=1);
+          require '$($source.Replace('\', '/'))/core/UpdatePhpCli.php';
+          echo \Core\UpdatePhpCli::resolve();
+          "@ | Set-Content -Encoding UTF8 $probe
+
+          $resolved = (& $cgi.Source -q $probe | Select-Object -Last 1).Trim()
+          if ($LASTEXITCODE -ne 0) { throw 'exact v1.0.3 не смог определить PHP CLI из web-SAPI' }
+          if ([string]::IsNullOrWhiteSpace($resolved)) { throw 'exact v1.0.3 вернул пустой путь PHP CLI' }
+          if (-not (Test-Path $resolved)) { throw "Определённый PHP CLI не существует: $resolved" }
+          if ((Split-Path -Leaf $resolved).ToLowerInvariant() -ne 'php.exe') {
+            throw "Ожидался php.exe, получено: $resolved"
+          }
+          Write-Host "exact v1.0.3 web-SAPI нашёл CLI: $resolved"
+
       - name: Verify Windows operator CLI is discoverable
         shell: pwsh
         run: |
