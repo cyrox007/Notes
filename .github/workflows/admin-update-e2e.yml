@@ -1,4 +1,4 @@
-name: 1.0.4 сквозное обновление из админ-панели
+name: 1.0.5 переходный и одношаговый сквозной updater
 
 on:
   pull_request:
@@ -59,7 +59,7 @@ jobs:
           php -l modules/admin/services/AdminUpdateService.php
           php -l bin/update_run.php
 
-      - name: Подготовить БД exact 1.0.3 и суперадминистратора
+      - name: Подготовить БД exact 1.0.4 и суперадминистратора
         shell: bash
         env:
           DBHOST: 127.0.0.1
@@ -70,11 +70,11 @@ jobs:
         run: |
           set -euo pipefail
           DRILL=/tmp/workspace-admin-update-e2e
-          SOURCE="$DRILL/source-v1.0.3"
+          SOURCE="$DRILL/source-v1.0.4"
           git worktree remove --force "$SOURCE" 2>/dev/null || true
           rm -rf "$DRILL"
           mkdir -p "$DRILL"
-          git worktree add --detach "$SOURCE" v1.0.3
+          git worktree add --detach "$SOURCE" v1.0.4
 
           mapfile -t SCHEMAS < <(
             cd "$SOURCE"
@@ -88,7 +88,7 @@ jobs:
           )
           test "${#SCHEMAS[@]}" -gt 0
           for schema in "${SCHEMAS[@]}"; do
-            echo "Импорт схемы exact 1.0.3: $schema"
+            echo "Импорт схемы exact 1.0.4: $schema"
             mysql -h 127.0.0.1 -uroot -proot admin_update_e2e < "$schema"
           done
 
@@ -128,18 +128,22 @@ jobs:
           printf 'E2E_PASSWORD=%s\n' "$TEST_PASSWORD" >> "$GITHUB_ENV"
           printf 'E2E_ORIGIN=%s\n' 'http://127.0.0.1:18094' >> "$GITHUB_ENV"
           printf 'E2E_BASE_PATH=%s\n' '/workspace' >> "$GITHUB_ENV"
-          printf 'E2E_SOURCE_VERSION=%s\n' '1.0.4' >> "$GITHUB_ENV"
-          printf 'E2E_SOURCE_VERSION_CODE=%s\n' '10004' >> "$GITHUB_ENV"
-          printf 'E2E_TARGET_VERSION=%s\n' '1.0.5-admin-e2e' >> "$GITHUB_ENV"
-          printf 'E2E_TARGET_VERSION_CODE=%s\n' '10005' >> "$GITHUB_ENV"
+          printf 'E2E_SOURCE_VERSION=%s\n' '1.0.5' >> "$GITHUB_ENV"
+          printf 'E2E_SOURCE_VERSION_CODE=%s\n' '10005' >> "$GITHUB_ENV"
+          printf 'E2E_TARGET_VERSION=%s\n' '1.0.6-admin-e2e' >> "$GITHUB_ENV"
+          printf 'E2E_TARGET_VERSION_CODE=%s\n' '10006' >> "$GITHUB_ENV"
+          printf 'TRANSITION_SOURCE_VERSION=%s\n' '1.0.4' >> "$GITHUB_ENV"
+          printf 'TRANSITION_SOURCE_VERSION_CODE=%s\n' '10004' >> "$GITHUB_ENV"
+          printf 'TRANSITION_TARGET_VERSION=%s\n' '1.0.5' >> "$GITHUB_ENV"
+          printf 'TRANSITION_TARGET_VERSION_CODE=%s\n' '10005' >> "$GITHUB_ENV"
 
-      - name: Подготовить отдельную живую установку 1.0.3
+      - name: Подготовить отдельную живую установку 1.0.4
         shell: bash
         run: |
           set -euo pipefail
           DRILL=/tmp/workspace-admin-update-e2e
           LIVE="$DRILL/live"
-          SOURCE="$DRILL/source-v1.0.3"
+          SOURCE="$DRILL/source-v1.0.4"
           PRIVATE="$DRILL/private"
           rm -rf "$LIVE" "$PRIVATE"
           mkdir -p \
@@ -222,8 +226,8 @@ jobs:
           chmod 600 "$LIVE/.env"
 
           mkdir -p "$LIVE/cache" "$LIVE/compile"
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.3'
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10003'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.4'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10004'
 
       - name: Активировать временную CI-лицензию
         shell: bash
@@ -234,14 +238,14 @@ jobs:
           test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_update_e2e -e "SELECT COUNT(*) FROM user_roles ur JOIN roles r ON r.id=ur.role_id JOIN users u ON u.id=ur.user_id WHERE u.username='admin-update-e2e' AND r.code='superadmin'")" = '1'
           test -n "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_update_e2e -e "SELECT setting_value FROM system_settings WHERE setting_key='workspace_license_token'")"
 
-      - name: Собрать и подписать тестовое обновление 1.0.4
+      - name: Собрать и подписать текущий релиз 1.0.5
         shell: bash
         run: |
           set -euo pipefail
           DRILL=/tmp/workspace-admin-update-e2e
           LIVE="$DRILL/live"
           FEED_ROOT="$DRILL/feed-root"
-          TARGET="$DRILL/workspace-organizer-v1.0.4"
+          TARGET="$DRILL/workspace-organizer-v1.0.5"
           KEY_ID=ci-admin-update-e2e
           PRIVATE_KEY="$DRILL/$KEY_ID.update-secret"
 
@@ -300,31 +304,31 @@ jobs:
           test ! -e "$TARGET/tools/vendor-update"
 
           cd "$DRILL"
-          zip -qr "$DRILL/workspace-organizer-v1.0.4.zip" "$(basename "$TARGET")"
+          zip -qr "$DRILL/workspace-organizer-v1.0.5.zip" "$(basename "$TARGET")"
           cd "$GITHUB_WORKSPACE"
 
           php "$LIVE/tools/vendor-update/build-manifest.php" \
-            --package="$DRILL/workspace-organizer-v1.0.4.zip" \
-            --version=1.0.4 \
-            --version-code=10004 \
+            --package="$DRILL/workspace-organizer-v1.0.5.zip" \
+            --version=1.0.5 \
+            --version-code=10005 \
             --channel=stable \
             --source-commit="$GITHUB_SHA" \
-            --min-source-version-code=10003 \
+            --min-source-version-code=10004 \
             --requires-php=8.1.0 \
             --notes='CI: реальная установка из Admin UI' \
-            --out="$DRILL/release-10004.json"
+            --out="$DRILL/release-10005.json"
 
           php "$LIVE/tools/vendor-update/sign-manifest.php" \
             --private-key="$PRIVATE_KEY" \
             --key-id="$KEY_ID" \
-            --manifest="$DRILL/release-10004.json" \
-            --signature-out="$DRILL/release-10004.sig"
+            --manifest="$DRILL/release-10005.json" \
+            --signature-out="$DRILL/release-10005.sig"
 
-          cp "$DRILL/release-10004.json" "$FEED_ROOT/stable/release-10004.json"
-          cp "$DRILL/release-10004.sig" "$FEED_ROOT/stable/release-10004.sig"
-          cp "$DRILL/workspace-organizer-v1.0.4.zip" "$FEED_ROOT/stable/workspace-organizer-v1.0.4.zip"
+          cp "$DRILL/release-10005.json" "$FEED_ROOT/stable/release-10005.json"
+          cp "$DRILL/release-10005.sig" "$FEED_ROOT/stable/release-10005.sig"
+          cp "$DRILL/workspace-organizer-v1.0.5.zip" "$FEED_ROOT/stable/workspace-organizer-v1.0.5.zip"
           cat > "$FEED_ROOT/stable/feed.json" <<'JSON'
-          {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10004.json","signature":"release-10004.sig"}
+          {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10005.json","signature":"release-10005.sig"}
           JSON
 
           printf '%s\n' "$PUBLIC_KEY" > "$DRILL/update-public-key.txt"
@@ -374,13 +378,13 @@ jobs:
             exit 1
           fi
 
-          grep -Fq '"version_code"' "$DRILL/release-10004.json"
+          grep -Fq '"version_code"' "$DRILL/release-10005.json"
           SSL_CERT_FILE="$DRILL/ca.crt" UPDATE_FEED_URL='https://updates.e2e.test/stable/feed.json' \
             php -r '
               require "/tmp/workspace-admin-update-e2e/live/core/UpdateRemoteTransport.php";
               $t=new Core\UpdateHttpsTransport(3,5);
               $v=$t->fetchText(getenv("UPDATE_FEED_URL"),32768);
-              if (!str_contains($v,"release-10004.json")) exit(1);
+              if (!str_contains($v,"release-10005.json")) exit(1);
             '
 
       - name: Выполнить штатный переход 1.0.3 → 1.0.4 через CLI
@@ -409,7 +413,7 @@ jobs:
           DRILL=/tmp/workspace-admin-update-e2e
           LIVE="$DRILL/live"
           FEED_ROOT="$DRILL/feed-root"
-          FUTURE="$DRILL/workspace-organizer-v1.0.5-admin-e2e"
+          FUTURE="$DRILL/workspace-organizer-v1.0.6-admin-e2e"
           KEY_ID=ci-admin-update-e2e
           PRIVATE_KEY="$DRILL/$KEY_ID.update-secret"
           PUBLIC_KEY="$(cat "$DRILL/update-public-key.txt")"
@@ -438,7 +442,7 @@ jobs:
           cp "$LIVE/config/license_trusted_keys.php" "$FUTURE/config/license_trusted_keys.php"
           php -l "$FUTURE/config/license_trusted_keys.php"
 
-          perl -0pi -e "s/public const VERSION = '[^']+';/public const VERSION = '1.0.5-admin-e2e';/" "$FUTURE/core/Version.php"
+          perl -0pi -e "s/public const VERSION = '[^']+';/public const VERSION = '1.0.6-admin-e2e';/" "$FUTURE/core/Version.php"
           perl -0pi -e "s/public const VERSION_CODE = [0-9]+;/public const VERSION_CODE = 10005;/" "$FUTURE/core/Version.php"
 
           TEST_UPDATE_PUBLIC_KEY="$PUBLIC_KEY" php -r '
@@ -449,16 +453,16 @@ jobs:
             if (file_put_contents($path,$bytes,LOCK_EX)===false) exit(1);
           ' "$FUTURE/config/update_trusted_keys.php"
 
-          test "$(php -r "require '$FUTURE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.5-admin-e2e'
+          test "$(php -r "require '$FUTURE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.6-admin-e2e'
           test "$(php -r "require '$FUTURE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10005'
 
           cd "$DRILL"
-          zip -qr "$DRILL/workspace-organizer-v1.0.5-admin-e2e.zip" "$(basename "$FUTURE")"
+          zip -qr "$DRILL/workspace-organizer-v1.0.6-admin-e2e.zip" "$(basename "$FUTURE")"
           cd "$GITHUB_WORKSPACE"
 
           php tools/vendor-update/build-manifest.php \
-            --package="$DRILL/workspace-organizer-v1.0.5-admin-e2e.zip" \
-            --version=1.0.5-admin-e2e \
+            --package="$DRILL/workspace-organizer-v1.0.6-admin-e2e.zip" \
+            --version=1.0.6-admin-e2e \
             --version-code=10005 \
             --channel=stable \
             --source-commit="$GITHUB_SHA" \
@@ -475,7 +479,7 @@ jobs:
 
           cp "$DRILL/release-10005.json" "$FEED_ROOT/stable/release-10005.json"
           cp "$DRILL/release-10005.sig" "$FEED_ROOT/stable/release-10005.sig"
-          cp "$DRILL/workspace-organizer-v1.0.5-admin-e2e.zip" "$FEED_ROOT/stable/workspace-organizer-v1.0.5-admin-e2e.zip"
+          cp "$DRILL/workspace-organizer-v1.0.6-admin-e2e.zip" "$FEED_ROOT/stable/workspace-organizer-v1.0.6-admin-e2e.zip"
           cat > "$FEED_ROOT/stable/feed.json" <<'JSON'
           {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10005.json","signature":"release-10005.sig"}
           JSON
@@ -538,7 +542,7 @@ jobs:
           LIVE="$DRILL/live"
           PRIVATE="$DRILL/private"
 
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.5-admin-e2e'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.6-admin-e2e'
           test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10005'
 
           mapfile -t JOURNALS < <(find "$PRIVATE/state/transactions" -maxdepth 1 -type f -name 'update-*.json' -print)
