@@ -22,6 +22,22 @@ interface UpdateRemoteTransport
     ): array;
 }
 
+interface UpdateAccessActivationTransport
+{
+    /** @return array<string,mixed> */
+    public function activate(string $baseUrl, string $installationId, string $activationCode): array;
+
+    /** @return array<string,mixed> */
+    public function activateWithLicense(
+        string $baseUrl,
+        string $installationId,
+        string $licenseToken,
+        string $version,
+        int $versionCode,
+        string $channel
+    ): array;
+}
+
 /**
  * Small vendor-free HTTPS transport for signed update artifacts.
  *
@@ -36,7 +52,7 @@ interface UpdateRemoteTransport
  *
  * The updater does not need ext-curl and does not depend on allow_url_fopen.
  */
-final class UpdateHttpsTransport implements UpdateRemoteTransport
+final class UpdateHttpsTransport implements UpdateRemoteTransport, UpdateAccessActivationTransport
 {
     private const MAX_HEADER_BYTES = 65536;
 
