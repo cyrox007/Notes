@@ -72,7 +72,7 @@ jobs:
           DRILL=/tmp/workspace-admin-update-e2e
           SOURCE="$DRILL/source-v1.0.3"
           git worktree remove --force "$SOURCE" 2>/dev/null || true
-          rm -rf "$LIVE" "$PRIVATE"
+          rm -rf "$DRILL"
           mkdir -p "$DRILL"
           git worktree add --detach "$SOURCE" v1.0.3
 
@@ -141,7 +141,7 @@ jobs:
           LIVE="$DRILL/live"
           SOURCE="$DRILL/source-v1.0.3"
           PRIVATE="$DRILL/private"
-          rm -rf "$DRILL"
+          rm -rf "$LIVE" "$PRIVATE"
           mkdir -p \
             "$LIVE" \
             "$PRIVATE/logs" \
