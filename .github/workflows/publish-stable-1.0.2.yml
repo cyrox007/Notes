@@ -1,0 +1,126 @@
+name: Опубликовать stable 1.0.2
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  publish:
+    if: github.repository == 'cyrox007/Notes'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      RELEASE_SHA: a61a44293433b471db56264ffb4e41d2d5dbc3c8
+      TAG: v1.0.2
+      BUNDLE_NAME: workspace-organizer-v1.0.2.zip
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Получить историю репозитория
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Проверить неизменность релизного содержимого
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git merge-base --is-ancestor "$RELEASE_SHA" HEAD
+
+          mapfile -t changed < <(git diff --name-only "$RELEASE_SHA..HEAD")
+          if [[ "${#changed[@]}" -ne 1 || "${changed[0]}" != ".github/workflows/publish-stable-1.0.2.yml" ]]; then
+            printf '%s\n' "После принятого релизного SHA обнаружены неожиданные изменения:" >&2
+            printf '  %s\n' "${changed[@]}" >&2
+            exit 1
+          fi
+
+          success_count="$(
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$RELEASE_SHA&per_page=100" \
+              --jq '[.workflow_runs[] | select(.name == "Stable release gate" and .event == "push" and .conclusion == "success")] | length'
+          )"
+          test "$success_count" -ge 1
+
+      - name: Создать неизменяемый тег релиза
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
+            test "$(git rev-list -n1 "$TAG")" = "$RELEASE_SHA"
+          else
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git tag -a "$TAG" "$RELEASE_SHA" -m "Workspace Organizer 1.0.2"
+            git push origin "refs/tags/$TAG"
+          fi
+
+      - name: Собрать проверенный hosting-пакет
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Релиз $TAG уже опубликован."
+            exit 0
+          fi
+
+          gh workflow run hosting-package.yml --ref "$TAG" -f version="$TAG"
+
+          run_id=""
+          for _ in {1..30}; do
+            run_id="$(
+              gh run list \
+                --workflow hosting-package.yml \
+                --event workflow_dispatch \
+                --limit 30 \
+                --json databaseId,headSha,createdAt \
+                | jq -r --arg sha "$RELEASE_SHA" '.[] | select(.headSha == $sha) | .databaseId' \
+                | head -n1
+            )"
+            if [[ -n "$run_id" && "$run_id" != "null" ]]; then
+              break
+            fi
+            sleep 2
+          done
+
+          test -n "$run_id"
+          test "$run_id" != "null"
+
+          gh run watch "$run_id" --exit-status
+
+          rm -rf /tmp/workspace-release-1.0.2
+          mkdir -p /tmp/workspace-release-1.0.2
+          gh run download "$run_id" --name "$BUNDLE_NAME" --dir /tmp/workspace-release-1.0.2
+
+          cd /tmp/workspace-release-1.0.2
+          test -f "$BUNDLE_NAME"
+          test -f "$BUNDLE_NAME.sha256"
+          test -f "$BUNDLE_NAME.source-sha"
+          test "$(tr -d '\r\n' < "$BUNDLE_NAME.source-sha")" = "$RELEASE_SHA"
+          sha256sum -c "$BUNDLE_NAME.sha256"
+
+      - name: Опубликовать GitHub Release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Релиз $TAG уже опубликован."
+            exit 0
+          fi
+
+          git show "$RELEASE_SHA:docs/releases/v1.0.2.md" > /tmp/release-notes-v1.0.2.md
+
+          gh release create "$TAG" \
+            "/tmp/workspace-release-1.0.2/$BUNDLE_NAME" \
+            "/tmp/workspace-release-1.0.2/$BUNDLE_NAME.sha256" \
+            "/tmp/workspace-release-1.0.2/$BUNDLE_NAME.source-sha" \
+            --verify-tag \
+            --title "Workspace Organizer 1.0.2" \
+            --notes-file /tmp/release-notes-v1.0.2.md
