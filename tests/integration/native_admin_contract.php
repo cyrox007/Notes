@@ -96,7 +96,7 @@ $updates = (string) file_get_contents($root . '/modules/admin/views/updates.php'
 nativeAdminAssert(str_contains($updates, "route('admin_updates_check')"), 'signed updater check route is missing');
 nativeAdminAssert(str_contains($updates, "route('admin_updates_stage')"), 'signed updater stage route is missing');
 nativeAdminAssert(str_contains($updates, '$view->csrfInput()'), 'signed updater stage form lost CSRF input');
-nativeAdminAssert(str_contains($updates, 'Live-файлы не менялись'), 'signed updater UI lost non-destructive staging boundary copy');
+nativeAdminAssert(str_contains($updates, 'Рабочие файлы не менялись'), 'интерфейс обновлений потерял указание о неизменности рабочих файлов');
 nativeAdminAssert(!str_contains($updates, "route('admin_updates_apply')"), 'first signed updater UI slice exposes live apply route');
 nativeAdminAssert(!str_contains($updates, 'stage_dir'), 'signed updater UI exposes absolute stage path');
 nativeAdminAssert(str_contains($updates, 'class="admin-status-grid"'), 'signed updater local/result state is not using Admin status cards');
