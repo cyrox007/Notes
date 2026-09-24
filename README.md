@@ -1,19 +1,19 @@
 # Workspace Organizer
 
-**Версия:** `1.0.1`  
-**Актуально на:** 20 сентября 2026  
+**Версия:** `1.0.2`  
+**Актуально на:** 21 сентября 2026  
 **Статус:** stable
 
 Workspace Organizer — self-hosted PHP-приложение для корпоративной работы: заметки, личные и общие задачи, файлы, профиль, администрирование и real-time Messenger.
 
-`1.0.1` сохраняет stable platform contract `1.0.0` и добавляет штатное подключение независимых модулей, подписанные лимиты пользователей, durable аудит, acceptance-fixes для Auth/Notes/Admin/Sidebar и новые Workspace-интеграции Messenger с Notes/Tasks/File Manager. Базовый stable contract: vendor-free PHP runtime, native view/WebSocket infrastructure, persisted RBAC и module policies, installation-bound offline Ed25519 licensing, signed remote updater с external staging, transactional code+MySQL rollback и проверенный upgrade path с `0.14.0-beta.4`.
+`1.0.2` завершает stabilization-цикл 1.0: сохраняет stable platform contract `1.0.1`, добавляет единый signed-updater operator flow, readiness diagnostics, retention для updater artifacts, exact 1.0.1→1.0.2 upgrade/rollback drill, Windows hosting compatibility gate, расширенную диагностику native WebSocket startup и WebSocket-first Messenger с автоматическим HTTP long-poll fallback. Базовый stable contract: vendor-free PHP runtime, native view/WebSocket infrastructure, persisted RBAC и module policies, installation-bound offline Ed25519 licensing, signed remote updater с external staging, transactional code+MySQL rollback и проверенный upgrade path с `0.14.0-beta.4`.
 
 ## Возможности
 
 - **Notes** — XChaCha20-Poly1305 для текста, writing-first editor, private attachments, first-class voice notes с duration/playback, view-only sharing по токену, autosave/dirty-state, server-side поиск и role policies для количества заметок, вложений, типов/размера файлов и sharing.
 - **Tasks** — личные kanban/list задачи, drag-and-drop статусов, приоритеты, сроки, категории, подзадачи, фильтры и server-side поиск/пагинация; beta.4 добавляет общие task boards с ACL, участниками, исполнителями и audience `all_active`.
 - **File Manager** — личные папки/файлы вне document root, protected download, media/read-only text preview, grid/list workspace, поиск/сортировка, drag-and-drop upload, storage quota и role policies для размера/типов файлов, общей ёмкости и создания папок.
-- **Messenger v2** — private/group chats, Saved Messages, forwarding, media, voice, reply/edit/delete, delivery/read receipts, reactions, encrypted search, pin/mute/archive, group roles/avatars, multi-device realtime и reconnect/offline/session-ended UX; role policies ограничивают частоту сообщений, вложения, voice и group capabilities.
+- **Messenger v2** — private/group chats, Saved Messages, forwarding, media, voice, reply/edit/delete, delivery/read receipts, reactions, encrypted search, pin/mute/archive, group roles/avatars, multi-device realtime, WebSocket-first transport с HTTP long-poll fallback и reconnect/offline/session-ended UX; role policies ограничивают частоту сообщений, вложения, voice и group capabilities.
 - **Profile** — workspace hub с Notes/Tasks/Files/storage metrics, private avatar, account settings, безопасная деактивация и explicit `is_profile_public` publication model без раскрытия private content.
 - **Admin panel** — создание и lifecycle пользователей, managed registration `disabled/open/invite`, ограниченные/revocable инвайты, Role Manager с permission assignment и module policies, custom profile fields, системный лимит File Manager и персональные storage quota overrides без physical delete связанных данных.
 - **Responsive UI** — единый design system, desktop/mobile navigation, обновлённые формы/карточки/модалки, keyboard focus, reduced-motion support и общий feedback layer.
@@ -46,11 +46,11 @@ Workspace Organizer — self-hosted PHP-приложение для корпор
 - PHP `8.1+` — технический compatibility floor; для Internet-facing production рекомендуется поддерживаемая ветка PHP, сейчас `8.3+`;
 - MySQL `8.x` — основной проверяемый CI path;
 - PHP extensions: `mysqli`, `pdo_mysql`, `mbstring`, `fileinfo`, `sodium`, `gd`;
-- для realtime Messenger/native WebSocket runtime: POSIX-compatible host, PHP CLI, `pcntl`, long-running process и WebSocket reverse proxy;
+- Messenger работает через обычный authenticated HTTP long poll даже без WebSocket process; для низкой задержки и меньшей нагрузки рекомендуется PHP CLI + long-running native WebSocket process и WebSocket endpoint/proxy; daemon mode на Unix дополнительно требует `pcntl`;
 - Argon2id support в `password_hash`;
 - Apache + `mod_rewrite` либо Nginx с эквивалентным front-controller routing;
 - writable private storage вне document root;
-- HTTPS + WSS для production Messenger.
+- HTTPS для production; WSS рекомендуется для низколатентного Messenger fast path, при его недоступности работает authenticated HTTP long poll.
 
 Подробная матрица Open Server 6+, legacy-compatible Open Server 5.4.x, shared hosting и VPS/VDS: [`docs/DEPLOYMENT_COMPATIBILITY.md`](docs/DEPLOYMENT_COMPATIBILITY.md).
 
@@ -165,15 +165,19 @@ WS_HOST=127.0.0.1
 WS_PORT=27800
 ```
 
-На production hosting маршрут `/ws` должен проксироваться на локальный native WebSocket process. Это единственная часть, которую невозможно универсально стартовать web-installer'ом на каждом типе shared hosting: тариф должен поддерживать long-running PHP process/WebSocket proxy.
-
-Development/VPS:
+На production hosting WebSocket остаётся предпочтительным realtime transport: публичный `/ws` обычно проксируется на локальный native WebSocket process, а long-running PHP process запускается отдельно через hosting background-process manager, systemd/Supervisor или аналогичный process manager:
 
 ```bash
+php ws_server/server.php check
 php ws_server/server.php start
+php bin/ws_doctor.php
 ```
 
-Production: запускайте native WebSocket server через hosting background-process manager, systemd/supervisor/container orchestration и публикуйте браузеру только через WSS reverse proxy. Полный runbook: [`docs/MESSENGER_SERVER.md`](docs/MESSENGER_SERVER.md).
+Если WebSocket недоступен, browser автоматически переключает Messenger на `/messenger/realtime/poll` + `/messenger/realtime/action`. Fallback использует те же server-side permissions/license/maintenance gates и тот же Messenger dispatcher; после восстановления WebSocket клиент бесшовно возвращается на него. `MESSENGER_LONG_POLL_TIMEOUT_SECONDS` по умолчанию равен 15 секундам (допустимо 5–25).
+
+Поддерживается также **один отдельный WebSocket-узел**, например `wss://ws.example.com/ws`, при условии одинакового release/commit, общей application DB, согласованных `WS_TICKET_SECRET`/`MSG_SECRET_KEY`, общего Messenger private storage и общего maintenance `UPDATE_STATE_PATH`. Shared DB realtime revision bridge синхронизирует durable HTTP-fallback mutations с активными WS-клиентами. Несколько одновременно активных WS instances одной installation пока не поддерживаются как HA/load-balancing topology.
+
+Полный runbook: [`docs/MESSENGER_SERVER.md`](docs/MESSENGER_SERVER.md).
 
 ## Upgrade existing DB
 
@@ -319,7 +323,7 @@ HSTS намеренно задаётся на production TLS reverse proxy, а �
 
 ### Messenger v2
 
-Current contract включает private/group dialogs, Saved Messages, forwarding, media/voice, replies/edit/delete, delivered/read cursors, reactions, multi-device fanout, pin/mute/archive, group ownership/admin roles/avatars, orphan cleanup, bounded encrypted search и reconnect/offline/session-ended UI с fresh WebSocket ticket перед reconnect. Beta.4 применяет server-side role policies к message rate, attachment limits/types, созданию/размеру групп и voice messages.
+Current contract включает private/group dialogs, Saved Messages, forwarding, media/voice, replies/edit/delete, delivered/read cursors, reactions, multi-device fanout, pin/mute/archive, group ownership/admin roles/avatars, orphan cleanup, bounded encrypted search и WebSocket-first/HTTP-long-poll realtime recovery с fresh WebSocket ticket перед reconnect. Durable fallback mutations bridge-ятся через shared DB revision к активным WS-клиентам; typing/activity остаются WebSocket-only enhancement. Beta.4 применяет server-side role policies к message rate, attachment limits/types, созданию/размеру групп и voice messages.
 
 Encrypted search не хранит plaintext index: он расшифровывает только ограниченное число последних доступных сообщений (`MESSENGER_SEARCH_SCAN_LIMIT`, default `1000`).
 
@@ -361,7 +365,7 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 
 `Build hosting package` собирает upload-ready ZIP с production `vendor/`; теги `v*-*` публикуются как GitHub prerelease, а stable tag без suffix — как обычные Release.
 
-`Browser HTTPS and WSS E2E` поднимает PHP + Workerman + TLS Nginx + MySQL и реальные Chromium-сессии: проверяет login, основные модули, authenticated WSS, realtime delivery и 0.13 reconnect recovery.
+`Browser HTTPS and WSS E2E` поднимает PHP + native WebSocket server + TLS Nginx + MySQL и реальные Chromium-сессии: проверяет login, основные модули, authenticated WSS, realtime delivery и 0.13 reconnect recovery.
 
 Отдельные browser lifecycle workflows проверяют Notes, Tasks, File Manager, Profile и Admin, включая реальную quota-ошибку и DB/storage fault injection без production test hooks.
 
@@ -398,16 +402,17 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 - resumable/rollback-safe rotation `UNIQUE_KEY` / `MSG_SECRET_KEY`;
 - nonce-based CSP без `unsafe-inline`;
 - explicit retention/permanent-purge contract с filesystem/DB safety guards;
-- browser lifecycle coverage для основных product modules и Beta4 → 1.0 upgrade/rollback drill;
+- browser lifecycle coverage для основных product modules и exact published 1.0.1 → 1.0.2 upgrade/rollback drill;
 - cross-browser/mobile + authenticated load/soak release-evidence harness.
 
-Перед окончательным cut/tag `v1.0.1` остаются только release-ceremony gates, а не новые platform features:
+Перед окончательным cut/tag `v1.0.2` остаются только release-ceremony gates, а не новые platform features:
 
-1. восстановить и проверить GitHub branch protection/ruleset для `master` и `1.0` после переключения visibility репозитория;
-2. получить green full CI + cross-browser/mobile + load/soak release evidence на exact 1.0.1 release head;
-3. подтвердить fresh backup/restore drill, exact Beta4 → 1.0.1 upgrade/rollback, production trust canaries и отсутствие открытых P0/P1 data-loss/security/release blockers;
-4. собрать immutable `workspace-organizer-v1.0.1.zip`, сверить SHA-256/source SHA и подписать exact update manifest offline production update key;
-5. после strict acceptance слить exact release head в `master`, поставить `v1.0.1` и публиковать только проверенные immutable artifacts.
+1. проверить GitHub branch protection/ruleset для `master` и `1.0`;
+2. получить green full CI + cross-browser/mobile + load/soak release evidence на exact 1.0.2 release head;
+3. подтвердить fresh backup/restore drill, exact published 1.0.1 → 1.0.2 upgrade/rollback, production trust canaries, Windows compatibility CI и финальную ручную OSPanel 5.2.2 acceptance;
+4. подтвердить отсутствие открытых P0/P1 data-loss/security/release blockers;
+5. собрать immutable `workspace-organizer-v1.0.2.zip`, сверить SHA-256/source SHA и подписать exact update manifest offline production update key;
+6. после strict acceptance слить exact release head в `master`, поставить `v1.0.2` и публиковать только проверенные immutable artifacts.
 
 Scalable encrypted-search redesign не является release blocker сам по себе; он требуется только если измерения на заявленном масштабе покажут, что bounded decrypt scan не выдерживает принятого performance envelope.
 

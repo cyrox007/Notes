@@ -1,34 +1,34 @@
-# 1.0 release evidence
+# Доказательства готовности релиза 1.0
 
-Workspace Organizer 1.0 keeps release evidence reproducible and machine-readable. The automated release-evidence gate complements the existing module lifecycle, HTTPS/WSS, installer, updater, rollback, security, retention and production health workflows.
+Workspace Organizer 1.0 хранит доказательства релизной готовности в воспроизводимом и машиночитаемом виде. Автоматический gate release-evidence дополняет существующие проверки lifecycle модулей, HTTPS/WSS, installer, updater, rollback, security, retention и production health.
 
-## Cross-browser and mobile evidence
+## Cross-browser и mobile evidence
 
-The automated browser matrix authenticates a real user and verifies the core workspace shell plus Notes, Tasks, Files and Profile in:
+Автоматическая browser-матрица аутентифицирует реального пользователя и проверяет основной workspace shell, а также Notes, Tasks, Files и Profile в следующих окружениях:
 
 - Chromium desktop, 1366x768;
 - Firefox desktop, 1366x768;
 - WebKit desktop, 1366x768;
-- Chromium mobile, 390x844 touch/mobile context;
-- WebKit mobile, 412x915 touch/mobile context.
+- Chromium mobile, 390x844, touch/mobile context;
+- WebKit mobile, 412x915, touch/mobile context.
 
-Each scenario must:
+Каждый сценарий должен:
 
-- complete the actual login flow;
-- render the main workspace content;
-- load Notes, Tasks, Files and Profile with HTTP 200;
-- produce no JavaScript page errors;
-- keep the document within the configured viewport without horizontal document overflow.
+- выполнить реальный login flow;
+- отрисовать основной контент workspace;
+- загрузить Notes, Tasks, Files и Profile с HTTP 200;
+- не создавать JavaScript-ошибок страницы;
+- удерживать документ в заданном viewport без горизонтального overflow документа.
 
-Mobile scenarios additionally prove the real sidebar lifecycle: initially closed, open through the menu control, visible backdrop, and close through Escape with correct aria-expanded state.
+Mobile-сценарии дополнительно подтверждают реальный lifecycle sidebar: изначально закрыт, открывается через menu control, показывает backdrop и закрывается через Escape с корректным состоянием `aria-expanded`.
 
-The existing Browser HTTPS and WSS E2E workflow remains the release evidence for authenticated Messenger realtime behavior, reconnect, messages and transient activity presence. This matrix does not duplicate that WSS test across three browser engines.
+Существующий workflow Browser HTTPS and WSS E2E остаётся релизным доказательством аутентифицированного realtime-поведения Messenger. Он проверяет предпочтительный WSS path, принудительный reconnect со свежим ticket, автоматический HTTP long-poll fallback без блокировки пула PHP workers и доставку durable HTTP-fallback mutation клиенту, который остаётся подключённым через WebSocket, посредством общего DB revision bridge. Transient typing/activity остаётся дополнительной возможностью WebSocket. Эта матрица намеренно не дублирует один и тот же transport-тест в трёх browser engines.
 
-## Load and soak evidence
+## Load и soak evidence
 
-After the browser matrix exports five independent authenticated PHP sessions, the same release-candidate process is exercised through authenticated GET requests distributed round-robin across those sessions. This avoids measuring a single PHP session lock as if it were application concurrency.
+После того как browser-матрица экспортирует пять независимых аутентифицированных PHP sessions, тот же процесс релиз-кандидата нагружается аутентифицированными GET-запросами, распределёнными round-robin между этими sessions. Это не позволяет ошибочно измерять lock одной PHP session как concurrency приложения.
 
-The load targets are:
+Целевые endpoints нагрузки:
 
 - workspace home;
 - Notes;
@@ -36,35 +36,35 @@ The load targets are:
 - Files;
 - Profile.
 
-Default CI thresholds:
+Пороговые значения CI по умолчанию:
 
-- fixed load: 600 requests with concurrency 12;
-- soak: 45 seconds with concurrency 4;
-- allowed HTTP/auth/transport errors: 0;
-- maximum p95 latency: 2500 ms for both phases;
-- minimum fixed-load throughput: 5 requests/second;
-- minimum soak throughput: 3 requests/second.
+- fixed load: 600 запросов с concurrency 12;
+- soak: 45 секунд с concurrency 4;
+- допустимые HTTP/auth/transport errors: 0;
+- максимальная p95 latency: 2500 мс для обеих фаз;
+- минимальный fixed-load throughput: 5 запросов/секунду;
+- минимальный soak throughput: 3 запроса/секунду.
 
-These are release-regression thresholds for the GitHub runner, not a production capacity claim. Production sizing still depends on CPU, database, storage, reverse proxy, network and real workload characteristics. Increasing the thresholds to hide a regression is not acceptable release evidence; a changed threshold requires an explicit reviewed rationale.
+Это пороги release-regression для GitHub runner, а не заявление о production capacity. Реальные требования к production по-прежнему зависят от CPU, базы данных, storage, reverse proxy, сети и характера нагрузки. Увеличивать пороги, чтобы скрыть регрессию, недопустимо; изменение порога требует явного проверенного обоснования.
 
-## Evidence artifacts
+## Артефакты доказательств
 
-The workflow uploads machine-readable artifacts for the exact commit:
+Workflow загружает машиночитаемые artifacts для точного commit:
 
 - cross-browser/mobile JSON;
 - load/soak JSON;
 - post-run healthcheck JSON.
 
-CI also requires a clean PHP runtime log: fatal, uncaught and parse errors fail the evidence job.
+CI также требует чистый PHP runtime log: fatal, uncaught и parse errors приводят к падению evidence job.
 
-## Release acceptance
+## Релизная приёмка
 
-Automated evidence does not fabricate human beta evidence. Before the final merge to master and v1.0.0 tag, the release owner must additionally record the release-candidate acceptance decision and confirm:
+Автоматические доказательства не подменяют human beta evidence. До финального merge в `master` и создания тега релиза владелец релиза дополнительно должен зафиксировать решение о приёмке release candidate и подтвердить:
 
-1. no open P0/P1 data-loss defects;
-2. no open P0/P1 security defects;
-3. no unresolved release-blocking regression from beta/RC testing;
-4. the exact release head has green release evidence and Stable release gate;
-5. the production backup/restore, upgrade and rollback evidence required by the release runbook is current.
+1. нет открытых P0/P1 дефектов с риском потери данных;
+2. нет открытых P0/P1 дефектов безопасности;
+3. нет неразрешённой release-blocking regression, найденной в beta/RC testing;
+4. exact release head имеет зелёные release evidence и Stable release gate;
+5. требуемые release runbook доказательства production backup/restore, upgrade и rollback актуальны.
 
-If the product has not been exposed to a representative human beta cohort, record that explicitly instead of claiming beta coverage that did not occur.
+Если продукт не проходил через репрезентативную human beta cohort, зафиксируйте это явно вместо заявления о несуществующем beta coverage.

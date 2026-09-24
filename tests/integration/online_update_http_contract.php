@@ -32,7 +32,7 @@ try {
     // Isolated public trust fixture; never edits the release's public registries.
     foreach (['tools/license-server/LicenseServer.php', 'tools/license-server/public/index.php',
         'tools/license-server/manage.php', 'app/services/LicenseVerifier.php', 'core/UpdateManifestVerifier.php',
-        'core/UpdateDownloadCredentials.php'] as $file) {
+        'core/UpdateDownloadCredentials.php', 'core/UpdatePath.php'] as $file) {
         $destination = $work . '/app/' . $file;
         if (!is_dir(dirname($destination))) {
             mkdir(dirname($destination), 0700, true);
@@ -105,6 +105,11 @@ try {
         httpAccessAssert(isset($length[1]) && (int) $length[1] === strlen($response), 'Exact Content-Length');
         return [(int) $status[1], $response];
     };
+    [$status, $response] = $request('/delivery/health');
+    $health = json_decode($response, true);
+    httpAccessAssert($status === 200 && ($health['status'] ?? '') === 'ok', 'Public health endpoint reports ready service');
+    httpAccessAssert(array_keys($health) === ['status', 'registry', 'license_trust', 'update_trust'], 'Health endpoint exposes unexpected metadata');
+
     [$status] = $request('/delivery/stable/notes.zip');
     httpAccessAssert($status === 401, 'Direct unauthenticated ZIP denied');
     [$status] = $request('/delivery/stable/feed.json', null, ['X-Test-Plain-HTTP: 1']);

@@ -73,10 +73,15 @@ jobs:
           php -l modules/messenger/socket/SocketFrameCodec.php
           php -l modules/messenger/socket/NativeSocketConnection.php
           php -l modules/messenger/socket/NativeMessengerServer.php
+          php -l modules/messenger/socket/BufferedSocketConnection.php
+          php -l modules/messenger/services/MessengerLongPollService.php
+          php -l modules/messenger/services/MessengerRealtimeRevisionService.php
+          php -l modules/messenger/controllers/MessengerRealtimeController.php
           php -l ws_server/server.php
           php -l tests/e2e/router.php
           php -l tests/integration/native_websocket_protocol_contract.php
           node --check tests/e2e/browser-smoke.mjs
+          php tests/integration/messenger_long_poll_contract.php
           grep -Fq "'/core/routerConfig.php'" index.php
           ! grep -Fq "'/core/RouterConfig.php'" index.php
           ! grep -Fq 'fonts.googleapis.com' index.php

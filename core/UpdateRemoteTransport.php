@@ -22,6 +22,22 @@ interface UpdateRemoteTransport
     ): array;
 }
 
+interface UpdateAccessActivationTransport
+{
+    /** @return array<string,mixed> */
+    public function activate(string $baseUrl, string $installationId, string $activationCode): array;
+
+    /** @return array<string,mixed> */
+    public function activateWithLicense(
+        string $baseUrl,
+        string $installationId,
+        string $licenseToken,
+        string $version,
+        int $versionCode,
+        string $channel
+    ): array;
+}
+
 /**
  * Small vendor-free HTTPS transport for signed update artifacts.
  *
@@ -36,7 +52,7 @@ interface UpdateRemoteTransport
  *
  * The updater does not need ext-curl and does not depend on allow_url_fopen.
  */
-final class UpdateHttpsTransport implements UpdateRemoteTransport
+final class UpdateHttpsTransport implements UpdateRemoteTransport, UpdateAccessActivationTransport
 {
     private const MAX_HEADER_BYTES = 65536;
 
@@ -97,25 +113,66 @@ final class UpdateHttpsTransport implements UpdateRemoteTransport
         return new self($connectTimeout, $readTimeout, UpdateDownloadCredentials::fromEnvironment());
     }
 
-    /** Activation only: bounded HTTPS POST using the same TLS/DNS/redirect rules as downloads. */
+    /** Совместимая активация по одноразовому коду для старых установок. */
     public function activate(string $baseUrl, string $installationId, string $activationCode): array
+    {
+        return $this->activateRequest(
+            $baseUrl,
+            [
+                'installation_id' => $installationId,
+                'activation_code' => $activationCode,
+            ],
+            1024
+        );
+    }
+
+    /**
+     * Автоматический bootstrap доступа к обновлениям по уже проверенной
+     * installation-bound лицензии. Приватный ключ лицензирования не участвует.
+     */
+    public function activateWithLicense(
+        string $baseUrl,
+        string $installationId,
+        string $licenseToken,
+        string $version,
+        int $versionCode,
+        string $channel
+    ): array {
+        return $this->activateRequest(
+            $baseUrl,
+            [
+                'installation_id' => $installationId,
+                'license_token' => $licenseToken,
+                'version' => $version,
+                'version_code' => $versionCode,
+                'channel' => $channel,
+            ],
+            24576
+        );
+    }
+
+    /** @param array<string,mixed> $payload @return array<string,mixed> */
+    private function activateRequest(string $baseUrl, array $payload, int $maxRequestBytes): array
     {
         UpdateDownloadCredentials::validateBaseUrl($baseUrl);
         if ($this->credentials !== null) {
-            throw new RuntimeException('Activation requires a transport without download credentials');
+            throw new RuntimeException('Bootstrap updater выполняется только без действующих download credentials');
         }
-        $body = json_encode(['installation_id' => $installationId, 'activation_code' => $activationCode], JSON_THROW_ON_ERROR);
-        if (strlen($body) > 1024) {
-            throw new RuntimeException('Activation request is too large');
+
+        $body = json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        if (strlen($body) > $maxRequestBytes) {
+            throw new RuntimeException('Запрос активации updater слишком большой');
         }
+
         [$stream, $length] = $this->openResponse($baseUrl . 'activate', $body);
         try {
             if ($length < 1 || $length > 4096) {
-                throw new RuntimeException('Invalid activation response size');
+                throw new RuntimeException('Сервер вернул некорректный размер ответа активации updater');
             }
+
             $result = json_decode($this->readExactString($stream, $length), true, 8, JSON_THROW_ON_ERROR);
             if (!is_array($result)) {
-                throw new RuntimeException('Invalid activation response');
+                throw new RuntimeException('Сервер вернул некорректный ответ активации updater');
             }
             return $result;
         } finally {

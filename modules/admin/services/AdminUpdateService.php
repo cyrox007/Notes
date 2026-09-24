@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use Core\UpdateAccessBootstrap;
 use Core\UpdateArchiveInspector;
 use Core\UpdateDownloadCredentials;
 use Core\UpdateHttpsTransport;
@@ -11,17 +12,21 @@ use Core\UpdateManifestVerifier;
 use Core\UpdatePackageStager;
 use Core\UpdateRemoteDelivery;
 use Core\UpdateRemoteTransport;
+use Core\UpdateReadiness;
 use Core\Version;
 use DomainException;
 use InvalidArgumentException;
 use RuntimeException;
 
 $updateCoreRoot = dirname(__DIR__, 3);
+require_once $updateCoreRoot . '/core/UpdateAccessBootstrap.php';
 require_once $updateCoreRoot . '/core/UpdateManifestVerifier.php';
 require_once $updateCoreRoot . '/core/UpdatePackageStager.php';
 require_once $updateCoreRoot . '/core/UpdateArchiveInspector.php';
 require_once $updateCoreRoot . '/core/UpdateRemoteTransport.php';
 require_once $updateCoreRoot . '/core/UpdateRemoteDelivery.php';
+require_once $updateCoreRoot . '/core/UpdateDownloadCredentials.php';
+require_once $updateCoreRoot . '/core/UpdateReadiness.php';
 
 /**
  * Web-facing read/check/stage facade for the signed updater.
@@ -70,20 +75,10 @@ final class AdminUpdateService
         $stageConfigured = $stageRoot !== '';
         $canManageStage = $this->permissions->hasRole($actorId, 'superadmin');
 
+        $operator = (new UpdateReadiness($this->appRoot, $this->verifier))->inspect();
         $issues = [];
-        $accessReady = true;
-        try {
-            $credentials = UpdateDownloadCredentials::fromEnvironment();
-            if ($credentials !== null) {
-                $credentials->headersFor($feedUrl);
-                if (!hash_equals((new LicenseService())->installationId(), $credentials->installationId())) {
-                    throw new RuntimeException('Доступ к обновлениям активирован для другой установки.');
-                }
-            }
-        } catch (\Throwable $e) {
-            $accessReady = false;
-            $issues[] = $e->getMessage();
-        }
+        [$accessReady, $accessAutomatic, $accessMode] = $this->accessState($feedUrl);
+
         if (!$trustConfigured) {
             $issues[] = 'В сборке не настроен публичный ключ проверки обновлений.';
         }
@@ -91,19 +86,22 @@ final class AdminUpdateService
             $issues[] = 'PHP extension openssl недоступно: удалённая проверка обновлений отключена.';
         }
         if (!$feedConfigured) {
-            $issues[] = 'UPDATE_FEED_URL не настроен.';
+            $issues[] = 'Не удалось определить адрес канала обновлений.';
         } elseif (!str_starts_with(strtolower($feedUrl), 'https://')) {
-            $issues[] = 'UPDATE_FEED_URL должен использовать HTTPS.';
+            $issues[] = 'Канал обновлений должен использовать HTTPS.';
         }
         if (!$channelValid) {
-            $issues[] = 'UPDATE_CHANNEL должен быть alpha, beta или stable.';
+            $issues[] = 'Канал обновлений должен быть alpha, beta или stable.';
         }
         if (!$stageConfigured) {
-            $issues[] = 'Не настроен внешний каталог staging (UPDATE_STAGING_PATH или PRIVATE_STORAGE_PATH).';
+            $issues[] = 'Не настроен внешний каталог подготовки обновлений.';
+        }
+        if (!$accessReady && !$accessAutomatic && $accessMode !== 'offline') {
+            $issues[] = 'Для автоматического доступа к обновлениям нужна действующая лицензия.';
         }
 
         $canCheck = $trustConfigured
-            && $accessReady
+            && ($accessReady || $accessAutomatic)
             && $opensslAvailable
             && $feedConfigured
             && str_starts_with(strtolower($feedUrl), 'https://')
@@ -120,9 +118,16 @@ final class AdminUpdateService
             'trusted_key_ids' => $this->verifier->trustedKeyIds(),
             'openssl_available' => $opensslAvailable,
             'stage_configured' => $stageConfigured,
+            'update_access_ready' => $accessReady,
+            'update_access_automatic' => $accessAutomatic,
+            'update_access_mode' => $accessMode,
             'can_check' => $canCheck,
             'can_stage' => $canCheck && $stageConfigured && $canManageStage,
             'can_manage_stage' => $canManageStage,
+            'operator_ready' => (bool) ($operator['ready_for_apply'] ?? false),
+            'operator_issues' => is_array($operator['issues'] ?? null) ? $operator['issues'] : [],
+            'operator_command' => 'php bin/update_run.php --yes --json',
+            'doctor_command' => 'php bin/update_doctor.php --json',
             'issues' => $issues,
         ];
     }
@@ -130,6 +135,8 @@ final class AdminUpdateService
     /** @return array<string,mixed> */
     public function check(int $actorId): array
     {
+        $this->permissions->requirePermission($actorId, 'admin.settings.manage');
+        $this->ensureAutomaticAccess();
         $state = $this->snapshot($actorId);
         if (empty($state['can_check'])) {
             throw new DomainException('Проверка обновлений недоступна, пока не устранены ошибки конфигурации', 503);
@@ -158,6 +165,7 @@ final class AdminUpdateService
             throw new InvalidArgumentException('Повторно проверьте обновление перед staging');
         }
 
+        $this->ensureAutomaticAccess();
         $state = $this->snapshot($actorId);
         if (empty($state['can_check']) || empty($state['stage_configured'])) {
             throw new DomainException('Staging обновления недоступен, пока не устранены ошибки конфигурации', 503);
@@ -172,6 +180,57 @@ final class AdminUpdateService
             $expectedTargetVersionCode,
             $expectedPackageSha256
         );
+    }
+
+    /** @return array{0:bool,1:bool,2:string} */
+    private function accessState(string $feedUrl): array
+    {
+        if ($this->transport !== null) {
+            return [true, false, 'test'];
+        }
+
+        try {
+            $mode = UpdateDownloadCredentials::accessMode();
+        } catch (\Throwable) {
+            return [false, false, 'invalid'];
+        }
+
+        if ($mode === 'offline') {
+            return [true, false, $mode];
+        }
+
+        try {
+            $credentials = UpdateDownloadCredentials::fromEnvironment();
+            if ($credentials !== null) {
+                $credentials->headersFor($feedUrl);
+                $installationId = (new LicenseService())->installationId();
+                if (hash_equals($installationId, $credentials->installationId())) {
+                    return [true, false, $mode];
+                }
+            }
+        } catch (\Throwable) {
+            // Небезопасный путь из старого .env, отсутствующий или повреждённый
+            // credential не требует действий пользователя: 1.0.2 восстановит его.
+        }
+
+        try {
+            $license = (new LicenseService())->status();
+            return [false, !empty($license['valid']), $mode];
+        } catch (\Throwable) {
+            return [false, false, $mode];
+        }
+    }
+
+    private function ensureAutomaticAccess(): void
+    {
+        if ($this->transport !== null) {
+            return;
+        }
+        if (UpdateDownloadCredentials::accessMode() === 'offline') {
+            return;
+        }
+
+        (new LicenseService())->ensureUpdateAccess();
     }
 
     private function delivery(): UpdateRemoteDelivery
@@ -192,31 +251,32 @@ final class AdminUpdateService
 
     private function feedUrl(): string
     {
-        $value = getenv('UPDATE_FEED_URL');
-        return is_string($value) ? trim($value) : '';
+        return UpdateAccessBootstrap::feedUrl();
     }
 
     private function feedUrlOrFail(): string
     {
         $value = $this->feedUrl();
         if ($value === '') {
-            throw new RuntimeException('UPDATE_FEED_URL не настроен');
+            throw new RuntimeException('Не удалось определить канал обновлений');
         }
         return $value;
     }
 
     private function channel(): string
     {
-        $value = getenv('UPDATE_CHANNEL');
-        $value = is_string($value) ? trim($value) : '';
-        return $value !== '' ? $value : 'stable';
+        try {
+            return UpdateAccessBootstrap::channel();
+        } catch (\Throwable) {
+            return '';
+        }
     }
 
     private function channelOrFail(): string
     {
         $value = $this->channel();
         if (!in_array($value, ['alpha', 'beta', 'stable'], true)) {
-            throw new RuntimeException('UPDATE_CHANNEL должен быть alpha, beta или stable');
+            throw new RuntimeException('Канал обновлений должен быть alpha, beta или stable');
         }
         return $value;
     }

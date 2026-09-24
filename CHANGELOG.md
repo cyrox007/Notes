@@ -2,9 +2,50 @@
 
 Формат основан на принципах Keep a Changelog. Начиная с `1.0.0` проект имеет stable platform contract: совместимость upgrade-path и пользовательских данных является release contract, а изменения схемы выполняются через явные compatibility migrations. Canonical `*_schema.sql` остаются источником текущей схемы fresh install.
 
-## Unreleased
+## 1.0.2 — 2026-09-24
 
-Следующие изменения после `1.0.1` ведутся отдельным maintenance/feature cycle без ретроактивного изменения опубликованных migration и trust contracts.
+### Updater operations
+- Активация обычной installation-bound лицензии теперь автоматически настраивает доступ к официальному каналу обновлений; пользователю `1.0.2+` не нужны отдельный activation code, временный файл и ручной запуск `bin/update_activate.php`.
+- Штатный stable feed и control plane заданы по умолчанию; installation credential автоматически сохраняется вне дерева приложения в `PRIVATE_STORAGE_PATH/update-access/update-access.json`.
+- Если в старом `.env` остался небезопасный `UPDATE_CREDENTIALS_FILE` внутри дерева приложения, `1.0.2` игнорирует его и использует безопасный внешний путь без ручного исправления.
+- Если control plane недоступен во время активации лицензии, локальная лицензия остаётся действующей, а bootstrap доступа повторяется при следующей проверке обновлений.
+- `UPDATE_ACCESS_MODE=offline` сохраняет явный полностью офлайн-сценарий; старый одноразовый код остаётся только для совместимости с `1.0.0/1.0.1`.
+- Добавлен единый CLI operator flow `bin/update_run.php`, который использует существующие подписанные границы: remote staging, maintenance ownership, verified code+MySQL rollback backup, external release candidate и transactional live apply.
+- Destructive flow требует явный `--yes`; до начала live mutation wrapper может безопасно снять собственный maintenance, а после начала mutation rollback/recovery полностью остаются во владении `UpdateApplyCommand`.
+- Для прерванной транзакции предусмотрен единый recovery-вход через `bin/update_run.php --recover --transaction=... --yes`.
+- Добавлен отдельный regression contract для operator flow; прямые shell-execution shortcuts не допускаются.
+- Добавлен read-only `bin/update_doctor.php`: он без сети и мутаций проверяет update trust root, PHP extensions, `proc_open`, HTTPS feed/channel, online credentials, внешние updater paths и DB configuration.
+- Admin Updates показывает отдельный статус operator readiness, безопасную diagnostic command и единый CLI install/recovery flow, не добавляя destructive web endpoint.
+- Vendor update/license service получил read-only health state, CLI `--status --json` и минимальный HTTPS `/health` endpoint для deployment monitoring без раскрытия credentials, лицензий или package paths.
+- Добавлен retention CLI `bin/update_retention.php`: dry-run по умолчанию, destructive cleanup только с `--apply --yes`; удаляются только старые rollback backup/release-candidate directories terminal-транзакций `committed`/`rollback_verified`, при этом journals, staged packages, `rollback_failed` и любые незавершённые recovery states сохраняются.
+- Добавлен release drill из exact published `v1.0.1` в synthetic signed `1.0.2`: success-path сохраняет installation/data settings, fault-path намеренно меняет БД и ломает post-switch healthcheck, после чего проверяется автоматический code + DB rollback обратно в 1.0.1.
+- Добавлен Windows compatibility gate на `windows-latest` для PHP 8.1/8.3: updater path semantics, signed staging/remote delivery, release candidate, retention и portable runtime contracts. Финальная OSPanel 5.2.2 приёмка остаётся отдельным ручным release evidence, а не подменяется CI.
+- Hosting package gate теперь явно требует `bin/update_retention.php` и `core/UpdateArtifactCleaner.php` в customer ZIP.
+
+### Hosting / WebSocket
+- WebSocket launcher теперь остаётся parseable достаточно долго, чтобы при ошибочном legacy CLI PHP вывести явное требование PHP 8.1+ и фактический CLI binary/version вместо неочевидного parse error.
+- `php ws_server/server.php start` выполняет подробный startup preflight: extensions/socket API, runtime paths, WebSocket endpoint/origins/proxy mode, limits и пробный bind порта; критичная ошибка выводит причину и действие `[FIX]` и блокирует запуск.
+- Добавлена diagnostics-only команда `php ws_server/server.php check`; `[RUNNING]` печатается только после успешного реального bind listener.
+- Документирован поддерживаемый вариант одного отдельного WS-узла и явно зафиксировано, что multi-instance/HA WebSocket без cross-node pub/sub/fan-out пока не является поддерживаемой topology.
+- Messenger получил WebSocket-first transport с автоматическим HTTP long-poll fallback: при недоступном/оборванном WS durable chat state продолжает синхронизироваться через HTTP, а клиент в фоне восстанавливает WebSocket и после успешной авторизации отключает fallback.
+- HTTP fallback переиспользует canonical Messenger dispatcher, RBAC, role policies, maintenance/license gates и socket handlers; long-poll request освобождает PHP session lock и прерывается перед собственными mutating HTTP requests/ticket refresh, чтобы не блокировать малое число PHP workers.
+- Durable HTTP fallback mutations публикуют shared DB realtime revision; native WS process отслеживает её и отправляет `sync_required`, поэтому клиенты, остающиеся на WebSocket, видят изменения fallback-клиентов без reconnect. Ephemeral typing/activity остаются WebSocket enhancement.
+
+### Двухфакторная аутентификация
+- Добавлен стандартный TOTP по RFC 6238 с отдельным зашифрованным секретом каждого пользователя.
+- В профиле пользователь может самостоятельно включить 2FA, подтвердить настройку кодом, перевыпустить резервные коды и отключить 2FA с повторным подтверждением.
+- В Admin добавлена общесистемная политика: 2FA может оставаться добровольной либо быть обязательной для всех активных аккаунтов.
+- При обязательной политике пользователь без TOTP после правильного пароля проходит принудительную настройку до получения обычной сессии; самостоятельно отключить 2FA в этом режиме нельзя.
+- Выключение обязательной политики не удаляет персонально настроенные TOTP-секреты.
+- Резервные коды показываются один раз, хранятся только как SHA-256-хеши и поглощаются после использования.
+- Проверка второго фактора имеет отдельное ограничение частоты попыток и журналируется как событие безопасности.
+- Ротация `UNIQUE_KEY` теперь включает TOTP-секреты вместе с заметками: поддерживаются предварительная проверка, пакетная обработка, продолжение после прерывания, повторный проход и rollback.
+- Добавлена отдельная матрица TOTP для PHP 8.1/8.3 и включение контракта 2FA в Stable release gate.
+
+### Release direction
+- `1.0.2` является последним stabilization patch перед feature-cycle `1.1.0`.
+- Основной оставшийся scope: production signed feed/manifest delivery, повтор exact `1.0.1 -> 1.0.2` на финальных production-signed artifacts и финальная ручная OSPanel 5.2.2 acceptance.
+- Published migration/trust history `1.0.0/1.0.1` не переписывается.
 
 ## 1.0.1 — 2026-09-20
 

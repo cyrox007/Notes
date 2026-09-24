@@ -207,27 +207,31 @@ File Manager не является code execution environment.
 - upload выше effective quota отклоняется до `move_uploaded_file`;
 - concurrent uploads одного пользователя сериализуются advisory lock.
 
-## 11. WebSocket / Messenger
+## 11. Realtime Messenger transport
 
-Entry point — `ws_server/server.php`.
+Preferred entry point — native `ws_server/server.php`; automatic fallback — authenticated HTTP `/messenger/realtime/poll` + `/messenger/realtime/action`.
 
-Security contract:
+Security/transport contract:
 
-- browser получает short-lived socket ticket через authenticated HTTP;
-- server связывает connection с user identity;
+- browser получает short-lived socket ticket через authenticated HTTP для WebSocket fast path;
+- server связывает WS connection с user identity; HTTP fallback использует authenticated application session;
 - client-supplied identity fields не считаются доверенными;
-- Origin проверяется по `WS_ALLOWED_ORIGINS`;
-- `Socket:method` находится в explicit allowlist;
-- active/role state повторно проверяется, поэтому deactivation/blocking отзывает действия существующего connection;
-- один user может иметь несколько active connections, события fan-out идут на все его devices/tabs.
+- Origin проверяется по `WS_ALLOWED_ORIGINS` для WebSocket;
+- realtime action находится в explicit allowlist;
+- оба transport path проходят persisted RBAC, role policies, maintenance state и license read-only enforcement через общий dispatcher/handlers;
+- active/role state повторно проверяется, поэтому deactivation/blocking отзывает дальнейшие действия;
+- один user может иметь несколько active WS connections, события fan-out идут на все его devices/tabs;
+- durable HTTP-fallback mutations bump shared DB realtime revision; native WS process отправляет `sync_required`, после чего WS clients перечитывают canonical state;
+- long-poll request освобождает PHP session lock и прерывается перед mutating HTTP request/ticket refresh;
+- typing/activity — ephemeral WebSocket enhancement и не является durable fallback contract.
 
-Socket handler должен оставаться transport layer; authorization/business logic живёт в Service.
+Socket handler должен оставаться transport boundary; authorization/business logic живёт в Services и переиспользуется обоими transport paths.
 
-Production-like E2E поднимает настоящий Workerman за TLS Nginx reverse proxy и проверяет две независимые Chromium-сессии, authenticated WSS и realtime message fan-out.
+Production-like E2E поднимает native RFC6455 server за TLS Nginx reverse proxy и проверяет две независимые Chromium-сессии, authenticated WSS, reconnect, HTTP fallback worker-release и fallback-mutation → active-WS-client synchronization.
 
 ## 12. UI architecture
 
-UI остаётся server-rendered Smarty без Node build pipeline.
+UI остаётся server-rendered через внутренний `NativeViewRenderer` без Node build pipeline и без Smarty runtime dependency.
 
 Структура:
 
@@ -239,15 +243,11 @@ UI остаётся server-rendered Smarty без Node build pipeline.
 
 Новый UI не должен возвращать external font/CDN dependency без отдельного обоснования.
 
-CSP сейчас не требует `unsafe-eval`; `unsafe-inline` остаётся временно из-за legacy inline Smarty blocks. Целевое направление — static assets + nonce/hash CSP.
+CSP использует per-request cryptographic nonce и не требует `unsafe-inline` или `unsafe-eval`; этот boundary закреплён integration/CI contract.
 
 ## 13. Registration / rate limiting
 
-Web-registration закрыта без:
-
-```env
-REGISTRATION_INVITE_CODE=<secret>
-```
+Web-registration управляется persisted policy `disabled/open/invite`; default — `disabled`. В invite-режиме администратор выпускает ограниченные/revocable invite-коды, а в БД хранится только SHA-256 hash. Legacy `REGISTRATION_INVITE_CODE` из `.env` остаётся только compatibility fallback до первого явного сохранения managed policy.
 
 Rate limit config:
 

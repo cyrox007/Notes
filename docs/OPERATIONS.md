@@ -19,7 +19,7 @@ php bin/migrate.php
 php bin/healthcheck.php
 ```
 
-Realtime Messenger требует запущенный Workerman и TLS reverse proxy для `/ws`. После изменения `WS_TICKET_SECRET`, `WS_ALLOWED_ORIGINS`, `SITEURL` или WebSocket topology перезапускайте WS process и выполняйте browser/WSS smoke.
+Messenger использует native WebSocket как рекомендуемый fast path и authenticated HTTP long poll как automatic fallback. Если WebSocket включён, держите `php ws_server/server.php start` под process manager и публикуйте `/ws` только через TLS reverse proxy. После изменения `WS_TICKET_SECRET`, `WS_ALLOWED_ORIGINS`, `SITEURL` или WebSocket topology перезапускайте HTTP workers + native WS process и выполняйте browser smoke WebSocket → Long Poll → WebSocket.
 
 ## 2. Backup contract
 
@@ -73,8 +73,8 @@ Restore считается проверенным только после вос
 
 1. сгенерировать новый случайный secret (минимум 32 байта/достаточная энтропия);
 2. заменить secret в secret manager / `.env`;
-3. одновременно перезапустить HTTP workers и Workerman;
-4. проверить новый login + WSS connection.
+3. одновременно перезапустить HTTP workers и native WebSocket process, если WebSocket fast path включён;
+4. проверить новый login, HTTP fallback и новый WSS ticket/connection.
 
 Старые короткоживущие socket tickets после ротации перестанут проходить проверку — это ожидаемо.
 
@@ -127,6 +127,27 @@ Notes rotation охватывает `notes.content` и encrypted snapshots `note
 
 `bin/migrate_crypto.php` остаётся legacy-format migrator; `bin/rotate_data_keys.php` — штатный путь смены master keys.
 
+## 4.1. Отдельный WebSocket-узел
+
+Для одной installation допускается один отдельный realtime-узел. Он не является stateless proxy: native WS process загружает application runtime и обращается к общей MySQL БД, RBAC/module lifecycle, license/runtime policy и Messenger storage.
+
+Операционный минимум remote WS deployment:
+
+- HTTP и WS узлы работают на одном release/commit;
+- `WS_TICKET_SECRET` и `MSG_SECRET_KEY` совпадают;
+- `PRIVATE_STORAGE_PATH/messenger` доступен обоим узлам с теми же данными;
+- `UPDATE_STATE_PATH` является общим, чтобы WS mutations видели updater maintenance;
+- `WS_ALLOWED_ORIGINS` содержит origin HTTP-приложения;
+- наружу публикуется WSS endpoint, native listener остаётся loopback/private;
+- `WS_PID_FILE` задаётся локальным для WS-машины;
+- `php ws_server/server.php check` выполняется до запуска, `php bin/ws_doctor.php` — после запуска;
+- shared application DB доступна обоим узлам: через неё realtime revision bridge сообщает активным WS-клиентам о durable mutations из HTTP fallback;
+- после deploy выполняется browser smoke text + attachment + fallback + reconnect.
+
+Несколько активных WS instances для одной installation пока не поддерживаются: live connection registry локален процессу, а полноценный multi-node pub/sub/presence отсутствует. Не используйте второй WS process как HA/load-balancing решение до отдельной реализации multi-instance contract.
+
+См. `docs/MESSENGER_SERVER.md`.
+
 ## 5. Rate limiting и reverse proxy
 
 На одном узле limiter по умолчанию использует `PRIVATE_STORAGE_PATH/rate-limit` и `flock`.
@@ -167,11 +188,11 @@ php bin/cleanup_messenger_orphans.php
 Регулярно контролируйте:
 
 - свободное место private storage и DB;
-- PHP/Workerman error logs;
+- PHP/native WebSocket error logs;
 - результат `bin/healthcheck.php`;
 - срок последнего успешного backup и restore drill;
 - наличие legacy crypto rows через `migrate_crypto.php --dry-run`;
-- доступность HTTPS и WSS снаружи reverse proxy.
+- доступность HTTPS; при включённом WebSocket — WSS снаружи reverse proxy; периодически проверяйте и HTTP long-poll fallback.
 
 ## 8. Release gate
 
@@ -179,7 +200,7 @@ php bin/cleanup_messenger_orphans.php
 
 - installer/upgrade CI зелёный;
 - security/domain regression workflows зелёные;
-- browser HTTPS/WSS smoke зелёный;
+- browser HTTPS/WSS + automatic long-poll fallback/recovery smoke зелёный;
 - `bin/healthcheck.php` проходит на target environment;
 - существует свежий проверенный backup и зафиксирован restore drill;
 - encryption keys и `.env` не входят в публичный release/backup archive.

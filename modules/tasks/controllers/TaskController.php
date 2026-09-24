@@ -543,7 +543,7 @@ final class TaskController extends Controller
         unset($task);
     }
 
-    /** @return object{id:int,uid:string,username:string,firstname:string,lastname:string,role:int,is_active:int} */
+    /** @return object{id:int,uid:string,username:string,firstname:string,lastname:string,avatar:?string,role:int,is_active:int} */
     private function currentUser(Request $request): object
     {
         $id = (int) $request->session('user_id', 0);
@@ -552,7 +552,7 @@ final class TaskController extends Controller
         }
 
         $row = DatabaseManager::getInstance()->fetchOne(
-            'SELECT id,uid,username,firstname,lastname,role,is_active
+            'SELECT id,uid,username,firstname,lastname,avatar,role,is_active
              FROM users WHERE id = :id AND is_active = 1 LIMIT 1',
             [':id' => $id]
         );

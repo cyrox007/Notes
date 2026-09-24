@@ -8,6 +8,7 @@ $access = isset($workspaceAccess) && is_array($workspaceAccess) ? $workspaceAcce
 $storageUsers = isset($storage_users) && is_array($storage_users) ? $storage_users : [];
 $flash = isset($settings_flash) && is_array($settings_flash) ? $settings_flash : null;
 $defaultQuotaBytes = max(0, (int) ($default_quota_bytes ?? 0));
+$twoFactorRequired = !empty($two_factor_required);
 $siteName = isset($sitename) ? (string) $sitename : 'Workspace Organizer';
 $workspaceVersion = isset($version) ? (string) $version : '';
 $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
@@ -28,6 +29,40 @@ ob_start();
         <?php $flashType = in_array(($flash['type'] ?? ''), ['success', 'error'], true) ? (string) $flash['type'] : 'error'; ?>
         <div class="admin-page__flash admin-page__flash--<?= $view->e($flashType) ?>" role="status"><?= $view->e($flash['message'] ?? '') ?></div>
     <?php endif; ?>
+
+    <section class="admin-panel-card">
+        <div class="admin-panel-card__header">
+            <div>
+                <span class="admin-panel-card__kicker">Безопасность</span>
+                <h2>Двухфакторная аутентификация</h2>
+                <p>Пользователи всегда могут включить TOTP для себя. Здесь администратор определяет, обязательно ли наличие 2FA для всех активных аккаунтов.</p>
+            </div>
+        </div>
+        <form action="<?= $view->e($view->route('admin_settings_two_factor')) ?>" method="post" class="custom-fields-form" autocomplete="off">
+            <?= $view->csrfInput() ?>
+            <div class="custom-field__control">
+                <label for="two_factor_required">Политика 2FA</label>
+                <select id="two_factor_required" name="two_factor_required">
+                    <option value="0"<?= !$twoFactorRequired ? ' selected' : '' ?>>По выбору пользователя</option>
+                    <option value="1"<?= $twoFactorRequired ? ' selected' : '' ?>>Обязательно для всех пользователей</option>
+                </select>
+                <small>
+                    При включении обязательного режима пользователи без настроенной 2FA после проверки пароля
+                    должны настроить собственный TOTP перед доступом к Workspace. Уже настроенные личные ключи не меняются.
+                </small>
+            </div>
+            <div class="custom-field__control">
+                <label for="two_factor_admin_password">Текущий пароль администратора</label>
+                <input id="two_factor_admin_password" name="current_password" type="password" autocomplete="current-password" required>
+            </div>
+            <?php if (!$twoFactorRequired): ?>
+                <p><strong>Важно:</strong> если у вашей администраторской учётной записи 2FA ещё не настроена, после включения обязательного режима следующий запрос потребует повторного входа и настройки 2FA.</p>
+            <?php else: ?>
+                <p>Обязательный режим активен. Пользователи не могут самостоятельно отключить 2FA, пока политика действует.</p>
+            <?php endif; ?>
+            <button class="admin-action admin-action--primary" type="submit">Сохранить политику 2FA</button>
+        </form>
+    </section>
 
     <section class="admin-panel-card">
         <div class="admin-panel-card__header">

@@ -188,5 +188,70 @@ try {
 }
 assertWebSocketEndpoint($portRejected, 'out-of-range WS_PORT was accepted');
 
+$serverSource = file_get_contents($root . '/ws_server/server.php');
+assertWebSocketEndpoint(is_string($serverSource), 'cannot read WebSocket launcher source');
+assertWebSocketEndpoint(
+    str_contains($serverSource, 'PHP_VERSION_ID < 80100'),
+    'WebSocket launcher must reject unsupported CLI PHP before application bootstrap'
+);
+$runtimeGuardPosition = strpos($serverSource, 'PHP_VERSION_ID < 80100');
+$environmentBootstrapPosition = strpos($serverSource, "require_once SITEPATH . '/core/Environment.php'");
+assertWebSocketEndpoint(
+    is_int($runtimeGuardPosition)
+    && is_int($environmentBootstrapPosition)
+    && $runtimeGuardPosition < $environmentBootstrapPosition,
+    'CLI PHP version guard must run before loading PHP 8.1 application source'
+);
+assertWebSocketEndpoint(
+    !str_contains($serverSource, 'usleep(100_000)'),
+    'launcher must stay parseable on legacy CLI long enough to print the PHP 8.1 requirement'
+);
+
+assertWebSocketEndpoint(
+    str_contains($serverSource, 'workspaceWsPreflight($daemon)'),
+    'start/check must run the WebSocket startup preflight'
+);
+assertWebSocketEndpoint(
+    str_contains($serverSource, "'Проверка привязки listener'"),
+    'startup preflight must explain listener bind availability'
+);
+assertWebSocketEndpoint(
+    str_contains($serverSource, "'Среда PHP CLI'"),
+    'startup preflight must report the actual CLI PHP runtime'
+);
+assertWebSocketEndpoint(
+    str_contains($serverSource, "'WebSocket URL для браузера'"),
+    'startup preflight must report the browser-facing WebSocket URL'
+);
+assertWebSocketEndpoint(
+    str_contains($serverSource, "'Reverse proxy'"),
+    'startup preflight must report same-origin reverse proxy configuration'
+);
+assertWebSocketEndpoint(
+    str_contains($serverSource, "'WS_TICKET_SECRET'")
+    && str_contains($serverSource, 'значение скрыто')
+    && str_contains($serverSource, 'strlen($ticketSecret)'),
+    'startup preflight must confirm WS_TICKET_SECRET without disclosing it'
+);
+assertWebSocketEndpoint(
+    str_contains($serverSource, "'check'"),
+    'launcher must provide a diagnostics-only check command'
+);
+$preflightCallPosition = strpos($serverSource, 'if (!workspaceWsPreflight($daemon))');
+$coreBootstrapPosition = strpos($serverSource, "require_once SITEPATH . '/core.php'");
+assertWebSocketEndpoint(
+    is_int($preflightCallPosition)
+    && is_int($coreBootstrapPosition)
+    && $preflightCallPosition < $coreBootstrapPosition,
+    'startup preflight must run before full application bootstrap'
+);
+
+$nativeServerSource = file_get_contents($root . '/modules/messenger/socket/NativeMessengerServer.php');
+assertWebSocketEndpoint(is_string($nativeServerSource), 'cannot read native WebSocket server source');
+assertWebSocketEndpoint(
+    str_contains($nativeServerSource, "'[RUNNING] WebSocket-сервер"),
+    'native runtime must print a bind-confirmed RUNNING message after listener creation'
+);
+
 restore_error_handler();
 fwrite(STDOUT, "WebSocket endpoint contract: OK\n");

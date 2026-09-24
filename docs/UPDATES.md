@@ -1,40 +1,40 @@
-# Signed updates
+# Подписанные обновления
 
-Workspace Organizer 1.0 uses a cryptographically signed update pipeline. Update signing is intentionally isolated from installation licensing: **license keys cannot authorize code updates, and update keys cannot issue licenses**.
+Workspace Organizer 1.0 использует криптографически подписанный pipeline обновлений. Подпись обновлений намеренно изолирована от лицензирования установки: **license keys не могут разрешать обновление кода, а update keys не могут выпускать лицензии**.
 
-## Security model
+## Модель безопасности
 
-An update consists of three artifacts:
+Обновление состоит из трёх artifacts:
 
-1. the hosting ZIP package;
-2. an update manifest JSON file;
-3. a detached Ed25519 signature token for the exact manifest bytes.
+1. hosting ZIP package;
+2. JSON-файл update manifest;
+3. detached Ed25519 signature token для точных bytes manifest.
 
-Signature token format:
+Формат signature token:
 
 ```text
 wou1.<key-id>.<base64url-ed25519-signature>
 ```
 
-The signature covers the exact bytes:
+Подпись покрывает точные bytes:
 
 ```text
 WorkspaceOrganizerUpdateManifest/v1\n<manifest bytes>
 ```
 
-This domain separation is deliberate. Never reuse the production license-signing key as the production update-signing key.
+Такое разделение доменов сделано намеренно. Никогда не используйте production license-signing key как production update-signing key.
 
-Runtime installations contain only update **public** keys in:
+Runtime-установки содержат только **публичные** update keys в:
 
 ```text
 config/update_trusted_keys.php
 ```
 
-The registry is intentionally empty until the production update-key ceremony is performed. With an empty registry, `bin/update.php` and `bin/update_remote.php` fail closed and signed updating remains disabled.
+Registry намеренно остаётся пустым до выполнения production update-key ceremony. При пустом registry `bin/update.php` и `bin/update_remote.php` завершаются fail-closed, а подписанные обновления остаются отключёнными.
 
-## Manifest contract
+## Контракт manifest
 
-A signed manifest contains at least:
+Подписанный manifest содержит как минимум:
 
 ```json
 {
@@ -56,14 +56,14 @@ A signed manifest contains at least:
 }
 ```
 
-The signature protects the version, compatibility floor, source commit and package hash/size/name. Action paths refuse same-version/downgrade packages; read-only remote checks may report those signed states without downloading package bytes.
+Подпись защищает version, compatibility floor, source commit, hash/size/name пакета. Action paths отклоняют same-version/downgrade packages; read-only remote checks могут сообщать эти подписанные состояния без загрузки bytes пакета.
 
 ## Production update-key ceremony
 
-Perform this only on a controlled/offline vendor machine.
+Выполняйте эту процедуру только на контролируемой/offline машине поставщика.
 
-1. Create a directory outside the repository for signing secrets.
-2. Generate a dedicated update keypair:
+1. Создайте вне репозитория директорию для signing secrets.
+2. Создайте отдельную пару update keys:
 
 ```bash
 php tools/vendor-update/keygen.php \
@@ -71,17 +71,17 @@ php tools/vendor-update/keygen.php \
   --private-out=/secure/offline/workspace-update-prod-2026-01.update-secret
 ```
 
-3. Store the private key in vendor secret storage. It must never enter GitHub source, Actions secrets/artifacts, a customer server, a support archive, `.env`, database settings or a release ZIP.
-4. Add **only** the printed public key entry to `config/update_trusted_keys.php` in a reviewed PR.
-5. Run the full release CI before shipping that trust root.
+3. Сохраните private key в secret storage поставщика. Он никогда не должен попадать в GitHub source, Actions secrets/artifacts, customer server, support archive, `.env`, database settings или release ZIP.
+4. Добавьте **только** напечатанную public key entry в `config/update_trusted_keys.php` через проверенный PR.
+5. До поставки этого trust root выполните полный release CI.
 
-The private key file uses a separate update-key format and the tooling refuses to create/read it inside the repository tree. On Unix it must not be group/other accessible.
+Файл private key использует отдельный update-key format, а tooling запрещает создавать или читать его внутри дерева репозитория. В Unix он не должен быть доступен group/other.
 
-## Building and signing release metadata
+## Сборка и подпись release metadata
 
-The GitHub `Build hosting package` workflow only builds the release-candidate ZIP and records its SHA-256 as an Actions artifact. It intentionally does not create or update a public GitHub Release. Publication happens only after the exact ZIP has been used to build and offline-sign the production update manifest.
+GitHub workflow `Build hosting package` только собирает ZIP релиз-кандидата и сохраняет его SHA-256 как Actions artifact. Он намеренно не создаёт и не обновляет публичный GitHub Release. Публикация выполняется только после того, как exact ZIP использован для сборки и offline-подписи production update manifest.
 
-After the final hosting ZIP exists, verify its recorded SHA-256 and build the manifest from that exact file:
+После появления финального hosting ZIP проверьте его зафиксированный SHA-256 и соберите manifest из exact файла:
 
 ```bash
 php tools/vendor-update/build-manifest.php \
@@ -95,7 +95,7 @@ php tools/vendor-update/build-manifest.php \
   --out=/release/workspace-organizer-v1.0.0.update.json
 ```
 
-Then sign the **exact manifest bytes**:
+Затем подпишите **точные bytes manifest**:
 
 ```bash
 php tools/vendor-update/sign-manifest.php \
@@ -105,11 +105,11 @@ php tools/vendor-update/sign-manifest.php \
   --signature-out=/release/workspace-organizer-v1.0.0.update.sig
 ```
 
-Changing even one byte of the manifest after signing invalidates the signature.
+Изменение даже одного byte manifest после подписи делает signature недействительной.
 
-## Customer-side verification and archive preflight
+## Проверка на стороне клиента и preflight архива
 
-Verification only:
+Только verification:
 
 ```bash
 php bin/update.php \
@@ -119,31 +119,31 @@ php bin/update.php \
   --verify-only
 ```
 
-The command verifies:
+Команда проверяет:
 
-- trusted update key id;
-- Ed25519 signature over exact manifest bytes;
-- manifest schema/product fields;
-- issue time sanity;
-- target is newer than the installed `VERSION_CODE`;
-- installed version satisfies `min_source_version_code`;
-- local PHP satisfies `requires_php`;
-- package filename, byte size and SHA-256;
-- ZIP central-directory and local-header consistency;
-- safe relative UTF-8 entry paths;
-- no path traversal, absolute/backslash/colon paths or NULs;
-- no symlink/special Unix entries;
-- no encrypted, multi-disk, ZIP64 or data-descriptor entries in the supported update subset;
-- supported compression methods only;
-- no duplicate/case-colliding paths;
-- per-file/total uncompressed-size and compression-ratio safety limits;
-- no overlapping local entry payload regions.
+- доверенный update key ID;
+- Ed25519 signature точных bytes manifest;
+- поля schema/product manifest;
+- корректность времени выпуска;
+- target новее установленного `VERSION_CODE`;
+- установленная версия удовлетворяет `min_source_version_code`;
+- локальный PHP удовлетворяет `requires_php`;
+- filename, byte size и SHA-256 пакета;
+- согласованность central-directory и local-header ZIP;
+- безопасные относительные UTF-8 entry paths;
+- отсутствие path traversal, absolute/backslash/colon paths и NUL;
+- отсутствие symlink/special Unix entries;
+- отсутствие encrypted, multi-disk, ZIP64 или data-descriptor entries в поддерживаемом subset обновлений;
+- только поддерживаемые compression methods;
+- отсутствие duplicate/case-colliding paths;
+- ограничения безопасности per-file/total uncompressed-size и compression-ratio;
+- отсутствие пересечения local entry payload regions.
 
-The structural audit is pure PHP and does **not** extract the archive. It accepts only explicit local regular files, not URLs or symlinks.
+Структурный аудит реализован на чистом PHP и **не** извлекает архив. Он принимает только явно заданные local regular files, но не URL или symlink.
 
-## External verified staging
+## Внешний verified staging
 
-To stage a verified update:
+Для staging проверенного обновления:
 
 ```bash
 php bin/update.php \
@@ -153,24 +153,24 @@ php bin/update.php \
   --stage-root=/absolute/path/outside/application
 ```
 
-If `--stage-root` is omitted, `UPDATE_STAGING_PATH` is used; otherwise the updater falls back to `<PRIVATE_STORAGE_PATH>/updates`.
+Если `--stage-root` не передан, используется `UPDATE_STAGING_PATH`; иначе updater откатывается к `<PRIVATE_STORAGE_PATH>/updates`.
 
-The staging root must resolve outside the live application tree. The updater:
+Staging root должен разрешаться за пределами live application tree. Updater:
 
-1. verifies signature, compatibility, package SHA-256 and ZIP structure;
-2. locks the staging root against concurrent staging;
-3. copies into a random temporary stage directory;
-4. verifies SHA-256 again after copying;
-5. stores the exact manifest/signature plus stage metadata;
-6. atomically renames the temporary directory to its final immutable stage name.
+1. проверяет signature, compatibility, package SHA-256 и структуру ZIP;
+2. блокирует staging root от concurrent staging;
+3. копирует файлы в случайную временную stage directory;
+4. повторно проверяет SHA-256 после копирования;
+5. сохраняет exact manifest/signature вместе со stage metadata;
+6. атомарно переименовывает временную directory в финальное immutable stage name.
 
-Repeating the same signed artifact is idempotent and re-verifies the existing staged files.
+Повторная обработка того же signed artifact идемпотентна и заново проверяет существующие staged files.
 
-## Remote signed delivery
+## Удалённая доставка подписанного обновления
 
-Remote delivery is a network-ingress layer in front of the same immutable staging contract. It does **not** enter maintenance, create an updater transaction, extract the package or mutate live files.
+Remote delivery — это network-ingress слой перед тем же immutable staging contract. Он **не** включает maintenance, не создаёт updater transaction, не извлекает package и не изменяет live files.
 
-Recommended configuration:
+Рекомендуемая конфигурация:
 
 ```dotenv
 UPDATE_FEED_URL=https://updates.example.com/workspace-organizer/stable/feed.json
@@ -178,53 +178,182 @@ UPDATE_CHANNEL=stable
 UPDATE_STAGING_PATH=/var/lib/notes/update-staging
 ```
 
-Check the signed feed without downloading the ZIP:
+Проверка signed feed без загрузки ZIP:
 
 ```bash
 php bin/update_remote.php --check-only --json
 ```
 
-A successful read-only check classifies the signed feed as `update_available`, `up_to_date`, `ahead_of_feed` or `update_incompatible`. All four states leave `package_downloaded=false` and `live_files_changed=false`.
+Успешная read-only проверка классифицирует signed feed как `update_available`, `up_to_date`, `ahead_of_feed` или `update_incompatible`. Во всех четырёх состояниях остаются `package_downloaded=false` и `live_files_changed=false`.
 
-Download, verify, audit and stage an installable update:
+Загрузка, verification, audit и staging устанавливаемого обновления:
 
 ```bash
 php bin/update_remote.php --json
 ```
 
-The feed itself is discovery metadata, not a trust root. It identifies only same-directory manifest/signature leaf filenames. The exact manifest bytes must pass Ed25519 verification; the verified manifest then supplies the package filename, byte size and SHA-256. An unsigned package pointer in the feed has no authority.
+Сам feed — discovery metadata, а не trust root. Он указывает только manifest/signature leaf filenames из той же директории. Exact bytes manifest обязаны пройти Ed25519 verification; только после этого verified manifest определяет filename, byte size и SHA-256 пакета. Неподписанный package pointer в feed не имеет полномочий.
 
-The vendor-free HTTPS transport requires `openssl` and fails closed on plain HTTP, literal/private/reserved network targets, non-443 ports, redirects, transfer-encoded responses, non-identity content encoding, ambiguous/missing `Content-Length`, or TLS peer/certificate verification failure. DNS is resolved first, only a public address is accepted, and that checked address is pinned to the TLS socket while certificate verification still uses the configured DNS host.
+Vendor-free HTTPS transport требует `openssl` и работает fail-closed для plain HTTP, literal/private/reserved network targets, портов кроме 443, redirects, transfer-encoded responses, non-identity content encoding, неоднозначного/отсутствующего `Content-Length` и ошибок TLS peer/certificate verification. Сначала разрешается DNS, принимается только public address, затем проверенный address фиксируется для TLS socket, при этом certificate verification продолжает использовать настроенный DNS host.
 
-Package download is streamed into a private external temporary directory and capped at 512 MiB in addition to the signed size contract. The transport requires HTTP `Content-Length` to equal the signed size and calculates SHA-256 while downloading. The existing local package verifier and ZIP inspector then run again, followed by the normal immutable `UpdatePackageStager`; temporary network ingress bytes are removed afterwards.
+Package скачивается потоково во внешнюю приватную temporary directory и дополнительно к signed size contract ограничен 512 MiB. Transport требует, чтобы HTTP `Content-Length` совпадал с подписанным size, и вычисляет SHA-256 во время загрузки. Затем повторно выполняются существующий local package verifier и ZIP inspector, после чего применяется обычный immutable `UpdatePackageStager`; временные network-ingress bytes удаляются.
 
-The package is never downloaded when `--check-only` is used, when a newer signed update is incompatible, or when the action compatibility gate rejects same-version/downgrade/source-floor/runtime conditions.
+Package никогда не скачивается при `--check-only`, если более новое signed update несовместимо, либо action compatibility gate отклоняет same-version/downgrade/source-floor/runtime условия.
 
-Detailed network, publishing and failure-boundary guidance is in `docs/UPDATE_REMOTE_DELIVERY.md`.
+Подробные правила network, publishing и failure boundaries находятся в `docs/UPDATE_REMOTE_DELIVERY.md`.
 
-## Administrator check and staging UI
+## Проверка и staging через интерфейс администратора
 
-The administrator UI exposes the same non-destructive remote-delivery primitives under `/admin/updates` without creating a second updater implementation.
+Administrator UI предоставляет те же недеструктивные remote-delivery primitives по адресу `/admin/updates` и не создаёт вторую реализацию updater.
 
-Access model:
+Модель доступа:
 
-- page and signed-feed check require `admin.settings.manage`;
-- check is a GET/read-only operation and downloads no package bytes;
-- package staging is POST + CSRF and additionally requires the `superadmin` role;
-- the global license mutation guard still applies to staging;
-- feed URL and channel are server configuration only and are never accepted from browser input.
+- страница и проверка signed feed требуют `admin.settings.manage`;
+- check — GET/read-only operation и не скачивает package bytes;
+- package staging — POST + CSRF и дополнительно требует роль `superadmin`;
+- глобальный license mutation guard по-прежнему применяется к staging;
+- feed URL и channel являются только server configuration и никогда не принимаются из browser input.
 
-The UI displays the installed version, configured channel/feed label, trust-root/runtime readiness and the signed check result (`update_available`, `up_to_date`, `ahead_of_feed`, `update_incompatible`). Release notes and package metadata come only from the verified manifest and are escaped before rendering.
+UI отображает установленную version, настроенные channel/feed label, готовность trust-root/runtime и результат signed check (`update_available`, `up_to_date`, `ahead_of_feed`, `update_incompatible`). Release notes и package metadata берутся только из verified manifest и экранируются перед rendering.
 
-When a compatible update is available, a superadmin may explicitly download, re-verify, ZIP-audit and publish it to immutable external staging. The controller stores only a safe summary in the session: target version, signing key id, package hash and archive counts. The absolute staging path is deliberately not persisted into web state or rendered.
+Когда доступно compatible update, superadmin может явно скачать, повторно проверить, выполнить ZIP-audit и опубликовать его в immutable external staging. Controller сохраняет в session только безопасное summary: target version, signing key ID, package hash и archive counts. Absolute staging path намеренно не сохраняется в web state и не отображается.
 
-This first UI slice stops at staging. It has no browser action for maintenance entry, transaction-journal creation, rollback backup, release-candidate extraction, migrations, live code switch, apply or recovery. Those destructive operations remain CLI/operator transaction boundaries until a separately reviewed browser transaction flow exists.
+Первая версия UI заканчивается на staging. В ней нет browser actions для входа в maintenance, создания transaction journal, rollback backup, извлечения release candidate, migrations, live code switch, apply или recovery. Эти destructive operations остаются CLI/operator transaction boundaries до появления отдельно проверенного browser transaction flow.
 
-## Updater maintenance mode
+## Диагностика готовности updater
 
-Updater maintenance is file-backed and deliberately independent from MySQL. Its marker must live outside the application tree so it remains readable while database migrations or code replacement are in progress.
+Перед проверкой или применением обновления запустите read-only readiness doctor:
 
-Recommended production configuration:
+```bash
+php bin/update_doctor.php --json
+```
+
+Он не выполняет network request и не изменяет состояние. Проверяются local trust registry, обязательные PHP extensions, `proc_open`, настройки HTTPS feed/channel, формат online credentials при их включении, внешние staging/state/backup/release paths и DB configuration, необходимая для rollback backup.
+
+Страница Admin Updates показывает то же local operator-readiness summary, не раскрывая private credential contents и absolute staged-package paths.
+
+## Первый переход с 1.0.1 на 1.0.2
+
+Опубликованная версия `1.0.1` уже содержит runtime подписанной transaction/apply/bootstrap цепочки, но была выпущена до convenience wrapper `bin/update_run.php`, readiness doctor и retention command из `1.0.2`. **Не** копируйте отдельные новые PHP-файлы updater в live tree 1.0.1.
+
+Поддерживаемый первый переход использует существующую границу **trusted external bootstrap**:
+
+1. Получите официальный hosting ZIP 1.0.2, `update.json`, `update.sig` и опубликованный SHA-256 через release channel.
+2. Проверьте checksum release ZIP до использования как источника bootstrap runner.
+3. Извлеките trusted bundle 1.0.2 во временную directory, **отдельную от live application tree 1.0.1**. Bundle содержит только public update trust root; private signing key никогда в него не входит.
+4. Храните signed ZIP/manifest/signature 1.0.2 как локальные files и запустите bootstrap из временного дерева 1.0.2 против exact live source:
+
+```bash
+php /secure/workspace-1.0.2-runner/bin/update_bootstrap.php \
+  --app-root=/srv/workspace \
+  --manifest=/secure/release/update.json \
+  --signature=/secure/release/update.sig \
+  --package=/secure/release/workspace-organizer-v1.0.2.zip \
+  --transaction=update-1-0-1-to-1-0-2 \
+  --expected-source-version=1.0.1 \
+  --expected-source-version-code=10001 \
+  --stage-root=/var/lib/notes/update-staging \
+  --state-root=/var/lib/notes/update-state \
+  --backup-root=/var/lib/notes/update-backups \
+  --candidate-root=/var/lib/notes/update-releases \
+  --json
+```
+
+Bootstrap проверяет exact installed source version и signed manifest/package, создаёт rollback artifacts, строит verified external candidate, транзакционно переключает код, выполняет migrations/health checks и автоматически откатывает код + базу данных при failed post-switch verification. Runner directory никогда не должна пересекаться с live application tree.
+
+После успешного перехода на 1.0.2 последующие обновления используют установленный operator wrapper:
+
+```bash
+php bin/update_run.php --yes --json
+```
+
+Release CI содержит exact drill `v1.0.1` → synthetic signed `1.0.2` success/rollback, закреплённый на опубликованном commit 1.0.1. Production release acceptance всё равно повторяет переход с финальными production-signed artifacts 1.0.2.
+
+## Однокомандный operator flow
+
+`1.0.2` добавляет operator wrapper поверх уже существующих updater transaction boundaries. Он не создаёт вторую реализацию updater и не ослабляет verification signature, backup, candidate или rollback.
+
+Для обычного production path:
+
+```bash
+php bin/update_run.php --yes --json
+```
+
+Команда выполняет существующие фазы в следующем порядке:
+
+```text
+signed remote stage
+  -> enter maintenance
+  -> verified code + MySQL rollback backup
+  -> verified external release candidate
+  -> transactional live apply
+  -> migrations + health/version/schema verification
+  -> commit + maintenance release
+```
+
+Custom transaction ID и внешние roots можно передать явно:
+
+```bash
+php bin/update_run.php \
+  --transaction=update-2026-001 \
+  --stage-root=/var/lib/notes/update-staging \
+  --state-root=/var/lib/notes/update-state \
+  --backup-root=/var/lib/notes/update-backups \
+  --candidate-root=/var/lib/notes/update-releases \
+  --yes --json
+```
+
+Wrapper автоматически снимает maintenance только если ошибка произошла **до** вызова live apply. После пересечения destructive boundary единственным владельцем rollback/recovery и снятия maintenance остаётся `UpdateApplyCommand`. Wrapper никогда принудительно не открывает writes после apply failure.
+
+Recovery после crash/interruption использует тот же transaction journal:
+
+```bash
+php bin/update_run.php \
+  --recover \
+  --transaction=update-2026-001 \
+  --yes --json
+```
+
+Существующие отдельные команды остаются поддерживаемыми для диагностики и контролируемой ручной эксплуатации.
+
+## Retention cleanup recovery-artifacts
+
+Проверенные rollback backups и внешние release candidates намеренно сохраняются после перехода transaction в terminal state. `1.0.2` добавляет отдельную retention command, чтобы крупные artifacts не росли без ограничений:
+
+```bash
+php bin/update_retention.php --json
+```
+
+По умолчанию выполняется preview. Стандартная policy рассматривает terminal artifacts старше 30 дней и всегда сохраняет две самые новые terminal transactions. При необходимости значения задаются явно:
+
+```bash
+php bin/update_retention.php --older-than-days=60 --keep=3 --json
+```
+
+Для удаления обязательны оба destructive flags:
+
+```bash
+php bin/update_retention.php --apply --yes --older-than-days=30 --keep=2 --json
+```
+
+Контракт безопасности:
+
+- подходят только journals в terminal states `committed` или `rollback_verified`;
+- `rollback_failed` и все incomplete/pre-mutation/live-mutation recovery states никогда не удаляются retention-механизмом;
+- transaction journals сохраняются как лёгкие historical evidence;
+- signed staged packages сохраняются; retention удаляет только transaction rollback-backup directories и внешние release candidates;
+- candidate, на который ссылается любая retained/non-terminal transaction, защищён;
+- corrupt journals или unsafe/out-of-root artifact paths приводят destructive cleanup к fail-closed;
+- destructive cleanup запрещён, пока updater maintenance активен;
+- dry-run не требует `--yes` и ничего не меняет.
+
+Команда использует общий updater transaction lock во время планирования/удаления journal-owned artifacts, поэтому journal state не может измениться под уже принятым retention decision.
+
+## Maintenance mode updater
+
+Maintenance updater хранится в файле и намеренно независим от MySQL. Его marker должен располагаться вне application tree, чтобы оставаться доступным во время database migrations или замены кода.
+
+Рекомендуемая production configuration:
 
 ```dotenv
 UPDATE_STAGING_PATH=/var/lib/notes/update-staging
@@ -235,7 +364,7 @@ UPDATE_FEED_URL=https://updates.example.com/workspace-organizer/stable/feed.json
 UPDATE_CHANNEL=stable
 ```
 
-If explicit updater state/storage paths are omitted, updater components use safe subdirectories below `PRIVATE_STORAGE_PATH` where supported.
+Если explicit updater state/storage paths не заданы, компоненты updater используют безопасные subdirectories внутри `PRIVATE_STORAGE_PATH`, где это поддерживается.
 
 Operator CLI:
 
@@ -245,40 +374,40 @@ php bin/maintenance.php --action=enter --transaction=update-2026-001 --reason='�
 php bin/maintenance.php --action=leave --transaction=update-2026-001
 ```
 
-A valid transaction owns the marker. Concurrent/different transactions cannot replace that ownership. `enter`/`leave` transitions are serialized by a filesystem lock.
+Валидная transaction владеет marker. Concurrent/другая transaction не может заменить это ownership. Переходы `enter`/`leave` сериализуются filesystem lock.
 
-If the marker is corrupt, runtime fails closed and treats maintenance as active. Recovery is explicit:
+Если marker повреждён, runtime работает fail-closed и считает maintenance активным. Recovery выполняется явно:
 
 ```bash
 php bin/maintenance.php --action=leave --force
 ```
 
-While maintenance is active:
+Пока maintenance активен:
 
-- `index.php` returns HTTP `503 Service Unavailable` with `Retry-After` **before database/module bootstrap**;
-- an invalid/corrupt marker also returns 503 rather than silently reopening writes;
-- already-open Messenger WebSocket connections cannot execute mutating actions because the shared runtime mutation policy rechecks maintenance state;
-- the operator can still recover through the CLI even if HTTP or MySQL is unavailable.
+- `index.php` возвращает HTTP `503 Service Unavailable` с `Retry-After` **до bootstrap базы данных/модулей**;
+- invalid/corrupt marker также возвращает 503, а не молча разрешает writes;
+- уже открытые Messenger WebSocket connections не могут выполнять mutating actions, потому что общая runtime mutation policy повторно проверяет maintenance state;
+- оператор может выполнить recovery через CLI даже при недоступности HTTP или MySQL.
 
-The early HTTP gate is intentional. Do not move maintenance enforcement exclusively into a normal router middleware: that would be too late when the database is unavailable during an update.
+Ранний HTTP gate сделан намеренно. Не переносите enforcement maintenance исключительно в обычный router middleware: это слишком поздно, если база данных недоступна во время обновления.
 
-## Transaction journal and verified rollback backup
+## Transaction journal и проверенный rollback backup
 
-Before live-code switch or migrations, an updater transaction must own maintenance mode and be bound to one already verified staged artifact. The journal is stored outside both the live application tree and MySQL under `UPDATE_STATE_PATH/transactions`.
+До live-code switch или migrations updater transaction должна владеть maintenance mode и быть привязана к одному уже verified staged artifact. Journal хранится вне live application tree и MySQL в `UPDATE_STATE_PATH/transactions`.
 
-The journal records immutable transaction identity:
+Journal записывает immutable transaction identity:
 
-- transaction id;
-- installed and target version/version code;
+- transaction ID;
+- installed и target version/version code;
 - signed package SHA-256;
 - verified stage directory;
 - transaction state/history;
-- whether any live mutation has started;
-- hashes and locations of rollback artifacts and the verified release candidate.
+- факт начала любой live mutation;
+- hashes и locations rollback artifacts и verified release candidate.
 
-The same transaction id cannot silently be rebound to another package, stage, backup or candidate. Journal writes are serialized and atomically replaced.
+Один transaction ID нельзя незаметно перепривязать к другому package, stage, backup или candidate. Записи journal сериализуются и заменяются атомарно.
 
-Create the rollback checkpoint only after the same transaction has entered maintenance:
+Создавайте rollback checkpoint только после того, как та же transaction вошла в maintenance:
 
 ```bash
 php bin/update_backup.php \
@@ -286,20 +415,20 @@ php bin/update_backup.php \
   --stage-dir=/var/lib/notes/update-staging/<verified-stage>
 ```
 
-Optional `--state-root` and `--backup-root` override `UPDATE_STATE_PATH` and `UPDATE_BACKUP_PATH`.
+Опциональные `--state-root` и `--backup-root` переопределяют `UPDATE_STATE_PATH` и `UPDATE_BACKUP_PATH`.
 
-`bin/update_backup.php` re-verifies the staged manifest/signature, installed/target compatibility, package SHA-256 and ZIP structure before touching backup state. It then creates two rollback artifacts under an external temporary directory and atomically publishes them only after verification:
+`bin/update_backup.php` повторно проверяет staged manifest/signature, installed/target compatibility, package SHA-256 и ZIP structure до изменения backup state. Затем он создаёт два rollback artifacts во внешней temporary directory и атомарно публикует их только после verification:
 
-1. **Code snapshot.** Runtime/release files are copied with per-file SHA-256, size and mode metadata. The snapshot intentionally excludes `.env`, cache/compile, uploads, private storage and other mutable paths so rollback cannot overwrite secrets or user-owned files.
-2. **MySQL dump.** The dump is generated through `mysqli` inside `START TRANSACTION WITH CONSISTENT SNAPSHOT`, so shared-hosting deployments do not depend on a `mysqldump` binary. Every base table is captured together with data and triggers. The backup fails closed if unsupported views/routines/events or non-InnoDB tables are present because such a snapshot would not be a complete/consistent rollback artifact.
+1. **Snapshot кода.** Runtime/release files копируются вместе с per-file SHA-256, size и mode metadata. Snapshot намеренно исключает `.env`, cache/compile, uploads, private storage и другие mutable paths, чтобы rollback не мог перезаписать secrets или user-owned files.
+2. **MySQL dump.** Dump создаётся через `mysqli` внутри `START TRANSACTION WITH CONSISTENT SNAPSHOT`, поэтому shared-hosting deployments не зависят от binary `mysqldump`. Сохраняются каждая base table, данные и triggers. Backup работает fail-closed при наличии неподдерживаемых views/routines/events или non-InnoDB tables, потому что такой snapshot не был бы полным/consistent rollback artifact.
 
-The top-level `backup.json`, code manifest and SQL dump are hash-verified. Repeating the same backup transaction is idempotent only while the existing artifacts still verify byte-for-byte.
+Верхнеуровневый `backup.json`, code manifest и SQL dump проверяются по hash. Повтор того же backup transaction идемпотентен только пока существующие artifacts проходят byte-for-byte verification.
 
-A successful backup checkpoint leaves maintenance active and journal state at `backup_verified` with `live_mutation_started=false`.
+Успешный backup checkpoint оставляет maintenance активным и journal state в `backup_verified` с `live_mutation_started=false`.
 
-## Verified external release candidate
+## Проверенный внешний release candidate
 
-The verified ZIP is never extracted into the live application tree. After `backup_verified`, build a release candidate outside the application root:
+Verified ZIP никогда не извлекается в live application tree. После `backup_verified` соберите release candidate вне application root:
 
 ```bash
 php bin/update_candidate.php \
@@ -307,11 +436,11 @@ php bin/update_candidate.php \
   --candidate-root=/var/lib/notes/update-releases
 ```
 
-The command re-verifies the same transaction/staged signed package and extracts into an external candidate directory. Every extracted file is checked against ZIP CRC/size, unsupported filesystem entries are rejected, the target `core/Version.php` is validated and a `.workspace-release-tree.json` SHA-256 tree manifest is written. Candidate creation does not switch live code and does not run migrations.
+Команда повторно проверяет ту же transaction/staged signed package и извлекает данные во внешнюю candidate directory. Каждый extracted file проверяется по ZIP CRC/size, неподдерживаемые filesystem entries отклоняются, target `core/Version.php` валидируется, затем записывается tree manifest `.workspace-release-tree.json` с SHA-256. Создание candidate не переключает live code и не запускает migrations.
 
-## Transactional live apply and automatic rollback
+## Transactional live apply и автоматический rollback
 
-Apply a previously verified candidate only while the same transaction still owns maintenance:
+Применяйте ранее verified candidate только пока та же transaction продолжает владеть maintenance:
 
 ```bash
 php bin/update_apply.php \
@@ -320,25 +449,25 @@ php bin/update_apply.php \
   --apply
 ```
 
-Immediately before live mutation the command:
+Непосредственно перед live mutation команда:
 
-1. re-verifies rollback backup and candidate tree;
-2. confirms the installed version still matches the checkpoint;
-3. runs pre-update `bin/healthcheck.php --json`;
-4. runs candidate `bin/migrate.php --dry-run` including migration checksum/schema validation;
-5. re-verifies backup/candidate again;
-6. records WebSocket running state;
-7. writes `preflight_verified`, then durably records `live_mutation_started=true`.
+1. повторно проверяет rollback backup и candidate tree;
+2. подтверждает, что installed version всё ещё совпадает с checkpoint;
+3. запускает pre-update `bin/healthcheck.php --json`;
+4. запускает candidate `bin/migrate.php --dry-run`, включая migration checksum/schema validation;
+5. ещё раз проверяет backup/candidate;
+6. записывает текущее running state WebSocket;
+7. записывает `preflight_verified`, затем надёжно фиксирует `live_mutation_started=true`.
 
-The live tree is not overwritten file-by-file and the updater never unzips over it. Because the current installation is not a release-symlink layout, the updater prepares release-owned top-level entries in a private sibling directory on the same filesystem and activates them through controlled `rename()` operations. `.env` and configured mutable storage remain in place. Unsafe mutable paths nested under a release-owned top-level directory make apply fail before mutation.
+Live tree не перезаписывается file-by-file, а updater никогда не распаковывает ZIP поверх него. Поскольку текущая installation не использует release-symlink layout, updater готовит release-owned top-level entries в приватной sibling directory на том же filesystem и активирует их контролируемыми операциями `rename()`. `.env` и настроенное mutable storage остаются на месте. Unsafe mutable paths внутри release-owned top-level directory заставляют apply завершиться до mutation.
 
-After code switch the updater runs migrations, live healthcheck, exact target-version verification and `bin/migrate.php --status`. If native WebSocket was running before apply, it is restarted and checked before the transaction reaches `committed`. Maintenance is removed only after the committed installation is verified.
+После code switch updater выполняет migrations, live healthcheck, verification exact target-version и `bin/migrate.php --status`. Если native WebSocket работал до apply, он перезапускается и проверяется до перехода transaction в `committed`. Maintenance снимается только после verification committed installation.
 
-Any failure after `live_mutation_started` and before `committed` automatically restores code from the verified snapshot, restores MySQL from the verified consistent dump, verifies the exact pre-update version, healthcheck and migration status, and only then records `rollback_verified` and releases maintenance.
+Любая ошибка после `live_mutation_started` и до `committed` автоматически восстанавливает код из verified snapshot, MySQL из verified consistent dump, проверяет exact pre-update version, healthcheck и migration status и только затем записывает `rollback_verified` и снимает maintenance.
 
-If rollback cannot verify, journal state becomes `rollback_failed` where possible and maintenance stays active. Recovery artifacts are preserved.
+Если rollback нельзя подтвердить, journal state по возможности становится `rollback_failed`, а maintenance остаётся активным. Recovery artifacts сохраняются.
 
-Crash/process-death recovery is explicit and phase-aware:
+Recovery после crash/process death выполняется явно и учитывает фазу:
 
 ```bash
 php bin/update_apply.php \
@@ -346,50 +475,50 @@ php bin/update_apply.php \
   --recover
 ```
 
-Recovery resumes from the durable journal (`rollback_started`, `code_restored`, `database_restored`, `rollback_failed`, `rollback_verified` or `committed`) rather than assuming the original PHP process survived. A failure to remove the maintenance marker after `committed` or `rollback_verified` never converts a verified terminal state into a destructive rollback.
+Recovery продолжается из durable journal (`rollback_started`, `code_restored`, `database_restored`, `rollback_failed`, `rollback_verified` или `committed`), а не предполагает, что исходный PHP process остался жив. Ошибка удаления maintenance marker после `committed` или `rollback_verified` никогда не превращает verified terminal state в destructive rollback.
 
-Detailed operator and state-machine guidance is in `docs/UPDATER_LIVE_APPLY.md`.
+Подробное руководство оператора и state machine находится в `docs/UPDATER_LIVE_APPLY.md`.
 
-## Current updater boundary
+## Текущая граница updater
 
-The signed-update stack now provides:
+Signed-update stack сейчас обеспечивает:
 
-- signed update verification and trust-root separation;
-- compatibility/package hash validation;
-- non-extracting ZIP safety audit;
-- public-HTTPS signed feed discovery with read-only status classification;
-- exact signed package download with DNS/TLS/HTTP framing restrictions;
-- administrator read-only signed-feed check and superadmin immutable staging UI;
-- external immutable staging for local or remote ingress;
-- DB-independent maintenance ownership/recovery;
-- external transaction journal;
-- verified code + MySQL rollback checkpoint;
-- verified external release-candidate extraction/tree manifest;
-- pre-healthcheck and migration dry-run/checksum gate;
-- controlled live code switch while preserving installation/mutable state;
-- migration execution under the same transaction;
+- verification signed update и разделение trust roots;
+- validation compatibility/package hash;
+- ZIP safety audit без извлечения;
+- discovery подписанного feed через public HTTPS с read-only status classification;
+- загрузку exact signed package с ограничениями DNS/TLS/HTTP framing;
+- administrator read-only signed-feed check и superadmin immutable staging UI;
+- внешний immutable staging для local или remote ingress;
+- DB-independent ownership/recovery maintenance;
+- внешний transaction journal;
+- verified checkpoint rollback кода + MySQL;
+- verified extraction/tree manifest внешнего release candidate;
+- pre-healthcheck и migration dry-run/checksum gate;
+- controlled live code switch с сохранением installation/mutable state;
+- выполнение migrations внутри той же transaction;
 - exact-version/post-health/schema verification;
-- WebSocket restart verification when the updater owns that lifecycle;
-- automatic code/MySQL rollback;
-- crash-resumable recovery with fail-closed maintenance.
+- verification WebSocket restart, когда updater владеет его lifecycle;
+- автоматический rollback кода/MySQL;
+- crash-resumable recovery с fail-closed maintenance.
 
-It still does **not**:
+Он всё ещё **не**:
 
-- expose destructive maintenance/backup/candidate/apply/recovery operations in the administrator UI;
-- create the production license/update private keys (production key ceremony is intentionally still pending);
-- automatically delete old verified backup/candidate/scratch recovery artifacts;
-- replace an external process supervisor's own drain/restart policy;
-- eliminate the requirement for the final real Beta4 -> 1.0 upgrade/rollback release drill.
+- предоставляет destructive maintenance/backup/candidate/apply/recovery operations через administrator UI;
+- создаёт production private keys лицензий/обновлений — production key ceremony намеренно остаётся отдельной процедурой;
+- автоматически удаляет старые scratch/network-ingress temporary artifacts, не принадлежащие journal;
+- заменяет собственную drain/restart policy внешнего process supervisor;
+- отменяет необходимость финального реального Beta4 -> 1.0 upgrade/rollback release drill.
 
-Those remaining items are release-delivery/operations work. They must not weaken the signed transaction or introduce a direct “unzip over live” shortcut.
+Эти пункты относятся к release-delivery/operations. Они не должны ослаблять signed transaction или вводить прямой shortcut «распаковать поверх live».
 
-## Key rotation
+## Ротация ключей
 
-Use overlapping public trust roots:
+Используйте перекрывающиеся public trust roots:
 
-1. release A trusts old key;
-2. release B trusts old + new keys;
-3. sign subsequent updates with the new private key;
-4. after the supported upgrade window, a later release may remove the old public key.
+1. release A доверяет старому key;
+2. release B доверяет старому + новому keys;
+3. последующие updates подписываются новым private key;
+4. после завершения поддерживаемого upgrade window более поздний release может удалить старый public key.
 
-Removing an old public key too early can strand installations that have not yet crossed the rotation release.
+Слишком раннее удаление старого public key может оставить installations, которые ещё не прошли rotation release, без возможности обновления.

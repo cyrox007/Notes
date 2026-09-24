@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 if (PHP_SAPI !== 'cli') {
-    fwrite(STDERR, "This command is CLI-only.\n");
+    fwrite(STDERR, "Команда доступна только из CLI.\n");
     exit(2);
 }
 
@@ -19,7 +19,13 @@ $options = getopt('', [
     'ci-green',
     'release-evidence-green',
     'backup-restore-current',
-    'beta4-drill-green',
+    'operational-acceptance-green',
+    'visual-acceptance-green',
+    'ospanel-acceptance-green',
+    'update-bootstrap-acceptance-green',
+    'two-factor-acceptance-green',
+    'one-zero-one-drill-green',
+    'beta4-drill-green', // Совместимый alias для старых операторских сценариев
     'p0p1-clear',
     'trust-canaries-green',
     'artifact-signed',
@@ -27,9 +33,9 @@ $options = getopt('', [
 ]);
 
 if (isset($options['help'])) {
-    echo "Usage: php bin/release_acceptance.php [--json] [--strict <operator attestations>]\n";
-    echo "Non-strict mode reports source failures plus pending external release gates.\n";
-    echo "Strict mode exits non-zero until every production/manual gate is explicitly confirmed.\n";
+    echo "Использование: php bin/release_acceptance.php [--json] [--strict <подтверждения оператора>]\n";
+    echo "Обычный режим показывает ошибки исходников и ожидающие внешние релизные проверки.\n";
+    echo "Строгий режим завершается с ошибкой, пока каждая production/manual проверка явно не подтверждена.\n";
     exit(0);
 }
 
@@ -49,8 +55,8 @@ $record = static function (string $name, bool $ok, string $details = '') use (&$
 
 $record(
     'release_identity',
-    Version::VERSION === '1.0.1'
-        && Version::VERSION_CODE === 10001
+    Version::VERSION === '1.0.2'
+        && Version::VERSION_CODE === 10002
         && Version::STATUS === 'stable',
     Version::VERSION . ' / ' . Version::VERSION_CODE . ' / ' . Version::STATUS
 );
@@ -59,19 +65,34 @@ $governancePath = $root . '/.github/release-governance.json';
 $governance = is_file($governancePath)
     ? json_decode((string) file_get_contents($governancePath), true)
     : null;
+$requiredChecks = is_array($governance) ? ($governance['required_checks'] ?? null) : null;
+$stabilizationChecks = is_array($governance) ? ($governance['stabilization_required_checks'] ?? null) : null;
+$candidateChecks = is_array($governance) ? ($governance['release_candidate_required_checks'] ?? null) : null;
 $governanceOk = is_array($governance)
     && ($governance['protected_branch'] ?? null) === 'master'
     && ($governance['stabilization_branch'] ?? null) === '1.0'
-    && ($governance['stabilization_required_checks'] ?? null) === ['release-gate'];
-$record('governance_source_contract', $governanceOk, 'master + 1.0 / release-gate');
+    && is_array($requiredChecks)
+    && $requiredChecks !== []
+    && $stabilizationChecks === $requiredChecks
+    && $candidateChecks === $requiredChecks
+    && in_array('one-zero-one-upgrade-rollback', $requiredChecks, true)
+    && in_array('messenger-realtime-fallback', $requiredChecks, true)
+    && in_array('two-factor-contract (8.1)', $requiredChecks, true)
+    && in_array('two-factor-contract (8.3)', $requiredChecks, true)
+    && in_array('online-update-access (8.1)', $requiredChecks, true)
+    && in_array('online-update-access (8.3)', $requiredChecks, true)
+    && in_array('admin-update-ui (8.1)', $requiredChecks, true)
+    && in_array('admin-update-ui (8.3)', $requiredChecks, true);
+$record('governance_source_contract', $governanceOk, 'master + 1.0 / единый обязательный набор checks');
 
 foreach ([
     'README.md',
     'CHANGELOG.md',
-    'docs/releases/v1.0.1.md',
+    'docs/releases/v1.0.2.md',
     'docs/RELEASE_ACCEPTANCE.md',
     'docs/RELEASE_GOVERNANCE.md',
     'docs/PRODUCTION_TRUST_CEREMONY.md',
+    'docs/TWO_FACTOR_AUTH.md',
     'docs/OPERATIONS.md',
 ] as $relative) {
     $record(
@@ -105,7 +126,7 @@ foreach ($iterator as $file) {
 $record(
     'private_signing_material_absent',
     $privateMatches === [],
-    $privateMatches === [] ? 'no forbidden private signing files' : implode(', ', $privateMatches)
+    $privateMatches === [] ? 'запрещённые файлы приватных signing keys не найдены' : implode(', ', $privateMatches)
 );
 
 $decodePublic = static function (string $token): ?string {
@@ -119,8 +140,8 @@ $decodePublic = static function (string $token): ?string {
 
 $licenseRegistry = require $root . '/config/license_trusted_keys.php';
 $updateRegistry = require $root . '/config/update_trusted_keys.php';
-$record('license_registry_type', is_array($licenseRegistry), 'public keys only');
-$record('update_registry_type', is_array($updateRegistry), 'public keys only');
+$record('license_registry_type', is_array($licenseRegistry), 'только публичные ключи');
+$record('update_registry_type', is_array($updateRegistry), 'только публичные ключи');
 
 $trustRootsReady = is_array($licenseRegistry)
     && is_array($updateRegistry)
@@ -133,7 +154,7 @@ if (is_array($licenseRegistry)) {
     foreach ($licenseRegistry as $id => $token) {
         $raw = is_string($token) ? $decodePublic($token) : null;
         if (!is_string($id) || $raw === null) {
-            $record('license_public_key_format', false, 'invalid key id/public key');
+            $record('license_public_key_format', false, 'некорректный key ID или публичный ключ');
             break;
         }
         $licenseFingerprints[$id] = hash('sha256', $raw);
@@ -143,7 +164,7 @@ if (is_array($updateRegistry)) {
     foreach ($updateRegistry as $id => $token) {
         $raw = is_string($token) ? $decodePublic($token) : null;
         if (!is_string($id) || $raw === null) {
-            $record('update_public_key_format', false, 'invalid key id/public key');
+            $record('update_public_key_format', false, 'некорректный key ID или публичный ключ');
             break;
         }
         $updateFingerprints[$id] = hash('sha256', $raw);
@@ -155,7 +176,7 @@ if ($trustRootsReady) {
         'production_trust_domains_independent',
         array_intersect(array_keys($licenseFingerprints), array_keys($updateFingerprints)) === []
             && array_intersect(array_values($licenseFingerprints), array_values($updateFingerprints)) === [],
-        'independent ids and Ed25519 key material'
+        'независимые ID и Ed25519 key material'
     );
 } else {
     $pending[] = 'production_public_trust_roots';
@@ -184,7 +205,12 @@ $manualGates = [
     'exact_head_ci' => 'ci-green',
     'cross_browser_load_evidence' => 'release-evidence-green',
     'backup_restore' => 'backup-restore-current',
-    'beta4_upgrade_rollback' => 'beta4-drill-green',
+    'operational_acceptance' => 'operational-acceptance-green',
+    'visual_acceptance' => 'visual-acceptance-green',
+    'ospanel_acceptance' => 'ospanel-acceptance-green',
+    'automatic_update_access' => 'update-bootstrap-acceptance-green',
+    'two_factor_acceptance' => 'two-factor-acceptance-green',
+    'one_zero_one_upgrade_rollback' => 'one-zero-one-drill-green',
     'p0_p1_acceptance' => 'p0p1-clear',
     'production_trust_canaries' => 'trust-canaries-green',
     'immutable_artifact_signed' => 'artifact-signed',
@@ -192,7 +218,11 @@ $manualGates = [
 
 $attestations = [];
 foreach ($manualGates as $gate => $flag) {
-    $attestations[$gate] = isset($options[$flag]);
+    $confirmed = isset($options[$flag]);
+    if ($gate === 'one_zero_one_upgrade_rollback' && isset($options['beta4-drill-green'])) {
+        $confirmed = true;
+    }
+    $attestations[$gate] = $confirmed;
     if (!$attestations[$gate]) {
         $pending[] = $gate;
     }
@@ -221,12 +251,17 @@ if ($json) {
         JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
     ) . PHP_EOL;
 } else {
-    echo 'Workspace Organizer ' . Version::VERSION . ' release acceptance: ' . strtoupper($status) . PHP_EOL;
+    $statusLabel = match ($status) {
+        'ready' => 'ГОТОВО',
+        'pending' => 'ОЖИДАЕТ ПОДТВЕРЖДЕНИЙ',
+        default => 'ОШИБКА',
+    };
+    echo 'Workspace Organizer ' . Version::VERSION . ' — приёмка релиза: ' . $statusLabel . PHP_EOL;
     foreach ($checks as $name => $check) {
         echo sprintf("  [%s] %s%s\n", $check['ok'] ? 'OK' : 'FAIL', $name, $check['details'] !== '' ? ' — ' . $check['details'] : '');
     }
     if ($pending !== []) {
-        echo "Pending release gates:\n";
+        echo "Ожидающие релизные проверки:\n";
         foreach ($pending as $gate) {
             echo '  - ' . $gate . PHP_EOL;
         }

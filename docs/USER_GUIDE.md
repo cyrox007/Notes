@@ -151,9 +151,13 @@ Owner может управлять ролями и передавать ownersh
 
 Кнопка микрофона запускает browser recording. Доступны timer/cancel/send, а player поддерживает seek и скорости 1x/1.5x/2x.
 
-### Multi-device
+### Multi-device и резервный realtime
 
-Messenger синхронизирует realtime events со всеми активными WebSocket connections пользователя. Изменение из одной вкладки должно появиться в другой без повторного входа.
+Messenger использует WebSocket как основной realtime-канал. Если WebSocket временно недоступен, клиент автоматически переходит на HTTP long poll: сообщения и другое durable-состояние продолжают синхронизироваться, а reconnect WebSocket идёт в фоне. После успешного `Authorized` клиент бесшовно возвращается на WebSocket.
+
+В статусе соединения отображается текущий режим: «WebSocket · в сети» либо «Long Poll · резервный канал». Typing/activity — временные presence-сигналы и в fallback-режиме могут обновляться менее оперативно.
+
+Multi-device durable state синхронизируется между активными клиентами независимо от того, какой из поддерживаемых transport-режимов использует конкретный browser.
 
 ### Pin, mute, archive
 

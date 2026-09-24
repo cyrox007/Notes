@@ -3,20 +3,23 @@
 declare(strict_types=1);
 
 /**
- * Workspace Organizer update-signing trust registry.
+ * Trust registry подписи обновлений Workspace Organizer.
  *
- * SECURITY BOUNDARY:
- * - values are base64url-encoded raw 32-byte Ed25519 PUBLIC keys only;
- * - update signing keys are a separate cryptographic domain from license keys;
- * - private update-signing keys must never be committed, installed on customer
- *   servers, stored in .env/database settings, or included in release bundles;
- * - key ids are immutable. During rotation, ship old + new public keys together
- *   before retiring the old key in a later release.
+ * ГРАНИЦА БЕЗОПАСНОСТИ:
+ * - здесь допускаются только raw 32-byte ПУБЛИЧНЫЕ ключи Ed25519 в base64url;
+ * - ключи подписи обновлений относятся к отдельному криптографическому домену
+ *   и не должны совпадать с ключами лицензий;
+ * - приватные ключи подписи обновлений никогда не должны коммититься,
+ *   устанавливаться на customer servers, храниться в .env/database settings
+ *   или попадать в release bundles;
+ * - key ID неизменяемы. При ротации поставляйте старый и новый public keys
+ *   вместе, а старый ключ удаляйте только в одном из следующих релизов.
  *
- * The registry intentionally remains empty until the production update-signing
- * key ceremony is completed on a controlled/offline vendor machine.
+ * Production public trust root обновлений зафиксирован ниже. Соответствующий
+ * private signing key остаётся offline и никогда не должен коммититься или
+ * распространяться.
  *
- * @return array<string,string> key-id => base64url(raw Ed25519 public key)
+ * @return array<string,string> key-id => публичный Ed25519 key в base64url
  */
 return [
     'update-prod-2026-01' => 'HFDLlfhevvFZQRlA-ZVZLnmpH1U5bcG8SJMw2uZOXL8',

@@ -1,28 +1,28 @@
-# Production trust ceremony
+# Церемония production trust
 
-This ceremony creates the two production Ed25519 trust roots used by Workspace Organizer 1.0:
+Эта процедура создаёт два production trust root Ed25519, используемых Workspace Organizer 1.0:
 
-- installation license signing;
-- signed update-manifest signing.
+- подпись installation license;
+- подпись update manifest.
 
-The two domains MUST use independent keypairs. Never reuse the same private/public key material across the license and update domains.
+Два домена ОБЯЗАНЫ использовать независимые пары ключей. Никогда не используйте один и тот же private/public key material одновременно для license-domain и update-domain.
 
-## Security boundary
+## Граница безопасности
 
-Run the ceremony on a controlled offline workstation or equivalent isolated vendor signing environment.
+Выполняйте процедуру на контролируемой offline workstation или в эквивалентном изолированном signing environment поставщика.
 
-Never commit, upload to CI, copy into a release bundle, install on a customer server, place in .env, or paste into issue/chat logs any private signing key.
+Никогда не коммитьте, не загружайте в CI, не копируйте в release bundle, не устанавливайте на сервер клиента, не помещайте в `.env` и не вставляйте в issue/chat logs какой-либо приватный signing key.
 
-Only the base64url public keys are committed to:
+В репозиторий коммитятся только base64url public keys:
 
 - `config/license_trusted_keys.php`;
 - `config/update_trusted_keys.php`.
 
-Private key files remain outside the repository and should be protected by the vendor's offline secret storage and backup controls.
+Файлы приватных ключей остаются вне репозитория и должны быть защищены offline secret storage и backup controls поставщика.
 
-## 1. Prepare two independent external secret paths
+## 1. Подготовьте два независимых внешних secret path
 
-Example:
+Пример:
 
 ```bash
 umask 077
@@ -30,16 +30,16 @@ mkdir -p /secure/workspace-signing
 chmod 700 /secure/workspace-signing
 ```
 
-Use different files and different key IDs:
+Используйте разные файлы и разные key ID:
 
 - license: `prod-license-2026-01`;
 - update: `update-prod-2026-01`.
 
-Do not use a dot in the update key ID because the update signature token uses dot separators.
+Не используйте точку в update key ID, потому что token подписи обновления использует точки как разделители.
 
-## 2. Generate the license signing keypair
+## 2. Создайте пару ключей для подписи лицензий
 
-From a trusted source checkout:
+Из доверенного checkout исходников:
 
 ```bash
 php tools/vendor-license/keygen.php \
@@ -47,9 +47,9 @@ php tools/vendor-license/keygen.php \
   --private-out=/secure/workspace-signing/prod-license-2026-01.license-secret
 ```
 
-Record only the printed public registry entry. The private file must remain mode 0600 outside the repository.
+Сохраните только напечатанную public registry entry. Приватный файл должен остаться с mode 0600 вне репозитория.
 
-## 3. Generate the update signing keypair
+## 3. Создайте пару ключей для подписи обновлений
 
 ```bash
 php tools/vendor-update/keygen.php \
@@ -57,23 +57,23 @@ php tools/vendor-update/keygen.php \
   --private-out=/secure/workspace-signing/update-prod-2026-01.update-secret
 ```
 
-Again, record only the public registry entry.
+Снова сохраните только public registry entry.
 
-The license public key and update public key must be different. The repository contract also rejects reused public key material even when the key IDs differ.
+Публичный license key и публичный update key должны различаться. Контракт репозитория также запрещает повторное использование одного public key material даже при разных key ID.
 
-## 4. Commit only public trust roots
+## 4. Коммитьте только публичные trust roots
 
-Add the license public entry to `config/license_trusted_keys.php`.
+Добавьте публичную license entry в `config/license_trusted_keys.php`.
 
-Add the update public entry to `config/update_trusted_keys.php`.
+Добавьте публичную update entry в `config/update_trusted_keys.php`.
 
-Open a dedicated PR. Never commit either `*.license-secret` or `*.update-secret`.
+Откройте отдельный PR. Никогда не коммитьте `*.license-secret` или `*.update-secret`.
 
-The stable release gate for `master` intentionally fails while either production public registry is empty.
+Stable release gate для `master` намеренно падает, если хотя бы один production public registry пуст.
 
 ## 5. License canary
 
-Use a non-production test installation ID and the offline license private key:
+Используйте непродуктивный test installation ID и offline-приватный license key:
 
 ```bash
 php tools/vendor-license/issue.php \
@@ -86,25 +86,25 @@ php tools/vendor-license/issue.php \
   --features=workspace.notes,workspace.tasks,workspace.files,workspace.messenger,workspace.profile,workspace.admin
 ```
 
-Verify the resulting token against a build containing the committed public registry. Do not commit the canary token.
+Проверьте полученный token на сборке, содержащей committed public registry. Не коммитьте canary token.
 
-## 6. Update-signing canary
+## 6. Canary подписи обновления
 
-Create a disposable ZIP package outside the repository or use the exact release-candidate bundle, then build a manifest:
+Создайте disposable ZIP package вне репозитория или используйте exact release-candidate bundle, затем соберите manifest:
 
 ```bash
 php tools/vendor-update/build-manifest.php \
-  --package=/secure/release/workspace-organizer-v1.0.1.zip \
-  --version=1.0.1 \
-  --version-code=10001 \
+  --package=/secure/release/workspace-organizer-v1.0.2.zip \
+  --version=1.0.2 \
+  --version-code=10002 \
   --channel=stable \
   --source-commit=<FULL_40_HEX_RELEASE_COMMIT> \
-  --min-source-version-code=1404 \
+  --min-source-version-code=10001 \
   --requires-php=8.1.0 \
   --out=/secure/release/update.json
 ```
 
-Sign the exact manifest bytes with the separate update key:
+Подпишите точные bytes manifest отдельным update key:
 
 ```bash
 php tools/vendor-update/sign-manifest.php \
@@ -114,19 +114,19 @@ php tools/vendor-update/sign-manifest.php \
   --signature-out=/secure/release/update.sig
 ```
 
-The updater must accept the manifest only when the corresponding public key is present in `config/update_trusted_keys.php`.
+Updater должен принимать manifest только при наличии соответствующего public key в `config/update_trusted_keys.php`.
 
-## 7. Acceptance before master release
+## 7. Приёмка перед выпуском в master
 
-Before merging the final release candidate to `master`:
+До merge финального release candidate в `master`:
 
-1. both public registries are non-empty;
-2. key IDs do not overlap;
-3. public key fingerprints do not overlap;
-4. production private keys exist only in the offline vendor environment;
-5. a canary license verifies;
-6. a canary update manifest verifies;
-7. the full Stable release gate is green on the exact release head;
-8. the final release artifact is signed with the update-domain key after its SHA-256 is final.
+1. оба public registry непустые;
+2. key ID не пересекаются;
+3. fingerprints публичных ключей не пересекаются;
+4. production private keys существуют только в offline vendor environment;
+5. canary license успешно проверяется;
+6. canary update manifest успешно проверяется;
+7. полный Stable release gate зелёный на exact release head;
+8. финальный release artifact подписан update-domain key после окончательной фиксации его SHA-256.
 
-If any private signing material appears in Git history, CI artifacts, customer packages, support archives or chat/log output, treat that keypair as compromised and replace it before release.
+Если какой-либо private signing material появляется в Git history, CI artifacts, customer packages, support archives или chat/log output, считайте эту пару ключей скомпрометированной и замените её до релиза.

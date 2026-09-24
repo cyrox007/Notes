@@ -25,9 +25,14 @@ jobs:
           coverage: none
       - name: Online access and existing signed delivery contracts
         run: |
+          php -l tools/license-server/LicenseServer.php
           php -l tools/license-server/public/index.php
           php -l tools/license-server/manage.php
           php -l bin/update_activate.php
+          php -l bin/update_remote.php
+          php -l core/UpdateAccessBootstrap.php
+          php -l core/UpdateDownloadCredentials.php
+          php tests/integration/automatic_update_bootstrap_contract.php
           php tests/integration/online_update_access_contract.php
           php tests/integration/online_update_http_contract.php
           php tests/integration/updater_remote_delivery_contract.php

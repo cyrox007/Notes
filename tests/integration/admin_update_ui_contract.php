@@ -197,8 +197,14 @@ $temp = sys_get_temp_dir() . '/wo-admin-update-ui-' . bin2hex(random_bytes(6));
 adminUpdateAssert(mkdir($temp, 0700, true), 'cannot create admin update temp root');
 $previousFeed = getenv('UPDATE_FEED_URL');
 $previousChannel = getenv('UPDATE_CHANNEL');
+$previousAccessMode = getenv('UPDATE_ACCESS_MODE');
 $previousStage = getenv('UPDATE_STAGING_PATH');
 $previousPrivate = getenv('PRIVATE_STORAGE_PATH');
+$previousState = getenv('UPDATE_STATE_PATH');
+$previousBackup = getenv('UPDATE_BACKUP_PATH');
+$previousRelease = getenv('UPDATE_RELEASE_PATH');
+$previousDbUser = getenv('DBUSER');
+$previousDbName = getenv('DBNAME');
 
 try {
     $feedUrl = 'https://updates.example.test/stable/feed.json';
@@ -251,8 +257,14 @@ try {
 
     putenv('UPDATE_FEED_URL=' . $feedUrl);
     putenv('UPDATE_CHANNEL=stable');
+    putenv('UPDATE_ACCESS_MODE=offline');
     putenv('UPDATE_STAGING_PATH=' . $temp . '/stage');
     putenv('PRIVATE_STORAGE_PATH=' . $temp . '/private');
+    putenv('UPDATE_STATE_PATH=' . $temp . '/state');
+    putenv('UPDATE_BACKUP_PATH=' . $temp . '/backups');
+    putenv('UPDATE_RELEASE_PATH=' . $temp . '/releases');
+    putenv('DBUSER=admin-update-contract');
+    putenv('DBNAME=admin-update-contract');
 
     $transport = new AdminUpdateFakeTransport();
     $transport->text = [
@@ -271,6 +283,8 @@ try {
     $snapshot = $service->snapshot(42);
     adminUpdateAssert(($snapshot['can_check'] ?? false) === true, 'superadmin cannot check configured signed feed');
     adminUpdateAssert(($snapshot['can_stage'] ?? false) === true, 'superadmin cannot stage configured signed update');
+    adminUpdateAssert(($snapshot['operator_ready'] ?? false) === true, 'configured updater is not operator-ready');
+    adminUpdateAssert(($snapshot['operator_command'] ?? '') === 'php bin/update_run.php --yes --json', 'operator command changed unexpectedly');
     adminUpdateAssert(($snapshot['feed_label'] ?? '') === 'updates.example.test/stable/feed.json', 'feed label exposes unexpected data');
     adminUpdateAssert(!str_contains((string) $snapshot['feed_label'], 'https://'), 'feed label should be display-only host/path');
 
@@ -344,7 +358,9 @@ try {
     adminUpdateAssert(str_contains($viewSource, "route('admin_updates_check')"), 'admin update check action is missing');
     adminUpdateAssert(str_contains($viewSource, "route('admin_updates_stage')"), 'admin update stage action is missing');
     adminUpdateAssert(str_contains($viewSource, '$view->csrfInput()'), 'admin update stage form lost CSRF token');
-    adminUpdateAssert(!str_contains($viewSource, 'update_apply'), 'admin update view exposes live apply action');
+    adminUpdateAssert(!str_contains($viewSource, "route('admin_updates_apply')"), 'admin update view exposes a destructive web apply action');
+    adminUpdateAssert(str_contains($viewSource, 'bin/update_run.php --recover'), 'admin update view lost operator recovery guidance');
+    adminUpdateAssert(str_contains($viewSource, '$operatorReady'), 'admin update view lost operator readiness state');
     adminUpdateAssert(!str_contains($viewSource, 'stage_dir'), 'admin update view exposes absolute stage path');
     adminUpdateAssert(str_contains($routerSource, "->add('GET', '/updates/check'"), 'admin signed-feed check must remain GET/read-only');
     adminUpdateAssert(str_contains($routerSource, "->add('POST', '/updates/stage'"), 'admin stage route must remain POST');
@@ -361,8 +377,14 @@ try {
     foreach ([
         'UPDATE_FEED_URL' => $previousFeed,
         'UPDATE_CHANNEL' => $previousChannel,
+        'UPDATE_ACCESS_MODE' => $previousAccessMode,
         'UPDATE_STAGING_PATH' => $previousStage,
         'PRIVATE_STORAGE_PATH' => $previousPrivate,
+        'UPDATE_STATE_PATH' => $previousState,
+        'UPDATE_BACKUP_PATH' => $previousBackup,
+        'UPDATE_RELEASE_PATH' => $previousRelease,
+        'DBUSER' => $previousDbUser,
+        'DBNAME' => $previousDbName,
     ] as $name => $value) {
         if ($value === false) {
             putenv($name);

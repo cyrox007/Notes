@@ -1,0 +1,109 @@
+name: Двухфакторная аутентификация TOTP
+
+on:
+  pull_request:
+    branches: [dev, '1.0', master]
+  push:
+    branches: [dev, '1.0', master]
+
+permissions:
+  contents: read
+
+jobs:
+  two-factor-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: workspace_two_factor
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.3']
+
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+
+      - name: Подготовить PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: sodium, mysqli, pdo_mysql, mbstring
+          coverage: none
+
+      - name: Проверить синтаксис контура 2FA
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l app/services/TwoFactorService.php
+          php -l app/services/TwoFactorPolicyService.php
+          php -l app/middlewares/TwoFactorRateLimit.php
+          php -l app/middlewares/EnforceTwoFactorPolicy.php
+          php -l app/controllers/AuthController.php
+          php -l app/models/UserModel.php
+          php -l app/views/login_page/two_factor_view.php
+          php -l app/views/login_page/two_factor_setup_view.php
+          php -l app/views/login_page/two_factor_recovery_view.php
+          php -l core/routerConfig.php
+          php -l modules/admin/controllers/SettingsController.php
+          php -l modules/admin/views/settings.php
+          php -l modules/profile/controllers/ProfileController.php
+          php -l modules/profile/ProfileRuntimeProvider.php
+          php -l modules/profile/views/index.php
+          php -l tests/integration/two_factor_contract.php
+
+      - name: Проверить TOTP, резервные коды и политику
+        run: php tests/integration/two_factor_contract.php
+
+      - name: Проверить прямую ротацию и откат TOTP-секретов
+        shell: bash
+        env:
+          DBDRIVER: mysql
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: workspace_two_factor
+          UNIQUE_KEY: old-unique-key-for-two-factor-rotation-0123456789abcdef
+          MSG_SECRET_KEY: old-message-key-for-two-factor-rotation-0123456789abcdef
+          TEST_OLD_UNIQUE_KEY: old-unique-key-for-two-factor-rotation-0123456789abcdef
+          TEST_NEW_UNIQUE_KEY: new-unique-key-for-two-factor-rotation-fedcba9876543210
+          TEST_OLD_MSG_KEY: old-message-key-for-two-factor-rotation-0123456789abcdef
+          TEST_NEW_MSG_KEY: new-message-key-for-two-factor-rotation-fedcba9876543210
+          PRIVATE_STORAGE_PATH: /tmp/workspace-two-factor/private
+          UPDATE_STATE_PATH: /tmp/workspace-two-factor/update-state
+          DATA_KEY_ROTATION_STATE_PATH: /tmp/workspace-two-factor/key-rotation
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/workspace-two-factor
+          install -d -m 700 "$PRIVATE_STORAGE_PATH" "$UPDATE_STATE_PATH" "$DATA_KEY_ROTATION_STATE_PATH"
+          for schema in \
+            database/messenger_schema.sql \
+            database/notes_schema.sql \
+            database/file_manager_schema.sql \
+            database/user_fields_schema.sql \
+            database/tasks_schema.sql \
+            database/access_control_schema.sql \
+            database/audit_schema.sql \
+            database/settings_schema.sql \
+            database/module_lifecycle_schema.sql
+          do
+            mysql -h 127.0.0.1 -uroot -proot workspace_two_factor < "$schema"
+          done
+          php tests/integration/data_key_rotation_contract.php
+
+      - name: Проверить существующий контракт маршрутов и сессий
+        run: php tests/integration/router_session_security_contract.php

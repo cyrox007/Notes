@@ -1,126 +1,135 @@
-# Workspace Organizer 1.0 final release acceptance
+# Финальная приёмка релиза Workspace Organizer 1.0.2
 
-This document is the final cut checklist for `v1.0.1`. It deliberately separates repository correctness, CI evidence and operator-only actions. A release is accepted only on one exact commit; evidence from an older head does not transfer automatically.
+Этот документ — финальный чек-лист выпуска `v1.0.2`. Он намеренно разделяет корректность репозитория, доказательства CI и действия, которые может выполнить только оператор. Релиз принимается только для одного точного commit; доказательства со старого HEAD автоматически не переносятся.
 
-## Release candidate identity
+## Идентичность релиз-кандидата
 
-The accepted release candidate must report:
+Принятый релиз-кандидат должен сообщать:
 
-- version: `1.0.1`;
-- version code: `10001`;
-- status: `stable`;
-- release branch: `1.0`;
-- final release branch: `master`;
-- tag: `v1.0.1`.
+- версия: `1.0.2`;
+- код версии: `10002`;
+- статус: `stable`;
+- релизная ветка: `1.0`;
+- финальная релизная ветка: `master`;
+- тег: `v1.0.2`.
 
-Record the exact 40-character commit SHA in the release notes before building the final bundle.
+До сборки финального пакета зафиксируйте точный 40-символьный SHA commit в релизных материалах.
 
-## Gate A — repository/source contract
+## Gate A — контракт репозитория и исходников
 
-Before final RC testing:
+До финального тестирования RC:
 
-1. All intended 1.0 engineering PRs are merged into `1.0`.
-2. No unrelated or unreviewed branches are merged for convenience.
-3. `php bin/release_acceptance.php --json` reports no source-contract failures.
-4. The release tree contains no private license/update signing keys.
-5. README, CHANGELOG and `docs/releases/v1.0.1.md` describe the same version/status.
-6. Migration manifest and module ownership metadata are current and historical applied SQL has not been rewritten.
-7. The release-evidence harness is present before strict acceptance.
+1. Все запланированные инженерные PR линии 1.0 слиты в `1.0`.
+2. Никакие посторонние или непроверенные ветки не сливаются «для удобства».
+3. `php bin/release_acceptance.php --json` не сообщает об ошибках source-contract.
+4. В релизном дереве нет приватных ключей подписи лицензий или обновлений.
+5. README, CHANGELOG и `docs/releases/v1.0.2.md` описывают одну и ту же версию и статус.
+6. Manifest миграций и metadata владения модулями актуальны, а уже применённые исторические SQL-миграции не переписаны.
+7. Контур release-evidence присутствует до строгой финальной приёмки.
 
-A `pending` result from the non-strict preflight is expected while external ceremony gates are still incomplete.
+Результат `pending` от нестрогого preflight ожидаем, пока внешние ceremony-gates ещё не завершены.
 
-## Gate B — repository governance
+## Gate B — управление репозиторием
 
-Repository Settings are external to Git history. The repository owner/admin must verify:
+Настройки GitHub Settings находятся вне истории Git. Владелец или администратор репозитория должен проверить:
 
-- `1.0` is protected;
-- pull requests are required;
-- branch must be up to date before merge;
-- the always-on `release-gate` is required;
-- the final `master` policy requires the release gate plus Notes/Tasks/Files/Profile/Admin browser lifecycle and storage DB-failure checks listed in `.github/release-governance.json`;
-- stale approvals are dismissed after new commits;
-- force push and branch deletion are blocked;
-- independent approval is required when another qualified reviewer exists.
+- ветка `1.0` защищена;
+- изменения проходят только через pull request;
+- перед merge ветка должна быть актуальна относительно target;
+- always-on check `release-gate` обязателен;
+- финальная политика `master` требует release gate, browser lifecycle для Notes/Tasks/Files/Profile/Admin и storage DB-failure checks, перечисленные в `.github/release-governance.json`;
+- устаревшие approvals сбрасываются после новых commit;
+- force-push и удаление ветки запрещены;
+- независимый approval обязателен, если существует другой квалифицированный reviewer.
 
-Do not mark this gate complete merely because `.github/release-governance.json` is correct.
+Не отмечайте этот gate завершённым только потому, что `.github/release-governance.json` корректен.
 
 ## Gate C — production trust roots
 
-Follow `docs/PRODUCTION_TRUST_CEREMONY.md`.
+Следуйте `docs/PRODUCTION_TRUST_CEREMONY.md`.
 
-Required evidence:
+Требуемые доказательства:
 
-1. license and update signing use independent Ed25519 keypairs;
-2. private keys exist only in controlled offline vendor storage;
-3. only public keys are committed to `config/license_trusted_keys.php` and `config/update_trusted_keys.php`;
-4. license canary verifies against the release candidate;
-5. update-manifest canary verifies against the release candidate;
-6. no private-key file or raw private key appears in Git, CI artifacts, release bundle or support/chat logs.
+1. Для подписи лицензий и обновлений используются независимые пары Ed25519.
+2. Приватные ключи существуют только в контролируемом offline-хранилище поставщика.
+3. В `config/license_trusted_keys.php` и `config/update_trusted_keys.php` коммитятся только публичные ключи.
+4. License canary успешно проверяется на релиз-кандидате.
+5. Canary update-manifest успешно проверяется на релиз-кандидате.
+6. Ни файл приватного ключа, ни необработанный приватный ключ не появляются в Git, CI artifacts, релизном пакете, support-архивах или логах/чатах.
 
-## Gate D — exact-head automated evidence
+## Gate D — автоматические доказательства exact-head
 
-After the final source commit is frozen, run all release-relevant checks on that exact SHA.
+После заморозки финального source commit все релизно-значимые проверки должны быть выполнены на этом точном SHA.
 
-Required evidence includes:
+Требуемые доказательства включают:
 
 - Stable release gate;
-- module isolation/runtime/database ownership;
+- isolation/runtime/database ownership модулей;
 - CSP;
 - security observability;
 - retention/permanent purge;
 - data-key rotation;
-- Notes/Tasks/Files/Profile/Admin browser lifecycle;
-- HTTPS/WSS browser smoke;
+- browser lifecycle для Notes/Tasks/Files/Profile/Admin;
+- HTTPS/WSS browser smoke, включая принудительную потерю WebSocket, HTTP long-poll fallback, освобождение worker/reconnect и мост fallback-mutation → активный WS-клиент;
 - signed updater/staging/apply/backup/recovery;
-- exact published `0.14.0-beta.4 -> 1.0.1` upgrade and rollback drill;
+- автоматический bootstrap update credential по действующей лицензии без activation code и ручного пути; обязательные матрицы `online-update-access (8.1/8.3)` и `admin-update-ui (8.1/8.3)`;
+- точный upgrade/rollback drill опубликованного `v1.0.1` (`0e6e4a3b352cfb7436db6b749fd869bbb07310c9`) -> `1.0.2`;
 - hosting installer/package;
 - cross-browser/mobile release evidence;
-- authenticated load/soak release evidence.
+- authenticated load/soak release evidence;
+- Windows hosting compatibility CI на PHP 8.1/8.3 и финальная ручная приёмка OSPanel 5.2.2 на production-signed artifacts.
 
-No result from a previous commit may substitute for a failed, skipped or unrun check on the frozen release head.
+Результат со старого commit не может заменять failed, skipped или unrun check на frozen release HEAD.
 
-## Gate E — operational acceptance
+## Gate E — эксплуатационная приёмка
 
-On a deployment representative of production:
+На окружении, репрезентативном production:
 
-1. create a fresh verified backup of MySQL + `PRIVATE_STORAGE_PATH`;
-2. complete a restore drill into an isolated environment;
-3. run `php bin/healthcheck.php --json`;
-4. verify HTTPS and WSS through the production reverse proxy;
-5. verify one encrypted Note and one encrypted Messenger message;
-6. verify protected File Manager/Notes/Messenger media access;
-7. review `php bin/observability.php --json` and retention preview;
-8. confirm adequate DB/private-storage free space and writable external state paths.
+1. Создайте свежий проверенный backup MySQL + `PRIVATE_STORAGE_PATH`.
+2. Выполните restore drill в изолированное окружение.
+3. Запустите `php bin/healthcheck.php --json`.
+4. Проверьте HTTPS и WSS через production reverse proxy.
+5. На установке с действующей лицензией и без готового update credential откройте Admin → Updates и подтвердите автоматический bootstrap в `PRIVATE_STORAGE_PATH/update-access/update-access.json` без activation code и ручной правки `.env`.
+6. С двумя аутентифицированными пользователями Messenger проверьте доставку по WebSocket, затем временно остановите/заблокируйте WS endpoint и убедитесь, что доставка автоматически продолжается через «Long Poll · резервный канал» без reload.
+7. Восстановите WS endpoint и убедитесь, что оба клиента автоматически возвращаются в «WebSocket · в сети».
+8. Проверьте одну зашифрованную заметку и одно зашифрованное сообщение Messenger.
+9. Проверьте защищённый доступ к File Manager/Notes/Messenger media.
+10. Просмотрите `php bin/observability.php --json` и retention preview.
+11. Подтвердите достаточное свободное место в БД/private storage и возможность записи во внешние state paths.
 
-## Gate F — defect acceptance
+## Gate F — дефекты и ручная приёмка
 
-Before the release owner declares the RC accepted:
+До того как владелец релиза объявит RC принятым:
 
-- no open P0/P1 data-loss defects;
-- no open P0/P1 security defects;
-- no unresolved release-blocking regression;
-- any known lower-severity limitation is documented and consciously accepted.
+- exact frozen RC/artifact прошёл live visual acceptance из #172, включая light/dark/system и проверку компактной ширины ноутбука;
+- exact frozen RC/artifact прошёл OSPanel 5.2.2 transport acceptance из #173: WebSocket `101` + `Authorized`, автоматический Long Poll fallback, durable delivery и автоматический возврат к WebSocket;
+- exact frozen RC прошёл автоматический updater acceptance: обычная лицензия сама создаёт внешний installation credential, повторная проверка не требует кода, а offline-режим не обращается в сеть;
+- exact frozen RC прошёл 2FA/TOTP acceptance: персональное включение/отключение, обязательная политика Admin, принудительная настройка аккаунта без TOTP, одноразовый recovery code и сохранение работоспособности после прямой/обратной ротации `UNIQUE_KEY`;
+- нет открытых P0/P1 дефектов с риском потери данных;
+- нет открытых P0/P1 дефектов безопасности;
+- нет неразрешённой release-blocking regression;
+- любое известное ограничение меньшей критичности документировано и осознанно принято.
 
-Automated CI cannot fabricate this decision. If no representative human beta cohort was run, record that fact explicitly rather than claiming beta coverage.
+Автоматический CI не может подменить это решение. Если репрезентативная human beta cohort не запускалась, зафиксируйте этот факт явно, а не заявляйте о beta coverage.
 
-## Gate G — immutable artifact and signing
+## Gate G — неизменяемый артефакт и подпись
 
-Build the final upload-ready bundle from the exact accepted SHA. The `Build hosting package` workflow is deliberately **build-only**: for a manual pre-tag build, run it against the exact accepted commit/ref with `version=v1.0.1`. It verifies that version against `core/Version.php`, then stores the ZIP, its SHA-256 and the exact source SHA as one workflow artifact. It must not create or update a public GitHub Release before offline signing is complete.
+Соберите финальный upload-ready bundle из точного принятого SHA. Workflow `Build hosting package` намеренно работает только как сборка: для ручной pre-tag сборки запускайте его на точном принятом commit/ref с `version=v1.0.2`. Он сверяет версию с `core/Version.php`, затем сохраняет ZIP, его SHA-256 и точный source SHA одним workflow artifact. До завершения offline signing он не должен создавать или обновлять публичный GitHub Release.
 
-Then:
+Далее:
 
-1. download the exact workflow ZIP + checksum + source-SHA artifact; verify both the recorded bundle SHA-256 and source SHA against the accepted commit;
-2. build the update manifest with the exact source commit/version/version-code;
-3. sign the exact manifest bytes with the offline update-domain private key;
-4. verify manifest signature and package hash with the public registry shipped in the bundle;
-5. verify the bundle excludes `.env`, private storage, vendor signing tools, private signing keys and transient state;
-6. do not modify/repack the ZIP after the recorded SHA-256 and signature are accepted.
+1. Скачайте точный workflow ZIP + checksum + source-SHA artifact; сверьте записанные bundle SHA-256 и source SHA с принятым commit.
+2. Соберите update manifest с точным source commit/version/version-code.
+3. Подпишите точные bytes manifest offline-приватным ключом update-domain.
+4. Проверьте подпись manifest и hash пакета публичным registry, который поставляется в bundle.
+5. Убедитесь, что bundle не содержит `.env`, private storage, vendor signing tools, приватные ключи подписи и transient state.
+6. Не изменяйте и не перепаковывайте ZIP после принятия записанного SHA-256 и подписи.
 
-## Gate H — final merge and tag
+## Gate H — финальный merge и tag
 
-Only after Gates A-G are complete:
+Только после завершения Gates A-G:
 
-1. run the strict preflight with operator attestations:
+1. Запустите строгий preflight с правдивыми operator attestations:
 
 ```bash
 php bin/release_acceptance.php --strict --json \
@@ -128,16 +137,21 @@ php bin/release_acceptance.php --strict --json \
   --ci-green \
   --release-evidence-green \
   --backup-restore-current \
-  --beta4-drill-green \
+  --operational-acceptance-green \
+  --visual-acceptance-green \
+  --ospanel-acceptance-green \
+  --update-bootstrap-acceptance-green \
+  --two-factor-acceptance-green \
+  --one-zero-one-drill-green \
   --p0p1-clear \
   --trust-canaries-green \
   --artifact-signed
 ```
 
-2. merge the exact accepted `1.0` head to `master` without introducing source changes;
-3. verify `master` points at the intended release content;
-4. create signed/annotated tag `v1.0.1` according to repository release policy;
-5. publish the exact previously accepted ZIP together with the update manifest and detached signature; do not rebuild or repack the ZIP after signing;
-6. verify the published download checksum and release metadata once more.
+2. Слейте exact accepted HEAD ветки `1.0` в `master` без внесения новых source changes.
+3. Убедитесь, что `master` указывает на ожидаемое релизное содержимое.
+4. Создайте подписанный/аннотированный тег `v1.0.2` согласно release policy репозитория.
+5. Опубликуйте exact previously accepted ZIP вместе с update manifest и detached signature; не пересобирайте и не перепаковывайте ZIP после подписи.
+6. Ещё раз проверьте checksum опубликованной загрузки и release metadata.
 
-If any source change is required after RC acceptance, invalidate the previous exact-head evidence and repeat the affected gates on the new SHA.
+Если после приёмки RC требуется любое изменение исходников, предыдущие exact-head доказательства аннулируются, а затронутые gates повторяются на новом SHA.

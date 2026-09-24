@@ -1,10 +1,21 @@
-# Workspace Organizer 1.0 — Runtime Module Isolation
+# Workspace Organizer 1.0 — изоляция runtime модулей
 
-`module.json`/lifecycle alone is not runtime isolation. This document tracks the physical migration required before the 1.0 release gate can claim modularity.
+Актуально: 22 сентября 2026.
 
-## Runtime boundary
+Этот документ фиксирует **текущий** runtime-контракт. Историческая миграция завершена: все встроенные production-модули переведены на изолированный runtime, а переходный рекурсивный загрузчик product-кода больше не является частью рабочей архитектуры.
 
-An isolated module declares:
+## Текущее состояние
+
+Изолированы все шесть встроенных модулей:
+
+- `admin`;
+- `files`;
+- `messenger`;
+- `notes`;
+- `profile`;
+- `tasks`.
+
+Для каждого из них manifest содержит:
 
 ```json
 "runtime": {
@@ -13,35 +24,39 @@ An isolated module declares:
 }
 ```
 
-The entrypoint:
+Core загружает platform/shared primitives явно и подключает product runtime только через выбранную composition модулей.
 
-- must be a relative PHP path inside `modules/<id>/`;
-- cannot traverse or escape the module root;
-- is loaded only when the module belongs to the selected runtime composition;
-- must return `Core\ModuleRuntimeProvider`;
-- must report the same module ID as its manifest;
-- boots in dependency-first order;
-- owns registration of its routes;
-- exports concrete service objects for exactly the capabilities declared in `module.json`.
+## Граница изолированного runtime
 
-A module must not be switched from `legacy` to `isolated` until its product runtime files and routes have actually moved behind that entrypoint.
+Entrypoint модуля:
 
-## Cross-module capabilities
+- задаётся относительным PHP-путём внутри `modules/<id>/`;
+- не может выходить за корень модуля;
+- загружается только когда модуль присутствует в effective runtime composition;
+- возвращает `Core\ModuleRuntimeProvider`;
+- сообщает тот же module ID, что и manifest;
+- запускается после зависимостей;
+- владеет регистрацией маршрутов модуля;
+- экспортирует только capabilities, объявленные в `module.json`.
 
-Isolated modules do not import another module's internal PHP files or look up its classes by path. Cross-module services are discovered through `Core\ModuleCapabilityRegistry`.
+Отключение или отсутствие одного модуля не должно требовать редактирования внутренних файлов другого модуля и не должно приводить к fatal error ядра.
 
-Rules:
+## Межмодульные capabilities
 
-- capability identifiers are declared in the provider module manifest;
-- the runtime provider must export exactly the same capability set;
-- only modules in the effective runtime composition can provide capabilities;
-- one active capability has exactly one active provider; duplicate registration fails closed instead of depending on boot order;
-- after module boot the registry is sealed and cannot be mutated during request dispatch;
-- consumers request a capability service through `ModuleRuntimeLoader::getInstance()->capabilities()`;
-- consumers may require an expected interface/class, and a type mismatch fails closed;
-- the registry exposes provider ownership for diagnostics without exposing provider filesystem paths.
+Изолированные модули не подключают внутренние PHP-файлы соседнего модуля по пути. Межмодульные сервисы обнаруживаются через `Core\ModuleCapabilityRegistry`.
 
-Example future integration:
+Правила:
+
+- идентификатор capability объявляется в manifest provider-модуля;
+- runtime provider экспортирует тот же набор capabilities;
+- capability доступна только от модуля, входящего в effective composition;
+- у активной capability ровно один provider; дубликат закрывает запуск с ошибкой;
+- после boot registry запечатывается и не изменяется во время request dispatch;
+- consumer получает capability через `ModuleRuntimeLoader::getInstance()->capabilities()`;
+- consumer может потребовать ожидаемый interface/class; несовпадение типа закрывается с ошибкой;
+- диагностика может показать module owner capability без раскрытия внутренних filesystem paths.
+
+Пример будущей интеграции:
 
 ```php
 $player = ModuleRuntimeLoader::getInstance()
@@ -49,55 +64,45 @@ $player = ModuleRuntimeLoader::getInstance()
     ->require('media.playback', MediaPlayback::class);
 ```
 
-A Files/Notes/Messenger module can therefore use media playback without depending on the implementation module's internal controller/service/model layout.
+## Владение файлами, схемой и состоянием
 
-The **registry itself is 1.0 platform infrastructure** because it removes a direct cross-module dependency pattern while modules are being isolated. The actual `media.playback` provider, codec/streaming implementation and player UI remain post-1.0 product work under the feature freeze.
+Изолированный модуль владеет своими:
 
-## Transitional loader
+- controllers/services/domain models;
+- views/assets;
+- permissions/capabilities;
+- storage namespace;
+- schema/migration ownership metadata;
+- health/lifecycle hooks;
+- update metadata.
 
-`core.php` still contains a recursive `app/*` loader while bundled legacy modules exist. This is temporary compatibility infrastructure, not an accepted final boundary.
+Канонические корневые SQL-каталоги остаются известной границей платформы 1.x для модулей с БД. Это не возвращает runtime ownership в Core и не является основанием заново переносить уже изолированные модули.
 
-Migration of each module removes its owned controllers/services/models/socket handlers from shared `app/*`, moves its views/assets/runtime into `modules/<id>/`, removes its route block from `core/routerConfig.php`, then changes the manifest to `isolated`.
+## Исторический порядок миграции
 
-When the final bundled module is isolated, the recursive product loader is deleted. Shared authentication/session/security/platform primitives that remain core-owned are loaded explicitly as core/shared infrastructure.
+Модули переносились в порядке:
 
-## Migration order
+1. Notes;
+2. Tasks;
+3. Files;
+4. Profile;
+5. Admin;
+6. Messenger.
 
-1. Notes — reference implementation.
-2. Tasks.
-3. Files.
-4. Profile.
-5. Admin.
-6. Messenger — last because its HTTP module boundary must converge with the native WebSocket runtime and protocol/origin hardening.
+Этот список теперь **исторический**. Он не означает, что Profile/Admin/Messenger остаются legacy.
 
-Current `1.0` migration state after the Admin step:
+Узкие compatibility bridges допускаются только там, где они не содержат product UI/business logic и не возвращают ownership маршрутов/сервисов в shared runtime.
 
-- isolated: `notes`, `tasks`, `files`, `profile`, `admin`;
-- remaining legacy bundled module: `messenger`.
+## Критерий сохранения изоляции
 
-Profile keeps only narrow compatibility view bridges in `app/views/profile_page/*.php` while its existing controllers retain the historical template names. Those bridges contain no Profile product UI/business logic: product views/assets and runtime code are owned by `modules/profile`, and the module owns its routes/capability. They can be removed later by changing the controller template identifiers to `@profile/*` without changing the runtime boundary.
+Регрессией считается любое из следующего:
 
-## Per-module completion criteria
+- manifest production-модуля возвращён в `runtime.mode = legacy`;
+- product controller/service/model снова размещён в shared Core и требуется конкретному модулю;
+- другой модуль напрямую подключает внутренний файл соседа;
+- capability provider зависит от boot order или допускает дубликат;
+- отключение модуля ломает загрузку Core;
+- route ownership возвращается в общий product router;
+- package/update composition не умеет корректно работать без отсутствующего модуля.
 
-A migrated module:
-
-- is physically rooted under `modules/<id>/`;
-- has no product controller/service/model/view route ownership left in shared legacy locations;
-- owns its route provider;
-- owns its storage/schema/migration metadata;
-- can be omitted from runtime composition without its entrypoint or routes loading;
-- fails closed on a missing/escaping/invalid entrypoint;
-- exports only capabilities declared in its manifest;
-- uses capability contracts instead of direct access to another module's internals;
-- passes module-specific HTTP/browser/data regression tests;
-- remains compatible with updater/package composition and lifecycle reconciliation.
-
-## 1.0 release gate
-
-Before tagging 1.0:
-
-- every bundled production module (`admin`, `files`, `messenger`, `notes`, `profile`, `tasks`) must report `runtime.mode = isolated`;
-- no bundled module may depend on the transitional recursive product loader;
-- disabling/removing a module must not require editing another module's internal files;
-- duplicate or undeclared capability providers must fail closed;
-- module package web roots remain non-public unless explicitly exposed through core routing/static asset policy.
+Такие изменения требуют отдельного воспроизводимого дефекта и регрессионной проверки. Исторический текст аудитов сам по себе не переоткрывает завершённую миграцию.
