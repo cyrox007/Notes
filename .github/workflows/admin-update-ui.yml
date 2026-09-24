@@ -1,4 +1,4 @@
-name: 1.0 admin update UI
+name: 1.0 обновление из админ-панели
 
 on:
   pull_request:
@@ -19,17 +19,17 @@ jobs:
         php: ['8.1', '8.3']
 
     steps:
-      - name: Checkout
+      - name: Получить исходники
         uses: actions/checkout@v4
 
-      - name: Setup PHP
+      - name: Подготовить PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
           extensions: mysqli, pdo_mysql, sodium, openssl, zlib
           coverage: none
 
-      - name: Lint admin updater boundary
+      - name: Проверить синтаксис контура обновления
         shell: bash
         run: |
           set -euo pipefail
@@ -47,7 +47,7 @@ jobs:
           php -l tests/integration/admin_update_ui_contract.php
           php -l tests/integration/native_admin_contract.php
 
-      - name: Verify admin signed-update service and view contracts
+      - name: Проверить сервис и интерфейс подписанного обновления
         shell: bash
         run: |
           set -euo pipefail
@@ -56,7 +56,7 @@ jobs:
           php tests/integration/admin_update_ui_contract.php
           php tests/integration/native_admin_contract.php
 
-      - name: Re-run network ingress contract
+      - name: Повторно проверить сетевую границу обновлятора
         shell: bash
         run: |
           set -euo pipefail
