@@ -20,8 +20,10 @@ require_once $root . '/core/UpdateArchiveInspector.php';
 require_once $root . '/core/UpdateRemoteTransport.php';
 require_once $root . '/core/UpdateRemoteDelivery.php';
 
+use App\Services\LicenseService;
 use Core\UpdateAccessBootstrap;
 use Core\UpdateArchiveInspector;
+use Core\UpdateDownloadCredentials;
 use Core\UpdateHttpsTransport;
 use Core\UpdateManifestVerifier;
 use Core\UpdatePackageStager;
@@ -86,6 +88,17 @@ if ($channel === '') {
 }
 
 try {
+    if (UpdateDownloadCredentials::accessMode() !== 'offline') {
+        require_once $root . '/core/RuntimeAutoloader.php';
+        \Core\RuntimeAutoloader::register($root);
+        require_once $root . '/core/config.php';
+
+        // Для 1.0.2+ штатная CLI-проверка использует тот же автоматический
+        // bootstrap по установленной лицензии, что и Admin UI. Готовый
+        // credential повторно не ротируется.
+        (new LicenseService())->ensureUpdateAccess();
+    }
+
     $verifier = new UpdateManifestVerifier();
     if (!$verifier->hasTrustedKeys()) {
         remoteUpdaterFail(
