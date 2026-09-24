@@ -258,23 +258,25 @@ final class AdminUpdateService
     {
         $value = $this->feedUrl();
         if ($value === '') {
-            throw new RuntimeException('UPDATE_FEED_URL не настроен');
+            throw new RuntimeException('Не удалось определить канал обновлений');
         }
         return $value;
     }
 
     private function channel(): string
     {
-        $value = getenv('UPDATE_CHANNEL');
-        $value = is_string($value) ? trim($value) : '';
-        return $value !== '' ? $value : 'stable';
+        try {
+            return UpdateAccessBootstrap::channel();
+        } catch (\Throwable) {
+            return '';
+        }
     }
 
     private function channelOrFail(): string
     {
         $value = $this->channel();
         if (!in_array($value, ['alpha', 'beta', 'stable'], true)) {
-            throw new RuntimeException('UPDATE_CHANNEL должен быть alpha, beta или stable');
+            throw new RuntimeException('Канал обновлений должен быть alpha, beta или stable');
         }
         return $value;
     }
