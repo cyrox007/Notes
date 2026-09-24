@@ -88,7 +88,7 @@ final class UpdateDownloadCredentials
         }
 
         return rtrim($resolved, '/\\')
-            . DIRECTORY_SEPARATOR . 'updates'
+            . DIRECTORY_SEPARATOR . 'update-access'
             . DIRECTORY_SEPARATOR . 'update-access.json';
     }
 
