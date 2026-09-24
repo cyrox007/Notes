@@ -29,6 +29,7 @@ jobs:
           php -l tools/license-server/public/index.php
           php -l tools/license-server/manage.php
           php -l bin/update_activate.php
+          php -l bin/update_remote.php
           php -l core/UpdateAccessBootstrap.php
           php -l core/UpdateDownloadCredentials.php
           php tests/integration/automatic_update_bootstrap_contract.php
