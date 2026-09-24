@@ -113,13 +113,18 @@ Fallback использует те же Messenger handlers, RBAC/role policies, 
 
 ## Upgrade существующей установки
 
-Web-installer предназначен только для fresh install. Upgrade выполняется compatibility migration runner:
+Web-installer предназначен только для fresh install. Он **не нужен** для обновления поверх уже работающей установки и не должен использоваться как способ обновить существующую БД.
+
+Если новая версия распаковывается поверх старой вручную, сразу после замены файлов и **до открытия приложения в браузере** выполните compatibility migration runner:
 
 ```bash
 php bin/migrate.php --status
 php bin/migrate.php --dry-run
 php bin/migrate.php
+php bin/healthcheck.php --json
 ```
+
+Начиная с 1.0.3 HTTP-runtime сам проверяет фактический контракт схемы. Если файлы уже новые, а БД ещё старая, приложение отвечает диагностическим HTTP 503 «Требуется обновление базы данных» вместо случайных 500 на отдельных страницах. После успешной миграции достаточно обновить страницу.
 
 Перед upgrade обязательны backup БД, private storage и crypto keys.
 

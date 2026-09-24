@@ -185,6 +185,8 @@ if (!str_contains($profileView, 'Сохраните резервные коды 
 foreach ([
     'two_factor_required',
     'setRequired',
+    'schemaReady',
+    'php bin/migrate.php',
 ] as $fragment) {
     if (!str_contains((string) $policyService, $fragment)) {
         failTwoFactorContract('в сервисе общесистемной политики отсутствует ' . $fragment);
