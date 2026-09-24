@@ -73,7 +73,7 @@
 - HTTPS/WSS browser smoke, включая принудительную потерю WebSocket, HTTP long-poll fallback, освобождение worker/reconnect и мост fallback-mutation → активный WS-клиент;
 - signed updater/staging/apply/backup/recovery;
 - автоматический bootstrap update credential по действующей лицензии без activation code и ручного пути; обязательные матрицы `online-update-access (8.1/8.3)` и `admin-update-ui (8.1/8.3)`;
-- обязательный `admin-update-e2e`: браузер обновляет отдельную exact-установку опубликованного `v1.0.2` до текущего `1.0.3`, после чего проверяются версия, committed-журнал, снятый maintenance и post-update healthcheck;
+- обязательный `admin-update-e2e`: exact-установка опубликованного `v1.0.2` сначала проходит штатный одноразовый CLI-переход до текущего `1.0.3`, затем уже `1.0.3` устанавливает следующее подписанное тестовое обновление из Admin UI; проверяются обе committed-транзакции, снятый maintenance и post-update healthcheck;
 - точный upgrade/rollback drill опубликованного `v1.0.1` (`0e6e4a3b352cfb7436db6b749fd869bbb07310c9`) -> `1.0.2`;
 - hosting installer/package;
 - cross-browser/mobile release evidence;
