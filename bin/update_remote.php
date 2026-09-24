@@ -13,12 +13,14 @@ if (is_file($root . '/.env')) {
     \Core\Environment::load($root . '/.env');
 }
 require_once $root . '/core/Version.php';
+require_once $root . '/core/UpdateAccessBootstrap.php';
 require_once $root . '/core/UpdateManifestVerifier.php';
 require_once $root . '/core/UpdatePackageStager.php';
 require_once $root . '/core/UpdateArchiveInspector.php';
 require_once $root . '/core/UpdateRemoteTransport.php';
 require_once $root . '/core/UpdateRemoteDelivery.php';
 
+use Core\UpdateAccessBootstrap;
 use Core\UpdateArchiveInspector;
 use Core\UpdateHttpsTransport;
 use Core\UpdateManifestVerifier;
@@ -36,14 +38,14 @@ $options = getopt('', [
 ]);
 
 if (isset($options['help'])) {
-    echo "Workspace Organizer remote signed update delivery\n\n";
-    echo "Check the configured feed without downloading the package:\n";
+    echo "Workspace Organizer — проверка подписанных обновлений\n\n";
+    echo "Проверить канал без загрузки пакета:\n";
     echo "  php bin/update_remote.php --check-only [--feed-url=https://updates.example/feed.json] [--channel=stable] [--json]\n\n";
-    echo "Download, verify, audit and stage the signed package:\n";
+    echo "Скачать, проверить и подготовить подписанный пакет:\n";
     echo "  php bin/update_remote.php [--feed-url=https://updates.example/feed.json] [--channel=stable] \\\n";
     echo "      [--stage-root=/absolute/external/path] [--json]\n\n";
-    echo "Defaults: UPDATE_FEED_URL, UPDATE_CHANNEL, UPDATE_STAGING_PATH.\n";
-    echo "Remote delivery NEVER enters maintenance and NEVER modifies live application files.\n";
+    echo "По умолчанию используются штатный stable-канал и внешний staging.\n";
+    echo "Эта команда не включает maintenance и не меняет рабочие файлы приложения.\n";
     exit(0);
 }
 
@@ -67,29 +69,27 @@ function remoteUpdaterFail(string $message, string $code = 'remote_update_failed
 
 $feedUrl = trim((string) ($options['feed-url'] ?? ''));
 if ($feedUrl === '') {
-    $configured = getenv('UPDATE_FEED_URL');
-    if (is_string($configured)) {
-        $feedUrl = trim($configured);
+    try {
+        $feedUrl = UpdateAccessBootstrap::feedUrl();
+    } catch (Throwable $e) {
+        remoteUpdaterFail($e->getMessage(), 'feed_not_configured', 2);
     }
-}
-if ($feedUrl === '') {
-    remoteUpdaterFail('No remote update feed configured. Set UPDATE_FEED_URL or pass --feed-url.', 'feed_not_configured', 2);
 }
 
 $channel = trim((string) ($options['channel'] ?? ''));
 if ($channel === '') {
-    $configured = getenv('UPDATE_CHANNEL');
-    $channel = is_string($configured) && trim($configured) !== '' ? trim($configured) : 'stable';
-}
-if (!in_array($channel, ['alpha', 'beta', 'stable'], true)) {
-    remoteUpdaterFail('UPDATE_CHANNEL must be alpha, beta or stable', 'invalid_channel', 2);
+    try {
+        $channel = UpdateAccessBootstrap::channel();
+    } catch (Throwable $e) {
+        remoteUpdaterFail($e->getMessage(), 'invalid_channel', 2);
+    }
 }
 
 try {
     $verifier = new UpdateManifestVerifier();
     if (!$verifier->hasTrustedKeys()) {
         remoteUpdaterFail(
-            'No trusted update public keys are configured. Remote signed updates remain disabled until the production update-key ceremony is completed.',
+            'В сборке не настроен доверенный публичный ключ проверки обновлений.',
             'trust_not_configured'
         );
     }
@@ -119,7 +119,7 @@ try {
         }
         if ($stageRoot === '') {
             remoteUpdaterFail(
-                'No external staging root configured. Set UPDATE_STAGING_PATH, PRIVATE_STORAGE_PATH, or pass --stage-root.',
+                'Не настроен внешний staging. Проверьте UPDATE_STAGING_PATH или PRIVATE_STORAGE_PATH.',
                 'staging_not_configured',
                 2
             );
