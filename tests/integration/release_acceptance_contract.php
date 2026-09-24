@@ -36,7 +36,7 @@ foreach ([
     'structured security observability',
     'GitHub branch protection/ruleset',
     'production license/update Ed25519 keypairs',
-    'cross-browser/mobile + load/soak release evidence',
+    'кросс-браузерная и мобильная проверка',
 ] as $marker) {
     releaseAcceptanceAssert(str_contains($readme, $marker), "README release readiness не содержит marker {$marker}");
 }
