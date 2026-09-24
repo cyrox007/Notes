@@ -91,7 +91,7 @@
 3. Запустите `php bin/healthcheck.php --json`.
 4. Проверьте HTTPS и WSS через production reverse proxy.
 5. На установке с действующей лицензией и без готового update credential откройте Admin → Updates и подтвердите автоматический bootstrap в `PRIVATE_STORAGE_PATH/update-access/update-access.json` без activation code и ручной правки `.env`.
-6. На `1.0.3` откройте Admin → Updates, выполните проверку подписанного канала и подтвердите, что кнопка «Установить обновление» доступна только при готовом updater runtime. Для опубликованной `1.0.2` зафиксируйте одноразовый переход через `php bin/update_run.php --yes --json`, так как destructive Admin apply появился только в `1.0.3`.
+6. На `1.0.3` откройте Admin → Updates, выполните проверку подписанного канала и подтвердите, что кнопка «Установить обновление» доступна только при готовом updater runtime. Для опубликованной `1.0.2` проверьте одноразовый переход через отдельный `bootstrap-1.0.2-updater.php`: его SHA-256 должен совпадать с release artifact, bootstrap обязан отказаться работать не на exact `1.0.2 (10002)` и передать установку штатному подписанному updater.
 7. С двумя аутентифицированными пользователями Messenger проверьте доставку по WebSocket, затем временно остановите/заблокируйте WS endpoint и убедитесь, что доставка автоматически продолжается через «Long Poll · резервный канал» без reload.
 8. Восстановите WS endpoint и убедитесь, что оба клиента автоматически возвращаются в «WebSocket · в сети».
 9. Проверьте одну зашифрованную заметку и одно зашифрованное сообщение Messenger.
@@ -116,11 +116,11 @@
 
 ## Gate G — неизменяемый артефакт и подпись
 
-Соберите финальный upload-ready bundle из точного принятого SHA. Workflow `Build hosting package` намеренно работает только как сборка: для ручной pre-tag сборки запускайте его на точном принятом commit/ref с `version=v1.0.3`. Он сверяет версию с `core/Version.php`, затем сохраняет ZIP, его SHA-256 и точный source SHA одним workflow artifact. До завершения offline signing он не должен создавать или обновлять публичный GitHub Release.
+Соберите финальный upload-ready bundle из точного принятого SHA. Workflow `Build hosting package` намеренно работает только как сборка: для ручной pre-tag сборки запускайте его на точном принятом commit/ref с `version=v1.0.3`. Он сверяет версию с `core/Version.php`, затем сохраняет ZIP, его SHA-256, точный source SHA, а для аварийного перехода с опубликованной 1.0.2 — отдельный `bootstrap-1.0.2-updater.php` и его SHA-256 одним workflow artifact. До завершения offline signing он не должен создавать или обновлять публичный GitHub Release.
 
 Далее:
 
-1. Скачайте точный workflow ZIP + checksum + source-SHA artifact; сверьте записанные bundle SHA-256 и source SHA с принятым commit.
+1. Скачайте точный workflow ZIP + checksum + source-SHA artifact, а также bootstrap 1.0.2 + его checksum; сверьте записанные SHA-256 и source SHA с принятым commit.
 2. Соберите update manifest с точным source commit/version/version-code.
 3. Подпишите точные bytes manifest offline-приватным ключом update-domain.
 4. Проверьте подпись manifest и hash пакета публичным registry, который поставляется в bundle.
