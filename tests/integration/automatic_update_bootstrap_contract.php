@@ -160,6 +160,17 @@ try {
     autoUpdateAssert(($second['source'] ?? '') === 'existing', 'Повторный bootstrap должен использовать готовый credential');
     autoUpdateAssert($transport->calls === 1, 'Готовый credential не должен ротироваться без причины');
 
+
+    $remoteCli = (string) file_get_contents($root . '/bin/update_remote.php');
+    autoUpdateAssert(
+        str_contains($remoteCli, '(new LicenseService())->ensureUpdateAccess();'),
+        'CLI-проверка обновлений потеряла автоматический bootstrap по лицензии'
+    );
+    autoUpdateAssert(
+        str_contains($remoteCli, "UpdateDownloadCredentials::accessMode() !== 'offline'"),
+        'CLI-проверка не сохраняет явный offline-режим'
+    );
+
     putenv('UPDATE_ACCESS_MODE=offline');
     $offlinePrivate = $temp . '/offline-private';
     autoUpdateAssert(mkdir($offlinePrivate, 0700, true), 'Не удалось создать offline private storage');
