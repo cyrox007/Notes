@@ -217,8 +217,8 @@ jobs:
           test -n "$TARGET_ID"
           test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_browser_lifecycle -e "SELECT CONCAT(role,'|',is_active,'|',account_status) FROM users WHERE id=${TARGET_ID}")" = '888|1|active'
           test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_browser_lifecycle -e "SELECT quota_bytes FROM user_storage_quotas WHERE user_id=${TARGET_ID}")" = '26214400'
-          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_browser_lifecycle -e "SELECT CONCAT(role,'|',is_active,'|',account_status) FROM users WHERE username='admin-lifecycle-user'")" = '111|1|active'
-          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_browser_lifecycle -e "SELECT COUNT(*) FROM user_roles ur JOIN roles r ON r.id=ur.role_id JOIN users u ON u.id=ur.user_id WHERE u.username='admin-lifecycle-user' AND r.code='admin'")" = '1'
+          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_browser_lifecycle -e "SELECT CONCAT(role,'|',is_active,'|',account_status) FROM users WHERE username='admin-lifecycle-user'")" = '1|1|active'
+          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_browser_lifecycle -e "SELECT COUNT(*) FROM user_roles ur JOIN roles r ON r.id=ur.role_id JOIN users u ON u.id=ur.user_id WHERE u.username='admin-lifecycle-user' AND r.code='superadmin'")" = '1'
 
       - name: Verify clean PHP runtime log
         shell: bash
