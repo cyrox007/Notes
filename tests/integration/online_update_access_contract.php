@@ -110,7 +110,16 @@ try {
 
     $credential['base_url'] = $base;
     $scoped = new UpdateDownloadCredentials($credential);
-    accessAssert(str_contains($scoped->headersFor($base . 'stable/feed.json'), 'Bearer ' . $secret), 'Credential headers missing');
+    $credentialHeaders = $scoped->headersFor($base . 'stable/feed.json');
+    accessAssert(str_contains($credentialHeaders, 'Bearer ' . $secret), 'Credential headers missing');
+    accessAssert(
+        str_contains($credentialHeaders, 'X-Notes-Version: ' . \Core\Version::VERSION),
+        'Updater credential does not report installed version'
+    );
+    accessAssert(
+        str_contains($credentialHeaders, 'X-Notes-Version-Code: ' . \Core\Version::VERSION_CODE),
+        'Updater credential does not report installed version code'
+    );
     foreach (['https://evil.example/stable/feed.json', $base . '../stable/feed.json', $base . 'stable/%2e%2e/file',
         $base . 'stable/feed.json?token=x', $base . "stable/feed.json\r\nX-Test: bad"] as $url) {
         accessDenied(fn () => $scoped->headersFor($url));
