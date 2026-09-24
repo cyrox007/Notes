@@ -8,6 +8,7 @@ use RuntimeException;
 use Throwable;
 
 require_once __DIR__ . '/UpdateAccessBootstrap.php';
+require_once __DIR__ . '/UpdatePhpCli.php';
 
 /**
  * Проверка локальной готовности подписанного обновлятора.
@@ -24,7 +25,7 @@ final class UpdateReadiness
     {
         $resolved = realpath($appRoot ?? dirname(__DIR__));
         if (!is_string($resolved) || !is_dir($resolved)) {
-            throw new RuntimeException('Application root cannot be resolved for updater readiness');
+            throw new RuntimeException('Не удалось определить корень приложения для проверки готовности обновлятора');
         }
         $this->appRoot = $this->normalize($resolved);
         $this->verifier = $verifier ?? new UpdateManifestVerifier();
@@ -63,8 +64,18 @@ final class UpdateReadiness
         $record(
             'proc_open',
             $procOpen,
-            $procOpen ? '' : 'PHP proc_open недоступен: единый operator flow не сможет запускать проверенные updater-команды.'
+            $procOpen ? '' : 'PHP proc_open недоступен: установка обновлений из админ-панели невозможна.'
         );
+
+        try {
+            UpdatePhpCli::resolve();
+            $phpCliReady = true;
+            $phpCliIssue = '';
+        } catch (Throwable $e) {
+            $phpCliReady = false;
+            $phpCliIssue = $e->getMessage();
+        }
+        $record('php_cli', $phpCliReady, $phpCliIssue);
 
         try {
             $feed = UpdateAccessBootstrap::feedUrl();
@@ -99,7 +110,7 @@ final class UpdateReadiness
                 try {
                     $credentials = UpdateDownloadCredentials::fromEnvironment();
                 } catch (Throwable) {
-                    // Старый, отсутствующий или повреждённый credential
+                    // Старый, отсутствующий или повреждённый файл доступа
                     // восстанавливается автоматически по лицензии.
                 }
 
@@ -152,6 +163,7 @@ final class UpdateReadiness
             && $mysqli
             && $zlib
             && $procOpen
+            && $phpCliReady
             && $pathReady
             && $dbConfigReady;
 

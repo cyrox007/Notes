@@ -26,6 +26,8 @@ $options = getopt('', [
     'state-root:',
     'backup-root:',
     'candidate-root:',
+    'expected-version-code:',
+    'expected-package-sha256:',
     'recover',
     'yes',
     'json',
@@ -33,15 +35,16 @@ $options = getopt('', [
 ]);
 
 if (isset($options['help'])) {
-    echo "Workspace Organizer end-to-end signed updater operator flow\n\n";
-    echo "Install the next signed update:\n";
+    echo "Workspace Organizer — сквозной сценарий установки подписанного обновления\n\n";
+    echo "Установить следующее подписанное обновление:\n";
     echo "  php bin/update_run.php --yes [--transaction=update-...] [--json]\n\n";
-    echo "Recover an interrupted live-update transaction:\n";
+    echo "Восстановить прерванную транзакцию обновления:\n";
     echo "  php bin/update_run.php --recover --transaction=update-... --yes [--json]\n\n";
-    echo "Optional overrides: --feed-url, --channel, --stage-root, --state-root, --backup-root, --candidate-root.\n";
-    echo "Normal mode stages the signed package, enters maintenance, creates verified code+DB rollback backup,\n";
-    echo "builds an external release candidate, then invokes the existing transactional live apply boundary.\n";
-    echo "The --yes flag is mandatory because this command can switch live code and run migrations.\n";
+    echo "Дополнительные параметры: --feed-url, --channel, --stage-root, --state-root, --backup-root, --candidate-root.\n";
+    echo "Для веб-интерфейса доступны привязки подтверждённого релиза: --expected-version-code и --expected-package-sha256.\n";
+    echo "Обычный режим проверяет и подготавливает пакет, включает режим обслуживания, создаёт проверенную резервную копию,\n";
+    echo "формирует внешний кандидат релиза и передаёт управление существующему транзакционному применению.\n";
+    echo "Флаг --yes обязателен, потому что команда может переключать рабочий код и запускать миграции.\n";
     exit(0);
 }
 
@@ -58,7 +61,7 @@ function updateRunFail(string $message, string $code = 'update_run_failed', int 
             'message' => $message,
         ] + $details, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
     } else {
-        fwrite(STDERR, "[FAIL] {$message}\n");
+        fwrite(STDERR, "[ОШИБКА] {$message}\n");
     }
     exit($exitCode);
 }
@@ -92,7 +95,7 @@ function updateRunJsonCommand(
         throw new RuntimeException($label . ': ' . $message, $result['code'] > 0 ? $result['code'] : 1);
     }
     if (!is_array($payload)) {
-        throw new RuntimeException($label . ': command returned invalid JSON');
+        throw new RuntimeException($label . ': команда вернула некорректный JSON');
     }
     return $payload;
 }
@@ -114,7 +117,7 @@ function updateRunAppendOption(array &$command, array $options, string $name): v
 
 if (!isset($options['yes'])) {
     updateRunFail(
-        'Refusing destructive updater flow without explicit --yes confirmation.',
+        'Установка обновления требует явного подтверждения --yes.',
         'confirmation_required',
         2
     );
@@ -124,12 +127,34 @@ $recover = isset($options['recover']);
 $transactionId = trim((string) ($options['transaction'] ?? ''));
 if ($recover) {
     if (preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]{7,95}$/', $transactionId) !== 1) {
-        updateRunFail('Recovery requires a valid --transaction id.', 'invalid_transaction', 2);
+        updateRunFail('Для восстановления нужен корректный --transaction.', 'invalid_transaction', 2);
     }
 } elseif ($transactionId === '') {
     $transactionId = 'update-' . gmdate('Ymd-His') . '-' . bin2hex(random_bytes(4));
 } elseif (preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]{7,95}$/', $transactionId) !== 1) {
-    updateRunFail('Invalid --transaction id.', 'invalid_transaction', 2);
+    updateRunFail('Некорректный идентификатор транзакции.', 'invalid_transaction', 2);
+}
+
+$expectedVersionRaw = trim((string) ($options['expected-version-code'] ?? ''));
+$expectedSha256 = strtolower(trim((string) ($options['expected-package-sha256'] ?? '')));
+$hasExpectedVersion = $expectedVersionRaw !== '';
+$hasExpectedSha = $expectedSha256 !== '';
+
+if ($hasExpectedVersion !== $hasExpectedSha) {
+    updateRunFail(
+        'Привязка релиза требует одновременно --expected-version-code и --expected-package-sha256.',
+        'invalid_review_binding',
+        2
+    );
+}
+
+$expectedVersionCode = null;
+if ($hasExpectedVersion) {
+    if (preg_match('/^[1-9][0-9]*$/', $expectedVersionRaw) !== 1
+        || preg_match('/^[0-9a-f]{64}$/', $expectedSha256) !== 1) {
+        updateRunFail('Некорректная привязка подтверждённого релиза.', 'invalid_review_binding', 2);
+    }
+    $expectedVersionCode = (int) $expectedVersionRaw;
 }
 
 $runner = new UpdateProcessRunner();
@@ -143,7 +168,7 @@ if ($recover) {
         updateRunAppendOption($command, $options, 'state-root');
         updateRunAppendOption($command, $options, 'backup-root');
 
-        $recovered = updateRunJsonCommand($runner, $command, $root, 1200, 'recovery');
+        $recovered = updateRunJsonCommand($runner, $command, $root, 1200, 'восстановление');
         if ($json) {
             echo json_encode([
                 'status' => 'recovered',
@@ -151,9 +176,9 @@ if ($recover) {
                 'result' => $recovered,
             ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
         } else {
-            echo "[OK] Updater recovery completed\n";
-            echo "Transaction: {$transactionId}\n";
-            echo 'State:       ' . (string) ($recovered['status'] ?? 'recovered') . PHP_EOL;
+            echo "[OK] Восстановление обновлятора завершено\n";
+            echo "Транзакция: {$transactionId}\n";
+            echo 'Состояние:   ' . (string) ($recovered['status'] ?? 'recovered') . PHP_EOL;
         }
         exit(0);
     } catch (Throwable $e) {
@@ -168,9 +193,9 @@ $stateRoot = trim((string) ($options['state-root'] ?? ''));
 try {
     $doctorCommand = updateRunBaseCommand('update_doctor.php');
     $doctorCommand[] = '--json';
-    $readiness = updateRunJsonCommand($runner, $doctorCommand, $root, 30, 'updater readiness');
+    $readiness = updateRunJsonCommand($runner, $doctorCommand, $root, 30, 'проверка готовности');
     if (empty($readiness['ready_for_apply'])) {
-        throw new RuntimeException('Updater readiness doctor did not approve live apply prerequisites');
+        throw new RuntimeException('Проверка готовности не разрешила установку обновления');
     }
 
     $stageCommand = updateRunBaseCommand('update_remote.php');
@@ -178,13 +203,23 @@ try {
     foreach (['feed-url', 'channel', 'stage-root'] as $option) {
         updateRunAppendOption($stageCommand, $options, $option);
     }
-    $staged = updateRunJsonCommand($runner, $stageCommand, $root, 900, 'remote staging');
+    $staged = updateRunJsonCommand($runner, $stageCommand, $root, 900, 'подготовка пакета');
     if (($staged['status'] ?? null) !== 'staged') {
-        throw new RuntimeException('Remote updater did not return a verified staged package');
+        throw new RuntimeException('Обновлятор не вернул проверенный подготовленный пакет');
     }
     $stageDir = trim((string) ($staged['stage_dir'] ?? ''));
     if ($stageDir === '') {
-        throw new RuntimeException('Verified stage path is missing');
+        throw new RuntimeException('Не найден путь к проверенному подготовленному пакету');
+    }
+
+    if ($expectedVersionCode !== null) {
+        $stagedVersionCode = (int) ($staged['target_version_code'] ?? 0);
+        $stagedSha256 = strtolower(trim((string) ($staged['package_sha256'] ?? '')));
+        if ($stagedVersionCode !== $expectedVersionCode || !hash_equals($expectedSha256, $stagedSha256)) {
+            throw new RuntimeException(
+                'Подписанный канал изменился после подтверждения обновления. Повторите проверку в админ-панели.'
+            );
+        }
     }
 
     $maintenance = new MaintenanceModeService($stateRoot !== '' ? $stateRoot : null, $root);
@@ -198,9 +233,9 @@ try {
     foreach (['state-root', 'backup-root'] as $option) {
         updateRunAppendOption($backupCommand, $options, $option);
     }
-    $backup = updateRunJsonCommand($runner, $backupCommand, $root, 1200, 'rollback backup');
+    $backup = updateRunJsonCommand($runner, $backupCommand, $root, 1200, 'резервная копия');
     if (($backup['status'] ?? null) !== 'backup_verified') {
-        throw new RuntimeException('Updater rollback backup did not reach backup_verified');
+        throw new RuntimeException('Резервная копия обновления не прошла проверку');
     }
 
     $candidateCommand = updateRunBaseCommand('update_candidate.php');
@@ -209,13 +244,13 @@ try {
     foreach (['state-root', 'candidate-root'] as $option) {
         updateRunAppendOption($candidateCommand, $options, $option);
     }
-    $candidate = updateRunJsonCommand($runner, $candidateCommand, $root, 900, 'release candidate');
+    $candidate = updateRunJsonCommand($runner, $candidateCommand, $root, 900, 'кандидат релиза');
     if (($candidate['status'] ?? null) !== 'candidate_verified') {
-        throw new RuntimeException('Updater release candidate did not reach candidate_verified');
+        throw new RuntimeException('Кандидат релиза не прошёл проверку');
     }
     $candidateDir = trim((string) ($candidate['candidate_dir'] ?? ''));
     if ($candidateDir === '') {
-        throw new RuntimeException('Verified candidate path is missing');
+        throw new RuntimeException('Не найден путь к проверенному кандидату релиза');
     }
 
     $applyCommand = updateRunBaseCommand('update_apply.php');
@@ -227,24 +262,25 @@ try {
         updateRunAppendOption($applyCommand, $options, $option);
     }
 
-    // After this point only UpdateApplyCommand owns rollback/recovery and
-    // maintenance release. The wrapper must never force-open writes on failure.
+    // После этой точки откат, восстановление и снятие режима обслуживания принадлежат
+    // только UpdateApplyCommand. Обёртка не должна самовольно открывать запись при ошибке.
     $applyInvoked = true;
-    $applied = updateRunJsonCommand($runner, $applyCommand, $root, 1800, 'live apply');
+    $applied = updateRunJsonCommand($runner, $applyCommand, $root, 1800, 'применение обновления');
 
     if ($json) {
         echo json_encode([
             'status' => 'committed',
             'transaction_id' => $transactionId,
             'target_version' => $staged['target_version'] ?? null,
+            'target_version_code' => $staged['target_version_code'] ?? null,
             'package_sha256' => $staged['package_sha256'] ?? null,
             'apply' => $applied,
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
     } else {
-        echo "[OK] Signed update committed\n";
-        echo "Transaction: {$transactionId}\n";
-        echo 'Version:     ' . (string) ($applied['installed_version'] ?? ($staged['target_version'] ?? 'unknown')) . PHP_EOL;
-        echo "Rollback checkpoint and transaction journal were verified before live mutation.\n";
+        echo "[OK] Подписанное обновление установлено\n";
+        echo "Транзакция: {$transactionId}\n";
+        echo 'Версия:      ' . (string) ($applied['installed_version'] ?? ($staged['target_version'] ?? 'неизвестно')) . PHP_EOL;
+        echo "Резервная точка и журнал транзакции проверены до изменения рабочих файлов.\n";
     }
     exit(0);
 } catch (Throwable $e) {

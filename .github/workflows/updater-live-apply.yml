@@ -122,14 +122,14 @@ jobs:
           php tests/integration/updater_readiness_contract.php
           php tests/integration/updater_artifact_retention_contract.php
 
-      - name: Verify CLI and destructive-boundary invariants
+      - name: Проверить CLI и границу изменения рабочих файлов
         shell: bash
         run: |
           set -euo pipefail
           HELP_OUTPUT="$(php bin/update_apply.php --help)"
           grep -Fq 'transactional live updater' <<<"$HELP_OUTPUT"
           RUN_HELP_OUTPUT="$(php bin/update_run.php --help)"
-          grep -Fq 'end-to-end signed updater operator flow' <<<"$RUN_HELP_OUTPUT"
+          grep -Fq 'сквозной сценарий установки подписанного обновления' <<<"$RUN_HELP_OUTPUT"
           grep -Fq -- '--yes' <<<"$RUN_HELP_OUTPUT"
           RETENTION_HELP_OUTPUT="$(php bin/update_retention.php --help)"
           grep -Fq 'updater retention cleanup' <<<"$RETENTION_HELP_OUTPUT"

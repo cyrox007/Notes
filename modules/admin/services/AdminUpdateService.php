@@ -10,6 +10,8 @@ use Core\UpdateDownloadCredentials;
 use Core\UpdateHttpsTransport;
 use Core\UpdateManifestVerifier;
 use Core\UpdatePackageStager;
+use Core\UpdatePhpCli;
+use Core\UpdateProcessRunner;
 use Core\UpdateRemoteDelivery;
 use Core\UpdateRemoteTransport;
 use Core\UpdateReadiness;
@@ -23,17 +25,19 @@ require_once $updateCoreRoot . '/core/UpdateAccessBootstrap.php';
 require_once $updateCoreRoot . '/core/UpdateManifestVerifier.php';
 require_once $updateCoreRoot . '/core/UpdatePackageStager.php';
 require_once $updateCoreRoot . '/core/UpdateArchiveInspector.php';
+require_once $updateCoreRoot . '/core/UpdatePhpCli.php';
+require_once $updateCoreRoot . '/core/UpdateProcessRunner.php';
 require_once $updateCoreRoot . '/core/UpdateRemoteTransport.php';
 require_once $updateCoreRoot . '/core/UpdateRemoteDelivery.php';
 require_once $updateCoreRoot . '/core/UpdateDownloadCredentials.php';
 require_once $updateCoreRoot . '/core/UpdateReadiness.php';
 
 /**
- * Web-facing read/check/stage facade for the signed updater.
+ * Web-фасад подписанного обновлятора.
  *
- * This service intentionally stops at immutable external staging. It does not
- * enter maintenance, create an update transaction, create rollback backups,
- * extract release candidates or invoke live apply/recovery.
+ * Проверка и staging выполняются напрямую через безопасные классы доставки.
+ * Установка не дублирует destructive-логику: она запускает существующий
+ * транзакционный bin/update_run.php фиксированным argv без shell.
  */
 final class AdminUpdateService
 {
@@ -45,10 +49,14 @@ final class AdminUpdateService
     private UpdateManifestVerifier $verifier;
     private ?UpdateRemoteTransport $transport;
 
+    /** @var (\Closure(list<string>,string,int):array{code:int,stdout:string,stderr:string})|null */
+    private ?\Closure $processInvoker;
+
     public function __construct(
         ?PermissionService $permissions = null,
         ?UpdateManifestVerifier $verifier = null,
-        ?UpdateRemoteTransport $transport = null
+        ?UpdateRemoteTransport $transport = null,
+        ?\Closure $processInvoker = null
     ) {
         $root = realpath(dirname(__DIR__, 3));
         if (!is_string($root) || !is_dir($root)) {
@@ -58,6 +66,7 @@ final class AdminUpdateService
         $this->permissions = $permissions ?? new PermissionService();
         $this->verifier = $verifier ?? new UpdateManifestVerifier();
         $this->transport = $transport;
+        $this->processInvoker = $processInvoker;
     }
 
     /** @return array<string,mixed> */
@@ -124,6 +133,7 @@ final class AdminUpdateService
             'can_check' => $canCheck,
             'can_stage' => $canCheck && $stageConfigured && $canManageStage,
             'can_manage_stage' => $canManageStage,
+            'can_apply' => $canManageStage && (bool) ($operator['ready_for_apply'] ?? false),
             'operator_ready' => (bool) ($operator['ready_for_apply'] ?? false),
             'operator_issues' => is_array($operator['issues'] ?? null) ? $operator['issues'] : [],
             'operator_command' => 'php bin/update_run.php --yes --json',
@@ -180,6 +190,115 @@ final class AdminUpdateService
             $expectedTargetVersionCode,
             $expectedPackageSha256
         );
+    }
+
+    /** @return array<string,mixed> */
+    public function apply(int $actorId, int $expectedTargetVersionCode, string $expectedPackageSha256): array
+    {
+        $this->permissions->requirePermission($actorId, 'admin.settings.manage');
+        if (!$this->permissions->hasRole($actorId, 'superadmin')) {
+            throw new DomainException('Установка обновления доступна только суперадминистратору', 403);
+        }
+
+        if ($expectedTargetVersionCode <= 0) {
+            throw new InvalidArgumentException('Повторно проверьте обновление перед установкой');
+        }
+
+        $expectedPackageSha256 = strtolower(trim($expectedPackageSha256));
+        if (preg_match('/^[0-9a-f]{64}$/', $expectedPackageSha256) !== 1) {
+            throw new InvalidArgumentException('Повторно проверьте обновление перед установкой');
+        }
+
+        $this->ensureAutomaticAccess();
+        $state = $this->snapshot($actorId);
+        if (empty($state['operator_ready'])) {
+            throw new DomainException(
+                'Установка обновления недоступна, пока не устранены ошибки локальной готовности',
+                503
+            );
+        }
+
+        $command = [
+            UpdatePhpCli::resolve(),
+            $this->appRoot . '/bin/update_run.php',
+            '--yes',
+            '--json',
+            '--expected-version-code=' . $expectedTargetVersionCode,
+            '--expected-package-sha256=' . $expectedPackageSha256,
+        ];
+
+        if (PHP_SAPI !== 'cli') {
+            @ignore_user_abort(true);
+            @set_time_limit(0);
+        }
+
+        $process = $this->runProcess($command, 3600);
+        $payload = $this->decodeProcessPayload($process['stdout']);
+
+        if ($process['code'] !== 0) {
+            $message = is_string($payload['message'] ?? null) && trim((string) $payload['message']) !== ''
+                ? trim((string) $payload['message'])
+                : 'Установка обновления завершилась ошибкой';
+
+            $transactionId = trim((string) ($payload['transaction_id'] ?? ''));
+            if (!empty($payload['apply_invoked'])
+                && preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]{7,95}$/', $transactionId) === 1) {
+                $message .= '. Для восстановления выполните: php bin/update_run.php --recover --transaction='
+                    . $transactionId . ' --yes --json';
+            }
+
+            throw new RuntimeException($message, $process['code'] > 0 ? $process['code'] : 1);
+        }
+
+        if (($payload['status'] ?? '') !== 'committed') {
+            throw new RuntimeException('Обновлятор не подтвердил завершение транзакции');
+        }
+        if ((int) ($payload['target_version_code'] ?? 0) !== $expectedTargetVersionCode) {
+            throw new RuntimeException('Обновлятор вернул другую целевую версию');
+        }
+        if (!hash_equals(
+            $expectedPackageSha256,
+            strtolower((string) ($payload['package_sha256'] ?? ''))
+        )) {
+            throw new RuntimeException('Обновлятор вернул другой SHA-256 пакета');
+        }
+
+        $apply = is_array($payload['apply'] ?? null) ? $payload['apply'] : [];
+
+        return [
+            'status' => 'committed',
+            'transaction_id' => (string) ($payload['transaction_id'] ?? ''),
+            'target_version' => (string) ($payload['target_version'] ?? ''),
+            'target_version_code' => (int) ($payload['target_version_code'] ?? 0),
+            'package_sha256' => strtolower((string) ($payload['package_sha256'] ?? '')),
+            'installed_version' => (string) ($apply['installed_version'] ?? ($payload['target_version'] ?? '')),
+        ];
+    }
+
+    /** @param list<string> $command @return array{code:int,stdout:string,stderr:string} */
+    private function runProcess(array $command, int $timeoutSeconds): array
+    {
+        if ($this->processInvoker !== null) {
+            return ($this->processInvoker)($command, $this->appRoot, $timeoutSeconds);
+        }
+
+        return (new UpdateProcessRunner())->run($command, $this->appRoot, $timeoutSeconds);
+    }
+
+    /** @return array<string,mixed> */
+    private function decodeProcessPayload(string $stdout): array
+    {
+        try {
+            $payload = json_decode(trim($stdout), true, 64, JSON_THROW_ON_ERROR);
+        } catch (\Throwable) {
+            throw new RuntimeException('Обновлятор вернул некорректный JSON-ответ');
+        }
+
+        if (!is_array($payload) || array_is_list($payload)) {
+            throw new RuntimeException('Обновлятор вернул некорректный JSON-ответ');
+        }
+
+        return $payload;
     }
 
     /** @return array{0:bool,1:bool,2:string} */
