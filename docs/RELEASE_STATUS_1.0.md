@@ -1,6 +1,6 @@
 # Статус релизной линии Workspace Organizer 1.0.x
 
-> **Обновлено 23 сентября 2026.** Опубликованный baseline — `v1.0.1`. Активный maintenance-кандидат — `1.0.2` / код версии `10002`. Этот файл — текущий stop/reopen ledger финальной церемонии выпуска 1.0.2; исторические задачи исходников для 1.0.0/1.0.1 остаются закрытыми, пока не появится новый воспроизводимый регресс, нарушающий их acceptance contract.
+> **Обновлено 24 сентября 2026.** Опубликованный baseline — `v1.0.1`. Активный maintenance-кандидат — `1.0.2` / код версии `10002`. Этот файл — текущий stop/reopen ledger финальной церемонии выпуска 1.0.2; исторические задачи исходников для 1.0.0/1.0.1 остаются закрытыми, пока не появится новый воспроизводимый регресс, нарушающий их acceptance contract.
 
 ## Текущая релизная топология
 
@@ -19,7 +19,7 @@
 | Область | Текущее состояние исходников | Доказательства / реализация | Оставшийся gate |
 |---|---|---|---|
 | Изоляция модулей / Core control plane | Реализовано | актуальны module platform/isolation, lifecycle, router/security и browser lifecycle gates | exact-head rerun после финальной source freeze |
-| Signed updater / rollback | Реализовано | единый operator flow, readiness doctor, remote delivery, external candidate, проверенный backup кода+MySQL, автоматический rollback/recovery и retention | финальная церемония production-signed artifact + exact final upgrade acceptance |
+| Signed updater / rollback | Реализовано | единый operator flow, readiness doctor, remote delivery, автоматический bootstrap update credential по действующей лицензии, безопасный внешний credential path, external candidate, проверенный backup кода+MySQL, автоматический rollback/recovery и retention | финальная церемония production-signed artifact + exact final upgrade acceptance |
 | Точный upgrade 1.0.1 -> 1.0.2 | Реализовано в CI | опубликованный `v1.0.1` устанавливается реальным installer; проверяются подписанный synthetic 1.0.2 success и принудительный rollback БД/кода после switch | повторить обязательную operator acceptance на финальных неизменяемых production-signed artifacts |
 | Совместимость Windows | Реализовано в CI | Windows updater/path/runtime contracts для PHP 8.1/8.3 | финальная ручная приёмка OSPanel 5.2.2 на точных финальных artifacts |
 | Realtime Messenger | Реализовано | native WebSocket fast path + автоматический аутентифицированный HTTP long-poll fallback; общий DB revision bridge; recovery со свежим ticket; защита worker/session-lock | финальная OSPanel/browser transport acceptance (#173) |
@@ -54,6 +54,20 @@
 5. до изменения исходников классифицируйте любое падение как product defect, test/fixture defect, CI environment defect или stale workflow/base defect;
 6. перенесите принятый exact source candidate в `1.0` и зафиксируйте новый frozen RC SHA.
 
+### G2A — автоматический доступ к обновлениям
+
+На точном финальном кандидате подтвердите, что обычный сценарий не требует отдельного activation code или ручного файла credentials:
+
+1. установка имеет действующую подписанную лицензию;
+2. `UPDATE_ACCESS_MODE=auto`, а `UPDATE_CREDENTIALS_FILE` пуст либо содержит исторический небезопасный путь внутри дерева приложения;
+3. первая проверка обновлений автоматически выполняет bootstrap через production control plane;
+4. credential создаётся вне дерева приложения в `PRIVATE_STORAGE_PATH/update-access/update-access.json`;
+5. повторная проверка переиспользует готовый credential и не требует действий пользователя;
+6. временная недоступность control plane не деактивирует локальную лицензию;
+7. `UPDATE_ACCESS_MODE=offline` не выполняет сетевой bootstrap;
+8. legacy activation code остаётся работоспособным только как совместимость `1.0.0/1.0.1`.
+
+Обязательные checks: `online-update-access (8.1/8.3)` и `admin-update-ui (8.1/8.3)`.
 ### G3 — ручная визуальная приёмка (#172)
 
 Повторите live visual/operator QA на точном frozen RC/artifact. Проверьте:
