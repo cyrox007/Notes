@@ -53,7 +53,7 @@ foreach ([
     'OSPanel 5.2.2',
     'Gate G — неизменяемый артефакт и подпись',
     'Gate H — финальный merge и tag',
-    'v1.0.2',
+    'v1.0.3',
     'нет открытых P0/P1 дефектов с риском потери данных',
     'нет открытых P0/P1 дефектов безопасности',
     'работает только как сборка',
@@ -81,7 +81,7 @@ foreach ([
     'production_public_trust_roots',
     'release_evidence_harness',
     'private_signing_material_absent',
-    "Version::VERSION === '1.0.2'",
+    "Version::VERSION === '1.0.3'",
     "Version::STATUS === 'stable'",
     'exit(3)',
 ] as $marker) {
@@ -104,11 +104,11 @@ releaseAcceptanceAssert(
     'документ изоляции модулей не соответствует текущему runtime'
 );
 
-$releaseNotes = releaseAcceptanceText($root, 'docs/releases/v1.0.2.md');
+$releaseNotes = releaseAcceptanceText($root, 'docs/releases/v1.0.3.md');
 foreach (['## Состав релиза', '## Совместимость', '## Граница перед 1.1.0'] as $marker) {
     releaseAcceptanceAssert(
         str_contains($releaseNotes, $marker),
-        "описание релиза 1.0.2 не содержит русский раздел {$marker}"
+        "описание релиза 1.0.3 не содержит русский раздел {$marker}"
     );
 }
 
@@ -164,6 +164,7 @@ foreach ([
     'online-update-access (8.3)',
     'admin-update-ui (8.1)',
     'admin-update-ui (8.3)',
+    'admin-update-e2e',
 ] as $requiredCheck) {
     releaseAcceptanceAssert(
         in_array($requiredCheck, $requiredChecks, true),
@@ -193,4 +194,4 @@ releaseAcceptanceAssert(
     'Stable release gate не запускает контракт двухфакторной аутентификации'
 );
 
-fwrite(STDOUT, "[OK] финальный контракт release acceptance 1.0.2 выполнен\n");
+fwrite(STDOUT, "[OK] финальный контракт release acceptance 1.0.3 выполнен\n");
