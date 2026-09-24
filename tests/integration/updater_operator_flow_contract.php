@@ -37,7 +37,7 @@ updateRunContract(
     'pre-mutation maintenance cleanup boundary is missing'
 );
 updateRunContract(
-    str_contains($source, 'Wrapper не должен самовольно открывать запись при ошибке'),
+    str_contains($source, 'Обёртка не должна самовольно открывать запись при ошибке'),
     'wrapper потерял fail-closed инвариант владения apply'
 );
 foreach (['shell_exec(', 'passthru(', 'system('] as $forbidden) {
