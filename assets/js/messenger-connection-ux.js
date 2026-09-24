@@ -93,6 +93,7 @@
 
         function renderState(state, text, options = {}) {
             originalSetConnectionState(state, text);
+            connectionText?.setAttribute('title', text);
             root.dataset.connectionState = state;
             root.dataset.connectionReason = options.reason || '';
 
@@ -134,6 +135,7 @@
                     ? `Связь потеряна · повтор через ${remaining} с`
                     : 'Восстанавливаем соединение…');
             originalSetConnectionState(state, text);
+            connectionText?.setAttribute('title', text);
             root.dataset.connectionState = state;
             banner.hidden = false;
             banner.dataset.state = state;

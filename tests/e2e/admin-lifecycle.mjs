@@ -109,6 +109,17 @@ try {
   row = targetRow(page);
   await row.locator('.admin-status').filter({ hasText: 'Активен' }).waitFor({ state: 'visible' });
 
+  // Страница ролей — обязательная часть браузерного контракта Admin.
+  // Раньше CI проверял только PHP/SQL и статическую разметку, поэтому реальный HTTP 500 здесь не ловился.
+  const rolesResponse = await page.goto(`${baseUrl}/admin/roles`, { waitUntil: 'domcontentloaded' });
+  if (!rolesResponse || rolesResponse.status() !== 200) {
+    throw new Error(`Admin roles page returned ${rolesResponse?.status()}`);
+  }
+  await page.getByRole('heading', { name: 'Роли и ограничения', exact: true })
+    .waitFor({ state: 'visible', timeout: 10000 });
+  await page.getByRole('heading', { name: 'Роли пользователей', exact: true })
+    .waitFor({ state: 'visible', timeout: 10000 });
+
   // Open quota settings using the real generated link.
   const settingsLink = page
     .getByRole('navigation', { name: 'Разделы админпанели' })

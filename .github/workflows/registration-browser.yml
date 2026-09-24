@@ -65,7 +65,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for schema in messenger_schema.sql notes_schema.sql file_manager_schema.sql user_fields_schema.sql tasks_schema.sql access_control_schema.sql settings_schema.sql module_lifecycle_schema.sql; do
+          for schema in messenger_schema.sql notes_schema.sql file_manager_schema.sql user_fields_schema.sql tasks_schema.sql access_control_schema.sql audit_schema.sql settings_schema.sql module_lifecycle_schema.sql; do
             mysql -h 127.0.0.1 -uroot -proot registration_browser < "database/${schema}"
           done
 

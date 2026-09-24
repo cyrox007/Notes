@@ -162,10 +162,13 @@ try {
   await page.locator('#btn-create-folder').click();
   await page.locator('#folder-name-input').fill('Base Path Folder');
   await Promise.all([
-    page.waitForLoadState('domcontentloaded'),
+    page.waitForNavigation({ waitUntil: 'load', timeout: 15000 }),
     page.locator('#modal-create-folder .modal-ok').click(),
   ]);
   await page.getByText('Base Path Folder', { exact: true }).waitFor({ timeout: 15000 });
+  // После серверной перезагрузки дожидаемся полной загрузки документа,
+  // чтобы обработчик change у #file-input был гарантированно подключён.
+  await page.waitForLoadState('load');
 
   const uploadResponsePromise = page.waitForResponse(response => (
     response.request().method() === 'POST'

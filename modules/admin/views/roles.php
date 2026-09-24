@@ -8,6 +8,7 @@ $access = isset($workspaceAccess) && is_array($workspaceAccess) ? $workspaceAcce
 $roleRows = isset($roles) && is_array($roles) ? $roles : [];
 $roleUserRows = isset($roleUsers) && is_array($roleUsers) ? $roleUsers : [];
 $flash = isset($admin_roles_flash) && is_array($admin_roles_flash) ? $admin_roles_flash : null;
+$loadError = isset($admin_roles_load_error) ? trim((string) $admin_roles_load_error) : '';
 $siteName = isset($sitename) ? (string) $sitename : 'Workspace Organizer';
 $workspaceVersion = isset($version) ? (string) $version : '';
 $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
@@ -27,6 +28,18 @@ ob_start();
         <?php $flashType = in_array(($flash['type'] ?? ''), ['success', 'error'], true) ? (string) $flash['type'] : 'error'; ?>
         <div class="admin-page__flash admin-page__flash--<?= $view->e($flashType) ?>" role="status"><?= $view->e($flash['message'] ?? '') ?></div>
     <?php endif; ?>
+
+    <?php if ($loadError !== ''): ?>
+        <section class="admin-panel-card" aria-labelledby="admin-roles-unavailable-title">
+            <div class="admin-panel-card__header">
+                <div>
+                    <span class="admin-panel-card__kicker">Требуется диагностика</span>
+                    <h2 id="admin-roles-unavailable-title">Управление ролями временно недоступно</h2>
+                    <p><?= $view->e($loadError) ?></p>
+                </div>
+            </div>
+        </section>
+    <?php else: ?>
 
     <section class="admin-panel-card" aria-labelledby="admin-create-role-title">
         <div class="admin-panel-card__header">
@@ -175,6 +188,7 @@ ob_start();
             </table>
         </div>
     </section>
+    <?php endif; ?>
 </section>
 <?php
 $content = (string) ob_get_clean();

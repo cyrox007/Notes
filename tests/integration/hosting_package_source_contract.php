@@ -61,6 +61,15 @@ hostingPackageAssert(
         && str_contains($workflow, 'BUNDLE_SOURCE_SHA='),
     'release packaging must record the exact ZIP SHA-256 and source SHA beside the workflow artifact'
 );
+
+hostingPackageAssert(
+    str_contains($workflow, 'bootstrap-1.0.2-updater.php')
+        && str_contains($workflow, 'UPDATE_102_BOOTSTRAP=')
+        && str_contains($workflow, 'UPDATE_102_BOOTSTRAP_CHECKSUM=')
+        && str_contains($workflow, '${{ env.UPDATE_102_BOOTSTRAP }}')
+        && str_contains($workflow, '${{ env.UPDATE_102_BOOTSTRAP_CHECKSUM }}'),
+    'релизный artifact должен содержать отдельный bootstrap 1.0.2 и его SHA-256'
+);
 hostingPackageAssert(
     str_contains($workflow, "--exclude 'tests'")
         && str_contains($workflow, "--exclude 'tools'"),
@@ -74,7 +83,7 @@ hostingPackageAssert(
 hostingPackageAssert(
     substr_count($workflow, 'bin/update_retention.php') >= 3
         && substr_count($workflow, 'core/UpdateArtifactCleaner.php') >= 3,
-    '1.0.2 release bundle must lint, require and inspect updater retention runtime'
+    '1.0.3 release bundle must lint, require and inspect updater retention runtime'
 );
 
 hostingPackageAssert(

@@ -16,6 +16,7 @@ $trustedKeys = isset($state['trusted_key_ids']) && is_array($state['trusted_key_
 $canCheck = !empty($state['can_check']);
 $canStage = !empty($state['can_stage']);
 $canManageStage = !empty($state['can_manage_stage']);
+$canApply = !empty($state['can_apply']);
 $operatorReady = !empty($state['operator_ready']);
 $updateAccessReady = !empty($state['update_access_ready']);
 $updateAccessAutomatic = !empty($state['update_access_automatic']);
@@ -30,6 +31,10 @@ $checkedUpdateAvailable = $result !== null
     && ($result['kind'] ?? '') === 'check'
     && ($result['status'] ?? '') === 'update_available'
     && !empty($result['update_available']);
+$installableResult = $result !== null && (
+    $checkedUpdateAvailable
+    || (($result['kind'] ?? '') === 'stage' && ($result['status'] ?? '') === 'staged')
+);
 $formatBytes = static function (mixed $bytes): string {
     $value = max(0, (int) $bytes);
     if ($value >= 1073741824) {
@@ -49,6 +54,7 @@ $statusLabels = [
     'ahead_of_feed' => 'Установка новее feed',
     'update_incompatible' => 'Обновление несовместимо',
     'staged' => 'Пакет подготовлен',
+    'committed' => 'Обновление установлено',
 ];
 
 ob_start();
@@ -117,7 +123,7 @@ ob_start();
         <section class="admin-panel-card" aria-labelledby="updates-result-title">
             <div class="admin-panel-card__header">
                 <div>
-                    <span class="admin-panel-card__kicker"><?= ($result['kind'] ?? '') === 'stage' ? 'Проверенный пакет' : 'Результат проверки канала' ?></span>
+                    <span class="admin-panel-card__kicker"><?= ($result['kind'] ?? '') === 'apply' ? 'Установка завершена' : (($result['kind'] ?? '') === 'stage' ? 'Проверенный пакет' : 'Результат проверки канала') ?></span>
                     <h2 id="updates-result-title"><?= $view->e($statusLabels[$resultStatus] ?? $resultStatus) ?></h2>
                     <p>Результат подтверждён подписью манифеста. Сам канал используется только для доставки указателей.</p>
                 </div>
@@ -133,9 +139,12 @@ ob_start();
                     <div class="admin-status-card"><label>Размер</label><strong><?= $view->e($formatBytes($result['package_size'] ?? 0)) ?></strong></div>
                     <div class="admin-status-card"><label>Требуемый PHP</label><strong><?= $view->e($result['requires_php'] ?? '—') ?>+</strong></div>
                     <div class="admin-status-card"><label>Минимальная исходная версия</label><strong><?= $view->e($result['min_source_version_code'] ?? '—') ?></strong></div>
-                <?php else: ?>
+                <?php elseif (($result['kind'] ?? '') === 'stage'): ?>
                     <div class="admin-status-card"><label>Записей в ZIP</label><strong><?= $view->e($result['archive_entries'] ?? 0) ?></strong></div>
                     <div class="admin-status-card"><label>Файлов в ZIP</label><strong><?= $view->e($result['archive_files'] ?? 0) ?></strong></div>
+                <?php else: ?>
+                    <div class="admin-status-card"><label>Установленная версия</label><strong><?= $view->e($result['installed_version'] ?? ($result['target_version'] ?? '—')) ?></strong></div>
+                    <div class="admin-status-card"><label>Транзакция</label><strong><code><?= $view->e($result['transaction_id'] ?? '—') ?></code></strong></div>
                 <?php endif; ?>
             </div>
 
@@ -159,18 +168,30 @@ ob_start();
                 </div>
             <?php endif; ?>
 
-            <?php if ($checkedUpdateAvailable): ?>
-                <?php if ($canStage): ?>
-                    <form action="<?= $view->e($view->route('admin_updates_stage')) ?>" method="post" class="custom-fields-form" data-confirm-message="Скачать подписанный пакет и поместить его во внешний staging? Рабочая версия приложения изменена не будет." data-confirm-title="Подготовка обновления" data-confirm-danger="false" data-confirm-text="Продолжить">
-                        <?= $view->csrfInput() ?>
-                        <div class="custom-fields-form__footer">
-                            <small>Действие только скачивает, повторно проверяет и сохраняет пакет. Maintenance, backup, миграции и live apply здесь не запускаются.</small>
-                            <button class="admin-action admin-action--primary" type="submit"><i class="fa fa-download" aria-hidden="true"></i> Проверить и подготовить пакет</button>
-                        </div>
-                    </form>
-                <?php elseif (!$canManageStage): ?>
-                    <p class="admin-update-detail">Проверка доступна, но installation-wide staging разрешён только суперадминистратору.</p>
-                <?php endif; ?>
+            <?php if ($installableResult && $canApply): ?>
+                <form action="<?= $view->e($view->route('admin_updates_apply')) ?>" method="post" class="custom-fields-form" data-confirm-message="Установить подтверждённое обновление? Система временно включит режим обслуживания, создаст проверенную резервную копию и выполнит миграции." data-confirm-title="Установка обновления" data-confirm-danger="true" data-confirm-text="Установить">
+                    <?= $view->csrfInput() ?>
+                    <div class="custom-fields-form__footer">
+                        <small>Перед изменением рабочих файлов обновлятор повторно сверит версию и SHA-256 с тем релизом, который показан выше.</small>
+                        <button class="admin-action admin-action--primary" type="submit"><i class="fa fa-arrow-circle-up" aria-hidden="true"></i> Установить обновление</button>
+                    </div>
+                </form>
+            <?php elseif ($installableResult && $canManageStage): ?>
+                <div class="admin-page__flash admin-page__flash--error admin-update-alert" role="status">
+                    Установка из интерфейса пока недоступна: устраните ошибки локальной готовности, указанные выше.
+                </div>
+            <?php endif; ?>
+
+            <?php if ($checkedUpdateAvailable && $canStage): ?>
+                <form action="<?= $view->e($view->route('admin_updates_stage')) ?>" method="post" class="custom-fields-form" data-confirm-message="Скачать подписанный пакет и поместить его во внешний staging без установки?" data-confirm-title="Подготовка обновления" data-confirm-danger="false" data-confirm-text="Подготовить">
+                    <?= $view->csrfInput() ?>
+                    <div class="custom-fields-form__footer">
+                        <small>Необязательный диагностический шаг: рабочая версия приложения не меняется.</small>
+                        <button class="admin-action admin-action--secondary" type="submit"><i class="fa fa-download" aria-hidden="true"></i> Только подготовить пакет</button>
+                    </div>
+                </form>
+            <?php elseif ($checkedUpdateAvailable && !$canManageStage): ?>
+                <p class="admin-update-detail">Установка и общий staging доступны только суперадминистратору.</p>
             <?php endif; ?>
         </section>
     <?php endif; ?>
@@ -179,17 +200,13 @@ ob_start();
         <section class="admin-panel-card" aria-labelledby="updates-operator-title">
             <div class="admin-panel-card__header">
                 <div>
-                    <span class="admin-panel-card__kicker">Установка 1.0.2</span>
-                    <h2 id="updates-operator-title">Проверка и установка через CLI</h2>
-                    <p>Web-интерфейс не меняет рабочий код. Полная установка выполняется одной проверенной CLI-командой с maintenance, резервной копией, кандидатом релиза и возможностью восстановления.</p>
+                    <span class="admin-panel-card__kicker">Резервный способ</span>
+                    <h2 id="updates-operator-title">CLI и восстановление</h2>
+                    <p>Обычная установка теперь выполняется кнопкой выше. CLI остаётся для диагностики и аварийного восстановления.</p>
                 </div>
             </div>
 
-            <?php if ($operatorReady): ?>
-                <div class="admin-page__flash admin-page__flash--success admin-update-alert" role="status">
-                    Локальная среда готова к установке. Перед установкой выполните диагностику, затем команду обновления.
-                </div>
-            <?php else: ?>
+            <?php if (!$operatorReady): ?>
                 <div class="admin-page__flash admin-page__flash--error admin-update-alert" role="status">
                     <strong>Установка пока не готова:</strong>
                     <ul>
@@ -205,10 +222,10 @@ ob_start();
                 <code><?= $view->e($doctorCommand) ?></code>
             </div>
             <div class="admin-update-detail">
-                <strong>Установка следующего подписанного обновления</strong>
+                <strong>Ручная установка</strong>
                 <code><?= $view->e($operatorCommand) ?></code>
             </div>
-            <p class="admin-update-detail">При прерывании после начала live mutation используйте сохранённый transaction id с <code>php bin/update_run.php --recover --transaction=&lt;id&gt; --yes --json</code>. Не удаляйте maintenance marker вручную.</p>
+            <p class="admin-update-detail">Если установка прервалась после начала изменения рабочих файлов, используйте сохранённый идентификатор транзакции с <code>php bin/update_run.php --recover --transaction=&lt;id&gt; --yes --json</code>. Не удаляйте marker режима обслуживания вручную.</p>
         </section>
     <?php endif; ?>
 
@@ -216,16 +233,16 @@ ob_start();
         <div class="admin-panel-card__header">
             <div>
                 <span class="admin-panel-card__kicker">Границы безопасности</span>
-                <h2>Что эта страница не делает</h2>
-                <p>Админ-панель намеренно не выполняет действия, меняющие рабочую версию приложения.</p>
+                <h2>Как выполняется установка</h2>
+                <p>Админ-панель не реализует отдельный механизм обновления, а запускает существующий транзакционный updater с жёсткой привязкой к подтверждённому релизу.</p>
             </div>
         </div>
         <ul class="admin-safety-list">
-            <li>не включает maintenance mode;</li>
-            <li>не создаёт rollback backup или transaction journal;</li>
-            <li>не извлекает release candidate;</li>
-            <li>не переключает live-код и не запускает миграции;</li>
-            <li>не выполняет apply/recover.</li>
+            <li>перед установкой повторно проверяются подписанный manifest, версия и SHA-256 пакета;</li>
+            <li>режим обслуживания включается только после успешной проверки и подготовки пакета;</li>
+            <li>до изменения рабочих файлов создаются и проверяются rollback backup и журнал транзакции;</li>
+            <li>переключение кода и миграции выполняет один существующий транзакционный контур;</li>
+            <li>при ошибке после начала изменения рабочих файлов сохраняется идентификатор для штатного recovery.</li>
         </ul>
     </section>
 </section>
