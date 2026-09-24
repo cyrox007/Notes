@@ -6,7 +6,7 @@
 
 Workspace Organizer — self-hosted PHP-приложение для корпоративной работы: заметки, личные и общие задачи, файлы, профиль, администрирование и real-time Messenger.
 
-`1.0.3` — исправляющий релиз линии 1.0: добавляет реальную установку подписанных обновлений из Admin UI через существующий транзакционный updater, раннюю проверку готовности схемы БД, устойчивую страницу ролей и стабилизацию интерфейса регистрации/Messenger. Сквозной E2E повторяет реальный путь пользователя: exact `v1.0.2` один раз обновляется штатным CLI до текущего `1.0.3`, после чего уже `1.0.3` устанавливает следующее подписанное тестовое обновление кнопкой из Admin; оба этапа завершаются committed-транзакциями, снятым maintenance и post-update healthcheck. Базовый stable contract: vendor-free PHP runtime, native view/WebSocket infrastructure, persisted RBAC и module policies, installation-bound offline Ed25519 licensing, signed remote updater с external staging, transactional code+MySQL rollback и проверенный upgrade path с `0.14.0-beta.4`.
+`1.0.3` — исправляющий релиз линии 1.0: добавляет реальную установку подписанных обновлений из Admin UI через существующий транзакционный updater, раннюю проверку готовности схемы БД, устойчивую страницу ролей и стабилизацию интерфейса регистрации/Messenger. Сквозной E2E повторяет реальный путь пользователя: exact `v1.0.2` один раз обновляется официальным bootstrap до текущего `1.0.3`, после чего уже `1.0.3` устанавливает следующее подписанное тестовое обновление кнопкой из Admin; оба этапа завершаются committed-транзакциями, снятым maintenance и post-update healthcheck. Базовый stable contract: vendor-free PHP runtime, native view/WebSocket infrastructure, persisted RBAC и module policies, installation-bound offline Ed25519 licensing, signed remote updater с external staging, transactional code+MySQL rollback и проверенный upgrade path с `0.14.0-beta.4`.
 
 ## Возможности
 
@@ -409,7 +409,7 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 
 1. проверить GitHub branch protection/ruleset для `master` и `1.0`;
 2. получить green full CI + cross-browser/mobile + load/soak release evidence на exact 1.0.3 release head;
-3. подтвердить fresh backup/restore drill, exact published 1.0.1 → 1.0.2 upgrade/rollback, обязательный Admin E2E: CLI `v1.0.2 → 1.0.3`, затем обновление из Admin на `1.0.3`, production trust canaries, Windows compatibility CI и финальную ручную OSPanel 5.2.2 acceptance;
+3. подтвердить fresh backup/restore drill, exact published 1.0.1 → 1.0.2 upgrade/rollback, обязательный Admin E2E: bootstrap `v1.0.2 → 1.0.3`, затем обновление из Admin на `1.0.3`, production trust canaries, Windows compatibility CI и финальную ручную OSPanel 5.2.2 acceptance;
 4. подтвердить отсутствие открытых P0/P1 data-loss/security/release blockers;
 5. собрать immutable `workspace-organizer-v1.0.3.zip`, сверить SHA-256/source SHA и подписать exact update manifest offline production update key;
 6. после strict acceptance слить exact release head в `master`, поставить `v1.0.3` и публиковать только проверенные immutable artifacts.
