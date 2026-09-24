@@ -46,7 +46,7 @@ jobs:
           php tests/integration/updater_remote_delivery_contract.php
           php tests/integration/updater_remote_address_policy_contract.php
           HELP_OUTPUT="$(php bin/update_remote.php --help)"
-          grep -Fq 'remote signed update delivery' <<<"$HELP_OUTPUT"
+          grep -Fq 'удалённая доставка подписанного обновления' <<<"$HELP_OUTPUT"
 
       - name: Verify network/live-mutation separation
         shell: bash
