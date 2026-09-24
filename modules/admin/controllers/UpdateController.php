@@ -110,7 +110,7 @@ final class UpdateController extends Controller
     public function stage(Request $request): void
     {
         $binding = $request->session(self::STAGE_BINDING_SESSION_KEY);
-        // One-shot by design: every retry must follow a fresh signed check.
+        // Одноразовая привязка: каждая повторная попытка требует новой проверки подписи.
         $request->unsetSession(self::STAGE_BINDING_SESSION_KEY);
 
         try {
