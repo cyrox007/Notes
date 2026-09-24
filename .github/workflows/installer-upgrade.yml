@@ -2,7 +2,7 @@ name: Installer and database upgrade
 
 on:
   pull_request:
-    branches: [master, '1.0']
+    branches: [dev, master, '1.0']
   push:
     branches: [0.12-db-architecture]
 
@@ -49,6 +49,8 @@ jobs:
           php -l bin/migrate.php
           php -l core/DatabaseOwnership.php
           php -l core/MigrationManifest.php
+          php -l core/SchemaReadiness.php
+          php -l tests/integration/schema_readiness_runtime.php
           grep -Fq 'DatabaseOwnership::fromPackageRoot' install.php
           grep -Fq 'DatabaseOwnership::fromPackageRoot' bin/migrate.php
           grep -Fq 'MigrationManifest($root)' bin/migrate.php
@@ -144,6 +146,17 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot notes_upgrade_test < database/notes_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_upgrade_test < database/file_manager_schema.sql
 
+      - name: Legacy schema is blocked before migration
+        shell: bash
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: notes_upgrade_test
+          EXPECT_READY: 0
+        run: php tests/integration/schema_readiness_runtime.php
+
       - name: Dry-run does not mutate legacy database
         shell: bash
         env:
@@ -187,6 +200,17 @@ jobs:
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT COUNT(*) FROM schema_migrations WHERE migration='20260915_rbac_foundation.sql'")" = "1"
           TYPE="$(mysql -N -h 127.0.0.1 -uroot -proot notes_upgrade_test -e "SELECT column_type FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='dialogs' AND column_name='type'")"
           echo "$TYPE" | grep -Fq "'saved'"
+
+      - name: Migrated schema is accepted by HTTP readiness guard
+        shell: bash
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: notes_upgrade_test
+          EXPECT_READY: 1
+        run: php tests/integration/schema_readiness_runtime.php
 
       - name: Second upgrade run is idempotent
         shell: bash

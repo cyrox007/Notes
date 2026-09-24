@@ -60,6 +60,73 @@ HTML;
 }
 
 /** @param array{active:bool,valid:bool,transaction_id:?string,reason:string,started_at:?int,state_path:?string} $state */
+/**
+ * @param array{ready:bool,missing_tables:list<string>,missing_user_columns:list<string>} $state
+ */
+function handleSchemaUpgradeRequired(array $state): never
+{
+    http_response_code(503);
+    header('Cache-Control: no-store');
+    header('Retry-After: 60');
+
+    $accept = strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? ''));
+    if (str_contains($accept, 'application/json')) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'success' => false,
+            'error' => 'database_schema_update_required',
+            'message' => 'Код приложения новее схемы базы данных. Завершите миграции.',
+            'retry_after' => 60,
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
+        exit;
+    }
+
+    header('Content-Type: text/html; charset=utf-8');
+    $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $missingCount = count($state['missing_tables']) + count($state['missing_user_columns']);
+    echo <<<HTML
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="robots" content="noindex,nofollow">
+    <title>Требуется обновление базы данных</title>
+    <style nonce="{$cspNonce}">
+        :root { color-scheme: light dark; font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+        * { box-sizing:border-box; }
+        body { margin:0; min-height:100vh; display:grid; place-items:center; padding:24px; background:#f4f6f9; color:#1f2937; }
+        main { width:min(720px,100%); padding:28px; background:#fff; border:1px solid #dce2e9; border-radius:16px; box-shadow:0 18px 48px rgba(31,41,55,.10); }
+        h1 { margin:0 0 10px; font-size:24px; }
+        p { margin:8px 0; line-height:1.6; color:#667085; }
+        code { display:block; margin-top:8px; padding:10px 12px; border:1px solid #e4e7ec; border-radius:8px; background:#f8fafc; color:#344054; white-space:pre-wrap; }
+        .count { font-weight:700; color:#344054; }
+        @media (prefers-color-scheme:dark) {
+            body { background:#111318; color:#f3f4f6; }
+            main { background:#191c22; border-color:#303640; }
+            p { color:#aab2bf; }
+            code { background:#111318; border-color:#303640; color:#e5e7eb; }
+            .count { color:#e5e7eb; }
+        }
+    </style>
+</head>
+<body>
+<main role="status">
+    <h1>Требуется обновление базы данных</h1>
+    <p>Файлы приложения уже обновлены, но схема базы данных ещё относится к предыдущей версии.</p>
+    <p class="count">Обнаружено несоответствий: {$missingCount}.</p>
+    <p>Перед продолжением сделайте резервную копию БД и выполните из корня Workspace:</p>
+    <code>php bin/migrate.php --status
+php bin/migrate.php
+php bin/healthcheck.php --json</code>
+    <p>После успешной миграции просто обновите страницу. Установщик запускать не нужно.</p>
+</main>
+</body>
+</html>
+HTML;
+    exit;
+}
+
 function handleMaintenanceMode(array $state): never
 {
     http_response_code(503);
@@ -117,6 +184,14 @@ try {
     $maintenanceState = (new \App\Services\MaintenanceModeService())->state();
     if ($maintenanceState['active']) {
         handleMaintenanceMode($maintenanceState);
+    }
+
+    require_once SITEPATH . '/core/ModuleManifest.php';
+    require_once SITEPATH . '/core/DatabaseOwnership.php';
+    require_once SITEPATH . '/core/SchemaReadiness.php';
+    $schemaState = \Core\SchemaReadiness::inspect(SITEPATH);
+    if (!$schemaState['ready']) {
+        handleSchemaUpgradeRequired($schemaState);
     }
 
     require_once SITEPATH . '/core.php';
