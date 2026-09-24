@@ -221,17 +221,28 @@ jobs:
           BUNDLE_FILE="$(basename "$BUNDLE")"
           CHECKSUM_FILE="$BUNDLE.sha256"
           SOURCE_SHA_FILE="$BUNDLE.source-sha"
+          BOOTSTRAP_FILE="$GITHUB_WORKSPACE/bootstrap-1.0.2-updater.php"
+          BOOTSTRAP_CHECKSUM="$BOOTSTRAP_FILE.sha256"
+          cp "$GITHUB_WORKSPACE/tools/release/bootstrap-1.0.2-updater.php" "$BOOTSTRAP_FILE"
           (
             cd "$BUNDLE_DIR"
             sha256sum "$BUNDLE_FILE"
           ) > "$CHECKSUM_FILE"
+          (
+            cd "$GITHUB_WORKSPACE"
+            sha256sum "$(basename "$BOOTSTRAP_FILE")"
+          ) > "$BOOTSTRAP_CHECKSUM"
           printf '%s\n' "$GITHUB_SHA" > "$SOURCE_SHA_FILE"
           test -s "$CHECKSUM_FILE"
+          test -s "$BOOTSTRAP_CHECKSUM"
           test "$(cat "$SOURCE_SHA_FILE")" = "$GITHUB_SHA"
           cat "$CHECKSUM_FILE"
+          cat "$BOOTSTRAP_CHECKSUM"
           echo "Source SHA: $GITHUB_SHA"
           echo "BUNDLE_CHECKSUM=$CHECKSUM_FILE" >> "$GITHUB_ENV"
           echo "BUNDLE_SOURCE_SHA=$SOURCE_SHA_FILE" >> "$GITHUB_ENV"
+          echo "UPDATE_102_BOOTSTRAP=$BOOTSTRAP_FILE" >> "$GITHUB_ENV"
+          echo "UPDATE_102_BOOTSTRAP_CHECKSUM=$BOOTSTRAP_CHECKSUM" >> "$GITHUB_ENV"
 
       - name: Upload immutable release-candidate artifact
         uses: actions/upload-artifact@v4
@@ -241,6 +252,8 @@ jobs:
             ${{ env.BUNDLE }}
             ${{ env.BUNDLE_CHECKSUM }}
             ${{ env.BUNDLE_SOURCE_SHA }}
+            ${{ env.UPDATE_102_BOOTSTRAP }}
+            ${{ env.UPDATE_102_BOOTSTRAP_CHECKSUM }}
           if-no-files-found: error
           retention-days: 14
 
