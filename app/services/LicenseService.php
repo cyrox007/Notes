@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Services;
 
 require_once dirname(__DIR__, 2) . '/core/SecurityEventLog.php';
+require_once dirname(__DIR__, 2) . '/core/UpdateAccessBootstrap.php';
 
 use Core\DatabaseManager;
 use Core\LocalControlPlaneContext;
 use Core\SecurityEventLog;
+use Core\UpdateAccessBootstrap;
 use DomainException;
 use InvalidArgumentException;
 use RuntimeException;
@@ -126,6 +128,7 @@ final class LicenseService
         $this->requireLicenseManager($actorId);
         try {
             $status = $this->activateToken($token);
+            $status = $this->attachUpdateAccess($status, 'user', $actorId);
             SecurityEventLog::emit(
                 'license.activated',
                 'info',
@@ -164,6 +167,7 @@ final class LicenseService
         $context->assertCli();
         try {
             $status = $this->activateToken($token);
+            $status = $this->attachUpdateAccess($status, 'cli', null);
             SecurityEventLog::emit(
                 'license.activated',
                 'info',
@@ -189,6 +193,30 @@ final class LicenseService
         }
     }
 
+    /**
+     * Обеспечивает доступ к каналу обновлений по уже сохранённой лицензии.
+     * Полный лицензионный токен наружу из сервиса не возвращается.
+     *
+     * @return array<string,mixed>
+     */
+    public function ensureUpdateAccess(): array
+    {
+        $token = $this->storedToken();
+        if ($token === '') {
+            throw new DomainException('Для обновлений сначала активируйте лицензию', 403);
+        }
+
+        $status = $this->status();
+        if (empty($status['valid'])) {
+            throw new DomainException(
+                (string) ($status['message'] ?? 'Лицензия недействительна'),
+                403
+            );
+        }
+
+        return (new UpdateAccessBootstrap())->ensure($this->installationId(), $token);
+    }
+
     /** @return array<string,mixed> */
     public function clear(int $actorId): array
     {
@@ -204,6 +232,37 @@ final class LicenseService
         $context->assertCli();
         $status = $this->clearToken();
         SecurityEventLog::emit('license.cleared', 'warning', 'license', 'cli');
+        return $status;
+    }
+
+    /** @param array<string,mixed> $status @return array<string,mixed> */
+    private function attachUpdateAccess(array $status, string $source, ?int $actorId): array
+    {
+        try {
+            $access = $this->ensureUpdateAccess();
+            $status['update_access'] = (string) ($access['status'] ?? 'ready');
+            SecurityEventLog::emit(
+                'update.access_ready',
+                'info',
+                'updater',
+                $source,
+                $actorId,
+                ['source' => (string) ($access['source'] ?? '')]
+            );
+        } catch (Throwable $e) {
+            // Локальная лицензия остаётся активной даже при временной
+            // недоступности control plane. Updater повторит bootstrap позже.
+            $status['update_access'] = 'deferred';
+            SecurityEventLog::emit(
+                'update.access_deferred',
+                'warning',
+                'updater',
+                $source,
+                $actorId,
+                ['error_type' => $e::class]
+            );
+        }
+
         return $status;
     }
 
