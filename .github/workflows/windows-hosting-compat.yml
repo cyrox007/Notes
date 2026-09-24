@@ -118,6 +118,8 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $source = Join-Path $env:RUNNER_TEMP 'notes-v1.0.3-php-cli'
+          git fetch --force --depth=1 origin refs/tags/v1.0.3:refs/tags/v1.0.3
+          if ($LASTEXITCODE -ne 0) { throw 'Не удалось загрузить exact tag v1.0.3' }
           git worktree remove --force $source 2>$null
           if (Test-Path $source) { Remove-Item -Recurse -Force $source }
           git worktree add --detach $source v1.0.3
