@@ -1,12 +1,12 @@
 # Workspace Organizer
 
-**Версия:** `1.0.3`  
+**Версия:** `1.0.4`  
 **Актуально на:** 24 сентября 2026  
 **Статус:** stable
 
 Workspace Organizer — self-hosted PHP-приложение для корпоративной работы: заметки, личные и общие задачи, файлы, профиль, администрирование и real-time Messenger.
 
-`1.0.3` — исправляющий релиз линии 1.0: добавляет реальную установку подписанных обновлений из Admin UI через существующий транзакционный updater, раннюю проверку готовности схемы БД, устойчивую страницу ролей и стабилизацию интерфейса регистрации/Messenger. Сквозной E2E повторяет реальный путь пользователя: exact `v1.0.2` один раз обновляется официальным bootstrap до текущего `1.0.3`, после чего уже `1.0.3` устанавливает следующее подписанное тестовое обновление кнопкой из Admin; оба этапа завершаются committed-транзакциями, снятым maintenance и post-update healthcheck. Базовый stable contract: vendor-free PHP runtime, native view/WebSocket infrastructure, persisted RBAC и module policies, installation-bound offline Ed25519 licensing, signed remote updater с external staging, transactional code+MySQL rollback и проверенный upgrade path с `0.14.0-beta.4`.
+`1.0.4` — исправляющий релиз линии 1.0: уплотняет Admin → Updates, исправляет поиск PHP CLI в web-SAPI Windows/OSPanel за счёт обнаружения `php.exe` рядом с фактическим `PHP_BINARY` и в абсолютных каталогах `PATH`, а сквозной update-drill теперь начинает проверку с exact `v1.0.3` и устанавливает текущий `1.0.4`. Релиз предназначен в том числе для реальной проверки штатного обновления установленной `1.0.3` через подписанный канал. Базовый stable contract остаётся прежним: vendor-free PHP runtime, native view/WebSocket infrastructure, persisted RBAC и module policies, installation-bound offline Ed25519 licensing, signed remote updater с external staging, transactional code+MySQL rollback и проверенный upgrade path с `0.14.0-beta.4`.
 
 ## Возможности
 
