@@ -479,8 +479,12 @@ jobs:
 
           (
             cd "$LIVE"
-            SSL_CERT_FILE="$DRILL/ca.crt" PHP_CLI_SERVER_WORKERS=4 \
-              php -d "openssl.cafile=$DRILL/ca.crt" -S 127.0.0.1:18094 tests/e2e/router.php \
+            SSL_CERT_FILE="$DRILL/ca.crt" \
+              E2E_APP_ROOT="$LIVE" \
+              E2E_SUPPORT_ROOT="$GITHUB_WORKSPACE" \
+              PHP_CLI_SERVER_WORKERS=4 \
+              php -d "openssl.cafile=$DRILL/ca.crt" \
+              -S 127.0.0.1:18094 "$GITHUB_WORKSPACE/tests/e2e/router.php" \
               >"$DRILL/app-http.log" 2>&1 &
             echo $! >"$DRILL/app-http.pid"
           )
