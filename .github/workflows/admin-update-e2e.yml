@@ -389,7 +389,7 @@ jobs:
 
           test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.3'
           test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10003'
-          grep -Fq '"status": "ok"' "$DRILL/bootstrap-1.0.2-to-1.0.3.json"
+          grep -Fq '"status": "committed"' "$DRILL/bootstrap-1.0.2-to-1.0.3.json"
           test ! -e "$DRILL/private/state/workspace-maintenance.json"
 
       - name: Подготовить следующее подписанное обновление для проверки Admin UI
