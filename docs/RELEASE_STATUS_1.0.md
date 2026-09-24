@@ -146,6 +146,7 @@ php bin/release_acceptance.php --strict --json \
   --operational-acceptance-green \
   --visual-acceptance-green \
   --ospanel-acceptance-green \
+  --update-bootstrap-acceptance-green \
   --two-factor-acceptance-green \
   --one-zero-one-drill-green \
   --p0p1-clear \
