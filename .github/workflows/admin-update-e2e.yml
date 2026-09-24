@@ -71,14 +71,23 @@ jobs:
           DBNAME: admin_update_e2e
         run: |
           set -euo pipefail
-          mysql -h 127.0.0.1 -uroot -proot admin_update_e2e < database/messenger_schema.sql
-          mysql -h 127.0.0.1 -uroot -proot admin_update_e2e < database/notes_schema.sql
-          mysql -h 127.0.0.1 -uroot -proot admin_update_e2e < database/file_manager_schema.sql
-          mysql -h 127.0.0.1 -uroot -proot admin_update_e2e < database/user_fields_schema.sql
-          mysql -h 127.0.0.1 -uroot -proot admin_update_e2e < database/tasks_schema.sql
-          mysql -h 127.0.0.1 -uroot -proot admin_update_e2e < database/access_control_schema.sql
-          mysql -h 127.0.0.1 -uroot -proot admin_update_e2e < database/settings_schema.sql
-          mysql -h 127.0.0.1 -uroot -proot admin_update_e2e < database/module_lifecycle_schema.sql
+          mapfile -t SCHEMAS < <(
+            php -r '
+              require "core/ModuleManifest.php";
+              require "core/DatabaseOwnership.php";
+              foreach (Core\\DatabaseOwnership::fromPackageRoot(getcwd())->schemaFiles() as $path) {
+                  echo $path, PHP_EOL;
+              }
+            '
+          )
+          test "${#SCHEMAS[@]}" -gt 0
+          for schema in "${SCHEMAS[@]}"; do
+            echo "Импорт канонической схемы: $schema"
+            mysql -h 127.0.0.1 -uroot -proot admin_update_e2e < "$schema"
+          done
+
+          DBHOST=127.0.0.1 DBPORT=3306 DBUSER=root DBPASS=root DBNAME=admin_update_e2e EXPECT_READY=1 \
+            php tests/integration/schema_readiness_runtime.php
 
           TEST_PASSWORD="$(php -r 'echo bin2hex(random_bytes(18));')"
           echo "::add-mask::$TEST_PASSWORD"
@@ -351,6 +360,13 @@ jobs:
             sleep 0.25
           done
           if [[ "$READY" != '1' ]]; then
+            echo '--- HTTP-ответ readiness ---' >&2
+            curl -sS -D "$DRILL/readiness.headers" \
+              http://127.0.0.1:18094/workspace/auth/login/ \
+              -o "$DRILL/readiness.body" || true
+            cat "$DRILL/readiness.headers" >&2 || true
+            cat "$DRILL/readiness.body" >&2 || true
+            echo '--- PHP server ---' >&2
             cat "$DRILL/app-http.log" >&2
             exit 1
           fi
