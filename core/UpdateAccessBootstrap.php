@@ -76,6 +76,18 @@ final class UpdateAccessBootstrap
     }
 
     /**
+     * Немедленный bootstrap при активации лицензии включается только явной
+     * настройкой. Это сохраняет полностью офлайн-сценарии старых установок и
+     * тестов; при первом открытии проверки обновлений auto-bootstrap всё равно
+     * выполнится без действий пользователя.
+     */
+    public static function eagerEnabled(): bool
+    {
+        $mode = strtolower(trim((string) getenv('UPDATE_ACCESS_MODE')));
+        return in_array($mode, ['auto', 'online'], true);
+    }
+
+    /**
      * @return array{status:string,source:string,path?:string}
      */
     public function ensure(string $installationId, string $licenseToken): array
