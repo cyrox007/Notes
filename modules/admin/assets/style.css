@@ -10,6 +10,7 @@
 .admin-page__flash--error{border-color:color-mix(in srgb,var(--ui-danger) 36%,var(--ui-border));background:var(--ui-danger-soft)}
 .admin-panel-card{overflow:hidden;border:1px solid var(--ui-border);border-radius:13px;background:var(--ui-surface);box-shadow:var(--ui-shadow-sm)}
 .admin-panel-card__header{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 18px;border-bottom:1px solid var(--ui-border)}
+.admin-panel-card__empty{padding:16px 18px;color:var(--ui-muted);font-size:12px;line-height:1.5}
 .admin-users-table-wrap{overflow:auto}
 .admin-users-table{width:100%;border-collapse:collapse;min-width:720px}
 .admin-users-table th,.admin-users-table td{padding:12px 14px;border-bottom:1px solid var(--ui-border);text-align:left;vertical-align:middle;font-size:12px}

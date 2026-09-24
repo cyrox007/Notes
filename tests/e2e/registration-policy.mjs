@@ -86,6 +86,16 @@ try {
     registrationLink.click(),
   ]);
 
+  const emptyInvites = admin.locator('.admin-panel-card__empty').filter({ hasText: 'Управляемых инвайтов пока нет.' });
+  await emptyInvites.waitFor({ state: 'visible', timeout: 10000 });
+  const emptyInvitePadding = await emptyInvites.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return [parseFloat(style.paddingLeft), parseFloat(style.paddingRight)];
+  });
+  if (emptyInvitePadding.some((value) => !Number.isFinite(value) || value < 12)) {
+    throw new Error(`Пустое состояние инвайтов потеряло внутренние отступы: ${emptyInvitePadding.join('/')}`);
+  }
+
   // Enable open registration from the real admin settings page.
   await admin.locator('#registration_mode').selectOption('open');
   await submitAndWait(admin, admin.getByRole('button', { name: 'Сохранить режим', exact: true }));

@@ -112,7 +112,7 @@ ob_start();
                 </table>
             </div>
         <?php else: ?>
-            <p>Управляемых инвайтов пока нет.</p>
+            <div class="admin-panel-card__empty">Управляемых инвайтов пока нет.</div>
         <?php endif; ?>
     </section>
 </section>
