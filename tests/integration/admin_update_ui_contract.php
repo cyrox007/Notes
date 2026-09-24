@@ -278,11 +278,46 @@ try {
         $keyId => UpdateManifestVerifier::base64UrlEncode($public),
     ]);
     $permissions = new PermissionService(new AdminUpdateFakeDb());
-    $service = new AdminUpdateService($permissions, $verifier, $transport);
+    $capturedApplyCommands = [];
+    $processInvoker = static function (array $command, string $cwd, int $timeout) use (&$capturedApplyCommands): array {
+        $capturedApplyCommands[] = [
+            'command' => $command,
+            'cwd' => $cwd,
+            'timeout' => $timeout,
+        ];
+
+        $versionCode = 0;
+        $sha256 = '';
+        foreach ($command as $argument) {
+            if (str_starts_with($argument, '--expected-version-code=')) {
+                $versionCode = (int) substr($argument, strlen('--expected-version-code='));
+            }
+            if (str_starts_with($argument, '--expected-package-sha256=')) {
+                $sha256 = substr($argument, strlen('--expected-package-sha256='));
+            }
+        }
+
+        return [
+            'code' => 0,
+            'stderr' => '',
+            'stdout' => json_encode([
+                'status' => 'committed',
+                'transaction_id' => 'update-admin-ui-contract',
+                'target_version' => '1.0.3-admin-test',
+                'target_version_code' => $versionCode,
+                'package_sha256' => $sha256,
+                'apply' => [
+                    'installed_version' => '1.0.3-admin-test',
+                ],
+            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+        ];
+    };
+    $service = new AdminUpdateService($permissions, $verifier, $transport, $processInvoker);
 
     $snapshot = $service->snapshot(42);
     adminUpdateAssert(($snapshot['can_check'] ?? false) === true, 'superadmin cannot check configured signed feed');
     adminUpdateAssert(($snapshot['can_stage'] ?? false) === true, 'superadmin cannot stage configured signed update');
+    adminUpdateAssert(($snapshot['can_apply'] ?? false) === true, 'superadmin cannot apply configured signed update from Admin UI');
     adminUpdateAssert(($snapshot['operator_ready'] ?? false) === true, 'configured updater is not operator-ready');
     adminUpdateAssert(($snapshot['operator_command'] ?? '') === 'php bin/update_run.php --yes --json', 'operator command changed unexpectedly');
     adminUpdateAssert(($snapshot['feed_label'] ?? '') === 'updates.example.test/stable/feed.json', 'feed label exposes unexpected data');
@@ -297,9 +332,42 @@ try {
     adminUpdateAssert($reviewedVersionCode === $manifest['version_code'], 'reviewed target version binding changed');
     adminUpdateAssert(hash_equals($manifest['package']['sha256'], $reviewedPackageSha256), 'reviewed package hash binding changed');
 
+    $applied = $service->apply(42, $reviewedVersionCode, $reviewedPackageSha256);
+    adminUpdateAssert(($applied['status'] ?? '') === 'committed', 'admin UI apply did not return committed status');
+    adminUpdateAssert(($applied['target_version_code'] ?? 0) === $reviewedVersionCode, 'admin UI apply lost reviewed version binding');
+    adminUpdateAssert(hash_equals($reviewedPackageSha256, (string) ($applied['package_sha256'] ?? '')), 'admin UI apply lost reviewed SHA-256 binding');
+    adminUpdateAssert(count($capturedApplyCommands) === 1, 'admin UI apply did not start exactly one updater process');
+    $captured = $capturedApplyCommands[0]['command'];
+    adminUpdateAssert(is_array($captured) && count($captured) >= 6, 'admin UI apply argv is incomplete');
+    adminUpdateAssert(
+        str_ends_with(str_replace('\\', '/', (string) ($captured[1] ?? '')), '/bin/update_run.php'),
+        'admin UI apply does not reuse bin/update_run.php'
+    );
+    adminUpdateAssert(in_array('--yes', $captured, true), 'admin UI apply lost destructive confirmation flag');
+    adminUpdateAssert(in_array('--json', $captured, true), 'admin UI apply lost JSON contract');
+    adminUpdateAssert(
+        in_array('--expected-version-code=' . $reviewedVersionCode, $captured, true),
+        'admin UI apply does not bind reviewed version code'
+    );
+    adminUpdateAssert(
+        in_array('--expected-package-sha256=' . $reviewedPackageSha256, $captured, true),
+        'admin UI apply does not bind reviewed package SHA-256'
+    );
+    adminUpdateAssert(($capturedApplyCommands[0]['timeout'] ?? 0) === 3600, 'admin UI apply timeout boundary changed');
+
     $ordinarySnapshot = $service->snapshot(43);
     adminUpdateAssert(($ordinarySnapshot['can_check'] ?? false) === true, 'settings manager cannot perform read-only update check');
     adminUpdateAssert(($ordinarySnapshot['can_stage'] ?? true) === false, 'non-superadmin was allowed installation-wide staging');
+    adminUpdateAssert(($ordinarySnapshot['can_apply'] ?? true) === false, 'non-superadmin was allowed installation-wide apply');
+    $ordinaryApplyRejected = false;
+    try {
+        $service->apply(43, $reviewedVersionCode, $reviewedPackageSha256);
+    } catch (DomainException $e) {
+        $ordinaryApplyRejected = $e->getCode() === 403;
+    }
+    adminUpdateAssert($ordinaryApplyRejected, 'non-superadmin apply action was not rejected');
+    adminUpdateAssert($capturedApplyCommands === [], 'rejected apply started updater process');
+
     $ordinaryStageRejected = false;
     try {
         $service->stage(43, $reviewedVersionCode, $reviewedPackageSha256);
@@ -350,15 +418,17 @@ try {
         str_contains($controllerSource, '$request->unsetSession(self::STAGE_BINDING_SESSION_KEY)'),
         'admin reviewed release binding is not one-shot'
     );
-    adminUpdateAssert(!str_contains($serviceSource, 'UpdateApplyCommand'), 'admin service reached destructive apply command');
-    adminUpdateAssert(!str_contains($serviceSource, 'UpdateLiveApplier'), 'admin service reached live code applier');
-    adminUpdateAssert(!str_contains($serviceSource, 'UpdateBackupManager'), 'first admin UI slice reached rollback backup mutation');
+    adminUpdateAssert(str_contains($serviceSource, 'UpdateProcessRunner'), 'admin apply does not reuse bounded argv process runner');
+    adminUpdateAssert(!str_contains($serviceSource, 'UpdateApplyCommand'), 'admin service bypasses the operator flow and reaches UpdateApplyCommand directly');
+    adminUpdateAssert(!str_contains($serviceSource, 'UpdateLiveApplier'), 'admin service bypasses the operator flow and reaches live code applier directly');
+    adminUpdateAssert(!str_contains($serviceSource, 'UpdateBackupManager'), 'admin service bypasses the operator flow and reaches backup mutation directly');
     adminUpdateAssert(str_contains($serviceSource, 'expectedTargetVersionCode'), 'admin service lost reviewed target version binding');
     adminUpdateAssert(str_contains($serviceSource, 'expectedPackageSha256'), 'admin service lost reviewed package hash binding');
     adminUpdateAssert(str_contains($viewSource, "route('admin_updates_check')"), 'admin update check action is missing');
     adminUpdateAssert(str_contains($viewSource, "route('admin_updates_stage')"), 'admin update stage action is missing');
-    adminUpdateAssert(str_contains($viewSource, '$view->csrfInput()'), 'admin update stage form lost CSRF token');
-    adminUpdateAssert(!str_contains($viewSource, "route('admin_updates_apply')"), 'admin update view exposes a destructive web apply action');
+    adminUpdateAssert(str_contains($viewSource, '$view->csrfInput()'), 'admin update forms lost CSRF token');
+    adminUpdateAssert(str_contains($viewSource, "route('admin_updates_apply')"), 'admin update view does not expose reviewed web apply action');
+    adminUpdateAssert(str_contains($viewSource, 'Установить обновление'), 'admin update view lost install action copy');
     adminUpdateAssert(str_contains($viewSource, 'bin/update_run.php --recover'), 'admin update view lost operator recovery guidance');
     adminUpdateAssert(str_contains($viewSource, '$operatorReady'), 'admin update view lost operator readiness state');
     adminUpdateAssert(!str_contains($viewSource, 'stage_dir'), 'admin update view exposes absolute stage path');
@@ -367,6 +437,24 @@ try {
     adminUpdateAssert(
         str_contains($routerSource, "[LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_stage'"),
         'admin stage route lost login/settings/CSRF middleware chain'
+    );
+    adminUpdateAssert(str_contains($routerSource, "->add('POST', '/updates/apply'"), 'admin apply route must be POST');
+    adminUpdateAssert(
+        str_contains($routerSource, "[LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_apply'"),
+        'admin apply route lost login/settings/CSRF middleware chain'
+    );
+    adminUpdateAssert(str_contains($controllerSource, 'APPLY_BINDING_SESSION_KEY'), 'admin apply lost server-side reviewed release binding');
+    adminUpdateAssert(
+        str_contains($controllerSource, '$request->unsetSession(self::APPLY_BINDING_SESSION_KEY)'),
+        'admin apply binding is not one-shot'
+    );
+
+    $operatorSource = (string) file_get_contents($root . '/bin/update_run.php');
+    adminUpdateAssert(str_contains($operatorSource, "'expected-version-code:'"), 'operator flow lost reviewed version argument');
+    adminUpdateAssert(str_contains($operatorSource, "'expected-package-sha256:'"), 'operator flow lost reviewed SHA-256 argument');
+    adminUpdateAssert(
+        str_contains($operatorSource, 'Подписанный канал изменился после подтверждения обновления'),
+        'operator flow lost pre-maintenance review binding check'
     );
 
     sodium_memzero($secret);
