@@ -134,8 +134,32 @@ jobs:
           SOURCE="$DRILL/source-v1.0.2"
           PRIVATE="$DRILL/private"
           rm -rf "$DRILL"
-          mkdir -p "$LIVE" "$PRIVATE/logs" "$PRIVATE/staging" "$PRIVATE/state" "$PRIVATE/backups" "$PRIVATE/releases"
-          chmod 700 "$PRIVATE" "$PRIVATE/logs" "$PRIVATE/staging" "$PRIVATE/state" "$PRIVATE/backups" "$PRIVATE/releases"
+          mkdir -p \
+            "$LIVE" \
+            "$PRIVATE/logs" \
+            "$PRIVATE/file_manager" \
+            "$PRIVATE/messenger" \
+            "$PRIVATE/notes" \
+            "$PRIVATE/users" \
+            "$PRIVATE/rate-limit" \
+            "$PRIVATE/legacy" \
+            "$PRIVATE/staging" \
+            "$PRIVATE/state" \
+            "$PRIVATE/backups" \
+            "$PRIVATE/releases"
+          chmod 700 \
+            "$PRIVATE" \
+            "$PRIVATE/logs" \
+            "$PRIVATE/file_manager" \
+            "$PRIVATE/messenger" \
+            "$PRIVATE/notes" \
+            "$PRIVATE/users" \
+            "$PRIVATE/rate-limit" \
+            "$PRIVATE/legacy" \
+            "$PRIVATE/staging" \
+            "$PRIVATE/state" \
+            "$PRIVATE/backups" \
+            "$PRIVATE/releases"
 
           git worktree add --detach "$SOURCE" v1.0.2
           rsync -a "$SOURCE/" "$LIVE/" \
