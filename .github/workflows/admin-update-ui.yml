@@ -45,7 +45,9 @@ jobs:
           php -l tests/integration/updater_readiness_contract.php
           php -l tests/integration/updater_operator_flow_contract.php
           php -l tests/integration/admin_update_ui_contract.php
+          php -l tests/integration/one_click_update_contract.php
           php -l tests/integration/native_admin_contract.php
+          node --check assets/js/update-notifications.js
 
       - name: Проверить сервис и интерфейс подписанного обновления
         shell: bash
@@ -54,6 +56,7 @@ jobs:
           php tests/integration/updater_readiness_contract.php
           php tests/integration/updater_operator_flow_contract.php
           php tests/integration/admin_update_ui_contract.php
+          php tests/integration/one_click_update_contract.php
           php tests/integration/native_admin_contract.php
 
       - name: Повторно проверить сетевую границу обновлятора
@@ -67,10 +70,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          grep -Fq -- "->add('GET', '/updates/status'" modules/admin/AdminRuntimeProvider.php
           grep -Fq -- "->add('GET', '/updates/check'" modules/admin/AdminRuntimeProvider.php
           grep -Fq -- "->add('POST', '/updates/stage'" modules/admin/AdminRuntimeProvider.php
+          grep -Fq -- "->add('POST', '/updates/apply-latest'" modules/admin/AdminRuntimeProvider.php
           grep -Fq -- "->add('POST', '/updates/apply'" modules/admin/AdminRuntimeProvider.php
           grep -Fq "RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_stage'" modules/admin/AdminRuntimeProvider.php
+          grep -Fq "RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_apply_latest'" modules/admin/AdminRuntimeProvider.php
           grep -Fq "RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_apply'" modules/admin/AdminRuntimeProvider.php
           grep -Fq "hasRole(\$actorId, 'superadmin')" modules/admin/services/AdminUpdateService.php
           grep -Fq 'UpdateRemoteDelivery' modules/admin/services/AdminUpdateService.php
