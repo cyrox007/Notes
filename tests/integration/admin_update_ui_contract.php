@@ -359,6 +359,7 @@ try {
     adminUpdateAssert(($ordinarySnapshot['can_check'] ?? false) === true, 'settings manager cannot perform read-only update check');
     adminUpdateAssert(($ordinarySnapshot['can_stage'] ?? true) === false, 'non-superadmin was allowed installation-wide staging');
     adminUpdateAssert(($ordinarySnapshot['can_apply'] ?? true) === false, 'non-superadmin was allowed installation-wide apply');
+    $applyCountBeforeRejectedAttempt = count($capturedApplyCommands);
     $ordinaryApplyRejected = false;
     try {
         $service->apply(43, $reviewedVersionCode, $reviewedPackageSha256);
@@ -366,7 +367,10 @@ try {
         $ordinaryApplyRejected = $e->getCode() === 403;
     }
     adminUpdateAssert($ordinaryApplyRejected, 'non-superadmin apply action was not rejected');
-    adminUpdateAssert($capturedApplyCommands === [], 'rejected apply started updater process');
+    adminUpdateAssert(
+        count($capturedApplyCommands) === $applyCountBeforeRejectedAttempt,
+        'rejected apply started updater process'
+    );
 
     $ordinaryStageRejected = false;
     try {
