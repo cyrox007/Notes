@@ -55,6 +55,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m py_compile tests/support/admin_update_https_fixture.py
+          node --check tests/e2e/admin-update-transition.mjs
           node --check tests/e2e/admin-update-apply.mjs
           php -l modules/admin/services/AdminUpdateService.php
           php -l bin/update_run.php
@@ -436,7 +437,7 @@ jobs:
           PRIVATE="$DRILL/private"
 
           test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.5'
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10006'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10005'
           mapfile -t JOURNALS < <(find "$PRIVATE/state/transactions" -maxdepth 1 -type f -name 'update-*.json' -print)
           test "${#JOURNALS[@]}" -eq 1
           test "$(jq -r '.state' "${JOURNALS[0]}")" = 'committed'
@@ -588,7 +589,7 @@ jobs:
           PRIVATE="$DRILL/private"
 
           test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.6-admin-e2e'
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10005'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10006'
 
           mapfile -t JOURNALS < <(find "$PRIVATE/state/transactions" -maxdepth 1 -type f -name 'update-*.json' -print)
           test "${#JOURNALS[@]}" -eq 2
