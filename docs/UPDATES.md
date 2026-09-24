@@ -202,23 +202,36 @@ Package никогда не скачивается при `--check-only`, есл
 
 Подробные правила network, publishing и failure boundaries находятся в `docs/UPDATE_REMOTE_DELIVERY.md`.
 
-## Проверка и staging через интерфейс администратора
+## Автоматическая проверка и обновление через интерфейс администратора
 
-Administrator UI предоставляет те же недеструктивные remote-delivery primitives по адресу `/admin/updates` и не создаёт вторую реализацию updater.
+Интерфейс администратора использует тот же подписанный транзакционный обновлятор и не создаёт параллельную реализацию замены файлов.
 
 Модель доступа:
 
-- страница и проверка signed feed требуют `admin.settings.manage`;
-- check — GET/read-only operation и не скачивает package bytes;
-- package staging — POST + CSRF и дополнительно требует роль `superadmin`;
-- глобальный license mutation guard по-прежнему применяется к staging;
-- feed URL и channel являются только server configuration и никогда не принимаются из browser input.
+- фоновая и ручная проверка signed feed требуют `admin.settings.manage`;
+- фоновая проверка выполняется после входа и повторяется каждые пять минут, не скачивая ZIP;
+- при появлении совместимого релиза в общей шапке появляется системное уведомление;
+- установка из уведомления — один POST + CSRF и дополнительно требует роль `superadmin`;
+- кнопка «Обновить до …» внутри одного запроса повторно получает подписанный feed, фиксирует `version_code` и SHA-256 пакета и запускает существующий `bin/update_run.php`;
+- если feed изменился между проверкой и фактическим запуском, updater завершает операцию до изменения рабочих файлов;
+- ручные check и staging остаются диагностическими инструментами, но не являются обязательными шагами обычного пользовательского обновления;
+- feed URL и channel задаются только серверной конфигурацией и не принимаются из браузерного ввода.
 
-UI отображает установленную version, настроенные channel/feed label, готовность trust-root/runtime и результат signed check (`update_available`, `up_to_date`, `ahead_of_feed`, `update_incompatible`). Release notes и package metadata берутся только из verified manifest и экранируются перед rendering.
+Обычный пользовательский путь после переходной версии:
 
-Когда доступно compatible update, superadmin может явно скачать, повторно проверить, выполнить ZIP-audit и опубликовать его в immutable external staging. Controller сохраняет в session только безопасное summary: target version, signing key ID, package hash и archive counts. Absolute staging path намеренно не сохраняется в web state и не отображается.
+```text
+сервер публикует подписанный stable-релиз
+  -> активная установка обнаруживает его автоматически
+  -> в интерфейсе появляется уведомление
+  -> суперадминистратор нажимает «Обновить до …»
+  -> signed check + exact release binding
+  -> staging + backup + candidate
+  -> maintenance + live apply + migrations
+  -> post-update healthcheck
+  -> committed + снятие maintenance
+```
 
-Первая версия UI заканчивается на staging. В ней нет browser actions для входа в maintenance, создания transaction journal, rollback backup, извлечения release candidate, migrations, live code switch, apply или recovery. Эти destructive operations остаются CLI/operator transaction boundaries до появления отдельно проверенного browser transaction flow.
+От пользователя не требуются PowerShell, SSH, ручной PHP CLI, копирование bootstrap-файлов, редактирование `.env`, ручной запуск миграций или распаковка ZIP поверх рабочей установки. Аварийный CLI recovery сохраняется только как операторский путь на случай аппаратного сбоя или принудительного завершения процесса.
 
 ## Диагностика готовности updater
 
@@ -504,7 +517,7 @@ Signed-update stack сейчас обеспечивает:
 
 Он всё ещё **не**:
 
-- предоставляет destructive maintenance/backup/candidate/apply/recovery operations через administrator UI;
+- выполняет установку без явного действия суперадминистратора: обновление намеренно требует одного подтверждающего нажатия;
 - создаёт production private keys лицензий/обновлений — production key ceremony намеренно остаётся отдельной процедурой;
 - автоматически удаляет старые scratch/network-ingress temporary artifacts, не принадлежащие journal;
 - заменяет собственную drain/restart policy внешнего process supervisor;
