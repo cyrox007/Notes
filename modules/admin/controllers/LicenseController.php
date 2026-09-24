@@ -38,12 +38,11 @@ final class LicenseController extends Controller
                 (int) $request->session('user_id', 0),
                 (string) $request->post('license_token', '')
             );
-            $licenseId = trim((string) ($status['license_id'] ?? ''));
-            $this->redirectWithFlash(
-                $request,
-                true,
-                $licenseId !== '' ? 'Лицензия активирована: ' . $licenseId : 'Лицензия активирована'
-            );
+            $accessReady = ($status['update_access'] ?? '') === 'ready';
+            $message = $accessReady
+                ? 'Лицензия активирована. Доступ к обновлениям настроен автоматически.'
+                : 'Лицензия активирована. Доступ к обновлениям настроится автоматически при следующей проверке.';
+            $this->redirectWithFlash($request, true, $message);
         } catch (\Throwable $e) {
             $this->redirectWithFlash($request, false, $e->getMessage() ?: 'Не удалось активировать лицензию');
         }

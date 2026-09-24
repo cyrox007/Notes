@@ -22,6 +22,7 @@ $options = getopt('', [
     'operational-acceptance-green',
     'visual-acceptance-green',
     'ospanel-acceptance-green',
+    'update-bootstrap-acceptance-green',
     'two-factor-acceptance-green',
     'one-zero-one-drill-green',
     'beta4-drill-green', // Совместимый alias для старых операторских сценариев
@@ -77,7 +78,11 @@ $governanceOk = is_array($governance)
     && in_array('one-zero-one-upgrade-rollback', $requiredChecks, true)
     && in_array('messenger-realtime-fallback', $requiredChecks, true)
     && in_array('two-factor-contract (8.1)', $requiredChecks, true)
-    && in_array('two-factor-contract (8.3)', $requiredChecks, true);
+    && in_array('two-factor-contract (8.3)', $requiredChecks, true)
+    && in_array('online-update-access (8.1)', $requiredChecks, true)
+    && in_array('online-update-access (8.3)', $requiredChecks, true)
+    && in_array('admin-update-ui (8.1)', $requiredChecks, true)
+    && in_array('admin-update-ui (8.3)', $requiredChecks, true);
 $record('governance_source_contract', $governanceOk, 'master + 1.0 / единый обязательный набор checks');
 
 foreach ([
@@ -203,6 +208,7 @@ $manualGates = [
     'operational_acceptance' => 'operational-acceptance-green',
     'visual_acceptance' => 'visual-acceptance-green',
     'ospanel_acceptance' => 'ospanel-acceptance-green',
+    'automatic_update_access' => 'update-bootstrap-acceptance-green',
     'two_factor_acceptance' => 'two-factor-acceptance-green',
     'one_zero_one_upgrade_rollback' => 'one-zero-one-drill-green',
     'p0_p1_acceptance' => 'p0p1-clear',

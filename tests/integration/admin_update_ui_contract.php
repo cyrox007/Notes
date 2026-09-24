@@ -197,6 +197,7 @@ $temp = sys_get_temp_dir() . '/wo-admin-update-ui-' . bin2hex(random_bytes(6));
 adminUpdateAssert(mkdir($temp, 0700, true), 'cannot create admin update temp root');
 $previousFeed = getenv('UPDATE_FEED_URL');
 $previousChannel = getenv('UPDATE_CHANNEL');
+$previousAccessMode = getenv('UPDATE_ACCESS_MODE');
 $previousStage = getenv('UPDATE_STAGING_PATH');
 $previousPrivate = getenv('PRIVATE_STORAGE_PATH');
 $previousState = getenv('UPDATE_STATE_PATH');
@@ -256,6 +257,7 @@ try {
 
     putenv('UPDATE_FEED_URL=' . $feedUrl);
     putenv('UPDATE_CHANNEL=stable');
+    putenv('UPDATE_ACCESS_MODE=offline');
     putenv('UPDATE_STAGING_PATH=' . $temp . '/stage');
     putenv('PRIVATE_STORAGE_PATH=' . $temp . '/private');
     putenv('UPDATE_STATE_PATH=' . $temp . '/state');
@@ -375,6 +377,7 @@ try {
     foreach ([
         'UPDATE_FEED_URL' => $previousFeed,
         'UPDATE_CHANNEL' => $previousChannel,
+        'UPDATE_ACCESS_MODE' => $previousAccessMode,
         'UPDATE_STAGING_PATH' => $previousStage,
         'PRIVATE_STORAGE_PATH' => $previousPrivate,
         'UPDATE_STATE_PATH' => $previousState,
