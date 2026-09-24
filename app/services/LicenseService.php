@@ -238,6 +238,11 @@ final class LicenseService
     /** @param array<string,mixed> $status @return array<string,mixed> */
     private function attachUpdateAccess(array $status, string $source, ?int $actorId): array
     {
+        if (!UpdateAccessBootstrap::eagerEnabled()) {
+            $status['update_access'] = 'deferred';
+            return $status;
+        }
+
         try {
             $access = $this->ensureUpdateAccess();
             $status['update_access'] = (string) ($access['status'] ?? 'ready');
