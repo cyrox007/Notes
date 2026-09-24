@@ -112,6 +112,14 @@ foreach (['## Состав релиза', '## Совместимость', '## �
     );
 }
 
+
+releaseAcceptanceAssert(
+    str_contains($releaseNotes, 'bootstrap-1.0.2-updater.php')
+    && str_contains($releaseNotes, 'exact `1.0.2 (10002)`'),
+    'описание 1.0.3 не фиксирует безопасный bootstrap-переход с опубликованной 1.0.2'
+);
+
+
 $protectionScript = releaseAcceptanceText($root, 'tools/release/apply-github-protection.sh');
 releaseAcceptanceAssert(
     str_contains($protectionScript, 'Проверка branch protection не пройдена:')
