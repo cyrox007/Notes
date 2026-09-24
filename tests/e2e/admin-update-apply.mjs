@@ -69,7 +69,8 @@ async function installUpdateFromNotification(page) {
 
   const item = page.locator('[data-update-item]');
   await item.waitFor({ state: 'visible', timeout: 10000 });
-  await item.getByText(expectedVersion, { exact: false })
+  const updateTitle = item.locator('[data-update-title]');
+  await updateTitle.getByText(expectedVersion, { exact: false })
     .waitFor({ state: 'visible', timeout: 10000 });
 
   const updateButton = page.locator('[data-update-action]');
