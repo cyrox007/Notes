@@ -10,6 +10,8 @@ const origin = requiredEnv('E2E_ORIGIN');
 const basePathRaw = requiredEnv('E2E_BASE_PATH');
 const username = requiredEnv('E2E_USER');
 const password = requiredEnv('E2E_PASSWORD');
+const sourceVersion = requiredEnv('E2E_SOURCE_VERSION');
+const sourceVersionCode = requiredEnv('E2E_SOURCE_VERSION_CODE');
 const expectedVersion = requiredEnv('E2E_TARGET_VERSION');
 const expectedVersionCode = requiredEnv('E2E_TARGET_VERSION_CODE');
 const basePath = '/' + basePathRaw.replace(/^\/+|\/+$/g, '');
@@ -67,7 +69,7 @@ async function installUpdate(page) {
     await confirm.click();
   }
 
-  await navigation;
+  return await navigation;
 }
 
 try {
@@ -83,7 +85,7 @@ try {
 
   await page.getByRole('heading', { name: 'Обновления Workspace', exact: true })
     .waitFor({ state: 'visible', timeout: 10000 });
-  await page.getByText('1.0.2 (10002)', { exact: true })
+  await page.getByText(`${sourceVersion} (${sourceVersionCode})`, { exact: true })
     .waitFor({ state: 'visible', timeout: 10000 });
 
   await Promise.all([
@@ -99,10 +101,26 @@ try {
     .waitFor({ state: 'visible', timeout: 10000 });
 
   installationWindow = true;
-  await installUpdate(page);
+  const installResponse = await installUpdate(page);
+  const installStatus = installResponse?.status() ?? 0;
+  const installUrl = page.url();
+
+  if (installStatus >= 400 || unexpectedHttpErrors.length) {
+    const body = ((await page.locator('body').innerText().catch(() => '')) || '').trim().slice(0, 2000);
+    throw new Error(
+      `POST установки завершился HTTP ${installStatus}; URL=${installUrl}; `
+      + `HTTP-ошибки=${unexpectedHttpErrors.join(', ') || 'нет'}; страница=${body}`
+    );
+  }
 
   const flash = page.locator('.admin-page__flash').first();
-  await flash.waitFor({ state: 'visible', timeout: 15000 });
+  const flashVisible = await flash.isVisible({ timeout: 15000 }).catch(() => false);
+  if (!flashVisible) {
+    const body = ((await page.locator('body').innerText().catch(() => '')) || '').trim().slice(0, 2000);
+    throw new Error(
+      `После POST установки нет сообщения результата; HTTP=${installStatus}; URL=${installUrl}; страница=${body}`
+    );
+  }
   const flashText = ((await flash.textContent()) || '').trim();
   if (!flashText.includes('Обновление установлено. Workspace Organizer работает на новой версии.')) {
     throw new Error(`Установка из Admin UI завершилась без подтверждения успеха: ${flashText}`);
