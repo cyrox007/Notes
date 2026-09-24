@@ -126,7 +126,7 @@ jobs:
               ':password_hash' => $hash,
               ':firstname' => 'Admin',
               ':lastname' => 'Lifecycle',
-              ':role' => 111,
+              ':role' => 1,
           ]);
           $stmt->execute([
               ':uid' => 'ba5e0000-0000-4000-8000-000000000019',
