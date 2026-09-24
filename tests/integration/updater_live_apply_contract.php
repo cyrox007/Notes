@@ -109,16 +109,19 @@ try {
     $wsCommand = new UpdateApplyCommand($wsStatusRoot);
     $wsMethod = new ReflectionMethod(UpdateApplyCommand::class, 'wsStatus');
     $wsState = $wsMethod->invoke($wsCommand, $wsStatusRoot);
-    liveApplyAssert(($wsState['running'] ?? true) === false, 'localized WebSocket status exit code 1 was not treated as stopped');
+    liveApplyAssert(
+        ($wsState['running'] ?? true) === false,
+        'Код 1 локализованной команды WebSocket status не распознан как остановленный процесс'
+    );
 
     $applyCommandSource = (string) file_get_contents($root . '/core/UpdateApplyCommand.php');
     liveApplyAssert(
-        str_contains($applyCommandSource, "($latest['live_mutation_started'] ?? false) !== true"),
-        'pre-mutation apply failure no longer checks destructive boundary before releasing maintenance'
+        str_contains($applyCommandSource, '($latest[\'live_mutation_started\'] ?? false) !== true'),
+        'Потеряна проверка destructive boundary перед снятием maintenance'
     );
     liveApplyAssert(
         str_contains($applyCommandSource, '$maintenance->leave($transactionId);'),
-        'pre-mutation apply failure no longer releases maintenance'
+        'Потеряно снятие maintenance при ошибке до изменения рабочих файлов'
     );
 
     $live = $temp . '/live';
