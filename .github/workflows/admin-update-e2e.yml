@@ -3,8 +3,6 @@ name: 1.0.3 сквозное обновление из админ-панели
 on:
   pull_request:
     branches: [dev, '1.0', master]
-  push:
-    branches: ['test/1.0.3-admin-update-e2e']
   workflow_dispatch:
 
 permissions:
