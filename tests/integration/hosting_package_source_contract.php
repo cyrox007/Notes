@@ -74,7 +74,7 @@ hostingPackageAssert(
 hostingPackageAssert(
     substr_count($workflow, 'bin/update_retention.php') >= 3
         && substr_count($workflow, 'core/UpdateArtifactCleaner.php') >= 3,
-    '1.0.2 release bundle must lint, require and inspect updater retention runtime'
+    '1.0.3 release bundle must lint, require and inspect updater retention runtime'
 );
 
 hostingPackageAssert(
