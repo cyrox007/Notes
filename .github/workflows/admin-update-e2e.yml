@@ -233,14 +233,15 @@ jobs:
           rm -rf "$TARGET" "$FEED_ROOT"
           mkdir -p "$TARGET" "$FEED_ROOT/stable"
           rsync -a "$GITHUB_WORKSPACE/" "$TARGET/" \
+            --exclude '.git' \
+            --exclude '.github' \
             --exclude '.env' \
             --exclude 'vendor' \
             --exclude 'node_modules' \
+            --exclude 'tests' \
+            --exclude 'tools' \
             --exclude 'cache/*' \
             --exclude 'compile/*' \
-            --exclude 'tools/vendor-license' \
-            --exclude 'tools/vendor-update' \
-            --exclude 'tools/license-server' \
             --exclude '*.license-secret' \
             --exclude '*.update-secret' \
             --exclude '*.log'
@@ -379,14 +380,15 @@ jobs:
           rm -rf "$FUTURE"
           mkdir -p "$FUTURE"
           rsync -a "$GITHUB_WORKSPACE/" "$FUTURE/" \
+            --exclude '.git' \
+            --exclude '.github' \
             --exclude '.env' \
             --exclude 'vendor' \
             --exclude 'node_modules' \
+            --exclude 'tests' \
+            --exclude 'tools' \
             --exclude 'cache/*' \
             --exclude 'compile/*' \
-            --exclude 'tools/vendor-license' \
-            --exclude 'tools/vendor-update' \
-            --exclude 'tools/license-server' \
             --exclude '*.license-secret' \
             --exclude '*.update-secret' \
             --exclude '*.log'
