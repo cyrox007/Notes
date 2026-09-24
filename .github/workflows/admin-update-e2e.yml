@@ -380,7 +380,11 @@ jobs:
 
           (
             cd "$LIVE"
-            SSL_CERT_FILE="$DRILL/ca.crt"               php -d "openssl.cafile=$DRILL/ca.crt" bin/update_run.php --yes --json
+            SSL_CERT_FILE="$DRILL/ca.crt" \
+              php -d "openssl.cafile=$DRILL/ca.crt" \
+              "$GITHUB_WORKSPACE/tools/release/bootstrap-1.0.2-updater.php" \
+              --yes \
+              --root="$LIVE"
           ) | tee "$DRILL/bootstrap-1.0.2-to-1.0.3.json"
 
           test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.3'
