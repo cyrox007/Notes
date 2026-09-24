@@ -59,7 +59,7 @@ Bootstrap предназначен только для exact 1.0.2 → 1.0.3. П
 2. control plane должен взять последний официальный GitHub Release `v1.0.4`;
 3. сервер проверяет Git tag, source SHA, GitHub digest, SHA-256 sidecar и версию внутри ZIP;
 4. exact manifest подписывается приватным update key только на компьютере оператора или сохранённым в браузере неэкспортируемым ключом;
-5. на сервер передаются только manifest, detached signature и ссылка на уже проверенный package;
+5. на сервер передаются только manifest, detached signature и служебный `package_path` уже проверенного пакета;
 6. после публикации stable feed проверить доступ к `feed.json`, manifest, signature и package через обычный лицензированный клиент.
 
 Приватный `.update-secret` не должен попадать на сервер, в GitHub, CI, логи или чат.
