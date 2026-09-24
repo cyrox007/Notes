@@ -41,9 +41,9 @@ if (isset($options['help'])) {
     echo "Восстановить прерванную транзакцию обновления:\n";
     echo "  php bin/update_run.php --recover --transaction=update-... --yes [--json]\n\n";
     echo "Дополнительные параметры: --feed-url, --channel, --stage-root, --state-root, --backup-root, --candidate-root.\n";
-    echo "Для web-интерфейса доступны привязки подтверждённого релиза: --expected-version-code и --expected-package-sha256.\n";
-    echo "Обычный режим проверяет и подготавливает пакет, включает maintenance, создаёт проверенную резервную копию,\n";
-    echo "формирует внешний кандидат релиза и передаёт управление существующему транзакционному live apply.\n";
+    echo "Для веб-интерфейса доступны привязки подтверждённого релиза: --expected-version-code и --expected-package-sha256.\n";
+    echo "Обычный режим проверяет и подготавливает пакет, включает режим обслуживания, создаёт проверенную резервную копию,\n";
+    echo "формирует внешний кандидат релиза и передаёт управление существующему транзакционному применению.\n";
     echo "Флаг --yes обязателен, потому что команда может переключать рабочий код и запускать миграции.\n";
     exit(0);
 }
@@ -95,7 +95,7 @@ function updateRunJsonCommand(
         throw new RuntimeException($label . ': ' . $message, $result['code'] > 0 ? $result['code'] : 1);
     }
     if (!is_array($payload)) {
-        throw new RuntimeException($label . ': command returned invalid JSON');
+        throw new RuntimeException($label . ': команда вернула некорректный JSON');
     }
     return $payload;
 }
@@ -209,7 +209,7 @@ try {
     }
     $stageDir = trim((string) ($staged['stage_dir'] ?? ''));
     if ($stageDir === '') {
-        throw new RuntimeException('Не найден путь к проверенному staging-пакету');
+        throw new RuntimeException('Не найден путь к проверенному подготовленному пакету');
     }
 
     if ($expectedVersionCode !== null) {
@@ -262,8 +262,8 @@ try {
         updateRunAppendOption($applyCommand, $options, $option);
     }
 
-    // После этой точки rollback/recovery и снятие maintenance принадлежат
-    // только UpdateApplyCommand. Wrapper не должен самовольно открывать запись при ошибке.
+    // После этой точки откат, восстановление и снятие режима обслуживания принадлежат
+    // только UpdateApplyCommand. Обёртка не должна самовольно открывать запись при ошибке.
     $applyInvoked = true;
     $applied = updateRunJsonCommand($runner, $applyCommand, $root, 1800, 'применение обновления');
 
