@@ -108,6 +108,7 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot notes_browser_e2e < database/user_fields_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_browser_e2e < database/tasks_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_browser_e2e < database/access_control_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_browser_e2e < database/audit_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_browser_e2e < database/migrations/20260915_role_module_policies.sql
           mysql -h 127.0.0.1 -uroot -proot notes_browser_e2e < database/settings_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_browser_e2e < database/module_lifecycle_schema.sql

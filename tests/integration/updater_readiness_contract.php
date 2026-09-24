@@ -54,6 +54,7 @@ try {
     $snapshot = (new UpdateReadiness($root))->inspect();
     readinessAssert(($snapshot['ready_for_check'] ?? false) === true, 'valid signed-feed configuration is not check-ready');
     readinessAssert(($snapshot['ready_for_apply'] ?? false) === true, 'valid external updater roots are not apply-ready');
+    readinessAssert(($snapshot['checks']['php_cli']['ok'] ?? false) === true, 'PHP CLI не найден для web-установки');
     readinessAssert(($snapshot['issues'] ?? []) === [], 'ready snapshot unexpectedly reports issues');
 
     putenv('UPDATE_FEED_URL=http://updates.example.test/stable/feed.json');

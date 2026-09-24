@@ -14,6 +14,7 @@ use InvalidArgumentException;
 final class UpdateController extends Controller
 {
     private const STAGE_BINDING_SESSION_KEY = 'updates_stage_binding';
+    private const APPLY_BINDING_SESSION_KEY = 'updates_apply_binding';
 
     public function index(Request $request): void
     {
@@ -29,14 +30,22 @@ final class UpdateController extends Controller
         $request->unsetSession('updates_flash');
         $request->unsetSession('updates_result');
 
-        // A reviewed staging binding is useful only for the immediately rendered
-        // signed check result. A later direct/reloaded page must not leave an old
-        // release silently armed in the session.
-        if (!is_array($result)
-            || ($result['kind'] ?? '') !== 'check'
-            || ($result['status'] ?? '') !== 'update_available'
-            || empty($result['update_available'])) {
+        // Привязки действуют только для результата, который прямо сейчас показан
+        // администратору. Перезагрузка или другой результат не должны оставлять
+        // старый релиз неявно подготовленным к действию.
+        $checkReady = is_array($result)
+            && ($result['kind'] ?? '') === 'check'
+            && ($result['status'] ?? '') === 'update_available'
+            && !empty($result['update_available']);
+        $stageReady = is_array($result)
+            && ($result['kind'] ?? '') === 'stage'
+            && ($result['status'] ?? '') === 'staged';
+
+        if (!$checkReady) {
             $request->unsetSession(self::STAGE_BINDING_SESSION_KEY);
+        }
+        if (!$checkReady && !$stageReady) {
+            $request->unsetSession(self::APPLY_BINDING_SESSION_KEY);
         }
 
         try {
@@ -79,17 +88,21 @@ final class UpdateController extends Controller
                 && !empty($safe['update_available'])
                 && (int) ($safe['target_version_code'] ?? 0) > 0
                 && preg_match('/^[0-9a-f]{64}$/', (string) ($safe['package_sha256'] ?? '')) === 1) {
-                $request->setSession(self::STAGE_BINDING_SESSION_KEY, [
+                $binding = [
                     'target_version_code' => (int) $safe['target_version_code'],
                     'package_sha256' => (string) $safe['package_sha256'],
-                ]);
+                ];
+                $request->setSession(self::STAGE_BINDING_SESSION_KEY, $binding);
+                $request->setSession(self::APPLY_BINDING_SESSION_KEY, $binding);
             } else {
                 $request->unsetSession(self::STAGE_BINDING_SESSION_KEY);
+                $request->unsetSession(self::APPLY_BINDING_SESSION_KEY);
             }
 
             $this->redirectWithFlash($request, true, $this->checkMessage($result));
         } catch (\Throwable $e) {
             $request->unsetSession(self::STAGE_BINDING_SESSION_KEY);
+            $request->unsetSession(self::APPLY_BINDING_SESSION_KEY);
             $this->redirectWithFlash($request, false, $e->getMessage() ?: 'Не удалось проверить обновления');
         }
     }
@@ -97,7 +110,7 @@ final class UpdateController extends Controller
     public function stage(Request $request): void
     {
         $binding = $request->session(self::STAGE_BINDING_SESSION_KEY);
-        // One-shot by design: every retry must follow a fresh signed check.
+        // Одноразовая привязка: каждая повторная попытка требует новой проверки подписи.
         $request->unsetSession(self::STAGE_BINDING_SESSION_KEY);
 
         try {
@@ -115,7 +128,12 @@ final class UpdateController extends Controller
                 $targetVersionCode,
                 $packageSha256
             );
-            $request->setSession('updates_result', $this->safeStageResult($result));
+            $safe = $this->safeStageResult($result);
+            $request->setSession('updates_result', $safe);
+            $request->setSession(self::APPLY_BINDING_SESSION_KEY, [
+                'target_version_code' => (int) ($safe['target_version_code'] ?? 0),
+                'package_sha256' => (string) ($safe['package_sha256'] ?? ''),
+            ]);
             $this->redirectWithFlash(
                 $request,
                 true,
@@ -124,6 +142,54 @@ final class UpdateController extends Controller
         } catch (\Throwable $e) {
             $this->redirectWithFlash($request, false, $e->getMessage() ?: 'Не удалось подготовить обновление');
         }
+    }
+
+    public function apply(Request $request): void
+    {
+        $binding = $request->session(self::APPLY_BINDING_SESSION_KEY);
+        $request->unsetSession(self::APPLY_BINDING_SESSION_KEY);
+        $request->unsetSession(self::STAGE_BINDING_SESSION_KEY);
+
+        try {
+            if (!is_array($binding)) {
+                throw new InvalidArgumentException('Сначала повторно проверьте подписанное обновление');
+            }
+
+            $targetVersionCode = (int) ($binding['target_version_code'] ?? 0);
+            $packageSha256 = strtolower(trim((string) ($binding['package_sha256'] ?? '')));
+            if ($targetVersionCode <= 0 || preg_match('/^[0-9a-f]{64}$/', $packageSha256) !== 1) {
+                throw new InvalidArgumentException('Сначала повторно проверьте подписанное обновление');
+            }
+
+            $result = (new AdminUpdateService())->apply(
+                (int) $request->session('user_id', 0),
+                $targetVersionCode,
+                $packageSha256
+            );
+            $this->resetOpcodeCacheAfterUpdate();
+            $request->setSession('updates_result', $this->safeApplyResult($result));
+            $this->redirectWithFlash(
+                $request,
+                true,
+                'Обновление установлено. Workspace Organizer работает на новой версии.'
+            );
+        } catch (\Throwable $e) {
+            $this->redirectWithFlash(
+                $request,
+                false,
+                $e->getMessage() ?: 'Не удалось установить обновление'
+            );
+        }
+    }
+
+    private function resetOpcodeCacheAfterUpdate(): void
+    {
+        clearstatcache(true);
+        if (!function_exists('opcache_reset')) {
+            return;
+        }
+
+        @opcache_reset();
     }
 
     /** @param array<string,mixed> $result @return array<string,mixed> */
@@ -168,6 +234,20 @@ final class UpdateController extends Controller
             'archive_files' => (int) ($archive['files'] ?? 0),
             'archive_entries' => (int) ($archive['entries'] ?? 0),
             'live_files_changed' => (bool) ($result['live_files_changed'] ?? false),
+        ];
+    }
+
+    /** @param array<string,mixed> $result @return array<string,mixed> */
+    private function safeApplyResult(array $result): array
+    {
+        return [
+            'kind' => 'apply',
+            'status' => (string) ($result['status'] ?? 'unknown'),
+            'target_version' => (string) ($result['target_version'] ?? ''),
+            'target_version_code' => (int) ($result['target_version_code'] ?? 0),
+            'package_sha256' => strtolower((string) ($result['package_sha256'] ?? '')),
+            'transaction_id' => (string) ($result['transaction_id'] ?? ''),
+            'installed_version' => (string) ($result['installed_version'] ?? ''),
         ];
     }
 

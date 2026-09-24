@@ -70,6 +70,7 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot fault_injection_browser < database/settings_schema.sql
           mysql -h 127.0.0.1 -uroot -proot fault_injection_browser < database/module_lifecycle_schema.sql
           mysql -h 127.0.0.1 -uroot -proot fault_injection_browser < database/access_control_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot fault_injection_browser < database/audit_schema.sql
 
       - name: Seed browser user and forced DB failure
         shell: bash

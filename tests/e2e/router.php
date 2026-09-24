@@ -2,7 +2,15 @@
 
 declare(strict_types=1);
 
-$root = dirname(__DIR__, 2);
+$defaultRoot = dirname(__DIR__, 2);
+$configuredRoot = trim((string) getenv('E2E_APP_ROOT'));
+$root = $configuredRoot !== '' ? (realpath($configuredRoot) ?: '') : $defaultRoot;
+if ($root === '' || !is_dir($root)) {
+    http_response_code(500);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo 'Некорректный E2E_APP_ROOT';
+    return true;
+}
 $path = rawurldecode((string) (parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/'));
 
 $configuredBasePath = getenv('BASE_PATH');
@@ -112,7 +120,13 @@ if ($publicPath !== '/' && !str_contains($publicPath, "\0") && !str_contains($pu
     }
 }
 
-require_once $root . '/tests/support/ci_license_fixture.php';
-workspaceEnsureCiLicense();
+$configuredSupportRoot = trim((string) getenv('E2E_SUPPORT_ROOT'));
+$supportRoot = $configuredSupportRoot !== '' ? (realpath($configuredSupportRoot) ?: '') : $root;
+$licenseFixture = $supportRoot !== '' ? $supportRoot . '/tests/support/ci_license_fixture.php' : '';
+
+if ($licenseFixture !== '' && is_file($licenseFixture)) {
+    require_once $licenseFixture;
+    workspaceEnsureCiLicense();
+}
 
 require $root . '/index.php';

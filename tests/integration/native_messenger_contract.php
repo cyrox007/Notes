@@ -95,8 +95,14 @@ nativeMessengerAssert(str_contains($media, 'app.submitComposer = () =>'), 'expli
 nativeMessengerAssert(str_contains($media, 'sendFiles(files).then'), 'staged clipboard files are not sent through explicit composer submission');
 nativeMessengerAssert(str_contains($media, "appPath('/messenger/upload')"), 'Messenger media upload is not BASE_PATH-aware');
 
+$connectionCss = (string) file_get_contents($root . '/assets/css/messenger-connection-ux.css');
+nativeMessengerAssert(str_contains($connectionCss, '.messenger-app .messenger-list__header{height:78px'), 'высота шапки списка чатов не закреплена');
+nativeMessengerAssert(str_contains($connectionCss, 'grid-template-rows:17px 17px'), 'область статуса соединения не резервирует постоянные две строки');
+nativeMessengerAssert(str_contains($connectionCss, '#messenger-connection-text{grid-column:2;grid-row:1'), 'текст статуса соединения не ограничен стабильной строкой');
+
 $connectionUx = (string) file_get_contents($root . '/assets/js/messenger-connection-ux.js');
 nativeMessengerAssert(str_contains($connectionUx, 'ticketSubject'), 'account-switch ticket identity guard is missing');
+nativeMessengerAssert(str_contains($connectionUx, "connectionText?.setAttribute('title', text)"), 'полный текст сокращённого статуса соединения недоступен через title');
 nativeMessengerAssert(str_contains($connectionUx, "window.wspace.path('/messenger/socket-ticket')"), 'socket ticket refresh is not BASE_PATH-aware');
 nativeMessengerAssert(str_contains($connectionUx, 'nextSubject !== activeTicketSubject'), 'account switch detection is missing');
 

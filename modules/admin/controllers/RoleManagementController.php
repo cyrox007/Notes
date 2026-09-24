@@ -25,11 +25,22 @@ final class RoleManagementController extends Controller
             return;
         }
 
+        $loadError = null;
         try {
             $snapshot = (new RoleManagementService())->snapshot($actorId);
         } catch (DomainException $e) {
             http_response_code($this->exceptionStatus($e, 403));
             return;
+        } catch (Throwable $e) {
+            error_log('Загрузка управления ролями завершилась ошибкой: ' . $e->getMessage());
+            http_response_code(503);
+            $snapshot = [
+                'roles' => [],
+                'permissions' => [],
+                'users' => [],
+                'policy_definitions' => [],
+            ];
+            $loadError = 'Не удалось загрузить роли. Проверьте состояние миграций базы данных командой php bin/migrate.php --status и журнал PHP.';
         }
 
         $flash = $request->session('admin_roles_flash');
@@ -41,6 +52,7 @@ final class RoleManagementController extends Controller
             'roleUsers' => $snapshot['users'],
             'policyDefinitions' => $snapshot['policy_definitions'],
             'admin_roles_flash' => is_array($flash) ? $flash : null,
+            'admin_roles_load_error' => $loadError,
         ]);
     }
 

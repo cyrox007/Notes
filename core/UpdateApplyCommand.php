@@ -101,15 +101,38 @@ final class UpdateApplyCommand
             throw new UpdateApplyException('--candidate-dir is required with --apply', 'candidate_required', 2);
         }
 
-        return $this->apply(
-            $transactionId,
-            $candidateOption,
-            $journalState,
-            $maintenance,
-            $stateMachine,
-            $applier,
-            $backupManager
-        );
+        try {
+            return $this->apply(
+                $transactionId,
+                $candidateOption,
+                $journalState,
+                $maintenance,
+                $stateMachine,
+                $applier,
+                $backupManager
+            );
+        } catch (Throwable $e) {
+            $latest = $stateMachine->load($transactionId);
+            if (($latest['live_mutation_started'] ?? false) !== true) {
+                try {
+                    $maintenance->leave($transactionId);
+                } catch (Throwable $leaveError) {
+                    throw new UpdateApplyException(
+                        'Проверка обновления завершилась ошибкой до изменения рабочих файлов, '
+                        . 'но режим обслуживания не удалось снять: ' . $leaveError->getMessage(),
+                        'maintenance_release_failed',
+                        1,
+                        [
+                            'apply_error' => $e->getMessage(),
+                            'transaction_state' => (string) ($latest['state'] ?? ''),
+                            'maintenance_active' => true,
+                        ]
+                    );
+                }
+            }
+
+            throw $e;
+        }
     }
 
     /**
@@ -647,10 +670,15 @@ final class UpdateApplyCommand
         if ($result['code'] === 0) {
             return ['running' => true, 'output' => trim($result['stdout'])];
         }
-        if ($result['code'] === 1 && str_contains(strtolower($result['stdout']), 'not running')) {
+
+        // Команда status имеет машинный контракт по коду возврата:
+        // 0 — процесс запущен, 1 — процесс не запущен. Текст локализован
+        // и не должен влиять на логику обновлятора.
+        if ($result['code'] === 1) {
             return ['running' => false, 'output' => trim($result['stdout'])];
         }
-        throw new RuntimeException('Cannot determine WebSocket process state: ' . $this->commandFailureDetails($result));
+
+        throw new RuntimeException('Не удалось определить состояние WebSocket-процесса: ' . $this->commandFailureDetails($result));
     }
 
     private function restartWs(string $root): void

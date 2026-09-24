@@ -81,6 +81,7 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot phase2_hardening < database/user_fields_schema.sql
           mysql -h 127.0.0.1 -uroot -proot phase2_hardening < database/tasks_schema.sql
           mysql -h 127.0.0.1 -uroot -proot phase2_hardening < database/access_control_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot phase2_hardening < database/audit_schema.sql
           mysql -h 127.0.0.1 -uroot -proot phase2_hardening < database/settings_schema.sql
           mysql -h 127.0.0.1 -uroot -proot phase2_hardening < database/module_lifecycle_schema.sql
 
