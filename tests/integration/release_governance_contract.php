@@ -97,6 +97,10 @@ $workflowByCheck = [
     'messenger-realtime-fallback' => ['.github/workflows/messenger-realtime-fallback.yml', 'messenger-realtime-fallback'],
     'two-factor-contract (8.1)' => ['.github/workflows/two-factor-auth.yml', 'two-factor-contract'],
     'two-factor-contract (8.3)' => ['.github/workflows/two-factor-auth.yml', 'two-factor-contract'],
+    'online-update-access (8.1)' => ['.github/workflows/online-update-access.yml', 'online-update-access'],
+    'online-update-access (8.3)' => ['.github/workflows/online-update-access.yml', 'online-update-access'],
+    'admin-update-ui (8.1)' => ['.github/workflows/admin-update-ui.yml', 'admin-update-ui'],
+    'admin-update-ui (8.3)' => ['.github/workflows/admin-update-ui.yml', 'admin-update-ui'],
 ];
 
 $checkedWorkflows = [];

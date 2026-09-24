@@ -72,6 +72,7 @@
 - browser lifecycle для Notes/Tasks/Files/Profile/Admin;
 - HTTPS/WSS browser smoke, включая принудительную потерю WebSocket, HTTP long-poll fallback, освобождение worker/reconnect и мост fallback-mutation → активный WS-клиент;
 - signed updater/staging/apply/backup/recovery;
+- автоматический bootstrap update credential по действующей лицензии без activation code и ручного пути; обязательные матрицы `online-update-access (8.1/8.3)` и `admin-update-ui (8.1/8.3)`;
 - точный upgrade/rollback drill опубликованного `v1.0.1` (`0e6e4a3b352cfb7436db6b749fd869bbb07310c9`) -> `1.0.2`;
 - hosting installer/package;
 - cross-browser/mobile release evidence;
@@ -88,12 +89,13 @@
 2. Выполните restore drill в изолированное окружение.
 3. Запустите `php bin/healthcheck.php --json`.
 4. Проверьте HTTPS и WSS через production reverse proxy.
-5. С двумя аутентифицированными пользователями Messenger проверьте доставку по WebSocket, затем временно остановите/заблокируйте WS endpoint и убедитесь, что доставка автоматически продолжается через «Long Poll · резервный канал» без reload.
-6. Восстановите WS endpoint и убедитесь, что оба клиента автоматически возвращаются в «WebSocket · в сети».
-7. Проверьте одну зашифрованную заметку и одно зашифрованное сообщение Messenger.
-8. Проверьте защищённый доступ к File Manager/Notes/Messenger media.
-9. Просмотрите `php bin/observability.php --json` и retention preview.
-10. Подтвердите достаточное свободное место в БД/private storage и возможность записи во внешние state paths.
+5. На установке с действующей лицензией и без готового update credential откройте Admin → Updates и подтвердите автоматический bootstrap в `PRIVATE_STORAGE_PATH/update-access/update-access.json` без activation code и ручной правки `.env`.
+6. С двумя аутентифицированными пользователями Messenger проверьте доставку по WebSocket, затем временно остановите/заблокируйте WS endpoint и убедитесь, что доставка автоматически продолжается через «Long Poll · резервный канал» без reload.
+7. Восстановите WS endpoint и убедитесь, что оба клиента автоматически возвращаются в «WebSocket · в сети».
+8. Проверьте одну зашифрованную заметку и одно зашифрованное сообщение Messenger.
+9. Проверьте защищённый доступ к File Manager/Notes/Messenger media.
+10. Просмотрите `php bin/observability.php --json` и retention preview.
+11. Подтвердите достаточное свободное место в БД/private storage и возможность записи во внешние state paths.
 
 ## Gate F — дефекты и ручная приёмка
 
@@ -101,6 +103,7 @@
 
 - exact frozen RC/artifact прошёл live visual acceptance из #172, включая light/dark/system и проверку компактной ширины ноутбука;
 - exact frozen RC/artifact прошёл OSPanel 5.2.2 transport acceptance из #173: WebSocket `101` + `Authorized`, автоматический Long Poll fallback, durable delivery и автоматический возврат к WebSocket;
+- exact frozen RC прошёл автоматический updater acceptance: обычная лицензия сама создаёт внешний installation credential, повторная проверка не требует кода, а offline-режим не обращается в сеть;
 - exact frozen RC прошёл 2FA/TOTP acceptance: персональное включение/отключение, обязательная политика Admin, принудительная настройка аккаунта без TOTP, одноразовый recovery code и сохранение работоспособности после прямой/обратной ротации `UNIQUE_KEY`;
 - нет открытых P0/P1 дефектов с риском потери данных;
 - нет открытых P0/P1 дефектов безопасности;
@@ -137,6 +140,7 @@ php bin/release_acceptance.php --strict --json \
   --operational-acceptance-green \
   --visual-acceptance-green \
   --ospanel-acceptance-green \
+  --update-bootstrap-acceptance-green \
   --two-factor-acceptance-green \
   --one-zero-one-drill-green \
   --p0p1-clear \

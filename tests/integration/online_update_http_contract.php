@@ -32,7 +32,7 @@ try {
     // Isolated public trust fixture; never edits the release's public registries.
     foreach (['tools/license-server/LicenseServer.php', 'tools/license-server/public/index.php',
         'tools/license-server/manage.php', 'app/services/LicenseVerifier.php', 'core/UpdateManifestVerifier.php',
-        'core/UpdateDownloadCredentials.php'] as $file) {
+        'core/UpdateDownloadCredentials.php', 'core/UpdatePath.php'] as $file) {
         $destination = $work . '/app/' . $file;
         if (!is_dir(dirname($destination))) {
             mkdir(dirname($destination), 0700, true);

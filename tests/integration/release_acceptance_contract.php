@@ -72,6 +72,7 @@ foreach ([
     "'operational-acceptance-green'",
     "'visual-acceptance-green'",
     "'ospanel-acceptance-green'",
+    "'update-bootstrap-acceptance-green'",
     "'two-factor-acceptance-green'",
     "'one-zero-one-drill-green'",
     "'p0p1-clear'",
@@ -159,6 +160,10 @@ foreach ([
     'messenger-realtime-fallback',
     'two-factor-contract (8.1)',
     'two-factor-contract (8.3)',
+    'online-update-access (8.1)',
+    'online-update-access (8.3)',
+    'admin-update-ui (8.1)',
+    'admin-update-ui (8.3)',
 ] as $requiredCheck) {
     releaseAcceptanceAssert(
         in_array($requiredCheck, $requiredChecks, true),

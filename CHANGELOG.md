@@ -2,9 +2,14 @@
 
 Формат основан на принципах Keep a Changelog. Начиная с `1.0.0` проект имеет stable platform contract: совместимость upgrade-path и пользовательских данных является release contract, а изменения схемы выполняются через явные compatibility migrations. Canonical `*_schema.sql` остаются источником текущей схемы fresh install.
 
-## 1.0.2 — 2026-09-23
+## 1.0.2 — 2026-09-24
 
 ### Updater operations
+- Активация обычной installation-bound лицензии теперь автоматически настраивает доступ к официальному каналу обновлений; пользователю `1.0.2+` не нужны отдельный activation code, временный файл и ручной запуск `bin/update_activate.php`.
+- Штатный stable feed и control plane заданы по умолчанию; installation credential автоматически сохраняется вне дерева приложения в `PRIVATE_STORAGE_PATH/update-access/update-access.json`.
+- Если в старом `.env` остался небезопасный `UPDATE_CREDENTIALS_FILE` внутри дерева приложения, `1.0.2` игнорирует его и использует безопасный внешний путь без ручного исправления.
+- Если control plane недоступен во время активации лицензии, локальная лицензия остаётся действующей, а bootstrap доступа повторяется при следующей проверке обновлений.
+- `UPDATE_ACCESS_MODE=offline` сохраняет явный полностью офлайн-сценарий; старый одноразовый код остаётся только для совместимости с `1.0.0/1.0.1`.
 - Добавлен единый CLI operator flow `bin/update_run.php`, который использует существующие подписанные границы: remote staging, maintenance ownership, verified code+MySQL rollback backup, external release candidate и transactional live apply.
 - Destructive flow требует явный `--yes`; до начала live mutation wrapper может безопасно снять собственный maintenance, а после начала mutation rollback/recovery полностью остаются во владении `UpdateApplyCommand`.
 - Для прерванной транзакции предусмотрен единый recovery-вход через `bin/update_run.php --recover --transaction=... --yes`.

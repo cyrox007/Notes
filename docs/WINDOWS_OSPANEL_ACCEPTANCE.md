@@ -56,12 +56,12 @@ php bin/healthcheck.php --json
 Временная директория runner 1.0.2 и все state directories updater должны находиться вне live application tree 1.0.1. Пример:
 
 ```text
-D:\OSPanel\domains\notes.local
-D:\OSPanel\update-runner\workspace-1.0.2
-D:\OSPanel\private\notes\update-staging
-D:\OSPanel\private\notes\update-state
-D:\OSPanel\private\notes\update-backups
-D:\OSPanel\private\notes\update-releases
+C:\OSPanel\home\notes.local
+C:\OSPanel\update-runner\workspace-1.0.2
+C:\OSPanel\private\notes\update-staging
+C:\OSPanel\private\notes\update-state
+C:\OSPanel\private\notes\update-backups
+C:\OSPanel\private\notes\update-releases
 ```
 
 ### 3. Обновите exact 1.0.1 через доверенный внешний bootstrap
@@ -69,7 +69,7 @@ D:\OSPanel\private\notes\update-releases
 Запустите следующую команду из PowerShell с PHP binary/environment, выбранным OSPanel. Команда намеренно приведена одной строкой, чтобы не требовалось экранирование переноса строк PowerShell:
 
 ```powershell
-php D:\OSPanel\update-runner\workspace-1.0.2\bin\update_bootstrap.php --app-root="D:\OSPanel\domains\notes.local" --manifest="D:\OSPanel\update-release\update.json" --signature="D:\OSPanel\update-release\update.sig" --package="D:\OSPanel\update-release\workspace-organizer-v1.0.2.zip" --transaction=update-1-0-1-to-1-0-2 --expected-source-version=1.0.1 --expected-source-version-code=10001 --stage-root="D:\OSPanel\private\notes\update-staging" --state-root="D:\OSPanel\private\notes\update-state" --backup-root="D:\OSPanel\private\notes\update-backups" --candidate-root="D:\OSPanel\private\notes\update-releases" --json
+php C:\OSPanel\update-runner\workspace-1.0.2\bin\update_bootstrap.php --app-root="C:\OSPanel\home\notes.local" --manifest="C:\OSPanel\update-release\update.json" --signature="C:\OSPanel\update-release\update.sig" --package="C:\OSPanel\update-release\workspace-organizer-v1.0.2.zip" --transaction=update-1-0-1-to-1-0-2 --expected-source-version=1.0.1 --expected-source-version-code=10001 --stage-root="C:\OSPanel\private\notes\update-staging" --state-root="C:\OSPanel\private\notes\update-state" --backup-root="C:\OSPanel\private\notes\update-backups" --candidate-root="C:\OSPanel\private\notes\update-releases" --json
 ```
 
 JSON-результат должен сообщить `committed`.
@@ -105,6 +105,31 @@ php bin/update_retention.php --json
 - остановите native WS process и убедитесь, что оба клиента автоматически переходят в «Long Poll · резервный канал», при этом durable messages продолжают синхронизироваться;
 - снова запустите native WS process и убедитесь, что клиенты автоматически возвращаются в «WebSocket · в сети» без page reload.
 
+### 4A. Автоматическая настройка доступа к обновлениям
+
+После перехода на `1.0.2` пользователь не должен создавать `activation.txt`,
+выбирать путь для `update-access.json` или запускать `bin/update_activate.php`.
+
+На тестовой установке:
+
+1. убедитесь, что обычная лицензия Workspace действительна;
+2. оставьте `UPDATE_CREDENTIALS_FILE` пустым либо сохраните историческое значение
+   из `1.0.0`, указывающее внутрь дерева приложения;
+3. откройте **Админ → Обновления** и нажмите проверку обновлений;
+4. убедитесь, что интерфейс не требует ручной настройки credential path;
+5. убедитесь, что создан файл
+   `C:\OSPanel\private\notes\update-access\update-access.json` при
+   `PRIVATE_STORAGE_PATH=C:\OSPanel\private\notes`;
+6. повторите проверку и подтвердите, что готовый credential переиспользуется без
+   дополнительного кода или действий пользователя;
+7. не выводите содержимое credential-файла в терминал, логи или отчёт.
+
+Если control plane временно недоступен, локальная лицензия должна продолжить
+работать; повторная проверка обновлений должна выполнить bootstrap после
+восстановления связи.
+
+После публикации `1.0.2` этот же пользовательский путь необходимо проверить на
+реальном небольшом обновлении `1.0.2 -> 1.0.3`.
 ### 5. Доказательство rollback
 
 Автоматический Linux release drill принудительно выполняет post-switch mutation базы данных, затем имитирует failed healthcheck и подтверждает автоматический rollback кода и базы данных до exact 1.0.1.
