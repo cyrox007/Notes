@@ -92,6 +92,12 @@ nativeAdminAssert(str_contains($roles, '__inherit__'), 'policy inheritance contr
 nativeAdminAssert(str_contains($roles, '$view->csrfInput()'), 'role management forms lost CSRF inputs');
 nativeAdminAssert(str_contains($roles, '$view->e($permission[\'code\'] ?? \'\')'), 'permission codes are not escaped');
 
+nativeAdminAssert(str_contains($roles, 'admin-roles-unavailable-title'), 'страница ролей не показывает диагностическое состояние при ошибке загрузки');
+
+$roleController = (string) file_get_contents($root . '/modules/admin/controllers/RoleManagementController.php');
+nativeAdminAssert(str_contains($roleController, "'admin_roles_load_error' => "), 'контроллер ролей не передаёт диагностическое состояние в представление');
+nativeAdminAssert(str_contains($roleController, "http_response_code(503)"), 'ошибка загрузки ролей не переводится в диагностируемый 503');
+
 $updates = (string) file_get_contents($root . '/modules/admin/views/updates.php');
 nativeAdminAssert(str_contains($updates, "route('admin_updates_check')"), 'signed updater check route is missing');
 nativeAdminAssert(str_contains($updates, "route('admin_updates_stage')"), 'signed updater stage route is missing');
