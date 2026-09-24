@@ -135,6 +135,7 @@ final class AdminUpdateService
     /** @return array<string,mixed> */
     public function check(int $actorId): array
     {
+        $this->permissions->requirePermission($actorId, 'admin.settings.manage');
         $this->ensureAutomaticAccess();
         $state = $this->snapshot($actorId);
         if (empty($state['can_check'])) {
