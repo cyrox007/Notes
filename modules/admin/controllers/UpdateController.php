@@ -166,6 +166,7 @@ final class UpdateController extends Controller
                 $targetVersionCode,
                 $packageSha256
             );
+            $this->resetOpcodeCacheAfterUpdate();
             $request->setSession('updates_result', $this->safeApplyResult($result));
             $this->redirectWithFlash(
                 $request,
@@ -179,6 +180,16 @@ final class UpdateController extends Controller
                 $e->getMessage() ?: 'Не удалось установить обновление'
             );
         }
+    }
+
+    private function resetOpcodeCacheAfterUpdate(): void
+    {
+        clearstatcache(true);
+        if (!function_exists('opcache_reset')) {
+            return;
+        }
+
+        @opcache_reset();
     }
 
     /** @param array<string,mixed> $result @return array<string,mixed> */
