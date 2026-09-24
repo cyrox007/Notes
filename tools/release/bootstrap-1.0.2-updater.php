@@ -92,7 +92,15 @@ if (!str_contains($original, $legacyNeedle)) {
     fwrite(STDOUT, "Известный дефект updater 1.0.2 исправлен локально для одной операции обновления.\n");
 }
 
-$command = [PHP_BINARY, $runPath, '--yes', '--json'];
+$command = [PHP_BINARY];
+$caFile = trim((string) ini_get('openssl.cafile'));
+if ($caFile !== '') {
+    $command[] = '-d';
+    $command[] = 'openssl.cafile=' . $caFile;
+}
+$command[] = $runPath;
+$command[] = '--yes';
+$command[] = '--json';
 $descriptorSpec = [
     0 => ['file', 'php://stdin', 'r'],
     1 => ['pipe', 'w'],
