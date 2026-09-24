@@ -435,6 +435,18 @@ try {
     adminUpdateAssert(str_contains($viewSource, 'Установить обновление'), 'admin update view lost install action copy');
     adminUpdateAssert(str_contains($viewSource, 'bin/update_run.php --recover'), 'admin update view lost operator recovery guidance');
     adminUpdateAssert(str_contains($viewSource, '$operatorReady'), 'admin update view lost operator readiness state');
+    adminUpdateAssert(
+        str_contains($viewSource, 'admin-update-operator__body'),
+        'admin update view lost compact operator body'
+    );
+    adminUpdateAssert(
+        str_contains($viewSource, 'admin-update-command-grid'),
+        'admin update view lost compact CLI command grid'
+    );
+    adminUpdateAssert(
+        str_contains($viewSource, 'admin-update-safety'),
+        'admin update view lost compact safety section'
+    );
     adminUpdateAssert(!str_contains($viewSource, 'stage_dir'), 'admin update view exposes absolute stage path');
     adminUpdateAssert(str_contains($routerSource, "->add('GET', '/updates/check'"), 'admin signed-feed check must remain GET/read-only');
     adminUpdateAssert(str_contains($routerSource, "->add('POST', '/updates/stage'"), 'admin stage route must remain POST');

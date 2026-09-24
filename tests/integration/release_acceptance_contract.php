@@ -36,7 +36,7 @@ foreach ([
     'structured security observability',
     'GitHub branch protection/ruleset',
     'production license/update Ed25519 keypairs',
-    'cross-browser/mobile + load/soak release evidence',
+    'кросс-браузерная и мобильная проверка',
 ] as $marker) {
     releaseAcceptanceAssert(str_contains($readme, $marker), "README release readiness не содержит marker {$marker}");
 }
@@ -53,7 +53,7 @@ foreach ([
     'OSPanel 5.2.2',
     'Gate G — неизменяемый артефакт и подпись',
     'Gate H — финальный merge и tag',
-    'v1.0.3',
+    'v1.0.4',
     'нет открытых P0/P1 дефектов с риском потери данных',
     'нет открытых P0/P1 дефектов безопасности',
     'работает только как сборка',
@@ -81,7 +81,7 @@ foreach ([
     'production_public_trust_roots',
     'release_evidence_harness',
     'private_signing_material_absent',
-    "Version::VERSION === '1.0.3'",
+    "Version::VERSION === '1.0.4'",
     "Version::STATUS === 'stable'",
     'exit(3)',
 ] as $marker) {
@@ -104,11 +104,11 @@ releaseAcceptanceAssert(
     'документ изоляции модулей не соответствует текущему runtime'
 );
 
-$releaseNotes = releaseAcceptanceText($root, 'docs/releases/v1.0.3.md');
+$releaseNotes = releaseAcceptanceText($root, 'docs/releases/v1.0.4.md');
 foreach (['## Состав релиза', '## Совместимость', '## Граница перед 1.1.0'] as $marker) {
     releaseAcceptanceAssert(
         str_contains($releaseNotes, $marker),
-        "описание релиза 1.0.3 не содержит русский раздел {$marker}"
+        "описание релиза 1.0.4 не содержит русский раздел {$marker}"
     );
 }
 
@@ -116,7 +116,7 @@ foreach (['## Состав релиза', '## Совместимость', '## �
 releaseAcceptanceAssert(
     str_contains($releaseNotes, 'bootstrap-1.0.2-updater.php')
     && str_contains($releaseNotes, 'exact `1.0.2 (10002)`'),
-    'описание 1.0.3 не фиксирует безопасный bootstrap-переход с опубликованной 1.0.2'
+    'описание 1.0.4 не фиксирует безопасный bootstrap-переход с опубликованной 1.0.2'
 );
 
 
@@ -202,4 +202,4 @@ releaseAcceptanceAssert(
     'Stable release gate не запускает контракт двухфакторной аутентификации'
 );
 
-fwrite(STDOUT, "[OK] финальный контракт release acceptance 1.0.3 выполнен\n");
+fwrite(STDOUT, "[OK] финальный контракт release acceptance 1.0.4 выполнен\n");
