@@ -25,7 +25,7 @@ final class UpdateReadiness
     {
         $resolved = realpath($appRoot ?? dirname(__DIR__));
         if (!is_string($resolved) || !is_dir($resolved)) {
-            throw new RuntimeException('Application root cannot be resolved for updater readiness');
+            throw new RuntimeException('Не удалось определить корень приложения для проверки готовности обновлятора');
         }
         $this->appRoot = $this->normalize($resolved);
         $this->verifier = $verifier ?? new UpdateManifestVerifier();
@@ -110,7 +110,7 @@ final class UpdateReadiness
                 try {
                     $credentials = UpdateDownloadCredentials::fromEnvironment();
                 } catch (Throwable) {
-                    // Старый, отсутствующий или повреждённый credential
+                    // Старый, отсутствующий или повреждённый файл доступа
                     // восстанавливается автоматически по лицензии.
                 }
 
