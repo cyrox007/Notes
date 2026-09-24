@@ -106,10 +106,10 @@ releaseAcceptanceAssert(
 );
 
 $releaseNotes = releaseAcceptanceText($root, 'docs/releases/v1.0.5.md');
-foreach (['## Состав релиза', '## Совместимость', '## Граница перед 1.1.0'] as $marker) {
+foreach (['## Назначение релиза', '## Совместимость', '## Граница поддержки'] as $marker) {
     releaseAcceptanceAssert(
         str_contains($releaseNotes, $marker),
-        "описание релиза 1.0.4 не содержит русский раздел {$marker}"
+        "описание релиза 1.0.5 не содержит русский раздел {$marker}"
     );
 }
 
