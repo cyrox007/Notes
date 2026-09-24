@@ -59,16 +59,28 @@ async function login(page) {
   ]);
 }
 
-async function installUpdate(page) {
-  const navigation = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 180000 });
-  await page.getByRole('button', { name: 'Установить обновление', exact: true }).click();
+async function installUpdateFromNotification(page) {
+  const bell = page.locator('[data-update-notifications-toggle]');
+  await bell.waitFor({ state: 'visible', timeout: 10000 });
 
-  const confirm = page.getByRole('button', { name: 'Установить', exact: true });
-  const visible = await confirm.isVisible({ timeout: 800 }).catch(() => false);
-  if (visible) {
-    await confirm.click();
+  const badge = page.locator('[data-update-badge]');
+  await badge.waitFor({ state: 'visible', timeout: 30000 });
+  await bell.click();
+
+  const item = page.locator('[data-update-item]');
+  await item.waitFor({ state: 'visible', timeout: 10000 });
+  await item.getByText(expectedVersion, { exact: false })
+    .waitFor({ state: 'visible', timeout: 10000 });
+
+  const updateButton = page.locator('[data-update-action]');
+  await updateButton.waitFor({ state: 'visible', timeout: 10000 });
+  const label = ((await updateButton.textContent()) || '').trim();
+  if (!label.includes(expectedVersion)) {
+    throw new Error(`Уведомление предлагает неожиданную версию: ${label}`);
   }
 
+  const navigation = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 180000 });
+  await updateButton.click();
   return await navigation;
 }
 
@@ -78,30 +90,18 @@ try {
   instrument(page);
   await login(page);
 
-  let response = await page.goto(`${baseUrl}/admin/updates`, { waitUntil: 'domcontentloaded' });
+  let response = await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
   if (!response || response.status() !== 200) {
-    throw new Error(`Раздел обновлений вернул HTTP ${response?.status()}`);
+    throw new Error(`Главная страница вернула HTTP ${response?.status()}`);
   }
 
-  await page.getByRole('heading', { name: 'Обновления Workspace', exact: true })
-    .waitFor({ state: 'visible', timeout: 10000 });
-  await page.getByText(`${sourceVersion} (${sourceVersionCode})`, { exact: true })
-    .waitFor({ state: 'visible', timeout: 10000 });
-
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }),
-    page.getByRole('link', { name: 'Проверить обновления', exact: true }).click(),
-  ]);
-
-  await page.getByRole('heading', { name: 'Доступно обновление', exact: true })
-    .waitFor({ state: 'visible', timeout: 15000 });
-  await page.getByText(`${expectedVersion} (${expectedVersionCode})`, { exact: true })
-    .waitFor({ state: 'visible', timeout: 15000 });
-  await page.getByRole('button', { name: 'Установить обновление', exact: true })
-    .waitFor({ state: 'visible', timeout: 10000 });
+  const bodyBeforeUpdate = ((await page.locator('body').innerText().catch(() => '')) || '').trim();
+  if (!bodyBeforeUpdate.includes(sourceVersion)) {
+    throw new Error(`До обновления интерфейс не подтверждает исходную версию ${sourceVersion} (${sourceVersionCode})`);
+  }
 
   installationWindow = true;
-  const installResponse = await installUpdate(page);
+  const installResponse = await installUpdateFromNotification(page);
   const installStatus = installResponse?.status() ?? 0;
   const installUrl = page.url();
 
@@ -155,7 +155,7 @@ try {
       `Во время maintenance ожидаемо отклонено фоновых socket-ticket запросов: ${maintenanceHttpErrors.length}`
     );
   }
-  console.log(`Admin update E2E: OK (${expectedVersion}, ${transactionId})`);
+  console.log(`Автоматическое уведомление и обновление в один клик: OK (${expectedVersion}, ${transactionId})`);
   await context.close();
 } finally {
   await browser.close();
