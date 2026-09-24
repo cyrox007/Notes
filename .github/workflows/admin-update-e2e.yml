@@ -272,6 +272,12 @@ jobs:
             --exclude '*.log'
           mkdir -p "$TARGET/cache" "$TARGET/compile"
 
+          # Временная CI-лицензия подписана одноразовым ключом раннера. Переносим
+          # только её публичный ключ в тестовый пакет, иначе после первого
+          # обновления лицензия закономерно станет недоверенной ещё до проверки Admin apply.
+          cp "$LIVE/config/license_trusted_keys.php" "$TARGET/config/license_trusted_keys.php"
+          php -l "$TARGET/config/license_trusted_keys.php"
+
           TEST_UPDATE_PUBLIC_KEY="$PUBLIC_KEY" php -r '
             $path=$argv[1];
             $keys=require $path;
@@ -422,6 +428,11 @@ jobs:
             --exclude '*.update-secret' \
             --exclude '*.log'
           mkdir -p "$FUTURE/cache" "$FUTURE/compile"
+
+          # Сохраняем тот же тестовый публичный корень и в следующем пакете,
+          # чтобы результат обновления из Admin UI проверялся с валидной лицензией.
+          cp "$LIVE/config/license_trusted_keys.php" "$FUTURE/config/license_trusted_keys.php"
+          php -l "$FUTURE/config/license_trusted_keys.php"
 
           perl -0pi -e "s/public const VERSION = '[^']+';/public const VERSION = '1.0.4-admin-e2e';/" "$FUTURE/core/Version.php"
           perl -0pi -e "s/public const VERSION_CODE = [0-9]+;/public const VERSION_CODE = 10004;/" "$FUTURE/core/Version.php"
