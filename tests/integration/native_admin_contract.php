@@ -95,9 +95,10 @@ nativeAdminAssert(str_contains($roles, '$view->e($permission[\'code\'] ?? \'\')'
 $updates = (string) file_get_contents($root . '/modules/admin/views/updates.php');
 nativeAdminAssert(str_contains($updates, "route('admin_updates_check')"), 'signed updater check route is missing');
 nativeAdminAssert(str_contains($updates, "route('admin_updates_stage')"), 'signed updater stage route is missing');
-nativeAdminAssert(str_contains($updates, '$view->csrfInput()'), 'signed updater stage form lost CSRF input');
-nativeAdminAssert(str_contains($updates, 'Рабочие файлы не менялись'), 'интерфейс обновлений потерял указание о неизменности рабочих файлов');
-nativeAdminAssert(!str_contains($updates, "route('admin_updates_apply')"), 'first signed updater UI slice exposes live apply route');
+nativeAdminAssert(str_contains($updates, '$view->csrfInput()'), 'signed updater forms lost CSRF input');
+nativeAdminAssert(str_contains($updates, 'Рабочие файлы не менялись'), 'интерфейс обновлений потерял указание о неизменности рабочих файлов на staging');
+nativeAdminAssert(str_contains($updates, "route('admin_updates_apply')"), 'Admin UI не показывает защищённую установку обновления');
+nativeAdminAssert(str_contains($updates, 'Установить обновление'), 'Admin UI потерял действие установки обновления');
 nativeAdminAssert(!str_contains($updates, 'stage_dir'), 'signed updater UI exposes absolute stage path');
 nativeAdminAssert(str_contains($updates, 'class="admin-status-grid"'), 'signed updater local/result state is not using Admin status cards');
 nativeAdminAssert(str_contains($updates, 'class="admin-status-card"'), 'signed updater status card contract is missing');
@@ -115,6 +116,8 @@ nativeAdminAssert(str_contains($router, "->add('GET', '/updates'"), 'signed upda
 nativeAdminAssert(str_contains($router, "->add('GET', '/updates/check'"), 'signed updater read-only check route missing');
 nativeAdminAssert(str_contains($router, "->add('POST', '/updates/stage'"), 'signed updater stage route missing');
 nativeAdminAssert(str_contains($router, "RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_stage'"), 'signed updater stage middleware contract missing');
+nativeAdminAssert(str_contains($router, "->add('POST', '/updates/apply'"), 'signed updater apply route missing');
+nativeAdminAssert(str_contains($router, "RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_apply'"), 'signed updater apply middleware contract missing');
 
 foreach ([
     'app/controllers/Admin',
