@@ -2,12 +2,14 @@
 
 declare(strict_types=1);
 
+use Core\UpdateApplyCommand;
 use Core\UpdateBackupManager;
 use Core\UpdateLiveApplier;
 use Core\UpdateTransactionJournal;
 use Core\UpdateTransactionStateMachine;
 
 $root = dirname(__DIR__, 2);
+require_once $root . '/core/UpdateApplyCommand.php';
 require_once $root . '/core/UpdateTransactionJournal.php';
 require_once $root . '/core/UpdateTransactionStateMachine.php';
 require_once $root . '/core/UpdateBackupManager.php';
@@ -98,6 +100,27 @@ liveApplyRemoveTree($temp);
 liveApplyAssert(mkdir($temp, 0700, true), 'unable to create live apply temp root');
 
 try {
+    $wsStatusRoot = $temp . '/ws-status-root';
+    liveApplyAssert(mkdir($wsStatusRoot . '/ws_server', 0700, true), 'unable to create WebSocket status fixture');
+    liveApplyWrite(
+        $wsStatusRoot . '/ws_server/server.php',
+        "<?php\nfwrite(STDOUT, \"WebSocket-сервер не запущен.\\n\");\nexit(1);\n"
+    );
+    $wsCommand = new UpdateApplyCommand($wsStatusRoot);
+    $wsMethod = new ReflectionMethod(UpdateApplyCommand::class, 'wsStatus');
+    $wsState = $wsMethod->invoke($wsCommand, $wsStatusRoot);
+    liveApplyAssert(($wsState['running'] ?? true) === false, 'localized WebSocket status exit code 1 was not treated as stopped');
+
+    $applyCommandSource = (string) file_get_contents($root . '/core/UpdateApplyCommand.php');
+    liveApplyAssert(
+        str_contains($applyCommandSource, "($latest['live_mutation_started'] ?? false) !== true"),
+        'pre-mutation apply failure no longer checks destructive boundary before releasing maintenance'
+    );
+    liveApplyAssert(
+        str_contains($applyCommandSource, '$maintenance->leave($transactionId);'),
+        'pre-mutation apply failure no longer releases maintenance'
+    );
+
     $live = $temp . '/live';
     $candidateDir = $temp . '/candidate';
     $backupDir = $temp . '/backups/live-contract-001';
