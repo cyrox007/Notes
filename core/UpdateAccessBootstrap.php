@@ -23,7 +23,7 @@ final class UpdateAccessBootstrap
     public const DEFAULT_SERVER_BASE_URL = 'https://jsinteractive.ru/api/notes/v1/';
     public const DEFAULT_CHANNEL = 'stable';
 
-    public function __construct(private ?UpdateHttpsTransport $transport = null)
+    public function __construct(private ?UpdateAccessActivationTransport $transport = null)
     {
     }
 
