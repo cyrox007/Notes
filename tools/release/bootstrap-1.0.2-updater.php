@@ -102,7 +102,7 @@ $command[] = $runPath;
 $command[] = '--yes';
 $command[] = '--json';
 $descriptorSpec = [
-    0 => ['file', 'php://stdin', 'r'],
+    0 => ['pipe', 'r'],
     1 => ['pipe', 'w'],
     2 => ['pipe', 'w'],
 ];
