@@ -160,6 +160,40 @@ final class AdminUpdateService
         );
     }
 
+    /**
+     * Устанавливает последнее совместимое подписанное обновление за одно действие.
+     *
+     * Проверка feed и привязка к version_code/SHA-256 выполняются внутри этого
+     * же запроса, поэтому пользователь не обязан предварительно открывать
+     * отдельную ручную проверку обновлений.
+     *
+     * @return array<string,mixed>
+     */
+    public function applyLatest(int $actorId): array
+    {
+        $this->permissions->requirePermission($actorId, 'admin.settings.manage');
+        if (!$this->permissions->hasRole($actorId, 'superadmin')) {
+            throw new DomainException('Установка обновления доступна только суперадминистратору', 403);
+        }
+
+        $check = $this->check($actorId);
+        if (($check['status'] ?? '') !== 'update_available' || empty($check['update_available'])) {
+            throw new DomainException(
+                'Для этой установки сейчас нет совместимого нового обновления',
+                409
+            );
+        }
+
+        $targetVersionCode = (int) ($check['target_version_code'] ?? 0);
+        $packageSha256 = strtolower(trim((string) ($check['package_sha256'] ?? '')));
+        if ($targetVersionCode <= Version::VERSION_CODE
+            || preg_match('/^[0-9a-f]{64}$/', $packageSha256) !== 1) {
+            throw new RuntimeException('Сервер обновлений вернул некорректную привязку релиза');
+        }
+
+        return $this->apply($actorId, $targetVersionCode, $packageSha256);
+    }
+
     /** @return array<string,mixed> */
     public function stage(int $actorId, int $expectedTargetVersionCode, string $expectedPackageSha256): array
     {
