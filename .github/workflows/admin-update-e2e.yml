@@ -58,6 +58,7 @@ jobs:
           node --check tests/e2e/admin-update-apply.mjs
           php -l modules/admin/services/AdminUpdateService.php
           php -l bin/update_run.php
+          php -l tools/release/bootstrap-1.0.2-updater.php
 
       - name: Подготовить каноническую БД и суперадминистратора
         shell: bash
