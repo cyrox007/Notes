@@ -22,6 +22,7 @@ readinessAssert(mkdir($temp, 0700, true), 'cannot create readiness temp root');
 
 $names = [
     'UPDATE_FEED_URL',
+    'UPDATE_PHP_BINARY',
     'UPDATE_CHANNEL',
     'UPDATE_ACCESS_MODE',
     'UPDATE_CREDENTIALS_FILE',
@@ -39,6 +40,17 @@ foreach ($names as $name) {
 }
 
 try {
+    $phpCliSource = (string) file_get_contents($root . '/core/UpdatePhpCli.php');
+    readinessAssert(
+        str_contains($phpCliSource, 'dirname($phpBinary)'),
+        'поиск PHP CLI не проверяет бинарник рядом с фактическим web-PHP'
+    );
+    readinessAssert(
+        str_contains($phpCliSource, "getenv('PATH')"),
+        'поиск PHP CLI не использует абсолютные каталоги PATH как резервный источник'
+    );
+
+    putenv('UPDATE_PHP_BINARY');
     putenv('UPDATE_FEED_URL=https://updates.example.test/stable/feed.json');
     putenv('UPDATE_CHANNEL=stable');
     putenv('UPDATE_ACCESS_MODE=offline');

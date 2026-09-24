@@ -197,39 +197,48 @@ ob_start();
     <?php endif; ?>
 
     <?php if ($canManageStage): ?>
-        <section class="admin-panel-card" aria-labelledby="updates-operator-title">
+        <section class="admin-panel-card admin-update-operator" aria-labelledby="updates-operator-title">
             <div class="admin-panel-card__header">
                 <div>
                     <span class="admin-panel-card__kicker">Резервный способ</span>
                     <h2 id="updates-operator-title">CLI и восстановление</h2>
-                    <p>Обычная установка теперь выполняется кнопкой выше. CLI остаётся для диагностики и аварийного восстановления.</p>
+                    <p>Обычная установка выполняется кнопкой выше. Здесь остаются диагностика и аварийное восстановление.</p>
                 </div>
             </div>
 
-            <?php if (!$operatorReady): ?>
-                <div class="admin-page__flash admin-page__flash--error admin-update-alert" role="status">
-                    <strong>Установка пока не готова:</strong>
-                    <ul>
-                        <?php foreach ($operatorIssues as $issue): ?>
-                            <li><?= $view->e((string) $issue) ?></li>
-                        <?php endforeach; ?>
-                    </ul>
-                </div>
-            <?php endif; ?>
+            <div class="admin-update-operator__body">
+                <?php if (!$operatorReady): ?>
+                    <div class="admin-page__flash admin-page__flash--error admin-update-alert" role="status">
+                        <strong>Установка пока не готова:</strong>
+                        <ul>
+                            <?php foreach ($operatorIssues as $issue): ?>
+                                <li><?= $view->e((string) $issue) ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                <?php endif; ?>
 
-            <div class="admin-update-detail">
-                <strong>Диагностика</strong>
-                <code><?= $view->e($doctorCommand) ?></code>
+                <div class="admin-update-command-grid">
+                    <div class="admin-update-command">
+                        <strong>Диагностика</strong>
+                        <code><?= $view->e($doctorCommand) ?></code>
+                    </div>
+                    <div class="admin-update-command">
+                        <strong>Ручная установка</strong>
+                        <code><?= $view->e($operatorCommand) ?></code>
+                    </div>
+                </div>
+
+                <p class="admin-update-recovery">
+                    Если установка прервалась после начала изменения рабочих файлов, используйте сохранённый идентификатор транзакции:
+                    <code>php bin/update_run.php --recover --transaction=&lt;id&gt; --yes --json</code>.
+                    Marker режима обслуживания вручную не удаляйте.
+                </p>
             </div>
-            <div class="admin-update-detail">
-                <strong>Ручная установка</strong>
-                <code><?= $view->e($operatorCommand) ?></code>
-            </div>
-            <p class="admin-update-detail">Если установка прервалась после начала изменения рабочих файлов, используйте сохранённый идентификатор транзакции с <code>php bin/update_run.php --recover --transaction=&lt;id&gt; --yes --json</code>. Не удаляйте marker режима обслуживания вручную.</p>
         </section>
     <?php endif; ?>
 
-    <section class="admin-panel-card">
+    <section class="admin-panel-card admin-update-safety">
         <div class="admin-panel-card__header">
             <div>
                 <span class="admin-panel-card__kicker">Границы безопасности</span>

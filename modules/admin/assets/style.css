@@ -290,11 +290,11 @@
 }
 
 
-/* Updates page: keep the local-state card on the same spacing grid as the rest of Admin. */
+/* Страница обновлений: компактная сетка статусов и отдельный служебный блок CLI. */
 .admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-panel-card__header,
 .admin-panel-card[aria-labelledby="updates-result-title"] .admin-panel-card__header{
   align-items:flex-start;
-  padding:18px
+  padding:16px 18px
 }
 .admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-panel-card__header>div,
 .admin-panel-card[aria-labelledby="updates-result-title"] .admin-panel-card__header>div{
@@ -305,34 +305,100 @@
 .admin-panel-card[aria-labelledby="updates-result-title"] .admin-panel-card__header .admin-action{
   flex:0 0 auto;
   align-self:flex-start;
-  min-height:38px;
-  margin-top:2px
+  min-height:36px;
+  margin-top:1px
 }
 .admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-status-grid,
 .admin-panel-card[aria-labelledby="updates-result-title"] .admin-status-grid{
-  gap:14px;
-  padding:18px
+  gap:10px;
+  padding:14px 16px
 }
 .admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-status-card,
 .admin-panel-card[aria-labelledby="updates-result-title"] .admin-status-card{
-  min-height:92px;
-  padding:14px 15px
+  min-height:76px;
+  padding:12px 14px
 }
 .admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-update-keys{
-  margin:0 18px 16px
+  margin:0 16px 12px
 }
 .admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-update-alert{
-  margin:0 18px 18px;
-  padding:14px 16px
+  margin:0 16px 14px;
+  padding:11px 13px
 }
 .admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-update-alert strong{
   display:block;
-  margin-bottom:6px
+  margin-bottom:5px
 }
 .admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-update-alert ul{
   margin:0;
-  padding-left:20px
+  padding-left:18px
 }
+
+.admin-update-operator .admin-panel-card__header,
+.admin-update-safety .admin-panel-card__header{
+  padding:14px 16px
+}
+.admin-update-operator__body{
+  display:grid;
+  gap:10px;
+  padding:12px 16px 16px
+}
+.admin-update-operator__body .admin-update-alert{
+  margin:0;
+  padding:10px 12px
+}
+.admin-update-command-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px
+}
+.admin-update-command{
+  min-width:0;
+  padding:10px 12px;
+  border:1px solid var(--ui-border);
+  border-radius:9px;
+  background:var(--ui-surface-soft)
+}
+.admin-update-command strong{
+  display:block;
+  color:var(--ui-text);
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.03em;
+  text-transform:uppercase
+}
+.admin-update-command code{
+  display:block;
+  margin-top:4px;
+  color:var(--ui-text);
+  font:600 11px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace;
+  overflow-wrap:anywhere
+}
+.admin-update-recovery{
+  margin:0;
+  padding:9px 11px;
+  border-left:3px solid var(--module-accent,var(--ui-primary));
+  border-radius:0 8px 8px 0;
+  background:var(--ui-surface-soft);
+  color:var(--ui-muted);
+  font-size:11px;
+  line-height:1.5
+}
+.admin-update-recovery code{
+  color:var(--ui-text);
+  font:600 11px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace;
+  overflow-wrap:anywhere
+}
+.admin-update-safety .admin-safety-list{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:6px 28px;
+  padding:12px 34px 16px
+}
+.admin-update-safety .admin-safety-list li+li{
+  margin-top:0
+}
+
 @media(max-width:860px){
   .admin-panel-card[aria-labelledby="updates-local-state-title"] .admin-panel-card__header,
   .admin-panel-card[aria-labelledby="updates-result-title"] .admin-panel-card__header{
@@ -342,6 +408,15 @@
   .admin-panel-card[aria-labelledby="updates-result-title"] .admin-panel-card__header .admin-action{
     width:100%;
     margin-top:4px
+  }
+}
+@media(max-width:680px){
+  .admin-update-command-grid,
+  .admin-update-safety .admin-safety-list{
+    grid-template-columns:1fr
+  }
+  .admin-update-safety .admin-safety-list{
+    padding:12px 32px 16px
   }
 }
 
