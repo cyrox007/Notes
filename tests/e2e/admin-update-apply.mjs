@@ -18,14 +18,25 @@ const baseUrl = origin + basePath;
 const browser = await chromium.launch({ headless: true });
 const pageErrors = [];
 const unexpectedHttpErrors = [];
+const maintenanceHttpErrors = [];
+let installationWindow = false;
 
 function instrument(page) {
   page.on('pageerror', (error) => pageErrors.push(error));
   page.on('response', (response) => {
     const url = new URL(response.url());
-    if (url.origin === origin && response.status() >= 400) {
-      unexpectedHttpErrors.push(`${response.status()} ${url.pathname}`);
+    if (url.origin !== origin || response.status() < 400) {
+      return;
     }
+
+    const failure = `${response.status()} ${url.pathname}`;
+    const socketTicketPath = `${basePath}/messenger/socket-ticket`;
+    if (installationWindow && response.status() === 503 && url.pathname === socketTicketPath) {
+      maintenanceHttpErrors.push(failure);
+      return;
+    }
+
+    unexpectedHttpErrors.push(failure);
   });
   page.on('dialog', async (dialog) => {
     await dialog.accept();
@@ -87,6 +98,7 @@ try {
   await page.getByRole('button', { name: 'Установить обновление', exact: true })
     .waitFor({ state: 'visible', timeout: 10000 });
 
+  installationWindow = true;
   await installUpdate(page);
 
   const flash = page.locator('.admin-page__flash').first();
@@ -112,11 +124,19 @@ try {
     throw new Error(`Некорректный идентификатор транзакции: ${transactionId}`);
   }
 
+  installationWindow = false;
+  await page.waitForTimeout(1500);
+
   if (pageErrors.length) throw pageErrors[0];
   if (unexpectedHttpErrors.length) {
     throw new Error(`Неожиданные HTTP-ошибки: ${unexpectedHttpErrors.join(', ')}`);
   }
 
+  if (maintenanceHttpErrors.length) {
+    console.log(
+      `Во время maintenance ожидаемо отклонено фоновых socket-ticket запросов: ${maintenanceHttpErrors.length}`
+    );
+  }
   console.log(`Admin update E2E: OK (${expectedVersion}, ${transactionId})`);
   await context.close();
 } finally {
