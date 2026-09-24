@@ -180,7 +180,6 @@ jobs:
           APP_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
           MESSAGE_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
           TICKET_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
-          PHP_CLI="$(command -v php)"
           echo "::add-mask::$APP_KEY"
           echo "::add-mask::$MESSAGE_KEY"
           echo "::add-mask::$TICKET_KEY"
@@ -217,7 +216,6 @@ jobs:
           UPDATE_STATE_PATH=${PRIVATE}/state
           UPDATE_BACKUP_PATH=${PRIVATE}/backups
           UPDATE_RELEASE_PATH=${PRIVATE}/releases
-          UPDATE_PHP_BINARY=${PHP_CLI}
           ENV
           chmod 600 "$LIVE/.env"
 
@@ -261,9 +259,14 @@ jobs:
           ' "$LIVE/config/update_trusted_keys.php"
           php -l "$LIVE/config/update_trusted_keys.php"
 
-          rm -rf "$TARGET" "$FEED_ROOT"
+          RELEASE_SOURCE="$DRILL/source-v1.0.4"
+          git worktree remove --force "$RELEASE_SOURCE" 2>/dev/null || true
+          rm -rf "$TARGET" "$FEED_ROOT" "$RELEASE_SOURCE"
+          git worktree add --detach "$RELEASE_SOURCE" v1.0.4
+          RELEASE_SHA="$(git -C "$RELEASE_SOURCE" rev-parse HEAD)"
+          test "$RELEASE_SHA" = '39e471dc534ba5c6562453fc7cef4a2e4ad6e43e'
           mkdir -p "$TARGET" "$FEED_ROOT/stable"
-          rsync -a "$GITHUB_WORKSPACE/" "$TARGET/" \
+          rsync -a "$RELEASE_SOURCE/" "$TARGET/" \
             --exclude '.git' \
             --exclude '.github' \
             --exclude '.env' \
@@ -308,7 +311,7 @@ jobs:
             --version=1.0.4 \
             --version-code=10004 \
             --channel=stable \
-            --source-commit="$GITHUB_SHA" \
+            --source-commit="$RELEASE_SHA" \
             --min-source-version-code=10003 \
             --requires-php=8.1.0 \
             --notes='CI: реальная установка из Admin UI' \
