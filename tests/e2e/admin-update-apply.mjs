@@ -69,7 +69,7 @@ async function installUpdate(page) {
     await confirm.click();
   }
 
-  await navigation;
+  return await navigation;
 }
 
 try {
@@ -101,10 +101,26 @@ try {
     .waitFor({ state: 'visible', timeout: 10000 });
 
   installationWindow = true;
-  await installUpdate(page);
+  const installResponse = await installUpdate(page);
+  const installStatus = installResponse?.status() ?? 0;
+  const installUrl = page.url();
+
+  if (installStatus >= 400 || unexpectedHttpErrors.length) {
+    const body = ((await page.locator('body').innerText().catch(() => '')) || '').trim().slice(0, 2000);
+    throw new Error(
+      `POST установки завершился HTTP ${installStatus}; URL=${installUrl}; `
+      + `HTTP-ошибки=${unexpectedHttpErrors.join(', ') || 'нет'}; страница=${body}`
+    );
+  }
 
   const flash = page.locator('.admin-page__flash').first();
-  await flash.waitFor({ state: 'visible', timeout: 15000 });
+  const flashVisible = await flash.isVisible({ timeout: 15000 }).catch(() => false);
+  if (!flashVisible) {
+    const body = ((await page.locator('body').innerText().catch(() => '')) || '').trim().slice(0, 2000);
+    throw new Error(
+      `После POST установки нет сообщения результата; HTTP=${installStatus}; URL=${installUrl}; страница=${body}`
+    );
+  }
   const flashText = ((await flash.textContent()) || '').trim();
   if (!flashText.includes('Обновление установлено. Workspace Organizer работает на новой версии.')) {
     throw new Error(`Установка из Admin UI завершилась без подтверждения успеха: ${flashText}`);
