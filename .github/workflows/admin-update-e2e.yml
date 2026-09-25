@@ -692,7 +692,7 @@ jobs:
             fi
           done
           test "$COMMITTED" -eq 1
-          test "$ROLLED_BACK" -eq 2
+          test "$ROLLED_BACK" -eq 1
           test ! -e "$PRIVATE/state/workspace-maintenance.json"
 
           test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_update_e2e -e "SELECT COUNT(*) FROM users WHERE username='admin-update-e2e'")" = '1'
@@ -730,7 +730,7 @@ jobs:
           test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10005'
 
           mapfile -t JOURNALS < <(find "$PRIVATE/state/transactions" -maxdepth 1 -type f -name 'update-*.json' -print)
-          test "${#JOURNALS[@]}" -eq 4
+          test "${#JOURNALS[@]}" -eq 3
           COMMITTED=0
           ROLLED_BACK=0
           for journal in "${JOURNALS[@]}"; do
@@ -782,7 +782,7 @@ jobs:
           test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10006'
 
           mapfile -t JOURNALS < <(find "$PRIVATE/state/transactions" -maxdepth 1 -type f -name 'update-*.json' -print)
-          test "${#JOURNALS[@]}" -eq 3
+          test "${#JOURNALS[@]}" -eq 4
           COMMITTED=0
           ROLLED_BACK=0
           for journal in "${JOURNALS[@]}"; do
@@ -798,7 +798,7 @@ jobs:
             fi
           done
           test "$COMMITTED" -eq 2
-          test "$ROLLED_BACK" -eq 1
+          test "$ROLLED_BACK" -eq 2
           test ! -e "$PRIVATE/state/workspace-maintenance.json"
 
           test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_update_e2e -e "SELECT COUNT(*) FROM users WHERE username='admin-update-e2e'")" = '1'
