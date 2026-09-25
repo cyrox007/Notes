@@ -136,8 +136,6 @@ final class AdminUpdateService
             'can_apply' => $canManageStage && (bool) ($operator['ready_for_apply'] ?? false),
             'operator_ready' => (bool) ($operator['ready_for_apply'] ?? false),
             'operator_issues' => is_array($operator['issues'] ?? null) ? $operator['issues'] : [],
-            'operator_command' => 'php bin/update_run.php --yes --json',
-            'doctor_command' => 'php bin/update_doctor.php --json',
             'issues' => $issues,
         ];
     }
