@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 use App\Services\MaintenanceModeService;
 use Core\UpdateAutomaticRecovery;
+use Core\UpdateCoordinatorLock;
 
 $root = dirname(__DIR__, 2);
 require_once $root . '/app/services/MaintenanceModeService.php';
 require_once $root . '/core/UpdateAutomaticRecovery.php';
+require_once $root . '/core/UpdateCoordinatorLock.php';
 
 function automaticRecoveryAssert(bool $condition, string $message): void
 {
@@ -91,17 +93,14 @@ try {
 
     $busyTransaction = 'update-auto-recovery-busy';
     $maintenance->enter($busyTransaction, 'Проверка конкурентного обновления');
+    $busyCoordinator = new UpdateCoordinatorLock($stateRoot, $busyTransaction);
+    $busyInvocations = 0;
     $busy = new UpdateAutomaticRecovery(
         $root,
-        static fn (): array => [
-            'code' => 75,
-            'stdout' => json_encode([
-                'status' => 'fail',
-                'code' => 'operation_busy',
-                'message' => 'Транзакция уже выполняется',
-            ], JSON_THROW_ON_ERROR),
-            'stderr' => '',
-        ]
+        static function () use (&$busyInvocations): array {
+            $busyInvocations++;
+            return ['code' => 0, 'stdout' => '{}', 'stderr' => ''];
+        }
     );
     $busyResult = $busy->attempt($maintenance);
     automaticRecoveryAssert(
@@ -109,9 +108,18 @@ try {
         'Живое конкурентное обновление не распознано как выполняющееся'
     );
     automaticRecoveryAssert(
+        ($busyResult['code'] ?? '') === 'operation_busy',
+        'Занятый coordinator-lock не вернул operation_busy'
+    );
+    automaticRecoveryAssert(
+        $busyInvocations === 0,
+        'Recovery subprocess не должен запускаться поверх живого updater'
+    );
+    automaticRecoveryAssert(
         $maintenance->state()['active'],
         'Конкурентный recovery не должен снимать чужой maintenance'
     );
+    $busyCoordinator->release();
     $maintenance->leave($busyTransaction);
 
     $failedTransaction = 'update-auto-recovery-failed';
