@@ -575,7 +575,11 @@ final class UpdateBackupManager
         if (in_array($type, $numericTypes, true) && is_numeric($string)) {
             return $string;
         }
-        return "X'" . strtoupper(bin2hex($string)) . "'";
+        $hex = strtoupper(bin2hex($string));
+        if ($type === MYSQLI_TYPE_JSON) {
+            return "CONVERT(X'{$hex}' USING utf8mb4)";
+        }
+        return "X'{$hex}'";
     }
 
     private function quoteIdentifier(string $identifier): string

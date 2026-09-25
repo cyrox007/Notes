@@ -21,6 +21,7 @@ $installer = (string) file_get_contents($root . '/install.php');
 $phpCli = (string) file_get_contents($root . '/core/UpdatePhpCli.php');
 $updateRun = (string) file_get_contents($root . '/bin/update_run.php');
 $updateApply = (string) file_get_contents($root . '/core/UpdateApplyCommand.php');
+$updateBackup = (string) file_get_contents($root . '/core/UpdateBackupManager.php');
 $automaticRecovery = (string) file_get_contents($root . '/core/UpdateAutomaticRecovery.php');
 $coordinatorLock = (string) file_get_contents($root . '/core/UpdateCoordinatorLock.php');
 $maintenanceMiddleware = (string) file_get_contents($root . '/app/middlewares/EnforceMaintenanceMode.php');
@@ -113,6 +114,11 @@ updateNotificationAssert(
 updateNotificationAssert(
     str_contains($updateApply, "['initialized', 'backup_verified', 'candidate_verified', 'preflight_verified']"),
     'Recovery не поддерживает аварийный обрыв в самом раннем initialized-состоянии'
+);
+updateNotificationAssert(
+    str_contains($updateBackup, 'MYSQLI_TYPE_JSON')
+        && str_contains($updateBackup, 'USING utf8mb4'),
+    'Резервная копия БД не восстанавливает JSON как текст utf8mb4'
 );
 updateNotificationAssert(
     str_contains($updateRun, "'apply_failed_recovered'"),
