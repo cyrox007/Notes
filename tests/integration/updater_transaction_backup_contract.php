@@ -123,6 +123,10 @@ try {
     $dump = file_get_contents($backupDir . '/database.sql');
     backupAssert(is_string($dump) && str_contains($dump, 'CREATE TABLE'), 'database dump lacks CREATE TABLE');
     backupAssert(str_contains($dump, 'INSERT INTO'), 'database dump lacks table data');
+    backupAssert(
+        str_contains($dump, 'CONVERT(X\'') && str_contains($dump, 'USING utf8mb4)'),
+        'JSON values are not serialized with an explicit UTF-8 conversion'
+    );
     backupAssert(str_contains($dump, 'CREATE') && str_contains($dump, 'TRIGGER'), 'database dump lacks trigger DDL');
     backupAssert(!str_contains($dump, 'must-never-enter-code-backup'), 'code secret leaked into database dump');
 
