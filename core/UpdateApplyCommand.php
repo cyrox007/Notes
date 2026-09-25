@@ -7,6 +7,8 @@ namespace Core;
 require_once __DIR__ . '/MigrationManifest.php';
 require_once __DIR__ . '/UpdateMigrationPreflight.php';
 require_once __DIR__ . '/UpdateProcessRunner.php';
+require_once __DIR__ . '/UpdateApplyOperationLock.php';
+require_once __DIR__ . '/UpdateRollbackCodeRestorer.php';
 
 use App\Services\MaintenanceModeService;
 use mysqli;
