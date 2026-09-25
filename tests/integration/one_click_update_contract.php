@@ -22,6 +22,7 @@ $phpCli = (string) file_get_contents($root . '/core/UpdatePhpCli.php');
 $updateRun = (string) file_get_contents($root . '/bin/update_run.php');
 $updateApply = (string) file_get_contents($root . '/core/UpdateApplyCommand.php');
 $automaticRecovery = (string) file_get_contents($root . '/core/UpdateAutomaticRecovery.php');
+$coordinatorLock = (string) file_get_contents($root . '/core/UpdateCoordinatorLock.php');
 $maintenanceMiddleware = (string) file_get_contents($root . '/app/middlewares/EnforceMaintenanceMode.php');
 $bootRecoveryGate = (string) file_get_contents($root . '/core/UpdateBootRecoveryGate.php');
 $coreBootstrap = (string) file_get_contents($root . '/core.php');
@@ -138,6 +139,21 @@ updateNotificationAssert(
 updateNotificationAssert(
     str_contains($automaticRecovery, "'operation_busy'"),
     'Автовосстановление не защищено от вмешательства в живое обновление'
+);
+updateNotificationAssert(
+    str_contains($coordinatorLock, 'final class UpdateCoordinatorLock'),
+    'Отсутствует coordinator-lock всей пользовательской операции обновления'
+);
+updateNotificationAssert(
+    str_contains($updateRun, 'new UpdateCoordinatorLock($stateRoot, $transactionId)')
+        && strpos($updateRun, 'new UpdateCoordinatorLock($stateRoot, $transactionId)')
+            < strpos($updateRun, '$maintenance->enter('),
+    'Coordinator-lock не охватывает участок до включения maintenance'
+);
+updateNotificationAssert(
+    str_contains($automaticRecovery, 'new UpdateCoordinatorLock($stateRoot, $transactionId)')
+        && str_contains($automaticRecovery, 'UpdateCoordinatorBusyException'),
+    'Boot-recovery не проверяет coordinator-lock живого updater'
 );
 updateNotificationAssert(
     str_contains($automaticRecovery, "'/bin/update_apply.php'")
