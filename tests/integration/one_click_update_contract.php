@@ -19,6 +19,7 @@ $controller = (string) file_get_contents($root . '/modules/admin/controllers/Upd
 $service = (string) file_get_contents($root . '/modules/admin/services/AdminUpdateService.php');
 $installer = (string) file_get_contents($root . '/install.php');
 $phpCli = (string) file_get_contents($root . '/core/UpdatePhpCli.php');
+$updateRun = (string) file_get_contents($root . '/bin/update_run.php');
 
 updateNotificationAssert(
     str_contains($header, 'data-update-notifications'),
@@ -92,5 +93,17 @@ updateNotificationAssert(
     str_contains($phpCli, 'dirname($phpBinary) . DIRECTORY_SEPARATOR . self::cliBinaryName()'),
     'Поиск PHP CLI не проверяет бинарник рядом с фактическим web-PHP'
 );
+updateNotificationAssert(
+    str_contains($updateRun, 'function updateRunAutomaticRecover('),
+    'Обновлятор не запускает автоматическое восстановление после ошибки применения'
+);
+updateNotificationAssert(
+    str_contains($updateRun, "'apply_failed_recovered'"),
+    'Обновлятор не подтверждает автоматически восстановленную неудачную установку'
+);
+updateNotificationAssert(
+    !str_contains($service, 'Для восстановления выполните: php'),
+    'Веб-интерфейс не должен требовать ручную команду восстановления'
+);
 
-echo "[OK] автоматическое уведомление и одношаговое обновление закреплены контрактом\n";
+echo "[OK] автоматическое уведомление, одношаговое обновление и автовосстановление закреплены контрактом\n";
