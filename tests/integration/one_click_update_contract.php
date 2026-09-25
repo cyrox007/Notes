@@ -20,8 +20,8 @@ $service = (string) file_get_contents($root . '/modules/admin/services/AdminUpda
 $installer = (string) file_get_contents($root . '/install.php');
 $phpCli = (string) file_get_contents($root . '/core/UpdatePhpCli.php');
 $updateRun = (string) file_get_contents($root . '/bin/update_run.php');
-$adminUpdateE2e = (string) file_get_contents($root . '/.github/workflows/admin-update-e2e.yml');
-$rollbackBrowserE2e = (string) file_get_contents($root . '/tests/e2e/admin-update-rollback.mjs');
+$automaticRecovery = (string) file_get_contents($root . '/core/UpdateAutomaticRecovery.php');
+$maintenanceMiddleware = (string) file_get_contents($root . '/app/middlewares/EnforceMaintenanceMode.php');
 
 updateNotificationAssert(
     str_contains($header, 'data-update-notifications'),
@@ -120,21 +120,25 @@ updateNotificationAssert(
     'Веб-интерфейс не должен требовать ручную команду восстановления'
 );
 updateNotificationAssert(
-    str_contains($adminUpdateE2e, 'tests/e2e/admin-update-rollback.mjs'),
-    'Сквозной релизный тест не запускает браузерную проверку автоматического отката'
+    str_contains($automaticRecovery, 'final class UpdateAutomaticRecovery'),
+    'Отсутствует механизм восстановления после гибели updater-процесса'
 );
 updateNotificationAssert(
-    str_contains($adminUpdateE2e, '1.0.6-broken-e2e')
-        && str_contains($adminUpdateE2e, 'намеренный отказ миграции'),
-    'Сквозной релизный тест не содержит намеренно падающий подписанный пакет'
+    str_contains($automaticRecovery, "'operation_busy'"),
+    'Автовосстановление не защищено от вмешательства в живое обновление'
 );
 updateNotificationAssert(
-    str_contains($adminUpdateE2e, 'rollback_verified'),
-    'Сквозной релизный тест не требует подтверждённый rollback_verified'
+    str_contains($automaticRecovery, "'/bin/update_apply.php'")
+        && str_contains($automaticRecovery, "'--recover'"),
+    'Автовосстановление не использует транзакционный recovery-контур'
 );
 updateNotificationAssert(
-    str_contains($rollbackBrowserE2e, 'Рабочая версия автоматически восстановлена и проверена'),
-    'Браузерный тест не подтверждает автоматическое восстановление пользователю'
+    str_contains($maintenanceMiddleware, '$this->automaticRecovery->attempt($this->maintenance)'),
+    'Глобальный maintenance-barrier не запускает recovery после аварийного обрыва'
+);
+updateNotificationAssert(
+    str_contains($maintenanceMiddleware, '$afterRecovery = $this->maintenance->state()'),
+    'После recovery middleware не перепроверяет durable maintenance-state'
 );
 
 echo "[OK] автоматическое уведомление, одношаговое обновление и автовосстановление закреплены контрактом\n";
