@@ -112,6 +112,7 @@ jobs:
         run: |
           set -euo pipefail
           php tests/integration/one_click_update_contract.php
+          php tests/integration/automatic_update_recovery_contract.php
           node --check assets/js/update-notifications.js
 
       - name: Verify hosting package source contract
@@ -305,5 +306,6 @@ jobs:
           test -f "$bundle/bin/update_apply.php"
           test -f "$bundle/core/MigrationManifest.php"
           test -f "$bundle/core/UpdateMigrationPreflight.php"
+          test -f "$bundle/core/UpdateAutomaticRecovery.php"
           test -f "$bundle/database/migrations/manifest.json"
           test -f "$bundle/docs/releases/v1.0.4.md"
