@@ -50,6 +50,7 @@ jobs:
           php -l tests/integration/admin_update_ui_contract.php
           php -l tests/integration/one_click_update_contract.php
           php -l tests/integration/automatic_update_recovery_contract.php
+          php -l tests/integration/updater_preapply_crash_recovery_contract.php
           php -l tests/integration/native_admin_contract.php
           node --check assets/js/update-notifications.js
 
@@ -62,6 +63,7 @@ jobs:
           php tests/integration/admin_update_ui_contract.php
           php tests/integration/one_click_update_contract.php
           php tests/integration/automatic_update_recovery_contract.php
+          php tests/integration/updater_preapply_crash_recovery_contract.php
           php tests/integration/native_admin_contract.php
 
       - name: Повторно проверить сетевую границу обновлятора
