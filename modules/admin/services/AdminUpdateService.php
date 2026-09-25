@@ -274,11 +274,9 @@ final class AdminUpdateService
                 ? trim((string) $payload['message'])
                 : 'Установка обновления завершилась ошибкой';
 
-            $transactionId = trim((string) ($payload['transaction_id'] ?? ''));
-            if (!empty($payload['apply_invoked'])
-                && preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]{7,95}$/', $transactionId) === 1) {
-                $message .= '. Для восстановления выполните: php bin/update_run.php --recover --transaction='
-                    . $transactionId . ' --yes --json';
+            if (($payload['code'] ?? '') === 'apply_failed_recovered'
+                && !empty($payload['automatic_recovery'])) {
+                $message = 'Обновление не установлено. Рабочая версия автоматически восстановлена и проверена.';
             }
 
             throw new RuntimeException($message, $process['code'] > 0 ? $process['code'] : 1);
