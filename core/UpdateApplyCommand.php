@@ -150,7 +150,7 @@ final class UpdateApplyCommand
         $state = (string) ($journalState['state'] ?? '');
         $liveMutation = ($journalState['live_mutation_started'] ?? false) === true;
 
-        if (!$liveMutation && in_array($state, ['backup_verified', 'candidate_verified', 'preflight_verified'], true)) {
+        if (!$liveMutation && in_array($state, ['initialized', 'backup_verified', 'candidate_verified', 'preflight_verified'], true)) {
             $maintenance->leave($transactionId);
             return [
                 'status' => 'recovered_without_live_mutation',
