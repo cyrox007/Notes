@@ -137,14 +137,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.4'
-          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10004'
+          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.5'
+          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10005'
           test "$(php -r "require 'core/Version.php'; echo Core\\Version::STATUS;")" = 'stable'
           test "$(php -r "require 'core/Version.php'; echo Core\\Version::RELEASE_DATE;")" = '2026-09-24'
-          grep -Fq '**Версия:** `1.0.4`' README.md
-          grep -Fq '## 1.0.4 — 2026-09-24' CHANGELOG.md
-          test -s docs/releases/v1.0.4.md
-          grep -Fq '# Workspace Organizer 1.0.4' docs/releases/v1.0.4.md
+          grep -Fq '**Версия:** `1.0.5`' README.md
+          grep -Fq '## 1.0.5 — 2026-09-24' CHANGELOG.md
+          test -s docs/releases/v1.0.5.md
+          grep -Fq '# Workspace Organizer 1.0.5' docs/releases/v1.0.5.md
 
       - name: Verify migration manifest contract
         shell: bash
@@ -311,4 +311,4 @@ jobs:
           test -f "$bundle/core/UpdateCoordinatorLock.php"
           test -f "$bundle/core/UpdateBootRecoveryGate.php"
           test -f "$bundle/database/migrations/manifest.json"
-          test -f "$bundle/docs/releases/v1.0.4.md"
+          test -f "$bundle/docs/releases/v1.0.5.md"

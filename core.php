@@ -16,10 +16,6 @@ if (!is_file($runtimeAutoloader)) {
 require_once $runtimeAutoloader;
 \Core\RuntimeAutoloader::register(SITEPATH);
 
-// До инициализации БД и модулей завершаем recovery оборванной updater-транзакции.
-// Это позволяет восстановиться даже при временно несовместимом состоянии схемы БД.
-\Core\UpdateBootRecoveryGate::enforce(SITEPATH);
-
 // Файлы Core с важным порядком загрузки подключаются явно. Автозагрузчик обслуживает
 // только известные пространства Core/shared App; классы модулей подключает runtime.php.
 $coreFiles = [

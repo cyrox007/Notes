@@ -103,7 +103,7 @@ jobs:
           grep -Fq 'UpdateCoordinatorLock' core/UpdateAutomaticRecovery.php
           grep -Fq 'UpdateCoordinatorLock' bin/update_run.php
           grep -Fq 'automaticRecovery->attempt' app/middlewares/EnforceMaintenanceMode.php
-          grep -Fq 'UpdateBootRecoveryGate::enforce(SITEPATH)' core.php
+          grep -Fq 'UpdateBootRecoveryGate::enforce(SITEPATH)' index.php
           grep -Fq "'expected-version-code:'" bin/update_run.php
           grep -Fq "'expected-package-sha256:'" bin/update_run.php
           grep -Fq 'Подписанный канал изменился после подтверждения обновления' bin/update_run.php

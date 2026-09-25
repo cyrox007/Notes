@@ -26,8 +26,11 @@ $automaticRecovery = (string) file_get_contents($root . '/core/UpdateAutomaticRe
 $coordinatorLock = (string) file_get_contents($root . '/core/UpdateCoordinatorLock.php');
 $maintenanceMiddleware = (string) file_get_contents($root . '/app/middlewares/EnforceMaintenanceMode.php');
 $bootRecoveryGate = (string) file_get_contents($root . '/core/UpdateBootRecoveryGate.php');
+$entrypoint = (string) file_get_contents($root . '/index.php');
 $coreBootstrap = (string) file_get_contents($root . '/core.php');
 $liveApplyContract = (string) file_get_contents($root . '/tests/integration/updater_live_apply_contract.php');
+$adminUpdateE2e = (string) file_get_contents($root . '/.github/workflows/admin-update-e2e.yml');
+$rollbackBrowserE2e = (string) file_get_contents($root . '/tests/e2e/admin-update-rollback.mjs');
 
 updateNotificationAssert(
     str_contains($header, 'data-update-notifications'),
@@ -180,11 +183,44 @@ updateNotificationAssert(
         && str_contains($bootRecoveryGate, 'UpdateAutomaticRecovery'),
     'Отсутствует ранний recovery до запуска БД и модулей'
 );
+$bootRecoveryOffset = strpos($entrypoint, '\\Core\\UpdateBootRecoveryGate::enforce(SITEPATH)');
+$schemaReadinessOffset = strpos($entrypoint, '\\Core\\SchemaReadiness::inspect(SITEPATH)');
+$coreBootstrapOffset = strpos($entrypoint, "require_once SITEPATH . '/core.php';");
 updateNotificationAssert(
-    str_contains($coreBootstrap, 'UpdateBootRecoveryGate::enforce(SITEPATH)')
-        && strpos($coreBootstrap, 'UpdateBootRecoveryGate::enforce(SITEPATH)')
-            < strpos($coreBootstrap, 'DatabaseManager::getInstance()'),
-    'Ранний recovery должен выполняться до инициализации БД'
+    $bootRecoveryOffset !== false
+        && $schemaReadinessOffset !== false
+        && $coreBootstrapOffset !== false
+        && $bootRecoveryOffset < $schemaReadinessOffset
+        && $bootRecoveryOffset < $coreBootstrapOffset
+        && !str_contains($coreBootstrap, 'UpdateBootRecoveryGate::enforce(SITEPATH)'),
+    'Ранний recovery должен выполняться в index.php до проверки схемы и запуска core'
+);
+updateNotificationAssert(
+    str_contains($adminUpdateE2e, 'tests/e2e/admin-update-rollback.mjs'),
+    'Сквозной релизный тест не запускает браузерную проверку автоматического отката'
+);
+updateNotificationAssert(
+    str_contains($adminUpdateE2e, '1.0.6-broken-e2e')
+        && str_contains($adminUpdateE2e, 'намеренный отказ миграции'),
+    'Сквозной релизный тест не содержит намеренно падающий подписанный пакет'
+);
+updateNotificationAssert(
+    str_contains($adminUpdateE2e, '1.0.6-health-broken-e2e')
+        && str_contains($adminUpdateE2e, 'намеренный отказ post-health'),
+    'Сквозной релизный тест не проверяет автоматический откат после ошибки post-health'
+);
+updateNotificationAssert(
+    str_contains($adminUpdateE2e, 'rollback_verified'),
+    'Сквозной релизный тест не требует подтверждённый rollback_verified'
+);
+updateNotificationAssert(
+    str_contains($adminUpdateE2e, 'Доказать раннее самовосстановление на следующем HTTP-запросе')
+        && str_contains($adminUpdateE2e, 'update-boot-recovery-e2e'),
+    'Сквозной релизный тест не доказывает recovery на следующем HTTP-запросе после обрыва процесса'
+);
+updateNotificationAssert(
+    str_contains($rollbackBrowserE2e, 'Рабочая версия автоматически восстановлена и проверена'),
+    'Браузерный тест не подтверждает автоматическое восстановление пользователю'
 );
 
 updateNotificationAssert(
