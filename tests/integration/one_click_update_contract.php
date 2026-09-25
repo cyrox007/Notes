@@ -20,6 +20,7 @@ $service = (string) file_get_contents($root . '/modules/admin/services/AdminUpda
 $installer = (string) file_get_contents($root . '/install.php');
 $phpCli = (string) file_get_contents($root . '/core/UpdatePhpCli.php');
 $updateRun = (string) file_get_contents($root . '/bin/update_run.php');
+$updateApply = (string) file_get_contents($root . '/core/UpdateApplyCommand.php');
 $automaticRecovery = (string) file_get_contents($root . '/core/UpdateAutomaticRecovery.php');
 $maintenanceMiddleware = (string) file_get_contents($root . '/app/middlewares/EnforceMaintenanceMode.php');
 $bootRecoveryGate = (string) file_get_contents($root . '/core/UpdateBootRecoveryGate.php');
@@ -100,6 +101,15 @@ updateNotificationAssert(
 updateNotificationAssert(
     str_contains($updateRun, 'function updateRunAutomaticRecover('),
     'Обновлятор не запускает автоматическое восстановление после ошибки применения'
+);
+updateNotificationAssert(
+    str_contains($updateRun, 'new UpdateTransactionJournal')
+        && strpos($updateRun, 'new UpdateTransactionJournal') < strpos($updateRun, '$maintenance->enter('),
+    'Журнал транзакции должен создаваться до включения maintenance'
+);
+updateNotificationAssert(
+    str_contains($updateApply, "['initialized', 'backup_verified', 'candidate_verified', 'preflight_verified']"),
+    'Recovery не поддерживает аварийный обрыв в самом раннем initialized-состоянии'
 );
 updateNotificationAssert(
     str_contains($updateRun, "'apply_failed_recovered'"),
