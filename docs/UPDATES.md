@@ -213,6 +213,9 @@ Package никогда не скачивается при `--check-only`, есл
 - при появлении совместимого релиза в общей шапке появляется системное уведомление;
 - установка из уведомления — один POST + CSRF и дополнительно требует роль `superadmin`;
 - кнопка «Обновить до …» внутри одного запроса повторно получает подписанный feed, фиксирует `version_code` и SHA-256 пакета и запускает существующий `bin/update_run.php`;
+- если применение завершилось ошибкой после destructive boundary, транзакционное ядро сначала само выполняет rollback; если процесс оборвался, rollback не завершился или maintenance не удалось снять, `bin/update_run.php` автоматически возобновляет recovery по durable journal до трёх раз;
+- если обновление уже было `committed`, а ошибка произошла только при снятии maintenance, автоматическое recovery перепроверяет новую версию и завершает исходное действие как успешное;
+- штатный веб-сценарий не предлагает пользователю PowerShell/PHP-команды восстановления;
 - если feed изменился между проверкой и фактическим запуском, updater завершает операцию до изменения рабочих файлов;
 - ручные check и staging остаются диагностическими инструментами, но не являются обязательными шагами обычного пользовательского обновления;
 - feed URL и channel задаются только серверной конфигурацией и не принимаются из браузерного ввода.
@@ -480,7 +483,9 @@ Live tree не перезаписывается file-by-file, а updater ник�
 
 Если rollback нельзя подтвердить, journal state по возможности становится `rollback_failed`, а maintenance остаётся активным. Recovery artifacts сохраняются.
 
-Recovery после crash/process death выполняется явно и учитывает фазу:
+Recovery после crash/process death учитывает фазу и продолжается из durable journal (`rollback_started`, `code_restored`, `database_restored`, `rollback_failed`, `rollback_verified` или `committed`), а не предполагает, что исходный PHP process остался жив.
+
+В штатной установке из интерфейса recovery запускается автоматически той же операцией обновления и не требует действий пользователя. CLI-команда остаётся только аварийным инструментом технического обслуживания вне обычного пользовательского сценария:
 
 ```bash
 php bin/update_apply.php \
@@ -488,7 +493,7 @@ php bin/update_apply.php \
   --recover
 ```
 
-Recovery продолжается из durable journal (`rollback_started`, `code_restored`, `database_restored`, `rollback_failed`, `rollback_verified` или `committed`), а не предполагает, что исходный PHP process остался жив. Ошибка удаления maintenance marker после `committed` или `rollback_verified` никогда не превращает verified terminal state в destructive rollback.
+Ошибка удаления maintenance marker после `committed` или `rollback_verified` никогда не превращает verified terminal state в destructive rollback.
 
 Подробное руководство оператора и state machine находится в `docs/UPDATER_LIVE_APPLY.md`.
 
