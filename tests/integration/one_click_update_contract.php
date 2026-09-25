@@ -20,6 +20,8 @@ $service = (string) file_get_contents($root . '/modules/admin/services/AdminUpda
 $installer = (string) file_get_contents($root . '/install.php');
 $phpCli = (string) file_get_contents($root . '/core/UpdatePhpCli.php');
 $updateRun = (string) file_get_contents($root . '/bin/update_run.php');
+$adminUpdateE2e = (string) file_get_contents($root . '/.github/workflows/admin-update-e2e.yml');
+$rollbackBrowserE2e = (string) file_get_contents($root . '/tests/e2e/admin-update-rollback.mjs');
 
 updateNotificationAssert(
     str_contains($header, 'data-update-notifications'),
@@ -116,6 +118,23 @@ updateNotificationAssert(
 updateNotificationAssert(
     !str_contains($service, 'Для восстановления выполните: php'),
     'Веб-интерфейс не должен требовать ручную команду восстановления'
+);
+updateNotificationAssert(
+    str_contains($adminUpdateE2e, 'tests/e2e/admin-update-rollback.mjs'),
+    'Сквозной релизный тест не запускает браузерную проверку автоматического отката'
+);
+updateNotificationAssert(
+    str_contains($adminUpdateE2e, '1.0.6-broken-e2e')
+        && str_contains($adminUpdateE2e, 'намеренный отказ миграции'),
+    'Сквозной релизный тест не содержит намеренно падающий подписанный пакет'
+);
+updateNotificationAssert(
+    str_contains($adminUpdateE2e, 'rollback_verified'),
+    'Сквозной релизный тест не требует подтверждённый rollback_verified'
+);
+updateNotificationAssert(
+    str_contains($rollbackBrowserE2e, 'Рабочая версия автоматически восстановлена и проверена'),
+    'Браузерный тест не подтверждает автоматическое восстановление пользователю'
 );
 
 echo "[OK] автоматическое уведомление, одношаговое обновление и автовосстановление закреплены контрактом\n";
