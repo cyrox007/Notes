@@ -7,20 +7,27 @@ namespace App\Middlewares;
 use App\Services\MaintenanceModeService;
 use Core\Request;
 use Core\SecurityHeaders;
+use Core\UpdateAutomaticRecovery;
 use Throwable;
 
 /**
- * Global HTTP maintenance gate.
+ * Глобальный HTTP-барьер режима обслуживания.
  *
- * Static files remain the web server's responsibility. Every matched dynamic
- * application route returns 503 while an updater maintenance marker is active.
- * Recovery is intentionally CLI-driven so migrations do not depend on HTTP/DB.
+ * При валидном marker незавершённого обновления middleware сначала пытается
+ * автоматически продолжить recovery. Живое обновление защищено отдельным
+ * транзакционным lock и вернёт operation_busy без вмешательства в его работу.
  */
 final class EnforceMaintenanceMode
 {
-    public function __construct(private ?MaintenanceModeService $maintenance = null)
-    {
-        $this->maintenance ??= new MaintenanceModeService();
+    private MaintenanceModeService $maintenance;
+    private UpdateAutomaticRecovery $automaticRecovery;
+
+    public function __construct(
+        ?MaintenanceModeService $maintenance = null,
+        ?UpdateAutomaticRecovery $automaticRecovery = null
+    ) {
+        $this->maintenance = $maintenance ?? new MaintenanceModeService();
+        $this->automaticRecovery = $automaticRecovery ?? new UpdateAutomaticRecovery();
     }
 
     public function handle(Request $request): bool
@@ -28,7 +35,7 @@ final class EnforceMaintenanceMode
         try {
             $state = $this->maintenance->state();
         } catch (Throwable $e) {
-            error_log('Maintenance state evaluation failed: ' . $e->getMessage());
+            error_log('Не удалось проверить состояние обслуживания: ' . $e->getMessage());
             $this->reject($request, 'Состояние обслуживания не удалось безопасно проверить.', null);
             return false;
         }
@@ -37,10 +44,49 @@ final class EnforceMaintenanceMode
             return true;
         }
 
-        $reason = $state['valid']
-            ? $state['reason']
-            : 'Состояние обслуживания повреждено; требуется восстановление через CLI.';
-        $this->reject($request, $reason, $state['transaction_id']);
+        if (!$state['valid']) {
+            $this->reject(
+                $request,
+                'Состояние обслуживания повреждено; автоматическое восстановление заблокировано для защиты данных.',
+                null
+            );
+            return false;
+        }
+
+        $recovery = $this->automaticRecovery->attempt($this->maintenance);
+
+        try {
+            $afterRecovery = $this->maintenance->state();
+        } catch (Throwable $e) {
+            error_log('Не удалось повторно проверить maintenance после recovery: ' . $e->getMessage());
+            $this->reject($request, 'Результат автоматического восстановления не удалось безопасно проверить.', null);
+            return false;
+        }
+
+        if (!$afterRecovery['active']) {
+            return true;
+        }
+        if (!$afterRecovery['valid']) {
+            $this->reject(
+                $request,
+                'После попытки восстановления состояние обслуживания повреждено; запись остаётся заблокированной.',
+                null
+            );
+            return false;
+        }
+
+        $status = (string) ($recovery['status'] ?? 'failed');
+        if ($status === 'failed') {
+            error_log(
+                'Автоматическое восстановление обновления не завершено: '
+                . (string) ($recovery['message'] ?? 'неизвестная ошибка')
+            );
+        }
+
+        $reason = $status === 'in_progress'
+            ? 'Обновление или автоматическое восстановление уже выполняется.'
+            : 'Автоматическое восстановление не завершено. Следующий запрос повторит безопасную попытку.';
+        $this->reject($request, $reason, $afterRecovery['transaction_id']);
         return false;
     }
 

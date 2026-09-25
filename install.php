@@ -448,6 +448,22 @@ function writeEnvironmentFile(string $file, array $data): void
     @chmod($file, 0600);
 }
 
+function installerPhpCliAvailable(string $basePath): bool
+{
+    $resolver = $basePath . '/core/UpdatePhpCli.php';
+    if (!is_file($resolver)) {
+        return false;
+    }
+
+    require_once $resolver;
+    try {
+        \Core\UpdatePhpCli::resolve();
+        return true;
+    } catch (Throwable) {
+        return false;
+    }
+}
+
 /** @param list<string> $schemaFiles @param list<string> $packagedModules */
 function installerRequirements(string $basePath, array $schemaFiles, array $packagedModules): array
 {
@@ -458,8 +474,12 @@ function installerRequirements(string $basePath, array $schemaFiles, array $pack
         'pdo_mysql' => extension_loaded('pdo_mysql'),
         'mysqli' => extension_loaded('mysqli'),
         'sodium' => extension_loaded('sodium'),
+        'openssl' => extension_loaded('openssl'),
+        'zlib' => extension_loaded('zlib'),
         'fileinfo' => extension_loaded('fileinfo'),
         'gd' => extension_loaded('gd'),
+        'proc_open для автоматических обновлений' => function_exists('proc_open'),
+        'PHP CLI для автоматических обновлений' => installerPhpCliAvailable($basePath),
         'Argon2id password hashing' => in_array('argon2id', password_algos(), true),
         'random_bytes' => function_exists('random_bytes'),
         'Запись .env в корень проекта' => is_writable($basePath),

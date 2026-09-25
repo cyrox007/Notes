@@ -81,7 +81,8 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot updater_live_apply_test <<'SQL'
           CREATE TABLE items (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-            title VARCHAR(190) NOT NULL
+            title VARCHAR(190) NOT NULL,
+            metadata JSON NULL
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
           CREATE TABLE audit (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -94,7 +95,9 @@ jobs:
             INSERT INTO audit (item_id, event_name) VALUES (NEW.id, 'insert');
           END$$
           DELIMITER ;
-          INSERT INTO items (title) VALUES ('rollback source'), ('second row');
+          INSERT INTO items (title, metadata) VALUES
+            ('rollback source', JSON_OBJECT('kind', 'source', 'attempt', 1)),
+            ('second row', JSON_OBJECT('kind', 'second', 'enabled', TRUE));
           SQL
 
       - name: Verify data-only migration preflight

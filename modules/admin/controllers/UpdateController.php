@@ -77,6 +77,38 @@ final class UpdateController extends Controller
         ]);
     }
 
+    public function status(Request $request): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: no-store, private');
+
+        try {
+            $actorId = (int) $request->session('user_id', 0);
+            $service = new AdminUpdateService();
+            $result = $service->check($actorId);
+            $snapshot = $service->snapshot($actorId);
+
+            echo json_encode([
+                'status' => 'ok',
+                'update_available' => (bool) ($result['update_available'] ?? false),
+                'state' => (string) ($result['status'] ?? 'unknown'),
+                'target_version' => (string) ($result['target_version'] ?? ''),
+                'target_version_code' => (int) ($result['target_version_code'] ?? 0),
+                'can_apply' => !empty($snapshot['can_apply']),
+                'message' => $this->checkMessage($result),
+            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . PHP_EOL;
+        } catch (\Throwable) {
+            // Фоновая проверка не должна ломать интерфейс при временной
+            // недоступности сервера обновлений. Ручная проверка в Admin
+            // по-прежнему покажет оператору подробную диагностику.
+            echo json_encode([
+                'status' => 'unavailable',
+                'update_available' => false,
+                'can_apply' => false,
+            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . PHP_EOL;
+        }
+    }
+
     public function check(Request $request): void
     {
         try {
@@ -141,6 +173,31 @@ final class UpdateController extends Controller
             );
         } catch (\Throwable $e) {
             $this->redirectWithFlash($request, false, $e->getMessage() ?: 'Не удалось подготовить обновление');
+        }
+    }
+
+    public function applyLatest(Request $request): void
+    {
+        $request->unsetSession(self::APPLY_BINDING_SESSION_KEY);
+        $request->unsetSession(self::STAGE_BINDING_SESSION_KEY);
+
+        try {
+            $result = (new AdminUpdateService())->applyLatest(
+                (int) $request->session('user_id', 0)
+            );
+            $this->resetOpcodeCacheAfterUpdate();
+            $request->setSession('updates_result', $this->safeApplyResult($result));
+            $this->redirectWithFlash(
+                $request,
+                true,
+                'Обновление установлено. Workspace Organizer работает на новой версии.'
+            );
+        } catch (\Throwable $e) {
+            $this->redirectWithFlash(
+                $request,
+                false,
+                $e->getMessage() ?: 'Не удалось установить последнее обновление'
+            );
         }
     }
 

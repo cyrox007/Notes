@@ -107,6 +107,15 @@ jobs:
       - name: Verify findability source contract
         run: php tests/integration/findability_source_contract.php
 
+      - name: Проверить обязательный одношаговый контур обновлений
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/integration/one_click_update_contract.php
+          php tests/integration/automatic_update_recovery_contract.php
+          php tests/integration/updater_preapply_crash_recovery_contract.php
+          node --check assets/js/update-notifications.js
+
       - name: Verify hosting package source contract
         run: php tests/integration/hosting_package_source_contract.php
 
@@ -293,9 +302,13 @@ jobs:
           test ! -e "$bundle/app/socket/NativeMessengerServer.php"
           test -f "$bundle/config/license_trusted_keys.php"
           test -f "$bundle/config/update_trusted_keys.php"
+          test -f "$bundle/assets/js/update-notifications.js"
           test -f "$bundle/bin/update_bootstrap.php"
           test -f "$bundle/bin/update_apply.php"
           test -f "$bundle/core/MigrationManifest.php"
           test -f "$bundle/core/UpdateMigrationPreflight.php"
+          test -f "$bundle/core/UpdateAutomaticRecovery.php"
+          test -f "$bundle/core/UpdateCoordinatorLock.php"
+          test -f "$bundle/core/UpdateBootRecoveryGate.php"
           test -f "$bundle/database/migrations/manifest.json"
           test -f "$bundle/docs/releases/v1.0.4.md"

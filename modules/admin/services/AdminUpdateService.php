@@ -136,8 +136,6 @@ final class AdminUpdateService
             'can_apply' => $canManageStage && (bool) ($operator['ready_for_apply'] ?? false),
             'operator_ready' => (bool) ($operator['ready_for_apply'] ?? false),
             'operator_issues' => is_array($operator['issues'] ?? null) ? $operator['issues'] : [],
-            'operator_command' => 'php bin/update_run.php --yes --json',
-            'doctor_command' => 'php bin/update_doctor.php --json',
             'issues' => $issues,
         ];
     }
@@ -158,6 +156,40 @@ final class AdminUpdateService
             Version::VERSION_CODE,
             PHP_VERSION
         );
+    }
+
+    /**
+     * Устанавливает последнее совместимое подписанное обновление за одно действие.
+     *
+     * Проверка feed и привязка к version_code/SHA-256 выполняются внутри этого
+     * же запроса, поэтому пользователь не обязан предварительно открывать
+     * отдельную ручную проверку обновлений.
+     *
+     * @return array<string,mixed>
+     */
+    public function applyLatest(int $actorId): array
+    {
+        $this->permissions->requirePermission($actorId, 'admin.settings.manage');
+        if (!$this->permissions->hasRole($actorId, 'superadmin')) {
+            throw new DomainException('Установка обновления доступна только суперадминистратору', 403);
+        }
+
+        $check = $this->check($actorId);
+        if (($check['status'] ?? '') !== 'update_available' || empty($check['update_available'])) {
+            throw new DomainException(
+                'Для этой установки сейчас нет совместимого нового обновления',
+                409
+            );
+        }
+
+        $targetVersionCode = (int) ($check['target_version_code'] ?? 0);
+        $packageSha256 = strtolower(trim((string) ($check['package_sha256'] ?? '')));
+        if ($targetVersionCode <= Version::VERSION_CODE
+            || preg_match('/^[0-9a-f]{64}$/', $packageSha256) !== 1) {
+            throw new RuntimeException('Сервер обновлений вернул некорректную привязку релиза');
+        }
+
+        return $this->apply($actorId, $targetVersionCode, $packageSha256);
     }
 
     /** @return array<string,mixed> */
@@ -240,11 +272,9 @@ final class AdminUpdateService
                 ? trim((string) $payload['message'])
                 : 'Установка обновления завершилась ошибкой';
 
-            $transactionId = trim((string) ($payload['transaction_id'] ?? ''));
-            if (!empty($payload['apply_invoked'])
-                && preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]{7,95}$/', $transactionId) === 1) {
-                $message .= '. Для восстановления выполните: php bin/update_run.php --recover --transaction='
-                    . $transactionId . ' --yes --json';
+            if (($payload['code'] ?? '') === 'apply_failed_recovered'
+                && !empty($payload['automatic_recovery'])) {
+                $message = 'Обновление не установлено. Рабочая версия автоматически восстановлена и проверена.';
             }
 
             throw new RuntimeException($message, $process['code'] > 0 ? $process['code'] : 1);
