@@ -50,6 +50,24 @@ if (isset($options['help'])) {
 
 $json = isset($options['json']);
 
+/**
+ * Ошибка дочерней команды с сохранённым машинным JSON-ответом.
+ *
+ * Код верхнего уровня использует payload, чтобы отличать уже проверенный откат
+ * от действительно незавершённого восстановления после сбоя процесса.
+ */
+final class UpdateRunSubprocessException extends RuntimeException
+{
+    /** @param array<string,mixed> $payload */
+    public function __construct(
+        string $message,
+        int $exitCode,
+        public readonly array $payload = []
+    ) {
+        parent::__construct($message, $exitCode);
+    }
+}
+
 /** @return never */
 function updateRunFail(string $message, string $code = 'update_run_failed', int $exitCode = 1, array $details = []): never
 {
@@ -92,7 +110,11 @@ function updateRunJsonCommand(
         $code = is_array($payload) && is_string($payload['code'] ?? null)
             ? $payload['code']
             : 'subprocess_failed';
-        throw new RuntimeException($label . ': ' . $message, $result['code'] > 0 ? $result['code'] : 1);
+        throw new UpdateRunSubprocessException(
+            $label . ': ' . $message,
+            $result['code'] > 0 ? $result['code'] : 1,
+            is_array($payload) ? $payload : []
+        );
     }
     if (!is_array($payload)) {
         throw new RuntimeException($label . ': команда вернула некорректный JSON');
@@ -350,6 +372,49 @@ try {
     }
 
     if ($applyInvoked) {
+        $applyPayload = $e instanceof UpdateRunSubprocessException ? $e->payload : [];
+        $applyErrorCode = (string) ($applyPayload['code'] ?? '');
+        $maintenanceActive = ($applyPayload['maintenance_active'] ?? null) === true;
+
+        // Штатный UpdateApplyCommand уже выполнил и проверил откат. Повторный
+        // --recover здесь не нужен и после снятия maintenance был бы ошибкой.
+        if ($applyErrorCode === 'apply_rolled_back' && !$maintenanceActive) {
+            updateRunFail(
+                'Установка обновления завершилась ошибкой, исходная версия автоматически восстановлена.',
+                'apply_failed_recovered',
+                max(1, (int) $e->getCode()),
+                [
+                    'transaction_id' => $transactionId,
+                    'apply_invoked' => true,
+                    'automatic_recovery' => true,
+                    'recovery_status' => 'rollback_verified',
+                    'recovery_attempt' => 0,
+                    'apply_error' => $e->getMessage(),
+                    'maintenance_may_be_active' => false,
+                ]
+            );
+        }
+
+        // Структурированная ошибка до destructive boundary уже очищена самим
+        // UpdateApplyCommand. Автовосстановление требуется только при активном
+        // maintenance либо при обрыве/таймауте без достоверного JSON-результата.
+        $structuredSafeFailure = $e instanceof UpdateRunSubprocessException
+            && !$maintenanceActive
+            && !in_array($applyErrorCode, ['rollback_failed', 'maintenance_release_failed'], true);
+        if ($structuredSafeFailure) {
+            updateRunFail(
+                $e->getMessage(),
+                'apply_failed_before_mutation',
+                max(1, (int) $e->getCode()),
+                [
+                    'transaction_id' => $transactionId,
+                    'apply_invoked' => true,
+                    'automatic_recovery' => false,
+                    'maintenance_may_be_active' => false,
+                ]
+            );
+        }
+
         try {
             $recovery = updateRunAutomaticRecover(
                 $runner,
@@ -357,6 +422,28 @@ try {
                 $transactionId,
                 $root
             );
+            $recoveryStatus = (string) ($recovery['status'] ?? 'recovered');
+
+            // Если применение было committed, а упало только снятие maintenance,
+            // восстановление подтверждает новую версию и завершает исходное
+            // действие как успешное обновление.
+            if ($recoveryStatus === 'committed_recovery_verified') {
+                if ($json) {
+                    echo json_encode([
+                        'status' => 'committed',
+                        'transaction_id' => $transactionId,
+                        'target_version' => $staged['target_version'] ?? null,
+                        'target_version_code' => $staged['target_version_code'] ?? null,
+                        'package_sha256' => $staged['package_sha256'] ?? null,
+                        'apply' => $recovery,
+                        'automatic_recovery' => true,
+                    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
+                } else {
+                    echo "[OK] Обновление установлено и автоматически доведено до рабочего состояния\\n";
+                    echo "Транзакция: {$transactionId}\\n";
+                }
+                exit(0);
+            }
 
             updateRunFail(
                 'Установка обновления завершилась ошибкой, исходная версия автоматически восстановлена.',
@@ -366,7 +453,7 @@ try {
                     'transaction_id' => $transactionId,
                     'apply_invoked' => true,
                     'automatic_recovery' => true,
-                    'recovery_status' => (string) ($recovery['status'] ?? 'recovered'),
+                    'recovery_status' => $recoveryStatus,
                     'recovery_attempt' => (int) ($recovery['automatic_recovery_attempt'] ?? 1),
                     'apply_error' => $e->getMessage(),
                     'maintenance_may_be_active' => false,
