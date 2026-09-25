@@ -176,11 +176,18 @@ HTML;
 }
 
 try {
-    // Maintenance must be observable before any database/module bootstrap. During
-    // an update the database may be intentionally unavailable or mid-migration.
+    // До проверки maintenance завершаем автоматическое восстановление оборванного
+    // обновления. Иначе ранний ответ 503 не даст recovery-коду запуститься вообще.
     require_once SITEPATH . '/core/Environment.php';
     \Core\Environment::load(SITEPATH . '/.env');
     require_once SITEPATH . '/app/services/MaintenanceModeService.php';
+    require_once SITEPATH . '/core/UpdateAutomaticRecovery.php';
+    require_once SITEPATH . '/core/UpdateBootRecoveryGate.php';
+
+    \Core\UpdateBootRecoveryGate::enforce(SITEPATH);
+
+    // После попытки recovery обычный maintenance-барьер по-прежнему работает
+    // fail-closed для активного, повреждённого или ещё не завершённого состояния.
     $maintenanceState = (new \App\Services\MaintenanceModeService())->state();
     if ($maintenanceState['active']) {
         handleMaintenanceMode($maintenanceState);
