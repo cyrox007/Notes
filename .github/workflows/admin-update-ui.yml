@@ -35,6 +35,7 @@ jobs:
           set -euo pipefail
           php -l core/UpdatePhpCli.php
           php -l core/UpdateAutomaticRecovery.php
+          php -l core/UpdateBootRecoveryGate.php
           php -l core/UpdateReadiness.php
           php -l bin/update_doctor.php
           php -l bin/update_run.php
@@ -97,6 +98,7 @@ jobs:
           ! grep -Fq 'bin/update_run.php --recover' modules/admin/views/updates.php
           grep -Fq 'UpdateAutomaticRecovery' app/middlewares/EnforceMaintenanceMode.php
           grep -Fq 'automaticRecovery->attempt' app/middlewares/EnforceMaintenanceMode.php
+          grep -Fq 'UpdateBootRecoveryGate::enforce(SITEPATH)' core.php
           grep -Fq "'expected-version-code:'" bin/update_run.php
           grep -Fq "'expected-package-sha256:'" bin/update_run.php
           grep -Fq 'Подписанный канал изменился после подтверждения обновления' bin/update_run.php
