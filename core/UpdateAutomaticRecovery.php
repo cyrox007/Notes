@@ -10,6 +10,7 @@ use Throwable;
 
 require_once __DIR__ . '/UpdatePhpCli.php';
 require_once __DIR__ . '/UpdateProcessRunner.php';
+require_once __DIR__ . '/UpdateCoordinatorLock.php';
 
 /**
  * Автоматически продолжает восстановление оборванной updater-транзакции.
@@ -62,6 +63,29 @@ final class UpdateAutomaticRecovery
                 'invalid_maintenance_state',
                 'Повреждённое состояние обслуживания нельзя восстанавливать автоматически'
             );
+        }
+
+        $stateRoot = $maintenance->configuredStateRoot();
+        if (!is_string($stateRoot) || trim($stateRoot) === '') {
+            return $this->result(
+                'failed',
+                $transactionId,
+                'state_root_missing',
+                'Не удалось определить внешний каталог состояния updater'
+            );
+        }
+
+        try {
+            $coordinatorLock = new UpdateCoordinatorLock($stateRoot, $transactionId);
+        } catch (UpdateCoordinatorBusyException) {
+            return $this->result(
+                'in_progress',
+                $transactionId,
+                'operation_busy',
+                'Исходная операция обновления ещё выполняется'
+            );
+        } catch (Throwable $e) {
+            return $this->result('failed', $transactionId, 'coordinator_lock_failed', $e->getMessage());
         }
 
         try {
