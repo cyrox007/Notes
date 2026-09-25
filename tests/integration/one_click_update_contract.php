@@ -27,6 +27,7 @@ $coordinatorLock = (string) file_get_contents($root . '/core/UpdateCoordinatorLo
 $maintenanceMiddleware = (string) file_get_contents($root . '/app/middlewares/EnforceMaintenanceMode.php');
 $bootRecoveryGate = (string) file_get_contents($root . '/core/UpdateBootRecoveryGate.php');
 $coreBootstrap = (string) file_get_contents($root . '/core.php');
+$liveApplyContract = (string) file_get_contents($root . '/tests/integration/updater_live_apply_contract.php');
 $adminUpdateE2e = (string) file_get_contents($root . '/.github/workflows/admin-update-e2e.yml');
 $rollbackBrowserE2e = (string) file_get_contents($root . '/tests/e2e/admin-update-rollback.mjs');
 
@@ -213,6 +214,13 @@ updateNotificationAssert(
 updateNotificationAssert(
     str_contains($rollbackBrowserE2e, 'Рабочая версия автоматически восстановлена и проверена'),
     'Браузерный тест не подтверждает автоматическое восстановление пользователю'
+);
+
+updateNotificationAssert(
+    str_contains($liveApplyContract, 'crash-recover-001')
+        && str_contains($liveApplyContract, "'recover' => true")
+        && str_contains($liveApplyContract, "'rollback_verified'"),
+    'Не доказано реальное восстановление новой командой после обрыва за destructive boundary'
 );
 
 echo "[OK] автоматическое уведомление, одношаговое обновление и автовосстановление закреплены контрактом\n";
