@@ -29,14 +29,16 @@ final class UpdateBootRecoveryGate
             self::reject('Состояние обслуживания не удалось безопасно проверить.');
         }
 
-        if (!$state['active']) {
+        if (!$state['active'] || !$state['valid']) {
             return;
         }
 
-        if (!$state['valid']) {
-            self::reject(
-                'Состояние обслуживания повреждено. Автоматическое восстановление остановлено для защиты данных.'
-            );
+        $transactionId = trim((string) ($state['transaction_id'] ?? ''));
+        $stateRoot = $maintenance->configuredStateRoot();
+        if (!self::hasRecoveryJournal($stateRoot, $transactionId)) {
+            // Обычный maintenance без updater-журнала не является оборванным
+            // обновлением. Его штатно обработает ранний maintenance-барьер index.php.
+            return;
         }
 
         $recovery = (new UpdateAutomaticRecovery($appRoot))->attempt($maintenance);
@@ -64,6 +66,23 @@ final class UpdateBootRecoveryGate
         }
 
         self::reject($message);
+    }
+
+    private static function hasRecoveryJournal(?string $stateRoot, string $transactionId): bool
+    {
+        if (
+            !is_string($stateRoot)
+            || trim($stateRoot) === ''
+            || preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]{7,95}$/', $transactionId) !== 1
+        ) {
+            return false;
+        }
+
+        $journal = rtrim($stateRoot, '/\\')
+            . DIRECTORY_SEPARATOR . 'transactions'
+            . DIRECTORY_SEPARATOR . $transactionId . '.json';
+
+        return is_file($journal) && !is_link($journal);
     }
 
     private static function reject(string $reason): never
