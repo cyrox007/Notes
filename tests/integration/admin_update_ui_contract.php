@@ -319,7 +319,6 @@ try {
     adminUpdateAssert(($snapshot['can_stage'] ?? false) === true, 'superadmin cannot stage configured signed update');
     adminUpdateAssert(($snapshot['can_apply'] ?? false) === true, 'superadmin cannot apply configured signed update from Admin UI');
     adminUpdateAssert(($snapshot['operator_ready'] ?? false) === true, 'configured updater is not operator-ready');
-    adminUpdateAssert(($snapshot['operator_command'] ?? '') === 'php bin/update_run.php --yes --json', 'operator command changed unexpectedly');
     adminUpdateAssert(($snapshot['feed_label'] ?? '') === 'updates.example.test/stable/feed.json', 'feed label exposes unexpected data');
     adminUpdateAssert(!str_contains((string) $snapshot['feed_label'], 'https://'), 'feed label should be display-only host/path');
 
@@ -463,15 +462,20 @@ try {
     adminUpdateAssert(str_contains($viewSource, '$view->csrfInput()'), 'admin update forms lost CSRF token');
     adminUpdateAssert(str_contains($viewSource, "route('admin_updates_apply')"), 'admin update view does not expose reviewed web apply action');
     adminUpdateAssert(str_contains($viewSource, 'Установить обновление'), 'admin update view lost install action copy');
-    adminUpdateAssert(str_contains($viewSource, 'bin/update_run.php --recover'), 'admin update view lost operator recovery guidance');
+    adminUpdateAssert(!str_contains($viewSource, 'bin/update_run.php --recover'), 'admin update view must not require manual recovery command');
     adminUpdateAssert(str_contains($viewSource, '$operatorReady'), 'admin update view lost operator readiness state');
     adminUpdateAssert(
         str_contains($viewSource, 'admin-update-operator__body'),
         'admin update view lost compact operator body'
     );
     adminUpdateAssert(
-        str_contains($viewSource, 'admin-update-command-grid'),
-        'admin update view lost compact CLI command grid'
+        !str_contains($viewSource, 'admin-update-command-grid'),
+        'admin update view must not expose manual CLI command grid'
+    );
+    adminUpdateAssert(
+        str_contains($viewSource, 'Ручные команды не требуются')
+            && str_contains($viewSource, 'следующий запрос автоматически продолжит recovery'),
+        'admin update view does not explain automatic recovery'
     );
     adminUpdateAssert(
         str_contains($viewSource, 'admin-update-safety'),
