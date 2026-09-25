@@ -27,6 +27,7 @@ $coordinatorLock = (string) file_get_contents($root . '/core/UpdateCoordinatorLo
 $maintenanceMiddleware = (string) file_get_contents($root . '/app/middlewares/EnforceMaintenanceMode.php');
 $bootRecoveryGate = (string) file_get_contents($root . '/core/UpdateBootRecoveryGate.php');
 $coreBootstrap = (string) file_get_contents($root . '/core.php');
+$liveApplyContract = (string) file_get_contents($root . '/tests/integration/updater_live_apply_contract.php');
 
 updateNotificationAssert(
     str_contains($header, 'data-update-notifications'),
@@ -184,6 +185,13 @@ updateNotificationAssert(
         && strpos($coreBootstrap, 'UpdateBootRecoveryGate::enforce(SITEPATH)')
             < strpos($coreBootstrap, 'DatabaseManager::getInstance()'),
     'Ранний recovery должен выполняться до инициализации БД'
+);
+
+updateNotificationAssert(
+    str_contains($liveApplyContract, 'crash-recover-001')
+        && str_contains($liveApplyContract, "'recover' => true")
+        && str_contains($liveApplyContract, "'rollback_verified'"),
+    'Не доказано реальное восстановление новой командой после обрыва за destructive boundary'
 );
 
 echo "[OK] автоматическое уведомление, одношаговое обновление и автовосстановление закреплены контрактом\n";
