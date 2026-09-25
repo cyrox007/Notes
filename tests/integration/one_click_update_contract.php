@@ -102,6 +102,18 @@ updateNotificationAssert(
     'Обновлятор не подтверждает автоматически восстановленную неудачную установку'
 );
 updateNotificationAssert(
+    str_contains($updateRun, 'final class UpdateRunSubprocessException'),
+    'Обновлятор теряет машинный результат дочерней команды и не может отличить завершённый откат'
+);
+updateNotificationAssert(
+    str_contains($updateRun, "\$applyErrorCode === 'apply_rolled_back'"),
+    'Обновлятор повторно запускает recovery после уже проверенного отката'
+);
+updateNotificationAssert(
+    str_contains($updateRun, "\$recoveryStatus === 'committed_recovery_verified'"),
+    'Обновлятор не умеет завершить committed-транзакцию после автоматического снятия maintenance'
+);
+updateNotificationAssert(
     !str_contains($service, 'Для восстановления выполните: php'),
     'Веб-интерфейс не должен требовать ручную команду восстановления'
 );
