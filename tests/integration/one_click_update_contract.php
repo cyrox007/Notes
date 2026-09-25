@@ -22,6 +22,8 @@ $phpCli = (string) file_get_contents($root . '/core/UpdatePhpCli.php');
 $updateRun = (string) file_get_contents($root . '/bin/update_run.php');
 $automaticRecovery = (string) file_get_contents($root . '/core/UpdateAutomaticRecovery.php');
 $maintenanceMiddleware = (string) file_get_contents($root . '/app/middlewares/EnforceMaintenanceMode.php');
+$bootRecoveryGate = (string) file_get_contents($root . '/core/UpdateBootRecoveryGate.php');
+$coreBootstrap = (string) file_get_contents($root . '/core.php');
 
 updateNotificationAssert(
     str_contains($header, 'data-update-notifications'),
@@ -139,6 +141,17 @@ updateNotificationAssert(
 updateNotificationAssert(
     str_contains($maintenanceMiddleware, '$afterRecovery = $this->maintenance->state()'),
     'После recovery middleware не перепроверяет durable maintenance-state'
+);
+updateNotificationAssert(
+    str_contains($bootRecoveryGate, 'final class UpdateBootRecoveryGate')
+        && str_contains($bootRecoveryGate, 'UpdateAutomaticRecovery'),
+    'Отсутствует ранний recovery до запуска БД и модулей'
+);
+updateNotificationAssert(
+    str_contains($coreBootstrap, 'UpdateBootRecoveryGate::enforce(SITEPATH)')
+        && strpos($coreBootstrap, 'UpdateBootRecoveryGate::enforce(SITEPATH)')
+            < strpos($coreBootstrap, 'DatabaseManager::getInstance()'),
+    'Ранний recovery должен выполняться до инициализации БД'
 );
 
 echo "[OK] автоматическое уведомление, одношаговое обновление и автовосстановление закреплены контрактом\n";
