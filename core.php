@@ -1,8 +1,7 @@
 <?php
 
-// Environment loading and all 1.0 runtime infrastructure are internal. Runtime
-// boot must therefore remain independent from Composer/vendor so the application
-// can start from the release bundle with no third-party PHP packages installed.
+// Загрузка окружения и инфраструктура 1.0 являются внутренними. Запуск не должен
+// зависеть от Composer/vendor, чтобы приложение стартовало прямо из релизного пакета.
 $environmentLoader = SITEPATH . '/core/Environment.php';
 if (!is_file($environmentLoader)) {
     throw new RuntimeException('Core environment loader is missing.');
@@ -17,9 +16,12 @@ if (!is_file($runtimeAutoloader)) {
 require_once $runtimeAutoloader;
 \Core\RuntimeAutoloader::register(SITEPATH);
 
-// Core files are still bootstrapped explicitly where ordering matters. The
-// runtime autoloader only resolves known core/shared-App namespace roots; it does
-// not own module classes. Isolated module classes are loaded by their runtime.php.
+// До инициализации БД и модулей завершаем recovery оборванной updater-транзакции.
+// Это позволяет восстановиться даже при временно несовместимом состоянии схемы БД.
+\Core\UpdateBootRecoveryGate::enforce(SITEPATH);
+
+// Файлы Core с важным порядком загрузки подключаются явно. Автозагрузчик обслуживает
+// только известные пространства Core/shared App; классы модулей подключает runtime.php.
 $coreFiles = [
     '/core/config.php',
     '/core/Version.php',
@@ -58,8 +60,8 @@ foreach ($coreFiles as $file) {
     }
 }
 
-// UUID is a historical global helper rather than a namespaced shared service.
-// Keep it as one explicit compatibility include instead of scanning app/handlers.
+// UUID остаётся историческим глобальным helper без namespace. Подключаем его
+// одним явным совместимым include вместо сканирования app/handlers.
 $uuidHelper = SITEPATH . '/app/handlers/UUID.php';
 if (!is_file($uuidHelper) || is_link($uuidHelper)) {
     throw new RuntimeException('Shared UUID helper is missing or unsafe.');
@@ -79,9 +81,9 @@ $moduleRegistry = \Core\ModuleRegistry::boot(
     $moduleLifecycleStore
 );
 
-// Normal runtime uses the reconciled persisted enabled composition. Entrypoints
-// that deliberately defer lifecycle persistence may request the package default
-// composition, but isolated providers are always loaded only through runtime.php.
+// Обычный runtime использует сохранённый согласованный состав включённых модулей.
+ // Точки входа с отложенным lifecycle могут использовать состав пакета по умолчанию,
+ // но изолированные providers всегда подключаются только через runtime.php.
 $moduleRuntimeComposition = $moduleLifecycleStore !== null
     ? $moduleRegistry->enabledComposition()
     : $moduleRegistry->defaultComposition();
