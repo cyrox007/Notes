@@ -35,7 +35,7 @@ final class EnforceMaintenanceMode
         try {
             $state = $this->maintenance->state();
         } catch (Throwable $e) {
-            error_log('Maintenance state evaluation failed: ' . $e->getMessage());
+            error_log('Не удалось проверить состояние обслуживания: ' . $e->getMessage());
             $this->reject($request, 'Состояние обслуживания не удалось безопасно проверить.', null);
             return false;
         }
@@ -54,8 +54,25 @@ final class EnforceMaintenanceMode
         }
 
         $recovery = $this->automaticRecovery->attempt($this->maintenance);
-        if (($recovery['status'] ?? '') === 'recovered') {
+
+        try {
+            $afterRecovery = $this->maintenance->state();
+        } catch (Throwable $e) {
+            error_log('Не удалось повторно проверить maintenance после recovery: ' . $e->getMessage());
+            $this->reject($request, 'Результат автоматического восстановления не удалось безопасно проверить.', null);
+            return false;
+        }
+
+        if (!$afterRecovery['active']) {
             return true;
+        }
+        if (!$afterRecovery['valid']) {
+            $this->reject(
+                $request,
+                'После попытки восстановления состояние обслуживания повреждено; запись остаётся заблокированной.',
+                null
+            );
+            return false;
         }
 
         $status = (string) ($recovery['status'] ?? 'failed');
@@ -69,7 +86,7 @@ final class EnforceMaintenanceMode
         $reason = $status === 'in_progress'
             ? 'Обновление или автоматическое восстановление уже выполняется.'
             : 'Автоматическое восстановление не завершено. Следующий запрос повторит безопасную попытку.';
-        $this->reject($request, $reason, $state['transaction_id']);
+        $this->reject($request, $reason, $afterRecovery['transaction_id']);
         return false;
     }
 
