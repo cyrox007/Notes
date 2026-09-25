@@ -307,5 +307,6 @@ jobs:
           test -f "$bundle/core/MigrationManifest.php"
           test -f "$bundle/core/UpdateMigrationPreflight.php"
           test -f "$bundle/core/UpdateAutomaticRecovery.php"
+          test -f "$bundle/core/UpdateBootRecoveryGate.php"
           test -f "$bundle/database/migrations/manifest.json"
           test -f "$bundle/docs/releases/v1.0.4.md"
