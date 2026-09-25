@@ -22,6 +22,10 @@ $phpCli = (string) file_get_contents($root . '/core/UpdatePhpCli.php');
 $updateRun = (string) file_get_contents($root . '/bin/update_run.php');
 $automaticRecovery = (string) file_get_contents($root . '/core/UpdateAutomaticRecovery.php');
 $maintenanceMiddleware = (string) file_get_contents($root . '/app/middlewares/EnforceMaintenanceMode.php');
+$bootRecoveryGate = (string) file_get_contents($root . '/core/UpdateBootRecoveryGate.php');
+$coreBootstrap = (string) file_get_contents($root . '/core.php');
+$adminUpdateE2e = (string) file_get_contents($root . '/.github/workflows/admin-update-e2e.yml');
+$rollbackBrowserE2e = (string) file_get_contents($root . '/tests/e2e/admin-update-rollback.mjs');
 
 updateNotificationAssert(
     str_contains($header, 'data-update-notifications'),
@@ -139,6 +143,34 @@ updateNotificationAssert(
 updateNotificationAssert(
     str_contains($maintenanceMiddleware, '$afterRecovery = $this->maintenance->state()'),
     'После recovery middleware не перепроверяет durable maintenance-state'
+);
+updateNotificationAssert(
+    str_contains($bootRecoveryGate, 'final class UpdateBootRecoveryGate')
+        && str_contains($bootRecoveryGate, 'UpdateAutomaticRecovery'),
+    'Отсутствует ранний recovery до запуска БД и модулей'
+);
+updateNotificationAssert(
+    str_contains($coreBootstrap, 'UpdateBootRecoveryGate::enforce(SITEPATH)')
+        && strpos($coreBootstrap, 'UpdateBootRecoveryGate::enforce(SITEPATH)')
+            < strpos($coreBootstrap, 'DatabaseManager::getInstance()'),
+    'Ранний recovery должен выполняться до инициализации БД'
+);
+updateNotificationAssert(
+    str_contains($adminUpdateE2e, 'tests/e2e/admin-update-rollback.mjs'),
+    'Сквозной релизный тест не запускает браузерную проверку автоматического отката'
+);
+updateNotificationAssert(
+    str_contains($adminUpdateE2e, '1.0.6-broken-e2e')
+        && str_contains($adminUpdateE2e, 'намеренный отказ миграции'),
+    'Сквозной релизный тест не содержит намеренно падающий подписанный пакет'
+);
+updateNotificationAssert(
+    str_contains($adminUpdateE2e, 'rollback_verified'),
+    'Сквозной релизный тест не требует подтверждённый rollback_verified'
+);
+updateNotificationAssert(
+    str_contains($rollbackBrowserE2e, 'Рабочая версия автоматически восстановлена и проверена'),
+    'Браузерный тест не подтверждает автоматическое восстановление пользователю'
 );
 
 echo "[OK] автоматическое уведомление, одношаговое обновление и автовосстановление закреплены контрактом\n";
