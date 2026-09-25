@@ -15,9 +15,11 @@ if (is_file($root . '/.env')) {
 require_once $root . '/core/Version.php';
 require_once $root . '/core/UpdateProcessRunner.php';
 require_once $root . '/core/UpdateTransactionJournal.php';
+require_once $root . '/core/UpdateCoordinatorLock.php';
 require_once $root . '/app/services/MaintenanceModeService.php';
 
 use App\Services\MaintenanceModeService;
+use Core\UpdateCoordinatorLock;
 use Core\UpdateProcessRunner;
 use Core\UpdateTransactionJournal;
 use Core\Version;
@@ -332,6 +334,11 @@ try {
     if (($journalState['live_mutation_started'] ?? true) !== false) {
         throw new RuntimeException('Транзакция уже пересекла destructive boundary');
     }
+
+    // Coordinator-lock удерживается родительским updater на всём участке,
+    // где maintenance уже может быть виден другим HTTP-запросам. При гибели
+    // процесса flock освобождается ОС, и boot-recovery получает право продолжить.
+    $coordinatorLock = new UpdateCoordinatorLock($stateRoot, $transactionId);
 
     $maintenance->enter($transactionId, 'Обновление Workspace Organizer');
     $maintenanceEntered = true;
