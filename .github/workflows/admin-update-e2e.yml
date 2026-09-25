@@ -634,7 +634,46 @@ jobs:
 
           mapfile -t JOURNALS < <(find "$PRIVATE/state/transactions" -maxdepth 1 -type f -name 'update-*.json' -print)
           test "${#JOURNALS[@]}" -eq 2
-          test "$(printf '%s\n' "${JOURNALS[@]}" | xargs -r -n1 jq -r '.state' | grep -c '^committed      - name: Доказать фактическое изменение версии и сохранность установки
+          COMMITTED=0
+          ROLLED_BACK=0
+          for journal in "${JOURNALS[@]}"; do
+            state="$(jq -r '.state' "$journal")"
+            if [[ "$state" = 'committed' ]]; then
+              COMMITTED=$((COMMITTED + 1))
+            elif [[ "$state" = 'rollback_verified' ]]; then
+              ROLLED_BACK=$((ROLLED_BACK + 1))
+            else
+              echo "Неожиданное состояние транзакции после отказа миграции: $state ($journal)" >&2
+              exit 1
+            fi
+          done
+          test "$COMMITTED" -eq 1
+          test "$ROLLED_BACK" -eq 1
+          test ! -e "$PRIVATE/state/workspace-maintenance.json"
+
+          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_update_e2e -e "SELECT COUNT(*) FROM users WHERE username='admin-update-e2e'")" = '1'
+          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_update_e2e -e "SELECT COUNT(*) FROM user_roles ur JOIN roles r ON r.id=ur.role_id JOIN users u ON u.id=ur.user_id WHERE u.username='admin-update-e2e' AND r.code='superadmin'")" = '1'
+          test -n "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_update_e2e -e "SELECT setting_value FROM system_settings WHERE setting_key='installation_id'")"
+
+          (cd "$LIVE" && SSL_CERT_FILE="$DRILL/ca.crt" php bin/healthcheck.php --json) | tee "$DRILL/post-rollback-health.json"
+          grep -Fq '"status": "ok"' "$DRILL/post-rollback-health.json"
+
+      - name: Переключить канал на исправный подписанный 1.0.6
+        shell: bash
+        run: |
+          set -euo pipefail
+          FEED_ROOT=/tmp/workspace-admin-update-e2e/feed-root
+          cat > "$FEED_ROOT/stable/feed.json" <<'JSON'
+          {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10006.json","signature":"release-10006.sig"}
+          JSON
+
+      - name: Установить исправный 1.0.6 одной кнопкой из автоматического уведомления
+        shell: bash
+        env:
+          SSL_CERT_FILE: /tmp/workspace-admin-update-e2e/ca.crt
+        run: node tests/e2e/admin-update-apply.mjs
+
+      - name: Доказать фактическое изменение версии и сохранность установки
         shell: bash
         run: |
           set -euo pipefail
@@ -672,175 +711,64 @@ jobs:
           (cd "$LIVE" && SSL_CERT_FILE="$DRILL/ca.crt" php bin/healthcheck.php --json) | tee "$DRILL/post-update-health.json"
           grep -Fq '"status": "ok"' "$DRILL/post-update-health.json"
 
-      - name: Проверить отсутствие PHP-ошибок
-        shell: bash
-        run: |
-          set -euo pipefail
-          DRILL=/tmp/workspace-admin-update-e2e
-          if grep -E 'PHP (Warning|Fatal error|Parse error)|Uncaught ' \
-            "$DRILL/app-http.log" /tmp/workspace-organizer-startup.log 2>/dev/null; then
-            echo 'Обнаружена PHP-ошибка во время сквозного обновления из админ-панели' >&2
-            exit 1
-          fi
-
-      - name: Диагностика при ошибке
-        if: failure()
-        shell: bash
-        run: |
-          DRILL=/tmp/workspace-admin-update-e2e
-          echo '--- приложение ---'
-          cat "$DRILL/app-http.log" 2>/dev/null || true
-          echo '--- HTTPS fixture ---'
-          cat "$DRILL/fixture.log" 2>/dev/null || true
-          echo '--- startup ---'
-          cat /tmp/workspace-organizer-startup.log 2>/dev/null || true
-          echo '--- журналы updater ---'
-          find "$DRILL/private" -maxdepth 4 -type f -name '*.json' -print -exec sh -c 'echo "--- $1"; cat "$1"' _ {} \; 2>/dev/null || true
-
-      - name: Остановить тестовые процессы и восстановить DNS
-        if: always()
-        shell: bash
-        run: |
-          DRILL=/tmp/workspace-admin-update-e2e
-          if [[ -f "$DRILL/app-http.pid" ]]; then
-            PID="$(cat "$DRILL/app-http.pid")"
-            pkill -TERM -P "$PID" >/dev/null 2>&1 || true
-            kill "$PID" >/dev/null 2>&1 || true
-          fi
-          if [[ -f "$DRILL/fixture.pid" ]]; then
-            sudo kill "$(cat "$DRILL/fixture.pid")" >/dev/null 2>&1 || true
-          fi
-          if [[ -f "$DRILL/resolv.conf.bak" ]]; then
-            sudo cp "$DRILL/resolv.conf.bak" /etc/resolv.conf || true
-          fi
-          sudo ip addr del 8.8.8.8/32 dev lo >/dev/null 2>&1 || true
-)" -eq 1
-          test "$(printf '%s\n' "${JOURNALS[@]}" | xargs -r -n1 jq -r '.state' | grep -c '^rollback_verified      - name: Доказать фактическое изменение версии и сохранность установки
+      - name: Доказать раннее самовосстановление на следующем HTTP-запросе
         shell: bash
         run: |
           set -euo pipefail
           DRILL=/tmp/workspace-admin-update-e2e
           LIVE="$DRILL/live"
           PRIVATE="$DRILL/private"
+          STATE="$PRIVATE/state"
+          TX=update-boot-recovery-e2e
+          NOW="$(date +%s)"
 
           test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.6-admin-e2e'
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10006'
+          mkdir -p "$STATE/transactions"
 
-          mapfile -t JOURNALS < <(find "$PRIVATE/state/transactions" -maxdepth 1 -type f -name 'update-*.json' -print)
-          test "${#JOURNALS[@]}" -eq 2
-          for journal in "${JOURNALS[@]}"; do
-            test "$(jq -r '.state' "$journal")" = 'committed'
-            test "$(jq -r '.live_mutation_started' "$journal")" = 'true'
-          done
-          test ! -e "$PRIVATE/state/workspace-maintenance.json"
-
-          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_update_e2e -e "SELECT COUNT(*) FROM users WHERE username='admin-update-e2e'")" = '1'
-          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_update_e2e -e "SELECT COUNT(*) FROM user_roles ur JOIN roles r ON r.id=ur.role_id JOIN users u ON u.id=ur.user_id WHERE u.username='admin-update-e2e' AND r.code='superadmin'")" = '1'
-          test -n "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_update_e2e -e "SELECT setting_value FROM system_settings WHERE setting_key='installation_id'")"
-
-          (cd "$LIVE" && SSL_CERT_FILE="$DRILL/ca.crt" php bin/healthcheck.php --json) | tee "$DRILL/post-update-health.json"
-          grep -Fq '"status": "ok"' "$DRILL/post-update-health.json"
-
-      - name: Проверить отсутствие PHP-ошибок
-        shell: bash
-        run: |
-          set -euo pipefail
-          DRILL=/tmp/workspace-admin-update-e2e
-          if grep -E 'PHP (Warning|Fatal error|Parse error)|Uncaught ' \
-            "$DRILL/app-http.log" /tmp/workspace-organizer-startup.log 2>/dev/null; then
-            echo 'Обнаружена PHP-ошибка во время сквозного обновления из админ-панели' >&2
-            exit 1
-          fi
-
-      - name: Диагностика при ошибке
-        if: failure()
-        shell: bash
-        run: |
-          DRILL=/tmp/workspace-admin-update-e2e
-          echo '--- приложение ---'
-          cat "$DRILL/app-http.log" 2>/dev/null || true
-          echo '--- HTTPS fixture ---'
-          cat "$DRILL/fixture.log" 2>/dev/null || true
-          echo '--- startup ---'
-          cat /tmp/workspace-organizer-startup.log 2>/dev/null || true
-          echo '--- журналы updater ---'
-          find "$DRILL/private" -maxdepth 4 -type f -name '*.json' -print -exec sh -c 'echo "--- $1"; cat "$1"' _ {} \; 2>/dev/null || true
-
-      - name: Остановить тестовые процессы и восстановить DNS
-        if: always()
-        shell: bash
-        run: |
-          DRILL=/tmp/workspace-admin-update-e2e
-          if [[ -f "$DRILL/app-http.pid" ]]; then
-            PID="$(cat "$DRILL/app-http.pid")"
-            pkill -TERM -P "$PID" >/dev/null 2>&1 || true
-            kill "$PID" >/dev/null 2>&1 || true
-          fi
-          if [[ -f "$DRILL/fixture.pid" ]]; then
-            sudo kill "$(cat "$DRILL/fixture.pid")" >/dev/null 2>&1 || true
-          fi
-          if [[ -f "$DRILL/resolv.conf.bak" ]]; then
-            sudo cp "$DRILL/resolv.conf.bak" /etc/resolv.conf || true
-          fi
-          sudo ip addr del 8.8.8.8/32 dev lo >/dev/null 2>&1 || true
-)" -eq 1
-          test ! -e "$PRIVATE/state/workspace-maintenance.json"
-
-          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_update_e2e -e "SELECT COUNT(*) FROM users WHERE username='admin-update-e2e'")" = '1'
-          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_update_e2e -e "SELECT COUNT(*) FROM user_roles ur JOIN roles r ON r.id=ur.role_id JOIN users u ON u.id=ur.user_id WHERE u.username='admin-update-e2e' AND r.code='superadmin'")" = '1'
-          test -n "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_update_e2e -e "SELECT setting_value FROM system_settings WHERE setting_key='installation_id'")"
-
-          (cd "$LIVE" && SSL_CERT_FILE="$DRILL/ca.crt" php bin/healthcheck.php --json) | tee "$DRILL/post-rollback-health.json"
-          grep -Fq '"status": "ok"' "$DRILL/post-rollback-health.json"
-
-      - name: Переключить канал на исправный подписанный 1.0.6
-        shell: bash
-        run: |
-          set -euo pipefail
-          FEED_ROOT=/tmp/workspace-admin-update-e2e/feed-root
-          cat > "$FEED_ROOT/stable/feed.json" <<'JSON'
-          {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10006.json","signature":"release-10006.sig"}
+          cat > "$STATE/transactions/$TX.json" <<JSON
+          {
+            "schema": 1,
+            "transaction_id": "$TX",
+            "state": "rollback_verified",
+            "installed_version": "1.0.6-admin-e2e",
+            "installed_version_code": 10006,
+            "target_version": "1.0.7-crash-e2e",
+            "target_version_code": 10007,
+            "package_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "stage_dir": "$PRIVATE/updates/crash-e2e",
+            "live_mutation_started": true,
+            "created_at": $NOW,
+            "updated_at": $NOW,
+            "history": [
+              {"at": $NOW, "state": "rollback_verified", "note": "CI: имитация обрыва после проверенного rollback"}
+            ]
+          }
           JSON
+          chmod 600 "$STATE/transactions/$TX.json"
 
-      - name: Установить исправный 1.0.6 одной кнопкой из автоматического уведомления
-        shell: bash
-        env:
-          SSL_CERT_FILE: /tmp/workspace-admin-update-e2e/ca.crt
-        run: node tests/e2e/admin-update-apply.mjs
+          cat > "$STATE/workspace-maintenance.json" <<JSON
+          {
+            "schema": 1,
+            "mode": "update",
+            "transaction_id": "$TX",
+            "reason": "CI: восстановление после аварийного обрыва updater",
+            "started_at": $NOW
+          }
+          JSON
+          chmod 600 "$STATE/workspace-maintenance.json"
 
-      - name: Доказать фактическое изменение версии и сохранность установки
-        shell: bash
-        run: |
-          set -euo pipefail
-          DRILL=/tmp/workspace-admin-update-e2e
-          LIVE="$DRILL/live"
-          PRIVATE="$DRILL/private"
-
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.6-admin-e2e'
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10006'
-
-          mapfile -t JOURNALS < <(find "$PRIVATE/state/transactions" -maxdepth 1 -type f -name 'update-*.json' -print)
-          test "${#JOURNALS[@]}" -eq 2
-          for journal in "${JOURNALS[@]}"; do
-            test "$(jq -r '.state' "$journal")" = 'committed'
-            test "$(jq -r '.live_mutation_started' "$journal")" = 'true'
-          done
-          test ! -e "$PRIVATE/state/workspace-maintenance.json"
-
-          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_update_e2e -e "SELECT COUNT(*) FROM users WHERE username='admin-update-e2e'")" = '1'
-          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_update_e2e -e "SELECT COUNT(*) FROM user_roles ur JOIN roles r ON r.id=ur.role_id JOIN users u ON u.id=ur.user_id WHERE u.username='admin-update-e2e' AND r.code='superadmin'")" = '1'
-          test -n "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_update_e2e -e "SELECT setting_value FROM system_settings WHERE setting_key='installation_id'")"
-
-          (cd "$LIVE" && SSL_CERT_FILE="$DRILL/ca.crt" php bin/healthcheck.php --json) | tee "$DRILL/post-update-health.json"
-          grep -Fq '"status": "ok"' "$DRILL/post-update-health.json"
+          HTTP_CODE="$(curl -sS -o "$DRILL/boot-recovery-response.html" -w '%{http_code}'             http://127.0.0.1:18094/workspace/auth/login/)"
+          test "$HTTP_CODE" = '200'
+          test ! -e "$STATE/workspace-maintenance.json"
+          test "$(jq -r '.state' "$STATE/transactions/$TX.json")" = 'rollback_verified'
+          grep -Fq 'auth/login' "$DRILL/boot-recovery-response.html" ||             grep -Fq 'Войти' "$DRILL/boot-recovery-response.html"
 
       - name: Проверить отсутствие PHP-ошибок
         shell: bash
         run: |
           set -euo pipefail
           DRILL=/tmp/workspace-admin-update-e2e
-          if grep -E 'PHP (Warning|Fatal error|Parse error)|Uncaught ' \
-            "$DRILL/app-http.log" /tmp/workspace-organizer-startup.log 2>/dev/null; then
+          if grep -E 'PHP (Warning|Fatal error|Parse error)|Uncaught '             "$DRILL/app-http.log" /tmp/workspace-organizer-startup.log 2>/dev/null; then
             echo 'Обнаружена PHP-ошибка во время сквозного обновления из админ-панели' >&2
             exit 1
           fi
