@@ -115,6 +115,57 @@ function updateRunAppendOption(array &$command, array $options, string $name): v
     }
 }
 
+/**
+ * Пытается автоматически восстановить транзакцию после ошибки применения.
+ *
+ * Восстановление возобновляемое по журналу, поэтому повторные попытки безопасны:
+ * каждая продолжает уже зафиксированное состояние, а не начинает откат заново.
+ *
+ * @return array<string,mixed>
+ */
+function updateRunAutomaticRecover(
+    UpdateProcessRunner $runner,
+    array $options,
+    string $transactionId,
+    string $root,
+    int $attempts = 3
+): array {
+    $errors = [];
+
+    for ($attempt = 1; $attempt <= $attempts; $attempt++) {
+        try {
+            $command = updateRunBaseCommand('update_apply.php');
+            $command[] = '--transaction=' . $transactionId;
+            $command[] = '--recover';
+            $command[] = '--json';
+            updateRunAppendOption($command, $options, 'state-root');
+            updateRunAppendOption($command, $options, 'backup-root');
+
+            $result = updateRunJsonCommand(
+                $runner,
+                $command,
+                $root,
+                1200,
+                'автоматическое восстановление'
+            );
+            $result['automatic_recovery_attempt'] = $attempt;
+            return $result;
+        } catch (Throwable $recoveryError) {
+            $errors[] = 'попытка ' . $attempt . ': ' . $recoveryError->getMessage();
+            if ($attempt < $attempts) {
+                sleep(2);
+            }
+        }
+    }
+
+    throw new RuntimeException(
+        'Автоматическое восстановление не завершилось после '
+        . $attempts
+        . ' попыток: '
+        . implode('; ', $errors)
+    );
+}
+
 if (!isset($options['yes'])) {
     updateRunFail(
         'Установка обновления требует явного подтверждения --yes.',
@@ -298,16 +349,54 @@ try {
         }
     }
 
+    if ($applyInvoked) {
+        try {
+            $recovery = updateRunAutomaticRecover(
+                $runner,
+                $options,
+                $transactionId,
+                $root
+            );
+
+            updateRunFail(
+                'Установка обновления завершилась ошибкой, исходная версия автоматически восстановлена.',
+                'apply_failed_recovered',
+                max(1, (int) $e->getCode()),
+                [
+                    'transaction_id' => $transactionId,
+                    'apply_invoked' => true,
+                    'automatic_recovery' => true,
+                    'recovery_status' => (string) ($recovery['status'] ?? 'recovered'),
+                    'recovery_attempt' => (int) ($recovery['automatic_recovery_attempt'] ?? 1),
+                    'apply_error' => $e->getMessage(),
+                    'maintenance_may_be_active' => false,
+                ]
+            );
+        } catch (Throwable $recoveryError) {
+            updateRunFail(
+                'Установка обновления завершилась ошибкой, автоматическое восстановление не удалось завершить: '
+                    . $recoveryError->getMessage(),
+                'automatic_recovery_failed',
+                max(1, (int) $recoveryError->getCode()),
+                [
+                    'transaction_id' => $transactionId,
+                    'apply_invoked' => true,
+                    'automatic_recovery' => false,
+                    'apply_error' => $e->getMessage(),
+                    'maintenance_may_be_active' => true,
+                ]
+            );
+        }
+    }
+
     updateRunFail(
         $e->getMessage(),
-        $applyInvoked ? 'apply_or_rollback_failed' : 'preapply_failed',
+        'preapply_failed',
         max(1, (int) $e->getCode()),
         [
             'transaction_id' => $transactionId,
-            'apply_invoked' => $applyInvoked,
-            'recovery_command' => $applyInvoked
-                ? 'php bin/update_run.php --recover --transaction=' . $transactionId . ' --yes --json'
-                : null,
+            'apply_invoked' => false,
+            'automatic_recovery' => false,
         ]
     );
 }
