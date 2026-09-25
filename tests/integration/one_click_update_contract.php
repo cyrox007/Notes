@@ -26,6 +26,7 @@ $automaticRecovery = (string) file_get_contents($root . '/core/UpdateAutomaticRe
 $coordinatorLock = (string) file_get_contents($root . '/core/UpdateCoordinatorLock.php');
 $maintenanceMiddleware = (string) file_get_contents($root . '/app/middlewares/EnforceMaintenanceMode.php');
 $bootRecoveryGate = (string) file_get_contents($root . '/core/UpdateBootRecoveryGate.php');
+$entrypoint = (string) file_get_contents($root . '/index.php');
 $coreBootstrap = (string) file_get_contents($root . '/core.php');
 $liveApplyContract = (string) file_get_contents($root . '/tests/integration/updater_live_apply_contract.php');
 $adminUpdateE2e = (string) file_get_contents($root . '/.github/workflows/admin-update-e2e.yml');
@@ -182,11 +183,17 @@ updateNotificationAssert(
         && str_contains($bootRecoveryGate, 'UpdateAutomaticRecovery'),
     'Отсутствует ранний recovery до запуска БД и модулей'
 );
+$bootRecoveryOffset = strpos($entrypoint, '\\Core\\UpdateBootRecoveryGate::enforce(SITEPATH)');
+$schemaReadinessOffset = strpos($entrypoint, '\\Core\\SchemaReadiness::inspect(SITEPATH)');
+$coreBootstrapOffset = strpos($entrypoint, "require_once SITEPATH . '/core.php';");
 updateNotificationAssert(
-    str_contains($coreBootstrap, 'UpdateBootRecoveryGate::enforce(SITEPATH)')
-        && strpos($coreBootstrap, 'UpdateBootRecoveryGate::enforce(SITEPATH)')
-            < strpos($coreBootstrap, 'DatabaseManager::getInstance()'),
-    'Ранний recovery должен выполняться до инициализации БД'
+    $bootRecoveryOffset !== false
+        && $schemaReadinessOffset !== false
+        && $coreBootstrapOffset !== false
+        && $bootRecoveryOffset < $schemaReadinessOffset
+        && $bootRecoveryOffset < $coreBootstrapOffset
+        && !str_contains($coreBootstrap, 'UpdateBootRecoveryGate::enforce(SITEPATH)'),
+    'Ранний recovery должен выполняться в index.php до проверки схемы и запуска core'
 );
 updateNotificationAssert(
     str_contains($adminUpdateE2e, 'tests/e2e/admin-update-rollback.mjs'),
