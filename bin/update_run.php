@@ -12,11 +12,15 @@ require_once $root . '/core/Environment.php';
 if (is_file($root . '/.env')) {
     \Core\Environment::load($root . '/.env');
 }
+require_once $root . '/core/Version.php';
 require_once $root . '/core/UpdateProcessRunner.php';
+require_once $root . '/core/UpdateTransactionJournal.php';
 require_once $root . '/app/services/MaintenanceModeService.php';
 
 use App\Services\MaintenanceModeService;
 use Core\UpdateProcessRunner;
+use Core\UpdateTransactionJournal;
+use Core\Version;
 
 $options = getopt('', [
     'transaction:',
@@ -296,6 +300,39 @@ try {
     }
 
     $maintenance = new MaintenanceModeService($stateRoot !== '' ? $stateRoot : null, $root);
+    $resolvedStateRoot = $maintenance->configuredStateRoot();
+    if (!is_string($resolvedStateRoot) || trim($resolvedStateRoot) === '') {
+        throw new RuntimeException('Не удалось определить внешний каталог журнала обновления');
+    }
+    $stateRoot = rtrim($resolvedStateRoot, '/\\');
+    $options['state-root'] = $stateRoot;
+
+    $targetVersion = trim((string) ($staged['target_version'] ?? ''));
+    $targetVersionCode = (int) ($staged['target_version_code'] ?? 0);
+    $packageSha256 = strtolower(trim((string) ($staged['package_sha256'] ?? '')));
+    if ($targetVersion === ''
+        || $targetVersionCode <= Version::VERSION_CODE
+        || preg_match('/^[0-9a-f]{64}$/', $packageSha256) !== 1) {
+        throw new RuntimeException('Подготовленный пакет не содержит корректную идентичность транзакции');
+    }
+
+    // Журнал создаётся до maintenance. Поэтому даже аварийное завершение между
+    // включением обслуживания и резервным копированием имеет безопасное
+    // pre-live состояние, которое следующий запрос сможет закрыть автоматически.
+    $journal = new UpdateTransactionJournal($stateRoot, $root);
+    $journalState = $journal->initialize([
+        'transaction_id' => $transactionId,
+        'installed_version' => Version::VERSION,
+        'installed_version_code' => Version::VERSION_CODE,
+        'target_version' => $targetVersion,
+        'target_version_code' => $targetVersionCode,
+        'package_sha256' => $packageSha256,
+        'stage_dir' => $stageDir,
+    ]);
+    if (($journalState['live_mutation_started'] ?? true) !== false) {
+        throw new RuntimeException('Транзакция уже пересекла destructive boundary');
+    }
+
     $maintenance->enter($transactionId, 'Обновление Workspace Organizer');
     $maintenanceEntered = true;
 
@@ -363,7 +400,7 @@ try {
             $maintenance->leave($transactionId);
         } catch (Throwable $leaveError) {
             updateRunFail(
-                $e->getMessage() . '; additionally failed to release pre-mutation maintenance: ' . $leaveError->getMessage(),
+                $e->getMessage() . '; дополнительно не удалось снять pre-mutation maintenance: ' . $leaveError->getMessage(),
                 'preapply_cleanup_failed',
                 max(1, (int) $e->getCode()),
                 ['transaction_id' => $transactionId, 'maintenance_may_be_active' => true]
