@@ -234,7 +234,7 @@ Package никогда не скачивается при `--check-only`, есл
   -> committed + снятие maintenance
 ```
 
-От пользователя не требуются PowerShell, SSH, ручной PHP CLI, копирование bootstrap-файлов, редактирование `.env`, ручной запуск миграций или распаковка ZIP поверх рабочей установки. Аварийный CLI recovery сохраняется только как операторский путь на случай аппаратного сбоя или принудительного завершения процесса.
+От пользователя не требуются PowerShell, SSH, ручной PHP CLI, копирование bootstrap-файлов, редактирование `.env`, ручной запуск миграций, ручной rollback или распаковка ZIP поверх рабочей установки. После принудительного завершения updater следующий HTTP-запрос до запуска БД и модулей сам продолжает recovery по внешнему журналу. CLI recovery остаётся только техническим последним средством при повреждении самих recovery-метаданных или внешнего хранилища.
 
 ## Диагностика готовности updater
 
@@ -299,6 +299,7 @@ php bin/update_run.php --yes --json
 
 ```text
 signed remote stage
+  -> initialize durable transaction journal
   -> enter maintenance
   -> verified code + MySQL rollback backup
   -> verified external release candidate
@@ -319,9 +320,11 @@ php bin/update_run.php \
   --yes --json
 ```
 
-Wrapper автоматически снимает maintenance только если ошибка произошла **до** вызова live apply. После пересечения destructive boundary единственным владельцем rollback/recovery и снятия maintenance остаётся `UpdateApplyCommand`. Wrapper никогда принудительно не открывает writes после apply failure.
+До включения maintenance wrapper создаёт `initialized` journal во внешнем `UPDATE_STATE_PATH`. Поэтому даже аварийный обрыв между включением обслуживания и созданием backup имеет однозначное безопасное pre-live состояние.
 
-Recovery после crash/interruption использует тот же transaction journal:
+После пересечения destructive boundary владельцем rollback и проверки состояния остаётся `UpdateApplyCommand`. При штатной ошибке он сам откатывает код и БД. Если дочерний процесс оборвался, wrapper автоматически возобновляет recovery до трёх раз. Если погиб и сам HTTP/PHP-процесс, ранний boot-gate на следующем запросе запускает тот же recovery **до** инициализации БД и модулей.
+
+Тот же transaction journal доступен через CLI только для технической аварийной эксплуатации:
 
 ```bash
 php bin/update_run.php \
@@ -392,7 +395,7 @@ php bin/maintenance.php --action=leave --transaction=update-2026-001
 
 Валидная transaction владеет marker. Concurrent/другая transaction не может заменить это ownership. Переходы `enter`/`leave` сериализуются filesystem lock.
 
-Если marker повреждён, runtime работает fail-closed и считает maintenance активным. Recovery выполняется явно:
+Если marker повреждён, runtime работает fail-closed и считает maintenance активным. Автоматически угадывать transaction_id в таком состоянии запрещено. Для технического восстановления повреждённых recovery-метаданных остаётся явная административная команда:
 
 ```bash
 php bin/maintenance.php --action=leave --force
@@ -400,12 +403,13 @@ php bin/maintenance.php --action=leave --force
 
 Пока maintenance активен:
 
-- `index.php` возвращает HTTP `503 Service Unavailable` с `Retry-After` **до bootstrap базы данных/модулей**;
-- invalid/corrupt marker также возвращает 503, а не молча разрешает writes;
-- уже открытые Messenger WebSocket connections не могут выполнять mutating actions, потому что общая runtime mutation policy повторно проверяет maintenance state;
-- оператор может выполнить recovery через CLI даже при недоступности HTTP или MySQL.
+- ранний boot-gate до bootstrap БД/модулей читает marker и при валидной updater-транзакции автоматически пытается продолжить recovery;
+- если исходный updater ещё работает, общий operation lock возвращает `operation_busy`, запрос получает HTTP `503 Service Unavailable` с `Retry-After` и не вмешивается в живую транзакцию;
+- после успешного recovery marker перечитывается; обычный запуск приложения продолжается только после подтверждённого снятия maintenance;
+- invalid/corrupt marker возвращает 503, а не молча разрешает writes;
+- уже открытые Messenger WebSocket connections не могут выполнять mutating actions, потому что общая runtime mutation policy повторно проверяет maintenance state.
 
-Ранний HTTP gate сделан намеренно. Не переносите enforcement maintenance исключительно в обычный router middleware: это слишком поздно, если база данных недоступна во время обновления.
+Ранний HTTP gate сделан намеренно. Не переносите recovery/enforcement исключительно в обычный router middleware: это слишком поздно, если база данных временно несовместима после оборванной миграции.
 
 ## Transaction journal и проверенный rollback backup
 
