@@ -34,6 +34,8 @@ jobs:
         run: |
           set -euo pipefail
           php -l core/UpdatePhpCli.php
+          php -l core/UpdateAutomaticRecovery.php
+          php -l core/UpdateBootRecoveryGate.php
           php -l core/UpdateReadiness.php
           php -l bin/update_doctor.php
           php -l bin/update_run.php
@@ -41,11 +43,13 @@ jobs:
           php -l modules/admin/controllers/UpdateController.php
           php -l modules/admin/views/updates.php
           php -l modules/admin/views/settings.php
+          php -l app/middlewares/EnforceMaintenanceMode.php
           php -l core/routerConfig.php
           php -l tests/integration/updater_readiness_contract.php
           php -l tests/integration/updater_operator_flow_contract.php
           php -l tests/integration/admin_update_ui_contract.php
           php -l tests/integration/one_click_update_contract.php
+          php -l tests/integration/automatic_update_recovery_contract.php
           php -l tests/integration/native_admin_contract.php
           node --check assets/js/update-notifications.js
 
@@ -57,6 +61,7 @@ jobs:
           php tests/integration/updater_operator_flow_contract.php
           php tests/integration/admin_update_ui_contract.php
           php tests/integration/one_click_update_contract.php
+          php tests/integration/automatic_update_recovery_contract.php
           php tests/integration/native_admin_contract.php
 
       - name: Повторно проверить сетевую границу обновлятора
@@ -90,7 +95,10 @@ jobs:
           ! grep -Fq "'stage_dir' =>" modules/admin/controllers/UpdateController.php
           grep -Fq "admin_updates_apply" modules/admin/views/updates.php
           grep -Fq 'UpdateReadiness' modules/admin/services/AdminUpdateService.php
-          grep -Fq 'bin/update_run.php --recover' modules/admin/views/updates.php
+          ! grep -Fq 'bin/update_run.php --recover' modules/admin/views/updates.php
+          grep -Fq 'UpdateAutomaticRecovery' app/middlewares/EnforceMaintenanceMode.php
+          grep -Fq 'automaticRecovery->attempt' app/middlewares/EnforceMaintenanceMode.php
+          grep -Fq 'UpdateBootRecoveryGate::enforce(SITEPATH)' core.php
           grep -Fq "'expected-version-code:'" bin/update_run.php
           grep -Fq "'expected-package-sha256:'" bin/update_run.php
           grep -Fq 'Подписанный канал изменился после подтверждения обновления' bin/update_run.php
