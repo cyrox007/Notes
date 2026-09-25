@@ -854,11 +854,15 @@ jobs:
           JSON
           chmod 600 "$STATE/workspace-maintenance.json"
 
-          HTTP_CODE="$(curl -sS -o "$DRILL/boot-recovery-response.html" -w '%{http_code}'             http://127.0.0.1:18094/workspace/auth/login/)"
+          HTTP_CODE="$(curl -sS -L \
+            -o "$DRILL/boot-recovery-response.html" \
+            -w '%{http_code}' \
+            http://127.0.0.1:18094/workspace/)"
           test "$HTTP_CODE" = '200'
           test ! -e "$STATE/workspace-maintenance.json"
           test "$(jq -r '.state' "$STATE/transactions/$TX.json")" = 'rollback_verified'
-          grep -Fq 'auth/login' "$DRILL/boot-recovery-response.html" ||             grep -Fq 'Войти' "$DRILL/boot-recovery-response.html"
+          grep -Fq 'class="login-page"' "$DRILL/boot-recovery-response.html"
+          grep -Fq 'Вход в Workspace' "$DRILL/boot-recovery-response.html"
 
       - name: Проверить отсутствие PHP-ошибок
         shell: bash
