@@ -191,6 +191,11 @@ updateNotificationAssert(
     'Сквозной релизный тест не содержит намеренно падающий подписанный пакет'
 );
 updateNotificationAssert(
+    str_contains($adminUpdateE2e, '1.0.6-health-broken-e2e')
+        && str_contains($adminUpdateE2e, 'намеренный отказ post-health'),
+    'Сквозной релизный тест не проверяет автоматический откат после ошибки post-health'
+);
+updateNotificationAssert(
     str_contains($adminUpdateE2e, 'rollback_verified'),
     'Сквозной релизный тест не требует подтверждённый rollback_verified'
 );
