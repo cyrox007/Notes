@@ -169,6 +169,11 @@ updateNotificationAssert(
     'Сквозной релизный тест не требует подтверждённый rollback_verified'
 );
 updateNotificationAssert(
+    str_contains($adminUpdateE2e, 'Доказать раннее самовосстановление на следующем HTTP-запросе')
+        && str_contains($adminUpdateE2e, 'update-boot-recovery-e2e'),
+    'Сквозной релизный тест не доказывает recovery на следующем HTTP-запросе после обрыва процесса'
+);
+updateNotificationAssert(
     str_contains($rollbackBrowserE2e, 'Рабочая версия автоматически восстановлена и проверена'),
     'Браузерный тест не подтверждает автоматическое восстановление пользователю'
 );
