@@ -109,6 +109,7 @@ final class AutomaticUpdateRequestFakeTransport implements UpdateRemoteTransport
         file_put_contents($destination, $this->body);
         return ['bytes' => strlen($this->body), 'sha256' => hash('sha256', $this->body)];
     }
+}
 
 $temp = sys_get_temp_dir() . '/wo-auto-update-' . bin2hex(random_bytes(6));
 autoUpdateAssert(mkdir($temp, 0700, true), 'Не удалось создать временный каталог');
