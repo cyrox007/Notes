@@ -288,7 +288,7 @@ final class UpdateCodeSwitcher
         $map = [];
 
         foreach ($entries as $entry) {
-            $relative = str_replace('\\\\', '/', trim((string) ($entry['path'] ?? '')));
+            $relative = str_replace(DIRECTORY_SEPARATOR, '/', trim((string) ($entry['path'] ?? '')));
             if (!$this->mutator->isReleaseOwned($relative)) {
                 throw new RuntimeException('Rollback backup содержит защищённый или небезопасный путь: ' . $relative);
             }
@@ -322,7 +322,7 @@ final class UpdateCodeSwitcher
 
         $map = [];
         foreach ($fileMap as $relative => $metadata) {
-            $relative = str_replace('\\\\', '/', trim((string) $relative));
+            $relative = str_replace(DIRECTORY_SEPARATOR, '/', trim((string) $relative));
             if (!$this->mutator->isReleaseOwned($relative)) {
                 continue;
             }

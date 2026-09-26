@@ -168,7 +168,13 @@ jobs:
           grep -Fq 'UpdateCandidateVerifier' core/UpdateLiveApplier.php
           grep -Fq 'UpdateCodeSwitcher' core/UpdateLiveApplier.php
           grep -Fq 'UpdateDatabaseRestorer' core/UpdateLiveApplier.php
-          grep -Fq 'mkdir($path, 0755, true)' core/UpdateCodeSwitcher.php
+          grep -Fq "'mode' => 'file-apply'" core/UpdateCodeSwitcher.php
+          grep -Fq 'UpdateFileMutator' core/UpdateCodeSwitcher.php
+          grep -Fq 'source_files_sha256' core/UpdateCodeSwitcher.php
+          grep -Fq 'target_files_sha256' core/UpdateCodeSwitcher.php
+          ! grep -Fq "'new_dir'" core/UpdateCodeSwitcher.php
+          ! grep -Fq "'old_dir'" core/UpdateCodeSwitcher.php
+          ! grep -Fq 'failed-release' core/UpdateRollbackCodeRestorer.php
           grep -Fq 'DROP TABLE IF EXISTS' core/UpdateDatabaseRestorer.php
           grep -Fq 'rollback_failed' core/UpdateTransactionStateMachine.php
           ! grep -Fq 'verifyCandidateTree($artifacts' core/UpdateApplyCommand.php
