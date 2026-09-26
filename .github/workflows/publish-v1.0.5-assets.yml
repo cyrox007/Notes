@@ -1,0 +1,73 @@
+name: Публикация файлов релиза 1.0.5
+
+on:
+  push:
+    branches:
+      - release/publish-1.0.5-assets
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Получить служебную ветку
+        uses: actions/checkout@v4
+
+      - name: Скачать принятый артефакт сборки
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/release-assets
+          gh run download 36242527560 \
+            --repo "${{ github.repository }}" \
+            --name "workspace-organizer-v1.0.5.zip" \
+            --dir /tmp/release-assets
+
+      - name: Проверить неизменяемость пакета
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/release-assets
+          test -f workspace-organizer-v1.0.5.zip
+          test -f workspace-organizer-v1.0.5.zip.sha256
+          test -f workspace-organizer-v1.0.5.zip.source-sha
+          test -f bootstrap-1.0.2-updater.php
+          test -f bootstrap-1.0.2-updater.php.sha256
+          test "$(cat workspace-organizer-v1.0.5.zip.source-sha)" = "ac95401d883b911e3c526980f6fb13b603558229"
+          sha256sum -c workspace-organizer-v1.0.5.zip.sha256
+          sha256sum -c bootstrap-1.0.2-updater.php.sha256
+          test "$(sha256sum workspace-organizer-v1.0.5.zip | awk '{print $1}')" = "c60c3537bc47e41028f25c8460e0738cd8c7e99b30cf3099752a95f82447b798"
+
+      - name: Загрузить файлы в GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release upload v1.0.5 \
+            /tmp/release-assets/workspace-organizer-v1.0.5.zip \
+            /tmp/release-assets/workspace-organizer-v1.0.5.zip.sha256 \
+            /tmp/release-assets/workspace-organizer-v1.0.5.zip.source-sha \
+            /tmp/release-assets/bootstrap-1.0.2-updater.php \
+            /tmp/release-assets/bootstrap-1.0.2-updater.php.sha256 \
+            --repo "${{ github.repository }}" \
+            --clobber
+
+      - name: Обновить описание релиза
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release edit v1.0.5 \
+            --repo "${{ github.repository }}" \
+            --title "Workspace Organizer 1.0.5" \
+            --notes-file docs/releases/v1.0.5.md
