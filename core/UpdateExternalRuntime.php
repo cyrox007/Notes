@@ -60,6 +60,71 @@ final class UpdateExternalRuntime
     }
 
     /**
+     * Повторно проверяет runtime по метаданным journal. Live-код при этом
+     * не используется как источник истины: после destructive boundary он
+     * может быть частично переключён.
+     *
+     * @param array<string,mixed> $recorded
+     * @return array{
+     *   runtime_root:string,
+     *   entrypoint:string,
+     *   manifest:string,
+     *   manifest_sha256:string,
+     *   source_version:string,
+     *   source_version_code:int,
+     *   files:int
+     * }
+     */
+    public function verifyRecorded(array $recorded, int $expectedSourceVersionCode): array
+    {
+        foreach (['runtime_root', 'entrypoint', 'manifest', 'manifest_sha256'] as $key) {
+            if (!is_string($recorded[$key] ?? null) || trim((string) $recorded[$key]) === '') {
+                throw new RuntimeException("Journal не содержит {$key} внешнего updater runtime");
+            }
+        }
+
+        $runtimeRoot = (string) $recorded['runtime_root'];
+        $manifestPath = (string) $recorded['manifest'];
+        $manifestReal = realpath($manifestPath);
+        $runtimeReal = realpath($runtimeRoot);
+        if (!is_string($runtimeReal) || !is_dir($runtimeReal) || is_link($runtimeRoot)) {
+            throw new RuntimeException('Записанный внешний updater runtime недоступен');
+        }
+        if (!is_string($manifestReal) || !is_file($manifestReal) || is_link($manifestPath)) {
+            throw new RuntimeException('Записанный manifest внешнего updater runtime недоступен');
+        }
+
+        $runtimeReal = UpdatePath::normalize($runtimeReal);
+        $manifestReal = UpdatePath::normalize($manifestReal);
+        if (!UpdatePath::inside($manifestReal, $runtimeReal)) {
+            throw new RuntimeException('Manifest вышел за границу записанного внешнего updater runtime');
+        }
+
+        $bytes = file_get_contents($manifestReal);
+        $actualSha = hash_file('sha256', $manifestReal);
+        $recordedSha = strtolower(trim((string) $recorded['manifest_sha256']));
+        if (!is_string($bytes)
+            || !is_string($actualSha)
+            || preg_match('/^[0-9a-f]{64}$/D', $recordedSha) !== 1
+            || !hash_equals($recordedSha, $actualSha)) {
+            throw new RuntimeException('Записанный manifest внешнего updater runtime не прошёл SHA-256');
+        }
+
+        $verified = $this->verifyRuntime($runtimeReal, $bytes, $actualSha);
+        if ((int) $verified['source_version_code'] !== $expectedSourceVersionCode) {
+            throw new RuntimeException('Внешний updater runtime относится к другой исходной версии транзакции');
+        }
+        if (!hash_equals(
+            UpdatePath::normalize((string) $recorded['entrypoint']),
+            UpdatePath::normalize((string) $verified['entrypoint'])
+        )) {
+            throw new RuntimeException('Journal указывает на другой entrypoint внешнего updater runtime');
+        }
+
+        return $verified;
+    }
+
+    /**
      * @return array{
      *   runtime_root:string,
      *   entrypoint:string,
