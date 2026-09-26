@@ -19,6 +19,9 @@ use RuntimeException;
  */
 final class UpdateDatabaseRestorer
 {
+    /** @var array<string,array<string,true>> */
+    private array $jsonColumnsCache = [];
+
     /**
      * @param array<string,mixed> $databaseMetadata
      * @return array<string,mixed>
@@ -60,6 +63,7 @@ final class UpdateDatabaseRestorer
         $this->dropCurrentDatabaseObjects($db);
         foreach ($this->parseSqlStatements($sql) as $index => $statement) {
             try {
+                $statement = $this->normalizeLegacyJsonInsert($db, $statement);
                 $result = $db->query($statement);
                 if ($result instanceof mysqli_result) {
                     $result->free();
@@ -183,6 +187,154 @@ final class UpdateDatabaseRestorer
         }
 
         return $statements;
+    }
+
+    /**
+     * Старые rollback-дампы mysql-sql-v1 записывали все строки как X'HEX'.
+     * Для JSON MySQL трактует такой литерал как binary и отказывает в загрузке.
+     * Сам проверенный backup не меняем: преобразуем только JSON-значения
+     * непосредственно перед выполнением INSERT.
+     */
+    private function normalizeLegacyJsonInsert(mysqli $db, string $statement): string
+    {
+        if (
+            preg_match(
+                '/^INSERT INTO `((?:``|[^`])+)` \\((.+)\\) VALUES \\((.*)\\)$/s',
+                $statement,
+                $match
+            ) !== 1
+        ) {
+            return $statement;
+        }
+
+        $table = str_replace('``', '`', $match[1]);
+        $columnCount = preg_match_all('/`((?:``|[^`])+)`/', $match[2], $columnMatches);
+        if (!is_int($columnCount) || $columnCount < 1) {
+            throw new RuntimeException("Не удалось разобрать колонки rollback INSERT для таблицы {$table}");
+        }
+
+        $columns = array_map(
+            static fn (string $name): string => str_replace('``', '`', $name),
+            $columnMatches[1]
+        );
+        $values = $this->splitSerializedValues($match[3]);
+        if (count($columns) !== count($values)) {
+            throw new RuntimeException("Количество колонок и значений rollback INSERT не совпадает для таблицы {$table}");
+        }
+
+        $jsonColumns = $this->jsonColumns($db, $table);
+        if ($jsonColumns === []) {
+            return $statement;
+        }
+
+        foreach ($columns as $index => $column) {
+            if (!isset($jsonColumns[$column])) {
+                continue;
+            }
+
+            $value = $values[$index];
+            if ($value === 'NULL' || preg_match("/^CONVERT\\(X'[0-9A-F]*' USING utf8mb4\\)$/Di", $value) === 1) {
+                continue;
+            }
+
+            if (preg_match("/^X'[0-9A-F]*'$/D", $value) !== 1) {
+                throw new RuntimeException(
+                    "Legacy rollback содержит неподдерживаемое JSON-значение {$table}.{$column}"
+                );
+            }
+
+            $values[$index] = 'CONVERT(' . $value . ' USING utf8mb4)';
+        }
+
+        return 'INSERT INTO '
+            . $this->quoteIdentifier($table)
+            . ' (' . $match[2] . ') VALUES ('
+            . implode(',', $values)
+            . ')';
+    }
+
+    /** @return array<string,true> */
+    private function jsonColumns(mysqli $db, string $table): array
+    {
+        if (array_key_exists($table, $this->jsonColumnsCache)) {
+            return $this->jsonColumnsCache[$table];
+        }
+
+        $escapedTable = $db->real_escape_string($table);
+        $result = $db->query(
+            "SELECT COLUMN_NAME FROM information_schema.columns "
+            . "WHERE table_schema=DATABASE() "
+            . "AND table_name='{$escapedTable}' "
+            . "AND data_type='json' ORDER BY ORDINAL_POSITION"
+        );
+
+        $columns = [];
+        while ($row = $result->fetch_assoc()) {
+            $name = (string) ($row['COLUMN_NAME'] ?? '');
+            if ($name !== '') {
+                $columns[$name] = true;
+            }
+        }
+        $result->free();
+
+        $this->jsonColumnsCache[$table] = $columns;
+        return $columns;
+    }
+
+    /** @return list<string> */
+    private function splitSerializedValues(string $input): array
+    {
+        $values = [];
+        $buffer = '';
+        $depth = 0;
+        $quoted = false;
+        $length = strlen($input);
+
+        for ($index = 0; $index < $length; $index++) {
+            $char = $input[$index];
+
+            if ($char === "'") {
+                $quoted = !$quoted;
+                $buffer .= $char;
+                continue;
+            }
+
+            if (!$quoted && $char === '(') {
+                $depth++;
+                $buffer .= $char;
+                continue;
+            }
+
+            if (!$quoted && $char === ')') {
+                $depth--;
+                if ($depth < 0) {
+                    throw new RuntimeException('Rollback INSERT содержит несбалансированные скобки');
+                }
+                $buffer .= $char;
+                continue;
+            }
+
+            if (!$quoted && $depth === 0 && $char === ',') {
+                $values[] = trim($buffer);
+                $buffer = '';
+                continue;
+            }
+
+            $buffer .= $char;
+        }
+
+        if ($quoted || $depth !== 0) {
+            throw new RuntimeException('Rollback INSERT содержит незавершённое значение');
+        }
+
+        $values[] = trim($buffer);
+        foreach ($values as $value) {
+            if ($value === '') {
+                throw new RuntimeException('Rollback INSERT содержит пустое значение');
+            }
+        }
+
+        return $values;
     }
 
     /** @return array{tables:int,triggers:int} */
