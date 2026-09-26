@@ -44,6 +44,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $paths = @(
             'core/UpdatePath.php',
+            'core/PrivateStorageResolver.php',
             'core/UpdateManifestVerifier.php',
             'core/UpdatePackageStager.php',
             'core/UpdateArchiveInspector.php',
@@ -86,6 +87,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $tests = @(
+            'tests/integration/private_storage_resolver_contract.php',
             'tests/integration/signed_update_foundation_contract.php',
             'tests/integration/updater_remote_delivery_contract.php',
             'tests/integration/update_release_candidate_contract.php',
