@@ -100,10 +100,13 @@ try {
         $responseHeaders = $http_response_header;
         preg_match('~HTTP/\S+ (\d+)~', $responseHeaders[0], $status);
         $flat = strtolower(implode("\n", $responseHeaders));
-        preg_match_all('/^cache-control:\\s*(.+)$/mi', $flat, $cacheMatches);
         $cacheDirectives = [];
-        foreach ($cacheMatches[1] ?? [] as $cacheValue) {
-            foreach (explode(',', (string) $cacheValue) as $directive) {
+        foreach ($responseHeaders as $headerLine) {
+            if (stripos((string) $headerLine, 'Cache-Control:') !== 0) {
+                continue;
+            }
+            $cacheValue = trim(substr((string) $headerLine, strlen('Cache-Control:')));
+            foreach (explode(',', $cacheValue) as $directive) {
                 $directive = trim(strtolower($directive));
                 if ($directive !== '') {
                     $cacheDirectives[$directive] = true;
@@ -112,7 +115,7 @@ try {
         }
         httpAccessAssert(
             isset($cacheDirectives['no-store'], $cacheDirectives['private']),
-            'Приватные артефакты должны запрещать кеширование независимо от порядка директив Cache-Control'
+            'Приватные артефакты должны запрещать кеширование: ' . implode(' | ', $responseHeaders)
         );
         preg_match('/content-length: (\d+)/', $flat, $length);
         httpAccessAssert(isset($length[1]) && (int) $length[1] === strlen($response), 'Exact Content-Length');
