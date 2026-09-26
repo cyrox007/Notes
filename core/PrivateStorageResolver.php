@@ -73,13 +73,26 @@ final class PrivateStorageResolver
         );
     }
 
+    public function explicitCandidate(string $path): string
+    {
+        return $this->validateCandidate($path);
+    }
+
     /**
      * Создаёт private storage при необходимости и возвращает realpath.
      */
     public function prepare(): string
     {
-        $candidate = $this->candidate();
+        return $this->prepareCandidate($this->candidate());
+    }
 
+    public function prepareExplicit(string $path): string
+    {
+        return $this->prepareCandidate($this->validateCandidate($path));
+    }
+
+    private function prepareCandidate(string $candidate): string
+    {
         if (!is_dir($candidate)) {
             $oldUmask = umask(0077);
             $created = @mkdir($candidate, 0700, true);
