@@ -127,6 +127,7 @@ jobs:
           LIVE_APPLY_CONTRACT_TAG: php-${{ matrix.php }}
         run: |
           php tests/integration/updater_live_apply_contract.php
+          php tests/integration/updater_file_rollback_contract.php
           php tests/integration/updater_live_permissions_contract.php
           php tests/integration/updater_recovery_invariants_contract.php
           php tests/integration/updater_operator_flow_contract.php

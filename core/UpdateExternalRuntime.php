@@ -29,6 +29,7 @@ final class UpdateExternalRuntime
         'core/Environment.php',
         'core/Version.php',
         'core/UpdatePath.php',
+        'core/UpdateFileMutator.php',
         'core/UpdateTransactionJournal.php',
         'core/UpdateTransactionStateMachine.php',
         'core/UpdateBackupManager.php',
