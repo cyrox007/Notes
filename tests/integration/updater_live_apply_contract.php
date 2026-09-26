@@ -269,8 +269,8 @@ try {
 
     $machine = new UpdateTransactionStateMachine($stateRoot, $live);
 
-    // Переходный мост 1.0.5 → 1.0.6 должен уметь привязать внешний runtime
-    // сразу после проверенной резервной точки. Candidate затем повторно
+    // Контур updater 1.0.6+ должен уметь привязать внешний runtime сразу
+    // после проверенной резервной точки. Candidate затем повторно
     // проверяется новым apply и фиксируется в этом же журнале.
     $runtimeDir = $temp . '/external-runtime';
     liveApplyAssert(mkdir($runtimeDir, 0700), 'не удалось создать тестовый внешний runtime');
