@@ -291,6 +291,7 @@ jobs:
 
           test -s "$PRIVATE_KEY"
           test -n "$PUBLIC_KEY"
+          mkdir -p "$FEED_ROOT/stable"
           rm -rf "$FUTURE"
           mkdir -p "$FUTURE"
           rsync -a "$GITHUB_WORKSPACE/" "$FUTURE/" \
