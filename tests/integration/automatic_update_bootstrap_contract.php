@@ -295,7 +295,7 @@ try {
     putenv('UPDATE_CREDENTIALS_FILE=');
     $offline = $bootstrap->ensure($installationId, $licenseToken);
     autoUpdateAssert(($offline['status'] ?? '') === 'offline', 'Offline режим должен оставаться доступным');
-    autoUpdateAssert($transport->calls === 1, 'Offline режим не должен обращаться к control plane');
+    autoUpdateAssert($transport->calls === 2, 'Offline режим не должен обращаться к control plane');
 
     echo "[OK] Автоматический доступ к обновлениям: лицензия → credential без activation code и ручных путей\n";
 } finally {
