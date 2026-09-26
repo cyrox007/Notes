@@ -45,6 +45,7 @@ jobs:
           $paths = @(
             'core/UpdatePath.php',
             'core/PrivateStorageResolver.php',
+            'core/UpdateExternalRuntime.php',
             'core/UpdateManifestVerifier.php',
             'core/UpdatePackageStager.php',
             'core/UpdateArchiveInspector.php',
@@ -65,6 +66,7 @@ jobs:
             'bin/update_backup.php',
             'bin/update_candidate.php',
             'bin/update_apply.php',
+            'bin/update_external_apply.php',
             'bin/update_run.php',
             'bin/update_doctor.php',
             'bin/update_retention.php',
@@ -88,6 +90,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $tests = @(
             'tests/integration/private_storage_resolver_contract.php',
+            'tests/integration/external_update_runtime_contract.php',
             'tests/integration/signed_update_foundation_contract.php',
             'tests/integration/updater_remote_delivery_contract.php',
             'tests/integration/update_release_candidate_contract.php',
