@@ -24,6 +24,7 @@ use App\Services\LicenseService;
 use Core\UpdateAccessBootstrap;
 use Core\UpdateArchiveInspector;
 use Core\UpdateDownloadCredentials;
+use Core\UpdateCredentialRefreshingTransport;
 use Core\UpdateHttpsTransport;
 use Core\UpdateManifestVerifier;
 use Core\UpdatePackageStager;
@@ -107,10 +108,16 @@ try {
         );
     }
 
+    $transport = new UpdateCredentialRefreshingTransport(
+        static fn () => UpdateHttpsTransport::fromEnvironment(),
+        static function (): void {
+            (new LicenseService())->refreshUpdateAccess();
+        }
+    );
     $delivery = new UpdateRemoteDelivery(
         $root,
         $verifier,
-        UpdateHttpsTransport::fromEnvironment(),
+        $transport,
         new UpdatePackageStager($root),
         new UpdateArchiveInspector()
     );
