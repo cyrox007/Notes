@@ -12,11 +12,17 @@ require_once $root . '/core/Environment.php';
 if (is_file($root . '/.env')) {
     \Core\Environment::load($root . '/.env');
 }
+require_once $root . '/core/Version.php';
 require_once $root . '/core/UpdateProcessRunner.php';
+require_once $root . '/core/UpdateTransactionJournal.php';
+require_once $root . '/core/UpdateCoordinatorLock.php';
 require_once $root . '/app/services/MaintenanceModeService.php';
 
 use App\Services\MaintenanceModeService;
+use Core\UpdateCoordinatorLock;
 use Core\UpdateProcessRunner;
+use Core\UpdateTransactionJournal;
+use Core\Version;
 
 $options = getopt('', [
     'transaction:',
@@ -49,6 +55,24 @@ if (isset($options['help'])) {
 }
 
 $json = isset($options['json']);
+
+/**
+ * Ошибка дочерней команды с сохранённым машинным JSON-ответом.
+ *
+ * Код верхнего уровня использует payload, чтобы отличать уже проверенный откат
+ * от действительно незавершённого восстановления после сбоя процесса.
+ */
+final class UpdateRunSubprocessException extends RuntimeException
+{
+    /** @param array<string,mixed> $payload */
+    public function __construct(
+        string $message,
+        int $exitCode,
+        public readonly array $payload = []
+    ) {
+        parent::__construct($message, $exitCode);
+    }
+}
 
 /** @return never */
 function updateRunFail(string $message, string $code = 'update_run_failed', int $exitCode = 1, array $details = []): never
@@ -92,7 +116,11 @@ function updateRunJsonCommand(
         $code = is_array($payload) && is_string($payload['code'] ?? null)
             ? $payload['code']
             : 'subprocess_failed';
-        throw new RuntimeException($label . ': ' . $message, $result['code'] > 0 ? $result['code'] : 1);
+        throw new UpdateRunSubprocessException(
+            $label . ': ' . $message,
+            $result['code'] > 0 ? $result['code'] : 1,
+            is_array($payload) ? $payload : []
+        );
     }
     if (!is_array($payload)) {
         throw new RuntimeException($label . ': команда вернула некорректный JSON');
@@ -113,6 +141,57 @@ function updateRunAppendOption(array &$command, array $options, string $name): v
     if ($value !== '') {
         $command[] = '--' . $name . '=' . $value;
     }
+}
+
+/**
+ * Пытается автоматически восстановить транзакцию после ошибки применения.
+ *
+ * Восстановление возобновляемое по журналу, поэтому повторные попытки безопасны:
+ * каждая продолжает уже зафиксированное состояние, а не начинает откат заново.
+ *
+ * @return array<string,mixed>
+ */
+function updateRunAutomaticRecover(
+    UpdateProcessRunner $runner,
+    array $options,
+    string $transactionId,
+    string $root,
+    int $attempts = 3
+): array {
+    $errors = [];
+
+    for ($attempt = 1; $attempt <= $attempts; $attempt++) {
+        try {
+            $command = updateRunBaseCommand('update_apply.php');
+            $command[] = '--transaction=' . $transactionId;
+            $command[] = '--recover';
+            $command[] = '--json';
+            updateRunAppendOption($command, $options, 'state-root');
+            updateRunAppendOption($command, $options, 'backup-root');
+
+            $result = updateRunJsonCommand(
+                $runner,
+                $command,
+                $root,
+                1200,
+                'автоматическое восстановление'
+            );
+            $result['automatic_recovery_attempt'] = $attempt;
+            return $result;
+        } catch (Throwable $recoveryError) {
+            $errors[] = 'попытка ' . $attempt . ': ' . $recoveryError->getMessage();
+            if ($attempt < $attempts) {
+                sleep(2);
+            }
+        }
+    }
+
+    throw new RuntimeException(
+        'Автоматическое восстановление не завершилось после '
+        . $attempts
+        . ' попыток: '
+        . implode('; ', $errors)
+    );
 }
 
 if (!isset($options['yes'])) {
@@ -223,6 +302,44 @@ try {
     }
 
     $maintenance = new MaintenanceModeService($stateRoot !== '' ? $stateRoot : null, $root);
+    $resolvedStateRoot = $maintenance->configuredStateRoot();
+    if (!is_string($resolvedStateRoot) || trim($resolvedStateRoot) === '') {
+        throw new RuntimeException('Не удалось определить внешний каталог журнала обновления');
+    }
+    $stateRoot = rtrim($resolvedStateRoot, '/\\');
+    $options['state-root'] = $stateRoot;
+
+    $targetVersion = trim((string) ($staged['target_version'] ?? ''));
+    $targetVersionCode = (int) ($staged['target_version_code'] ?? 0);
+    $packageSha256 = strtolower(trim((string) ($staged['package_sha256'] ?? '')));
+    if ($targetVersion === ''
+        || $targetVersionCode <= Version::VERSION_CODE
+        || preg_match('/^[0-9a-f]{64}$/', $packageSha256) !== 1) {
+        throw new RuntimeException('Подготовленный пакет не содержит корректную идентичность транзакции');
+    }
+
+    // Журнал создаётся до maintenance. Поэтому даже аварийное завершение между
+    // включением обслуживания и резервным копированием имеет безопасное
+    // pre-live состояние, которое следующий запрос сможет закрыть автоматически.
+    $journal = new UpdateTransactionJournal($stateRoot, $root);
+    $journalState = $journal->initialize([
+        'transaction_id' => $transactionId,
+        'installed_version' => Version::VERSION,
+        'installed_version_code' => Version::VERSION_CODE,
+        'target_version' => $targetVersion,
+        'target_version_code' => $targetVersionCode,
+        'package_sha256' => $packageSha256,
+        'stage_dir' => $stageDir,
+    ]);
+    if (($journalState['live_mutation_started'] ?? true) !== false) {
+        throw new RuntimeException('Транзакция уже пересекла destructive boundary');
+    }
+
+    // Coordinator-lock удерживается родительским updater на всём участке,
+    // где maintenance уже может быть виден другим HTTP-запросам. При гибели
+    // процесса flock освобождается ОС, и boot-recovery получает право продолжить.
+    $coordinatorLock = new UpdateCoordinatorLock($stateRoot, $transactionId);
+
     $maintenance->enter($transactionId, 'Обновление Workspace Organizer');
     $maintenanceEntered = true;
 
@@ -290,7 +407,7 @@ try {
             $maintenance->leave($transactionId);
         } catch (Throwable $leaveError) {
             updateRunFail(
-                $e->getMessage() . '; additionally failed to release pre-mutation maintenance: ' . $leaveError->getMessage(),
+                $e->getMessage() . '; дополнительно не удалось снять pre-mutation maintenance: ' . $leaveError->getMessage(),
                 'preapply_cleanup_failed',
                 max(1, (int) $e->getCode()),
                 ['transaction_id' => $transactionId, 'maintenance_may_be_active' => true]
@@ -298,16 +415,119 @@ try {
         }
     }
 
+    if ($applyInvoked) {
+        $applyPayload = $e instanceof UpdateRunSubprocessException ? $e->payload : [];
+        $applyErrorCode = (string) ($applyPayload['code'] ?? '');
+        $maintenanceActive = ($applyPayload['maintenance_active'] ?? null) === true;
+
+        // Штатный UpdateApplyCommand уже выполнил и проверил откат. Повторный
+        // --recover здесь не нужен и после снятия maintenance был бы ошибкой.
+        if ($applyErrorCode === 'apply_rolled_back' && !$maintenanceActive) {
+            updateRunFail(
+                'Установка обновления завершилась ошибкой, исходная версия автоматически восстановлена.',
+                'apply_failed_recovered',
+                max(1, (int) $e->getCode()),
+                [
+                    'transaction_id' => $transactionId,
+                    'apply_invoked' => true,
+                    'automatic_recovery' => true,
+                    'recovery_status' => 'rollback_verified',
+                    'recovery_attempt' => 0,
+                    'apply_error' => $e->getMessage(),
+                    'maintenance_may_be_active' => false,
+                ]
+            );
+        }
+
+        // Структурированная ошибка до destructive boundary уже очищена самим
+        // UpdateApplyCommand. Автовосстановление требуется только при активном
+        // maintenance либо при обрыве/таймауте без достоверного JSON-результата.
+        $structuredSafeFailure = $e instanceof UpdateRunSubprocessException
+            && !$maintenanceActive
+            && !in_array($applyErrorCode, ['rollback_failed', 'maintenance_release_failed'], true);
+        if ($structuredSafeFailure) {
+            updateRunFail(
+                $e->getMessage(),
+                'apply_failed_before_mutation',
+                max(1, (int) $e->getCode()),
+                [
+                    'transaction_id' => $transactionId,
+                    'apply_invoked' => true,
+                    'automatic_recovery' => false,
+                    'maintenance_may_be_active' => false,
+                ]
+            );
+        }
+
+        try {
+            $recovery = updateRunAutomaticRecover(
+                $runner,
+                $options,
+                $transactionId,
+                $root
+            );
+            $recoveryStatus = (string) ($recovery['status'] ?? 'recovered');
+
+            // Если применение было committed, а упало только снятие maintenance,
+            // восстановление подтверждает новую версию и завершает исходное
+            // действие как успешное обновление.
+            if ($recoveryStatus === 'committed_recovery_verified') {
+                if ($json) {
+                    echo json_encode([
+                        'status' => 'committed',
+                        'transaction_id' => $transactionId,
+                        'target_version' => $staged['target_version'] ?? null,
+                        'target_version_code' => $staged['target_version_code'] ?? null,
+                        'package_sha256' => $staged['package_sha256'] ?? null,
+                        'apply' => $recovery,
+                        'automatic_recovery' => true,
+                    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
+                } else {
+                    echo "[OK] Обновление установлено и автоматически доведено до рабочего состояния\\n";
+                    echo "Транзакция: {$transactionId}\\n";
+                }
+                exit(0);
+            }
+
+            updateRunFail(
+                'Установка обновления завершилась ошибкой, исходная версия автоматически восстановлена.',
+                'apply_failed_recovered',
+                max(1, (int) $e->getCode()),
+                [
+                    'transaction_id' => $transactionId,
+                    'apply_invoked' => true,
+                    'automatic_recovery' => true,
+                    'recovery_status' => $recoveryStatus,
+                    'recovery_attempt' => (int) ($recovery['automatic_recovery_attempt'] ?? 1),
+                    'apply_error' => $e->getMessage(),
+                    'maintenance_may_be_active' => false,
+                ]
+            );
+        } catch (Throwable $recoveryError) {
+            updateRunFail(
+                'Установка обновления завершилась ошибкой, автоматическое восстановление не удалось завершить: '
+                    . $recoveryError->getMessage(),
+                'automatic_recovery_failed',
+                max(1, (int) $recoveryError->getCode()),
+                [
+                    'transaction_id' => $transactionId,
+                    'apply_invoked' => true,
+                    'automatic_recovery' => false,
+                    'apply_error' => $e->getMessage(),
+                    'maintenance_may_be_active' => true,
+                ]
+            );
+        }
+    }
+
     updateRunFail(
         $e->getMessage(),
-        $applyInvoked ? 'apply_or_rollback_failed' : 'preapply_failed',
+        'preapply_failed',
         max(1, (int) $e->getCode()),
         [
             'transaction_id' => $transactionId,
-            'apply_invoked' => $applyInvoked,
-            'recovery_command' => $applyInvoked
-                ? 'php bin/update_run.php --recover --transaction=' . $transactionId . ' --yes --json'
-                : null,
+            'apply_invoked' => false,
+            'automatic_recovery' => false,
         ]
     );
 }

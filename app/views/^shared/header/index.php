@@ -32,6 +32,68 @@ $avatarUrl = ($avatar === '' || $avatar === 'default_img')
     <div class="navbar__spacer"></div>
 
     <nav class="navbar__actions" aria-label="Пользовательские действия">
+        <?php if (!empty($access['admin'])): ?>
+            <div
+                class="workspace-notifications"
+                data-update-notifications
+                data-update-status-url="<?= $view->e($view->route('admin_updates_status')) ?>"
+            >
+                <button
+                    type="button"
+                    class="navbar__icon-button workspace-notifications__toggle"
+                    data-update-notifications-toggle
+                    aria-expanded="false"
+                    aria-controls="workspaceNotificationsPanel"
+                    aria-label="Уведомления"
+                    title="Уведомления"
+                >
+                    <i class="fa fa-bell-o" aria-hidden="true"></i>
+                    <span class="workspace-notifications__badge" data-update-badge hidden>1</span>
+                </button>
+
+                <section
+                    class="workspace-notifications__panel"
+                    id="workspaceNotificationsPanel"
+                    data-update-notifications-panel
+                    aria-label="Системные уведомления"
+                    hidden
+                >
+                    <header class="workspace-notifications__header">
+                        <strong>Уведомления</strong>
+                        <a href="<?= $view->e($view->route('admin_updates')) ?>">Обновления</a>
+                    </header>
+
+                    <p class="workspace-notifications__empty" data-update-empty>
+                        Новых системных уведомлений нет.
+                    </p>
+
+                    <article class="workspace-notifications__item" data-update-item hidden>
+                        <span class="workspace-notifications__item-icon" aria-hidden="true">
+                            <i class="fa fa-arrow-circle-up"></i>
+                        </span>
+                        <div class="workspace-notifications__item-body">
+                            <strong data-update-title>Доступно обновление</strong>
+                            <p data-update-message>Доступна новая версия Workspace Organizer.</p>
+                            <div class="workspace-notifications__actions">
+                                <form
+                                    action="<?= $view->e($view->route('admin_updates_apply_latest')) ?>"
+                                    method="post"
+                                    data-update-apply-form
+                                    hidden
+                                >
+                                    <?= $view->csrfInput() ?>
+                                    <button type="submit" class="workspace-notifications__apply" data-update-action>
+                                        Обновить
+                                    </button>
+                                </form>
+                                <a href="<?= $view->e($view->route('admin_updates')) ?>">Подробнее</a>
+                            </div>
+                        </div>
+                    </article>
+                </section>
+            </div>
+        <?php endif; ?>
+
         <?php if (!empty($access['profile'])): ?>
             <a class="navbar__profile" href="<?= $view->e($view->route('profile')) ?>" title="Профиль">
                 <img src="<?= $view->e($avatarUrl) ?>" alt="">

@@ -58,12 +58,22 @@ final class UpdateDatabaseRestorer
         }
 
         $this->dropCurrentDatabaseObjects($db);
-        foreach ($this->parseSqlStatements($sql) as $statement) {
-            $result = $db->query($statement);
-            if ($result instanceof mysqli_result) {
-                $result->free();
+        foreach ($this->parseSqlStatements($sql) as $index => $statement) {
+            try {
+                $result = $db->query($statement);
+                if ($result instanceof mysqli_result) {
+                    $result->free();
+                }
+                $this->drainResults($db);
+            } catch (\Throwable $e) {
+                $summary = preg_replace('/\\s+/u', ' ', trim($statement));
+                $summary = is_string($summary) ? mb_substr($summary, 0, 180) : 'неизвестный SQL';
+                throw new RuntimeException(
+                    'Восстановление БД остановилось на SQL #' . ($index + 1) . ': ' . $summary . '; ' . $e->getMessage(),
+                    0,
+                    $e
+                );
             }
-            $this->drainResults($db);
         }
 
         $verified = $this->verifyRestoredDatabase($db, $databaseMetadata);

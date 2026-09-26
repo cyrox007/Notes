@@ -319,7 +319,6 @@ try {
     adminUpdateAssert(($snapshot['can_stage'] ?? false) === true, 'superadmin cannot stage configured signed update');
     adminUpdateAssert(($snapshot['can_apply'] ?? false) === true, 'superadmin cannot apply configured signed update from Admin UI');
     adminUpdateAssert(($snapshot['operator_ready'] ?? false) === true, 'configured updater is not operator-ready');
-    adminUpdateAssert(($snapshot['operator_command'] ?? '') === 'php bin/update_run.php --yes --json', 'operator command changed unexpectedly');
     adminUpdateAssert(($snapshot['feed_label'] ?? '') === 'updates.example.test/stable/feed.json', 'feed label exposes unexpected data');
     adminUpdateAssert(!str_contains((string) $snapshot['feed_label'], 'https://'), 'feed label should be display-only host/path');
 
@@ -355,6 +354,21 @@ try {
     );
     adminUpdateAssert(($capturedApplyCommands[0]['timeout'] ?? 0) === 3600, 'admin UI apply timeout boundary changed');
 
+    $oneClick = $service->applyLatest(42);
+    adminUpdateAssert(($oneClick['status'] ?? '') === 'committed', 'one-click apply did not commit latest signed update');
+    adminUpdateAssert(
+        ($oneClick['target_version_code'] ?? 0) === $reviewedVersionCode,
+        'one-click apply selected unexpected target version'
+    );
+    adminUpdateAssert(
+        hash_equals($reviewedPackageSha256, (string) ($oneClick['package_sha256'] ?? '')),
+        'one-click apply selected unexpected package SHA-256'
+    );
+    adminUpdateAssert(
+        count($capturedApplyCommands) === 2,
+        'one-click apply did not start exactly one additional updater process'
+    );
+
     $ordinarySnapshot = $service->snapshot(43);
     adminUpdateAssert(($ordinarySnapshot['can_check'] ?? false) === true, 'settings manager cannot perform read-only update check');
     adminUpdateAssert(($ordinarySnapshot['can_stage'] ?? true) === false, 'non-superadmin was allowed installation-wide staging');
@@ -370,6 +384,18 @@ try {
     adminUpdateAssert(
         count($capturedApplyCommands) === $applyCountBeforeRejectedAttempt,
         'rejected apply started updater process'
+    );
+
+    $ordinaryLatestRejected = false;
+    try {
+        $service->applyLatest(43);
+    } catch (DomainException $e) {
+        $ordinaryLatestRejected = $e->getCode() === 403;
+    }
+    adminUpdateAssert($ordinaryLatestRejected, 'non-superadmin one-click apply action was not rejected');
+    adminUpdateAssert(
+        count($capturedApplyCommands) === $applyCountBeforeRejectedAttempt,
+        'rejected one-click apply started updater process'
     );
 
     $ordinaryStageRejected = false;
@@ -428,27 +454,41 @@ try {
     adminUpdateAssert(!str_contains($serviceSource, 'UpdateBackupManager'), 'admin service bypasses the operator flow and reaches backup mutation directly');
     adminUpdateAssert(str_contains($serviceSource, 'expectedTargetVersionCode'), 'admin service lost reviewed target version binding');
     adminUpdateAssert(str_contains($serviceSource, 'expectedPackageSha256'), 'admin service lost reviewed package hash binding');
+    adminUpdateAssert(str_contains($serviceSource, 'public function applyLatest'), 'admin service lost one-click update entrypoint');
+    adminUpdateAssert(str_contains($controllerSource, 'public function status'), 'admin controller lost background update status');
+    adminUpdateAssert(str_contains($controllerSource, 'public function applyLatest'), 'admin controller lost one-click update action');
     adminUpdateAssert(str_contains($viewSource, "route('admin_updates_check')"), 'admin update check action is missing');
     adminUpdateAssert(str_contains($viewSource, "route('admin_updates_stage')"), 'admin update stage action is missing');
     adminUpdateAssert(str_contains($viewSource, '$view->csrfInput()'), 'admin update forms lost CSRF token');
     adminUpdateAssert(str_contains($viewSource, "route('admin_updates_apply')"), 'admin update view does not expose reviewed web apply action');
     adminUpdateAssert(str_contains($viewSource, 'Установить обновление'), 'admin update view lost install action copy');
-    adminUpdateAssert(str_contains($viewSource, 'bin/update_run.php --recover'), 'admin update view lost operator recovery guidance');
+    adminUpdateAssert(!str_contains($viewSource, 'bin/update_run.php --recover'), 'admin update view must not require manual recovery command');
     adminUpdateAssert(str_contains($viewSource, '$operatorReady'), 'admin update view lost operator readiness state');
     adminUpdateAssert(
         str_contains($viewSource, 'admin-update-operator__body'),
         'admin update view lost compact operator body'
     );
     adminUpdateAssert(
-        str_contains($viewSource, 'admin-update-command-grid'),
-        'admin update view lost compact CLI command grid'
+        !str_contains($viewSource, 'admin-update-command-grid'),
+        'admin update view must not expose manual CLI command grid'
+    );
+    adminUpdateAssert(
+        str_contains($viewSource, 'Ручные команды не требуются')
+            && str_contains($viewSource, 'следующий запрос автоматически продолжит recovery'),
+        'admin update view does not explain automatic recovery'
     );
     adminUpdateAssert(
         str_contains($viewSource, 'admin-update-safety'),
         'admin update view lost compact safety section'
     );
     adminUpdateAssert(!str_contains($viewSource, 'stage_dir'), 'admin update view exposes absolute stage path');
+    adminUpdateAssert(str_contains($routerSource, "->add('GET', '/updates/status'"), 'background update status route must remain GET/read-only');
     adminUpdateAssert(str_contains($routerSource, "->add('GET', '/updates/check'"), 'admin signed-feed check must remain GET/read-only');
+    adminUpdateAssert(str_contains($routerSource, "->add('POST', '/updates/apply-latest'"), 'one-click apply route must be POST');
+    adminUpdateAssert(
+        str_contains($routerSource, "[LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_apply_latest'"),
+        'one-click apply route lost login/settings/CSRF middleware chain'
+    );
     adminUpdateAssert(str_contains($routerSource, "->add('POST', '/updates/stage'"), 'admin stage route must remain POST');
     adminUpdateAssert(
         str_contains($routerSource, "[LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_stage'"),

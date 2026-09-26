@@ -330,17 +330,35 @@ final class UpdateBackupManager
                 }
 
                 $this->writeAll($handle, "DROP TABLE IF EXISTS {$quotedTable};\n{$createSql};\n");
-                $result = $db->query('SELECT * FROM ' . $quotedTable, MYSQLI_USE_RESULT);
+                $columnMetadata = $this->tableColumns($db, $table);
+                if ($columnMetadata === []) {
+                    throw new RuntimeException("Не удалось определить колонки таблицы {$table} для резервной копии");
+                }
+                $columns = array_map(
+                    fn (array $column): string => $this->quoteIdentifier($column['name']),
+                    $columnMetadata
+                );
+                $result = $db->query(
+                    'SELECT ' . implode(',', $columns) . ' FROM ' . $quotedTable,
+                    MYSQLI_USE_RESULT
+                );
                 if (!$result instanceof mysqli_result) {
-                    throw new RuntimeException("Cannot stream table {$table}");
+                    throw new RuntimeException("Не удалось прочитать таблицу {$table} для резервной копии");
                 }
                 $fields = $result->fetch_fields();
-                $columns = array_map(fn ($field): string => $this->quoteIdentifier((string) $field->name), $fields);
+                if (count($fields) !== count($columnMetadata)) {
+                    throw new RuntimeException("Метаданные колонок таблицы {$table} изменились во время резервного копирования");
+                }
+
                 $rows = 0;
                 while ($row = $result->fetch_row()) {
                     $values = [];
                     foreach ($row as $index => $value) {
-                        $values[] = $this->sqlLiteral($value, (int) $fields[$index]->type);
+                        $values[] = $this->sqlLiteral(
+                            $value,
+                            (int) $fields[$index]->type,
+                            $columnMetadata[$index]['data_type']
+                        );
                     }
                     $this->writeAll(
                         $handle,
@@ -554,7 +572,37 @@ final class UpdateBackupManager
         }
     }
 
-    private function sqlLiteral(mixed $value, int $type): string
+    /**
+     * @return list<array{name:string,data_type:string}>
+     */
+    private function tableColumns(mysqli $db, string $table): array
+    {
+        $escapedTable = $db->real_escape_string($table);
+        $result = $db->query(
+            "SELECT COLUMN_NAME,DATA_TYPE,EXTRA FROM information_schema.columns "
+            . "WHERE table_schema=DATABASE() AND table_name='{$escapedTable}' ORDER BY ORDINAL_POSITION"
+        );
+
+        $columns = [];
+        while ($row = $result->fetch_assoc()) {
+            $extra = strtoupper((string) ($row['EXTRA'] ?? ''));
+            if (str_contains($extra, 'GENERATED')) {
+                continue;
+            }
+            $name = (string) ($row['COLUMN_NAME'] ?? '');
+            $dataType = strtolower((string) ($row['DATA_TYPE'] ?? ''));
+            if ($name === '' || $dataType === '') {
+                $result->free();
+                throw new RuntimeException("Некорректные метаданные колонки таблицы {$table}");
+            }
+            $columns[] = ['name' => $name, 'data_type' => $dataType];
+        }
+        $result->free();
+
+        return $columns;
+    }
+
+    private function sqlLiteral(mixed $value, int $type, string $dataType = ''): string
     {
         if ($value === null) {
             return 'NULL';
@@ -575,7 +623,17 @@ final class UpdateBackupManager
         if (in_array($type, $numericTypes, true) && is_numeric($string)) {
             return $string;
         }
-        return "X'" . strtoupper(bin2hex($string)) . "'";
+
+        $hex = strtoupper(bin2hex($string));
+
+        // Тип JSON дополнительно берём из information_schema: некоторые связки
+        // PHP/mysqlnd сообщают JSON-поле как BLOB, хотя MySQL требует текстовую
+        // кодировку при обратной загрузке значения.
+        if ($dataType === 'json' || $type === MYSQLI_TYPE_JSON) {
+            return "CONVERT(X'{$hex}' USING utf8mb4)";
+        }
+
+        return "X'{$hex}'";
     }
 
     private function quoteIdentifier(string $identifier): string

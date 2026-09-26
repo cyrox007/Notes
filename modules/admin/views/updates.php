@@ -25,8 +25,6 @@ $updateAccessLabel = $updateAccessReady
     ? 'Готов'
     : ($updateAccessAutomatic ? 'Настроится автоматически' : ($updateAccessMode === 'offline' ? 'Отключён' : 'Не готов'));
 $operatorIssues = isset($state['operator_issues']) && is_array($state['operator_issues']) ? $state['operator_issues'] : [];
-$operatorCommand = isset($state['operator_command']) ? (string) $state['operator_command'] : 'php bin/update_run.php --yes --json';
-$doctorCommand = isset($state['doctor_command']) ? (string) $state['doctor_command'] : 'php bin/update_doctor.php --json';
 $checkedUpdateAvailable = $result !== null
     && ($result['kind'] ?? '') === 'check'
     && ($result['status'] ?? '') === 'update_available'
@@ -197,12 +195,12 @@ ob_start();
     <?php endif; ?>
 
     <?php if ($canManageStage): ?>
-        <section class="admin-panel-card admin-update-operator" aria-labelledby="updates-operator-title">
+        <section class="admin-panel-card admin-update-operator" aria-labelledby="updates-recovery-title">
             <div class="admin-panel-card__header">
                 <div>
-                    <span class="admin-panel-card__kicker">Резервный способ</span>
-                    <h2 id="updates-operator-title">CLI и восстановление</h2>
-                    <p>Обычная установка выполняется кнопкой выше. Здесь остаются диагностика и аварийное восстановление.</p>
+                    <span class="admin-panel-card__kicker">Самовосстановление</span>
+                    <h2 id="updates-recovery-title">Ручные команды не требуются</h2>
+                    <p>Неудачное или оборванное обновление восстанавливается тем же транзакционным контуром автоматически.</p>
                 </div>
             </div>
 
@@ -218,21 +216,10 @@ ob_start();
                     </div>
                 <?php endif; ?>
 
-                <div class="admin-update-command-grid">
-                    <div class="admin-update-command">
-                        <strong>Диагностика</strong>
-                        <code><?= $view->e($doctorCommand) ?></code>
-                    </div>
-                    <div class="admin-update-command">
-                        <strong>Ручная установка</strong>
-                        <code><?= $view->e($operatorCommand) ?></code>
-                    </div>
-                </div>
-
                 <p class="admin-update-recovery">
-                    Если установка прервалась после начала изменения рабочих файлов, используйте сохранённый идентификатор транзакции:
-                    <code>php bin/update_run.php --recover --transaction=&lt;id&gt; --yes --json</code>.
-                    Marker режима обслуживания вручную не удаляйте.
+                    При ошибке после изменения рабочих файлов система сама возвращает проверенную предыдущую версию.
+                    Если процесс обновления аварийно завершился, следующий запрос автоматически продолжит recovery по журналу.
+                    Состояние обслуживания и резервные файлы вручную удалять не нужно.
                 </p>
             </div>
         </section>
@@ -251,7 +238,7 @@ ob_start();
             <li>режим обслуживания включается только после успешной проверки и подготовки пакета;</li>
             <li>до изменения рабочих файлов создаются и проверяются rollback backup и журнал транзакции;</li>
             <li>переключение кода и миграции выполняет один существующий транзакционный контур;</li>
-            <li>при ошибке после начала изменения рабочих файлов сохраняется идентификатор для штатного recovery.</li>
+            <li>при ошибке выполняется автоматический rollback, а после аварийного обрыва recovery автоматически продолжается по журналу.</li>
         </ul>
     </section>
 </section>

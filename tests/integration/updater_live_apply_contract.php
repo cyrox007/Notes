@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Services\MaintenanceModeService;
 use Core\UpdateApplyCommand;
 use Core\UpdateBackupManager;
 use Core\UpdateLiveApplier;
@@ -9,6 +10,7 @@ use Core\UpdateTransactionJournal;
 use Core\UpdateTransactionStateMachine;
 
 $root = dirname(__DIR__, 2);
+require_once $root . '/app/services/MaintenanceModeService.php';
 require_once $root . '/core/UpdateApplyCommand.php';
 require_once $root . '/core/UpdateTransactionJournal.php';
 require_once $root . '/core/UpdateTransactionStateMachine.php';
@@ -143,6 +145,7 @@ try {
         'core/Version.php' => "<?php\ndeclare(strict_types=1);\nnamespace Core;\nclass Version { public const VERSION = '{$oldVersion}'; public const VERSION_CODE = {$oldCode}; }\n",
         'core/Old.php' => "<?php echo 'old-core';\n",
         'bin/migrate.php' => "<?php echo 'old-migrate';\n",
+        'bin/healthcheck.php' => "<?php echo json_encode(['status' => 'ok'], JSON_UNESCAPED_SLASHES), PHP_EOL;\n",
     ];
     foreach ($oldFiles as $relative => $bytes) {
         liveApplyWrite($live . '/' . $relative, $bytes);
@@ -315,6 +318,79 @@ try {
         liveApplyAssert((string) ($db->query('SELECT title FROM items WHERE id=1')->fetch_assoc()['title'] ?? '') === $beforeTitle, 'database row content was not restored');
         liveApplyAssert((int) ($db->query('SELECT COUNT(*) AS c FROM items')->fetch_assoc()['c'] ?? -1) === $beforeCount, 'database row count was not restored');
         liveApplyAssert((int) ($db->query("SELECT COUNT(*) AS c FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='migration_leak'")->fetch_assoc()['c'] ?? -1) === 0, 'failed-migration table survived rollback');
+
+        // Сквозной crash-resume: новый процесс recovery должен продолжить
+        // транзакцию после обрыва уже за destructive boundary.
+        $crashTransaction = 'crash-recover-001';
+        $crashStateRoot = $temp . '/crash-state';
+        $crashBackupRoot = $temp . '/crash-backups';
+        liveApplyAssert(mkdir($crashStateRoot, 0700, true), 'unable to create crash recovery state root');
+        liveApplyAssert(mkdir($crashBackupRoot, 0700, true), 'unable to create crash recovery backup root');
+
+        $crashBackupManager = new UpdateBackupManager($crashBackupRoot, $live, [$live . '/uploads']);
+        $crashBackup = $crashBackupManager->create($crashTransaction, $db);
+        $crashJournal = new UpdateTransactionJournal($crashStateRoot, $live);
+        $crashJournal->initialize([
+            'transaction_id' => $crashTransaction,
+            'installed_version' => $oldVersion,
+            'installed_version_code' => $oldCode,
+            'target_version' => $newVersion,
+            'target_version_code' => $newCode,
+            'package_sha256' => str_repeat('c', 64),
+            'stage_dir' => $stageDir,
+        ]);
+        $crashJournal->recordBackups($crashTransaction, $crashBackup);
+
+        $crashMachine = new UpdateTransactionStateMachine($crashStateRoot, $live);
+        $crashMachine->recordCandidate($crashTransaction, [
+            'candidate_dir' => $candidateDir,
+            'tree_manifest' => $candidateDir . '/.workspace-release-tree.json',
+            'tree_sha256' => $candidateMeta['tree_sha256'],
+            'target_version' => $newVersion,
+            'target_version_code' => $newCode,
+            'files' => $candidateMeta['files'],
+            'total_bytes' => $candidateMeta['bytes'],
+        ]);
+        $crashMachine->markPreflightVerified($crashTransaction, [
+            'health_status' => 'ok',
+            'ws_was_running' => false,
+        ]);
+
+        $crashMaintenance = new MaintenanceModeService($crashStateRoot, $live);
+        $crashMaintenance->enter($crashTransaction, 'Проверка recovery после аварийного обрыва');
+        $crashMachine->markLiveMutationStarted($crashTransaction, ['at' => time()]);
+
+        $crashPlan = $applier->prepareCodeSwitch($crashTransaction, $candidateDir, $crashBackup['backup_dir']);
+        $crashSwitch = $applier->switchPrepared($crashPlan);
+        $crashMachine->markCodeSwitched($crashTransaction, $crashSwitch);
+        liveApplyAssert(
+            (string) ($applier->readLiveVersion()['version'] ?? '') === $newVersion,
+            'crash fixture did not cross the live code switch boundary'
+        );
+
+        $db->query("UPDATE items SET title='crash-mutated', metadata=JSON_OBJECT('kind','mutated') WHERE id=1");
+        $db->query('CREATE TABLE crash_recovery_leak (id INT PRIMARY KEY) ENGINE=InnoDB');
+
+        // Здесь исходный updater считается погибшим: catch/rollback не вызываются.
+        // Новый экземпляр команды обязан восстановиться только по durable journal.
+        $recoverCommand = new UpdateApplyCommand($live, true);
+        $recoverResult = $recoverCommand->execute([
+            'recover' => true,
+            'transaction' => $crashTransaction,
+            'state-root' => $crashStateRoot,
+            'backup-root' => $crashBackupRoot,
+        ]);
+
+        liveApplyAssert(($recoverResult['status'] ?? null) === 'rolled_back', 'crash recovery did not finish with rolled_back');
+        $recoveredJournal = $crashMachine->load($crashTransaction);
+        liveApplyAssert(($recoveredJournal['state'] ?? null) === 'rollback_verified', 'crash recovery did not reach rollback_verified');
+        liveApplyAssert(($recoveredJournal['live_mutation_started'] ?? false) === true, 'crash recovery lost destructive-boundary marker');
+        liveApplyAssert(!$crashMaintenance->state()['active'], 'crash recovery left maintenance active');
+        liveApplyAssert((string) ($applier->readLiveVersion()['version'] ?? '') === $oldVersion, 'crash recovery did not restore old code');
+        liveApplyAssert((string) ($db->query('SELECT title FROM items WHERE id=1')->fetch_assoc()['title'] ?? '') === $beforeTitle, 'crash recovery did not restore database row');
+        liveApplyAssert((string) ($db->query("SELECT JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.kind')) AS kind FROM items WHERE id=1")->fetch_assoc()['kind'] ?? '') === 'source', 'crash recovery did not restore JSON data');
+        liveApplyAssert((int) ($db->query("SELECT COUNT(*) AS c FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='crash_recovery_leak'")->fetch_assoc()['c'] ?? -1) === 0, 'crash recovery left migration artifact in database');
+
         $db->close();
     }
 

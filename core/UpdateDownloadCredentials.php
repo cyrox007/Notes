@@ -7,6 +7,7 @@ namespace Core;
 use RuntimeException;
 
 require_once __DIR__ . '/UpdatePath.php';
+require_once __DIR__ . '/Version.php';
 
 /**
  * Учётные данные одной установки для защищённой загрузки обновлений.
@@ -227,6 +228,8 @@ final class UpdateDownloadCredentials
         }
 
         return 'Authorization: Bearer ' . $this->data['token'] . "\r\n"
-            . 'X-Notes-Installation: ' . $this->data['installation_id'] . "\r\n";
+            . 'X-Notes-Installation: ' . $this->data['installation_id'] . "\r\n"
+            . 'X-Notes-Version: ' . Version::VERSION . "\r\n"
+            . 'X-Notes-Version-Code: ' . Version::VERSION_CODE . "\r\n";
     }
 }
