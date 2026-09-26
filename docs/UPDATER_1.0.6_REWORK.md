@@ -214,9 +214,9 @@ HTTP 401 остаётся сигналом для однократного ав�
 - [x] type-aware SQL dump;
 - [x] JSON/BLOB/TEXT round-trip;
 - [x] compatibility restore старого mysql-sql-v1;
-- [ ] MySQL 8 и поддерживаемая MariaDB в тестах.
+- [x] MySQL 8 и поддерживаемая MariaDB в тестах.
 
-MySQL 8.4 уже входит в обязательный backup gate. Для MariaDB 10.11 добавлен отдельный обязательный job с тем же новым и legacy rollback-контрактом; пункт считается окончательно закрытым после его зелёного прогона в CI.
+MySQL 8.4 входит в обязательный backup gate. Отдельный job MariaDB 10.11 с тем же новым и legacy rollback-контрактом успешно прошёл в CI; контракт backup/restore подтверждён для обеих поддерживаемых СУБД.
 
 ### Этап F — recovery и UX
 
