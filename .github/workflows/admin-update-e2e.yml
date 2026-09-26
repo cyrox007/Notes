@@ -303,7 +303,7 @@ jobs:
 
           test "$(php -r "require '$TARGET/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.5'
           test "$(php -r "require '$TARGET/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10005'
-          grep -Fq "public const RELEASE_DATE = '2026-09-24';" "$TARGET/core/Version.php"
+          grep -Fq "public const RELEASE_DATE = '2026-09-26';" "$TARGET/core/Version.php"
           test ! -e "$TARGET/.env"
           test ! -e "$TARGET/tools/vendor-update"
 
