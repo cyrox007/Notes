@@ -61,7 +61,7 @@ jobs:
             --repo "${{ github.repository }}" \
             --clobber
 
-      - name: Обновить описание релиза
+      - name: Сделать 1.0.5 последним релизом и обновить описание
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -70,4 +70,5 @@ jobs:
           gh release edit v1.0.5 \
             --repo "${{ github.repository }}" \
             --title "Workspace Organizer 1.0.5" \
-            --notes-file docs/releases/v1.0.5.md
+            --notes-file docs/releases/v1.0.5.md \
+            --latest
