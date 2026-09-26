@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [master, '1.0']
   push:
-    branches: [master]
+    branches: [master, '1.0']
   workflow_dispatch:
 
 permissions:
@@ -140,9 +140,9 @@ jobs:
           test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.5'
           test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10005'
           test "$(php -r "require 'core/Version.php'; echo Core\\Version::STATUS;")" = 'stable'
-          test "$(php -r "require 'core/Version.php'; echo Core\\Version::RELEASE_DATE;")" = '2026-09-24'
+          test "$(php -r "require 'core/Version.php'; echo Core\\Version::RELEASE_DATE;")" = '2026-09-26'
           grep -Fq '**Версия:** `1.0.5`' README.md
-          grep -Fq '## 1.0.5 — 2026-09-24' CHANGELOG.md
+          grep -Fq '## 1.0.5 — 2026-09-26' CHANGELOG.md
           test -s docs/releases/v1.0.5.md
           grep -Fq '# Workspace Organizer 1.0.5' docs/releases/v1.0.5.md
 
