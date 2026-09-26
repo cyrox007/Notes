@@ -71,6 +71,57 @@ final class UpdateTransactionStateMachine
         );
     }
 
+    /**
+     * Привязывает проверенный внешний updater runtime к транзакции до
+     * destructive boundary. Состояние candidate_verified при этом не меняется.
+     *
+     * @param array<string,mixed> $runtime
+     * @return array<string,mixed>
+     */
+    public function attachExternalRuntime(string $transactionId, array $runtime): array
+    {
+        $runtime = $this->validateExternalRuntime($runtime);
+
+        return $this->withLock(function () use ($transactionId, $runtime): array {
+            $path = $this->journal->path($transactionId);
+            $journal = $this->readPath($path);
+            $state = (string) ($journal['state'] ?? '');
+
+            if ($state !== 'candidate_verified') {
+                throw new RuntimeException(
+                    "Внешний updater runtime можно привязать только из candidate_verified, текущее состояние: {$state}"
+                );
+            }
+            if (($journal['live_mutation_started'] ?? true) !== false) {
+                throw new RuntimeException('Нельзя привязать внешний updater runtime после destructive boundary');
+            }
+            if ((int) ($journal['installed_version_code'] ?? -1) !== (int) $runtime['source_version_code']) {
+                throw new RuntimeException('Внешний updater runtime относится к другой исходной версии');
+            }
+
+            if (isset($journal['external_runtime'])) {
+                if ($journal['external_runtime'] !== $runtime) {
+                    throw new RuntimeException('Транзакция уже привязана к другому внешнему updater runtime');
+                }
+                return $journal;
+            }
+
+            $journal['external_runtime'] = $runtime;
+            $now = time();
+            $journal['updated_at'] = $now;
+            $history = is_array($journal['history'] ?? null) ? $journal['history'] : [];
+            $history[] = [
+                'at' => $now,
+                'state' => $state,
+                'note' => 'Проверенный внешний updater runtime привязан до destructive boundary',
+            ];
+            $journal['history'] = $history;
+
+            $this->writeAtomic($path, $journal);
+            return $this->readPath($path);
+        });
+    }
+
     /** @param array<string,mixed> $preflight @return array<string,mixed> */
     public function markPreflightVerified(string $transactionId, array $preflight): array
     {
@@ -199,6 +250,63 @@ final class UpdateTransactionStateMachine
             $this->writeAtomic($path, $journal);
             return $this->readPath($path);
         });
+    }
+
+    /** @param array<string,mixed> $runtime @return array<string,mixed> */
+    private function validateExternalRuntime(array $runtime): array
+    {
+        foreach (['runtime_root', 'entrypoint', 'manifest', 'manifest_sha256', 'source_version', 'source_version_code', 'files'] as $key) {
+            if (!array_key_exists($key, $runtime)) {
+                throw new RuntimeException("Метаданные внешнего updater runtime не содержат {$key}");
+            }
+        }
+
+        $runtimeRoot = realpath((string) $runtime['runtime_root']);
+        $entrypoint = realpath((string) $runtime['entrypoint']);
+        $manifest = realpath((string) $runtime['manifest']);
+        if (!is_string($runtimeRoot) || !is_dir($runtimeRoot) || is_link((string) $runtime['runtime_root'])) {
+            throw new RuntimeException('Каталог внешнего updater runtime отсутствует или небезопасен');
+        }
+        $runtimeRoot = $this->normalize($runtimeRoot);
+        if ($this->inside($runtimeRoot, $this->appRoot)) {
+            throw new RuntimeException('Внешний updater runtime должен находиться вне live-tree');
+        }
+
+        if (!is_string($entrypoint) || !is_file($entrypoint) || is_link((string) $runtime['entrypoint'])) {
+            throw new RuntimeException('Entrypoint внешнего updater runtime отсутствует или небезопасен');
+        }
+        if (!is_string($manifest) || !is_file($manifest) || is_link((string) $runtime['manifest'])) {
+            throw new RuntimeException('Manifest внешнего updater runtime отсутствует или небезопасен');
+        }
+        if (!$this->inside($this->normalize($entrypoint), $runtimeRoot)
+            || !$this->inside($this->normalize($manifest), $runtimeRoot)) {
+            throw new RuntimeException('Файлы внешнего updater runtime вышли за границу runtime-каталога');
+        }
+
+        $manifestSha = strtolower(trim((string) $runtime['manifest_sha256']));
+        $actualSha = hash_file('sha256', $manifest);
+        if (preg_match('/^[0-9a-f]{64}$/D', $manifestSha) !== 1
+            || !is_string($actualSha)
+            || !hash_equals($manifestSha, $actualSha)) {
+            throw new RuntimeException('SHA-256 manifest внешнего updater runtime не совпадает');
+        }
+
+        $sourceVersion = trim((string) $runtime['source_version']);
+        $sourceVersionCode = (int) $runtime['source_version_code'];
+        $files = (int) $runtime['files'];
+        if ($sourceVersion === '' || $sourceVersionCode < 1 || $files < 1) {
+            throw new RuntimeException('Идентичность внешнего updater runtime некорректна');
+        }
+
+        return [
+            'runtime_root' => $runtimeRoot,
+            'entrypoint' => $this->normalize($entrypoint),
+            'manifest' => $this->normalize($manifest),
+            'manifest_sha256' => $manifestSha,
+            'source_version' => $sourceVersion,
+            'source_version_code' => $sourceVersionCode,
+            'files' => $files,
+        ];
     }
 
     /** @param array<string,mixed> $candidate @return array<string,mixed> */
