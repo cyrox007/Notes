@@ -118,18 +118,12 @@ final class UpdateCredentialRefreshingTransport implements UpdateRemoteTransport
 }
 
 /**
- * Small vendor-free HTTPS transport for signed update artifacts.
+ * Минимальный HTTPS-транспорт для подписанных артефактов обновления.
  *
- * Deliberate constraints:
- * - HTTPS only, port 443 only;
- * - public DNS host names only (no literal/private/special-use addresses);
- * - DNS is resolved first and the checked address is pinned for the TLS socket;
- * - certificate + peer-name verification is mandatory;
- * - redirects, transfer-encoding and content-encoding are rejected;
- * - Content-Length is mandatory so every response is bounded before reading;
- * - request targets containing raw ASCII controls or spaces are rejected.
- *
- * The updater does not need ext-curl and does not depend on allow_url_fopen.
+ * Ограничения намеренно жёсткие: только HTTPS/443 и публичные DNS-имена,
+ * проверенный адрес закрепляется за TLS-соединением, сертификат и имя узла
+ * обязательны, перенаправления и сжатие запрещены, а каждый ответ ограничен
+ * Content-Length до чтения тела. ext-curl и allow_url_fopen не требуются.
  */
 final class UpdateHttpsTransport implements UpdateRemoteTransport, UpdateAccessActivationTransport
 {
@@ -403,7 +397,7 @@ final class UpdateHttpsTransport implements UpdateRemoteTransport, UpdateAccessA
                     throw new RuntimeException('Remote update server redirects are not allowed');
                 }
                 if ($status === 401 || $status === 403) {
-                    throw new RuntimeException('Сервер отказал в доступе к обновлениям: проверьте активацию и право лицензии на обновления', $status);
+                    throw $this->accessDeniedException($stream, $headers, $status);
                 }
                 throw new RuntimeException("Remote update server returned HTTP {$status}");
             }
@@ -428,6 +422,80 @@ final class UpdateHttpsTransport implements UpdateRemoteTransport, UpdateAccessA
             fclose($stream);
             throw $e;
         }
+    }
+
+    /**
+     * Читает только ограниченный JSON-ответ отказа и принимает только известные
+     * коды причин. Произвольный текст сервера наружу не передаётся.
+     *
+     * @param resource $stream
+     * @param array<string,string> $headers
+     */
+    private function accessDeniedException($stream, array $headers, int $status): RuntimeException
+    {
+        $reason = $this->readAccessDeniedReason($stream, $headers);
+
+        if ($status === 401) {
+            return new RuntimeException(
+                'Сервер отклонил updater credential; при действующей лицензии доступ будет восстановлен автоматически',
+                401
+            );
+        }
+
+        $message = match ($reason) {
+            'license_revoked' => 'Лицензия отозвана: доступ к обновлениям запрещён сервером.',
+            'updates_expired' => 'Срок доступа лицензии к обновлениям истёк.',
+            'version_not_entitled' => 'Запрошенная версия выше разрешённой для этой лицензии.',
+            'license_invalid' => 'Лицензия не прошла проверку сервера обновлений.',
+            default => 'Сервер запретил доступ к обновлениям для этой лицензии.',
+        };
+
+        return new RuntimeException($message, 403);
+    }
+
+    /**
+     * @param resource $stream
+     * @param array<string,string> $headers
+     */
+    private function readAccessDeniedReason($stream, array $headers): ?string
+    {
+        $contentType = strtolower(trim((string) ($headers['content-type'] ?? '')));
+        $length = trim((string) ($headers['content-length'] ?? ''));
+        if (
+            !str_starts_with($contentType, 'application/json')
+            || preg_match('/^[1-9][0-9]{0,3}$/D', $length) !== 1
+        ) {
+            return null;
+        }
+
+        $lengthInt = (int) $length;
+        if ($lengthInt < 1 || $lengthInt > 4096) {
+            return null;
+        }
+
+        try {
+            $payload = json_decode(
+                $this->readExactString($stream, $lengthInt),
+                true,
+                8,
+                JSON_THROW_ON_ERROR
+            );
+        } catch (Throwable) {
+            return null;
+        }
+
+        $reason = is_array($payload) && !array_is_list($payload)
+            ? (string) ($payload['reason'] ?? '')
+            : '';
+
+        return in_array($reason, [
+            'credential_invalid',
+            'license_revoked',
+            'updates_expired',
+            'version_not_entitled',
+            'license_invalid',
+            'update_access_denied',
+        ], true) ? $reason : null;
     }
 
     /** @return array{host:string,request_target:string} */

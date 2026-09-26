@@ -86,10 +86,28 @@ try {
 } catch (Throwable $e) {
     $status = in_array($e->getCode(), [400, 401, 403, 404, 413, 503], true) ? $e->getCode() : 503;
     http_response_code($status);
-    $body = json_encode(['error' => match ($status) {
-        401 => 'authentication_required', 403 => 'update_access_denied', 404 => 'not_found',
-        400, 413 => 'invalid_request', default => 'service_unavailable',
-    }], JSON_THROW_ON_ERROR);
+
+    $payload = ['error' => match ($status) {
+        401 => 'authentication_required',
+        403 => 'update_access_denied',
+        404 => 'not_found',
+        400, 413 => 'invalid_request',
+        default => 'service_unavailable',
+    }];
+
+    if ($status === 401) {
+        $payload['reason'] = 'credential_invalid';
+    } elseif ($status === 403) {
+        $payload['reason'] = match ($e->getMessage()) {
+            'License revoked' => 'license_revoked',
+            'Updates entitlement expired' => 'updates_expired',
+            'Release entitlement denied' => 'version_not_entitled',
+            'Vendor license verification failed' => 'license_invalid',
+            default => 'update_access_denied',
+        };
+    }
+
+    $body = json_encode($payload, JSON_THROW_ON_ERROR);
     sendPrivateResponseHeaders();
     header('Content-Type: application/json');
     header('Content-Length: ' . strlen($body));

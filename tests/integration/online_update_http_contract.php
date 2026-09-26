@@ -151,8 +151,25 @@ try {
     [$status] = $request('/registry.sqlite', null, $headers);
     httpAccessAssert($status === 404, 'Registry is never an HTTP asset');
     $server->setStatus($installation, 'revoked');
-    [$status] = $request('/delivery/stable/notes.zip', null, $headers);
+    [$status, $response] = $request('/delivery/stable/notes.zip', null, $headers);
+    $denied = json_decode($response, true);
     httpAccessAssert($status === 403, 'HTTP download observes revocation immediately');
+    httpAccessAssert(
+        ($denied['reason'] ?? '') === 'license_revoked',
+        'HTTP API не вернул безопасную причину отзыва лицензии'
+    );
+
+    $server->setStatus($installation, 'active');
+    $registry = new PDO('sqlite:' . $work . '/registry.sqlite');
+    $registry->exec('UPDATE licenses SET updates_until=' . (time() - 1) . ' WHERE installation_id=' . $registry->quote($installation));
+    [$status, $response] = $request('/delivery/stable/notes.zip', null, $headers);
+    $denied = json_decode($response, true);
+    httpAccessAssert($status === 403, 'HTTP download observes updates_until immediately');
+    httpAccessAssert(
+        ($denied['reason'] ?? '') === 'updates_expired',
+        'HTTP API не вернул безопасную причину истечения updates_until'
+    );
+    $registry->exec('UPDATE licenses SET updates_until=NULL WHERE installation_id=' . $registry->quote($installation));
     httpAccessAssert(!str_contains(file_get_contents($work . '/server.log'), $access['token'])
         && !str_contains(file_get_contents($work . '/server.log'), $activation), 'HTTP logs contain no access secrets');
     echo "[OK] Online update HTTP: activation, replay, framing, private ZIP, revocation, TLS requirement, malformed/oversized requests, no secret logs\n";
