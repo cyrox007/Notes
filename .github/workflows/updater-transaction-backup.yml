@@ -66,6 +66,7 @@ jobs:
             title VARCHAR(190) NOT NULL,
             amount DECIMAL(12,2) NOT NULL,
             payload BLOB NULL,
+            notes TEXT NULL,
             metadata JSON NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -81,9 +82,9 @@ jobs:
             INSERT INTO audit (item_id, event_name) VALUES (NEW.id, 'insert');
           END$$
           DELIMITER ;
-          INSERT INTO items (title, amount, payload, metadata) VALUES
-            ('Привет rollback', 12.50, X'000102FF', JSON_OBJECT('kind', 'rollback', 'count', 2)),
-            ('Second row', 999.01, NULL, JSON_OBJECT('kind', 'second', 'enabled', TRUE));
+          INSERT INTO items (title, amount, payload, notes, metadata) VALUES
+            ('Привет rollback', 12.50, X'000102FF', 'Текстовый rollback Ω', JSON_OBJECT('kind', 'rollback', 'count', 2)),
+            ('Second row', 999.01, NULL, NULL, JSON_OBJECT('kind', 'second', 'enabled', TRUE));
           SQL
           test "$(mysql -N -h 127.0.0.1 -uroot -proot updater_backup_test -e 'SELECT COUNT(*) FROM items')" = '2'
           test "$(mysql -N -h 127.0.0.1 -uroot -proot updater_backup_test -e 'SELECT COUNT(*) FROM audit')" = '2'
@@ -111,6 +112,7 @@ jobs:
           test "$(mysql -N -h 127.0.0.1 -uroot -proot updater_backup_restore -e 'SELECT COUNT(*) FROM items')" = '2'
           test "$(mysql -N -h 127.0.0.1 -uroot -proot updater_backup_restore -e 'SELECT COUNT(*) FROM audit')" = '2'
           test "$(mysql -N -h 127.0.0.1 -uroot -proot updater_backup_restore -e "SELECT HEX(payload) FROM items WHERE id=1")" = '000102FF'
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot updater_backup_restore -e "SELECT notes FROM items WHERE id=1")" = 'Текстовый rollback Ω'
           test "$(mysql -N -h 127.0.0.1 -uroot -proot updater_backup_restore -e "SELECT JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.kind')) FROM items WHERE id=1")" = 'rollback'
           test "$(mysql -N -h 127.0.0.1 -uroot -proot updater_backup_restore -e "SELECT JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.enabled')) FROM items WHERE id=2")" = 'true'
           test "$(mysql -N -h 127.0.0.1 -uroot -proot updater_backup_restore -e "SELECT COUNT(*) FROM information_schema.triggers WHERE trigger_schema='updater_backup_restore' AND trigger_name='items_after_insert'")" = '1'
@@ -223,3 +225,76 @@ jobs:
           grep -Fq "'live_mutation_started' => false" core/UpdateTransactionJournal.php
           grep -Fq 'START TRANSACTION WITH CONSISTENT SNAPSHOT' core/UpdateBackupManager.php
           grep -Fq 'UPDATE_BACKUP_PATH' bin/update_backup.php
+
+  mariadb-backup:
+    name: MariaDB 10.11 — backup/restore updater
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+
+    steps:
+      - name: Получить исходный код
+        uses: actions/checkout@v4
+
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, mbstring, sodium
+          coverage: none
+
+      - name: Подготовить MariaDB fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -N -h 127.0.0.1 -uroot -proot -e "SELECT VERSION()" | grep -Fq 'MariaDB'
+          mysql -h 127.0.0.1 -uroot -proot -e "DROP DATABASE IF EXISTS updater_backup_test; CREATE DATABASE updater_backup_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          mysql -h 127.0.0.1 -uroot -proot updater_backup_test <<'SQL'
+          CREATE TABLE items (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            title VARCHAR(190) NOT NULL,
+            amount DECIMAL(12,2) NOT NULL,
+            payload BLOB NULL,
+            notes TEXT NULL,
+            metadata JSON NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+          CREATE TABLE audit (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            item_id BIGINT UNSIGNED NOT NULL,
+            event_name VARCHAR(50) NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+          DELIMITER $$
+          CREATE TRIGGER items_after_insert AFTER INSERT ON items
+          FOR EACH ROW BEGIN
+            INSERT INTO audit (item_id, event_name) VALUES (NEW.id, 'insert');
+          END$$
+          DELIMITER ;
+          INSERT INTO items (title, amount, payload, notes, metadata) VALUES
+            ('Привет rollback', 12.50, X'000102FF', 'Текстовый rollback Ω', JSON_OBJECT('kind', 'rollback', 'count', 2)),
+            ('Second row', 999.01, NULL, NULL, JSON_OBJECT('kind', 'second', 'enabled', TRUE));
+          SQL
+
+      - name: Проверить новый и legacy rollback на MariaDB
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: '3306'
+          DBUSER: root
+          DBPASS: root
+          DBNAME: updater_backup_test
+          BACKUP_CONTRACT_TAG: mariadb-10-11
+        run: php tests/integration/updater_transaction_backup_contract.php
+

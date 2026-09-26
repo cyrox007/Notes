@@ -144,6 +144,10 @@ try {
         'BLOB изменился после восстановления нового rollback-дампа'
     );
     backupAssert(
+        (string) ($db->query("SELECT notes AS value FROM items WHERE id=1")->fetch_assoc()['value'] ?? '') === 'Текстовый rollback Ω',
+        'TEXT изменился после восстановления нового rollback-дампа'
+    );
+    backupAssert(
         (string) ($db->query("SELECT JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.kind')) AS value FROM items WHERE id=1")->fetch_assoc()['value'] ?? '') === 'rollback',
         'JSON изменился после восстановления нового rollback-дампа'
     );
@@ -174,6 +178,10 @@ try {
     backupAssert(
         strtoupper((string) ($db->query("SELECT HEX(payload) AS value FROM items WHERE id=1")->fetch_assoc()['value'] ?? '')) === '000102FF',
         'BLOB изменился после восстановления legacy rollback'
+    );
+    backupAssert(
+        (string) ($db->query("SELECT notes AS value FROM items WHERE id=1")->fetch_assoc()['value'] ?? '') === 'Текстовый rollback Ω',
+        'TEXT изменился после восстановления legacy rollback'
     );
     backupAssert(
         (string) ($db->query("SELECT JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.kind')) AS value FROM items WHERE id=1")->fetch_assoc()['value'] ?? '') === 'rollback',

@@ -215,10 +215,12 @@ Destructive apply и recovery никогда не исполняются из д
 
 ### Этап E — backup/restore БД
 
-- [ ] type-aware SQL dump;
-- [ ] JSON/BLOB/TEXT round-trip;
-- [ ] compatibility restore старого mysql-sql-v1;
+- [x] type-aware SQL dump;
+- [x] JSON/BLOB/TEXT round-trip;
+- [x] compatibility restore старого mysql-sql-v1;
 - [ ] MySQL 8 и поддерживаемая MariaDB в тестах.
+
+MySQL 8.4 уже входит в обязательный backup gate. Для MariaDB 10.11 добавлен отдельный обязательный job с тем же новым и legacy rollback-контрактом; пункт считается окончательно закрытым после его зелёного прогона в CI.
 
 ### Этап F — recovery и UX
 
