@@ -418,6 +418,113 @@ try {
         liveApplyAssert((string) ($db->query("SELECT JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.kind')) AS kind FROM items WHERE id=1")->fetch_assoc()['kind'] ?? '') === 'source', 'crash recovery did not restore JSON data');
         liveApplyAssert((int) ($db->query("SELECT COUNT(*) AS c FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='crash_recovery_leak'")->fetch_assoc()['c'] ?? -1) === 0, 'crash recovery left migration artifact in database');
 
+        // Отдельная регрессия: новая версия уже переключена и миграции отмечены,
+        // но post-healthcheck завершился ошибкой. Следующий recovery обязан
+        // вернуть код и БД к проверенной резервной точке без ручного CLI.
+        $healthTransaction = 'health-fail-001';
+        $healthStateRoot = $temp . '/health-state';
+        $healthBackupRoot = $temp . '/health-backups';
+        $healthCandidateDir = $temp . '/health-candidate';
+        foreach ([$healthStateRoot, $healthBackupRoot, $healthCandidateDir] as $dir) {
+            liveApplyAssert(mkdir($dir, 0700, true), 'Не удалось создать fixture healthcheck recovery');
+        }
+
+        $healthBackupManager = new UpdateBackupManager($healthBackupRoot, $live, [$live . '/uploads']);
+        $healthBackup = $healthBackupManager->create($healthTransaction, $db);
+        $healthBeforeTitle = (string) ($db->query('SELECT title FROM items WHERE id=1')->fetch_assoc()['title'] ?? '');
+
+        $healthCandidate = liveApplyCandidate($healthCandidateDir, $newVersion, $newCode, [
+            'index.php' => "<?php echo 'health-target';\n",
+            'core/Version.php' => "<?php\ndeclare(strict_types=1);\nnamespace Core;\nclass Version { public const VERSION = '{$newVersion}'; public const VERSION_CODE = {$newCode}; }\n",
+            'core/New.php' => "<?php echo 'health-target-core';\n",
+            'bin/migrate.php' => "<?php exit(0);\n",
+            'bin/healthcheck.php' => "<?php echo json_encode(['status' => 'failed'], JSON_UNESCAPED_SLASHES), PHP_EOL; exit(1);\n",
+            'new.php' => "<?php echo 'health-target-only';\n",
+        ]);
+
+        $healthJournal = new UpdateTransactionJournal($healthStateRoot, $live);
+        $healthJournal->initialize([
+            'transaction_id' => $healthTransaction,
+            'installed_version' => $oldVersion,
+            'installed_version_code' => $oldCode,
+            'target_version' => $newVersion,
+            'target_version_code' => $newCode,
+            'package_sha256' => str_repeat('d', 64),
+            'stage_dir' => $stageDir,
+        ]);
+        $healthJournal->recordBackups($healthTransaction, $healthBackup);
+
+        $healthMachine = new UpdateTransactionStateMachine($healthStateRoot, $live);
+        $healthMachine->recordCandidate($healthTransaction, [
+            'candidate_dir' => $healthCandidateDir,
+            'tree_manifest' => $healthCandidateDir . '/.workspace-release-tree.json',
+            'tree_sha256' => $healthCandidate['tree_sha256'],
+            'target_version' => $newVersion,
+            'target_version_code' => $newCode,
+            'files' => $healthCandidate['files'],
+            'total_bytes' => $healthCandidate['bytes'],
+        ]);
+        $healthMachine->markPreflightVerified($healthTransaction, [
+            'health_status' => 'ok',
+            'ws_was_running' => false,
+        ]);
+
+        $healthMaintenance = new MaintenanceModeService($healthStateRoot, $live);
+        $healthMaintenance->enter($healthTransaction, 'Проверка rollback после failed healthcheck');
+        $healthMachine->markLiveMutationStarted($healthTransaction, ['at' => time()]);
+        $healthPlan = $applier->prepareCodeSwitch(
+            $healthTransaction,
+            $healthCandidateDir,
+            $healthBackup['backup_dir']
+        );
+        $healthSwitch = $applier->switchPrepared($healthPlan);
+        $healthMachine->markCodeSwitched($healthTransaction, $healthSwitch);
+
+        $db->query("UPDATE items SET title='healthcheck-mutated' WHERE id=1");
+        $healthMachine->markMigrationsApplied($healthTransaction, ['completed_at' => time()]);
+
+        $healthCommand = new UpdateApplyCommand($live, true);
+        $healthMethod = new ReflectionMethod(UpdateApplyCommand::class, 'health');
+        $healthFailed = false;
+        try {
+            $healthMethod->invoke($healthCommand, $live);
+        } catch (Throwable $e) {
+            $healthFailed = str_contains(strtolower($e->getMessage()), 'healthcheck failed');
+        }
+        liveApplyAssert($healthFailed, 'Намеренно сломанный post-healthcheck не был распознан');
+        liveApplyAssert(
+            (string) ($applier->readLiveVersion()['version'] ?? '') === $newVersion,
+            'Healthcheck fixture не дошёл до целевой версии перед recovery'
+        );
+
+        $healthRecovery = $healthCommand->execute([
+            'recover' => true,
+            'transaction' => $healthTransaction,
+            'state-root' => $healthStateRoot,
+            'backup-root' => $healthBackupRoot,
+        ]);
+
+        liveApplyAssert(
+            ($healthRecovery['status'] ?? null) === 'rolled_back',
+            'Recovery после failed healthcheck не завершился подтверждённым rollback'
+        );
+        liveApplyAssert(
+            ($healthMachine->load($healthTransaction)['state'] ?? null) === 'rollback_verified',
+            'Recovery после failed healthcheck не достиг rollback_verified'
+        );
+        liveApplyAssert(
+            !$healthMaintenance->state()['active'],
+            'Recovery после failed healthcheck оставил maintenance активным'
+        );
+        liveApplyAssert(
+            (string) ($applier->readLiveVersion()['version'] ?? '') === $oldVersion,
+            'Recovery после failed healthcheck не вернул исходную версию'
+        );
+        liveApplyAssert(
+            (string) ($db->query('SELECT title FROM items WHERE id=1')->fetch_assoc()['title'] ?? '') === $healthBeforeTitle,
+            'Recovery после failed healthcheck не восстановил данные БД'
+        );
+
         $db->close();
     }
 
