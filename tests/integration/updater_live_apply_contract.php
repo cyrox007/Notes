@@ -214,7 +214,7 @@ try {
     try {
         $applier->assertMutablePathsSwitchSafe([$live . '/core/runtime']);
     } catch (Throwable $e) {
-        $unsafeMutableRejected = str_contains($e->getMessage(), 'release-owned root core');
+        $unsafeMutableRejected = str_contains($e->getMessage(), 'релизного корня core');
     }
     liveApplyAssert($unsafeMutableRejected, 'nested mutable path below release-owned root was accepted');
     @unlink($live . '/core/runtime/user.dat');
