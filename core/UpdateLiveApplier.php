@@ -93,8 +93,8 @@ final class UpdateLiveApplier
             $top = explode('/', $relative, 2)[0] ?? '';
             if (!in_array($top, self::PRESERVED_ROOTS, true)) {
                 throw new RuntimeException(
-                    "Mutable-путь {$real} находится внутри release-owned корня {$top}; "
-                    . 'вынесите его из live-tree или добавьте явное правило сохранения до обновления'
+                    "Mutable-путь {$real} находится внутри релизного корня {$top}; "
+                    . 'вынесите его из рабочего дерева или добавьте явное правило сохранения до обновления'
                 );
             }
         }
