@@ -28,6 +28,12 @@ final class UpdateFileMutator
         private readonly array $preservedRoots
     ) {}
 
+    public function isReleaseOwned(string $relative): bool
+    {
+        $relative = str_replace('\\', '/', trim($relative));
+        return UpdatePath::safeRelative($relative) && !$this->isPreservedRelative($relative);
+    }
+
     /**
      * @return array<string,array{size:int,sha256:string}>
      */
