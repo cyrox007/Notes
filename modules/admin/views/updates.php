@@ -142,7 +142,7 @@ ob_start();
                     <div class="admin-status-card"><label>Файлов в ZIP</label><strong><?= $view->e($result['archive_files'] ?? 0) ?></strong></div>
                 <?php else: ?>
                     <div class="admin-status-card"><label>Установленная версия</label><strong><?= $view->e($result['installed_version'] ?? ($result['target_version'] ?? '—')) ?></strong></div>
-                    <div class="admin-status-card"><label>Транзакция</label><strong><code><?= $view->e($result['transaction_id'] ?? '—') ?></code></strong></div>
+                    <div class="admin-status-card"><label>Состояние</label><strong>Установка завершена</strong></div>
                 <?php endif; ?>
             </div>
 

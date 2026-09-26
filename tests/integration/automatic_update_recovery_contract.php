@@ -165,6 +165,18 @@ try {
     );
     $failedResult = $failed->attempt($maintenance);
     automaticRecoveryAssert($failedResult['status'] === 'failed', 'Ошибка recovery не распознана');
+    automaticRecoveryAssert(($failedResult['code'] ?? '') === 'rollback_failed', 'Потерян безопасный код диагностики recovery');
+    automaticRecoveryAssert(
+        ($failedResult['transaction_id'] ?? '') === $failedTransaction,
+        'Ошибка recovery потеряла ID транзакции для аварийной диагностики'
+    );
+    $bootGateSource = (string) file_get_contents($root . '/core/UpdateBootRecoveryGate.php');
+    automaticRecoveryAssert(
+        str_contains($bootGateSource, 'diagnostic_code')
+            && str_contains($bootGateSource, 'transaction_id')
+            && str_contains($bootGateSource, 'diagnosticMessage'),
+        'Ранний recovery-барьер не показывает безопасную аварийную диагностику'
+    );
     automaticRecoveryAssert(
         $maintenance->state()['active'],
         'При неподтверждённом recovery maintenance обязан остаться активным'

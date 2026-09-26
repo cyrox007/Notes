@@ -478,6 +478,14 @@ try {
         'admin update view does not explain automatic recovery'
     );
     adminUpdateAssert(
+        !str_contains($viewSource, '<label>Транзакция</label>'),
+        'Успешный Admin-сценарий не должен показывать служебный ID транзакции'
+    );
+    adminUpdateAssert(
+        !str_contains($controllerSource, "'transaction_id' => (string) (\$result['transaction_id'] ?? '')"),
+        'Безопасный результат успешной установки не должен переносить ID транзакции в Admin'
+    );
+    adminUpdateAssert(
         str_contains($viewSource, 'admin-update-safety'),
         'admin update view lost compact safety section'
     );
