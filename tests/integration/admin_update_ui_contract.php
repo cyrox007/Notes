@@ -440,6 +440,7 @@ try {
     $controllerSource = (string) file_get_contents($root . '/modules/admin/controllers/UpdateController.php');
     $serviceSource = (string) file_get_contents($root . '/modules/admin/services/AdminUpdateService.php');
     $viewSource = (string) file_get_contents($root . '/modules/admin/views/updates.php');
+    $updatesJsSource = (string) file_get_contents($root . '/modules/admin/assets/admin-updates.js');
     $routerSource = (string) file_get_contents($root . '/modules/admin/AdminRuntimeProvider.php');
 
     adminUpdateAssert(!str_contains($controllerSource, "'stage_dir' =>"), 'admin controller persists/displays absolute stage path');
@@ -484,6 +485,18 @@ try {
     adminUpdateAssert(
         !str_contains($controllerSource, "'transaction_id' => (string) (\$result['transaction_id'] ?? '')"),
         'Безопасный результат успешной установки не должен переносить ID транзакции в Admin'
+    );
+    adminUpdateAssert(
+        str_contains($viewSource, 'data-update-progress')
+            && str_contains($viewSource, 'data-update-install-form')
+            && str_contains($viewSource, "moduleAsset('admin', 'admin-updates.js')"),
+        'Admin не показывает понятное состояние выполнения установки'
+    );
+    adminUpdateAssert(
+        str_contains($updatesJsSource, 'Установка выполняется')
+            && str_contains($updatesJsSource, 'event.defaultPrevented')
+            && str_contains($updatesJsSource, 'control.disabled = true'),
+        'Сценарий прогресса установки не защищён от отменённой или повторной отправки'
     );
     adminUpdateAssert(
         str_contains($viewSource, 'admin-update-safety'),
