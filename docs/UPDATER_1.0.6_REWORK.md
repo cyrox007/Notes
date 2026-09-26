@@ -183,11 +183,13 @@ Destructive apply и recovery никогда не исполняются из д
 ### Этап A — зафиксировать воспроизводимые регрессии
 
 - [x] тест устаревшего credential: 401 → новый bootstrap → повтор feed;
-- [ ] тест Windows file-lock: updater runtime физически вне live-tree;
-- [ ] тест MySQL JSON/BLOB rollback;
-- [ ] тест recovery после падения процесса между file-copy и migration;
-- [ ] тест recovery после failed healthcheck;
+- [x] тест Windows file-lock: updater runtime физически вне live-tree;
+- [x] тест MySQL JSON/BLOB rollback;
+- [x] тест recovery после падения процесса между file-copy и migration;
+- [x] тест recovery после failed healthcheck;
 - [ ] OSPanel сценарий exact 1.0.5 → 1.0.6.
+
+Автоматические контракты покрывают внешний runtime вне live-tree, типо-зависимый rollback БД, аварийный обрыв после переключения файлов и отдельный сбой post-update healthcheck. Последний незакрытый пункт этапа A — реальная приёмка exact 1.0.5 → 1.0.6 на Windows / OSPanel 5.2.2.
 
 ### Этап B — private storage и credential
 
@@ -200,10 +202,12 @@ HTTP 401 остаётся сигналом для однократного ав�
 
 ### Этап C — внешний runtime
 
-- [ ] минимальный внешний updater runtime;
-- [ ] проверка состава и SHA;
-- [ ] запуск destructive apply/recovery только из внешнего runtime;
-- [ ] отсутствие runtime-зависимости от заменяемого `bin/core/modules`.
+- [x] минимальный внешний updater runtime;
+- [x] проверка состава и SHA;
+- [x] запуск destructive apply/recovery только из внешнего runtime;
+- [x] отсутствие runtime-зависимости от заменяемого `bin/core/modules`.
+
+Этап C закрыт: runtime готовится во внешнем private storage, повторно проверяется по manifest/SHA-256, destructive apply и boot recovery запускаются через внешний entrypoint, а live-tree после пересечения destructive boundary используется только как изменяемые данные.
 
 ### Этап D — пофайловый apply/rollback
 
