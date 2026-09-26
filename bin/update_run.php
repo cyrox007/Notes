@@ -234,8 +234,7 @@ function updateRunAutomaticRecover(
             $runtime = $externalRuntime ?? updateRunRecordedExternalRuntime(
                 $options,
                 $transactionId,
-                $root,
-                $externalRuntime ?? null
+                $root
             );
             $command = $runtime !== null
                 ? updateRunExternalApplyCommand($runtime, $root, $transactionId, $options, true)
@@ -569,7 +568,8 @@ try {
                 $runner,
                 $options,
                 $transactionId,
-                $root
+                $root,
+                $externalRuntime ?? null
             );
             $recoveryStatus = (string) ($recovery['status'] ?? 'recovered');
 
