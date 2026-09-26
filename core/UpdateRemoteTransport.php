@@ -39,6 +39,85 @@ interface UpdateAccessActivationTransport
 }
 
 /**
+ * Повторяет один запрос после подтверждённого HTTP 401.
+ *
+ * Обновление credential выполняется снаружи транспорта, чтобы этот класс не
+ * получал доступ к лицензионному токену. HTTP 403 и повторный 401 всегда
+ * передаются вызывающему коду без дополнительной ротации.
+ */
+final class UpdateCredentialRefreshingTransport implements UpdateRemoteTransport
+{
+    private ?UpdateRemoteTransport $transport = null;
+    private bool $refreshUsed = false;
+
+    /**
+     * @param \Closure():UpdateRemoteTransport $transportFactory
+     * @param \Closure():mixed $refreshCredentials
+     */
+    public function __construct(
+        private \Closure $transportFactory,
+        private \Closure $refreshCredentials
+    ) {
+    }
+
+    public function fetchText(string $url, int $maxBytes): string
+    {
+        return $this->withRecovery(
+            static fn (UpdateRemoteTransport $transport): string => $transport->fetchText($url, $maxBytes)
+        );
+    }
+
+    public function downloadExact(
+        string $url,
+        string $destination,
+        int $expectedBytes,
+        string $expectedSha256
+    ): array {
+        return $this->withRecovery(
+            static fn (UpdateRemoteTransport $transport): array => $transport->downloadExact(
+                $url,
+                $destination,
+                $expectedBytes,
+                $expectedSha256
+            )
+        );
+    }
+
+    /** @template T @param \Closure(UpdateRemoteTransport):T $operation @return T */
+    private function withRecovery(\Closure $operation): mixed
+    {
+        try {
+            return $operation($this->transport());
+        } catch (RuntimeException $e) {
+            if ($e->getCode() !== 401 || $this->refreshUsed) {
+                throw $e;
+            }
+        }
+
+        $this->refreshUsed = true;
+        ($this->refreshCredentials)();
+        $this->transport = null;
+
+        return $operation($this->transport());
+    }
+
+    private function transport(): UpdateRemoteTransport
+    {
+        if ($this->transport !== null) {
+            return $this->transport;
+        }
+
+        $transport = ($this->transportFactory)();
+        if (!$transport instanceof UpdateRemoteTransport) {
+            throw new RuntimeException('Фабрика транспорта обновлений вернула некорректный объект');
+        }
+
+        $this->transport = $transport;
+        return $transport;
+    }
+}
+
+/**
  * Small vendor-free HTTPS transport for signed update artifacts.
  *
  * Deliberate constraints:
