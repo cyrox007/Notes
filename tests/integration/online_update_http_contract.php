@@ -100,7 +100,20 @@ try {
         $responseHeaders = $http_response_header;
         preg_match('~HTTP/\S+ (\d+)~', $responseHeaders[0], $status);
         $flat = strtolower(implode("\n", $responseHeaders));
-        httpAccessAssert(str_contains($flat, 'cache-control: no-store, private'), 'Never cache private artifacts');
+        preg_match_all('/^cache-control:\\s*(.+)$/mi', $flat, $cacheMatches);
+        $cacheDirectives = [];
+        foreach ($cacheMatches[1] ?? [] as $cacheValue) {
+            foreach (explode(',', (string) $cacheValue) as $directive) {
+                $directive = trim(strtolower($directive));
+                if ($directive !== '') {
+                    $cacheDirectives[$directive] = true;
+                }
+            }
+        }
+        httpAccessAssert(
+            isset($cacheDirectives['no-store'], $cacheDirectives['private']),
+            'Приватные артефакты должны запрещать кеширование независимо от порядка директив Cache-Control'
+        );
         preg_match('/content-length: (\d+)/', $flat, $length);
         httpAccessAssert(isset($length[1]) && (int) $length[1] === strlen($response), 'Exact Content-Length');
         return [(int) $status[1], $response];

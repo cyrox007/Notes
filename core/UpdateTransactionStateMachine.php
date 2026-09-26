@@ -72,8 +72,10 @@ final class UpdateTransactionStateMachine
     }
 
     /**
-     * Привязывает проверенный внешний updater runtime к транзакции до
-     * destructive boundary. Состояние candidate_verified при этом не меняется.
+     * Привязывает проверенный внешний updater runtime после резервной точки и до
+     * destructive boundary. На переходе 1.0.5 → 1.0.6 старый candidate-процесс
+     * подтверждает пакет отдельно, а новый apply повторно проверяет candidate и
+     * фиксирует candidate_verified в журнале перед destructive-фазой.
      *
      * @param array<string,mixed> $runtime
      * @return array<string,mixed>
@@ -87,9 +89,9 @@ final class UpdateTransactionStateMachine
             $journal = $this->readPath($path);
             $state = (string) ($journal['state'] ?? '');
 
-            if ($state !== 'candidate_verified') {
+            if (!in_array($state, ['backup_verified', 'candidate_verified'], true)) {
                 throw new RuntimeException(
-                    "Внешний updater runtime можно привязать только из candidate_verified, текущее состояние: {$state}"
+                    "Внешний updater runtime можно привязать только после проверенной резервной точки, текущее состояние: {$state}"
                 );
             }
             if (($journal['live_mutation_started'] ?? true) !== false) {

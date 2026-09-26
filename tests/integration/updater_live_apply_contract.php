@@ -268,6 +268,33 @@ try {
     ]);
 
     $machine = new UpdateTransactionStateMachine($stateRoot, $live);
+
+    // Переходный мост 1.0.5 → 1.0.6 должен уметь привязать внешний runtime
+    // сразу после проверенной резервной точки. Candidate затем повторно
+    // проверяется новым apply и фиксируется в этом же журнале.
+    $runtimeDir = $temp . '/external-runtime';
+    liveApplyAssert(mkdir($runtimeDir, 0700), 'не удалось создать тестовый внешний runtime');
+    liveApplyWrite($runtimeDir . '/entrypoint.php', "<?php\n");
+    $runtimeManifest = "{}\n";
+    liveApplyWrite($runtimeDir . '/runtime.json', $runtimeManifest);
+    $runtimeState = $machine->attachExternalRuntime('live-state-001', [
+        'runtime_root' => $runtimeDir,
+        'entrypoint' => $runtimeDir . '/entrypoint.php',
+        'manifest' => $runtimeDir . '/runtime.json',
+        'manifest_sha256' => hash('sha256', $runtimeManifest),
+        'source_version' => $oldVersion,
+        'source_version_code' => $oldCode,
+        'files' => 1,
+    ]);
+    liveApplyAssert(
+        ($runtimeState['state'] ?? null) === 'backup_verified',
+        'привязка внешнего runtime преждевременно изменила состояние транзакции'
+    );
+    liveApplyAssert(
+        is_array($runtimeState['external_runtime'] ?? null),
+        'внешний runtime не сохранился в журнале после backup_verified'
+    );
+
     $machine->recordCandidate('live-state-001', [
         'candidate_dir' => $candidateDir,
         'tree_manifest' => $candidateDir . '/.workspace-release-tree.json',

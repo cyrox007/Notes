@@ -519,6 +519,9 @@ try {
         }
     }
 
+    // Обёртка не должна самовольно открывать запись при ошибке: после передачи
+    // destructive-фазы внешнему runtime она либо принимает проверенный результат,
+    // либо запускает recovery, оставляя maintenance активным при неуспехе recovery.
     if ($applyInvoked) {
         $applyPayload = $e instanceof UpdateRunSubprocessException ? $e->payload : [];
         $applyErrorCode = (string) ($applyPayload['code'] ?? '');
