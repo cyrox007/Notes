@@ -73,6 +73,16 @@ rollback snapshot 1.0.5 содержит release-owned каталоги исхо
 
 Работа над остальными слоями 1.0.6 продолжается независимо от этого блокера.
 
+### Подтверждение блокера exact v1.0.5
+
+Опубликованный тег `v1.0.5` указывает на commit `ac95401d883b911e3c526980f6fb13b603558229`. Его `bin/update_run.php` не содержит внешнего updater runtime и запускает destructive apply/recovery через live `bin/update_apply.php`.
+
+Старый `UpdateCodeSwitcher::prepare()` строит список переключаемых top-level путей как объединение candidate и проверенного rollback backup. Старый `UpdateBackupManager` снимает snapshot всего release-owned дерева, поэтому `bin` попадает в rollback backup независимо от того, присутствует ли `bin` в целевом ZIP. Следовательно, исключение `bin` из пакета 1.0.6 не устраняет directory-level rename на Windows.
+
+Это означает, что target-only пакет 1.0.6 не может сам исправить уже исполняющийся updater 1.0.5 до destructive boundary. Для выполнения требования «exact 1.0.5 → 1.0.6 одной кнопкой без ручных действий» нужен механизм, доступный **до** запуска старого `update_run.php` и не зависящий от изменяемого live-tree. В опубликованной 1.0.5 такого механизма нет.
+
+Требование не ослабляется: ручной PowerShell/CLI, замена файлов и перепаковка опубликованного `v1.0.5` не считаются решением. До отдельного продуктового решения по переходному bootstrap этот пункт остаётся release-blocker для Windows / OSPanel.
+
 ## Целевая архитектура Notes 1.0.6
 
 ### 1. Внешний updater runtime
