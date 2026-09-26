@@ -32,7 +32,7 @@ try {
     // Isolated public trust fixture; never edits the release's public registries.
     foreach (['tools/license-server/LicenseServer.php', 'tools/license-server/public/index.php',
         'tools/license-server/manage.php', 'app/services/LicenseVerifier.php', 'core/UpdateManifestVerifier.php',
-        'core/UpdateDownloadCredentials.php', 'core/UpdatePath.php', 'core/Version.php'] as $file) {
+        'core/UpdateDownloadCredentials.php', 'core/PrivateStorageResolver.php', 'core/UpdatePath.php', 'core/Version.php'] as $file) {
         $destination = $work . '/app/' . $file;
         if (!is_dir(dirname($destination))) {
             mkdir(dirname($destination), 0700, true);
@@ -100,7 +100,23 @@ try {
         $responseHeaders = $http_response_header;
         preg_match('~HTTP/\S+ (\d+)~', $responseHeaders[0], $status);
         $flat = strtolower(implode("\n", $responseHeaders));
-        httpAccessAssert(str_contains($flat, 'cache-control: no-store, private'), 'Never cache private artifacts');
+        $cacheDirectives = [];
+        foreach ($responseHeaders as $headerLine) {
+            if (stripos((string) $headerLine, 'Cache-Control:') !== 0) {
+                continue;
+            }
+            $cacheValue = trim(substr((string) $headerLine, strlen('Cache-Control:')));
+            foreach (explode(',', $cacheValue) as $directive) {
+                $directive = trim(strtolower($directive));
+                if ($directive !== '') {
+                    $cacheDirectives[$directive] = true;
+                }
+            }
+        }
+        httpAccessAssert(
+            isset($cacheDirectives['no-store'], $cacheDirectives['private']),
+            'Приватные артефакты должны запрещать кеширование: ' . implode(' | ', $responseHeaders)
+        );
         preg_match('/content-length: (\d+)/', $flat, $length);
         httpAccessAssert(isset($length[1]) && (int) $length[1] === strlen($response), 'Exact Content-Length');
         return [(int) $status[1], $response];
@@ -135,8 +151,25 @@ try {
     [$status] = $request('/registry.sqlite', null, $headers);
     httpAccessAssert($status === 404, 'Registry is never an HTTP asset');
     $server->setStatus($installation, 'revoked');
-    [$status] = $request('/delivery/stable/notes.zip', null, $headers);
+    [$status, $response] = $request('/delivery/stable/notes.zip', null, $headers);
+    $denied = json_decode($response, true);
     httpAccessAssert($status === 403, 'HTTP download observes revocation immediately');
+    httpAccessAssert(
+        ($denied['reason'] ?? '') === 'license_revoked',
+        'HTTP API не вернул безопасную причину отзыва лицензии'
+    );
+
+    $server->setStatus($installation, 'active');
+    $registry = new PDO('sqlite:' . $work . '/registry.sqlite');
+    $registry->exec('UPDATE licenses SET updates_until=' . (time() - 1) . ' WHERE installation_id=' . $registry->quote($installation));
+    [$status, $response] = $request('/delivery/stable/notes.zip', null, $headers);
+    $denied = json_decode($response, true);
+    httpAccessAssert($status === 403, 'HTTP download observes updates_until immediately');
+    httpAccessAssert(
+        ($denied['reason'] ?? '') === 'updates_expired',
+        'HTTP API не вернул безопасную причину истечения updates_until'
+    );
+    $registry->exec('UPDATE licenses SET updates_until=NULL WHERE installation_id=' . $registry->quote($installation));
     httpAccessAssert(!str_contains(file_get_contents($work . '/server.log'), $access['token'])
         && !str_contains(file_get_contents($work . '/server.log'), $activation), 'HTTP logs contain no access secrets');
     echo "[OK] Online update HTTP: activation, replay, framing, private ZIP, revocation, TLS requirement, malformed/oversized requests, no secret logs\n";

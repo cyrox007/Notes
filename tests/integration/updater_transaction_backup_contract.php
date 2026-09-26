@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 use App\Services\MaintenanceModeService;
 use Core\UpdateBackupManager;
+use Core\UpdateDatabaseRestorer;
 use Core\UpdateTransactionJournal;
 
 $repoRoot = dirname(__DIR__, 2);
 require_once $repoRoot . '/app/services/MaintenanceModeService.php';
 require_once $repoRoot . '/core/UpdateTransactionJournal.php';
 require_once $repoRoot . '/core/UpdateBackupManager.php';
+require_once $repoRoot . '/core/UpdateDatabaseRestorer.php';
 
 function backupAssert(bool $condition, string $message): void
 {
@@ -129,6 +131,66 @@ try {
     );
     backupAssert(str_contains($dump, 'CREATE') && str_contains($dump, 'TRIGGER'), 'database dump lacks trigger DDL');
     backupAssert(!str_contains($dump, 'must-never-enter-code-backup'), 'code secret leaked into database dump');
+
+    $restorer = new UpdateDatabaseRestorer();
+    $restored = $restorer->restore($db, $backupDir, $backups['database']);
+    backupAssert((int) ($restored['tables'] ?? 0) >= 2, 'Новый rollback-дамп не восстановил таблицы');
+    backupAssert(
+        (string) ($db->query("SELECT title FROM items WHERE id=1")->fetch_assoc()['title'] ?? '') === 'Привет rollback',
+        'Unicode-текст изменился после восстановления нового rollback-дампа'
+    );
+    backupAssert(
+        strtoupper((string) ($db->query("SELECT HEX(payload) AS value FROM items WHERE id=1")->fetch_assoc()['value'] ?? '')) === '000102FF',
+        'BLOB изменился после восстановления нового rollback-дампа'
+    );
+    backupAssert(
+        (string) ($db->query("SELECT notes AS value FROM items WHERE id=1")->fetch_assoc()['value'] ?? '') === 'Текстовый rollback Ω',
+        'TEXT изменился после восстановления нового rollback-дампа'
+    );
+    backupAssert(
+        (string) ($db->query("SELECT JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.kind')) AS value FROM items WHERE id=1")->fetch_assoc()['value'] ?? '') === 'rollback',
+        'JSON изменился после восстановления нового rollback-дампа'
+    );
+
+    $legacyDir = $base . '/legacy-db';
+    backupAssert(mkdir($legacyDir, 0700, true), 'Не удалось создать каталог legacy rollback');
+    $legacySql = preg_replace(
+        "/CONVERT\\((X'[0-9A-F]*') USING utf8mb4\\)/i",
+        '$1',
+        $dump
+    );
+    backupAssert(is_string($legacySql) && $legacySql !== $dump, 'Не удалось сформировать legacy mysql-sql-v1 fixture');
+    $legacyPath = $legacyDir . '/database.sql';
+    backupAssert(file_put_contents($legacyPath, $legacySql, LOCK_EX) === strlen($legacySql), 'Не удалось записать legacy rollback fixture');
+
+    $legacyMetadata = $backups['database'];
+    $legacyMetadata['path'] = 'database.sql';
+    $legacyMetadata['bytes'] = filesize($legacyPath);
+    $legacyMetadata['sha256'] = hash_file('sha256', $legacyPath);
+    backupAssert(is_int($legacyMetadata['bytes']) && is_string($legacyMetadata['sha256']), 'Некорректные метаданные legacy rollback fixture');
+
+    $legacyRestored = (new UpdateDatabaseRestorer())->restore($db, $legacyDir, $legacyMetadata);
+    backupAssert((int) ($legacyRestored['tables'] ?? 0) >= 2, 'Legacy rollback не восстановил таблицы');
+    backupAssert(
+        (string) ($db->query("SELECT title FROM items WHERE id=1")->fetch_assoc()['title'] ?? '') === 'Привет rollback',
+        'Unicode-текст изменился после восстановления legacy rollback'
+    );
+    backupAssert(
+        strtoupper((string) ($db->query("SELECT HEX(payload) AS value FROM items WHERE id=1")->fetch_assoc()['value'] ?? '')) === '000102FF',
+        'BLOB изменился после восстановления legacy rollback'
+    );
+    backupAssert(
+        (string) ($db->query("SELECT notes AS value FROM items WHERE id=1")->fetch_assoc()['value'] ?? '') === 'Текстовый rollback Ω',
+        'TEXT изменился после восстановления legacy rollback'
+    );
+    backupAssert(
+        (string) ($db->query("SELECT JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.kind')) AS value FROM items WHERE id=1")->fetch_assoc()['value'] ?? '') === 'rollback',
+        'Legacy X\'HEX\' JSON не был восстановлен как UTF-8 JSON'
+    );
+    backupAssert(
+        (string) ($db->query("SELECT JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.enabled')) AS value FROM items WHERE id=2")->fetch_assoc()['value'] ?? '') === 'true',
+        'Булево JSON-значение изменилось после legacy rollback'
+    );
 
     $verifiedAgain = $manager->create($transactionId, $db);
     backupAssert($verifiedAgain['manifest_sha256'] === $backups['manifest_sha256'], 'repeat backup was not idempotent');

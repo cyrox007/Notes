@@ -153,8 +153,12 @@ try {
     assert_contract(file_get_contents($app . '/.env') === "SECRET=preserve-me\n", '.env was modified by rollback');
     assert_contract(file_get_contents($app . '/uploads/user.txt') === "persistent-user-data\n", 'mutable upload data was modified by rollback');
 
-    $scratch = (string) ($restored['scratch_dir'] ?? '');
-    assert_contract($scratch !== '' && is_dir($scratch . '/failed-release/new-feature'), 'failed target-only release was not quarantined');
+    assert_contract(($restored['file_level'] ?? false) === true, 'rollback не подтвердил пофайловый режим');
+    assert_contract(
+        in_array('new-feature/entry.php', $restored['deleted_files'] ?? [], true),
+        'target-only файл не был удалён пофайловым rollback'
+    );
+    assert_contract(!isset($restored['scratch_dir']), 'rollback не должен создавать scratch для переименования live-каталогов');
 
     echo "[OK] updater recovery ownership and candidate-independence contract\n";
 } finally {

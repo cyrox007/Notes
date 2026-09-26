@@ -137,12 +137,6 @@ try {
   await installedCard.getByText(expectedVersion, { exact: false })
     .waitFor({ state: 'visible', timeout: 10000 });
 
-  const transaction = page.locator('.admin-status-card').filter({ hasText: 'Транзакция' }).locator('code');
-  const transactionId = (await transaction.textContent())?.trim() || '';
-  if (!/^update-[A-Za-z0-9_-]{8,}$/.test(transactionId)) {
-    throw new Error(`Некорректный идентификатор транзакции: ${transactionId}`);
-  }
-
   installationWindow = false;
   await page.waitForTimeout(1500);
 
@@ -156,7 +150,7 @@ try {
       `Во время maintenance ожидаемо отклонено фоновых socket-ticket запросов: ${maintenanceHttpErrors.length}`
     );
   }
-  console.log(`Автоматическое уведомление и обновление в один клик: OK (${expectedVersion}, ${transactionId})`);
+  console.log(`Автоматическое уведомление и обновление в один клик: OK (${expectedVersion})`);
   await context.close();
 } finally {
   await browser.close();

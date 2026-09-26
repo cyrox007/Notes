@@ -241,9 +241,13 @@ final class LicenseServer
 
     private function assertEntitled(array $row): void
     {
-        if ($row['status'] !== 'active' || ($row['updates_until'] !== null && time() >= (int) $row['updates_until'])) {
-            throw new RuntimeException('Update entitlement denied', 403);
+        if ($row['status'] !== 'active') {
+            throw new RuntimeException('License revoked', 403);
         }
+        if ($row['updates_until'] !== null && time() >= (int) $row['updates_until']) {
+            throw new RuntimeException('Updates entitlement expired', 403);
+        }
+
         $this->verifyLicense($row['installation_id'], $row['signed_license']);
     }
 

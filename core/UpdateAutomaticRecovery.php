@@ -11,6 +11,8 @@ use Throwable;
 require_once __DIR__ . '/UpdatePhpCli.php';
 require_once __DIR__ . '/UpdateProcessRunner.php';
 require_once __DIR__ . '/UpdateCoordinatorLock.php';
+require_once __DIR__ . '/UpdateTransactionJournal.php';
+require_once __DIR__ . '/UpdateExternalRuntime.php';
 
 /**
  * Автоматически продолжает восстановление оборванной updater-транзакции.
@@ -89,20 +91,43 @@ final class UpdateAutomaticRecovery
         }
 
         try {
-            $command = [
-                UpdatePhpCli::resolve(),
-                $this->appRoot . '/bin/update_apply.php',
-                '--transaction=' . $transactionId,
-                '--recover',
-                '--json',
-            ];
-
-            $stateRoot = $maintenance->configuredStateRoot();
-            if (is_string($stateRoot) && $stateRoot !== '') {
-                $command[] = '--state-root=' . $stateRoot;
+            $journalState = (new UpdateTransactionJournal($stateRoot, $this->appRoot))
+                ->load($transactionId);
+            $recordedRuntime = $journalState['external_runtime'] ?? null;
+            $runtime = null;
+            if (is_array($recordedRuntime)) {
+                $runtime = (new UpdateExternalRuntime($this->appRoot))->verifyRecorded(
+                    $recordedRuntime,
+                    (int) ($journalState['installed_version_code'] ?? 0)
+                );
             }
 
-            $process = $this->runProcess($command, 1200);
+            $command = [
+                UpdatePhpCli::resolve(),
+                $runtime !== null
+                    ? (string) $runtime['entrypoint']
+                    : $this->appRoot . '/bin/update_apply.php',
+            ];
+            if ($runtime !== null) {
+                $command[] = '--app-root=' . $this->appRoot;
+            }
+            $command[] = '--transaction=' . $transactionId;
+            $command[] = '--recover';
+            $command[] = '--json';
+            $command[] = '--state-root=' . $stateRoot;
+
+            $backupDir = is_array($journalState['backups'] ?? null)
+                ? trim((string) ($journalState['backups']['backup_dir'] ?? ''))
+                : '';
+            if ($backupDir !== '') {
+                $command[] = '--backup-root=' . dirname($backupDir);
+            }
+
+            $process = $this->runProcess(
+                $command,
+                1200,
+                $runtime !== null ? (string) $runtime['runtime_root'] : $this->appRoot
+            );
             $payload = $this->decodePayload($process['stdout']);
 
             if ($process['code'] !== 0) {
@@ -160,13 +185,15 @@ final class UpdateAutomaticRecovery
     }
 
     /** @param list<string> $command @return array{code:int,stdout:string,stderr:string} */
-    private function runProcess(array $command, int $timeoutSeconds): array
+    private function runProcess(array $command, int $timeoutSeconds, ?string $cwd = null): array
     {
+        $cwd = $cwd !== null && trim($cwd) !== '' ? $cwd : $this->appRoot;
+
         if ($this->processInvoker !== null) {
-            return ($this->processInvoker)($command, $this->appRoot, $timeoutSeconds);
+            return ($this->processInvoker)($command, $cwd, $timeoutSeconds);
         }
 
-        return (new UpdateProcessRunner())->run($command, $this->appRoot, $timeoutSeconds);
+        return (new UpdateProcessRunner())->run($command, $cwd, $timeoutSeconds);
     }
 
     /** @return array<string,mixed> */

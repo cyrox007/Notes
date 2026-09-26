@@ -374,6 +374,32 @@ try {
     remoteAssert(count($transport->downloadCalls) === $downloadsBefore, 'package downloaded before unsafe stage root was rejected');
 
     $https = new UpdateHttpsTransport(1, 1);
+
+    $accessDeniedMethod = new ReflectionMethod(UpdateHttpsTransport::class, 'accessDeniedException');
+    foreach ([
+        'license_revoked' => 'отозвана',
+        'updates_expired' => 'истёк',
+        'version_not_entitled' => 'выше разрешённой',
+        'license_invalid' => 'не прошла проверку',
+    ] as $reason => $messagePart) {
+        $body = json_encode(['error' => 'update_access_denied', 'reason' => $reason], JSON_THROW_ON_ERROR);
+        $stream = fopen('php://temp', 'w+b');
+        remoteAssert(is_resource($stream), 'не удалось создать поток проверки причины 403');
+        fwrite($stream, $body);
+        rewind($stream);
+        $denied = $accessDeniedMethod->invoke($https, $stream, [
+            'content-type' => 'application/json',
+            'content-length' => (string) strlen($body),
+        ], 403);
+        fclose($stream);
+        remoteAssert(
+            $denied instanceof RuntimeException
+                && $denied->getCode() === 403
+                && str_contains($denied->getMessage(), $messagePart),
+            'Клиент потерял точную безопасную причину 403: ' . $reason
+        );
+    }
+
     $httpRejected = false;
     try {
         $https->fetchText('http://updates.example.test/feed.json', 1024);

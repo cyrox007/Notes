@@ -1,4 +1,4 @@
-name: 1.0.5 переходный и одношаговый сквозной updater
+name: 1.0.6 → 1.0.7 сквозной updater
 
 on:
   pull_request:
@@ -55,13 +55,12 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m py_compile tests/support/admin_update_https_fixture.py
-          node --check tests/e2e/admin-update-transition.mjs
           node --check tests/e2e/admin-update-rollback.mjs
           node --check tests/e2e/admin-update-apply.mjs
           php -l modules/admin/services/AdminUpdateService.php
           php -l bin/update_run.php
 
-      - name: Подготовить БД exact 1.0.4 и суперадминистратора
+      - name: Подготовить тестовую базу 1.0.6 и суперадминистратора
         shell: bash
         env:
           DBHOST: 127.0.0.1
@@ -72,11 +71,23 @@ jobs:
         run: |
           set -euo pipefail
           DRILL=/tmp/workspace-admin-update-e2e
-          SOURCE="$DRILL/source-v1.0.4"
-          git worktree remove --force "$SOURCE" 2>/dev/null || true
+          SOURCE="$DRILL/source-v1.0.6"
           rm -rf "$DRILL"
-          mkdir -p "$DRILL"
-          git worktree add --detach "$SOURCE" v1.0.4
+          mkdir -p "$SOURCE"
+
+          rsync -a "$GITHUB_WORKSPACE/" "$SOURCE/" \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude '.env' \
+            --exclude 'vendor' \
+            --exclude 'node_modules' \
+            --exclude 'cache/*' \
+            --exclude 'compile/*'
+
+          perl -0pi -e "s/public const VERSION = '[^']+';/public const VERSION = '1.0.6';/" "$SOURCE/core/Version.php"
+          perl -0pi -e "s/public const VERSION_CODE = [0-9]+;/public const VERSION_CODE = 10006;/" "$SOURCE/core/Version.php"
+          test "$(php -r "require '$SOURCE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.6'
+          test "$(php -r "require '$SOURCE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10006'
 
           mapfile -t SCHEMAS < <(
             cd "$SOURCE"
@@ -90,7 +101,7 @@ jobs:
           )
           test "${#SCHEMAS[@]}" -gt 0
           for schema in "${SCHEMAS[@]}"; do
-            echo "Импорт схемы exact 1.0.4: $schema"
+            echo "Импорт схемы тестовой 1.0.6: $schema"
             mysql -h 127.0.0.1 -uroot -proot admin_update_e2e < "$schema"
           done
 
@@ -130,24 +141,20 @@ jobs:
           printf 'E2E_PASSWORD=%s\n' "$TEST_PASSWORD" >> "$GITHUB_ENV"
           printf 'E2E_ORIGIN=%s\n' 'http://127.0.0.1:18094' >> "$GITHUB_ENV"
           printf 'E2E_BASE_PATH=%s\n' '/workspace' >> "$GITHUB_ENV"
-          printf 'E2E_SOURCE_VERSION=%s\n' '1.0.5' >> "$GITHUB_ENV"
-          printf 'E2E_SOURCE_VERSION_CODE=%s\n' '10005' >> "$GITHUB_ENV"
-          printf 'E2E_TARGET_VERSION=%s\n' '1.0.6-admin-e2e' >> "$GITHUB_ENV"
-          printf 'E2E_TARGET_VERSION_CODE=%s\n' '10006' >> "$GITHUB_ENV"
-          printf 'E2E_BROKEN_TARGET_VERSION=%s\n' '1.0.6-broken-e2e' >> "$GITHUB_ENV"
-          printf 'E2E_HEALTH_BROKEN_TARGET_VERSION=%s\n' '1.0.6-health-broken-e2e' >> "$GITHUB_ENV"
-          printf 'TRANSITION_SOURCE_VERSION=%s\n' '1.0.4' >> "$GITHUB_ENV"
-          printf 'TRANSITION_SOURCE_VERSION_CODE=%s\n' '10004' >> "$GITHUB_ENV"
-          printf 'TRANSITION_TARGET_VERSION=%s\n' '1.0.5' >> "$GITHUB_ENV"
-          printf 'TRANSITION_TARGET_VERSION_CODE=%s\n' '10005' >> "$GITHUB_ENV"
+          printf 'E2E_SOURCE_VERSION=%s\n' '1.0.6' >> "$GITHUB_ENV"
+          printf 'E2E_SOURCE_VERSION_CODE=%s\n' '10006' >> "$GITHUB_ENV"
+          printf 'E2E_TARGET_VERSION=%s\n' '1.0.7-admin-e2e' >> "$GITHUB_ENV"
+          printf 'E2E_TARGET_VERSION_CODE=%s\n' '10007' >> "$GITHUB_ENV"
+          printf 'E2E_BROKEN_TARGET_VERSION=%s\n' '1.0.7-broken-e2e' >> "$GITHUB_ENV"
+          printf 'E2E_HEALTH_BROKEN_TARGET_VERSION=%s\n' '1.0.7-health-broken-e2e' >> "$GITHUB_ENV"
 
-      - name: Подготовить отдельную живую установку 1.0.4
+      - name: Подготовить отдельную живую установку 1.0.6
         shell: bash
         run: |
           set -euo pipefail
           DRILL=/tmp/workspace-admin-update-e2e
           LIVE="$DRILL/live"
-          SOURCE="$DRILL/source-v1.0.4"
+          SOURCE="$DRILL/source-v1.0.6"
           PRIVATE="$DRILL/private"
           rm -rf "$LIVE" "$PRIVATE"
           mkdir -p \
@@ -230,8 +237,8 @@ jobs:
           chmod 600 "$LIVE/.env"
 
           mkdir -p "$LIVE/cache" "$LIVE/compile"
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.4'
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10004'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.6'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10006'
 
       - name: Активировать временную CI-лицензию
         shell: bash
@@ -242,14 +249,12 @@ jobs:
           test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_update_e2e -e "SELECT COUNT(*) FROM user_roles ur JOIN roles r ON r.id=ur.role_id JOIN users u ON u.id=ur.user_id WHERE u.username='admin-update-e2e' AND r.code='superadmin'")" = '1'
           test -n "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_update_e2e -e "SELECT setting_value FROM system_settings WHERE setting_key='workspace_license_token'")"
 
-      - name: Собрать и подписать текущий релиз 1.0.5
+      - name: Подготовить ключ подписи тестовых обновлений
         shell: bash
         run: |
           set -euo pipefail
           DRILL=/tmp/workspace-admin-update-e2e
           LIVE="$DRILL/live"
-          FEED_ROOT="$DRILL/feed-root"
-          TARGET="$DRILL/workspace-organizer-v1.0.5"
           KEY_ID=ci-admin-update-e2e
           PRIVATE_KEY="$DRILL/$KEY_ID.update-secret"
 
@@ -269,9 +274,27 @@ jobs:
           ' "$LIVE/config/update_trusted_keys.php"
           php -l "$LIVE/config/update_trusted_keys.php"
 
-          rm -rf "$TARGET" "$FEED_ROOT"
-          mkdir -p "$TARGET" "$FEED_ROOT/stable"
-          rsync -a "$GITHUB_WORKSPACE/" "$TARGET/" \
+          printf '%s\n' "$PUBLIC_KEY" > "$DRILL/update-public-key.txt"
+          chmod 600 "$DRILL/update-public-key.txt"
+
+      - name: Подготовить подписанный 1.0.7 для проверки автоматического уведомления
+        shell: bash
+        run: |
+          set -euo pipefail
+          DRILL=/tmp/workspace-admin-update-e2e
+          LIVE="$DRILL/live"
+          FEED_ROOT="$DRILL/feed-root"
+          FUTURE="$DRILL/workspace-organizer-v1.0.7-admin-e2e"
+          KEY_ID=ci-admin-update-e2e
+          PRIVATE_KEY="$DRILL/$KEY_ID.update-secret"
+          PUBLIC_KEY="$(cat "$DRILL/update-public-key.txt")"
+
+          test -s "$PRIVATE_KEY"
+          test -n "$PUBLIC_KEY"
+          mkdir -p "$FEED_ROOT/stable"
+          rm -rf "$FUTURE"
+          mkdir -p "$FUTURE"
+          rsync -a "$GITHUB_WORKSPACE/" "$FUTURE/" \
             --exclude '.git' \
             --exclude '.github' \
             --exclude '.env' \
@@ -284,13 +307,15 @@ jobs:
             --exclude '*.license-secret' \
             --exclude '*.update-secret' \
             --exclude '*.log'
-          mkdir -p "$TARGET/cache" "$TARGET/compile"
+          mkdir -p "$FUTURE/cache" "$FUTURE/compile"
 
-          # Временная CI-лицензия подписана одноразовым ключом раннера. Переносим
-          # только её публичный ключ в тестовый пакет, иначе после первого
-          # обновления лицензия закономерно станет недоверенной ещё до проверки Admin apply.
-          cp "$LIVE/config/license_trusted_keys.php" "$TARGET/config/license_trusted_keys.php"
-          php -l "$TARGET/config/license_trusted_keys.php"
+          # Сохраняем тот же тестовый публичный корень и в следующем пакете,
+          # чтобы результат обновления из Admin UI проверялся с валидной лицензией.
+          cp "$LIVE/config/license_trusted_keys.php" "$FUTURE/config/license_trusted_keys.php"
+          php -l "$FUTURE/config/license_trusted_keys.php"
+
+          perl -0pi -e "s/public const VERSION = '[^']+';/public const VERSION = '1.0.7-admin-e2e';/" "$FUTURE/core/Version.php"
+          perl -0pi -e "s/public const VERSION_CODE = [0-9]+;/public const VERSION_CODE = 10007;/" "$FUTURE/core/Version.php"
 
           TEST_UPDATE_PUBLIC_KEY="$PUBLIC_KEY" php -r '
             $path=$argv[1];
@@ -298,45 +323,123 @@ jobs:
             $keys["ci-admin-update-e2e"]=getenv("TEST_UPDATE_PUBLIC_KEY");
             $bytes="<?php\n\ndeclare(strict_types=1);\n\nreturn ".var_export($keys,true).";\n";
             if (file_put_contents($path,$bytes,LOCK_EX)===false) exit(1);
-          ' "$TARGET/config/update_trusted_keys.php"
-          php -l "$TARGET/config/update_trusted_keys.php"
+          ' "$FUTURE/config/update_trusted_keys.php"
 
-          test "$(php -r "require '$TARGET/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.5'
-          test "$(php -r "require '$TARGET/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10005'
-          grep -Fq "public const RELEASE_DATE = '2026-09-26';" "$TARGET/core/Version.php"
-          test ! -e "$TARGET/.env"
-          test ! -e "$TARGET/tools/vendor-update"
+          test "$(php -r "require '$FUTURE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.7-admin-e2e'
+          test "$(php -r "require '$FUTURE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10007'
+
+          BROKEN="$DRILL/workspace-organizer-v1.0.7-broken-e2e"
+          rm -rf "$BROKEN"
+          rsync -a "$FUTURE/" "$BROKEN/"
+          perl -0pi -e "s/public const VERSION = '[^']+';/public const VERSION = '1.0.7-broken-e2e';/" "$BROKEN/core/Version.php"
+          cat > "$BROKEN/bin/migrate.php" <<'PHP'
+          <?php
+          declare(strict_types=1);
+
+          fwrite(STDERR, "CI: намеренный отказ миграции для проверки автоматического отката\n");
+          exit(91);
+          PHP
+          php -l "$BROKEN/bin/migrate.php"
+          test "$(php -r "require '$BROKEN/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.7-broken-e2e'
+          test "$(php -r "require '$BROKEN/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10007'
+
+          HEALTH_BROKEN="$DRILL/workspace-organizer-v1.0.7-health-broken-e2e"
+          rm -rf "$HEALTH_BROKEN"
+          rsync -a "$FUTURE/" "$HEALTH_BROKEN/"
+          perl -0pi -e "s/public const VERSION = '[^']+';/public const VERSION = '1.0.7-health-broken-e2e';/" "$HEALTH_BROKEN/core/Version.php"
+          cat > "$HEALTH_BROKEN/bin/healthcheck.php" <<'PHP'
+          <?php
+          declare(strict_types=1);
+
+          if (in_array('--json', $argv, true)) {
+              echo json_encode([
+                  'status' => 'fail',
+                  'message' => 'CI: намеренный отказ post-health для проверки автоматического отката',
+              ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), PHP_EOL;
+          } else {
+              fwrite(STDERR, "CI: намеренный отказ post-health для проверки автоматического отката\n");
+          }
+          exit(92);
+          PHP
+          php -l "$HEALTH_BROKEN/bin/healthcheck.php"
+          test "$(php -r "require '$HEALTH_BROKEN/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.7-health-broken-e2e'
+          test "$(php -r "require '$HEALTH_BROKEN/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10007'
 
           cd "$DRILL"
-          zip -qr "$DRILL/workspace-organizer-v1.0.5.zip" "$(basename "$TARGET")"
+          zip -qr "$DRILL/workspace-organizer-v1.0.7-broken-e2e.zip" "$(basename "$BROKEN")"
+          zip -qr "$DRILL/workspace-organizer-v1.0.7-health-broken-e2e.zip" "$(basename "$HEALTH_BROKEN")"
           cd "$GITHUB_WORKSPACE"
 
-          php "$LIVE/tools/vendor-update/build-manifest.php" \
-            --package="$DRILL/workspace-organizer-v1.0.5.zip" \
-            --version=1.0.5 \
-            --version-code=10005 \
+          php tools/vendor-update/build-manifest.php \
+            --package="$DRILL/workspace-organizer-v1.0.7-broken-e2e.zip" \
+            --version=1.0.7-broken-e2e \
+            --version-code=10007 \
             --channel=stable \
             --source-commit="$GITHUB_SHA" \
-            --min-source-version-code=10004 \
+            --min-source-version-code=10006 \
             --requires-php=8.1.0 \
-            --notes='CI: реальная установка из Admin UI' \
-            --out="$DRILL/release-10005.json"
+            --notes='CI: намеренный отказ миграции для проверки автоматического отката' \
+            --out="$DRILL/release-10007-broken.json"
 
-          php "$LIVE/tools/vendor-update/sign-manifest.php" \
+          php tools/vendor-update/sign-manifest.php \
             --private-key="$PRIVATE_KEY" \
             --key-id="$KEY_ID" \
-            --manifest="$DRILL/release-10005.json" \
-            --signature-out="$DRILL/release-10005.sig"
+            --manifest="$DRILL/release-10007-broken.json" \
+            --signature-out="$DRILL/release-10007-broken.sig"
 
-          cp "$DRILL/release-10005.json" "$FEED_ROOT/stable/release-10005.json"
-          cp "$DRILL/release-10005.sig" "$FEED_ROOT/stable/release-10005.sig"
-          cp "$DRILL/workspace-organizer-v1.0.5.zip" "$FEED_ROOT/stable/workspace-organizer-v1.0.5.zip"
+          php tools/vendor-update/build-manifest.php \
+            --package="$DRILL/workspace-organizer-v1.0.7-health-broken-e2e.zip" \
+            --version=1.0.7-health-broken-e2e \
+            --version-code=10007 \
+            --channel=stable \
+            --source-commit="$GITHUB_SHA" \
+            --min-source-version-code=10006 \
+            --requires-php=8.1.0 \
+            --notes='CI: намеренный отказ post-health после успешных миграций' \
+            --out="$DRILL/release-10007-health-broken.json"
+
+          php tools/vendor-update/sign-manifest.php \
+            --private-key="$PRIVATE_KEY" \
+            --key-id="$KEY_ID" \
+            --manifest="$DRILL/release-10007-health-broken.json" \
+            --signature-out="$DRILL/release-10007-health-broken.sig"
+
+          cd "$DRILL"
+          zip -qr "$DRILL/workspace-organizer-v1.0.7-admin-e2e.zip" "$(basename "$FUTURE")"
+          cd "$GITHUB_WORKSPACE"
+
+          php tools/vendor-update/build-manifest.php \
+            --package="$DRILL/workspace-organizer-v1.0.7-admin-e2e.zip" \
+            --version=1.0.7-admin-e2e \
+            --version-code=10007 \
+            --channel=stable \
+            --source-commit="$GITHUB_SHA" \
+            --min-source-version-code=10006 \
+            --requires-php=8.1.0 \
+            --notes='CI: одношаговая установка из автоматического уведомления' \
+            --out="$DRILL/release-10007.json"
+
+          php tools/vendor-update/sign-manifest.php \
+            --private-key="$PRIVATE_KEY" \
+            --key-id="$KEY_ID" \
+            --manifest="$DRILL/release-10007.json" \
+            --signature-out="$DRILL/release-10007.sig"
+
+          cp "$DRILL/release-10007.json" "$FEED_ROOT/stable/release-10007.json"
+          cp "$DRILL/release-10007.sig" "$FEED_ROOT/stable/release-10007.sig"
+          cp "$DRILL/workspace-organizer-v1.0.7-admin-e2e.zip" "$FEED_ROOT/stable/workspace-organizer-v1.0.7-admin-e2e.zip"
+          cp "$DRILL/release-10007-broken.json" "$FEED_ROOT/stable/release-10007-broken.json"
+          cp "$DRILL/release-10007-broken.sig" "$FEED_ROOT/stable/release-10007-broken.sig"
+          cp "$DRILL/workspace-organizer-v1.0.7-broken-e2e.zip" "$FEED_ROOT/stable/workspace-organizer-v1.0.7-broken-e2e.zip"
+          cp "$DRILL/release-10007-health-broken.json" "$FEED_ROOT/stable/release-10007-health-broken.json"
+          cp "$DRILL/release-10007-health-broken.sig" "$FEED_ROOT/stable/release-10007-health-broken.sig"
+          cp "$DRILL/workspace-organizer-v1.0.7-health-broken-e2e.zip" "$FEED_ROOT/stable/workspace-organizer-v1.0.7-health-broken-e2e.zip"
           cat > "$FEED_ROOT/stable/feed.json" <<'JSON'
-          {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10005.json","signature":"release-10005.sig"}
+          {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10007-broken.json","signature":"release-10007-broken.sig"}
           JSON
 
-          printf '%s\n' "$PUBLIC_KEY" > "$DRILL/update-public-key.txt"
-          chmod 600 "$DRILL/update-public-key.txt"
+          rm -f "$PRIVATE_KEY" "$DRILL/update-public-key.txt"
+          test ! -e "$PRIVATE_KEY"
 
       - name: Поднять проверяемый HTTPS-канал обновлений
         shell: bash
@@ -382,241 +485,14 @@ jobs:
             exit 1
           fi
 
-          grep -Fq '"version_code"' "$DRILL/release-10005.json"
+          grep -Fq '"version_code"' "$DRILL/release-10007-broken.json"
           SSL_CERT_FILE="$DRILL/ca.crt" UPDATE_FEED_URL='https://updates.e2e.test/stable/feed.json' \
             php -r '
               require "/tmp/workspace-admin-update-e2e/live/core/UpdateRemoteTransport.php";
               $t=new Core\UpdateHttpsTransport(3,5);
               $v=$t->fetchText(getenv("UPDATE_FEED_URL"),32768);
-              if (!str_contains($v,"release-10005.json")) exit(1);
+              if (!str_contains($v,"release-10007-broken.json")) exit(1);
             '
-
-      - name: Запустить exact 1.0.4 для переходной установки
-        shell: bash
-        run: |
-          set -euo pipefail
-          DRILL=/tmp/workspace-admin-update-e2e
-          LIVE="$DRILL/live"
-          : > "$DRILL/app-http-transition.log"
-          : > /tmp/workspace-organizer-startup.log
-
-          (
-            cd "$LIVE"
-            SSL_CERT_FILE="$DRILL/ca.crt" \
-              E2E_APP_ROOT="$LIVE" \
-              E2E_SUPPORT_ROOT="$GITHUB_WORKSPACE" \
-              PHP_CLI_SERVER_WORKERS=4 \
-              php -d "openssl.cafile=$DRILL/ca.crt" \
-              -S 127.0.0.1:18094 "$GITHUB_WORKSPACE/tests/e2e/router.php" \
-              >"$DRILL/app-http-transition.log" 2>&1 &
-            echo $! >"$DRILL/app-http-transition.pid"
-          )
-
-          READY=0
-          for i in {1..60}; do
-            if curl -fsS http://127.0.0.1:18094/workspace/auth/login/ >/dev/null; then
-              READY=1
-              break
-            fi
-            sleep 0.25
-          done
-          if [[ "$READY" != '1' ]]; then
-            cat "$DRILL/app-http-transition.log" >&2
-            exit 1
-          fi
-
-      - name: Доказать переход 1.0.4 → 1.0.5 через опубликованный старый интерфейс
-        shell: bash
-        env:
-          SSL_CERT_FILE: /tmp/workspace-admin-update-e2e/ca.crt
-        run: node tests/e2e/admin-update-transition.mjs
-
-      - name: Проверить 1.0.5 после переходного обновления
-        shell: bash
-        run: |
-          set -euo pipefail
-          DRILL=/tmp/workspace-admin-update-e2e
-          LIVE="$DRILL/live"
-          PRIVATE="$DRILL/private"
-
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.5'
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10005'
-          mapfile -t JOURNALS < <(find "$PRIVATE/state/transactions" -maxdepth 1 -type f -name 'update-*.json' -print)
-          test "${#JOURNALS[@]}" -eq 1
-          test "$(jq -r '.state' "${JOURNALS[0]}")" = 'committed'
-          test "$(jq -r '.live_mutation_started' "${JOURNALS[0]}")" = 'true'
-          test ! -e "$PRIVATE/state/workspace-maintenance.json"
-          (cd "$LIVE" && SSL_CERT_FILE="$DRILL/ca.crt" php bin/healthcheck.php --json) \
-            | tee "$DRILL/post-transition-health.json"
-          grep -Fq '"status": "ok"' "$DRILL/post-transition-health.json"
-
-          PID="$(cat "$DRILL/app-http-transition.pid")"
-          pkill -TERM -P "$PID" >/dev/null 2>&1 || true
-          kill "$PID" >/dev/null 2>&1 || true
-          rm -f "$DRILL/app-http-transition.pid"
-
-      - name: Подготовить подписанный 1.0.6 для проверки автоматического уведомления
-        shell: bash
-        run: |
-          set -euo pipefail
-          DRILL=/tmp/workspace-admin-update-e2e
-          LIVE="$DRILL/live"
-          FEED_ROOT="$DRILL/feed-root"
-          FUTURE="$DRILL/workspace-organizer-v1.0.6-admin-e2e"
-          KEY_ID=ci-admin-update-e2e
-          PRIVATE_KEY="$DRILL/$KEY_ID.update-secret"
-          PUBLIC_KEY="$(cat "$DRILL/update-public-key.txt")"
-
-          test -s "$PRIVATE_KEY"
-          test -n "$PUBLIC_KEY"
-          rm -rf "$FUTURE"
-          mkdir -p "$FUTURE"
-          rsync -a "$GITHUB_WORKSPACE/" "$FUTURE/" \
-            --exclude '.git' \
-            --exclude '.github' \
-            --exclude '.env' \
-            --exclude 'vendor' \
-            --exclude 'node_modules' \
-            --exclude 'tests' \
-            --exclude 'tools' \
-            --exclude 'cache/*' \
-            --exclude 'compile/*' \
-            --exclude '*.license-secret' \
-            --exclude '*.update-secret' \
-            --exclude '*.log'
-          mkdir -p "$FUTURE/cache" "$FUTURE/compile"
-
-          # Сохраняем тот же тестовый публичный корень и в следующем пакете,
-          # чтобы результат обновления из Admin UI проверялся с валидной лицензией.
-          cp "$LIVE/config/license_trusted_keys.php" "$FUTURE/config/license_trusted_keys.php"
-          php -l "$FUTURE/config/license_trusted_keys.php"
-
-          perl -0pi -e "s/public const VERSION = '[^']+';/public const VERSION = '1.0.6-admin-e2e';/" "$FUTURE/core/Version.php"
-          perl -0pi -e "s/public const VERSION_CODE = [0-9]+;/public const VERSION_CODE = 10006;/" "$FUTURE/core/Version.php"
-
-          TEST_UPDATE_PUBLIC_KEY="$PUBLIC_KEY" php -r '
-            $path=$argv[1];
-            $keys=require $path;
-            $keys["ci-admin-update-e2e"]=getenv("TEST_UPDATE_PUBLIC_KEY");
-            $bytes="<?php\n\ndeclare(strict_types=1);\n\nreturn ".var_export($keys,true).";\n";
-            if (file_put_contents($path,$bytes,LOCK_EX)===false) exit(1);
-          ' "$FUTURE/config/update_trusted_keys.php"
-
-          test "$(php -r "require '$FUTURE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.6-admin-e2e'
-          test "$(php -r "require '$FUTURE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10006'
-
-          BROKEN="$DRILL/workspace-organizer-v1.0.6-broken-e2e"
-          rm -rf "$BROKEN"
-          rsync -a "$FUTURE/" "$BROKEN/"
-          perl -0pi -e "s/public const VERSION = '[^']+';/public const VERSION = '1.0.6-broken-e2e';/" "$BROKEN/core/Version.php"
-          cat > "$BROKEN/bin/migrate.php" <<'PHP'
-          <?php
-          declare(strict_types=1);
-
-          fwrite(STDERR, "CI: намеренный отказ миграции для проверки автоматического отката\n");
-          exit(91);
-          PHP
-          php -l "$BROKEN/bin/migrate.php"
-          test "$(php -r "require '$BROKEN/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.6-broken-e2e'
-          test "$(php -r "require '$BROKEN/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10006'
-
-          HEALTH_BROKEN="$DRILL/workspace-organizer-v1.0.6-health-broken-e2e"
-          rm -rf "$HEALTH_BROKEN"
-          rsync -a "$FUTURE/" "$HEALTH_BROKEN/"
-          perl -0pi -e "s/public const VERSION = '[^']+';/public const VERSION = '1.0.6-health-broken-e2e';/" "$HEALTH_BROKEN/core/Version.php"
-          cat > "$HEALTH_BROKEN/bin/healthcheck.php" <<'PHP'
-          <?php
-          declare(strict_types=1);
-
-          if (in_array('--json', $argv, true)) {
-              echo json_encode([
-                  'status' => 'fail',
-                  'message' => 'CI: намеренный отказ post-health для проверки автоматического отката',
-              ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), PHP_EOL;
-          } else {
-              fwrite(STDERR, "CI: намеренный отказ post-health для проверки автоматического отката\n");
-          }
-          exit(92);
-          PHP
-          php -l "$HEALTH_BROKEN/bin/healthcheck.php"
-          test "$(php -r "require '$HEALTH_BROKEN/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.6-health-broken-e2e'
-          test "$(php -r "require '$HEALTH_BROKEN/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10006'
-
-          cd "$DRILL"
-          zip -qr "$DRILL/workspace-organizer-v1.0.6-broken-e2e.zip" "$(basename "$BROKEN")"
-          zip -qr "$DRILL/workspace-organizer-v1.0.6-health-broken-e2e.zip" "$(basename "$HEALTH_BROKEN")"
-          cd "$GITHUB_WORKSPACE"
-
-          php tools/vendor-update/build-manifest.php \
-            --package="$DRILL/workspace-organizer-v1.0.6-broken-e2e.zip" \
-            --version=1.0.6-broken-e2e \
-            --version-code=10006 \
-            --channel=stable \
-            --source-commit="$GITHUB_SHA" \
-            --min-source-version-code=10005 \
-            --requires-php=8.1.0 \
-            --notes='CI: намеренный отказ миграции для проверки автоматического отката' \
-            --out="$DRILL/release-10006-broken.json"
-
-          php tools/vendor-update/sign-manifest.php \
-            --private-key="$PRIVATE_KEY" \
-            --key-id="$KEY_ID" \
-            --manifest="$DRILL/release-10006-broken.json" \
-            --signature-out="$DRILL/release-10006-broken.sig"
-
-          php tools/vendor-update/build-manifest.php \
-            --package="$DRILL/workspace-organizer-v1.0.6-health-broken-e2e.zip" \
-            --version=1.0.6-health-broken-e2e \
-            --version-code=10006 \
-            --channel=stable \
-            --source-commit="$GITHUB_SHA" \
-            --min-source-version-code=10005 \
-            --requires-php=8.1.0 \
-            --notes='CI: намеренный отказ post-health после успешных миграций' \
-            --out="$DRILL/release-10006-health-broken.json"
-
-          php tools/vendor-update/sign-manifest.php \
-            --private-key="$PRIVATE_KEY" \
-            --key-id="$KEY_ID" \
-            --manifest="$DRILL/release-10006-health-broken.json" \
-            --signature-out="$DRILL/release-10006-health-broken.sig"
-
-          cd "$DRILL"
-          zip -qr "$DRILL/workspace-organizer-v1.0.6-admin-e2e.zip" "$(basename "$FUTURE")"
-          cd "$GITHUB_WORKSPACE"
-
-          php tools/vendor-update/build-manifest.php \
-            --package="$DRILL/workspace-organizer-v1.0.6-admin-e2e.zip" \
-            --version=1.0.6-admin-e2e \
-            --version-code=10006 \
-            --channel=stable \
-            --source-commit="$GITHUB_SHA" \
-            --min-source-version-code=10005 \
-            --requires-php=8.1.0 \
-            --notes='CI: одношаговая установка из автоматического уведомления' \
-            --out="$DRILL/release-10006.json"
-
-          php tools/vendor-update/sign-manifest.php \
-            --private-key="$PRIVATE_KEY" \
-            --key-id="$KEY_ID" \
-            --manifest="$DRILL/release-10006.json" \
-            --signature-out="$DRILL/release-10006.sig"
-
-          cp "$DRILL/release-10006.json" "$FEED_ROOT/stable/release-10006.json"
-          cp "$DRILL/release-10006.sig" "$FEED_ROOT/stable/release-10006.sig"
-          cp "$DRILL/workspace-organizer-v1.0.6-admin-e2e.zip" "$FEED_ROOT/stable/workspace-organizer-v1.0.6-admin-e2e.zip"
-          cp "$DRILL/release-10006-broken.json" "$FEED_ROOT/stable/release-10006-broken.json"
-          cp "$DRILL/release-10006-broken.sig" "$FEED_ROOT/stable/release-10006-broken.sig"
-          cp "$DRILL/workspace-organizer-v1.0.6-broken-e2e.zip" "$FEED_ROOT/stable/workspace-organizer-v1.0.6-broken-e2e.zip"
-          cp "$DRILL/release-10006-health-broken.json" "$FEED_ROOT/stable/release-10006-health-broken.json"
-          cp "$DRILL/release-10006-health-broken.sig" "$FEED_ROOT/stable/release-10006-health-broken.sig"
-          cp "$DRILL/workspace-organizer-v1.0.6-health-broken-e2e.zip" "$FEED_ROOT/stable/workspace-organizer-v1.0.6-health-broken-e2e.zip"
-          cat > "$FEED_ROOT/stable/feed.json" <<'JSON'
-          {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10006-broken.json","signature":"release-10006-broken.sig"}
-          JSON
-
-          rm -f "$PRIVATE_KEY" "$DRILL/update-public-key.txt"
-          test ! -e "$PRIVATE_KEY"
 
       - name: Запустить живую установку
         shell: bash
@@ -659,13 +535,13 @@ jobs:
             exit 1
           fi
 
-      - name: Проверить автоматический откат намеренно сломанного 1.0.6
+      - name: Проверить автоматический откат намеренно сломанного 1.0.7
         shell: bash
         env:
           SSL_CERT_FILE: /tmp/workspace-admin-update-e2e/ca.crt
         run: node tests/e2e/admin-update-rollback.mjs
 
-      - name: Доказать восстановление 1.0.5 после ошибки миграции
+      - name: Доказать восстановление 1.0.6 после ошибки миграции
         shell: bash
         run: |
           set -euo pipefail
@@ -673,11 +549,11 @@ jobs:
           LIVE="$DRILL/live"
           PRIVATE="$DRILL/private"
 
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.5'
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10005'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.6'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10006'
 
           mapfile -t JOURNALS < <(find "$PRIVATE/state/transactions" -maxdepth 1 -type f -name 'update-*.json' -print)
-          test "${#JOURNALS[@]}" -eq 2
+          test "${#JOURNALS[@]}" -eq 1
           COMMITTED=0
           ROLLED_BACK=0
           for journal in "${JOURNALS[@]}"; do
@@ -691,7 +567,7 @@ jobs:
               exit 1
             fi
           done
-          test "$COMMITTED" -eq 1
+          test "$COMMITTED" -eq 0
           test "$ROLLED_BACK" -eq 1
           test ! -e "$PRIVATE/state/workspace-maintenance.json"
 
@@ -702,23 +578,23 @@ jobs:
           (cd "$LIVE" && SSL_CERT_FILE="$DRILL/ca.crt" php bin/healthcheck.php --json) | tee "$DRILL/post-rollback-health.json"
           grep -Fq '"status": "ok"' "$DRILL/post-rollback-health.json"
 
-      - name: Переключить канал на 1.0.6 с намеренно сломанным post-health
+      - name: Переключить канал на 1.0.7 с намеренно сломанным post-health
         shell: bash
         run: |
           set -euo pipefail
           FEED_ROOT=/tmp/workspace-admin-update-e2e/feed-root
           cat > "$FEED_ROOT/stable/feed.json" <<'JSON'
-          {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10006-health-broken.json","signature":"release-10006-health-broken.sig"}
+          {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10007-health-broken.json","signature":"release-10007-health-broken.sig"}
           JSON
 
       - name: Проверить автоматический откат после ошибки post-health
         shell: bash
         env:
           SSL_CERT_FILE: /tmp/workspace-admin-update-e2e/ca.crt
-          E2E_BROKEN_TARGET_VERSION: 1.0.6-health-broken-e2e
+          E2E_BROKEN_TARGET_VERSION: 1.0.7-health-broken-e2e
         run: node tests/e2e/admin-update-rollback.mjs
 
-      - name: Доказать восстановление 1.0.5 после ошибки post-health
+      - name: Доказать восстановление 1.0.6 после ошибки post-health
         shell: bash
         run: |
           set -euo pipefail
@@ -726,11 +602,11 @@ jobs:
           LIVE="$DRILL/live"
           PRIVATE="$DRILL/private"
 
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.5'
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10005'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.6'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10006'
 
           mapfile -t JOURNALS < <(find "$PRIVATE/state/transactions" -maxdepth 1 -type f -name 'update-*.json' -print)
-          test "${#JOURNALS[@]}" -eq 3
+          test "${#JOURNALS[@]}" -eq 2
           COMMITTED=0
           ROLLED_BACK=0
           for journal in "${JOURNALS[@]}"; do
@@ -744,7 +620,7 @@ jobs:
               exit 1
             fi
           done
-          test "$COMMITTED" -eq 1
+          test "$COMMITTED" -eq 0
           test "$ROLLED_BACK" -eq 2
           test ! -e "$PRIVATE/state/workspace-maintenance.json"
 
@@ -755,16 +631,16 @@ jobs:
           (cd "$LIVE" && SSL_CERT_FILE="$DRILL/ca.crt" php bin/healthcheck.php --json) | tee "$DRILL/post-health-rollback-health.json"
           grep -Fq '"status": "ok"' "$DRILL/post-health-rollback-health.json"
 
-      - name: Переключить канал на исправный подписанный 1.0.6
+      - name: Переключить канал на исправный подписанный 1.0.7
         shell: bash
         run: |
           set -euo pipefail
           FEED_ROOT=/tmp/workspace-admin-update-e2e/feed-root
           cat > "$FEED_ROOT/stable/feed.json" <<'JSON'
-          {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10006.json","signature":"release-10006.sig"}
+          {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10007.json","signature":"release-10007.sig"}
           JSON
 
-      - name: Установить исправный 1.0.6 одной кнопкой из автоматического уведомления
+      - name: Установить исправный 1.0.7 одной кнопкой из автоматического уведомления
         shell: bash
         env:
           SSL_CERT_FILE: /tmp/workspace-admin-update-e2e/ca.crt
@@ -778,11 +654,11 @@ jobs:
           LIVE="$DRILL/live"
           PRIVATE="$DRILL/private"
 
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.6-admin-e2e'
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10006'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.7-admin-e2e'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10007'
 
           mapfile -t JOURNALS < <(find "$PRIVATE/state/transactions" -maxdepth 1 -type f -name 'update-*.json' -print)
-          test "${#JOURNALS[@]}" -eq 4
+          test "${#JOURNALS[@]}" -eq 3
           COMMITTED=0
           ROLLED_BACK=0
           for journal in "${JOURNALS[@]}"; do
@@ -797,7 +673,7 @@ jobs:
               exit 1
             fi
           done
-          test "$COMMITTED" -eq 2
+          test "$COMMITTED" -eq 1
           test "$ROLLED_BACK" -eq 2
           test ! -e "$PRIVATE/state/workspace-maintenance.json"
 
@@ -819,7 +695,7 @@ jobs:
           TX=update-boot-recovery-e2e
           NOW="$(date +%s)"
 
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.6-admin-e2e'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.7-admin-e2e'
           mkdir -p "$STATE/transactions"
 
           cat > "$STATE/transactions/$TX.json" <<JSON
@@ -827,10 +703,10 @@ jobs:
             "schema": 1,
             "transaction_id": "$TX",
             "state": "rollback_verified",
-            "installed_version": "1.0.6-admin-e2e",
-            "installed_version_code": 10006,
-            "target_version": "1.0.7-crash-e2e",
-            "target_version_code": 10007,
+            "installed_version": "1.0.7-admin-e2e",
+            "installed_version_code": 10007,
+            "target_version": "1.0.8-crash-e2e",
+            "target_version_code": 10008,
             "package_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "stage_dir": "$PRIVATE/updates/crash-e2e",
             "live_mutation_started": true,

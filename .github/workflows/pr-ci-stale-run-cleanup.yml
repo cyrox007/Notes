@@ -1,0 +1,80 @@
+name: Очистка устаревших PR-проверок
+
+on:
+  pull_request:
+    types: [synchronize, reopened]
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: pr-ci-cleanup-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  cancel-stale-runs:
+    name: Отменить проверки старых SHA
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: windows-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Отменить устаревшие запуски этого PR
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+          CURRENT_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $headers = @{
+              Authorization = "Bearer $env:GITHUB_TOKEN"
+              Accept = 'application/vnd.github+json'
+              'X-GitHub-Api-Version' = '2022-11-28'
+          }
+
+          $encodedBranch = [uri]::EscapeDataString($env:HEAD_BRANCH)
+          $page = 1
+          $cancelled = 0
+
+          do {
+              $uri = "https://api.github.com/repos/$env:REPOSITORY/actions/runs?event=pull_request&branch=$encodedBranch&per_page=100&page=$page"
+              $response = Invoke-RestMethod -Uri $uri -Headers $headers -Method Get
+
+              foreach ($run in @($response.workflow_runs)) {
+                  $belongsToPr = @($run.pull_requests | Where-Object { $_.number -eq [int]$env:PR_NUMBER }).Count -gt 0
+                  $isOldSha = $run.head_sha -ne $env:CURRENT_SHA
+                  $isActive = $run.status -in @('queued', 'in_progress')
+
+                  if (-not $belongsToPr -or -not $isOldSha -or -not $isActive) {
+                      continue
+                  }
+
+                  $cancelUri = "https://api.github.com/repos/$env:REPOSITORY/actions/runs/$($run.id)/cancel"
+
+                  try {
+                      Invoke-RestMethod -Uri $cancelUri -Headers $headers -Method Post | Out-Null
+                      $shortSha = $run.head_sha.Substring(0, [Math]::Min(8, $run.head_sha.Length))
+                      Write-Host "Отменён устаревший запуск $($run.id): $($run.name), SHA $shortSha."
+                      $cancelled++
+                  }
+                  catch {
+                      $statusCode = $_.Exception.Response.StatusCode.value__
+                      if ($statusCode -eq 409) {
+                          Write-Host "Запуск $($run.id) уже завершился до отмены."
+                          continue
+                      }
+
+                      throw
+                  }
+              }
+
+              $page++
+          }
+          while (@($response.workflow_runs).Count -eq 100 -and $page -le 20)
+
+          Write-Host "Очистка завершена. Отменено устаревших запусков: $cancelled."
