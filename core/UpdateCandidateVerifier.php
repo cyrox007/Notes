@@ -22,7 +22,7 @@ final class UpdateCandidateVerifier
     ) {}
 
     /**
-     * @return array{candidate_dir:string,target_version:string,target_version_code:int,tree_sha256:string,files:int,total_bytes:int,top_level:list<string>}
+     * @return array{candidate_dir:string,target_version:string,target_version_code:int,tree_sha256:string,files:int,total_bytes:int,top_level:list<string>,file_map:array<string,array{size:int,sha256:string}>}
      */
     public function verifyCandidateTree(string $candidateDir): array
     {
@@ -52,6 +52,7 @@ final class UpdateCandidateVerifier
 
         $expectedFiles = $tree['files'];
         $seen = [];
+        $fileMap = [];
         $bytes = 0;
         $topLevel = [];
         $iterator = new \RecursiveIteratorIterator(
@@ -80,6 +81,10 @@ final class UpdateCandidateVerifier
                 throw new RuntimeException("Release candidate verification failed: {$relative}");
             }
             $seen[$relative] = true;
+            $fileMap[$relative] = [
+                'size' => $size,
+                'sha256' => (string) $expectedFiles[$relative]['sha256'],
+            ];
             $bytes += $size;
             $top = explode('/', $relative, 2)[0];
             if (!$this->isPreservedRoot($top) && !$this->isPreservedEnvName($top)) {
@@ -100,6 +105,7 @@ final class UpdateCandidateVerifier
         }
         $tops = array_keys($topLevel);
         sort($tops, SORT_STRING);
+        ksort($fileMap, SORT_STRING);
 
         return [
             'candidate_dir' => $candidateDir,
@@ -109,6 +115,7 @@ final class UpdateCandidateVerifier
             'files' => count($seen),
             'total_bytes' => $bytes,
             'top_level' => $tops,
+            'file_map' => $fileMap,
         ];
     }
 
