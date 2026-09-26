@@ -164,6 +164,23 @@ final class UpdateDownloadCredentials
         return $path;
     }
 
+    public static function quarantine(): ?string
+    {
+        $path = self::credentialsPath();
+        if (!is_file($path)) {
+            return null;
+        }
+
+        self::assertExternalPath($path);
+        $quarantine = $path . '.rejected-' . gmdate('YmdHis') . '-' . bin2hex(random_bytes(4));
+        if (!@rename($path, $quarantine)) {
+            throw new RuntimeException('Не удалось изолировать устаревший доступ к обновлениям');
+        }
+        @chmod($quarantine, 0600);
+
+        return $quarantine;
+    }
+
     public static function assertExternalPath(string $path): void
     {
         $path = trim($path);
