@@ -50,6 +50,8 @@ jobs:
           php -l core/UpdateMigrationPreflight.php
           php -l core/UpdateTransactionStateMachine.php
           php -l core/UpdatePath.php
+          php -l core/PrivateStorageResolver.php
+          php -l core/UpdateExternalRuntime.php
           php -l core/UpdateCandidateVerifier.php
           php -l core/UpdateCodeSwitcher.php
           php -l core/UpdateDatabaseRestorer.php
@@ -60,9 +62,11 @@ jobs:
           php -l core/UpdateReadiness.php
           php -l core/UpdateArtifactCleaner.php
           php -l bin/update_apply.php
+          php -l bin/update_external_apply.php
           php -l bin/update_run.php
           php -l bin/update_doctor.php
           php -l bin/update_retention.php
+          php -l tests/integration/external_update_runtime_contract.php
           php -l tests/integration/updater_operator_flow_contract.php
           php -l tests/integration/updater_readiness_contract.php
           php -l tests/integration/updater_artifact_retention_contract.php
@@ -71,6 +75,10 @@ jobs:
           php -l tests/integration/updater_live_permissions_contract.php
           php -l tests/integration/updater_recovery_invariants_contract.php
           php -r '$m=json_decode(file_get_contents("database/migrations/manifest.json"),true,32,JSON_THROW_ON_ERROR); if (($m["schema"]??null)!==1 || ($m["product"]??null)!=="workspace-organizer") exit(1);'
+
+      - name: Проверить внешний updater runtime
+        shell: bash
+        run: php tests/integration/external_update_runtime_contract.php
 
       - name: Prepare updater database fixtures
         shell: bash
