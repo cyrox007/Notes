@@ -119,7 +119,7 @@
 
 ## Gate G — неизменяемый артефакт и подпись
 
-Соберите финальный upload-ready bundle из точного принятого SHA. Workflow `Build hosting package` намеренно работает только как сборка: для ручной pre-tag сборки запускайте его на точном принятом commit/ref с `version=v1.0.6`. Он сверяет версию с `core/Version.php`, затем сохраняет ZIP, его SHA-256, точный source SHA, а для аварийного перехода с опубликованной 1.0.2 — отдельный `bootstrap-1.0.2-updater.php` и его SHA-256 одним workflow artifact. До завершения offline signing он не должен создавать или обновлять публичный GitHub Release.
+Соберите финальный upload-ready bundle из точного принятого SHA. Для ручной pre-tag проверки workflow `Build hosting package` можно запускать на точном commit/ref с `version=v1.0.6`: он сверяет версию с `core/Version.php` и сохраняет ZIP, SHA-256 и точный source SHA как workflow artifact. После появления проверенного неизменяемого тега тот же workflow имеет право `contents: write` только для публикации GitHub Release: он повторно собирает пакет с тега, проверяет соответствие версии и публикует Release вместе с checksum/source-SHA. Существующий Release автоматически не перезаписывается.
 
 Далее:
 
@@ -157,7 +157,7 @@ php bin/release_acceptance.php --strict --json \
 2. Слейте exact accepted HEAD ветки `1.0` в `master` без внесения новых source changes.
 3. Убедитесь, что `master` указывает на ожидаемое релизное содержимое.
 4. Создайте подписанный/аннотированный тег `v1.0.6` согласно release policy репозитория.
-5. Опубликуйте exact previously accepted ZIP вместе с update manifest и detached signature; не пересобирайте и не перепаковывайте ZIP после подписи.
+5. Убедитесь, что tag-driven `Build hosting package` опубликовал GitHub Release из exact tagged SHA и приложил ZIP, checksum и source-SHA; update manifest и detached signature для production feed публикуются отдельно по операторскому процессу и не должны менять bytes принятого ZIP.
 6. Ещё раз проверьте checksum опубликованной загрузки и release metadata.
 
 Если после приёмки RC требуется любое изменение исходников, предыдущие exact-head доказательства аннулируются, а затронутые gates повторяются на новом SHA.

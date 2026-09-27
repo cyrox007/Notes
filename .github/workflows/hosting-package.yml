@@ -12,7 +12,7 @@ on:
       - 'v*'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   package:
@@ -257,11 +257,46 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Verify tag matches application version
+      - name: Проверить соответствие тега версии приложения
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
         run: |
           set -euo pipefail
           EXPECTED_TAG="v$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")"
           test "$GITHUB_REF_NAME" = "$EXPECTED_TAG"
-          echo "Release tag matches application version: $EXPECTED_TAG"
+          echo "Тег релиза соответствует версии приложения: $EXPECTED_TAG"
+
+      - name: Опубликовать GitHub Release из проверенного пакета
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          TAG="$GITHUB_REF_NAME"
+          NOTES="docs/releases/$TAG.md"
+          test -s "$NOTES"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "GitHub Release $TAG уже существует; существующий релиз не изменяется."
+            exit 0
+          fi
+
+          PRERELEASE=()
+          if [[ "$TAG" == *-* ]]; then
+            PRERELEASE=(--prerelease)
+          fi
+
+          gh release create "$TAG" \
+            "$BUNDLE" \
+            "$BUNDLE_CHECKSUM" \
+            "$BUNDLE_SOURCE_SHA" \
+            "$UPDATE_102_BOOTSTRAP" \
+            "$UPDATE_102_BOOTSTRAP_CHECKSUM" \
+            --verify-tag \
+            --title "Workspace Organizer ${TAG#v}" \
+            --notes-file "$NOTES" \
+            "${PRERELEASE[@]}"
+
+          echo "GitHub Release $TAG опубликован из проверенного тега и неизменяемого пакета."

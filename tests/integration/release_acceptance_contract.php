@@ -56,8 +56,9 @@ foreach ([
     'v1.0.6',
     'нет открытых P0/P1 дефектов с риском потери данных',
     'нет открытых P0/P1 дефектов безопасности',
-    'работает только как сборка',
-    'не должен создавать или обновлять публичный GitHub Release',
+    'ручной pre-tag проверки',
+    'tag-driven `Build hosting package`',
+    'публикации GitHub Release',
 ] as $marker) {
     releaseAcceptanceAssert(str_contains($doc, $marker), "runbook release acceptance не содержит marker {$marker}");
 }
