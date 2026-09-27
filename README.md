@@ -405,7 +405,7 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 - browser lifecycle coverage для основных product modules и exact published 1.0.1 → 1.0.2 upgrade/rollback drill;
 - кросс-браузерная и мобильная проверка, а также нагрузочный и длительный контур доказательств релиза.
 
-Для `v1.0.6` автоматизируемая часть релизной проверки закрывается на точном HEAD PR #275: полный CI, browser/release evidence, Windows compatibility и сквозной синтетический переход `1.0.6 → 1.0.7` должны быть зелёными до merge в `master`.
+Для `v1.0.6` автоматизируемая часть релизной проверки закрывается на точном HEAD PR #275: GitHub branch protection/ruleset, полный CI, browser/release evidence, Windows compatibility и сквозной синтетический переход `1.0.6 → 1.0.7` должны быть подтверждены до merge в `master`.
 
 Особый порядок этого релиза утверждён владельцем: `1.0.6` публикуется как устанавливаемая опорная версия нового updater, после чего на реальной Windows/OSPanel 5.2.2 выполняется обязательная приёмка `1.0.6 → тестовый 1.0.7`. Эта пострелизная проверка подтверждает внешний runtime, пофайловый apply/rollback, восстановление credential, типо-зависимый backup/restore и автоматический boot recovery и является обязательной до обычного stable rollout `1.0.7`.
 
