@@ -192,6 +192,15 @@ releaseAcceptanceAssert(
     'документация 2FA не фиксирует системную/персональную политику и ротацию ключа'
 );
 
+$autoPublish = releaseAcceptanceText($root, '.github/workflows/prerelease-autotag.yml');
+releaseAcceptanceAssert(
+    str_contains($autoPublish, 'workflows: ["Stable release gate"]')
+    && str_contains($autoPublish, 'github.event.workflow_run.event == \'push\'')
+    && str_contains($autoPublish, "github.event.workflow_run.head_branch == 'master'")
+    && str_contains($autoPublish, 'gh workflow run hosting-package.yml --ref "$TAG" -f version="$TAG"'),
+    'автопубликация релиза не привязана к успешному push-gate master'
+);
+
 $releaseGate = releaseAcceptanceText($root, '.github/workflows/release-gate.yml');
 releaseAcceptanceAssert(
     str_contains($releaseGate, 'php tests/integration/release_acceptance_contract.php'),

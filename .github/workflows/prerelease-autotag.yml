@@ -2,7 +2,7 @@ name: Публикация проверенного релиза после mast
 
 on:
   workflow_run:
-    workflows: ["Master release gate"]
+    workflows: ["Stable release gate"]
     types: [completed]
 
 permissions:
