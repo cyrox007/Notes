@@ -405,14 +405,9 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 - browser lifecycle coverage для основных product modules и exact published 1.0.1 → 1.0.2 upgrade/rollback drill;
 - кросс-браузерная и мобильная проверка, а также нагрузочный и длительный контур доказательств релиза.
 
-Перед окончательным выпуском `v1.0.4` остаются только релизные проверки, а не новые возможности:
+Для `v1.0.6` автоматизируемая часть релизной проверки закрывается на точном HEAD PR #275: полный CI, browser/release evidence, Windows compatibility и сквозной синтетический переход `1.0.6 → 1.0.7` должны быть зелёными до merge в `master`.
 
-1. проверить GitHub branch protection/ruleset для `master` и `1.0`;
-2. получить зелёный полный CI, cross-browser/mobile и load/soak evidence на exact release head `1.0.4`;
-3. подтвердить fresh backup/restore drill, обязательный Admin E2E `v1.0.3 → 1.0.4` с exact-схемой предыдущего релиза, Windows compatibility CI и ручную проверку OSPanel 5.2.2; исторический путь `1.0.2 → 1.0.3` остаётся отдельной совместимостью через bootstrap;
-4. подтвердить отсутствие открытых P0/P1 data-loss/security/release blockers;
-5. собрать immutable `workspace-organizer-v1.0.4.zip`, сверить SHA-256/source SHA и подписать exact update manifest production update key;
-6. после strict acceptance слить exact release head в `master`, поставить `v1.0.4` и публиковать только проверенные immutable artifacts.
+Особый порядок этого релиза утверждён владельцем: `1.0.6` публикуется как устанавливаемая опорная версия нового updater, после чего на реальной Windows/OSPanel 5.2.2 выполняется обязательная приёмка `1.0.6 → тестовый 1.0.7`. Эта пострелизная проверка подтверждает внешний runtime, пофайловый apply/rollback, восстановление credential, типо-зависимый backup/restore и автоматический boot recovery и является обязательной до обычного stable rollout `1.0.7`.
 
 Scalable encrypted-search redesign не является release blocker сам по себе; он требуется только если измерения на заявленном масштабе покажут, что bounded decrypt scan не выдерживает принятого performance envelope.
 
