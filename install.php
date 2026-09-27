@@ -6,6 +6,7 @@ ini_set('display_errors', '0');
 error_reporting(E_ALL);
 
 require_once __DIR__ . '/core/SecurityHeaders.php';
+require_once __DIR__ . '/core/PrivateStorageResolver.php';
 \Core\SecurityHeaders::apply();
 
 function installerIsHttps(): bool
@@ -81,22 +82,6 @@ function verifyInstallerCsrf(): void
         http_response_code(419);
         exit('Invalid installer CSRF token.');
     }
-}
-
-function normalizeFsPath(string $path): string
-{
-    $path = str_replace('\\', '/', trim($path));
-    if ($path === '') {
-        return '';
-    }
-    return rtrim(preg_replace('#/+#', '/', $path) ?? $path, '/');
-}
-
-function pathIsInside(string $path, string $parent): bool
-{
-    $path = normalizeFsPath($path);
-    $parent = normalizeFsPath($parent);
-    return $path !== '' && $parent !== '' && ($path === $parent || str_starts_with($path . '/', $parent . '/'));
 }
 
 function requestHost(): string
@@ -190,68 +175,27 @@ function openServerLocalWebSocketUrl(string $siteUrl, string $basePath): string
     return defaultWebSocketUrl($siteUrl, $basePath);
 }
 
-function isAbsolutePath(string $path): bool
-{
-    return str_starts_with($path, '/') || preg_match('/^[A-Za-z]:[\\\\\/]/', $path) === 1;
-}
-
 function privateStorageCandidate(string $basePath): string
 {
-    $suffix = substr(hash('sha256', normalizeFsPath($basePath)), 0, 10);
-    $home = trim((string) (getenv('HOME') ?: ($_SERVER['HOME'] ?? '')));
-    $candidates = [
-        dirname($basePath) . '/.workspace-organizer-private-' . $suffix,
-        $home !== '' ? $home . '/.workspace-organizer-private-' . $suffix : '',
-    ];
-    $appReal = realpath($basePath) ?: normalizeFsPath($basePath);
-    $documentRoot = trim((string) ($_SERVER['DOCUMENT_ROOT'] ?? ''));
-    $documentReal = $documentRoot !== '' ? (realpath($documentRoot) ?: normalizeFsPath($documentRoot)) : '';
-    foreach (array_unique(array_filter($candidates)) as $candidate) {
-        $candidate = normalizeFsPath($candidate);
-        if (pathIsInside($candidate, $appReal) || ($documentReal !== '' && pathIsInside($candidate, $documentReal))) {
-            continue;
-        }
-        $parent = dirname($candidate);
-        if (is_dir($parent) && is_writable($parent)) {
-            return $candidate;
-        }
+    try {
+        return (new \Core\PrivateStorageResolver($basePath))->candidate();
+    } catch (Throwable) {
+        return '';
     }
-    return '';
 }
 
 function preparePrivateStorage(string $path, string $basePath): string
 {
-    $path = normalizeFsPath($path);
-    if ($path === '' || !isAbsolutePath($path)) {
-        throw new RuntimeException('Укажите абсолютный путь к private storage.');
-    }
-    $appReal = realpath($basePath) ?: normalizeFsPath($basePath);
-    $documentRoot = trim((string) ($_SERVER['DOCUMENT_ROOT'] ?? ''));
-    $documentReal = $documentRoot !== '' ? (realpath($documentRoot) ?: normalizeFsPath($documentRoot)) : '';
-    if (pathIsInside($path, $appReal) || ($documentReal !== '' && pathIsInside($path, $documentReal))) {
-        throw new RuntimeException('PRIVATE_STORAGE_PATH должен находиться вне каталога приложения и document root.');
-    }
-    if (!is_dir($path) && !mkdir($path, 0700, true) && !is_dir($path)) {
-        throw new RuntimeException('Не удалось создать private storage: ' . $path);
-    }
-    @chmod($path, 0700);
+    $real = (new \Core\PrivateStorageResolver($basePath))->prepareExplicit($path);
+
     foreach (['file_manager', 'messenger', 'notes', 'users', 'rate-limit', 'logs', 'legacy'] as $directory) {
-        $target = $path . '/' . $directory;
+        $target = $real . DIRECTORY_SEPARATOR . $directory;
         if (!is_dir($target) && !mkdir($target, 0700, true) && !is_dir($target)) {
             throw new RuntimeException('Не удалось создать private storage каталог: ' . $directory);
         }
         @chmod($target, 0700);
     }
-    $probe = $path . '/.installer-write-test-' . bin2hex(random_bytes(6));
-    if (file_put_contents($probe, 'ok', LOCK_EX) === false) {
-        throw new RuntimeException('PHP не может записывать в private storage.');
-    }
-    @chmod($probe, 0600);
-    @unlink($probe);
-    $real = realpath($path);
-    if ($real === false || !is_writable($real)) {
-        throw new RuntimeException('Private storage не доступен PHP на запись.');
-    }
+
     return $real;
 }
 

@@ -54,18 +54,26 @@ final class UpdateBootRecoveryGate
         }
 
         $status = (string) ($recovery['status'] ?? 'failed');
-        $message = $status === 'in_progress'
-            ? 'Обновление или восстановление уже выполняется.'
-            : 'Автоматическое восстановление будет повторено следующим запросом.';
+        if ($status === 'in_progress') {
+            self::reject('Обновление или восстановление уже выполняется.');
+        }
 
         if ($status === 'failed') {
+            $code = self::safeDiagnosticCode((string) ($recovery['code'] ?? 'recovery_failed'));
             error_log(
-                'Раннее автоматическое восстановление обновления не завершено: '
+                'Раннее автоматическое восстановление обновления не завершено'
+                . ' [transaction=' . $transactionId . ', code=' . $code . ']: '
                 . (string) ($recovery['message'] ?? 'неизвестная ошибка')
+            );
+
+            self::reject(
+                self::diagnosticMessage($code),
+                $transactionId,
+                $code
             );
         }
 
-        self::reject($message);
+        self::reject('Автоматическое восстановление будет повторено следующим запросом.');
     }
 
     private static function hasRecoveryJournal(?string $stateRoot, string $transactionId): bool
@@ -85,9 +93,71 @@ final class UpdateBootRecoveryGate
         return is_file($journal) && !is_link($journal);
     }
 
-    private static function reject(string $reason): never
+    private static function diagnosticMessage(string $code): string
     {
+        return match ($code) {
+            'rollback_failed' => 'Не удалось подтвердить автоматический откат рабочей версии.',
+            'maintenance_still_active' => 'Восстановление завершилось, но режим обслуживания не был безопасно снят.',
+            'unexpected_recovery_result' => 'Восстановление завершилось в неподдерживаемом состоянии.',
+            'state_root_missing' => 'Не удалось определить внешний журнал состояния обновления.',
+            'invalid_maintenance_state' => 'Состояние режима обслуживания повреждено и требует диагностики.',
+            'coordinator_lock_failed' => 'Не удалось проверить блокировку операции обновления.',
+            'recovery_exception', 'recovery_failed' => 'Автоматическое восстановление завершилось технической ошибкой.',
+            default => 'Автоматическое восстановление не удалось безопасно завершить.',
+        };
+    }
+
+    private static function safeDiagnosticCode(string $code): string
+    {
+        $code = strtolower(trim($code));
+        return preg_match('/^[a-z0-9_]{1,64}$/D', $code) === 1
+            ? $code
+            : 'recovery_failed';
+    }
+
+    private static function reject(
+        string $reason,
+        ?string $transactionId = null,
+        ?string $diagnosticCode = null
+    ): never {
         http_response_code(503);
+
+        $transactionId = is_string($transactionId)
+            && preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]{7,95}$/D', $transactionId) === 1
+                ? $transactionId
+                : null;
+        $diagnosticCode = is_string($diagnosticCode)
+            ? self::safeDiagnosticCode($diagnosticCode)
+            : null;
+
+        $accept = strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? ''));
+        if (str_contains($accept, 'application/json')) {
+            if (!headers_sent()) {
+                header('Cache-Control: no-store');
+                header('Retry-After: 60');
+                header('Content-Type: application/json; charset=utf-8');
+            }
+
+            $payload = [
+                'success' => false,
+                'error' => 'update_recovery_pending',
+                'message' => $reason,
+                'retry_after' => 60,
+            ];
+            if ($diagnosticCode !== null) {
+                $payload['diagnostic_code'] = $diagnosticCode;
+            }
+            if ($transactionId !== null) {
+                $payload['transaction_id'] = $transactionId;
+            }
+
+            echo json_encode(
+                $payload,
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+            ) . PHP_EOL;
+            exit;
+        }
+
         if (!headers_sent()) {
             header('Cache-Control: no-store');
             header('Retry-After: 60');
@@ -95,12 +165,21 @@ final class UpdateBootRecoveryGate
         }
 
         $safeReason = htmlspecialchars($reason, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $diagnostic = '';
+        if ($diagnosticCode !== null && $transactionId !== null) {
+            $safeCode = htmlspecialchars($diagnosticCode, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            $safeTransaction = htmlspecialchars($transactionId, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            $diagnostic = '<p><strong>Код диагностики:</strong> <code>' . $safeCode . '</code><br>'
+                . '<strong>ID транзакции:</strong> <code>' . $safeTransaction . '</code></p>';
+        }
+
         echo '<!doctype html><html lang="ru"><head><meta charset="utf-8">'
             . '<meta name="viewport" content="width=device-width,initial-scale=1">'
             . '<meta name="robots" content="noindex,nofollow">'
             . '<title>Восстановление Workspace Organizer</title></head><body>'
             . '<h1>Завершается безопасное восстановление</h1>'
             . '<p>' . $safeReason . '</p>'
+            . $diagnostic
             . '<p>Ручные команды не требуются. Повторите запрос через минуту.</p>'
             . '</body></html>';
         exit;

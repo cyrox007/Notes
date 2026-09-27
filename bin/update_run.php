@@ -15,6 +15,8 @@ if (is_file($root . '/.env')) {
 require_once $root . '/core/Version.php';
 require_once $root . '/core/UpdateProcessRunner.php';
 require_once $root . '/core/UpdateTransactionJournal.php';
+require_once $root . '/core/UpdateTransactionStateMachine.php';
+require_once $root . '/core/UpdateExternalRuntime.php';
 require_once $root . '/core/UpdateCoordinatorLock.php';
 require_once $root . '/app/services/MaintenanceModeService.php';
 
@@ -22,6 +24,8 @@ use App\Services\MaintenanceModeService;
 use Core\UpdateCoordinatorLock;
 use Core\UpdateProcessRunner;
 use Core\UpdateTransactionJournal;
+use Core\UpdateTransactionStateMachine;
+use Core\UpdateExternalRuntime;
 use Core\Version;
 
 $options = getopt('', [
@@ -143,6 +147,70 @@ function updateRunAppendOption(array &$command, array $options, string $name): v
     }
 }
 
+/** @return list<string> */
+function updateRunExternalApplyCommand(
+    array $runtime,
+    string $root,
+    string $transactionId,
+    array $options,
+    bool $recover,
+    ?string $candidateDir = null
+): array {
+    $entrypoint = trim((string) ($runtime['entrypoint'] ?? ''));
+    if ($entrypoint === '' || !is_file($entrypoint) || is_link($entrypoint)) {
+        throw new RuntimeException('Проверенный внешний updater entrypoint недоступен');
+    }
+
+    $command = [
+        PHP_BINARY,
+        $entrypoint,
+        '--app-root=' . $root,
+        '--transaction=' . $transactionId,
+        $recover ? '--recover' : '--apply',
+        '--json',
+    ];
+
+    if (!$recover) {
+        $candidateDir = trim((string) $candidateDir);
+        if ($candidateDir === '') {
+            throw new RuntimeException('Для внешнего apply нужен проверенный candidate');
+        }
+        $command[] = '--candidate-dir=' . $candidateDir;
+    }
+
+    foreach (['state-root', 'backup-root'] as $option) {
+        updateRunAppendOption($command, $options, $option);
+    }
+
+    return $command;
+}
+
+/** @return array<string,mixed>|null */
+function updateRunRecordedExternalRuntime(array $options, string $transactionId, string $root): ?array
+{
+    $stateRoot = trim((string) ($options['state-root'] ?? ''));
+    if ($stateRoot === '') {
+        $maintenance = new MaintenanceModeService(null, $root);
+        $configured = $maintenance->configuredStateRoot();
+        $stateRoot = is_string($configured) ? trim($configured) : '';
+    }
+    if ($stateRoot === '') {
+        return null;
+    }
+
+    $journal = new UpdateTransactionJournal($stateRoot, $root);
+    $state = $journal->load($transactionId);
+    $recorded = $state['external_runtime'] ?? null;
+    if (!is_array($recorded)) {
+        return null;
+    }
+
+    return (new UpdateExternalRuntime($root))->verifyRecorded(
+        $recorded,
+        (int) ($state['installed_version_code'] ?? 0)
+    );
+}
+
 /**
  * Пытается автоматически восстановить транзакцию после ошибки применения.
  *
@@ -156,23 +224,33 @@ function updateRunAutomaticRecover(
     array $options,
     string $transactionId,
     string $root,
+    ?array $externalRuntime = null,
     int $attempts = 3
 ): array {
     $errors = [];
 
     for ($attempt = 1; $attempt <= $attempts; $attempt++) {
         try {
-            $command = updateRunBaseCommand('update_apply.php');
-            $command[] = '--transaction=' . $transactionId;
-            $command[] = '--recover';
-            $command[] = '--json';
-            updateRunAppendOption($command, $options, 'state-root');
-            updateRunAppendOption($command, $options, 'backup-root');
+            $runtime = $externalRuntime ?? updateRunRecordedExternalRuntime(
+                $options,
+                $transactionId,
+                $root
+            );
+            $command = $runtime !== null
+                ? updateRunExternalApplyCommand($runtime, $root, $transactionId, $options, true)
+                : array_merge(
+                    updateRunBaseCommand('update_apply.php'),
+                    ['--transaction=' . $transactionId, '--recover', '--json']
+                );
+            if ($runtime === null) {
+                updateRunAppendOption($command, $options, 'state-root');
+                updateRunAppendOption($command, $options, 'backup-root');
+            }
 
             $result = updateRunJsonCommand(
                 $runner,
                 $command,
-                $root,
+                $runtime !== null ? (string) $runtime['runtime_root'] : $root,
                 1200,
                 'автоматическое восстановление'
             );
@@ -240,14 +318,25 @@ $runner = new UpdateProcessRunner();
 
 if ($recover) {
     try {
-        $command = updateRunBaseCommand('update_apply.php');
-        $command[] = '--transaction=' . $transactionId;
-        $command[] = '--recover';
-        $command[] = '--json';
-        updateRunAppendOption($command, $options, 'state-root');
-        updateRunAppendOption($command, $options, 'backup-root');
+        $runtime = updateRunRecordedExternalRuntime($options, $transactionId, $root);
+        $command = $runtime !== null
+            ? updateRunExternalApplyCommand($runtime, $root, $transactionId, $options, true)
+            : array_merge(
+                updateRunBaseCommand('update_apply.php'),
+                ['--transaction=' . $transactionId, '--recover', '--json']
+            );
+        if ($runtime === null) {
+            updateRunAppendOption($command, $options, 'state-root');
+            updateRunAppendOption($command, $options, 'backup-root');
+        }
 
-        $recovered = updateRunJsonCommand($runner, $command, $root, 1200, 'восстановление');
+        $recovered = updateRunJsonCommand(
+            $runner,
+            $command,
+            $runtime !== null ? (string) $runtime['runtime_root'] : $root,
+            1200,
+            'восстановление'
+        );
         if ($json) {
             echo json_encode([
                 'status' => 'recovered',
@@ -370,19 +459,34 @@ try {
         throw new RuntimeException('Не найден путь к проверенному кандидату релиза');
     }
 
-    $applyCommand = updateRunBaseCommand('update_apply.php');
-    $applyCommand[] = '--transaction=' . $transactionId;
-    $applyCommand[] = '--candidate-dir=' . $candidateDir;
-    $applyCommand[] = '--apply';
-    $applyCommand[] = '--json';
-    foreach (['state-root', 'backup-root'] as $option) {
-        updateRunAppendOption($applyCommand, $options, $option);
-    }
+    $externalRuntime = (new UpdateExternalRuntime($root))->prepare();
+    $journalState = (new UpdateTransactionStateMachine($stateRoot, $root))
+        ->attachExternalRuntime($transactionId, $externalRuntime);
+    $externalRuntime = (new UpdateExternalRuntime($root))->verifyRecorded(
+        (array) ($journalState['external_runtime'] ?? []),
+        Version::VERSION_CODE
+    );
 
-    // После этой точки откат, восстановление и снятие режима обслуживания принадлежат
-    // только UpdateApplyCommand. Обёртка не должна самовольно открывать запись при ошибке.
+    $applyCommand = updateRunExternalApplyCommand(
+        $externalRuntime,
+        $root,
+        $transactionId,
+        $options,
+        false,
+        $candidateDir
+    );
+
+    // После этой точки destructive-фаза, откат и снятие maintenance принадлежат
+    // только внешнему UpdateApplyCommand. Live bin/core больше не являются
+    // местом исполнения destructive updater-процесса.
     $applyInvoked = true;
-    $applied = updateRunJsonCommand($runner, $applyCommand, $root, 1800, 'применение обновления');
+    $applied = updateRunJsonCommand(
+        $runner,
+        $applyCommand,
+        (string) $externalRuntime['runtime_root'],
+        1800,
+        'применение обновления'
+    );
 
     if ($json) {
         echo json_encode([
@@ -415,6 +519,9 @@ try {
         }
     }
 
+    // Обёртка не должна самовольно открывать запись при ошибке: после передачи
+    // destructive-фазы внешнему runtime она либо принимает проверенный результат,
+    // либо запускает recovery, оставляя maintenance активным при неуспехе recovery.
     if ($applyInvoked) {
         $applyPayload = $e instanceof UpdateRunSubprocessException ? $e->payload : [];
         $applyErrorCode = (string) ($applyPayload['code'] ?? '');
@@ -464,7 +571,8 @@ try {
                 $runner,
                 $options,
                 $transactionId,
-                $root
+                $root,
+                $externalRuntime ?? null
             );
             $recoveryStatus = (string) ($recovery['status'] ?? 'recovered');
 

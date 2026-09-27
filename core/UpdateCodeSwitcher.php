@@ -5,91 +5,97 @@ declare(strict_types=1);
 namespace Core;
 
 require_once __DIR__ . '/UpdateCandidateVerifier.php';
+require_once __DIR__ . '/UpdateFileMutator.php';
 require_once __DIR__ . '/UpdatePath.php';
+require_once __DIR__ . '/UpdateRollbackCodeRestorer.php';
 
+use JsonException;
 use RuntimeException;
 use Throwable;
 
 /**
- * Filesystem mutation boundary for release-owned code.
+ * Граница пофайлового переключения release-owned кода.
  *
- * All candidate/backup verification is delegated to UpdateCandidateVerifier.
- * This class only prepares scratch trees and performs controlled rename-based
- * switches/rollbacks.
+ * До destructive boundary создаётся неизменяемый план с контрольными суммами
+ * исходного live-tree, candidate и списка операций. При применении план,
+ * backup и candidate проверяются повторно до изменения первого файла.
  */
 final class UpdateCodeSwitcher
 {
+    private const PLAN_SCHEMA = 2;
+
+    private UpdateFileMutator $mutator;
+
     /** @param list<string> $preservedRoots */
     public function __construct(
         private readonly string $appRoot,
         private readonly string $parentRoot,
         private readonly UpdateCandidateVerifier $verifier,
         private readonly array $preservedRoots
-    ) {}
+    ) {
+        $this->mutator = new UpdateFileMutator($this->appRoot, $this->preservedRoots);
+    }
 
     /**
-     * @return array{scratch_dir:string,new_dir:string,old_dir:string,entries:list<string>}
+     * @return array{
+     *   scratch_dir:string,
+     *   plan_path:string,
+     *   plan_sha256:string,
+     *   transaction_id:string,
+     *   entries:list<string>
+     * }
      */
     public function prepare(string $transactionId, string $candidateDir, string $backupDir): array
     {
         $this->validateTransactionId($transactionId);
+
         $candidate = $this->verifier->verifyCandidateTree($candidateDir);
         $backup = $this->verifier->loadCodeManifest($backupDir);
-        $candidateTops = $candidate['top_level'];
-        $backupTops = $this->verifier->topLevelsFromEntries($backup['entries']);
+        $sourceMap = $this->backupContentMap($backup['entries']);
+        $liveMap = $this->mutator->releaseFiles();
+        $this->assertContentMapsEqual(
+            $sourceMap,
+            $liveMap,
+            'Live-tree изменился после создания проверенного rollback backup'
+        );
 
-        $entries = array_values(array_unique(array_merge($candidateTops, $backupTops)));
-        $entries = array_values(array_filter(
-            $entries,
-            fn (string $name): bool => !$this->isPreservedRoot($name) && !$this->isPreservedEnvName($name)
-        ));
-        sort($entries, SORT_STRING);
-        if ($entries === []) {
-            throw new RuntimeException('Updater live switch has no release-owned entries');
+        $targetMap = $this->candidateMap($candidate);
+        $operations = $this->buildOperations($liveMap, $targetMap);
+        if ($operations === []) {
+            throw new RuntimeException('Пофайловый updater-план не содержит изменений');
         }
 
-        $scratch = $this->scratchPath('apply', $transactionId);
+        $scratch = $this->scratchPath($transactionId);
         if (file_exists($scratch) || is_link($scratch)) {
-            throw new RuntimeException('Updater live switch scratch already exists; use recovery before retrying apply');
+            throw new RuntimeException('Каталог updater-плана уже существует; требуется recovery перед повторным apply');
         }
 
         $oldUmask = umask(0077);
         $made = @mkdir($scratch, 0700, false);
         umask($oldUmask);
         if (!$made || !is_dir($scratch)) {
-            throw new RuntimeException('Cannot create updater live switch scratch directory');
+            throw new RuntimeException('Не удалось создать внешний каталог updater-плана');
         }
 
-        $newDir = $scratch . '/new';
-        $oldDir = $scratch . '/old';
-        if (!mkdir($newDir, 0700) || !mkdir($oldDir, 0700)) {
-            UpdatePath::removeTree($scratch);
-            throw new RuntimeException('Cannot initialize updater live switch scratch directories');
-        }
+        $planPath = $scratch . DIRECTORY_SEPARATOR . 'plan.json';
 
         try {
-            foreach ($candidateTops as $name) {
-                if ($this->isPreservedRoot($name) || $this->isPreservedEnvName($name)) {
-                    continue;
-                }
-                $source = $candidate['candidate_dir'] . '/' . $name;
-                if (!file_exists($source) && !is_link($source)) {
-                    throw new RuntimeException("Candidate top-level entry disappeared during preparation: {$name}");
-                }
-                $this->copyEntry($source, $newDir . '/' . $name);
-            }
-
-            $this->writePlan($scratch . '/plan.json', [
-                'schema' => 1,
+            $payload = [
+                'schema' => self::PLAN_SCHEMA,
                 'transaction_id' => $transactionId,
-                'mode' => 'apply',
+                'mode' => 'file-apply',
                 'application_root' => $this->appRoot,
                 'candidate_dir' => $candidate['candidate_dir'],
                 'candidate_tree_sha256' => $candidate['tree_sha256'],
-                'entries' => $entries,
-            ]);
+                'backup_dir' => $backup['backup_dir'],
+                'source_files_sha256' => $this->mapSha256($sourceMap),
+                'target_files_sha256' => $this->mapSha256($targetMap),
+                'operations' => $operations,
+            ];
 
-            $this->verifier->verifyPreparedCandidate($newDir, $candidate['candidate_dir'], $candidateTops);
+            $bytes = $this->jsonBytes($payload);
+            $this->writeExclusive($planPath, $bytes, 0600);
+            $planSha = hash('sha256', $bytes);
         } catch (Throwable $e) {
             UpdatePath::removeTree($scratch);
             throw $e;
@@ -97,241 +103,417 @@ final class UpdateCodeSwitcher
 
         return [
             'scratch_dir' => $scratch,
-            'new_dir' => $newDir,
-            'old_dir' => $oldDir,
-            'entries' => $entries,
+            'plan_path' => $planPath,
+            'plan_sha256' => $planSha,
+            'transaction_id' => $transactionId,
+            'entries' => $this->topLevelsFromOperations($operations),
         ];
     }
 
     /**
-     * @param array{scratch_dir:string,new_dir:string,old_dir:string,entries:list<string>} $plan
+     * @param array<string,mixed> $plan
      * @return array<string,mixed>
      */
     public function switchPrepared(array $plan): array
     {
-        $scratch = UpdatePath::normalize((string) ($plan['scratch_dir'] ?? ''));
-        if (!is_dir($scratch) || is_link($scratch) || dirname($scratch) !== $this->parentRoot) {
-            throw new RuntimeException('Updater live switch scratch path is unsafe');
+        $prepared = $this->loadPreparedPlan($plan);
+        $payload = $prepared['payload'];
+        $transactionId = (string) $payload['transaction_id'];
+
+        $candidate = $this->verifier->verifyCandidateTree((string) $payload['candidate_dir']);
+        if (!hash_equals((string) $payload['candidate_tree_sha256'], (string) $candidate['tree_sha256'])) {
+            throw new RuntimeException('Candidate изменился после фиксации пофайлового updater-плана');
         }
 
-        $newDir = UpdatePath::normalize((string) ($plan['new_dir'] ?? ''));
-        $oldDir = UpdatePath::normalize((string) ($plan['old_dir'] ?? ''));
-        if ($newDir !== $scratch . '/new' || $oldDir !== $scratch . '/old' || !is_dir($newDir) || !is_dir($oldDir)) {
-            throw new RuntimeException('Updater live switch scratch layout is invalid');
+        $backup = $this->verifier->loadCodeManifest((string) $payload['backup_dir']);
+        $sourceMap = $this->backupContentMap($backup['entries']);
+        if (!hash_equals((string) $payload['source_files_sha256'], $this->mapSha256($sourceMap))) {
+            throw new RuntimeException('Rollback backup изменился после фиксации пофайлового updater-плана');
         }
 
-        $switched = [];
-        foreach (($plan['entries'] ?? []) as $entry) {
-            $entry = (string) $entry;
-            if (!UpdatePath::safeTopLevel($entry) || $this->isPreservedRoot($entry) || $this->isPreservedEnvName($entry)) {
-                throw new RuntimeException('Updater switch plan contains unsafe top-level entry');
-            }
+        $targetMap = $this->candidateMap($candidate);
+        if (!hash_equals((string) $payload['target_files_sha256'], $this->mapSha256($targetMap))) {
+            throw new RuntimeException('Candidate file-map изменился после фиксации пофайлового updater-плана');
+        }
 
-            $live = $this->appRoot . '/' . $entry;
-            $old = $oldDir . '/' . $entry;
-            $new = $newDir . '/' . $entry;
-            $hadLive = file_exists($live) || is_link($live);
-            $hasNew = file_exists($new) || is_link($new);
+        $liveMap = $this->mutator->releaseFiles();
+        $this->assertContentMapsEqual(
+            $sourceMap,
+            $liveMap,
+            'Live-tree изменился после фиксации пофайлового updater-плана'
+        );
 
-            if ($hadLive) {
-                if (file_exists($old) || is_link($old) || !@rename($live, $old)) {
-                    throw new RuntimeException("Cannot move live release entry into transaction scratch: {$entry}");
+        $expectedOperations = $this->buildOperations($liveMap, $targetMap);
+        $recordedOperations = is_array($payload['operations'] ?? null)
+            ? array_values($payload['operations'])
+            : [];
+        if (!hash_equals(
+            hash('sha256', $this->jsonBytes($expectedOperations)),
+            hash('sha256', $this->jsonBytes($recordedOperations))
+        )) {
+            throw new RuntimeException('Список операций пофайлового updater-плана не прошёл повторную проверку');
+        }
+
+        try {
+            foreach ($expectedOperations as $operation) {
+                $relative = (string) $operation['path'];
+
+                if ($operation['action'] === 'delete') {
+                    $this->mutator->delete($relative, $transactionId);
+                    continue;
                 }
+
+                $after = $operation['after'];
+                $source = (string) $candidate['candidate_dir']
+                    . DIRECTORY_SEPARATOR
+                    . str_replace('/', DIRECTORY_SEPARATOR, $relative);
+
+                $this->mutator->replaceVerified(
+                    $source,
+                    $relative,
+                    (int) $after['size'],
+                    (string) $after['sha256'],
+                    (int) $after['mode'],
+                    $transactionId
+                );
             }
 
-            if ($hasNew && !@rename($new, $live)) {
-                if ($hadLive && !file_exists($live) && !is_link($live)) {
-                    @rename($old, $live);
-                }
-                throw new RuntimeException("Cannot activate candidate release entry: {$entry}");
-            }
-
-            $switched[] = $entry;
+            $this->assertContentMapsEqual(
+                $this->contentOnlyMap($targetMap),
+                $this->mutator->releaseFiles(),
+                'Live-tree не совпадает с candidate после пофайлового apply'
+            );
+        } catch (Throwable $e) {
+            $this->cleanupScratch((string) $prepared['scratch_dir']);
+            throw $e;
         }
 
-        return ['scratch_dir' => $scratch, 'entries' => $switched, 'switched_at' => time()];
+        $entries = $this->topLevelsFromOperations($expectedOperations);
+        $this->cleanupScratch((string) $prepared['scratch_dir']);
+
+        return [
+            'entries' => $entries,
+            'operations' => count($expectedOperations),
+            'file_level' => true,
+            'switched_at' => time(),
+        ];
     }
 
     /** @return array<string,mixed> */
     public function restore(string $transactionId, string $backupDir, string $candidateDir): array
     {
+        unset($candidateDir);
+        return (new UpdateRollbackCodeRestorer($this->appRoot))->restore($transactionId, $backupDir);
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     * @return array{scratch_dir:string,payload:array<string,mixed>}
+     */
+    private function loadPreparedPlan(array $plan): array
+    {
+        $scratchInput = (string) ($plan['scratch_dir'] ?? '');
+        $scratch = realpath($scratchInput);
+        if (
+            !is_string($scratch)
+            || !is_dir($scratch)
+            || is_link($scratchInput)
+            || UpdatePath::normalize(dirname($scratch)) !== $this->parentRoot
+        ) {
+            throw new RuntimeException('Внешний каталог updater-плана отсутствует или небезопасен');
+        }
+        $scratch = UpdatePath::normalize($scratch);
+
+        $planInput = (string) ($plan['plan_path'] ?? '');
+        $planPath = realpath($planInput);
+        if (
+            !is_string($planPath)
+            || !is_file($planPath)
+            || is_link($planInput)
+            || UpdatePath::normalize($planPath) !== $scratch . '/plan.json'
+        ) {
+            throw new RuntimeException('Файл пофайлового updater-плана отсутствует или небезопасен');
+        }
+
+        $bytes = file_get_contents($planPath);
+        $actualSha = hash_file('sha256', $planPath);
+        $expectedSha = strtolower(trim((string) ($plan['plan_sha256'] ?? '')));
+        if (
+            !is_string($bytes)
+            || !is_string($actualSha)
+            || preg_match('/^[0-9a-f]{64}$/D', $expectedSha) !== 1
+            || !hash_equals($expectedSha, $actualSha)
+        ) {
+            throw new RuntimeException('Пофайловый updater-план изменился после подготовки');
+        }
+
+        try {
+            $payload = json_decode($bytes, true, 64, JSON_THROW_ON_ERROR);
+        } catch (JsonException $e) {
+            throw new RuntimeException('Пофайловый updater-план содержит некорректный JSON', 0, $e);
+        }
+
+        if (
+            !is_array($payload)
+            || array_is_list($payload)
+            || ($payload['schema'] ?? null) !== self::PLAN_SCHEMA
+            || ($payload['mode'] ?? null) !== 'file-apply'
+            || !hash_equals($this->appRoot, UpdatePath::normalize((string) ($payload['application_root'] ?? '')))
+            || !is_array($payload['operations'] ?? null)
+        ) {
+            throw new RuntimeException('Пофайловый updater-план не прошёл проверку схемы');
+        }
+
+        $transactionId = (string) ($payload['transaction_id'] ?? '');
         $this->validateTransactionId($transactionId);
-        $backup = $this->verifier->loadCodeManifest($backupDir);
-        $candidate = $this->verifier->verifyCandidateTree($candidateDir);
-        $backupTops = $this->verifier->topLevelsFromEntries($backup['entries']);
-
-        $entries = array_values(array_unique(array_merge($backupTops, $candidate['top_level'])));
-        $entries = array_values(array_filter(
-            $entries,
-            fn (string $name): bool => !$this->isPreservedRoot($name) && !$this->isPreservedEnvName($name)
-        ));
-        sort($entries, SORT_STRING);
-
-        $scratch = $this->scratchPath('rollback', $transactionId);
-        if (is_dir($scratch) && !is_link($scratch)) {
-            UpdatePath::removeTree($scratch);
-        } elseif (file_exists($scratch) || is_link($scratch)) {
-            throw new RuntimeException('Updater rollback scratch path is unsafe');
+        if (!hash_equals($transactionId, (string) ($plan['transaction_id'] ?? ''))) {
+            throw new RuntimeException('Пофайловый updater-план принадлежит другой транзакции');
         }
 
-        $oldUmask = umask(0077);
-        $made = @mkdir($scratch, 0700, false);
-        umask($oldUmask);
-        if (!$made) {
-            throw new RuntimeException('Cannot create updater rollback scratch directory');
-        }
-
-        $restoreDir = $scratch . '/restore';
-        $failedDir = $scratch . '/failed-release';
-        if (!mkdir($restoreDir, 0700) || !mkdir($failedDir, 0700)) {
-            UpdatePath::removeTree($scratch);
-            throw new RuntimeException('Cannot initialize updater rollback scratch directories');
-        }
-
-        $backupCodeRoot = $backup['backup_dir'] . '/code';
-        foreach ($backupTops as $name) {
-            $source = $backupCodeRoot . '/' . $name;
-            if (!file_exists($source) && !is_link($source)) {
-                throw new RuntimeException("Verified code backup is missing top-level entry: {$name}");
+        foreach (['candidate_dir', 'candidate_tree_sha256', 'backup_dir', 'source_files_sha256', 'target_files_sha256'] as $key) {
+            if (!is_string($payload[$key] ?? null) || trim((string) $payload[$key]) === '') {
+                throw new RuntimeException('Пофайловый updater-план не содержит обязательное поле: ' . $key);
             }
-            $this->copyEntry($source, $restoreDir . '/' . $name);
         }
+
+        return ['scratch_dir' => $scratch, 'payload' => $payload];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $entries
+     * @return array<string,array{size:int,sha256:string}>
+     */
+    private function backupContentMap(array $entries): array
+    {
+        $map = [];
 
         foreach ($entries as $entry) {
-            $live = $this->appRoot . '/' . $entry;
-            $failed = $failedDir . '/' . $entry;
-            $restore = $restoreDir . '/' . $entry;
-
-            if (file_exists($live) || is_link($live)) {
-                if (!@rename($live, $failed)) {
-                    throw new RuntimeException("Cannot quarantine failed release entry during rollback: {$entry}");
-                }
+            $relative = str_replace(DIRECTORY_SEPARATOR, '/', trim((string) ($entry['path'] ?? '')));
+            if (!$this->mutator->isReleaseOwned($relative)) {
+                throw new RuntimeException('Rollback backup содержит защищённый или небезопасный путь: ' . $relative);
+            }
+            if (isset($map[$relative])) {
+                throw new RuntimeException('Rollback backup содержит повторяющийся путь: ' . $relative);
             }
 
-            if ((file_exists($restore) || is_link($restore)) && !@rename($restore, $live)) {
-                throw new RuntimeException("Cannot restore rollback code entry: {$entry}");
+            $size = (int) ($entry['size'] ?? -1);
+            $sha = strtolower(trim((string) ($entry['sha256'] ?? '')));
+            if ($size < 0 || preg_match('/^[0-9a-f]{64}$/D', $sha) !== 1) {
+                throw new RuntimeException('Rollback backup содержит некорректную метаинформацию: ' . $relative);
             }
+
+            $map[$relative] = ['size' => $size, 'sha256' => $sha];
         }
 
-        $this->verifier->verifyLiveAgainstBackup($backup);
-
-        return ['scratch_dir' => $scratch, 'entries' => $entries, 'restored_at' => time()];
+        ksort($map, SORT_STRING);
+        return $map;
     }
 
-    private function copyEntry(string $source, string $destination): void
+    /**
+     * @param array<string,mixed> $candidate
+     * @return array<string,array{size:int,sha256:string,mode:int}>
+     */
+    private function candidateMap(array $candidate): array
     {
-        if (is_link($source)) {
-            throw new RuntimeException('Updater refuses symlink while preparing code switch');
+        $fileMap = $candidate['file_map'] ?? null;
+        if (!is_array($fileMap)) {
+            throw new RuntimeException('Проверенный candidate не содержит file-map');
         }
 
-        if (is_file($source)) {
-            $this->ensureDirectory(dirname($destination));
-            $input = @fopen($source, 'rb');
-            $output = @fopen($destination, 'xb');
-            if ($input === false || $output === false) {
-                if (is_resource($input)) {
-                    fclose($input);
-                }
-                if (is_resource($output)) {
-                    fclose($output);
-                }
-                throw new RuntimeException('Cannot copy updater release file into switch scratch');
-            }
-
-            try {
-                $copied = stream_copy_to_stream($input, $output);
-                if (!is_int($copied) || !fflush($output)) {
-                    throw new RuntimeException('Updater release file copy did not complete');
-                }
-            } finally {
-                fclose($input);
-                fclose($output);
-            }
-
-            $mode = fileperms($source);
-            @chmod($destination, is_int($mode) ? ($mode & 0777) : 0644);
-            return;
-        }
-
-        if (!is_dir($source)) {
-            throw new RuntimeException('Updater release contains unsupported filesystem entry');
-        }
-
-        $this->ensureDirectory($destination);
-        $items = scandir($source);
-        if (!is_array($items)) {
-            throw new RuntimeException('Cannot read updater release directory');
-        }
-
-        foreach ($items as $item) {
-            if ($item === '.' || $item === '..') {
+        $map = [];
+        foreach ($fileMap as $relative => $metadata) {
+            $relative = str_replace(DIRECTORY_SEPARATOR, '/', trim((string) $relative));
+            if (!$this->mutator->isReleaseOwned($relative)) {
                 continue;
             }
-            $this->copyEntry($source . '/' . $item, $destination . '/' . $item);
+            if (!is_array($metadata)) {
+                throw new RuntimeException('Candidate file-map повреждён: ' . $relative);
+            }
+
+            $source = (string) $candidate['candidate_dir']
+                . DIRECTORY_SEPARATOR
+                . str_replace('/', DIRECTORY_SEPARATOR, $relative);
+            $permissions = fileperms($source);
+            $mode = is_int($permissions) ? ($permissions & 0777) : 0644;
+            if ($mode === 0) {
+                $mode = 0644;
+            }
+
+            $map[$relative] = [
+                'size' => (int) ($metadata['size'] ?? -1),
+                'sha256' => strtolower(trim((string) ($metadata['sha256'] ?? ''))),
+                'mode' => $mode,
+            ];
+        }
+
+        ksort($map, SORT_STRING);
+        return $map;
+    }
+
+    /**
+     * @param array<string,array{size:int,sha256:string}> $source
+     * @param array<string,array{size:int,sha256:string,mode:int}> $target
+     * @return list<array<string,mixed>>
+     */
+    private function buildOperations(array $source, array $target): array
+    {
+        $delete = array_values(array_diff(array_keys($source), array_keys($target)));
+        usort($delete, [$this, 'deepestFirst']);
+
+        $operations = [];
+        foreach ($delete as $relative) {
+            $operations[] = [
+                'action' => 'delete',
+                'path' => $relative,
+                'before' => $source[$relative],
+                'after' => null,
+            ];
+        }
+
+        $replace = [];
+        foreach ($target as $relative => $after) {
+            $before = $source[$relative] ?? null;
+            if (
+                is_array($before)
+                && (int) $before['size'] === (int) $after['size']
+                && hash_equals((string) $before['sha256'], (string) $after['sha256'])
+            ) {
+                continue;
+            }
+            $replace[] = $relative;
+        }
+        usort($replace, [$this, 'shallowestFirst']);
+
+        foreach ($replace as $relative) {
+            $operations[] = [
+                'action' => 'replace',
+                'path' => $relative,
+                'before' => $source[$relative] ?? null,
+                'after' => $target[$relative],
+            ];
+        }
+
+        return $operations;
+    }
+
+    /**
+     * @param array<string,array{size:int,sha256:string,mode:int}> $map
+     * @return array<string,array{size:int,sha256:string}>
+     */
+    private function contentOnlyMap(array $map): array
+    {
+        $result = [];
+        foreach ($map as $relative => $metadata) {
+            $result[$relative] = [
+                'size' => (int) $metadata['size'],
+                'sha256' => (string) $metadata['sha256'],
+            ];
+        }
+        ksort($result, SORT_STRING);
+        return $result;
+    }
+
+    /**
+     * @param array<string,array{size:int,sha256:string}> $expected
+     * @param array<string,array{size:int,sha256:string}> $actual
+     */
+    private function assertContentMapsEqual(array $expected, array $actual, string $message): void
+    {
+        ksort($expected, SORT_STRING);
+        ksort($actual, SORT_STRING);
+
+        if (!hash_equals($this->mapSha256($expected), $this->mapSha256($actual))) {
+            throw new RuntimeException($message);
         }
     }
 
-    private function ensureDirectory(string $path): void
+    /** @param array<string,mixed> $map */
+    private function mapSha256(array $map): string
     {
-        if (is_dir($path) && !is_link($path)) {
-            return;
-        }
-        if (file_exists($path) || is_link($path)) {
-            throw new RuntimeException('Updater scratch directory path collides with existing entry');
-        }
-
-        $old = umask(0022);
-        $ok = @mkdir($path, 0755, true);
-        umask($old);
-        if (!$ok && !is_dir($path)) {
-            throw new RuntimeException('Cannot create updater scratch directory');
-        }
-        @chmod($path, 0755);
+        return hash('sha256', $this->jsonBytes($map));
     }
 
-    /** @param array<string,mixed> $payload */
-    private function writePlan(string $path, array $payload): void
+    /** @param array<mixed> $value */
+    private function jsonBytes(array $value): string
     {
-        $bytes = json_encode(
-            $payload,
-            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
-        ) . PHP_EOL;
+        return json_encode(
+            $value,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        );
+    }
 
+    /** @param list<array<string,mixed>> $operations @return list<string> */
+    private function topLevelsFromOperations(array $operations): array
+    {
+        $entries = [];
+        foreach ($operations as $operation) {
+            $relative = (string) ($operation['path'] ?? '');
+            if (!$this->mutator->isReleaseOwned($relative)) {
+                throw new RuntimeException('Updater-план содержит небезопасный путь: ' . $relative);
+            }
+            $entries[explode('/', $relative, 2)[0]] = true;
+        }
+
+        $result = array_keys($entries);
+        sort($result, SORT_STRING);
+        return $result;
+    }
+
+    private function writeExclusive(string $path, string $bytes, int $mode): void
+    {
         $handle = @fopen($path, 'xb');
         if ($handle === false) {
-            throw new RuntimeException('Cannot write updater switch plan');
+            throw new RuntimeException('Не удалось записать пофайловый updater-план');
         }
 
         try {
             if (fwrite($handle, $bytes) !== strlen($bytes) || !fflush($handle)) {
-                throw new RuntimeException('Cannot write complete updater switch plan');
+                throw new RuntimeException('Пофайловый updater-план записан не полностью');
             }
         } finally {
             fclose($handle);
         }
 
-        @chmod($path, 0600);
+        @chmod($path, $mode & 0777);
     }
 
-    private function scratchPath(string $mode, string $transactionId): string
+    private function cleanupScratch(string $scratch): void
     {
-        return $this->parentRoot . '/.' . basename($this->appRoot) . '.update-' . $mode . '-' . $transactionId;
+        try {
+            if (is_dir($scratch) && !is_link($scratch)) {
+                UpdatePath::removeTree($scratch);
+            }
+        } catch (Throwable) {
+            // Диагностический plan не влияет на уже проверенный результат apply/rollback.
+        }
+    }
+
+    private function scratchPath(string $transactionId): string
+    {
+        return $this->parentRoot
+            . DIRECTORY_SEPARATOR
+            . '.'
+            . basename($this->appRoot)
+            . '.update-plan-'
+            . $transactionId;
+    }
+
+    private function deepestFirst(string $left, string $right): int
+    {
+        $depth = substr_count($right, '/') <=> substr_count($left, '/');
+        return $depth !== 0 ? $depth : strcmp($left, $right);
+    }
+
+    private function shallowestFirst(string $left, string $right): int
+    {
+        $depth = substr_count($left, '/') <=> substr_count($right, '/');
+        return $depth !== 0 ? $depth : strcmp($left, $right);
     }
 
     private function validateTransactionId(string $transactionId): void
     {
-        if (preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]{7,95}$/', trim($transactionId)) !== 1) {
-            throw new RuntimeException('Invalid updater transaction id');
+        if (preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]{7,95}$/D', trim($transactionId)) !== 1) {
+            throw new RuntimeException('Некорректный идентификатор updater-транзакции');
         }
-    }
-
-    private function isPreservedRoot(string $name): bool
-    {
-        return in_array($name, $this->preservedRoots, true);
-    }
-
-    private function isPreservedEnvName(string $name): bool
-    {
-        return $name === '.env' || str_starts_with($name, '.env.');
     }
 }

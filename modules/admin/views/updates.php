@@ -142,7 +142,7 @@ ob_start();
                     <div class="admin-status-card"><label>Файлов в ZIP</label><strong><?= $view->e($result['archive_files'] ?? 0) ?></strong></div>
                 <?php else: ?>
                     <div class="admin-status-card"><label>Установленная версия</label><strong><?= $view->e($result['installed_version'] ?? ($result['target_version'] ?? '—')) ?></strong></div>
-                    <div class="admin-status-card"><label>Транзакция</label><strong><code><?= $view->e($result['transaction_id'] ?? '—') ?></code></strong></div>
+                    <div class="admin-status-card"><label>Состояние</label><strong>Установка завершена</strong></div>
                 <?php endif; ?>
             </div>
 
@@ -167,7 +167,19 @@ ob_start();
             <?php endif; ?>
 
             <?php if ($installableResult && $canApply): ?>
-                <form action="<?= $view->e($view->route('admin_updates_apply')) ?>" method="post" class="custom-fields-form" data-confirm-message="Установить подтверждённое обновление? Система временно включит режим обслуживания, создаст проверенную резервную копию и выполнит миграции." data-confirm-title="Установка обновления" data-confirm-danger="true" data-confirm-text="Установить">
+                <div class="admin-update-progress" data-update-progress hidden role="status" aria-live="polite">
+                    <strong>Установка выполняется</strong>
+                    <p>Обновлятор последовательно проверит пакет, создаст резервную точку, заменит файлы, выполнит миграции и проверит результат. При ошибке восстановление запускается автоматически.</p>
+                    <ol>
+                        <li>Повторная проверка подписи и SHA-256</li>
+                        <li>Проверенная резервная копия кода и базы</li>
+                        <li>Пофайловое обновление рабочей версии</li>
+                        <li>Миграции базы данных</li>
+                        <li>Проверка версии и работоспособности</li>
+                    </ol>
+                    <small>Страница обновится после подтверждённого результата. Повторно запускать установку не нужно.</small>
+                </div>
+                <form action="<?= $view->e($view->route('admin_updates_apply')) ?>" method="post" class="custom-fields-form" data-update-install-form data-confirm-message="Установить подтверждённое обновление? Система временно включит режим обслуживания, создаст проверенную резервную копию и выполнит миграции." data-confirm-title="Установка обновления" data-confirm-danger="true" data-confirm-text="Установить">
                     <?= $view->csrfInput() ?>
                     <div class="custom-fields-form__footer">
                         <small>Перед изменением рабочих файлов обновлятор повторно сверит версию и SHA-256 с тем релизом, который показан выше.</small>
@@ -259,5 +271,6 @@ echo $view->layout('core/base', [
     ],
     'module_scripts' => [
         $view->moduleAsset('admin', 'admin-settings-nav.js'),
+        $view->moduleAsset('admin', 'admin-updates.js'),
     ],
 ], $content);

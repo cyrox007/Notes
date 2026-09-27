@@ -8,6 +8,7 @@ use RuntimeException;
 use Throwable;
 
 require_once __DIR__ . '/UpdateAccessBootstrap.php';
+require_once __DIR__ . '/PrivateStorageResolver.php';
 require_once __DIR__ . '/UpdatePhpCli.php';
 
 /**
@@ -117,7 +118,7 @@ final class UpdateReadiness
                 if ($credentials !== null && $feedReady) {
                     $credentials->headersFor($feed);
                 } else {
-                    UpdateDownloadCredentials::credentialsPath();
+                    UpdateDownloadCredentials::credentialsPath(false);
                 }
             }
             $record('update_access', true);
@@ -131,7 +132,11 @@ final class UpdateReadiness
             );
         }
 
-        $private = trim((string) (getenv('PRIVATE_STORAGE_PATH') ?: ''));
+        try {
+            $private = (new PrivateStorageResolver($this->appRoot))->candidate();
+        } catch (Throwable) {
+            $private = '';
+        }
         $paths = [
             'staging' => $this->configuredRoot('UPDATE_STAGING_PATH', $private, 'updates'),
             'state' => $this->configuredRoot('UPDATE_STATE_PATH', $private, 'updates'),

@@ -303,7 +303,6 @@ final class UpdateController extends Controller
             'target_version' => (string) ($result['target_version'] ?? ''),
             'target_version_code' => (int) ($result['target_version_code'] ?? 0),
             'package_sha256' => strtolower((string) ($result['package_sha256'] ?? '')),
-            'transaction_id' => (string) ($result['transaction_id'] ?? ''),
             'installed_version' => (string) ($result['installed_version'] ?? ''),
         ];
     }

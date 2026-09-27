@@ -53,11 +53,12 @@ foreach ([
     'OSPanel 5.2.2',
     'Gate G — неизменяемый артефакт и подпись',
     'Gate H — финальный merge и tag',
-    'v1.0.5',
+    'v1.0.6',
     'нет открытых P0/P1 дефектов с риском потери данных',
     'нет открытых P0/P1 дефектов безопасности',
-    'работает только как сборка',
-    'не должен создавать или обновлять публичный GitHub Release',
+    'ручной pre-tag проверки',
+    'tag-driven `Build hosting package`',
+    'публикации GitHub Release',
 ] as $marker) {
     releaseAcceptanceAssert(str_contains($doc, $marker), "runbook release acceptance не содержит marker {$marker}");
 }
@@ -82,7 +83,7 @@ foreach ([
     'production_public_trust_roots',
     'release_evidence_harness',
     'private_signing_material_absent',
-    "Version::VERSION === '1.0.5'",
+    "Version::VERSION === '1.0.6'",
     "Version::STATUS === 'stable'",
     'exit(3)',
 ] as $marker) {
@@ -105,21 +106,21 @@ releaseAcceptanceAssert(
     'документ изоляции модулей не соответствует текущему runtime'
 );
 
-$releaseNotes = releaseAcceptanceText($root, 'docs/releases/v1.0.5.md');
+$releaseNotes = releaseAcceptanceText($root, 'docs/releases/v1.0.6.md');
 foreach (['## Назначение релиза', '## Совместимость', '## Граница поддержки'] as $marker) {
     releaseAcceptanceAssert(
         str_contains($releaseNotes, $marker),
-        "описание релиза 1.0.5 не содержит русский раздел {$marker}"
+        "описание релиза 1.0.6 не содержит русский раздел {$marker}"
     );
 }
 
 
 releaseAcceptanceAssert(
-    str_contains($releaseNotes, '1.0.4 → 1.0.5')
-    && str_contains($releaseNotes, '1.0.5 → 1.0.6')
-    && str_contains($releaseNotes, 'автоматическое уведомление')
-    && str_contains($releaseNotes, 'одна кнопка'),
-    'описание 1.0.5 не фиксирует переходный шаг и постоянный одношаговый контракт'
+    str_contains($releaseNotes, '1.0.6 → 1.0.7')
+    && str_contains($releaseNotes, 'внешнего runtime')
+    && str_contains($releaseNotes, 'пофайлово')
+    && str_contains($releaseNotes, 'Windows/OSPanel 5.2.2'),
+    'описание 1.0.6 не фиксирует новую архитектуру и пострелизную приёмку'
 );
 
 
@@ -205,4 +206,4 @@ releaseAcceptanceAssert(
     'Stable release gate не запускает контракт двухфакторной аутентификации'
 );
 
-fwrite(STDOUT, "[OK] финальный контракт release acceptance 1.0.5 выполнен\n");
+fwrite(STDOUT, "[OK] финальный контракт release acceptance 1.0.6 выполнен\n");

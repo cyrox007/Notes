@@ -1,31 +1,50 @@
-# Релизная приёмка Windows / OSPanel для 1.0.2
+# Релизная приёмка Windows / OSPanel для 1.0.6
 
-Этот чек-лист дополняет автоматический CI на `windows-latest`. Успешный GitHub-hosted Windows подтверждает совместимость PHP/filesystem/updater paths в Windows, но **не заменяет** финальную приёмку OSPanel 5.2.2 на реальном целевом стеке.
+Этот чек-лист дополняет автоматический CI на `windows-latest` и предназначен для финальной ручной проверки новой архитектуры updater на **OSPanel 5.2.2**. Успешный GitHub-hosted Windows подтверждает базовую совместимость PHP, путей и файловых операций, но не заменяет проверку реального стека OSPanel.
+
+Приёмка выполняется на одноразовой копии установки и базы данных. Намеренно неисправные обновления нельзя запускать на рабочей пользовательской установке.
+
+## Что считается успехом
+
+Оператор должен подтвердить один полный цикл:
+
+1. чистая установка релиз-кандидата 1.0.6 запускается без ручной настройки private storage;
+2. действующая лицензия автоматически получает или обновляет credential доступа к обновлениям;
+3. неисправный подписанный 1.0.7 с ошибкой миграции автоматически возвращает код и БД к 1.0.6;
+4. неисправный подписанный 1.0.7 с ошибкой post-health автоматически возвращает код и БД к 1.0.6;
+5. после имитации оборванного обновления первый следующий HTTP-запрос автоматически завершает recovery;
+6. исправный подписанный 1.0.7 обнаруживается обычным интерфейсом и устанавливается одной кнопкой;
+7. после всех сценариев maintenance снят, пользовательские данные сохранены, приложение и Messenger продолжают работать.
+
+Нормальный пользовательский путь не должен требовать PowerShell, ручного ZIP, SQL, правки `.env`, запуска миграций или знания идентификатора updater-транзакции.
 
 ## Автоматический Windows gate
 
-Workflow `.github/workflows/windows-hosting-compat.yml` работает на PHP 8.1 и PHP 8.3 и проверяет:
+Workflow `.github/workflows/windows-hosting-compat.yml` выполняется на Windows и проверяет:
 
-- границы updater paths Windows: drive-letter, slash/backslash, UNC и case-insensitive paths;
-- staging подписанных manifest/package;
-- remote signed update delivery через in-memory transport;
-- извлечение external release candidate и повторную проверку;
-- retention recovery-artifacts updater;
-- native view/module runtime contracts;
-- release-package/deployment surface contracts;
-- наличие `update_doctor.php`, `update_run.php` и `update_retention.php`.
+- Windows-пути, включая drive-letter, slash/backslash, UNC и регистр;
+- staging и проверку подписанных manifest/package;
+- внешний updater runtime вне рабочего дерева приложения;
+- пофайловую замену без переименования верхних каталогов;
+- remote delivery и проверку кандидата;
+- retention recovery-артефактов;
+- operator CLI как аварийный путь, а не как обязательную часть пользовательского обновления;
+- совместимость основных runtime-контрактов приложения.
 
-Этот gate не использует production signing secret.
+Отдельные Linux CI-проверки дополнительно подтверждают MySQL 8.4 и MariaDB 10.11 backup/restore, автоматический rollback и ранний boot recovery.
 
-## Финальная приёмка OSPanel 5.2.2
+## Подготовка OSPanel
 
-Выполняйте её только на disposable-копии установки и базы данных либо после создания проверенного backup. Не используйте production dataset для намеренного rollback drill.
+Используйте отдельный домен и отдельную тестовую БД, например:
 
-### 1. Baseline
+```text
+C:\OSPanel\domains\notes-106-acceptance.local
+C:\OSPanel\private\notes-106-acceptance
+```
 
-Начните с exact published package `v1.0.1`.
+Private storage должен находиться вне публичного рабочего дерева приложения. Если путь не задан вручную, приложение должно безопасно выбрать или создать внешний sibling-каталог автоматически.
 
-Зафиксируйте:
+Перед началом зафиксируйте:
 
 ```powershell
 php -r "require 'core/Version.php'; echo Core\Version::VERSION, PHP_EOL;"
@@ -33,50 +52,115 @@ php -r "require 'core/Version.php'; echo Core\Version::VERSION_CODE, PHP_EOL;"
 php bin/healthcheck.php --json
 ```
 
-Ожидаемая source identity:
+Ожидаемая исходная идентичность финального кандидата после релизного version bump:
 
 ```text
-1.0.1
-10001
+1.0.6
+10006
 ```
 
-Убедитесь, что приложение работает через OSPanel hostname, а база данных/private storage содержат disposable test data, которые можно проверить после обновления.
+До version bump этот документ используется как инструкция к будущему frozen RC; текущая feature-ветка не считается принятым релизным артефактом.
 
-### 2. Подготовьте финальные artifacts 1.0.2
+## Контроль исходных данных
 
-Используйте только финальные release artifacts:
+Создайте в тестовой установке данные, которые легко проверить после каждого сценария:
 
-- `workspace-organizer-v1.0.2.zip`;
-- его опубликованный SHA-256;
-- `update.json`;
-- `update.sig`.
+- одну заметку с уникальным текстом;
+- одну задачу;
+- один файл в File Manager;
+- одно сообщение Messenger между двумя тестовыми пользователями;
+- одну настройку профиля.
 
-Проверьте checksum ZIP до извлечения временного runner.
+Создайте проверенный backup тестовой БД и внешнего private storage. Восстановление backup должно быть проверено до destructive-сценариев.
 
-Временная директория runner 1.0.2 и все state directories updater должны находиться вне live application tree 1.0.1. Пример:
+## Сценарий A — чистая 1.0.6 и автоматический private storage
 
-```text
-C:\OSPanel\home\notes.local
-C:\OSPanel\update-runner\workspace-1.0.2
-C:\OSPanel\private\notes\update-staging
-C:\OSPanel\private\notes\update-state
-C:\OSPanel\private\notes\update-backups
-C:\OSPanel\private\notes\update-releases
-```
+1. Разверните точный frozen package 1.0.6 в отдельный домен OSPanel.
+2. Не создавайте вручную updater credential и не указывайте `UPDATE_CREDENTIALS_FILE`.
+3. Выполните обычную установку через браузер.
+4. Войдите администратором и откройте **Админ → Обновления**.
+5. Убедитесь, что интерфейс показывает фактически используемый внешний private storage без раскрытия секретов.
+6. Выполните проверку обновлений.
+7. Подтвердите, что действующая лицензия автоматически создала credential во внешнем private storage.
+8. Повторная проверка обновлений должна переиспользовать credential без кода активации и без ручной настройки пути.
 
-### 3. Обновите exact 1.0.1 через доверенный внешний bootstrap
+Содержимое credential-файла нельзя выводить в терминал, CI, отчёт или чат.
 
-Запустите следующую команду из PowerShell с PHP binary/environment, выбранным OSPanel. Команда намеренно приведена одной строкой, чтобы не требовалось экранирование переноса строк PowerShell:
+## Сценарий B — устаревший credential
 
-```powershell
-php C:\OSPanel\update-runner\workspace-1.0.2\bin\update_bootstrap.php --app-root="C:\OSPanel\home\notes.local" --manifest="C:\OSPanel\update-release\update.json" --signature="C:\OSPanel\update-release\update.sig" --package="C:\OSPanel\update-release\workspace-organizer-v1.0.2.zip" --transaction=update-1-0-1-to-1-0-2 --expected-source-version=1.0.1 --expected-source-version-code=10001 --stage-root="C:\OSPanel\private\notes\update-staging" --state-root="C:\OSPanel\private\notes\update-state" --backup-root="C:\OSPanel\private\notes\update-backups" --candidate-root="C:\OSPanel\private\notes\update-releases" --json
-```
+На одноразовой копии поместите ранее валидный, но отозванный тестовый credential во внешний private storage.
 
-JSON-результат должен сообщить `committed`.
+При следующей проверке обновлений ожидается:
 
-### 4. Проверки после обновления
+1. сервер отвечает `401`;
+2. старый credential переносится в диагностический quarantine;
+3. по действующей лицензии выполняется новый bootstrap;
+4. новый credential сохраняется атомарно;
+5. исходный запрос повторяется ровно один раз;
+6. пользователь получает нормальный результат проверки обновлений без ручного вмешательства.
 
-Из live application directory:
+Ответ `403` не должен запускать бесконечную ротацию credential: интерфейс показывает безопасную конкретную причину ограничения.
+
+## Сценарий C — автоматический rollback при ошибке миграции
+
+Переключите тестовый signed feed на пакет 1.0.7, у которого миграция намеренно завершается ошибкой.
+
+Через обычный интерфейс нажмите установку обновления.
+
+Ожидается:
+
+- destructive apply исполняется из внешнего updater runtime, а не из рабочего `bin/core/modules`;
+- файлы переключаются пофайлово;
+- ошибка миграции фиксируется в журнале;
+- код и БД автоматически возвращаются к exact 1.0.6;
+- состояние транзакции становится `rollback_verified`;
+- maintenance снимается;
+- интерфейс снова доступен без CLI-восстановления.
+
+После rollback повторно проверьте контрольные пользовательские данные.
+
+## Сценарий D — автоматический rollback при ошибке post-health
+
+Переключите signed feed на пакет 1.0.7, в котором миграции проходят, но post-update healthcheck намеренно завершается ошибкой.
+
+Ожидается тот же итог:
+
+- автоматический rollback к exact 1.0.6;
+- восстановление БД;
+- `rollback_verified`;
+- отсутствие активного maintenance;
+- сохранность контрольных данных;
+- обычный web-runtime снова работает без действий оператора.
+
+## Сценарий E — boot recovery после аварийного обрыва
+
+На одноразовой копии воспроизведите контролируемый обрыв после начала destructive boundary так, как предусмотрено тестовым acceptance-сценарием.
+
+После обрыва не запускайте ручной recovery CLI. Откройте приложение обычным HTTP-запросом.
+
+Ожидается:
+
+1. ранний recovery gate обнаруживает внешний maintenance marker;
+2. обычные БД и модули ещё не загружаются;
+3. recovery запускается через внешний updater runtime;
+4. установка возвращается в согласованное состояние;
+5. maintenance снимается после `committed` или `rollback_verified`;
+6. при невосстановимой ошибке показывается безопасный диагностический код и идентификатор транзакции, но не секреты.
+
+## Сценарий F — успешное одношаговое обновление 1.0.6 → 1.0.7
+
+Переключите signed feed на исправный тестовый 1.0.7.
+
+Обычный пользовательский путь:
+
+1. приложение само обнаруживает доступное обновление;
+2. уведомление ведёт в штатный интерфейс обновления;
+3. одно нажатие запускает установку;
+4. пользователь видит реальные этапы операции без фиктивного процента;
+5. после завершения приложение сообщает новую версию;
+6. maintenance отсутствует.
+
+После обновления выполните только проверочные команды:
 
 ```powershell
 php -r "require 'core/Version.php'; echo Core\Version::VERSION, PHP_EOL;"
@@ -84,70 +168,52 @@ php -r "require 'core/Version.php'; echo Core\Version::VERSION_CODE, PHP_EOL;"
 php bin/healthcheck.php --json
 php bin/migrate.php --status
 php bin/update_doctor.php --json
-php bin/update_retention.php --json
 ```
 
-Ожидаемая identity:
+Для тестового следующего релиза ожидается:
 
 ```text
-1.0.2
-10002
+1.0.7
+10007
 ```
 
-Также проверьте в браузере:
+## Проверка браузера и realtime после обновления
 
-- login по-прежнему работает;
-- ранее созданные данные Notes/Tasks/Files/Profile присутствуют;
-- Admin -> Updates открывается без PHP/HTTP errors;
-- приложение работает под настроенным OSPanel hostname/base path;
-- после commit не остаётся активного maintenance marker updater;
-- с двумя пользователями Messenger и запущенным WebSocket оба клиента показывают «WebSocket · в сети», а сообщение доставляется без reload;
-- остановите native WS process и убедитесь, что оба клиента автоматически переходят в «Long Poll · резервный канал», при этом durable messages продолжают синхронизироваться;
-- снова запустите native WS process и убедитесь, что клиенты автоматически возвращаются в «WebSocket · в сети» без page reload.
+После успешного сценария:
 
-### 4A. Автоматическая настройка доступа к обновлениям
+- вход и выход из аккаунта работают;
+- Notes, Tasks, Files, Profile и Admin открываются без HTTP/PHP ошибок;
+- контрольные данные сохранились;
+- light, dark и system темы отображаются корректно;
+- интерфейс остаётся пригодным на компактной ширине ноутбука;
+- Messenger между двумя пользователями работает через WebSocket;
+- при остановке WebSocket клиенты автоматически переходят на Long Poll без перезагрузки;
+- сообщения продолжают доставляться;
+- после восстановления WebSocket клиенты автоматически возвращаются на него без перезагрузки.
 
-После перехода на `1.0.2` пользователь не должен создавать `activation.txt`,
-выбирать путь для `update-access.json` или запускать `bin/update_activate.php`.
+## Что записать в доказательство приёмки
 
-На тестовой установке:
+Зафиксируйте без секретов:
 
-1. убедитесь, что обычная лицензия Workspace действительна;
-2. оставьте `UPDATE_CREDENTIALS_FILE` пустым либо сохраните историческое значение
-   из `1.0.0`, указывающее внутрь дерева приложения;
-3. откройте **Админ → Обновления** и нажмите проверку обновлений;
-4. убедитесь, что интерфейс не требует ручной настройки credential path;
-5. убедитесь, что создан файл
-   `C:\OSPanel\private\notes\update-access\update-access.json` при
-   `PRIVATE_STORAGE_PATH=C:\OSPanel\private\notes`;
-6. повторите проверку и подтвердите, что готовый credential переиспользуется без
-   дополнительного кода или действий пользователя;
-7. не выводите содержимое credential-файла в терминал, логи или отчёт.
-
-Если control plane временно недоступен, локальная лицензия должна продолжить
-работать; повторная проверка обновлений должна выполнить bootstrap после
-восстановления связи.
-
-После публикации `1.0.2` этот же пользовательский путь необходимо проверить на
-реальном небольшом обновлении `1.0.2 -> 1.0.3`.
-### 5. Доказательство rollback
-
-Автоматический Linux release drill принудительно выполняет post-switch mutation базы данных, затем имитирует failed healthcheck и подтверждает автоматический rollback кода и базы данных до exact 1.0.1.
-
-Для финального OSPanel evidence повторяйте destructive rollback testing только на disposable clone приложения и clone базы данных. Никогда намеренно не внедряйте failed candidate в основную локальную или production-копию.
-
-## Запись приёмки
-
-Зафиксируйте:
-
-- версию OSPanel;
+- дату проверки;
+- OSPanel 5.2.2;
 - выбранную версию PHP;
-- source commit `v1.0.1`;
-- финальный release commit 1.0.2;
-- SHA-256 ZIP;
-- update signing key ID, сообщённый verification;
-- JSON-результат bootstrap;
-- результат post-upgrade healthcheck;
-- результат browser smoke-check, включая восстановление WebSocket → Long Poll → WebSocket.
+- точный SHA frozen 1.0.6;
+- SHA-256 пакета 1.0.6;
+- SHA-256 тестовых пакетов 1.0.7;
+- публичный идентификатор update signing key;
+- результат clean-install healthcheck;
+- результат автоматического credential bootstrap/refresh;
+- результат rollback при ошибке миграции;
+- результат rollback при ошибке post-health;
+- результат boot recovery;
+- результат успешного 1.0.6 → 1.0.7;
+- проверку сохранности контрольных данных;
+- проверку WebSocket → Long Poll → WebSocket;
+- визуальную проверку тем и компактной ширины.
 
-Только после успешного завершения этой ручной проверки в release notes можно указывать, что приёмка OSPanel 5.2.2 пройдена.
+Приватные ключи, license token, updater credential и содержимое private storage в доказательство не включаются.
+
+## Критерий закрытия
+
+Пункт Windows / OSPanel в `docs/UPDATER_1.0.6_REWORK.md` закрывается только после успешного выполнения этого чек-листа на точном frozen RC 1.0.6. Любое последующее изменение updater-кода требует повторить затронутые сценарии на новом SHA.

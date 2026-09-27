@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use Core\UpdateAccessBootstrap;
+use Core\UpdateCredentialRefreshingTransport;
 use Core\UpdateArchiveInspector;
 use Core\UpdateDownloadCredentials;
 use Core\UpdateHttpsTransport;
@@ -384,10 +385,18 @@ final class AdminUpdateService
 
     private function delivery(): UpdateRemoteDelivery
     {
-        $transport = $this->transport ?? UpdateHttpsTransport::fromEnvironment(
-            self::UI_CONNECT_TIMEOUT_SECONDS,
-            self::UI_READ_TIMEOUT_SECONDS
-        );
+        $transport = $this->transport;
+        if ($transport === null) {
+            $transport = new UpdateCredentialRefreshingTransport(
+                fn (): UpdateRemoteTransport => UpdateHttpsTransport::fromEnvironment(
+                    self::UI_CONNECT_TIMEOUT_SECONDS,
+                    self::UI_READ_TIMEOUT_SECONDS
+                ),
+                static function (): void {
+                    (new LicenseService())->refreshUpdateAccess();
+                }
+            );
+        }
 
         return new UpdateRemoteDelivery(
             $this->appRoot,

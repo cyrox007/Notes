@@ -607,6 +607,7 @@ final class UpdateBackupManager
         if ($value === null) {
             return 'NULL';
         }
+
         $string = (string) $value;
         $numericTypes = [
             MYSQLI_TYPE_TINY,
@@ -624,16 +625,47 @@ final class UpdateBackupManager
             return $string;
         }
 
+        $dataType = strtolower(trim($dataType));
         $hex = strtoupper(bin2hex($string));
-
-        // Тип JSON дополнительно берём из information_schema: некоторые связки
-        // PHP/mysqlnd сообщают JSON-поле как BLOB, хотя MySQL требует текстовую
-        // кодировку при обратной загрузке значения.
-        if ($dataType === 'json' || $type === MYSQLI_TYPE_JSON) {
-            return "CONVERT(X'{$hex}' USING utf8mb4)";
+        $binaryTypes = [
+            'bit',
+            'binary',
+            'varbinary',
+            'tinyblob',
+            'blob',
+            'mediumblob',
+            'longblob',
+            'geometry',
+            'point',
+            'linestring',
+            'polygon',
+            'multipoint',
+            'multilinestring',
+            'multipolygon',
+            'geometrycollection',
+        ];
+        if (in_array($dataType, $binaryTypes, true)) {
+            return "X'{$hex}'";
         }
 
-        return "X'{$hex}'";
+        if (preg_match('//u', $string) !== 1) {
+            throw new RuntimeException(
+                "Текстовая колонка типа {$dataType} содержит данные, которые не являются корректным UTF-8"
+            );
+        }
+
+        if ($dataType === 'json' || $type === MYSQLI_TYPE_JSON) {
+            try {
+                json_decode($string, true, 512, JSON_THROW_ON_ERROR);
+            } catch (\JsonException $e) {
+                throw new RuntimeException('JSON-колонка содержит некорректное значение', 0, $e);
+            }
+        }
+
+        // Явное преобразование из hex в utf8mb4 сохраняет точные байты строки,
+        // но не отдаёт MySQL значение с CHARACTER SET binary. Это одинаково
+        // безопасно для JSON и обычных текстовых колонок.
+        return "CONVERT(X'{$hex}' USING utf8mb4)";
     }
 
     private function quoteIdentifier(string $identifier): string

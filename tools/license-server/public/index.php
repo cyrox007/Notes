@@ -4,15 +4,25 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/LicenseServer.php';
 
-// This is the ONLY public file. Route all requests here; never serve the private artifact directory.
+// Это единственная публичная точка входа. Приватный каталог артефактов
+// никогда не должен обслуживаться веб-сервером напрямую.
 ini_set('display_errors', '0');
 ini_set('zlib.output_compression', '0');
-header('Cache-Control: no-store, private');
-header('Pragma: no-cache');
-header('X-Content-Type-Options: nosniff');
+
+function sendPrivateResponseHeaders(): void
+{
+    // Некоторые обработчики могут менять Cache-Control. Фиксируем запрет
+    // кеширования непосредственно перед отправкой любого ответа.
+    header('Cache-Control: no-store, private', true);
+    header('Pragma: no-cache', true);
+    header('X-Content-Type-Options: nosniff', true);
+}
+
+sendPrivateResponseHeaders();
 
 try {
-    // Behind a reverse proxy set HTTPS=on in trusted server configuration, not from client headers.
+    // За обратным прокси HTTPS=on задаётся только доверенной конфигурацией сервера,
+    // а не клиентскими заголовками.
     if (($_SERVER['HTTPS'] ?? '') !== 'on' && ($_SERVER['HTTPS'] ?? '') !== '1') {
         throw new RuntimeException('HTTPS required', 400);
     }
@@ -64,6 +74,7 @@ try {
     } else {
         throw new RuntimeException('Not found', 404);
     }
+    sendPrivateResponseHeaders();
     header('Content-Type: ' . $response['type']);
     header('Content-Length: ' . (isset($response['body']) ? strlen($response['body']) : $response['size']));
     if (isset($response['body'])) {
@@ -75,13 +86,33 @@ try {
 } catch (Throwable $e) {
     $status = in_array($e->getCode(), [400, 401, 403, 404, 413, 503], true) ? $e->getCode() : 503;
     http_response_code($status);
-    $body = json_encode(['error' => match ($status) {
-        401 => 'authentication_required', 403 => 'update_access_denied', 404 => 'not_found',
-        400, 413 => 'invalid_request', default => 'service_unavailable',
-    }], JSON_THROW_ON_ERROR);
+
+    $payload = ['error' => match ($status) {
+        401 => 'authentication_required',
+        403 => 'update_access_denied',
+        404 => 'not_found',
+        400, 413 => 'invalid_request',
+        default => 'service_unavailable',
+    }];
+
+    if ($status === 401) {
+        $payload['reason'] = 'credential_invalid';
+    } elseif ($status === 403) {
+        $payload['reason'] = match ($e->getMessage()) {
+            'License revoked' => 'license_revoked',
+            'Updates entitlement expired' => 'updates_expired',
+            'Release entitlement denied' => 'version_not_entitled',
+            'Vendor license verification failed' => 'license_invalid',
+            default => 'update_access_denied',
+        };
+    }
+
+    $body = json_encode($payload, JSON_THROW_ON_ERROR);
+    sendPrivateResponseHeaders();
     header('Content-Type: application/json');
     header('Content-Length: ' . strlen($body));
     echo $body;
-    // Never log credentials, tokens, request bodies or database exception contents.
+    // Никогда не записываем в журнал credential, токены, тела запросов
+    // или содержимое исключений базы данных.
     error_log('notes-license-server status=' . $status);
 }
