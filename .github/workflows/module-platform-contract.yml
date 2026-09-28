@@ -55,9 +55,8 @@ jobs:
           grep -Fq '|modules|' .htaccess
           grep -Fq "'modules'" tests/e2e/router.php
           grep -Fq 'privateSegments' tests/e2e/router.php
-          grep -Fq "'/core/ModuleRuntimeProvider.php'" core.php
-          grep -Fq "'/core/ModuleCapabilityRegistry.php'" core.php
-          grep -Fq "'/core/ModuleRuntimeLoader.php'" core.php
+          grep -Fq 'RuntimeAutoloader::register' core.php
+          php -r 'define("SITEPATH", getcwd()); require SITEPATH . "/core/RuntimeAutoloader.php"; \Core\RuntimeAutoloader::register(SITEPATH); foreach (["Core\\ModuleRuntimeProvider", "Core\\ModuleCapabilityRegistry", "Core\\ModuleRuntimeLoader"] as $class) { if (!class_exists($class) && !interface_exists($class)) { fwrite(STDERR, "Автозагрузка не разрешила обязательный класс ядра: {$class}\\n"); exit(1); } }'
           grep -Fq 'ModuleRuntimeLoader::boot' core.php
           grep -Fq 'ModuleRuntimeLoader::getInstance()->registerRoutes' index.php
           grep -Fq 'capabilityRegistry->seal' core/ModuleRuntimeLoader.php
