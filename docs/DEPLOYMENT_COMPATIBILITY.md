@@ -71,7 +71,7 @@ Messenger на shared hosting имеет два режима.
 Рекомендуемый baseline:
 
 - Linux;
-- PHP 8.3+ рекомендуется, 8.1+ compatibility floor;
+- PHP 8.3+ рекомендуется, 8.1+ compatibility floor; release CI проверяет PHP 8.1, 8.2, 8.3, 8.4 и 8.5, а Windows-hosting контур — 8.1, 8.3, 8.4 и 8.5;
 - Nginx или Apache как TLS termination/reverse proxy;
 - native WebSocket listener только на loopback;
 - systemd или Supervisor;
