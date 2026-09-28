@@ -34,6 +34,7 @@ $connectionUx = file_get_contents($root . '/assets/js/messenger-connection-ux.js
 $globalNotifications = file_get_contents($root . '/assets/js/messenger-global-notifications.js');
 $tabCoordinator = file_get_contents($root . '/assets/js/messenger-tab-coordinator.js');
 $baseView = file_get_contents($root . '/app/views/core/base.php');
+$entrypoint = file_get_contents($root . '/index.php');
 $messengerRunbook = file_get_contents($root . '/docs/MESSENGER_SERVER.md');
 $hostingRunbook = file_get_contents($root . '/docs/HOSTING_INSTALL.md');
 $deploymentCompatibility = file_get_contents($root . '/docs/DEPLOYMENT_COMPATIBILITY.md');
@@ -53,6 +54,7 @@ foreach ([
     'global notifications' => $globalNotifications,
     'tab coordinator' => $tabCoordinator,
     'base view' => $baseView,
+    'application entrypoint' => $entrypoint,
     'Messenger runbook' => $messengerRunbook,
     'hosting runbook' => $hostingRunbook,
     'deployment compatibility' => $deploymentCompatibility,
@@ -106,6 +108,21 @@ assertLongPollContract(
     str_contains($service, 'MESSENGER_LONG_POLL_TIMEOUT_SECONDS')
     && str_contains($controller, 'connection_aborted()'),
     'long-poll wait must be bounded and abort-aware'
+);
+assertLongPollContract(
+    str_contains($entrypoint, 'isMessengerLongPollRequest()')
+    && str_contains($entrypoint, 'handleSuspendedMessengerLongPoll()')
+    && str_contains($entrypoint, "'suspended' => true")
+    && str_contains($entrypoint, "'retry_after_ms'")
+    && preg_match(
+        '/function handleMaintenanceMode.*?isMessengerLongPollRequest\(\).*?handleSuspendedMessengerLongPoll\(\)/s',
+        $entrypoint
+    ) === 1
+    && preg_match(
+        '/function handleSchemaUpgradeRequired.*?isMessengerLongPollRequest\(\).*?handleSuspendedMessengerLongPoll\(\)/s',
+        $entrypoint
+    ) === 1,
+    'maintenance/schema barrier must suspend background Long Poll with HTTP 200 instead of producing background 5xx'
 );
 assertLongPollContract(
     str_contains($service, 'FULL_FINGERPRINT_INTERVAL_SECONDS = 5.0')
