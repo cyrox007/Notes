@@ -92,6 +92,7 @@ foreach ([
     'CHANGELOG.md',
     'docs/releases/v1.0.7.md',
     'docs/RELEASE_ACCEPTANCE.md',
+    'docs/WINDOWS_OSPANEL_ACCEPTANCE.md',
     'docs/RELEASE_GOVERNANCE.md',
     'docs/PRODUCTION_TRUST_CEREMONY.md',
     'docs/TWO_FACTOR_AUTH.md',
