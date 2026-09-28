@@ -16,6 +16,7 @@ final class MessengerLongPollService
     private const MAX_TIMEOUT_SECONDS = 25;
     private const POLL_INTERVAL_MICROSECONDS = 750000;
     private const FULL_FINGERPRINT_INTERVAL_SECONDS = 5.0;
+    private const REVISION_SETTING_KEY = 'messenger_realtime_revision';
 
     public function __construct(
         private ?DatabaseManager $db = null,
@@ -246,7 +247,7 @@ final class MessengerLongPollService
              FROM system_settings
              WHERE setting_key = :setting_key
              LIMIT 1',
-            [':setting_key' => MessengerRealtimeRevisionService::SETTING_KEY]
+            [':setting_key' => self::REVISION_SETTING_KEY]
         );
 
         $value = trim((string) ($row['setting_value'] ?? '0'));
