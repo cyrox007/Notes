@@ -80,7 +80,7 @@
 - hosting installer/package;
 - cross-browser/mobile release evidence;
 - authenticated load/soak release evidence;
-- Windows hosting compatibility CI на PHP 8.1/8.3 и финальная ручная приёмка OSPanel 5.2.2 на production-signed artifacts.
+- Windows hosting compatibility CI на PHP 8.1/8.3/8.4/8.5 и финальная ручная приёмка OSPanel 5.2.2 на production-signed artifacts.
 
 Результат со старого commit не может заменять failed, skipped или unrun check на frozen release HEAD.
 
