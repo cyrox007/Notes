@@ -96,8 +96,19 @@ final class MessengerRealtimeController extends Controller
                 static fn (): bool => connection_aborted() === 1
             );
         } catch (\Throwable $e) {
-            error_log('Messenger long-poll wait failed: ' . $e->getMessage());
-            $this->jsonFailure('Резервный realtime-канал временно недоступен', 503);
+            // Фоновый poll не должен превращать временно неполную схему БД
+            // во время install/update/migrations в HTTP 5xx всей страницы.
+            // Пользовательские действия по-прежнему fail-closed через action().
+            error_log('Messenger long-poll временно приостановлен: ' . $e->getMessage());
+            $this->responseJson([
+                'status' => 'ok',
+                'transport' => 'long_poll',
+                'changed' => false,
+                'cursor' => $cursor,
+                'events' => [],
+                'suspended' => true,
+                'retry_after_ms' => 3000,
+            ]);
             return;
         }
 
