@@ -118,7 +118,6 @@ jobs:
           putenv('PROFILE_AVATAR_MAX_SIZE=2097152');
           require SITEPATH . '/core/config.php';
           require SITEPATH . '/core/DatabaseManager.php';
-          require SITEPATH . '/core/images.php';
           require SITEPATH . '/modules/profile/services/UserAvatarService.php';
           header('Content-Type: application/json');
           try {
@@ -197,10 +196,11 @@ jobs:
           $_SERVER['HTTP_HOST'] = 'localhost';
           require SITEPATH . '/vendor/autoload.php';
           require SITEPATH . '/core/config.php';
+          require SITEPATH . '/core/RuntimeAutoloader.php';
+          \Core\RuntimeAutoloader::register(SITEPATH);
           require SITEPATH . '/core/DatabaseManager.php';
           require SITEPATH . '/core/Router.php';
           require SITEPATH . '/core/request.php';
-          require SITEPATH . '/core/helper.php';
           require SITEPATH . '/app/middlewares/CSRFMiddleware.php';
           require SITEPATH . '/core/Version.php';
           require SITEPATH . '/core/ModuleRuntimeLoader.php';
@@ -209,7 +209,6 @@ jobs:
           require SITEPATH . '/core/ViewContext.php';
           require SITEPATH . '/core/NativeViewRenderer.php';
           require SITEPATH . '/core/controller.php';
-          require SITEPATH . '/core/images.php';
           require SITEPATH . '/app/handlers/CryptMethods.php';
           require SITEPATH . '/modules/profile/services/UserAvatarService.php';
           require SITEPATH . '/modules/profile/services/ProfilePublicationService.php';
