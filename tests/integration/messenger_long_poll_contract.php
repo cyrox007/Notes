@@ -96,15 +96,28 @@ assertLongPollContract(
     'fallback actions must preserve exact message bytes instead of HTML-sanitizing JSON text'
 );
 assertLongPollContract(
-    str_contains($controller, 'isDurableMutationAction')
-    && str_contains($controller, 'MessengerRealtimeRevisionService')
-    && str_contains($controller, '->bump()'),
-    'durable HTTP fallback mutations must publish a shared realtime revision'
+    str_contains($server, 'publishMutationRevision')
+    && str_contains($server, 'MessengerRealtimeRevisionService')
+    && str_contains($server, '->bump()')
+    && !str_contains($controller, 'new MessengerRealtimeRevisionService'),
+    'durable mutations must publish one shared realtime revision inside the common dispatcher'
 );
 assertLongPollContract(
     str_contains($service, 'MESSENGER_LONG_POLL_TIMEOUT_SECONDS')
     && str_contains($controller, 'connection_aborted()'),
     'long-poll wait must be bounded and abort-aware'
+);
+assertLongPollContract(
+    str_contains($service, 'FULL_FINGERPRINT_INTERVAL_SECONDS = 5.0')
+    && str_contains($service, "REVISION_SETTING_KEY = 'messenger_realtime_revision'")
+    && str_contains($service, 'activityFingerprint(')
+    && str_contains($controller, "request->get('revision'")
+    && str_contains($controller, "request->get('activity_cursor'")
+    && str_contains($client, "query.set('revision'")
+    && str_contains($client, "query.set('activity_cursor'")
+    && str_contains($globalNotifications, "query.set('revision'")
+    && str_contains($globalNotifications, "query.set('activity_cursor'"),
+    'Long Poll must use cheap revision/activity hints and retain a periodic full fingerprint safety scan'
 );
 assertLongPollContract(
     str_contains($controller, "'suspended' => true")
