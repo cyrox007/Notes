@@ -1,19 +1,19 @@
 # Workspace Organizer
 
-**Версия:** `1.0.6`  
-**Актуально на:** 27 сентября 2026  
+**Версия:** `1.0.7`  
+**Актуально на:** 28 сентября 2026  
 **Статус:** stable
 
 Workspace Organizer — self-hosted PHP-приложение для корпоративной работы: заметки, личные и общие задачи, файлы, профиль, администрирование и real-time Messenger.
 
-`1.0.6` — новая опорная версия системы обновлений. Критическая фаза теперь исполняется из проверенного внешнего runtime в `PRIVATE_STORAGE_PATH`, рабочее дерево меняется пофайлово без переименования исполняемых каталогов, устаревший update credential автоматически восстанавливается по действующей лицензии, а private storage определяется без обязательной ручной правки `.env`. Rollback БД различает JSON/BLOB/TEXT и сохраняет совместимость со старыми dump, а незавершённое обновление автоматически восстанавливается при следующем HTTP-запросе. Реальная Windows/OSPanel-приёмка новой архитектуры выполняется после публикации `1.0.6` на цепочке `1.0.6 → тестовый 1.0.7`.
+`1.0.7` — стабилизационный релиз линии 1.0 после реальной эксплуатации `1.0.6`. Он исправляет наследование старого maintenance/recovery-состояния при повторной установке в тот же каталог, делает HTTP Long Poll полноценным самовосстанавливающимся транспортом Messenger без обязательного WebSocket, устраняет ложное уведомление об обновлении, разделяет личный профиль и системные настройки и добавляет копирование `Installation ID` одним нажатием. Сквозной CI проверяет реальный переход `1.0.6 → 1.0.7`, включая rollback и boot recovery.
 
 ## Возможности
 
 - **Notes** — XChaCha20-Poly1305 для текста, writing-first editor, private attachments, first-class voice notes с duration/playback, view-only sharing по токену, autosave/dirty-state, server-side поиск и role policies для количества заметок, вложений, типов/размера файлов и sharing.
 - **Tasks** — личные kanban/list задачи, drag-and-drop статусов, приоритеты, сроки, категории, подзадачи, фильтры и server-side поиск/пагинация; beta.4 добавляет общие task boards с ACL, участниками, исполнителями и audience `all_active`.
 - **File Manager** — личные папки/файлы вне document root, protected download, media/read-only text preview, grid/list workspace, поиск/сортировка, drag-and-drop upload, storage quota и role policies для размера/типов файлов, общей ёмкости и создания папок.
-- **Messenger v2** — private/group chats, Saved Messages, forwarding, media, voice, reply/edit/delete, delivery/read receipts, reactions, encrypted search, pin/mute/archive, group roles/avatars, multi-device realtime, WebSocket-first transport с HTTP long-poll fallback и reconnect/offline/session-ended UX; role policies ограничивают частоту сообщений, вложения, voice и group capabilities.
+- **Messenger v2** — private/group chats, Saved Messages, forwarding, media, voice, reply/edit/delete, delivery/read receipts, reactions, encrypted search, pin/mute/archive, group roles/avatars, multi-device realtime; WebSocket работает как быстрый канал, а authenticated HTTP Long Poll — как полноценный durable-транспорт с автоматическим переключением и самовосстановлением; role policies ограничивают частоту сообщений, вложения, voice и group capabilities.
 - **Profile** — workspace hub с Notes/Tasks/Files/storage metrics, private avatar, account settings, безопасная деактивация и explicit `is_profile_public` publication model без раскрытия private content.
 - **Admin panel** — создание и lifecycle пользователей, managed registration `disabled/open/invite`, ограниченные/revocable инвайты, Role Manager с permission assignment и module policies, custom profile fields, системный лимит File Manager и персональные storage quota overrides без physical delete связанных данных.
 - **Responsive UI** — единый design system, desktop/mobile navigation, обновлённые формы/карточки/модалки, keyboard focus, reduced-motion support и общий feedback layer.
@@ -405,9 +405,9 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 - browser lifecycle coverage для основных product modules и exact published 1.0.1 → 1.0.2 upgrade/rollback drill;
 - кросс-браузерная и мобильная проверка, а также нагрузочный и длительный контур доказательств релиза.
 
-Для `v1.0.6` автоматизируемая часть релизной проверки закрывается на точном HEAD PR #275: GitHub branch protection/ruleset, полный CI, browser/release evidence, Windows compatibility и сквозной синтетический переход `1.0.6 → 1.0.7` должны быть подтверждены до merge в `master`.
+Для `v1.0.7` автоматизируемая часть релизной проверки должна быть зелёной на точном HEAD release-кандидата: GitHub branch protection/ruleset, полный CI, browser/release evidence, Windows compatibility, полноценный Long Poll без обязательного WebSocket и сквозной переход `1.0.6 → 1.0.7` подтверждаются до финального merge в `master`.
 
-Особый порядок этого релиза утверждён владельцем: `1.0.6` публикуется как устанавливаемая опорная версия нового updater, после чего на реальной Windows/OSPanel 5.2.2 выполняется обязательная приёмка `1.0.6 → тестовый 1.0.7`. Эта пострелизная проверка подтверждает внешний runtime, пофайловый apply/rollback, восстановление credential, типо-зависимый backup/restore и автоматический boot recovery и является обязательной до обычного stable rollout `1.0.7`.
+Для `1.0.7` реальная приёмка выполняется уже с опубликованной `1.0.6` как исходной точкой: на Windows/OSPanel проверяются одна кнопка обновления, внешний runtime, пофайловый apply/rollback, сохранность private storage и лицензии, автоматический boot recovery и отсутствие наследованного maintenance предыдущей установки. Публикация `v1.0.7` выполняется только после принятия точного RC.
 
 Scalable encrypted-search redesign не является release blocker сам по себе; он требуется только если измерения на заявленном масштабе покажут, что bounded decrypt scan не выдерживает принятого performance envelope.
 
