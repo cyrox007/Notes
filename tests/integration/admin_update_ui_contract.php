@@ -482,8 +482,16 @@ try {
         !str_contains($viewSource, '<label>Транзакция</label>'),
         'Успешный Admin-сценарий не должен показывать служебный ID транзакции'
     );
+    $safeApplyMethod = '';
+    if (preg_match(
+        '/private function safeApplyResult\\(array \\$result\\): array\\s*\\{(?<body>.*?)\\n    \\}/s',
+        $controllerSource,
+        $safeApplyMatch
+    ) === 1) {
+        $safeApplyMethod = (string) ($safeApplyMatch['body'] ?? '');
+    }
     adminUpdateAssert(
-        !str_contains($controllerSource, "'transaction_id' => (string) (\$result['transaction_id'] ?? '')"),
+        $safeApplyMethod !== '' && !str_contains($safeApplyMethod, "'transaction_id'"),
         'Безопасный результат успешной установки не должен переносить ID транзакции в Admin'
     );
     adminUpdateAssert(
