@@ -2,6 +2,8 @@
     'use strict';
 
     const MAX_RECONNECT_DELAY = 10000;
+    const MAX_LONG_POLL_RETRY_DELAY = 10000;
+    const LONG_POLL_WATCHDOG_MS = 32000;
     const PREVIEW_LIMIT = 120;
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -13,11 +15,21 @@
         const dialogs = new Map();
         const states = new Map();
         let socket = null;
+        let socketAuthorized = false;
         let connecting = false;
         let reconnectTimer = null;
         let reconnectAttempt = 0;
         let stopped = false;
         let userUid = '';
+
+        let longPollActive = false;
+        let longPollCursor = '';
+        let longPollGeneration = 0;
+        let longPollAbortController = null;
+        let longPollRetryTimer = null;
+        let longPollWatchdogTimer = null;
+        let longPollRetryAttempt = 0;
+        let longPollFallbackTimer = null;
 
         function totalUnread() {
             let total = 0;
@@ -52,16 +64,13 @@
             applyDialogs(event?.detail?.dialogs);
         });
 
-        // The Messenger page already owns a full WebSocket client. It publishes
-        // dialog updates through wspace:messenger-dialogs, so opening a second
-        // socket here would duplicate realtime traffic and notifications.
+        // Страница Messenger владеет полным transport state machine сама.
         if (document.getElementById('messenger-app')) return;
 
-        const socketUrl = String(wspace.socketConfig?.url || '');
-        if (socketUrl === '') return;
+        const socketUrl = String(wspace.socketConfig?.url || '').trim();
 
         function send(action, data = {}) {
-            if (!socket || socket.readyState !== WebSocket.OPEN) return false;
+            if (!socket || socket.readyState !== WebSocket.OPEN || !socketAuthorized) return false;
             socket.send(JSON.stringify({ action, data }));
             return true;
         }
@@ -107,23 +116,229 @@
                 ? wspace.feedback.toast(text, 'info', 6500)
                 : null;
 
-            if (toast) {
-                toast.classList.add('wspace-toast--message');
-                toast.title = 'Открыть Мессенджер';
-                toast.addEventListener('click', () => {
-                    window.location.href = link.href;
-                }, { once: true });
+            if (!toast) return;
+            toast.classList.add('wspace-toast--message');
+            toast.title = 'Открыть Мессенджер';
+            toast.addEventListener('click', () => {
+                window.location.href = link.href;
+            }, { once: true });
+        }
+
+        function handleRealtimePayload(data) {
+            if (!data || typeof data !== 'object') return;
+
+            switch (data.action) {
+                case 'Ping':
+                    send('PingSocket:index', { ping: 'Pong' });
+                    break;
+                case 'Authorized':
+                    socketAuthorized = true;
+                    userUid = String(data.user_uid || '');
+                    stopLongPoll();
+                    requestState();
+                    break;
+                case 'get_dialogs':
+                    applyDialogs(data.dialogs);
+                    break;
+                case 'dialog_states':
+                    states.clear();
+                    (Array.isArray(data.states) ? data.states : []).forEach((state) => {
+                        if (state?.dialog_uid) states.set(state.dialog_uid, state);
+                    });
+                    break;
+                case 'dialog_state':
+                    if (data.dialog_uid) {
+                        states.set(data.dialog_uid, {
+                            ...(states.get(data.dialog_uid) || {}),
+                            ...data
+                        });
+                    }
+                    break;
+                case 'send_message':
+                    showIncoming(data);
+                    requestState();
+                    break;
+                case 'new_dialog':
+                case 'message_edited':
+                case 'message_deleted':
+                case 'read_update':
+                case 'sync_required':
+                    requestState();
+                    break;
+                default:
+                    break;
             }
         }
 
+        function dispatchRealtimeEvents(events) {
+            (Array.isArray(events) ? events : []).forEach(handleRealtimePayload);
+        }
+
+        function clearReconnectTimer() {
+            if (!reconnectTimer) return;
+            window.clearTimeout(reconnectTimer);
+            reconnectTimer = null;
+        }
+
         function scheduleReconnect() {
-            if (stopped || reconnectTimer || navigator.onLine === false) return;
+            if (stopped || reconnectTimer || navigator.onLine === false || socketUrl === '') return;
             const delay = Math.min(MAX_RECONNECT_DELAY, 1000 * (2 ** Math.min(reconnectAttempt, 3)));
             reconnectAttempt += 1;
             reconnectTimer = window.setTimeout(() => {
                 reconnectTimer = null;
-                connect();
+                void connect();
             }, delay);
+        }
+
+        function scheduleLongPollFallback(delay = 1000) {
+            if (stopped || socketAuthorized || longPollActive || longPollFallbackTimer) return;
+            longPollFallbackTimer = window.setTimeout(() => {
+                longPollFallbackTimer = null;
+                if (!socketAuthorized) startLongPoll();
+            }, Math.max(0, delay));
+        }
+
+        function longPollRetryDelay() {
+            return Math.min(
+                MAX_LONG_POLL_RETRY_DELAY,
+                600 * (2 ** Math.min(longPollRetryAttempt, 4))
+            );
+        }
+
+        function startLongPoll() {
+            if (stopped) return;
+            if (longPollFallbackTimer) {
+                window.clearTimeout(longPollFallbackTimer);
+                longPollFallbackTimer = null;
+            }
+            if (!longPollActive) {
+                longPollActive = true;
+                longPollRetryAttempt = 0;
+            }
+            if (navigator.onLine === false) return;
+            resumeLongPoll();
+        }
+
+        function stopLongPoll() {
+            longPollActive = false;
+            longPollGeneration += 1;
+            longPollRetryAttempt = 0;
+
+            if (longPollFallbackTimer) {
+                window.clearTimeout(longPollFallbackTimer);
+                longPollFallbackTimer = null;
+            }
+            if (longPollRetryTimer) {
+                window.clearTimeout(longPollRetryTimer);
+                longPollRetryTimer = null;
+            }
+            if (longPollWatchdogTimer) {
+                window.clearTimeout(longPollWatchdogTimer);
+                longPollWatchdogTimer = null;
+            }
+            if (longPollAbortController) {
+                longPollAbortController.abort();
+                longPollAbortController = null;
+            }
+        }
+
+        function pauseLongPoll() {
+            if (!longPollActive) return;
+
+            longPollGeneration += 1;
+            if (longPollRetryTimer) {
+                window.clearTimeout(longPollRetryTimer);
+                longPollRetryTimer = null;
+            }
+            if (longPollWatchdogTimer) {
+                window.clearTimeout(longPollWatchdogTimer);
+                longPollWatchdogTimer = null;
+            }
+            if (longPollAbortController) {
+                longPollAbortController.abort();
+                longPollAbortController = null;
+            }
+        }
+
+        function resumeLongPoll() {
+            if (
+                stopped
+                || !longPollActive
+                || socketAuthorized
+                || navigator.onLine === false
+                || longPollAbortController
+                || longPollRetryTimer
+            ) {
+                return;
+            }
+
+            const generation = ++longPollGeneration;
+            void runLongPoll(generation);
+        }
+
+        async function runLongPoll(generation) {
+            while (longPollActive && generation === longPollGeneration && !socketAuthorized) {
+                const query = new URLSearchParams();
+                if (longPollCursor) query.set('cursor', longPollCursor);
+                const path = '/messenger/realtime/poll?' + query.toString();
+                const endpoint = typeof wspace.path === 'function' ? wspace.path(path) : path;
+
+                const controller = new AbortController();
+                let watchdogExpired = false;
+                longPollAbortController = controller;
+                longPollWatchdogTimer = window.setTimeout(() => {
+                    watchdogExpired = true;
+                    if (longPollAbortController === controller) controller.abort();
+                }, LONG_POLL_WATCHDOG_MS);
+
+                try {
+                    const response = await fetch(endpoint, {
+                        method: 'GET',
+                        credentials: 'same-origin',
+                        cache: 'no-store',
+                        headers: { 'Accept': 'application/json' },
+                        signal: controller.signal
+                    });
+
+                    if (!longPollActive || generation !== longPollGeneration || socketAuthorized) return;
+                    if (response.status === 401 || response.status === 403) {
+                        stopped = true;
+                        stopLongPoll();
+                        return;
+                    }
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+
+                    const payload = await response.json();
+                    if (payload?.status !== 'ok') {
+                        throw new Error(payload?.message || 'Long Poll failed');
+                    }
+                    if (typeof payload.cursor === 'string' && payload.cursor !== '') {
+                        longPollCursor = payload.cursor;
+                    }
+                    if (payload.changed) dispatchRealtimeEvents(payload.events);
+                    longPollRetryAttempt = 0;
+                } catch (error) {
+                    const manuallyAborted = error?.name === 'AbortError' && !watchdogExpired;
+                    if (manuallyAborted) return;
+                    if (!longPollActive || generation !== longPollGeneration || socketAuthorized) return;
+                    if (navigator.onLine === false) return;
+
+                    longPollRetryAttempt += 1;
+                    console.warn('Global Messenger Long Poll will reconnect', error);
+                    await new Promise((resolve) => {
+                        longPollRetryTimer = window.setTimeout(resolve, longPollRetryDelay());
+                    });
+                    longPollRetryTimer = null;
+                } finally {
+                    if (longPollWatchdogTimer) {
+                        window.clearTimeout(longPollWatchdogTimer);
+                        longPollWatchdogTimer = null;
+                    }
+                    if (longPollAbortController === controller) {
+                        longPollAbortController = null;
+                    }
+                }
+            }
         }
 
         async function freshTicket() {
@@ -138,6 +353,7 @@
 
             if (response.status === 401 || response.status === 403) {
                 stopped = true;
+                stopLongPoll();
                 return '';
             }
             if (!response.ok) {
@@ -154,6 +370,7 @@
         async function connect() {
             if (
                 stopped
+                || socketUrl === ''
                 || connecting
                 || navigator.onLine === false
                 || socket?.readyState === WebSocket.OPEN
@@ -170,6 +387,7 @@
                 const separator = socketUrl.includes('?') ? '&' : '?';
                 const nextSocket = new WebSocket(socketUrl + separator + 'ticket=' + encodeURIComponent(ticket));
                 socket = nextSocket;
+                scheduleLongPollFallback();
 
                 nextSocket.addEventListener('open', () => {
                     reconnectAttempt = 0;
@@ -181,55 +399,21 @@
                     } catch (_) {
                         return;
                     }
-
-                    switch (data?.action) {
-                        case 'Ping':
-                            send('PingSocket:index', { ping: 'Pong' });
-                            break;
-                        case 'Authorized':
-                            userUid = String(data.user_uid || '');
-                            requestState();
-                            break;
-                        case 'get_dialogs':
-                            applyDialogs(data.dialogs);
-                            break;
-                        case 'dialog_states':
-                            states.clear();
-                            (Array.isArray(data.states) ? data.states : []).forEach((state) => {
-                                if (state?.dialog_uid) states.set(state.dialog_uid, state);
-                            });
-                            break;
-                        case 'dialog_state':
-                            if (data.dialog_uid) {
-                                states.set(data.dialog_uid, {
-                                    ...(states.get(data.dialog_uid) || {}),
-                                    ...data
-                                });
-                            }
-                            break;
-                        case 'send_message':
-                            showIncoming(data);
-                            send('MessangerSocket:get_dialogs', {});
-                            break;
-                        case 'new_dialog':
-                        case 'message_edited':
-                        case 'message_deleted':
-                        case 'read_update':
-                            send('MessangerSocket:get_dialogs', {});
-                            break;
-                        default:
-                            break;
-                    }
+                    handleRealtimePayload(data);
                 });
                 nextSocket.addEventListener('close', () => {
                     if (socket === nextSocket) socket = null;
+                    socketAuthorized = false;
+                    startLongPoll();
                     scheduleReconnect();
                 });
                 nextSocket.addEventListener('error', () => {
-                    // close will schedule the retry; keep console noise out of normal offline transitions.
+                    socketAuthorized = false;
+                    startLongPoll();
                 });
             } catch (error) {
-                console.warn('Global Messenger notifications are temporarily unavailable', error);
+                console.warn('Global Messenger WebSocket temporarily unavailable', error);
+                startLongPoll();
                 scheduleReconnect();
             } finally {
                 connecting = false;
@@ -237,20 +421,39 @@
         }
 
         window.addEventListener('online', () => {
-            if (reconnectTimer) {
-                window.clearTimeout(reconnectTimer);
-                reconnectTimer = null;
-            }
-            connect();
+            clearReconnectTimer();
+            if (!socketAuthorized) startLongPoll();
+            void connect();
         });
 
         window.addEventListener('offline', () => {
-            if (reconnectTimer) {
-                window.clearTimeout(reconnectTimer);
-                reconnectTimer = null;
+            clearReconnectTimer();
+            socketAuthorized = false;
+            try {
+                socket?.close();
+            } catch (_) {
+                // Уже закрытый WebSocket не требует обработки.
             }
+            startLongPoll();
+            pauseLongPoll();
         });
 
-        connect();
+        window.addEventListener('focus', () => {
+            if (!socketAuthorized) startLongPoll();
+            void connect();
+        });
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState !== 'visible') return;
+            if (!socketAuthorized) startLongPoll();
+            void connect();
+        });
+
+        if (socketUrl === '') {
+            startLongPoll();
+            return;
+        }
+
+        void connect();
     });
 })();
