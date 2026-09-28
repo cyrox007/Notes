@@ -142,6 +142,13 @@
             void connect();
         }
 
+        document.addEventListener('wspace:update-install-start', () => {
+            // Updater включает maintenance до завершения навигации. Останавливаем
+            // фоновые realtime-запросы заранее, чтобы старая вкладка не создавала
+            // 503 на границе apply/rollback.
+            deactivateTransport();
+        });
+
         function handlePeerMessage(payload) {
             if (payload?.type === 'request_state') {
                 if (coordinator?.isLeader?.()) {
