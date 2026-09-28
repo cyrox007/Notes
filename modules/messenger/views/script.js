@@ -14,6 +14,8 @@
             this.reconnectAttempt = 0;
             this.longPollActive = false;
             this.longPollCursor = '';
+            this.longPollRevision = null;
+            this.longPollActivityCursor = '';
             this.longPollAbortController = null;
             this.longPollGeneration = 0;
             this.longPollRetryTimer = null;
@@ -484,6 +486,12 @@
             while (this.longPollActive && generation === this.longPollGeneration) {
                 const query = new URLSearchParams();
                 if (this.longPollCursor) query.set('cursor', this.longPollCursor);
+                if (Number.isInteger(this.longPollRevision) && this.longPollRevision >= 0) {
+                    query.set('revision', String(this.longPollRevision));
+                }
+                if (this.longPollActivityCursor) {
+                    query.set('activity_cursor', this.longPollActivityCursor);
+                }
                 if (this.currentDialog?.uid) query.set('dialog_uid', this.currentDialog.uid);
 
                 const path = `/messenger/realtime/poll?${query.toString()}`;
@@ -521,6 +529,13 @@
                     const payload = await response.json();
                     if (payload?.status !== 'ok') {
                         throw new Error(payload?.message || 'Long Poll failed');
+                    }
+
+                    if (Number.isInteger(Number(payload.revision)) && Number(payload.revision) >= 0) {
+                        this.longPollRevision = Number(payload.revision);
+                    }
+                    if (typeof payload.activity_cursor === 'string' && /^[a-f0-9]{64}$/u.test(payload.activity_cursor)) {
+                        this.longPollActivityCursor = payload.activity_cursor;
                     }
 
                     if (payload.suspended === true) {
