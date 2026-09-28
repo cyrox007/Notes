@@ -66,6 +66,13 @@ uiSystemAssert(str_contains($sidebar, 'data-nav-key="home"'), 'sidebar home navi
 uiSystemAssert(str_contains($sidebar, 'data-sidebar-toggle'), 'sidebar collapse control is missing');
 
 uiSystemAssert(str_contains($headerStyle, '.workspace-command-trigger'), 'shared header stylesheet lost command bar ownership');
+uiSystemAssert(
+    str_contains(
+        $headerStyle,
+        '.workspace-notifications__badge[hidden],.workspace-notifications__panel[hidden],.workspace-notifications__empty[hidden],.workspace-notifications__item[hidden],.workspace-notifications__actions form[hidden]{display:none!important}'
+    ),
+    'скрытые элементы системных уведомлений могут отображаться как реальные'
+);
 uiSystemAssert(str_contains($sidebarStyle, '.sidebar__theme'), 'shared sidebar stylesheet lost theme picker ownership');
 foreach (['.navbar__theme-option', '.navbar__theme-picker', '.sidebar__user-panel', '.sidebar__site-title'] as $legacyShellSelector) {
     uiSystemAssert(
