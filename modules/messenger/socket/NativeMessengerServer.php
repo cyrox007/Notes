@@ -656,6 +656,7 @@ final class NativeMessengerServer
             $handler = new $fullClassName();
             $handler->$methodName($handlerConnections, $client, $client->uid, $payload);
             if ($mutatingAction) {
+                $this->publishMutationRevision($transport);
                 UserActionLog::emit(
                     $client->userId,
                     'ws.' . strtolower($className . '.' . $methodName),
@@ -679,6 +680,29 @@ final class NativeMessengerServer
                 );
             }
             error_log(sprintf('Realtime handler failure for %s via %s: %s', $action, $transport, $e->getMessage()));
+        }
+    }
+
+    private function publishMutationRevision(string $transport): void
+    {
+        try {
+            $service = $this->fallbackRevisionService ?? new MessengerRealtimeRevisionService();
+            $revision = $service->bump();
+
+            // Локальный WebSocket process уже знает о собственной мутации и не
+            // должен через 750 мс посылать себе лишний sync_required.
+            if ($this->fallbackRevisionService !== null) {
+                $this->lastFallbackRevision = $revision;
+            }
+        } catch (Throwable $e) {
+            // Сама пользовательская мутация уже успешно завершилась. Ошибка
+            // оптимизационного сигнала не должна превращать её в отказ:
+            // Long Poll имеет периодическую полную сверку как страховку.
+            error_log(sprintf(
+                'Messenger realtime revision publish failed via %s: %s',
+                $transport,
+                $e->getMessage()
+            ));
         }
     }
 
