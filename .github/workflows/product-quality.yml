@@ -172,10 +172,11 @@ jobs:
             test -f "$path"
           done
 
+          legacy_core='core'
           for path in \
-            core/config.php \
-            core/request.php \
-            core/controller.php
+            "$legacy_core/config.php" \
+            "$legacy_core/request.php" \
+            "$legacy_core/controller.php"
           do
             test ! -e "$path"
             ! grep -Fq "/$path" core.php
