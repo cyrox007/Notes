@@ -382,19 +382,6 @@ class Router
     }
 
     /**
-     * @return array{path: string, method: string, controller: array{0: class-string, 1: non-empty-string}, middlewares: array<class-string>, name?: string}|null
-     */
-    private function findRouteByPath(string $path): ?array
-    {
-        foreach ($this->routes as $route) {
-            if (isset($route['path']) && $route['path'] === $path) {
-                return $route;
-            }
-        }
-        return null;
-    }
-
-    /**
      * Get all registered routes
      *
      * @return array<int, array{path: string, method: string, controller: array{0: class-string, 1: non-empty-string}, middlewares: array<class-string>, name?: string}>
