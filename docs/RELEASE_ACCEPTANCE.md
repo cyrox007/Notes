@@ -21,7 +21,7 @@
 
 До финального тестирования RC:
 
-1. Все запланированные инженерные PR линии 1.0 слиты в `1.0`.
+1. Все запланированные изменения релиза включены в `release/1.0.7-rc`; посторонние ветки в RC отсутствуют.
 2. Никакие посторонние или непроверенные ветки не сливаются «для удобства».
 3. `php bin/release_acceptance.php --json` не сообщает об ошибках source-contract.
 4. В релизном дереве нет приватных ключей подписи лицензий или обновлений.
@@ -94,7 +94,7 @@
 4. Проверьте HTTPS и WSS через production reverse proxy.
 5. На установке с действующей лицензией и без готового update credential откройте Admin → Updates и подтвердите автоматический bootstrap в `PRIVATE_STORAGE_PATH/update-access/update-access.json` без activation code и ручной правки `.env`.
 6. На опубликованной exact `v1.0.6` установке Windows/OSPanel подайте exact release-candidate `1.0.7`. Проверьте успешное обновление одной кнопкой, отдельный rollback при ошибке миграции, отдельный rollback при ошибке post-healthcheck и boot recovery после принудительного завершения процесса. Пользователь, роль, лицензия, `installation_id`, private storage и прикладные данные должны сохраняться, после `committed`/`rollback_verified` maintenance должен быть снят, а старая транзакция предыдущей установки не должна запускать rollback. Эта проверка обязательна до публикации `v1.0.7`.
-7. С двумя аутентифицированными пользователями Messenger проверьте доставку по WebSocket, затем временно остановите/заблокируйте WS endpoint и убедитесь, что доставка автоматически продолжается через «Long Poll · резервный канал» без reload.
+7. С двумя аутентифицированными пользователями Messenger проверьте доставку по WebSocket, затем временно остановите/заблокируйте WS endpoint и убедитесь, что доставка автоматически продолжается через Long Poll без reload.
 8. Восстановите WS endpoint и убедитесь, что оба клиента автоматически возвращаются в «WebSocket · в сети».
 9. Проверьте одну зашифрованную заметку и одно зашифрованное сообщение Messenger.
 10. Проверьте защищённый доступ к File Manager/Notes/Messenger media.
@@ -106,7 +106,7 @@
 До того как владелец релиза объявит RC принятым:
 
 - exact frozen RC/artifact прошёл live visual acceptance из #172, включая light/dark/system и проверку компактной ширины ноутбука;
-- exact frozen RC/artifact прошёл OSPanel 5.2.2 transport acceptance из #173: WebSocket `101` + `Authorized`, автоматический Long Poll fallback, durable delivery и автоматический возврат к WebSocket;
+- exact frozen RC/artifact прошёл Windows/OSPanel transport acceptance: WebSocket `101` + `Authorized`, автоматический переход на Long Poll, durable delivery и автоматический возврат к WebSocket;
 - exact frozen RC прошёл автоматический updater acceptance: обычная лицензия сама создаёт внешний installation credential, повторная проверка не требует кода, а offline-режим не обращается в сеть;
 - автоматический CI-контур подтвердил одношаговый переход `1.0.6 → 1.0.7`; реальная Windows/OSPanel-приёмка exact RC того же перехода выполняется до публикации `v1.0.7`;
 - exact frozen RC прошёл 2FA/TOTP acceptance: персональное включение/отключение, обязательная политика Admin, принудительная настройка аккаунта без TOTP, одноразовый recovery code и сохранение работоспособности после прямой/обратной ротации `UNIQUE_KEY`;
@@ -154,7 +154,7 @@ php bin/release_acceptance.php --strict --json \
   --artifact-signed
 ```
 
-2. Слейте exact accepted HEAD ветки `1.0` в `master` без внесения новых source changes.
+2. Слейте exact accepted HEAD `release/1.0.7-rc` в `master` без внесения новых source changes.
 3. Убедитесь, что `master` указывает на ожидаемое релизное содержимое.
 4. Создайте подписанный/аннотированный тег `v1.0.7` согласно release policy репозитория.
 5. Убедитесь, что tag-driven `Build hosting package` опубликовал GitHub Release из exact tagged SHA и приложил ZIP, checksum и source-SHA; update manifest и detached signature для production feed публикуются отдельно по операторскому процессу и не должны менять bytes принятого ZIP.
