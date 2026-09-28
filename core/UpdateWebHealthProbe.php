@@ -143,33 +143,29 @@ final class UpdateWebHealthProbe
                 $publicUrl = WebSocketEndpoint::publicUrl();
                 $bindHost = WebSocketEndpoint::bindHost();
                 $port = WebSocketEndpoint::port();
-                $record('websocket_configuration', true, [
+                $webSocketDetails = [
+                    'mode' => 'optional',
                     'public_url' => $publicUrl,
                     'listener' => sprintf('tcp://%s:%d', $bindHost, $port),
-                ]);
+                ];
             } catch (Throwable $e) {
-                $record('websocket_configuration', false, $e->getMessage());
+                $webSocketDetails = [
+                    'mode' => 'long_poll_fallback',
+                    'message' => $e->getMessage(),
+                ];
             }
+            $record('messenger_realtime_transport', true, $webSocketDetails);
 
             $origins = array_values(array_filter(
                 array_map('trim', explode(',', $this->env('WS_ALLOWED_ORIGINS')))
             ));
-            $originsOk = $origins !== [];
-            foreach ($origins as $origin) {
-                $scheme = strtolower((string) parse_url($origin, PHP_URL_SCHEME));
-                if (!in_array($scheme, ['http', 'https'], true)
-                    || ($siteScheme === 'https' && $scheme !== 'https')) {
-                    $originsOk = false;
-                    break;
-                }
-            }
             $record(
-                'websocket_allowed_origins',
-                $originsOk,
-                $origins === [] ? 'missing' : implode(', ', $origins)
+                'websocket_allowed_origins_optional',
+                true,
+                $origins === [] ? 'Long Poll не требует WS_ALLOWED_ORIGINS' : implode(', ', $origins)
             );
         } else {
-            $record('messenger_websocket', true, 'not required');
+            $record('messenger_realtime_transport', true, 'not required');
         }
 
         $nodeCountRaw = $this->env('DEPLOYMENT_NODE_COUNT');
