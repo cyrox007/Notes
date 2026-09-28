@@ -97,8 +97,7 @@ final class UpdateApplyCommand
                 $maintenance,
                 $stateMachine,
                 $applier,
-                $backupManager,
-                $singleStep
+                $backupManager
             );
         }
 
@@ -114,7 +113,8 @@ final class UpdateApplyCommand
                 $maintenance,
                 $stateMachine,
                 $applier,
-                $backupManager
+                $backupManager,
+                $singleStep
             );
         } catch (Throwable $e) {
             $latest = $stateMachine->load($transactionId);
