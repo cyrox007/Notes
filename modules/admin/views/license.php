@@ -46,7 +46,23 @@ ob_start();
             </div>
         </div>
         <div class="admin-license-id">
-            <code><?= $view->e($licenseState['installation_id'] ?? '') ?></code>
+            <code id="installation-id-value"><?= $view->e($licenseState['installation_id'] ?? '') ?></code>
+            <div class="admin-license-id__actions">
+                <button
+                    class="admin-action admin-action--secondary admin-license-copy"
+                    type="button"
+                    data-copy-installation-id
+                    aria-describedby="installation-id-copy-status"
+                >
+                    Копировать
+                </button>
+                <span
+                    id="installation-id-copy-status"
+                    class="admin-license-copy-status"
+                    role="status"
+                    aria-live="polite"
+                ></span>
+            </div>
         </div>
     </section>
 
@@ -141,5 +157,6 @@ echo $view->layout('core/base', [
     ],
     'module_scripts' => [
         $view->moduleAsset('admin', 'admin-settings-nav.js'),
+        $view->moduleAsset('admin', 'license.js'),
     ],
 ], $content);
