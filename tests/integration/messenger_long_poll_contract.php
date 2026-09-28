@@ -105,7 +105,7 @@ assertLongPollContract(
 assertLongPollContract(
     str_contains($controller, "'suspended' => true")
     && str_contains($controller, "'retry_after_ms' => 3000")
-    && !str_contains($controller, "$this->jsonFailure('Резервный realtime-канал временно недоступен', 503)"),
+    && !str_contains($controller, "\$this->jsonFailure('Резервный realtime-канал временно недоступен', 503)"),
     'background Long Poll must not emit HTTP 5xx while Messenger schema is temporarily unavailable'
 );
 
