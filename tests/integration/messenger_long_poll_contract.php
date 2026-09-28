@@ -102,6 +102,12 @@ assertLongPollContract(
     && str_contains($controller, 'connection_aborted()'),
     'long-poll wait must be bounded and abort-aware'
 );
+assertLongPollContract(
+    str_contains($controller, "'suspended' => true")
+    && str_contains($controller, "'retry_after_ms' => 3000")
+    && !str_contains($controller, "$this->jsonFailure('Резервный realtime-канал временно недоступен', 503)"),
+    'background Long Poll must not emit HTTP 5xx while Messenger schema is temporarily unavailable'
+);
 
 assertLongPollContract(
     str_contains($revisionService, "messenger_realtime_revision")
@@ -151,8 +157,8 @@ assertLongPollContract(
     str_contains($client, 'longPollWatchdogTimer')
     && str_contains($client, 'watchdogExpired')
     && str_contains($client, 'Long Poll · переподключение…')
-    && str_contains($client, "scheduleLongPollFallback('WebSocket подключается', 1000)")
-    && str_contains($client, "this.startLongPoll('WebSocket недоступен')"),
+    && str_contains($client, "scheduleLongPollFallback('WebSocket подключается', 1200)")
+    && str_contains($client, "scheduleLongPollFallback('WebSocket недоступен', 1200)"),
     'Messenger page Long Poll must recover from hung requests and take over immediately when WebSocket fails'
 );
 assertLongPollContract(
@@ -166,8 +172,11 @@ assertLongPollContract(
     && str_contains($globalNotifications, 'startLongPoll()')
     && str_contains($globalNotifications, 'stopLongPoll()')
     && str_contains($globalNotifications, 'scheduleLongPollFallback()')
-    && str_contains($globalNotifications, "if (socketUrl === '')"),
-    'global Messenger notifications must keep working through Long Poll when WebSocket is unavailable'
+    && str_contains($globalNotifications, "if (socketUrl === '')")
+    && str_contains($globalNotifications, 'showDialogUpdate(dialog)')
+    && str_contains($globalNotifications, "document.visibilityState !== 'visible'")
+    && str_contains($globalNotifications, 'pauseLongPoll()'),
+    'global Messenger notifications must keep working through Long Poll without holding hidden tabs'
 );
 assertLongPollContract(
     str_contains($client, "case 'sync_required':")
