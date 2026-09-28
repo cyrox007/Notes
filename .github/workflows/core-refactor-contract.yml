@@ -47,6 +47,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          php -l core/Config.php
+          php -l core/Request.php
+          php -l core/Controller.php
           php -l core/Helper.php
           php -l core/Uuid.php
           php -l core/RouteTemplate.php
