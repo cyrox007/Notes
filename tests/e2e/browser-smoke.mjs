@@ -249,10 +249,50 @@ try {
     await assertRemoteActivity(alice.page, bob.page, activity, label);
   }
 
+  // Prove the no-WebSocket deployment mode with both browser sessions using
+  // authenticated HTTP Long Poll. Reconnect is intentionally disabled only for
+  // this test window; production keeps probing WebSocket in the background.
+  for (const session of [alice, bob]) {
+    await session.page.evaluate(() => {
+      const app = window.wspace?.messenger;
+      if (!app) throw new Error('Messenger app is unavailable for Long Poll test');
+
+      if (app.reconnectTimer) {
+        window.clearTimeout(app.reconnectTimer);
+        app.reconnectTimer = null;
+      }
+      app.scheduleReconnect = () => {};
+      app.socketAuthorized = false;
+      try {
+        app.socket?.close(1000, 'e2e long-poll only');
+      } catch (_) {
+        // A closing socket is already outside the fast path.
+      }
+      app.startLongPoll?.('E2E без WebSocket');
+    });
+    await session.page.locator('#messenger-connection[data-state="fallback"]').waitFor({ timeout: 10000 });
+  }
+
+  // Give both workers one request to establish their baseline cursor before the
+  // transient signal is published.
+  await alice.page.waitForTimeout(1200);
+  await bob.page.waitForTimeout(1200);
+
+  await assertRemoteActivity(alice.page, bob.page, 'typing', 'печатает');
+
+  const longPollStates = await Promise.all([alice.page, bob.page].map(page => page.evaluate(() => ({
+    active: window.wspace?.messenger?.longPollActive === true,
+    socketAuthorized: window.wspace?.messenger?.socketAuthorized === true,
+    state: document.getElementById('messenger-connection')?.dataset.state || ''
+  }))));
+  if (longPollStates.some(state => !state.active || state.socketAuthorized || state.state !== 'fallback')) {
+    throw new Error('Messenger did not remain on Long Poll during no-WebSocket activity test');
+  }
+
   if (alice.pageErrors.length > 0) throw alice.pageErrors[0];
   if (bob.pageErrors.length > 0) throw bob.pageErrors[0];
 
-  console.log('Browser HTTPS + authenticated WSS + reconnect + message + activity presence smoke: OK');
+  console.log('Browser HTTPS + WSS + reconnect + HTTP Long Poll + activity parity smoke: OK');
 
   await alice.context.close();
   await bob.context.close();
