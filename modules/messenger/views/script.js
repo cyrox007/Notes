@@ -17,6 +17,8 @@
             this.longPollGeneration = 0;
             this.longPollRetryTimer = null;
             this.longPollFallbackTimer = null;
+            this.longPollWatchdogTimer = null;
+            this.longPollRetryAttempt = 0;
             this.typingTimer = null;
             this.typingSent = false;
             this.pendingOpenUid = null;
@@ -164,13 +166,18 @@
             this.socket.addEventListener('message', (event) => this.handleSocketMessage(event));
             this.socket.addEventListener('error', () => {
                 this.socketAuthorized = false;
-                this.scheduleLongPollFallback('WebSocket недоступен');
+                this.startLongPoll('WebSocket недоступен');
             });
             this.socket.addEventListener('close', () => {
                 this.socketAuthorized = false;
-                this.scheduleLongPollFallback('WebSocket отключён');
+                this.startLongPoll('WebSocket отключён');
                 this.scheduleReconnect();
             });
+
+            // Если handshake/авторизация WebSocket зависли у прокси, Messenger не
+            // ждёт бесконечно: HTTP long poll становится рабочим транспортом,
+            // пока WebSocket продолжает подключаться в фоне.
+            this.scheduleLongPollFallback('WebSocket подключается', 1000);
         }
 
         scheduleReconnect() {
@@ -349,7 +356,7 @@
             });
         }
 
-        scheduleLongPollFallback(reason = '', delay = 1500) {
+        scheduleLongPollFallback(reason = '', delay = 1000) {
             if (this.socketAuthorized || this.longPollActive || this.longPollFallbackTimer) {
                 return;
             }
@@ -366,23 +373,27 @@
                 window.clearTimeout(this.longPollFallbackTimer);
                 this.longPollFallbackTimer = null;
             }
+
+            if (!this.longPollActive) {
+                this.longPollActive = true;
+                this.longPollRetryAttempt = 0;
+            }
+
             if (navigator.onLine === false) {
                 this.setConnectionState('offline', 'Нет интернета');
                 return;
             }
-            if (this.longPollActive) {
-                this.setConnectionState('fallback', 'Long Poll · резервный канал');
-                return;
-            }
 
-            this.longPollActive = true;
-            this.longPollCursor = '';
-            const generation = ++this.longPollGeneration;
             this.setConnectionState(
                 'fallback',
-                reason ? `Long Poll · ${reason}` : 'Long Poll · резервный канал'
+                reason ? `Long Poll · ${reason}` : 'Long Poll · в сети'
             );
-            void this.runLongPoll(generation);
+
+            // Если предыдущий worker завершился из-за браузерного/proxy race,
+            // активный флаг не должен оставлять Messenger без нового poll.
+            if (!this.longPollAbortController && !this.longPollRetryTimer) {
+                this.resumeLongPoll();
+            }
         }
 
         stopLongPoll() {
@@ -393,10 +404,14 @@
             if (!this.longPollActive && !this.longPollAbortController) return;
             this.longPollActive = false;
             this.longPollGeneration += 1;
-            this.longPollCursor = '';
+            this.longPollRetryAttempt = 0;
             if (this.longPollRetryTimer) {
                 window.clearTimeout(this.longPollRetryTimer);
                 this.longPollRetryTimer = null;
+            }
+            if (this.longPollWatchdogTimer) {
+                window.clearTimeout(this.longPollWatchdogTimer);
+                this.longPollWatchdogTimer = null;
             }
             if (this.longPollAbortController) {
                 this.longPollAbortController.abort();
@@ -407,6 +422,14 @@
         pauseLongPollRequest() {
             if (!this.longPollActive) return false;
             this.longPollGeneration += 1;
+            if (this.longPollRetryTimer) {
+                window.clearTimeout(this.longPollRetryTimer);
+                this.longPollRetryTimer = null;
+            }
+            if (this.longPollWatchdogTimer) {
+                window.clearTimeout(this.longPollWatchdogTimer);
+                this.longPollWatchdogTimer = null;
+            }
             if (this.longPollAbortController) {
                 this.longPollAbortController.abort();
                 this.longPollAbortController = null;
@@ -415,11 +438,19 @@
         }
 
         resumeLongPoll() {
-            if (!this.longPollActive || this.socketAuthorized || this.longPollAbortController) {
+            if (!this.longPollActive || this.socketAuthorized || this.longPollAbortController || this.longPollRetryTimer) {
+                return;
+            }
+            if (navigator.onLine === false) {
+                this.setConnectionState('offline', 'Нет интернета');
                 return;
             }
             const generation = ++this.longPollGeneration;
             void this.runLongPoll(generation);
+        }
+
+        longPollRetryDelay() {
+            return Math.min(10000, 600 * (2 ** Math.min(this.longPollRetryAttempt, 4)));
         }
 
         async runLongPoll(generation) {
@@ -433,7 +464,14 @@
                     ? window.wspace.path(path)
                     : path;
                 const controller = new AbortController();
+                let watchdogExpired = false;
                 this.longPollAbortController = controller;
+                this.longPollWatchdogTimer = window.setTimeout(() => {
+                    watchdogExpired = true;
+                    if (this.longPollAbortController === controller) {
+                        controller.abort();
+                    }
+                }, 32000);
 
                 try {
                     const response = await fetch(endpoint, {
@@ -458,17 +496,31 @@
                     if (payload.changed) {
                         this.dispatchRealtimeEvents(payload.events);
                     }
-                    this.setConnectionState('fallback', 'Long Poll · резервный канал');
+                    this.longPollRetryAttempt = 0;
+                    this.setConnectionState('fallback', 'Long Poll · в сети');
                 } catch (error) {
-                    if (error?.name === 'AbortError') return;
+                    const manuallyAborted = error?.name === 'AbortError' && !watchdogExpired;
+                    if (manuallyAborted) return;
                     if (!this.longPollActive || generation !== this.longPollGeneration) return;
-                    console.warn('Messenger long poll failed', error);
-                    this.setConnectionState('offline', 'Резервный канал недоступен');
+
+                    if (navigator.onLine === false) {
+                        this.setConnectionState('offline', 'Нет интернета');
+                        return;
+                    }
+
+                    this.longPollRetryAttempt += 1;
+                    const delay = this.longPollRetryDelay();
+                    console.warn('Messenger long poll will reconnect', error);
+                    this.setConnectionState('fallback', 'Long Poll · переподключение…');
                     await new Promise((resolve) => {
-                        this.longPollRetryTimer = window.setTimeout(resolve, 1800);
+                        this.longPollRetryTimer = window.setTimeout(resolve, delay);
                     });
                     this.longPollRetryTimer = null;
                 } finally {
+                    if (this.longPollWatchdogTimer) {
+                        window.clearTimeout(this.longPollWatchdogTimer);
+                        this.longPollWatchdogTimer = null;
+                    }
                     if (this.longPollAbortController === controller) {
                         this.longPollAbortController = null;
                     }
