@@ -160,7 +160,11 @@ final class UpdateWebTransaction
                     $state,
                     $maintenance
                 ),
-                'candidate_verified' => $this->applyStep(
+                'candidate_verified',
+                'preflight_verified',
+                'code_switched',
+                'migrations_applied',
+                'postcheck_verified' => $this->applyStep(
                     $transactionId,
                     $state,
                     $maintenance,
@@ -178,11 +182,7 @@ final class UpdateWebTransaction
                     $maintenance,
                     $continuation
                 ),
-                'preflight_verified',
                 'live_mutation_started',
-                'code_switched',
-                'migrations_applied',
-                'postcheck_verified',
                 'rollback_started',
                 'code_restored',
                 'database_restored',
@@ -315,6 +315,7 @@ final class UpdateWebTransaction
                 'candidate-dir' => $candidateDir,
                 'state-root' => $this->stateRoot,
                 'backup-root' => $this->backupRoot,
+                'single-step' => true,
             ]);
         } catch (UpdateApplyException $e) {
             $after = $maintenance->state();
@@ -340,6 +341,17 @@ final class UpdateWebTransaction
                 500,
                 $e
             );
+        }
+
+        if (($result['status'] ?? '') === 'in_progress') {
+            return [
+                'status' => 'in_progress',
+                'phase' => (string) ($result['phase'] ?? 'apply'),
+                'progress' => (int) ($result['progress'] ?? 75),
+                'message' => (string) ($result['message'] ?? 'Обновление продолжается.'),
+                'transaction_id' => $transactionId,
+                'target_version' => (string) ($state['target_version'] ?? ''),
+            ];
         }
 
         $continuation->revoke($transactionId);
