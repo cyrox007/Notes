@@ -32,6 +32,8 @@
         let longPollWatchdogTimer = null;
         let longPollRetryAttempt = 0;
         let longPollFallbackTimer = null;
+        let transportEnabled = true;
+        let coordinator = null;
 
         function totalUnread() {
             let total = 0;
@@ -68,7 +70,9 @@
             }, { once: true });
         }
 
-        function applyDialogs(rows) {
+        function applyDialogs(rows, options = {}) {
+            const announce = options.announce !== false;
+            const broadcast = options.broadcast !== false;
             const nextRows = Array.isArray(rows) ? rows : [];
             const previous = new Map(dialogs);
 
@@ -77,7 +81,7 @@
                 if (dialog?.uid) dialogs.set(dialog.uid, dialog);
             });
 
-            if (dialogsPrimed && !suppressNextDialogToast) {
+            if (dialogsPrimed && announce && !suppressNextDialogToast) {
                 nextRows.forEach((dialog) => {
                     if (!dialog?.uid) return;
                     const before = Number(previous.get(dialog.uid)?.unread_count || 0);
@@ -89,6 +93,13 @@
             dialogsPrimed = true;
             suppressNextDialogToast = false;
             renderBadge();
+
+            if (broadcast && coordinator?.isLeader?.()) {
+                coordinator.publish({
+                    type: 'dialogs',
+                    dialogs: nextRows
+                });
+            }
         }
 
         wspace.messengerNotifications = {
@@ -103,6 +114,39 @@
         if (document.getElementById('messenger-app')) return;
 
         const socketUrl = String(wspace.socketConfig?.url || '').trim();
+
+        function deactivateTransport() {
+            transportEnabled = false;
+            clearReconnectTimer();
+            stopLongPoll();
+            socketAuthorized = false;
+
+            const currentSocket = socket;
+            socket = null;
+            try {
+                currentSocket?.close();
+            } catch (_) {
+                // Уже закрытый WebSocket не требует дополнительной обработки.
+            }
+        }
+
+        function activateTransport() {
+            transportEnabled = true;
+            if (stopped || navigator.onLine === false) return;
+            if (socketUrl === '') {
+                startLongPoll();
+                return;
+            }
+            void connect();
+        }
+
+        function handlePeerMessage(payload) {
+            if (payload?.type !== 'dialogs') return;
+            applyDialogs(payload.dialogs, {
+                announce: false,
+                broadcast: false
+            });
+        }
 
         function send(action, data = {}) {
             if (!socket || socket.readyState !== WebSocket.OPEN || !socketAuthorized) return false;
@@ -217,7 +261,7 @@
         }
 
         function scheduleReconnect() {
-            if (stopped || reconnectTimer || navigator.onLine === false || socketUrl === '') return;
+            if (!transportEnabled || stopped || reconnectTimer || navigator.onLine === false || socketUrl === '') return;
             const delay = Math.min(MAX_RECONNECT_DELAY, 1000 * (2 ** Math.min(reconnectAttempt, 3)));
             reconnectAttempt += 1;
             reconnectTimer = window.setTimeout(() => {
@@ -227,7 +271,7 @@
         }
 
         function scheduleLongPollFallback(delay = 1000) {
-            if (stopped || socketAuthorized || longPollActive || longPollFallbackTimer) return;
+            if (!transportEnabled || stopped || socketAuthorized || longPollActive || longPollFallbackTimer) return;
             longPollFallbackTimer = window.setTimeout(() => {
                 longPollFallbackTimer = null;
                 if (!socketAuthorized) startLongPoll();
@@ -242,7 +286,7 @@
         }
 
         function startLongPoll() {
-            if (stopped) return;
+            if (!transportEnabled || stopped) return;
             if (longPollFallbackTimer) {
                 window.clearTimeout(longPollFallbackTimer);
                 longPollFallbackTimer = null;
@@ -298,7 +342,8 @@
 
         function resumeLongPoll() {
             if (
-                stopped
+                !transportEnabled
+                || stopped
                 || !longPollActive
                 || socketAuthorized
                 || navigator.onLine === false
@@ -419,7 +464,8 @@
 
         async function connect() {
             if (
-                stopped
+                !transportEnabled
+                || stopped
                 || socketUrl === ''
                 || connecting
                 || navigator.onLine === false
@@ -454,11 +500,13 @@
                 nextSocket.addEventListener('close', () => {
                     if (socket === nextSocket) socket = null;
                     socketAuthorized = false;
+                    if (!transportEnabled) return;
                     scheduleReconnect();
                     scheduleLongPollFallback(1200);
                 });
                 nextSocket.addEventListener('error', () => {
                     socketAuthorized = false;
+                    if (!transportEnabled) return;
                     scheduleLongPollFallback(1200);
                 });
             } catch (error) {
@@ -471,6 +519,7 @@
         }
 
         window.addEventListener('online', () => {
+            if (!transportEnabled) return;
             clearReconnectTimer();
             if (!socketAuthorized) startLongPoll();
             void connect();
@@ -489,6 +538,7 @@
         });
 
         window.addEventListener('focus', () => {
+            if (!transportEnabled) return;
             if (!socketAuthorized) startLongPoll();
             void connect();
         });
@@ -508,13 +558,26 @@
 
         window.addEventListener('pagehide', () => {
             pauseLongPoll();
+            coordinator?.stop?.();
         });
 
-        if (socketUrl === '') {
-            startLongPoll();
+        const coordinatorFactory = window.wspaceMessengerTabCoordinator?.create;
+        if (typeof coordinatorFactory === 'function') {
+            transportEnabled = false;
+            coordinator = coordinatorFactory({
+                onLeadershipChange(isLeader) {
+                    if (isLeader) {
+                        activateTransport();
+                        return;
+                    }
+                    deactivateTransport();
+                },
+                onMessage: handlePeerMessage
+            });
+            coordinator.start();
             return;
         }
 
-        void connect();
+        activateTransport();
     });
 })();
