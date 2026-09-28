@@ -86,7 +86,7 @@ final class MessengerActivityService
                AND ma.user_id <> :viewer_id
                AND ma.expires_at > CURRENT_TIMESTAMP(3)
                AND u.is_active = 1
-             ORDER BY ma.updated_at DESC, ma.activity ASC',
+             ORDER BY ma.updated_at ASC, ma.activity ASC',
             [
                 ':dialog_id' => $dialogId,
                 ':viewer_id' => $viewerId,
