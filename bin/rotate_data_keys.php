@@ -12,7 +12,7 @@ require_once $root . '/core/Environment.php';
 if (is_file($root . '/.env')) {
     \Core\Environment::load($root . '/.env');
 }
-require_once $root . '/core/config.php';
+require_once $root . '/core/Config.php';
 require_once $root . '/core/DatabaseManager.php';
 require_once $root . '/app/handlers/CryptMethods.php';
 require_once $root . '/modules/messenger/handlers/MessengerCrypto.php';
