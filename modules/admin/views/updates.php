@@ -187,11 +187,12 @@ ob_start();
                 </div>
                 <?php if ($installMode === 'web'): ?>
                     <form
-                        action="<?= $view->e($view->route('admin_updates_web_start')) ?>"
+                        action="<?= $view->e($view->route('admin_updates_apply')) ?>"
                         method="post"
                         class="custom-fields-form"
                         data-update-install-form
                         data-update-web-mode="true"
+                        data-update-start-url="<?= $view->e($view->route('admin_updates_web_start')) ?>"
                         data-update-step-url="<?= $view->e($view->route('admin_updates_web_step')) ?>"
                         data-update-web-confirm="Установить подтверждённое обновление? Система сама выполнит все шаги и автоматически восстановит предыдущую версию при ошибке."
                     >
