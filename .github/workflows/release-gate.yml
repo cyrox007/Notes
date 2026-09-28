@@ -114,7 +114,9 @@ jobs:
           php tests/integration/one_click_update_contract.php
           php tests/integration/automatic_update_recovery_contract.php
           php tests/integration/updater_preapply_crash_recovery_contract.php
+          php tests/integration/updater_web_mode_contract.php
           node --check assets/js/update-notifications.js
+          node --check modules/admin/assets/admin-updates.js
 
       - name: Verify hosting package source contract
         run: php tests/integration/hosting_package_source_contract.php
