@@ -65,9 +65,14 @@ try {
     updaterWebModeAssert(!$continuation->active($transactionId), 'отозванный capability lease остался активным');
 
     $readiness = (string) file_get_contents($root . '/core/UpdateReadiness.php');
+    $readyExpression = '';
+    if (preg_match('/\\$readyForApply\\s*=\\s*(.*?);/s', $readiness, $readyMatch) === 1) {
+        $readyExpression = (string) ($readyMatch[1] ?? '');
+    }
     updaterWebModeAssert(
-        !str_contains($readiness, '&& $procOpen')
-            && !str_contains($readiness, '&& $phpCliReady'),
+        $readyExpression !== ''
+            && !str_contains($readyExpression, '$procOpen')
+            && !str_contains($readyExpression, '$phpCliReady'),
         'proc_open или PHP CLI по-прежнему обязательны для ready_for_apply'
     );
     updaterWebModeAssert(
