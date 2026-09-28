@@ -33,8 +33,15 @@ const elements = {
     'message-send-button': { disabled: false, addEventListener() {} },
 };
 
+const dispatchedEvents = [];
 const context = {
     console,
+    CustomEvent: class CustomEvent {
+        constructor(type, options = {}) {
+            this.type = type;
+            this.detail = options.detail;
+        }
+    },
     URL,
     URLSearchParams,
     Intl,
@@ -54,6 +61,10 @@ const context = {
         hidden: false,
         getElementById(id) { return elements[id] ?? null; },
         addEventListener() {},
+        dispatchEvent(event) {
+            dispatchedEvents.push(event?.type || '');
+            return true;
+        },
         createElement() {
             return {
                 classList: { add() {}, remove() {} },
@@ -202,6 +213,26 @@ assert(
     expiredToasts.some((message) => message.includes('Сессия завершена')),
     'пользователь не получил понятное сообщение о завершении сессии'
 );
+assert(expiredApp.sessionUnavailable === true, 'завершённая сессия не стала конечным состоянием transport');
+assert(
+    dispatchedEvents.includes('wspace:messenger-session-unavailable'),
+    'Long Poll не сообщил connection UX о завершении сессии'
+);
+
+const actionExpiredApp = new MessengerApp(rootElement);
+actionExpiredApp.longPollActive = true;
+actionExpiredApp.longPollGeneration = 1;
+actionExpiredApp.setConnectionState = () => {};
+actionExpiredApp.showToast = () => {};
+context.fetch = async () => ({
+    ok: false,
+    status: 403,
+    async json() { return { status: 'error' }; },
+});
+const actionConfirmed = await actionExpiredApp.sendHttpEventConfirmed('MessangerSocket:get_dialogs', {});
+assert(actionConfirmed === false, 'HTTP action ошибочно подтверждён после завершения сессии');
+assert(actionExpiredApp.sessionUnavailable === true, 'HTTP action 403 не остановил transport');
+assert(actionExpiredApp.longPollActive === false, 'HTTP action 403 оставил Long Poll активным');
 
 const watchdogApp = new MessengerApp(rootElement);
 const watchdogStates = [];
@@ -256,4 +287,4 @@ assert(
     'watchdog не сохранил рабочий fallback-транспорт во время восстановления'
 );
 
-console.log('[OK] Messenger Long Poll самовосстанавливается после HTTP-сбоя, миграционного ожидания и зависшего запроса');
+console.log('[OK] Messenger Long Poll восстанавливается после сбоев и корректно завершает transport при окончании сессии');
