@@ -80,6 +80,7 @@ final class UpdateWebContinuation
 
     public function verifyAndRenew(string $transactionId, string $token): bool
     {
+        $transactionId = $this->transactionId($transactionId);
         if (!$this->verify($transactionId, $token)) {
             return false;
         }
