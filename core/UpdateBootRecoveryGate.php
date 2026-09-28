@@ -41,6 +41,27 @@ final class UpdateBootRecoveryGate
             return;
         }
 
+        if (self::maintenancePredatesCurrentInstallation($state)) {
+            try {
+                $maintenance->leave($transactionId);
+                error_log(
+                    'Устаревший maintenance-marker предыдущей установки снят без запуска rollback'
+                    . ' [transaction=' . $transactionId . ']'
+                );
+                return;
+            } catch (Throwable $e) {
+                error_log(
+                    'Не удалось снять устаревший maintenance-marker предыдущей установки'
+                    . ' [transaction=' . $transactionId . ']: ' . $e->getMessage()
+                );
+                self::reject(
+                    'Не удалось безопасно изолировать состояние предыдущей установки.',
+                    $transactionId,
+                    'stale_maintenance_cleanup_failed'
+                );
+            }
+        }
+
         $recovery = (new UpdateAutomaticRecovery($appRoot))->attempt($maintenance);
 
         try {
@@ -76,6 +97,37 @@ final class UpdateBootRecoveryGate
         self::reject('Автоматическое восстановление будет повторено следующим запросом.');
     }
 
+    /**
+     * Fresh install пишет новый INSTALL_DATE. Если updater maintenance начался
+     * раньше этой даты, он относится к предыдущей установке, даже если новый
+     * installer переиспользовал тот же внешний private storage.
+     *
+     * В таком случае rollback запускать опасно: старый backup может вернуть код
+     * и БД предыдущей инсталляции поверх уже установленной версии.
+     *
+     * @param array{started_at?:mixed} $state
+     */
+    public static function maintenancePredatesCurrentInstallation(array $state, ?string $installDate = null): bool
+    {
+        $startedAt = $state['started_at'] ?? null;
+        if (!is_int($startedAt) || $startedAt <= 0) {
+            return false;
+        }
+
+        if ($installDate === null) {
+            $value = getenv('INSTALL_DATE');
+            $installDate = is_string($value) ? trim($value) : '';
+        } else {
+            $installDate = trim($installDate);
+        }
+
+        if (preg_match('/^\d{14}$/D', $installDate) !== 1) {
+            return false;
+        }
+
+        return date('YmdHis', $startedAt) < $installDate;
+    }
+
     private static function hasRecoveryJournal(?string $stateRoot, string $transactionId): bool
     {
         if (
@@ -102,6 +154,7 @@ final class UpdateBootRecoveryGate
             'state_root_missing' => 'Не удалось определить внешний журнал состояния обновления.',
             'invalid_maintenance_state' => 'Состояние режима обслуживания повреждено и требует диагностики.',
             'coordinator_lock_failed' => 'Не удалось проверить блокировку операции обновления.',
+            'stale_maintenance_cleanup_failed' => 'Не удалось безопасно изолировать состояние предыдущей установки.',
             'recovery_exception', 'recovery_failed' => 'Автоматическое восстановление завершилось технической ошибкой.',
             default => 'Автоматическое восстановление не удалось безопасно завершить.',
         };
