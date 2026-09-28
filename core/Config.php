@@ -10,8 +10,8 @@ class Config
     private static array $configValues = [];
 
     /**
-     * Role numbers are identifiers, not an ordering. Authorization checks must
-     * use the explicit allowlists below.
+     * Числа ролей являются идентификаторами, а не уровнем доступа.
+     * Проверки прав должны использовать явные списки разрешённых ролей ниже.
      */
     public const USER_ROLE_SUPERADMIN = 1;
     public const USER_ROLE_ADMIN = 111;
@@ -30,9 +30,9 @@ class Config
             'database' => getenv('DBNAME') ?: 'workspace',
         ];
 
-        // HTTP workers, CLI migrations and Workerman all bootstrap Config. Prefer
-        // the canonical configured origin; only infer from the request as a
-        // development fallback when SITEURL is not present.
+        // HTTP-процессы, CLI-миграции и WebSocket runtime используют один Config.
+        // Сначала берём явно заданный канонический адрес; данные запроса служат
+        // только запасным вариантом для разработки, когда SITEURL не указан.
         $configuredSiteUrl = trim((string) (getenv('SITEURL') ?: ''));
         if ($configuredSiteUrl !== '') {
             self::$configValues['SITEURL'] = rtrim($configuredSiteUrl, '/');
@@ -68,7 +68,7 @@ class Config
         );
     }
 
-    // Backwards compatibility with older code paths.
+    // Совместимость со старыми участками кода.
     public $user_role_superadmin = self::USER_ROLE_SUPERADMIN;
     public $user_role_admin = self::USER_ROLE_ADMIN;
     public $user_role_activate = self::USER_ROLE_USER;

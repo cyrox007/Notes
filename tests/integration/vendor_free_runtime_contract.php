@@ -63,7 +63,7 @@ require_once $root . '/core/RuntimeAutoloader.php';
 vendorFreeAssert(interface_exists(\Core\ViewRenderer::class), 'Автозагрузчик не разрешил интерфейс ViewRenderer');
 vendorFreeAssert(class_exists(\Core\NativeViewRenderer::class), 'Автозагрузчик не разрешил NativeViewRenderer');
 
-$controller = (string) file_get_contents($root . '/core/controller.php');
+$controller = (string) file_get_contents($root . '/core/Controller.php');
 vendorFreeAssert(str_contains($controller, 'new NativeViewRenderer('), 'HTTP controller does not use native view renderer');
 
 $installer = (string) file_get_contents($root . '/install.php');

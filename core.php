@@ -16,22 +16,8 @@ if (!is_file($runtimeAutoloader)) {
 require_once $runtimeAutoloader;
 \Core\RuntimeAutoloader::register(SITEPATH);
 
-// Три исторических файла пока имеют имена в нижнем регистре и поэтому не
-// разрешаются PSR-подобным Core\\-автозагрузчиком на Linux. Остальные классы ядра
-// загружаются только по фактическому обращению.
-$coreFiles = [
-    '/core/config.php',
-    '/core/request.php',
-    '/core/controller.php',
-];
-
-foreach ($coreFiles as $file) {
-    if (file_exists(SITEPATH . $file)) {
-        require_once SITEPATH . $file;
-    } else {
-        throw new RuntimeException("Core file {$file} is missing.");
-    }
-}
+// Классы ядра после регистрации RuntimeAutoloader загружаются только по
+// фактическому обращению. Ручного списка файлов bootstrap больше нет.
 
 \Core\SessionSecurity::configure();
 
