@@ -15,12 +15,8 @@ putenv('TRUSTED_PROXY_IPS=');
 $_SERVER['HTTP_HOST'] = 'example.test';
 $_SERVER['HTTPS'] = 'on';
 
-require_once $root . '/core/config.php';
-require_once $root . '/core/RequestOrigin.php';
-require_once $root . '/core/SessionSecurity.php';
-require_once $root . '/core/RedirectPolicy.php';
-require_once $root . '/core/request.php';
-require_once $root . '/core/Router.php';
+require_once $root . '/core/RuntimeAutoloader.php';
+\Core\RuntimeAutoloader::register($root);
 
 use Core\RedirectPolicy;
 use Core\Request;
