@@ -2,7 +2,7 @@ name: Profile user contract
 
 on:
   pull_request:
-    branches: [master, '1.0']
+    branches: [master, '1.0', 'release/1.0.7-rc']
   push:
     branches: [profile-user-hardening]
 
