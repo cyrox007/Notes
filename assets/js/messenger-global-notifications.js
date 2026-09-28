@@ -26,6 +26,8 @@
 
         let longPollActive = false;
         let longPollCursor = '';
+        let longPollRevision = null;
+        let longPollActivityCursor = '';
         let longPollGeneration = 0;
         let longPollAbortController = null;
         let longPollRetryTimer = null;
@@ -371,6 +373,12 @@
             while (longPollActive && generation === longPollGeneration && !socketAuthorized) {
                 const query = new URLSearchParams();
                 if (longPollCursor) query.set('cursor', longPollCursor);
+                if (Number.isInteger(longPollRevision) && longPollRevision >= 0) {
+                    query.set('revision', String(longPollRevision));
+                }
+                if (longPollActivityCursor) {
+                    query.set('activity_cursor', longPollActivityCursor);
+                }
                 const path = '/messenger/realtime/poll?' + query.toString();
                 const endpoint = typeof wspace.path === 'function' ? wspace.path(path) : path;
 
@@ -403,6 +411,13 @@
                     const payload = await response.json();
                     if (payload?.status !== 'ok') {
                         throw new Error(payload?.message || 'Long Poll failed');
+                    }
+
+                    if (Number.isInteger(Number(payload.revision)) && Number(payload.revision) >= 0) {
+                        longPollRevision = Number(payload.revision);
+                    }
+                    if (typeof payload.activity_cursor === 'string' && /^[a-f0-9]{64}$/u.test(payload.activity_cursor)) {
+                        longPollActivityCursor = payload.activity_cursor;
                     }
 
                     if (payload.suspended === true) {
