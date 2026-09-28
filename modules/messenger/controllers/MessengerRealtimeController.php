@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Models\UserModel;
+use App\Services\MessengerActivityService;
 use App\Services\MessengerLongPollService;
-use App\Services\MessengerRealtimeRevisionService;
 use App\Sockets\BufferedSocketConnection;
 use App\Sockets\NativeMessengerServer;
 use Core\Controller;
@@ -47,9 +47,6 @@ final class MessengerRealtimeController extends Controller
                 JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
             );
             $server->dispatchTransportMessage($connection, $message, $connections, 'long_poll');
-            if ($server->isDurableMutationAction($action)) {
-                (new MessengerRealtimeRevisionService())->bump();
-            }
         } catch (\Throwable $e) {
             error_log('Messenger long-poll action failed: ' . $e->getMessage());
             $this->jsonFailure('Не удалось выполнить действие мессенджера', 500);
@@ -80,6 +77,14 @@ final class MessengerRealtimeController extends Controller
             $dialogUid = '';
         }
 
+        $revisionRaw = trim((string) $request->get('revision', ''));
+        $revision = ctype_digit($revisionRaw) ? (int) $revisionRaw : null;
+
+        $activityCursor = trim((string) $request->get('activity_cursor', ''));
+        if ($activityCursor !== '' && preg_match('/^[a-f0-9]{64}$/D', $activityCursor) !== 1) {
+            $activityCursor = '';
+        }
+
         // A long-running request must not hold the PHP session lock; otherwise
         // the same browser could not POST a fallback action until this poll ends.
         if (session_status() === PHP_SESSION_ACTIVE) {
@@ -93,11 +98,26 @@ final class MessengerRealtimeController extends Controller
             $wait = (new MessengerLongPollService())->waitForChange(
                 (int) $user['id'],
                 $cursor,
-                static fn (): bool => connection_aborted() === 1
+                static fn (): bool => connection_aborted() === 1,
+                $revision,
+                $activityCursor
             );
         } catch (\Throwable $e) {
-            error_log('Messenger long-poll wait failed: ' . $e->getMessage());
-            $this->jsonFailure('Резервный realtime-канал временно недоступен', 503);
+            // Фоновый poll не должен превращать временно неполную схему БД
+            // во время install/update/migrations в HTTP 5xx всей страницы.
+            // Пользовательские действия по-прежнему fail-closed через action().
+            error_log('Messenger long-poll временно приостановлен: ' . $e->getMessage());
+            $this->responseJson([
+                'status' => 'ok',
+                'transport' => 'long_poll',
+                'changed' => false,
+                'cursor' => $cursor,
+                'events' => [],
+                'revision' => $revision,
+                'activity_cursor' => $activityCursor,
+                'suspended' => true,
+                'retry_after_ms' => 3000,
+            ]);
             return;
         }
 
@@ -111,6 +131,8 @@ final class MessengerRealtimeController extends Controller
                 'transport' => 'long_poll',
                 'changed' => false,
                 'cursor' => $wait['cursor'],
+                'revision' => $wait['revision'],
+                'activity_cursor' => $wait['activity_cursor'],
                 'events' => [],
             ]);
             return;
@@ -135,9 +157,38 @@ final class MessengerRealtimeController extends Controller
                 $server->dispatchTransportMessage($connection, $message, $connections, 'long_poll');
             }
         } catch (\Throwable $e) {
-            error_log('Messenger long-poll snapshot failed: ' . $e->getMessage());
-            $this->jsonFailure('Не удалось синхронизировать мессенджер', 500);
+            // Snapshot — фоновая синхронизация. Во время переключения версии
+            // часть таблиц/обработчиков может быть кратковременно недоступна;
+            // это не должно создавать 5xx на пользовательской странице.
+            error_log('Messenger long-poll snapshot временно приостановлен: ' . $e->getMessage());
+            $this->responseJson([
+                'status' => 'ok',
+                'transport' => 'long_poll',
+                'changed' => false,
+                'cursor' => $cursor,
+                'events' => [],
+                'revision' => $revision,
+                'activity_cursor' => $activityCursor,
+                'suspended' => true,
+                'retry_after_ms' => 3000,
+            ]);
             return;
+        }
+
+        $events = $connection->drainPayloads();
+        if ($dialogUid !== '') {
+            try {
+                $events[] = [
+                    'action' => 'activity_snapshot',
+                    'dialog_uid' => $dialogUid,
+                    'activities' => (new MessengerActivityService())->snapshot(
+                        (string) $user['uid'],
+                        $dialogUid
+                    ),
+                ];
+            } catch (\Throwable $e) {
+                error_log('Messenger activity snapshot временно недоступен: ' . $e->getMessage());
+            }
         }
 
         $this->responseJson([
@@ -145,7 +196,9 @@ final class MessengerRealtimeController extends Controller
             'transport' => 'long_poll',
             'changed' => true,
             'cursor' => $wait['cursor'],
-            'events' => $connection->drainPayloads(),
+            'revision' => $wait['revision'],
+            'activity_cursor' => $wait['activity_cursor'],
+            'events' => $events,
         ]);
     }
 

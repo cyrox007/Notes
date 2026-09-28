@@ -328,19 +328,48 @@
         retryButton.addEventListener('click', retryNow);
         bannerAction.addEventListener('click', retryNow);
 
+        document.addEventListener('wspace:messenger-session-unavailable', () => {
+            sessionUnavailable = true;
+            clearReconnectTimer();
+            app.stopLongPoll?.();
+            renderState('offline', 'Сессия завершена', {
+                reason: 'session',
+                bannerText: 'Сессия завершена. Обновите страницу и войдите снова.',
+                actionText: 'Обновить страницу'
+            });
+        });
+
         window.addEventListener('offline', () => {
             clearReconnectTimer();
+
+            // Сразу переводим realtime в ожидающий Long Poll режим. Это важно
+            // для браузеров, которые не всегда мгновенно присылают WebSocket close
+            // при смене сети или выходе ноутбука из сна.
+            app.socketAuthorized = false;
+            try {
+                app.socket?.close();
+            } catch (_) {
+                // Закрытие уже оборванного WebSocket безопасно игнорируется.
+            }
+            app.startLongPoll?.('ожидание сети');
+            app.pauseLongPollRequest?.();
+
             renderState('offline', 'Нет интернета', {
                 reason: 'network',
-                bannerText: 'Нет подключения к интернету. Повторное подключение начнётся автоматически после восстановления сети.',
+                bannerText: 'Нет подключения к интернету. Long Poll и WebSocket восстановятся автоматически после появления сети.',
                 hideRetry: true
             });
         });
 
         window.addEventListener('online', () => {
-            if (!sessionUnavailable && (!app.socket || app.socket.readyState !== WebSocket.OPEN)) {
-                clearReconnectTimer();
-                app.scheduleReconnect({ immediate: true });
+            if (!sessionUnavailable) {
+                app.startLongPoll?.('сеть восстановлена');
+                app.resumeLongPoll?.();
+
+                if (!app.socket || app.socket.readyState !== WebSocket.OPEN) {
+                    clearReconnectTimer();
+                    app.scheduleReconnect({ immediate: true });
+                }
             }
             verifySessionIdentity();
         });

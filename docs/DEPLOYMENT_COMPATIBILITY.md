@@ -15,7 +15,7 @@
 
 ## Общий runtime contract 1.0
 
-Приложение не требует Composer packages или каталога `vendor/` в production. HTTP views рендерятся внутренним `NativeViewRenderer`. Messenger использует собственный PHP RFC6455 runtime на `stream_socket_server()` + `stream_select()` как основной realtime transport и authenticated HTTP long poll как автоматический fallback.
+Приложение не требует Composer packages или каталога `vendor/` в production. HTTP views рендерятся внутренним `NativeViewRenderer`. Messenger поддерживает два автоматически переключаемых канала: собственный PHP RFC6455 WebSocket runtime на `stream_socket_server()` + `stream_select()` как быстрый канал и authenticated HTTP long poll как самостоятельный durable-канал для окружений без WebSocket.
 
 Нужны PHP 8.1+, MySQL и используемые приложением PHP extensions (`mysqli`, `pdo_mysql`, `mbstring`, `sodium`, `fileinfo`, `gd`).
 
@@ -53,7 +53,9 @@ Fresh web-installation не требует Composer: используйте rele
 
 Messenger на shared hosting имеет два режима.
 
-Базовый fallback не требует отдельного CLI process: нужны обычные authenticated HTTP requests, возможность удерживать long-poll request до 5–25 секунд и достаточная параллельность PHP workers. Клиент освобождает session lock на ожидании и прерывает poll перед собственным mutating request/ticket refresh.
+Режим HTTP long poll не требует отдельного CLI process: нужны обычные authenticated HTTP requests, возможность удерживать long-poll request до 5–25 секунд и достаточная параллельность PHP workers. Клиент освобождает session lock на ожидании, прерывает poll перед собственным mutating request/ticket refresh, автоматически перезапускает зависший запрос и не блокирует отправку сообщений из-за единичной ошибки poll.
+
+Чтобы несколько открытых страниц одного пользователя не занимали по отдельному PHP worker на каждый фоновый poll, глобальный Messenger transport выбирает одну видимую вкладку-лидера и передаёт badge-состояние соседним вкладкам. Сама страница Messenger по-прежнему владеет своим полноценным transport; при отсутствии межвкладочных API применяется безопасный независимый режим.
 
 Для рекомендуемого WebSocket fast path дополнительно нужны:
 
@@ -62,7 +64,7 @@ Messenger на shared hosting имеет два режима.
 3. WebSocket reverse proxy от публичного `wss://domain[/base]/ws` к локальному `WS_PORT`;
 4. механизм автоматического перезапуска — Supervisor, systemd-аналог панели или background process manager.
 
-Если тариф завершает CLI-процессы или не позволяет WebSocket Upgrade proxy, Messenger автоматически остаётся на HTTP long poll. WebSocket уменьшает latency и HTTP/PHP worker overhead, но больше не является условием работоспособности durable Messenger.
+Если тариф завершает CLI-процессы или не позволяет WebSocket Upgrade proxy, Messenger штатно работает через HTTP long poll. В спокойном состоянии серверный цикл проверяет дешёвую общую realtime-ревизию и TTL-сигнал активности вместо постоянного полного сканирования всех сообщений; периодическая полная сверка остаётся страховкой от пропущенных нестандартных записей. В этом режиме доступны сообщения, диалоги, статусы прочтения/доставки, реакции, глобальный счётчик непрочитанных и короткоживущие индикаторы активности (`печатает…`, запись/загрузка). Активность хранится только несколько секунд и автоматически очищается. WebSocket уменьшает задержку и нагрузку на HTTP/PHP workers, но не является условием работоспособности durable Messenger.
 
 ## VPS/VDS production
 
@@ -87,6 +89,6 @@ php bin/ws_doctor.php
 php ws_server/server.php status
 ```
 
-Если WebSocket включён, в DevTools -> Network -> WS соединение с `WS_PUBLIC_URL` должно получить `101 Switching Protocols`, после чего Messenger получает `Authorized` и realtime delivery без reload. Для fallback-проверки временно остановите WS process: UI должен перейти в «Long Poll · резервный канал», durable message state продолжить синхронизацию, а после возврата WS клиент — автоматически вернуться на WebSocket.
+Если WebSocket включён, в DevTools -> Network -> WS соединение с `WS_PUBLIC_URL` должно получить `101 Switching Protocols`, после чего Messenger получает `Authorized` и realtime delivery без reload. Для проверки HTTP-режима временно остановите WS process: UI должен перейти в «Long Poll · в сети», durable message state и глобальный счётчик непрочитанных должны продолжить синхронизацию. Одиночный HTTP 5xx и зависший poll не должны отключать Messenger. Во время обновления приложения или переходного состояния схемы фоновый poll должен получать `200 suspended`, а не создавать ошибку страницы или шум 5xx. После возврата WS клиент автоматически возвращается на WebSocket без reload.
 
 CI 1.0 дополнительно запускает production-like Chromium HTTPS/WSS smoke после принудительного удаления `vendor/` и проверяет fallback/reconnect bridge.

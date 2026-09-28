@@ -63,8 +63,61 @@ HTML;
 /**
  * @param array{ready:bool,missing_tables:list<string>,missing_user_columns:list<string>} $state
  */
+function isMessengerLongPollRequest(): bool
+{
+    if (strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'GET') {
+        return false;
+    }
+
+    $requestUri = (string) ($_SERVER['REQUEST_URI'] ?? '');
+    $path = parse_url($requestUri, PHP_URL_PATH);
+    if (!is_string($path) || $path === '') {
+        return false;
+    }
+
+    return preg_match('~(?:^|/)messenger/realtime/poll/?$~D', $path) === 1;
+}
+
+function handleSuspendedMessengerLongPoll(int $retryAfterMs = 3000): never
+{
+    http_response_code(200);
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('X-Workspace-Realtime-Suspended: 1');
+
+    $cursor = trim((string) ($_GET['cursor'] ?? ''));
+    if ($cursor !== '' && preg_match('/^[a-f0-9]{64}$/D', $cursor) !== 1) {
+        $cursor = '';
+    }
+
+    $revisionRaw = trim((string) ($_GET['revision'] ?? ''));
+    $revision = ctype_digit($revisionRaw) ? (int) $revisionRaw : null;
+
+    $activityCursor = trim((string) ($_GET['activity_cursor'] ?? ''));
+    if ($activityCursor !== '' && preg_match('/^[a-f0-9]{64}$/D', $activityCursor) !== 1) {
+        $activityCursor = '';
+    }
+
+    echo json_encode([
+        'status' => 'ok',
+        'transport' => 'long_poll',
+        'changed' => false,
+        'cursor' => $cursor,
+        'revision' => $revision,
+        'activity_cursor' => $activityCursor,
+        'events' => [],
+        'suspended' => true,
+        'retry_after_ms' => max(500, min(10000, $retryAfterMs)),
+    ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
+    exit;
+}
+
 function handleSchemaUpgradeRequired(array $state): never
 {
+    if (isMessengerLongPollRequest()) {
+        handleSuspendedMessengerLongPoll();
+    }
+
     http_response_code(503);
     header('Cache-Control: no-store');
     header('Retry-After: 60');
@@ -129,6 +182,10 @@ HTML;
 
 function handleMaintenanceMode(array $state): never
 {
+    if (isMessengerLongPollRequest()) {
+        handleSuspendedMessengerLongPoll();
+    }
+
     http_response_code(503);
     header('Cache-Control: no-store');
     header('Retry-After: 60');

@@ -49,6 +49,7 @@
 
         if (form && action) {
             form.addEventListener('submit', () => {
+                document.dispatchEvent(new CustomEvent('wspace:update-install-start'));
                 action.disabled = true;
                 action.textContent = 'Устанавливаем…';
             });
