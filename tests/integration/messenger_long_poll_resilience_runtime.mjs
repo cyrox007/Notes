@@ -124,6 +124,85 @@ assert(
     'одиночная ошибка Long Poll ошибочно переводит Messenger в offline'
 );
 
+const suspendedApp = new MessengerApp(rootElement);
+const suspendedStates = [];
+suspendedApp.setConnectionState = (state, text) => suspendedStates.push([state, text]);
+suspendedApp.longPollActive = true;
+suspendedApp.longPollGeneration = 1;
+
+let suspendedFetchCalls = 0;
+context.fetch = async () => {
+    suspendedFetchCalls += 1;
+    if (suspendedFetchCalls === 1) {
+        return {
+            ok: true,
+            status: 200,
+            async json() {
+                return {
+                    status: 'ok',
+                    transport: 'long_poll',
+                    changed: false,
+                    cursor: '',
+                    events: [],
+                    suspended: true,
+                    retry_after_ms: 1,
+                };
+            },
+        };
+    }
+
+    return {
+        ok: true,
+        status: 200,
+        async json() {
+            suspendedApp.longPollActive = false;
+            return {
+                status: 'ok',
+                changed: false,
+                cursor: 'c'.repeat(64),
+                events: [],
+            };
+        },
+    };
+};
+
+await suspendedApp.runLongPoll(1);
+
+assert(
+    suspendedFetchCalls === 2,
+    'временно приостановленный Long Poll не повторил запрос после готовности сервера'
+);
+assert(
+    suspendedStates.some(([state, text]) => state === 'fallback' && text.includes('ожидаем готовность')),
+    'suspended Long Poll не показывает рабочее состояние ожидания'
+);
+
+const expiredApp = new MessengerApp(rootElement);
+const expiredStates = [];
+const expiredToasts = [];
+expiredApp.setConnectionState = (state, text) => expiredStates.push([state, text]);
+expiredApp.showToast = (message) => expiredToasts.push(String(message));
+expiredApp.longPollActive = true;
+expiredApp.longPollGeneration = 1;
+
+context.fetch = async () => ({
+    ok: false,
+    status: 401,
+    async json() { return { status: 'error' }; },
+});
+
+await expiredApp.runLongPoll(1);
+
+assert(expiredApp.longPollActive === false, 'Long Poll продолжает запросы после завершения сессии');
+assert(
+    expiredStates.some(([state, text]) => state === 'offline' && text.includes('Сессия завершена')),
+    'завершение сессии не отражено в состоянии Messenger'
+);
+assert(
+    expiredToasts.some((message) => message.includes('Сессия завершена')),
+    'пользователь не получил понятное сообщение о завершении сессии'
+);
+
 const watchdogApp = new MessengerApp(rootElement);
 const watchdogStates = [];
 watchdogApp.setConnectionState = (state, text) => watchdogStates.push([state, text]);
@@ -177,4 +256,4 @@ assert(
     'watchdog не сохранил рабочий fallback-транспорт во время восстановления'
 );
 
-console.log('[OK] Messenger Long Poll самовосстанавливается после HTTP-сбоя и зависшего запроса');
+console.log('[OK] Messenger Long Poll самовосстанавливается после HTTP-сбоя, миграционного ожидания и зависшего запроса');
