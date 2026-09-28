@@ -34,6 +34,7 @@ const elements = {
 };
 
 const dispatchedEvents = [];
+const documentListeners = new Map();
 const context = {
     console,
     CustomEvent: class CustomEvent {
@@ -60,9 +61,14 @@ const context = {
     document: {
         hidden: false,
         getElementById(id) { return elements[id] ?? null; },
-        addEventListener() {},
+        addEventListener(type, handler) {
+            if (!documentListeners.has(type)) documentListeners.set(type, []);
+            documentListeners.get(type).push(handler);
+        },
         dispatchEvent(event) {
-            dispatchedEvents.push(event?.type || '');
+            const type = event?.type || '';
+            dispatchedEvents.push(type);
+            (documentListeners.get(type) || []).forEach((handler) => handler(event));
             return true;
         },
         createElement() {
@@ -234,6 +240,35 @@ assert(actionConfirmed === false, 'HTTP action ошибочно подтверж
 assert(actionExpiredApp.sessionUnavailable === true, 'HTTP action 403 не остановил transport');
 assert(actionExpiredApp.longPollActive === false, 'HTTP action 403 оставил Long Poll активным');
 
+const updateApp = new MessengerApp(rootElement);
+updateApp.setConnectionState = () => {};
+updateApp.longPollActive = true;
+updateApp.longPollGeneration = 7;
+updateApp.reconnectTimer = context.window.setTimeout(() => {}, 60000);
+
+let socketClosed = false;
+updateApp.socket = {
+    readyState: 1,
+    close() {
+        socketClosed = true;
+    },
+};
+updateApp.socketAuthorized = true;
+updateApp.bindEvents();
+
+context.document.dispatchEvent(new context.CustomEvent('wspace:update-install-start'));
+
+assert(updateApp.transportSuspended === true, 'начало updater не приостановило Messenger transport');
+assert(updateApp.longPollActive === false, 'начало updater оставило Long Poll активным');
+assert(updateApp.socketAuthorized === false, 'начало updater оставило WebSocket авторизованным');
+assert(updateApp.socket === null, 'начало updater оставило ссылку на WebSocket');
+assert(socketClosed === true, 'начало updater не закрыло WebSocket');
+assert(updateApp.reconnectTimer === null, 'начало updater оставило reconnect timer');
+updateApp.scheduleReconnect();
+updateApp.startLongPoll('после updater');
+assert(updateApp.reconnectTimer === null, 'приостановленный transport снова запланировал WebSocket reconnect');
+assert(updateApp.longPollActive === false, 'приостановленный transport снова запустил Long Poll');
+
 const watchdogApp = new MessengerApp(rootElement);
 const watchdogStates = [];
 watchdogApp.setConnectionState = (state, text) => watchdogStates.push([state, text]);
@@ -287,4 +322,4 @@ assert(
     'watchdog не сохранил рабочий fallback-транспорт во время восстановления'
 );
 
-console.log('[OK] Messenger Long Poll восстанавливается после сбоев и корректно завершает transport при окончании сессии');
+console.log('[OK] Messenger Long Poll восстанавливается после сбоев, останавливается перед updater и корректно завершает transport при окончании сессии');
