@@ -165,20 +165,32 @@ jobs:
         run: |
           set -euo pipefail
           for path in \
+            core/Config.php \
+            core/Request.php \
+            core/Controller.php
+          do
+            test -f "$path"
+          done
+
+          for path in \
             core/config.php \
             core/request.php \
             core/controller.php
           do
-            test -f "$path"
-            grep -Fq "/$path" core.php
+            test ! -e "$path"
+            ! grep -Fq "/$path" core.php
           done
 
+          ! grep -Fq '$coreFiles' core.php
           grep -Fq 'RuntimeAutoloader::register' core.php
           php -r '
             define("SITEPATH", getcwd());
             require SITEPATH . "/core/RuntimeAutoloader.php";
             \Core\RuntimeAutoloader::register(SITEPATH);
             foreach ([
+                "Core\\Config",
+                "Core\\Request",
+                "Core\\Controller",
                 "Core\\Version",
                 "Core\\DatabaseManager",
                 "Core\\ORM",
@@ -277,9 +289,8 @@ jobs:
           declare(strict_types=1);
 
           $_SERVER['HTTP_HOST'] = 'localhost';
-          require getcwd() . '/core/config.php';
-          require getcwd() . '/core/DatabaseManager.php';
-          require getcwd() . '/app/services/PermissionService.php';
+          require getcwd() . '/core/RuntimeAutoloader.php';
+          \Core\RuntimeAutoloader::register(getcwd());
           require getcwd() . '/modules/profile/services/AvatarImageProcessor.php';
           require getcwd() . '/modules/profile/services/UserAvatarService.php';
           require getcwd() . '/modules/admin/services/AdminUserService.php';
