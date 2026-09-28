@@ -117,6 +117,8 @@ jobs:
           putenv('PRIVATE_STORAGE_PATH=/tmp/notes-profile-private');
           putenv('PROFILE_AVATAR_MAX_SIZE=2097152');
           require SITEPATH . '/core/config.php';
+          require SITEPATH . '/core/RuntimeAutoloader.php';
+          \Core\RuntimeAutoloader::register(SITEPATH);
           require SITEPATH . '/core/DatabaseManager.php';
           require SITEPATH . '/modules/profile/services/UserAvatarService.php';
           header('Content-Type: application/json');
