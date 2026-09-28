@@ -48,6 +48,7 @@ jobs:
         run: |
           set -euo pipefail
           php -l core/Helper.php
+          php -l core/Uuid.php
           php -l core/RouteTemplate.php
           php -l core/Router.php
           php -l core/DatabaseSqlInspector.php

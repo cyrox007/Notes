@@ -9,7 +9,7 @@ use Core\DatabaseManager;
 use DomainException;
 use InvalidArgumentException;
 use RuntimeException;
-use UUID;
+use Core\Uuid;
 
 final class MessengerForwardService
 {
@@ -50,7 +50,7 @@ final class MessengerForwardService
 
         $sourceMeta = $this->decodeMeta($source['meta_data'] ?? null);
         $forwardedFrom = $this->forwardOrigin($source, $sourceMeta);
-        $newUid = UUID::v4();
+        $newUid = Uuid::v4();
         $now = date('Y-m-d H:i:s');
         $storedClone = null;
 
@@ -71,7 +71,7 @@ final class MessengerForwardService
                     throw new InvalidArgumentException('Вложение не связано с пересылаемым сообщением');
                 }
 
-                $newAttachmentUid = UUID::v4();
+                $newAttachmentUid = Uuid::v4();
                 $extension = strtolower((string) ($sourceAttachment['extension'] ?? ''));
                 if ($extension === '' || preg_match('/^[a-z0-9]{1,16}$/', $extension) !== 1) {
                     throw new RuntimeException('Некорректное расширение исходного вложения');

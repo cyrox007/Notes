@@ -9,7 +9,7 @@ use Core\DatabaseManager;
 use DomainException;
 use InvalidArgumentException;
 use RuntimeException;
-use UUID;
+use Core\Uuid;
 
 final class MessengerMediaService
 {
@@ -73,7 +73,7 @@ final class MessengerMediaService
 
         $mediaKind = $this->mediaKind($mimeType, $voice);
         $size = (int) $file['size'];
-        $attachmentUid = UUID::v4();
+        $attachmentUid = Uuid::v4();
         $directory = $this->messengerStorageRoot()
             . DIRECTORY_SEPARATOR . (int) $membership['dialog_id']
             . DIRECTORY_SEPARATOR . $userId;
@@ -173,7 +173,7 @@ final class MessengerMediaService
         $originalBase = trim((string) ($file['name'] ?? 'file'));
         $originalName = $this->safeOriginalName($originalBase . '.' . $extension);
         $mediaKind = $this->mediaKind($mimeType, false);
-        $attachmentUid = UUID::v4();
+        $attachmentUid = Uuid::v4();
         $directory = $this->messengerStorageRoot()
             . DIRECTORY_SEPARATOR . (int) $membership['dialog_id']
             . DIRECTORY_SEPARATOR . $userId;
@@ -329,7 +329,7 @@ final class MessengerMediaService
                 ];
             }
 
-            $messageUid = UUID::v4();
+            $messageUid = Uuid::v4();
             $now = date('Y-m-d H:i:s');
             $metadata = [
                 'attachment_uid' => (string) $attachment['uid'],

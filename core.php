@@ -33,14 +33,6 @@ foreach ($coreFiles as $file) {
     }
 }
 
-// UUID остаётся историческим глобальным helper без namespace. Подключаем его
-// одним явным совместимым include вместо сканирования app/handlers.
-$uuidHelper = SITEPATH . '/app/handlers/UUID.php';
-if (!is_file($uuidHelper) || is_link($uuidHelper)) {
-    throw new RuntimeException('Shared UUID helper is missing or unsafe.');
-}
-require_once $uuidHelper;
-
 \Core\SessionSecurity::configure();
 
 $deferModuleLifecyclePersistence = defined('WORKSPACE_DEFER_MODULE_LIFECYCLE')
@@ -55,8 +47,8 @@ $moduleRegistry = \Core\ModuleRegistry::boot(
 );
 
 // Обычный runtime использует сохранённый согласованный состав включённых модулей.
- // Точки входа с отложенным lifecycle могут использовать состав пакета по умолчанию,
- // но изолированные providers всегда подключаются только через runtime.php.
+// Точки входа с отложенным lifecycle могут использовать состав пакета по умолчанию,
+// но изолированные providers всегда подключаются только через runtime.php.
 $moduleRuntimeComposition = $moduleLifecycleStore !== null
     ? $moduleRegistry->enabledComposition()
     : $moduleRegistry->defaultComposition();
