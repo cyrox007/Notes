@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__, 2);
-require_once $root . '/core/config.php';
+require_once $root . '/core/Config.php';
 require_once $root . '/core/DatabaseManager.php';
 require_once $root . '/app/services/PermissionService.php';
 require_once $root . '/modules/profile/services/UserAvatarService.php';
