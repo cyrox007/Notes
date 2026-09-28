@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use CoreUpdateWebContinuation;
+use Core\UpdateWebContinuation;
 
 $root = dirname(__DIR__, 2);
 require_once $root . '/core/UpdateWebContinuation.php';
