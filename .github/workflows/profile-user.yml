@@ -47,6 +47,7 @@ jobs:
         run: |
           set -euo pipefail
           php -l modules/profile/controllers/ProfileController.php
+          php -l modules/profile/services/AvatarImageProcessor.php
           php -l modules/profile/services/UserAvatarService.php
           php -l modules/profile/services/ProfilePublicationService.php
           php -l modules/profile/ProfileRuntimeProvider.php
@@ -120,6 +121,7 @@ jobs:
           require SITEPATH . '/core/RuntimeAutoloader.php';
           \Core\RuntimeAutoloader::register(SITEPATH);
           require SITEPATH . '/core/DatabaseManager.php';
+          require SITEPATH . '/modules/profile/services/AvatarImageProcessor.php';
           require SITEPATH . '/modules/profile/services/UserAvatarService.php';
           header('Content-Type: application/json');
           try {
