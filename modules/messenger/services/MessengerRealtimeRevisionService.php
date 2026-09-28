@@ -7,9 +7,9 @@ namespace App\Services;
 use Core\DatabaseManager;
 
 /**
- * Cross-process bridge between HTTP fallback mutations and the native
- * WebSocket process. The revision lives in the shared database so the
- * supported remote WS-node topology does not depend on a shared filesystem.
+ * Общий межпроцессный сигнал изменений Messenger для WebSocket и HTTP Long Poll.
+ * Ревизия хранится в общей БД, поэтому ожидание изменений не требует постоянного
+ * полного сканирования сообщений и не зависит от общего файлового хранилища.
  */
 final class MessengerRealtimeRevisionService
 {
