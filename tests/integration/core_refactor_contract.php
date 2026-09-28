@@ -8,11 +8,13 @@ require_once $root . '/core/RouteTemplate.php';
 require_once $root . '/core/DatabaseSqlInspector.php';
 require_once $root . '/core/UpdateProcessRunner.php';
 require_once $root . '/core/UpdatePath.php';
+require_once $root . '/core/Uuid.php';
 
 use Core\DatabaseSqlInspector;
 use Core\RouteTemplate;
 use Core\UpdatePath;
 use Core\UpdateProcessRunner;
+use Core\Uuid;
 
 function coreRefactorAssert(bool $condition, string $message): void
 {
@@ -20,6 +22,59 @@ function coreRefactorAssert(bool $condition, string $message): void
         fwrite(STDERR, "[FAIL] core refactor contract: {$message}\n");
         exit(1);
     }
+}
+
+
+/**
+ * @return list<string>
+ */
+function coreRefactorLegacyUuidReferences(string $root): array
+{
+    $paths = [$root . '/core.php'];
+
+    foreach (['app', 'modules', 'core'] as $directory) {
+        $absoluteDirectory = $root . '/' . $directory;
+        if (!is_dir($absoluteDirectory)) {
+            continue;
+        }
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($absoluteDirectory, FilesystemIterator::SKIP_DOTS)
+        );
+        foreach ($iterator as $file) {
+            if (!$file->isFile() || $file->isLink() || strtolower($file->getExtension()) !== 'php') {
+                continue;
+            }
+            $paths[] = $file->getPathname();
+        }
+    }
+
+    $patterns = [
+        '/\\buse\\s+UUID\\s*;/',
+        '/\\bUUID\\s*::/',
+        '/\\bnew\\s+UUID\\b/',
+        '/class_exists\\s*\\(\\s*["\\']UUID["\\']/',
+    ];
+
+    $references = [];
+    foreach (array_values(array_unique($paths)) as $path) {
+        $source = file_get_contents($path);
+        if (!is_string($source)) {
+            $references[] = str_replace($root . DIRECTORY_SEPARATOR, '', $path) . ':unreadable';
+            continue;
+        }
+
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $source) !== 1) {
+                continue;
+            }
+            $references[] = str_replace($root . DIRECTORY_SEPARATOR, '', $path);
+            break;
+        }
+    }
+
+    sort($references, SORT_STRING);
+    return array_values(array_unique($references));
 }
 
 $normalized = RouteTemplate::normalize('//notes///{int:id}//');
@@ -91,6 +146,31 @@ coreRefactorAssert(
 coreRefactorAssert(
     !UpdatePath::inside('/srv/workspace-other', '/srv/workspace'),
     'updater sibling path was treated as inside'
+);
+
+
+$uuid = Uuid::v4(str_repeat("\0", 16));
+coreRefactorAssert(
+    $uuid === '00000000-0000-4000-8000-000000000000',
+    'Core\\Uuid нарушил детерминированный контракт UUID v4'
+);
+
+$invalidUuidRejected = false;
+try {
+    Uuid::v4('short');
+} catch (InvalidArgumentException) {
+    $invalidUuidRejected = true;
+}
+coreRefactorAssert($invalidUuidRejected, 'Core\\Uuid принял значение длиной не 16 байт');
+
+coreRefactorAssert(
+    !is_file($root . '/app/handlers/UUID.php'),
+    'глобальный legacy UUID helper всё ещё присутствует в app/handlers'
+);
+coreRefactorAssert(
+    coreRefactorLegacyUuidReferences($root) === [],
+    'в рабочем PHP-коде остались обращения к глобальному UUID: '
+        . implode(', ', coreRefactorLegacyUuidReferences($root))
 );
 
 coreRefactorAssert(!is_file($root . '/core/model.php'), 'unused legacy Core\\Model implementation still exists');
