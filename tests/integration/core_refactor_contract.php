@@ -49,9 +49,10 @@ function coreRefactorLegacyUuidReferences(string $root): array
     }
 
     $patterns = [
-        '/\buse\s+UUID\s*;/',
-        '/\bUUID\s*::/',
-        '/\bnew\s+UUID\b/',
+        '/\buse\s+UUID\s*;/i',
+        '/(?<![A-Za-z0-9_])\\\\UUID\s*::/i',
+        '/(?<![A-Za-z0-9_])UUID\s*::/',
+        '/\bnew\s+\\\\UUID\b/i',
     ];
 
     $references = [];

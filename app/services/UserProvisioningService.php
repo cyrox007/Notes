@@ -9,6 +9,7 @@ require_once __DIR__ . '/LicenseSeatPolicy.php';
 use App\Helpers\CryptMethods;
 use Core\Config;
 use Core\DatabaseManager;
+use Core\Uuid;
 use DomainException;
 use InvalidArgumentException;
 
@@ -62,7 +63,7 @@ final class UserProvisioningService
                     . 'VALUES '
                     . '(:uid,:username,:email,:password_hash,:firstname,:patronymic,:lastname,:phone,NULL,:property,:role,1,\'active\',:created_at,:updated_at)',
                     [
-                        ':uid' => \Uuid::v4(),
+                        ':uid' => Uuid::v4(),
                         ':username' => $data['username'],
                         ':email' => $data['email'],
                         ':password_hash' => CryptMethods::hashPassword($data['password']),
