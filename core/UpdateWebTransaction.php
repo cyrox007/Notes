@@ -309,10 +309,28 @@ final class UpdateWebTransaction
             ]);
         } catch (UpdateApplyException $e) {
             $after = $maintenance->state();
+            if ($e->errorCode === 'apply_rolled_back' && !$after['active']) {
+                $continuation->revoke($transactionId);
+                return [
+                    'status' => 'recovered',
+                    'phase' => 'done',
+                    'progress' => 100,
+                    'message' => 'Обновление не установлено. Предыдущая рабочая версия автоматически восстановлена.',
+                    'transaction_id' => $transactionId,
+                    'installed_version' => (string) ($state['installed_version'] ?? ''),
+                ];
+            }
+
             if (!$after['active']) {
                 $continuation->revoke($transactionId);
             }
-            throw $e;
+
+            throw new UpdateWebTransactionException(
+                $e->getMessage(),
+                $e->errorCode,
+                500,
+                $e
+            );
         }
 
         $continuation->revoke($transactionId);
