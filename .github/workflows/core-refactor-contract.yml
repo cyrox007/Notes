@@ -2,9 +2,9 @@ name: Core refactor contract
 
 on:
   pull_request:
-    branches: [dev, '1.0', master]
+    branches: [dev, '1.0', master, 'release/1.0.7-rc']
   push:
-    branches: [refactor/core-boundaries]
+    branches: [refactor/core-boundaries, 'refactor/1.0.7-core-audit-final']
 
 permissions:
   contents: read
@@ -40,13 +40,14 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
-          extensions: pdo_mysql, mysqli
+          extensions: pdo_mysql, mysqli, gd
           coverage: none
 
       - name: Lint refactored core boundaries
         shell: bash
         run: |
           set -euo pipefail
+          php -l core/Helper.php
           php -l core/RouteTemplate.php
           php -l core/Router.php
           php -l core/DatabaseSqlInspector.php
@@ -70,9 +71,23 @@ jobs:
           php -l bin/release_acceptance.php
           php -l tests/integration/release_acceptance_contract.php
           php -l tests/integration/core_refactor_contract.php
+          php -l tools/release/core_usage_audit.php
+          php -l modules/profile/services/AvatarImageProcessor.php
+          php -l tests/integration/profile_avatar_image_processor_contract.php
 
-      - name: Verify extracted boundaries
+      - name: Проверить выделенные границы ядра
         run: php tests/integration/core_refactor_contract.php
+
+      - name: Построить карту использования ядра на PHP 8.1
+        if: matrix.php == '8.1'
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tools/release/core_usage_audit.php --json | tee /tmp/core-usage-audit.json
+          php -r '$d=json_decode(file_get_contents("/tmp/core-usage-audit.json"),true,64,JSON_THROW_ON_ERROR); if (($d["minimum_supported_php"]??"")!=="8.1") exit(1); if (($d["candidates"]["classes_without_product_references"]??[])!==[]) exit(1); if (($d["candidates"]["functions_without_product_references"]??[])!==[]) exit(1); if (($d["candidates"]["private_methods_with_declaration_only"]??[])!==[]) exit(1);'
+
+      - name: Проверить обработку аватара без legacy Core Images
+        run: php tests/integration/profile_avatar_image_processor_contract.php
 
       - name: Verify release acceptance source contract
         shell: bash
