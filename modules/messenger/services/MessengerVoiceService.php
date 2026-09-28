@@ -8,7 +8,7 @@ use Core\DatabaseManager;
 use DomainException;
 use InvalidArgumentException;
 use RuntimeException;
-use UUID;
+use Core\Uuid;
 
 final class MessengerVoiceService
 {
@@ -55,7 +55,7 @@ final class MessengerVoiceService
             throw new InvalidArgumentException('Формат голосового сообщения не соответствует содержимому файла');
         }
 
-        $attachmentUid = UUID::v4();
+        $attachmentUid = Uuid::v4();
         $directory = $this->storageRoot()
             . DIRECTORY_SEPARATOR . (int) $membership['dialog_id']
             . DIRECTORY_SEPARATOR . $userId;
