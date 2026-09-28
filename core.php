@@ -16,36 +16,13 @@ if (!is_file($runtimeAutoloader)) {
 require_once $runtimeAutoloader;
 \Core\RuntimeAutoloader::register(SITEPATH);
 
-// Файлы Core с важным порядком загрузки подключаются явно. Автозагрузчик обслуживает
-// только известные пространства Core/shared App; классы модулей подключает runtime.php.
+// Три исторических файла пока имеют имена в нижнем регистре и поэтому не
+// разрешаются PSR-подобным Core\\-автозагрузчиком на Linux. Остальные классы ядра
+// загружаются только по фактическому обращению.
 $coreFiles = [
     '/core/config.php',
-    '/core/Version.php',
-    '/core/RequestOrigin.php',
-    '/core/SessionSecurity.php',
-    '/core/SecurityHeaders.php',
-    '/core/RedirectPolicy.php',
-    '/core/WebSocketEndpoint.php',
-    '/core/ProfileContentProvider.php',
-    '/core/AccountDeactivationGuard.php',
-    '/core/ModuleManifest.php',
-    '/core/ModuleRegistry.php',
-    '/core/ModuleRuntimeProvider.php',
-    '/core/ModuleCapabilityRegistry.php',
-    '/core/ModuleRuntimeLoader.php',
-    '/core/ModuleAssetController.php',
-    '/core/DatabaseControll.php',
-    '/core/DatabaseManager.php',
-    '/core/ModuleLifecycleStore.php',
-    '/core/ORM.php',
-    '/core/view.php',
     '/core/request.php',
-    '/core/helper.php',
-    '/core/ViewRenderer.php',
-    '/core/ViewContext.php',
-    '/core/NativeViewRenderer.php',
     '/core/controller.php',
-    '/core/images.php'
 ];
 
 foreach ($coreFiles as $file) {
