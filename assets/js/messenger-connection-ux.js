@@ -328,6 +328,17 @@
         retryButton.addEventListener('click', retryNow);
         bannerAction.addEventListener('click', retryNow);
 
+        document.addEventListener('wspace:messenger-session-unavailable', () => {
+            sessionUnavailable = true;
+            clearReconnectTimer();
+            app.stopLongPoll?.();
+            renderState('offline', 'Сессия завершена', {
+                reason: 'session',
+                bannerText: 'Сессия завершена. Обновите страницу и войдите снова.',
+                actionText: 'Обновить страницу'
+            });
+        });
+
         window.addEventListener('offline', () => {
             clearReconnectTimer();
 
