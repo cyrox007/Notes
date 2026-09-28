@@ -42,6 +42,22 @@ CREATE TABLE IF NOT EXISTS `user_to_dialogs` (
         FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+
+CREATE TABLE IF NOT EXISTS `messenger_activity` (
+    `dialog_id` BIGINT UNSIGNED NOT NULL,
+    `user_id` INT NOT NULL,
+    `activity` VARCHAR(32) NOT NULL,
+    `expires_at` DATETIME(3) NOT NULL,
+    `updated_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+    PRIMARY KEY (`dialog_id`, `user_id`, `activity`),
+    KEY `idx_messenger_activity_expiry` (`expires_at`),
+    KEY `idx_messenger_activity_user` (`user_id`, `expires_at`),
+    CONSTRAINT `fk_messenger_activity_dialog`
+        FOREIGN KEY (`dialog_id`) REFERENCES `dialogs` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_messenger_activity_user`
+        FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `messages` (
     `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     `uid` CHAR(36) NOT NULL,
