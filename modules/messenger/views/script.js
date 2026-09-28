@@ -10,6 +10,7 @@
             this.socket = null;
             this.socketAuthorized = false;
             this.sessionUnavailable = false;
+            this.transportSuspended = false;
             this.reconnectTimer = null;
             this.reconnectAttempt = 0;
             this.longPollActive = false;
@@ -105,10 +106,31 @@
             });
 
             window.addEventListener('focus', () => this.markCurrentRead());
+            document.addEventListener('wspace:update-install-start', () => this.suspendTransportForUpdate());
+        }
+
+        suspendTransportForUpdate() {
+            if (this.transportSuspended) return;
+            this.transportSuspended = true;
+
+            if (this.reconnectTimer) {
+                window.clearTimeout(this.reconnectTimer);
+                this.reconnectTimer = null;
+            }
+            this.stopLongPoll();
+            this.socketAuthorized = false;
+
+            const currentSocket = this.socket;
+            this.socket = null;
+            try {
+                currentSocket?.close();
+            } catch (_) {
+                // Уже закрытое соединение не требует отдельной обработки.
+            }
         }
 
         connect() {
-            if (this.sessionUnavailable) return;
+            if (this.sessionUnavailable || this.transportSuspended) return;
             const wspace = window.wspace = window.wspace || {};
             const runtime = window.wspaceRuntime && typeof window.wspaceRuntime === 'object'
                 ? window.wspaceRuntime
@@ -186,7 +208,7 @@
         }
 
         scheduleReconnect() {
-            if (this.sessionUnavailable || this.reconnectTimer) return;
+            if (this.sessionUnavailable || this.transportSuspended || this.reconnectTimer) return;
             const delay = Math.min(10000, 1000 * (2 ** Math.min(this.reconnectAttempt, 3)));
             this.reconnectAttempt += 1;
             this.reconnectTimer = window.setTimeout(() => {
@@ -385,7 +407,7 @@
         }
 
         scheduleLongPollFallback(reason = '', delay = 1000) {
-            if (this.socketAuthorized || this.longPollActive || this.longPollFallbackTimer) {
+            if (this.transportSuspended || this.socketAuthorized || this.longPollActive || this.longPollFallbackTimer) {
                 return;
             }
 
@@ -397,7 +419,7 @@
         }
 
         startLongPoll(reason = '') {
-            if (this.sessionUnavailable) return;
+            if (this.sessionUnavailable || this.transportSuspended) return;
             if (this.longPollFallbackTimer) {
                 window.clearTimeout(this.longPollFallbackTimer);
                 this.longPollFallbackTimer = null;
@@ -467,7 +489,7 @@
         }
 
         resumeLongPoll() {
-            if (this.sessionUnavailable || !this.longPollActive || this.socketAuthorized || this.longPollAbortController || this.longPollRetryTimer) {
+            if (this.sessionUnavailable || this.transportSuspended || !this.longPollActive || this.socketAuthorized || this.longPollAbortController || this.longPollRetryTimer) {
                 return;
             }
             if (navigator.onLine === false) {
