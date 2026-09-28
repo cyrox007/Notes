@@ -83,7 +83,7 @@ $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
         </div>
 
         <?php if (!empty($access['license_manage'])): ?>
-            <a href="<?= $view->e($view->route('admin_settings')) ?>" class="sidebar__utility" title="Системные настройки">
+            <a href="<?= $view->e($view->route('admin_settings')) ?>" class="sidebar__utility" data-nav-key="admin" title="Системные настройки">
                 <span class="sidebar__menu-icon"><i class="fa fa-cog" aria-hidden="true"></i></span>
                 <span class="sidebar__menu-label">Настройки</span>
             </a>
