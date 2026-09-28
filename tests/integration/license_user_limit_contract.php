@@ -14,7 +14,6 @@ if (is_file($root . '/.env')) {
 require_once $root . '/core/RuntimeAutoloader.php';
 \Core\RuntimeAutoloader::register($root);
 require_once $root . '/core/config.php';
-require_once $root . '/app/handlers/UUID.php';
 require_once $root . '/app/services/LicenseVerifier.php';
 
 use App\Services\LicenseSeatPolicy;
@@ -50,7 +49,7 @@ function insertSeatFixtureUser(DatabaseManager $db, string $name, bool $active =
         . '(uid,username,email,password_hash,firstname,lastname,property,role,is_active,account_status,created_at,updated_at) '
         . 'VALUES (:uid,:username,:email,:password_hash,:firstname,:lastname,:property,888,:is_active,:status,NOW(),NOW())',
         [
-            ':uid' => UUID::v4(),
+            ':uid' => \Core\Uuid::v4(),
             ':username' => $name,
             ':email' => $name . '@example.test',
             ':password_hash' => password_hash('SeatContract123!', PASSWORD_DEFAULT),
