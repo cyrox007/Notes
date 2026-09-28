@@ -8,6 +8,7 @@ Workspace Organizer использует два автоматически пе�
 - этот process может работать рядом с HTTP-приложением либо на одном отдельном WS-узле;
 - при отсутствии, зависании или разрыве WebSocket Messenger без перезагрузки продолжает durable realtime через HTTP long poll, сам восстанавливает зависшие poll-запросы и параллельно пробует вернуть WebSocket;
 - durable mutations из HTTP fallback публикуют shared DB realtime revision, поэтому активные WS-клиенты получают `sync_required` и перечитывают canonical state без reconnect;
+- ephemeral activity хранится только несколько секунд в `messenger_activity`, автоматически истекает и используется для parity между WebSocket и Long Poll без превращения presence в постоянные данные;
 - несколько одновременно активных WS instances одной installation пока не поддерживаются: connection registry находится в памяти процесса, а полноценный multi-node pub/sub/presence отсутствует.
 
 ## Архитектура
@@ -227,7 +228,7 @@ Messenger остаётся работоспособным без long-running We
 
 Для fallback shared hosting должен разрешать обычные длительные HTTP requests и иметь достаточную параллельность PHP/FPM. Клиент освобождает PHP session lock на long-poll request, прерывает текущий poll перед собственным mutating HTTP action или refresh socket ticket и затем возобновляет ожидание. Значение `MESSENGER_LONG_POLL_TIMEOUT_SECONDS` по умолчанию равно 15 секундам и ограничивается диапазоном 5–25.
 
-Ephemeral typing/activity остаются WebSocket-ускорением; сообщения, диалоги, read/delivery state, reactions и другие durable изменения синхронизируются через long poll. Глобальный счётчик непрочитанных также продолжает обновляться без WebSocket. После восстановления WebSocket клиент получает свежий ticket, проходит `Authorized`, останавливает текущий long poll и бесшовно возвращается на быстрый канал. При следующем разрыве long poll включается снова автоматически.
+Короткоживущая активность (`печатает…`, запись голоса/видео, загрузка файлов) также доступна без WebSocket: состояние хранится в отдельной TTL-таблице несколько секунд и попадает в Long Poll snapshot текущего диалога. WebSocket при наличии доставляет те же сигналы мгновенно, а HTTP-режим использует общий источник состояния. Сообщения, диалоги, read/delivery state, reactions и глобальный счётчик непрочитанных также продолжают работать без WebSocket. После восстановления WebSocket клиент получает свежий ticket, проходит `Authorized`, останавливает текущий long poll и бесшовно возвращается на быстрый канал. При следующем разрыве long poll включается снова автоматически.
 
 Для Open Server используйте `docs/OPEN_SERVER_WEBSOCKET.md`.
 
