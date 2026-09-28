@@ -52,6 +52,11 @@ $controlsPosition = strpos($base, $controlsMarker);
 uiSystemAssert($uiPosition !== false, 'unified UI stylesheet is not loaded');
 uiSystemAssert($controlsPosition !== false && $uiPosition > $controlsPosition, 'unified UI stylesheet must load after controls and module styles');
 uiSystemAssert(str_contains($base, '/assets/js/theme-mode.js'), 'theme controller is not loaded');
+$commonScript = (string) file_get_contents($root . '/assets/js/common.js');
+uiSystemAssert(
+    str_contains($commonScript, "document.querySelectorAll('.sidebar__menu-link[href], .sidebar__utility[href]')"),
+    'активная навигация не учитывает нижние служебные ссылки'
+);
 uiSystemAssert(str_contains($base, "localStorage.getItem('workspace.theme') || 'light'"), 'light theme must be the safe default before paint');
 
 foreach (['light', 'system', 'dark'] as $theme) {
@@ -64,6 +69,19 @@ uiSystemAssert(str_contains($header, 'data-command-open'), 'top command/search t
 uiSystemAssert(str_contains($header, 'data-command-palette'), 'command palette is missing from the structural shell');
 uiSystemAssert(str_contains($sidebar, 'data-nav-key="home"'), 'sidebar home navigation is missing');
 uiSystemAssert(str_contains($sidebar, 'data-sidebar-toggle'), 'sidebar collapse control is missing');
+uiSystemAssert(
+    str_contains($sidebar, "route('admin_settings')")
+        && str_contains($sidebar, "!empty(\$access['license_manage'])")
+        && !str_contains($sidebar, 'title="Настройки профиля"'),
+    'нижний пункт «Настройки» должен вести только в системные настройки с подходящим правом'
+);
+uiSystemAssert(
+    str_contains($header, 'data-command-text="профиль profile аккаунт личный"')
+        && str_contains($header, '<small>Личный аккаунт и публикации</small>')
+        && str_contains($header, "route('admin_settings')")
+        && str_contains($header, 'data-command-text="настройки settings системные админ"'),
+    'быстрый переход не разводит личный профиль и системные настройки'
+);
 
 uiSystemAssert(str_contains($headerStyle, '.workspace-command-trigger'), 'shared header stylesheet lost command bar ownership');
 uiSystemAssert(
@@ -74,6 +92,10 @@ uiSystemAssert(
     'скрытые элементы системных уведомлений могут отображаться как реальные'
 );
 uiSystemAssert(str_contains($sidebarStyle, '.sidebar__theme'), 'shared sidebar stylesheet lost theme picker ownership');
+uiSystemAssert(
+    str_contains($sidebarStyle, '.sidebar__utility[aria-current="page"]'),
+    'активные системные настройки не имеют состояния текущего раздела'
+);
 foreach (['.navbar__theme-option', '.navbar__theme-picker', '.sidebar__user-panel', '.sidebar__site-title'] as $legacyShellSelector) {
     uiSystemAssert(
         !str_contains($css, $legacyShellSelector),
