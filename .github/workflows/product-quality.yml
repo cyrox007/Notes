@@ -153,6 +153,8 @@ jobs:
           grep -Fq "['/admin/settings', 'fa-sliders', 'Системные настройки']" modules/admin/assets/admin-settings-nav.js
           grep -Fq "route('admin_settings_user_quota')" modules/admin/views/settings.php
           grep -Fq 'StorageQuotaLimit::class' modules/files/FilesRuntimeProvider.php
+          grep -Fq "'/services/AvatarImageProcessor.php'" modules/profile/runtime.php
+          ! grep -Fq 'Core\\Images' modules/profile/services/UserAvatarService.php
           grep -Fq 'GET_LOCK' app/services/StorageQuotaService.php
           grep -Fq 'RELEASE_LOCK' app/services/StorageQuotaService.php
           grep -Fq 'data-confirm-deactivate' modules/admin/views/index.php
@@ -181,7 +183,6 @@ jobs:
                 "Core\\DatabaseManager",
                 "Core\\ORM",
                 "Core\\Helper",
-                "Core\\Images",
                 "Core\\NativeViewRenderer",
             ] as $class) {
                 if (!class_exists($class) && !interface_exists($class)) {
@@ -279,6 +280,7 @@ jobs:
           require getcwd() . '/core/config.php';
           require getcwd() . '/core/DatabaseManager.php';
           require getcwd() . '/app/services/PermissionService.php';
+          require getcwd() . '/modules/profile/services/AvatarImageProcessor.php';
           require getcwd() . '/modules/profile/services/UserAvatarService.php';
           require getcwd() . '/modules/admin/services/AdminUserService.php';
 
