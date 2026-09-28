@@ -48,9 +48,6 @@ final class MessengerRealtimeController extends Controller
                 JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
             );
             $server->dispatchTransportMessage($connection, $message, $connections, 'long_poll');
-            if ($server->isDurableMutationAction($action)) {
-                (new MessengerRealtimeRevisionService())->bump();
-            }
         } catch (\Throwable $e) {
             error_log('Messenger long-poll action failed: ' . $e->getMessage());
             $this->jsonFailure('Не удалось выполнить действие мессенджера', 500);
@@ -81,6 +78,14 @@ final class MessengerRealtimeController extends Controller
             $dialogUid = '';
         }
 
+        $revisionRaw = trim((string) $request->get('revision', ''));
+        $revision = ctype_digit($revisionRaw) ? (int) $revisionRaw : null;
+
+        $activityCursor = trim((string) $request->get('activity_cursor', ''));
+        if ($activityCursor !== '' && preg_match('/^[a-f0-9]{64}$/D', $activityCursor) !== 1) {
+            $activityCursor = '';
+        }
+
         // A long-running request must not hold the PHP session lock; otherwise
         // the same browser could not POST a fallback action until this poll ends.
         if (session_status() === PHP_SESSION_ACTIVE) {
@@ -94,7 +99,9 @@ final class MessengerRealtimeController extends Controller
             $wait = (new MessengerLongPollService())->waitForChange(
                 (int) $user['id'],
                 $cursor,
-                static fn (): bool => connection_aborted() === 1
+                static fn (): bool => connection_aborted() === 1,
+                $revision,
+                $activityCursor
             );
         } catch (\Throwable $e) {
             // Фоновый poll не должен превращать временно неполную схему БД
@@ -107,6 +114,8 @@ final class MessengerRealtimeController extends Controller
                 'changed' => false,
                 'cursor' => $cursor,
                 'events' => [],
+                'revision' => $revision,
+                'activity_cursor' => $activityCursor,
                 'suspended' => true,
                 'retry_after_ms' => 3000,
             ]);
@@ -123,6 +132,8 @@ final class MessengerRealtimeController extends Controller
                 'transport' => 'long_poll',
                 'changed' => false,
                 'cursor' => $wait['cursor'],
+                'revision' => $wait['revision'],
+                'activity_cursor' => $wait['activity_cursor'],
                 'events' => [],
             ]);
             return;
@@ -157,6 +168,8 @@ final class MessengerRealtimeController extends Controller
                 'changed' => false,
                 'cursor' => $cursor,
                 'events' => [],
+                'revision' => $revision,
+                'activity_cursor' => $activityCursor,
                 'suspended' => true,
                 'retry_after_ms' => 3000,
             ]);
@@ -184,6 +197,8 @@ final class MessengerRealtimeController extends Controller
             'transport' => 'long_poll',
             'changed' => true,
             'cursor' => $wait['cursor'],
+            'revision' => $wait['revision'],
+            'activity_cursor' => $wait['activity_cursor'],
             'events' => $events,
         ]);
     }
