@@ -158,25 +158,38 @@ jobs:
           grep -Fq 'data-confirm-deactivate' modules/admin/views/index.php
           ! grep -Fq 'onclick=' modules/admin/views/index.php
 
-      - name: Linux bootstrap path contract
+      - name: Контракт загрузки ядра в Linux
         shell: bash
         run: |
           set -euo pipefail
           for path in \
             core/config.php \
-            core/Version.php \
-            core/DatabaseControll.php \
-            core/DatabaseManager.php \
-            core/ORM.php \
-            core/view.php \
             core/request.php \
-            core/controller.php \
-            core/helper.php \
-            core/images.php
+            core/controller.php
           do
             test -f "$path"
             grep -Fq "/$path" core.php
           done
+
+          grep -Fq 'RuntimeAutoloader::register' core.php
+          php -r '
+            define("SITEPATH", getcwd());
+            require SITEPATH . "/core/RuntimeAutoloader.php";
+            \Core\RuntimeAutoloader::register(SITEPATH);
+            foreach ([
+                "Core\\Version",
+                "Core\\DatabaseManager",
+                "Core\\ORM",
+                "Core\\Helper",
+                "Core\\Images",
+                "Core\\NativeViewRenderer",
+            ] as $class) {
+                if (!class_exists($class) && !interface_exists($class)) {
+                    fwrite(STDERR, "Автозагрузка не разрешила обязательный класс ядра: {$class}\\n");
+                    exit(1);
+                }
+            }
+          '
 
       - name: Security wiring and headers
         shell: bash
