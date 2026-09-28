@@ -15,12 +15,15 @@ final class MessengerLongPollService
     private const MIN_TIMEOUT_SECONDS = 5;
     private const MAX_TIMEOUT_SECONDS = 25;
     private const POLL_INTERVAL_MICROSECONDS = 750000;
+    private const FULL_FINGERPRINT_INTERVAL_SECONDS = 5.0;
 
     public function __construct(
         private ?DatabaseManager $db = null,
         private ?Closure $fingerprintProvider = null,
         private ?Closure $clock = null,
-        private ?Closure $sleeper = null
+        private ?Closure $sleeper = null,
+        private ?Closure $revisionProvider = null,
+        private ?Closure $activityFingerprintProvider = null
     ) {
         if ($this->db === null && $this->fingerprintProvider === null) {
             $this->db = DatabaseManager::getInstance();
@@ -28,42 +31,96 @@ final class MessengerLongPollService
     }
 
     /**
-     * Ждёт изменения устойчивого состояния Messenger, видимого пользователю.
+     * Ждёт изменения состояния Messenger, видимого пользователю.
      *
-     * Отпечаток покрывает диалоги, membership/read cursors, сообщения,
-     * реакции и персональные удаления. Это делает резервный транспорт
-     * независимым от памяти WebSocket-процесса.
+     * На каждом коротком тике читаются только общая realtime-ревизия и
+     * короткоживущая activity-таблица. Полный fingerprint выполняется при
+     * изменении сигнала и периодически как страховка для редких записей,
+     * прошедших в обход realtime-dispatcher.
      *
      * @param callable():bool|null $aborted
-     * @return array{cursor:string,changed:bool}
+     * @return array{cursor:string,changed:bool,revision:int,activity_cursor:string}
      */
-    public function waitForChange(int $userId, string $cursor, ?callable $aborted = null): array
-    {
+    public function waitForChange(
+        int $userId,
+        string $cursor,
+        ?callable $aborted = null,
+        ?int $revision = null,
+        string $activityCursor = ''
+    ): array {
         if ($userId <= 0) {
             throw new RuntimeException('Некорректный пользователь Long Poll');
         }
 
         $deadline = $this->now() + $this->timeoutSeconds();
-        do {
+        $lastFullCheckAt = $this->now();
+        $knownRevision = $revision ?? $this->revision();
+        $knownActivity = $activityCursor !== ''
+            ? $activityCursor
+            : $this->activityFingerprint($userId);
+        $needsBaseline = $revision === null || $activityCursor === '';
+
+        if ($cursor === '') {
             $next = $this->fingerprint($userId);
-            if ($cursor === '' || !hash_equals($cursor, $next)) {
-                return ['cursor' => $next, 'changed' => true];
+            return [
+                'cursor' => $next,
+                'changed' => true,
+                'revision' => $knownRevision,
+                'activity_cursor' => $knownActivity,
+            ];
+        }
+
+        do {
+            $nextRevision = $this->revision();
+            $nextActivity = $this->activityFingerprint($userId);
+            $now = $this->now();
+            $signalChanged = $nextRevision !== $knownRevision
+                || !hash_equals($knownActivity, $nextActivity);
+            $fullScanDue = ($now - $lastFullCheckAt) >= self::FULL_FINGERPRINT_INTERVAL_SECONDS;
+
+            if ($needsBaseline || $signalChanged || $fullScanDue) {
+                $next = $this->fingerprint($userId);
+                $changed = !hash_equals($cursor, $next);
+
+                $knownRevision = $nextRevision;
+                $knownActivity = $nextActivity;
+                $lastFullCheckAt = $now;
+                $needsBaseline = false;
+
+                if ($changed) {
+                    return [
+                        'cursor' => $next,
+                        'changed' => true,
+                        'revision' => $knownRevision,
+                        'activity_cursor' => $knownActivity,
+                    ];
+                }
             }
 
             if ($aborted !== null && $aborted()) {
-                return ['cursor' => $next, 'changed' => false];
+                return [
+                    'cursor' => $cursor,
+                    'changed' => false,
+                    'revision' => $knownRevision,
+                    'activity_cursor' => $knownActivity,
+                ];
             }
 
             $this->sleep();
         } while ($this->now() < $deadline);
 
-        // После последней паузы состояние могло измениться. Нельзя продвигать
-        // cursor и одновременно сообщать changed=false: клиент тогда навсегда
-        // пропустит это изменение до следующего события.
+        // Финальная полная сверка закрывает изменение на границе timeout и
+        // сохраняет совместимость с путями записи, которые ещё не публикуют
+        // realtime revision.
         $final = $this->fingerprint($userId);
+        $finalRevision = $this->revision();
+        $finalActivity = $this->activityFingerprint($userId);
+
         return [
             'cursor' => $final,
-            'changed' => $cursor === '' || !hash_equals($cursor, $final),
+            'changed' => !hash_equals($cursor, $final),
+            'revision' => $finalRevision,
+            'activity_cursor' => $finalActivity,
         ];
     }
 
@@ -168,6 +225,65 @@ final class MessengerLongPollService
             $encoded = json_encode($state, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
         } catch (JsonException $e) {
             throw new RuntimeException('Не удалось закодировать состояние Messenger Long Poll', 0, $e);
+        }
+
+        return hash('sha256', $encoded);
+    }
+
+    private function revision(): int
+    {
+        if ($this->revisionProvider !== null) {
+            $value = ($this->revisionProvider)();
+            return is_int($value) && $value >= 0 ? $value : 0;
+        }
+
+        if ($this->db === null) {
+            return 0;
+        }
+
+        $row = $this->db->fetchOne(
+            'SELECT setting_value
+             FROM system_settings
+             WHERE setting_key = :setting_key
+             LIMIT 1',
+            [':setting_key' => MessengerRealtimeRevisionService::SETTING_KEY]
+        );
+
+        $value = trim((string) ($row['setting_value'] ?? '0'));
+        return ctype_digit($value) ? (int) $value : 0;
+    }
+
+    private function activityFingerprint(int $userId): string
+    {
+        if ($this->activityFingerprintProvider !== null) {
+            $value = ($this->activityFingerprintProvider)($userId);
+            return is_string($value) && $value !== '' ? $value : hash('sha256', '');
+        }
+
+        if ($this->db === null) {
+            return hash('sha256', '');
+        }
+
+        $rows = $this->db->fetchAll(
+            'SELECT
+                ma.dialog_id,
+                ma.user_id,
+                ma.activity,
+                DATE_FORMAT(ma.expires_at, "%Y-%m-%d %H:%i:%s.%f") AS expires_at
+             FROM messenger_activity ma
+             INNER JOIN user_to_dialogs me
+                ON me.dialog_id = ma.dialog_id
+               AND me.user_id = :user_id
+               AND me.is_deleted = 0
+             WHERE ma.expires_at > CURRENT_TIMESTAMP(3)
+             ORDER BY ma.dialog_id, ma.user_id, ma.activity',
+            [':user_id' => $userId]
+        );
+
+        try {
+            $encoded = json_encode($rows, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+        } catch (JsonException $e) {
+            throw new RuntimeException('Не удалось закодировать activity-состояние Messenger', 0, $e);
         }
 
         return hash('sha256', $encoded);
