@@ -9,6 +9,7 @@
             this.userName = root.dataset.userName || 'Вы';
             this.socket = null;
             this.socketAuthorized = false;
+            this.sessionUnavailable = false;
             this.reconnectTimer = null;
             this.reconnectAttempt = 0;
             this.longPollActive = false;
@@ -105,6 +106,7 @@
         }
 
         connect() {
+            if (this.sessionUnavailable) return;
             const wspace = window.wspace = window.wspace || {};
             const runtime = window.wspaceRuntime && typeof window.wspaceRuntime === 'object'
                 ? window.wspaceRuntime
@@ -182,7 +184,7 @@
         }
 
         scheduleReconnect() {
-            if (this.reconnectTimer) return;
+            if (this.sessionUnavailable || this.reconnectTimer) return;
             const delay = Math.min(10000, 1000 * (2 ** Math.min(this.reconnectAttempt, 3)));
             this.reconnectAttempt += 1;
             this.reconnectTimer = window.setTimeout(() => {
@@ -281,15 +283,18 @@
         }
 
         markSessionUnavailable() {
+            if (this.sessionUnavailable) return;
+            this.sessionUnavailable = true;
             this.stopLongPoll();
             this.socketAuthorized = false;
+            this.setConnectionState('offline', 'Сессия завершена');
+            this.showToast('Сессия завершена. Обновите страницу и войдите снова.');
+            document.dispatchEvent(new CustomEvent('wspace:messenger-session-unavailable'));
             try {
                 this.socket?.close();
             } catch (_) {
                 // Уже закрытое соединение не требует отдельной обработки.
             }
-            this.setConnectionState('offline', 'Сессия завершена');
-            document.dispatchEvent(new CustomEvent('wspace:messenger-session-unavailable'));
         }
 
         sendHttpEvent(action, data = {}) {
@@ -390,6 +395,7 @@
         }
 
         startLongPoll(reason = '') {
+            if (this.sessionUnavailable) return;
             if (this.longPollFallbackTimer) {
                 window.clearTimeout(this.longPollFallbackTimer);
                 this.longPollFallbackTimer = null;
@@ -459,7 +465,7 @@
         }
 
         resumeLongPoll() {
-            if (!this.longPollActive || this.socketAuthorized || this.longPollAbortController || this.longPollRetryTimer) {
+            if (this.sessionUnavailable || !this.longPollActive || this.socketAuthorized || this.longPollAbortController || this.longPollRetryTimer) {
                 return;
             }
             if (navigator.onLine === false) {
