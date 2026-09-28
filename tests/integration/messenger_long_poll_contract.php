@@ -167,6 +167,14 @@ assertLongPollContract(
     'network transitions must resume Long Poll without waiting for a WebSocket reconnect'
 );
 assertLongPollContract(
+    str_contains($client, 'markSessionUnavailable()')
+    && str_contains($client, "error.code = 'session_unavailable'")
+    && str_contains($client, 'this.sessionUnavailable = true')
+    && str_contains($connectionUx, "'wspace:messenger-session-unavailable'")
+    && str_contains($connectionUx, 'sessionUnavailable = true'),
+    '401/403 must terminate both Messenger transports and stop reconnect loops'
+);
+assertLongPollContract(
     str_contains($globalNotifications, '/messenger/realtime/poll')
     && str_contains($globalNotifications, 'LONG_POLL_WATCHDOG_MS')
     && str_contains($globalNotifications, 'startLongPoll()')
