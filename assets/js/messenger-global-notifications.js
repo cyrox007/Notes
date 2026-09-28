@@ -286,10 +286,11 @@
                 const controller = new AbortController();
                 let watchdogExpired = false;
                 longPollAbortController = controller;
-                longPollWatchdogTimer = window.setTimeout(() => {
+                const watchdogTimer = window.setTimeout(() => {
                     watchdogExpired = true;
                     if (longPollAbortController === controller) controller.abort();
                 }, LONG_POLL_WATCHDOG_MS);
+                longPollWatchdogTimer = watchdogTimer;
 
                 try {
                     const response = await fetch(endpoint, {
@@ -330,8 +331,8 @@
                     });
                     longPollRetryTimer = null;
                 } finally {
-                    if (longPollWatchdogTimer) {
-                        window.clearTimeout(longPollWatchdogTimer);
+                    window.clearTimeout(watchdogTimer);
+                    if (longPollWatchdogTimer === watchdogTimer) {
                         longPollWatchdogTimer = null;
                     }
                     if (longPollAbortController === controller) {
