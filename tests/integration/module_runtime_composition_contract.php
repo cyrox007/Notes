@@ -22,7 +22,6 @@ require_once $root . '/core/request.php';
 require_once $root . '/core/ViewRenderer.php';
 require_once $root . '/core/ViewContext.php';
 require_once $root . '/core/controller.php';
-require_once $root . '/app/handlers/UUID.php';
 
 use Core\AccountDeactivationGuard;
 use Core\ModuleRegistry;
@@ -62,7 +61,7 @@ $coreSource = (string) file_get_contents($root . '/core.php');
 runtimeCompositionAssert(!str_contains($coreSource, 'loadDirectoryFiles'), 'recursive app loader function returned');
 runtimeCompositionAssert(!str_contains($coreSource, 'RecursiveDirectoryIterator'), 'recursive app directory scan returned');
 runtimeCompositionAssert(str_contains($coreSource, 'RuntimeAutoloader::register'), 'deterministic runtime autoloader is not registered');
-runtimeCompositionAssert(str_contains($coreSource, '/app/handlers/UUID.php'), 'global UUID compatibility include is not explicit');
+runtimeCompositionAssert(!str_contains($coreSource, '/app/handlers/UUID.php'), 'глобальный UUID снова подключён в bootstrap');
 
 foreach ([
     'Core\\Version' => '/core/Version.php',
