@@ -13,6 +13,7 @@ require_once __DIR__ . '/UpdateProcessRunner.php';
 require_once __DIR__ . '/UpdateInProcessRunner.php';
 require_once __DIR__ . '/UpdateApplyCommand.php';
 require_once __DIR__ . '/UpdateCoordinatorLock.php';
+require_once __DIR__ . '/UpdateWebContinuation.php';
 require_once __DIR__ . '/UpdateTransactionJournal.php';
 require_once __DIR__ . '/UpdateExternalRuntime.php';
 
@@ -76,6 +77,24 @@ final class UpdateAutomaticRecovery
                 $transactionId,
                 'state_root_missing',
                 'Не удалось определить внешний каталог состояния updater'
+            );
+        }
+
+        try {
+            if ((new UpdateWebContinuation($stateRoot))->active($transactionId)) {
+                return $this->result(
+                    'in_progress',
+                    $transactionId,
+                    'web_update_in_progress',
+                    'Пошаговое web-обновление ещё выполняется'
+                );
+            }
+        } catch (Throwable $e) {
+            return $this->result(
+                'failed',
+                $transactionId,
+                'web_continuation_state_failed',
+                $e->getMessage()
             );
         }
 
