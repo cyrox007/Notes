@@ -53,7 +53,7 @@ foreach ([
     'OSPanel 5.2.2',
     'Gate G — неизменяемый артефакт и подпись',
     'Gate H — финальный merge и tag',
-    'v1.0.6',
+    'v1.0.7',
     'нет открытых P0/P1 дефектов с риском потери данных',
     'нет открытых P0/P1 дефектов безопасности',
     'ручной pre-tag проверки',
@@ -83,7 +83,7 @@ foreach ([
     'production_public_trust_roots',
     'release_evidence_harness',
     'private_signing_material_absent',
-    "Version::VERSION === '1.0.6'",
+    "Version::VERSION === '1.0.7'",
     "Version::STATUS === 'stable'",
     'exit(3)',
 ] as $marker) {
@@ -106,21 +106,22 @@ releaseAcceptanceAssert(
     'документ изоляции модулей не соответствует текущему runtime'
 );
 
-$releaseNotes = releaseAcceptanceText($root, 'docs/releases/v1.0.6.md');
+$releaseNotes = releaseAcceptanceText($root, 'docs/releases/v1.0.7.md');
 foreach (['## Назначение релиза', '## Совместимость', '## Граница поддержки'] as $marker) {
     releaseAcceptanceAssert(
         str_contains($releaseNotes, $marker),
-        "описание релиза 1.0.6 не содержит русский раздел {$marker}"
+        "описание релиза 1.0.7 не содержит русский раздел {$marker}"
     );
 }
 
 
 releaseAcceptanceAssert(
     str_contains($releaseNotes, '1.0.6 → 1.0.7')
-    && str_contains($releaseNotes, 'внешнего runtime')
-    && str_contains($releaseNotes, 'пофайлово')
-    && str_contains($releaseNotes, 'Windows/OSPanel 5.2.2'),
-    'описание 1.0.6 не фиксирует новую архитектуру и пострелизную приёмку'
+    && str_contains($releaseNotes, 'maintenance')
+    && str_contains($releaseNotes, 'Long Poll')
+    && str_contains($releaseNotes, 'Installation ID')
+    && str_contains($releaseNotes, 'OSPanel 5.2.2'),
+    'описание 1.0.7 не фиксирует исправления recovery, Long Poll и ручную приёмку'
 );
 
 
@@ -215,4 +216,4 @@ releaseAcceptanceAssert(
     'Stable release gate не запускает контракт двухфакторной аутентификации'
 );
 
-fwrite(STDOUT, "[OK] финальный контракт release acceptance 1.0.6 выполнен\n");
+fwrite(STDOUT, "[OK] финальный контракт release acceptance 1.0.7 выполнен\n");
