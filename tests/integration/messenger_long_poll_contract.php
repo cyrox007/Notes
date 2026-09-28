@@ -32,6 +32,8 @@ $server = file_get_contents($root . '/modules/messenger/socket/NativeMessengerSe
 $client = file_get_contents($root . '/modules/messenger/views/script.js');
 $connectionUx = file_get_contents($root . '/assets/js/messenger-connection-ux.js');
 $globalNotifications = file_get_contents($root . '/assets/js/messenger-global-notifications.js');
+$tabCoordinator = file_get_contents($root . '/assets/js/messenger-tab-coordinator.js');
+$baseView = file_get_contents($root . '/app/views/core/base.php');
 $messengerRunbook = file_get_contents($root . '/docs/MESSENGER_SERVER.md');
 $hostingRunbook = file_get_contents($root . '/docs/HOSTING_INSTALL.md');
 $deploymentCompatibility = file_get_contents($root . '/docs/DEPLOYMENT_COMPATIBILITY.md');
@@ -49,6 +51,8 @@ foreach ([
     'client' => $client,
     'connection UX' => $connectionUx,
     'global notifications' => $globalNotifications,
+    'tab coordinator' => $tabCoordinator,
+    'base view' => $baseView,
     'Messenger runbook' => $messengerRunbook,
     'hosting runbook' => $hostingRunbook,
     'deployment compatibility' => $deploymentCompatibility,
@@ -185,6 +189,17 @@ assertLongPollContract(
     && str_contains($globalNotifications, "document.visibilityState !== 'visible'")
     && str_contains($globalNotifications, 'pauseLongPoll()'),
     'global Messenger notifications must keep working through Long Poll without holding hidden tabs'
+);
+assertLongPollContract(
+    str_contains($tabCoordinator, 'wspace:messenger-global-transport-owner')
+    && str_contains($tabCoordinator, 'BroadcastChannel')
+    && str_contains($tabCoordinator, 'scheduleRenewal()')
+    && str_contains($tabCoordinator, 'release()')
+    && str_contains($globalNotifications, 'coordinatorFactory')
+    && str_contains($globalNotifications, "type: 'request_state'")
+    && str_contains($globalNotifications, 'transportEnabled = false')
+    && strpos($baseView, 'messenger-tab-coordinator.js') < strpos($baseView, 'messenger-global-notifications.js'),
+    'global Messenger transport must elect one visible tab and share badge state with peers'
 );
 assertLongPollContract(
     str_contains($client, "case 'sync_required':")
