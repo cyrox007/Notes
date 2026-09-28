@@ -32,6 +32,8 @@ $server = file_get_contents($root . '/modules/messenger/socket/NativeMessengerSe
 $client = file_get_contents($root . '/modules/messenger/views/script.js');
 $connectionUx = file_get_contents($root . '/assets/js/messenger-connection-ux.js');
 $globalNotifications = file_get_contents($root . '/assets/js/messenger-global-notifications.js');
+$updateNotifications = file_get_contents($root . '/assets/js/update-notifications.js');
+$adminUpdates = file_get_contents($root . '/modules/admin/assets/admin-updates.js');
 $tabCoordinator = file_get_contents($root . '/assets/js/messenger-tab-coordinator.js');
 $baseView = file_get_contents($root . '/app/views/core/base.php');
 $entrypoint = file_get_contents($root . '/index.php');
@@ -52,6 +54,8 @@ foreach ([
     'client' => $client,
     'connection UX' => $connectionUx,
     'global notifications' => $globalNotifications,
+    'update notifications' => $updateNotifications,
+    'admin updates' => $adminUpdates,
     'tab coordinator' => $tabCoordinator,
     'base view' => $baseView,
     'application entrypoint' => $entrypoint,
@@ -230,6 +234,16 @@ assertLongPollContract(
     && str_contains($globalNotifications, 'transportEnabled = false')
     && strpos($baseView, 'messenger-tab-coordinator.js') < strpos($baseView, 'messenger-global-notifications.js'),
     'global Messenger transport must elect one visible tab and share badge state with peers'
+);
+assertLongPollContract(
+    str_contains($updateNotifications, "new CustomEvent('wspace:update-install-start')")
+    && str_contains($adminUpdates, "new CustomEvent('wspace:update-install-start')")
+    && str_contains($globalNotifications, "'wspace:update-install-start'")
+    && str_contains($globalNotifications, 'deactivateTransport()')
+    && str_contains($client, "'wspace:update-install-start'")
+    && str_contains($client, 'suspendTransportForUpdate()')
+    && str_contains($client, 'this.transportSuspended = true'),
+    'updater start must quiesce all Messenger transports before maintenance begins'
 );
 assertLongPollContract(
     str_contains($client, "case 'sync_required':")
