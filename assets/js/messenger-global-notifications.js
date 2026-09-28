@@ -21,6 +21,8 @@
         let reconnectAttempt = 0;
         let stopped = false;
         let userUid = '';
+        let dialogsPrimed = false;
+        let suppressNextDialogToast = false;
 
         let longPollActive = false;
         let longPollCursor = '';
@@ -48,11 +50,44 @@
             link.setAttribute('aria-label', link.title);
         }
 
+        function showDialogUpdate(dialog) {
+            if (!dialog?.uid || isMuted(dialog.uid)) return;
+
+            const title = String(dialog.title || 'Мессенджер').trim() || 'Мессенджер';
+            const text = String(dialog.last_message_preview || '').replace(/\s+/g, ' ').trim();
+            const body = text !== '' ? text : 'Новое сообщение';
+            const toast = typeof wspace.feedback?.toast === 'function'
+                ? wspace.feedback.toast(title + ': ' + body, 'info', 6500)
+                : null;
+
+            if (!toast) return;
+            toast.classList.add('wspace-toast--message');
+            toast.title = 'Открыть Мессенджер';
+            toast.addEventListener('click', () => {
+                window.location.href = link.href;
+            }, { once: true });
+        }
+
         function applyDialogs(rows) {
+            const nextRows = Array.isArray(rows) ? rows : [];
+            const previous = new Map(dialogs);
+
             dialogs.clear();
-            (Array.isArray(rows) ? rows : []).forEach((dialog) => {
+            nextRows.forEach((dialog) => {
                 if (dialog?.uid) dialogs.set(dialog.uid, dialog);
             });
+
+            if (dialogsPrimed && !suppressNextDialogToast) {
+                nextRows.forEach((dialog) => {
+                    if (!dialog?.uid) return;
+                    const before = Number(previous.get(dialog.uid)?.unread_count || 0);
+                    const after = Number(dialog.unread_count || 0);
+                    if (after > before) showDialogUpdate(dialog);
+                });
+            }
+
+            dialogsPrimed = true;
+            suppressNextDialogToast = false;
             renderBadge();
         }
 
@@ -156,6 +191,7 @@
                     break;
                 case 'send_message':
                     showIncoming(data);
+                    suppressNextDialogToast = true;
                     requestState();
                     break;
                 case 'new_dialog':
@@ -313,6 +349,19 @@
                     if (payload?.status !== 'ok') {
                         throw new Error(payload?.message || 'Long Poll failed');
                     }
+
+                    if (payload.suspended === true) {
+                        const retryAfter = Math.max(
+                            500,
+                            Math.min(10000, Number(payload.retry_after_ms || 3000))
+                        );
+                        await new Promise((resolve) => {
+                            longPollRetryTimer = window.setTimeout(resolve, retryAfter);
+                        });
+                        longPollRetryTimer = null;
+                        continue;
+                    }
+
                     if (typeof payload.cursor === 'string' && payload.cursor !== '') {
                         longPollCursor = payload.cursor;
                     }
@@ -405,12 +454,12 @@
                 nextSocket.addEventListener('close', () => {
                     if (socket === nextSocket) socket = null;
                     socketAuthorized = false;
-                    startLongPoll();
                     scheduleReconnect();
+                    scheduleLongPollFallback(1200);
                 });
                 nextSocket.addEventListener('error', () => {
                     socketAuthorized = false;
-                    startLongPoll();
+                    scheduleLongPollFallback(1200);
                 });
             } catch (error) {
                 console.warn('Global Messenger WebSocket temporarily unavailable', error);
