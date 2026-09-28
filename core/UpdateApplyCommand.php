@@ -60,6 +60,7 @@ final class UpdateApplyCommand
         $stateRoot = $this->resolveRoot((string) ($options['state-root'] ?? ''), 'UPDATE_STATE_PATH', 'updates');
         $backupRoot = $this->resolveRoot((string) ($options['backup-root'] ?? ''), 'UPDATE_BACKUP_PATH', 'update-backups');
         $candidateOption = trim((string) ($options['candidate-dir'] ?? ''));
+        $singleStep = array_key_exists('single-step', $options);
 
         try {
             // Intentionally retained in this function scope so its flock covers
@@ -96,7 +97,8 @@ final class UpdateApplyCommand
                 $maintenance,
                 $stateMachine,
                 $applier,
-                $backupManager
+                $backupManager,
+                $singleStep
             );
         }
 
@@ -285,40 +287,389 @@ final class UpdateApplyCommand
         MaintenanceModeService $maintenance,
         UpdateTransactionStateMachine $stateMachine,
         UpdateLiveApplier $applier,
-        UpdateBackupManager $backupManager
+        UpdateBackupManager $backupManager,
+        bool $singleStep = false
     ): array {
-        $state = (string) ($journalState['state'] ?? '');
-        if (($journalState['live_mutation_started'] ?? false) === true) {
+        $initialState = (string) ($journalState['state'] ?? '');
+        if (($journalState['live_mutation_started'] ?? false) === true
+            && !$singleStep) {
             throw new UpdateApplyException(
                 'Transaction already crossed the live mutation boundary; run --recover instead',
                 'recovery_required'
             );
         }
-        if (!in_array($state, ['backup_verified', 'candidate_verified'], true)) {
+
+        for ($guard = 0; $guard < 8; $guard++) {
+            $journalState = $stateMachine->load($transactionId);
+            $result = $this->applyTransition(
+                $transactionId,
+                $candidateOption,
+                $journalState,
+                $maintenance,
+                $stateMachine,
+                $applier,
+                $backupManager
+            );
+
+            if ($singleStep || ($result['status'] ?? '') === 'committed') {
+                return $result;
+            }
+        }
+
+        throw new UpdateApplyException(
+            'Updater exceeded the maximum number of transactional phases',
+            'phase_guard_exceeded'
+        );
+    }
+
+    /**
+     * Выполняет ровно один долговечный переход updater-транзакции.
+     *
+     * @param array<string,mixed> $journalState
+     * @return array<string,mixed>
+     */
+    private function applyTransition(
+        string $transactionId,
+        string $candidateOption,
+        array $journalState,
+        MaintenanceModeService $maintenance,
+        UpdateTransactionStateMachine $stateMachine,
+        UpdateLiveApplier $applier,
+        UpdateBackupManager $backupManager
+    ): array {
+        $state = (string) ($journalState['state'] ?? '');
+
+        if ($state === 'committed') {
+            try {
+                $maintenance->leave($transactionId);
+            } catch (Throwable $e) {
+                throw new UpdateApplyException(
+                    'Update committed and verified, but maintenance could not be released: ' . $e->getMessage(),
+                    'maintenance_release_failed',
+                    1,
+                    [
+                        'transaction_state' => 'committed',
+                        'maintenance_active' => true,
+                    ]
+                );
+            }
+
+            return [
+                'status' => 'committed',
+                'transaction_id' => $transactionId,
+                'installed_version' => (string) ($journalState['target_version'] ?? ''),
+                'installed_version_code' => (int) ($journalState['target_version_code'] ?? 0),
+                'maintenance_active' => false,
+                'ws_restarted' => (bool) ($journalState['postcheck']['ws_restarted'] ?? false),
+            ];
+        }
+
+        if (!in_array($state, [
+            'backup_verified',
+            'candidate_verified',
+            'preflight_verified',
+            'code_switched',
+            'migrations_applied',
+            'postcheck_verified',
+        ], true)) {
             throw new UpdateApplyException(
-                "Transaction state {$state} is not eligible for a new live apply",
+                "Transaction state {$state} is not eligible for live apply",
                 'invalid_transaction_state'
             );
         }
 
-        $backups = $journalState['backups'] ?? null;
-        if (!is_array($backups) || !isset($backups['backup_dir'], $backups['manifest_sha256'])) {
-            throw new UpdateApplyException('Transaction does not contain verified rollback backup metadata', 'backup_required');
+        [$journalState, $candidate, $verifiedBackup] = $this->verifiedApplyArtifacts(
+            $transactionId,
+            $candidateOption,
+            $journalState,
+            $stateMachine,
+            $applier,
+            $backupManager
+        );
+        $state = (string) ($journalState['state'] ?? '');
+
+        if (in_array($state, ['backup_verified', 'candidate_verified'], true)) {
+            $liveVersion = $applier->readLiveVersion();
+            $this->assertVersion(
+                $journalState,
+                $liveVersion,
+                false,
+                'Live version changed since rollback checkpoint was created'
+            );
+            if ($liveVersion['version_code'] !== Version::VERSION_CODE) {
+                throw new UpdateApplyException(
+                    'Updater code no longer matches the live application version before switch',
+                    'updater_version_mismatch'
+                );
+            }
+
+            // До destructive-границы выполняются только проверки исходного
+            // приложения, candidate и rollback backup.
+            $health = $this->health($this->appRoot);
+            $migrationPreflight = $this->migrationPreflight($candidate['candidate_dir']);
+            $candidate = $applier->verifyCandidateTree($candidate['candidate_dir']);
+            $verifiedBackup = $backupManager->verify($verifiedBackup['backup_dir'], $transactionId);
+            $ws = $this->wsStatus($this->appRoot);
+            if ($ws['running'] && !function_exists('pcntl_fork')) {
+                throw new UpdateApplyException(
+                    'Запущенный WebSocket требует CLI pcntl для безопасного перезапуска; '
+                    . 'остановите его через process manager или используйте Long Poll',
+                    'ws_restart_unavailable'
+                );
+            }
+
+            $stateMachine->markPreflightVerified($transactionId, [
+                'health_status' => $health['status'] ?? null,
+                'migration_preflight_sha256' => $migrationPreflight['sha256'],
+                'migration_manifest_sha256' => $migrationPreflight['manifest_sha256'],
+                'migration_ledger_present' => $migrationPreflight['ledger_present'],
+                'migration_pending' => $migrationPreflight['pending'],
+                'candidate_tree_sha256' => $candidate['tree_sha256'],
+                'backup_manifest_sha256' => $verifiedBackup['manifest_sha256'],
+                'ws_was_running' => $ws['running'],
+                'verified_at' => time(),
+            ]);
+
+            return $this->phaseResult(
+                $transactionId,
+                'preflight_verified',
+                'switch',
+                78,
+                'Предварительные проверки пройдены. Переключается код.'
+            );
         }
 
-        $verifiedBackup = $backupManager->verify((string) $backups['backup_dir'], $transactionId);
-        if (!hash_equals((string) $backups['manifest_sha256'], $verifiedBackup['manifest_sha256'])) {
-            throw new UpdateApplyException('Rollback backup manifest changed after journal checkpoint', 'backup_tampered');
+        $restartWs = (bool) ($journalState['preflight']['ws_was_running'] ?? false);
+
+        if ($state === 'preflight_verified') {
+            $liveVersion = $applier->readLiveVersion();
+            $this->assertVersion(
+                $journalState,
+                $liveVersion,
+                false,
+                'Live version changed after updater preflight'
+            );
+
+            $stateMachine->markLiveMutationStarted($transactionId, [
+                'started_at' => time(),
+                'target_version' => $candidate['target_version'],
+                'target_version_code' => $candidate['target_version_code'],
+            ]);
+
+            try {
+                $plan = $applier->prepareCodeSwitch(
+                    $transactionId,
+                    $candidate['candidate_dir'],
+                    $verifiedBackup['backup_dir']
+                );
+                $switch = $applier->switchPrepared($plan);
+                $stateMachine->markCodeSwitched($transactionId, $switch);
+            } catch (Throwable $applyError) {
+                $this->rollbackAfterApplyError(
+                    $transactionId,
+                    $applyError,
+                    $maintenance,
+                    $stateMachine,
+                    $applier,
+                    $backupManager,
+                    $restartWs
+                );
+            }
+
+            return $this->phaseResult(
+                $transactionId,
+                'code_switched',
+                'migrations',
+                84,
+                'Код переключён. Выполняются миграции базы данных.'
+            );
+        }
+
+        if ($state === 'code_switched') {
+            try {
+                $postSwitchVersion = $applier->readLiveVersion();
+                $this->assertVersion(
+                    $journalState,
+                    $postSwitchVersion,
+                    true,
+                    'Live version does not match signed target after code switch'
+                );
+
+                $migrate = $this->run(
+                    [PHP_BINARY, $this->appRoot . '/bin/migrate.php'],
+                    $this->appRoot,
+                    300
+                );
+                if ($migrate['code'] !== 0) {
+                    throw new RuntimeException(
+                        'Live migration failed: ' . $this->commandFailureDetails($migrate)
+                    );
+                }
+
+                $stateMachine->markMigrationsApplied($transactionId, [
+                    'output_sha256' => hash('sha256', $migrate['stdout']),
+                    'completed_at' => time(),
+                ]);
+            } catch (Throwable $applyError) {
+                $this->rollbackAfterApplyError(
+                    $transactionId,
+                    $applyError,
+                    $maintenance,
+                    $stateMachine,
+                    $applier,
+                    $backupManager,
+                    $restartWs
+                );
+            }
+
+            return $this->phaseResult(
+                $transactionId,
+                'migrations_applied',
+                'postcheck',
+                91,
+                'Миграции применены. Проверяется работоспособность новой версии.'
+            );
+        }
+
+        if ($state === 'migrations_applied') {
+            try {
+                $postHealth = $this->health($this->appRoot);
+                $postVersion = $applier->readLiveVersion();
+                $this->assertVersion(
+                    $journalState,
+                    $postVersion,
+                    true,
+                    'Post-update live version does not match signed target'
+                );
+                $migrationStatus = $this->migrationStatus($this->appRoot);
+                if ($restartWs) {
+                    $this->restartWs($this->appRoot);
+                }
+
+                $stateMachine->markPostcheckVerified($transactionId, [
+                    'version' => $postVersion['version'],
+                    'version_code' => $postVersion['version_code'],
+                    'health_status' => $postHealth['status'] ?? null,
+                    'migration_status_sha256' => hash('sha256', $migrationStatus['stdout']),
+                    'ws_restarted' => $restartWs,
+                    'verified_at' => time(),
+                ]);
+            } catch (Throwable $applyError) {
+                $this->rollbackAfterApplyError(
+                    $transactionId,
+                    $applyError,
+                    $maintenance,
+                    $stateMachine,
+                    $applier,
+                    $backupManager,
+                    $restartWs
+                );
+            }
+
+            return $this->phaseResult(
+                $transactionId,
+                'postcheck_verified',
+                'commit',
+                97,
+                'Новая версия прошла проверку. Завершается транзакция.'
+            );
+        }
+
+        if ($state === 'postcheck_verified') {
+            $post = is_array($journalState['postcheck'] ?? null)
+                ? $journalState['postcheck']
+                : [];
+            $stateMachine->markCommitted($transactionId, [
+                'committed_at' => time(),
+                'version' => (string) ($post['version'] ?? $journalState['target_version'] ?? ''),
+            ]);
+
+            try {
+                $maintenance->leave($transactionId);
+            } catch (Throwable $e) {
+                throw new UpdateApplyException(
+                    'Update committed and verified, but maintenance could not be released: ' . $e->getMessage(),
+                    'maintenance_release_failed',
+                    1,
+                    [
+                        'transaction_state' => 'committed',
+                        'maintenance_active' => true,
+                    ]
+                );
+            }
+
+            return [
+                'status' => 'committed',
+                'transaction_id' => $transactionId,
+                'installed_version' => (string) ($journalState['target_version'] ?? ''),
+                'installed_version_code' => (int) ($journalState['target_version_code'] ?? 0),
+                'maintenance_active' => false,
+                'ws_restarted' => (bool) ($post['ws_restarted'] ?? false),
+            ];
+        }
+
+        throw new UpdateApplyException(
+            "Transaction state {$state} is not supported by apply transition",
+            'invalid_transaction_state'
+        );
+    }
+
+    /**
+     * @param array<string,mixed> $journalState
+     * @return array{0:array<string,mixed>,1:array<string,mixed>,2:array<string,mixed>}
+     */
+    private function verifiedApplyArtifacts(
+        string $transactionId,
+        string $candidateOption,
+        array $journalState,
+        UpdateTransactionStateMachine $stateMachine,
+        UpdateLiveApplier $applier,
+        UpdateBackupManager $backupManager
+    ): array {
+        if ($candidateOption === '') {
+            throw new UpdateApplyException(
+                '--candidate-dir is required with --apply',
+                'candidate_required',
+                2
+            );
+        }
+
+        $backups = $journalState['backups'] ?? null;
+        if (!is_array($backups)
+            || !isset($backups['backup_dir'], $backups['manifest_sha256'])) {
+            throw new UpdateApplyException(
+                'Transaction does not contain verified rollback backup metadata',
+                'backup_required'
+            );
+        }
+
+        $verifiedBackup = $backupManager->verify(
+            (string) $backups['backup_dir'],
+            $transactionId
+        );
+        if (!hash_equals(
+            (string) $backups['manifest_sha256'],
+            (string) $verifiedBackup['manifest_sha256']
+        )) {
+            throw new UpdateApplyException(
+                'Rollback backup manifest changed after journal checkpoint',
+                'backup_tampered'
+            );
         }
 
         $candidate = $applier->verifyCandidateTree($candidateOption);
-        if (
-            !hash_equals((string) ($journalState['target_version'] ?? ''), $candidate['target_version'])
-            || (int) ($journalState['target_version_code'] ?? -1) !== $candidate['target_version_code']
-        ) {
-            throw new UpdateApplyException('Release candidate target does not match updater transaction', 'candidate_mismatch');
+        if (!hash_equals(
+            (string) ($journalState['target_version'] ?? ''),
+            (string) $candidate['target_version']
+        ) || (int) ($journalState['target_version_code'] ?? -1)
+            !== (int) $candidate['target_version_code']) {
+            throw new UpdateApplyException(
+                'Release candidate target does not match updater transaction',
+                'candidate_mismatch'
+            );
         }
 
+        $state = (string) ($journalState['state'] ?? '');
         if ($state === 'backup_verified') {
             $journalState = $stateMachine->recordCandidate($transactionId, [
                 'candidate_dir' => $candidate['candidate_dir'],
@@ -331,11 +682,15 @@ final class UpdateApplyCommand
             ]);
         } else {
             $attached = $journalState['candidate'] ?? null;
-            if (
-                !is_array($attached)
-                || !hash_equals((string) ($attached['candidate_dir'] ?? ''), $candidate['candidate_dir'])
-                || !hash_equals((string) ($attached['tree_sha256'] ?? ''), $candidate['tree_sha256'])
-            ) {
+            if (!is_array($attached)
+                || !hash_equals(
+                    (string) ($attached['candidate_dir'] ?? ''),
+                    (string) $candidate['candidate_dir']
+                )
+                || !hash_equals(
+                    (string) ($attached['tree_sha256'] ?? ''),
+                    (string) $candidate['tree_sha256']
+                )) {
                 throw new UpdateApplyException(
                     'Transaction is already bound to a different release candidate',
                     'candidate_mismatch'
@@ -343,178 +698,90 @@ final class UpdateApplyCommand
             }
         }
 
-        $liveVersion = $applier->readLiveVersion();
-        $this->assertVersion($journalState, $liveVersion, false, 'Live version changed since rollback checkpoint was created');
-        if ($liveVersion['version_code'] !== Version::VERSION_CODE) {
-            throw new UpdateApplyException(
-                'Updater process code no longer matches the live application version',
-                'updater_version_mismatch'
-            );
-        }
+        return [$journalState, $candidate, $verifiedBackup];
+    }
 
-        // All checks below are non-destructive. Migration validation is data-only:
-        // no PHP from the candidate is executed before live_mutation_started.
-        $health = $this->health($this->appRoot);
-        $migrationPreflight = $this->migrationPreflight($candidate['candidate_dir']);
-        $candidate = $applier->verifyCandidateTree($candidate['candidate_dir']);
-        $verifiedBackup = $backupManager->verify($verifiedBackup['backup_dir'], $transactionId);
-        $ws = $this->wsStatus($this->appRoot);
-        if ($ws['running'] && !function_exists('pcntl_fork')) {
-            throw new UpdateApplyException(
-                'Running WebSocket server requires CLI pcntl so updater can restart it after switch; stop it through the process manager or enable pcntl before apply',
-                'ws_restart_unavailable'
-            );
-        }
+    /** @return array<string,mixed> */
+    private function phaseResult(
+        string $transactionId,
+        string $state,
+        string $phase,
+        int $progress,
+        string $message
+    ): array {
+        return [
+            'status' => 'in_progress',
+            'transaction_id' => $transactionId,
+            'state' => $state,
+            'phase' => $phase,
+            'progress' => $progress,
+            'message' => $message,
+            'maintenance_active' => true,
+        ];
+    }
 
-        $journalState = $stateMachine->markPreflightVerified($transactionId, [
-            'health_status' => $health['status'] ?? null,
-            'migration_preflight_sha256' => $migrationPreflight['sha256'],
-            'migration_manifest_sha256' => $migrationPreflight['manifest_sha256'],
-            'migration_ledger_present' => $migrationPreflight['ledger_present'],
-            'migration_pending' => $migrationPreflight['pending'],
-            'candidate_tree_sha256' => $candidate['tree_sha256'],
-            'backup_manifest_sha256' => $verifiedBackup['manifest_sha256'],
-            'ws_was_running' => $ws['running'],
-            'verified_at' => time(),
-        ]);
-
-        // Deliberately mark the destructive boundary before preparing the sibling
-        // switch directory. From here, a hard process crash is resolved only by
-        // --recover from the verified checkpoint.
-        $stateMachine->markLiveMutationStarted($transactionId, [
-            'started_at' => time(),
-            'target_version' => $candidate['target_version'],
-            'target_version_code' => $candidate['target_version_code'],
-        ]);
-
+    private function rollbackAfterApplyError(
+        string $transactionId,
+        Throwable $applyError,
+        MaintenanceModeService $maintenance,
+        UpdateTransactionStateMachine $stateMachine,
+        UpdateLiveApplier $applier,
+        UpdateBackupManager $backupManager,
+        bool $restartWs
+    ): never {
+        $journalState = $stateMachine->load($transactionId);
         try {
-            $plan = $applier->prepareCodeSwitch(
+            $verified = $this->rollback(
                 $transactionId,
-                $candidate['candidate_dir'],
-                $verifiedBackup['backup_dir']
+                $journalState,
+                $stateMachine,
+                $applier,
+                $backupManager,
+                $restartWs
             );
-            $switch = $applier->switchPrepared($plan);
-            $stateMachine->markCodeSwitched($transactionId, $switch);
-
-            $migrate = $this->run([PHP_BINARY, $this->appRoot . '/bin/migrate.php'], $this->appRoot, 300);
-            if ($migrate['code'] !== 0) {
-                throw new RuntimeException(
-                    'Live migration failed: ' . $this->commandFailureDetails($migrate)
-                );
-            }
-            $stateMachine->markMigrationsApplied($transactionId, [
-                'output_sha256' => hash('sha256', $migrate['stdout']),
-                'completed_at' => time(),
+        } catch (Throwable $rollbackError) {
+            $this->recordRollbackFailure($stateMachine, $transactionId, [
+                'apply_error' => $applyError->getMessage(),
+                'rollback_error' => $rollbackError->getMessage(),
+                'at' => time(),
             ]);
-
-            $postHealth = $this->health($this->appRoot);
-            $postVersion = $applier->readLiveVersion();
-            $this->assertVersion($journalState, $postVersion, true, 'Post-update live version does not match signed target');
-            $migrationStatus = $this->migrationStatus($this->appRoot);
-            if ($ws['running']) {
-                $this->restartWs($this->appRoot);
-            }
-
-            $post = [
-                'version' => $postVersion['version'],
-                'version_code' => $postVersion['version_code'],
-                'health_status' => $postHealth['status'] ?? null,
-                'migration_status_sha256' => hash('sha256', $migrationStatus['stdout']),
-                'ws_restarted' => $ws['running'],
-                'verified_at' => time(),
-            ];
-            $stateMachine->markPostcheckVerified($transactionId, $post);
-            $stateMachine->markCommitted($transactionId, [
-                'committed_at' => time(),
-                'version' => $postVersion['version'],
-            ]);
-        } catch (Throwable $applyError) {
-            $journalState = $stateMachine->load($transactionId);
-            try {
-                $verified = $this->rollback(
-                    $transactionId,
-                    $journalState,
-                    $stateMachine,
-                    $applier,
-                    $backupManager,
-                    $ws['running']
-                );
-            } catch (Throwable $rollbackError) {
-                $this->recordRollbackFailure($stateMachine, $transactionId, [
-                    'apply_error' => $applyError->getMessage(),
-                    'rollback_error' => $rollbackError->getMessage(),
-                    'at' => time(),
-                ]);
-                throw new UpdateApplyException(
-                    'Update failed and rollback did not verify; maintenance remains active. Apply error: '
-                    . $applyError->getMessage() . '; rollback error: ' . $rollbackError->getMessage(),
-                    'rollback_failed',
-                    1,
-                    ['maintenance_active' => true]
-                );
-            }
-
-            try {
-                $maintenance->leave($transactionId);
-            } catch (Throwable $e) {
-                throw new UpdateApplyException(
-                    'Update failed, rollback is verified, but maintenance could not be released: ' . $e->getMessage(),
-                    'maintenance_release_failed',
-                    1,
-                    [
-                        'apply_error' => $applyError->getMessage(),
-                        'transaction_state' => 'rollback_verified',
-                        'rollback' => $verified,
-                        'maintenance_active' => true,
-                    ]
-                );
-            }
-
             throw new UpdateApplyException(
-                'Update failed after live mutation and was rolled back: ' . $applyError->getMessage(),
-                'apply_rolled_back',
+                'Update failed and rollback did not verify; maintenance remains active. Apply error: '
+                . $applyError->getMessage()
+                . '; rollback error: '
+                . $rollbackError->getMessage(),
+                'rollback_failed',
                 1,
-                ['rollback' => $verified, 'maintenance_active' => false]
+                ['maintenance_active' => true]
             );
         }
 
-        // Committed is terminal. Failure to remove the maintenance marker must
-        // never cause a rollback of a verified committed update.
         try {
             $maintenance->leave($transactionId);
         } catch (Throwable $e) {
             throw new UpdateApplyException(
-                'Update committed and verified, but maintenance could not be released: ' . $e->getMessage(),
+                'Update failed, rollback is verified, but maintenance could not be released: '
+                . $e->getMessage(),
                 'maintenance_release_failed',
                 1,
                 [
-                    'transaction_state' => 'committed',
+                    'apply_error' => $applyError->getMessage(),
+                    'transaction_state' => 'rollback_verified',
+                    'rollback' => $verified,
                     'maintenance_active' => true,
                 ]
             );
         }
 
-        return [
-            'status' => 'committed',
-            'transaction_id' => $transactionId,
-            'installed_version' => (string) ($journalState['target_version'] ?? ''),
-            'installed_version_code' => (int) ($journalState['target_version_code'] ?? 0),
-            'maintenance_active' => false,
-            'ws_restarted' => $ws['running'],
-        ];
+        throw new UpdateApplyException(
+            'Update failed after live mutation and was rolled back: '
+            . $applyError->getMessage(),
+            'apply_rolled_back',
+            1,
+            ['rollback' => $verified, 'maintenance_active' => false]
+        );
     }
 
-    /**
-     * Resume-safe rollback. Repeated work is intentional when a crash occurred
-     * before a phase marker was durably written.
-     *
-     * The verified backup is the authoritative recovery artifact. The release
-     * candidate may already have been deleted or damaged and is never required
-     * to restore code/database state after the destructive boundary.
-     *
-     * @param array<string,mixed> $journalState
-     * @return array<string,mixed>
-     */
     private function rollback(
         string $transactionId,
         array $journalState,
