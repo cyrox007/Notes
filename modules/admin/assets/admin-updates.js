@@ -30,6 +30,7 @@
 
             queueMicrotask(() => {
                 if (event.defaultPrevented) return;
+                document.dispatchEvent(new CustomEvent('wspace:update-install-start'));
                 showInstallProgress(form);
             });
         });
