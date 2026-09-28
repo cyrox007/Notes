@@ -176,6 +176,107 @@ final class UpdateController extends Controller
         }
     }
 
+    public function webStart(Request $request): void
+    {
+        $binding = $request->session(self::APPLY_BINDING_SESSION_KEY);
+        $request->unsetSession(self::APPLY_BINDING_SESSION_KEY);
+        $request->unsetSession(self::STAGE_BINDING_SESSION_KEY);
+
+        try {
+            [$targetVersionCode, $packageSha256] = $this->validatedBinding($binding);
+            $result = (new AdminUpdateService())->beginWebApply(
+                (int) $request->session('user_id', 0),
+                $targetVersionCode,
+                $packageSha256
+            );
+
+            $this->jsonResponse(200, [
+                'success' => true,
+                'result' => [
+                    'status' => (string) ($result['status'] ?? 'in_progress'),
+                    'phase' => (string) ($result['phase'] ?? 'backup'),
+                    'progress' => (int) ($result['progress'] ?? 20),
+                    'message' => (string) ($result['message'] ?? ''),
+                    'transaction_id' => (string) ($result['transaction_id'] ?? ''),
+                    'continuation_token' => (string) ($result['continuation_token'] ?? ''),
+                    'target_version' => (string) ($result['target_version'] ?? ''),
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            $this->jsonResponse(
+                in_array((int) $e->getCode(), [400, 403, 409, 503], true)
+                    ? (int) $e->getCode()
+                    : 500,
+                [
+                    'success' => false,
+                    'error' => 'update_start_failed',
+                    'message' => $e->getMessage() ?: 'Не удалось начать обновление',
+                ]
+            );
+        }
+    }
+
+    /**
+     * Первый web-шаг выполняется через обычный Router, пока maintenance ещё
+     * не включён. Последующие шаги принимает ранний capability-защищённый мост.
+     */
+    public function webStep(Request $request): void
+    {
+        $transactionId = trim((string) $request->server(
+            'HTTP_X_WORKSPACE_UPDATE_TRANSACTION',
+            ''
+        ));
+        $token = trim((string) $request->server(
+            'HTTP_X_WORKSPACE_UPDATE_TOKEN',
+            ''
+        ));
+        $actorId = (int) $request->session('user_id', 0);
+
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+
+        try {
+            if ($transactionId === '' || $token === '') {
+                throw new InvalidArgumentException(
+                    'Не передано безопасное продолжение updater-транзакции'
+                );
+            }
+
+            $result = (new AdminUpdateService())->stepWebApply(
+                $actorId,
+                $transactionId,
+                $token
+            );
+
+            if (($result['status'] ?? '') === 'committed') {
+                $this->resetOpcodeCacheAfterUpdate();
+            }
+
+            $this->jsonResponse(200, [
+                'success' => true,
+                'result' => $result,
+            ]);
+        } catch (\Core\UpdateWebTransactionException $e) {
+            $status = in_array((int) $e->getCode(), [403, 409], true)
+                ? (int) $e->getCode()
+                : 500;
+            $this->jsonResponse($status, [
+                'success' => false,
+                'error' => $e->safeCode,
+                'message' => $e->getMessage(),
+                'retryable' => $e->safeCode === 'operation_busy',
+            ]);
+        } catch (\Throwable $e) {
+            $this->jsonResponse(500, [
+                'success' => false,
+                'error' => 'update_step_failed',
+                'message' => $e->getMessage() ?: 'Шаг обновления завершился ошибкой',
+                'retryable' => true,
+            ]);
+        }
+    }
+
     public function applyLatest(Request $request): void
     {
         $request->unsetSession(self::APPLY_BINDING_SESSION_KEY);
@@ -237,6 +338,40 @@ final class UpdateController extends Controller
                 $e->getMessage() ?: 'Не удалось установить обновление'
             );
         }
+    }
+
+    /** @return array{0:int,1:string} */
+    private function validatedBinding(mixed $binding): array
+    {
+        if (!is_array($binding)) {
+            throw new InvalidArgumentException(
+                'Сначала повторно проверьте подписанное обновление'
+            );
+        }
+
+        $targetVersionCode = (int) ($binding['target_version_code'] ?? 0);
+        $packageSha256 = strtolower(trim((string) ($binding['package_sha256'] ?? '')));
+        if ($targetVersionCode <= 0
+            || preg_match('/^[0-9a-f]{64}$/D', $packageSha256) !== 1) {
+            throw new InvalidArgumentException(
+                'Сначала повторно проверьте подписанное обновление'
+            );
+        }
+
+        return [$targetVersionCode, $packageSha256];
+    }
+
+    /** @param array<string,mixed> $payload */
+    private function jsonResponse(int $status, array $payload): never
+    {
+        http_response_code($status);
+        header('Cache-Control: no-store, private');
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(
+            $payload,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        ) . PHP_EOL;
+        exit;
     }
 
     private function resetOpcodeCacheAfterUpdate(): void

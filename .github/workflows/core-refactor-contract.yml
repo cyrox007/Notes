@@ -56,7 +56,15 @@ jobs:
           php -l core/Router.php
           php -l core/DatabaseSqlInspector.php
           php -l core/DatabaseManager.php
+          php -l core/UpdateCommandRunner.php
           php -l core/UpdateProcessRunner.php
+          php -l core/UpdateInProcessRunner.php
+          php -l core/UpdateDatabaseMigrator.php
+          php -l core/UpdateWebHealthProbe.php
+          php -l core/UpdateVerifiedStage.php
+          php -l core/UpdateWebContinuation.php
+          php -l core/UpdateWebTransaction.php
+          php -l core/UpdateWebHttpBridge.php
           php -l core/UpdatePath.php
           php -l core/UpdateCandidateVerifier.php
           php -l core/UpdateCodeSwitcher.php
@@ -102,7 +110,9 @@ jobs:
           fi
 
       - name: Проверить выделенные границы ядра
-        run: php tests/integration/core_refactor_contract.php
+        run: |
+          php tests/integration/core_refactor_contract.php
+          php tests/integration/updater_web_mode_contract.php
 
       - name: Построить карту использования ядра на PHP 8.1
         if: matrix.php == '8.1'

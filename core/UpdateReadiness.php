@@ -10,6 +10,7 @@ use Throwable;
 require_once __DIR__ . '/UpdateAccessBootstrap.php';
 require_once __DIR__ . '/PrivateStorageResolver.php';
 require_once __DIR__ . '/UpdatePhpCli.php';
+require_once __DIR__ . '/UpdateProcessRunner.php';
 
 /**
  * Проверка локальной готовности подписанного обновлятора.
@@ -44,6 +45,9 @@ final class UpdateReadiness
                 $issues[] = $message;
             }
         };
+        $recordOptional = static function (string $name, bool $ok, string $message = '') use (&$checks): void {
+            $checks[$name] = ['ok' => $ok, 'message' => $message];
+        };
 
         $trustReady = $this->verifier->hasTrustedKeys();
         $record(
@@ -61,22 +65,26 @@ final class UpdateReadiness
         $record('extension_mysqli', $mysqli, $mysqli ? '' : 'PHP extension mysqli недоступно.');
         $record('extension_zlib', $zlib, $zlib ? '' : 'PHP extension zlib недоступно.');
 
-        $procOpen = $this->functionAvailable('proc_open');
-        $record(
+        $procOpen = UpdateProcessRunner::available();
+        $recordOptional(
             'proc_open',
             $procOpen,
-            $procOpen ? '' : 'PHP proc_open недоступен: установка обновлений из админ-панели невозможна.'
+            $procOpen
+                ? 'Доступен ускоренный режим с отдельным PHP-процессом.'
+                : 'Недоступен; будет использован совместимый web-режим без запуска процессов.'
         );
 
         try {
             UpdatePhpCli::resolve();
             $phpCliReady = true;
-            $phpCliIssue = '';
-        } catch (Throwable $e) {
+            $phpCliIssue = 'PHP CLI доступен для ускоренного режима.';
+        } catch (Throwable) {
             $phpCliReady = false;
-            $phpCliIssue = $e->getMessage();
+            $phpCliIssue = 'PHP CLI недоступен; будет использован совместимый web-режим.';
         }
-        $record('php_cli', $phpCliReady, $phpCliIssue);
+        $recordOptional('php_cli', $phpCliReady, $phpCliIssue);
+        $processModeAvailable = $procOpen && $phpCliReady;
+        $installMode = $processModeAvailable ? 'process' : 'web';
 
         try {
             $feed = UpdateAccessBootstrap::feedUrl();
@@ -167,14 +175,14 @@ final class UpdateReadiness
         $readyForApply = $readyForCheck
             && $mysqli
             && $zlib
-            && $procOpen
-            && $phpCliReady
             && $pathReady
             && $dbConfigReady;
 
         return [
             'ready_for_check' => $readyForCheck,
             'ready_for_apply' => $readyForApply,
+            'install_mode' => $installMode,
+            'process_mode_available' => $processModeAvailable,
             'channel' => $channel,
             'access_mode' => $accessMode,
             'trusted_key_ids' => $this->verifier->trustedKeyIds(),
@@ -269,15 +277,6 @@ final class UpdateReadiness
         }
         $port = $parts['port'] ?? 443;
         return (int) $port === 443;
-    }
-
-    private function functionAvailable(string $name): bool
-    {
-        if (!function_exists($name)) {
-            return false;
-        }
-        $disabled = array_filter(array_map('trim', explode(',', (string) ini_get('disable_functions'))));
-        return !in_array($name, $disabled, true);
     }
 
     private function isAbsolute(string $path): bool
