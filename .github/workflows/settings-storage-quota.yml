@@ -78,7 +78,7 @@ jobs:
           declare(strict_types=1);
           define('SITEPATH', getcwd());
           require SITEPATH . '/vendor/autoload.php';
-          require SITEPATH . '/core/config.php';
+          require SITEPATH . '/core/Config.php';
           require SITEPATH . '/core/DatabaseManager.php';
           require SITEPATH . '/app/services/PermissionService.php';
           require SITEPATH . '/app/services/StorageQuotaService.php';

@@ -9,7 +9,7 @@ on:
       - 'core/NativeViewRenderer.php'
       - 'core/ModuleRuntimeLoader.php'
       - 'core/ModuleAssetController.php'
-      - 'core/controller.php'
+      - 'core/Controller.php'
       - 'core.php'
       - 'app/views/**'
       - 'modules/notes/**'
@@ -25,7 +25,7 @@ on:
       - 'core/NativeViewRenderer.php'
       - 'core/ModuleRuntimeLoader.php'
       - 'core/ModuleAssetController.php'
-      - 'core/controller.php'
+      - 'core/Controller.php'
       - 'core.php'
       - 'app/views/**'
       - 'modules/notes/**'
@@ -60,7 +60,7 @@ jobs:
             core/NativeViewRenderer.php \
             core/ModuleRuntimeLoader.php \
             core/ModuleAssetController.php \
-            core/controller.php \
+            core/Controller.php \
             core.php; do
             php -l "$file"
           done
@@ -93,10 +93,10 @@ jobs:
           set -euo pipefail
           ! test -f core/LegacySmartyRenderer.php
           ! test -f core/HybridViewRenderer.php
-          ! grep -Fq 'LegacySmartyRenderer' core/controller.php core.php
-          ! grep -Fq 'HybridViewRenderer' core/controller.php core.php
-          grep -Fq 'new NativeViewRenderer(' core/controller.php
-          grep -Fq 'ModuleRuntimeLoader::getInstance()->viewRoots()' core/controller.php
+          ! grep -Fq 'LegacySmartyRenderer' core/Controller.php core.php
+          ! grep -Fq 'HybridViewRenderer' core/Controller.php core.php
+          grep -Fq 'new NativeViewRenderer(' core/Controller.php
+          grep -Fq 'ModuleRuntimeLoader::getInstance()->viewRoots()' core/Controller.php
 
           ! grep -R -Fq -- '->view->render_template(' app/controllers modules/notes/controllers modules/tasks/controllers
           ! grep -R -Fq 'new View(' app/controllers modules/notes/controllers modules/tasks/controllers

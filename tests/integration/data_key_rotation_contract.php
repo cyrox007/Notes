@@ -8,7 +8,7 @@ if (!defined('SITEPATH')) {
 }
 
 require_once $root . '/core/Environment.php';
-require_once $root . '/core/config.php';
+require_once $root . '/core/Config.php';
 require_once $root . '/core/DatabaseManager.php';
 require_once $root . '/app/handlers/CryptMethods.php';
 require_once $root . '/modules/messenger/handlers/MessengerCrypto.php';

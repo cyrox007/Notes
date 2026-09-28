@@ -8,7 +8,7 @@ if (!defined('SITEPATH')) {
 }
 $_SERVER['HTTP_HOST'] = 'localhost';
 
-require_once $root . '/core/config.php';
+require_once $root . '/core/Config.php';
 require_once $root . '/core/Version.php';
 require_once $root . '/core/DatabaseManager.php';
 require_once $root . '/core/ModuleManifest.php';

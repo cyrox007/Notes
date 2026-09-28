@@ -75,7 +75,7 @@ jobs:
           putenv('MSG_SECRET_KEY=ci-message-secret-0123456789abcdef0123456789abcdef');
           putenv('MESSENGER_SEARCH_SCAN_LIMIT=500');
 
-          require __DIR__ . '/core/config.php';
+          require __DIR__ . '/core/Config.php';
           require __DIR__ . '/core/DatabaseManager.php';
           require __DIR__ . '/core/Uuid.php';
           require __DIR__ . '/modules/messenger/handlers/MessengerCrypto.php';

@@ -14,7 +14,7 @@ if (is_file($root . '/.env')) {
 }
 require_once $root . '/core/RuntimeAutoloader.php';
 \Core\RuntimeAutoloader::register($root);
-require_once $root . '/core/config.php';
+require_once $root . '/core/Config.php';
 
 use App\Services\RetentionService;
 

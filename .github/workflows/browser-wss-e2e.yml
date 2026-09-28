@@ -64,7 +64,7 @@ jobs:
         run: |
           set -euo pipefail
           php -l index.php
-          php -l core/config.php
+          php -l core/Config.php
           php -l core/RequestOrigin.php
           php -l core/SessionSecurity.php
           php -l app/services/PermissionService.php
@@ -94,7 +94,7 @@ jobs:
           grep -Fq "messenger.use" modules/messenger/socket/NativeMessengerServer.php
           ! grep -Fq 'Workerman\\' ws_server/server.php
           ! grep -Fq 'Config::canAuthenticate' modules/messenger/socket/NativeMessengerServer.php
-          grep -Fq "getenv('SITEURL')" core/config.php
+          grep -Fq "getenv('SITEURL')" core/Config.php
           grep -Fq 'TRUSTED_PROXY_IPS' core/RequestOrigin.php
           php tests/integration/native_websocket_protocol_contract.php
 

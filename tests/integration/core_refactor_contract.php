@@ -76,6 +76,61 @@ function coreRefactorLegacyUuidReferences(string $root): array
     return array_values(array_unique($references));
 }
 
+
+/**
+ * @return list<string>
+ */
+function coreRefactorLegacyCorePathReferences(string $root): array
+{
+    $directories = [
+        $root . '/.github/workflows',
+        $root . '/app',
+        $root . '/bin',
+        $root . '/core',
+        $root . '/modules',
+        $root . '/tests',
+        $root . '/tools',
+    ];
+    $extensions = ['php' => true, 'yml' => true, 'yaml' => true, 'sh' => true];
+    $pattern = '~core[\\\\/](?:config|request|controller)\\.php~';
+
+    $references = [];
+    foreach ($directories as $directory) {
+        if (!is_dir($directory)) {
+            continue;
+        }
+
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS)
+        );
+        foreach ($iterator as $file) {
+            if (!$file->isFile() || $file->isLink()) {
+                continue;
+            }
+
+            $extension = strtolower($file->getExtension());
+            if (!isset($extensions[$extension])) {
+                continue;
+            }
+
+            $source = file_get_contents($file->getPathname());
+            if (!is_string($source) || preg_match($pattern, $source) !== 1) {
+                continue;
+            }
+
+            $relativePath = str_replace(
+                $root . DIRECTORY_SEPARATOR,
+                '',
+                $file->getPathname()
+            );
+            $references[] = str_replace('\\', '/', $relativePath);
+        }
+    }
+
+    sort($references, SORT_STRING);
+    return array_values(array_unique($references));
+}
+
 $normalized = RouteTemplate::normalize('//notes///{int:id}//');
 coreRefactorAssert($normalized === '/notes/{int:id}/', 'route normalization changed');
 
@@ -170,6 +225,14 @@ coreRefactorAssert(
     coreRefactorLegacyUuidReferences($root) === [],
     'в рабочем PHP-коде остались обращения к глобальному UUID: '
         . implode(', ', coreRefactorLegacyUuidReferences($root))
+);
+
+
+$legacyCorePathReferences = coreRefactorLegacyCorePathReferences($root);
+coreRefactorAssert(
+    $legacyCorePathReferences === [],
+    'в активном коде или CI остались старые нижнерегистровые пути Core: '
+        . implode(', ', $legacyCorePathReferences)
 );
 
 coreRefactorAssert(!is_file($root . '/core/model.php'), 'unused legacy Core\\Model implementation still exists');

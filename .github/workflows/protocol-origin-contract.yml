@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: ['1.0', dev]
     paths:
-      - 'core/controller.php'
+      - 'core/Controller.php'
       - 'core/WebSocketEndpoint.php'
       - 'modules/messenger/controllers/MessagerController.php'
       - 'modules/messenger/views/index.php'
@@ -18,7 +18,7 @@ on:
   push:
     branches: ['1.0', dev]
     paths:
-      - 'core/controller.php'
+      - 'core/Controller.php'
       - 'core/WebSocketEndpoint.php'
       - 'modules/messenger/controllers/MessagerController.php'
       - 'modules/messenger/views/index.php'
@@ -48,7 +48,7 @@ jobs:
           coverage: none
       - name: Lint protocol boundary
         run: |
-          php -l core/controller.php
+          php -l core/Controller.php
           php -l core/WebSocketEndpoint.php
           php -l modules/messenger/controllers/MessagerController.php
           php -l modules/messenger/views/index.php
@@ -66,8 +66,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ! grep -Fq '$siteUrl . $basePath' core/controller.php
-          grep -Fq '$baseUrl = $basePath;' core/controller.php
+          ! grep -Fq '$siteUrl . $basePath' core/Controller.php
+          grep -Fq '$baseUrl = $basePath;' core/Controller.php
           grep -Fq 'WebSocketEndpoint::browserUrl()' modules/messenger/controllers/MessagerController.php
           grep -Fq 'WebSocketEndpoint::allowedOrigins()' ws_server/server.php
           grep -Fq "'protocol-origin.js', 'script.js', 'activity.js'" modules/messenger/views/index.php

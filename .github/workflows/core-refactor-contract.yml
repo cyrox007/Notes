@@ -91,40 +91,10 @@ jobs:
           )"
           root_refs="$(grep -InE 'core/(config|request|controller)\.php' ./*.php 2>/dev/null || true)"
           if [[ -n "$root_refs" ]]; then
-            refs="$refs"
-      - name: Построить карту использования ядра на PHP 8.1
-        if: matrix.php == '8.1'
-        shell: bash
-        run: |
-          set -euo pipefail
-          php tools/release/core_usage_audit.php --json | tee /tmp/core-usage-audit.json
-          php -r '$d=json_decode(file_get_contents("/tmp/core-usage-audit.json"),true,64,JSON_THROW_ON_ERROR); if (($d["minimum_supported_php"]??"")!=="8.1") exit(1); if (($d["candidates"]["classes_without_product_references"]??[])!==[]) exit(1); if (($d["candidates"]["functions_without_product_references"]??[])!==[]) exit(1); if (($d["candidates"]["private_methods_with_declaration_only"]??[])!==[]) exit(1);'
-
-      - name: Проверить обработку аватара без legacy Core Images
-        run: php tests/integration/profile_avatar_image_processor_contract.php
-
-      - name: Verify release acceptance source contract
-        shell: bash
-        run: |
-          set -euo pipefail
-          php tests/integration/release_acceptance_contract.php
-          php bin/release_acceptance.php --json > /tmp/release-acceptance-source.json
-          php -r '$d=json_decode(file_get_contents("/tmp/release-acceptance-source.json"),true,32,JSON_THROW_ON_ERROR); if (($d["status"]??"")==="fail") exit(1);'
-
-      - name: Verify DatabaseManager transaction semantics
-        env:
-          DBDRIVER: mysql
-          DBHOST: 127.0.0.1
-          DBPORT: '3306'
-          DBUSER: root
-          DBPASS: root
-          DBNAME: core_refactor_test
-          SITEURL: http://localhost
-        run: php tests/integration/database_queue_integrity.php
-
-      - name: Verify legacy router security contract still passes
-        run: php tests/integration/router_session_security_contract.php
-\n'"$root_refs"
+            if [[ -n "$refs" ]]; then
+              refs+=$'\n'
+            fi
+            refs+="$root_refs"
           fi
           if [[ -n "$refs" ]]; then
             printf '%s\n' 'Найдены обращения к старым путям bootstrap:' "$refs" >&2
@@ -145,7 +115,7 @@ jobs:
       - name: Проверить обработку аватара без legacy Core Images
         run: php tests/integration/profile_avatar_image_processor_contract.php
 
-      - name: Verify release acceptance source contract
+      - name: Проверить исходный контракт приёмки релиза
         shell: bash
         run: |
           set -euo pipefail
@@ -153,7 +123,7 @@ jobs:
           php bin/release_acceptance.php --json > /tmp/release-acceptance-source.json
           php -r '$d=json_decode(file_get_contents("/tmp/release-acceptance-source.json"),true,32,JSON_THROW_ON_ERROR); if (($d["status"]??"")==="fail") exit(1);'
 
-      - name: Verify DatabaseManager transaction semantics
+      - name: Проверить транзакционную семантику DatabaseManager
         env:
           DBDRIVER: mysql
           DBHOST: 127.0.0.1
@@ -164,5 +134,5 @@ jobs:
           SITEURL: http://localhost
         run: php tests/integration/database_queue_integrity.php
 
-      - name: Verify legacy router security contract still passes
+      - name: Проверить контракт безопасности маршрутизатора
         run: php tests/integration/router_session_security_contract.php

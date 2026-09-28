@@ -87,7 +87,7 @@ jobs:
           putenv('PRIVATE_STORAGE_PATH=/tmp/notes-voice-private');
           putenv('MESSENGER_MAX_VOICE_SIZE=5242880');
 
-          require __DIR__ . '/core/config.php';
+          require __DIR__ . '/core/Config.php';
           require __DIR__ . '/core/DatabaseManager.php';
           require __DIR__ . '/core/Uuid.php';
           require __DIR__ . '/modules/messenger/handlers/MessengerCrypto.php';
@@ -141,7 +141,7 @@ jobs:
           putenv('DBNAME=notes_voice_test');
           putenv('PRIVATE_STORAGE_PATH=/tmp/notes-voice-private');
           putenv('MESSENGER_MAX_VOICE_SIZE=5242880');
-          require SITEPATH . '/core/config.php';
+          require SITEPATH . '/core/Config.php';
           require SITEPATH . '/core/DatabaseManager.php';
           require SITEPATH . '/core/Uuid.php';
           require SITEPATH . '/modules/messenger/services/MessengerVoiceService.php';
@@ -206,7 +206,7 @@ jobs:
           putenv('DBNAME=notes_voice_test');
           putenv('MSG_SECRET_KEY=ci-message-secret-0123456789abcdef0123456789abcdef');
           putenv('PRIVATE_STORAGE_PATH=/tmp/notes-voice-private');
-          require __DIR__ . '/core/config.php';
+          require __DIR__ . '/core/Config.php';
           require __DIR__ . '/core/DatabaseManager.php';
           require __DIR__ . '/core/Uuid.php';
           require __DIR__ . '/modules/messenger/handlers/MessengerCrypto.php';

@@ -7,7 +7,7 @@ use App\Services\LicenseRuntimePolicy;
 use Core\Request;
 
 $root = dirname(__DIR__, 2);
-require_once $root . '/core/request.php';
+require_once $root . '/core/Request.php';
 require_once $root . '/app/services/MaintenanceModeService.php';
 require_once $root . '/app/services/LicenseRuntimePolicy.php';
 require_once $root . '/app/middlewares/EnforceLicenseMutation.php';

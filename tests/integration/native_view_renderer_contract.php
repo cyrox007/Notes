@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../../core/request.php';
+require_once __DIR__ . '/../../core/Request.php';
 require_once __DIR__ . '/../../core/ViewRenderer.php';
 require_once __DIR__ . '/../../core/ViewContext.php';
 require_once __DIR__ . '/../../core/NativeViewRenderer.php';
@@ -134,7 +134,7 @@ foreach (array_keys($renderedTemplates) as $template) {
     );
 }
 
-$controllerSource = file_get_contents(__DIR__ . '/../../core/controller.php') ?: '';
+$controllerSource = file_get_contents(__DIR__ . '/../../core/Controller.php') ?: '';
 nativeViewAssert(str_contains($controllerSource, 'new NativeViewRenderer('), 'base Controller does not construct NativeViewRenderer');
 nativeViewAssert(str_contains($controllerSource, 'ModuleRuntimeLoader::getInstance()->viewRoots()'), 'base Controller does not expose active isolated module view roots');
 nativeViewAssert(!str_contains($controllerSource, 'HybridViewRenderer'), 'base Controller still uses hybrid renderer fallback');

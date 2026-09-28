@@ -173,11 +173,9 @@ jobs:
           done
 
           legacy_core='core'
-          for path in \
-            "$legacy_core/config.php" \
-            "$legacy_core/request.php" \
-            "$legacy_core/controller.php"
+          for legacy_name in config request controller
           do
+            path="${legacy_core}/${legacy_name}.php"
             test ! -e "$path"
             ! grep -Fq "/$path" core.php
           done
