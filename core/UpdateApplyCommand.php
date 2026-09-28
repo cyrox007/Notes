@@ -6,6 +6,7 @@ namespace Core;
 
 require_once __DIR__ . '/MigrationManifest.php';
 require_once __DIR__ . '/UpdateMigrationPreflight.php';
+require_once __DIR__ . '/UpdateCommandRunner.php';
 require_once __DIR__ . '/UpdateProcessRunner.php';
 require_once __DIR__ . '/UpdateApplyOperationLock.php';
 require_once __DIR__ . '/UpdateRollbackCodeRestorer.php';
@@ -26,9 +27,9 @@ final class UpdateApplyCommand
 {
     private string $appRoot;
     private bool $json;
-    private UpdateProcessRunner $processRunner;
+    private UpdateCommandRunner $processRunner;
 
-    public function __construct(string $appRoot, bool $json = false, ?UpdateProcessRunner $processRunner = null)
+    public function __construct(string $appRoot, bool $json = false, ?UpdateCommandRunner $processRunner = null)
     {
         $real = realpath($appRoot);
         if (!is_string($real) || !is_dir($real) || is_link($appRoot)) {
