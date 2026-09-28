@@ -9,7 +9,7 @@ use Core\DatabaseManager;
 use DomainException;
 use InvalidArgumentException;
 use RuntimeException;
-use Core\\Uuid;
+use Core\Uuid;
 
 final class MessengerService
 {
