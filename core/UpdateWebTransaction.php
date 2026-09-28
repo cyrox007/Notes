@@ -114,7 +114,7 @@ final class UpdateWebTransaction
     public function step(string $transactionId, string $token): array
     {
         $continuation = new UpdateWebContinuation($this->stateRoot);
-        if (!$continuation->verifyAndRenew($transactionId, $token)) {
+        if (!$continuation->verify($transactionId, $token)) {
             throw new UpdateWebTransactionException(
                 'Срок безопасного продолжения обновления истёк или токен недействителен',
                 'continuation_invalid',
@@ -130,6 +130,15 @@ final class UpdateWebTransaction
                 'operation_busy',
                 409,
                 $e
+            );
+        }
+
+        if (!$continuation->verifyAndRenew($transactionId, $token)) {
+            $coordinator->release();
+            throw new UpdateWebTransactionException(
+                'Срок безопасного продолжения обновления истёк',
+                'continuation_expired',
+                403
             );
         }
 
