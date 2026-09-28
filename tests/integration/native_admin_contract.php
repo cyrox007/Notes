@@ -67,6 +67,17 @@ $licenseStyle = (string) file_get_contents($root . '/modules/admin/assets/licens
 nativeAdminAssert(str_contains($licenseView, 'class="admin-license-features"'), 'license features row does not use owned spacing');
 nativeAdminAssert(str_contains($licenseStyle, '.admin-license-grid>div:last-child:nth-child(3n+1){grid-column:1/-1}'), 'license grid still leaves an empty grey remainder row');
 nativeAdminAssert(str_contains($licenseStyle, '.admin-license-features{'), 'license feature copy is not styled inside the status card');
+nativeAdminAssert(str_contains($licenseView, 'id="installation-id-value"'), 'Installation ID lost its stable copy source');
+nativeAdminAssert(str_contains($licenseView, 'data-copy-installation-id'), 'Installation ID copy button is missing');
+nativeAdminAssert(str_contains($licenseView, "moduleAsset('admin', 'license.js')"), 'license copy behavior is not loaded by the license page');
+nativeAdminAssert(str_contains($licenseStyle, '.admin-license-id__actions{'), 'Installation ID copy action is not styled');
+
+$licenseScriptPath = $root . '/modules/admin/assets/license.js';
+nativeAdminAssert(is_file($licenseScriptPath), 'license.js is missing');
+$licenseScript = (string) file_get_contents($licenseScriptPath);
+nativeAdminAssert(str_contains($licenseScript, 'navigator.clipboard?.writeText'), 'Installation ID copy does not use Clipboard API when available');
+nativeAdminAssert(str_contains($licenseScript, "document.execCommand('copy')"), 'Installation ID copy lacks the local HTTP/browser fallback');
+nativeAdminAssert(str_contains($licenseScript, 'Скопировано'), 'Installation ID copy does not provide success feedback');
 
 $registration = (string) file_get_contents($root . '/modules/admin/views/registration.php');
 nativeAdminAssert(str_contains($registration, "route('admin_registration_mode')"), 'registration mode route is missing');
