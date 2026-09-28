@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Models\UserModel;
+use App\Services\MessengerActivityService;
 use App\Services\MessengerLongPollService;
 use App\Services\MessengerRealtimeRevisionService;
 use App\Sockets\BufferedSocketConnection;
@@ -151,12 +152,28 @@ final class MessengerRealtimeController extends Controller
             return;
         }
 
+        $events = $connection->drainPayloads();
+        if ($dialogUid !== '') {
+            try {
+                $events[] = [
+                    'action' => 'activity_snapshot',
+                    'dialog_uid' => $dialogUid,
+                    'activities' => (new MessengerActivityService())->snapshot(
+                        (string) $user['uid'],
+                        $dialogUid
+                    ),
+                ];
+            } catch (\Throwable $e) {
+                error_log('Messenger activity snapshot временно недоступен: ' . $e->getMessage());
+            }
+        }
+
         $this->responseJson([
             'status' => 'ok',
             'transport' => 'long_poll',
             'changed' => true,
             'cursor' => $wait['cursor'],
-            'events' => $connection->drainPayloads(),
+            'events' => $events,
         ]);
     }
 
