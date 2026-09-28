@@ -90,7 +90,7 @@ activityContractAssert(
 activityContractAssert(
     str_contains($socket, 'MessengerActivityService')
     && str_contains($socket, '->publish($userUid, $dialogUid, $activity, $active)')
-    && str_contains($socket, "->publish($userUid, $dialogUid, 'typing', $typing)"),
+    && str_contains($socket, '->publish($userUid, $dialogUid, \'typing\', $typing)'),
     'WebSocket/HTTP dispatcher does not persist short-lived activity state'
 );
 activityContractAssert(
