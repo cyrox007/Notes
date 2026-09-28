@@ -58,8 +58,11 @@ foreach ($socketDirectory as $file) {
     vendorFreeAssert(!str_contains($source, 'Workerman\\'), 'Workerman leaked into ' . $file->getFilename());
 }
 
-$core = (string) file_get_contents($root . '/core.php');
-vendorFreeAssert(str_contains($core, '/core/NativeViewRenderer.php'), 'native view renderer is not bootstrapped');
+require_once $root . '/core/RuntimeAutoloader.php';
+\Core\RuntimeAutoloader::register($root);
+vendorFreeAssert(interface_exists(\Core\ViewRenderer::class), 'Автозагрузчик не разрешил интерфейс ViewRenderer');
+vendorFreeAssert(class_exists(\Core\NativeViewRenderer::class), 'Автозагрузчик не разрешил NativeViewRenderer');
+
 $controller = (string) file_get_contents($root . '/core/controller.php');
 vendorFreeAssert(str_contains($controller, 'new NativeViewRenderer('), 'HTTP controller does not use native view renderer');
 
