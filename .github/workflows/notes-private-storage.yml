@@ -92,7 +92,7 @@ jobs:
           putenv('DBPASS=root');
           putenv('DBNAME=notes_private_test');
           putenv('PRIVATE_STORAGE_PATH=/tmp/notes-private-ci');
-          require __DIR__ . '/core/config.php';
+          require __DIR__ . '/core/Config.php';
           require __DIR__ . '/core/DatabaseManager.php';
           $db = \Core\DatabaseManager::getInstance();
           $now = date('Y-m-d H:i:s');
@@ -148,10 +148,10 @@ jobs:
           putenv('NOTES_MAX_UPLOAD_SIZE=10485760');
           putenv('MAX_NOTE_ATTACHMENTS=10');
           require SITEPATH . '/vendor/autoload.php';
-          require SITEPATH . '/core/config.php';
+          require SITEPATH . '/core/Config.php';
           require SITEPATH . '/core/DatabaseManager.php';
-          require SITEPATH . '/core/request.php';
-          require SITEPATH . '/core/controller.php';
+          require SITEPATH . '/core/Request.php';
+          require SITEPATH . '/core/Controller.php';
           require SITEPATH . '/modules/notes/controllers/NoteAttachmentController.php';
 
           final class HarnessRequest extends \Core\Request {

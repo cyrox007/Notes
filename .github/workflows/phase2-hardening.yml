@@ -56,7 +56,7 @@ jobs:
           php -l app/services/PermissionService.php
           php -l app/middlewares/LoginRequared.php
           php -l app/middlewares/IsAdmin.php
-          php -l core/controller.php
+          php -l core/Controller.php
           php -l tests/e2e/router.php
           node --check modules/files/assets/script.js
           node --check modules/files/assets/quota.js

@@ -18,10 +18,10 @@ require_once $root . '/core/ModuleCapabilityRegistry.php';
 require_once $root . '/core/ModuleRuntimeLoader.php';
 require_once $root . '/core/Router.php';
 require_once $root . '/core/ORM.php';
-require_once $root . '/core/request.php';
+require_once $root . '/core/Request.php';
 require_once $root . '/core/ViewRenderer.php';
 require_once $root . '/core/ViewContext.php';
-require_once $root . '/core/controller.php';
+require_once $root . '/core/Controller.php';
 
 use Core\AccountDeactivationGuard;
 use Core\ModuleRegistry;
