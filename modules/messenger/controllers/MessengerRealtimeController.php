@@ -7,7 +7,6 @@ namespace App\Controllers;
 use App\Models\UserModel;
 use App\Services\MessengerActivityService;
 use App\Services\MessengerLongPollService;
-use App\Services\MessengerRealtimeRevisionService;
 use App\Sockets\BufferedSocketConnection;
 use App\Sockets\NativeMessengerServer;
 use Core\Controller;
