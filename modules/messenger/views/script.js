@@ -280,6 +280,18 @@
             return this.sendHttpEventConfirmed(action, data);
         }
 
+        markSessionUnavailable() {
+            this.stopLongPoll();
+            this.socketAuthorized = false;
+            try {
+                this.socket?.close();
+            } catch (_) {
+                // Уже закрытое соединение не требует отдельной обработки.
+            }
+            this.setConnectionState('offline', 'Сессия завершена');
+            document.dispatchEvent(new CustomEvent('wspace:messenger-session-unavailable'));
+        }
+
         sendHttpEvent(action, data = {}) {
             if (navigator.onLine === false) {
                 this.showToast('Нет подключения к интернету');
@@ -287,6 +299,7 @@
             }
 
             void this.performHttpEvent(action, data).catch((error) => {
+                if (error?.code === 'session_unavailable') return;
                 console.warn('Messenger HTTP fallback action failed', error);
                 this.showToast('Резервный канал временно недоступен');
             });
@@ -303,6 +316,7 @@
                 await this.performHttpEvent(action, data);
                 return true;
             } catch (error) {
+                if (error?.code === 'session_unavailable') return false;
                 console.warn('Messenger HTTP fallback action failed', error);
                 this.showToast('Резервный канал временно недоступен');
                 return false;
@@ -332,6 +346,12 @@
                     headers,
                     body
                 });
+                if (response.status === 401 || response.status === 403) {
+                    this.markSessionUnavailable();
+                    const error = new Error('Сессия Messenger завершена');
+                    error.code = 'session_unavailable';
+                    throw error;
+                }
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
                 }
@@ -485,9 +505,7 @@
                     });
                     if (!this.longPollActive || generation !== this.longPollGeneration) return;
                     if (response.status === 401 || response.status === 403) {
-                        this.stopLongPoll();
-                        this.setConnectionState('offline', 'Сессия завершена');
-                        this.showToast('Сессия завершена. Обновите страницу и войдите снова.');
+                        this.markSessionUnavailable();
                         return;
                     }
                     if (!response.ok) {
