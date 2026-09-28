@@ -147,8 +147,19 @@ final class MessengerRealtimeController extends Controller
                 $server->dispatchTransportMessage($connection, $message, $connections, 'long_poll');
             }
         } catch (\Throwable $e) {
-            error_log('Messenger long-poll snapshot failed: ' . $e->getMessage());
-            $this->jsonFailure('Не удалось синхронизировать мессенджер', 500);
+            // Snapshot — фоновая синхронизация. Во время переключения версии
+            // часть таблиц/обработчиков может быть кратковременно недоступна;
+            // это не должно создавать 5xx на пользовательской странице.
+            error_log('Messenger long-poll snapshot временно приостановлен: ' . $e->getMessage());
+            $this->responseJson([
+                'status' => 'ok',
+                'transport' => 'long_poll',
+                'changed' => false,
+                'cursor' => $cursor,
+                'events' => [],
+                'suspended' => true,
+                'retry_after_ms' => 3000,
+            ]);
             return;
         }
 
