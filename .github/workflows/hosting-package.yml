@@ -27,7 +27,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: mysqli, pdo_mysql, mbstring, sodium, openssl, fileinfo, gd
+          extensions: mysqli, pdo_mysql, mbstring, sodium, openssl, fileinfo, gd, zlib
           coverage: none
 
       - name: Verify vendor-free application runtime
@@ -64,6 +64,17 @@ jobs:
           php -l core/UpdateRollbackCodeRestorer.php
           php -l core/MigrationManifest.php
           php -l core/UpdateMigrationPreflight.php
+          php -l core/UpdateCommandRunner.php
+          php -l core/UpdateProcessRunner.php
+          php -l core/UpdateInProcessRunner.php
+          php -l core/UpdateDatabaseMigrator.php
+          php -l core/UpdateWebHealthProbe.php
+          php -l core/UpdateVerifiedStage.php
+          php -l core/UpdateWebContinuation.php
+          php -l core/UpdateWebTransaction.php
+          php -l core/UpdateWebHttpBridge.php
+          php -l core/UpdateAutomaticRecovery.php
+          php -l core/UpdateBootRecoveryGate.php
           php -l core/UpdateApplyCommand.php
           php -l core/UpdateReadiness.php
           php -l core/UpdateArtifactCleaner.php
@@ -76,6 +87,8 @@ jobs:
           php tests/integration/updater_live_apply_contract.php
           php tests/integration/updater_recovery_invariants_contract.php
           php tests/integration/updater_readiness_contract.php
+          php tests/integration/updater_web_mode_contract.php
+          php tests/integration/external_update_runtime_contract.php
           php tests/integration/updater_artifact_retention_contract.php
 
       - name: Build hosting bundle
@@ -142,6 +155,17 @@ jobs:
           test -f "$ROOT/core/UpdateRollbackCodeRestorer.php"
           test -f "$ROOT/core/MigrationManifest.php"
           test -f "$ROOT/core/UpdateMigrationPreflight.php"
+          test -f "$ROOT/core/UpdateCommandRunner.php"
+          test -f "$ROOT/core/UpdateProcessRunner.php"
+          test -f "$ROOT/core/UpdateInProcessRunner.php"
+          test -f "$ROOT/core/UpdateDatabaseMigrator.php"
+          test -f "$ROOT/core/UpdateWebHealthProbe.php"
+          test -f "$ROOT/core/UpdateVerifiedStage.php"
+          test -f "$ROOT/core/UpdateWebContinuation.php"
+          test -f "$ROOT/core/UpdateWebTransaction.php"
+          test -f "$ROOT/core/UpdateWebHttpBridge.php"
+          test -f "$ROOT/core/UpdateAutomaticRecovery.php"
+          test -f "$ROOT/core/UpdateBootRecoveryGate.php"
           test -f "$ROOT/core/UpdateApplyCommand.php"
           test -f "$ROOT/core/UpdateReadiness.php"
           test -f "$ROOT/core/UpdateArtifactCleaner.php"
@@ -188,6 +212,17 @@ jobs:
           unzip -l "$BUNDLE" | grep -F 'core/UpdateRollbackCodeRestorer.php'
           unzip -l "$BUNDLE" | grep -F 'core/MigrationManifest.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdateMigrationPreflight.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateCommandRunner.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateProcessRunner.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateInProcessRunner.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateDatabaseMigrator.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateWebHealthProbe.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateVerifiedStage.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateWebContinuation.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateWebTransaction.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateWebHttpBridge.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateAutomaticRecovery.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateBootRecoveryGate.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdateApplyCommand.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdateReadiness.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdateArtifactCleaner.php'

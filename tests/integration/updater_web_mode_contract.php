@@ -167,6 +167,38 @@ try {
         'браузерный updater не содержит автоматический цикл продолжения'
     );
 
+    $packageWorkflow = (string) file_get_contents(
+        $root . '/.github/workflows/hosting-package.yml'
+    );
+    foreach ([
+        'core/UpdateCommandRunner.php',
+        'core/UpdateInProcessRunner.php',
+        'core/UpdateDatabaseMigrator.php',
+        'core/UpdateWebHealthProbe.php',
+        'core/UpdateVerifiedStage.php',
+        'core/UpdateWebContinuation.php',
+        'core/UpdateWebTransaction.php',
+        'core/UpdateWebHttpBridge.php',
+        'core/UpdateAutomaticRecovery.php',
+        'core/UpdateBootRecoveryGate.php',
+    ] as $requiredPackageFile) {
+        updaterWebModeAssert(
+            substr_count($packageWorkflow, $requiredPackageFile) >= 3,
+            'hosting-package не проверяет web-updater файл: ' . $requiredPackageFile
+        );
+    }
+    updaterWebModeAssert(
+        str_contains(
+            $packageWorkflow,
+            'php tests/integration/updater_web_mode_contract.php'
+        )
+            && str_contains(
+                $packageWorkflow,
+                'php tests/integration/external_update_runtime_contract.php'
+            ),
+        'финальный hosting-package не запускает контракты web-updater/recovery runtime'
+    );
+
     echo "[OK] совместимый web-updater не зависит от proc_open и PHP CLI\n";
 } finally {
     updaterWebModeRemoveTree($temp);
