@@ -494,9 +494,20 @@
         });
 
         document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState !== 'visible') return;
-            if (!socketAuthorized) startLongPoll();
+            if (document.visibilityState !== 'visible') {
+                pauseLongPoll();
+                return;
+            }
+
+            if (!socketAuthorized) {
+                startLongPoll();
+                resumeLongPoll();
+            }
             void connect();
+        });
+
+        window.addEventListener('pagehide', () => {
+            pauseLongPoll();
         });
 
         if (socketUrl === '') {
