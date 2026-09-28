@@ -140,13 +140,27 @@ final class MessengerLongPollService
                     ))),0)
                     FROM message_user_deletions mud
                     WHERE mud.user_id = :deletion_user_id
-                ) AS deletions_state',
+                ) AS deletions_state,
+                (
+                    SELECT COALESCE(SUM(CRC32(CONCAT_WS("|",
+                        ma.dialog_id,ma.user_id,ma.activity,
+                        DATE_FORMAT(ma.expires_at, "%Y-%m-%d %H:%i:%s.%f")
+                    ))),0)
+                    FROM messenger_activity ma
+                    WHERE ma.dialog_id IN (
+                        SELECT me.dialog_id
+                        FROM user_to_dialogs me
+                        WHERE me.user_id = :activity_user_id AND me.is_deleted = 0
+                    )
+                      AND ma.expires_at > CURRENT_TIMESTAMP(3)
+                ) AS activity_state',
             [
                 ':dialog_user_id' => $userId,
                 ':membership_user_id' => $userId,
                 ':message_user_id' => $userId,
                 ':reaction_user_id' => $userId,
                 ':deletion_user_id' => $userId,
+                ':activity_user_id' => $userId,
             ]
         ) ?? [];
 
