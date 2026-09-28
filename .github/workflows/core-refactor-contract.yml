@@ -110,7 +110,9 @@ jobs:
           fi
 
       - name: Проверить выделенные границы ядра
-        run: php tests/integration/core_refactor_contract.php
+        run: |
+          php tests/integration/core_refactor_contract.php
+          php tests/integration/updater_web_mode_contract.php
 
       - name: Построить карту использования ядра на PHP 8.1
         if: matrix.php == '8.1'
