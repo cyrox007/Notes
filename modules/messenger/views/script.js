@@ -166,18 +166,19 @@
             this.socket.addEventListener('message', (event) => this.handleSocketMessage(event));
             this.socket.addEventListener('error', () => {
                 this.socketAuthorized = false;
-                this.startLongPoll('WebSocket недоступен');
+                this.scheduleLongPollFallback('WebSocket недоступен', 1200);
             });
             this.socket.addEventListener('close', () => {
                 this.socketAuthorized = false;
-                this.startLongPoll('WebSocket отключён');
                 this.scheduleReconnect();
+                this.scheduleLongPollFallback('WebSocket отключён', 1200);
             });
 
-            // Если handshake/авторизация WebSocket зависли у прокси, Messenger не
-            // ждёт бесконечно: HTTP long poll становится рабочим транспортом,
-            // пока WebSocket продолжает подключаться в фоне.
-            this.scheduleLongPollFallback('WebSocket подключается', 1000);
+            // Небольшое окно оставляет однопоточному HTTP runtime возможность
+            // обновить ticket до запуска долгого poll-запроса. Если WebSocket
+            // действительно недоступен или завис на handshake, Long Poll всё
+            // равно включится автоматически без reload.
+            this.scheduleLongPollFallback('WebSocket подключается', 1200);
         }
 
         scheduleReconnect() {
@@ -483,6 +484,12 @@
                         signal: controller.signal
                     });
                     if (!this.longPollActive || generation !== this.longPollGeneration) return;
+                    if (response.status === 401 || response.status === 403) {
+                        this.stopLongPoll();
+                        this.setConnectionState('offline', 'Сессия завершена');
+                        this.showToast('Сессия завершена. Обновите страницу и войдите снова.');
+                        return;
+                    }
                     if (!response.ok) {
                         throw new Error(`HTTP ${response.status}`);
                     }
@@ -491,6 +498,20 @@
                     if (payload?.status !== 'ok') {
                         throw new Error(payload?.message || 'Long Poll failed');
                     }
+
+                    if (payload.suspended === true) {
+                        const retryAfter = Math.max(
+                            500,
+                            Math.min(10000, Number(payload.retry_after_ms || 3000))
+                        );
+                        this.setConnectionState('fallback', 'Long Poll · ожидаем готовность сервера…');
+                        await new Promise((resolve) => {
+                            this.longPollRetryTimer = window.setTimeout(resolve, retryAfter);
+                        });
+                        this.longPollRetryTimer = null;
+                        continue;
+                    }
+
                     if (typeof payload.cursor === 'string' && payload.cursor) {
                         this.longPollCursor = payload.cursor;
                     }
