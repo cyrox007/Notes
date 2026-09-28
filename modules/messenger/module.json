@@ -29,6 +29,7 @@
     "tables": [
       "dialogs",
       "user_to_dialogs",
+      "messenger_activity",
       "messages",
       "message_user_deletions",
       "messenger_attachments",
@@ -44,7 +45,8 @@
       "database/migrations/20260913_messenger_delivery_receipts.sql",
       "database/migrations/20260913_messenger_reactions.sql",
       "database/migrations/20260913_messenger_saved_dialog.sql",
-      "database/migrations/20260918_messenger_retention_timestamps.sql"
+      "database/migrations/20260918_messenger_retention_timestamps.sql",
+      "database/migrations/20260928_messenger_activity.sql"
     ]
   }
 }
