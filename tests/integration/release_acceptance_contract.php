@@ -63,6 +63,15 @@ foreach ([
     releaseAcceptanceAssert(str_contains($doc, $marker), "runbook release acceptance не содержит marker {$marker}");
 }
 
+$windowsAcceptance = releaseAcceptanceText($root, 'docs/WINDOWS_OSPANEL_ACCEPTANCE.md');
+releaseAcceptanceAssert(
+    str_contains($windowsAcceptance, '# Релизная приёмка Windows / OSPanel для 1.0.7')
+    && str_contains($windowsAcceptance, 'Сценарий A2 — private storage предыдущей установки')
+    && str_contains($windowsAcceptance, '1.0.6 → 1.0.7')
+    && str_contains($windowsAcceptance, 'rollback_failed'),
+    'Windows/OSPanel acceptance не закрепляет 1.0.7, stale recovery и upgrade-path'
+);
+
 $preflight = releaseAcceptanceText($root, 'bin/release_acceptance.php');
 foreach ([
     "'strict'",
