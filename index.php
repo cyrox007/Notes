@@ -233,19 +233,30 @@ HTML;
 }
 
 try {
-    // До проверки maintenance завершаем автоматическое восстановление оборванного
-    // обновления. Иначе ранний ответ 503 не даст recovery-коду запуститься вообще.
     require_once SITEPATH . '/core/Environment.php';
     \Core\Environment::load(SITEPATH . '/.env');
     require_once SITEPATH . '/app/services/MaintenanceModeService.php';
+
+    $maintenance = new \App\Services\MaintenanceModeService();
+    $maintenanceState = $maintenance->state();
+
+    // Во время пошагового web-обновления только один capability-защищённый
+    // endpoint может пройти раньше общего maintenance-барьера. Обычные запросы
+    // по-прежнему закрыты, а Router и модули до завершения миграций не грузятся.
+    if ($maintenanceState['active'] && $maintenanceState['valid']) {
+        require_once SITEPATH . '/core/UpdateWebHttpBridge.php';
+        if (\Core\UpdateWebHttpBridge::canHandle($maintenance, $maintenanceState)) {
+            \Core\UpdateWebHttpBridge::handle(SITEPATH, $maintenance, $maintenanceState);
+        }
+    }
+
+    // До обычного maintenance-ответа завершаем восстановление оборванного
+    // обновления. Активный lease живого web-updater recovery не перехватывает.
     require_once SITEPATH . '/core/UpdateAutomaticRecovery.php';
     require_once SITEPATH . '/core/UpdateBootRecoveryGate.php';
-
     \Core\UpdateBootRecoveryGate::enforce(SITEPATH);
 
-    // После попытки recovery обычный maintenance-барьер по-прежнему работает
-    // fail-closed для активного, повреждённого или ещё не завершённого состояния.
-    $maintenanceState = (new \App\Services\MaintenanceModeService())->state();
+    $maintenanceState = $maintenance->state();
     if ($maintenanceState['active']) {
         handleMaintenanceMode($maintenanceState);
     }
