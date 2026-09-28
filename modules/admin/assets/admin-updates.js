@@ -90,7 +90,8 @@
     }
 
     async function startWebUpdate(form) {
-        const { response, payload } = await jsonRequest(form.action, {
+        const startUrl = String(form.dataset.updateStartUrl || form.action || '');
+        const { response, payload } = await jsonRequest(startUrl, {
             method: 'POST',
             body: new FormData(form),
         });
