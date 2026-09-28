@@ -745,12 +745,6 @@ final class UpdateBackupManager
         return $resolved;
     }
 
-    private function shouldExcludeByRoot(string $relativePath): bool
-    {
-        $top = explode('/', str_replace('\\', '/', $relativePath), 2)[0];
-        return in_array($top, self::DEFAULT_EXCLUDED_ROOTS, true);
-    }
-
     private function safeRelativePath(string $path): bool
     {
         return UpdatePath::safeRelative($path);
