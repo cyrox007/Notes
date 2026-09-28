@@ -279,15 +279,6 @@ final class UpdateReadiness
         return (int) $port === 443;
     }
 
-    private function functionAvailable(string $name): bool
-    {
-        if (!function_exists($name)) {
-            return false;
-        }
-        $disabled = array_filter(array_map('trim', explode(',', (string) ini_get('disable_functions'))));
-        return !in_array($name, $disabled, true);
-    }
-
     private function isAbsolute(string $path): bool
     {
         return str_starts_with($path, '/')
