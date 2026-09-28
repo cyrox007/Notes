@@ -31,6 +31,7 @@ $connection = file_get_contents($root . '/modules/messenger/socket/BufferedSocke
 $server = file_get_contents($root . '/modules/messenger/socket/NativeMessengerServer.php');
 $client = file_get_contents($root . '/modules/messenger/views/script.js');
 $connectionUx = file_get_contents($root . '/assets/js/messenger-connection-ux.js');
+$globalNotifications = file_get_contents($root . '/assets/js/messenger-global-notifications.js');
 $messengerRunbook = file_get_contents($root . '/docs/MESSENGER_SERVER.md');
 $hostingRunbook = file_get_contents($root . '/docs/HOSTING_INSTALL.md');
 $deploymentCompatibility = file_get_contents($root . '/docs/DEPLOYMENT_COMPATIBILITY.md');
@@ -47,6 +48,7 @@ foreach ([
     'server' => $server,
     'client' => $client,
     'connection UX' => $connectionUx,
+    'global notifications' => $globalNotifications,
     'Messenger runbook' => $messengerRunbook,
     'hosting runbook' => $hostingRunbook,
     'deployment compatibility' => $deploymentCompatibility,
@@ -144,6 +146,28 @@ assertLongPollContract(
     str_contains($connectionUx, 'pauseLongPollRequest')
     && str_contains($connectionUx, 'resumeLongPoll'),
     'WebSocket ticket recovery must release a long-poll worker before HTTP refresh'
+);
+assertLongPollContract(
+    str_contains($client, 'longPollWatchdogTimer')
+    && str_contains($client, 'watchdogExpired')
+    && str_contains($client, 'Long Poll · переподключение…')
+    && str_contains($client, "scheduleLongPollFallback('WebSocket подключается', 1000)")
+    && str_contains($client, "this.startLongPoll('WebSocket недоступен')"),
+    'Messenger page Long Poll must recover from hung requests and take over immediately when WebSocket fails'
+);
+assertLongPollContract(
+    str_contains($connectionUx, "app.startLongPoll?.('сеть восстановлена')")
+    && str_contains($connectionUx, 'app.pauseLongPollRequest?.()'),
+    'network transitions must resume Long Poll without waiting for a WebSocket reconnect'
+);
+assertLongPollContract(
+    str_contains($globalNotifications, '/messenger/realtime/poll')
+    && str_contains($globalNotifications, 'LONG_POLL_WATCHDOG_MS')
+    && str_contains($globalNotifications, 'startLongPoll()')
+    && str_contains($globalNotifications, 'stopLongPoll()')
+    && str_contains($globalNotifications, 'scheduleLongPollFallback()')
+    && str_contains($globalNotifications, "if (socketUrl === '')"),
+    'global Messenger notifications must keep working through Long Poll when WebSocket is unavailable'
 );
 assertLongPollContract(
     str_contains($client, "case 'sync_required':")
