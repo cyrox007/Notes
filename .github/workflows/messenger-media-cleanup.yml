@@ -72,7 +72,7 @@ jobs:
           putenv('DBNAME=notes_cleanup_test');
           putenv('PRIVATE_STORAGE_PATH=/tmp/notes-private-cleanup');
 
-          require __DIR__ . '/core/config.php';
+          require __DIR__ . '/core/Config.php';
           require __DIR__ . '/core/DatabaseManager.php';
           require __DIR__ . '/modules/messenger/services/MessengerMediaCleanupService.php';
 
