@@ -43,7 +43,9 @@ jobs:
           php -l tests/integration/messenger_long_poll_boundary_runtime.php
           sed '/^{literal}$/d;/^{\/literal}$/d' modules/messenger/views/script.js > /tmp/messenger-script.js
           node --check /tmp/messenger-script.js
+          node --check assets/js/messenger-global-notifications.js
           node --check tests/integration/messenger_long_poll_composer_runtime.mjs
+          node --check tests/integration/messenger_long_poll_resilience_runtime.mjs
 
       - name: Проверить контракт резервного транспорта
         run: php tests/integration/messenger_long_poll_contract.php
@@ -53,3 +55,6 @@ jobs:
 
       - name: Проверить сохранение черновика HTTP fallback
         run: node tests/integration/messenger_long_poll_composer_runtime.mjs
+
+      - name: Проверить самовосстановление Long Poll
+        run: node tests/integration/messenger_long_poll_resilience_runtime.mjs
