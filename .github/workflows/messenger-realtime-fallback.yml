@@ -46,9 +46,11 @@ jobs:
           php -l tests/integration/messenger_activity_wiring_contract.php
           sed '/^{literal}$/d;/^{\/literal}$/d' modules/messenger/views/script.js > /tmp/messenger-script.js
           node --check /tmp/messenger-script.js
+          node --check assets/js/messenger-tab-coordinator.js
           node --check assets/js/messenger-global-notifications.js
           node --check tests/integration/messenger_long_poll_composer_runtime.mjs
           node --check tests/integration/messenger_long_poll_resilience_runtime.mjs
+          node --check tests/integration/messenger_tab_coordinator_runtime.mjs
 
       - name: Проверить контракт резервного транспорта
         run: php tests/integration/messenger_long_poll_contract.php
@@ -64,3 +66,6 @@ jobs:
 
       - name: Проверить activity через оба транспорта
         run: php tests/integration/messenger_activity_wiring_contract.php
+
+      - name: Проверить координацию transport между вкладками
+        run: node tests/integration/messenger_tab_coordinator_runtime.mjs
