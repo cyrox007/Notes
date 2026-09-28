@@ -24,7 +24,6 @@ function coreRefactorAssert(bool $condition, string $message): void
     }
 }
 
-
 /**
  * @return list<string>
  */
@@ -50,10 +49,9 @@ function coreRefactorLegacyUuidReferences(string $root): array
     }
 
     $patterns = [
-        '/\\buse\\s+UUID\\s*;/',
-        '/\\bUUID\\s*::/',
-        '/\\bnew\\s+UUID\\b/',
-        '/class_exists\\s*\\(\\s*["\\']UUID["\\']/',
+        '/\buse\s+UUID\s*;/',
+        '/\bUUID\s*::/',
+        '/\bnew\s+UUID\b/',
     ];
 
     $references = [];
