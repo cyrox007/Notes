@@ -290,7 +290,6 @@ final class UpdateApplyCommand
         UpdateBackupManager $backupManager,
         bool $singleStep = false
     ): array {
-        $initialState = (string) ($journalState['state'] ?? '');
         if (($journalState['live_mutation_started'] ?? false) === true
             && !$singleStep) {
             throw new UpdateApplyException(
