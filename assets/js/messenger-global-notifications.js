@@ -141,6 +141,16 @@
         }
 
         function handlePeerMessage(payload) {
+            if (payload?.type === 'request_state') {
+                if (coordinator?.isLeader?.()) {
+                    coordinator.publish({
+                        type: 'dialogs',
+                        dialogs: Array.from(dialogs.values())
+                    });
+                }
+                return;
+            }
+
             if (payload?.type !== 'dialogs') return;
             applyDialogs(payload.dialogs, {
                 announce: false,
@@ -575,6 +585,9 @@
                 onMessage: handlePeerMessage
             });
             coordinator.start();
+            if (!coordinator.isLeader()) {
+                coordinator.publish({ type: 'request_state' });
+            }
             return;
         }
 
