@@ -118,11 +118,11 @@ releaseAcceptanceAssert(
 $releaseNotes = releaseAcceptanceText($root, 'docs/releases/v1.0.11.md');
 foreach ([
     '## Назначение релиза',
+    '## Updater и recovery',
+    '## Profile',
     '## Messenger',
-    '## Свёрнутая боковая панель',
-    '## Геометрия Messenger-модалок',
-    '## GitHub Release',
-    '## Обновление',
+    '## Отозванный 1.0.10',
+    '## Проверяемый путь обновления',
     '## Совместимость',
 ] as $marker) {
     releaseAcceptanceAssert(
@@ -132,14 +132,15 @@ foreach ([
 }
 
 releaseAcceptanceAssert(
-    str_contains($releaseNotes, '1.0.9 → 1.0.11')
-    && str_contains($releaseNotes, 'обычное состояние «В сети»')
-    && str_contains($releaseNotes, 'wrapper__content')
-    && str_contains($releaseNotes, 'общий `.messenger-dialog-modal`')
-    && str_contains($releaseNotes, 'surface всегда занимает `100%`')
-    && str_contains($releaseNotes, 'bootstrap-1.0.9-updater.php')
-    && str_contains($releaseNotes, 'встроенный подписанный updater'),
-    'описание 1.0.11 не фиксирует четыре исправления и новый upgrade-path'
+    str_contains($releaseNotes, 'v1.0.9 → bootstrap совместимости 1.0.9 → подписанный updater → 1.0.11')
+    && str_contains($releaseNotes, 'UpdateExternalRuntime')
+    && str_contains($releaseNotes, 'require/require_once')
+    && str_contains($releaseNotes, 'Profile')
+    && str_contains($releaseNotes, 'HTTP fallback')
+    && str_contains($releaseNotes, '#1687ff')
+    && str_contains($releaseNotes, 'контрольные заметка, задача, файл')
+    && str_contains($releaseNotes, 'boot recovery'),
+    'описание 1.0.11 не фиксирует recovery, Profile, Messenger и полный upgrade-drill'
 );
 
 
