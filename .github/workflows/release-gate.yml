@@ -151,7 +151,7 @@ jobs:
           test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10011'
           test "$(php -r "require 'core/Version.php'; echo Core\\Version::STATUS;")" = 'stable'
           test "$(php -r "require 'core/Version.php'; echo Core\\Version::RELEASE_DATE;")" = '2026-09-29'
-          grep -Fq '**Версия:** `1.0.10`' README.md
+          grep -Fq '**Версия:** `1.0.11`' README.md
           grep -Fq '## 1.0.11 — 2026-09-29' CHANGELOG.md
           test -s docs/releases/v1.0.11.md
           grep -Fq '# Workspace Organizer 1.0.11' docs/releases/v1.0.11.md
