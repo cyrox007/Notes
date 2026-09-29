@@ -69,7 +69,7 @@ $noteUid = 'e2e-preserve-note-00000000000000000000000000000001';
 $noteTitle = 'E2E сохранность заметки';
 $noteContent = 'sentinel-note-content-1.0.9';
 
-$taskUid = 'e2epreservetask000000000000000001';
+$taskUid = 'e2e00000000000000000000000000011';
 $taskTitle = 'E2E сохранность задачи';
 $taskDescription = 'sentinel-task-description-1.0.9';
 
@@ -78,8 +78,8 @@ $fileName = 'e2e-preserve.txt';
 $fileRelativePath = 'file_manager/e2e-preserve.txt';
 $fileBytes = "Workspace Organizer updater preservation sentinel 1.0.9\n";
 
-$dialogUid = 'e2e-preserve-dialog-0000-4000-8000-000000000001';
-$messageUid = 'e2e-preserve-msg-000000-4000-8000-000000000001';
+$dialogUid = 'e2e00000-0000-4000-8000-000000000011';
+$messageUid = 'e2e00000-0000-4000-8000-000000000012';
 $messageText = 'sentinel-messenger-message-1.0.9';
 
 if ($mode === 'seed') {
