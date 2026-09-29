@@ -123,7 +123,7 @@ jobs:
         run: |
           set -euo pipefail
           grep -Fq 'text-preview-modal' modules/files/views/index.php
-          grep -Fq 'read-only' modules/files/assets/script.js
+          grep -Fq 'function openTextPreview(item)' modules/files/assets/script.js
           ! grep -Fq 'cdnjs.cloudflare.com' modules/files/views/index.php
           ! grep -Fq 'ace.js' modules/files/views/index.php
           ! grep -Fq 'runCodeInSandbox' modules/files/assets/script.js
