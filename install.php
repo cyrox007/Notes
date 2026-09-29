@@ -538,7 +538,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                         $siteUrl
                     );
             } else {
-                $wsPublicUrl = defaultWebSocketUrl($siteUrl, $baseUrlPath);
+                $wsPublicUrl = '';
             }
         } catch (Throwable $e) {
             $errors[] = $e->getMessage();
