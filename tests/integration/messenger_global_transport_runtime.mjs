@@ -147,7 +147,7 @@ dispatch(documentListeners, 'DOMContentLoaded');
 
 await Promise.resolve();
 await Promise.resolve();
-await Promise.resolve();
+await new Promise((resolve) => setImmediate(resolve));
 
 assert(order[0] === 'poll', 'глобальный Messenger пытается WebSocket до запуска Long Poll');
 assert(order.includes('ticket'), 'глобальный Messenger не пытается получить WebSocket ticket в фоне');
