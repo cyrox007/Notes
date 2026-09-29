@@ -269,12 +269,13 @@ assertLongPollContract(
 );
 
 assertLongPollContract(
-    str_contains($messengerRunbook, 'authenticated HTTP long poll')
+    str_contains($messengerRunbook, 'HTTP Long Poll как основной обязательный transport')
     && str_contains($messengerRunbook, 'MESSENGER_LONG_POLL_TIMEOUT_SECONDS')
-    && str_contains($hostingRunbook, 'HTTP long poll')
+    && str_contains($hostingRunbook, 'HTTP Long Poll')
+    && str_contains($hostingRunbook, 'необязательное ускорение')
     && str_contains($deploymentCompatibility, 'HTTP long poll')
     && str_contains($releaseNotes, 'HTTP long-poll fallback'),
-    'актуальная release/deployment документация должна описывать поддерживаемый HTTP fallback'
+    'документация должна закреплять Long Poll как основной transport и WebSocket как необязательное ускорение'
 );
 assertLongPollContract(
     !str_contains($operationsRunbook, 'требует запущенный Workerman')
