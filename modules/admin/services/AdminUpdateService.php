@@ -197,6 +197,36 @@ final class AdminUpdateService
         return $this->apply($actorId, $targetVersionCode, $packageSha256);
     }
 
+    /**
+     * Запускает последнее подписанное обновление через пошаговый web-контур.
+     *
+     * @return array<string,mixed>
+     */
+    public function beginLatestWebApply(int $actorId): array
+    {
+        $this->permissions->requirePermission($actorId, 'admin.settings.manage');
+        if (!$this->permissions->hasRole($actorId, 'superadmin')) {
+            throw new DomainException('Установка обновления доступна только суперадминистратору', 403);
+        }
+
+        $check = $this->check($actorId);
+        if (($check['status'] ?? '') !== 'update_available' || empty($check['update_available'])) {
+            throw new DomainException(
+                'Для этой установки сейчас нет совместимого нового обновления',
+                409
+            );
+        }
+
+        $targetVersionCode = (int) ($check['target_version_code'] ?? 0);
+        $packageSha256 = strtolower(trim((string) ($check['package_sha256'] ?? '')));
+        if ($targetVersionCode <= Version::VERSION_CODE
+            || preg_match('/^[0-9a-f]{64}$/', $packageSha256) !== 1) {
+            throw new RuntimeException('Сервер обновлений вернул некорректную привязку релиза');
+        }
+
+        return $this->beginWebApply($actorId, $targetVersionCode, $packageSha256);
+    }
+
     /** @return array<string,mixed> */
     public function stage(int $actorId, int $expectedTargetVersionCode, string $expectedPackageSha256): array
     {

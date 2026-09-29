@@ -105,6 +105,10 @@ try {
         is_file($runtimeRoot . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'UpdateCommandRunner.php'),
         'Внешний runtime не содержит интерфейс выполнения updater-команд'
     );
+    externalRuntimeAssert(
+        is_file($runtimeRoot . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'HostingCompatibility.php'),
+        'Внешний runtime не содержит зависимость Environment от HostingCompatibility'
+    );
 
     $again = (new UpdateExternalRuntime($root))->prepare();
     externalRuntimeAssert(

@@ -200,6 +200,7 @@
                 sidebar.classList.remove('sidebar--open');
                 backdrop.classList.remove('is-visible');
                 document.body.classList.remove('sidebar-mobile-open');
+                document.body.classList.remove('sidebar-is-collapsed');
                 setExpanded(false);
             }
 
@@ -208,6 +209,7 @@
                 sidebar.classList.add('sidebar--open');
                 backdrop.classList.add('is-visible');
                 document.body.classList.add('sidebar-mobile-open');
+                document.body.classList.remove('sidebar-is-collapsed');
                 setExpanded(true);
             }
 
@@ -225,6 +227,7 @@
                 document.body.classList.remove('sidebar-mobile-open');
                 const collapsed = readCollapsed();
                 sidebar.classList.toggle('sidebar--collapsed', collapsed);
+                document.body.classList.toggle('sidebar-is-collapsed', collapsed);
                 setExpanded(!collapsed);
             }
 
@@ -242,6 +245,7 @@
                     }
 
                     const collapsed = sidebar.classList.toggle('sidebar--collapsed');
+                    document.body.classList.toggle('sidebar-is-collapsed', collapsed);
                     setExpanded(!collapsed);
                     try {
                         window.localStorage.setItem(STORAGE_KEY, collapsed ? '1' : '0');
@@ -263,6 +267,7 @@
             const syncLayout = () => {
                 if (media.matches) {
                     sidebar.classList.remove('sidebar--collapsed');
+                    document.body.classList.remove('sidebar-is-collapsed');
                     closeMobile();
                 } else {
                     applyDesktopState();

@@ -200,12 +200,12 @@ assertLongPollContract(
 assertLongPollContract(
     str_contains($client, 'longPollWatchdogTimer')
     && str_contains($client, 'watchdogExpired')
-    && str_contains($client, 'Long Poll · переподключение…')
-    && str_contains($client, "this.startLongPoll(url && ticket")
-    && str_contains($client, "'WebSocket подключается в фоне'")
-    && strpos($client, "this.startLongPoll(url && ticket")
-        < strpos($client, 'this.socket = new WebSocket'),
-    'Messenger page must start Long Poll before attempting WebSocket, including a hung handshake'
+    && str_contains($client, 'Восстанавливаем синхронизацию…')
+    && str_contains($client, 'this.startLongPoll();')
+    && strpos($client, 'this.startLongPoll();')
+        < strpos($client, 'this.socket = new WebSocket')
+    && !str_contains($client, 'WebSocket подключается в фоне'),
+    'Messenger должен запускать Long Poll до WebSocket и не показывать фоновый handshake как проблему'
 );
 assertLongPollContract(
     str_contains($connectionUx, "app.startLongPoll?.('сеть восстановлена')")
@@ -272,8 +272,10 @@ assertLongPollContract(
 );
 assertLongPollContract(
     str_contains($connectionUx, 'app.longPollActive === true')
-    && str_contains($connectionUx, "Long Poll"),
-    'connection UX must keep fallback usable while WebSocket reconnects'
+    && str_contains($connectionUx, "renderState('online', 'В сети', { hideRetry: true })")
+    && !str_contains($connectionUx, 'Long Poll · WebSocket')
+    && !str_contains($connectionUx, 'Messenger работает через Long Poll. WebSocket будет проверен повторно.'),
+    'рабочий Long Poll должен выглядеть как обычное состояние «В сети», без баннера WebSocket'
 );
 
 assertLongPollContract(

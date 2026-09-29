@@ -92,6 +92,64 @@ async function login(page, scenarioName) {
   await page.waitForLoadState('load');
 }
 
+async function assertMessengerDialogGeometry(page, scenarioName) {
+  const response = await page.goto(baseUrl + '/messenger/', { waitUntil: 'load' });
+  if (!response || response.status() !== 200) {
+    throw new Error(
+      scenarioName + ': /messenger/ returned ' + (response ? response.status() : 'no response')
+    );
+  }
+
+  await page.locator('.messenger-app').waitFor({ state: 'visible', timeout: 15000 });
+  await page.locator('#workspace-action-dialog').waitFor({ state: 'attached', timeout: 10000 });
+
+  const dialogIds = [
+    ['workspace-action-dialog', 'workspace-action-form'],
+    ['group-info-dialog', null],
+    ['storage-file-dialog', null],
+  ];
+
+  for (const [dialogId, formId] of dialogIds) {
+    const geometry = await page.evaluate(({ dialogId, formId }) => {
+      const dialog = document.getElementById(dialogId);
+      if (!(dialog instanceof HTMLDialogElement)) {
+        throw new Error('Не найден dialog #' + dialogId);
+      }
+
+      const surface = formId
+        ? document.getElementById(formId)
+        : dialog.querySelector('.messenger-dialog-modal__surface');
+      if (!(surface instanceof HTMLElement)) {
+        throw new Error('Не найден surface для #' + dialogId);
+      }
+
+      dialog.showModal();
+      const dialogRect = dialog.getBoundingClientRect();
+      const surfaceRect = surface.getBoundingClientRect();
+      const result = {
+        dialogWidth: dialog.clientWidth,
+        surfaceWidth: surfaceRect.width,
+        contentLeft: dialogRect.left + dialog.clientLeft,
+        surfaceLeft: surfaceRect.left,
+      };
+      dialog.close();
+      return result;
+    }, { dialogId, formId });
+
+    if (Math.abs(geometry.dialogWidth - geometry.surfaceWidth) > 1) {
+      throw new Error(
+        scenarioName + ': #' + dialogId + ' surface width differs from dialog: '
+        + geometry.surfaceWidth + ' vs ' + geometry.dialogWidth
+      );
+    }
+    if (Math.abs(geometry.contentLeft - geometry.surfaceLeft) > 1) {
+      throw new Error(
+        scenarioName + ': #' + dialogId + ' surface is horizontally shifted inside dialog'
+      );
+    }
+  }
+}
+
 async function assertMobileShell(page, scenarioName) {
   const control = page.locator('.navbar__menu-button[data-sidebar-toggle]');
   const sidebar = page.locator('#workspaceSidebar');
@@ -155,6 +213,10 @@ for (const scenario of scenarios) {
 
     if (scenario.mobile) {
       await assertMobileShell(page, scenario.name);
+    } else {
+      // Проверяем реальную геометрию top-layer Messenger-модалок в каждом
+      // desktop-движке, а не только наличие нужных CSS-селекторов.
+      await assertMessengerDialogGeometry(page, scenario.name);
     }
 
     for (const module of modules) {

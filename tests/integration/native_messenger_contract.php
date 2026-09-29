@@ -96,9 +96,9 @@ nativeMessengerAssert(str_contains($media, 'sendFiles(files).then'), 'staged cli
 nativeMessengerAssert(str_contains($media, "appPath('/messenger/upload')"), 'Messenger media upload is not BASE_PATH-aware');
 
 $connectionCss = (string) file_get_contents($root . '/assets/css/messenger-connection-ux.css');
-nativeMessengerAssert(str_contains($connectionCss, '.messenger-app .messenger-list__header{height:78px'), 'высота шапки списка чатов не закреплена');
-nativeMessengerAssert(str_contains($connectionCss, 'grid-template-rows:17px 17px'), 'область статуса соединения не резервирует постоянные две строки');
-nativeMessengerAssert(str_contains($connectionCss, '#messenger-connection-text{grid-column:2;grid-row:1'), 'текст статуса соединения не ограничен стабильной строкой');
+nativeMessengerAssert(str_contains($connectionCss, '.messenger-app .messenger-list__header{height:auto;min-height:64px;max-height:none;align-items:center}'), 'шапка списка чатов не использует компактную высоту');
+nativeMessengerAssert(str_contains($connectionCss, '.messenger-list__header .messenger-connection{display:none!important}'), 'служебный транспортный статус всё ещё занимает место в шапке Messenger');
+nativeMessengerAssert(str_contains($view, 'data-state="online" hidden'), 'Messenger не скрывает служебный транспортный статус на первом кадре');
 
 $connectionUx = (string) file_get_contents($root . '/assets/js/messenger-connection-ux.js');
 nativeMessengerAssert(str_contains($connectionUx, 'ticketSubject'), 'account-switch ticket identity guard is missing');
@@ -127,6 +127,24 @@ nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-source[h
 nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-menu{position:absolute'), 'workspace create menu lost floating popover styling');
 nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-menu[hidden]{display:none!important}'), 'workspace create menu ignores hidden state');
 nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-menu__item{'), 'workspace create menu items lost native styling');
+nativeMessengerAssert(
+    str_contains($messengerStyle, '.messenger-dialog-modal{')
+        && str_contains($messengerStyle, 'width:min(600px,calc(100vw - 32px));')
+        && str_contains($workspaceCss, '.messenger-workspace-dialog__surface{width:100%;overflow:hidden}')
+        && !str_contains($workspaceCss, '.messenger-workspace-dialog{width:'),
+    'workspace modal must inherit the single shared dialog width contract'
+);
+$groupCss = (string) file_get_contents($module . '/views/group.css');
+nativeMessengerAssert(
+    str_contains($groupCss, '.messenger-group-dialog__surface{width:100%}')
+        && !str_contains($groupCss, '.messenger-group-dialog{width:'),
+    'group modal must not override the shared dialog width'
+);
+nativeMessengerAssert(
+    str_contains($storageCss, '.messenger-storage-dialog__surface{width:100%;max-height:')
+        && !str_contains($storageCss, '.messenger-storage-dialog{width:'),
+    'storage modal must not override the shared dialog width'
+);
 nativeMessengerAssert(str_contains($visualRefresh, '#workspace-create-menu{position:absolute!important'), 'final visual layer does not harden workspace popover positioning');
 nativeMessengerAssert(str_contains($visualRefresh, '#workspace-create-menu[hidden]{display:none!important}'), 'final visual layer can expose hidden workspace popover');
 nativeMessengerAssert(str_contains($storageCss, '.messenger-storage-selected[hidden]{display:none!important}'), 'storage selected-file panel ignores hidden state');

@@ -134,6 +134,7 @@ if (is_file($controlsPath) && is_readable($controlsPath)) {
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/theme-mode.js')) ?>" defer></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/findability.js')) ?>" defer></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/feedback.js')) ?>" defer></script>
+    <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/update-web-runner.js')) ?>" defer></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/update-notifications.js')) ?>" defer></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/messenger-tab-coordinator.js')) ?>" defer></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/messenger-global-notifications.js')) ?>" defer></script>

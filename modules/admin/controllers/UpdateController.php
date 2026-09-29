@@ -217,6 +217,48 @@ final class UpdateController extends Controller
     }
 
     /**
+     * Однокнопочный запуск из глобального уведомления.
+     *
+     * Повторно проверяет подписанный feed и начинает тот же пошаговый web-контур,
+     * что используется на странице Admin.
+     */
+    public function webStartLatest(Request $request): void
+    {
+        $request->unsetSession(self::APPLY_BINDING_SESSION_KEY);
+        $request->unsetSession(self::STAGE_BINDING_SESSION_KEY);
+
+        try {
+            $result = (new AdminUpdateService())->beginLatestWebApply(
+                (int) $request->session('user_id', 0)
+            );
+
+            $this->jsonResponse(200, [
+                'success' => true,
+                'result' => [
+                    'status' => (string) ($result['status'] ?? 'in_progress'),
+                    'phase' => (string) ($result['phase'] ?? 'backup'),
+                    'progress' => (int) ($result['progress'] ?? 20),
+                    'message' => (string) ($result['message'] ?? ''),
+                    'transaction_id' => (string) ($result['transaction_id'] ?? ''),
+                    'continuation_token' => (string) ($result['continuation_token'] ?? ''),
+                    'target_version' => (string) ($result['target_version'] ?? ''),
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            $this->jsonResponse(
+                in_array((int) $e->getCode(), [400, 403, 409, 503], true)
+                    ? (int) $e->getCode()
+                    : 500,
+                [
+                    'success' => false,
+                    'error' => 'update_latest_start_failed',
+                    'message' => $e->getMessage() ?: 'Не удалось начать установку последнего обновления',
+                ]
+            );
+        }
+    }
+
+    /**
      * Первый web-шаг выполняется через обычный Router, пока maintenance ещё
      * не включён. Последующие шаги принимает ранний capability-защищённый мост.
      */
