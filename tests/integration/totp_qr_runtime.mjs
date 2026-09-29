@@ -38,8 +38,8 @@ if (digest !== '37f6503e582266b934285fc8585323cc35197ba7358466d0aee960030f25ea5a
 const longUri = 'otpauth://totp/Workspace:' + 'a'.repeat(350)
     + '?secret=ABCDEFGHIJKLMNOPQRSTUVWXYZ234567&issuer=Workspace';
 const longMatrix = qr.matrixFor(longUri);
-if (!Array.isArray(longMatrix) || longMatrix.length !== 77) {
-    throw new Error('Длинный TOTP URI не переключился на QR версии 15');
+if (!Array.isArray(longMatrix) || longMatrix.length !== 81) {
+    throw new Error('Длинный TOTP URI не переключился на QR версии 16');
 }
 
 try {
