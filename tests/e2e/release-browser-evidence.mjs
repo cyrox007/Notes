@@ -45,10 +45,14 @@ async function assertDocumentFits(page, label) {
   }
 }
 
-function isExpectedLongPollNavigationAbort(request) {
+function isExpectedMessengerNavigationAbort(request) {
   const url = new URL(request.url());
-  const pollPath = (basePath === '/' ? '' : basePath) + '/messenger/realtime/poll';
-  if (url.origin !== origin || url.pathname !== pollPath) return false;
+  const messengerBase = (basePath === '/' ? '' : basePath) + '/messenger';
+  const expectedBackgroundPaths = new Set([
+    messengerBase + '/realtime/poll',
+    messengerBase + '/socket-ticket',
+  ]);
+  if (url.origin !== origin || !expectedBackgroundPaths.has(url.pathname)) return false;
 
   const failure = String(request.failure()?.errorText || '');
   const normalizedFailure = failure.toLowerCase();
@@ -192,9 +196,10 @@ for (const scenario of scenarios) {
     const escapedRequests = [];
     page.on('pageerror', error => pageErrors.push(String(error?.stack || error)));
     page.on('requestfailed', request => {
-      // Отмена фонового Long Poll при переходе на другую страницу ожидаема:
-      // это освобождает клиентский канал и не является сетевой ошибкой релиза.
-      if (isExpectedLongPollNavigationAbort(request)) return;
+      // При навигации браузер вправе отменить фоновые запросы Messenger:
+      // Long Poll и получение ticket для необязательного WebSocket-ускорителя.
+      // Такая отмена освобождает канал и не является сетевой ошибкой релиза.
+      if (isExpectedMessengerNavigationAbort(request)) return;
       failedRequests.push(request.url() + ': ' + (request.failure()?.errorText || 'request failed'));
     });
     page.on('request', request => {
