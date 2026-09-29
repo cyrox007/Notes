@@ -400,6 +400,25 @@ class DatabaseManager
         $this->inTransaction = false;
     }
 
+    /**
+     * Освобождает соединение с БД только когда менеджер действительно простаивает.
+     *
+     * Это используется длительными HTTP-ожиданиями на виртуальном хостинге:
+     * PHP worker может продолжать жить, но не должен всё это время занимать
+     * одно из ограниченных MySQL-соединений.
+     */
+    public function releaseIdleConnection(): void
+    {
+        if ($this->inTransaction || $this->transactionQueue !== []) {
+            return;
+        }
+        if ($this->pdo?->inTransaction()) {
+            return;
+        }
+
+        $this->pdo = null;
+    }
+
     public function close(): void
     {
         if ($this->pdo?->inTransaction()) {

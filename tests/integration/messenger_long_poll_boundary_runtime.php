@@ -9,6 +9,20 @@ require_once $root . '/modules/messenger/services/MessengerLongPollService.php';
 
 use App\Services\MessengerLongPollService;
 
+final class TrackingLongPollDatabaseManager extends \Core\DatabaseManager
+{
+    public int $releaseCalls = 0;
+
+    public function __construct()
+    {
+    }
+
+    public function releaseIdleConnection(): void
+    {
+        $this->releaseCalls++;
+    }
+}
+
 function failMessengerLongPollBoundary(string $message): never
 {
     fwrite(STDERR, "[FAIL] {$message}\n");
@@ -88,6 +102,26 @@ $shortLeaseService->waitForChange(42, 'cursor-A', null, null, '', 5);
 assertMessengerLongPollBoundary(
     $shortLeaseTime >= 5.0 && $shortLeaseTime < 10.0,
     'запрошенная короткая аренда Long Poll не ограничила время занятого PHP worker'
+);
+
+$idleDb = new TrackingLongPollDatabaseManager();
+$idleTime = 0.0;
+$idleService = new MessengerLongPollService(
+    $idleDb,
+    static fn (int $userId): string => 'cursor-A',
+    static function () use (&$idleTime): float {
+        return $idleTime;
+    },
+    static function (int $microseconds) use (&$idleTime): void {
+        $idleTime += max(1.0, $microseconds / 1_000_000);
+    },
+    static fn (): int => 1,
+    static fn (int $userId): string => hash('sha256', '')
+);
+$idleService->waitForChange(42, 'cursor-A', null, 1, $emptyActivity, 5);
+assertMessengerLongPollBoundary(
+    $idleDb->releaseCalls >= 4,
+    'Long Poll не освобождает простаивающее соединение MySQL между тиками ожидания'
 );
 
 $time = 0.0;

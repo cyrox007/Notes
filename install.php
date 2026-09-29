@@ -2,11 +2,23 @@
 
 declare(strict_types=1);
 
-ini_set('display_errors', '0');
+if (PHP_VERSION_ID < 80100) {
+    http_response_code(500);
+    echo '<!doctype html><html lang="ru"><meta charset="utf-8"><title>Несовместимый PHP</title>'
+        . '<body><h1>Требуется PHP 8.1 или новее</h1><p>Сейчас сервер использует PHP '
+        . htmlspecialchars(PHP_VERSION, ENT_QUOTES, 'UTF-8')
+        . '. Выберите PHP 8.1+ в панели хостинга и повторите установку.</p></body></html>';
+    exit;
+}
+
+if (function_exists('ini_set')) {
+    @ini_set('display_errors', '0');
+}
 error_reporting(E_ALL);
 
 require_once __DIR__ . '/core/SecurityHeaders.php';
 require_once __DIR__ . '/core/PrivateStorageResolver.php';
+require_once __DIR__ . '/core/HostingCompatibility.php';
 \Core\SecurityHeaders::apply();
 
 function installerIsHttps(): bool
@@ -19,12 +31,20 @@ function installerIsHttps(): bool
     return in_array($https, ['on', '1', 'true'], true) || (int) ($_SERVER['SERVER_PORT'] ?? 0) === 443;
 }
 
+if (!function_exists('session_set_cookie_params') || !function_exists('session_start')) {
+    http_response_code(500);
+    exit('PHP session-функции недоступны. Этот тариф хостинга несовместим с установщиком.');
+}
+
 session_set_cookie_params([
     'httponly' => true,
     'secure' => installerIsHttps(),
     'samesite' => 'Lax',
 ]);
-session_start();
+if (!session_start()) {
+    http_response_code(500);
+    exit('PHP session storage недоступно. Проверьте session.save_path и права хостинга.');
+}
 
 $basePath = __DIR__;
 $envFile = $basePath . '/.env';
@@ -158,20 +178,12 @@ function defaultWebSocketUrl(string $siteUrl, string $basePath): string
 
 function installerFunctionAvailable(string $name): bool
 {
-    if (!function_exists($name)) {
-        return false;
-    }
-
-    $disabled = array_filter(
-        array_map('trim', explode(',', (string) ini_get('disable_functions')))
-    );
-
-    return !in_array($name, $disabled, true);
+    return \Core\HostingCompatibility::functionAvailable($name);
 }
 
 function installerLongPollTimeoutSeconds(): int
 {
-    $maxExecution = (int) ini_get('max_execution_time');
+    $maxExecution = (int) \Core\HostingCompatibility::iniValue('max_execution_time');
     if ($maxExecution <= 0) {
         return 15;
     }
@@ -181,21 +193,22 @@ function installerLongPollTimeoutSeconds(): int
 
 function installerIniBytes(string $name): int
 {
-    $raw = trim((string) ini_get($name));
-    if ($raw === '') {
-        return 0;
+    return \Core\HostingCompatibility::iniBytes(\Core\HostingCompatibility::iniValue($name));
+}
+
+function installerUploadTempWritable(): bool
+{
+    $configured = trim(\Core\HostingCompatibility::iniValue('upload_tmp_dir'));
+    if ($configured !== '') {
+        return is_dir($configured) && is_writable($configured);
     }
 
-    $unit = strtolower(substr($raw, -1));
-    $value = (float) $raw;
-    $multiplier = match ($unit) {
-        'g' => 1024 ** 3,
-        'm' => 1024 ** 2,
-        'k' => 1024,
-        default => 1,
-    };
+    if (!installerFunctionAvailable('sys_get_temp_dir')) {
+        return false;
+    }
 
-    return (int) floor($value * $multiplier);
+    $fallback = sys_get_temp_dir();
+    return is_string($fallback) && $fallback !== '' && is_dir($fallback) && is_writable($fallback);
 }
 
 /**
@@ -217,16 +230,15 @@ function installerOptionalCapabilities(string $basePath, array $packagedModules)
 
     $procOpen = installerFunctionAvailable('proc_open');
     $pcntl = installerFunctionAvailable('pcntl_fork');
-    $onlineUpdates = installerFunctionAvailable('stream_socket_client')
-        && function_exists('stream_context_create')
-        && (function_exists('dns_get_record') || function_exists('gethostbynamel'));
+    $httpsPrerequisites = \Core\HostingCompatibility::outboundHttpsPrerequisites();
+    $onlineUpdates = $httpsPrerequisites['ok'];
 
     return [
         'Онлайн-обновления через HTTPS' => [
             'available' => $onlineUpdates,
             'message' => $onlineUpdates
-                ? 'Встроенный updater может получать подписанные релизы без cURL и allow_url_fopen.'
-                : 'Установка работает, но встроенный updater не сможет скачать релиз. Нужны исходящие TLS sockets и DNS.',
+                ? 'Локальные PHP-предпосылки готовы. Фактический доступ к исходящему TCP/443 проверяется при обращении к серверу обновлений.'
+                : 'Установка работает, но встроенный updater не сможет скачать релиз: отсутствуют локальные TLS/DNS-предпосылки.',
         ],
         'WebSocket-ускоритель Messenger' => [
             'available' => $wsRuntime,
@@ -263,8 +275,8 @@ function openServerLocalWebSocketUrl(string $siteUrl, string $basePath): string
         return 'ws://' . $host . ':27800';
     }
 
-    // Native listener intentionally has no TLS. HTTPS local installs therefore
-    // still require the web server to terminate WSS on the same-origin /ws path.
+    // Native listener не завершает TLS. Для локальной HTTPS-установки WSS
+    // должен завершаться веб-сервером на same-origin пути /ws.
     return defaultWebSocketUrl($siteUrl, $basePath);
 }
 
@@ -272,7 +284,7 @@ function privateStorageCandidate(string $basePath): string
 {
     try {
         return (new \Core\PrivateStorageResolver($basePath))->candidate();
-    } catch (Throwable) {
+    } catch (Throwable $ignored) {
         return '';
     }
 }
@@ -289,7 +301,47 @@ function preparePrivateStorage(string $path, string $basePath): string
         @chmod($target, 0700);
     }
 
+    assertPrivateStorageFilesystemContract($real);
     return $real;
+}
+
+function assertPrivateStorageFilesystemContract(string $root): void
+{
+    foreach (['fopen', 'flock', 'rename', 'unlink'] as $function) {
+        if (!installerFunctionAvailable($function)) {
+            throw new RuntimeException('Private storage требует доступную PHP-функцию ' . $function);
+        }
+    }
+
+    $source = $root . DIRECTORY_SEPARATOR . '.hosting-fs-probe-' . bin2hex(random_bytes(6));
+    $target = $source . '.renamed';
+    $handle = @fopen($source, 'xb');
+    if ($handle === false) {
+        throw new RuntimeException('Private storage не позволяет создать lock-probe файл');
+    }
+
+    try {
+        if (!@flock($handle, LOCK_EX | LOCK_NB)) {
+            throw new RuntimeException('Файловая система private storage не поддерживает требуемый flock');
+        }
+        if (fwrite($handle, 'ok') !== 2 || !fflush($handle)) {
+            throw new RuntimeException('Private storage не обеспечивает надёжную запись lock-probe');
+        }
+        @flock($handle, LOCK_UN);
+        fclose($handle);
+        $handle = null;
+
+        if (!@rename($source, $target) || !is_file($target)) {
+            throw new RuntimeException('Private storage не поддерживает требуемый atomic rename');
+        }
+    } finally {
+        if (is_resource($handle)) {
+            @flock($handle, LOCK_UN);
+            fclose($handle);
+        }
+        @unlink($source);
+        @unlink($target);
+    }
 }
 
 function prepareRuntimeDirectories(string $basePath): void
@@ -328,6 +380,91 @@ function connectDatabaseServer(string $host, int $port, string $username, string
         $password,
         [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, PDO::ATTR_EMULATE_PREPARES => false]
     );
+}
+
+function assertDatabaseServerCompatibility(PDO $pdo): string
+{
+    $rawVersion = (string) $pdo->query('SELECT VERSION()')->fetchColumn();
+    $support = \Core\HostingCompatibility::databaseServerSupport($rawVersion);
+    if (!$support['supported']) {
+        throw new RuntimeException($support['message']);
+    }
+
+    return $support['message'];
+}
+
+function assertDatabaseSchemaPrivileges(PDO $pdo): void
+{
+    $suffix = substr(bin2hex(random_bytes(8)), 0, 16);
+    $table = 'wo_install_probe_' . $suffix;
+    $trigger = 'wo_install_trigger_' . $suffix;
+    $quotedTable = '`' . $table . '`';
+    $quotedTrigger = '`' . $trigger . '`';
+
+    try {
+        $pdo->exec(
+            'CREATE TABLE ' . $quotedTable
+            . ' (id INT NOT NULL PRIMARY KEY, marker INT NOT NULL DEFAULT 0) ENGINE=InnoDB'
+        );
+    } catch (Throwable $e) {
+        throw new RuntimeException(
+            'Пользователь БД не может создавать таблицы в выбранной базе. '
+            . 'Для установки нужны права CREATE, ALTER, INDEX, REFERENCES и DROP в собственной базе.',
+            0,
+            $e
+        );
+    }
+
+    try {
+        try {
+            $pdo->exec('ALTER TABLE ' . $quotedTable . ' ADD COLUMN probe_value INT NULL');
+        } catch (Throwable $e) {
+            throw new RuntimeException(
+                'Пользователь БД не имеет права ALTER, необходимого для обновлений схемы.',
+                0,
+                $e
+            );
+        }
+
+        try {
+            $pdo->exec(
+                'CREATE TRIGGER ' . $quotedTrigger
+                . ' BEFORE INSERT ON ' . $quotedTable
+                . ' FOR EACH ROW SET NEW.marker = 1'
+            );
+        } catch (Throwable $e) {
+            throw new RuntimeException(
+                'Пользователь БД не имеет права CREATE TRIGGER. '
+                . 'Текущая схема Workspace Organizer использует триггеры RBAC и истории заметок.',
+                0,
+                $e
+            );
+        }
+
+        $pdo->exec('INSERT INTO ' . $quotedTable . ' (id) VALUES (1)');
+        $marker = (int) $pdo->query(
+            'SELECT marker FROM ' . $quotedTable . ' WHERE id = 1'
+        )->fetchColumn();
+        if ($marker !== 1) {
+            throw new RuntimeException('Проверочный триггер БД не выполнился.');
+        }
+    } finally {
+        try {
+            $pdo->exec('DROP TRIGGER IF EXISTS ' . $quotedTrigger);
+        } catch (Throwable $ignored) {
+            // Основную ошибку не маскируем; ниже всё равно пытаемся убрать таблицу.
+        }
+        try {
+            $pdo->exec('DROP TABLE IF EXISTS ' . $quotedTable);
+        } catch (Throwable $e) {
+            throw new RuntimeException(
+                'Пользователь БД не может удалить проверочную таблицу. '
+                . 'Для безопасной установки и обновлений требуется право DROP.',
+                0,
+                $e
+            );
+        }
+    }
 }
 
 function connectOrCreateDatabase(string $host, int $port, string $database, string $username, string $password): PDO
@@ -494,6 +631,7 @@ function installerRequirements(string $basePath, array $schemaFiles, array $pack
         'PHP 8.1+' => version_compare(PHP_VERSION, '8.1.0', '>='),
         'Native core runtime' => is_file($basePath . '/core/Environment.php') && is_file($basePath . '/core/NativeViewRenderer.php'),
         'mbstring' => extension_loaded('mbstring'),
+        'ctype' => extension_loaded('ctype'),
         'pdo_mysql' => extension_loaded('pdo_mysql'),
         'mysqli' => extension_loaded('mysqli'),
         'sodium' => extension_loaded('sodium'),
@@ -503,7 +641,17 @@ function installerRequirements(string $basePath, array $schemaFiles, array $pack
         'gd' => extension_loaded('gd'),
         'Argon2id password hashing' => in_array('argon2id', password_algos(), true),
         'random_bytes' => function_exists('random_bytes'),
-        'HTTP file uploads' => filter_var(ini_get('file_uploads'), FILTER_VALIDATE_BOOLEAN),
+        'ini_get' => installerFunctionAvailable('ini_get'),
+        'getenv / putenv' => \Core\HostingCompatibility::processEnvironmentAvailable(),
+        'HTTP file uploads' => filter_var(
+            \Core\HostingCompatibility::iniValue('file_uploads'),
+            FILTER_VALIDATE_BOOLEAN
+        ),
+        'Writable PHP upload temp' => installerUploadTempWritable(),
+        'flock / atomic rename' => installerFunctionAvailable('flock')
+            && installerFunctionAvailable('rename')
+            && installerFunctionAvailable('fopen')
+            && installerFunctionAvailable('unlink'),
         'Запись .env в корень проекта' => is_writable($basePath),
         'Composition database schemas' => $schemaFiles !== [] && array_reduce(
             $schemaFiles,
@@ -513,12 +661,13 @@ function installerRequirements(string $basePath, array $schemaFiles, array $pack
     ];
     if (in_array('messenger', $packagedModules, true)) {
         $checks['HTTP Long Poll Messenger'] = installerFunctionAvailable('session_write_close')
-            && installerFunctionAvailable('usleep');
+            && installerFunctionAvailable('usleep')
+            && installerFunctionAvailable('connection_aborted');
     }
     try {
         prepareRuntimeDirectories($basePath);
         $checks['Writable runtime directories'] = true;
-    } catch (Throwable) {
+    } catch (Throwable $ignored) {
         $checks['Writable runtime directories'] = false;
     }
     return $checks;
@@ -582,7 +731,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             try {
                 $storageReal = preparePrivateStorage($privateStorage, $basePath);
                 $pdo = connectOrCreateDatabase($host, $port, $database, $username, $password);
+                assertDatabaseServerCompatibility($pdo);
                 $existing = existingTables($pdo);
+                if ($existing === []) {
+                    assertDatabaseSchemaPrivileges($pdo);
+                    $existing = existingTables($pdo);
+                }
                 $appTables = array_values(array_intersect($requiredTables, $existing));
                 $missing = array_values(array_diff($requiredTables, $existing));
                 if ($existing === []) {
@@ -700,17 +854,23 @@ if ($step === 1) {
     $uploadLimit = installerIniBytes('upload_max_filesize');
     $postLimit = installerIniBytes('post_max_size');
     if ($uploadLimit > 0 && $uploadLimit < $productUploadLimit) {
-        $warnings[] = 'upload_max_filesize ограничен значением ' . ini_get('upload_max_filesize')
+        $warnings[] = 'upload_max_filesize ограничен значением ' . \Core\HostingCompatibility::iniValue('upload_max_filesize')
             . ': фактический максимальный размер вложения будет ниже продуктового лимита 10 МБ.';
     }
     if ($postLimit > 0 && $postLimit < $productUploadLimit) {
-        $warnings[] = 'post_max_size ограничен значением ' . ini_get('post_max_size')
+        $warnings[] = 'post_max_size ограничен значением ' . \Core\HostingCompatibility::iniValue('post_max_size')
             . ': большие вложения не дойдут до приложения.';
     }
-    $maxFileUploads = (int) ini_get('max_file_uploads');
+    $maxFileUploads = (int) \Core\HostingCompatibility::iniValue('max_file_uploads');
     if ($maxFileUploads > 0 && $maxFileUploads < 10) {
         $warnings[] = 'max_file_uploads=' . $maxFileUploads
             . ': за один запрос можно будет загрузить меньше 10 вложений.';
+    }
+    $memoryLimit = \Core\HostingCompatibility::memoryLimitBytes();
+    if ($memoryLimit !== null && $memoryLimit < \Core\HostingCompatibility::RECOMMENDED_MEMORY_BYTES) {
+        $warnings[] = 'memory_limit=' . \Core\HostingCompatibility::iniValue('memory_limit')
+            . ': система запустится, но обработка крупных изображений и обновление могут упираться в память. '
+            . 'Рекомендуется не менее 128 МБ на PHP-процесс.';
     }
     if ($detectedOpenServer) {
         $warnings[] = 'OpenServer обнаружен: Messenger сразу работает через HTTP Long Poll. '

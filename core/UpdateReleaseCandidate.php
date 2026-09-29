@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace Core;
 
 require_once __DIR__ . '/UpdatePath.php';
+require_once __DIR__ . '/HostingCompatibility.php';
 
 use RuntimeException;
 use Throwable;
 
 /**
- * Extracts an already-audited signed update ZIP into an external release candidate.
- * Never writes to the live application tree.
+ * Распаковывает уже проверенный подписанный ZIP во внешний release candidate.
+ * Рабочее дерево приложения этот этап не изменяет.
  */
 final class UpdateReleaseCandidate
 {
@@ -40,6 +41,7 @@ final class UpdateReleaseCandidate
         $candidateRoot = $this->prepareExternalRoot($candidateRoot);
         $entries = $this->readEntries($archivePath);
         $archiveRoot = $this->assertSingleArchiveRoot($entries);
+        $this->assertCapacity($candidateRoot, $entries);
         $packageSha = hash_file('sha256', $archivePath);
         if (!is_string($packageSha)) {
             throw new RuntimeException('Cannot hash update package before extraction');
@@ -95,6 +97,36 @@ final class UpdateReleaseCandidate
             }
             $this->removeTree($tempDir);
             throw $e;
+        }
+    }
+
+    /** @param list<array{name:string,uncompressed:int,directory:bool}> $entries */
+    private function assertCapacity(string $candidateRoot, array $entries): void
+    {
+        $freeBytes = HostingCompatibility::freeDiskBytes($candidateRoot);
+        if ($freeBytes === null) {
+            return;
+        }
+
+        $uncompressed = 0;
+        foreach ($entries as $entry) {
+            if (!$entry['directory']) {
+                $uncompressed += max(0, (int) $entry['uncompressed']);
+            }
+        }
+        $requiredBytes = max(
+            64 * 1024 * 1024,
+            $uncompressed + (32 * 1024 * 1024)
+        );
+
+        if ($freeBytes < $requiredBytes) {
+            throw new RuntimeException(
+                sprintf(
+                    'Недостаточно свободного места для release candidate: доступно %.1f МБ, требуется не менее %.1f МБ',
+                    $freeBytes / 1048576,
+                    $requiredBytes / 1048576
+                )
+            );
         }
     }
 
