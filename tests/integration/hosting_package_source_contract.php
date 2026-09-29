@@ -63,12 +63,12 @@ hostingPackageAssert(
 );
 
 hostingPackageAssert(
-    str_contains($workflow, 'bootstrap-1.0.2-updater.php')
-        && str_contains($workflow, 'UPDATE_102_BOOTSTRAP=')
-        && str_contains($workflow, 'UPDATE_102_BOOTSTRAP_CHECKSUM=')
-        && str_contains($workflow, '${{ env.UPDATE_102_BOOTSTRAP }}')
-        && str_contains($workflow, '${{ env.UPDATE_102_BOOTSTRAP_CHECKSUM }}'),
-    'релизный artifact должен содержать отдельный bootstrap 1.0.2 и его SHA-256'
+    !str_contains($workflow, 'bootstrap-1.0.2-updater.php')
+        && !str_contains($workflow, 'UPDATE_102_BOOTSTRAP=')
+        && !str_contains($workflow, 'UPDATE_102_BOOTSTRAP_CHECKSUM=')
+        && !str_contains($workflow, '${{ env.UPDATE_102_BOOTSTRAP }}')
+        && !str_contains($workflow, '${{ env.UPDATE_102_BOOTSTRAP_CHECKSUM }}'),
+    'новые релизы не должны публиковать устаревший bootstrap 1.0.2 отдельными assets'
 );
 hostingPackageAssert(
     str_contains($workflow, "--exclude 'tests'")
