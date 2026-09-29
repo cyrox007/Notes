@@ -95,7 +95,9 @@ class Controller
         $socketUrl = '';
         if (!empty($workspaceAccess['messenger'])) {
             try {
-                $socketUrl = WebSocketEndpoint::browserUrl();
+                if (WebSocketEndpoint::enabled()) {
+                    $socketUrl = WebSocketEndpoint::browserUrl();
+                }
             } catch (\Throwable $e) {
                 error_log('Global Messenger endpoint is unavailable: ' . $e->getMessage());
             }
