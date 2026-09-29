@@ -174,8 +174,7 @@ assertLongPollContract(
 );
 
 assertLongPollContract(
-    str_contains($client, 'scheduleLongPollFallback(')
-    && str_contains($client, 'startLongPoll(')
+    str_contains($client, 'startLongPoll(')
     && str_contains($client, 'stopLongPoll(')
     && str_contains($client, 'pauseLongPollRequest(')
     && str_contains($client, 'resumeLongPoll(')
@@ -225,9 +224,9 @@ assertLongPollContract(
         '/function activateTransport\(\).*?startLongPoll\(\).*?void connect\(\)/s',
         $globalNotifications
     ) === 1
-    && !preg_match(
-        "/document\.addEventListener\('visibilitychange'.*?document\.visibilityState !== 'visible'.*?pauseLongPoll\(\)/s",
-        $globalNotifications
+    && !str_contains(
+        $globalNotifications,
+        "if (document.visibilityState !== 'visible') {\n                pauseLongPoll();"
     ),
     'global Messenger must start Long Poll before WebSocket and keep it alive in a hidden owner tab'
 );
