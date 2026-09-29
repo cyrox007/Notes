@@ -8,6 +8,28 @@ use InvalidArgumentException;
 
 final class WebSocketEndpoint
 {
+    public static function enabled(): bool
+    {
+        $raw = trim((string) (getenv('WS_ENABLED') ?: ''));
+        if ($raw === '') {
+            // Старые установки до появления WS_ENABLED сохраняют прежнее
+            // поведение: WebSocket остаётся включённым.
+            return true;
+        }
+
+        $normalized = strtolower($raw);
+        if (in_array($normalized, ['1', 'true', 'yes', 'on'], true)) {
+            return true;
+        }
+        if (in_array($normalized, ['0', 'false', 'no', 'off'], true)) {
+            return false;
+        }
+
+        throw new InvalidArgumentException(
+            'WS_ENABLED должен быть одним из: 1/0, true/false, yes/no, on/off'
+        );
+    }
+
     public static function bindHost(): string
     {
         $host = trim((string) (getenv('WS_HOST') ?: '127.0.0.1'));
