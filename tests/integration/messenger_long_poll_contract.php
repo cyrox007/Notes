@@ -110,6 +110,8 @@ assertLongPollContract(
 );
 assertLongPollContract(
     str_contains($service, 'MESSENGER_LONG_POLL_TIMEOUT_SECONDS')
+    && str_contains($service, 'requestedTimeoutSeconds')
+    && str_contains($controller, "request->get('wait_seconds'")
     && str_contains($controller, 'connection_aborted()'),
     'long-poll wait must be bounded and abort-aware'
 );
@@ -215,6 +217,7 @@ assertLongPollContract(
 );
 assertLongPollContract(
     str_contains($globalNotifications, '/messenger/realtime/poll')
+    && str_contains($globalNotifications, "query.set('wait_seconds', '5')")
     && str_contains($globalNotifications, 'LONG_POLL_WATCHDOG_MS')
     && str_contains($globalNotifications, 'startLongPoll()')
     && str_contains($globalNotifications, 'stopLongPoll()')
