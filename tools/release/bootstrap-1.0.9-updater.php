@@ -30,8 +30,9 @@ $environmentPath = $root . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 
 $compatibilityPath = $root . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'HostingCompatibility.php';
 $runtimePath = $root . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'UpdateExternalRuntime.php';
 $webTransactionPath = $root . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'UpdateWebTransaction.php';
+$applyCommandPath = $root . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'UpdateApplyCommand.php';
 
-foreach ([$versionPath, $environmentPath, $compatibilityPath, $runtimePath, $webTransactionPath] as $requiredPath) {
+foreach ([$versionPath, $environmentPath, $compatibilityPath, $runtimePath, $webTransactionPath, $applyCommandPath] as $requiredPath) {
     if (!is_file($requiredPath) || is_link($requiredPath) || !is_readable($requiredPath)) {
         fwrite(STDERR, "Не найден обязательный файл exact-установки 1.0.9: {$requiredPath}\n");
         exit(2);
@@ -42,11 +43,13 @@ $versionSource = file_get_contents($versionPath);
 $environmentSource = file_get_contents($environmentPath);
 $runtimeOriginal = file_get_contents($runtimePath);
 $webTransactionOriginal = file_get_contents($webTransactionPath);
+$applyCommandOriginal = file_get_contents($applyCommandPath);
 if (
     !is_string($versionSource)
     || !is_string($environmentSource)
     || !is_string($runtimeOriginal)
     || !is_string($webTransactionOriginal)
+    || !is_string($applyCommandOriginal)
 ) {
     fwrite(STDERR, "Не удалось прочитать файлы updater 1.0.9.\n");
     exit(2);
@@ -109,7 +112,33 @@ if (!str_contains($webTransactionPatched, $fixedMaintenanceImport)) {
     }
 }
 
-if ($runtimePatched === $runtimeOriginal && $webTransactionPatched === $webTransactionOriginal) {
+$applyDependency = "require_once __DIR__ . '/UpdateLiveApplier.php';";
+$applyAnchor = "require_once __DIR__ . '/UpdateApplyOperationLock.php';";
+$applyCommandPatched = $applyCommandOriginal;
+
+if (!str_contains($applyCommandPatched, $applyDependency)) {
+    if (!str_contains($applyCommandPatched, $applyAnchor)) {
+        fwrite(STDERR, "UpdateApplyCommand.php не соответствует известной exact-схеме 1.0.9; изменение отменено.\n");
+        exit(4);
+    }
+
+    $applyCommandPatched = str_replace(
+        $applyAnchor,
+        $applyAnchor . "\n" . $applyDependency,
+        $applyCommandOriginal,
+        $applyDependencyReplacements
+    );
+    if ($applyDependencyReplacements !== 1) {
+        fwrite(STDERR, "Не удалось однозначно добавить зависимость UpdateLiveApplier в updater 1.0.9.\n");
+        exit(4);
+    }
+}
+
+if (
+    $runtimePatched === $runtimeOriginal
+    && $webTransactionPatched === $webTransactionOriginal
+    && $applyCommandPatched === $applyCommandOriginal
+) {
     fwrite(STDOUT, "Bootstrap уже применён: updater 1.0.9 содержит все исправления совместимости.\n");
     exit(0);
 }
@@ -117,6 +146,7 @@ if ($runtimePatched === $runtimeOriginal && $webTransactionPatched === $webTrans
 $patches = [
     [$runtimePath, $runtimePatched, 'UpdateExternalRuntime.php'],
     [$webTransactionPath, $webTransactionPatched, 'UpdateWebTransaction.php'],
+    [$applyCommandPath, $applyCommandPatched, 'UpdateApplyCommand.php'],
 ];
 
 foreach ($patches as [$path, $contents, $label]) {
@@ -143,11 +173,14 @@ foreach ($patches as [$path, $contents, $label]) {
 
 $runtimeWritten = file_get_contents($runtimePath);
 $webTransactionWritten = file_get_contents($webTransactionPath);
+$applyCommandWritten = file_get_contents($applyCommandPath);
 if (
     !is_string($runtimeWritten)
     || !str_contains($runtimeWritten, $runtimeFixedNeedle)
     || !is_string($webTransactionWritten)
     || !str_contains($webTransactionWritten, $fixedMaintenanceImport)
+    || !is_string($applyCommandWritten)
+    || !str_contains($applyCommandWritten, $applyDependency)
 ) {
     fwrite(STDERR, "Проверка записанных bootstrap-исправлений updater 1.0.9 не пройдена.\n");
     exit(5);
@@ -155,7 +188,7 @@ if (
 
 fwrite(
     STDOUT,
-    "Bootstrap применён. Updater 1.0.9 теперь формирует замкнутый автономный runtime "
-    . "и корректно загружает MaintenanceModeService. Продолжите обновление обычной кнопкой "
+    "Bootstrap применён. Updater 1.0.9 теперь формирует замкнутый автономный runtime, "
+    . "корректно загружает MaintenanceModeService и UpdateLiveApplier. Продолжите обновление обычной кнопкой "
     . "в Workspace Organizer.\n"
 );
