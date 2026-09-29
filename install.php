@@ -25,7 +25,10 @@ session_set_cookie_params([
     'secure' => installerIsHttps(),
     'samesite' => 'Lax',
 ]);
-session_start();
+if (!session_start()) {
+    http_response_code(500);
+    exit('PHP session storage недоступно. Проверьте session.save_path и права хостинга.');
+}
 
 $basePath = __DIR__;
 $envFile = $basePath . '/.env';
@@ -538,6 +541,7 @@ function installerRequirements(string $basePath, array $schemaFiles, array $pack
         'PHP 8.1+' => version_compare(PHP_VERSION, '8.1.0', '>='),
         'Native core runtime' => is_file($basePath . '/core/Environment.php') && is_file($basePath . '/core/NativeViewRenderer.php'),
         'mbstring' => extension_loaded('mbstring'),
+        'ctype' => extension_loaded('ctype'),
         'pdo_mysql' => extension_loaded('pdo_mysql'),
         'mysqli' => extension_loaded('mysqli'),
         'sodium' => extension_loaded('sodium'),
@@ -567,7 +571,8 @@ function installerRequirements(string $basePath, array $schemaFiles, array $pack
     ];
     if (in_array('messenger', $packagedModules, true)) {
         $checks['HTTP Long Poll Messenger'] = installerFunctionAvailable('session_write_close')
-            && installerFunctionAvailable('usleep');
+            && installerFunctionAvailable('usleep')
+            && installerFunctionAvailable('connection_aborted');
     }
     try {
         prepareRuntimeDirectories($basePath);
