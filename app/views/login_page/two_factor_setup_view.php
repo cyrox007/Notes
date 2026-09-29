@@ -39,14 +39,34 @@ ob_start();
                 </div>
             <?php endif; ?>
 
-            <div class="form-group">
-                <label>Секретный ключ</label>
-                <code><?= $view->e($secret) ?></code>
+            <div class="totp-enrollment">
+                <div class="totp-enrollment__qr">
+                    <div
+                        class="totp-qr"
+                        data-totp-qr
+                        data-otpauth-uri="<?= $view->e($uri) ?>"
+                        aria-live="polite"
+                    >
+                        Подготавливаем QR-код…
+                    </div>
+                    <p class="totp-enrollment__hint">
+                        Отсканируйте QR-код приложением-аутентификатором на телефоне.
+                    </p>
+                </div>
+                <div class="totp-enrollment__manual">
+                    <p><strong>Не получается отсканировать?</strong> Введите секретный ключ вручную.</p>
+                    <div class="form-group">
+                        <label>Секретный ключ</label>
+                        <code class="totp-enrollment__secret"><?= $view->e($secret) ?></code>
+                    </div>
+                    <p class="login-link">
+                        <a href="<?= $view->e($uri) ?>">Открыть в приложении-аутентификаторе</a>
+                    </p>
+                    <p class="login-page__subtitle">
+                        QR-код строится локально в браузере. Секрет не отправляется внешним сервисам.
+                    </p>
+                </div>
             </div>
-            <p class="login-link">
-                <a href="<?= $view->e($uri) ?>">Открыть в приложении-аутентификаторе</a>
-            </p>
-            <p class="login-page__subtitle">Секрет не отправляется внешнему сервису QR-кодов.</p>
 
             <form action="<?= $view->e($view->route('auth_two_factor_setup_confirm')) ?>" method="post" autocomplete="off">
                 <?= $view->csrfInput() ?>
@@ -75,4 +95,6 @@ echo $view->layout('login_page/login_layout', [
     'title' => 'Обязательная двухфакторная аутентификация',
     'sitename' => $siteName,
     'base_url' => $base_url ?? '',
+    'page_styles' => ['assets/css/totp-qr.css'],
+    'page_scripts' => ['assets/js/totp-qr.js'],
 ], $content);
