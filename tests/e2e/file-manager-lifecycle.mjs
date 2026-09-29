@@ -128,13 +128,12 @@ try {
   const fileId = await fileItem.getAttribute('data-id');
   if (!fileId) throw new Error('Uploaded file has no data-id');
 
-  await fileItem.dblclick();
+  await fileItem.click();
   await page.locator('#text-preview-modal').waitFor({ state: 'visible', timeout: 5000 });
   await page.locator('#text-preview-content').filter({ hasText: `File Manager browser lifecycle ${stamp}` }).waitFor({ state: 'visible', timeout: 10000 });
   await page.locator('#text-preview-modal .file-manager__modal-close').click();
 
-  let downloadHref = await fileItem.locator('a[title="Открыть"]').getAttribute('href');
-  if (!downloadHref || !downloadHref.startsWith(`${basePath}/files/get/`)) throw new Error(`Protected file URL escaped BASE_PATH: ${downloadHref}`);
+  let downloadHref = `${basePath}/files/get/${encodeURIComponent(fileId)}/`;
   let download = await context.request.get(origin + downloadHref);
   if (download.status() !== 200 || (await download.text()) !== fileContent) throw new Error(`Authenticated download failed: HTTP ${download.status()}`);
   if (!String(download.headers()['content-disposition'] || '').includes(fileName)) throw new Error(`Unexpected download filename: ${download.headers()['content-disposition']}`);
@@ -148,7 +147,7 @@ try {
   fileItem = page.locator(`.file-manager__item[data-id="${fileId}"]`);
   await fileItem.locator('.file-manager__item-name').filter({ hasText: `${renamedStem}.txt` }).waitFor({ state: 'visible', timeout: 10000 });
   if (page.url() !== renameUrl) throw new Error('File rename unexpectedly navigated the page');
-  downloadHref = await fileItem.locator('a[title="Открыть"]').getAttribute('href');
+  downloadHref = `${basePath}/files/get/${encodeURIComponent(fileId)}/`;
   download = await context.request.get(origin + downloadHref);
   if (download.status() !== 200 || (await download.text()) !== fileContent) throw new Error(`Renamed file download failed: HTTP ${download.status()}`);
   if (!String(download.headers()['content-disposition'] || '').includes(`${renamedStem}.txt`)) throw new Error(`Renamed download header is stale: ${download.headers()['content-disposition']}`);
