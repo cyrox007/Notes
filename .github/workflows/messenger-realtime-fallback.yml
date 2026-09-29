@@ -12,6 +12,7 @@ on:
       - 'assets/js/messenger-tab-coordinator.js'
       - 'tests/integration/messenger_long_poll_**'
       - 'tests/integration/messenger_global_transport_runtime.mjs'
+      - 'tests/integration/messenger_transport_parity_runtime.mjs'
       - 'tests/integration/messenger_tab_coordinator_runtime.mjs'
       - '.github/workflows/messenger-realtime-fallback.yml'
   workflow_dispatch:
@@ -56,6 +57,7 @@ jobs:
           node --check tests/integration/messenger_long_poll_composer_runtime.mjs
           node --check tests/integration/messenger_long_poll_resilience_runtime.mjs
           node --check tests/integration/messenger_global_transport_runtime.mjs
+          node --check tests/integration/messenger_transport_parity_runtime.mjs
           node --check tests/integration/messenger_tab_coordinator_runtime.mjs
 
       - name: Проверить контракт резервного транспорта
@@ -72,6 +74,9 @@ jobs:
 
       - name: Проверить постоянный глобальный transport
         run: node tests/integration/messenger_global_transport_runtime.mjs
+
+      - name: Проверить паритет функций Long Poll и WebSocket
+        run: node tests/integration/messenger_transport_parity_runtime.mjs
 
       - name: Проверить activity через оба транспорта
         run: php tests/integration/messenger_activity_wiring_contract.php
