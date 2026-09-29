@@ -40,6 +40,7 @@ final class UpdateExternalRuntime
         'core/SecurityEventLog.php',
         'core/MigrationManifest.php',
         'core/UpdateMigrationPreflight.php',
+        'core/UpdateCommandRunner.php',
         'core/UpdateProcessRunner.php',
         'core/UpdateCandidateVerifier.php',
         'core/UpdateCodeSwitcher.php',

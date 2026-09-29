@@ -500,7 +500,7 @@ abstract class ORM {
     private function getConnection(): PDO {
         if (self::$connectionCache === null) {
             $this->log("[getConnection] Создание нового соединения с БД");
-            self::$connectionCache = DatabaseControll::connect();
+            self::$connectionCache = DatabaseManager::getInstance()->getPdo();
         } else {
             $this->log("[getConnection] Использование кэшированного соединения", 'DEBUG');
         }

@@ -30,7 +30,7 @@ putenv('DBUSER=' . getenv('DBUSER'));
 putenv('DBPASS=' . getenv('DBPASS'));
 putenv('DBNAME=' . getenv('DBNAME'));
 
-require SITEPATH . '/core/config.php';
+require SITEPATH . '/core/Config.php';
 require SITEPATH . '/core/DatabaseManager.php';
 require SITEPATH . '/app/services/PermissionService.php';
 require SITEPATH . '/app/services/RolePolicyService.php';

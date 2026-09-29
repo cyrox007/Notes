@@ -6,6 +6,7 @@ foreach ([
     '/ProfileCapability.php',
     '/services/ProfileMetricsService.php',
     '/services/ProfilePublicationService.php',
+    '/services/AvatarImageProcessor.php',
     '/services/UserAvatarService.php',
     '/middlewares/RequireProfileUse.php',
     '/controllers/ProfileController.php',

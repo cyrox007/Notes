@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../../core/request.php';
+require_once __DIR__ . '/../../core/Request.php';
 require_once __DIR__ . '/../../core/ViewRenderer.php';
 require_once __DIR__ . '/../../core/ViewContext.php';
 require_once __DIR__ . '/../../core/NativeViewRenderer.php';

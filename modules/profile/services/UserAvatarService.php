@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Services;
 
 use Core\DatabaseManager;
-use Core\Images;
 use InvalidArgumentException;
 use RuntimeException;
 
@@ -55,9 +54,7 @@ final class UserAvatarService
         $finalPath = $directory . DIRECTORY_SEPARATOR . 'avatar.jpg';
 
         try {
-            Images::loadImage($tmp)
-                ->processImage(256, 256)
-                ->saveImage($tempPath, IMAGETYPE_JPEG, 85, 0600);
+            (new AvatarImageProcessor())->writeSquareJpeg($tmp, $tempPath, 256, 85);
 
             if (!is_file($tempPath) || filesize($tempPath) === 0) {
                 throw new RuntimeException('Не удалось обработать изображение аватара');

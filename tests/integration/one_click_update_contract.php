@@ -85,12 +85,15 @@ updateNotificationAssert(
     'Сервис не выполняет проверку и установку последнего релиза одним действием'
 );
 updateNotificationAssert(
-    str_contains($installer, "'proc_open для автоматических обновлений'"),
-    'Установщик не проверяет возможность запуска обновлятора'
+    !str_contains($installer, "'proc_open для автоматических обновлений'")
+        && !str_contains($installer, "'PHP CLI для автоматических обновлений'"),
+    'Установщик не должен блокировать shared hosting из-за process API или PHP CLI'
 );
 updateNotificationAssert(
-    str_contains($installer, "'PHP CLI для автоматических обновлений'"),
-    'Установщик не проверяет доступность PHP CLI'
+    str_contains($service, 'beginWebApply')
+        && str_contains($service, 'stepWebApply')
+        && str_contains($service, 'applyWebSynchronously'),
+    'Однокнопочная установка потеряла совместимый web-режим'
 );
 updateNotificationAssert(
     str_contains($installer, "'openssl' => extension_loaded('openssl')"),

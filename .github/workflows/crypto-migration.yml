@@ -83,7 +83,7 @@ jobs:
           php <<'PHP' > /tmp/crypto-fixtures.sql
           <?php
           declare(strict_types=1);
-          require 'core/config.php';
+          require 'core/Config.php';
           require 'core/DatabaseManager.php';
           require 'app/handlers/CryptMethods.php';
           require 'modules/messenger/handlers/MessengerCrypto.php';
@@ -155,7 +155,7 @@ jobs:
           php -r '$d=json_decode(file_get_contents("/tmp/crypto-messenger.json"),true,512,JSON_THROW_ON_ERROR); $r=$d["results"]["messenger"]; if ($r["current"]!==1 || $r["migrated"]!==1 || $r["failed"]!==0) exit(1);'
           php <<'PHP'
           <?php
-          require 'core/config.php'; require 'core/DatabaseManager.php'; require 'modules/messenger/handlers/MessengerCrypto.php';
+          require 'core/Config.php'; require 'core/DatabaseManager.php'; require 'modules/messenger/handlers/MessengerCrypto.php';
           $rows=\Core\DatabaseManager::getInstance()->fetchAll('SELECT uid,message FROM messages ORDER BY id');
           $plain=array_map(fn($r)=>\App\Helpers\MessengerCrypto::decrypt($r['message'],$r['uid']),$rows);
           if ($plain !== ['current messenger','legacy messenger']) throw new RuntimeException('messenger plaintext mismatch');
@@ -181,7 +181,7 @@ jobs:
 
           php <<'PHP'
           <?php
-          require 'core/config.php'; require 'core/DatabaseManager.php'; require 'app/handlers/CryptMethods.php';
+          require 'core/Config.php'; require 'core/DatabaseManager.php'; require 'app/handlers/CryptMethods.php';
           $rows=\Core\DatabaseManager::getInstance()->fetchAll('SELECT uid,content,is_encrypted FROM notes ORDER BY id');
           $expected=['current note','legacy double note','known plaintext note','unknown legacy plaintext'];
           foreach ($rows as $i=>$row) {

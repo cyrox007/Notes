@@ -6,25 +6,45 @@ namespace Core;
 
 use RuntimeException;
 
+require_once __DIR__ . '/UpdateCommandRunner.php';
+
 /**
- * Small process boundary for updater CLI probes and migration commands.
+ * Исполнитель внутренних команд обновлятора в отдельном процессе.
  *
- * UpdateApplyCommand owns orchestration/state transitions; this class owns
- * proc_open lifecycle, bounded output collection and timeout termination.
+ * Оркестрация и переходы транзакции остаются в UpdateApplyCommand. Этот класс
+ * отвечает только за proc_open, ограниченный сбор вывода и timeout процесса.
  */
-final class UpdateProcessRunner
+final class UpdateProcessRunner implements UpdateCommandRunner
 {
+    public static function available(): bool
+    {
+        if (!function_exists('proc_open')) {
+            return false;
+        }
+
+        $disabled = array_filter(
+            array_map('trim', explode(',', (string) ini_get('disable_functions')))
+        );
+
+        return !in_array('proc_open', $disabled, true)
+            && function_exists('proc_get_status')
+            && function_exists('proc_close');
+    }
+
     /**
      * @param list<string> $command
      * @return array{code:int,stdout:string,stderr:string}
      */
     public function run(array $command, string $cwd, int $timeoutSeconds): array
     {
+        if (!self::available()) {
+            throw new RuntimeException('Запуск дочерних процессов недоступен в текущем PHP');
+        }
         if ($command === []) {
-            throw new RuntimeException('Updater command cannot be empty');
+            throw new RuntimeException('Команда обновлятора не может быть пустой');
         }
         if ($timeoutSeconds < 1) {
-            throw new RuntimeException('Updater command timeout must be positive');
+            throw new RuntimeException('Timeout команды обновлятора должен быть положительным');
         }
 
         $descriptors = [
@@ -35,7 +55,7 @@ final class UpdateProcessRunner
 
         $process = @proc_open($command, $descriptors, $pipes, $cwd, null, ['bypass_shell' => true]);
         if (!is_resource($process)) {
-            throw new RuntimeException('Unable to start updater command');
+            throw new RuntimeException('Не удалось запустить внутреннюю команду обновлятора');
         }
 
         fclose($pipes[0]);
@@ -92,6 +112,6 @@ final class UpdateProcessRunner
     public function failureDetails(array $result): string
     {
         $details = trim($result['stderr']) !== '' ? trim($result['stderr']) : trim($result['stdout']);
-        return $details !== '' ? $details : 'exit code ' . $result['code'];
+        return $details !== '' ? $details : 'код завершения ' . $result['code'];
     }
 }

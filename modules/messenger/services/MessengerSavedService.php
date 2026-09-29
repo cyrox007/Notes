@@ -6,7 +6,7 @@ namespace App\Services;
 
 use Core\DatabaseManager;
 use DomainException;
-use UUID;
+use Core\Uuid;
 
 final class MessengerSavedService
 {
@@ -55,7 +55,7 @@ final class MessengerSavedService
                 return (new MessengerService($this->db))->getDialogInfo($userUid, $dialogUid);
             }
 
-            $dialogUid = UUID::v4();
+            $dialogUid = Uuid::v4();
             $now = date('Y-m-d H:i:s');
             $this->db->execute(
                 'INSERT INTO dialogs (uid, type, name, created_by, created_at, updated_at)

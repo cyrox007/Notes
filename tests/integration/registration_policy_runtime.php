@@ -3,10 +3,10 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__, 2);
-require_once $root . '/core/config.php';
+require_once $root . '/core/Config.php';
 require_once $root . '/core/DatabaseManager.php';
 require_once $root . '/app/handlers/CryptMethods.php';
-require_once $root . '/app/handlers/UUID.php';
+require_once $root . '/core/Uuid.php';
 require_once $root . '/app/services/PermissionService.php';
 require_once $root . '/app/services/UserProvisioningService.php';
 require_once $root . '/app/services/RegistrationPolicyService.php';

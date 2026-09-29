@@ -10,7 +10,10 @@ use Throwable;
 
 require_once __DIR__ . '/UpdatePhpCli.php';
 require_once __DIR__ . '/UpdateProcessRunner.php';
+require_once __DIR__ . '/UpdateInProcessRunner.php';
+require_once __DIR__ . '/UpdateApplyCommand.php';
 require_once __DIR__ . '/UpdateCoordinatorLock.php';
+require_once __DIR__ . '/UpdateWebContinuation.php';
 require_once __DIR__ . '/UpdateTransactionJournal.php';
 require_once __DIR__ . '/UpdateExternalRuntime.php';
 
@@ -78,6 +81,24 @@ final class UpdateAutomaticRecovery
         }
 
         try {
+            if ((new UpdateWebContinuation($stateRoot))->active($transactionId)) {
+                return $this->result(
+                    'in_progress',
+                    $transactionId,
+                    'web_update_in_progress',
+                    'Пошаговое web-обновление ещё выполняется'
+                );
+            }
+        } catch (Throwable $e) {
+            return $this->result(
+                'failed',
+                $transactionId,
+                'web_continuation_state_failed',
+                $e->getMessage()
+            );
+        }
+
+        try {
             $coordinatorLock = new UpdateCoordinatorLock($stateRoot, $transactionId);
         } catch (UpdateCoordinatorBusyException) {
             return $this->result(
@@ -93,6 +114,60 @@ final class UpdateAutomaticRecovery
         try {
             $journalState = (new UpdateTransactionJournal($stateRoot, $this->appRoot))
                 ->load($transactionId);
+
+            if ($this->processInvoker === null && !UpdateProcessRunner::available()) {
+                $backupDir = is_array($journalState['backups'] ?? null)
+                    ? trim((string) ($journalState['backups']['backup_dir'] ?? ''))
+                    : '';
+
+                $options = [
+                    'transaction' => $transactionId,
+                    'recover' => true,
+                    'state-root' => $stateRoot,
+                ];
+                if ($backupDir !== '') {
+                    $options['backup-root'] = dirname($backupDir);
+                }
+
+                $payload = (new UpdateApplyCommand(
+                    $this->appRoot,
+                    true,
+                    new UpdateInProcessRunner()
+                ))->execute($options);
+
+                $status = (string) ($payload['status'] ?? '');
+                if (!in_array($status, [
+                    'rolled_back',
+                    'rollback_recovery_verified',
+                    'committed_recovery_verified',
+                    'recovered_without_live_mutation',
+                ], true)) {
+                    return $this->result(
+                        'failed',
+                        $transactionId,
+                        'unexpected_recovery_result',
+                        'Восстановление вернуло неподдерживаемое состояние'
+                    );
+                }
+
+                $after = $maintenance->state();
+                if ($after['active']) {
+                    return $this->result(
+                        'failed',
+                        $transactionId,
+                        'maintenance_still_active',
+                        'Восстановление завершилось, но режим обслуживания остался активным'
+                    );
+                }
+
+                return $this->result(
+                    'recovered',
+                    $transactionId,
+                    $status,
+                    'Оборванное обновление автоматически восстановлено в web-режиме'
+                );
+            }
+
             $recordedRuntime = $journalState['external_runtime'] ?? null;
             $runtime = null;
             if (is_array($recordedRuntime)) {

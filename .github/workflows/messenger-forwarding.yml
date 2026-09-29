@@ -85,9 +85,9 @@ jobs:
           putenv('PRIVATE_STORAGE_PATH=/tmp/notes-forwarding-private');
           putenv('MESSENGER_SEARCH_SCAN_LIMIT=500');
 
-          require __DIR__ . '/core/config.php';
+          require __DIR__ . '/core/Config.php';
           require __DIR__ . '/core/DatabaseManager.php';
-          require __DIR__ . '/app/handlers/UUID.php';
+          require __DIR__ . '/core/Uuid.php';
           require __DIR__ . '/modules/messenger/handlers/MessengerCrypto.php';
           require __DIR__ . '/modules/messenger/services/MessengerService.php';
           require __DIR__ . '/modules/messenger/services/MessengerMediaService.php';

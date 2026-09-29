@@ -92,7 +92,7 @@ try {
     if (UpdateDownloadCredentials::accessMode() !== 'offline') {
         require_once $root . '/core/RuntimeAutoloader.php';
         \Core\RuntimeAutoloader::register($root);
-        require_once $root . '/core/config.php';
+        require_once $root . '/core/Config.php';
 
         // Для 1.0.2+ штатная CLI-проверка использует тот же автоматический
         // bootstrap по установленной лицензии, что и Admin UI. Готовый

@@ -2,7 +2,7 @@ name: Stable release gate
 
 on:
   pull_request:
-    branches: [master, '1.0']
+    branches: [master, '1.0', 'release/1.0.7-rc']
   push:
     branches: [master, '1.0']
   workflow_dispatch:
@@ -114,7 +114,9 @@ jobs:
           php tests/integration/one_click_update_contract.php
           php tests/integration/automatic_update_recovery_contract.php
           php tests/integration/updater_preapply_crash_recovery_contract.php
+          php tests/integration/updater_web_mode_contract.php
           node --check assets/js/update-notifications.js
+          node --check modules/admin/assets/admin-updates.js
 
       - name: Verify hosting package source contract
         run: php tests/integration/hosting_package_source_contract.php
@@ -137,14 +139,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.6'
-          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10006'
+          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.7'
+          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10007'
           test "$(php -r "require 'core/Version.php'; echo Core\\Version::STATUS;")" = 'stable'
-          test "$(php -r "require 'core/Version.php'; echo Core\\Version::RELEASE_DATE;")" = '2026-09-27'
-          grep -Fq '**Версия:** `1.0.6`' README.md
-          grep -Fq '## 1.0.6 — 2026-09-27' CHANGELOG.md
-          test -s docs/releases/v1.0.6.md
-          grep -Fq '# Workspace Organizer 1.0.6' docs/releases/v1.0.6.md
+          test "$(php -r "require 'core/Version.php'; echo Core\\Version::RELEASE_DATE;")" = '2026-09-28'
+          grep -Fq '**Версия:** `1.0.7`' README.md
+          grep -Fq '## 1.0.7 — 2026-09-28' CHANGELOG.md
+          test -s docs/releases/v1.0.7.md
+          grep -Fq '# Workspace Organizer 1.0.7' docs/releases/v1.0.7.md
 
       - name: Verify migration manifest contract
         shell: bash
@@ -311,4 +313,4 @@ jobs:
           test -f "$bundle/core/UpdateCoordinatorLock.php"
           test -f "$bundle/core/UpdateBootRecoveryGate.php"
           test -f "$bundle/database/migrations/manifest.json"
-          test -f "$bundle/docs/releases/v1.0.6.md"
+          test -f "$bundle/docs/releases/v1.0.7.md"

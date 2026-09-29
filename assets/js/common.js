@@ -142,7 +142,7 @@
 
         function setupActiveNavigation() {
             const currentPath = normalizePath(window.location.pathname);
-            const links = document.querySelectorAll('.sidebar__menu-link[href]');
+            const links = document.querySelectorAll('.sidebar__menu-link[href], .sidebar__utility[href]');
             let best = null;
             let bestLength = -1;
 

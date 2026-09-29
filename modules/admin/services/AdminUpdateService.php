@@ -16,6 +16,7 @@ use Core\UpdateProcessRunner;
 use Core\UpdateRemoteDelivery;
 use Core\UpdateRemoteTransport;
 use Core\UpdateReadiness;
+use Core\UpdateWebTransaction;
 use Core\Version;
 use DomainException;
 use InvalidArgumentException;
@@ -32,6 +33,7 @@ require_once $updateCoreRoot . '/core/UpdateRemoteTransport.php';
 require_once $updateCoreRoot . '/core/UpdateRemoteDelivery.php';
 require_once $updateCoreRoot . '/core/UpdateDownloadCredentials.php';
 require_once $updateCoreRoot . '/core/UpdateReadiness.php';
+require_once $updateCoreRoot . '/core/UpdateWebTransaction.php';
 
 /**
  * Web-фасад подписанного обновлятора.
@@ -136,6 +138,8 @@ final class AdminUpdateService
             'can_manage_stage' => $canManageStage,
             'can_apply' => $canManageStage && (bool) ($operator['ready_for_apply'] ?? false),
             'operator_ready' => (bool) ($operator['ready_for_apply'] ?? false),
+            'install_mode' => (string) ($operator['install_mode'] ?? 'web'),
+            'process_mode_available' => (bool) ($operator['process_mode_available'] ?? false),
             'operator_issues' => is_array($operator['issues'] ?? null) ? $operator['issues'] : [],
             'issues' => $issues,
         ];
@@ -225,6 +229,51 @@ final class AdminUpdateService
         );
     }
 
+    /**
+     * Подготавливает пошаговое web-обновление без запуска дочернего процесса.
+     *
+     * @return array<string,mixed>
+     */
+    public function beginWebApply(
+        int $actorId,
+        int $expectedTargetVersionCode,
+        string $expectedPackageSha256
+    ): array {
+        $this->permissions->requirePermission($actorId, 'admin.settings.manage');
+        if (!$this->permissions->hasRole($actorId, 'superadmin')) {
+            throw new DomainException('Установка обновления доступна только суперадминистратору', 403);
+        }
+
+        $staged = $this->stage(
+            $actorId,
+            $expectedTargetVersionCode,
+            $expectedPackageSha256
+        );
+
+        return (new UpdateWebTransaction($this->appRoot, $this->verifier))->begin(
+            $staged,
+            $expectedTargetVersionCode,
+            strtolower(trim($expectedPackageSha256))
+        );
+    }
+
+    /** @return array<string,mixed> */
+    public function stepWebApply(
+        int $actorId,
+        string $transactionId,
+        string $continuationToken
+    ): array {
+        $this->permissions->requirePermission($actorId, 'admin.settings.manage');
+        if (!$this->permissions->hasRole($actorId, 'superadmin')) {
+            throw new DomainException('Установка обновления доступна только суперадминистратору', 403);
+        }
+
+        return (new UpdateWebTransaction($this->appRoot, $this->verifier))->step(
+            trim($transactionId),
+            trim($continuationToken)
+        );
+    }
+
     /** @return array<string,mixed> */
     public function apply(int $actorId, int $expectedTargetVersionCode, string $expectedPackageSha256): array
     {
@@ -248,6 +297,15 @@ final class AdminUpdateService
             throw new DomainException(
                 'Установка обновления недоступна, пока не устранены ошибки локальной готовности',
                 503
+            );
+        }
+
+        if ($this->processInvoker === null
+            && (string) ($state['install_mode'] ?? 'web') === 'web') {
+            return $this->applyWebSynchronously(
+                $actorId,
+                $expectedTargetVersionCode,
+                $expectedPackageSha256
             );
         }
 
@@ -303,6 +361,56 @@ final class AdminUpdateService
             'target_version_code' => (int) ($payload['target_version_code'] ?? 0),
             'package_sha256' => strtolower((string) ($payload['package_sha256'] ?? '')),
             'installed_version' => (string) ($apply['installed_version'] ?? ($payload['target_version'] ?? '')),
+        ];
+    }
+
+    /**
+     * Резервный путь для браузеров без JavaScript.
+     *
+     * Основной web-интерфейс выполняет эти же шаги отдельными запросами, чтобы
+     * укладываться в ограничения shared hosting.
+     *
+     * @return array<string,mixed>
+     */
+    private function applyWebSynchronously(
+        int $actorId,
+        int $expectedTargetVersionCode,
+        string $expectedPackageSha256
+    ): array {
+        $started = $this->beginWebApply(
+            $actorId,
+            $expectedTargetVersionCode,
+            $expectedPackageSha256
+        );
+        $transactionId = (string) ($started['transaction_id'] ?? '');
+        $token = (string) ($started['continuation_token'] ?? '');
+
+        if ($transactionId === '' || $token === '') {
+            throw new RuntimeException('Web-updater не вернул безопасное продолжение транзакции');
+        }
+
+        $result = $started;
+        for ($step = 0; $step < 8 && ($result['status'] ?? '') === 'in_progress'; $step++) {
+            $result = (new UpdateWebTransaction($this->appRoot, $this->verifier))
+                ->step($transactionId, $token);
+        }
+
+        if (($result['status'] ?? '') !== 'committed') {
+            if (($result['status'] ?? '') === 'recovered') {
+                throw new RuntimeException(
+                    'Обновление не установлено. Предыдущая версия автоматически восстановлена.'
+                );
+            }
+            throw new RuntimeException('Web-обновление не завершилось за допустимое число шагов');
+        }
+
+        return [
+            'status' => 'committed',
+            'transaction_id' => $transactionId,
+            'target_version' => (string) ($result['target_version'] ?? ''),
+            'target_version_code' => (int) ($result['target_version_code'] ?? 0),
+            'package_sha256' => strtolower((string) ($result['package_sha256'] ?? '')),
+            'installed_version' => (string) ($result['installed_version'] ?? ''),
         ];
     }
 

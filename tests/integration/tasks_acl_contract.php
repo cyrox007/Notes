@@ -7,10 +7,10 @@ if (!defined('SITEPATH')) {
     define('SITEPATH', $root);
 }
 
-require_once $root . '/core/config.php';
+require_once $root . '/core/Config.php';
 require_once $root . '/core/DatabaseManager.php';
-require_once $root . '/core/request.php';
-require_once $root . '/core/controller.php';
+require_once $root . '/core/Request.php';
+require_once $root . '/core/Controller.php';
 require_once $root . '/modules/tasks/controllers/TaskController.php';
 
 final class TaskHarnessRequest extends \Core\Request

@@ -101,6 +101,10 @@ try {
         'Manifest внешнего runtime не имеет SHA-256'
     );
     externalRuntimeAssert((int) ($prepared['files'] ?? 0) >= 20, 'Внешний runtime неполный');
+    externalRuntimeAssert(
+        is_file($runtimeRoot . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'UpdateCommandRunner.php'),
+        'Внешний runtime не содержит интерфейс выполнения updater-команд'
+    );
 
     $again = (new UpdateExternalRuntime($root))->prepare();
     externalRuntimeAssert(

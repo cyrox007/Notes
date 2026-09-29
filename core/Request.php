@@ -141,9 +141,9 @@ class Request
     {
         $data = $key === null ? $this->get : ($this->get[$key] ?? $default);
 
-        // ORDER BY identifiers cannot be bound as SQL parameters. Until every
-        // screen owns an explicit column allowlist, reject anything that is not
-        // a simple SQL identifier (optionally table-qualified).
+        // Идентификаторы ORDER BY нельзя передать связанным SQL-параметром.
+        // Пока каждый экран не имеет собственного списка разрешённых колонок,
+        // принимаем только простой SQL-идентификатор, при необходимости с таблицей.
         if ($key === 'sort' && is_string($data)) {
             if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$/', $data)) {
                 return $default;
@@ -166,11 +166,11 @@ class Request
     }
 
     /**
-     * Return the original POST value without HTML escaping.
+     * Вернуть исходное POST-значение без HTML-экранирования.
      *
-     * Use this only when exact input bytes are part of the application contract
-     * (for example passwords). Callers must escape the value at the output
-     * boundary before rendering it into HTML.
+     * Использовать только там, где точные входные байты являются частью
+     * контракта приложения, например для паролей. Перед выводом в HTML
+     * вызывающий код обязан экранировать значение на границе представления.
      */
     public function rawPost($key = null, $default = null)
     {

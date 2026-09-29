@@ -2,7 +2,7 @@ name: 1.0 core router and request security
 
 on:
   pull_request:
-    branches: [master, '1.0']
+    branches: [master, '1.0', 'release/1.0.7-rc']
   push:
     branches: ['1.0-request-router-hardening']
 
@@ -33,7 +33,7 @@ jobs:
           php -l core/RequestOrigin.php
           php -l core/SessionSecurity.php
           php -l core/RedirectPolicy.php
-          php -l core/request.php
+          php -l core/Request.php
           php -l core/Router.php
           php -l tests/integration/router_session_security_contract.php
 
@@ -50,5 +50,5 @@ jobs:
           grep -Fq 'handleMethodNotAllowed' core/Router.php
           grep -Fq 'Duplicate route registration' core/Router.php
           grep -Fq 'executeMiddlewares($this->globalMiddlewares' core/Router.php
-          grep -Fq 'json_body_too_large' core/request.php
-          grep -Fq 'JSON_THROW_ON_ERROR' core/request.php
+          grep -Fq 'json_body_too_large' core/Request.php
+          grep -Fq 'JSON_THROW_ON_ERROR' core/Request.php
