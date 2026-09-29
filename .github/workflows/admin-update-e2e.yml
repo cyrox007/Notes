@@ -583,7 +583,10 @@ jobs:
           test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10009'
           test ! -e "$PRIVATE/state/workspace-maintenance.json"
 
-          JOURNAL_COUNT="$(find "$PRIVATE/state/transactions" -maxdepth 1 -type f -name 'update-*.json' 2>/dev/null | wc -l)"
+          JOURNAL_COUNT=0
+          if [[ -d "$PRIVATE/state/transactions" ]]; then
+            JOURNAL_COUNT="$(find "$PRIVATE/state/transactions" -maxdepth 1 -type f -name 'update-*.json' -print | wc -l)"
+          fi
           test "$JOURNAL_COUNT" -eq 0
 
           DBHOST=127.0.0.1 \
