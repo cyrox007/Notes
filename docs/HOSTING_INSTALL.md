@@ -34,7 +34,7 @@ https://example.com/workspace/install.php
 ```
 
 5. Installer проверит PHP/extensions, встроенный core runtime, native WebSocket runtime, writable runtime dirs и private storage.
-6. Укажите MySQL credentials. Мастер определит/создаст `SITEURL`, `BASE_PATH`, `WS_PUBLIC_URL`, `WS_ALLOWED_ORIGINS`, private storage и секреты. На Windows/OpenServer с layout `domains\\...` и HTTP installer автоматически предлагает direct-host профиль вида `ws://notes.local:27800`, чтобы Messenger можно было тестировать без reverse proxy. Для HTTPS остаётся `wss://.../ws` через proxy.
+6. Укажите MySQL credentials. Мастер создаст `SITEURL`, `BASE_PATH`, private storage и секреты. Messenger по умолчанию устанавливается в Long Poll-only режиме (`WS_ENABLED=0`). WebSocket-ускорение можно включить отдельной галкой; только тогда используются `WS_PUBLIC_URL` и `WS_ALLOWED_ORIGINS`. На Windows/OpenServer с layout `domains\\...` и HTTP installer автоматически предлагает direct-host профиль вида `ws://notes.local:27800`, чтобы Messenger можно было тестировать без reverse proxy. Для HTTPS остаётся `wss://.../ws` через proxy.
 7. Создайте первого администратора.
 8. После успешного завершения `.env` блокирует повторный доступ к installer.
 
@@ -76,11 +76,12 @@ Private storage должен находиться выше web-root, напри�
 
 Если hosting запрещает PHP запись вне `public_html`, такой тариф не соответствует security contract проекта.
 
-## Realtime Messenger: WebSocket + HTTP fallback
+## Realtime Messenger: основной Long Poll + необязательный WebSocket
 
 Installer записывает примерно:
 
 ```env
+WS_ENABLED=1
 WS_PUBLIC_URL=wss://example.com/workspace/ws
 WS_ALLOWED_ORIGINS=https://example.com
 WS_HOST=127.0.0.1
