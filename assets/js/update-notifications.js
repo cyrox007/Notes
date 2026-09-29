@@ -48,10 +48,62 @@
         });
 
         if (form && action) {
-            form.addEventListener('submit', () => {
-                document.dispatchEvent(new CustomEvent('wspace:update-install-start'));
+            form.addEventListener('submit', (event) => {
+                if (form.dataset.updateWebMode !== 'true') {
+                    document.dispatchEvent(new CustomEvent('wspace:update-install-start'));
+                    action.disabled = true;
+                    action.textContent = 'Устанавливаем…';
+                    return;
+                }
+
+                event.preventDefault();
+                const runner = window.wspace?.updateWebRunner;
+                if (!runner || typeof runner.run !== 'function') {
+                    window.wspace?.feedback?.toast?.(
+                        'Не загружен безопасный web-updater. Откройте раздел «Обновления».',
+                        'error',
+                        8000
+                    );
+                    return;
+                }
+
+                const originalLabel = action.textContent || 'Обновить';
                 action.disabled = true;
                 action.textContent = 'Устанавливаем…';
+                document.dispatchEvent(new CustomEvent('wspace:update-install-start'));
+
+                void runner.run(form, (state) => {
+                    const progress = Math.max(0, Math.min(100, Number(state?.progress || 0)));
+                    action.textContent = progress > 0 && progress < 100
+                        ? `Обновление — ${progress}%`
+                        : 'Устанавливаем…';
+                }).then((result) => {
+                    const status = String(result?.status || '');
+                    if (status === 'committed') {
+                        safeStorageSet(CHECKED_AT_KEY, '0');
+                        window.location.reload();
+                        return;
+                    }
+                    if (status === 'recovered') {
+                        safeStorageSet(CHECKED_AT_KEY, '0');
+                        window.wspace?.feedback?.toast?.(
+                            result?.message || 'Обновление не установлено. Предыдущая версия восстановлена.',
+                            'error',
+                            9000
+                        );
+                        window.setTimeout(() => window.location.reload(), 1200);
+                        return;
+                    }
+                    throw new Error('Updater завершился в неизвестном состоянии.');
+                }).catch((error) => {
+                    action.disabled = false;
+                    action.textContent = originalLabel;
+                    window.wspace?.feedback?.toast?.(
+                        error instanceof Error ? error.message : 'Не удалось установить обновление.',
+                        'error',
+                        9000
+                    );
+                });
             });
         }
 
