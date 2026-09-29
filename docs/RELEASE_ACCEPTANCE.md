@@ -77,7 +77,7 @@
 - shared-hosting профиль: базовая установка и Messenger работают при `WS_ENABLED=0` и отключённых process API;
 - signed updater/staging/apply/backup/recovery;
 - автоматический bootstrap update credential по действующей лицензии без activation code и ручного пути; обязательные матрицы `online-update-access (8.1/8.3)` и `admin-update-ui (8.1/8.3)`;
-- обязательный `admin-update-e2e`: текущая архитектура поднимается как `1.0.10`, затем подписанные тестовые пакеты `1.0.10` проверяют успешную установку, автоматический rollback при ошибке миграции, rollback при ошибке post-healthcheck и ранний boot recovery без CLI;
+- обязательный `admin-update-e2e`: текущая архитектура поднимается как `1.0.9`, затем подписанные тестовые пакеты `1.0.10` проверяют успешную установку, автоматический rollback при ошибке миграции, rollback при ошибке post-healthcheck и ранний boot recovery без CLI;
 - точный upgrade/rollback drill опубликованного `v1.0.1` (`0e6e4a3b352cfb7436db6b749fd869bbb07310c9`) -> `1.0.2`;
 - hosting installer/package;
 - cross-browser/mobile release evidence;
@@ -95,7 +95,7 @@
 3. Запустите `php bin/healthcheck.php --json`.
 4. Проверьте HTTPS и WSS через production reverse proxy.
 5. На установке с действующей лицензией и без готового update credential откройте Admin → Updates и подтвердите автоматический bootstrap в `PRIVATE_STORAGE_PATH/update-access/update-access.json` без activation code и ручной правки `.env`.
-6. На опубликованной exact `v1.0.10` установке Windows/OSPanel подайте exact release-candidate `1.0.10`. Проверьте успешное обновление одной кнопкой, отдельный rollback при ошибке миграции, отдельный rollback при ошибке post-healthcheck и boot recovery после принудительного завершения процесса. Пользователь, роль, лицензия, `installation_id`, private storage и прикладные данные должны сохраняться, после `committed`/`rollback_verified` maintenance должен быть снят, а старая транзакция предыдущей установки не должна запускать rollback. Эта проверка обязательна до публикации `v1.0.10`.
+6. На опубликованной exact `v1.0.9` установке Windows/OSPanel подайте exact release-candidate `1.0.10`. Проверьте успешное обновление одной кнопкой, отдельный rollback при ошибке миграции, отдельный rollback при ошибке post-healthcheck и boot recovery после принудительного завершения процесса. Пользователь, роль, лицензия, `installation_id`, private storage и прикладные данные должны сохраняться, после `committed`/`rollback_verified` maintenance должен быть снят, а старая транзакция предыдущей установки не должна запускать rollback. Эта проверка обязательна до публикации `v1.0.10`.
 7. С двумя аутентифицированными пользователями Messenger проверьте доставку по WebSocket, затем временно остановите/заблокируйте WS endpoint и убедитесь, что доставка автоматически продолжается через Long Poll без reload.
 8. Восстановите WS endpoint и убедитесь, что оба клиента автоматически возвращаются в «WebSocket · в сети».
 9. Проверьте одну зашифрованную заметку и одно зашифрованное сообщение Messenger.
@@ -110,7 +110,7 @@
 - exact frozen RC/artifact прошёл live visual acceptance из #172, включая light/dark/system и проверку компактной ширины ноутбука;
 - exact frozen RC/artifact прошёл Windows/OSPanel transport acceptance: WebSocket `101` + `Authorized`, автоматический переход на Long Poll, durable delivery и автоматический возврат к WebSocket;
 - exact frozen RC прошёл автоматический updater acceptance: обычная лицензия сама создаёт внешний installation credential, повторная проверка не требует кода, а offline-режим не обращается в сеть;
-- автоматический CI-контур подтвердил одношаговый переход `1.0.10 → 1.0.10`; реальная Windows/OSPanel-приёмка exact RC того же перехода выполняется до публикации `v1.0.10`;
+- автоматический CI-контур подтвердил одношаговый переход `1.0.9 → 1.0.10`; реальная Windows/OSPanel-приёмка exact RC того же перехода выполняется до публикации `v1.0.10`;
 - exact frozen RC прошёл 2FA/TOTP acceptance: персональное включение/отключение, обязательная политика Admin, принудительная настройка аккаунта без TOTP, одноразовый recovery code и сохранение работоспособности после прямой/обратной ротации `UNIQUE_KEY`;
 - нет открытых P0/P1 дефектов с риском потери данных;
 - нет открытых P0/P1 дефектов безопасности;
