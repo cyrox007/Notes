@@ -29,8 +29,9 @@ $versionPath = $root . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'Ver
 $environmentPath = $root . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'Environment.php';
 $compatibilityPath = $root . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'HostingCompatibility.php';
 $runtimePath = $root . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'UpdateExternalRuntime.php';
+$webTransactionPath = $root . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'UpdateWebTransaction.php';
 
-foreach ([$versionPath, $environmentPath, $compatibilityPath, $runtimePath] as $requiredPath) {
+foreach ([$versionPath, $environmentPath, $compatibilityPath, $runtimePath, $webTransactionPath] as $requiredPath) {
     if (!is_file($requiredPath) || is_link($requiredPath) || !is_readable($requiredPath)) {
         fwrite(STDERR, "Не найден обязательный файл exact-установки 1.0.9: {$requiredPath}\n");
         exit(2);
@@ -39,8 +40,14 @@ foreach ([$versionPath, $environmentPath, $compatibilityPath, $runtimePath] as $
 
 $versionSource = file_get_contents($versionPath);
 $environmentSource = file_get_contents($environmentPath);
-$original = file_get_contents($runtimePath);
-if (!is_string($versionSource) || !is_string($environmentSource) || !is_string($original)) {
+$runtimeOriginal = file_get_contents($runtimePath);
+$webTransactionOriginal = file_get_contents($webTransactionPath);
+if (
+    !is_string($versionSource)
+    || !is_string($environmentSource)
+    || !is_string($runtimeOriginal)
+    || !is_string($webTransactionOriginal)
+) {
     fwrite(STDERR, "Не удалось прочитать файлы updater 1.0.9.\n");
     exit(2);
 }
@@ -57,47 +64,98 @@ if (!str_contains($environmentSource, "require_once __DIR__ . '/HostingCompatibi
     exit(4);
 }
 
-$fixedNeedle = "        'core/Environment.php',\n        'core/HostingCompatibility.php',\n        'core/Version.php',";
-if (str_contains($original, $fixedNeedle)) {
-    fwrite(STDOUT, "Bootstrap уже применён: автономный updater runtime 1.0.9 содержит HostingCompatibility.php.\n");
-    exit(0);
+$runtimeFixedNeedle = "        'core/Environment.php',\n        'core/HostingCompatibility.php',\n        'core/Version.php',";
+$runtimeLegacyPattern = "/        'core\\/Environment\\.php',\\R        'core\\/Version\\.php',/";
+
+$runtimePatched = $runtimeOriginal;
+if (!str_contains($runtimePatched, $runtimeFixedNeedle)) {
+    $runtimePatched = preg_replace(
+        $runtimeLegacyPattern,
+        $runtimeFixedNeedle,
+        $runtimeOriginal,
+        1,
+        $runtimeReplacements
+    );
+    if (!is_string($runtimePatched) || $runtimeReplacements !== 1) {
+        fwrite(STDERR, "UpdateExternalRuntime.php не соответствует известной exact-схеме 1.0.9; изменение отменено.\n");
+        exit(4);
+    }
 }
 
-$legacyPattern = "/        'core\\/Environment\\.php',\\R        'core\\/Version\\.php',/";
-$patched = preg_replace($legacyPattern, $fixedNeedle, $original, 1, $replacements);
-if (!is_string($patched) || $replacements !== 1) {
-    fwrite(STDERR, "UpdateExternalRuntime.php не соответствует известной exact-схеме 1.0.9; изменение отменено.\n");
-    exit(4);
-}
-
-if (substr_count($patched, "'core/HostingCompatibility.php'") !== 1) {
+if (substr_count($runtimePatched, "'core/HostingCompatibility.php'") !== 1) {
     fwrite(STDERR, "Не удалось однозначно сформировать исправленный список updater runtime.\n");
     exit(4);
 }
 
-$temporary = $runtimePath . '.bootstrap-' . bin2hex(random_bytes(6)) . '.tmp';
-$mode = fileperms($runtimePath);
-if (file_put_contents($temporary, $patched, LOCK_EX) === false) {
-    fwrite(STDERR, "Не удалось подготовить временный файл bootstrap.\n");
-    exit(5);
-}
-if (is_int($mode)) {
-    @chmod($temporary, $mode & 0777);
-}
-if (!@rename($temporary, $runtimePath)) {
-    @unlink($temporary);
-    fwrite(STDERR, "Не удалось атомарно применить bootstrap-исправление.\n");
-    exit(5);
+$legacyMaintenanceImport = 'use AppServicesMaintenanceModeService;';
+$fixedMaintenanceImport = 'use App\\Services\\MaintenanceModeService;';
+$webTransactionPatched = $webTransactionOriginal;
+
+if (!str_contains($webTransactionPatched, $fixedMaintenanceImport)) {
+    if (!str_contains($webTransactionPatched, $legacyMaintenanceImport)) {
+        fwrite(STDERR, "UpdateWebTransaction.php не соответствует известной exact-схеме 1.0.9; изменение отменено.\n");
+        exit(4);
+    }
+
+    $webTransactionPatched = str_replace(
+        $legacyMaintenanceImport,
+        $fixedMaintenanceImport,
+        $webTransactionOriginal,
+        $webTransactionReplacements
+    );
+    if ($webTransactionReplacements !== 1) {
+        fwrite(STDERR, "Не удалось однозначно исправить импорт MaintenanceModeService в updater 1.0.9.\n");
+        exit(4);
+    }
 }
 
-$written = file_get_contents($runtimePath);
-if (!is_string($written) || !str_contains($written, $fixedNeedle)) {
-    fwrite(STDERR, "Проверка записанного updater runtime не пройдена.\n");
+if ($runtimePatched === $runtimeOriginal && $webTransactionPatched === $webTransactionOriginal) {
+    fwrite(STDOUT, "Bootstrap уже применён: updater 1.0.9 содержит все исправления совместимости.\n");
+    exit(0);
+}
+
+$patches = [
+    [$runtimePath, $runtimePatched, 'UpdateExternalRuntime.php'],
+    [$webTransactionPath, $webTransactionPatched, 'UpdateWebTransaction.php'],
+];
+
+foreach ($patches as [$path, $contents, $label]) {
+    $current = file_get_contents($path);
+    if (!is_string($current) || $current === $contents) {
+        continue;
+    }
+
+    $temporary = $path . '.bootstrap-' . bin2hex(random_bytes(6)) . '.tmp';
+    $mode = fileperms($path);
+    if (file_put_contents($temporary, $contents, LOCK_EX) === false) {
+        fwrite(STDERR, "Не удалось подготовить временный файл bootstrap для {$label}.\n");
+        exit(5);
+    }
+    if (is_int($mode)) {
+        @chmod($temporary, $mode & 0777);
+    }
+    if (!@rename($temporary, $path)) {
+        @unlink($temporary);
+        fwrite(STDERR, "Не удалось атомарно применить bootstrap-исправление к {$label}.\n");
+        exit(5);
+    }
+}
+
+$runtimeWritten = file_get_contents($runtimePath);
+$webTransactionWritten = file_get_contents($webTransactionPath);
+if (
+    !is_string($runtimeWritten)
+    || !str_contains($runtimeWritten, $runtimeFixedNeedle)
+    || !is_string($webTransactionWritten)
+    || !str_contains($webTransactionWritten, $fixedMaintenanceImport)
+) {
+    fwrite(STDERR, "Проверка записанных bootstrap-исправлений updater 1.0.9 не пройдена.\n");
     exit(5);
 }
 
 fwrite(
     STDOUT,
-    "Bootstrap применён. Updater 1.0.9 теперь формирует замкнутый автономный runtime. "
-    . "Продолжите обновление обычной кнопкой в Workspace Organizer.\n"
+    "Bootstrap применён. Updater 1.0.9 теперь формирует замкнутый автономный runtime "
+    . "и корректно загружает MaintenanceModeService. Продолжите обновление обычной кнопкой "
+    . "в Workspace Organizer.\n"
 );
