@@ -35,7 +35,10 @@ PHP CLI, Cron, WebSocket, process manager и process API не входят в о
 | gd | пока обязательно | обработка аватаров |
 | Argon2id | обязательно | хранение паролей |
 | random_bytes | обязательно | секреты, nonce и токены |
+| ctype + ini_get | обязательно | проверка числовых параметров транспорта и безопасное чтение PHP-лимитов |
 | getenv + putenv | обязательно | загрузчик `.env` публикует конфигурацию в окружение процесса; installer останавливается до установки, если функция отключена |
+| writable session/upload temp | обязательно | сессии установщика и HTTP-загрузки должны работать до запуска приложения |
+| flock + atomic rename | обязательно | rate-limit, updater и внешнее private storage используют файловые блокировки и атомарную публикацию состояния |
 | writable private storage вне web-root | обязательно | пользовательские файлы, логи и updater state не должны быть публичными |
 | session_write_close + usleep | обязательно для Messenger | безопасный Long Poll без блокировки остальных запросов сессии |
 
@@ -155,7 +158,7 @@ MySQL 5.7 и более старые ветки installer отклоняет д�
 
 CREATE DATABASE не является обязательным правом, если пользователь хостинга заранее создаёт пустую БД в панели и передаёт её параметры мастеру установки.
 
-Нужны права на таблицы, индексы, INSERT/UPDATE/DELETE, triggers/procedures и миграции внутри собственной базы.
+Для fresh install нужны права `CREATE`, `ALTER`, `DROP`, `TRIGGER`, а также обычные `SELECT/INSERT/UPDATE/DELETE` внутри собственной базы. Installer проверяет эти возможности безопасной временной таблицей и триггером до импорта схем. Право `CREATE ROUTINE` не входит в минимальный fresh-install контракт.
 
 ## Лимиты загрузок
 
@@ -179,11 +182,13 @@ Workspace Organizer не может программно обойти:
 - отсутствие writable private storage вне web-root;
 - слишком малое число PHP workers для фактической одновременной нагрузки;
 - принудительный timeout PHP меньше минимального Long Poll;
-- отсутствие обязательных PHP extensions;
-- ограничения MySQL-пользователя на собственные таблицы;
+- отсутствие обязательных PHP extensions/функций;
+- неработающие PHP session storage или upload temp;
+- отсутствие файловых блокировок/атомарного переименования в private storage;
+- ограничения пользователя БД на `CREATE/ALTER/DROP/TRIGGER` в собственной базе;
 - лимиты диска, inode, памяти и I/O самого тарифа.
 
-Readiness updater дополнительно показывает `memory_limit`, `max_execution_time` web-режима и свободное место во внешних staging/state/backup/release-каталогах. Низкий запас не подменяет лимиты провайдера, но становится видимым до начала destructive-фазы.
+Readiness updater дополнительно показывает `memory_limit`, `max_execution_time` web-режима и свободное место во внешних staging/state/backup/release-каталогах. Перед загрузкой подписанного ZIP, распаковкой release candidate и созданием rollback backup выполняется отдельная проверка запаса диска; при явно недостаточном месте операция прекращается до соответствующей записи.
 
 ## Работа после закрытия браузера
 
@@ -198,6 +203,8 @@ Shared-hosting контракт должен включать:
 - web-install без vendor/Composer;
 - web-install с отключёнными proc_open, exec, shell_exec, system, passthru и popen;
 - явный отказ installer при отключённом `putenv`;
+- preflight хранилища с реальным `flock` + atomic rename;
+- проверку версии БД и прав `CREATE/ALTER/TRIGGER/DROP` до импорта;
 - импорт канонических fresh-install схем в MariaDB 10.11;
 - web-install с отключёнными stream_socket_server/stream_select и pcntl;
 - WS_ENABLED=0 по умолчанию на hosting-профиле;
