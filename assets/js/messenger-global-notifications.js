@@ -312,10 +312,6 @@
             longPollGeneration += 1;
             longPollRetryAttempt = 0;
 
-            if (longPollFallbackTimer) {
-                window.clearTimeout(longPollFallbackTimer);
-                longPollFallbackTimer = null;
-            }
             if (longPollRetryTimer) {
                 window.clearTimeout(longPollRetryTimer);
                 longPollRetryTimer = null;
