@@ -222,6 +222,7 @@
                 case 'Authorized':
                     this.socketAuthorized = true;
                     this.stopLongPoll();
+                    this.setConnectionTransport('websocket');
                     this.setConnectionState('online', 'В сети');
                     this.sendEvent('MessangerSocket:get_dialogs', {});
                     break;
@@ -397,6 +398,8 @@
 
         startLongPoll() {
             if (this.sessionUnavailable || this.transportSuspended) return;
+
+            this.setConnectionTransport('long-poll');
 
             if (!this.longPollActive) {
                 this.longPollActive = true;
@@ -577,9 +580,15 @@
             }
         }
 
+        setConnectionTransport(transport) {
+            if (!this.el.connection) return;
+            this.el.connection.dataset.transport = transport;
+        }
+
         setConnectionState(state, text) {
             if (!this.el.connection) return;
             this.el.connection.dataset.state = state;
+            if (state === 'offline') this.setConnectionTransport('none');
             if (this.el.connectionText) this.el.connectionText.textContent = text;
             if (this.el.send) this.el.send.disabled = state !== 'online' && state !== 'fallback';
         }
