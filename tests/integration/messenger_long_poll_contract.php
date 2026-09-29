@@ -116,6 +116,11 @@ assertLongPollContract(
     'long-poll wait must be bounded and abort-aware'
 );
 assertLongPollContract(
+    str_contains($service, '$this->db?->releaseIdleConnection()')
+    && str_contains($service, 'POLL_INTERVAL_MICROSECONDS = 1000000'),
+    'Long Poll должен освобождать MySQL-соединение между тиками на ограниченном хостинге'
+);
+assertLongPollContract(
     str_contains($entrypoint, 'isMessengerLongPollRequest()')
     && str_contains($entrypoint, 'handleSuspendedMessengerLongPoll()')
     && str_contains($entrypoint, "'suspended' => true")
