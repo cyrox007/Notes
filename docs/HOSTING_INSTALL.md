@@ -12,7 +12,7 @@
 
 - PHP 8.1+; для публичного production рекомендуется поддерживаемая ветка PHP, сейчас 8.3+;
 - MySQL 8.x;
-- extensions `mysqli`, `pdo_mysql`, `mbstring`, `sodium`, `fileinfo`, `gd`;
+- extensions `mysqli`, `pdo_mysql`, `mbstring`, `sodium`, `openssl`, `zlib`, `fileinfo`, `gd`;
 - Argon2id в `password_hash`;
 - возможность PHP записывать в каталог приложения во время установки;
 - возможность PHP создать private storage вне document root;
