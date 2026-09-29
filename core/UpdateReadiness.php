@@ -96,7 +96,7 @@ final class UpdateReadiness
         $processModeAvailable = $procOpen && $phpCliReady;
         $installMode = $processModeAvailable ? 'process' : 'web';
 
-        $maxExecution = (int) ini_get('max_execution_time');
+        $maxExecution = (int) HostingCompatibility::iniValue('max_execution_time');
         $executionComfortable = $installMode !== 'web' || $maxExecution <= 0 || $maxExecution >= 30;
         $recordOptional(
             'web_execution_time',
