@@ -90,7 +90,6 @@ final class MessengerRealtimeController extends Controller
 
         // Длительный запрос не должен удерживать блокировку PHP-сессии:
         // иначе тот же браузер не сможет отправить fallback-действие до завершения poll.
-        // the same browser could not POST a fallback action until this poll ends.
         if (session_status() === PHP_SESSION_ACTIVE) {
             session_write_close();
         }
@@ -108,9 +107,9 @@ final class MessengerRealtimeController extends Controller
                 $waitSeconds
             );
         } catch (\Throwable $e) {
-            // Фоновый poll не должен превращать временно неполную схему БД
-            // во время install/update/migrations в HTTP 5xx всей страницы.
-            // Пользовательские действия по-прежнему fail-closed через action().
+            // Фоновый Long Poll не должен превращать временно неполную схему БД
+            // во время установки, обновления или миграций в HTTP 5xx всей страницы.
+            // Пользовательские действия по-прежнему завершаются ошибкой через action().
             error_log('Messenger long-poll временно приостановлен: ' . $e->getMessage());
             $this->responseJson([
                 'status' => 'ok',
