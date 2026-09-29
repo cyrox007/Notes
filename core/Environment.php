@@ -4,16 +4,25 @@ declare(strict_types=1);
 
 namespace Core;
 
+require_once __DIR__ . '/HostingCompatibility.php';
+
 use RuntimeException;
 
 final class Environment
 {
     /**
-     * Load a Workspace Organizer .env file into getenv(), $_ENV and $_SERVER.
-     * Existing process/server variables are immutable and always win.
+     * Загружает .env в getenv(), $_ENV и $_SERVER.
+     * Уже заданные переменные процесса имеют приоритет и не перезаписываются.
      */
     public static function load(string $file): void
     {
+        if (!HostingCompatibility::processEnvironmentAvailable()) {
+            throw new RuntimeException(
+                'PHP-функции getenv/putenv недоступны. Текущая конфигурация хостинга несовместима '
+                . 'с загрузчиком окружения Workspace Organizer.'
+            );
+        }
+
         if (!is_file($file) || !is_readable($file)) {
             throw new RuntimeException(
                 'Environment configuration file (.env) not found or unreadable. '
@@ -23,7 +32,7 @@ final class Environment
 
         $contents = file_get_contents($file);
         if ($contents === false) {
-            throw new RuntimeException('Unable to read environment configuration file: ' . $file);
+            throw new RuntimeException('Не удалось прочитать файл окружения: ' . $file);
         }
 
         if (str_starts_with($contents, "\xEF\xBB\xBF")) {
@@ -32,7 +41,7 @@ final class Environment
 
         $lines = preg_split('/\r\n|\n|\r/', $contents);
         if ($lines === false) {
-            throw new RuntimeException('Unable to parse environment configuration file: ' . $file);
+            throw new RuntimeException('Не удалось разобрать файл окружения: ' . $file);
         }
 
         foreach ($lines as $index => $line) {
@@ -52,7 +61,7 @@ final class Environment
         }
 
         if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/', $trimmed, $matches) !== 1) {
-            throw self::syntaxError($file, $lineNumber, 'expected KEY=VALUE');
+            throw self::syntaxError($file, $lineNumber, 'ожидалось KEY=VALUE');
         }
 
         $key = $matches[1];
@@ -63,7 +72,7 @@ final class Environment
         }
 
         if (!putenv($key . '=' . $value)) {
-            throw new RuntimeException("Unable to publish environment variable {$key}.");
+            throw new RuntimeException("Не удалось опубликовать переменную окружения {$key}.");
         }
 
         $_ENV[$key] = $value;
@@ -79,7 +88,7 @@ final class Environment
         $first = $raw[0];
         if ($first === "'") {
             if (preg_match("/^'((?:[^'\\\\]|\\\\.)*)'\\s*(?:#.*)?$/s", $raw, $matches) !== 1) {
-                throw self::syntaxError($file, $lineNumber, 'unterminated or invalid single-quoted value');
+                throw self::syntaxError($file, $lineNumber, 'незакрытое или некорректное значение в одинарных кавычках');
             }
 
             return self::decodeSingleQuoted($matches[1]);
@@ -87,7 +96,7 @@ final class Environment
 
         if ($first === '"') {
             if (preg_match('/^"((?:[^"\\\\]|\\\\.)*)"\s*(?:#.*)?$/s', $raw, $matches) !== 1) {
-                throw self::syntaxError($file, $lineNumber, 'unterminated or invalid double-quoted value');
+                throw self::syntaxError($file, $lineNumber, 'незакрытое или некорректное значение в двойных кавычках');
             }
 
             return self::expandVariables(self::decodeDoubleQuoted($matches[1]));
@@ -95,7 +104,7 @@ final class Environment
 
         $value = preg_replace('/\s+#.*$/', '', $raw);
         if ($value === null) {
-            throw self::syntaxError($file, $lineNumber, 'invalid unquoted value');
+            throw self::syntaxError($file, $lineNumber, 'некорректное значение без кавычек');
         }
 
         return self::expandVariables(rtrim($value));
@@ -124,8 +133,8 @@ final class Environment
                 't' => "\t",
                 '"' => '"',
                 '\\' => '\\',
-                // Keep escaped dollars protected until variable expansion has
-                // finished. Otherwise "\${NAME}" would incorrectly expand.
+                // Экранированный доллар сохраняем до завершения подстановки,
+                // чтобы литерал "\${NAME}" не раскрывался как переменная.
                 '$' => '\\$',
                 default => '\\' . $next,
             };
@@ -158,11 +167,11 @@ final class Environment
         );
 
         if ($expanded === null) {
-            throw new RuntimeException('Unable to expand environment variable reference.');
+            throw new RuntimeException('Не удалось раскрыть ссылку на переменную окружения.');
         }
 
-        // Unescape protected dollars after expansion. This covers both ${VAR}
-        // literals and other escaped dollar sequences inside double quotes.
+        // После подстановки возвращаем экранированные доллары. Это сохраняет
+        // литералы вида ${VAR} и другие последовательности с \$ внутри кавычек.
         return str_replace('\\$', '$', $expanded);
     }
 
@@ -176,7 +185,7 @@ final class Environment
     private static function syntaxError(string $file, int $lineNumber, string $reason): RuntimeException
     {
         return new RuntimeException(
-            sprintf('Invalid environment configuration in %s on line %d: %s.', $file, $lineNumber, $reason)
+            sprintf('Некорректная конфигурация окружения в %s, строка %d: %s.', $file, $lineNumber, $reason)
         );
     }
 }
