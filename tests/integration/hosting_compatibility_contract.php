@@ -72,8 +72,16 @@ hostingCompatibilityAssert(
 );
 hostingCompatibilityAssert(
     str_contains($installer, "'getenv / putenv'")
+        && str_contains($installer, "'ini_get'")
+        && str_contains($installer, "'Writable PHP upload temp'")
+        && str_contains($installer, "'flock / atomic rename'")
+        && str_contains($installer, 'assertPrivateStorageFilesystemContract')
         && str_contains($installer, 'assertDatabaseServerCompatibility')
+        && str_contains($installer, 'assertDatabaseSchemaPrivileges')
+        && str_contains($installer, 'CREATE TRIGGER')
         && str_contains($installer, 'HostingCompatibility::memoryLimitBytes()')
+        && str_contains($installer, 'connection_aborted')
+        && str_contains($installer, 'PHP session storage недоступно')
         && str_contains($installer, 'Фактический доступ к исходящему TCP/443'),
     'Установщик не содержит полный preflight виртуального хостинга'
 );
