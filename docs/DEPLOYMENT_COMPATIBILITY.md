@@ -1,5 +1,8 @@
 # Deployment compatibility
 
+> Полный аудит ограничений обычного виртуального хостинга и обязательного/необязательного PHP-контракта: [SHARED_HOSTING_COMPATIBILITY.md](SHARED_HOSTING_COMPATIBILITY.md).
+
+
 Этот документ разделяет техническую совместимость, проверяемые CI-сценарии и рекомендуемое production-окружение Workspace Organizer 1.0.
 
 ## Поддерживаемые сценарии
@@ -7,15 +10,15 @@
 | Окружение | Web-модули | Realtime Messenger | Статус |
 | --- | --- | --- | --- |
 | Linux VPS/VDS + Nginx/Apache + PHP 8.1+ | Да | Да | Рекомендуемый production |
-| Shared hosting с PHP 8.1+, постоянным background process и WebSocket reverse proxy | Да | Да, WebSocket + automatic HTTP fallback | Поддерживается; рекомендуемый shared-hosting fast path |
-| Обычный shared hosting без long-running process/WebSocket proxy | Да | Да, HTTP long poll | Поддерживается при длительных HTTP requests и достаточной параллельности PHP workers |
+| Shared hosting с PHP 8.1+, background process и WebSocket reverse proxy | Да | Да, Long Poll + WebSocket-ускорение | Поддерживается; WebSocket необязателен |
+| Обычный shared hosting без long-running process/WebSocket proxy | Да | Да, основной HTTP Long Poll | Полностью поддерживается при длительных HTTP requests и достаточной параллельности PHP workers |
 | Open Server 6+ | Да | Да | Основное локальное Windows-окружение; WebSocket рекомендуется, fallback автоматический |
 | Open Server 5.4.x + PHP 8.1+ | Да | Да | Legacy-compatible local development; direct/proxied WS либо HTTP fallback |
 | Windows/Open Server как Internet-facing production | Технически возможно | Технически возможно | Не рекомендуется; production baseline — Linux |
 
 ## Общий runtime contract 1.0
 
-Приложение не требует Composer packages или каталога `vendor/` в production. HTTP views рендерятся внутренним `NativeViewRenderer`. Messenger поддерживает два автоматически переключаемых канала: собственный PHP RFC6455 WebSocket runtime на `stream_socket_server()` + `stream_select()` как быстрый канал и authenticated HTTP long poll как самостоятельный durable-канал для окружений без WebSocket.
+Приложение не требует Composer packages или каталога `vendor/` в production. HTTP views рендерятся внутренним `NativeViewRenderer`. Messenger поддерживает два автоматически переключаемых канала: authenticated HTTP long poll запускается сразу как гарантированный durable-канал, а собственный PHP RFC6455 WebSocket runtime на `stream_socket_server()` + `stream_select()` параллельно подключается как быстрый канал и после авторизации временно заменяет Long Poll.
 
 Нужны PHP 8.1+, MySQL и используемые приложением PHP extensions (`mysqli`, `pdo_mysql`, `mbstring`, `sodium`, `fileinfo`, `gd`).
 
@@ -55,16 +58,16 @@ Messenger на shared hosting имеет два режима.
 
 Режим HTTP long poll не требует отдельного CLI process: нужны обычные authenticated HTTP requests, возможность удерживать long-poll request до 5–25 секунд и достаточная параллельность PHP workers. Клиент освобождает session lock на ожидании, прерывает poll перед собственным mutating request/ticket refresh, автоматически перезапускает зависший запрос и не блокирует отправку сообщений из-за единичной ошибки poll.
 
-Чтобы несколько открытых страниц одного пользователя не занимали по отдельному PHP worker на каждый фоновый poll, глобальный Messenger transport выбирает одну видимую вкладку-лидера и передаёт badge-состояние соседним вкладкам. Сама страница Messenger по-прежнему владеет своим полноценным transport; при отсутствии межвкладочных API применяется безопасный независимый режим.
+Чтобы несколько открытых страниц одного пользователя не занимали по отдельному PHP worker на каждый фоновый poll, глобальный Messenger transport выбирает одну вкладку-лидера и передаёт badge-состояние соседним вкладкам. Лидер сохраняет transport и в фоне, пока страница остаётся открытой; при закрытии страницы lease освобождается, а при аварийном завершении истекает автоматически. Сама страница Messenger по-прежнему владеет своим полноценным transport; при отсутствии межвкладочных API применяется безопасный независимый режим.
 
-Для рекомендуемого WebSocket fast path дополнительно нужны:
+Для необязательного WebSocket fast path дополнительно нужны `WS_ENABLED=1` и:
 
 1. PHP CLI `8.1+`;
 2. возможность постоянно держать `php ws_server/server.php start` как background process;
 3. WebSocket reverse proxy от публичного `wss://domain[/base]/ws` к локальному `WS_PORT`;
 4. механизм автоматического перезапуска — Supervisor, systemd-аналог панели или background process manager.
 
-Если тариф завершает CLI-процессы или не позволяет WebSocket Upgrade proxy, Messenger штатно работает через HTTP long poll. В спокойном состоянии серверный цикл проверяет дешёвую общую realtime-ревизию и TTL-сигнал активности вместо постоянного полного сканирования всех сообщений; периодическая полная сверка остаётся страховкой от пропущенных нестандартных записей. В этом режиме доступны сообщения, диалоги, статусы прочтения/доставки, реакции, глобальный счётчик непрочитанных и короткоживущие индикаторы активности (`печатает…`, запись/загрузка). Активность хранится только несколько секунд и автоматически очищается. WebSocket уменьшает задержку и нагрузку на HTTP/PHP workers, но не является условием работоспособности durable Messenger.
+Если тариф завершает CLI-процессы или не позволяет WebSocket Upgrade proxy, Messenger штатно работает через основной HTTP Long Poll transport без функциональных ограничений. В спокойном состоянии серверный цикл проверяет дешёвую общую realtime-ревизию и TTL-сигнал активности вместо постоянного полного сканирования всех сообщений; периодическая полная сверка остаётся страховкой от пропущенных нестандартных записей. В этом режиме доступны сообщения, диалоги, статусы прочтения/доставки, реакции, глобальный счётчик непрочитанных и короткоживущие индикаторы активности (`печатает…`, запись/загрузка). Активность хранится только несколько секунд и автоматически очищается. WebSocket уменьшает задержку и нагрузку на HTTP/PHP workers, но не является условием ни работоспособности, ни доступности функций Messenger.
 
 ## VPS/VDS production
 

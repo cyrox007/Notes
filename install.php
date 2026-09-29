@@ -2,11 +2,23 @@
 
 declare(strict_types=1);
 
-ini_set('display_errors', '0');
+if (PHP_VERSION_ID < 80100) {
+    http_response_code(500);
+    echo '<!doctype html><html lang="ru"><meta charset="utf-8"><title>Несовместимый PHP</title>'
+        . '<body><h1>Требуется PHP 8.1 или новее</h1><p>Сейчас сервер использует PHP '
+        . htmlspecialchars(PHP_VERSION, ENT_QUOTES, 'UTF-8')
+        . '. Выберите PHP 8.1+ в панели хостинга и повторите установку.</p></body></html>';
+    exit;
+}
+
+if (function_exists('ini_set')) {
+    @ini_set('display_errors', '0');
+}
 error_reporting(E_ALL);
 
 require_once __DIR__ . '/core/SecurityHeaders.php';
 require_once __DIR__ . '/core/PrivateStorageResolver.php';
+require_once __DIR__ . '/core/HostingCompatibility.php';
 \Core\SecurityHeaders::apply();
 
 function installerIsHttps(): bool
@@ -19,12 +31,20 @@ function installerIsHttps(): bool
     return in_array($https, ['on', '1', 'true'], true) || (int) ($_SERVER['SERVER_PORT'] ?? 0) === 443;
 }
 
+if (!function_exists('session_set_cookie_params') || !function_exists('session_start')) {
+    http_response_code(500);
+    exit('PHP session-функции недоступны. Этот тариф хостинга несовместим с установщиком.');
+}
+
 session_set_cookie_params([
     'httponly' => true,
     'secure' => installerIsHttps(),
     'samesite' => 'Lax',
 ]);
-session_start();
+if (!session_start()) {
+    http_response_code(500);
+    exit('PHP session storage недоступно. Проверьте session.save_path и права хостинга.');
+}
 
 $basePath = __DIR__;
 $envFile = $basePath . '/.env';
@@ -156,6 +176,91 @@ function defaultWebSocketUrl(string $siteUrl, string $basePath): string
     return $scheme . $authority . $prefix . '/ws';
 }
 
+function installerFunctionAvailable(string $name): bool
+{
+    return \Core\HostingCompatibility::functionAvailable($name);
+}
+
+function installerLongPollTimeoutSeconds(): int
+{
+    $maxExecution = (int) \Core\HostingCompatibility::iniValue('max_execution_time');
+    if ($maxExecution <= 0) {
+        return 15;
+    }
+
+    return max(5, min(15, $maxExecution - 2));
+}
+
+function installerIniBytes(string $name): int
+{
+    return \Core\HostingCompatibility::iniBytes(\Core\HostingCompatibility::iniValue($name));
+}
+
+function installerUploadTempWritable(): bool
+{
+    $configured = trim(\Core\HostingCompatibility::iniValue('upload_tmp_dir'));
+    if ($configured !== '') {
+        return is_dir($configured) && is_writable($configured);
+    }
+
+    if (!installerFunctionAvailable('sys_get_temp_dir')) {
+        return false;
+    }
+
+    $fallback = sys_get_temp_dir();
+    return is_string($fallback) && $fallback !== '' && is_dir($fallback) && is_writable($fallback);
+}
+
+/**
+ * Необязательные возможности не блокируют установку.
+ *
+ * @param list<string> $packagedModules
+ * @return array<string,array{available:bool,message:string}>
+ */
+function installerOptionalCapabilities(string $basePath, array $packagedModules): array
+{
+    $hasMessenger = in_array('messenger', $packagedModules, true);
+    $wsRuntime = !$hasMessenger || (
+        is_file($basePath . '/modules/messenger/socket/NativeMessengerServer.php')
+        && is_file($basePath . '/modules/messenger/socket/SocketHandshake.php')
+        && is_file($basePath . '/modules/messenger/socket/SocketFrameCodec.php')
+        && installerFunctionAvailable('stream_socket_server')
+        && installerFunctionAvailable('stream_select')
+    );
+
+    $procOpen = installerFunctionAvailable('proc_open');
+    $pcntl = installerFunctionAvailable('pcntl_fork');
+    $httpsPrerequisites = \Core\HostingCompatibility::outboundHttpsPrerequisites();
+    $onlineUpdates = $httpsPrerequisites['ok'];
+
+    return [
+        'Онлайн-обновления через HTTPS' => [
+            'available' => $onlineUpdates,
+            'message' => $onlineUpdates
+                ? 'Локальные PHP-предпосылки готовы. Фактический доступ к исходящему TCP/443 проверяется при обращении к серверу обновлений.'
+                : 'Установка работает, но встроенный updater не сможет скачать релиз: отсутствуют локальные TLS/DNS-предпосылки.',
+        ],
+        'WebSocket-ускоритель Messenger' => [
+            'available' => $wsRuntime,
+            'message' => $wsRuntime
+                ? 'Можно включить позже; Long Poll уже обеспечивает полный Messenger.'
+                : 'Недоступен в этом PHP; Messenger будет полностью работать через Long Poll.',
+        ],
+        'Изолированный updater через proc_open' => [
+            'available' => $procOpen,
+            'message' => $procOpen
+                ? 'Доступен ускоренный режим обновления в отдельном PHP-процессе.'
+                : 'Не требуется: updater автоматически использует совместимый web-режим.',
+        ],
+        'Daemon mode WebSocket через pcntl' => [
+            'available' => $pcntl,
+            'message' => $pcntl
+                ? 'Доступен Unix daemon mode.'
+                : 'Не требуется: WebSocket можно запускать process manager-ом или не использовать.',
+        ],
+    ];
+}
+
 function isOpenServerLayout(string $basePath): bool
 {
     return PHP_OS_FAMILY === 'Windows'
@@ -170,8 +275,8 @@ function openServerLocalWebSocketUrl(string $siteUrl, string $basePath): string
         return 'ws://' . $host . ':27800';
     }
 
-    // Native listener intentionally has no TLS. HTTPS local installs therefore
-    // still require the web server to terminate WSS on the same-origin /ws path.
+    // Native listener не завершает TLS. Для локальной HTTPS-установки WSS
+    // должен завершаться веб-сервером на same-origin пути /ws.
     return defaultWebSocketUrl($siteUrl, $basePath);
 }
 
@@ -179,7 +284,7 @@ function privateStorageCandidate(string $basePath): string
 {
     try {
         return (new \Core\PrivateStorageResolver($basePath))->candidate();
-    } catch (Throwable) {
+    } catch (Throwable $ignored) {
         return '';
     }
 }
@@ -196,7 +301,47 @@ function preparePrivateStorage(string $path, string $basePath): string
         @chmod($target, 0700);
     }
 
+    assertPrivateStorageFilesystemContract($real);
     return $real;
+}
+
+function assertPrivateStorageFilesystemContract(string $root): void
+{
+    foreach (['fopen', 'flock', 'rename', 'unlink'] as $function) {
+        if (!installerFunctionAvailable($function)) {
+            throw new RuntimeException('Private storage требует доступную PHP-функцию ' . $function);
+        }
+    }
+
+    $source = $root . DIRECTORY_SEPARATOR . '.hosting-fs-probe-' . bin2hex(random_bytes(6));
+    $target = $source . '.renamed';
+    $handle = @fopen($source, 'xb');
+    if ($handle === false) {
+        throw new RuntimeException('Private storage не позволяет создать lock-probe файл');
+    }
+
+    try {
+        if (!@flock($handle, LOCK_EX | LOCK_NB)) {
+            throw new RuntimeException('Файловая система private storage не поддерживает требуемый flock');
+        }
+        if (fwrite($handle, 'ok') !== 2 || !fflush($handle)) {
+            throw new RuntimeException('Private storage не обеспечивает надёжную запись lock-probe');
+        }
+        @flock($handle, LOCK_UN);
+        fclose($handle);
+        $handle = null;
+
+        if (!@rename($source, $target) || !is_file($target)) {
+            throw new RuntimeException('Private storage не поддерживает требуемый atomic rename');
+        }
+    } finally {
+        if (is_resource($handle)) {
+            @flock($handle, LOCK_UN);
+            fclose($handle);
+        }
+        @unlink($source);
+        @unlink($target);
+    }
 }
 
 function prepareRuntimeDirectories(string $basePath): void
@@ -235,6 +380,91 @@ function connectDatabaseServer(string $host, int $port, string $username, string
         $password,
         [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, PDO::ATTR_EMULATE_PREPARES => false]
     );
+}
+
+function assertDatabaseServerCompatibility(PDO $pdo): string
+{
+    $rawVersion = (string) $pdo->query('SELECT VERSION()')->fetchColumn();
+    $support = \Core\HostingCompatibility::databaseServerSupport($rawVersion);
+    if (!$support['supported']) {
+        throw new RuntimeException($support['message']);
+    }
+
+    return $support['message'];
+}
+
+function assertDatabaseSchemaPrivileges(PDO $pdo): void
+{
+    $suffix = substr(bin2hex(random_bytes(8)), 0, 16);
+    $table = 'wo_install_probe_' . $suffix;
+    $trigger = 'wo_install_trigger_' . $suffix;
+    $quotedTable = '`' . $table . '`';
+    $quotedTrigger = '`' . $trigger . '`';
+
+    try {
+        $pdo->exec(
+            'CREATE TABLE ' . $quotedTable
+            . ' (id INT NOT NULL PRIMARY KEY, marker INT NOT NULL DEFAULT 0) ENGINE=InnoDB'
+        );
+    } catch (Throwable $e) {
+        throw new RuntimeException(
+            'Пользователь БД не может создавать таблицы в выбранной базе. '
+            . 'Для установки нужны права CREATE, ALTER, INDEX, REFERENCES и DROP в собственной базе.',
+            0,
+            $e
+        );
+    }
+
+    try {
+        try {
+            $pdo->exec('ALTER TABLE ' . $quotedTable . ' ADD COLUMN probe_value INT NULL');
+        } catch (Throwable $e) {
+            throw new RuntimeException(
+                'Пользователь БД не имеет права ALTER, необходимого для обновлений схемы.',
+                0,
+                $e
+            );
+        }
+
+        try {
+            $pdo->exec(
+                'CREATE TRIGGER ' . $quotedTrigger
+                . ' BEFORE INSERT ON ' . $quotedTable
+                . ' FOR EACH ROW SET NEW.marker = 1'
+            );
+        } catch (Throwable $e) {
+            throw new RuntimeException(
+                'Пользователь БД не имеет права CREATE TRIGGER. '
+                . 'Текущая схема Workspace Organizer использует триггеры RBAC и истории заметок.',
+                0,
+                $e
+            );
+        }
+
+        $pdo->exec('INSERT INTO ' . $quotedTable . ' (id) VALUES (1)');
+        $marker = (int) $pdo->query(
+            'SELECT marker FROM ' . $quotedTable . ' WHERE id = 1'
+        )->fetchColumn();
+        if ($marker !== 1) {
+            throw new RuntimeException('Проверочный триггер БД не выполнился.');
+        }
+    } finally {
+        try {
+            $pdo->exec('DROP TRIGGER IF EXISTS ' . $quotedTrigger);
+        } catch (Throwable $ignored) {
+            // Основную ошибку не маскируем; ниже всё равно пытаемся убрать таблицу.
+        }
+        try {
+            $pdo->exec('DROP TABLE IF EXISTS ' . $quotedTable);
+        } catch (Throwable $e) {
+            throw new RuntimeException(
+                'Пользователь БД не может удалить проверочную таблицу. '
+                . 'Для безопасной установки и обновлений требуется право DROP.',
+                0,
+                $e
+            );
+        }
+    }
 }
 
 function connectOrCreateDatabase(string $host, int $port, string $database, string $username, string $password): PDO
@@ -356,11 +586,13 @@ function writeEnvironmentFile(string $file, array $data): void
         'PROFILE_AVATAR_MAX_SIZE=2097152',
         'MESSENGER_ORPHAN_TTL_SECONDS=86400',
         'MESSENGER_SEARCH_SCAN_LIMIT=1000',
+        'MESSENGER_LONG_POLL_TIMEOUT_SECONDS=' . installerLongPollTimeoutSeconds(),
         '',
         'SITEURL=' . envQuoted((string) $data['site_url']),
         'BASE_PATH=' . envQuoted((string) $data['base_path']),
         'REGISTRATION_INVITE_CODE=',
         '',
+        'WS_ENABLED=' . (!empty($data['ws_enabled']) ? '1' : '0'),
         'WS_HOST=127.0.0.1',
         'WS_PORT=27800',
         'WS_PUBLIC_URL=' . envQuoted((string) $data['ws_public_url']),
@@ -399,6 +631,7 @@ function installerRequirements(string $basePath, array $schemaFiles, array $pack
         'PHP 8.1+' => version_compare(PHP_VERSION, '8.1.0', '>='),
         'Native core runtime' => is_file($basePath . '/core/Environment.php') && is_file($basePath . '/core/NativeViewRenderer.php'),
         'mbstring' => extension_loaded('mbstring'),
+        'ctype' => extension_loaded('ctype'),
         'pdo_mysql' => extension_loaded('pdo_mysql'),
         'mysqli' => extension_loaded('mysqli'),
         'sodium' => extension_loaded('sodium'),
@@ -408,6 +641,17 @@ function installerRequirements(string $basePath, array $schemaFiles, array $pack
         'gd' => extension_loaded('gd'),
         'Argon2id password hashing' => in_array('argon2id', password_algos(), true),
         'random_bytes' => function_exists('random_bytes'),
+        'ini_get' => installerFunctionAvailable('ini_get'),
+        'getenv / putenv' => \Core\HostingCompatibility::processEnvironmentAvailable(),
+        'HTTP file uploads' => filter_var(
+            \Core\HostingCompatibility::iniValue('file_uploads'),
+            FILTER_VALIDATE_BOOLEAN
+        ),
+        'Writable PHP upload temp' => installerUploadTempWritable(),
+        'flock / atomic rename' => installerFunctionAvailable('flock')
+            && installerFunctionAvailable('rename')
+            && installerFunctionAvailable('fopen')
+            && installerFunctionAvailable('unlink'),
         'Запись .env в корень проекта' => is_writable($basePath),
         'Composition database schemas' => $schemaFiles !== [] && array_reduce(
             $schemaFiles,
@@ -416,16 +660,14 @@ function installerRequirements(string $basePath, array $schemaFiles, array $pack
         ),
     ];
     if (in_array('messenger', $packagedModules, true)) {
-        $checks['Native WebSocket runtime'] = is_file($basePath . '/modules/messenger/socket/NativeMessengerServer.php')
-            && is_file($basePath . '/modules/messenger/socket/SocketHandshake.php')
-            && is_file($basePath . '/modules/messenger/socket/SocketFrameCodec.php');
-    } else {
-        $checks['Native WebSocket runtime'] = true;
+        $checks['HTTP Long Poll Messenger'] = installerFunctionAvailable('session_write_close')
+            && installerFunctionAvailable('usleep')
+            && installerFunctionAvailable('connection_aborted');
     }
     try {
         prepareRuntimeDirectories($basePath);
         $checks['Writable runtime directories'] = true;
-    } catch (Throwable) {
+    } catch (Throwable $ignored) {
         $checks['Writable runtime directories'] = false;
     }
     return $checks;
@@ -443,6 +685,7 @@ $selectedInstallMode = (string) ($_POST['install_mode'] ?? $detectedInstallMode)
 if (!in_array($selectedInstallMode, ['hosting', 'openserver_local'], true)) {
     $selectedInstallMode = $detectedInstallMode;
 }
+$selectedWsEnabled = ((string) ($_POST['ws_enabled'] ?? '')) === '1';
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     verifyInstallerCsrf();
@@ -460,14 +703,21 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             $installMode = $detectedInstallMode;
         }
         $selectedInstallMode = $installMode;
+        $wsEnabled = $hasMessenger && ((string) ($_POST['ws_enabled'] ?? '')) === '1';
+        $selectedWsEnabled = $wsEnabled;
         try {
             $siteUrl = normalizeSiteUrl((string) ($_POST['site_url'] ?? $detectedSiteUrl));
             $baseUrlPath = normalizeBasePath((string) ($_POST['base_path'] ?? $detectedBasePath));
-            $wsPublicUrl = $hasMessenger
-                ? ($installMode === 'openserver_local'
+            if ($hasMessenger && $wsEnabled) {
+                $wsPublicUrl = $installMode === 'openserver_local'
                     ? openServerLocalWebSocketUrl($siteUrl, $baseUrlPath)
-                    : normalizeWebSocketUrl((string) ($_POST['ws_public_url'] ?? defaultWebSocketUrl($siteUrl, $baseUrlPath)), $siteUrl))
-                : defaultWebSocketUrl($siteUrl, $baseUrlPath);
+                    : normalizeWebSocketUrl(
+                        (string) ($_POST['ws_public_url'] ?? defaultWebSocketUrl($siteUrl, $baseUrlPath)),
+                        $siteUrl
+                    );
+            } else {
+                $wsPublicUrl = '';
+            }
         } catch (Throwable $e) {
             $errors[] = $e->getMessage();
             $siteUrl = $detectedSiteUrl;
@@ -481,7 +731,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             try {
                 $storageReal = preparePrivateStorage($privateStorage, $basePath);
                 $pdo = connectOrCreateDatabase($host, $port, $database, $username, $password);
+                assertDatabaseServerCompatibility($pdo);
                 $existing = existingTables($pdo);
+                if ($existing === []) {
+                    assertDatabaseSchemaPrivileges($pdo);
+                    $existing = existingTables($pdo);
+                }
                 $appTables = array_values(array_intersect($requiredTables, $existing));
                 $missing = array_values(array_diff($requiredTables, $existing));
                 if ($existing === []) {
@@ -505,7 +760,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 $_SESSION['notes_install_db'] = [
                     'db_host' => $host, 'db_port' => $port, 'db_name' => $database, 'db_user' => $username, 'db_pass' => $password,
                     'private_storage' => $storageReal, 'site_url' => $siteUrl, 'base_path' => $baseUrlPath,
-                    'install_mode' => $installMode, 'ws_public_url' => $wsPublicUrl,
+                    'install_mode' => $installMode, 'ws_enabled' => $wsEnabled, 'ws_public_url' => $wsPublicUrl,
                     'unique_key' => randomSecret(), 'message_key' => randomSecret(),
                     'ws_ticket_secret' => randomSecret(), 'install_date' => date('YmdHis'),
                 ];
@@ -581,6 +836,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 }
 
 $requirements = installerRequirements($basePath, $schemaFiles, $packagedModules);
+$optionalCapabilities = installerOptionalCapabilities($basePath, $packagedModules);
 if ($step === 1) {
     foreach ($requirements as $label => $ok) {
         if (!$ok) {
@@ -590,10 +846,35 @@ if ($step === 1) {
     if ($needsPrivateStorage && $detectedPrivateStorage === '') {
         $warnings[] = 'Автоматически подобрать private storage вне web-root не удалось. На следующем шаге укажите абсолютный writable путь из панели хостинга.';
     }
+    $maxExecution = (int) ini_get('max_execution_time');
+    if ($hasMessenger && $maxExecution > 0 && $maxExecution < 7) {
+        $warnings[] = 'max_execution_time меньше 7 секунд. Для устойчивого Long Poll нужен лимит хотя бы 7 секунд.';
+    }
+    $productUploadLimit = 10 * 1024 * 1024;
+    $uploadLimit = installerIniBytes('upload_max_filesize');
+    $postLimit = installerIniBytes('post_max_size');
+    if ($uploadLimit > 0 && $uploadLimit < $productUploadLimit) {
+        $warnings[] = 'upload_max_filesize ограничен значением ' . \Core\HostingCompatibility::iniValue('upload_max_filesize')
+            . ': фактический максимальный размер вложения будет ниже продуктового лимита 10 МБ.';
+    }
+    if ($postLimit > 0 && $postLimit < $productUploadLimit) {
+        $warnings[] = 'post_max_size ограничен значением ' . \Core\HostingCompatibility::iniValue('post_max_size')
+            . ': большие вложения не дойдут до приложения.';
+    }
+    $maxFileUploads = (int) \Core\HostingCompatibility::iniValue('max_file_uploads');
+    if ($maxFileUploads > 0 && $maxFileUploads < 10) {
+        $warnings[] = 'max_file_uploads=' . $maxFileUploads
+            . ': за один запрос можно будет загрузить меньше 10 вложений.';
+    }
+    $memoryLimit = \Core\HostingCompatibility::memoryLimitBytes();
+    if ($memoryLimit !== null && $memoryLimit < \Core\HostingCompatibility::RECOMMENDED_MEMORY_BYTES) {
+        $warnings[] = 'memory_limit=' . \Core\HostingCompatibility::iniValue('memory_limit')
+            . ': система запустится, но обработка крупных изображений и обновление могут упираться в память. '
+            . 'Рекомендуется не менее 128 МБ на PHP-процесс.';
+    }
     if ($detectedOpenServer) {
-        $warnings[] = installerIsHttps()
-            ? 'OpenServer обнаружен через HTTPS: Messenger будет использовать same-origin /ws через Apache/Nginx proxy, потому что native listener не завершает TLS.'
-            : 'OpenServer обнаружен через HTTP: Messenger будет подключаться напрямую к тому же локальному hostname на порту 27800 (например ws://notes.local:27800), без Apache/Nginx WebSocket proxy.';
+        $warnings[] = 'OpenServer обнаружен: Messenger сразу работает через HTTP Long Poll. '
+            . 'WebSocket можно включить на следующем шаге как необязательное ускорение.';
     }
 }
 $csrf = htmlspecialchars((string) $_SESSION['notes_install_csrf'], ENT_QUOTES, 'UTF-8');
@@ -621,8 +902,11 @@ $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SU
 
     <?php if ($step === 1): ?>
         <h2>1. Проверка хостинга</h2>
+        <p><strong>Обязательные требования</strong></p>
         <ul><?php foreach ($requirements as $label => $ok): ?><li class="<?= $ok ? 'ok' : 'fail' ?>"><?= $ok ? '✓' : '✕' ?> <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></li><?php endforeach; ?></ul>
-        <div class="summary"><strong>Автоопределение</strong><p>Профиль: <code><?= $detectedInstallMode === 'openserver_local' ? 'OpenServer local' : 'Hosting / reverse proxy' ?></code><br>Сайт: <code><?= htmlspecialchars(appUrl($detectedSiteUrl,$detectedBasePath), ENT_QUOTES, 'UTF-8') ?></code><br>WebSocket: <code><?= htmlspecialchars($detectedWsUrl, ENT_QUOTES, 'UTF-8') ?></code><br>Private storage: <code><?= htmlspecialchars($detectedPrivateStorage !== '' ? $detectedPrivateStorage : 'нужно указать', ENT_QUOTES, 'UTF-8') ?></code></p></div>
+        <p><strong>Необязательные ускорения</strong></p>
+        <ul><?php foreach ($optionalCapabilities as $label => $capability): ?><li class="<?= $capability['available'] ? 'ok' : '' ?>"><?= $capability['available'] ? '✓' : '—' ?> <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?><small><?= htmlspecialchars($capability['message'], ENT_QUOTES, 'UTF-8') ?></small></li><?php endforeach; ?></ul>
+        <div class="summary"><strong>Автоопределение</strong><p>Профиль: <code><?= $detectedInstallMode === 'openserver_local' ? 'OpenServer local' : 'Shared hosting / production' ?></code><br>Сайт: <code><?= htmlspecialchars(appUrl($detectedSiteUrl,$detectedBasePath), ENT_QUOTES, 'UTF-8') ?></code><br>Messenger: <code>HTTP Long Poll</code> — основной transport<br>WebSocket: <code>необязательный ускоритель</code><br>Long Poll timeout: <code><?= installerLongPollTimeoutSeconds() ?> с</code><br>Private storage: <code><?= htmlspecialchars($detectedPrivateStorage !== '' ? $detectedPrivateStorage : 'нужно указать', ENT_QUOTES, 'UTF-8') ?></code></p></div>
         <?php if ($errors === []): ?><a class="button" href="?step=2">Продолжить</a><?php endif; ?>
     <?php elseif ($step === 2): ?>
         <h2>2. База и окружение</h2>
@@ -631,14 +915,14 @@ $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SU
                 <div class="mode-grid">
                     <label class="mode-option">
                         <input type="radio" name="install_mode" value="openserver_local" <?= $selectedInstallMode === 'openserver_local' ? 'checked' : '' ?>>
-                        <span><strong>OpenServer / локальная Windows-установка</strong><small>Для HTTP Messenger подключается напрямую к текущему локальному hostname на порту <code>27800</code> (например <code>ws://notes.local:27800</code>) и не требует reverse proxy. Для HTTPS остаётся <code>wss://.../ws</code> через Apache/Nginx.</small></span>
+                        <span><strong>OpenServer / локальная Windows-установка</strong><small>Messenger сразу работает через Long Poll. WebSocket можно включить ниже как локальное ускорение.</small></span>
                     </label>
                     <label class="mode-option">
                         <input type="radio" name="install_mode" value="hosting" <?= $selectedInstallMode === 'hosting' ? 'checked' : '' ?>>
-                        <span><strong>Hosting / production</strong><small>Браузер использует публичный <code>/ws</code> или другой ws/wss endpoint через reverse proxy. Для HTTPS требуется <code>wss://</code>.</small></span>
+                        <span><strong>Hosting / production</strong><small>Long Poll не требует фоновых процессов или WebSocket proxy. WebSocket можно включить только если хостинг это поддерживает.</small></span>
                     </label>
                 </div>
-                <?php if ($detectedOpenServer): ?><p class="inline-note">Обнаружена структура OpenServer/OSPanel <code>domains\...</code>. На HTTP профиль OpenServer использует прямой WebSocket к тому же hostname на порту <code>27800</code>; на HTTPS нужен WebSocket reverse proxy <code>/ws</code>.</p><?php endif; ?>
+                <?php if ($detectedOpenServer): ?><p class="inline-note">Обнаружена структура OpenServer/OSPanel <code>domains\...</code>. Дополнительная настройка для Messenger не требуется: Long Poll работает через обычный HTTP. WebSocket можно включить ниже для уменьшения задержки.</p><?php endif; ?>
             </fieldset>
             <fieldset><legend>MySQL</legend>
                 <label>Хост<input name="db_host" value="<?= htmlspecialchars((string)($_POST['db_host'] ?? 'localhost'),ENT_QUOTES,'UTF-8') ?>" required></label>
@@ -651,7 +935,13 @@ $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SU
                 <label>Private storage<input name="private_storage_path" value="<?= htmlspecialchars((string)($_POST['private_storage_path'] ?? $detectedPrivateStorage),ENT_QUOTES,'UTF-8') ?>" required><small>Абсолютный путь вне document root.</small></label>
                 <label>SITEURL<input name="site_url" value="<?= htmlspecialchars((string)($_POST['site_url'] ?? $detectedSiteUrl),ENT_QUOTES,'UTF-8') ?>" required></label>
                 <label>BASE_PATH<input name="base_path" value="<?= htmlspecialchars((string)($_POST['base_path'] ?? $detectedBasePath),ENT_QUOTES,'UTF-8') ?>" required></label>
-                <?php if ($hasMessenger): ?><label>WS_PUBLIC_URL<input id="ws-public-url" name="ws_public_url" value="<?= htmlspecialchars((string)($_POST['ws_public_url'] ?? $detectedWsUrl),ENT_QUOTES,'UTF-8') ?>" required data-hosting-default="<?= htmlspecialchars(defaultWebSocketUrl($detectedSiteUrl, $detectedBasePath), ENT_QUOTES, 'UTF-8') ?>"><small>OpenServer + HTTP: <code>ws://&lt;SITEURL host&gt;:27800</code>. OpenServer + HTTPS и production: публичный <code>wss://.../ws</code> через reverse proxy.</small></label><?php endif; ?>
+                <?php if ($hasMessenger): ?>
+                    <label class="mode-option">
+                        <input id="ws-enabled" type="checkbox" name="ws_enabled" value="1" <?= $selectedWsEnabled ? 'checked' : '' ?>>
+                        <span><strong>Использовать WebSocket-ускорение</strong><small>Необязательно. Без него весь Messenger работает через Long Poll. Включайте только если можете запустить отдельный процесс и, для HTTPS, настроить reverse proxy.</small></span>
+                    </label>
+                    <label id="ws-public-url-field">WS_PUBLIC_URL<input id="ws-public-url" name="ws_public_url" value="<?= htmlspecialchars((string)($_POST['ws_public_url'] ?? $detectedWsUrl),ENT_QUOTES,'UTF-8') ?>" data-hosting-default="<?= htmlspecialchars(defaultWebSocketUrl($detectedSiteUrl, $detectedBasePath), ENT_QUOTES, 'UTF-8') ?>"><small>Используется только при включённом WebSocket. OpenServer + HTTP: <code>ws://&lt;SITEURL host&gt;:27800</code>; HTTPS/production: <code>wss://.../ws</code>.</small></label>
+                <?php endif; ?>
             </fieldset><button type="submit">Подготовить проект</button>
         </form>
     <?php elseif ($step === 3): ?>
@@ -669,10 +959,12 @@ $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SU
     <?php else: ?>
         <h2>4. Готово</h2>
         <p>Схема БД, private storage, секреты, <code>.env</code> и первый admin созданы. Повторный запуск installer автоматически закрыт.</p>
-        <?php if ($hasMessenger && (($db['install_mode'] ?? 'hosting') === 'openserver_local')): ?>
-            <div class="notice success"><strong>OpenServer local:</strong> Messenger настроен на <code><?= htmlspecialchars((string)($db['ws_public_url'] ?? ''), ENT_QUOTES, 'UTF-8') ?></code>. В отдельном терминале из корня проекта запустите <code>php ws_server/server.php start</code> и оставьте процесс работающим. На HTTP reverse proxy не требуется; на HTTPS нужен proxy <code>/ws</code>. Проверка: <code>php ws_server/server.php status</code> и <code>php bin/ws_doctor.php</code>.</div>
+        <?php if ($hasMessenger && empty($db['ws_enabled'])): ?>
+            <div class="notice success"><strong>Messenger готов:</strong> основной Long Poll transport уже работает через обычный HTTP. WebSocket не включён и для работы Messenger не требуется.</div>
+        <?php elseif ($hasMessenger && (($db['install_mode'] ?? 'hosting') === 'openserver_local')): ?>
+            <div class="notice success"><strong>Messenger готов:</strong> Long Poll уже работает. Дополнительно включено WebSocket-ускорение <code><?= htmlspecialchars((string)($db['ws_public_url'] ?? ''), ENT_QUOTES, 'UTF-8') ?></code>. Для него в отдельном терминале запустите <code>php ws_server/server.php start</code>. Проверка: <code>php ws_server/server.php status</code> и <code>php bin/ws_doctor.php</code>.</div>
         <?php elseif ($hasMessenger): ?>
-            <p>Realtime Messenger использует встроенный native WebSocket process. Запустите <code>php ws_server/server.php start</code> через systemd/Supervisor/панель и проксируйте публичный <code>/ws</code> на локальный <code>WS_PORT</code>.</p>
+            <p>Messenger уже работает через Long Poll. Для включённого WebSocket-ускорения запустите <code>php ws_server/server.php start</code> через systemd/Supervisor/панель и при HTTPS проксируйте публичный <code>/ws</code> на локальный <code>WS_PORT</code>.</p>
         <?php endif; ?>
         <a class="button" href="<?= htmlspecialchars($installedAppUrl !== '' ? $installedAppUrl : '/', ENT_QUOTES, 'UTF-8') ?>">Открыть Workspace Organizer</a>
     <?php endif; ?>
@@ -681,8 +973,10 @@ $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SU
 <script nonce="<?= $cspNonce ?>">
 (() => {
     const wsInput = document.getElementById('ws-public-url');
+    const wsEnabled = document.getElementById('ws-enabled');
+    const wsField = document.getElementById('ws-public-url-field');
     const radios = Array.from(document.querySelectorAll('input[name="install_mode"]'));
-    if (!wsInput || radios.length === 0) return;
+    if (!wsInput || !wsEnabled || !wsField || radios.length === 0) return;
 
     const siteInput = document.querySelector('input[name="site_url"]');
     const basePathInput = document.querySelector('input[name="base_path"]');
@@ -703,7 +997,18 @@ $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SU
     };
 
     const applyMode = () => {
+        const enabled = wsEnabled.checked;
         const mode = radios.find((radio) => radio.checked)?.value || 'hosting';
+
+        wsField.hidden = !enabled;
+        wsInput.disabled = !enabled;
+        wsInput.required = enabled;
+
+        if (!enabled) {
+            wsInput.readOnly = false;
+            return;
+        }
+
         if (mode === 'openserver_local') {
             if (!wsInput.readOnly) hostingValue = wsInput.value;
             wsInput.value = openServerSocketUrl();
@@ -715,6 +1020,7 @@ $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SU
     };
 
     radios.forEach((radio) => radio.addEventListener('change', applyMode));
+    wsEnabled.addEventListener('change', applyMode);
     siteInput?.addEventListener('input', () => {
         if (radios.find((radio) => radio.checked)?.value === 'openserver_local') applyMode();
     });

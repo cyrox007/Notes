@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Core;
 
 require_once __DIR__ . '/UpdatePath.php';
+require_once __DIR__ . '/HostingCompatibility.php';
 
 use mysqli;
 use mysqli_result;
@@ -12,16 +13,18 @@ use RuntimeException;
 use Throwable;
 
 /**
- * Creates rollback artifacts before any updater live mutation begins.
+ * Создаёт rollback-артефакты до первого изменения рабочей версии.
  *
- * Backups are assembled under a temporary external directory, hash-verified and
- * atomically renamed into their final transaction directory only after both the
- * code snapshot and MySQL dump are complete.
+ * Резервная точка собирается во внешнем временном каталоге, проверяется по
+ * хэшам и публикуется атомарно только после готовности кода и дампа MySQL.
  */
 final class UpdateBackupManager
 {
     private const SCHEMA = 1;
     private const LOCK_FILENAME = '.update-backup.lock';
+    private const MIN_BACKUP_HEADROOM_BYTES = 32 * 1024 * 1024;
+    private const MIN_BACKUP_CAPACITY_BYTES = 64 * 1024 * 1024;
+    private const DATABASE_DUMP_EXPANSION_FACTOR = 3;
 
     /** @var list<string> */
     private const DEFAULT_EXCLUDED_ROOTS = [
@@ -79,6 +82,8 @@ final class UpdateBackupManager
             if (file_exists($finalDir) || is_link($finalDir)) {
                 throw new RuntimeException('Updater backup target already exists but is not a safe directory');
             }
+
+            $this->assertCapacity($db);
 
             $tempDir = $this->backupRoot . DIRECTORY_SEPARATOR . '.tmp-' . $transactionId . '-' . bin2hex(random_bytes(6));
             $oldUmask = umask(0077);
@@ -146,6 +151,84 @@ final class UpdateBackupManager
             'code' => $manifest['code'],
             'database' => $manifest['database'],
         ];
+    }
+
+    private function assertCapacity(mysqli $db): void
+    {
+        $freeBytes = HostingCompatibility::freeDiskBytes($this->backupRoot);
+        if ($freeBytes === null) {
+            return;
+        }
+
+        $codeBytes = $this->estimateCodeBytes($this->appRoot);
+        $databaseBytes = $this->estimateDatabaseBytes($db);
+        $requiredBytes = max(
+            self::MIN_BACKUP_CAPACITY_BYTES,
+            $codeBytes
+                + ($databaseBytes * self::DATABASE_DUMP_EXPANSION_FACTOR)
+                + self::MIN_BACKUP_HEADROOM_BYTES
+        );
+
+        if ($freeBytes < $requiredBytes) {
+            throw new RuntimeException(
+                sprintf(
+                    'Недостаточно свободного места для rollback backup: доступно %.1f МБ, требуется ориентировочно %.1f МБ',
+                    $freeBytes / 1048576,
+                    $requiredBytes / 1048576
+                )
+            );
+        }
+    }
+
+    private function estimateCodeBytes(string $directory, string $relative = ''): int
+    {
+        $items = scandir($directory);
+        if (!is_array($items)) {
+            throw new RuntimeException('Не удалось оценить размер кода перед резервным копированием');
+        }
+
+        $bytes = 0;
+        foreach ($items as $name) {
+            if ($name === '.' || $name === '..') {
+                continue;
+            }
+
+            $relativePath = $relative === '' ? $name : $relative . '/' . $name;
+            $path = $directory . DIRECTORY_SEPARATOR . $name;
+            if ($this->shouldExclude($path, $relativePath)) {
+                continue;
+            }
+            if (is_link($path)) {
+                throw new RuntimeException('Rollback backup не допускает symlink: ' . $relativePath);
+            }
+            if (is_dir($path)) {
+                $bytes += $this->estimateCodeBytes($path, $relativePath);
+                continue;
+            }
+
+            $size = is_file($path) ? filesize($path) : false;
+            if (!is_int($size) || $size < 0) {
+                throw new RuntimeException('Не удалось оценить размер файла перед backup: ' . $relativePath);
+            }
+            $bytes += $size;
+        }
+
+        return $bytes;
+    }
+
+    private function estimateDatabaseBytes(mysqli $db): int
+    {
+        $result = $db->query(
+            'SELECT COALESCE(SUM(DATA_LENGTH + INDEX_LENGTH), 0) AS estimated_bytes '
+            . 'FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()'
+        );
+        $row = $result instanceof mysqli_result ? $result->fetch_assoc() : null;
+        if ($result instanceof mysqli_result) {
+            $result->free();
+        }
+
+        $value = $row['estimated_bytes'] ?? 0;
+        return is_numeric($value) ? max(0, (int) $value) : 0;
     }
 
     /** @return array<string,mixed> */

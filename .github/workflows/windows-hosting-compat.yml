@@ -2,7 +2,7 @@ name: Windows hosting compatibility
 
 on:
   pull_request:
-    branches: [dev, '1.0', master]
+    branches: [dev, '1.0', master, 'release/1.0.9-rc']
   workflow_dispatch:
 
 permissions:
@@ -46,6 +46,7 @@ jobs:
             'core/UpdatePath.php',
             'core/UpdateFileMutator.php',
             'core/PrivateStorageResolver.php',
+            'core/HostingCompatibility.php',
             'core/UpdateExternalRuntime.php',
             'core/UpdateManifestVerifier.php',
             'core/UpdatePackageStager.php',
@@ -113,7 +114,9 @@ jobs:
             'tests/integration/native_view_renderer_contract.php',
             'tests/integration/module_registry_contract.php',
             'tests/integration/hosting_package_source_contract.php',
-            'tests/integration/deployment_surface_contract.php'
+            'tests/integration/deployment_surface_contract.php',
+            'tests/integration/hosting_compatibility_contract.php',
+            'tests/integration/profile_avatar_image_processor_contract.php'
           )
           foreach ($test in $tests) {
             Write-Host "=== $test ==="

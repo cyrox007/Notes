@@ -1,12 +1,12 @@
 # Workspace Organizer
 
-**Версия:** `1.0.8`  
+**Версия:** `1.0.9`  
 **Актуально на:** 29 сентября 2026  
 **Статус:** stable
 
 Workspace Organizer — self-hosted PHP-приложение для корпоративной работы: заметки, личные и общие задачи, файлы, профиль, администрирование и real-time Messenger.
 
-`1.0.8` — небольшой patch-релиз линии 1.0 после успешной реальной проверки обновления `1.0.6 → 1.0.7` на Open Server 6+. В Messenger исправлено положение пустого состояния списка диалогов: при отсутствии чатов подпись «Диалогов пока нет» теперь занимает свободную область левой колонки и визуально центрируется, а пустой контейнер списка больше не резервирует место сверху. Схема БД и прикладные данные не меняются; сквозной CI проверяет переход `1.0.7 → 1.0.8`.
+`1.0.9` — patch-релиз линии 1.0, который делает Messenger полностью работоспособным без обязательного WebSocket: Long Poll запускается как базовый транспорт, а WebSocket остаётся необязательным ускорителем. В настройке 2FA добавлен локальный QR-код без внешних сервисов. Установка и работа на виртуальном хостинге проверяются без обязательных process API и собственного WebSocket-сервера; основной проверяемый путь обновления — `1.0.8 → 1.0.9`.
 
 ## Возможности
 
@@ -44,8 +44,8 @@ Workspace Organizer — self-hosted PHP-приложение для корпор
 ## Требования
 
 - PHP `8.1+` — технический compatibility floor; для Internet-facing production рекомендуется поддерживаемая ветка PHP, сейчас `8.3+`;
-- MySQL `8.x` — основной проверяемый CI path;
-- PHP extensions: `mysqli`, `pdo_mysql`, `mbstring`, `fileinfo`, `sodium`, `gd`;
+- БД: MySQL `8.0+` или MariaDB `10.5+`; CI проверяет MySQL 8.4 и MariaDB 10.11;
+- PHP extensions: `mysqli`, `pdo_mysql`, `mbstring`, `ctype`, `fileinfo`, `sodium`, `openssl`, `zlib`, `gd`; доступны `ini_get`/`getenv`/`putenv`, рабочие PHP-сессии и upload temp;
 - Messenger работает через обычный authenticated HTTP long poll даже без WebSocket process; для низкой задержки и меньшей нагрузки рекомендуется PHP CLI + long-running native WebSocket process и WebSocket endpoint/proxy; daemon mode на Unix дополнительно требует `pcntl`;
 - Argon2id support в `password_hash`;
 - Apache + `mod_rewrite` либо Nginx с эквивалентным front-controller routing;
@@ -81,8 +81,8 @@ https://example.com/workspace/install.php
 
 Web-installer автоматически:
 
-- проверяет PHP 8.1+, необходимые extensions и Argon2id; production runtime не требует `vendor/`;
-- пытается создать отсутствующую БД, если MySQL account это разрешает;
+- проверяет PHP 8.1+, необходимые extensions, `ini_get/getenv/putenv`, PHP session/upload temp, `flock`/atomic rename, Argon2id, лимиты загрузки и низкий `memory_limit`; production runtime не требует `vendor/`;
+- проверяет MySQL 8.0+ / MariaDB 10.5+, права `CREATE/ALTER/TRIGGER/DROP` и пытается создать отсутствующую БД, если учётная запись БД это разрешает;
 - импортирует composition-aware canonical schemas и создаёт current contract из 35 обязательных таблиц;
 - создаёт `cache`/`compile`;
 - подбирает и создаёт `PRIVATE_STORAGE_PATH` вне document root;
@@ -165,7 +165,7 @@ WS_HOST=127.0.0.1
 WS_PORT=27800
 ```
 
-На production hosting WebSocket остаётся предпочтительным realtime transport: публичный `/ws` обычно проксируется на локальный native WebSocket process, а long-running PHP process запускается отдельно через hosting background-process manager, systemd/Supervisor или аналогичный process manager:
+На production hosting WebSocket остаётся рекомендуемым ускорителем realtime: публичный `/ws` обычно проксируется на локальный native WebSocket process, а long-running PHP process запускается отдельно через hosting background-process manager, systemd/Supervisor или аналогичный process manager:
 
 ```bash
 php ws_server/server.php check
@@ -361,7 +361,7 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 
 `System settings and storage quota` проверяет canonical settings schema, admin ACL, default/per-user quota, live usage из `user_files`, reset override и quota overflow denial на MySQL 8.4.
 
-`Hosting installer` выполняет настоящий HTTP fresh-install через cookies/CSRF на MySQL в hosting-like `public_html/workspace`, проверяет subdirectory detection, private storage вне document root, 35-table contract, quota seed, admin account, generated `.env`, блокировку повторного installer и итоговый healthcheck.
+`Hosting installer` выполняет настоящий HTTP fresh-install через cookies/CSRF на MySQL в hosting-like `public_html/workspace`, проверяет subdirectory detection, private storage вне document root, 35-table contract, quota seed, admin account, generated `.env`, блокировку повторного installer и итоговый healthcheck; отдельно проверяются отказ при отключённом `putenv` и совместимость канонических схем с MariaDB 10.11.
 
 `Build hosting package` собирает upload-ready ZIP с production `vendor/`; теги `v*-*` публикуются как GitHub prerelease, а stable tag без suffix — как обычные Release.
 

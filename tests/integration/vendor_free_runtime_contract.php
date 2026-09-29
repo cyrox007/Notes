@@ -68,7 +68,11 @@ vendorFreeAssert(str_contains($controller, 'new NativeViewRenderer('), 'HTTP con
 
 $installer = (string) file_get_contents($root . '/install.php');
 vendorFreeAssert(str_contains($installer, "'Native core runtime'"), 'installer does not verify native core runtime');
-vendorFreeAssert(str_contains($installer, "'Native WebSocket runtime'"), 'installer does not verify native WebSocket runtime');
+vendorFreeAssert(
+    str_contains($installer, "'HTTP Long Poll Messenger'")
+    && str_contains($installer, "'WebSocket-ускоритель Messenger'"),
+    'installer должен проверять обязательный Long Poll отдельно от необязательного WebSocket runtime'
+);
 
 $server = (string) file_get_contents($root . '/ws_server/server.php');
 vendorFreeAssert(str_contains($server, 'NativeMessengerServer'), 'native WebSocket server is not the active entrypoint');

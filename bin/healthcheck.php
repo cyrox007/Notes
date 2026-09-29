@@ -9,6 +9,11 @@ if (PHP_SAPI !== 'cli') {
 
 $root = dirname(__DIR__);
 require_once $root . '/core/Environment.php';
+require_once $root . '/core/HostingCompatibility.php';
+if (!\Core\HostingCompatibility::processEnvironmentAvailable()) {
+    fwrite(STDERR, "PHP-функции getenv/putenv недоступны; окружение Workspace Organizer загрузить нельзя.\n");
+    exit(1);
+}
 if (is_file($root . '/.env')) {
     \Core\Environment::load($root . '/.env');
 }
@@ -55,14 +60,30 @@ function pathIsInside(string $path, string $parent): bool
 }
 
 recordHealth($checks, $failed, 'php_version', version_compare(PHP_VERSION, '8.1.0', '>='), PHP_VERSION . ' (technical floor 8.1; production 8.3+ recommended)');
-foreach (['mysqli', 'pdo_mysql', 'mbstring', 'sodium', 'fileinfo', 'gd'] as $extension) {
+foreach (['mysqli', 'pdo_mysql', 'mbstring', 'sodium', 'openssl', 'zlib', 'fileinfo', 'gd'] as $extension) {
     recordHealth($checks, $failed, 'extension_' . $extension, extension_loaded($extension));
 }
 
 $requiredSecrets = ['UNIQUE_KEY'];
+$webSocketEnabled = false;
 if ($hasMessenger) {
     $requiredSecrets[] = 'MSG_SECRET_KEY';
-    $requiredSecrets[] = 'WS_TICKET_SECRET';
+    try {
+        $webSocketEnabled = \Core\WebSocketEndpoint::enabled();
+        recordHealth(
+            $checks,
+            $failed,
+            'messenger_transport',
+            true,
+            $webSocketEnabled ? 'Long Poll + WebSocket ускоритель' : 'Long Poll only'
+        );
+    } catch (Throwable $e) {
+        recordHealth($checks, $failed, 'messenger_transport', false, $e->getMessage());
+    }
+
+    if ($webSocketEnabled) {
+        $requiredSecrets[] = 'WS_TICKET_SECRET';
+    }
 }
 foreach ($requiredSecrets as $secretName) {
     $secret = envValue($secretName);
@@ -182,47 +203,60 @@ if ($hasMessenger) {
         $siteUrl = \Core\WebSocketEndpoint::siteUrl();
         $siteScheme = strtolower((string) parse_url($siteUrl, PHP_URL_SCHEME));
         recordHealth($checks, $failed, 'site_url', true, $siteUrl);
-
-        $wsPublicUrl = \Core\WebSocketEndpoint::publicUrl();
-        recordHealth($checks, $failed, 'websocket_url', true, $wsPublicUrl);
-
-        $wsBindHost = \Core\WebSocketEndpoint::bindHost();
-        $wsPort = \Core\WebSocketEndpoint::port();
-        recordHealth($checks, $failed, 'websocket_listener', true, sprintf('tcp://%s:%d', $wsBindHost, $wsPort));
-
-        if (\Core\WebSocketEndpoint::usesSameOriginProxy()) {
-            recordHealth(
-                $checks,
-                $failed,
-                'websocket_proxy_contract',
-                true,
-                \Core\WebSocketEndpoint::proxyPath() . ' -> ' . \Core\WebSocketEndpoint::proxyBackendUrl()
-                    . ' (verify reachability with php bin/ws_doctor.php)'
-            );
-        } else {
-            recordHealth($checks, $failed, 'websocket_proxy_contract', true, 'custom/external public WebSocket endpoint');
-        }
     } catch (Throwable $e) {
         recordHealth($checks, $failed, 'site_url', false, $siteUrl !== '' ? $siteUrl : 'missing');
-        recordHealth($checks, $failed, 'websocket_url', false, $e->getMessage());
     }
 
-    $origins = array_values(array_filter(array_map('trim', explode(',', envValue('WS_ALLOWED_ORIGINS')))));
-    $originsOk = $origins !== [];
-    foreach ($origins as $origin) {
-        $scheme = strtolower((string) parse_url($origin, PHP_URL_SCHEME));
-        if (!in_array($scheme, ['http', 'https'], true) || ($siteScheme === 'https' && $scheme !== 'https')) {
-            $originsOk = false;
-            break;
+    if ($webSocketEnabled) {
+        try {
+            $wsPublicUrl = \Core\WebSocketEndpoint::publicUrl();
+            recordHealth($checks, $failed, 'websocket_url', true, $wsPublicUrl);
+
+            $wsBindHost = \Core\WebSocketEndpoint::bindHost();
+            $wsPort = \Core\WebSocketEndpoint::port();
+            recordHealth($checks, $failed, 'websocket_listener', true, sprintf('tcp://%s:%d', $wsBindHost, $wsPort));
+
+            if (\Core\WebSocketEndpoint::usesSameOriginProxy()) {
+                recordHealth(
+                    $checks,
+                    $failed,
+                    'websocket_proxy_contract',
+                    true,
+                    \Core\WebSocketEndpoint::proxyPath() . ' -> ' . \Core\WebSocketEndpoint::proxyBackendUrl()
+                        . ' (verify reachability with php bin/ws_doctor.php)'
+                );
+            } else {
+                recordHealth($checks, $failed, 'websocket_proxy_contract', true, 'custom/external public WebSocket endpoint');
+            }
+        } catch (Throwable $e) {
+            recordHealth($checks, $failed, 'websocket_url', false, $e->getMessage());
         }
+
+        $origins = array_values(array_filter(array_map('trim', explode(',', envValue('WS_ALLOWED_ORIGINS')))));
+        $originsOk = $origins !== [];
+        foreach ($origins as $origin) {
+            $scheme = strtolower((string) parse_url($origin, PHP_URL_SCHEME));
+            if (!in_array($scheme, ['http', 'https'], true) || ($siteScheme === 'https' && $scheme !== 'https')) {
+                $originsOk = false;
+                break;
+            }
+        }
+        recordHealth(
+            $checks,
+            $failed,
+            'websocket_allowed_origins',
+            $originsOk,
+            $origins === [] ? 'missing' : implode(', ', $origins)
+        );
+    } else {
+        recordHealth(
+            $checks,
+            $failed,
+            'messenger_websocket',
+            true,
+            'disabled by WS_ENABLED=0; Long Poll is the active primary transport'
+        );
     }
-    recordHealth(
-        $checks,
-        $failed,
-        'websocket_allowed_origins',
-        $originsOk,
-        $origins === [] ? 'missing' : implode(', ', $origins)
-    );
 } else {
     recordHealth($checks, $failed, 'messenger_websocket', true, 'not required by packaged composition');
 }
@@ -244,6 +278,15 @@ try {
     $db = new mysqli($host, $user, $pass, $database, $port);
     $db->set_charset('utf8mb4');
     recordHealth($checks, $failed, 'database_connection', true, $database);
+
+    $databaseSupport = \Core\HostingCompatibility::databaseServerSupport((string) $db->server_info);
+    recordHealth(
+        $checks,
+        $failed,
+        'database_server_version',
+        $databaseSupport['supported'],
+        $databaseSupport['message']
+    );
 
     $escaped = array_map(
         static fn (string $table): string => "'" . $db->real_escape_string($table) . "'",

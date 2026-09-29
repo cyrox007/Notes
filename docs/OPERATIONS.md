@@ -19,7 +19,7 @@ php bin/migrate.php
 php bin/healthcheck.php
 ```
 
-Messenger использует native WebSocket как рекомендуемый fast path и authenticated HTTP long poll как automatic fallback. Если WebSocket включён, держите `php ws_server/server.php start` под process manager и публикуйте `/ws` только через TLS reverse proxy. После изменения `WS_TICKET_SECRET`, `WS_ALLOWED_ORIGINS`, `SITEURL` или WebSocket topology перезапускайте HTTP workers + native WS process и выполняйте browser smoke WebSocket → Long Poll → WebSocket.
+Messenger использует authenticated HTTP Long Poll как основной transport, а native WebSocket — как необязательный fast path. `WS_ENABLED=0` полностью отключает WS endpoint/ticket и оставляет весь функционал Messenger на Long Poll; `WS_ENABLED=1` включает ускоритель. Если WebSocket включён, держите `php ws_server/server.php start` под process manager и публикуйте `/ws` только через TLS reverse proxy. После изменения `WS_TICKET_SECRET`, `WS_ALLOWED_ORIGINS`, `SITEURL` или WebSocket topology перезапускайте HTTP workers + native WS process и выполняйте browser smoke WebSocket → Long Poll → WebSocket.
 
 ## 2. Backup contract
 

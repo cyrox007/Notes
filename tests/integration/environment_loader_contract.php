@@ -27,7 +27,7 @@ foreach ($keys as $suffix) {
 }
 
 $temp = tempnam(sys_get_temp_dir(), 'wo-env-');
-envContractAssert(is_string($temp) && $temp !== '', 'temporary .env file could not be created');
+envContractAssert(is_string($temp) && $temp !== '', 'не удалось создать временный файл .env');
 
 $plain = $prefix . 'PLAIN';
 $empty = $prefix . 'EMPTY';
@@ -66,20 +66,20 @@ $_SERVER[$preset] = 'from-process';
 
 Environment::load($temp);
 
-envContractAssert(getenv($plain) === 'hello', 'plain value was not loaded');
-envContractAssert(getenv($empty) === '', 'empty value was not preserved');
-envContractAssert(getenv($double) === 'hello world', 'double-quoted value was not decoded');
-envContractAssert(getenv($escaped) === "line\nnext\tcol\\slash\"quote", 'double-quoted escapes were not decoded');
-envContractAssert(getenv($single) === 'literal # value', 'single-quoted value/comment boundary is wrong');
-envContractAssert(getenv($inline) === 'value', 'inline comment was not removed');
-envContractAssert(getenv($hash) === 'value#hash', 'literal hash in unquoted value was corrupted');
-envContractAssert(getenv($exported) === 'yes', 'export KEY=VALUE syntax was not loaded');
-envContractAssert(getenv($expanded) === 'alpha-beta', 'variable expansion failed');
-envContractAssert(getenv($literalDollar) === '${' . $base . '}', 'escaped variable reference was expanded instead of preserved');
-envContractAssert(getenv($preset) === 'from-process', 'existing process environment was overwritten');
-envContractAssert(($_ENV[$plain] ?? null) === 'hello', '$_ENV was not populated');
-envContractAssert(($_SERVER[$plain] ?? null) === 'hello', '$_SERVER was not populated');
-envContractAssert(getenv($bom) === 'ok', 'UTF-8 BOM was not handled');
+envContractAssert(getenv($plain) === 'hello', 'обычное значение не загружено');
+envContractAssert(getenv($empty) === '', 'пустое значение не сохранено');
+envContractAssert(getenv($double) === 'hello world', 'значение в двойных кавычках не декодировано');
+envContractAssert(getenv($escaped) === "line\nnext\tcol\\slash\"quote", 'экранированные последовательности в двойных кавычках не декодированы');
+envContractAssert(getenv($single) === 'literal # value', 'нарушена граница значения и комментария в одинарных кавычках');
+envContractAssert(getenv($inline) === 'value', 'встроенный комментарий не удалён');
+envContractAssert(getenv($hash) === 'value#hash', 'символ # в значении без кавычек повреждён');
+envContractAssert(getenv($exported) === 'yes', 'синтаксис export KEY=VALUE не загружен');
+envContractAssert(getenv($expanded) === 'alpha-beta', 'подстановка переменной не сработала');
+envContractAssert(getenv($literalDollar) === '${' . $base . '}', 'экранированная ссылка на переменную была ошибочно раскрыта');
+envContractAssert(getenv($preset) === 'from-process', 'существующее окружение процесса было перезаписано');
+envContractAssert(($_ENV[$plain] ?? null) === 'hello', 'массив $_ENV не заполнен');
+envContractAssert(($_SERVER[$plain] ?? null) === 'hello', 'массив $_SERVER не заполнен');
+envContractAssert(getenv($bom) === 'ok', 'UTF-8 BOM не обработан');
 
 $invalid = $temp . '.invalid';
 file_put_contents($invalid, "BROKEN LINE\n", LOCK_EX);
@@ -87,9 +87,9 @@ $thrown = false;
 try {
     Environment::load($invalid);
 } catch (RuntimeException $e) {
-    $thrown = str_contains($e->getMessage(), 'line 1');
+    $thrown = str_contains($e->getMessage(), 'строка 1');
 }
-envContractAssert($thrown, 'invalid .env syntax did not fail closed with line information');
+envContractAssert($thrown, 'некорректный .env не завершился fail-closed с номером строки');
 
 $missing = $temp . '.missing';
 $thrown = false;
@@ -98,7 +98,7 @@ try {
 } catch (RuntimeException) {
     $thrown = true;
 }
-envContractAssert($thrown, 'missing .env did not fail closed');
+envContractAssert($thrown, 'отсутствующий .env не завершился fail-closed');
 
 @unlink($temp);
 @unlink($invalid);
@@ -108,4 +108,4 @@ foreach ($keys as $suffix) {
     unset($_ENV[$key], $_SERVER[$key]);
 }
 
-echo "[OK] internal environment loader contract\n";
+echo "[OK] контракт внутреннего загрузчика окружения выполнен\n";

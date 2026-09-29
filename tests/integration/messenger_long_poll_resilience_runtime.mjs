@@ -96,6 +96,54 @@ const rootElement = {
     classList: { add() {}, remove() {} },
 };
 
+class HangingWebSocket {
+    static OPEN = 1;
+    static CONNECTING = 0;
+
+    constructor(url) {
+        this.url = url;
+        this.readyState = HangingWebSocket.CONNECTING;
+        this.listeners = new Map();
+    }
+
+    addEventListener(type, handler) {
+        this.listeners.set(type, handler);
+    }
+
+    send() {}
+    close() {}
+}
+
+context.WebSocket = HangingWebSocket;
+
+const coldStartRoot = {
+    dataset: {
+        userUid: 'user-1',
+        userName: 'Пользователь',
+        socketUrl: '/messenger-ws',
+        socketTicket: 'ticket-never-opens',
+    },
+    classList: { add() {}, remove() {} },
+};
+const coldStartApp = new MessengerApp(coldStartRoot);
+const coldStartStates = [];
+let coldStartPollStarts = 0;
+coldStartApp.setConnectionState = (state, text) => coldStartStates.push([state, text]);
+coldStartApp.resumeLongPoll = () => {
+    coldStartPollStarts += 1;
+};
+coldStartApp.connect();
+
+assert(coldStartApp.longPollActive === true, 'холодный старт ждёт WebSocket перед включением Long Poll');
+assert(coldStartPollStarts === 1, 'Long Poll не стартовал синхронно при зависшем WebSocket handshake');
+assert(coldStartApp.socket instanceof HangingWebSocket, 'WebSocket не запускается параллельно с Long Poll');
+assert(
+    coldStartStates.some(([state, text]) => state === 'fallback' && text.includes('WebSocket подключается')),
+    'холодный старт не показывает рабочий Long Poll во время фонового подключения WebSocket'
+);
+
+context.WebSocket = { OPEN: 1 };
+
 const app = new MessengerApp(rootElement);
 const states = [];
 app.setConnectionState = (state, text) => states.push([state, text]);
@@ -322,4 +370,4 @@ assert(
     'watchdog не сохранил рабочий fallback-транспорт во время восстановления'
 );
 
-console.log('[OK] Messenger Long Poll восстанавливается после сбоев, останавливается перед updater и корректно завершает transport при окончании сессии');
+console.log('[OK] Messenger Long Poll стартует до WebSocket, восстанавливается после сбоев, останавливается перед updater и корректно завершает transport при окончании сессии');

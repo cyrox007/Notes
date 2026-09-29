@@ -2,7 +2,7 @@ name: Двухфакторная аутентификация TOTP
 
 on:
   pull_request:
-    branches: [dev, '1.0', master]
+    branches: [dev, '1.0', master, 'release/1.0.9-rc']
   push:
     branches: [dev, '1.0', master]
 
@@ -57,6 +57,8 @@ jobs:
           php -l app/views/login_page/two_factor_view.php
           php -l app/views/login_page/two_factor_setup_view.php
           php -l app/views/login_page/two_factor_recovery_view.php
+          node --check assets/js/totp-qr.js
+          node --check tests/integration/totp_qr_runtime.mjs
           php -l core/routerConfig.php
           php -l modules/admin/controllers/SettingsController.php
           php -l modules/admin/views/settings.php
@@ -66,7 +68,9 @@ jobs:
           php -l tests/integration/two_factor_contract.php
 
       - name: Проверить TOTP, резервные коды и политику
-        run: php tests/integration/two_factor_contract.php
+        run: |
+          php tests/integration/two_factor_contract.php
+          node tests/integration/totp_qr_runtime.mjs
 
       - name: Проверить прямую ротацию и откат TOTP-секретов
         shell: bash
