@@ -9,6 +9,7 @@ require_once __DIR__ . '/UpdateMigrationPreflight.php';
 require_once __DIR__ . '/UpdateCommandRunner.php';
 require_once __DIR__ . '/UpdateProcessRunner.php';
 require_once __DIR__ . '/UpdateApplyOperationLock.php';
+require_once __DIR__ . '/UpdateLiveApplier.php';
 require_once __DIR__ . '/UpdateRollbackCodeRestorer.php';
 
 use App\Services\MaintenanceModeService;
