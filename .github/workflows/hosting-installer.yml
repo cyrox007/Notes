@@ -35,8 +35,15 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.1'
-          extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
+          extensions: mysqli, pdo_mysql, mbstring, sodium, openssl, zlib, fileinfo, gd
           coverage: none
+
+      - name: Проверить контракт жёсткого виртуального хостинга
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/integration/hosting_compatibility_contract.php
+          php tests/integration/profile_avatar_image_processor_contract.php
 
       - name: Prove installer has no vendor prerequisite
         shell: bash
@@ -48,6 +55,9 @@ jobs:
           grep -Fq 'PHP 8.1+' install.php
           grep -Fq 'Native core runtime' install.php
           grep -Fq 'HTTP Long Poll Messenger' install.php
+          grep -Fq 'getenv / putenv' install.php
+          grep -Fq 'assertDatabaseServerCompatibility' install.php
+          grep -Fq 'Фактический доступ к исходящему TCP/443' install.php
           grep -Fq 'WebSocket-ускоритель Messenger' install.php
           grep -Fq 'Изолированный updater через proc_open' install.php
           ! grep -Fq 'vendor/autoload.php' install.php
@@ -85,6 +95,25 @@ jobs:
           test -f /tmp/workspace-hosting-home/public_html/workspace/modules/messenger/socket/NativeMessengerServer.php
           test ! -e /tmp/workspace-hosting-home/public_html/workspace/app/socket/NativeMessengerServer.php
           test ! -e /tmp/workspace-hosting-home/public_html/workspace/.env
+
+      - name: Проверить отказ при отключённом putenv
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=/tmp/workspace-hosting-home/public_html
+          HOME=/tmp/workspace-hosting-home php             -d disable_functions=putenv             -S 127.0.0.1:8081 -t "$ROOT"             >/tmp/workspace-putenv-server.log 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true' EXIT
+          for i in {1..20}; do
+            if curl -fsS http://127.0.0.1:8081/workspace/install.php >/tmp/install-no-putenv.html; then
+              break
+            fi
+            sleep 1
+          done
+          grep -Fq 'Не выполнено требование: getenv / putenv' /tmp/install-no-putenv.html
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
+          trap - EXIT
 
       - name: Start PHP hosting server
         shell: bash
@@ -211,6 +240,7 @@ jobs:
           php bin/healthcheck.php --json | tee /tmp/hosting-health.json
           grep -Fq '"status": "ok"' /tmp/hosting-health.json
           grep -Fq '35 required tables present' /tmp/hosting-health.json
+          grep -Fq '"name": "database_server_version"' /tmp/hosting-health.json
 
       - name: Installer locks after completion
         shell: bash
@@ -222,3 +252,104 @@ jobs:
       - name: Show server log on failure
         if: failure()
         run: cat /tmp/workspace-installer-server.log || true
+
+
+  mariadb-compatibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: notes_mariadb_test
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql, mbstring, sodium, openssl, zlib, fileinfo, gd
+          coverage: none
+
+      - name: Проверить MariaDB 10.11 и канонические схемы
+        shell: bash
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3307
+          DBUSER: root
+          DBPASS: root
+          DBNAME: notes_mariadb_test
+        run: |
+          set -euo pipefail
+          php <<'PHP'
+          <?php
+          declare(strict_types=1);
+
+          require 'core/HostingCompatibility.php';
+          require 'core/ModuleManifest.php';
+          require 'core/DatabaseOwnership.php';
+
+          $db = new mysqli(
+              getenv('DBHOST'),
+              getenv('DBUSER'),
+              getenv('DBPASS'),
+              getenv('DBNAME'),
+              (int) getenv('DBPORT')
+          );
+          $db->set_charset('utf8mb4');
+
+          $support = Core\HostingCompatibility::databaseServerSupport((string) $db->server_info);
+          if (!$support['supported'] || $support['engine'] !== 'MariaDB') {
+              fwrite(STDERR, $support['message'] . PHP_EOL);
+              exit(1);
+          }
+
+          $ownership = Core\DatabaseOwnership::fromPackageRoot(__DIR__);
+          $db->query('SET FOREIGN_KEY_CHECKS=0');
+          foreach ($ownership->schemaFiles() as $relative) {
+              $sql = file_get_contents(__DIR__ . '/' . $relative);
+              if (!is_string($sql) || $sql === '') {
+                  throw new RuntimeException('Не удалось прочитать схему ' . $relative);
+              }
+              $db->multi_query($sql);
+              do {
+                  if ($result = $db->store_result()) {
+                      $result->free();
+                  }
+              } while ($db->more_results() && $db->next_result());
+          }
+          $db->query('SET FOREIGN_KEY_CHECKS=1');
+
+          $required = $ownership->tables();
+          $escaped = array_map(
+              static fn (string $table): string => "'" . $db->real_escape_string($table) . "'",
+              $required
+          );
+          $result = $db->query(
+              'SELECT TABLE_NAME FROM information_schema.tables '
+              . 'WHERE table_schema = DATABASE() AND TABLE_NAME IN (' . implode(',', $escaped) . ')'
+          );
+          $existing = [];
+          while ($row = $result->fetch_row()) {
+              $existing[] = (string) $row[0];
+          }
+          $missing = array_values(array_diff($required, $existing));
+          if ($missing !== []) {
+              fwrite(STDERR, 'MariaDB: отсутствуют таблицы: ' . implode(', ', $missing) . PHP_EOL);
+              exit(1);
+          }
+
+          echo '[OK] MariaDB ' . $support['version'] . ' принимает канонические схемы' . PHP_EOL;
+          PHP
