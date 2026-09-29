@@ -17,6 +17,8 @@
 - Argon2id в `password_hash`;
 - возможность PHP записывать в каталог приложения во время установки;
 - возможность PHP создать private storage вне document root;
+- рабочие `session.save_path`, временный каталог загрузок, `flock` и атомарное переименование файлов;
+- права пользователя БД `CREATE`, `ALTER`, `DROP` и `TRIGGER` внутри собственной базы;
 - Apache `mod_rewrite` либо эквивалентный routing в Nginx/панели;
 - для Messenger fallback — обычные длительные HTTP requests и достаточная параллельность PHP workers;
 - для рекомендуемого низколатентного WebSocket fast path — PHP CLI, возможность держать долгоживущий native PHP process и WebSocket reverse proxy `/ws`.
@@ -25,7 +27,9 @@ Composer, Smarty и Workerman для runtime не требуются.
 
 Если тариф не позволяет long-running process/WebSocket proxy, ничего дополнительно включать не требуется: Messenger штатно и полностью работает через authenticated HTTP Long Poll. WebSocket можно добавить позже как необязательное ускорение — он уменьшает задержку и нагрузку на PHP workers, но не открывает отдельные функции.
 
-> Старый тариф с PHP 7.4 и MySQL 5.7 не соответствует минимальному runtime линии 1.0: установщик остановится до изменения БД и покажет несовместимые требования.\n\n## Fresh install без CLI
+> Старый тариф с PHP 7.4 и MySQL 5.7 не соответствует минимальному окружению линии 1.0: установщик остановится до изменения БД и покажет несовместимые требования.
+
+## Fresh install без CLI
 
 1. Скачайте ZIP `workspace-organizer-v*.zip` из GitHub Release.
 2. Загрузите и распакуйте его, например в `public_html/workspace`.
@@ -36,8 +40,8 @@ Composer, Smarty и Workerman для runtime не требуются.
 https://example.com/workspace/install.php
 ```
 
-5. Installer проверит PHP/extensions, `getenv/putenv`, встроенный core runtime, writable runtime dirs, private storage, локальные HTTPS/DNS-предпосылки updater, `memory_limit` и ограничения загрузки. Наличие socket-функций не считается доказательством доступности исходящего TCP/443: это подтверждается только реальным обращением к серверу обновлений.
-6. Укажите реквизиты БД. До импорта схем мастер проверит версию сервера и примет MySQL 8.0+ либо MariaDB 10.5+. Мастер создаст `SITEURL`, `BASE_PATH`, private storage и секреты. Messenger по умолчанию устанавливается в Long Poll-only режиме (`WS_ENABLED=0`). WebSocket-ускорение можно включить отдельной галкой; только тогда используются `WS_PUBLIC_URL` и `WS_ALLOWED_ORIGINS`. На Windows/OpenServer с layout `domains\\...` и HTTP installer автоматически предлагает direct-host профиль вида `ws://notes.local:27800`, чтобы Messenger можно было тестировать без reverse proxy. Для HTTPS остаётся `wss://.../ws` через proxy.
+5. Installer проверит PHP/extensions, `ini_get`, `getenv/putenv`, хранилище PHP-сессий, временный каталог загрузок, файловые блокировки/атомарное переименование, встроенное ядро, writable-каталоги, private storage, локальные HTTPS/DNS-предпосылки updater, `memory_limit` и ограничения загрузки. Наличие socket-функций не считается доказательством доступности исходящего TCP/443: это подтверждается только реальным обращением к серверу обновлений.
+6. Укажите реквизиты БД. До импорта схем мастер проверит версию сервера, примет MySQL 8.0+ либо MariaDB 10.5+ и на пустой базе выполнит безопасную пробу прав `CREATE/ALTER/TRIGGER/DROP`. Мастер создаст `SITEURL`, `BASE_PATH`, private storage и секреты. Messenger по умолчанию устанавливается в Long Poll-only режиме (`WS_ENABLED=0`). WebSocket-ускорение можно включить отдельной галкой; только тогда используются `WS_PUBLIC_URL` и `WS_ALLOWED_ORIGINS`. На Windows/OpenServer с layout `domains\\...` и HTTP installer автоматически предлагает direct-host профиль вида `ws://notes.local:27800`, чтобы Messenger можно было тестировать без reverse proxy. Для HTTPS остаётся `wss://.../ws` через proxy.
 7. Создайте первого администратора.
 8. После успешного завершения `.env` блокирует повторный доступ к installer.
 
@@ -46,7 +50,7 @@ https://example.com/workspace/install.php
 - при наличии MySQL privilege создаёт отсутствующую БД;
 - импортирует canonical schemas и проверяет текущий contract из **35 обязательных таблиц**;
 - создаёт RBAC + `role_module_policies`, shared task boards, settings/quota и module lifecycle schema;
-- создаёт private storage вне document root;
+- создаёт private storage вне document root и проверяет на нём реальный `flock` и атомарный `rename`;
 - создаёт пространства `file_manager`, `messenger`, `notes`, `users`, `rate-limit`, `logs`, `legacy`;
 - создаёт writable runtime dirs `cache`/`compile`;
 - генерирует отдельные `UNIQUE_KEY`, `MSG_SECRET_KEY`, `WS_TICKET_SECRET`;
