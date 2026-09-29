@@ -198,8 +198,17 @@ function installerOptionalCapabilities(string $basePath, array $packagedModules)
 
     $procOpen = installerFunctionAvailable('proc_open');
     $pcntl = installerFunctionAvailable('pcntl_fork');
+    $onlineUpdates = installerFunctionAvailable('stream_socket_client')
+        && function_exists('stream_context_create')
+        && (function_exists('dns_get_record') || function_exists('gethostbynamel'));
 
     return [
+        'Онлайн-обновления через HTTPS' => [
+            'available' => $onlineUpdates,
+            'message' => $onlineUpdates
+                ? 'Встроенный updater может получать подписанные релизы без cURL и allow_url_fopen.'
+                : 'Установка работает, но встроенный updater не сможет скачать релиз. Нужны исходящие TLS sockets и DNS.',
+        ],
         'WebSocket-ускоритель Messenger' => [
             'available' => $wsRuntime,
             'message' => $wsRuntime
@@ -668,9 +677,8 @@ if ($step === 1) {
         $warnings[] = 'max_execution_time меньше 7 секунд. Для устойчивого Long Poll нужен лимит хотя бы 7 секунд.';
     }
     if ($detectedOpenServer) {
-        $warnings[] = installerIsHttps()
-            ? 'OpenServer обнаружен через HTTPS: Messenger будет использовать same-origin /ws через Apache/Nginx proxy, потому что native listener не завершает TLS.'
-            : 'OpenServer обнаружен через HTTP: Messenger будет подключаться напрямую к тому же локальному hostname на порту 27800 (например ws://notes.local:27800), без Apache/Nginx WebSocket proxy.';
+        $warnings[] = 'OpenServer обнаружен: Messenger сразу работает через HTTP Long Poll. '
+            . 'WebSocket можно включить на следующем шаге как необязательное ускорение.';
     }
 }
 $csrf = htmlspecialchars((string) $_SESSION['notes_install_csrf'], ENT_QUOTES, 'UTF-8');
