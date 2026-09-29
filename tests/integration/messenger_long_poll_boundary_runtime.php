@@ -73,6 +73,23 @@ assertMessengerLongPollBoundary(
     'обычный timeout без изменений не должен создавать ложное событие'
 );
 
+$shortLeaseTime = 0.0;
+$shortLeaseService = new MessengerLongPollService(
+    null,
+    static fn (int $userId): string => 'cursor-A',
+    static function () use (&$shortLeaseTime): float {
+        return $shortLeaseTime;
+    },
+    static function (int $microseconds) use (&$shortLeaseTime): void {
+        $shortLeaseTime += max(1.0, $microseconds / 1_000_000);
+    }
+);
+$shortLeaseService->waitForChange(42, 'cursor-A', null, null, '', 5);
+assertMessengerLongPollBoundary(
+    $shortLeaseTime >= 5.0 && $shortLeaseTime < 10.0,
+    'запрошенная короткая аренда Long Poll не ограничила время занятого PHP worker'
+);
+
 $time = 0.0;
 $fingerprintCalls = 0;
 $revisionCalls = 0;

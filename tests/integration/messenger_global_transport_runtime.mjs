@@ -23,6 +23,7 @@ const timers = new Map();
 const order = [];
 let nextTimer = 1;
 let pollSignal = null;
+let pollUrl = '';
 let socketInstance = null;
 
 function addListener(target, type, handler) {
@@ -123,6 +124,7 @@ context.fetch = async (url, options = {}) => {
     const value = String(url);
     if (value.includes('/messenger/realtime/poll')) {
         order.push('poll');
+        pollUrl = value;
         pollSignal = options.signal;
         return new Promise(() => {});
     }
@@ -158,6 +160,10 @@ assert(
     'глобальный Long Poll должен стартовать раньше WebSocket fast path'
 );
 assert(pollSignal instanceof AbortSignal, 'глобальный Long Poll не создал abort-aware HTTP request');
+assert(
+    new URL(pollUrl, 'https://workspace.example.test').searchParams.get('wait_seconds') === '5',
+    'глобальный Long Poll не ограничивает серверную аренду PHP worker пятью секундами'
+);
 assert(pollSignal.aborted === false, 'глобальный Long Poll неожиданно остановлен на старте');
 assert(socketInstance?.readyState === HangingWebSocket.CONNECTING, 'тест не воспроизводит зависший WebSocket handshake');
 
