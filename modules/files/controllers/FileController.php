@@ -30,6 +30,8 @@ class FileController extends Controller
         'gif' => ['image/gif'],
         'webp' => ['image/webp'],
         'pdf' => ['application/pdf'],
+        'djvu' => ['image/vnd.djvu', 'image/x-djvu', 'application/x-djvu', 'application/octet-stream'],
+        'zip' => ['application/zip', 'application/x-zip', 'application/x-zip-compressed'],
         'txt' => ['text/plain'],
         'md' => ['text/plain', 'text/markdown'],
         'doc' => ['application/msword', 'application/octet-stream'],
@@ -38,6 +40,8 @@ class FileController extends Controller
         'xlsx' => ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/zip', 'application/octet-stream'],
         'ppt' => ['application/vnd.ms-powerpoint', 'application/octet-stream'],
         'pptx' => ['application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/zip', 'application/octet-stream'],
+        'vsd' => ['application/vnd.ms-office', 'application/vnd.visio', 'application/octet-stream'],
+        'vsdx' => ['application/vnd.ms-visio.drawing.main+xml', 'application/zip', 'application/octet-stream'],
         'odt' => ['application/vnd.oasis.opendocument.text', 'application/zip'],
         'ods' => ['application/vnd.oasis.opendocument.spreadsheet', 'application/zip'],
         'odp' => ['application/vnd.oasis.opendocument.presentation', 'application/zip'],
@@ -431,7 +435,7 @@ class FileController extends Controller
         if (str_starts_with($mimeType, 'image/')) return 'image';
         if (str_starts_with($mimeType, 'audio/')) return 'audio';
         if (str_starts_with($mimeType, 'video/')) return 'video';
-        if ($extension === 'pdf' || in_array($extension, ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp'], true)) return 'document';
+        if (in_array($extension, ['pdf', 'djvu', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'vsd', 'vsdx', 'odt', 'ods', 'odp'], true)) return 'document';
         return 'file';
     }
 
