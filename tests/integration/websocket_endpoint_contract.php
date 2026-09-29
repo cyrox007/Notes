@@ -299,6 +299,30 @@ assertWebSocketEndpoint(
     'startup preflight must run before full application bootstrap'
 );
 
+$coreControllerSource = file_get_contents($root . '/core/Controller.php');
+$messengerControllerSource = file_get_contents($root . '/modules/messenger/controllers/MessagerController.php');
+$installerSource = file_get_contents($root . '/install.php');
+
+assertWebSocketEndpoint(
+    is_string($coreControllerSource)
+    && str_contains($coreControllerSource, 'WebSocketEndpoint::enabled()'),
+    'глобальный runtime публикует WebSocket endpoint без учёта WS_ENABLED'
+);
+assertWebSocketEndpoint(
+    is_string($messengerControllerSource)
+    && str_contains($messengerControllerSource, 'WebSocketEndpoint::enabled()')
+    && str_contains($messengerControllerSource, 'WebSocket-ускоритель отключён. Messenger работает через Long Poll.'),
+    'страница Messenger или ticket endpoint игнорируют WS_ENABLED=0'
+);
+assertWebSocketEndpoint(
+    is_string($installerSource)
+    && str_contains($installerSource, "'WS_ENABLED='")
+    && str_contains($installerSource, 'name="ws_enabled"')
+    && str_contains($installerSource, 'Использовать WebSocket-ускорение')
+    && str_contains($installerSource, 'Long Poll transport уже работает'),
+    'installer не закрепляет Long Poll-only как штатную установку'
+);
+
 $nativeServerSource = file_get_contents($root . '/modules/messenger/socket/NativeMessengerServer.php');
 assertWebSocketEndpoint(is_string($nativeServerSource), 'cannot read native WebSocket server source');
 assertWebSocketEndpoint(
