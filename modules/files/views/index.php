@@ -155,10 +155,6 @@ ob_start();
                                 <a href="<?= $view->e($view->route('files_folder', ['folderId' => $id])) ?>" class="file-manager__action-btn" title="Открыть" aria-label="Открыть <?= $view->e($name) ?>">
                                     <i class="fa fa-folder-open-o" aria-hidden="true"></i>
                                 </a>
-                            <?php else: ?>
-                                <a href="<?= $view->e($view->route('files_get', ['fileId' => $id])) ?>" class="file-manager__action-btn" title="Открыть" aria-label="Открыть <?= $view->e($name) ?>" target="_blank" rel="noopener">
-                                    <i class="fa fa-eye" aria-hidden="true"></i>
-                                </a>
                             <?php endif; ?>
                             <?php if ($canShareFiles && $type !== 'folder' && !empty($file['uid'])): ?>
                                 <button type="button" class="file-manager__action-btn file-manager__action-btn--share btn-share" title="Поделиться ссылкой" aria-label="Поделиться <?= $view->e($name) ?>">
