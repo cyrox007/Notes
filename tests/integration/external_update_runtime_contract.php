@@ -9,6 +9,8 @@ use Core\Version;
 $root = dirname(__DIR__, 2);
 require_once $root . '/core/UpdateExternalRuntime.php';
 
+$runtimeSource = (string) file_get_contents($root . '/core/UpdateExternalRuntime.php');
+
 function externalRuntimeAssert(bool $condition, string $message): void
 {
     if ($condition) {
@@ -35,6 +37,39 @@ function externalRuntimeRemoveTree(string $path): void
     }
 
     @rmdir($path);
+}
+
+/** @return array{code:int,stdout:string,stderr:string} */
+function externalRuntimeRunPhp(string $code, string $cwd): array
+{
+    $descriptors = [
+        0 => ['pipe', 'r'],
+        1 => ['pipe', 'w'],
+        2 => ['pipe', 'w'],
+    ];
+
+    $process = proc_open(
+        [PHP_BINARY, '-r', $code],
+        $descriptors,
+        $pipes,
+        $cwd,
+        null,
+        ['bypass_shell' => true]
+    );
+    externalRuntimeAssert(is_resource($process), 'Не удалось запустить PHP-проверку внешнего runtime');
+
+    fclose($pipes[0]);
+    $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    $code = proc_close($process);
+
+    return [
+        'code' => is_int($code) ? $code : 1,
+        'stdout' => is_string($stdout) ? $stdout : '',
+        'stderr' => is_string($stderr) ? $stderr : '',
+    ];
 }
 
 /** @return array{code:int,stdout:string,stderr:string} */
@@ -69,6 +104,13 @@ function externalRuntimeRunHelp(string $entrypoint): array
         'stderr' => is_string($stderr) ? $stderr : '',
     ];
 }
+
+externalRuntimeAssert(
+    str_contains($runtimeSource, 'assertDependencyClosure')
+        && str_contains($runtimeSource, 'literalDependencies')
+        && str_contains($runtimeSource, 'Внешний updater runtime не замкнут'),
+    'Внешний updater runtime не проверяет замкнутость локальных require-зависимостей'
+);
 
 $temp = sys_get_temp_dir() . '/wo-external-runtime-' . bin2hex(random_bytes(6));
 $private = $temp . '/private';
@@ -108,6 +150,19 @@ try {
     externalRuntimeAssert(
         is_file($runtimeRoot . DIRECTORY_SEPARATOR . 'core' . DIRECTORY_SEPARATOR . 'HostingCompatibility.php'),
         'Внешний runtime не содержит зависимость Environment от HostingCompatibility'
+    );
+
+    $environmentPath = $runtimeRoot
+        . DIRECTORY_SEPARATOR
+        . 'core'
+        . DIRECTORY_SEPARATOR
+        . 'Environment.php';
+    $environmentProbe = 'require_once ' . var_export($environmentPath, true)
+        . '; echo "ENVIRONMENT_RUNTIME_OK\\n";';
+    $probe = externalRuntimeRunPhp($environmentProbe, $runtimeRoot);
+    externalRuntimeAssert(
+        $probe['code'] === 0 && str_contains($probe['stdout'], 'ENVIRONMENT_RUNTIME_OK'),
+        'Environment внешнего runtime не загружается вместе со своими зависимостями: ' . $probe['stderr']
     );
 
     $again = (new UpdateExternalRuntime($root))->prepare();
