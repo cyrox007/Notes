@@ -11,6 +11,7 @@ require_once __DIR__ . '/UpdateAccessBootstrap.php';
 require_once __DIR__ . '/PrivateStorageResolver.php';
 require_once __DIR__ . '/UpdatePhpCli.php';
 require_once __DIR__ . '/UpdateProcessRunner.php';
+require_once __DIR__ . '/HostingCompatibility.php';
 
 /**
  * Проверка локальной готовности подписанного обновлятора.
@@ -65,6 +66,15 @@ final class UpdateReadiness
         $record('extension_mysqli', $mysqli, $mysqli ? '' : 'PHP extension mysqli недоступно.');
         $record('extension_zlib', $zlib, $zlib ? '' : 'PHP extension zlib недоступно.');
 
+        $httpsPrerequisites = HostingCompatibility::outboundHttpsPrerequisites();
+        $record(
+            'outbound_https_prerequisites',
+            $httpsPrerequisites['ok'],
+            $httpsPrerequisites['ok']
+                ? 'Локальные PHP-предпосылки исходящего HTTPS готовы; сетевой TCP/443 проверяется только реальным запросом.'
+                : 'Для онлайн-обновлений не хватает: ' . implode(', ', $httpsPrerequisites['missing'])
+        );
+
         $procOpen = UpdateProcessRunner::available();
         $recordOptional(
             'proc_open',
@@ -85,6 +95,30 @@ final class UpdateReadiness
         $recordOptional('php_cli', $phpCliReady, $phpCliIssue);
         $processModeAvailable = $procOpen && $phpCliReady;
         $installMode = $processModeAvailable ? 'process' : 'web';
+
+        $maxExecution = (int) ini_get('max_execution_time');
+        $executionComfortable = $installMode !== 'web' || $maxExecution <= 0 || $maxExecution >= 30;
+        $recordOptional(
+            'web_execution_time',
+            $executionComfortable,
+            $executionComfortable
+                ? ($maxExecution <= 0 ? 'Жёсткий PHP timeout не заявлен.' : 'max_execution_time=' . $maxExecution . ' с.')
+                : 'max_execution_time=' . $maxExecution . ' с: на большой базе web-updater может не успеть создать резервную точку за один шаг.'
+        );
+
+        $memoryLimit = HostingCompatibility::memoryLimitBytes();
+        $memoryComfortable = $memoryLimit === null || $memoryLimit >= HostingCompatibility::RECOMMENDED_MEMORY_BYTES;
+        $recordOptional(
+            'memory_limit',
+            $memoryComfortable,
+            $memoryLimit === null
+                ? 'Конечный memory_limit не заявлен.'
+                : sprintf(
+                    'memory_limit=%.0f МБ%s',
+                    $memoryLimit / 1048576,
+                    $memoryComfortable ? '' : '; рекомендуется не менее 128 МБ на PHP-процесс'
+                )
+        );
 
         try {
             $feed = UpdateAccessBootstrap::feedUrl();
@@ -160,6 +194,21 @@ final class UpdateReadiness
                 $ok,
                 $ok ? '' : sprintf('Updater %s path не готов: %s', $name, $reason)
             );
+
+            if ($ok) {
+                $freeBytes = HostingCompatibility::freeDiskBytes($path);
+                $recordOptional(
+                    'disk_free_' . $name,
+                    $freeBytes === null || $freeBytes >= 256 * 1024 * 1024,
+                    $freeBytes === null
+                        ? 'Свободное место средствами PHP определить не удалось.'
+                        : sprintf(
+                            'Свободно %.1f МБ%s',
+                            $freeBytes / 1048576,
+                            $freeBytes >= 256 * 1024 * 1024 ? '' : '; запас меньше рекомендуемых 256 МБ'
+                        )
+                );
+            }
         }
 
         $dbUser = trim((string) (getenv('DBUSER') ?: ''));
@@ -171,7 +220,14 @@ final class UpdateReadiness
             $dbConfigReady ? '' : 'Для rollback backup должны быть настроены DBUSER и DBNAME.'
         );
 
-        $readyForCheck = $trustReady && $openssl && $sodium && $feedReady && $channelReady && $accessReady;
+        $networkReady = $accessMode === 'offline' || $httpsPrerequisites['ok'];
+        $readyForCheck = $trustReady
+            && $openssl
+            && $sodium
+            && $feedReady
+            && $channelReady
+            && $accessReady
+            && $networkReady;
         $readyForApply = $readyForCheck
             && $mysqli
             && $zlib
