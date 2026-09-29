@@ -158,16 +158,13 @@
                 };
             const url = resolveSocketUrl(rawUrl);
 
-            // Messenger must stay self-contained even when the shared deferred
-            // runtime bootstrap is delayed or blocked by a browser/cache race.
+            // Messenger остаётся автономным, даже если общий runtime bootstrap
+            // задержался из-за браузера или кэша.
             wspace.socketConfig = { url, ticket };
 
-            // Long Poll — гарантированный transport. Он запускается до
-            // попытки WebSocket, поэтому зависший handshake не может оставить
-            // Messenger в вечном состоянии «Подключение…».
-            this.startLongPoll(url && ticket
-                ? 'WebSocket подключается в фоне'
-                : '');
+            // Long Poll — основной обязательный транспорт. Фоновый WebSocket
+            // не должен менять видимый статус, пока Long Poll работает.
+            this.startLongPoll();
 
             if (!url || !ticket) {
                 return;
@@ -178,7 +175,7 @@
                 this.socket = new WebSocket(`${url}${separator}ticket=${encodeURIComponent(ticket)}`);
             } catch (error) {
                 console.error(error);
-                this.startLongPoll('WebSocket недоступен');
+                this.startLongPoll();
                 this.scheduleReconnect();
                 return;
             }
@@ -190,11 +187,11 @@
             this.socket.addEventListener('message', (event) => this.handleSocketMessage(event));
             this.socket.addEventListener('error', () => {
                 this.socketAuthorized = false;
-                this.startLongPoll('WebSocket недоступен');
+                this.startLongPoll();
             });
             this.socket.addEventListener('close', () => {
                 this.socketAuthorized = false;
-                this.startLongPoll('WebSocket отключён');
+                this.startLongPoll();
                 this.scheduleReconnect();
             });
         }
@@ -225,7 +222,7 @@
                 case 'Authorized':
                     this.socketAuthorized = true;
                     this.stopLongPoll();
-                    this.setConnectionState('online', 'WebSocket · в сети');
+                    this.setConnectionState('online', 'В сети');
                     this.sendEvent('MessangerSocket:get_dialogs', {});
                     break;
                 case 'get_dialogs':
@@ -398,7 +395,7 @@
             });
         }
 
-        startLongPoll(reason = '') {
+        startLongPoll() {
             if (this.sessionUnavailable || this.transportSuspended) return;
 
             if (!this.longPollActive) {
@@ -411,12 +408,9 @@
                 return;
             }
 
-            this.setConnectionState(
-                'fallback',
-                reason ? `Long Poll · ${reason}` : 'Long Poll · в сети'
-            );
+            this.setConnectionState('online', 'В сети');
 
-            // Если предыдущий worker завершился из-за браузерного/proxy race,
+            // Если предыдущий запрос завершился из-за браузерной/proxy-гонки,
             // активный флаг не должен оставлять Messenger без нового poll.
             if (!this.longPollAbortController && !this.longPollRetryTimer) {
                 this.resumeLongPoll();
@@ -537,7 +531,7 @@
                             500,
                             Math.min(10000, Number(payload.retry_after_ms || 3000))
                         );
-                        this.setConnectionState('fallback', 'Long Poll · ожидаем готовность сервера…');
+                        this.setConnectionState('fallback', 'Синхронизация временно приостановлена…');
                         await new Promise((resolve) => {
                             this.longPollRetryTimer = window.setTimeout(resolve, retryAfter);
                         });
@@ -552,7 +546,7 @@
                         this.dispatchRealtimeEvents(payload.events);
                     }
                     this.longPollRetryAttempt = 0;
-                    this.setConnectionState('fallback', 'Long Poll · в сети');
+                    this.setConnectionState('online', 'В сети');
                 } catch (error) {
                     const manuallyAborted = error?.name === 'AbortError' && !watchdogExpired;
                     if (manuallyAborted) return;
@@ -566,7 +560,7 @@
                     this.longPollRetryAttempt += 1;
                     const delay = this.longPollRetryDelay();
                     console.warn('Messenger long poll will reconnect', error);
-                    this.setConnectionState('fallback', 'Long Poll · переподключение…');
+                    this.setConnectionState('fallback', 'Восстанавливаем синхронизацию…');
                     await new Promise((resolve) => {
                         this.longPollRetryTimer = window.setTimeout(resolve, delay);
                     });
