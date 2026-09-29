@@ -2,7 +2,7 @@ name: Stable release gate
 
 on:
   pull_request:
-    branches: [master, '1.0', 'release/1.0.10-rc']
+    branches: [master, '1.0', 'release/1.0.*-rc']
   push:
     branches: [master, '1.0']
   workflow_dispatch:
