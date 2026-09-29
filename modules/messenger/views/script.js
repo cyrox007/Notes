@@ -424,10 +424,6 @@
         }
 
         stopLongPoll() {
-            if (this.longPollFallbackTimer) {
-                window.clearTimeout(this.longPollFallbackTimer);
-                this.longPollFallbackTimer = null;
-            }
             if (!this.longPollActive && !this.longPollAbortController) return;
             this.longPollActive = false;
             this.longPollGeneration += 1;
