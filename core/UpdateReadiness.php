@@ -67,7 +67,7 @@ final class UpdateReadiness
         $record('extension_zlib', $zlib, $zlib ? '' : 'PHP extension zlib недоступно.');
 
         $httpsPrerequisites = HostingCompatibility::outboundHttpsPrerequisites();
-        $record(
+        $recordOptional(
             'outbound_https_prerequisites',
             $httpsPrerequisites['ok'],
             $httpsPrerequisites['ok']
@@ -221,6 +221,10 @@ final class UpdateReadiness
         );
 
         $networkReady = $accessMode === 'offline' || $httpsPrerequisites['ok'];
+        if (!$networkReady) {
+            $issues[] = 'Локальные PHP-предпосылки исходящего HTTPS не выполнены: '
+                . implode(', ', $httpsPrerequisites['missing']);
+        }
         $readyForCheck = $trustReady
             && $openssl
             && $sodium
