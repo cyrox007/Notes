@@ -1,7 +1,7 @@
 /**
- * File Manager browser behavior.
- * User files are opened only through the protected /files/get/{id}/ endpoint.
- * Text/code preview is read-only: the browser never evaluates file contents.
+ * Поведение файлового менеджера в браузере.
+ * Пользовательские файлы открываются только через защищённый маршрут /files/get/{id}/.
+ * Предпросмотр текста и кода работает только для чтения и ничего не выполняет.
  */
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -306,7 +306,10 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         if (textExtensions.has(extension)) {
             openTextPreview(item);
+            return;
         }
+
+        window.open(fileUrl(id), '_blank', 'noopener,noreferrer');
     }
 
     btnCreateFolder?.addEventListener('click', () => showModal(modalCreateFolder));
@@ -339,10 +342,9 @@ document.addEventListener('DOMContentLoaded', function () {
             renameIdInput.value = currentItemId || '';
             showModal(modalRename);
             window.setTimeout(() => renameInput.select(), 0);
+            return;
         }
-    });
 
-    root.addEventListener('dblclick', function (event) {
         if (event.target.closest('.file-manager__item-actions')) return;
         const item = itemForElement(event.target);
         if (item) openItem(item);

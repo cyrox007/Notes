@@ -20,17 +20,11 @@ $iconFor = static function (array $file): string {
 
     $mime = strtolower((string) ($file['mime_type'] ?? ''));
     $extension = strtolower((string) ($file['extension'] ?? ''));
-    if (str_contains($mime, 'image')) {
-        return 'fa-file-image-o';
-    }
-    if (str_contains($mime, 'audio')) {
-        return 'fa-file-audio-o';
-    }
-    if (str_contains($mime, 'video')) {
-        return 'fa-file-video-o';
-    }
-    if ($extension === 'pdf') {
+    if (in_array($extension, ['pdf', 'djvu'], true)) {
         return 'fa-file-pdf-o';
+    }
+    if (in_array($extension, ['vsd', 'vsdx'], true)) {
+        return 'fa-file-word-o';
     }
     if (in_array($extension, ['doc', 'docx'], true)) {
         return 'fa-file-word-o';
@@ -46,6 +40,15 @@ $iconFor = static function (array $file): string {
     }
     if (in_array($extension, ['php', 'js', 'py', 'java', 'cpp', 'c', 'html', 'css', 'json', 'xml', 'sql', 'md', 'txt'], true)) {
         return 'fa-file-code-o';
+    }
+    if (str_contains($mime, 'image')) {
+        return 'fa-file-image-o';
+    }
+    if (str_contains($mime, 'audio')) {
+        return 'fa-file-audio-o';
+    }
+    if (str_contains($mime, 'video')) {
+        return 'fa-file-video-o';
     }
     return 'fa-file-o';
 };
@@ -151,10 +154,6 @@ ob_start();
                             <?php if ($type === 'folder'): ?>
                                 <a href="<?= $view->e($view->route('files_folder', ['folderId' => $id])) ?>" class="file-manager__action-btn" title="Открыть" aria-label="Открыть <?= $view->e($name) ?>">
                                     <i class="fa fa-folder-open-o" aria-hidden="true"></i>
-                                </a>
-                            <?php else: ?>
-                                <a href="<?= $view->e($view->route('files_get', ['fileId' => $id])) ?>" class="file-manager__action-btn" title="Открыть" aria-label="Открыть <?= $view->e($name) ?>" target="_blank" rel="noopener">
-                                    <i class="fa fa-eye" aria-hidden="true"></i>
                                 </a>
                             <?php endif; ?>
                             <?php if ($canShareFiles && $type !== 'folder' && !empty($file['uid'])): ?>

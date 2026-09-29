@@ -54,9 +54,8 @@ try {
   if (await page.locator('.file-manager').getAttribute('data-view') !== 'list') throw new Error('List view was not applied');
   if (await page.evaluate(() => localStorage.getItem('wspace:file-manager:view')) !== 'list') throw new Error('List view preference was not persisted');
 
-  // Exercise the browser's real drag/drop surface. The bridge transfers this FileList
-  // into the existing hidden file input, so the hardened upload handler/endpoint remains
-  // the only upload implementation.
+  // Проверяем реальную drag/drop-поверхность браузера. Мост передаёт FileList
+  // в существующий скрытый input, поэтому используется тот же защищённый обработчик загрузки.
   const stamp = Date.now();
   const droppedName = `drop-contract-${stamp}.txt`;
   await page.evaluate((name) => {
@@ -98,8 +97,14 @@ try {
   await droppedItem.waitFor({ state: 'visible', timeout: 10000 });
   if (await page.locator('.file-manager-dropzone').isVisible()) throw new Error('Dropzone remained visible after upload');
 
-  // Clean up before the existing durable lifecycle runs: the workflow intentionally
-  // leaves only 4 KiB free, and its final storage sum must remain unchanged.
+  await droppedItem.click();
+  await page.locator('#text-preview-modal.show').waitFor({ state: 'visible', timeout: 5000 });
+  await page.locator('#text-preview-title').getByText(droppedName, { exact: false }).waitFor({ state: 'visible', timeout: 5000 });
+  await page.locator('#text-preview-modal .file-manager__modal-close').click();
+  await page.locator('#text-preview-modal').waitFor({ state: 'hidden', timeout: 5000 });
+
+  // Удаляем временный файл до основного durable-сценария: workflow намеренно
+  // оставляет только 4 КиБ свободного места, поэтому итоговая сумма хранилища не должна измениться.
   await droppedItem.locator('.btn-delete').click();
   await confirmDelete(page);
   await droppedItem.waitFor({ state: 'detached', timeout: 10000 });
@@ -124,7 +129,7 @@ try {
   await confirmDelete(page);
   await item.waitFor({ state: 'detached', timeout: 10000 });
 
-  console.log('File Manager 0.13 search/sort/view/drop-upload contract: OK');
+  console.log('Файловый менеджер: поиск, сортировка, вид, drag/drop и открытие объекта — OK');
 } finally {
   await context.close();
   await browser.close();
