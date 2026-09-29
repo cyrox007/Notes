@@ -282,7 +282,47 @@ function preparePrivateStorage(string $path, string $basePath): string
         @chmod($target, 0700);
     }
 
+    assertPrivateStorageFilesystemContract($real);
     return $real;
+}
+
+function assertPrivateStorageFilesystemContract(string $root): void
+{
+    foreach (['fopen', 'flock', 'rename', 'unlink'] as $function) {
+        if (!installerFunctionAvailable($function)) {
+            throw new RuntimeException('Private storage требует доступную PHP-функцию ' . $function);
+        }
+    }
+
+    $source = $root . DIRECTORY_SEPARATOR . '.hosting-fs-probe-' . bin2hex(random_bytes(6));
+    $target = $source . '.renamed';
+    $handle = @fopen($source, 'xb');
+    if ($handle === false) {
+        throw new RuntimeException('Private storage не позволяет создать lock-probe файл');
+    }
+
+    try {
+        if (!@flock($handle, LOCK_EX | LOCK_NB)) {
+            throw new RuntimeException('Файловая система private storage не поддерживает требуемый flock');
+        }
+        if (fwrite($handle, 'ok') !== 2 || !fflush($handle)) {
+            throw new RuntimeException('Private storage не обеспечивает надёжную запись lock-probe');
+        }
+        @flock($handle, LOCK_UN);
+        fclose($handle);
+        $handle = null;
+
+        if (!@rename($source, $target) || !is_file($target)) {
+            throw new RuntimeException('Private storage не поддерживает требуемый atomic rename');
+        }
+    } finally {
+        if (is_resource($handle)) {
+            @flock($handle, LOCK_UN);
+            fclose($handle);
+        }
+        @unlink($source);
+        @unlink($target);
+    }
 }
 
 function prepareRuntimeDirectories(string $basePath): void
@@ -514,6 +554,10 @@ function installerRequirements(string $basePath, array $schemaFiles, array $pack
             FILTER_VALIDATE_BOOLEAN
         ),
         'Writable PHP upload temp' => installerUploadTempWritable(),
+        'flock / atomic rename' => installerFunctionAvailable('flock')
+            && installerFunctionAvailable('rename')
+            && installerFunctionAvailable('fopen')
+            && installerFunctionAvailable('unlink'),
         'Запись .env в корень проекта' => is_writable($basePath),
         'Composition database schemas' => $schemaFiles !== [] && array_reduce(
             $schemaFiles,
