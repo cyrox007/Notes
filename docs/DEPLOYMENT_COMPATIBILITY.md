@@ -7,8 +7,8 @@
 | Окружение | Web-модули | Realtime Messenger | Статус |
 | --- | --- | --- | --- |
 | Linux VPS/VDS + Nginx/Apache + PHP 8.1+ | Да | Да | Рекомендуемый production |
-| Shared hosting с PHP 8.1+, постоянным background process и WebSocket reverse proxy | Да | Да, WebSocket + automatic HTTP fallback | Поддерживается; рекомендуемый shared-hosting fast path |
-| Обычный shared hosting без long-running process/WebSocket proxy | Да | Да, HTTP long poll | Поддерживается при длительных HTTP requests и достаточной параллельности PHP workers |
+| Shared hosting с PHP 8.1+, background process и WebSocket reverse proxy | Да | Да, Long Poll + WebSocket-ускорение | Поддерживается; WebSocket необязателен |
+| Обычный shared hosting без long-running process/WebSocket proxy | Да | Да, основной HTTP Long Poll | Полностью поддерживается при длительных HTTP requests и достаточной параллельности PHP workers |
 | Open Server 6+ | Да | Да | Основное локальное Windows-окружение; WebSocket рекомендуется, fallback автоматический |
 | Open Server 5.4.x + PHP 8.1+ | Да | Да | Legacy-compatible local development; direct/proxied WS либо HTTP fallback |
 | Windows/Open Server как Internet-facing production | Технически возможно | Технически возможно | Не рекомендуется; production baseline — Linux |
@@ -57,7 +57,7 @@ Messenger на shared hosting имеет два режима.
 
 Чтобы несколько открытых страниц одного пользователя не занимали по отдельному PHP worker на каждый фоновый poll, глобальный Messenger transport выбирает одну вкладку-лидера и передаёт badge-состояние соседним вкладкам. Лидер сохраняет transport и в фоне, пока страница остаётся открытой; при закрытии страницы lease освобождается, а при аварийном завершении истекает автоматически. Сама страница Messenger по-прежнему владеет своим полноценным transport; при отсутствии межвкладочных API применяется безопасный независимый режим.
 
-Для рекомендуемого WebSocket fast path дополнительно нужны:
+Для необязательного WebSocket fast path дополнительно нужны `WS_ENABLED=1` и:
 
 1. PHP CLI `8.1+`;
 2. возможность постоянно держать `php ws_server/server.php start` как background process;
