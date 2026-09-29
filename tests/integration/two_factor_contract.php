@@ -108,6 +108,10 @@ $profileController = file_get_contents($root . '/modules/profile/controllers/Pro
 $profileProvider = file_get_contents($root . '/modules/profile/ProfileRuntimeProvider.php');
 $profileView = file_get_contents($root . '/modules/profile/views/index.php');
 $twoFactorView = file_get_contents($root . '/app/views/login_page/two_factor_view.php');
+$twoFactorSetupView = file_get_contents($root . '/app/views/login_page/two_factor_setup_view.php');
+$loginLayout = file_get_contents($root . '/app/views/login_page/login_layout.php');
+$totpQrScript = file_get_contents($root . '/assets/js/totp-qr.js');
+$totpQrStyle = file_get_contents($root . '/assets/css/totp-qr.css');
 $docs = file_get_contents($root . '/docs/TWO_FACTOR_AUTH.md');
 $policyService = file_get_contents($root . '/app/services/TwoFactorPolicyService.php');
 $policyMiddleware = file_get_contents($root . '/app/middlewares/EnforceTwoFactorPolicy.php');
@@ -126,6 +130,10 @@ foreach ([
     'profile provider' => $profileProvider,
     'profile view' => $profileView,
     'challenge view' => $twoFactorView,
+    'setup view' => $twoFactorSetupView,
+    'login layout' => $loginLayout,
+    'TOTP QR script' => $totpQrScript,
+    'TOTP QR style' => $totpQrStyle,
     'docs' => $docs,
     'сервис политики 2FA' => $policyService,
     'middleware политики 2FA' => $policyMiddleware,
@@ -171,7 +179,15 @@ foreach (['startTwoFactorSetup', 'confirmTwoFactorSetup', 'regenerateTwoFactorRe
     }
 }
 
-$combined = implode("\n", [$authController, $profileController, $profileView, $twoFactorView, $docs]);
+$combined = implode("\n", [
+    $authController,
+    $profileController,
+    $profileView,
+    $twoFactorView,
+    $twoFactorSetupView,
+    $totpQrScript,
+    $docs,
+]);
 if (str_contains($combined, 'chart.googleapis.com')) {
     failTwoFactorContract('TOTP-секрет не должен отправляться внешнему сервису QR');
 }
@@ -180,6 +196,52 @@ if (preg_match('/\bmd5\s*\(/i', $combined) === 1) {
 }
 if (!str_contains($profileView, 'Сохраните резервные коды сейчас')) {
     failTwoFactorContract('в профиле отсутствует однократный показ резервных кодов');
+}
+
+foreach ([
+    'data-totp-qr',
+    'data-otpauth-uri',
+    'assets/js/totp-qr.js',
+    'assets/css/totp-qr.css',
+] as $fragment) {
+    if (!str_contains((string) $profileView, $fragment)) {
+        failTwoFactorContract('профиль не подключает локальный QR-контур 2FA: ' . $fragment);
+    }
+}
+foreach ([
+    'data-totp-qr',
+    'data-otpauth-uri',
+    'QR-код строится локально в браузере',
+] as $fragment) {
+    if (!str_contains((string) $twoFactorSetupView, $fragment)) {
+        failTwoFactorContract('обязательная настройка 2FA не показывает локальный QR: ' . $fragment);
+    }
+}
+foreach (['page_styles', 'page_scripts'] as $fragment) {
+    if (!str_contains((string) $loginLayout, $fragment)) {
+        failTwoFactorContract('login layout не поддерживает локальные assets 2FA: ' . $fragment);
+    }
+}
+foreach ([
+    'VERSION_SPECS',
+    'reedSolomonRemainder',
+    'typeInfoBits',
+    'versionInfoBits',
+    'matrixFor',
+    'createElementNS',
+] as $fragment) {
+    if (!str_contains((string) $totpQrScript, $fragment)) {
+        failTwoFactorContract('локальный генератор QR не содержит обязательный этап: ' . $fragment);
+    }
+}
+foreach (['fetch(', 'XMLHttpRequest', 'sendBeacon(', 'WebSocket('] as $forbidden) {
+    if (str_contains((string) $totpQrScript, $forbidden)) {
+        failTwoFactorContract('локальный генератор QR не должен использовать сеть: ' . $forbidden);
+    }
+}
+if (!str_contains((string) $totpQrStyle, '.totp-qr')
+    || !str_contains((string) $totpQrStyle, 'background:#fff')) {
+    failTwoFactorContract('QR-код 2FA не закрепляет контрастную белую подложку');
 }
 
 foreach ([

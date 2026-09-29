@@ -4,13 +4,15 @@
 
 Рекомендуемый способ — использовать готовый hosting bundle из GitHub Release. ZIP содержит весь внутренний runtime приложения и web-installer; каталога `vendor/` в 1.0 bundle нет и он не нужен.
 
+Подробная матрица ограничений дешёвого virtual/shared hosting и граница обязательных PHP-возможностей: [SHARED_HOSTING_COMPATIBILITY.md](SHARED_HOSTING_COMPATIBILITY.md).
+
 ## Что нужно от хостинга
 
 Минимум:
 
 - PHP 8.1+; для публичного production рекомендуется поддерживаемая ветка PHP, сейчас 8.3+;
 - MySQL 8.x;
-- extensions `mysqli`, `pdo_mysql`, `mbstring`, `sodium`, `fileinfo`, `gd`;
+- extensions `mysqli`, `pdo_mysql`, `mbstring`, `sodium`, `openssl`, `zlib`, `fileinfo`, `gd`;
 - Argon2id в `password_hash`;
 - возможность PHP записывать в каталог приложения во время установки;
 - возможность PHP создать private storage вне document root;
@@ -20,7 +22,7 @@
 
 Composer, Smarty и Workerman для runtime не требуются.
 
-Если тариф не позволяет long-running process/WebSocket proxy, Messenger автоматически работает через authenticated HTTP long poll. WebSocket рекомендуется включать при возможности: он уменьшает задержку и нагрузку на PHP workers.
+Если тариф не позволяет long-running process/WebSocket proxy, ничего дополнительно включать не требуется: Messenger штатно и полностью работает через authenticated HTTP Long Poll. WebSocket можно добавить позже как необязательное ускорение — он уменьшает задержку и нагрузку на PHP workers, но не открывает отдельные функции.
 
 ## Fresh install без CLI
 
@@ -34,7 +36,7 @@ https://example.com/workspace/install.php
 ```
 
 5. Installer проверит PHP/extensions, встроенный core runtime, native WebSocket runtime, writable runtime dirs и private storage.
-6. Укажите MySQL credentials. Мастер определит/создаст `SITEURL`, `BASE_PATH`, `WS_PUBLIC_URL`, `WS_ALLOWED_ORIGINS`, private storage и секреты. На Windows/OpenServer с layout `domains\\...` и HTTP installer автоматически предлагает direct-host профиль вида `ws://notes.local:27800`, чтобы Messenger можно было тестировать без reverse proxy. Для HTTPS остаётся `wss://.../ws` через proxy.
+6. Укажите MySQL credentials. Мастер создаст `SITEURL`, `BASE_PATH`, private storage и секреты. Messenger по умолчанию устанавливается в Long Poll-only режиме (`WS_ENABLED=0`). WebSocket-ускорение можно включить отдельной галкой; только тогда используются `WS_PUBLIC_URL` и `WS_ALLOWED_ORIGINS`. На Windows/OpenServer с layout `domains\\...` и HTTP installer автоматически предлагает direct-host профиль вида `ws://notes.local:27800`, чтобы Messenger можно было тестировать без reverse proxy. Для HTTPS остаётся `wss://.../ws` через proxy.
 7. Создайте первого администратора.
 8. После успешного завершения `.env` блокирует повторный доступ к installer.
 
@@ -76,11 +78,12 @@ Private storage должен находиться выше web-root, напри�
 
 Если hosting запрещает PHP запись вне `public_html`, такой тариф не соответствует security contract проекта.
 
-## Realtime Messenger: WebSocket + HTTP fallback
+## Realtime Messenger: основной Long Poll + необязательный WebSocket
 
 Installer записывает примерно:
 
 ```env
+WS_ENABLED=1
 WS_PUBLIC_URL=wss://example.com/workspace/ws
 WS_ALLOWED_ORIGINS=https://example.com
 WS_HOST=127.0.0.1
@@ -89,7 +92,7 @@ WS_MAX_CONNECTIONS=256
 WS_MAX_PAYLOAD_BYTES=2097152
 ```
 
-Web-installer не может универсально запустить долгоживущий процесс на любой панели. Messenger после web-install уже может работать через HTTP long poll; для рекомендуемого WebSocket fast path process запускается отдельно:
+Web-installer не может универсально запустить долгоживущий процесс на любой панели. Messenger после web-install сразу работает через основной HTTP Long Poll transport; при желании WebSocket-ускоритель запускается отдельно:
 
 ```bash
 php ws_server/server.php check

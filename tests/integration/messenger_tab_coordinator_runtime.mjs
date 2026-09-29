@@ -142,6 +142,19 @@ assert(receivedA.length === 0, 'остановленная вкладка про
 
 b.stop();
 
+const hiddenLeadership = [];
+const hidden = new Coordinator({
+    ...common,
+    tabId: 'tab-hidden',
+    isVisible: () => false,
+    onLeadershipChange: (leader) => hiddenLeadership.push(leader),
+});
+hidden.start();
+assert(hidden.isLeader() === true, 'скрытая единственная вкладка не сохранила Messenger transport');
+hidden.handleVisibility();
+assert(hidden.isLeader() === true, 'visibilitychange ошибочно выключил transport фоновой вкладки');
+hidden.stop();
+
 const fallbackLeadership = [];
 const fallback = new Coordinator({
     storage: null,
@@ -158,4 +171,4 @@ fallback.start();
 assert(fallback.isLeader() === true, 'без BroadcastChannel/localStorage transport ошибочно отключён');
 fallback.stop();
 
-console.log('[OK] Глобальный Messenger transport выбирает одного лидера и передаёт состояние между вкладками');
+console.log('[OK] Глобальный Messenger transport выбирает одного лидера, сохраняется в фоне и передаёт состояние между вкладками');

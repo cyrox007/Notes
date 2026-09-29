@@ -174,8 +174,7 @@ assertLongPollContract(
 );
 
 assertLongPollContract(
-    str_contains($client, 'scheduleLongPollFallback(')
-    && str_contains($client, 'startLongPoll(')
+    str_contains($client, 'startLongPoll(')
     && str_contains($client, 'stopLongPoll(')
     && str_contains($client, 'pauseLongPollRequest(')
     && str_contains($client, 'resumeLongPoll(')
@@ -195,9 +194,11 @@ assertLongPollContract(
     str_contains($client, 'longPollWatchdogTimer')
     && str_contains($client, 'watchdogExpired')
     && str_contains($client, 'Long Poll · переподключение…')
-    && str_contains($client, "scheduleLongPollFallback('WebSocket подключается', 1200)")
-    && str_contains($client, "scheduleLongPollFallback('WebSocket недоступен', 1200)"),
-    'Messenger page Long Poll must recover from hung requests and take over immediately when WebSocket fails'
+    && str_contains($client, "this.startLongPoll(url && ticket")
+    && str_contains($client, "'WebSocket подключается в фоне'")
+    && strpos($client, "this.startLongPoll(url && ticket")
+        < strpos($client, 'this.socket = new WebSocket'),
+    'Messenger page must start Long Poll before attempting WebSocket, including a hung handshake'
 );
 assertLongPollContract(
     str_contains($connectionUx, "app.startLongPoll?.('сеть восстановлена')")
@@ -217,12 +218,17 @@ assertLongPollContract(
     && str_contains($globalNotifications, 'LONG_POLL_WATCHDOG_MS')
     && str_contains($globalNotifications, 'startLongPoll()')
     && str_contains($globalNotifications, 'stopLongPoll()')
-    && str_contains($globalNotifications, 'scheduleLongPollFallback()')
-    && str_contains($globalNotifications, "if (socketUrl === '')")
     && str_contains($globalNotifications, 'showDialogUpdate(dialog)')
-    && str_contains($globalNotifications, "document.visibilityState !== 'visible'")
-    && str_contains($globalNotifications, 'pauseLongPoll()'),
-    'global Messenger notifications must keep working through Long Poll without holding hidden tabs'
+    && str_contains($globalNotifications, 'HTTP transport должен быть доступен сразу')
+    && preg_match(
+        '/function activateTransport\(\).*?startLongPoll\(\).*?void connect\(\)/s',
+        $globalNotifications
+    ) === 1
+    && !str_contains(
+        $globalNotifications,
+        "if (document.visibilityState !== 'visible') {\n                pauseLongPoll();"
+    ),
+    'global Messenger must start Long Poll before WebSocket and keep it alive in a hidden owner tab'
 );
 assertLongPollContract(
     str_contains($tabCoordinator, 'wspace:messenger-global-transport-owner')
@@ -233,7 +239,7 @@ assertLongPollContract(
     && str_contains($globalNotifications, "type: 'request_state'")
     && str_contains($globalNotifications, 'transportEnabled = false')
     && strpos($baseView, 'messenger-tab-coordinator.js') < strpos($baseView, 'messenger-global-notifications.js'),
-    'global Messenger transport must elect one visible tab and share badge state with peers'
+    'global Messenger transport must elect one tab, keep its lease in background, and share badge state with peers'
 );
 assertLongPollContract(
     str_contains($updateNotifications, "new CustomEvent('wspace:update-install-start')")
@@ -263,12 +269,13 @@ assertLongPollContract(
 );
 
 assertLongPollContract(
-    str_contains($messengerRunbook, 'authenticated HTTP long poll')
+    str_contains($messengerRunbook, 'HTTP Long Poll как основной обязательный transport')
     && str_contains($messengerRunbook, 'MESSENGER_LONG_POLL_TIMEOUT_SECONDS')
-    && str_contains($hostingRunbook, 'HTTP long poll')
+    && str_contains($hostingRunbook, 'HTTP Long Poll')
+    && str_contains($hostingRunbook, 'необязательное ускорение')
     && str_contains($deploymentCompatibility, 'HTTP long poll')
     && str_contains($releaseNotes, 'HTTP long-poll fallback'),
-    'актуальная release/deployment документация должна описывать поддерживаемый HTTP fallback'
+    'документация должна закреплять Long Poll как основной transport и WebSocket как необязательное ускорение'
 );
 assertLongPollContract(
     !str_contains($operationsRunbook, 'требует запущенный Workerman')

@@ -33,7 +33,6 @@
         let longPollRetryTimer = null;
         let longPollWatchdogTimer = null;
         let longPollRetryAttempt = 0;
-        let longPollFallbackTimer = null;
         let transportEnabled = true;
         let coordinator = null;
 
@@ -135,11 +134,13 @@
         function activateTransport() {
             transportEnabled = true;
             if (stopped || navigator.onLine === false) return;
-            if (socketUrl === '') {
-                startLongPoll();
-                return;
+
+            // HTTP transport должен быть доступен сразу. WebSocket подключается
+            // параллельно и, если авторизуется, сам остановит Long Poll.
+            startLongPoll();
+            if (socketUrl !== '') {
+                void connect();
             }
-            void connect();
         }
 
         document.addEventListener('wspace:update-install-start', () => {
@@ -289,14 +290,6 @@
             }, delay);
         }
 
-        function scheduleLongPollFallback(delay = 1000) {
-            if (!transportEnabled || stopped || socketAuthorized || longPollActive || longPollFallbackTimer) return;
-            longPollFallbackTimer = window.setTimeout(() => {
-                longPollFallbackTimer = null;
-                if (!socketAuthorized) startLongPoll();
-            }, Math.max(0, delay));
-        }
-
         function longPollRetryDelay() {
             return Math.min(
                 MAX_LONG_POLL_RETRY_DELAY,
@@ -306,10 +299,6 @@
 
         function startLongPoll() {
             if (!transportEnabled || stopped) return;
-            if (longPollFallbackTimer) {
-                window.clearTimeout(longPollFallbackTimer);
-                longPollFallbackTimer = null;
-            }
             if (!longPollActive) {
                 longPollActive = true;
                 longPollRetryAttempt = 0;
@@ -323,10 +312,6 @@
             longPollGeneration += 1;
             longPollRetryAttempt = 0;
 
-            if (longPollFallbackTimer) {
-                window.clearTimeout(longPollFallbackTimer);
-                longPollFallbackTimer = null;
-            }
             if (longPollRetryTimer) {
                 window.clearTimeout(longPollRetryTimer);
                 longPollRetryTimer = null;
@@ -515,7 +500,6 @@
                 const separator = socketUrl.includes('?') ? '&' : '?';
                 const nextSocket = new WebSocket(socketUrl + separator + 'ticket=' + encodeURIComponent(ticket));
                 socket = nextSocket;
-                scheduleLongPollFallback();
 
                 nextSocket.addEventListener('open', () => {
                     reconnectAttempt = 0;
@@ -533,13 +517,13 @@
                     if (socket === nextSocket) socket = null;
                     socketAuthorized = false;
                     if (!transportEnabled) return;
+                    startLongPoll();
                     scheduleReconnect();
-                    scheduleLongPollFallback(1200);
                 });
                 nextSocket.addEventListener('error', () => {
                     socketAuthorized = false;
                     if (!transportEnabled) return;
-                    scheduleLongPollFallback(1200);
+                    startLongPoll();
                 });
             } catch (error) {
                 console.warn('Global Messenger WebSocket temporarily unavailable', error);
@@ -576,8 +560,9 @@
         });
 
         document.addEventListener('visibilitychange', () => {
+            // Скрытая вкладка не должна гасить единственный realtime-канал.
+            // При возвращении в неё лишь проверяем, что transport всё ещё жив.
             if (document.visibilityState !== 'visible') {
-                pauseLongPoll();
                 return;
             }
 

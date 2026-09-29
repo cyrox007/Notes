@@ -1,0 +1,68 @@
+.totp-enrollment{
+    display:grid;
+    grid-template-columns:minmax(180px,240px) minmax(0,1fr);
+    gap:24px;
+    align-items:start;
+    margin:18px 0 22px;
+}
+.totp-enrollment__qr{
+    display:grid;
+    gap:10px;
+    justify-items:center;
+}
+.totp-enrollment__qr p,
+.totp-enrollment__manual p{
+    margin:0;
+}
+.totp-qr{
+    display:grid;
+    place-items:center;
+    width:min(100%,240px);
+    aspect-ratio:1;
+    padding:12px;
+    border:1px solid var(--ui-border,#d7dde8);
+    border-radius:16px;
+    background:#fff;
+    color:#516078;
+    text-align:center;
+    box-sizing:border-box;
+}
+.totp-qr svg{
+    display:block;
+    width:100%;
+    height:auto;
+}
+.totp-qr[data-qr-error="true"]{
+    aspect-ratio:auto;
+    min-height:120px;
+    font-size:13px;
+}
+.totp-enrollment__hint{
+    max-width:240px;
+    color:var(--ui-muted,#667085);
+    font-size:12px;
+    line-height:1.45;
+    text-align:center;
+}
+.totp-enrollment__manual{
+    min-width:0;
+    display:grid;
+    gap:12px;
+}
+.totp-enrollment__secret{
+    display:block;
+    max-width:100%;
+    padding:10px 12px;
+    border-radius:10px;
+    background:var(--ui-surface-muted,#f3f6fb);
+    overflow-wrap:anywhere;
+    user-select:all;
+}
+@media(max-width:640px){
+    .totp-enrollment{
+        grid-template-columns:1fr;
+    }
+    .totp-enrollment__qr{
+        justify-self:center;
+    }
+}

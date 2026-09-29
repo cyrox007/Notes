@@ -73,9 +73,17 @@ final class UpdateWebHealthProbe
         $needsPrivateStorage = array_intersect($modules, ['notes', 'files', 'messenger']) !== [];
 
         $requiredSecrets = ['UNIQUE_KEY'];
+        $webSocketEnabled = false;
         if ($hasMessenger) {
             $requiredSecrets[] = 'MSG_SECRET_KEY';
-            $requiredSecrets[] = 'WS_TICKET_SECRET';
+            try {
+                $webSocketEnabled = WebSocketEndpoint::enabled();
+            } catch (Throwable $e) {
+                $record('messenger_transport_configuration', false, $e->getMessage());
+            }
+            if ($webSocketEnabled) {
+                $requiredSecrets[] = 'WS_TICKET_SECRET';
+            }
         }
         foreach ($requiredSecrets as $secretName) {
             $secret = $this->env($secretName);
@@ -139,31 +147,38 @@ final class UpdateWebHealthProbe
         $record('site_url', $siteReady, $siteUrl === '' ? 'missing' : $siteUrl);
 
         if ($hasMessenger) {
-            try {
-                $publicUrl = WebSocketEndpoint::publicUrl();
-                $bindHost = WebSocketEndpoint::bindHost();
-                $port = WebSocketEndpoint::port();
-                $webSocketDetails = [
-                    'mode' => 'optional',
-                    'public_url' => $publicUrl,
-                    'listener' => sprintf('tcp://%s:%d', $bindHost, $port),
-                ];
-            } catch (Throwable $e) {
-                $webSocketDetails = [
-                    'mode' => 'long_poll_fallback',
-                    'message' => $e->getMessage(),
-                ];
-            }
-            $record('messenger_realtime_transport', true, $webSocketDetails);
+            if (!$webSocketEnabled) {
+                $record('messenger_realtime_transport', true, [
+                    'mode' => 'long_poll_only',
+                    'message' => 'WS_ENABLED=0; WebSocket ускоритель отключён',
+                ]);
+            } else {
+                try {
+                    $publicUrl = WebSocketEndpoint::publicUrl();
+                    $bindHost = WebSocketEndpoint::bindHost();
+                    $port = WebSocketEndpoint::port();
+                    $webSocketDetails = [
+                        'mode' => 'long_poll_plus_websocket',
+                        'public_url' => $publicUrl,
+                        'listener' => sprintf('tcp://%s:%d', $bindHost, $port),
+                    ];
+                } catch (Throwable $e) {
+                    $webSocketDetails = [
+                        'mode' => 'long_poll_with_unavailable_websocket',
+                        'message' => $e->getMessage(),
+                    ];
+                }
+                $record('messenger_realtime_transport', true, $webSocketDetails);
 
-            $origins = array_values(array_filter(
-                array_map('trim', explode(',', $this->env('WS_ALLOWED_ORIGINS')))
-            ));
-            $record(
-                'websocket_allowed_origins_optional',
-                true,
-                $origins === [] ? 'Long Poll не требует WS_ALLOWED_ORIGINS' : implode(', ', $origins)
-            );
+                $origins = array_values(array_filter(
+                    array_map('trim', explode(',', $this->env('WS_ALLOWED_ORIGINS')))
+                ));
+                $record(
+                    'websocket_allowed_origins_optional',
+                    true,
+                    $origins === [] ? 'Long Poll не требует WS_ALLOWED_ORIGINS' : implode(', ', $origins)
+                );
+            }
         } else {
             $record('messenger_realtime_transport', true, 'not required');
         }

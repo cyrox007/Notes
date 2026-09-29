@@ -7,6 +7,12 @@ $title = isset($title) ? (string) $title : '';
 $siteName = isset($sitename) ? (string) $sitename : 'Workspace Organizer';
 $base = isset($base_url) ? rtrim((string) $base_url, '/') : '';
 $content = isset($content) ? (string) $content : '';
+$pageStyles = isset($page_styles) && is_array($page_styles)
+    ? array_values(array_filter($page_styles, static fn ($value): bool => is_string($value) && $value !== ''))
+    : [];
+$pageScripts = isset($page_scripts) && is_array($page_scripts)
+    ? array_values(array_filter($page_scripts, static fn ($value): bool => is_string($value) && $value !== ''))
+    : [];
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -19,11 +25,17 @@ $content = isset($content) ? (string) $content : '';
     <title><?= $view->e($siteName) ?> — <?= $view->e($title) ?></title>
     <link rel="stylesheet" href="<?= $view->e($base . '/assets/css/auth_page/style.css') ?>">
     <link rel="stylesheet" href="<?= $view->e($base . '/assets/font-awesome/css/font-awesome.min.css') ?>">
+<?php foreach ($pageStyles as $pageStyle): ?>
+    <link rel="stylesheet" href="<?= $view->e($base . '/' . ltrim($pageStyle, '/')) ?>">
+<?php endforeach; ?>
     <link rel="icon" href="<?= $view->e($base . '/favicon.ico') ?>" type="image/x-icon">
 </head>
 <body>
     <?php // $content is trusted HTML rendered by an internal native child template. ?>
     <?= $content ?>
     <script src="<?= $view->e($base . '/assets/js/reg-script.js') ?>" defer></script>
+<?php foreach ($pageScripts as $pageScript): ?>
+    <script src="<?= $view->e($base . '/' . ltrim($pageScript, '/')) ?>" defer></script>
+<?php endforeach; ?>
 </body>
 </html>

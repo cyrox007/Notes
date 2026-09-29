@@ -27,13 +27,60 @@ function assertWebSocketEndpoint(bool $condition, string $message): void
 
 function setWebSocketEnv(array $values): void
 {
-    foreach (['SITEURL', 'BASE_PATH', 'WS_PUBLIC_URL', 'WS_ALLOWED_ORIGINS', 'WS_HOST', 'WS_PORT'] as $key) {
+    foreach (['SITEURL', 'BASE_PATH', 'WS_PUBLIC_URL', 'WS_ALLOWED_ORIGINS', 'WS_HOST', 'WS_PORT', 'WS_ENABLED'] as $key) {
         putenv($key);
     }
     foreach ($values as $key => $value) {
         putenv($key . '=' . $value);
     }
 }
+
+setWebSocketEnv([
+    'SITEURL' => 'https://example.test',
+    'BASE_PATH' => '/',
+    'WS_HOST' => '127.0.0.1',
+    'WS_PORT' => '27800',
+]);
+assertWebSocketEndpoint(
+    WebSocketEndpoint::enabled() === true,
+    'старый .env без WS_ENABLED должен сохранять включённый WebSocket'
+);
+
+setWebSocketEnv([
+    'SITEURL' => 'https://example.test',
+    'BASE_PATH' => '/',
+    'WS_ENABLED' => '0',
+]);
+assertWebSocketEndpoint(
+    WebSocketEndpoint::enabled() === false,
+    'WS_ENABLED=0 не отключил WebSocket-ускоритель'
+);
+
+setWebSocketEnv([
+    'SITEURL' => 'https://example.test',
+    'BASE_PATH' => '/',
+    'WS_ENABLED' => '1',
+]);
+assertWebSocketEndpoint(
+    WebSocketEndpoint::enabled() === true,
+    'WS_ENABLED=1 не включил WebSocket-ускоритель'
+);
+
+setWebSocketEnv([
+    'SITEURL' => 'https://example.test',
+    'BASE_PATH' => '/',
+    'WS_ENABLED' => 'maybe',
+]);
+$invalidEnabledRejected = false;
+try {
+    WebSocketEndpoint::enabled();
+} catch (InvalidArgumentException) {
+    $invalidEnabledRejected = true;
+}
+assertWebSocketEndpoint(
+    $invalidEnabledRejected,
+    'некорректный WS_ENABLED принят без ошибки'
+);
 
 setWebSocketEnv([
     'SITEURL' => 'https://example.test',
@@ -224,6 +271,12 @@ assertWebSocketEndpoint(
     'startup preflight must report the browser-facing WebSocket URL'
 );
 assertWebSocketEndpoint(
+    str_contains($serverSource, 'WebSocketEndpoint::enabled()')
+    && str_contains($serverSource, 'WS_ENABLED=0')
+    && str_contains($serverSource, 'Messenger уже работает через основной Long Poll transport'),
+    'WebSocket launcher must refuse to start when the optional accelerator is disabled'
+);
+assertWebSocketEndpoint(
     str_contains($serverSource, "'Reverse proxy'"),
     'startup preflight must report same-origin reverse proxy configuration'
 );
@@ -244,6 +297,49 @@ assertWebSocketEndpoint(
     && is_int($coreBootstrapPosition)
     && $preflightCallPosition < $coreBootstrapPosition,
     'startup preflight must run before full application bootstrap'
+);
+
+$coreControllerSource = file_get_contents($root . '/core/Controller.php');
+$messengerControllerSource = file_get_contents($root . '/modules/messenger/controllers/MessagerController.php');
+$installerSource = file_get_contents($root . '/install.php');
+$healthcheckSource = file_get_contents($root . '/bin/healthcheck.php');
+$updateHealthProbeSource = file_get_contents($root . '/core/UpdateWebHealthProbe.php');
+
+assertWebSocketEndpoint(
+    is_string($coreControllerSource)
+    && str_contains($coreControllerSource, 'WebSocketEndpoint::enabled()'),
+    'глобальный runtime публикует WebSocket endpoint без учёта WS_ENABLED'
+);
+assertWebSocketEndpoint(
+    is_string($messengerControllerSource)
+    && str_contains($messengerControllerSource, 'WebSocketEndpoint::enabled()')
+    && str_contains($messengerControllerSource, 'WebSocket-ускоритель отключён. Messenger работает через Long Poll.'),
+    'страница Messenger или ticket endpoint игнорируют WS_ENABLED=0'
+);
+assertWebSocketEndpoint(
+    is_string($installerSource)
+    && str_contains($installerSource, "'WS_ENABLED='")
+    && str_contains($installerSource, 'name="ws_enabled"')
+    && str_contains($installerSource, 'Использовать WebSocket-ускорение')
+    && str_contains($installerSource, 'HTTP Long Poll Messenger')
+    && str_contains($installerSource, 'WebSocket-ускоритель Messenger')
+    && str_contains($installerSource, 'Long Poll transport уже работает')
+    && !str_contains($installerSource, "\$checks['Native WebSocket runtime']"),
+    'installer должен считать Long Poll обязательным transport, а native WebSocket — только ускорителем'
+);
+
+assertWebSocketEndpoint(
+    is_string($healthcheckSource)
+    && str_contains($healthcheckSource, 'messenger_transport')
+    && str_contains($healthcheckSource, 'Long Poll only')
+    && str_contains($healthcheckSource, 'if ($webSocketEnabled)'),
+    'общий health-check по-прежнему считает WebSocket обязательным'
+);
+assertWebSocketEndpoint(
+    is_string($updateHealthProbeSource)
+    && str_contains($updateHealthProbeSource, "'mode' => 'long_poll_only'")
+    && str_contains($updateHealthProbeSource, 'WS_ENABLED=0; WebSocket ускоритель отключён'),
+    'updater health-check по-прежнему считает WebSocket обязательным'
 );
 
 $nativeServerSource = file_get_contents($root . '/modules/messenger/socket/NativeMessengerServer.php');
