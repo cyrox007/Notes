@@ -15,7 +15,7 @@
 
 ## Общий runtime contract 1.0
 
-Приложение не требует Composer packages или каталога `vendor/` в production. HTTP views рендерятся внутренним `NativeViewRenderer`. Messenger поддерживает два автоматически переключаемых канала: собственный PHP RFC6455 WebSocket runtime на `stream_socket_server()` + `stream_select()` как быстрый канал и authenticated HTTP long poll как самостоятельный durable-канал для окружений без WebSocket.
+Приложение не требует Composer packages или каталога `vendor/` в production. HTTP views рендерятся внутренним `NativeViewRenderer`. Messenger поддерживает два автоматически переключаемых канала: authenticated HTTP long poll запускается сразу как гарантированный durable-канал, а собственный PHP RFC6455 WebSocket runtime на `stream_socket_server()` + `stream_select()` параллельно подключается как быстрый канал и после авторизации временно заменяет Long Poll.
 
 Нужны PHP 8.1+, MySQL и используемые приложением PHP extensions (`mysqli`, `pdo_mysql`, `mbstring`, `sodium`, `fileinfo`, `gd`).
 
@@ -55,7 +55,7 @@ Messenger на shared hosting имеет два режима.
 
 Режим HTTP long poll не требует отдельного CLI process: нужны обычные authenticated HTTP requests, возможность удерживать long-poll request до 5–25 секунд и достаточная параллельность PHP workers. Клиент освобождает session lock на ожидании, прерывает poll перед собственным mutating request/ticket refresh, автоматически перезапускает зависший запрос и не блокирует отправку сообщений из-за единичной ошибки poll.
 
-Чтобы несколько открытых страниц одного пользователя не занимали по отдельному PHP worker на каждый фоновый poll, глобальный Messenger transport выбирает одну видимую вкладку-лидера и передаёт badge-состояние соседним вкладкам. Сама страница Messenger по-прежнему владеет своим полноценным transport; при отсутствии межвкладочных API применяется безопасный независимый режим.
+Чтобы несколько открытых страниц одного пользователя не занимали по отдельному PHP worker на каждый фоновый poll, глобальный Messenger transport выбирает одну вкладку-лидера и передаёт badge-состояние соседним вкладкам. Лидер сохраняет transport и в фоне, пока страница остаётся открытой; при закрытии страницы lease освобождается, а при аварийном завершении истекает автоматически. Сама страница Messenger по-прежнему владеет своим полноценным transport; при отсутствии межвкладочных API применяется безопасный независимый режим.
 
 Для рекомендуемого WebSocket fast path дополнительно нужны:
 
