@@ -221,6 +221,7 @@ final class UpdateExternalRuntime
             $files[$relative] = ['size' => $size, 'sha256' => $sha];
         }
 
+        $this->assertDependencyClosure(array_keys($files));
         ksort($files, SORT_STRING);
 
         return [
@@ -229,6 +230,144 @@ final class UpdateExternalRuntime
             'source_version_code' => Version::VERSION_CODE,
             'files' => $files,
         ];
+    }
+
+    /**
+     * Проверяет замкнутость локальных PHP-зависимостей recovery-runtime до
+     * публикации его копии. Ошибка состава runtime должна остановить обновление
+     * до destructive-фазы, а не проявиться уже во время rollback.
+     *
+     * @param list<string> $files
+     */
+    private function assertDependencyClosure(array $files): void
+    {
+        $known = array_fill_keys($files, true);
+
+        foreach ($files as $relative) {
+            if (!str_ends_with($relative, '.php')) {
+                continue;
+            }
+
+            $path = $this->appRoot
+                . DIRECTORY_SEPARATOR
+                . str_replace('/', DIRECTORY_SEPARATOR, $relative);
+            $source = file_get_contents($path);
+            if (!is_string($source)) {
+                throw new RuntimeException(
+                    'Не удалось проверить зависимости внешнего updater runtime: ' . $relative
+                );
+            }
+
+            foreach ($this->literalDependencies($relative, $source) as $dependency) {
+                if (isset($known[$dependency])) {
+                    continue;
+                }
+
+                throw new RuntimeException(
+                    'Внешний updater runtime не замкнут: '
+                    . $relative
+                    . ' требует '
+                    . $dependency
+                );
+            }
+        }
+    }
+
+    /** @return list<string> */
+    private function literalDependencies(string $relative, string $source): array
+    {
+        $dependencies = [];
+
+        if (preg_match_all(
+            '~\b(?:require_once|require)\s+__DIR__\s*\.\s*[\'"]/([^\'"]+\.php)[\'"]\s*;~',
+            $source,
+            $sameDirectoryMatches
+        ) === false) {
+            throw new RuntimeException('Не удалось разобрать зависимости updater runtime');
+        }
+
+        foreach ($sameDirectoryMatches[1] ?? [] as $suffix) {
+            $dependencies[] = $this->resolveDependency($relative, (string) $suffix, 0);
+        }
+
+        if (preg_match_all(
+            '~\b(?:require_once|require)\s+dirname\(\s*__DIR__\s*(?:,\s*(\d+)\s*)?\)'
+                . '\s*\.\s*[\'"]/([^\'"]+\.php)[\'"]\s*;~',
+            $source,
+            $parentMatches,
+            PREG_SET_ORDER
+        ) === false) {
+            throw new RuntimeException('Не удалось разобрать родительские зависимости updater runtime');
+        }
+
+        foreach ($parentMatches as $match) {
+            $levels = isset($match[1]) && $match[1] !== '' ? (int) $match[1] : 1;
+            $dependencies[] = $this->resolveDependency(
+                $relative,
+                (string) ($match[2] ?? ''),
+                max(1, $levels)
+            );
+        }
+
+        if (preg_match_all(
+            '~\b(?:require_once|require)\s+\$runtimeReal\s*\.\s*[\'"]/([^\'"]+\.php)[\'"]\s*;~',
+            $source,
+            $runtimeRootMatches
+        ) === false) {
+            throw new RuntimeException('Не удалось разобрать зависимости entrypoint updater runtime');
+        }
+
+        foreach ($runtimeRootMatches[1] ?? [] as $suffix) {
+            $candidate = ltrim(str_replace('\\', '/', (string) $suffix), '/');
+            if (!UpdatePath::safeRelative($candidate)) {
+                throw new RuntimeException('Entrypoint updater runtime содержит небезопасную зависимость');
+            }
+            $dependencies[] = $candidate;
+        }
+
+        return array_values(array_unique($dependencies));
+    }
+
+    private function resolveDependency(string $sourceRelative, string $suffix, int $parentLevels): string
+    {
+        $sourceParts = explode('/', str_replace('\\', '/', $sourceRelative));
+        array_pop($sourceParts);
+
+        for ($level = 0; $level < $parentLevels; $level++) {
+            if ($sourceParts === []) {
+                throw new RuntimeException(
+                    'Зависимость updater runtime вышла выше корня приложения: ' . $sourceRelative
+                );
+            }
+            array_pop($sourceParts);
+        }
+
+        foreach (explode('/', str_replace('\\', '/', ltrim($suffix, '/'))) as $part) {
+            if ($part === '' || $part === '.') {
+                continue;
+            }
+
+            if ($part === '..') {
+                if ($sourceParts === []) {
+                    throw new RuntimeException(
+                        'Зависимость updater runtime вышла выше корня приложения: ' . $sourceRelative
+                    );
+                }
+                array_pop($sourceParts);
+                continue;
+            }
+
+            $sourceParts[] = $part;
+        }
+
+        $candidate = implode('/', $sourceParts);
+        if (!UpdatePath::safeRelative($candidate)) {
+            throw new RuntimeException(
+                'Updater runtime содержит небезопасную локальную зависимость: ' . $candidate
+            );
+        }
+
+        return $candidate;
     }
 
     /** @param array<string,mixed> $manifest */
