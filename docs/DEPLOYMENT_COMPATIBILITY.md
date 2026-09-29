@@ -1,5 +1,8 @@
 # Deployment compatibility
 
+> Полный аудит ограничений обычного виртуального хостинга и обязательного/необязательного PHP-контракта: [SHARED_HOSTING_COMPATIBILITY.md](SHARED_HOSTING_COMPATIBILITY.md).
+
+
 Этот документ разделяет техническую совместимость, проверяемые CI-сценарии и рекомендуемое production-окружение Workspace Organizer 1.0.
 
 ## Поддерживаемые сценарии
