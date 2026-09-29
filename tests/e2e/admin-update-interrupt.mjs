@@ -1,3 +1,4 @@
+import { readFile, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
 
 function requiredEnv(name) {
@@ -12,6 +13,7 @@ const username = requiredEnv('E2E_USER');
 const password = requiredEnv('E2E_PASSWORD');
 const interruptPhase = requiredEnv('E2E_INTERRUPT_PHASE');
 const expectedTarget = requiredEnv('E2E_TARGET_VERSION');
+const stateRoot = requiredEnv('E2E_STATE_ROOT');
 const basePath = '/' + basePathRaw.replace(/^\/+|\/+$/g, '');
 const baseUrl = origin + basePath;
 
@@ -148,22 +150,52 @@ try {
   // destructive boundary — тот же класс ситуации, что при обрыве клиента.
   await context.close();
 
-  const recoveryResponse = await fetch(`${baseUrl}/`, {
+  let recoveryResponse = await fetch(`${baseUrl}/`, {
     redirect: 'follow',
     signal: AbortSignal.timeout(120000),
   });
-  const recoveryBody = await recoveryResponse.text();
+  let recoveryBody = await recoveryResponse.text();
+
+  if (recoveryResponse.status === 503) {
+    if (
+      !recoveryBody.includes('Завершается безопасное восстановление')
+      || !recoveryBody.includes('Обновление или восстановление уже выполняется')
+    ) {
+      throw new Error(
+        'Активная lease web-updater вернула неожиданный 503: '
+        + recoveryBody.slice(0, 1200)
+      );
+    }
+
+    // Пока lease продолжения активна, boot recovery обязан не вмешиваться
+    // в потенциально живой updater. Здесь имитируем естественное истечение
+    // lease после потери браузерного клиента, не ожидая три минуты в CI.
+    const continuationPath = `${stateRoot}/web-continuations/${transactionId}.json`;
+    const continuation = JSON.parse(await readFile(continuationPath, 'utf8'));
+    continuation.expires_at = Math.floor(Date.now() / 1000) - 1;
+    await writeFile(
+      continuationPath,
+      JSON.stringify(continuation, null, 2) + '\n',
+      { mode: 0o600 }
+    );
+
+    recoveryResponse = await fetch(`${baseUrl}/`, {
+      redirect: 'follow',
+      signal: AbortSignal.timeout(120000),
+    });
+    recoveryBody = await recoveryResponse.text();
+  }
 
   if (recoveryResponse.status !== 200) {
     throw new Error(
-      `Первый HTTP-запрос после прерывания вернул ${recoveryResponse.status}: `
+      `HTTP-запрос после истечения lease не завершил recovery: ${recoveryResponse.status}: `
       + recoveryBody.slice(0, 1200)
     );
   }
 
   if (!recoveryBody.includes('Вход в Workspace')) {
     throw new Error(
-      'Первый HTTP-запрос после прерывания не вернулся в штатный экран входа: '
+      'После автоматического recovery не показан штатный экран входа: '
       + recoveryBody.slice(0, 1200)
     );
   }
