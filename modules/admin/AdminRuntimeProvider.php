@@ -44,6 +44,7 @@ final class AdminRuntimeProvider implements ModuleRuntimeProvider
             ->add('POST', '/updates/stage', [UpdateController::class, 'stage'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_stage')
             ->add('POST', '/updates/apply-latest', [UpdateController::class, 'applyLatest'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_apply_latest')
             ->add('POST', '/updates/web-start', [UpdateController::class, 'webStart'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_web_start')
+            ->add('POST', '/updates/web-start-latest', [UpdateController::class, 'webStartLatest'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_web_start_latest')
             ->add('POST', '/updates/web-step', [UpdateController::class, 'webStep'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_web_step')
             ->add('POST', '/updates/apply', [UpdateController::class, 'apply'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_apply')
             ->endGroup();
