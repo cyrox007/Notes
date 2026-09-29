@@ -203,18 +203,18 @@ updateNotificationAssert(
     'Сквозной релизный тест не запускает браузерную проверку автоматического отката'
 );
 updateNotificationAssert(
-    str_contains($adminUpdateE2e, 'name: 1.0.8 → 1.0.9 сквозной updater')
-        && str_contains($adminUpdateE2e, "E2E_SOURCE_VERSION=%s\\n' '1.0.8'")
-        && str_contains($adminUpdateE2e, "E2E_TARGET_VERSION=%s\\n' '1.0.9-admin-e2e'"),
-    'Сквозной релизный тест не закрепляет новую границу обновления 1.0.8 → 1.0.9'
+    str_contains($adminUpdateE2e, 'name: 1.0.9 → 1.0.10 сквозной updater')
+        && str_contains($adminUpdateE2e, "E2E_SOURCE_VERSION=%s\\n' '1.0.9'")
+        && str_contains($adminUpdateE2e, "E2E_TARGET_VERSION=%s\\n' '1.0.10-admin-e2e'"),
+    'Сквозной релизный тест не закрепляет новую границу обновления 1.0.9 → 1.0.10'
 );
 updateNotificationAssert(
-    str_contains($adminUpdateE2e, '1.0.9-broken-e2e')
+    str_contains($adminUpdateE2e, '1.0.10-broken-e2e')
         && str_contains($adminUpdateE2e, 'намеренный отказ миграции'),
     'Сквозной релизный тест не содержит намеренно падающий подписанный пакет'
 );
 updateNotificationAssert(
-    str_contains($adminUpdateE2e, '1.0.9-health-broken-e2e')
+    str_contains($adminUpdateE2e, '1.0.10-health-broken-e2e')
         && str_contains($adminUpdateE2e, 'намеренный отказ post-health'),
     'Сквозной релизный тест не проверяет автоматический откат после ошибки post-health'
 );
