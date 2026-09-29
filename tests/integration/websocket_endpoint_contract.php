@@ -321,8 +321,11 @@ assertWebSocketEndpoint(
     && str_contains($installerSource, "'WS_ENABLED='")
     && str_contains($installerSource, 'name="ws_enabled"')
     && str_contains($installerSource, 'Использовать WebSocket-ускорение')
-    && str_contains($installerSource, 'Long Poll transport уже работает'),
-    'installer не закрепляет Long Poll-only как штатную установку'
+    && str_contains($installerSource, 'HTTP Long Poll Messenger')
+    && str_contains($installerSource, 'WebSocket-ускоритель Messenger')
+    && str_contains($installerSource, 'Long Poll transport уже работает')
+    && !str_contains($installerSource, "\$checks['Native WebSocket runtime']"),
+    'installer должен считать Long Poll обязательным transport, а native WebSocket — только ускорителем'
 );
 
 assertWebSocketEndpoint(
