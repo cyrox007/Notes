@@ -142,7 +142,7 @@ jobs:
           test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.8'
           test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10008'
           test "$(php -r "require 'core/Version.php'; echo Core\\Version::STATUS;")" = 'stable'
-          test "$(php -r "require 'core/Version.php'; echo Core\\Version::RELEASE_DATE;")" = '2026-09-28'
+          test "$(php -r "require 'core/Version.php'; echo Core\\Version::RELEASE_DATE;")" = '2026-09-29'
           grep -Fq '**Версия:** `1.0.8`' README.md
           grep -Fq '## 1.0.8 — 2026-09-29' CHANGELOG.md
           test -s docs/releases/v1.0.8.md
