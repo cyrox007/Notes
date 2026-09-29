@@ -99,7 +99,13 @@ final class HostingCompatibility
         $engine = $isMariaDb ? 'MariaDB' : 'MySQL';
 
         $version = '';
-        if (preg_match('/(\d+\.\d+(?:\.\d+)?)/', $rawVersion, $matches) === 1) {
+        $pattern = $isMariaDb
+            ? '/(?:^|[- ])(\d+\.\d+(?:\.\d+)?)(?=-MariaDB)/i'
+            : '/(\d+\.\d+(?:\.\d+)?)/';
+        if (preg_match($pattern, $rawVersion, $matches) !== 1 && $isMariaDb) {
+            preg_match('/(\d+\.\d+(?:\.\d+)?)/', $rawVersion, $matches);
+        }
+        if (isset($matches[1])) {
             $version = (string) $matches[1];
             if (substr_count($version, '.') === 1) {
                 $version .= '.0';
