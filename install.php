@@ -361,6 +361,7 @@ function writeEnvironmentFile(string $file, array $data): void
         'BASE_PATH=' . envQuoted((string) $data['base_path']),
         'REGISTRATION_INVITE_CODE=',
         '',
+        'WS_ENABLED=' . (!empty($data['ws_enabled']) ? '1' : '0'),
         'WS_HOST=127.0.0.1',
         'WS_PORT=27800',
         'WS_PUBLIC_URL=' . envQuoted((string) $data['ws_public_url']),
@@ -443,6 +444,7 @@ $selectedInstallMode = (string) ($_POST['install_mode'] ?? $detectedInstallMode)
 if (!in_array($selectedInstallMode, ['hosting', 'openserver_local'], true)) {
     $selectedInstallMode = $detectedInstallMode;
 }
+$selectedWsEnabled = ((string) ($_POST['ws_enabled'] ?? '')) === '1';
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     verifyInstallerCsrf();
@@ -460,14 +462,21 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             $installMode = $detectedInstallMode;
         }
         $selectedInstallMode = $installMode;
+        $wsEnabled = $hasMessenger && ((string) ($_POST['ws_enabled'] ?? '')) === '1';
+        $selectedWsEnabled = $wsEnabled;
         try {
             $siteUrl = normalizeSiteUrl((string) ($_POST['site_url'] ?? $detectedSiteUrl));
             $baseUrlPath = normalizeBasePath((string) ($_POST['base_path'] ?? $detectedBasePath));
-            $wsPublicUrl = $hasMessenger
-                ? ($installMode === 'openserver_local'
+            if ($hasMessenger && $wsEnabled) {
+                $wsPublicUrl = $installMode === 'openserver_local'
                     ? openServerLocalWebSocketUrl($siteUrl, $baseUrlPath)
-                    : normalizeWebSocketUrl((string) ($_POST['ws_public_url'] ?? defaultWebSocketUrl($siteUrl, $baseUrlPath)), $siteUrl))
-                : defaultWebSocketUrl($siteUrl, $baseUrlPath);
+                    : normalizeWebSocketUrl(
+                        (string) ($_POST['ws_public_url'] ?? defaultWebSocketUrl($siteUrl, $baseUrlPath)),
+                        $siteUrl
+                    );
+            } else {
+                $wsPublicUrl = defaultWebSocketUrl($siteUrl, $baseUrlPath);
+            }
         } catch (Throwable $e) {
             $errors[] = $e->getMessage();
             $siteUrl = $detectedSiteUrl;
@@ -505,7 +514,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 $_SESSION['notes_install_db'] = [
                     'db_host' => $host, 'db_port' => $port, 'db_name' => $database, 'db_user' => $username, 'db_pass' => $password,
                     'private_storage' => $storageReal, 'site_url' => $siteUrl, 'base_path' => $baseUrlPath,
-                    'install_mode' => $installMode, 'ws_public_url' => $wsPublicUrl,
+                    'install_mode' => $installMode, 'ws_enabled' => $wsEnabled, 'ws_public_url' => $wsPublicUrl,
                     'unique_key' => randomSecret(), 'message_key' => randomSecret(),
                     'ws_ticket_secret' => randomSecret(), 'install_date' => date('YmdHis'),
                 ];
@@ -622,7 +631,7 @@ $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SU
     <?php if ($step === 1): ?>
         <h2>1. Проверка хостинга</h2>
         <ul><?php foreach ($requirements as $label => $ok): ?><li class="<?= $ok ? 'ok' : 'fail' ?>"><?= $ok ? '✓' : '✕' ?> <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></li><?php endforeach; ?></ul>
-        <div class="summary"><strong>Автоопределение</strong><p>Профиль: <code><?= $detectedInstallMode === 'openserver_local' ? 'OpenServer local' : 'Hosting / reverse proxy' ?></code><br>Сайт: <code><?= htmlspecialchars(appUrl($detectedSiteUrl,$detectedBasePath), ENT_QUOTES, 'UTF-8') ?></code><br>WebSocket: <code><?= htmlspecialchars($detectedWsUrl, ENT_QUOTES, 'UTF-8') ?></code><br>Private storage: <code><?= htmlspecialchars($detectedPrivateStorage !== '' ? $detectedPrivateStorage : 'нужно указать', ENT_QUOTES, 'UTF-8') ?></code></p></div>
+        <div class="summary"><strong>Автоопределение</strong><p>Профиль: <code><?= $detectedInstallMode === 'openserver_local' ? 'OpenServer local' : 'Hosting' ?></code><br>Сайт: <code><?= htmlspecialchars(appUrl($detectedSiteUrl,$detectedBasePath), ENT_QUOTES, 'UTF-8') ?></code><br>Messenger: <code>Long Poll</code> (основной transport)<br>WebSocket: <code>необязательное ускорение</code><br>Private storage: <code><?= htmlspecialchars($detectedPrivateStorage !== '' ? $detectedPrivateStorage : 'нужно указать', ENT_QUOTES, 'UTF-8') ?></code></p></div>
         <?php if ($errors === []): ?><a class="button" href="?step=2">Продолжить</a><?php endif; ?>
     <?php elseif ($step === 2): ?>
         <h2>2. База и окружение</h2>
@@ -631,14 +640,14 @@ $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SU
                 <div class="mode-grid">
                     <label class="mode-option">
                         <input type="radio" name="install_mode" value="openserver_local" <?= $selectedInstallMode === 'openserver_local' ? 'checked' : '' ?>>
-                        <span><strong>OpenServer / локальная Windows-установка</strong><small>Для HTTP Messenger подключается напрямую к текущему локальному hostname на порту <code>27800</code> (например <code>ws://notes.local:27800</code>) и не требует reverse proxy. Для HTTPS остаётся <code>wss://.../ws</code> через Apache/Nginx.</small></span>
+                        <span><strong>OpenServer / локальная Windows-установка</strong><small>Messenger сразу работает через Long Poll. WebSocket можно включить ниже как локальное ускорение.</small></span>
                     </label>
                     <label class="mode-option">
                         <input type="radio" name="install_mode" value="hosting" <?= $selectedInstallMode === 'hosting' ? 'checked' : '' ?>>
-                        <span><strong>Hosting / production</strong><small>Браузер использует публичный <code>/ws</code> или другой ws/wss endpoint через reverse proxy. Для HTTPS требуется <code>wss://</code>.</small></span>
+                        <span><strong>Hosting / production</strong><small>Long Poll не требует фоновых процессов или WebSocket proxy. WebSocket можно включить только если хостинг это поддерживает.</small></span>
                     </label>
                 </div>
-                <?php if ($detectedOpenServer): ?><p class="inline-note">Обнаружена структура OpenServer/OSPanel <code>domains\...</code>. На HTTP профиль OpenServer использует прямой WebSocket к тому же hostname на порту <code>27800</code>; на HTTPS нужен WebSocket reverse proxy <code>/ws</code>.</p><?php endif; ?>
+                <?php if ($detectedOpenServer): ?><p class="inline-note">Обнаружена структура OpenServer/OSPanel <code>domains\...</code>. Дополнительная настройка для Messenger не требуется: Long Poll работает через обычный HTTP. WebSocket можно включить ниже для уменьшения задержки.</p><?php endif; ?>
             </fieldset>
             <fieldset><legend>MySQL</legend>
                 <label>Хост<input name="db_host" value="<?= htmlspecialchars((string)($_POST['db_host'] ?? 'localhost'),ENT_QUOTES,'UTF-8') ?>" required></label>
@@ -651,7 +660,13 @@ $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SU
                 <label>Private storage<input name="private_storage_path" value="<?= htmlspecialchars((string)($_POST['private_storage_path'] ?? $detectedPrivateStorage),ENT_QUOTES,'UTF-8') ?>" required><small>Абсолютный путь вне document root.</small></label>
                 <label>SITEURL<input name="site_url" value="<?= htmlspecialchars((string)($_POST['site_url'] ?? $detectedSiteUrl),ENT_QUOTES,'UTF-8') ?>" required></label>
                 <label>BASE_PATH<input name="base_path" value="<?= htmlspecialchars((string)($_POST['base_path'] ?? $detectedBasePath),ENT_QUOTES,'UTF-8') ?>" required></label>
-                <?php if ($hasMessenger): ?><label>WS_PUBLIC_URL<input id="ws-public-url" name="ws_public_url" value="<?= htmlspecialchars((string)($_POST['ws_public_url'] ?? $detectedWsUrl),ENT_QUOTES,'UTF-8') ?>" required data-hosting-default="<?= htmlspecialchars(defaultWebSocketUrl($detectedSiteUrl, $detectedBasePath), ENT_QUOTES, 'UTF-8') ?>"><small>OpenServer + HTTP: <code>ws://&lt;SITEURL host&gt;:27800</code>. OpenServer + HTTPS и production: публичный <code>wss://.../ws</code> через reverse proxy.</small></label><?php endif; ?>
+                <?php if ($hasMessenger): ?>
+                    <label class="mode-option">
+                        <input id="ws-enabled" type="checkbox" name="ws_enabled" value="1" <?= $selectedWsEnabled ? 'checked' : '' ?>>
+                        <span><strong>Использовать WebSocket-ускорение</strong><small>Необязательно. Без него весь Messenger работает через Long Poll. Включайте только если можете запустить отдельный процесс и, для HTTPS, настроить reverse proxy.</small></span>
+                    </label>
+                    <label id="ws-public-url-field">WS_PUBLIC_URL<input id="ws-public-url" name="ws_public_url" value="<?= htmlspecialchars((string)($_POST['ws_public_url'] ?? $detectedWsUrl),ENT_QUOTES,'UTF-8') ?>" data-hosting-default="<?= htmlspecialchars(defaultWebSocketUrl($detectedSiteUrl, $detectedBasePath), ENT_QUOTES, 'UTF-8') ?>"><small>Используется только при включённом WebSocket. OpenServer + HTTP: <code>ws://&lt;SITEURL host&gt;:27800</code>; HTTPS/production: <code>wss://.../ws</code>.</small></label>
+                <?php endif; ?>
             </fieldset><button type="submit">Подготовить проект</button>
         </form>
     <?php elseif ($step === 3): ?>
@@ -669,10 +684,12 @@ $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SU
     <?php else: ?>
         <h2>4. Готово</h2>
         <p>Схема БД, private storage, секреты, <code>.env</code> и первый admin созданы. Повторный запуск installer автоматически закрыт.</p>
-        <?php if ($hasMessenger && (($db['install_mode'] ?? 'hosting') === 'openserver_local')): ?>
-            <div class="notice success"><strong>OpenServer local:</strong> Messenger настроен на <code><?= htmlspecialchars((string)($db['ws_public_url'] ?? ''), ENT_QUOTES, 'UTF-8') ?></code>. В отдельном терминале из корня проекта запустите <code>php ws_server/server.php start</code> и оставьте процесс работающим. На HTTP reverse proxy не требуется; на HTTPS нужен proxy <code>/ws</code>. Проверка: <code>php ws_server/server.php status</code> и <code>php bin/ws_doctor.php</code>.</div>
+        <?php if ($hasMessenger && empty($db['ws_enabled'])): ?>
+            <div class="notice success"><strong>Messenger готов:</strong> основной Long Poll transport уже работает через обычный HTTP. WebSocket не включён и для работы Messenger не требуется.</div>
+        <?php elseif ($hasMessenger && (($db['install_mode'] ?? 'hosting') === 'openserver_local')): ?>
+            <div class="notice success"><strong>Messenger готов:</strong> Long Poll уже работает. Дополнительно включено WebSocket-ускорение <code><?= htmlspecialchars((string)($db['ws_public_url'] ?? ''), ENT_QUOTES, 'UTF-8') ?></code>. Для него в отдельном терминале запустите <code>php ws_server/server.php start</code>. Проверка: <code>php ws_server/server.php status</code> и <code>php bin/ws_doctor.php</code>.</div>
         <?php elseif ($hasMessenger): ?>
-            <p>Realtime Messenger использует встроенный native WebSocket process. Запустите <code>php ws_server/server.php start</code> через systemd/Supervisor/панель и проксируйте публичный <code>/ws</code> на локальный <code>WS_PORT</code>.</p>
+            <p>Messenger уже работает через Long Poll. Для включённого WebSocket-ускорения запустите <code>php ws_server/server.php start</code> через systemd/Supervisor/панель и при HTTPS проксируйте публичный <code>/ws</code> на локальный <code>WS_PORT</code>.</p>
         <?php endif; ?>
         <a class="button" href="<?= htmlspecialchars($installedAppUrl !== '' ? $installedAppUrl : '/', ENT_QUOTES, 'UTF-8') ?>">Открыть Workspace Organizer</a>
     <?php endif; ?>
@@ -681,8 +698,10 @@ $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SU
 <script nonce="<?= $cspNonce ?>">
 (() => {
     const wsInput = document.getElementById('ws-public-url');
+    const wsEnabled = document.getElementById('ws-enabled');
+    const wsField = document.getElementById('ws-public-url-field');
     const radios = Array.from(document.querySelectorAll('input[name="install_mode"]'));
-    if (!wsInput || radios.length === 0) return;
+    if (!wsInput || !wsEnabled || !wsField || radios.length === 0) return;
 
     const siteInput = document.querySelector('input[name="site_url"]');
     const basePathInput = document.querySelector('input[name="base_path"]');
@@ -703,7 +722,18 @@ $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SU
     };
 
     const applyMode = () => {
+        const enabled = wsEnabled.checked;
         const mode = radios.find((radio) => radio.checked)?.value || 'hosting';
+
+        wsField.hidden = !enabled;
+        wsInput.disabled = !enabled;
+        wsInput.required = enabled;
+
+        if (!enabled) {
+            wsInput.readOnly = false;
+            return;
+        }
+
         if (mode === 'openserver_local') {
             if (!wsInput.readOnly) hostingValue = wsInput.value;
             wsInput.value = openServerSocketUrl();
@@ -715,6 +745,7 @@ $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SU
     };
 
     radios.forEach((radio) => radio.addEventListener('change', applyMode));
+    wsEnabled.addEventListener('change', applyMode);
     siteInput?.addEventListener('input', () => {
         if (radios.find((radio) => radio.checked)?.value === 'openserver_local') applyMode();
     });
