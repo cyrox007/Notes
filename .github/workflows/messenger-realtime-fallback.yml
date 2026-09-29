@@ -2,7 +2,7 @@ name: Messenger realtime fallback
 
 on:
   pull_request:
-    branches: [dev, '1.0', master]
+    branches: [dev, '1.0', master, 'release/1.0.9-rc']
   push:
     branches: [dev]
     paths:
