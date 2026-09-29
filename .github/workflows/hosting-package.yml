@@ -268,6 +268,25 @@ jobs:
           echo "BUNDLE_CHECKSUM=$CHECKSUM_FILE" >> "$GITHUB_ENV"
           echo "BUNDLE_SOURCE_SHA=$SOURCE_SHA_FILE" >> "$GITHUB_ENV"
 
+      - name: Подготовить bootstrap совместимости updater 1.0.9
+        shell: bash
+        run: |
+          set -euo pipefail
+          BOOTSTRAP_SOURCE="$GITHUB_WORKSPACE/tools/release/bootstrap-1.0.9-updater.php"
+          UPDATE_109_BOOTSTRAP="$GITHUB_WORKSPACE/bootstrap-1.0.9-updater.php"
+          UPDATE_109_BOOTSTRAP_CHECKSUM="$UPDATE_109_BOOTSTRAP.sha256"
+          php -l "$BOOTSTRAP_SOURCE"
+          cp "$BOOTSTRAP_SOURCE" "$UPDATE_109_BOOTSTRAP"
+          (
+            cd "$GITHUB_WORKSPACE"
+            sha256sum "$(basename "$UPDATE_109_BOOTSTRAP")"
+          ) > "$UPDATE_109_BOOTSTRAP_CHECKSUM"
+          test -s "$UPDATE_109_BOOTSTRAP"
+          test -s "$UPDATE_109_BOOTSTRAP_CHECKSUM"
+          cat "$UPDATE_109_BOOTSTRAP_CHECKSUM"
+          echo "UPDATE_109_BOOTSTRAP=$UPDATE_109_BOOTSTRAP" >> "$GITHUB_ENV"
+          echo "UPDATE_109_BOOTSTRAP_CHECKSUM=$UPDATE_109_BOOTSTRAP_CHECKSUM" >> "$GITHUB_ENV"
+
       - name: Upload immutable release-candidate artifact
         uses: actions/upload-artifact@v4
         with:
@@ -276,6 +295,8 @@ jobs:
             ${{ env.BUNDLE }}
             ${{ env.BUNDLE_CHECKSUM }}
             ${{ env.BUNDLE_SOURCE_SHA }}
+            ${{ env.UPDATE_109_BOOTSTRAP }}
+            ${{ env.UPDATE_109_BOOTSTRAP_CHECKSUM }}
           if-no-files-found: error
           retention-days: 14
 
@@ -314,6 +335,8 @@ jobs:
             "$BUNDLE" \
             "$BUNDLE_CHECKSUM" \
             "$BUNDLE_SOURCE_SHA" \
+            "$UPDATE_109_BOOTSTRAP" \
+            "$UPDATE_109_BOOTSTRAP_CHECKSUM" \
             --verify-tag \
             --title "Workspace Organizer ${TAG#v}" \
             --notes-file "$NOTES" \

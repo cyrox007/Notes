@@ -137,7 +137,7 @@ releaseAcceptanceAssert(
     && str_contains($releaseNotes, 'wrapper__content')
     && str_contains($releaseNotes, 'общий `.messenger-dialog-modal`')
     && str_contains($releaseNotes, 'surface всегда занимает `100%`')
-    && str_contains($releaseNotes, 'bootstrap-1.0.2-updater.php')
+    && str_contains($releaseNotes, 'bootstrap-1.0.9-updater.php')
     && str_contains($releaseNotes, 'встроенный подписанный updater'),
     'описание 1.0.10 не фиксирует четыре исправления и новый upgrade-path'
 );

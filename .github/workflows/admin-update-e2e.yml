@@ -232,6 +232,15 @@ jobs:
           test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.9'
           test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10009'
 
+      - name: Применить bootstrap совместимости updater 1.0.9
+        shell: bash
+        run: |
+          set -euo pipefail
+          LIVE=/tmp/workspace-admin-update-e2e/live
+          php tools/release/bootstrap-1.0.9-updater.php --yes --root="$LIVE"
+          grep -Fq "'core/HostingCompatibility.php'" "$LIVE/core/UpdateExternalRuntime.php"
+          php tools/release/bootstrap-1.0.9-updater.php --yes --root="$LIVE"
+
       - name: Активировать временную CI-лицензию
         shell: bash
         run: |

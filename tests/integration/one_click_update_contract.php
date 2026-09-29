@@ -220,7 +220,8 @@ updateNotificationAssert(
 updateNotificationAssert(
     str_contains($adminUpdateE2e, 'name: 1.0.9 → 1.0.10 сквозной updater')
         && str_contains($adminUpdateE2e, "E2E_SOURCE_VERSION=%s\\n' '1.0.9'")
-        && str_contains($adminUpdateE2e, "E2E_TARGET_VERSION=%s\\n' '1.0.10-admin-e2e'"),
+        && str_contains($adminUpdateE2e, "E2E_TARGET_VERSION=%s\\n' '1.0.10-admin-e2e'")
+        && str_contains($adminUpdateE2e, 'bootstrap-1.0.9-updater.php'),
     'Сквозной релизный тест не закрепляет новую границу обновления 1.0.9 → 1.0.10'
 );
 updateNotificationAssert(
