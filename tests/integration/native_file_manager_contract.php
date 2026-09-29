@@ -25,8 +25,10 @@ nativeFileManagerAssert(str_contains($source, '$view->e($displayName)'), 'file n
 nativeFileManagerAssert(str_contains($source, 'data-current-folder-id'), 'current folder data contract was dropped');
 nativeFileManagerAssert(str_contains($source, "['vsd', 'vsdx']"), 'для VSD/VSDX не назначена иконка документа');
 nativeFileManagerAssert(str_contains($source, "['pdf', 'djvu']"), 'для DJVU не назначена иконка документа');
+$djvuIconPosition = strpos($source, "['pdf', 'djvu']");
+$imageMimeIconPosition = strpos($source, "str_contains(\$mime, 'image')");
 nativeFileManagerAssert(
-    strpos($source, "['pdf', 'djvu']") < strpos($source, "str_contains($mime, 'image')"),
+    $djvuIconPosition !== false && $imageMimeIconPosition !== false && $djvuIconPosition < $imageMimeIconPosition,
     'DJVU ошибочно определяется как обычное изображение до проверки расширения'
 );
 nativeFileManagerAssert(str_contains($source, 'id="btn-create-folder"'), 'create-folder JS hook was dropped');
@@ -50,8 +52,10 @@ nativeFileManagerAssert(str_contains($fileController, "'djvu' =>"), 'загру�
 nativeFileManagerAssert(str_contains($fileController, "'zip' =>"), 'загрузка ZIP не разрешена');
 nativeFileManagerAssert(str_contains($fileController, 'application/vnd.ms-visio.drawing.main+xml'), 'MIME VSDX не разрешён');
 nativeFileManagerAssert(str_contains($fileController, 'image/vnd.djvu'), 'MIME DJVU не разрешён');
+$djvuTypePosition = strpos($fileController, "in_array(\$extension, ['pdf', 'djvu'");
+$imageMimeTypePosition = strpos($fileController, "str_starts_with(\$mimeType, 'image/')");
 nativeFileManagerAssert(
-    strpos($fileController, "in_array($extension, ['pdf', 'djvu'") < strpos($fileController, "str_starts_with($mimeType, 'image/')"),
+    $djvuTypePosition !== false && $imageMimeTypePosition !== false && $djvuTypePosition < $imageMimeTypePosition,
     'DJVU должен определяться как документ до общей проверки image MIME'
 );
 
