@@ -45,7 +45,7 @@ Workspace Organizer — self-hosted PHP-приложение для корпор
 
 - PHP `8.1+` — технический compatibility floor; для Internet-facing production рекомендуется поддерживаемая ветка PHP, сейчас `8.3+`;
 - БД: MySQL `8.0+` или MariaDB `10.5+`; CI проверяет MySQL 8.4 и MariaDB 10.11;
-- PHP extensions: `mysqli`, `pdo_mysql`, `mbstring`, `fileinfo`, `sodium`, `openssl`, `zlib`, `gd`; доступны `getenv`/`putenv`;
+- PHP extensions: `mysqli`, `pdo_mysql`, `mbstring`, `ctype`, `fileinfo`, `sodium`, `openssl`, `zlib`, `gd`; доступны `ini_get`/`getenv`/`putenv`, рабочие PHP-сессии и upload temp;
 - Messenger работает через обычный authenticated HTTP long poll даже без WebSocket process; для низкой задержки и меньшей нагрузки рекомендуется PHP CLI + long-running native WebSocket process и WebSocket endpoint/proxy; daemon mode на Unix дополнительно требует `pcntl`;
 - Argon2id support в `password_hash`;
 - Apache + `mod_rewrite` либо Nginx с эквивалентным front-controller routing;
@@ -81,8 +81,8 @@ https://example.com/workspace/install.php
 
 Web-installer автоматически:
 
-- проверяет PHP 8.1+, необходимые extensions, `getenv/putenv`, Argon2id, лимиты загрузки и низкий `memory_limit`; production runtime не требует `vendor/`;
-- проверяет MySQL 8.0+ / MariaDB 10.5+ и пытается создать отсутствующую БД, если DB account это разрешает;
+- проверяет PHP 8.1+, необходимые extensions, `ini_get/getenv/putenv`, PHP session/upload temp, `flock`/atomic rename, Argon2id, лимиты загрузки и низкий `memory_limit`; production runtime не требует `vendor/`;
+- проверяет MySQL 8.0+ / MariaDB 10.5+, права `CREATE/ALTER/TRIGGER/DROP` и пытается создать отсутствующую БД, если учётная запись БД это разрешает;
 - импортирует composition-aware canonical schemas и создаёт current contract из 35 обязательных таблиц;
 - создаёт `cache`/`compile`;
 - подбирает и создаёт `PRIVATE_STORAGE_PATH` вне document root;
