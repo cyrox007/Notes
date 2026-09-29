@@ -826,7 +826,7 @@ jobs:
             fi
           done
           test "$COMMITTED" -eq 1
-          test "$ROLLED_BACK" -eq 2
+          test "$ROLLED_BACK" -eq 4
           test ! -e "$PRIVATE/state/workspace-maintenance.json"
 
           test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_update_e2e -e "SELECT COUNT(*) FROM users WHERE username='admin-update-e2e'")" = '1'
