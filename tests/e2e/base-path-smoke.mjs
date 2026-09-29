@@ -207,10 +207,22 @@ try {
   const fileItem = page.locator('.file-manager__item[data-name="base-path"]');
   await fileItem.waitFor({ state: 'visible', timeout: 15000 });
 
-  const fileOpenHref = await fileItem.locator('.file-manager__action-btn').first().getAttribute('href');
-  if (!fileOpenHref?.startsWith(`${basePath}/files/get/`)) {
-    throw new Error(`File link escaped BASE_PATH: ${fileOpenHref}`);
+  const fileId = await fileItem.getAttribute('data-id');
+  if (!fileId) {
+    throw new Error('Загруженный файл не содержит data-id');
   }
+
+  const previewResponsePromise = page.waitForResponse(response => (
+    response.request().method() === 'GET'
+    && new URL(response.url()).pathname === `${basePath}/files/get/${encodeURIComponent(fileId)}/`
+  ), { timeout: 15000 });
+  await fileItem.click();
+  const previewResponse = await previewResponsePromise;
+  if (previewResponse.status() !== 200) {
+    throw new Error(`Предпросмотр файла вернул HTTP ${previewResponse.status()}`);
+  }
+  await page.locator('#text-preview-modal').waitFor({ state: 'visible', timeout: 5000 });
+  await page.locator('#text-preview-modal .file-manager__modal-close').click();
 
   await fileItem.locator('.btn-delete').click();
   const deleteDialog = page.locator('.wspace-dialog-backdrop:not([hidden])');
