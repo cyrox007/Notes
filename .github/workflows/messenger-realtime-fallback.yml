@@ -50,6 +50,7 @@ jobs:
           node --check assets/js/messenger-global-notifications.js
           node --check tests/integration/messenger_long_poll_composer_runtime.mjs
           node --check tests/integration/messenger_long_poll_resilience_runtime.mjs
+          node --check tests/integration/messenger_global_transport_runtime.mjs
           node --check tests/integration/messenger_tab_coordinator_runtime.mjs
 
       - name: Проверить контракт резервного транспорта
@@ -63,6 +64,9 @@ jobs:
 
       - name: Проверить самовосстановление Long Poll
         run: node tests/integration/messenger_long_poll_resilience_runtime.mjs
+
+      - name: Проверить постоянный глобальный transport
+        run: node tests/integration/messenger_global_transport_runtime.mjs
 
       - name: Проверить activity через оба транспорта
         run: php tests/integration/messenger_activity_wiring_contract.php
