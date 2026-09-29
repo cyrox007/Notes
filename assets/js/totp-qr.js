@@ -10,6 +10,8 @@
         { version: 13, centers: [6, 34, 62], blocks: [[8, 59, 37], [1, 60, 38]] },
         { version: 14, centers: [6, 26, 46, 66], blocks: [[4, 64, 40], [5, 65, 41]] },
         { version: 15, centers: [6, 26, 48, 70], blocks: [[5, 65, 41], [5, 66, 42]] },
+        { version: 16, centers: [6, 26, 50, 74], blocks: [[7, 73, 45], [3, 74, 46]] },
+        { version: 17, centers: [6, 30, 54, 78], blocks: [[10, 74, 46], [1, 75, 47]] },
     ];
     const generatorCache = new Map();
 
