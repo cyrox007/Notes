@@ -65,6 +65,7 @@ Composer install для runtime не нужен.
 
 ```env
 SITEURL=https://app.example.com
+WS_ENABLED=1
 WS_PUBLIC_URL=wss://ws.example.com/ws
 WS_ALLOWED_ORIGINS=https://app.example.com
 WS_HOST=127.0.0.1
@@ -79,6 +80,7 @@ WS_PID_FILE=/run/workspace-organizer/ws-server.pid
 ```env
 SITEURL=https://workspace.example.com
 BASE_PATH=/
+WS_ENABLED=1
 WS_HOST=127.0.0.1
 WS_PORT=27800
 WS_PUBLIC_URL=wss://workspace.example.com/ws
@@ -244,7 +246,7 @@ Messenger полностью работоспособен без long-running We
 5. открыть Messenger двумя пользователями;
 6. при доступном WebSocket в DevTools → Network → WS увидеть `101 Switching Protocols` и состояние «WebSocket · в сети»;
 7. отправить сообщение и убедиться, что второй browser context получает его без reload;
-8. временно остановить WS process или сделать endpoint недоступным, дождаться состояния «Long Poll · резервный канал», повторить отправку между двумя пользователями и убедиться, что durable state синхронизируется;
+8. временно остановить WS process или установить `WS_ENABLED=0`, дождаться состояния «Long Poll · в сети», повторить отправку сообщений, файлов, реакций и проверить счётчик непрочитанных между двумя пользователями;
 9. вернуть WS process и убедиться, что клиент автоматически возвращается на WebSocket без reload.
 
 Repository CI выполняет production-like Chromium smoke через TLS Nginx + PHP + **native WebSocket server**, проверяет reconnect, HTTP fallback/worker-release и bridge fallback-mutation → активный WS-клиент; runtime проверяется без каталога `vendor/`.
