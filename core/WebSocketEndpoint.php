@@ -10,7 +10,8 @@ final class WebSocketEndpoint
 {
     public static function enabled(): bool
     {
-        $raw = trim((string) (getenv('WS_ENABLED') ?: ''));
+        $value = getenv('WS_ENABLED');
+        $raw = is_string($value) ? trim($value) : '';
         if ($raw === '') {
             // Старые установки до появления WS_ENABLED сохраняют прежнее
             // поведение: WebSocket остаётся включённым.
