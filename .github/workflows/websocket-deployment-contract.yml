@@ -2,7 +2,7 @@ name: WebSocket deployment contract
 
 on:
   pull_request:
-    branches: [master, '1.0', dev]
+    branches: [master, '1.0', dev, 'release/1.0.9-rc']
   push:
     branches: [0.14-beta2-websocket-deployment, '1.0', dev]
 
