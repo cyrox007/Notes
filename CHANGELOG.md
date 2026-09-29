@@ -6,7 +6,7 @@
 
 ### Обновление и recovery
 - Отозванный релиз `1.0.10` не переиспользуется; исправления выпускаются отдельным `1.0.11`.
-- Для exact `1.0.9` переход выполняется через одноразовый `bootstrap-1.0.9-updater.php`: он дополняет recovery-runtime зависимостью `HostingCompatibility.php` и исправляет импорт `MaintenanceModeService` в web-updater, после чего используется обычный подписанный канал обновлений.
+- Для exact `1.0.9` переход выполняется через одноразовый `bootstrap-1.0.9-updater.php`: он дополняет recovery-runtime зависимостью `HostingCompatibility.php`, исправляет импорт `MaintenanceModeService` и подключение `UpdateLiveApplier` в пошаговом web-updater, после чего используется обычный подписанный канал обновлений.
 - `UpdateExternalRuntime` проверяет замкнутость локальных `require/require_once` до destructive-фазы, чтобы неполный recovery-runtime не мог доехать до rollback.
 - Сквозной drill проверяет ошибки миграции и post-health, `rollback_verified`, boot recovery и сохранность заметки, задачи, файла, private storage, диалога и сообщения Messenger.
 
