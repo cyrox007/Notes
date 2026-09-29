@@ -185,7 +185,7 @@ preservationAssert(
         'SELECT COUNT(*) FROM notes WHERE uid=:uid AND user_id=:user_id AND notename=:title '
             . 'AND content=:content AND is_deleted=0',
         [':uid' => $noteUid, ':user_id' => $userId, ':title' => $noteTitle, ':content' => $noteContent]
-    ) === 1,
+    ) == 1,
     'Контрольная заметка изменена или потеряна'
 );
 
@@ -195,7 +195,7 @@ preservationAssert(
         'SELECT COUNT(*) FROM tasks WHERE uid=:uid AND user_id=:user_id AND title=:title '
             . 'AND description=:description AND status=\'in_progress\' AND priority=\'high\' AND is_deleted=0',
         [':uid' => $taskUid, ':user_id' => $userId, ':title' => $taskTitle, ':description' => $taskDescription]
-    ) === 1,
+    ) == 1,
     'Контрольная задача изменена или потеряна'
 );
 
@@ -205,7 +205,7 @@ preservationAssert(
         'SELECT COUNT(*) FROM user_files WHERE uid=:uid AND user_id=:user_id AND name=:name '
             . 'AND path=:path AND is_deleted=0',
         [':uid' => $fileUid, ':user_id' => $userId, ':name' => $fileName, ':path' => $fileRelativePath]
-    ) === 1,
+    ) == 1,
     'Метаданные контрольного файла изменены или потеряны'
 );
 
@@ -223,7 +223,7 @@ preservationAssert(
             ':user_id' => $userId,
             ':message' => $messageText,
         ]
-    ) === 1,
+    ) == 1,
     'Контрольное сообщение Messenger изменено или потеряно'
 );
 
