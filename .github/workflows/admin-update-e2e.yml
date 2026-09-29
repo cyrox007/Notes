@@ -57,6 +57,7 @@ jobs:
           python3 -m py_compile tests/support/admin_update_https_fixture.py
           node --check tests/e2e/admin-update-rollback.mjs
           node --check tests/e2e/admin-update-apply.mjs
+          node --check tests/e2e/admin-update-interrupt.mjs
           php -l modules/admin/services/AdminUpdateService.php
           php -l bin/update_run.php
           php -l tests/support/admin_update_preservation_probe.php
@@ -643,7 +644,7 @@ jobs:
             fi
           done
           test "$COMMITTED" -eq 0
-          test "$ROLLED_BACK" -eq 2
+          test "$ROLLED_BACK" -eq 4
           test ! -e "$PRIVATE/state/workspace-maintenance.json"
 
           test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_update_e2e -e "SELECT COUNT(*) FROM users WHERE username='admin-update-e2e'")" = '1'
@@ -669,6 +670,68 @@ jobs:
           {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10011.json","signature":"release-10011.sig"}
           JSON
 
+      - name: Прервать web-updater после переключения кода
+        shell: bash
+        env:
+          SSL_CERT_FILE: /tmp/workspace-admin-update-e2e/ca.crt
+          E2E_INTERRUPT_PHASE: migrations
+        run: |
+          set -euo pipefail
+          DRILL=/tmp/workspace-admin-update-e2e
+          node tests/e2e/admin-update-interrupt.mjs | tee "$DRILL/interruption-code-switch.log"
+
+      - name: Доказать автоматический recovery после прерывания кода
+        shell: bash
+        run: |
+          set -euo pipefail
+          DRILL=/tmp/workspace-admin-update-e2e
+          LIVE="$DRILL/live"
+          PRIVATE="$DRILL/private"
+          TX="$(sed -n 's/^INTERRUPTED_TRANSACTION=//p' "$DRILL/interruption-code-switch.log" | tail -n1)"
+
+          test -n "$TX"
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.9'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10009'
+          test "$(jq -r '.state' "$PRIVATE/state/transactions/$TX.json")" = 'rollback_verified'
+          test "$(jq -r '.live_mutation_started' "$PRIVATE/state/transactions/$TX.json")" = 'true'
+          test ! -e "$PRIVATE/state/workspace-maintenance.json"
+
+          (cd "$LIVE" && SSL_CERT_FILE="$DRILL/ca.crt" php bin/healthcheck.php --json)             | tee "$DRILL/interruption-code-switch-health.json"
+          grep -Fq '"status": "ok"' "$DRILL/interruption-code-switch-health.json"
+
+          DBHOST=127.0.0.1           DBPORT=3306           DBUSER=root           DBPASS=root           DBNAME=admin_update_e2e           PRIVATE_STORAGE_PATH="$PRIVATE"           php "$GITHUB_WORKSPACE/tests/support/admin_update_preservation_probe.php" --verify
+
+      - name: Прервать web-updater после применения миграций
+        shell: bash
+        env:
+          SSL_CERT_FILE: /tmp/workspace-admin-update-e2e/ca.crt
+          E2E_INTERRUPT_PHASE: postcheck
+        run: |
+          set -euo pipefail
+          DRILL=/tmp/workspace-admin-update-e2e
+          node tests/e2e/admin-update-interrupt.mjs | tee "$DRILL/interruption-migrations.log"
+
+      - name: Доказать recovery кода и БД после прерывания миграций
+        shell: bash
+        run: |
+          set -euo pipefail
+          DRILL=/tmp/workspace-admin-update-e2e
+          LIVE="$DRILL/live"
+          PRIVATE="$DRILL/private"
+          TX="$(sed -n 's/^INTERRUPTED_TRANSACTION=//p' "$DRILL/interruption-migrations.log" | tail -n1)"
+
+          test -n "$TX"
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.9'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10009'
+          test "$(jq -r '.state' "$PRIVATE/state/transactions/$TX.json")" = 'rollback_verified'
+          test "$(jq -r '.live_mutation_started' "$PRIVATE/state/transactions/$TX.json")" = 'true'
+          test ! -e "$PRIVATE/state/workspace-maintenance.json"
+
+          (cd "$LIVE" && SSL_CERT_FILE="$DRILL/ca.crt" php bin/healthcheck.php --json)             | tee "$DRILL/interruption-migrations-health.json"
+          grep -Fq '"status": "ok"' "$DRILL/interruption-migrations-health.json"
+
+          DBHOST=127.0.0.1           DBPORT=3306           DBUSER=root           DBPASS=root           DBNAME=admin_update_e2e           PRIVATE_STORAGE_PATH="$PRIVATE"           php "$GITHUB_WORKSPACE/tests/support/admin_update_preservation_probe.php" --verify
+
       - name: Установить исправный 1.0.11 одной кнопкой из автоматического уведомления
         shell: bash
         env:
@@ -687,7 +750,7 @@ jobs:
           test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10011'
 
           mapfile -t JOURNALS < <(find "$PRIVATE/state/transactions" -maxdepth 1 -type f -name 'update-*.json' -print)
-          test "${#JOURNALS[@]}" -eq 3
+          test "${#JOURNALS[@]}" -eq 5
           COMMITTED=0
           ROLLED_BACK=0
           for journal in "${JOURNALS[@]}"; do
