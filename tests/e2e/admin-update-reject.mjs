@@ -35,9 +35,10 @@ try {
     page.getByRole('button', { name: 'Войти' }).click(),
   ]);
 
-  const result = await page.evaluate(async () => {
+  const result = await page.evaluate(async (runtimeBasePath) => {
     const csrf = String(window.wspace?.security?.getCSRFToken?.() || '');
-    const response = await fetch('/admin/updates/web-start-latest', {
+    const updateUrl = String(window.wspace?.path?.('/admin/updates/web-start-latest') || `${runtimeBasePath}/admin/updates/web-start-latest`);
+    const response = await fetch(updateUrl, {
       method: 'POST',
       credentials: 'same-origin',
       cache: 'no-store',
@@ -59,7 +60,7 @@ try {
       text,
       payload,
     };
-  });
+  }, basePath);
 
   if (result.ok || result.payload?.success === true) {
     throw new Error(
