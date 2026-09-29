@@ -64,6 +64,7 @@ jobs:
           node --check tests/e2e/admin-update-apply.mjs
           node --check tests/e2e/admin-update-interrupt.mjs
           node --check tests/e2e/admin-update-reject.mjs
+          node --check tests/e2e/admin-update-post-smoke.mjs
           php -l modules/admin/services/AdminUpdateService.php
           php -l bin/update_run.php
           php -l tests/support/admin_update_preservation_probe.php
@@ -837,6 +838,12 @@ jobs:
           DBNAME=admin_update_e2e \
           PRIVATE_STORAGE_PATH="$PRIVATE" \
           php "$GITHUB_WORKSPACE/tests/support/admin_update_preservation_probe.php" --verify
+
+      - name: Проверить фактически обновлённую 1.0.11 в браузере
+        shell: bash
+        env:
+          SSL_CERT_FILE: /tmp/workspace-admin-update-e2e/ca.crt
+        run: node tests/e2e/admin-update-post-smoke.mjs
 
       - name: Доказать раннее самовосстановление на следующем HTTP-запросе
         shell: bash
