@@ -63,6 +63,7 @@ jobs:
           node --check tests/e2e/admin-update-rollback.mjs
           node --check tests/e2e/admin-update-apply.mjs
           node --check tests/e2e/admin-update-interrupt.mjs
+          node --check tests/e2e/admin-update-reject.mjs
           php -l modules/admin/services/AdminUpdateService.php
           php -l bin/update_run.php
           php -l tests/support/admin_update_preservation_probe.php
@@ -448,6 +449,7 @@ jobs:
 
           cp "$DRILL/release-10011.json" "$FEED_ROOT/stable/release-10011.json"
           cp "$DRILL/release-10011.sig" "$FEED_ROOT/stable/release-10011.sig"
+          printf '%s\n' 'CI intentionally invalid signature' > "$FEED_ROOT/stable/release-10011-tampered.sig"
           cp "$DRILL/workspace-organizer-v1.0.11-admin-e2e.zip" "$FEED_ROOT/stable/workspace-organizer-v1.0.11-admin-e2e.zip"
           cp "$DRILL/release-10011-broken.json" "$FEED_ROOT/stable/release-10011-broken.json"
           cp "$DRILL/release-10011-broken.sig" "$FEED_ROOT/stable/release-10011-broken.sig"
@@ -555,6 +557,51 @@ jobs:
             cat "$DRILL/app-http.log" >&2
             exit 1
           fi
+
+      - name: Подать пакет с повреждённой подписью
+        shell: bash
+        run: |
+          set -euo pipefail
+          FEED_ROOT=/tmp/workspace-admin-update-e2e/feed-root
+          cat > "$FEED_ROOT/stable/feed.json" <<'JSON'
+          {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10011.json","signature":"release-10011-tampered.sig"}
+          JSON
+
+      - name: Доказать отказ повреждённой подписи до destructive-фазы
+        shell: bash
+        env:
+          SSL_CERT_FILE: /tmp/workspace-admin-update-e2e/ca.crt
+        run: |
+          set -euo pipefail
+          DRILL=/tmp/workspace-admin-update-e2e
+          LIVE="$DRILL/live"
+          PRIVATE="$DRILL/private"
+
+          node tests/e2e/admin-update-reject.mjs
+
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.9'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10009'
+          test ! -e "$PRIVATE/state/workspace-maintenance.json"
+
+          JOURNAL_COUNT="$(find "$PRIVATE/state/transactions" -maxdepth 1 -type f -name 'update-*.json' 2>/dev/null | wc -l)"
+          test "$JOURNAL_COUNT" -eq 0
+
+          DBHOST=127.0.0.1 \
+          DBPORT=3306 \
+          DBUSER=root \
+          DBPASS=root \
+          DBNAME=admin_update_e2e \
+          PRIVATE_STORAGE_PATH="$PRIVATE" \
+          php "$GITHUB_WORKSPACE/tests/support/admin_update_preservation_probe.php" --verify
+
+      - name: Вернуть канал на пакет с намеренно сломанной миграцией
+        shell: bash
+        run: |
+          set -euo pipefail
+          FEED_ROOT=/tmp/workspace-admin-update-e2e/feed-root
+          cat > "$FEED_ROOT/stable/feed.json" <<'JSON'
+          {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10011-broken.json","signature":"release-10011-broken.sig"}
+          JSON
 
       - name: Проверить автоматический откат намеренно сломанного 1.0.11
         shell: bash
