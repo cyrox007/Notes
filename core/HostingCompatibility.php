@@ -16,11 +16,25 @@ final class HostingCompatibility
             return false;
         }
 
+        // Начиная с PHP 8 отключённые функции обычно уже не считаются
+        // существующими. Список disable_functions остаётся дополнительной
+        // проверкой, но отсутствие ini_get не должно само вызывать fatal error.
+        if ($name === 'ini_get' || !function_exists('ini_get')) {
+            return true;
+        }
+
         $disabled = array_filter(
             array_map('trim', explode(',', (string) ini_get('disable_functions')))
         );
 
         return !in_array($name, $disabled, true);
+    }
+
+    public static function iniValue(string $name): string
+    {
+        return self::functionAvailable('ini_get')
+            ? (string) ini_get($name)
+            : '';
     }
 
     public static function processEnvironmentAvailable(): bool
@@ -61,7 +75,7 @@ final class HostingCompatibility
      */
     public static function memoryLimitBytes(): ?int
     {
-        $raw = trim((string) ini_get('memory_limit'));
+        $raw = trim(self::iniValue('memory_limit'));
         if ($raw === '' || $raw === '-1') {
             return null;
         }
