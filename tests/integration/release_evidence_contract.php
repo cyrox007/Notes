@@ -76,6 +76,7 @@ foreach ([
     "Fatal error|Uncaught|Parse error",
     "PHP_CLI_SERVER_WORKERS=8",
     "BASE_PATH=/workspace",
+    "branches: [master, '1.0', 'release/**']",
 ] as $marker) {
     releaseEvidenceAssert(str_contains($workflow, $marker), "workflow release evidence не содержит marker {$marker}");
 }
