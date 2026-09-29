@@ -57,6 +57,12 @@ uiSystemAssert(
     str_contains($commonScript, "document.querySelectorAll('.sidebar__menu-link[href], .sidebar__utility[href]')"),
     'активная навигация не учитывает нижние служебные ссылки'
 );
+uiSystemAssert(
+    str_contains($commonStyle, 'body.sidebar-is-collapsed .wrapper__content{margin-left:var(--ui-sidebar-collapsed)}')
+        && substr_count($commonScript, "sidebar-is-collapsed") >= 4
+        && str_contains($commonScript, "document.body.classList.toggle('sidebar-is-collapsed', collapsed)"),
+    'свёрнутая боковая панель не синхронизирует ширину основного layout'
+);
 uiSystemAssert(str_contains($base, "localStorage.getItem('workspace.theme') || 'light'"), 'light theme must be the safe default before paint');
 
 foreach (['light', 'system', 'dark'] as $theme) {
