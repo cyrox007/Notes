@@ -377,6 +377,80 @@ function assertDatabaseServerCompatibility(PDO $pdo): string
     return $support['message'];
 }
 
+function assertDatabaseSchemaPrivileges(PDO $pdo): void
+{
+    $suffix = substr(bin2hex(random_bytes(8)), 0, 16);
+    $table = 'wo_install_probe_' . $suffix;
+    $trigger = 'wo_install_trigger_' . $suffix;
+    $quotedTable = '`' . $table . '`';
+    $quotedTrigger = '`' . $trigger . '`';
+
+    try {
+        $pdo->exec(
+            'CREATE TABLE ' . $quotedTable
+            . ' (id INT NOT NULL PRIMARY KEY, marker INT NOT NULL DEFAULT 0) ENGINE=InnoDB'
+        );
+    } catch (Throwable $e) {
+        throw new RuntimeException(
+            'Пользователь БД не может создавать таблицы в выбранной базе. '
+            . 'Для установки нужны права CREATE, ALTER, INDEX, REFERENCES и DROP в собственной базе.',
+            0,
+            $e
+        );
+    }
+
+    try {
+        try {
+            $pdo->exec('ALTER TABLE ' . $quotedTable . ' ADD COLUMN probe_value INT NULL');
+        } catch (Throwable $e) {
+            throw new RuntimeException(
+                'Пользователь БД не имеет права ALTER, необходимого для обновлений схемы.',
+                0,
+                $e
+            );
+        }
+
+        try {
+            $pdo->exec(
+                'CREATE TRIGGER ' . $quotedTrigger
+                . ' BEFORE INSERT ON ' . $quotedTable
+                . ' FOR EACH ROW SET NEW.marker = 1'
+            );
+        } catch (Throwable $e) {
+            throw new RuntimeException(
+                'Пользователь БД не имеет права CREATE TRIGGER. '
+                . 'Текущая схема Workspace Organizer использует триггеры RBAC и истории заметок.',
+                0,
+                $e
+            );
+        }
+
+        $pdo->exec('INSERT INTO ' . $quotedTable . ' (id) VALUES (1)');
+        $marker = (int) $pdo->query(
+            'SELECT marker FROM ' . $quotedTable . ' WHERE id = 1'
+        )->fetchColumn();
+        if ($marker !== 1) {
+            throw new RuntimeException('Проверочный триггер БД не выполнился.');
+        }
+    } finally {
+        try {
+            $pdo->exec('DROP TRIGGER IF EXISTS ' . $quotedTrigger);
+        } catch (Throwable) {
+            // Основную ошибку не маскируем; ниже всё равно пытаемся убрать таблицу.
+        }
+        try {
+            $pdo->exec('DROP TABLE IF EXISTS ' . $quotedTable);
+        } catch (Throwable $e) {
+            throw new RuntimeException(
+                'Пользователь БД не может удалить проверочную таблицу. '
+                . 'Для безопасной установки и обновлений требуется право DROP.',
+                0,
+                $e
+            );
+        }
+    }
+}
+
 function connectOrCreateDatabase(string $host, int $port, string $database, string $username, string $password): PDO
 {
     if (preg_match('/^[A-Za-z0-9_]{1,64}$/', $database) !== 1) {
@@ -643,6 +717,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 $pdo = connectOrCreateDatabase($host, $port, $database, $username, $password);
                 assertDatabaseServerCompatibility($pdo);
                 $existing = existingTables($pdo);
+                if ($existing === []) {
+                    assertDatabaseSchemaPrivileges($pdo);
+                    $existing = existingTables($pdo);
+                }
                 $appTables = array_values(array_intersect($requiredTables, $existing));
                 $missing = array_values(array_diff($requiredTables, $existing));
                 if ($existing === []) {
