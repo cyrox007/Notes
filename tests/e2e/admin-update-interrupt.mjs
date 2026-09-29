@@ -80,7 +80,14 @@ try {
 
   await login(page);
 
-  const start = await postJson(page, '/admin/updates/web-start-latest');
+  const checkResponse = await page.goto(`${baseUrl}/admin/updates/check`, {
+    waitUntil: 'domcontentloaded',
+  });
+  if (!checkResponse || checkResponse.status() !== 200) {
+    throw new Error(`Проверка обновления перед запуском транзакции вернула HTTP ${checkResponse?.status()}`);
+  }
+
+  const start = await postJson(page, `${basePath}/admin/updates/web-start`);
   if (!start.ok || !start.payload?.success || !start.payload?.result) {
     throw new Error(
       `Не удалось начать updater-транзакцию: HTTP=${start.status}; body=${start.text}`
@@ -103,7 +110,7 @@ try {
 
   let reached = false;
   for (let stepNumber = 0; stepNumber < 8; stepNumber += 1) {
-    const step = await postJson(page, '/admin/updates/web-step', {
+    const step = await postJson(page, `${basePath}/admin/updates/web-step`, {
       'X-Workspace-Update-Transaction': transactionId,
       'X-Workspace-Update-Token': token,
     });
