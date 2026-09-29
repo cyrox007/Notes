@@ -14,7 +14,7 @@ final class MessengerLongPollService
     private const DEFAULT_TIMEOUT_SECONDS = 15;
     private const MIN_TIMEOUT_SECONDS = 5;
     private const MAX_TIMEOUT_SECONDS = 25;
-    private const POLL_INTERVAL_MICROSECONDS = 750000;
+    private const POLL_INTERVAL_MICROSECONDS = 1000000;
     private const FULL_FINGERPRINT_INTERVAL_SECONDS = 5.0;
     private const REVISION_SETTING_KEY = 'messenger_realtime_revision';
 
@@ -108,6 +108,9 @@ final class MessengerLongPollService
                 ];
             }
 
+            // Во время ожидания PHP worker остаётся занят, но соединение MySQL
+            // не должно занимать дефицитный слот виртуального хостинга.
+            $this->db?->releaseIdleConnection();
             $this->sleep();
         } while ($this->now() < $deadline);
 
