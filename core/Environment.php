@@ -25,8 +25,8 @@ final class Environment
 
         if (!is_file($file) || !is_readable($file)) {
             throw new RuntimeException(
-                'Environment configuration file (.env) not found or unreadable. '
-                . 'Create a .env file in the project root or run the installer.'
+                'Файл окружения .env не найден или недоступен для чтения. '
+                . 'Создайте .env в корне проекта или запустите установщик.'
             );
         }
 
