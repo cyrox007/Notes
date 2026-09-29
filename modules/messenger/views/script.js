@@ -167,7 +167,7 @@
             // Messenger в вечном состоянии «Подключение…».
             this.startLongPoll(url && ticket
                 ? 'WebSocket подключается в фоне'
-                : 'WebSocket не настроен');
+                : '');
 
             if (!url || !ticket) {
                 return;
