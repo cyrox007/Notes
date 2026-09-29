@@ -687,11 +687,18 @@ final class NativeMessengerServer
     {
         try {
             $service = $this->fallbackRevisionService ?? new MessengerRealtimeRevisionService();
+            $knownRevision = $this->lastFallbackRevision;
             $revision = $service->bump();
 
-            // Локальный WebSocket process уже знает о собственной мутации и не
-            // должен через 750 мс посылать себе лишний sync_required.
-            if ($this->fallbackRevisionService !== null) {
+            // Локальная мутация может безопасно продвинуть известную ревизию
+            // только на один шаг. Если получился разрыв, между проверками уже
+            // была внешняя HTTP Long Poll мутация. Не маскируем её локальной
+            // записью: ближайший pollFallbackRevisionBridge отправит
+            // sync_required всем WebSocket-клиентам.
+            if (
+                $this->fallbackRevisionService !== null
+                && $revision === ($knownRevision + 1)
+            ) {
                 $this->lastFallbackRevision = $revision;
             }
         } catch (Throwable $e) {

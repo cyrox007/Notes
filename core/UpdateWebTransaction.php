@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Core;
 
-use AppServicesMaintenanceModeService;
+use App\Services\MaintenanceModeService;
 use mysqli;
 use RuntimeException;
 use Throwable;

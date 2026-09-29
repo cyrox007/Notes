@@ -179,6 +179,12 @@ assertLongPollContract(
     && str_contains($server, "'action' => 'sync_required'"),
     'WebSocket server must bridge durable HTTP fallback revisions to connected clients'
 );
+assertLongPollContract(
+    str_contains($server, '$knownRevision = $this->lastFallbackRevision')
+    && str_contains($server, '$revision === ($knownRevision + 1)')
+    && str_contains($server, 'Не маскируем её локальной'),
+    'локальная WebSocket-мутация не должна маскировать внешнюю HTTP fallback ревизию'
+);
 
 assertLongPollContract(
     str_contains($client, 'startLongPoll(')

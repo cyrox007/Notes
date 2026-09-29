@@ -86,6 +86,19 @@ try {
   const response = await page.goto(`${baseUrl}/profile/`, { waitUntil: 'domcontentloaded' });
   if (!response || response.status() !== 200) throw new Error(`Profile page returned ${response?.status()}`);
 
+  const initialEditPanel = page.locator('.profile__card-info--edit');
+  if (await initialEditPanel.isVisible()) {
+    throw new Error('Панель редактирования профиля видна до открытия настроек');
+  }
+
+  const initialAvatar = page.locator('.profile__card-avatar img');
+  const initialAvatarBox = await initialAvatar.boundingBox();
+  if (!initialAvatarBox || initialAvatarBox.width > 120 || initialAvatarBox.height > 120) {
+    throw new Error(
+      `Стили модуля профиля не применились: размер аватара ${initialAvatarBox?.width}x${initialAvatarBox?.height}`
+    );
+  }
+
   for (const [label, suffix] of [
     ['Мои заметки', '/notes/'],
     ['Мои задачи', '/tasks/'],

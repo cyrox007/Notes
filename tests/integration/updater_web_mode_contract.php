@@ -99,6 +99,10 @@ try {
             && str_contains($apply, '?UpdateCommandRunner $processRunner = null'),
         'UpdateApplyCommand остаётся жёстко связан с process runner'
     );
+    updaterWebModeAssert(
+        str_contains($apply, "require_once __DIR__ . '/UpdateLiveApplier.php';"),
+        'UpdateApplyCommand не подключает UpdateLiveApplier для раннего web-updater'
+    );
 
     $recovery = (string) file_get_contents($root . '/core/UpdateAutomaticRecovery.php');
     updaterWebModeAssert(

@@ -98,7 +98,11 @@ nativeMessengerAssert(str_contains($media, "appPath('/messenger/upload')"), 'Mes
 $connectionCss = (string) file_get_contents($root . '/assets/css/messenger-connection-ux.css');
 nativeMessengerAssert(str_contains($connectionCss, '.messenger-app .messenger-list__header{height:auto;min-height:64px;max-height:none;align-items:center}'), 'шапка списка чатов не использует компактную высоту');
 nativeMessengerAssert(str_contains($connectionCss, '.messenger-list__header .messenger-connection{display:none!important}'), 'служебный транспортный статус всё ещё занимает место в шапке Messenger');
-nativeMessengerAssert(str_contains($view, 'data-state="online" hidden'), 'Messenger не скрывает служебный транспортный статус на первом кадре');
+nativeMessengerAssert(str_contains($view, 'data-state="online" data-transport="none" hidden'), 'Messenger не задаёт безопасное начальное состояние транспортного маркера');
+nativeMessengerAssert(str_contains($script, "setConnectionTransport('websocket')"), 'Messenger не отмечает активный WebSocket зелёным транспортным состоянием');
+nativeMessengerAssert(str_contains($script, "setConnectionTransport('long-poll')"), 'Messenger не отмечает активный Long Poll отдельным транспортным состоянием');
+nativeMessengerAssert(str_contains($messengerStyle, '[data-transport="long-poll"]'), 'Messenger не содержит отдельный стиль Long Poll маркера');
+nativeMessengerAssert(str_contains($messengerStyle, '--msg-transport-long-poll:#1687ff'), 'Long Poll маркер не использует ярко-синий цвет');
 
 $connectionUx = (string) file_get_contents($root . '/assets/js/messenger-connection-ux.js');
 nativeMessengerAssert(str_contains($connectionUx, 'ticketSubject'), 'account-switch ticket identity guard is missing');

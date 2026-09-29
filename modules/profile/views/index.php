@@ -351,6 +351,14 @@ echo $view->layout('core/base', [
     'workspaceAccess' => $access,
     'socket_ticket' => $socket_ticket ?? '',
     'socket_url' => $socket_url ?? '',
-    'module_styles' => [$baseUrl . '/assets/css/totp-qr.css'],
-    'module_scripts' => [$baseUrl . '/assets/js/totp-qr.js'],
+    'module_styles' => [
+        $view->moduleAsset('profile', 'style.css'),
+        $view->moduleAsset('profile', 'hub.css'),
+        $view->moduleAsset('profile', 'metrics.css'),
+        $baseUrl . '/assets/css/totp-qr.css',
+    ],
+    'module_scripts' => [
+        $view->moduleAsset('profile', 'profile.js'),
+        $baseUrl . '/assets/js/totp-qr.js',
+    ],
 ], $content);
