@@ -63,6 +63,8 @@ $database = (string) file_get_contents($root . '/core/DatabaseManager.php');
 $longPoll = (string) file_get_contents($root . '/modules/messenger/services/MessengerLongPollService.php');
 $avatar = (string) file_get_contents($root . '/modules/profile/services/AvatarImageProcessor.php');
 $backup = (string) file_get_contents($root . '/core/UpdateBackupManager.php');
+$remoteTransport = (string) file_get_contents($root . '/core/UpdateRemoteTransport.php');
+$releaseCandidate = (string) file_get_contents($root . '/core/UpdateReleaseCandidate.php');
 
 hostingCompatibilityAssert(
     str_contains($environment, 'HostingCompatibility::processEnvironmentAvailable()'),
@@ -101,6 +103,16 @@ hostingCompatibilityAssert(
         && str_contains($backup, 'DATABASE_DUMP_EXPANSION_FACTOR')
         && str_contains($backup, 'HostingCompatibility::freeDiskBytes'),
     'Updater не проверяет запас диска до создания rollback backup'
+);
+hostingCompatibilityAssert(
+    str_contains($remoteTransport, 'HostingCompatibility::freeDiskBytes($parent)')
+        && str_contains($remoteTransport, 'Недостаточно свободного места для загрузки обновления'),
+    'Updater не проверяет место до загрузки подписанного пакета'
+);
+hostingCompatibilityAssert(
+    str_contains($releaseCandidate, 'assertCapacity($candidateRoot, $entries)')
+        && str_contains($releaseCandidate, 'Недостаточно свободного места для release candidate'),
+    'Updater не проверяет место до распаковки release candidate'
 );
 
 echo "[OK] Контракт жёсткого виртуального хостинга выполнен\n";
