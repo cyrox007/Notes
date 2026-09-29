@@ -57,6 +57,7 @@ jobs:
           test ! -e app/socket/NativeMessengerServer.php
           php -l core.php
           php -l core/Environment.php
+          php -l core/HostingCompatibility.php
           php -l core/NativeViewRenderer.php
           php -l ws_server/server.php
 
@@ -120,6 +121,13 @@ jobs:
 
       - name: Verify hosting package source contract
         run: php tests/integration/hosting_package_source_contract.php
+
+      - name: Проверить жёсткий профиль виртуального хостинга
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/integration/hosting_compatibility_contract.php
+          php tests/integration/profile_avatar_image_processor_contract.php
 
       - name: Verify deployment surface contract
         run: php tests/integration/deployment_surface_contract.php
