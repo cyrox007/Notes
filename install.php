@@ -275,8 +275,8 @@ function openServerLocalWebSocketUrl(string $siteUrl, string $basePath): string
         return 'ws://' . $host . ':27800';
     }
 
-    // Native listener intentionally has no TLS. HTTPS local installs therefore
-    // still require the web server to terminate WSS on the same-origin /ws path.
+    // Native listener не завершает TLS. Для локальной HTTPS-установки WSS
+    // должен завершаться веб-сервером на same-origin пути /ws.
     return defaultWebSocketUrl($siteUrl, $basePath);
 }
 
@@ -284,7 +284,7 @@ function privateStorageCandidate(string $basePath): string
 {
     try {
         return (new \Core\PrivateStorageResolver($basePath))->candidate();
-    } catch (Throwable) {
+    } catch (Throwable $ignored) {
         return '';
     }
 }
@@ -451,7 +451,7 @@ function assertDatabaseSchemaPrivileges(PDO $pdo): void
     } finally {
         try {
             $pdo->exec('DROP TRIGGER IF EXISTS ' . $quotedTrigger);
-        } catch (Throwable) {
+        } catch (Throwable $ignored) {
             // Основную ошибку не маскируем; ниже всё равно пытаемся убрать таблицу.
         }
         try {
@@ -667,7 +667,7 @@ function installerRequirements(string $basePath, array $schemaFiles, array $pack
     try {
         prepareRuntimeDirectories($basePath);
         $checks['Writable runtime directories'] = true;
-    } catch (Throwable) {
+    } catch (Throwable $ignored) {
         $checks['Writable runtime directories'] = false;
     }
     return $checks;
