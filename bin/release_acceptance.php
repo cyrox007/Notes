@@ -56,8 +56,8 @@ $record = static function (string $name, bool $ok, string $details = '') use (&$
 
 $record(
     'release_identity',
-    Version::VERSION === '1.0.9'
-        && Version::VERSION_CODE === 10009
+    Version::VERSION === '1.0.10'
+        && Version::VERSION_CODE === 10010
         && Version::STATUS === 'stable',
     Version::VERSION . ' / ' . Version::VERSION_CODE . ' / ' . Version::STATUS
 );
@@ -90,7 +90,7 @@ $record('governance_source_contract', $governanceOk, 'master + 1.0 / едины�
 foreach ([
     'README.md',
     'CHANGELOG.md',
-    'docs/releases/v1.0.9.md',
+    'docs/releases/v1.0.10.md',
     'docs/RELEASE_ACCEPTANCE.md',
     'docs/WINDOWS_OSPANEL_ACCEPTANCE.md',
     'docs/RELEASE_GOVERNANCE.md',

@@ -27,6 +27,7 @@ final class UpdateExternalRuntime
         'bin/update_external_apply.php',
         'app/services/MaintenanceModeService.php',
         'core/Environment.php',
+        'core/HostingCompatibility.php',
         'core/Version.php',
         'core/UpdatePath.php',
         'core/UpdateFileMutator.php',

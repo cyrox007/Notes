@@ -86,24 +86,27 @@ try {
   await assertModuleLoads(alice.page, '/messenger/', '#messenger-app');
   await assertModuleLoads(bob.page, '/messenger/', '#messenger-app');
 
-  await alice.page.locator('#messenger-connection[data-state="online"]').waitFor({ timeout: 20000 });
-  await bob.page.locator('#messenger-connection[data-state="online"]').waitFor({ timeout: 20000 });
+  await alice.page.waitForFunction(() => (
+    document.getElementById('messenger-connection')?.dataset.state === 'online'
+  ), null, { timeout: 20000 });
+  await bob.page.waitForFunction(() => (
+    document.getElementById('messenger-connection')?.dataset.state === 'online'
+  ), null, { timeout: 20000 });
 
-  // A dropped WebSocket must enter a recovery state, request a fresh short-lived
-  // ticket over the authenticated HTTP session, and return to online without a
-  // page reload or a second transport implementation. Observe the state mutation
-  // directly because a healthy reconnect can make the visual banner too brief
-  // for polling-based visibility assertions.
+  // Потеря необязательного WebSocket должна запросить новый короткоживущий
+  // ticket и восстановить ускоритель без перезагрузки страницы. Пока Long Poll
+  // остаётся рабочим, пользовательский статус Messenger не должен покидать
+  // штатное состояние online и не должен показывать транспортную деградацию.
   await alice.page.evaluate(() => {
     const root = document.getElementById('messenger-app');
     const status = document.getElementById('messenger-connection');
     if (!root || !status) throw new Error('Messenger connection UI is missing');
 
-    root.dataset.e2eSawRecovery = '0';
+    root.dataset.e2eSawTransportDegradation = '0';
     window.__e2eReconnectObserver?.disconnect?.();
     window.__e2eReconnectObserver = new MutationObserver(() => {
       if (status.dataset.state && status.dataset.state !== 'online') {
-        root.dataset.e2eSawRecovery = '1';
+        root.dataset.e2eSawTransportDegradation = '1';
       }
     });
     window.__e2eReconnectObserver.observe(status, {
@@ -135,16 +138,18 @@ try {
     && document.getElementById('messenger-connection')?.dataset.state === 'online'
   ), null, { timeout: 20000 });
 
-  const sawRecovery = await alice.page.locator('#messenger-app').getAttribute('data-e2e-saw-recovery');
-  if (sawRecovery !== '1') {
-    throw new Error('Messenger UI did not enter a reconnecting/offline state after socket close');
+  const sawTransportDegradation = await alice.page
+    .locator('#messenger-app')
+    .getAttribute('data-e2e-saw-transport-degradation');
+  if (sawTransportDegradation !== '0') {
+    throw new Error('Messenger UI degraded while Long Poll remained available during WebSocket reconnect');
   }
 
   await alice.page.locator('#messenger-network-banner').waitFor({ state: 'hidden', timeout: 5000 });
   await alice.page.evaluate(() => {
     window.__e2eReconnectObserver?.disconnect?.();
     delete window.__e2eReconnectObserver;
-    document.getElementById('messenger-app')?.removeAttribute('data-e2e-saw-recovery');
+    document.getElementById('messenger-app')?.removeAttribute('data-e2e-saw-transport-degradation');
   });
 
   // Create a private dialog entirely through the new-chat modal. Contacts also
@@ -249,9 +254,10 @@ try {
     await assertRemoteActivity(alice.page, bob.page, activity, label);
   }
 
-  // Prove the no-WebSocket deployment mode with both browser sessions using
-  // authenticated HTTP Long Poll. Reconnect is intentionally disabled only for
-  // this test window; production keeps probing WebSocket in the background.
+  // Проверяем режим без WebSocket: обе браузерные сессии продолжают работу
+  // через аутентифицированный HTTP Long Poll. Для пользователя это штатное
+  // состояние online; WebSocket остаётся необязательным ускорителем.
+  // Переподключение отключается только на время этого тестового окна.
   for (const session of [alice, bob]) {
     await session.page.evaluate(() => {
       const app = window.wspace?.messenger;
@@ -268,9 +274,13 @@ try {
       } catch (_) {
         // A closing socket is already outside the fast path.
       }
-      app.startLongPoll?.('E2E без WebSocket');
+      app.startLongPoll?.();
     });
-    await session.page.locator('#messenger-connection[data-state="fallback"]').waitFor({ timeout: 10000 });
+    await session.page.waitForFunction(() => (
+      window.wspace?.messenger?.longPollActive === true
+      && window.wspace?.messenger?.socketAuthorized !== true
+      && document.getElementById('messenger-connection')?.dataset.state === 'online'
+    ), null, { timeout: 10000 });
   }
 
   // Give both workers one request to establish their baseline cursor before the
@@ -285,8 +295,8 @@ try {
     socketAuthorized: window.wspace?.messenger?.socketAuthorized === true,
     state: document.getElementById('messenger-connection')?.dataset.state || ''
   }))));
-  if (longPollStates.some(state => !state.active || state.socketAuthorized || state.state !== 'fallback')) {
-    throw new Error('Messenger did not remain on Long Poll during no-WebSocket activity test');
+  if (longPollStates.some(state => !state.active || state.socketAuthorized || state.state !== 'online')) {
+    throw new Error('Messenger did not remain online through Long Poll during no-WebSocket activity test');
   }
 
   if (alice.pageErrors.length > 0) throw alice.pageErrors[0];

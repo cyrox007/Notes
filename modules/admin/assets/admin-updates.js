@@ -1,9 +1,6 @@
 (() => {
     'use strict';
 
-    const RETRY_DELAY_MS = 1200;
-    const MAX_TRANSIENT_RETRIES = 8;
-
     function progressElements(form) {
         const page = form.closest('.admin-page');
         const progress = page?.querySelector('[data-update-progress]') || null;
@@ -65,56 +62,6 @@
         }
     }
 
-    function wait(ms) {
-        return new Promise((resolve) => window.setTimeout(resolve, ms));
-    }
-
-    async function jsonRequest(url, options) {
-        const response = await fetch(url, Object.assign({
-            cache: 'no-store',
-            credentials: 'same-origin',
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-            },
-        }, options));
-
-        let payload = null;
-        try {
-            payload = await response.json();
-        } catch (error) {
-            throw new Error('Сервер обновления вернул некорректный ответ.');
-        }
-
-        return { response, payload };
-    }
-
-    async function startWebUpdate(form) {
-        const startUrl = String(form.dataset.updateStartUrl || form.action || '');
-        const { response, payload } = await jsonRequest(startUrl, {
-            method: 'POST',
-            body: new FormData(form),
-        });
-
-        if (!response.ok || !payload?.success || !payload?.result) {
-            throw new Error(payload?.message || 'Не удалось начать обновление.');
-        }
-
-        return payload.result;
-    }
-
-    async function performWebStep(stepUrl, transactionId, token) {
-        return jsonRequest(stepUrl, {
-            method: 'POST',
-            headers: {
-                Accept: 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-Workspace-Update-Transaction': transactionId,
-                'X-Workspace-Update-Token': token,
-            },
-        });
-    }
-
     async function runWebUpdate(form) {
         const confirmMessage = String(form.dataset.updateWebConfirm || '');
         if (confirmMessage && !window.confirm(confirmMessage)) {
@@ -122,64 +69,21 @@
         }
 
         const elements = showInstallProgress(form);
-        const stepUrl = String(form.dataset.updateStepUrl || '');
-        if (!stepUrl) {
-            failProgress(elements, 'Не найден безопасный endpoint продолжения обновления.');
+        const runner = window.wspace?.updateWebRunner;
+        if (!runner || typeof runner.run !== 'function') {
+            failProgress(elements, 'Не загружен безопасный web-updater.');
             return;
         }
 
         try {
-            let result = await startWebUpdate(form);
-            const transactionId = String(result.transaction_id || '');
-            const token = String(result.continuation_token || '');
-
-            if (!transactionId || !token) {
-                throw new Error('Сервер не вернул безопасное продолжение транзакции.');
-            }
-
-            updateProgress(elements, result);
-
-            let retries = 0;
-            while (String(result.status || '') === 'in_progress') {
-                try {
-                    const step = await performWebStep(stepUrl, transactionId, token);
-                    if (!step.response.ok || !step.payload?.success || !step.payload?.result) {
-                        const retryable = Boolean(step.payload?.retryable)
-                            || step.response.status === 409
-                            || step.response.status >= 500;
-
-                        if (retryable && retries < MAX_TRANSIENT_RETRIES) {
-                            retries += 1;
-                            await wait(RETRY_DELAY_MS);
-                            continue;
-                        }
-
-                        throw new Error(
-                            step.payload?.message
-                                || 'Не удалось продолжить обновление.'
-                        );
-                    }
-
-                    retries = 0;
-                    result = step.payload.result;
-                    updateProgress(elements, result);
-                } catch (error) {
-                    if (retries < MAX_TRANSIENT_RETRIES) {
-                        retries += 1;
-                        await wait(RETRY_DELAY_MS);
-                        continue;
-                    }
-                    throw error;
-                }
-            }
+            const result = await runner.run(form, (state) => updateProgress(elements, state));
 
             if (String(result.status || '') === 'committed') {
                 updateProgress(elements, Object.assign({}, result, {
                     progress: 100,
                     message: 'Обновление установлено. Перезагружаем интерфейс…',
                 }));
-                await wait(700);
-                window.location.reload();
+                window.setTimeout(() => window.location.reload(), 700);
                 return;
             }
 
@@ -189,8 +93,7 @@
                     result.message
                         || 'Обновление не установлено. Предыдущая версия автоматически восстановлена.'
                 );
-                await wait(1400);
-                window.location.reload();
+                window.setTimeout(() => window.location.reload(), 1400);
                 return;
             }
 

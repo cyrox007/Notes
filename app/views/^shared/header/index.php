@@ -79,6 +79,10 @@ $avatarUrl = ($avatar === '' || $avatar === 'default_img')
                                     action="<?= $view->e($view->route('admin_updates_apply_latest')) ?>"
                                     method="post"
                                     data-update-apply-form
+                                    data-update-install-form
+                                    data-update-web-mode="true"
+                                    data-update-start-url="<?= $view->e($view->route('admin_updates_web_start_latest')) ?>"
+                                    data-update-step-url="<?= $view->e($view->route('admin_updates_web_step')) ?>"
                                     hidden
                                 >
                                     <?= $view->csrfInput() ?>

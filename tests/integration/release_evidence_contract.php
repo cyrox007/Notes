@@ -37,11 +37,17 @@ foreach ([
     "PHPSESSID=",
     "uniqueSessions.length !== scenarios.length",
     "authenticated_sessions: uniqueSessions.length",
-    "isExpectedLongPollNavigationAbort",
+    "isExpectedMessengerNavigationAbort",
     "failure === 'net::ERR_ABORTED'",
     "failure === 'NS_BINDING_ABORTED'",
     "normalizedFailure.includes('cancel')",
-    "'/messenger/realtime/poll'",
+    "'/realtime/poll'",
+    "'/socket-ticket'",
+    "assertMessengerDialogGeometry",
+    "'workspace-action-dialog'",
+    "'group-info-dialog'",
+    "'storage-file-dialog'",
+    "surface width differs from dialog",
 ] as $marker) {
     releaseEvidenceAssert(str_contains($browser, $marker), "browser evidence не содержит marker {$marker}");
 }
