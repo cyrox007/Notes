@@ -33,7 +33,6 @@
         let longPollRetryTimer = null;
         let longPollWatchdogTimer = null;
         let longPollRetryAttempt = 0;
-        let longPollFallbackTimer = null;
         let transportEnabled = true;
         let coordinator = null;
 
@@ -291,14 +290,6 @@
             }, delay);
         }
 
-        function scheduleLongPollFallback(delay = 1000) {
-            if (!transportEnabled || stopped || socketAuthorized || longPollActive || longPollFallbackTimer) return;
-            longPollFallbackTimer = window.setTimeout(() => {
-                longPollFallbackTimer = null;
-                if (!socketAuthorized) startLongPoll();
-            }, Math.max(0, delay));
-        }
-
         function longPollRetryDelay() {
             return Math.min(
                 MAX_LONG_POLL_RETRY_DELAY,
@@ -308,10 +299,6 @@
 
         function startLongPoll() {
             if (!transportEnabled || stopped) return;
-            if (longPollFallbackTimer) {
-                window.clearTimeout(longPollFallbackTimer);
-                longPollFallbackTimer = null;
-            }
             if (!longPollActive) {
                 longPollActive = true;
                 longPollRetryAttempt = 0;
