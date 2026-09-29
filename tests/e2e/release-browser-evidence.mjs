@@ -45,6 +45,15 @@ async function assertDocumentFits(page, label) {
   }
 }
 
+function isExpectedLongPollNavigationAbort(request) {
+  const failure = request.failure()?.errorText || '';
+  if (failure !== 'net::ERR_ABORTED') return false;
+
+  const url = new URL(request.url());
+  const pollPath = (basePath === '/' ? '' : basePath) + '/messenger/realtime/poll';
+  return url.origin === origin && url.pathname === pollPath;
+}
+
 async function waitForSocketTicket(page, label) {
   // The shared shell starts notifications after DOMContentLoaded. A load event
   // alone does not guarantee its fetch has finished before the next navigation.
@@ -122,6 +131,9 @@ for (const scenario of scenarios) {
     const escapedRequests = [];
     page.on('pageerror', error => pageErrors.push(String(error?.stack || error)));
     page.on('requestfailed', request => {
+      // Отмена фонового Long Poll при переходе на другую страницу ожидаема:
+      // это освобождает клиентский канал и не является сетевой ошибкой релиза.
+      if (isExpectedLongPollNavigationAbort(request)) return;
       failedRequests.push(request.url() + ': ' + (request.failure()?.errorText || 'request failed'));
     });
     page.on('request', request => {
