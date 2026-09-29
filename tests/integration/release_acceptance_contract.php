@@ -53,7 +53,7 @@ foreach ([
     'OSPanel 5.2.2',
     'Gate G — неизменяемый артефакт и подпись',
     'Gate H — финальный merge и tag',
-    'v1.0.8',
+    'v1.0.9',
     'нет открытых P0/P1 дефектов с риском потери данных',
     'нет открытых P0/P1 дефектов безопасности',
     'ручной pre-tag проверки',
@@ -65,11 +65,11 @@ foreach ([
 
 $windowsAcceptance = releaseAcceptanceText($root, 'docs/WINDOWS_OSPANEL_ACCEPTANCE.md');
 releaseAcceptanceAssert(
-    str_contains($windowsAcceptance, '# Релизная приёмка Windows / OSPanel для 1.0.8')
+    str_contains($windowsAcceptance, '# Релизная приёмка Windows / OSPanel для 1.0.9')
     && str_contains($windowsAcceptance, 'Сценарий A2 — private storage предыдущей установки')
-    && str_contains($windowsAcceptance, '1.0.7 → 1.0.8')
+    && str_contains($windowsAcceptance, '1.0.8 → 1.0.9')
     && str_contains($windowsAcceptance, 'rollback_failed'),
-    'Windows/OSPanel acceptance не закрепляет 1.0.8, stale recovery и upgrade-path'
+    'Windows/OSPanel acceptance не закрепляет 1.0.9, stale recovery и upgrade-path'
 );
 
 $preflight = releaseAcceptanceText($root, 'bin/release_acceptance.php');
@@ -92,7 +92,7 @@ foreach ([
     'production_public_trust_roots',
     'release_evidence_harness',
     'private_signing_material_absent',
-    "Version::VERSION === '1.0.8'",
+    "Version::VERSION === '1.0.9'",
     "Version::STATUS === 'stable'",
     'exit(3)',
 ] as $marker) {
@@ -115,21 +115,22 @@ releaseAcceptanceAssert(
     'документ изоляции модулей не соответствует текущему runtime'
 );
 
-$releaseNotes = releaseAcceptanceText($root, 'docs/releases/v1.0.8.md');
+$releaseNotes = releaseAcceptanceText($root, 'docs/releases/v1.0.9.md');
 foreach (['## Назначение релиза', '## Совместимость', '## Граница поддержки'] as $marker) {
     releaseAcceptanceAssert(
         str_contains($releaseNotes, $marker),
-        "описание релиза 1.0.8 не содержит русский раздел {$marker}"
+        "описание релиза 1.0.9 не содержит русский раздел {$marker}"
     );
 }
 
 
 releaseAcceptanceAssert(
-    str_contains($releaseNotes, '1.0.7 → 1.0.8')
-    && str_contains($releaseNotes, 'Диалогов пока нет')
-    && str_contains($releaseNotes, 'схема БД')
-    && str_contains($releaseNotes, 'встроенным updater'),
-    'описание 1.0.8 не фиксирует косметическое исправление Messenger и совместимость updater'
+    str_contains($releaseNotes, '1.0.8 → 1.0.9')
+    && str_contains($releaseNotes, 'Long Poll')
+    && str_contains($releaseNotes, 'QR')
+    && str_contains($releaseNotes, 'виртуальн')
+    && str_contains($releaseNotes, 'встроенный подписанный updater'),
+    'описание 1.0.9 не фиксирует Long Poll, QR 2FA и совместимость виртуального хостинга'
 );
 
 
@@ -224,4 +225,4 @@ releaseAcceptanceAssert(
     'Stable release gate не запускает контракт двухфакторной аутентификации'
 );
 
-fwrite(STDOUT, "[OK] финальный контракт release acceptance 1.0.8 выполнен\n");
+fwrite(STDOUT, "[OK] финальный контракт release acceptance 1.0.9 выполнен\n");
