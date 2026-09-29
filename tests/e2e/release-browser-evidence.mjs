@@ -46,12 +46,15 @@ async function assertDocumentFits(page, label) {
 }
 
 function isExpectedLongPollNavigationAbort(request) {
-  const failure = request.failure()?.errorText || '';
-  if (failure !== 'net::ERR_ABORTED') return false;
-
   const url = new URL(request.url());
   const pollPath = (basePath === '/' ? '' : basePath) + '/messenger/realtime/poll';
-  return url.origin === origin && url.pathname === pollPath;
+  if (url.origin !== origin || url.pathname !== pollPath) return false;
+
+  const failure = String(request.failure()?.errorText || '');
+  const normalizedFailure = failure.toLowerCase();
+  return failure === 'net::ERR_ABORTED'
+    || failure === 'NS_BINDING_ABORTED'
+    || normalizedFailure.includes('cancel');
 }
 
 async function waitForSocketTicket(page, label) {
