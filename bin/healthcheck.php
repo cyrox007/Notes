@@ -60,9 +60,25 @@ foreach (['mysqli', 'pdo_mysql', 'mbstring', 'sodium', 'fileinfo', 'gd'] as $ext
 }
 
 $requiredSecrets = ['UNIQUE_KEY'];
+$webSocketEnabled = false;
 if ($hasMessenger) {
     $requiredSecrets[] = 'MSG_SECRET_KEY';
-    $requiredSecrets[] = 'WS_TICKET_SECRET';
+    try {
+        $webSocketEnabled = \Core\WebSocketEndpoint::enabled();
+        recordHealth(
+            $checks,
+            $failed,
+            'messenger_transport',
+            true,
+            $webSocketEnabled ? 'Long Poll + WebSocket ускоритель' : 'Long Poll only'
+        );
+    } catch (Throwable $e) {
+        recordHealth($checks, $failed, 'messenger_transport', false, $e->getMessage());
+    }
+
+    if ($webSocketEnabled) {
+        $requiredSecrets[] = 'WS_TICKET_SECRET';
+    }
 }
 foreach ($requiredSecrets as $secretName) {
     $secret = envValue($secretName);
@@ -182,47 +198,60 @@ if ($hasMessenger) {
         $siteUrl = \Core\WebSocketEndpoint::siteUrl();
         $siteScheme = strtolower((string) parse_url($siteUrl, PHP_URL_SCHEME));
         recordHealth($checks, $failed, 'site_url', true, $siteUrl);
-
-        $wsPublicUrl = \Core\WebSocketEndpoint::publicUrl();
-        recordHealth($checks, $failed, 'websocket_url', true, $wsPublicUrl);
-
-        $wsBindHost = \Core\WebSocketEndpoint::bindHost();
-        $wsPort = \Core\WebSocketEndpoint::port();
-        recordHealth($checks, $failed, 'websocket_listener', true, sprintf('tcp://%s:%d', $wsBindHost, $wsPort));
-
-        if (\Core\WebSocketEndpoint::usesSameOriginProxy()) {
-            recordHealth(
-                $checks,
-                $failed,
-                'websocket_proxy_contract',
-                true,
-                \Core\WebSocketEndpoint::proxyPath() . ' -> ' . \Core\WebSocketEndpoint::proxyBackendUrl()
-                    . ' (verify reachability with php bin/ws_doctor.php)'
-            );
-        } else {
-            recordHealth($checks, $failed, 'websocket_proxy_contract', true, 'custom/external public WebSocket endpoint');
-        }
     } catch (Throwable $e) {
         recordHealth($checks, $failed, 'site_url', false, $siteUrl !== '' ? $siteUrl : 'missing');
-        recordHealth($checks, $failed, 'websocket_url', false, $e->getMessage());
     }
 
-    $origins = array_values(array_filter(array_map('trim', explode(',', envValue('WS_ALLOWED_ORIGINS')))));
-    $originsOk = $origins !== [];
-    foreach ($origins as $origin) {
-        $scheme = strtolower((string) parse_url($origin, PHP_URL_SCHEME));
-        if (!in_array($scheme, ['http', 'https'], true) || ($siteScheme === 'https' && $scheme !== 'https')) {
-            $originsOk = false;
-            break;
+    if ($webSocketEnabled) {
+        try {
+            $wsPublicUrl = \Core\WebSocketEndpoint::publicUrl();
+            recordHealth($checks, $failed, 'websocket_url', true, $wsPublicUrl);
+
+            $wsBindHost = \Core\WebSocketEndpoint::bindHost();
+            $wsPort = \Core\WebSocketEndpoint::port();
+            recordHealth($checks, $failed, 'websocket_listener', true, sprintf('tcp://%s:%d', $wsBindHost, $wsPort));
+
+            if (\Core\WebSocketEndpoint::usesSameOriginProxy()) {
+                recordHealth(
+                    $checks,
+                    $failed,
+                    'websocket_proxy_contract',
+                    true,
+                    \Core\WebSocketEndpoint::proxyPath() . ' -> ' . \Core\WebSocketEndpoint::proxyBackendUrl()
+                        . ' (verify reachability with php bin/ws_doctor.php)'
+                );
+            } else {
+                recordHealth($checks, $failed, 'websocket_proxy_contract', true, 'custom/external public WebSocket endpoint');
+            }
+        } catch (Throwable $e) {
+            recordHealth($checks, $failed, 'websocket_url', false, $e->getMessage());
         }
+
+        $origins = array_values(array_filter(array_map('trim', explode(',', envValue('WS_ALLOWED_ORIGINS')))));
+        $originsOk = $origins !== [];
+        foreach ($origins as $origin) {
+            $scheme = strtolower((string) parse_url($origin, PHP_URL_SCHEME));
+            if (!in_array($scheme, ['http', 'https'], true) || ($siteScheme === 'https' && $scheme !== 'https')) {
+                $originsOk = false;
+                break;
+            }
+        }
+        recordHealth(
+            $checks,
+            $failed,
+            'websocket_allowed_origins',
+            $originsOk,
+            $origins === [] ? 'missing' : implode(', ', $origins)
+        );
+    } else {
+        recordHealth(
+            $checks,
+            $failed,
+            'messenger_websocket',
+            true,
+            'disabled by WS_ENABLED=0; Long Poll is the active primary transport'
+        );
     }
-    recordHealth(
-        $checks,
-        $failed,
-        'websocket_allowed_origins',
-        $originsOk,
-        $origins === [] ? 'missing' : implode(', ', $origins)
-    );
 } else {
     recordHealth($checks, $failed, 'messenger_websocket', true, 'not required by packaged composition');
 }
