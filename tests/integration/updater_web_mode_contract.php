@@ -159,12 +159,18 @@ try {
     );
 
     $javascript = (string) file_get_contents($root . '/modules/admin/assets/admin-updates.js');
+    $sharedWebRunner = (string) file_get_contents($root . '/assets/js/update-web-runner.js');
     updaterWebModeAssert(
-        str_contains($javascript, 'X-Workspace-Update-Token')
-            && str_contains($javascript, 'X-Workspace-Update-Transaction')
-            && str_contains($javascript, 'MAX_TRANSIENT_RETRIES')
-            && str_contains($javascript, "result.status || '') === 'in_progress'"),
-        'браузерный updater не содержит автоматический цикл продолжения'
+        str_contains($javascript, 'window.wspace?.updateWebRunner')
+            && str_contains($javascript, 'runner.run(form'),
+        'админский интерфейс не делегирует установку общему web-updater'
+    );
+    updaterWebModeAssert(
+        str_contains($sharedWebRunner, 'X-Workspace-Update-Token')
+            && str_contains($sharedWebRunner, 'X-Workspace-Update-Transaction')
+            && str_contains($sharedWebRunner, 'MAX_TRANSIENT_RETRIES')
+            && str_contains($sharedWebRunner, "result.status || '') === 'in_progress'"),
+        'общий браузерный updater не содержит автоматический цикл продолжения'
     );
 
     $packageWorkflow = (string) file_get_contents(
