@@ -128,20 +128,22 @@ nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-menu{pos
 nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-menu[hidden]{display:none!important}'), 'workspace create menu ignores hidden state');
 nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-menu__item{'), 'workspace create menu items lost native styling');
 nativeMessengerAssert(
-    str_contains($workspaceCss, '.messenger-workspace-dialog{width:min(560px,calc(100vw - 28px))}')
-        && str_contains($workspaceCss, '.messenger-workspace-dialog__surface{width:100%;overflow:hidden}'),
-    'workspace dialog and form surface can drift to different widths'
+    str_contains($messengerStyle, '.messenger-dialog-modal{')
+        && str_contains($messengerStyle, 'width:min(600px,calc(100vw - 32px));')
+        && str_contains($workspaceCss, '.messenger-workspace-dialog__surface{width:100%;overflow:hidden}')
+        && !str_contains($workspaceCss, '.messenger-workspace-dialog{width:'),
+    'workspace modal must inherit the single shared dialog width contract'
 );
 $groupCss = (string) file_get_contents($module . '/views/group.css');
 nativeMessengerAssert(
-    str_contains($groupCss, '.messenger-group-dialog{width:min(560px,calc(100vw - 28px))}')
-        && str_contains($groupCss, '.messenger-group-dialog__surface{width:100%}'),
-    'group dialog and surface can drift to different widths'
+    str_contains($groupCss, '.messenger-group-dialog__surface{width:100%}')
+        && !str_contains($groupCss, '.messenger-group-dialog{width:'),
+    'group modal must not override the shared dialog width'
 );
 nativeMessengerAssert(
-    str_contains($storageCss, '.messenger-storage-dialog{width:min(620px,calc(100vw - 28px))}')
-        && str_contains($storageCss, '.messenger-storage-dialog__surface{width:100%;max-height:'),
-    'storage dialog and surface can drift to different widths'
+    str_contains($storageCss, '.messenger-storage-dialog__surface{width:100%;max-height:')
+        && !str_contains($storageCss, '.messenger-storage-dialog{width:'),
+    'storage modal must not override the shared dialog width'
 );
 nativeMessengerAssert(str_contains($visualRefresh, '#workspace-create-menu{position:absolute!important'), 'final visual layer does not harden workspace popover positioning');
 nativeMessengerAssert(str_contains($visualRefresh, '#workspace-create-menu[hidden]{display:none!important}'), 'final visual layer can expose hidden workspace popover');
