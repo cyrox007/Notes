@@ -163,24 +163,23 @@
             // runtime bootstrap is delayed or blocked by a browser/cache race.
             wspace.socketConfig = { url, ticket };
 
+            // Long Poll — гарантированный transport. Он запускается до
+            // попытки WebSocket, поэтому зависший handshake не может оставить
+            // Messenger в вечном состоянии «Подключение…».
+            this.startLongPoll(url && ticket
+                ? 'WebSocket подключается в фоне'
+                : 'WebSocket не настроен');
+
             if (!url || !ticket) {
-                this.startLongPoll('WebSocket не настроен');
                 return;
             }
-
-            this.setConnectionState(
-                this.longPollActive ? 'fallback' : 'connecting',
-                this.longPollActive
-                    ? 'Long Poll · WebSocket переподключается'
-                    : (this.reconnectAttempt ? 'Переподключение…' : 'Подключение…')
-            );
 
             try {
                 const separator = url.includes('?') ? '&' : '?';
                 this.socket = new WebSocket(`${url}${separator}ticket=${encodeURIComponent(ticket)}`);
             } catch (error) {
                 console.error(error);
-                this.scheduleLongPollFallback('WebSocket недоступен');
+                this.startLongPoll('WebSocket недоступен');
                 this.scheduleReconnect();
                 return;
             }
@@ -192,19 +191,13 @@
             this.socket.addEventListener('message', (event) => this.handleSocketMessage(event));
             this.socket.addEventListener('error', () => {
                 this.socketAuthorized = false;
-                this.scheduleLongPollFallback('WebSocket недоступен', 1200);
+                this.startLongPoll('WebSocket недоступен');
             });
             this.socket.addEventListener('close', () => {
                 this.socketAuthorized = false;
+                this.startLongPoll('WebSocket отключён');
                 this.scheduleReconnect();
-                this.scheduleLongPollFallback('WebSocket отключён', 1200);
             });
-
-            // Небольшое окно оставляет однопоточному HTTP runtime возможность
-            // обновить ticket до запуска долгого poll-запроса. Если WebSocket
-            // действительно недоступен или завис на handshake, Long Poll всё
-            // равно включится автоматически без reload.
-            this.scheduleLongPollFallback('WebSocket подключается', 1200);
         }
 
         scheduleReconnect() {
