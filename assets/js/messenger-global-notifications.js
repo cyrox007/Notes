@@ -374,7 +374,7 @@
 
                 // Глобальный канал живёт на каждой странице Workspace. Короткая
                 // серверная аренда не даёт старым страницам после навигации
-                // надолго занимать PHP workers на обычном виртуальном хостинге.
+                // надолго занимать процессы PHP на обычном виртуальном хостинге.
                 query.set('wait_seconds', '5');
                 const path = '/messenger/realtime/poll?' + query.toString();
                 const endpoint = typeof wspace.path === 'function' ? wspace.path(path) : path;
