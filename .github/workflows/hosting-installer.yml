@@ -47,7 +47,9 @@ jobs:
           php -l install.php
           grep -Fq 'PHP 8.1+' install.php
           grep -Fq 'Native core runtime' install.php
-          grep -Fq 'Native WebSocket runtime' install.php
+          grep -Fq 'HTTP Long Poll Messenger' install.php
+          grep -Fq 'WebSocket-ускоритель Messenger' install.php
+          grep -Fq 'Изолированный updater через proc_open' install.php
           ! grep -Fq 'vendor/autoload.php' install.php
           ! grep -Fq 'Workerman' install.php
           grep -Fq 'preparePrivateStorage' install.php
@@ -88,7 +90,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          HOME=/tmp/workspace-hosting-home php -S 127.0.0.1:8080 -t /tmp/workspace-hosting-home/public_html >/tmp/workspace-installer-server.log 2>&1 &
+          HOME=/tmp/workspace-hosting-home php \
+            -d disable_functions=proc_open,exec,shell_exec,system,passthru,popen,pcntl_fork,stream_socket_server,stream_select \
+            -S 127.0.0.1:8080 -t /tmp/workspace-hosting-home/public_html \
+            >/tmp/workspace-installer-server.log 2>&1 &
           echo $! >/tmp/workspace-installer-server.pid
           for i in {1..30}; do
             if curl -fsS http://127.0.0.1:8080/workspace/install.php >/tmp/install-step1.html; then
@@ -97,10 +102,13 @@ jobs:
             sleep 1
           done
           grep -Fq 'Native core runtime' /tmp/install-step1.html
-          grep -Fq 'Native WebSocket runtime' /tmp/install-step1.html
+          grep -Fq 'HTTP Long Poll Messenger' /tmp/install-step1.html
+          grep -Fq 'WebSocket-ускоритель Messenger' /tmp/install-step1.html
+          grep -Fq 'Недоступен в этом PHP; Messenger будет полностью работать через Long Poll.' /tmp/install-step1.html
+          grep -Fq 'Не требуется: updater автоматически использует совместимый web-режим.' /tmp/install-step1.html
           ! grep -Fq 'vendor/autoload.php' /tmp/install-step1.html
           grep -Fq 'http://127.0.0.1:8080/workspace/' /tmp/install-step1.html
-          grep -Fq 'ws://127.0.0.1:8080/workspace/ws' /tmp/install-step1.html
+          grep -Fq 'HTTP Long Poll' /tmp/install-step1.html
 
       - name: Install through HTTP wizard
         shell: bash
@@ -132,8 +140,6 @@ jobs:
             --data-urlencode "private_storage_path=$STORAGE" \
             --data-urlencode 'site_url=http://127.0.0.1:8080' \
             --data-urlencode 'base_path=/workspace/' \
-            --data-urlencode 'ws_enabled=1' \
-            --data-urlencode 'ws_public_url=ws://127.0.0.1:8080/workspace/ws' \
             "$BASE/install.php"
           grep -Eiq '^Location: install\.php\?step=3' /tmp/install-step2.headers
           test ! -e /tmp/workspace-hosting-home/public_html/workspace/.env
@@ -154,7 +160,7 @@ jobs:
             "$BASE/install.php" -o /tmp/install-finished.html
 
           grep -Fq 'Установка завершена' /tmp/install-finished.html
-          grep -Fq 'Long Poll уже работает' /tmp/install-finished.html
+          grep -Fq 'основной Long Poll transport уже работает' /tmp/install-finished.html
           grep -Fq 'http://127.0.0.1:8080/workspace/' /tmp/install-finished.html
 
       - name: Verify generated hosting contract
@@ -166,8 +172,9 @@ jobs:
           test -f "$ENVFILE"
           grep -Fq 'SITEURL="http://127.0.0.1:8080"' "$ENVFILE"
           grep -Fq 'BASE_PATH="/workspace/"' "$ENVFILE"
-          grep -Fq 'WS_ENABLED=1' "$ENVFILE"
-          grep -Fq 'WS_PUBLIC_URL="ws://127.0.0.1:8080/workspace/ws"' "$ENVFILE"
+          grep -Fq 'WS_ENABLED=0' "$ENVFILE"
+          grep -Fq 'WS_PUBLIC_URL=""' "$ENVFILE"
+          grep -Fq 'MESSENGER_LONG_POLL_TIMEOUT_SECONDS=15' "$ENVFILE"
           grep -Fq 'WS_ALLOWED_ORIGINS="http://127.0.0.1:8080"' "$ENVFILE"
           grep -Fq 'WS_MAX_CONNECTIONS=256' "$ENVFILE"
           grep -Fq 'WS_MAX_PAYLOAD_BYTES=2097152' "$ENVFILE"
