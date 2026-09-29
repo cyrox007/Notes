@@ -47,13 +47,14 @@ final class MessengerLongPollService
         string $cursor,
         ?callable $aborted = null,
         ?int $revision = null,
-        string $activityCursor = ''
+        string $activityCursor = '',
+        ?int $requestedTimeoutSeconds = null
     ): array {
         if ($userId <= 0) {
             throw new RuntimeException('Некорректный пользователь Long Poll');
         }
 
-        $deadline = $this->now() + $this->timeoutSeconds();
+        $deadline = $this->now() + $this->timeoutSeconds($requestedTimeoutSeconds);
         $lastFullCheckAt = $this->now();
         $knownRevision = $revision ?? $this->revision();
         $knownActivity = $activityCursor !== ''
@@ -305,8 +306,15 @@ final class MessengerLongPollService
         usleep(self::POLL_INTERVAL_MICROSECONDS);
     }
 
-    private function timeoutSeconds(): int
+    private function timeoutSeconds(?int $requestedTimeoutSeconds = null): int
     {
+        if ($requestedTimeoutSeconds !== null) {
+            return max(
+                self::MIN_TIMEOUT_SECONDS,
+                min(self::MAX_TIMEOUT_SECONDS, $requestedTimeoutSeconds)
+            );
+        }
+
         $raw = trim((string) (getenv('MESSENGER_LONG_POLL_TIMEOUT_SECONDS') ?: ''));
         $timeout = ctype_digit($raw) ? (int) $raw : self::DEFAULT_TIMEOUT_SECONDS;
         return max(self::MIN_TIMEOUT_SECONDS, min(self::MAX_TIMEOUT_SECONDS, $timeout));
