@@ -7,6 +7,7 @@ error_reporting(E_ALL);
 
 require_once __DIR__ . '/core/SecurityHeaders.php';
 require_once __DIR__ . '/core/PrivateStorageResolver.php';
+require_once __DIR__ . '/core/HostingCompatibility.php';
 \Core\SecurityHeaders::apply();
 
 function installerIsHttps(): bool
@@ -158,15 +159,7 @@ function defaultWebSocketUrl(string $siteUrl, string $basePath): string
 
 function installerFunctionAvailable(string $name): bool
 {
-    if (!function_exists($name)) {
-        return false;
-    }
-
-    $disabled = array_filter(
-        array_map('trim', explode(',', (string) ini_get('disable_functions')))
-    );
-
-    return !in_array($name, $disabled, true);
+    return \Core\HostingCompatibility::functionAvailable($name);
 }
 
 function installerLongPollTimeoutSeconds(): int
@@ -181,21 +174,7 @@ function installerLongPollTimeoutSeconds(): int
 
 function installerIniBytes(string $name): int
 {
-    $raw = trim((string) ini_get($name));
-    if ($raw === '') {
-        return 0;
-    }
-
-    $unit = strtolower(substr($raw, -1));
-    $value = (float) $raw;
-    $multiplier = match ($unit) {
-        'g' => 1024 ** 3,
-        'm' => 1024 ** 2,
-        'k' => 1024,
-        default => 1,
-    };
-
-    return (int) floor($value * $multiplier);
+    return \Core\HostingCompatibility::iniBytes((string) ini_get($name));
 }
 
 /**
@@ -217,16 +196,15 @@ function installerOptionalCapabilities(string $basePath, array $packagedModules)
 
     $procOpen = installerFunctionAvailable('proc_open');
     $pcntl = installerFunctionAvailable('pcntl_fork');
-    $onlineUpdates = installerFunctionAvailable('stream_socket_client')
-        && function_exists('stream_context_create')
-        && (function_exists('dns_get_record') || function_exists('gethostbynamel'));
+    $httpsPrerequisites = \Core\HostingCompatibility::outboundHttpsPrerequisites();
+    $onlineUpdates = $httpsPrerequisites['ok'];
 
     return [
         'Онлайн-обновления через HTTPS' => [
             'available' => $onlineUpdates,
             'message' => $onlineUpdates
-                ? 'Встроенный updater может получать подписанные релизы без cURL и allow_url_fopen.'
-                : 'Установка работает, но встроенный updater не сможет скачать релиз. Нужны исходящие TLS sockets и DNS.',
+                ? 'Локальные PHP-предпосылки готовы. Фактический доступ к исходящему TCP/443 проверяется при обращении к серверу обновлений.'
+                : 'Установка работает, но встроенный updater не сможет скачать релиз: отсутствуют локальные TLS/DNS-предпосылки.',
         ],
         'WebSocket-ускоритель Messenger' => [
             'available' => $wsRuntime,
@@ -328,6 +306,17 @@ function connectDatabaseServer(string $host, int $port, string $username, string
         $password,
         [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, PDO::ATTR_EMULATE_PREPARES => false]
     );
+}
+
+function assertDatabaseServerCompatibility(PDO $pdo): string
+{
+    $rawVersion = (string) $pdo->query('SELECT VERSION()')->fetchColumn();
+    $support = \Core\HostingCompatibility::databaseServerSupport($rawVersion);
+    if (!$support['supported']) {
+        throw new RuntimeException($support['message']);
+    }
+
+    return $support['message'];
 }
 
 function connectOrCreateDatabase(string $host, int $port, string $database, string $username, string $password): PDO
@@ -503,6 +492,7 @@ function installerRequirements(string $basePath, array $schemaFiles, array $pack
         'gd' => extension_loaded('gd'),
         'Argon2id password hashing' => in_array('argon2id', password_algos(), true),
         'random_bytes' => function_exists('random_bytes'),
+        'getenv / putenv' => \Core\HostingCompatibility::processEnvironmentAvailable(),
         'HTTP file uploads' => filter_var(ini_get('file_uploads'), FILTER_VALIDATE_BOOLEAN),
         'Запись .env в корень проекта' => is_writable($basePath),
         'Composition database schemas' => $schemaFiles !== [] && array_reduce(
@@ -582,6 +572,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             try {
                 $storageReal = preparePrivateStorage($privateStorage, $basePath);
                 $pdo = connectOrCreateDatabase($host, $port, $database, $username, $password);
+                assertDatabaseServerCompatibility($pdo);
                 $existing = existingTables($pdo);
                 $appTables = array_values(array_intersect($requiredTables, $existing));
                 $missing = array_values(array_diff($requiredTables, $existing));
@@ -711,6 +702,12 @@ if ($step === 1) {
     if ($maxFileUploads > 0 && $maxFileUploads < 10) {
         $warnings[] = 'max_file_uploads=' . $maxFileUploads
             . ': за один запрос можно будет загрузить меньше 10 вложений.';
+    }
+    $memoryLimit = \Core\HostingCompatibility::memoryLimitBytes();
+    if ($memoryLimit !== null && $memoryLimit < \Core\HostingCompatibility::RECOMMENDED_MEMORY_BYTES) {
+        $warnings[] = 'memory_limit=' . ini_get('memory_limit')
+            . ': система запустится, но обработка крупных изображений и обновление могут упираться в память. '
+            . 'Рекомендуется не менее 128 МБ на PHP-процесс.';
     }
     if ($detectedOpenServer) {
         $warnings[] = 'OpenServer обнаружен: Messenger сразу работает через HTTP Long Poll. '
