@@ -262,6 +262,7 @@ jobs:
           php tools/release/bootstrap-1.0.9-updater.php --yes --root="$LIVE"
           grep -Fq "'core/HostingCompatibility.php'" "$LIVE/core/UpdateExternalRuntime.php"
           grep -Fq 'use App\Services\MaintenanceModeService;' "$LIVE/core/UpdateWebTransaction.php"
+          grep -Fq "require_once __DIR__ . '/UpdateLiveApplier.php';" "$LIVE/core/UpdateApplyCommand.php"
           php tools/release/bootstrap-1.0.9-updater.php --yes --root="$LIVE"
 
       - name: Активировать временную CI-лицензию
