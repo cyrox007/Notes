@@ -9,6 +9,11 @@ if (PHP_SAPI !== 'cli') {
 
 $root = dirname(__DIR__);
 require_once $root . '/core/Environment.php';
+require_once $root . '/core/HostingCompatibility.php';
+if (!\Core\HostingCompatibility::processEnvironmentAvailable()) {
+    fwrite(STDERR, "PHP-функции getenv/putenv недоступны; окружение Workspace Organizer загрузить нельзя.\n");
+    exit(1);
+}
 if (is_file($root . '/.env')) {
     \Core\Environment::load($root . '/.env');
 }
@@ -55,7 +60,7 @@ function pathIsInside(string $path, string $parent): bool
 }
 
 recordHealth($checks, $failed, 'php_version', version_compare(PHP_VERSION, '8.1.0', '>='), PHP_VERSION . ' (technical floor 8.1; production 8.3+ recommended)');
-foreach (['mysqli', 'pdo_mysql', 'mbstring', 'sodium', 'fileinfo', 'gd'] as $extension) {
+foreach (['mysqli', 'pdo_mysql', 'mbstring', 'sodium', 'openssl', 'zlib', 'fileinfo', 'gd'] as $extension) {
     recordHealth($checks, $failed, 'extension_' . $extension, extension_loaded($extension));
 }
 
@@ -273,6 +278,15 @@ try {
     $db = new mysqli($host, $user, $pass, $database, $port);
     $db->set_charset('utf8mb4');
     recordHealth($checks, $failed, 'database_connection', true, $database);
+
+    $databaseSupport = \Core\HostingCompatibility::databaseServerSupport((string) $db->server_info);
+    recordHealth(
+        $checks,
+        $failed,
+        'database_server_version',
+        $databaseSupport['supported'],
+        $databaseSupport['message']
+    );
 
     $escaped = array_map(
         static fn (string $table): string => "'" . $db->real_escape_string($table) . "'",
