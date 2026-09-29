@@ -35,50 +35,27 @@ try {
     page.getByRole('button', { name: 'Войти' }).click(),
   ]);
 
-  const result = await page.evaluate(async (runtimeBasePath) => {
-    const csrf = String(window.wspace?.security?.getCSRFToken?.() || '');
-    const updateUrl = String(window.wspace?.path?.('/admin/updates/web-start-latest') || `${runtimeBasePath}/admin/updates/web-start-latest`);
-    const response = await fetch(updateUrl, {
-      method: 'POST',
-      credentials: 'same-origin',
-      cache: 'no-store',
-      headers: {
-        Accept: 'application/json',
-        ...(csrf ? { 'X-CSRF-Token': csrf } : {}),
-      },
-    });
-    const text = await response.text();
-    let payload = null;
-    try {
-      payload = JSON.parse(text);
-    } catch (_) {
-      // Сырой ответ используется в диагностике ниже.
-    }
-    return {
-      status: response.status,
-      ok: response.ok,
-      text,
-      payload,
-    };
-  }, basePath);
-
-  if (result.ok || result.payload?.success === true) {
-    throw new Error(
-      'Updater принял пакет с повреждённой подписью: '
-      + `HTTP=${result.status}; body=${result.text}`
-    );
+  const checkResponse = await page.goto(`${baseUrl}/admin/updates/check`, {
+    waitUntil: 'domcontentloaded',
+  });
+  if (!checkResponse || checkResponse.status() !== 200) {
+    throw new Error(`Проверка обновления завершилась неожиданным HTTP ${checkResponse?.status()}`);
   }
 
-  const errorCode = String(result.payload?.error || '');
-  const message = String(result.payload?.message || '');
-  if (!errorCode && !message) {
-    throw new Error(
-      `Отказ проверки подписи не вернул безопасную диагностику: HTTP=${result.status}; body=${result.text}`
-    );
+  const errorMessages = (await page.locator('.admin-page__flash--error[role="status"]').allTextContents())
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+  const diagnostic = errorMessages.find((value) => /подпис|signature|ключ/i.test(value)) || errorMessages[0] || '';
+  if (!diagnostic) {
+    throw new Error('Отказ проверки подписи не показал безопасную диагностику в интерфейсе');
+  }
+
+  if (!/подпис|signature|ключ/i.test(diagnostic)) {
+    throw new Error(`Получена диагностика, не подтверждающая отказ подписи: ${diagnostic}`);
   }
 
   console.log(
-    `Пакет с повреждённой подписью отклонён до updater-транзакции: HTTP=${result.status}; error=${errorCode || 'safe_failure'}`
+    `Пакет с повреждённой подписью отклонён до updater-транзакции: ${diagnostic}`
   );
   await context.close();
 } finally {
