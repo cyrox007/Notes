@@ -138,8 +138,8 @@ assert(coldStartApp.longPollActive === true, 'холодный старт ждё
 assert(coldStartPollStarts === 1, 'Long Poll не стартовал синхронно при зависшем WebSocket handshake');
 assert(coldStartApp.socket instanceof HangingWebSocket, 'WebSocket не запускается параллельно с Long Poll');
 assert(
-    coldStartStates.some(([state, text]) => state === 'fallback' && text.includes('WebSocket подключается')),
-    'холодный старт не показывает рабочий Long Poll во время фонового подключения WebSocket'
+    coldStartStates.some(([state, text]) => state === 'online' && text === 'В сети'),
+    'холодный старт не показывает обычное состояние «В сети» при рабочем Long Poll'
 );
 
 context.WebSocket = { OPEN: 1 };
@@ -181,7 +181,7 @@ await app.runLongPoll(1);
 
 assert(fetchCalls === 2, 'после временного HTTP 503 Long Poll не запустил следующий запрос');
 assert(
-    states.some(([state, text]) => state === 'fallback' && text.includes('переподключение')),
+    states.some(([state, text]) => state === 'fallback' && text.includes('Восстанавливаем синхронизацию')),
     'временная ошибка не остаётся в рабочем fallback-состоянии'
 );
 assert(
@@ -238,7 +238,7 @@ assert(
     'временно приостановленный Long Poll не повторил запрос после готовности сервера'
 );
 assert(
-    suspendedStates.some(([state, text]) => state === 'fallback' && text.includes('ожидаем готовность')),
+    suspendedStates.some(([state, text]) => state === 'fallback' && text.includes('Синхронизация временно приостановлена')),
     'suspended Long Poll не показывает рабочее состояние ожидания'
 );
 
@@ -313,7 +313,7 @@ assert(updateApp.socket === null, 'начало updater оставило ссы�
 assert(socketClosed === true, 'начало updater не закрыло WebSocket');
 assert(updateApp.reconnectTimer === null, 'начало updater оставило reconnect timer');
 updateApp.scheduleReconnect();
-updateApp.startLongPoll('после updater');
+updateApp.startLongPoll();
 assert(updateApp.reconnectTimer === null, 'приостановленный transport снова запланировал WebSocket reconnect');
 assert(updateApp.longPollActive === false, 'приостановленный transport снова запустил Long Poll');
 
