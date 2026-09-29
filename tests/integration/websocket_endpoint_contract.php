@@ -302,6 +302,8 @@ assertWebSocketEndpoint(
 $coreControllerSource = file_get_contents($root . '/core/Controller.php');
 $messengerControllerSource = file_get_contents($root . '/modules/messenger/controllers/MessagerController.php');
 $installerSource = file_get_contents($root . '/install.php');
+$healthcheckSource = file_get_contents($root . '/bin/healthcheck.php');
+$updateHealthProbeSource = file_get_contents($root . '/core/UpdateWebHealthProbe.php');
 
 assertWebSocketEndpoint(
     is_string($coreControllerSource)
@@ -321,6 +323,20 @@ assertWebSocketEndpoint(
     && str_contains($installerSource, 'Использовать WebSocket-ускорение')
     && str_contains($installerSource, 'Long Poll transport уже работает'),
     'installer не закрепляет Long Poll-only как штатную установку'
+);
+
+assertWebSocketEndpoint(
+    is_string($healthcheckSource)
+    && str_contains($healthcheckSource, 'messenger_transport')
+    && str_contains($healthcheckSource, 'Long Poll only')
+    && str_contains($healthcheckSource, 'if ($webSocketEnabled)'),
+    'общий health-check по-прежнему считает WebSocket обязательным'
+);
+assertWebSocketEndpoint(
+    is_string($updateHealthProbeSource)
+    && str_contains($updateHealthProbeSource, "'mode' => 'long_poll_only'")
+    && str_contains($updateHealthProbeSource, 'WS_ENABLED=0; WebSocket ускоритель отключён'),
+    'updater health-check по-прежнему считает WebSocket обязательным'
 );
 
 $nativeServerSource = file_get_contents($root . '/modules/messenger/socket/NativeMessengerServer.php');
