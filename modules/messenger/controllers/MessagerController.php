@@ -42,17 +42,14 @@ final class MessagerController extends Controller
             ->get();
 
         $socketTicket = '';
-        try {
-            $socketTicket = SocketTicket::issue((int) $user->id);
-        } catch (\Throwable $e) {
-            error_log('WebSocket ticket is unavailable: ' . $e->getMessage());
-        }
-
         $socketUrl = '';
         try {
-            $socketUrl = WebSocketEndpoint::browserUrl();
+            if (WebSocketEndpoint::enabled()) {
+                $socketTicket = SocketTicket::issue((int) $user->id);
+                $socketUrl = WebSocketEndpoint::browserUrl();
+            }
         } catch (\Throwable $e) {
-            error_log('WebSocket public endpoint is invalid: ' . $e->getMessage());
+            error_log('WebSocket ускоритель недоступен: ' . $e->getMessage());
         }
 
         $workspaceActions = ['notes' => false, 'tasks' => false, 'files' => false];
@@ -109,6 +106,15 @@ final class MessagerController extends Controller
         }
 
         try {
+            if (!WebSocketEndpoint::enabled()) {
+                http_response_code(409);
+                $this->responseJson([
+                    'status' => 'disabled',
+                    'message' => 'WebSocket-ускоритель отключён. Messenger работает через Long Poll.',
+                ]);
+                return;
+            }
+
             $this->responseJson([
                 'status' => 'ok',
                 'ticket' => SocketTicket::issue($userId),
@@ -126,7 +132,7 @@ final class MessagerController extends Controller
 
     /**
      * Upload binary contents over HTTP into private storage.
-     * Creating/broadcasting the chat message is a separate WebSocket action.
+     * Создание и публикация сообщения выполняются отдельным realtime-действием через общий transport.
      */
     public function uploadFile(Request $request): void
     {
