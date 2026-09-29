@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Core;
 
+require_once __DIR__ . '/HostingCompatibility.php';
+
 use RuntimeException;
 use Throwable;
 
@@ -288,6 +290,18 @@ final class UpdateHttpsTransport implements UpdateRemoteTransport, UpdateAccessA
         $parent = realpath(dirname($destination));
         if (!is_string($parent) || !is_dir($parent) || !is_writable($parent) || is_link(dirname($destination))) {
             throw new RuntimeException('Remote update download directory is unsafe');
+        }
+
+        $freeBytes = HostingCompatibility::freeDiskBytes($parent);
+        $requiredBytes = $expectedBytes + (16 * 1024 * 1024);
+        if ($freeBytes !== null && $freeBytes < $requiredBytes) {
+            throw new RuntimeException(
+                sprintf(
+                    'Недостаточно свободного места для загрузки обновления: доступно %.1f МБ, требуется не менее %.1f МБ',
+                    $freeBytes / 1048576,
+                    $requiredBytes / 1048576
+                )
+            );
         }
 
         [$stream, $length] = $this->openResponse($url);
