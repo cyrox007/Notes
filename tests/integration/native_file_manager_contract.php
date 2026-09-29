@@ -38,7 +38,7 @@ nativeFileManagerAssert(str_contains($source, 'id="modal-rename"'), 'rename moda
 nativeFileManagerAssert(str_contains($source, 'id="media-player-modal"'), 'media preview modal hook was dropped');
 nativeFileManagerAssert(str_contains($source, 'id="text-preview-modal"'), 'text preview modal hook was dropped');
 nativeFileManagerAssert(str_contains($source, 'id="modal-upload-progress"'), 'upload progress modal hook was dropped');
-nativeFileManagerAssert(str_contains($source, "route('files_get'"), 'protected file route was dropped');
+nativeFileManagerAssert(!str_contains($source, 'fa fa-eye'), 'кнопка-глазок всё ещё отображается вместо открытия по объекту');
 nativeFileManagerAssert(str_contains($source, "moduleAsset('files', 'script.js')"), 'Files module behavior asset was dropped');
 nativeFileManagerAssert(str_contains($source, "moduleAsset('files', 'quota.js')"), 'Files module quota asset was dropped');
 nativeFileManagerAssert(str_contains($source, "moduleAsset('files', 'share.js')"), 'Files module share behavior asset was dropped');
@@ -58,6 +58,12 @@ nativeFileManagerAssert(
     $djvuTypePosition !== false && $imageMimeTypePosition !== false && $djvuTypePosition < $imageMimeTypePosition,
     'DJVU должен определяться как документ до общей проверки image MIME'
 );
+
+$scriptJs = (string) file_get_contents($root . '/modules/files/assets/script.js');
+nativeFileManagerAssert(str_contains($scriptJs, "root.addEventListener('click'"), 'открытие файла по клику на объект не подключено');
+nativeFileManagerAssert(str_contains($scriptJs, 'if (item) openItem(item);'), 'клик по объекту не вызывает открытие файла');
+nativeFileManagerAssert(!str_contains($scriptJs, "root.addEventListener('dblclick'"), 'для открытия файла всё ещё требуется двойной клик');
+nativeFileManagerAssert(str_contains($scriptJs, "window.open(fileUrl(id), '_blank'"), 'обычные документы не открываются по клику на объект');
 
 $shareJs = (string) file_get_contents($root . '/modules/files/assets/share.js');
 nativeFileManagerAssert(str_contains($shareJs, "appPath('/files/share/'"), 'File Manager public-link request is not BASE_PATH-aware');
