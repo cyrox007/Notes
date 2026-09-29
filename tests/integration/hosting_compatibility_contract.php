@@ -71,6 +71,12 @@ hostingCompatibilityAssert(
     'Загрузчик окружения не проверяет getenv/putenv'
 );
 hostingCompatibilityAssert(
+    str_contains($installer, 'PHP_VERSION_ID < 80100')
+        && strpos($installer, 'PHP_VERSION_ID < 80100') < strpos($installer, "require_once __DIR__ . '/core/SecurityHeaders.php'"),
+    'Установщик не показывает совместимый с PHP 7.4 preflight до подключения ядра'
+);
+
+hostingCompatibilityAssert(
     str_contains($installer, "'getenv / putenv'")
         && str_contains($installer, "'ini_get'")
         && str_contains($installer, "'Writable PHP upload temp'")
