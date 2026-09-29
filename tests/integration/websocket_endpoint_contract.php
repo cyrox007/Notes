@@ -27,13 +27,60 @@ function assertWebSocketEndpoint(bool $condition, string $message): void
 
 function setWebSocketEnv(array $values): void
 {
-    foreach (['SITEURL', 'BASE_PATH', 'WS_PUBLIC_URL', 'WS_ALLOWED_ORIGINS', 'WS_HOST', 'WS_PORT'] as $key) {
+    foreach (['SITEURL', 'BASE_PATH', 'WS_PUBLIC_URL', 'WS_ALLOWED_ORIGINS', 'WS_HOST', 'WS_PORT', 'WS_ENABLED'] as $key) {
         putenv($key);
     }
     foreach ($values as $key => $value) {
         putenv($key . '=' . $value);
     }
 }
+
+setWebSocketEnv([
+    'SITEURL' => 'https://example.test',
+    'BASE_PATH' => '/',
+    'WS_HOST' => '127.0.0.1',
+    'WS_PORT' => '27800',
+]);
+assertWebSocketEndpoint(
+    WebSocketEndpoint::enabled() === true,
+    'старый .env без WS_ENABLED должен сохранять включённый WebSocket'
+);
+
+setWebSocketEnv([
+    'SITEURL' => 'https://example.test',
+    'BASE_PATH' => '/',
+    'WS_ENABLED' => '0',
+]);
+assertWebSocketEndpoint(
+    WebSocketEndpoint::enabled() === false,
+    'WS_ENABLED=0 не отключил WebSocket-ускоритель'
+);
+
+setWebSocketEnv([
+    'SITEURL' => 'https://example.test',
+    'BASE_PATH' => '/',
+    'WS_ENABLED' => '1',
+]);
+assertWebSocketEndpoint(
+    WebSocketEndpoint::enabled() === true,
+    'WS_ENABLED=1 не включил WebSocket-ускоритель'
+);
+
+setWebSocketEnv([
+    'SITEURL' => 'https://example.test',
+    'BASE_PATH' => '/',
+    'WS_ENABLED' => 'maybe',
+]);
+$invalidEnabledRejected = false;
+try {
+    WebSocketEndpoint::enabled();
+} catch (InvalidArgumentException) {
+    $invalidEnabledRejected = true;
+}
+assertWebSocketEndpoint(
+    $invalidEnabledRejected,
+    'некорректный WS_ENABLED принят без ошибки'
+);
 
 setWebSocketEnv([
     'SITEURL' => 'https://example.test',
@@ -222,6 +269,12 @@ assertWebSocketEndpoint(
 assertWebSocketEndpoint(
     str_contains($serverSource, "'WebSocket URL для браузера'"),
     'startup preflight must report the browser-facing WebSocket URL'
+);
+assertWebSocketEndpoint(
+    str_contains($serverSource, 'WebSocketEndpoint::enabled()')
+    && str_contains($serverSource, 'WS_ENABLED=0')
+    && str_contains($serverSource, 'Messenger уже работает через основной Long Poll transport'),
+    'WebSocket launcher must refuse to start when the optional accelerator is disabled'
 );
 assertWebSocketEndpoint(
     str_contains($serverSource, "'Reverse proxy'"),
