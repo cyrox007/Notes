@@ -58,7 +58,7 @@ ob_start();
         <header class="messenger-list__header">
             <div>
                 <h1 class="messenger-list__title">Чаты</h1>
-                <div class="messenger-connection" id="messenger-connection" data-state="online" hidden><span class="messenger-connection__dot" aria-hidden="true"></span><span id="messenger-connection-text">В сети</span></div>
+                <div class="messenger-connection" id="messenger-connection" data-state="online" data-transport="none" hidden><span class="messenger-connection__dot" aria-hidden="true"></span><span id="messenger-connection-text">В сети</span></div>
             </div>
             <button class="messenger-icon-button" id="new-chat-button" type="button" title="Новый чат" aria-label="Новый чат"><i class="fa fa-plus" aria-hidden="true"></i></button>
         </header>
