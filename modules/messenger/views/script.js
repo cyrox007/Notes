@@ -20,7 +20,6 @@
             this.longPollAbortController = null;
             this.longPollGeneration = 0;
             this.longPollRetryTimer = null;
-            this.longPollFallbackTimer = null;
             this.longPollWatchdogTimer = null;
             this.longPollRetryAttempt = 0;
             this.typingTimer = null;
@@ -399,24 +398,8 @@
             });
         }
 
-        scheduleLongPollFallback(reason = '', delay = 1000) {
-            if (this.transportSuspended || this.socketAuthorized || this.longPollActive || this.longPollFallbackTimer) {
-                return;
-            }
-
-            this.longPollFallbackTimer = window.setTimeout(() => {
-                this.longPollFallbackTimer = null;
-                if (this.socketAuthorized) return;
-                this.startLongPoll(reason);
-            }, Math.max(0, delay));
-        }
-
         startLongPoll(reason = '') {
             if (this.sessionUnavailable || this.transportSuspended) return;
-            if (this.longPollFallbackTimer) {
-                window.clearTimeout(this.longPollFallbackTimer);
-                this.longPollFallbackTimer = null;
-            }
 
             if (!this.longPollActive) {
                 this.longPollActive = true;
