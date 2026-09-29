@@ -20,15 +20,6 @@ $iconFor = static function (array $file): string {
 
     $mime = strtolower((string) ($file['mime_type'] ?? ''));
     $extension = strtolower((string) ($file['extension'] ?? ''));
-    if (str_contains($mime, 'image')) {
-        return 'fa-file-image-o';
-    }
-    if (str_contains($mime, 'audio')) {
-        return 'fa-file-audio-o';
-    }
-    if (str_contains($mime, 'video')) {
-        return 'fa-file-video-o';
-    }
     if (in_array($extension, ['pdf', 'djvu'], true)) {
         return 'fa-file-pdf-o';
     }
@@ -49,6 +40,15 @@ $iconFor = static function (array $file): string {
     }
     if (in_array($extension, ['php', 'js', 'py', 'java', 'cpp', 'c', 'html', 'css', 'json', 'xml', 'sql', 'md', 'txt'], true)) {
         return 'fa-file-code-o';
+    }
+    if (str_contains($mime, 'image')) {
+        return 'fa-file-image-o';
+    }
+    if (str_contains($mime, 'audio')) {
+        return 'fa-file-audio-o';
+    }
+    if (str_contains($mime, 'video')) {
+        return 'fa-file-video-o';
     }
     return 'fa-file-o';
 };
