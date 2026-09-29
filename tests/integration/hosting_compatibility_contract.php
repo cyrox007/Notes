@@ -62,6 +62,7 @@ $readiness = (string) file_get_contents($root . '/core/UpdateReadiness.php');
 $database = (string) file_get_contents($root . '/core/DatabaseManager.php');
 $longPoll = (string) file_get_contents($root . '/modules/messenger/services/MessengerLongPollService.php');
 $avatar = (string) file_get_contents($root . '/modules/profile/services/AvatarImageProcessor.php');
+$backup = (string) file_get_contents($root . '/core/UpdateBackupManager.php');
 
 hostingCompatibilityAssert(
     str_contains($environment, 'HostingCompatibility::processEnvironmentAvailable()'),
@@ -94,6 +95,12 @@ hostingCompatibilityAssert(
     str_contains($avatar, 'DEFAULT_MAX_SOURCE_PIXELS')
         && str_contains($avatar, 'HostingCompatibility::memoryLimitBytes()'),
     'Profile не ограничивает декодирование изображения по пикселям и памяти'
+);
+hostingCompatibilityAssert(
+    str_contains($backup, 'assertCapacity($db)')
+        && str_contains($backup, 'DATABASE_DUMP_EXPANSION_FACTOR')
+        && str_contains($backup, 'HostingCompatibility::freeDiskBytes'),
+    'Updater не проверяет запас диска до создания rollback backup'
 );
 
 echo "[OK] Контракт жёсткого виртуального хостинга выполнен\n";
