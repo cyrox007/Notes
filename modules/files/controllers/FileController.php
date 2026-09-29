@@ -432,10 +432,10 @@ class FileController extends Controller
 
     private function detectFileType(string $extension, string $mimeType): string
     {
+        if (in_array($extension, ['pdf', 'djvu', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'vsd', 'vsdx', 'odt', 'ods', 'odp'], true)) return 'document';
         if (str_starts_with($mimeType, 'image/')) return 'image';
         if (str_starts_with($mimeType, 'audio/')) return 'audio';
         if (str_starts_with($mimeType, 'video/')) return 'video';
-        if (in_array($extension, ['pdf', 'djvu', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'vsd', 'vsdx', 'odt', 'ods', 'odp'], true)) return 'document';
         return 'file';
     }
 
