@@ -86,8 +86,12 @@ try {
   await assertModuleLoads(alice.page, '/messenger/', '#messenger-app');
   await assertModuleLoads(bob.page, '/messenger/', '#messenger-app');
 
-  await alice.page.locator('#messenger-connection[data-state="online"]').waitFor({ timeout: 20000 });
-  await bob.page.locator('#messenger-connection[data-state="online"]').waitFor({ timeout: 20000 });
+  await alice.page.waitForFunction(() => (
+    document.getElementById('messenger-connection')?.dataset.state === 'online'
+  ), null, { timeout: 20000 });
+  await bob.page.waitForFunction(() => (
+    document.getElementById('messenger-connection')?.dataset.state === 'online'
+  ), null, { timeout: 20000 });
 
   // A dropped WebSocket must enter a recovery state, request a fresh short-lived
   // ticket over the authenticated HTTP session, and return to online without a
@@ -249,9 +253,10 @@ try {
     await assertRemoteActivity(alice.page, bob.page, activity, label);
   }
 
-  // Prove the no-WebSocket deployment mode with both browser sessions using
-  // authenticated HTTP Long Poll. Reconnect is intentionally disabled only for
-  // this test window; production keeps probing WebSocket in the background.
+  // Проверяем режим без WebSocket: обе браузерные сессии продолжают работу
+  // через аутентифицированный HTTP Long Poll. Для пользователя это штатное
+  // состояние online; WebSocket остаётся необязательным ускорителем.
+  // Переподключение отключается только на время этого тестового окна.
   for (const session of [alice, bob]) {
     await session.page.evaluate(() => {
       const app = window.wspace?.messenger;
@@ -268,9 +273,13 @@ try {
       } catch (_) {
         // A closing socket is already outside the fast path.
       }
-      app.startLongPoll?.('E2E без WebSocket');
+      app.startLongPoll?.();
     });
-    await session.page.locator('#messenger-connection[data-state="fallback"]').waitFor({ timeout: 10000 });
+    await session.page.waitForFunction(() => (
+      window.wspace?.messenger?.longPollActive === true
+      && window.wspace?.messenger?.socketAuthorized !== true
+      && document.getElementById('messenger-connection')?.dataset.state === 'online'
+    ), null, { timeout: 10000 });
   }
 
   // Give both workers one request to establish their baseline cursor before the
@@ -285,8 +294,8 @@ try {
     socketAuthorized: window.wspace?.messenger?.socketAuthorized === true,
     state: document.getElementById('messenger-connection')?.dataset.state || ''
   }))));
-  if (longPollStates.some(state => !state.active || state.socketAuthorized || state.state !== 'fallback')) {
-    throw new Error('Messenger did not remain on Long Poll during no-WebSocket activity test');
+  if (longPollStates.some(state => !state.active || state.socketAuthorized || state.state !== 'online')) {
+    throw new Error('Messenger did not remain online through Long Poll during no-WebSocket activity test');
   }
 
   if (alice.pageErrors.length > 0) throw alice.pageErrors[0];
