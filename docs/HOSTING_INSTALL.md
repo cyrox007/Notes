@@ -4,6 +4,8 @@
 
 Рекомендуемый способ — использовать готовый hosting bundle из GitHub Release. ZIP содержит весь внутренний runtime приложения и web-installer; каталога `vendor/` в 1.0 bundle нет и он не нужен.
 
+Подробная матрица ограничений дешёвого virtual/shared hosting и граница обязательных PHP-возможностей: [SHARED_HOSTING_COMPATIBILITY.md](SHARED_HOSTING_COMPATIBILITY.md).
+
 ## Что нужно от хостинга
 
 Минимум:
