@@ -164,7 +164,7 @@ function installerFunctionAvailable(string $name): bool
 
 function installerLongPollTimeoutSeconds(): int
 {
-    $maxExecution = (int) ini_get('max_execution_time');
+    $maxExecution = (int) \Core\HostingCompatibility::iniValue('max_execution_time');
     if ($maxExecution <= 0) {
         return 15;
     }
@@ -174,7 +174,22 @@ function installerLongPollTimeoutSeconds(): int
 
 function installerIniBytes(string $name): int
 {
-    return \Core\HostingCompatibility::iniBytes((string) ini_get($name));
+    return \Core\HostingCompatibility::iniBytes(\Core\HostingCompatibility::iniValue($name));
+}
+
+function installerUploadTempWritable(): bool
+{
+    $configured = trim(\Core\HostingCompatibility::iniValue('upload_tmp_dir'));
+    if ($configured !== '') {
+        return is_dir($configured) && is_writable($configured);
+    }
+
+    if (!installerFunctionAvailable('sys_get_temp_dir')) {
+        return false;
+    }
+
+    $fallback = sys_get_temp_dir();
+    return is_string($fallback) && $fallback !== '' && is_dir($fallback) && is_writable($fallback);
 }
 
 /**
@@ -492,8 +507,13 @@ function installerRequirements(string $basePath, array $schemaFiles, array $pack
         'gd' => extension_loaded('gd'),
         'Argon2id password hashing' => in_array('argon2id', password_algos(), true),
         'random_bytes' => function_exists('random_bytes'),
+        'ini_get' => installerFunctionAvailable('ini_get'),
         'getenv / putenv' => \Core\HostingCompatibility::processEnvironmentAvailable(),
-        'HTTP file uploads' => filter_var(ini_get('file_uploads'), FILTER_VALIDATE_BOOLEAN),
+        'HTTP file uploads' => filter_var(
+            \Core\HostingCompatibility::iniValue('file_uploads'),
+            FILTER_VALIDATE_BOOLEAN
+        ),
+        'Writable PHP upload temp' => installerUploadTempWritable(),
         'Запись .env в корень проекта' => is_writable($basePath),
         'Composition database schemas' => $schemaFiles !== [] && array_reduce(
             $schemaFiles,
@@ -691,21 +711,21 @@ if ($step === 1) {
     $uploadLimit = installerIniBytes('upload_max_filesize');
     $postLimit = installerIniBytes('post_max_size');
     if ($uploadLimit > 0 && $uploadLimit < $productUploadLimit) {
-        $warnings[] = 'upload_max_filesize ограничен значением ' . ini_get('upload_max_filesize')
+        $warnings[] = 'upload_max_filesize ограничен значением ' . \Core\HostingCompatibility::iniValue('upload_max_filesize')
             . ': фактический максимальный размер вложения будет ниже продуктового лимита 10 МБ.';
     }
     if ($postLimit > 0 && $postLimit < $productUploadLimit) {
-        $warnings[] = 'post_max_size ограничен значением ' . ini_get('post_max_size')
+        $warnings[] = 'post_max_size ограничен значением ' . \Core\HostingCompatibility::iniValue('post_max_size')
             . ': большие вложения не дойдут до приложения.';
     }
-    $maxFileUploads = (int) ini_get('max_file_uploads');
+    $maxFileUploads = (int) \Core\HostingCompatibility::iniValue('max_file_uploads');
     if ($maxFileUploads > 0 && $maxFileUploads < 10) {
         $warnings[] = 'max_file_uploads=' . $maxFileUploads
             . ': за один запрос можно будет загрузить меньше 10 вложений.';
     }
     $memoryLimit = \Core\HostingCompatibility::memoryLimitBytes();
     if ($memoryLimit !== null && $memoryLimit < \Core\HostingCompatibility::RECOMMENDED_MEMORY_BYTES) {
-        $warnings[] = 'memory_limit=' . ini_get('memory_limit')
+        $warnings[] = 'memory_limit=' . \Core\HostingCompatibility::iniValue('memory_limit')
             . ': система запустится, но обработка крупных изображений и обновление могут упираться в память. '
             . 'Рекомендуется не менее 128 МБ на PHP-процесс.';
     }
