@@ -11,8 +11,9 @@
 Минимум:
 
 - PHP 8.1+; для публичного production рекомендуется поддерживаемая ветка PHP, сейчас 8.3+;
-- MySQL 8.x;
+- MySQL 8.0+ или MariaDB 10.5+;
 - extensions `mysqli`, `pdo_mysql`, `mbstring`, `sodium`, `openssl`, `zlib`, `fileinfo`, `gd`;
+- доступные `getenv` и `putenv` для загрузки `.env`;
 - Argon2id в `password_hash`;
 - возможность PHP записывать в каталог приложения во время установки;
 - возможность PHP создать private storage вне document root;
@@ -24,7 +25,7 @@ Composer, Smarty и Workerman для runtime не требуются.
 
 Если тариф не позволяет long-running process/WebSocket proxy, ничего дополнительно включать не требуется: Messenger штатно и полностью работает через authenticated HTTP Long Poll. WebSocket можно добавить позже как необязательное ускорение — он уменьшает задержку и нагрузку на PHP workers, но не открывает отдельные функции.
 
-## Fresh install без CLI
+> Старый тариф с PHP 7.4 и MySQL 5.7 не соответствует минимальному runtime линии 1.0: установщик остановится до изменения БД и покажет несовместимые требования.\n\n## Fresh install без CLI
 
 1. Скачайте ZIP `workspace-organizer-v*.zip` из GitHub Release.
 2. Загрузите и распакуйте его, например в `public_html/workspace`.
@@ -35,15 +36,15 @@ Composer, Smarty и Workerman для runtime не требуются.
 https://example.com/workspace/install.php
 ```
 
-5. Installer проверит PHP/extensions, встроенный core runtime, native WebSocket runtime, writable runtime dirs и private storage.
-6. Укажите MySQL credentials. Мастер создаст `SITEURL`, `BASE_PATH`, private storage и секреты. Messenger по умолчанию устанавливается в Long Poll-only режиме (`WS_ENABLED=0`). WebSocket-ускорение можно включить отдельной галкой; только тогда используются `WS_PUBLIC_URL` и `WS_ALLOWED_ORIGINS`. На Windows/OpenServer с layout `domains\\...` и HTTP installer автоматически предлагает direct-host профиль вида `ws://notes.local:27800`, чтобы Messenger можно было тестировать без reverse proxy. Для HTTPS остаётся `wss://.../ws` через proxy.
+5. Installer проверит PHP/extensions, `getenv/putenv`, встроенный core runtime, writable runtime dirs, private storage, локальные HTTPS/DNS-предпосылки updater, `memory_limit` и ограничения загрузки. Наличие socket-функций не считается доказательством доступности исходящего TCP/443: это подтверждается только реальным обращением к серверу обновлений.
+6. Укажите реквизиты БД. До импорта схем мастер проверит версию сервера и примет MySQL 8.0+ либо MariaDB 10.5+. Мастер создаст `SITEURL`, `BASE_PATH`, private storage и секреты. Messenger по умолчанию устанавливается в Long Poll-only режиме (`WS_ENABLED=0`). WebSocket-ускорение можно включить отдельной галкой; только тогда используются `WS_PUBLIC_URL` и `WS_ALLOWED_ORIGINS`. На Windows/OpenServer с layout `domains\\...` и HTTP installer автоматически предлагает direct-host профиль вида `ws://notes.local:27800`, чтобы Messenger можно было тестировать без reverse proxy. Для HTTPS остаётся `wss://.../ws` через proxy.
 7. Создайте первого администратора.
 8. После успешного завершения `.env` блокирует повторный доступ к installer.
 
 ## Что installer делает автоматически
 
 - при наличии MySQL privilege создаёт отсутствующую БД;
-- импортирует canonical schemas и проверяет текущий contract из **34 обязательных таблиц**;
+- импортирует canonical schemas и проверяет текущий contract из **35 обязательных таблиц**;
 - создаёт RBAC + `role_module_policies`, shared task boards, settings/quota и module lifecycle schema;
 - создаёт private storage вне document root;
 - создаёт пространства `file_manager`, `messenger`, `notes`, `users`, `rate-limit`, `logs`, `legacy`;
@@ -58,7 +59,7 @@ https://example.com/workspace/install.php
 
 ## Если база не существует
 
-Installer сначала пробует создать её сам. Если MySQL-пользователь не имеет `CREATE DATABASE`, создайте пустую БД в панели хостинга и повторите шаг установки.
+Installer сначала пробует создать её сам. Если пользователь БД не имеет `CREATE DATABASE`, создайте пустую БД в панели хостинга и повторите шаг установки. MySQL 5.7 и более старые версии отклоняются до импорта схем; для MariaDB минимальная поддерживаемая ветка — 10.5.
 
 Не импортируйте SQL вручную — web-installer делает это сам.
 
