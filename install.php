@@ -156,6 +156,71 @@ function defaultWebSocketUrl(string $siteUrl, string $basePath): string
     return $scheme . $authority . $prefix . '/ws';
 }
 
+function installerFunctionAvailable(string $name): bool
+{
+    if (!function_exists($name)) {
+        return false;
+    }
+
+    $disabled = array_filter(
+        array_map('trim', explode(',', (string) ini_get('disable_functions')))
+    );
+
+    return !in_array($name, $disabled, true);
+}
+
+function installerLongPollTimeoutSeconds(): int
+{
+    $maxExecution = (int) ini_get('max_execution_time');
+    if ($maxExecution <= 0) {
+        return 15;
+    }
+
+    return max(5, min(15, $maxExecution - 2));
+}
+
+/**
+ * Необязательные возможности не блокируют установку.
+ *
+ * @param list<string> $packagedModules
+ * @return array<string,array{available:bool,message:string}>
+ */
+function installerOptionalCapabilities(string $basePath, array $packagedModules): array
+{
+    $hasMessenger = in_array('messenger', $packagedModules, true);
+    $wsRuntime = !$hasMessenger || (
+        is_file($basePath . '/modules/messenger/socket/NativeMessengerServer.php')
+        && is_file($basePath . '/modules/messenger/socket/SocketHandshake.php')
+        && is_file($basePath . '/modules/messenger/socket/SocketFrameCodec.php')
+        && installerFunctionAvailable('stream_socket_server')
+        && installerFunctionAvailable('stream_select')
+    );
+
+    $procOpen = installerFunctionAvailable('proc_open');
+    $pcntl = installerFunctionAvailable('pcntl_fork');
+
+    return [
+        'WebSocket-ускоритель Messenger' => [
+            'available' => $wsRuntime,
+            'message' => $wsRuntime
+                ? 'Можно включить позже; Long Poll уже обеспечивает полный Messenger.'
+                : 'Недоступен в этом PHP; Messenger будет полностью работать через Long Poll.',
+        ],
+        'Изолированный updater через proc_open' => [
+            'available' => $procOpen,
+            'message' => $procOpen
+                ? 'Доступен ускоренный режим обновления в отдельном PHP-процессе.'
+                : 'Не требуется: updater автоматически использует совместимый web-режим.',
+        ],
+        'Daemon mode WebSocket через pcntl' => [
+            'available' => $pcntl,
+            'message' => $pcntl
+                ? 'Доступен Unix daemon mode.'
+                : 'Не требуется: WebSocket можно запускать process manager-ом или не использовать.',
+        ],
+    ];
+}
+
 function isOpenServerLayout(string $basePath): bool
 {
     return PHP_OS_FAMILY === 'Windows'
@@ -356,6 +421,7 @@ function writeEnvironmentFile(string $file, array $data): void
         'PROFILE_AVATAR_MAX_SIZE=2097152',
         'MESSENGER_ORPHAN_TTL_SECONDS=86400',
         'MESSENGER_SEARCH_SCAN_LIMIT=1000',
+        'MESSENGER_LONG_POLL_TIMEOUT_SECONDS=' . installerLongPollTimeoutSeconds(),
         '',
         'SITEURL=' . envQuoted((string) $data['site_url']),
         'BASE_PATH=' . envQuoted((string) $data['base_path']),
@@ -417,11 +483,8 @@ function installerRequirements(string $basePath, array $schemaFiles, array $pack
         ),
     ];
     if (in_array('messenger', $packagedModules, true)) {
-        $checks['Native WebSocket runtime'] = is_file($basePath . '/modules/messenger/socket/NativeMessengerServer.php')
-            && is_file($basePath . '/modules/messenger/socket/SocketHandshake.php')
-            && is_file($basePath . '/modules/messenger/socket/SocketFrameCodec.php');
-    } else {
-        $checks['Native WebSocket runtime'] = true;
+        $checks['HTTP Long Poll Messenger'] = installerFunctionAvailable('session_write_close')
+            && installerFunctionAvailable('usleep');
     }
     try {
         prepareRuntimeDirectories($basePath);
@@ -590,6 +653,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 }
 
 $requirements = installerRequirements($basePath, $schemaFiles, $packagedModules);
+$optionalCapabilities = installerOptionalCapabilities($basePath, $packagedModules);
 if ($step === 1) {
     foreach ($requirements as $label => $ok) {
         if (!$ok) {
@@ -598,6 +662,10 @@ if ($step === 1) {
     }
     if ($needsPrivateStorage && $detectedPrivateStorage === '') {
         $warnings[] = 'Автоматически подобрать private storage вне web-root не удалось. На следующем шаге укажите абсолютный writable путь из панели хостинга.';
+    }
+    $maxExecution = (int) ini_get('max_execution_time');
+    if ($hasMessenger && $maxExecution > 0 && $maxExecution < 7) {
+        $warnings[] = 'max_execution_time меньше 7 секунд. Для устойчивого Long Poll нужен лимит хотя бы 7 секунд.';
     }
     if ($detectedOpenServer) {
         $warnings[] = installerIsHttps()
@@ -630,8 +698,11 @@ $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SU
 
     <?php if ($step === 1): ?>
         <h2>1. Проверка хостинга</h2>
+        <p><strong>Обязательные требования</strong></p>
         <ul><?php foreach ($requirements as $label => $ok): ?><li class="<?= $ok ? 'ok' : 'fail' ?>"><?= $ok ? '✓' : '✕' ?> <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></li><?php endforeach; ?></ul>
-        <div class="summary"><strong>Автоопределение</strong><p>Профиль: <code><?= $detectedInstallMode === 'openserver_local' ? 'OpenServer local' : 'Hosting' ?></code><br>Сайт: <code><?= htmlspecialchars(appUrl($detectedSiteUrl,$detectedBasePath), ENT_QUOTES, 'UTF-8') ?></code><br>Messenger: <code>Long Poll</code> (основной transport)<br>WebSocket: <code>необязательное ускорение</code><br>Private storage: <code><?= htmlspecialchars($detectedPrivateStorage !== '' ? $detectedPrivateStorage : 'нужно указать', ENT_QUOTES, 'UTF-8') ?></code></p></div>
+        <p><strong>Необязательные ускорения</strong></p>
+        <ul><?php foreach ($optionalCapabilities as $label => $capability): ?><li class="<?= $capability['available'] ? 'ok' : '' ?>"><?= $capability['available'] ? '✓' : '—' ?> <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?><small><?= htmlspecialchars($capability['message'], ENT_QUOTES, 'UTF-8') ?></small></li><?php endforeach; ?></ul>
+        <div class="summary"><strong>Автоопределение</strong><p>Профиль: <code><?= $detectedInstallMode === 'openserver_local' ? 'OpenServer local' : 'Shared hosting / production' ?></code><br>Сайт: <code><?= htmlspecialchars(appUrl($detectedSiteUrl,$detectedBasePath), ENT_QUOTES, 'UTF-8') ?></code><br>Messenger: <code>HTTP Long Poll</code> — основной transport<br>WebSocket: <code>необязательный ускоритель</code><br>Long Poll timeout: <code><?= installerLongPollTimeoutSeconds() ?> с</code><br>Private storage: <code><?= htmlspecialchars($detectedPrivateStorage !== '' ? $detectedPrivateStorage : 'нужно указать', ENT_QUOTES, 'UTF-8') ?></code></p></div>
         <?php if ($errors === []): ?><a class="button" href="?step=2">Продолжить</a><?php endif; ?>
     <?php elseif ($step === 2): ?>
         <h2>2. База и окружение</h2>
