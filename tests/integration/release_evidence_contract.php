@@ -42,6 +42,11 @@ foreach ([
     "failure === 'NS_BINDING_ABORTED'",
     "normalizedFailure.includes('cancel')",
     "'/messenger/realtime/poll'",
+    "assertMessengerDialogGeometry",
+    "'workspace-action-dialog'",
+    "'group-info-dialog'",
+    "'storage-file-dialog'",
+    "surface width differs from dialog",
 ] as $marker) {
     releaseEvidenceAssert(str_contains($browser, $marker), "browser evidence не содержит marker {$marker}");
 }
