@@ -20,7 +20,7 @@
 
 Composer, Smarty и Workerman для runtime не требуются.
 
-Если тариф не позволяет long-running process/WebSocket proxy, Messenger автоматически работает через authenticated HTTP long poll. WebSocket рекомендуется включать при возможности: он уменьшает задержку и нагрузку на PHP workers.
+Если тариф не позволяет long-running process/WebSocket proxy, ничего дополнительно включать не требуется: Messenger штатно и полностью работает через authenticated HTTP Long Poll. WebSocket можно добавить позже как необязательное ускорение — он уменьшает задержку и нагрузку на PHP workers, но не открывает отдельные функции.
 
 ## Fresh install без CLI
 
@@ -89,7 +89,7 @@ WS_MAX_CONNECTIONS=256
 WS_MAX_PAYLOAD_BYTES=2097152
 ```
 
-Web-installer не может универсально запустить долгоживущий процесс на любой панели. Messenger после web-install уже может работать через HTTP long poll; для рекомендуемого WebSocket fast path process запускается отдельно:
+Web-installer не может универсально запустить долгоживущий процесс на любой панели. Messenger после web-install сразу работает через основной HTTP Long Poll transport; при желании WebSocket-ускоритель запускается отдельно:
 
 ```bash
 php ws_server/server.php check
