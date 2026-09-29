@@ -179,6 +179,25 @@ function installerLongPollTimeoutSeconds(): int
     return max(5, min(15, $maxExecution - 2));
 }
 
+function installerIniBytes(string $name): int
+{
+    $raw = trim((string) ini_get($name));
+    if ($raw === '') {
+        return 0;
+    }
+
+    $unit = strtolower(substr($raw, -1));
+    $value = (float) $raw;
+    $multiplier = match ($unit) {
+        'g' => 1024 ** 3,
+        'm' => 1024 ** 2,
+        'k' => 1024,
+        default => 1,
+    };
+
+    return (int) floor($value * $multiplier);
+}
+
 /**
  * Необязательные возможности не блокируют установку.
  *
@@ -484,6 +503,7 @@ function installerRequirements(string $basePath, array $schemaFiles, array $pack
         'gd' => extension_loaded('gd'),
         'Argon2id password hashing' => in_array('argon2id', password_algos(), true),
         'random_bytes' => function_exists('random_bytes'),
+        'HTTP file uploads' => filter_var(ini_get('file_uploads'), FILTER_VALIDATE_BOOLEAN),
         'Запись .env в корень проекта' => is_writable($basePath),
         'Composition database schemas' => $schemaFiles !== [] && array_reduce(
             $schemaFiles,
@@ -675,6 +695,22 @@ if ($step === 1) {
     $maxExecution = (int) ini_get('max_execution_time');
     if ($hasMessenger && $maxExecution > 0 && $maxExecution < 7) {
         $warnings[] = 'max_execution_time меньше 7 секунд. Для устойчивого Long Poll нужен лимит хотя бы 7 секунд.';
+    }
+    $productUploadLimit = 10 * 1024 * 1024;
+    $uploadLimit = installerIniBytes('upload_max_filesize');
+    $postLimit = installerIniBytes('post_max_size');
+    if ($uploadLimit > 0 && $uploadLimit < $productUploadLimit) {
+        $warnings[] = 'upload_max_filesize ограничен значением ' . ini_get('upload_max_filesize')
+            . ': фактический максимальный размер вложения будет ниже продуктового лимита 10 МБ.';
+    }
+    if ($postLimit > 0 && $postLimit < $productUploadLimit) {
+        $warnings[] = 'post_max_size ограничен значением ' . ini_get('post_max_size')
+            . ': большие вложения не дойдут до приложения.';
+    }
+    $maxFileUploads = (int) ini_get('max_file_uploads');
+    if ($maxFileUploads > 0 && $maxFileUploads < 10) {
+        $warnings[] = 'max_file_uploads=' . $maxFileUploads
+            . ': за один запрос можно будет загрузить меньше 10 вложений.';
     }
     if ($detectedOpenServer) {
         $warnings[] = 'OpenServer обнаружен: Messenger сразу работает через HTTP Long Poll. '
