@@ -7,7 +7,12 @@ on:
     branches: [dev]
     paths:
       - 'modules/messenger/**'
+      - 'assets/js/messenger-connection-ux.js'
+      - 'assets/js/messenger-global-notifications.js'
+      - 'assets/js/messenger-tab-coordinator.js'
       - 'tests/integration/messenger_long_poll_**'
+      - 'tests/integration/messenger_global_transport_runtime.mjs'
+      - 'tests/integration/messenger_tab_coordinator_runtime.mjs'
       - '.github/workflows/messenger-realtime-fallback.yml'
   workflow_dispatch:
 
