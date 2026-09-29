@@ -115,6 +115,9 @@ $visualRefresh = (string) file_get_contents($module . '/views/visual-refresh.css
 nativeMessengerAssert(str_contains($visualRefresh, 'grid-template-columns:clamp(248px,23vw,304px)'), 'Messenger balanced desktop column contract is missing');
 nativeMessengerAssert(str_contains($visualRefresh, '@media(max-width:1020px)'), 'Messenger medium-width layout breakpoint is missing');
 nativeMessengerAssert(str_contains($visualRefresh, '@media(max-width:760px)'), 'Messenger mobile single-pane breakpoint is missing');
+nativeMessengerAssert(str_contains($messengerStyle, '.messenger-list__empty{min-height:0;flex:1}'), 'пустое состояние списка диалогов не занимает свободную область');
+nativeMessengerAssert(str_contains($script, 'const showEmptyState = this.dialogs.length === 0'), 'Messenger не определяет глобально пустой список диалогов');
+nativeMessengerAssert(str_contains($script, 'this.el.dialogList.hidden = showEmptyState'), 'пустой список диалогов продолжает резервировать место над empty-state');
 $workspaceCss = (string) file_get_contents($module . '/views/workspace-actions.css');
 $storageCss = (string) file_get_contents($module . '/views/storage-files.css');
 nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-task-fields[hidden]{display:none!important}'), 'workspace task fields ignore hidden state');

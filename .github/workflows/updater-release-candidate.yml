@@ -2,7 +2,7 @@ name: 1.0 updater release candidate
 
 on:
   pull_request:
-    branches: [master, '1.0', 'release/1.0.7-rc']
+    branches: [master, '1.0', 'release/1.0.8-rc']
   push:
     branches: ['1.0-updater-release-candidate']
 

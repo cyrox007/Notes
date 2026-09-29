@@ -646,7 +646,12 @@
             });
 
             this.el.dialogList.replaceChildren();
-            if (this.el.dialogEmpty) this.el.dialogEmpty.hidden = dialogs.length !== 0 || query !== '';
+
+            const showEmptyState = this.dialogs.length === 0 && query === '';
+            this.el.dialogList.hidden = showEmptyState;
+            if (this.el.dialogEmpty) {
+                this.el.dialogEmpty.hidden = !showEmptyState;
+            }
 
             dialogs.forEach((dialog) => {
                 const button = document.createElement('button');
