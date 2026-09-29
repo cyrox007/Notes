@@ -29,8 +29,11 @@ $iconFor = static function (array $file): string {
     if (str_contains($mime, 'video')) {
         return 'fa-file-video-o';
     }
-    if ($extension === 'pdf') {
+    if (in_array($extension, ['pdf', 'djvu'], true)) {
         return 'fa-file-pdf-o';
+    }
+    if (in_array($extension, ['vsd', 'vsdx'], true)) {
+        return 'fa-file-word-o';
     }
     if (in_array($extension, ['doc', 'docx'], true)) {
         return 'fa-file-word-o';
