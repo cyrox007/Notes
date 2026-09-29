@@ -1,6 +1,6 @@
 # Messenger WebSocket server — запуск, отдельный WS-узел и эксплуатация
 
-Workspace Organizer использует два автоматически переключаемых канала Messenger. WebSocket остаётся быстрым низколатентным каналом, а authenticated HTTP long poll является полноценным durable-каналом для окружений, где отдельный WebSocket process или reverse proxy поднять нельзя. Сторонний Workerman и Composer `vendor/` для realtime Messenger не требуются. Обычные HTTP-запросы и long poll обслуживаются PHP-FPM/Apache, а WebSocket-ускорение — отдельным долгоживущим процессом `ws_server/server.php`.
+Workspace Organizer использует HTTP Long Poll как основной обязательный transport Messenger. Через него должен работать весь функционал: сообщения, медиа, группы, реакции, статусы доставки и прочтения, activity, глобальные уведомления и счётчики непрочитанных. WebSocket — необязательный низколатентный ускоритель: при наличии он временно заменяет Long Poll, но отсутствие WebSocket не должно ограничивать возможности Messenger. Сторонний Workerman и Composer `vendor/` для realtime Messenger не требуются. Обычные HTTP-запросы и long poll обслуживаются PHP-FPM/Apache, а WebSocket-ускорение — отдельным долгоживущим процессом `ws_server/server.php`.
 
 Поддерживаемый production-контракт:
 
@@ -225,7 +225,7 @@ user=www-data
 
 ## Shared hosting / Open Server
 
-Messenger остаётся работоспособным без long-running WebSocket process: браузер использует authenticated HTTP long poll как основной durable-канал. WebSocket на том же сервере (обычно reverse proxy `/ws` → `WS_PORT`) или один отдельный WS-узел по контракту выше остаются ускоряющим каналом, потому что уменьшают задержку, число HTTP-запросов и занятость PHP workers.
+Messenger полностью работоспособен без long-running WebSocket process: authenticated HTTP Long Poll является базовым transport и не считается урезанным режимом. WebSocket на том же сервере (обычно reverse proxy `/ws` → `WS_PORT`) или один отдельный WS-узел остаются необязательным ускорением, уменьшающим задержку, число HTTP-запросов и занятость PHP workers.
 
 Для fallback shared hosting должен разрешать обычные длительные HTTP requests и иметь достаточную параллельность PHP/FPM. Клиент освобождает PHP session lock на long-poll request, прерывает текущий poll перед собственным mutating HTTP action или refresh socket ticket и затем возобновляет ожидание. Значение `MESSENGER_LONG_POLL_TIMEOUT_SECONDS` по умолчанию равно 15 секундам и ограничивается диапазоном 5–25.
 
