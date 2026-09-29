@@ -36,6 +36,7 @@ foreach ([
     ['5.7.44', false, 'MySQL'],
     ['10.5.0-MariaDB', true, 'MariaDB'],
     ['10.11.8-MariaDB-0ubuntu0.24.04.1', true, 'MariaDB'],
+    ['5.5.5-10.11.8-MariaDB', true, 'MariaDB'],
     ['10.4.34-MariaDB', false, 'MariaDB'],
 ] as [$raw, $expected, $engine]) {
     $support = HostingCompatibility::databaseServerSupport($raw);
