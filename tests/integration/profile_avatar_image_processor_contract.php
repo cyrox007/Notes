@@ -35,6 +35,17 @@ try {
     avatarProcessorAssert(imagepng($image, $source), 'Не удалось записать исходное PNG');
     imagedestroy($image);
 
+    putenv('PROFILE_AVATAR_MAX_PIXELS=1000');
+    $pixelLimitRejected = false;
+    try {
+        (new AvatarImageProcessor())->writeSquareJpeg($source, $target, 256, 85);
+    } catch (RuntimeException $e) {
+        $pixelLimitRejected = str_contains($e->getMessage(), 'пиксел');
+    } finally {
+        putenv('PROFILE_AVATAR_MAX_PIXELS');
+    }
+    avatarProcessorAssert($pixelLimitRejected, 'Ограничение числа пикселей исходного аватара не сработало');
+
     (new AvatarImageProcessor())->writeSquareJpeg($source, $target, 256, 85);
 
     avatarProcessorAssert(is_file($target), 'Обработанный JPEG не создан');
@@ -47,7 +58,7 @@ try {
         avatarProcessorAssert((fileperms($target) & 0777) === 0600, 'Права аватара отличаются от 0600');
     }
 
-    fwrite(STDOUT, "[OK] Profile обрабатывает аватар без legacy-класса Core\\Images\n");
+    fwrite(STDOUT, "[OK] Profile безопасно ограничивает память и обрабатывает аватар без legacy-класса Core\\Images\n");
 } finally {
     @unlink($target);
     @unlink($source);
