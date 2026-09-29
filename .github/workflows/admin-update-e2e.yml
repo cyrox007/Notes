@@ -732,6 +732,7 @@ jobs:
         shell: bash
         env:
           SSL_CERT_FILE: /tmp/workspace-admin-update-e2e/ca.crt
+          E2E_STATE_ROOT: /tmp/workspace-admin-update-e2e/private/state
           E2E_INTERRUPT_PHASE: migrations
         run: |
           set -euo pipefail
@@ -763,6 +764,7 @@ jobs:
         shell: bash
         env:
           SSL_CERT_FILE: /tmp/workspace-admin-update-e2e/ca.crt
+          E2E_STATE_ROOT: /tmp/workspace-admin-update-e2e/private/state
           E2E_INTERRUPT_PHASE: postcheck
         run: |
           set -euo pipefail
