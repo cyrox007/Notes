@@ -59,11 +59,9 @@
                 this.refresh();
             };
             this.handleVisibility = () => {
-                if (this.isVisible()) {
-                    this.refresh();
-                    return;
-                }
-                this.release();
+                // Видимость вкладки больше не определяет владение transport:
+                // иначе при сворачивании всех вкладок realtime полностью исчезает.
+                this.refresh();
             };
             this.handlePageHide = () => this.release();
         }
@@ -128,10 +126,6 @@
 
         refresh() {
             if (!this.started || !this.storage || !this.channel) return;
-            if (!this.isVisible()) {
-                this.release();
-                return;
-            }
 
             const now = this.now();
             const lease = this.readLease();
@@ -217,10 +211,6 @@
             this.renewTimer = this.setTimer(() => {
                 this.renewTimer = null;
                 if (!this.started || !this.leader) return;
-                if (!this.isVisible()) {
-                    this.release();
-                    return;
-                }
 
                 const lease = this.readLease();
                 if (lease && lease.owner !== this.tabId && lease.expiresAt > this.now()) {
@@ -241,7 +231,7 @@
 
         scheduleElection(delay) {
             this.cancelElection();
-            if (!this.started || !this.isVisible()) return;
+            if (!this.started) return;
             this.electionTimer = this.setTimer(() => {
                 this.electionTimer = null;
                 this.refresh();
