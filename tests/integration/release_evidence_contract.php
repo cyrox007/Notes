@@ -37,6 +37,9 @@ foreach ([
     "PHPSESSID=",
     "uniqueSessions.length !== scenarios.length",
     "authenticated_sessions: uniqueSessions.length",
+    "isExpectedLongPollNavigationAbort",
+    "failure !== 'net::ERR_ABORTED'",
+    "'/messenger/realtime/poll'",
 ] as $marker) {
     releaseEvidenceAssert(str_contains($browser, $marker), "browser evidence не содержит marker {$marker}");
 }
