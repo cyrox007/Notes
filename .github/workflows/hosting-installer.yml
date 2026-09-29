@@ -110,6 +110,8 @@ jobs:
           BASE=http://127.0.0.1:8080/workspace
 
           curl -fsS -c "$COOKIE" -b "$COOKIE" "$BASE/install.php?step=2" -o /tmp/install-step2.html
+          grep -Fq 'id="ws-enabled"' /tmp/install-step2.html
+          ! grep -Eq 'id="ws-enabled"[^>]*checked' /tmp/install-step2.html
           CSRF=$(sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' /tmp/install-step2.html | head -n1)
           STORAGE=$(sed -n 's/.*name="private_storage_path" value="\([^"]*\)".*/\1/p' /tmp/install-step2.html | head -n1)
           test -n "$CSRF"
