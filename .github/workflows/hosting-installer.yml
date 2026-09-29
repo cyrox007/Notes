@@ -254,6 +254,32 @@ jobs:
         run: cat /tmp/workspace-installer-server.log || true
 
 
+  legacy-php-installer-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 7.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          coverage: none
+
+      - name: Проверить понятный отказ установщика на PHP 7.4
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l install.php
+          php install.php > /tmp/php74-installer.html
+          grep -Fq 'Требуется PHP 8.1 или новее' /tmp/php74-installer.html
+          grep -Fq 'Выберите PHP 8.1+ в панели хостинга' /tmp/php74-installer.html
+          ! grep -Fq 'Parse error' /tmp/php74-installer.html
+          ! grep -Fq 'Fatal error' /tmp/php74-installer.html
+
+
   mariadb-compatibility:
     runs-on: ubuntu-latest
     timeout-minutes: 10
