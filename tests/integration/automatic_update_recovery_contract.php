@@ -6,6 +6,7 @@ use App\Services\MaintenanceModeService;
 use Core\UpdateAutomaticRecovery;
 use Core\UpdateCoordinatorLock;
 use Core\UpdateTransactionJournal;
+use Core\UpdateWebContinuation;
 
 $root = dirname(__DIR__, 2);
 require_once $root . '/app/services/MaintenanceModeService.php';
@@ -13,6 +14,7 @@ require_once $root . '/core/UpdateAutomaticRecovery.php';
 require_once $root . '/core/UpdateBootRecoveryGate.php';
 require_once $root . '/core/UpdateCoordinatorLock.php';
 require_once $root . '/core/UpdateTransactionJournal.php';
+require_once $root . '/core/UpdateWebContinuation.php';
 
 function automaticRecoveryAssert(bool $condition, string $message): void
 {
@@ -117,7 +119,89 @@ try {
     automaticRecoveryAssert($invocations === 1, 'Recovery должен запускаться ровно один раз');
     automaticRecoveryAssert(!$maintenance->state()['active'], 'Maintenance не снят после recovery');
 
+    // Если rollback уже доказан журналом, живой browser lease больше не
+    // является основанием держать всю установку в 503 до истечения 180 секунд.
+    $terminalTransaction = 'update-auto-recovery-terminal';
+    automaticRecoveryInitializeJournal($stateRoot, $root, $temp, $terminalTransaction);
+    $terminalJournal = new UpdateTransactionJournal($stateRoot, $root);
+    $terminalPath = $terminalJournal->path($terminalTransaction);
+    $terminalState = json_decode(
+        (string) file_get_contents($terminalPath),
+        true,
+        32,
+        JSON_THROW_ON_ERROR
+    );
+    $terminalState['state'] = 'rollback_verified';
+    $terminalState['live_mutation_started'] = true;
+    $terminalState['rollback'] = [
+        'started_at' => time() - 5,
+        'from_state' => 'migrations_applied',
+        'failure_code' => 'postcheck_failed',
+    ];
+    $terminalState['rollback_verify'] = [
+        'version' => '1.0.5-test',
+        'version_code' => 10005,
+        'health_status' => 'ok',
+        'verified_at' => time(),
+    ];
+    file_put_contents(
+        $terminalPath,
+        json_encode(
+            $terminalState,
+            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        ) . PHP_EOL
+    );
+
+    $maintenance->enter($terminalTransaction, 'Проверка terminal recovery при живом lease');
+    $terminalContinuation = new UpdateWebContinuation($stateRoot);
+    $terminalContinuation->create($terminalTransaction);
+    automaticRecoveryAssert(
+        $terminalContinuation->active($terminalTransaction),
+        'Контрольный web-lease не активен'
+    );
+
+    $terminalInvocations = 0;
+    $terminalRecovery = new UpdateAutomaticRecovery(
+        $root,
+        static function () use (
+            &$terminalInvocations,
+            $maintenance,
+            $terminalTransaction
+        ): array {
+            $terminalInvocations++;
+            $maintenance->leave($terminalTransaction);
+            return [
+                'code' => 0,
+                'stdout' => json_encode([
+                    'status' => 'rollback_recovery_verified',
+                    'transaction_id' => $terminalTransaction,
+                    'maintenance_active' => false,
+                    'version' => '1.0.5-test',
+                ], JSON_THROW_ON_ERROR),
+                'stderr' => '',
+            ];
+        }
+    );
+    $terminalResult = $terminalRecovery->attempt($maintenance);
+    automaticRecoveryAssert(
+        $terminalResult['status'] === 'recovered',
+        'Подтверждённый rollback ошибочно ждёт истечения web-lease'
+    );
+    automaticRecoveryAssert(
+        $terminalInvocations === 1,
+        'Terminal recovery не был запущен немедленно'
+    );
+    automaticRecoveryAssert(
+        !$maintenance->state()['active'],
+        'Terminal recovery не снял maintenance'
+    );
+    automaticRecoveryAssert(
+        !$terminalContinuation->active($terminalTransaction),
+        'Terminal recovery не удалил устаревший web-lease'
+    );
+
     $busyTransaction = 'update-auto-recovery-busy';
+    automaticRecoveryInitializeJournal($stateRoot, $root, $temp, $busyTransaction);
     $maintenance->enter($busyTransaction, 'Проверка конкурентного обновления');
     $busyCoordinator = new UpdateCoordinatorLock($stateRoot, $busyTransaction);
     $busyInvocations = 0;
