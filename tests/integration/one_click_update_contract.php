@@ -231,8 +231,8 @@ updateNotificationAssert(
 );
 updateNotificationAssert(
     str_contains($adminUpdateE2e, '1.0.12-health-broken-e2e')
-        && str_contains($adminUpdateE2e, 'намеренный отказ post-check после успешных миграций'),
-    'Сквозной релизный тест не проверяет автоматический откат 1.0.12 после ошибки post-check после успешных миграций'
+        && str_contains($adminUpdateE2e, 'намеренный отказ post-health после успешной миграции'),
+    'Сквозной релизный тест не проверяет автоматический откат 1.0.12 после ошибки post-health после успешной миграции'
 );
 updateNotificationAssert(
     str_contains($adminUpdateE2e, 'rollback_verified'),
