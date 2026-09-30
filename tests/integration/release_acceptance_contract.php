@@ -134,12 +134,11 @@ foreach ([
 
 releaseAcceptanceAssert(
     str_contains($releaseNotes, '1.0.12 → встроенный подписанный updater → 1.0.13')
-    && str_contains($releaseNotes, 'отзыв ссылки')
-    && str_contains($releaseNotes, 'публикация папок')
-    && str_contains($releaseNotes, 'Видимость профиля')
-    && str_contains($releaseNotes, 'upload_max_filesize')
-    && str_contains($releaseNotes, 'Long Poll')
-    && str_contains($releaseNotes, 'rollback/recovery'),
+    && str_contains($releaseNotes, 'workspace.admin')
+    && str_contains($releaseNotes, 'workspace.messenger')
+    && str_contains($releaseNotes, 'unlicensed')
+    && str_contains($releaseNotes, 'Admin → Модули')
+    && str_contains($releaseNotes, 'WebSocket'),
     'описание 1.0.13 не фиксирует модульный состав, лицензионные разрешения и штатный upgrade-path'
 );
 
