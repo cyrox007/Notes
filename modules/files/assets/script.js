@@ -345,7 +345,7 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        if (event.target.closest('.file-manager__item-actions')) return;
+        if (event.target.closest('.file-manager__action-btn')) return;
         const item = itemForElement(event.target);
         if (item) openItem(item);
     });
@@ -353,7 +353,7 @@ document.addEventListener('DOMContentLoaded', function () {
     root.addEventListener('keydown', function (event) {
         if (event.key !== 'Enter') return;
         const item = itemForElement(event.target);
-        if (!item || event.target.closest('.file-manager__item-actions')) return;
+        if (!item || event.target.closest('.file-manager__action-btn')) return;
         event.preventDefault();
         openItem(item);
     });
