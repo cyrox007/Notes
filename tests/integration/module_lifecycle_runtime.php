@@ -12,11 +12,14 @@ require_once $root . '/core/Config.php';
 require_once $root . '/core/Version.php';
 require_once $root . '/core/DatabaseManager.php';
 require_once $root . '/core/ModuleManifest.php';
+require_once $root . '/core/ModuleEntitlementResolver.php';
 require_once $root . '/core/ModuleLifecycleStore.php';
 require_once $root . '/core/ModuleRegistry.php';
 
 use Core\DatabaseManager;
+use Core\ModuleEntitlementResolver;
 use Core\ModuleLifecycleStore;
+use Core\ModuleManifest;
 use Core\ModuleRegistry;
 use Core\Version;
 
@@ -34,7 +37,8 @@ function lifecycleFixture(
     array $dependencies = [],
     bool $bundled = false,
     bool $defaultEnabled = true,
-    array $core = []
+    array $core = [],
+    bool $required = false
 ): void {
     $dir = $root . '/' . $id;
     if (!mkdir($dir, 0700, true) && !is_dir($dir)) {
@@ -48,7 +52,7 @@ function lifecycleFixture(
         'core' => $core !== [] ? $core : ['min' => '0.13.0-alpha', 'max_exclusive' => '2.0.0'],
         'dependencies' => $dependencies,
         'capabilities' => ['fixture.' . $id],
-        'package' => ['bundled' => $bundled, 'default_enabled' => $defaultEnabled],
+        'package' => ['bundled' => $bundled, 'default_enabled' => $defaultEnabled, 'required' => $required],
         'license' => ['feature' => 'fixture.' . $id],
         'runtime' => ['mode' => 'isolated', 'entrypoint' => 'runtime.php'],
         'storage_namespaces' => [],
@@ -155,6 +159,68 @@ try {
     lifecycleAssert($row['effective_state'] === 'incompatible', 'core mismatch must reconcile to incompatible');
     lifecycleAssert(!$future->isRuntimeEnabled('future'), 'incompatible module must never be runtime-enabled');
     lifecycleAssert(str_contains((string) $row['last_error'], 'requires core'), 'incompatible state must retain diagnostic reason');
+} finally {
+    lifecycleRemoveTree($tmp);
+}
+
+$db->execute('DELETE FROM module_lifecycle');
+$tmp = sys_get_temp_dir() . '/workspace-lifecycle-entitlements-' . bin2hex(random_bytes(6));
+mkdir($tmp, 0700, true);
+try {
+    lifecycleFixture($tmp, 'allowed', [], true, true);
+    lifecycleFixture($tmp, 'denied', [], true, true);
+    lifecycleFixture($tmp, 'system', [], true, true, [], true);
+
+    $resolver = new class implements ModuleEntitlementResolver {
+        public function decision(ModuleManifest $manifest): array
+        {
+            $entitled = in_array($manifest->id(), ['allowed', 'system'], true);
+            return [
+                'entitled' => $entitled,
+                'feature' => $manifest->licenseFeature(),
+                'reason' => $entitled ? null : 'Модуль не разрешён тестовой лицензией',
+            ];
+        }
+    };
+    $licensedStore = new ModuleLifecycleStore($db, $resolver);
+    $licensed = ModuleRegistry::boot($tmp, Version::VERSION, $licensedStore);
+
+    lifecycleAssert(
+        $licensed->effectiveState('allowed') === 'enabled',
+        'разрешённый лицензией модуль должен запускаться'
+    );
+    lifecycleAssert(
+        $licensed->lifecycleFor('denied')['configured_state'] === 'enabled'
+            && $licensed->effectiveState('denied') === 'unlicensed',
+        'запрет лицензии должен сохранять configured intent и блокировать runtime'
+    );
+    lifecycleAssert(
+        !in_array('denied', $licensed->enabledComposition(), true),
+        'неразрешённый лицензией модуль не должен попадать в runtime composition'
+    );
+
+    $licensed->transitionLifecycle('denied', 'disabled');
+    $blockedEntitlementEnable = false;
+    try {
+        $licensed->transitionLifecycle('denied', 'enabled');
+    } catch (RuntimeException) {
+        $blockedEntitlementEnable = true;
+    }
+    lifecycleAssert(
+        $blockedEntitlementEnable,
+        'модуль без разрешения лицензии нельзя включить вручную'
+    );
+
+    $blockedRequiredDisable = false;
+    try {
+        $licensed->transitionLifecycle('system', 'disabled');
+    } catch (RuntimeException) {
+        $blockedRequiredDisable = true;
+    }
+    lifecycleAssert(
+        $blockedRequiredDisable,
+        'обязательный системный модуль нельзя отключить вручную'
+    );
 } finally {
     lifecycleRemoveTree($tmp);
 }
