@@ -51,6 +51,7 @@ ob_start();
     data-can-create-note="<?= !empty($workspaceActions['notes']) ? '1' : '0' ?>"
     data-can-create-task="<?= !empty($workspaceActions['tasks']) ? '1' : '0' ?>"
     data-can-use-files="<?= !empty($workspaceActions['files']) ? '1' : '0' ?>"
+    data-can-use-profile="<?= !empty($workspaceActions['profile']) ? '1' : '0' ?>"
     data-socket-url="<?= $view->e($socket_url ?? '') ?>"
     data-socket-ticket="<?= $view->e($socket_ticket ?? '') ?>"
 >
@@ -97,8 +98,9 @@ ob_start();
 
             <footer class="messenger-composer">
                 <div class="messenger-composer__tools" aria-label="Вложения и действия">
+                    <?php if (!empty($workspaceActions['tasks']) || !empty($workspaceActions['notes'])): ?>
                     <div class="messenger-workspace-create">
-                        <button class="messenger-icon-button" id="workspace-create-button" type="button" title="Создать задачу или заметку" aria-label="Создать задачу или заметку" aria-expanded="false" aria-controls="workspace-create-menu"><i class="fa fa-plus" aria-hidden="true"></i></button>
+                        <button class="messenger-icon-button" id="workspace-create-button" type="button" title="Создать объект Workspace" aria-label="Создать объект Workspace" aria-expanded="false" aria-controls="workspace-create-menu"><i class="fa fa-plus" aria-hidden="true"></i></button>
                         <div class="messenger-workspace-menu" id="workspace-create-menu" hidden>
                             <?php if (!empty($workspaceActions['tasks'])): ?>
                                 <button class="messenger-workspace-menu__item" type="button" data-create-workspace="task">
@@ -114,6 +116,7 @@ ob_start();
                             <?php endif; ?>
                         </div>
                     </div>
+                    <?php endif; ?>
                     <?php if (!empty($workspaceActions['files'])): ?>
                         <button class="messenger-icon-button" id="message-storage-button" type="button" title="Файл из личного хранилища" aria-label="Файл из личного хранилища"><i class="fa fa-cloud" aria-hidden="true"></i></button>
                     <?php endif; ?>
@@ -140,7 +143,9 @@ ob_start();
                         <input class="messenger-contact__checkbox" type="checkbox" value="<?= $view->e($contact['uid'] ?? '') ?>">
                         <?php
                             $contactUid = (string) ($contact['uid'] ?? '');
-                            $contactAvatar = !empty($contact['avatar']) && $contactUid !== ''
+                            $contactAvatar = !empty($workspaceActions['profile'])
+                                && !empty($contact['avatar'])
+                                && $contactUid !== ''
                                 ? $baseUrl . '/profile/avatar/' . rawurlencode($contactUid)
                                 : '';
                         ?>
