@@ -1,7 +1,7 @@
 /**
- * File Manager browser behavior.
- * User files are opened only through the protected /files/get/{id}/ endpoint.
- * Text/code preview is read-only: the browser never evaluates file contents.
+ * Поведение файлового менеджера в браузере.
+ * Пользовательские файлы открываются только через защищённый маршрут /files/get/{id}/.
+ * Предпросмотр текста и кода работает только для чтения и ничего не выполняет.
  */
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -26,6 +26,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const uploadFileName = document.getElementById('upload-file-name');
 
     const currentFolderId = Number.parseInt(root.dataset.currentFolderId || '0', 10) || 0;
+    const configuredUploadLimit = Number.parseInt(root.dataset.maxUploadBytes || '0', 10) || 0;
+    const effectiveUploadLimit = Number.parseInt(root.dataset.effectiveUploadBytes || '0', 10) || configuredUploadLimit;
     let currentItemId = null;
     let lastFocusedElement = null;
 
@@ -164,8 +166,23 @@ document.addEventListener('DOMContentLoaded', function () {
         if (progressBar) progressBar.setAttribute('aria-valuenow', '0');
     }
 
+    function formatUploadLimit(bytes) {
+        if (!Number.isFinite(bytes) || bytes <= 0) return '';
+        if (bytes >= 1024 * 1024 * 1024) return `${Math.round((bytes / (1024 * 1024 * 1024)) * 100) / 100} ГБ`;
+        return `${Math.round((bytes / (1024 * 1024)) * 100) / 100} МБ`;
+    }
+
     function uploadSingleFile(file) {
         return new Promise((resolve, reject) => {
+            if (effectiveUploadLimit > 0 && file.size > effectiveUploadLimit) {
+                const configured = formatUploadLimit(configuredUploadLimit);
+                const effective = formatUploadLimit(effectiveUploadLimit);
+                const suffix = configuredUploadLimit > effectiveUploadLimit
+                    ? ` Сервер сейчас допускает не более ${effective}, хотя в Workspace задано ${configured}.`
+                    : '';
+                reject(new Error(`Размер файла превышает допустимый лимит ${effective}.${suffix}`));
+                return;
+            }
             const formData = new FormData();
             formData.append('file', file);
             formData.append('parent_id', String(currentFolderId));
@@ -306,7 +323,10 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         if (textExtensions.has(extension)) {
             openTextPreview(item);
+            return;
         }
+
+        window.open(fileUrl(id), '_blank', 'noopener,noreferrer');
     }
 
     btnCreateFolder?.addEventListener('click', () => showModal(modalCreateFolder));
@@ -339,11 +359,10 @@ document.addEventListener('DOMContentLoaded', function () {
             renameIdInput.value = currentItemId || '';
             showModal(modalRename);
             window.setTimeout(() => renameInput.select(), 0);
+            return;
         }
-    });
 
-    root.addEventListener('dblclick', function (event) {
-        if (event.target.closest('.file-manager__item-actions')) return;
+        if (event.target.closest('.file-manager__action-btn')) return;
         const item = itemForElement(event.target);
         if (item) openItem(item);
     });
@@ -351,7 +370,7 @@ document.addEventListener('DOMContentLoaded', function () {
     root.addEventListener('keydown', function (event) {
         if (event.key !== 'Enter') return;
         const item = itemForElement(event.target);
-        if (!item || event.target.closest('.file-manager__item-actions')) return;
+        if (!item || event.target.closest('.file-manager__action-btn')) return;
         event.preventDefault();
         openItem(item);
     });

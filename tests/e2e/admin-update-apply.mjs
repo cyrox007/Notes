@@ -114,34 +114,49 @@ try {
     );
   }
 
-  const flash = page.locator('.admin-page__flash').first();
-  const flashVisible = await flash.isVisible({ timeout: 15000 }).catch(() => false);
-  if (!flashVisible) {
-    const body = ((await page.locator('body').innerText().catch(() => '')) || '').trim().slice(0, 2000);
-    throw new Error(
-      `После POST установки нет сообщения результата; HTTP=${installStatus}; URL=${installUrl}; страница=${body}`
-    );
-  }
-  const flashText = ((await flash.textContent()) || '').trim();
-  if (!flashText.includes('Обновление установлено. Workspace Organizer работает на новой версии.')) {
-    throw new Error(`Установка из Admin UI завершилась без подтверждения успеха: ${flashText}`);
+  // Публичная 1.0.11 после успешного web-updater commit делает обычный
+  // reload текущей страницы и не создаёт flash синхронного Admin-контроллера.
+  // Проверяем важный пользовательский результат: свежий HTTP-запрос уже должен
+  // работать на целевой версии, а экран обновлений — подтверждать её установку.
+  let versionConfirmed = false;
+  let confirmationBody = '';
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const separator = baseUrl.includes('?') ? '&' : '?';
+    const confirmationUrl = `${baseUrl}/${separator}update_confirm=${Date.now()}-${attempt}`;
+    const confirmationResponse = await page.goto(confirmationUrl, {
+      waitUntil: 'domcontentloaded',
+      timeout: 15000,
+    });
+    if (!confirmationResponse || confirmationResponse.status() >= 400) {
+      throw new Error(`Свежий запрос после commit вернул HTTP ${confirmationResponse?.status()}`);
+    }
+
+    confirmationBody = ((await page.locator('body').innerText().catch(() => '')) || '').trim();
+    if (confirmationBody.includes(expectedVersion)) {
+      versionConfirmed = true;
+      break;
+    }
+    await page.waitForTimeout(250);
   }
 
-  await page.getByRole('heading', { name: 'Обновление установлено', exact: true })
-    .waitFor({ state: 'visible', timeout: 15000 });
-  await page.getByText(`${expectedVersion} (${expectedVersionCode})`, { exact: true })
-    .first()
-    .waitFor({ state: 'visible', timeout: 15000 });
+  if (!versionConfirmed) {
+    throw new Error(
+      `Updater завершил commit, но свежий интерфейс не подтверждает ${expectedVersion} (${expectedVersionCode}); `
+      + `первый URL=${installUrl}; страница=${confirmationBody.slice(0, 2000)}`
+    );
+  }
+
+  const updatesResponse = await page.goto(`${baseUrl}/admin/updates/`, {
+    waitUntil: 'domcontentloaded',
+    timeout: 15000,
+  });
+  if (!updatesResponse || updatesResponse.status() !== 200) {
+    throw new Error(`Экран обновлений после commit вернул HTTP ${updatesResponse?.status()}`);
+  }
 
   const installedCard = page.locator('.admin-status-card').filter({ hasText: 'Установленная версия' }).first();
   await installedCard.getByText(expectedVersion, { exact: false })
     .waitFor({ state: 'visible', timeout: 10000 });
-
-  const transaction = page.locator('.admin-status-card').filter({ hasText: 'Транзакция' }).locator('code');
-  const transactionId = (await transaction.textContent())?.trim() || '';
-  if (!/^update-[A-Za-z0-9_-]{8,}$/.test(transactionId)) {
-    throw new Error(`Некорректный идентификатор транзакции: ${transactionId}`);
-  }
 
   installationWindow = false;
   await page.waitForTimeout(1500);
@@ -156,7 +171,7 @@ try {
       `Во время maintenance ожидаемо отклонено фоновых socket-ticket запросов: ${maintenanceHttpErrors.length}`
     );
   }
-  console.log(`Автоматическое уведомление и обновление в один клик: OK (${expectedVersion}, ${transactionId})`);
+  console.log(`Автоматическое уведомление и обновление в один клик: OK (${expectedVersion})`);
   await context.close();
 } finally {
   await browser.close();

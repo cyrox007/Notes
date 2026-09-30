@@ -13,7 +13,7 @@ if (is_file($root . '/.env')) {
 }
 require_once $root . '/core/RuntimeAutoloader.php';
 \Core\RuntimeAutoloader::register($root);
-require_once $root . '/core/config.php';
+require_once $root . '/core/Config.php';
 
 use App\Services\LicenseService;
 use App\Services\LicenseVerifier;
@@ -59,9 +59,13 @@ $context = LocalControlPlaneContext::forCli();
 $store = new ModuleLifecycleStore($db);
 $registry = ModuleRegistry::boot($root . '/modules', Version::VERSION, $store);
 
-$disabled = $registry->transitionLifecycle('admin', 'disabled');
-controlPlaneAssert(($disabled['configured_state'] ?? null) === 'disabled', 'Admin configured state did not become disabled');
-controlPlaneAssert(($disabled['effective_state'] ?? null) === 'disabled', 'Admin effective state did not become disabled');
+$adminDisableBlocked = false;
+try {
+    $registry->transitionLifecycle('admin', 'disabled');
+} catch (RuntimeException) {
+    $adminDisableBlocked = true;
+}
+controlPlaneAssert($adminDisableBlocked, 'обязательный Admin неожиданно разрешено отключить');
 
 $keypair = sodium_crypto_sign_keypair();
 $publicKey = sodium_crypto_sign_publickey($keypair);
@@ -97,17 +101,17 @@ controlPlaneAssert(($activated['license_id'] ?? '') === 'control-plane-test-lice
 $registry = ModuleRegistry::boot($root . '/modules', Version::VERSION, $store);
 $afterLicense = $registry->lifecycleFor('admin');
 controlPlaneAssert(
-    ($afterLicense['configured_state'] ?? null) === 'disabled'
-        && ($afterLicense['effective_state'] ?? null) === 'disabled',
-    'license activation changed Admin lifecycle state'
+    ($afterLicense['configured_state'] ?? null) === 'enabled'
+        && ($afterLicense['effective_state'] ?? null) === 'enabled',
+    'license activation changed required Admin lifecycle state'
 );
 
 $cleared = $service->clearFromControlPlane($context);
 controlPlaneAssert(($cleared['code'] ?? '') === 'unlicensed', 'local control plane did not clear the license');
 
 $registry = ModuleRegistry::boot($root . '/modules', Version::VERSION, $store);
-$enabled = $registry->transitionLifecycle('admin', 'enabled');
-controlPlaneAssert(($enabled['configured_state'] ?? null) === 'enabled', 'explicit Admin enable failed');
-controlPlaneAssert(($enabled['effective_state'] ?? null) === 'enabled', 'explicit Admin enable did not become effective');
+$admin = $registry->lifecycleFor('admin');
+controlPlaneAssert(($admin['configured_state'] ?? null) === 'enabled', 'required Admin configured state drifted');
+controlPlaneAssert(($admin['effective_state'] ?? null) === 'enabled', 'required Admin effective state drifted');
 
-fwrite(STDOUT, "[OK] core control plane keeps license and module lifecycle independent\n");
+fwrite(STDOUT, "[OK] core control plane защищает обязательный Admin и лицензионное восстановление\n");

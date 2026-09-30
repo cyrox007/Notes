@@ -26,7 +26,11 @@ foreach (['{extends', '{include', '{foreach', '{if', '$smarty'] as $legacyToken)
     nativeMessengerAssert(!str_contains($view, $legacyToken), "Messenger native view still contains Smarty token {$legacyToken}");
 }
 nativeMessengerAssert(str_contains($view, '$view->e($currentUser[\'uid\'] ?? \'\')'), 'current Messenger user UID is not escaped');
-nativeMessengerAssert(str_contains($view, '$view->e($contact[\'uid\'] ?? \'\')'), 'Messenger contact UID is not escaped');
+nativeMessengerAssert(
+    str_contains($view, 'data-contact-uid="<?= $view->e($contactUid) ?>"')
+        && str_contains($view, 'value="<?= $view->e($contactUid) ?>"'),
+    'Messenger contact UID is not escaped'
+);
 nativeMessengerAssert(str_contains($view, "'socket_ticket' => \$socket_ticket ?? ''"), 'socket ticket is not propagated into native shell');
 nativeMessengerAssert(str_contains($view, "'socket_url' => \$socket_url ?? ''"), 'socket URL is not propagated into native shell');
 nativeMessengerAssert(str_contains($view, 'data-socket-url="<?= $view->e($socket_url ?? \'\') ?>"'), 'Messenger root does not carry a direct socket URL fallback');
@@ -96,9 +100,33 @@ nativeMessengerAssert(str_contains($media, 'sendFiles(files).then'), 'staged cli
 nativeMessengerAssert(str_contains($media, "appPath('/messenger/upload')"), 'Messenger media upload is not BASE_PATH-aware');
 
 $connectionCss = (string) file_get_contents($root . '/assets/css/messenger-connection-ux.css');
-nativeMessengerAssert(str_contains($connectionCss, '.messenger-app .messenger-list__header{height:78px'), 'высота шапки списка чатов не закреплена');
-nativeMessengerAssert(str_contains($connectionCss, 'grid-template-rows:17px 17px'), 'область статуса соединения не резервирует постоянные две строки');
-nativeMessengerAssert(str_contains($connectionCss, '#messenger-connection-text{grid-column:2;grid-row:1'), 'текст статуса соединения не ограничен стабильной строкой');
+nativeMessengerAssert(str_contains($connectionCss, '.messenger-app .messenger-list__header{height:auto;min-height:64px;max-height:none;align-items:center}'), 'шапка списка чатов не использует компактную высоту');
+nativeMessengerAssert(str_contains($connectionCss, '.messenger-list__header .messenger-connection{display:flex!important}'), 'состояние транспорта скрыто в шапке Messenger');
+nativeMessengerAssert(str_contains($view, 'data-state="connecting" data-transport="none" role="status"'), 'Messenger не показывает безопасное начальное состояние транспорта');
+nativeMessengerAssert(str_contains($script, "setConnectionTransport('websocket')"), 'Messenger не отмечает активный WebSocket зелёным транспортным состоянием');
+nativeMessengerAssert(str_contains($script, "setConnectionTransport('long-poll')"), 'Messenger не отмечает активный Long Poll отдельным транспортным состоянием');
+nativeMessengerAssert(str_contains($messengerStyle, '[data-transport="long-poll"]'), 'Messenger не содержит отдельный стиль Long Poll маркера');
+nativeMessengerAssert(str_contains($messengerStyle, '--msg-transport-long-poll:#1687ff'), 'Long Poll маркер не использует ярко-синий цвет');
+nativeMessengerAssert(str_contains($script, "setConnectionState('online', 'WebSocket')"), 'WebSocket не подписан в видимом состоянии соединения');
+nativeMessengerAssert(str_contains($script, "setConnectionState('online', 'Long Poll')"), 'Long Poll не подписан в видимом состоянии соединения');
+nativeMessengerAssert(str_contains($script, 'profileAvatarUrl(user)'), 'Messenger не использует реальные аватары пользователей');
+nativeMessengerAssert(str_contains($view, 'data-can-use-profile='), 'Messenger не получает состояние доступности Profile');
+nativeMessengerAssert(str_contains($script, 'this.canUseProfile'), 'Messenger не отключает Profile-интеграцию вместе с модулем');
+nativeMessengerAssert(str_contains($script, 'readContactAvatarUrls()'), 'Messenger не восстанавливает URL аватара из серверного списка контактов');
+nativeMessengerAssert(str_contains($script, 'this.contactAvatarUrls.get(uid)'), 'Messenger теряет аватар, если realtime payload не содержит marker avatar');
+nativeMessengerAssert(str_contains($script, "image.addEventListener('error'"), 'Messenger не возвращается к инициалу при недоступном изображении');
+nativeMessengerAssert(str_contains($view, 'data-contact-avatar-url='), 'серверный список контактов не экспортирует резервный URL аватара');
+nativeMessengerAssert(str_contains($view, '/assets/img/default_avatar.png'), 'Messenger не использует системный аватар по умолчанию для контактов');
+nativeMessengerAssert(str_contains($script, "storedAvatar !== 'default_img'"), 'Messenger пытается открыть служебный marker default_img как пользовательский файл');
+nativeMessengerAssert(str_contains($script, "const defaultPath = '/assets/img/default_avatar.png'"), 'Messenger не возвращает системный аватар по умолчанию');
+$serverSource = (string) file_get_contents($module . '/socket/NativeMessengerServer.php');
+nativeMessengerAssert(str_contains($serverSource, 'messengerEntitlementChecker'), 'долгоживущий WebSocket не отслеживает отзыв лицензии Messenger');
+nativeMessengerAssert(str_contains($serverSource, "isFeatureEntitled('workspace.messenger')"), 'WebSocket не использует канонический feature Messenger');
+nativeMessengerAssert(str_contains($serverSource, "ModuleUnavailable"), 'WebSocket не завершает старые соединения после отзыва Messenger');
+nativeMessengerAssert(str_contains($view, "!empty(\$workspaceActions['tasks']) || !empty(\$workspaceActions['notes'])"), 'Messenger оставляет пустую кнопку создания при отключённых Notes и Tasks');
+nativeMessengerAssert(str_contains($script, "openCurrentProfile()"), 'Messenger не даёт перейти в профиль собеседника');
+nativeMessengerAssert(str_contains($script, "/profile/user/"), 'Messenger не использует публичный маршрут профиля пользователя');
+nativeMessengerAssert(str_contains($messengerStyle, '.messenger-avatar img{width:100%;height:100%'), 'аватары Messenger не масштабируются внутри круглого контейнера');
 
 $connectionUx = (string) file_get_contents($root . '/assets/js/messenger-connection-ux.js');
 nativeMessengerAssert(str_contains($connectionUx, 'ticketSubject'), 'account-switch ticket identity guard is missing');
@@ -115,6 +143,11 @@ $visualRefresh = (string) file_get_contents($module . '/views/visual-refresh.css
 nativeMessengerAssert(str_contains($visualRefresh, 'grid-template-columns:clamp(248px,23vw,304px)'), 'Messenger balanced desktop column contract is missing');
 nativeMessengerAssert(str_contains($visualRefresh, '@media(max-width:1020px)'), 'Messenger medium-width layout breakpoint is missing');
 nativeMessengerAssert(str_contains($visualRefresh, '@media(max-width:760px)'), 'Messenger mobile single-pane breakpoint is missing');
+nativeMessengerAssert(!str_contains($visualRefresh, '.messenger-chat__actions{max-width:164px;overflow-x:auto'), 'действия чата снова скрываются горизонтальным обрезанием');
+nativeMessengerAssert(!str_contains($visualRefresh, '.messenger-composer__tools{max-width:122px;overflow-x:auto'), 'инструменты ввода снова скрываются горизонтальным обрезанием');
+nativeMessengerAssert(str_contains($messengerStyle, '.messenger-list__empty{min-height:0;flex:1}'), 'пустое состояние списка диалогов не занимает свободную область');
+nativeMessengerAssert(str_contains($script, 'const showEmptyState = this.dialogs.length === 0'), 'Messenger не определяет глобально пустой список диалогов');
+nativeMessengerAssert(str_contains($script, 'this.el.dialogList.hidden = showEmptyState'), 'пустой список диалогов продолжает резервировать место над empty-state');
 $workspaceCss = (string) file_get_contents($module . '/views/workspace-actions.css');
 $storageCss = (string) file_get_contents($module . '/views/storage-files.css');
 nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-task-fields[hidden]{display:none!important}'), 'workspace task fields ignore hidden state');
@@ -124,6 +157,24 @@ nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-source[h
 nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-menu{position:absolute'), 'workspace create menu lost floating popover styling');
 nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-menu[hidden]{display:none!important}'), 'workspace create menu ignores hidden state');
 nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-menu__item{'), 'workspace create menu items lost native styling');
+nativeMessengerAssert(
+    str_contains($messengerStyle, '.messenger-dialog-modal{')
+        && str_contains($messengerStyle, 'width:min(600px,calc(100vw - 32px));')
+        && str_contains($workspaceCss, '.messenger-workspace-dialog__surface{width:100%;overflow:hidden}')
+        && !str_contains($workspaceCss, '.messenger-workspace-dialog{width:'),
+    'workspace modal must inherit the single shared dialog width contract'
+);
+$groupCss = (string) file_get_contents($module . '/views/group.css');
+nativeMessengerAssert(
+    str_contains($groupCss, '.messenger-group-dialog__surface{width:100%}')
+        && !str_contains($groupCss, '.messenger-group-dialog{width:'),
+    'group modal must not override the shared dialog width'
+);
+nativeMessengerAssert(
+    str_contains($storageCss, '.messenger-storage-dialog__surface{width:100%;max-height:')
+        && !str_contains($storageCss, '.messenger-storage-dialog{width:'),
+    'storage modal must not override the shared dialog width'
+);
 nativeMessengerAssert(str_contains($visualRefresh, '#workspace-create-menu{position:absolute!important'), 'final visual layer does not harden workspace popover positioning');
 nativeMessengerAssert(str_contains($visualRefresh, '#workspace-create-menu[hidden]{display:none!important}'), 'final visual layer can expose hidden workspace popover');
 nativeMessengerAssert(str_contains($storageCss, '.messenger-storage-selected[hidden]{display:none!important}'), 'storage selected-file panel ignores hidden state');

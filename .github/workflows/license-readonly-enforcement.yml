@@ -38,7 +38,7 @@ jobs:
             modules/messenger/socket/NativeMessengerServer.php \
             core/Router.php \
             core/routerConfig.php \
-            core/controller.php \
+            core/Controller.php \
             app/views/core/base.php \
             tests/integration/license_runtime_policy_contract.php \
             tests/integration/license_websocket_policy_contract.php; do

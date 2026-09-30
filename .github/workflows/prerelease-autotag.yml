@@ -1,8 +1,8 @@
-name: Publish prerelease after master gate
+name: Публикация проверенного релиза после master gate
 
 on:
   workflow_run:
-    workflows: ["Master release gate"]
+    workflows: ["Stable release gate"]
     types: [completed]
 
 permissions:
@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 jobs:
-  prerelease-publish:
+  release-publish:
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
@@ -22,81 +22,55 @@ jobs:
       GH_TOKEN: ${{ github.token }}
 
     steps:
-      - name: Checkout validated master revision
+      - name: Получить проверенную ревизию master
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
-      - name: Setup PHP 8.3
+      - name: Подготовить PHP 8.3
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           coverage: none
 
-      - name: Tag validated prerelease and dispatch package build
+      - name: Создать неизменяемый тег и запустить сборку релиза
         shell: bash
         run: |
           set -euo pipefail
 
           VERSION="$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")"
-          case "$VERSION" in
-            *-*) ;;
-            *)
-              echo "Stable version $VERSION is intentionally not auto-published."
-              exit 0
-              ;;
-          esac
-
           TAG="v$VERSION"
           NOTES="docs/releases/$TAG.md"
-          test -f "$NOTES"
+
+          test -s "$NOTES"
           test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
 
           if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
             git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
             TAG_SHA="$(git rev-list -n1 "$TAG")"
-
-            if [[ "$TAG_SHA" = "$RELEASE_SHA" ]]; then
-              echo "Tag $TAG already exists at the validated revision."
-            else
-              # Never move a published prerelease tag. A later master revision is
-              # acceptable only when it descends from the tagged product revision
-              # and changes release automation itself, which is excluded from the
-              # hosting bundle. Any product/runtime change remains a hard failure.
-              if ! git merge-base --is-ancestor "$TAG_SHA" "$RELEASE_SHA"; then
-                echo "Tag $TAG points to $TAG_SHA, which is not an ancestor of validated master $RELEASE_SHA." >&2
-                exit 1
-              fi
-
-              while IFS= read -r path; do
-                [[ -z "$path" ]] && continue
-                case "$path" in
-                  .github/workflows/prerelease-autotag.yml) ;;
-                  *)
-                    echo "Tag $TAG already points to $TAG_SHA, but product content changed before validated master $RELEASE_SHA: $path" >&2
-                    exit 1
-                    ;;
-                esac
-              done < <(git diff --name-only "$TAG_SHA..$RELEASE_SHA")
-
-              echo "Tag $TAG remains at immutable product revision $TAG_SHA; validated master differs only by prerelease automation."
+            if [[ "$TAG_SHA" != "$RELEASE_SHA" ]]; then
+              echo "Тег $TAG уже указывает на другую ревизию $TAG_SHA; опубликованный тег не перемещается." >&2
+              exit 1
             fi
+            echo "Тег $TAG уже существует на проверенной ревизии $RELEASE_SHA."
           else
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
             git tag -a "$TAG" "$RELEASE_SHA" -m "Workspace Organizer $VERSION"
             git push origin "refs/tags/$TAG"
-            echo "Published prerelease tag $TAG at $RELEASE_SHA."
+            echo "Опубликован тег $TAG на проверенной ревизии $RELEASE_SHA."
           fi
 
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release $TAG already exists; package dispatch is not needed."
+            gh release edit "$TAG" \
+              --title "Workspace Organizer $VERSION" \
+              --notes-file "$NOTES"
+            echo "GitHub Release $TAG уже существует; описание синхронизировано с финальной документацией."
             exit 0
           fi
 
-          # Pushes made with GITHUB_TOKEN do not recursively start push workflows.
-          # workflow_dispatch is allowed, so explicitly start the existing package job
-          # against the validated tag rather than relying on the tag-push event.
-          gh workflow run hosting-package.yml --ref "$TAG"
-          echo "Dispatched hosting package workflow for $TAG."
+          # Push через GITHUB_TOKEN не запускает следующий push-workflow автоматически,
+          # поэтому сборка явно запускается на уже созданном неизменяемом теге.
+          gh workflow run hosting-package.yml --ref "$TAG" -f version="$TAG"
+          echo "Запущена сборка и публикация GitHub Release $TAG."

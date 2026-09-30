@@ -44,6 +44,7 @@ jobs:
         run: |
           set -euo pipefail
           php -l core/ModuleManifest.php
+          php -l core/ModuleEntitlementResolver.php
           php -l core/ModuleRegistry.php
           php -l core/ModuleLifecycleStore.php
           php -l tests/integration/module_lifecycle_runtime.php

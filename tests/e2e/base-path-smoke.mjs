@@ -207,10 +207,10 @@ try {
   const fileItem = page.locator('.file-manager__item[data-name="base-path"]');
   await fileItem.waitFor({ state: 'visible', timeout: 15000 });
 
-  const fileOpenHref = await fileItem.locator('.file-manager__action-btn').first().getAttribute('href');
-  if (!fileOpenHref?.startsWith(`${basePath}/files/get/`)) {
-    throw new Error(`File link escaped BASE_PATH: ${fileOpenHref}`);
-  }
+  await fileItem.click();
+  await page.locator('#text-preview-modal').waitFor({ state: 'visible', timeout: 5000 });
+  await page.locator('#text-preview-content').filter({ hasText: 'base path upload contract' }).waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('#text-preview-modal .file-manager__modal-close').click();
 
   await fileItem.locator('.btn-delete').click();
   const deleteDialog = page.locator('.wspace-dialog-backdrop:not([hidden])');
@@ -218,8 +218,8 @@ try {
   await deleteDialog.getByRole('button', { name: 'Удалить', exact: true }).click();
   await fileItem.waitFor({ state: 'detached', timeout: 15000 });
 
-  // Messenger must at least render cleanly under the prefix. A separate HTTPS/WSS
-  // workflow owns realtime transport validation.
+  // Messenger должен корректно отображаться под BASE_PATH. Проверка realtime-транспорта
+  // выполняется отдельным HTTPS/WSS workflow.
   await assertPage('/messenger/', '#messenger-app');
 
   if (pageErrors.length > 0) {

@@ -10,13 +10,4 @@ declare(strict_types=1);
  */
 $data = get_defined_vars();
 unset($data['view']);
-$data['module_styles'] = [
-    $view->moduleAsset('profile', 'style.css'),
-    $view->moduleAsset('profile', 'hub.css'),
-    $view->moduleAsset('profile', 'metrics.css'),
-];
-$data['module_scripts'] = [
-    $view->moduleAsset('profile', 'profile.js'),
-];
-
 echo $view->partial('@profile/index', $data);

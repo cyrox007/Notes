@@ -7,14 +7,15 @@ $currentUser = isset($user) && is_array($user) ? $user : [];
 $items = isset($publication_items) && is_array($publication_items) ? $publication_items : [];
 $metrics = isset($items['metrics']) && is_array($items['metrics']) ? $items['metrics'] : [];
 $access = isset($workspaceAccess) && is_array($workspaceAccess) ? $workspaceAccess : [];
+$hasWorkspaceContent = !empty($access['notes']) || !empty($access['tasks']) || !empty($access['files']);
 ?>
-<?php if ($metrics !== []): ?>
+<?php if ($metrics !== [] && $hasWorkspaceContent): ?>
 <section class="profile-metrics ux-section" aria-labelledby="profile-metrics-title">
     <div class="profile-metrics__heading">
         <div>
             <span class="ux-kicker">Сводка</span>
             <h2 id="profile-metrics-title">Моё пространство</h2>
-            <p>Заметки, задачи и файлы вашего аккаунта.</p>
+            <p>Доступные разделы вашего рабочего пространства.</p>
         </div>
         <button type="button" class="profile-metrics__settings" data-profile-edit aria-controls="profile-account-settings" aria-expanded="false">
             <i class="fa fa-cog" aria-hidden="true"></i>
@@ -69,12 +70,13 @@ $access = isset($workspaceAccess) && is_array($workspaceAccess) ? $workspaceAcce
 </section>
 <?php endif; ?>
 
+<?php if ($hasWorkspaceContent): ?>
 <section class="profile-publication ux-section" aria-labelledby="profile-publication-title">
     <div class="ux-section__heading profile-publication__heading">
         <div>
-            <span class="ux-kicker">Публичный профиль</span>
-            <h2 id="profile-publication-title">Что видят другие пользователи</h2>
-            <p>Публикация здесь отдельна от share-ссылок. По умолчанию все заметки, задачи и файлы остаются приватными.</p>
+            <span class="ux-kicker">Видимость профиля</span>
+            <h2 id="profile-publication-title">Что видно другим пользователям</h2>
+            <p>Эти настройки определяют содержимое вашего профиля для других пользователей Workspace.<?php if (!empty($access['files'])): ?> Доступ по специальной ссылке на файл или папку настраивается отдельно в File Manager.<?php endif; ?></p>
         </div>
         <a class="profile-publication__preview" href="<?= $view->e($view->route('profile-public', ['uid' => $currentUser['uid'] ?? ''])) ?>">
             <i class="fa fa-eye" aria-hidden="true"></i>
@@ -85,12 +87,13 @@ $access = isset($workspaceAccess) && is_array($workspaceAccess) ? $workspaceAcce
     <div class="profile-publication__columns">
         <?php
         $groups = [
-            'notes' => ['title' => 'Заметки', 'icon' => 'fa-sticky-note-o', 'type' => 'note', 'empty' => 'Нет заметок для публикации.'],
-            'tasks' => ['title' => 'Задачи', 'icon' => 'fa-check-square-o', 'type' => 'task', 'empty' => 'Нет задач для публикации.'],
-            'files' => ['title' => 'Файлы', 'icon' => 'fa-folder-open-o', 'type' => 'file', 'empty' => 'Нет файлов для публикации.'],
+            'notes' => ['title' => 'Заметки', 'icon' => 'fa-sticky-note-o', 'type' => 'note', 'empty' => 'Нет заметок для настройки видимости.'],
+            'tasks' => ['title' => 'Задачи', 'icon' => 'fa-check-square-o', 'type' => 'task', 'empty' => 'Нет задач для настройки видимости.'],
+            'files' => ['title' => 'Файлы', 'icon' => 'fa-folder-open-o', 'type' => 'file', 'empty' => 'Нет файлов для настройки видимости.'],
         ];
         ?>
         <?php foreach ($groups as $key => $group): ?>
+            <?php if (empty($access[$key])) { continue; } ?>
             <?php $groupItems = isset($items[$key]) && is_array($items[$key]) ? $items[$key] : []; ?>
             <section class="profile-publication__group" aria-labelledby="publication-<?= $view->e($key) ?>-title">
                 <div class="profile-publication__group-title">
@@ -121,7 +124,7 @@ $access = isset($workspaceAccess) && is_array($workspaceAccess) ? $workspaceAcce
                                     <input type="hidden" name="type" value="<?= $view->e($group['type']) ?>">
                                     <input type="hidden" name="uid" value="<?= $view->e($item['uid'] ?? '') ?>">
                                     <input type="hidden" name="public" value="<?= $isPublic ? '0' : '1' ?>">
-                                    <button type="submit" class="profile-publication__toggle"><?= $isPublic ? 'Скрыть' : 'Опубликовать' ?></button>
+                                    <button type="submit" class="profile-publication__toggle"><?= $isPublic ? 'Скрыть из профиля' : 'Показать в профиле' ?></button>
                                 </form>
                             </article>
                         <?php endforeach; ?>
@@ -133,3 +136,4 @@ $access = isset($workspaceAccess) && is_array($workspaceAccess) ? $workspaceAcce
         <?php endforeach; ?>
     </div>
 </section>
+<?php endif; ?>

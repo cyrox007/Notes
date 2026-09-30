@@ -37,6 +37,17 @@ foreach ([
     "PHPSESSID=",
     "uniqueSessions.length !== scenarios.length",
     "authenticated_sessions: uniqueSessions.length",
+    "isExpectedMessengerNavigationAbort",
+    "failure === 'net::ERR_ABORTED'",
+    "failure === 'NS_BINDING_ABORTED'",
+    "normalizedFailure.includes('cancel')",
+    "'/realtime/poll'",
+    "'/socket-ticket'",
+    "assertMessengerDialogGeometry",
+    "'workspace-action-dialog'",
+    "'group-info-dialog'",
+    "'storage-file-dialog'",
+    "surface width differs from dialog",
 ] as $marker) {
     releaseEvidenceAssert(str_contains($browser, $marker), "browser evidence не содержит marker {$marker}");
 }
@@ -73,6 +84,7 @@ foreach ([
     "Fatal error|Uncaught|Parse error",
     "PHP_CLI_SERVER_WORKERS=8",
     "BASE_PATH=/workspace",
+    "branches: [master, '1.0', 'release/**']",
 ] as $marker) {
     releaseEvidenceAssert(str_contains($workflow, $marker), "workflow release evidence не содержит marker {$marker}");
 }

@@ -43,8 +43,8 @@ hostingPackageAssert(
 );
 
 hostingPackageAssert(
-    str_contains($workflow, "permissions:\n  contents: read"),
-    'hosting package workflow must use read-only repository permissions'
+    str_contains($workflow, "permissions:\n  contents: write"),
+    'релизный workflow должен иметь право публикации только после проверки тега и пакета'
 );
 hostingPackageAssert(
     str_contains($workflow, 'workflow_dispatch:')
@@ -63,12 +63,18 @@ hostingPackageAssert(
 );
 
 hostingPackageAssert(
-    str_contains($workflow, 'bootstrap-1.0.2-updater.php')
-        && str_contains($workflow, 'UPDATE_102_BOOTSTRAP=')
-        && str_contains($workflow, 'UPDATE_102_BOOTSTRAP_CHECKSUM=')
-        && str_contains($workflow, '${{ env.UPDATE_102_BOOTSTRAP }}')
-        && str_contains($workflow, '${{ env.UPDATE_102_BOOTSTRAP_CHECKSUM }}'),
-    'релизный artifact должен содержать отдельный bootstrap 1.0.2 и его SHA-256'
+    !str_contains($workflow, 'bootstrap-1.0.2-updater.php')
+        && !str_contains($workflow, 'UPDATE_102_BOOTSTRAP=')
+        && !str_contains($workflow, 'UPDATE_102_BOOTSTRAP_CHECKSUM='),
+    'новые релизы не должны публиковать устаревший bootstrap 1.0.2 отдельными assets'
+);
+hostingPackageAssert(
+    str_contains($workflow, 'bootstrap-1.0.9-updater.php')
+        && str_contains($workflow, 'UPDATE_109_BOOTSTRAP=')
+        && str_contains($workflow, 'UPDATE_109_BOOTSTRAP_CHECKSUM=')
+        && str_contains($workflow, '${{ env.UPDATE_109_BOOTSTRAP }}')
+        && str_contains($workflow, '${{ env.UPDATE_109_BOOTSTRAP_CHECKSUM }}'),
+    'релиз не публикует точечный bootstrap совместимости updater 1.0.9'
 );
 hostingPackageAssert(
     str_contains($workflow, "--exclude 'tests'")
@@ -87,10 +93,15 @@ hostingPackageAssert(
 );
 
 hostingPackageAssert(
-    !str_contains($workflow, 'gh release create')
-        && !str_contains($workflow, 'gh release upload')
-        && !str_contains($workflow, 'contents: write'),
-    'hosting package workflow must not publish the ZIP directly'
+    str_contains($workflow, 'gh release create "$TAG"')
+        && str_contains($workflow, '--verify-tag')
+        && str_contains($workflow, '--notes-file "$NOTES"')
+        && str_contains($workflow, 'if: startsWith(github.ref, \'refs/tags/v\')'),
+    'публичный GitHub Release должен создаваться только для проверенного тега и из уже собранного пакета'
+);
+hostingPackageAssert(
+    !str_contains($workflow, 'gh release upload'),
+    'существующий GitHub Release не должен незаметно перезаписываться'
 );
 
 foreach ([
@@ -100,7 +111,7 @@ foreach ([
     "--exclude 'tools'",
     "--exclude '*.license-secret'",
     "--exclude '*.update-secret'",
-    'Verify tag matches application version',
+    'Проверить соответствие тега версии приложения',
     'EXPECTED_TAG="v$(php -r',
 ] as $marker) {
     hostingPackageAssert(

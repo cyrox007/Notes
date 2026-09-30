@@ -2,7 +2,7 @@ name: Profile browser lifecycle
 
 on:
   push:
-    branches: [master, '1.0']
+    branches: [master, '1.0', 'release/1.0.*-rc']
     paths:
       - 'modules/profile/**'
       - 'app/views/profile_page/**'
@@ -13,7 +13,7 @@ on:
       - 'tests/e2e/router.php'
       - '.github/workflows/profile-browser-lifecycle.yml'
   pull_request:
-    branches: [master, '1.0']
+    branches: [master, '1.0', 'release/1.0.7-rc']
 
 permissions:
   contents: read
@@ -70,8 +70,10 @@ jobs:
           node --check modules/profile/assets/profile.js
           php tests/integration/native_profile_contract.php
           grep -Fq '"mode": "isolated"' modules/profile/module.json
-          grep -Fq "moduleAsset('profile', 'profile.js')" app/views/profile_page/index.php
-          grep -Fq "moduleAsset('profile', 'style.css')" app/views/profile_page/index.php
+          grep -Fq "moduleAsset('profile', 'profile.js')" modules/profile/views/index.php
+          grep -Fq "moduleAsset('profile', 'style.css')" modules/profile/views/index.php
+          ! grep -Fq "moduleAsset('profile'" app/views/profile_page/index.php
+          ! grep -Fq "moduleAsset('profile'" app/views/profile_page/public.php
           test ! -e app/controllers/ProfileController.php
           test ! -e app/controllers/PublicProfileController.php
           test ! -e app/services/ProfilePublicationService.php

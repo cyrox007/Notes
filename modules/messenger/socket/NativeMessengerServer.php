@@ -6,6 +6,7 @@ namespace App\Sockets;
 
 use App\Handlers\SocketTicket;
 use App\Models\UserModel;
+use App\Services\LicenseModuleEntitlementService;
 use App\Services\LicenseRuntimePolicy;
 use App\Services\MaintenanceModeService;
 use App\Services\MessengerRealtimeRevisionService;
@@ -99,6 +100,7 @@ final class NativeMessengerServer
     private Closure $maintenanceStateResolver;
     private Closure $ticketValidator;
     private Closure $messengerPermissionChecker;
+    private Closure $messengerEntitlementChecker;
     private Closure $userUidResolver;
     private bool $running = false;
     private float $lastHeartbeatAt = 0.0;
@@ -119,7 +121,8 @@ final class NativeMessengerServer
         ?callable $ticketValidator = null,
         ?callable $messengerPermissionChecker = null,
         ?callable $userUidResolver = null,
-        ?callable $maintenanceStateResolver = null
+        ?callable $maintenanceStateResolver = null,
+        ?callable $messengerEntitlementChecker = null
     ) {
         if ($this->port < 1 || $this->port > 65535) {
             throw new RuntimeException('Некорректный порт WebSocket listener');
@@ -149,6 +152,10 @@ final class NativeMessengerServer
         $this->messengerPermissionChecker = $messengerPermissionChecker !== null
             ? Closure::fromCallable($messengerPermissionChecker)
             : static fn (int $userId): bool => (new PermissionService())->hasPermission($userId, 'messenger.use');
+        $this->messengerEntitlementChecker = $messengerEntitlementChecker !== null
+            ? Closure::fromCallable($messengerEntitlementChecker)
+            : static fn (): bool => (new LicenseModuleEntitlementService())
+                ->isFeatureEntitled('workspace.messenger');
         $this->userUidResolver = $userUidResolver !== null
             ? Closure::fromCallable($userUidResolver)
             : static function (int $userId): ?string {
@@ -229,7 +236,10 @@ final class NativeMessengerServer
         ModuleRegistry::boot(
             SITEPATH . '/modules',
             Version::VERSION,
-            new ModuleLifecycleStore(DatabaseManager::getInstance())
+            new ModuleLifecycleStore(
+                DatabaseManager::getInstance(),
+                new LicenseModuleEntitlementService(),
+            )
         );
     }
 
@@ -447,7 +457,12 @@ final class NativeMessengerServer
             return false;
         }
 
-        if (!is_int($userId) || $userId < 1 || !$this->canUseMessenger($userId)) {
+        if (!is_int($userId) || $userId < 1) {
+            $client->rejectHttp(403, 'Forbidden');
+            return false;
+        }
+
+        if (!$this->messengerEntitled() || !$this->canUseMessenger($userId)) {
             $client->rejectHttp(403, 'Forbidden');
             return false;
         }
@@ -585,6 +600,11 @@ final class NativeMessengerServer
             return;
         }
 
+        if (!$this->messengerEntitled()) {
+            $this->rejectUnavailableMessenger($client);
+            return;
+        }
+
         if (!$this->canUseMessenger($client->userId)) {
             $client->closeWithCode(1008, 'Permission revoked');
             return;
@@ -656,6 +676,7 @@ final class NativeMessengerServer
             $handler = new $fullClassName();
             $handler->$methodName($handlerConnections, $client, $client->uid, $payload);
             if ($mutatingAction) {
+                $this->publishMutationRevision($transport);
                 UserActionLog::emit(
                     $client->userId,
                     'ws.' . strtolower($className . '.' . $methodName),
@@ -682,6 +703,36 @@ final class NativeMessengerServer
         }
     }
 
+    private function publishMutationRevision(string $transport): void
+    {
+        try {
+            $service = $this->fallbackRevisionService ?? new MessengerRealtimeRevisionService();
+            $knownRevision = $this->lastFallbackRevision;
+            $revision = $service->bump();
+
+            // Локальная мутация может безопасно продвинуть известную ревизию
+            // только на один шаг. Если получился разрыв, между проверками уже
+            // была внешняя HTTP Long Poll мутация. Не маскируем её локальной
+            // записью: ближайший pollFallbackRevisionBridge отправит
+            // sync_required всем WebSocket-клиентам.
+            if (
+                $this->fallbackRevisionService !== null
+                && $revision === ($knownRevision + 1)
+            ) {
+                $this->lastFallbackRevision = $revision;
+            }
+        } catch (Throwable $e) {
+            // Сама пользовательская мутация уже успешно завершилась. Ошибка
+            // оптимизационного сигнала не должна превращать её в отказ:
+            // Long Poll имеет периодическую полную сверку как страховку.
+            error_log(sprintf(
+                'Messenger realtime revision publish failed via %s: %s',
+                $transport,
+                $e->getMessage()
+            ));
+        }
+    }
+
     private function isReadOnlyAction(string $className, string $methodName): bool
     {
         return isset(self::READ_ONLY_ROUTES[$className])
@@ -700,6 +751,26 @@ final class NativeMessengerServer
             'code' => $state['code'],
             'message' => $state['message'],
         ]);
+    }
+
+    private function messengerEntitled(): bool
+    {
+        try {
+            return (bool) ($this->messengerEntitlementChecker)();
+        } catch (Throwable $e) {
+            error_log('Проверка лицензионного разрешения Messenger завершилась ошибкой: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    private function rejectUnavailableMessenger(SocketConnection $client): void
+    {
+        $this->sendJson($client, [
+            'action' => 'ModuleUnavailable',
+            'module' => 'messenger',
+            'message' => 'Модуль Messenger больше не разрешён текущей лицензией.',
+        ]);
+        $client->closeWithCode(1008, 'Messenger unavailable');
     }
 
     private function canUseMessenger(int $userId): bool
@@ -742,6 +813,20 @@ final class NativeMessengerServer
 
         if (($now - $this->lastHeartbeatAt) >= self::HEARTBEAT_INTERVAL_SECONDS) {
             $this->lastHeartbeatAt = $now;
+
+            if (!$this->messengerEntitled()) {
+                foreach ($this->connections as $userConnections) {
+                    foreach ($userConnections as $connection) {
+                        if ($connection instanceof SocketConnection) {
+                            $this->rejectUnavailableMessenger($connection);
+                        }
+                    }
+                }
+                error_log('WebSocket Messenger остановлен после отзыва лицензионного разрешения workspace.messenger');
+                $this->running = false;
+                return;
+            }
+
             foreach ($this->connections as $uid => $userConnections) {
                 foreach ($userConnections as $connectionId => $connection) {
                     if (!$connection instanceof NativeSocketConnection || $connection->isDestroyed()) {

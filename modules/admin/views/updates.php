@@ -18,6 +18,10 @@ $canStage = !empty($state['can_stage']);
 $canManageStage = !empty($state['can_manage_stage']);
 $canApply = !empty($state['can_apply']);
 $operatorReady = !empty($state['operator_ready']);
+$installMode = (string) ($state['install_mode'] ?? 'web');
+$installModeLabel = $installMode === 'process'
+    ? 'Ускоренный'
+    : 'Совместимый с хостингом';
 $updateAccessReady = !empty($state['update_access_ready']);
 $updateAccessAutomatic = !empty($state['update_access_automatic']);
 $updateAccessMode = (string) ($state['update_access_mode'] ?? 'auto');
@@ -98,6 +102,7 @@ ob_start();
             <div class="admin-status-card"><label>HTTPS</label><strong><?= !empty($state['openssl_available']) ? 'Доступен' : 'Недоступен' ?></strong></div>
             <div class="admin-status-card"><label>Подготовка пакета</label><strong><?= !empty($state['stage_configured']) ? 'Готова' : 'Не настроена' ?></strong></div>
             <div class="admin-status-card"><label>Установка</label><strong><?= $operatorReady ? 'Готова' : 'Требует настройки' ?></strong></div>
+            <div class="admin-status-card"><label>Режим установки</label><strong><?= $view->e($installModeLabel) ?></strong></div>
         </div>
 
         <?php if ($trustedKeys !== []): ?>
@@ -142,7 +147,7 @@ ob_start();
                     <div class="admin-status-card"><label>Файлов в ZIP</label><strong><?= $view->e($result['archive_files'] ?? 0) ?></strong></div>
                 <?php else: ?>
                     <div class="admin-status-card"><label>Установленная версия</label><strong><?= $view->e($result['installed_version'] ?? ($result['target_version'] ?? '—')) ?></strong></div>
-                    <div class="admin-status-card"><label>Транзакция</label><strong><code><?= $view->e($result['transaction_id'] ?? '—') ?></code></strong></div>
+                    <div class="admin-status-card"><label>Состояние</label><strong>Установка завершена</strong></div>
                 <?php endif; ?>
             </div>
 
@@ -167,10 +172,42 @@ ob_start();
             <?php endif; ?>
 
             <?php if ($installableResult && $canApply): ?>
-                <form action="<?= $view->e($view->route('admin_updates_apply')) ?>" method="post" class="custom-fields-form" data-confirm-message="Установить подтверждённое обновление? Система временно включит режим обслуживания, создаст проверенную резервную копию и выполнит миграции." data-confirm-title="Установка обновления" data-confirm-danger="true" data-confirm-text="Установить">
+                <div class="admin-update-progress" data-update-progress hidden role="status" aria-live="polite">
+                    <strong data-update-progress-title>Установка выполняется</strong>
+                    <p data-update-progress-message>Обновлятор последовательно проверит пакет, создаст резервную точку, заменит файлы, выполнит миграции и проверит результат. При ошибке восстановление запускается автоматически.</p>
+                    <progress data-update-progress-bar max="100" value="0"></progress>
+                    <ol>
+                        <li>Повторная проверка подписи и SHA-256</li>
+                        <li>Проверенная резервная копия кода и базы</li>
+                        <li>Пофайловое обновление рабочей версии</li>
+                        <li>Миграции базы данных</li>
+                        <li>Проверка версии и работоспособности</li>
+                    </ol>
+                    <small>Страница обновится после подтверждённого результата. Повторно запускать установку не нужно.</small>
+                </div>
+                <?php if ($installMode === 'web'): ?>
+                    <form
+                        action="<?= $view->e($view->route('admin_updates_apply')) ?>"
+                        method="post"
+                        class="custom-fields-form"
+                        data-update-install-form
+                        data-update-web-mode="true"
+                        data-update-start-url="<?= $view->e($view->route('admin_updates_web_start')) ?>"
+                        data-update-step-url="<?= $view->e($view->route('admin_updates_web_step')) ?>"
+                        data-update-web-confirm="Установить подтверждённое обновление? Система сама выполнит все шаги и автоматически восстановит предыдущую версию при ошибке."
+                    >
+                <?php else: ?>
+                    <form action="<?= $view->e($view->route('admin_updates_apply')) ?>" method="post" class="custom-fields-form" data-update-install-form data-confirm-message="Установить подтверждённое обновление? Система временно включит режим обслуживания, создаст проверенную резервную копию и выполнит миграции." data-confirm-title="Установка обновления" data-confirm-danger="true" data-confirm-text="Установить">
+                <?php endif; ?>
                     <?= $view->csrfInput() ?>
                     <div class="custom-fields-form__footer">
-                        <small>Перед изменением рабочих файлов обновлятор повторно сверит версию и SHA-256 с тем релизом, который показан выше.</small>
+                        <small>
+                            <?php if ($installMode === 'web'): ?>
+                                Используется совместимый режим без запуска дочерних процессов и PHP CLI. Дополнительные действия не требуются.
+                            <?php else: ?>
+                                Перед изменением рабочих файлов обновлятор повторно сверит версию и SHA-256 с тем релизом, который показан выше.
+                            <?php endif; ?>
+                        </small>
                         <button class="admin-action admin-action--primary" type="submit"><i class="fa fa-arrow-circle-up" aria-hidden="true"></i> Установить обновление</button>
                     </div>
                 </form>
@@ -230,14 +267,15 @@ ob_start();
             <div>
                 <span class="admin-panel-card__kicker">Границы безопасности</span>
                 <h2>Как выполняется установка</h2>
-                <p>Админ-панель не реализует отдельный механизм обновления, а запускает существующий транзакционный updater с жёсткой привязкой к подтверждённому релизу.</p>
+                <p>Админ-панель использует один транзакционный updater с жёсткой привязкой к подтверждённому релизу. На ограниченном хостинге он автоматически выполняется пошагово через PHP без shell и дочерних процессов.</p>
             </div>
         </div>
         <ul class="admin-safety-list">
             <li>перед установкой повторно проверяются подписанный manifest, версия и SHA-256 пакета;</li>
             <li>режим обслуживания включается только после успешной проверки и подготовки пакета;</li>
             <li>до изменения рабочих файлов создаются и проверяются rollback backup и журнал транзакции;</li>
-            <li>переключение кода и миграции выполняет один существующий транзакционный контур;</li>
+            <li>переключение кода и миграции выполняет один транзакционный контур независимо от режима хостинга;</li>
+            <li><code>proc_open</code> и PHP CLI используются только как необязательное ускорение и не требуются для установки из админ-панели;</li>
             <li>при ошибке выполняется автоматический rollback, а после аварийного обрыва recovery автоматически продолжается по журналу.</li>
         </ul>
     </section>
@@ -259,5 +297,6 @@ echo $view->layout('core/base', [
     ],
     'module_scripts' => [
         $view->moduleAsset('admin', 'admin-settings-nav.js'),
+        $view->moduleAsset('admin', 'admin-updates.js'),
     ],
 ], $content);

@@ -106,11 +106,46 @@ final class UpdateAccessBootstrap
             ];
         }
 
-        $licenseToken = trim($licenseToken);
-        if ($licenseToken === '' || !str_starts_with($licenseToken, 'wo1.')) {
-            throw new RuntimeException('Для автоматической настройки обновлений нужна действующая лицензия');
+        return $this->issueCredentials(
+            $installationId,
+            $this->validatedLicenseToken($licenseToken),
+            $feedUrl,
+            'license'
+        );
+    }
+
+    /**
+     * Принудительно заменяет credential после подтверждённого HTTP 401.
+     * Старый файл сохраняется в диагностическом карантине и больше не
+     * участвует в запросах. Повторная выдача разрешена только по действующей
+     * установочной лицензии.
+     *
+     * @return array{status:string,source:string,path?:string}
+     */
+    public function refresh(string $installationId, string $licenseToken): array
+    {
+        if (UpdateDownloadCredentials::accessMode() === 'offline') {
+            return ['status' => 'offline', 'source' => 'configuration'];
         }
 
+        $licenseToken = $this->validatedLicenseToken($licenseToken);
+        UpdateDownloadCredentials::quarantine();
+
+        return $this->issueCredentials(
+            $installationId,
+            $licenseToken,
+            self::feedUrl(),
+            'license-refresh'
+        );
+    }
+
+    /** @return array{status:string,source:string,path:string} */
+    private function issueCredentials(
+        string $installationId,
+        string $licenseToken,
+        string $feedUrl,
+        string $source
+    ): array {
         $baseUrl = self::serverBaseUrl();
         $transport = $this->transport ?? new UpdateHttpsTransport(5, 15);
         $result = $transport->activateWithLicense(
@@ -135,9 +170,19 @@ final class UpdateAccessBootstrap
 
         return [
             'status' => 'ready',
-            'source' => 'license',
+            'source' => $source,
             'path' => $path,
         ];
+    }
+
+    private function validatedLicenseToken(string $licenseToken): string
+    {
+        $licenseToken = trim($licenseToken);
+        if ($licenseToken === '' || !str_starts_with($licenseToken, 'wo1.')) {
+            throw new RuntimeException('Для автоматической настройки обновлений нужна действующая лицензия');
+        }
+
+        return $licenseToken;
     }
 
     private function existingCredentials(string $installationId, string $feedUrl): ?UpdateDownloadCredentials

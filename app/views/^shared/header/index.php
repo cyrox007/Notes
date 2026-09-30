@@ -79,6 +79,10 @@ $avatarUrl = ($avatar === '' || $avatar === 'default_img')
                                     action="<?= $view->e($view->route('admin_updates_apply_latest')) ?>"
                                     method="post"
                                     data-update-apply-form
+                                    data-update-install-form
+                                    data-update-web-mode="true"
+                                    data-update-start-url="<?= $view->e($view->route('admin_updates_web_start_latest')) ?>"
+                                    data-update-step-url="<?= $view->e($view->route('admin_updates_web_step')) ?>"
                                     hidden
                                 >
                                     <?= $view->csrfInput() ?>
@@ -131,8 +135,10 @@ $avatarUrl = ($avatar === '' || $avatar === 'default_img')
             <?php if (!empty($access['tasks'])): ?><a href="<?= $view->e($view->route('tasks')) ?>" data-command-item data-command-text="задачи tasks kanban"><i class="fa fa-check-square-o" aria-hidden="true"></i><span><strong>Задачи</strong><small>Открыть задачи</small></span></a><?php endif; ?>
             <?php if (!empty($access['files'])): ?><a href="<?= $view->e($view->route('files')) ?>" data-command-item data-command-text="файлы files"><i class="fa fa-folder-o" aria-hidden="true"></i><span><strong>Файлы</strong><small>Открыть файловый менеджер</small></span></a><?php endif; ?>
             <?php if (!empty($access['messenger'])): ?><a href="<?= $view->e($view->route('messenger')) ?>" data-command-item data-command-text="мессенджер messenger сообщения"><i class="fa fa-comment-o" aria-hidden="true"></i><span><strong>Мессенджер</strong><small>Открыть чаты</small></span></a><?php endif; ?>
-            <?php if (!empty($access['profile'])): ?><a href="<?= $view->e($view->route('profile')) ?>" data-command-item data-command-text="профиль profile настройки"><i class="fa fa-user-o" aria-hidden="true"></i><span><strong>Профиль</strong><small>Профиль и настройки</small></span></a><?php endif; ?>
+            <?php if (!empty($access['profile'])): ?><a href="<?= $view->e($view->route('profile')) ?>" data-command-item data-command-text="профиль profile аккаунт личный"><i class="fa fa-user-o" aria-hidden="true"></i><span><strong>Профиль</strong><small>Личный аккаунт и публикации</small></span></a><?php endif; ?>
             <?php if (!empty($access['admin'])): ?><a href="<?= $view->e($view->route('adminpanel')) ?>" data-command-item data-command-text="админ admin пользователи роли"><i class="fa fa-users" aria-hidden="true"></i><span><strong>Админ</strong><small>Управление системой</small></span></a><?php endif; ?>
+            <?php if (!empty($access['license_manage']) && !empty($access['admin'])): ?><a href="<?= $view->e($view->route('admin_settings')) ?>" data-command-item data-command-text="настройки settings системные админ"><i class="fa fa-cog" aria-hidden="true"></i><span><strong>Настройки</strong><small>Системные настройки Workspace</small></span></a><?php endif; ?>
+            <?php if (!empty($access['license_manage']) && empty($access['admin'])): ?><a href="<?= $view->e($view->route('system_license')) ?>" data-command-item data-command-text="лицензия license активация"><i class="fa fa-key" aria-hidden="true"></i><span><strong>Лицензия</strong><small>Активация и восстановление доступа</small></span></a><?php endif; ?>
         </div>
         <p class="workspace-command-palette__empty" data-command-empty hidden>Ничего не найдено</p>
     </section>

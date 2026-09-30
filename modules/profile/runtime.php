@@ -6,10 +6,12 @@ foreach ([
     '/ProfileCapability.php',
     '/services/ProfileMetricsService.php',
     '/services/ProfilePublicationService.php',
+    '/services/AvatarImageProcessor.php',
     '/services/UserAvatarService.php',
     '/middlewares/RequireProfileUse.php',
     '/controllers/ProfileController.php',
     '/controllers/PublicProfileController.php',
+    '/controllers/UserDirectoryController.php',
     '/ProfileRuntimeProvider.php',
 ] as $relativePath) {
     $path = $moduleRoot . $relativePath;

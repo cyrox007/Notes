@@ -6,9 +6,11 @@ namespace App\Controllers\Admin;
 
 use App\Helpers\CryptMethods;
 use App\Models\UserModel;
+use App\Services\FileUploadLimitService;
 use App\Services\StorageQuotaService;
 use App\Services\TwoFactorPolicyService;
 use Core\Controller;
+use Core\ModuleRuntimeLoader;
 use Core\Request;
 use Core\RequestOrigin;
 use Core\Router;
@@ -25,13 +27,30 @@ final class SettingsController extends Controller
             return;
         }
 
-        $service = new StorageQuotaService();
+        $filesEnabled = $this->filesModuleEnabled();
+        $defaultQuotaBytes = 0;
+        $storageUsers = [];
+        $uploadLimitBytes = 0;
+        $uploadLimitDiagnostics = [];
+
+        if ($filesEnabled) {
+            $service = new StorageQuotaService();
+            $uploadLimitService = new FileUploadLimitService();
+            $uploadLimitBytes = $uploadLimitService->configuredLimitBytes();
+            $defaultQuotaBytes = $service->defaultQuotaBytes();
+            $storageUsers = $service->adminUsage($actorId);
+            $uploadLimitDiagnostics = $uploadLimitService->diagnostics($uploadLimitBytes);
+        }
+
         $flash = $request->session('settings_flash');
         $request->unsetSession('settings_flash');
         $this->render_template('@admin/settings', [
             'user' => $user,
-            'default_quota_bytes' => $service->defaultQuotaBytes(),
-            'storage_users' => $service->adminUsage($actorId),
+            'files_enabled' => $filesEnabled,
+            'default_quota_bytes' => $defaultQuotaBytes,
+            'storage_users' => $storageUsers,
+            'upload_limit_bytes' => $uploadLimitBytes,
+            'upload_limit_diagnostics' => $uploadLimitDiagnostics,
             'two_factor_required' => (new TwoFactorPolicyService())->required(),
             'settings_flash' => is_array($flash) ? $flash : null,
         ]);
@@ -78,6 +97,7 @@ final class SettingsController extends Controller
     public function saveDefaultQuota(Request $request): void
     {
         try {
+            $this->requireFilesModule();
             $quota = $this->megabytesToBytes($request->post('default_quota_mb'));
             (new StorageQuotaService())->setDefaultQuota((int) $request->session('user_id', 0), $quota);
             $this->redirectWithFlash($request, true, 'Лимит по умолчанию обновлён');
@@ -86,9 +106,28 @@ final class SettingsController extends Controller
         }
     }
 
+    public function saveUploadLimit(Request $request): void
+    {
+        try {
+            $this->requireFilesModule();
+            $limit = $this->megabytesToBytes($request->post('max_upload_mb'));
+            $service = new FileUploadLimitService();
+            $service->setConfiguredLimit((int) $request->session('user_id', 0), $limit);
+            $diagnostics = $service->diagnostics($limit);
+
+            $message = !empty($diagnostics['conflict'])
+                ? 'Лимит сохранён, но серверные ограничения конфликтуют с ним. Ниже показано, что нужно изменить.'
+                : 'Максимальный размер одного файла обновлён';
+            $this->redirectWithFlash($request, true, $message);
+        } catch (\Throwable $e) {
+            $this->redirectWithFlash($request, false, $e->getMessage() ?: 'Не удалось сохранить лимит загрузки');
+        }
+    }
+
     public function saveUserQuota(Request $request): void
     {
         try {
+            $this->requireFilesModule();
             $raw = trim((string) $request->post('quota_mb', ''));
             $quota = $raw === '' ? null : $this->megabytesToBytes($raw);
             (new StorageQuotaService())->setUserQuota(
@@ -99,6 +138,21 @@ final class SettingsController extends Controller
             $this->redirectWithFlash($request, true, $quota === null ? 'Персональный лимит сброшен' : 'Персональный лимит обновлён');
         } catch (\Throwable $e) {
             $this->redirectWithFlash($request, false, $e->getMessage() ?: 'Не удалось сохранить персональный лимит');
+        }
+    }
+
+    private function filesModuleEnabled(): bool
+    {
+        if (!ModuleRuntimeLoader::isBooted()) {
+            return false;
+        }
+        return ModuleRuntimeLoader::getInstance()->capabilities()->has('workspace.files');
+    }
+
+    private function requireFilesModule(): void
+    {
+        if (!$this->filesModuleEnabled()) {
+            throw new \DomainException('Модуль файлов отключён или не разрешён лицензией', 409);
         }
     }
 

@@ -440,6 +440,8 @@ try {
     $controllerSource = (string) file_get_contents($root . '/modules/admin/controllers/UpdateController.php');
     $serviceSource = (string) file_get_contents($root . '/modules/admin/services/AdminUpdateService.php');
     $viewSource = (string) file_get_contents($root . '/modules/admin/views/updates.php');
+    $updatesJsSource = (string) file_get_contents($root . '/modules/admin/assets/admin-updates.js');
+    $webRunnerSource = (string) file_get_contents($root . '/assets/js/update-web-runner.js');
     $routerSource = (string) file_get_contents($root . '/modules/admin/AdminRuntimeProvider.php');
 
     adminUpdateAssert(!str_contains($controllerSource, "'stage_dir' =>"), 'admin controller persists/displays absolute stage path');
@@ -454,9 +456,11 @@ try {
     adminUpdateAssert(!str_contains($serviceSource, 'UpdateBackupManager'), 'admin service bypasses the operator flow and reaches backup mutation directly');
     adminUpdateAssert(str_contains($serviceSource, 'expectedTargetVersionCode'), 'admin service lost reviewed target version binding');
     adminUpdateAssert(str_contains($serviceSource, 'expectedPackageSha256'), 'admin service lost reviewed package hash binding');
-    adminUpdateAssert(str_contains($serviceSource, 'public function applyLatest'), 'admin service lost one-click update entrypoint');
+    adminUpdateAssert(str_contains($serviceSource, 'public function applyLatest'), 'admin service lost no-JS one-click fallback');
+    adminUpdateAssert(str_contains($serviceSource, 'public function beginLatestWebApply'), 'admin service lost shared-hosting one-click web entrypoint');
     adminUpdateAssert(str_contains($controllerSource, 'public function status'), 'admin controller lost background update status');
-    adminUpdateAssert(str_contains($controllerSource, 'public function applyLatest'), 'admin controller lost one-click update action');
+    adminUpdateAssert(str_contains($controllerSource, 'public function applyLatest'), 'admin controller lost no-JS one-click fallback');
+    adminUpdateAssert(str_contains($controllerSource, 'public function webStartLatest'), 'admin controller lost one-click web transaction start');
     adminUpdateAssert(str_contains($viewSource, "route('admin_updates_check')"), 'admin update check action is missing');
     adminUpdateAssert(str_contains($viewSource, "route('admin_updates_stage')"), 'admin update stage action is missing');
     adminUpdateAssert(str_contains($viewSource, '$view->csrfInput()'), 'admin update forms lost CSRF token');
@@ -478,6 +482,40 @@ try {
         'admin update view does not explain automatic recovery'
     );
     adminUpdateAssert(
+        !str_contains($viewSource, '<label>Транзакция</label>'),
+        'Успешный Admin-сценарий не должен показывать служебный ID транзакции'
+    );
+    $safeApplyMethod = '';
+    if (preg_match(
+        '/private function safeApplyResult\\(array \\$result\\): array\\s*\\{(?<body>.*?)\\n    \\}/s',
+        $controllerSource,
+        $safeApplyMatch
+    ) === 1) {
+        $safeApplyMethod = (string) ($safeApplyMatch['body'] ?? '');
+    }
+    adminUpdateAssert(
+        $safeApplyMethod !== '' && !str_contains($safeApplyMethod, "'transaction_id'"),
+        'Безопасный результат успешной установки не должен переносить ID транзакции в Admin'
+    );
+    adminUpdateAssert(
+        str_contains($viewSource, 'data-update-progress')
+            && str_contains($viewSource, 'data-update-install-form')
+            && str_contains($viewSource, "moduleAsset('admin', 'admin-updates.js')"),
+        'Admin не показывает понятное состояние выполнения установки'
+    );
+    adminUpdateAssert(
+        str_contains($updatesJsSource, 'Установка выполняется')
+            && str_contains($updatesJsSource, 'event.defaultPrevented')
+            && str_contains($updatesJsSource, 'control.disabled = true'),
+        'Сценарий прогресса установки не защищён от отменённой или повторной отправки'
+    );
+    adminUpdateAssert(
+        str_contains($updatesJsSource, 'window.wspace?.updateWebRunner')
+            && str_contains($webRunnerSource, 'X-Workspace-Update-Transaction')
+            && str_contains($webRunnerSource, 'MAX_TRANSIENT_RETRIES'),
+        'Admin и глобальный one-click не используют единый пошаговый web-updater'
+    );
+    adminUpdateAssert(
         str_contains($viewSource, 'admin-update-safety'),
         'admin update view lost compact safety section'
     );
@@ -488,6 +526,11 @@ try {
     adminUpdateAssert(
         str_contains($routerSource, "[LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_apply_latest'"),
         'one-click apply route lost login/settings/CSRF middleware chain'
+    );
+    adminUpdateAssert(str_contains($routerSource, "->add('POST', '/updates/web-start-latest'"), 'one-click web start route must be POST');
+    adminUpdateAssert(
+        str_contains($routerSource, "[LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_web_start_latest'"),
+        'one-click web start route lost login/settings/CSRF middleware chain'
     );
     adminUpdateAssert(str_contains($routerSource, "->add('POST', '/updates/stage'"), 'admin stage route must remain POST');
     adminUpdateAssert(

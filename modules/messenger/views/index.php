@@ -51,16 +51,17 @@ ob_start();
     data-can-create-note="<?= !empty($workspaceActions['notes']) ? '1' : '0' ?>"
     data-can-create-task="<?= !empty($workspaceActions['tasks']) ? '1' : '0' ?>"
     data-can-use-files="<?= !empty($workspaceActions['files']) ? '1' : '0' ?>"
+    data-can-use-profile="<?= !empty($workspaceActions['profile']) ? '1' : '0' ?>"
     data-socket-url="<?= $view->e($socket_url ?? '') ?>"
     data-socket-ticket="<?= $view->e($socket_ticket ?? '') ?>"
 >
     <aside class="messenger-list" aria-label="Список диалогов">
         <header class="messenger-list__header">
             <div>
-                <h1 class="messenger-list__title">Сообщения</h1>
-                <div class="messenger-connection" id="messenger-connection" data-state="connecting"><span class="messenger-connection__dot" aria-hidden="true"></span><span id="messenger-connection-text">Подключение…</span></div>
+                <h1 class="messenger-list__title">Чаты</h1>
+                <div class="messenger-connection" id="messenger-connection" data-state="connecting" data-transport="none" role="status" aria-live="polite"><span class="messenger-connection__dot" aria-hidden="true"></span><span id="messenger-connection-text">Подключение…</span></div>
             </div>
-            <button class="messenger-icon-button" id="new-chat-button" type="button" title="Новый чат" aria-label="Новый чат"><i class="fa fa-pencil-square-o" aria-hidden="true"></i></button>
+            <button class="messenger-icon-button" id="new-chat-button" type="button" title="Новый чат" aria-label="Новый чат"><i class="fa fa-plus" aria-hidden="true"></i></button>
         </header>
 
         <div class="messenger-search"><i class="fa fa-search" aria-hidden="true"></i><input id="dialog-search" type="search" autocomplete="off" placeholder="Поиск чатов"></div>
@@ -81,7 +82,7 @@ ob_start();
             <header class="messenger-chat__header">
                 <button class="messenger-icon-button messenger-chat__back" id="chat-back-button" type="button" aria-label="Назад к диалогам"><i class="fa fa-arrow-left" aria-hidden="true"></i></button>
                 <div class="messenger-avatar" id="chat-avatar" aria-hidden="true">?</div>
-                <div class="messenger-chat__identity"><strong id="chat-title">Диалог</strong><span id="chat-subtitle">&nbsp;</span></div>
+                <div class="messenger-chat__identity" id="chat-identity"><strong id="chat-title">Диалог</strong><span id="chat-subtitle">&nbsp;</span></div>
                 <div class="messenger-chat__actions" aria-label="Действия с чатом">
                     <button class="messenger-icon-button" id="chat-group-button" type="button" hidden title="Информация о группе" aria-label="Информация о группе"><i class="fa fa-users" aria-hidden="true"></i></button>
                     <button class="messenger-icon-button" id="chat-pin-button" type="button" title="Закрепить чат" aria-label="Закрепить чат"><i class="fa fa-thumb-tack" aria-hidden="true"></i></button>
@@ -97,8 +98,9 @@ ob_start();
 
             <footer class="messenger-composer">
                 <div class="messenger-composer__tools" aria-label="Вложения и действия">
+                    <?php if (!empty($workspaceActions['tasks']) || !empty($workspaceActions['notes'])): ?>
                     <div class="messenger-workspace-create">
-                        <button class="messenger-icon-button" id="workspace-create-button" type="button" title="Создать задачу или заметку" aria-label="Создать задачу или заметку" aria-expanded="false" aria-controls="workspace-create-menu"><i class="fa fa-plus" aria-hidden="true"></i></button>
+                        <button class="messenger-icon-button" id="workspace-create-button" type="button" title="Создать объект Workspace" aria-label="Создать объект Workspace" aria-expanded="false" aria-controls="workspace-create-menu"><i class="fa fa-plus" aria-hidden="true"></i></button>
                         <div class="messenger-workspace-menu" id="workspace-create-menu" hidden>
                             <?php if (!empty($workspaceActions['tasks'])): ?>
                                 <button class="messenger-workspace-menu__item" type="button" data-create-workspace="task">
@@ -114,6 +116,7 @@ ob_start();
                             <?php endif; ?>
                         </div>
                     </div>
+                    <?php endif; ?>
                     <?php if (!empty($workspaceActions['files'])): ?>
                         <button class="messenger-icon-button" id="message-storage-button" type="button" title="Файл из личного хранилища" aria-label="Файл из личного хранилища"><i class="fa fa-cloud" aria-hidden="true"></i></button>
                     <?php endif; ?>
@@ -135,10 +138,31 @@ ob_start();
         <div class="messenger-contact-list" id="contact-list">
             <?php if ($contactRows !== []): ?>
                 <?php foreach ($contactRows as $contact): ?>
-                    <?php if (!is_array($contact)) { continue; } $searchText = trim((string) ($contact['firstname'] ?? '') . ' ' . (string) ($contact['lastname'] ?? '') . ' ' . (string) ($contact['username'] ?? '')); ?>
-                    <label class="messenger-contact" data-contact-search="<?= $view->e($searchText) ?>">
-                        <input class="messenger-contact__checkbox" type="checkbox" value="<?= $view->e($contact['uid'] ?? '') ?>">
-                        <span class="messenger-avatar messenger-avatar--small" aria-hidden="true"><i class="fa fa-user"></i></span>
+                    <?php
+                        if (!is_array($contact)) { continue; }
+                        $searchText = trim((string) ($contact['firstname'] ?? '') . ' ' . (string) ($contact['lastname'] ?? '') . ' ' . (string) ($contact['username'] ?? ''));
+                        $contactUid = (string) ($contact['uid'] ?? '');
+                        $contactAvatarValue = trim((string) ($contact['avatar'] ?? ''));
+                        $contactAvatar = empty($workspaceActions['profile']) || $contactUid === ''
+                            ? ''
+                            : (($contactAvatarValue === '' || $contactAvatarValue === 'default_img')
+                                ? $baseUrl . '/assets/img/default_avatar.png'
+                                : $baseUrl . '/profile/avatar/' . rawurlencode($contactUid));
+                    ?>
+                    <label
+                        class="messenger-contact"
+                        data-contact-search="<?= $view->e($searchText) ?>"
+                        data-contact-uid="<?= $view->e($contactUid) ?>"
+                        data-contact-avatar-url="<?= $view->e($contactAvatar) ?>"
+                    >
+                        <input class="messenger-contact__checkbox" type="checkbox" value="<?= $view->e($contactUid) ?>">
+                        <span class="messenger-avatar messenger-avatar--small" aria-hidden="true">
+                            <?php if ($contactAvatar !== ''): ?>
+                                <img src="<?= $view->e($contactAvatar) ?>" alt="">
+                            <?php else: ?>
+                                <i class="fa fa-user"></i>
+                            <?php endif; ?>
+                        </span>
                         <span class="messenger-contact__identity"><strong><?= $view->e($contact['firstname'] ?? '') ?> <?= $view->e($contact['lastname'] ?? '') ?></strong><small>@<?= $view->e($contact['username'] ?? '') ?></small></span>
                     </label>
                 <?php endforeach; ?>
@@ -234,10 +258,29 @@ ob_start();
                     <div class="messenger-group-add-list" id="group-add-contact-list">
                         <?php if ($contactRows !== []): ?>
                             <?php foreach ($contactRows as $contact): ?>
-                                <?php if (!is_array($contact)) { continue; } ?>
-                                <label class="messenger-contact messenger-group-add-contact" data-contact-uid="<?= $view->e($contact['uid'] ?? '') ?>">
-                                    <input class="messenger-contact__checkbox messenger-group-add-checkbox" type="checkbox" value="<?= $view->e($contact['uid'] ?? '') ?>">
-                                    <span class="messenger-avatar messenger-avatar--small" aria-hidden="true"><i class="fa fa-user"></i></span>
+                                <?php
+                                    if (!is_array($contact)) { continue; }
+                                    $groupContactUid = (string) ($contact['uid'] ?? '');
+                                    $groupContactAvatarValue = trim((string) ($contact['avatar'] ?? ''));
+                                    $groupContactAvatar = empty($workspaceActions['profile']) || $groupContactUid === ''
+                                        ? ''
+                                        : (($groupContactAvatarValue === '' || $groupContactAvatarValue === 'default_img')
+                                            ? $baseUrl . '/assets/img/default_avatar.png'
+                                            : $baseUrl . '/profile/avatar/' . rawurlencode($groupContactUid));
+                                ?>
+                                <label
+                                    class="messenger-contact messenger-group-add-contact"
+                                    data-contact-uid="<?= $view->e($groupContactUid) ?>"
+                                    data-contact-avatar-url="<?= $view->e($groupContactAvatar) ?>"
+                                >
+                                    <input class="messenger-contact__checkbox messenger-group-add-checkbox" type="checkbox" value="<?= $view->e($groupContactUid) ?>">
+                                    <span class="messenger-avatar messenger-avatar--small" aria-hidden="true">
+                                        <?php if ($groupContactAvatar !== ''): ?>
+                                            <img src="<?= $view->e($groupContactAvatar) ?>" alt="">
+                                        <?php else: ?>
+                                            <i class="fa fa-user"></i>
+                                        <?php endif; ?>
+                                    </span>
                                     <span class="messenger-contact__identity"><strong><?= $view->e($contact['firstname'] ?? '') ?> <?= $view->e($contact['lastname'] ?? '') ?></strong><small>@<?= $view->e($contact['username'] ?? '') ?></small></span>
                                 </label>
                             <?php endforeach; ?>

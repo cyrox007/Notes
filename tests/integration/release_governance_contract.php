@@ -159,7 +159,9 @@ $releaseGate = requireFileText($releaseGatePath);
 if (!str_contains($releaseGate, 'php tests/integration/release_governance_contract.php')) {
     failContract('release-gate.yml не запускает release_governance_contract.php');
 }
-if (preg_match("/pull_request:\\s*\\n\\s*branches:\\s*\\[master,\\s*'1\\.0'\\]/m", $releaseGate) !== 1) {
+$releaseGatePullRequest = pullRequestTriggerBody($releaseGate);
+if (!str_contains($releaseGatePullRequest, 'master')
+    || !str_contains($releaseGatePullRequest, "'1.0'")) {
     failContract('release-gate.yml должен запускаться на PR в master и 1.0');
 }
 

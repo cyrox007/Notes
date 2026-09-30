@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS `module_lifecycle` (
         'discovered','installed','enabled','disabled','degraded','quarantined','uninstalled'
     ) NOT NULL,
     `effective_state` ENUM(
-        'discovered','installed','enabled','disabled','incompatible','degraded','quarantined','uninstalled'
+        'discovered','installed','enabled','disabled','unlicensed','incompatible','degraded','quarantined','uninstalled'
     ) NOT NULL,
     `last_error` VARCHAR(1000) DEFAULT NULL,
     `discovered_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

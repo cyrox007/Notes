@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Sockets;
 
 use App\Models\DialogModel;
+use App\Services\MessengerActivityService;
 use App\Services\MessengerService;
 use App\Services\RolePolicyService;
 use Core\DatabaseManager;
@@ -26,16 +27,19 @@ final class MessangerSocket
     ];
 
     private RolePolicyService $policies;
+    private MessengerActivityService $activities;
     private DatabaseManager $db;
 
     public function __construct(
         private ?MessengerService $messenger = null,
         ?RolePolicyService $policies = null,
-        ?DatabaseManager $db = null
+        ?DatabaseManager $db = null,
+        ?MessengerActivityService $activities = null
     ) {
         $this->db = $db ?? DatabaseManager::getInstance();
         $this->messenger ??= new MessengerService($this->db);
         $this->policies = $policies ?? new RolePolicyService($this->db);
+        $this->activities = $activities ?? new MessengerActivityService($this->db);
     }
 
     public function get_dialogs(
@@ -262,6 +266,7 @@ final class MessangerSocket
                 throw new InvalidArgumentException('Параметр active должен быть boolean');
             }
             $active = filter_var($payload['active'], FILTER_VALIDATE_BOOLEAN);
+            $this->activities->publish($userUid, $dialogUid, $activity, $active);
 
             $this->broadcast($connections, $userUid, $dialogUid, [
                 'action' => 'activity',
@@ -282,6 +287,7 @@ final class MessangerSocket
     ): void {
         $this->guard($connection, function () use ($connections, $userUid, $payload, $typing): void {
             $dialogUid = $this->requiredString($payload, 'dialog_uid');
+            $this->activities->publish($userUid, $dialogUid, 'typing', $typing);
             $this->broadcast($connections, $userUid, $dialogUid, [
                 'action' => $typing ? 'user_typing' : 'typing_stop',
                 'dialog_uid' => $dialogUid,

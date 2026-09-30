@@ -75,7 +75,7 @@ $partialData = [
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="description" content="Workspace Organizer — заметки, задачи, файлы и коммуникация в одном рабочем пространстве">
+    <meta name="description" content="Workspace Organizer — единое рабочее пространство с подключаемыми модулями">
     <meta name="theme-color" content="#f4f6fb">
     <meta name="color-scheme" content="light dark">
     <script nonce="<?= $view->e($cspNonce) ?>">
@@ -111,7 +111,9 @@ $partialData = [
     <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/font-awesome/css/font-awesome.min.css')) ?>">
     <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/css/findability.css')) ?>">
     <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/css/feedback.css')) ?>">
+<?php if (!empty($access['messenger'])): ?>
     <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/css/messenger-connection-ux.css')) ?>">
+<?php endif; ?>
 <?php foreach ($moduleStyles as $moduleStyle): ?>
     <link rel="stylesheet" href="<?= $view->e($assetUrl($moduleStyle)) ?>">
 <?php endforeach; ?>
@@ -134,11 +136,19 @@ if (is_file($controlsPath) && is_readable($controlsPath)) {
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/theme-mode.js')) ?>" defer></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/findability.js')) ?>" defer></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/feedback.js')) ?>" defer></script>
+<?php if (!empty($access['admin'])): ?>
+    <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/update-web-runner.js')) ?>" defer></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/update-notifications.js')) ?>" defer></script>
+<?php endif; ?>
+<?php if (!empty($access['messenger'])): ?>
+    <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/messenger-tab-coordinator.js')) ?>" defer></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/messenger-global-notifications.js')) ?>" defer></script>
+<?php endif; ?>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/usability-actions.js')) ?>" defer></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/release-polish.js')) ?>" defer></script>
+<?php if (!empty($access['messenger'])): ?>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/messenger-connection-ux.js')) ?>" defer></script>
+<?php endif; ?>
 <?php foreach ($moduleScripts as $moduleScript): ?>
     <script src="<?= $view->e($assetUrl($moduleScript)) ?>" defer></script>
 <?php endforeach; ?>

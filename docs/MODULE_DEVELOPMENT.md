@@ -123,10 +123,11 @@ Example for a non-bundled module with no database ownership:
   ],
   "package": {
     "bundled": false,
-    "default_enabled": false
+    "default_enabled": false,
+    "required": false
   },
   "license": {
-    "feature": null
+    "feature": "workspace.example"
   },
   "runtime": {
     "mode": "isolated",
@@ -141,27 +142,20 @@ Example for a non-bundled module with no database ownership:
 }
 ```
 
-Important fields:
+Важные поля:
 
-- `core.min` / `core.max_exclusive` define compatibility with the running
-  Core. A valid but incompatible module is recorded as `incompatible` and is
-  never runtime-enabled.
-- `dependencies` contains module IDs, not PHP package names.
-- `capabilities` declares every service exported to other modules.
-- `package.bundled=false` is the normal value for an independently installed
-  module.
-- `package.default_enabled` does not auto-enable a newly discovered
-  non-bundled module. Explicit operator installation and enablement are still
-  required.
-- `license.feature` is the central entitlement identifier. Use `null` for a
-  module that has no separate entitlement. A module must not implement its own
-  license-signing trust root.
-- production modules must use `runtime.mode = isolated`.
-- `runtime.entrypoint` must be a relative PHP path inside the module root.
-- `storage_namespaces` declares private-storage namespaces owned by the
-  module.
-- `database` declares database ownership used by install/update/health
-  composition.
+- `core.min` / `core.max_exclusive` задают совместимость с текущим Core. Корректный, но несовместимый модуль получает состояние `incompatible` и не запускается.
+- `dependencies` содержит идентификаторы модулей, а не имена PHP-пакетов.
+- `capabilities` перечисляет сервисы, экспортируемые соседним модулям.
+- `package.bundled=false` — обычное значение для отдельно устанавливаемого модуля.
+- `package.default_enabled` не включает автоматически новый небандловый модуль: установка и включение требуют явного операторского действия.
+- `package.required` не является способом для стороннего модуля запретить своё отключение. В 1.0.13 Core разрешает `required=true` только для системного `admin`; обычный модуль обязан использовать `false`.
+- `license.feature` — обязательный центральный идентификатор разрешения. Начиная с 1.0.13 production-модуль не должен использовать `null`: без явного feature он не получает право на запуск.
+- Модуль не создаёт собственный корень доверия и не проверяет подпись лицензии самостоятельно.
+- production-модули используют `runtime.mode = isolated`.
+- `runtime.entrypoint` — относительный PHP-путь внутри каталога модуля.
+- `storage_namespaces` перечисляет принадлежащие модулю области private storage.
+- `database` описывает владение схемой и миграциями для установки, обновления и healthcheck.
 
 ## 5. runtime.php
 

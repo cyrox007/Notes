@@ -34,17 +34,43 @@ nativeProfileAssert(str_contains($index, "route('profile-set')"), 'profile updat
 nativeProfileAssert(str_contains($index, "route('profile-password-set')"), 'password update route is missing');
 nativeProfileAssert(str_contains($index, "route('profile-delete')"), 'account deactivation route is missing');
 nativeProfileAssert(str_contains($index, '$access[\'notes\']'), 'profile workspace links are not RBAC-gated');
+foreach ([
+    "moduleAsset('profile', 'style.css')",
+    "moduleAsset('profile', 'hub.css')",
+    "moduleAsset('profile', 'metrics.css')",
+    "moduleAsset('profile', 'profile.js')",
+    "/assets/css/totp-qr.css",
+    "/assets/js/totp-qr.js",
+] as $assetMarker) {
+    nativeProfileAssert(
+        str_contains($index, $assetMarker),
+        "profile hub does not own required asset: {$assetMarker}"
+    );
+}
 
 $publication = (string) file_get_contents($root . '/modules/profile/views/publication.php');
 nativeProfileAssert(str_contains($publication, "route('profile-publication')"), 'publication action route is missing');
 nativeProfileAssert(str_contains($publication, '$view->csrfInput()'), 'publication forms lost CSRF input');
 nativeProfileAssert(str_contains($publication, 'is_profile_public'), 'publication visibility state is missing');
 nativeProfileAssert(str_contains($publication, '$view->e($label)'), 'publication item labels are not escaped');
+nativeProfileAssert(str_contains($publication, '$hasWorkspaceContent'), 'Profile не скрывает общий блок содержимого при отключённых прикладных модулях');
+nativeProfileAssert(str_contains($publication, "if (empty(\$access[\$key])) { continue; }"), 'Profile не исключает отключённые модули из настроек видимости');
+nativeProfileAssert(str_contains($publication, "!empty(\$access['files'])"), 'Profile не скрывает File Manager-специфичное пояснение');
 
 $public = (string) file_get_contents($root . '/modules/profile/views/public.php');
 nativeProfileAssert(str_contains($public, '$view->layout(\'core/base\''), 'public profile does not use native application shell');
 nativeProfileAssert(str_contains($public, '$publicContent'), 'public profile no longer renders publication service output');
 nativeProfileAssert(!str_contains($public, "route('files_get'"), 'public profile unexpectedly exposes protected file download links');
+foreach ([
+    "moduleAsset('profile', 'style.css')",
+    "moduleAsset('profile', 'hub.css')",
+    "moduleAsset('profile', 'metrics.css')",
+] as $assetMarker) {
+    nativeProfileAssert(
+        str_contains($public, $assetMarker),
+        "public profile does not own required asset: {$assetMarker}"
+    );
+}
 
 $script = (string) file_get_contents($root . '/modules/profile/assets/profile.js');
 nativeProfileAssert($script !== '', 'isolated profile JS bundle is missing');
@@ -62,6 +88,10 @@ nativeProfileAssert(str_contains($hubCss, 'var(--module-accent)'), 'Profile hub 
 $publicationService = (string) file_get_contents($root . '/modules/profile/services/ProfilePublicationService.php');
 $metricsService = (string) file_get_contents($root . '/modules/profile/services/ProfileMetricsService.php');
 $profileController = (string) file_get_contents($root . '/modules/profile/controllers/ProfileController.php');
+$publicProfileController = (string) file_get_contents($root . '/modules/profile/controllers/PublicProfileController.php');
+nativeProfileAssert(str_contains($publicProfileController, "'profile' => \$profile"), 'публичный профиль не передаётся в представление как массив');
+nativeProfileAssert(!str_contains($publicProfileController, "'profile' => (object) \$profile"), 'публичный профиль снова ломается из-за несовместимого типа данных');
+nativeProfileAssert(!str_contains($publicProfileController, 'hash_equals((string) $layoutUser[\'uid\'], $uid)'), 'предпросмотр собственного публичного профиля снова перенаправляется в обычный профиль');
 foreach (['notes', 'tasks', 'user_files'] as $foreignTable) {
     nativeProfileAssert(
         !preg_match('/\b(?:from|join|update|into)\s+`?' . preg_quote($foreignTable, '/') . '`?\b/i', $publicationService),
@@ -96,8 +126,9 @@ $indexBridge = (string) file_get_contents($root . '/app/views/profile_page/index
 $publicBridge = (string) file_get_contents($root . '/app/views/profile_page/public.php');
 $publicationBridge = (string) file_get_contents($root . '/app/views/profile_page/publication.php');
 nativeProfileAssert(str_contains($indexBridge, "partial('@profile/index'"), 'profile hub compatibility bridge does not target isolated view');
-nativeProfileAssert(str_contains($indexBridge, "moduleAsset('profile', 'profile.js')"), 'profile hub bridge does not load isolated JS');
+nativeProfileAssert(!str_contains($indexBridge, "moduleAsset('profile'"), 'profile hub bridge still owns isolated module assets');
 nativeProfileAssert(str_contains($publicBridge, "partial('@profile/public'"), 'public profile bridge does not target isolated view');
+nativeProfileAssert(!str_contains($publicBridge, "moduleAsset('profile'"), 'public profile bridge still owns isolated module assets');
 nativeProfileAssert(str_contains($publicationBridge, "partial('@profile/publication'"), 'publication bridge does not target isolated view');
 
 foreach ([

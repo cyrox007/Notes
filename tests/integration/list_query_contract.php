@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__, 2);
-require $root . '/core/request.php';
+require $root . '/core/Request.php';
 require $root . '/app/services/ListQuery.php';
 
 use App\Services\ListQuery;

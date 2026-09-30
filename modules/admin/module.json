@@ -13,7 +13,8 @@
   ],
   "package": {
     "bundled": true,
-    "default_enabled": true
+    "default_enabled": true,
+    "required": true
   },
   "license": {
     "feature": "workspace.admin"

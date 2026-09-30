@@ -10,9 +10,9 @@
 .sidebar__menu::-webkit-scrollbar{width:6px}
 .sidebar__menu-link,.sidebar__utility{min-height:40px;display:flex;align-items:center;gap:10px;border:0;border-radius:10px;padding:0 10px;background:transparent;color:var(--ui-muted);font:inherit;font-size:13px;font-weight:500;text-align:left;cursor:pointer}
 .sidebar__menu-link:hover,.sidebar__utility:hover{background:var(--ui-surface-soft);color:var(--ui-text)}
-.sidebar__menu-link[aria-current="page"]{background:var(--module-soft,var(--ui-primary-soft));color:var(--module-accent,var(--ui-primary))}
+.sidebar__menu-link[aria-current="page"],.sidebar__utility[aria-current="page"]{background:var(--module-soft,var(--ui-primary-soft));color:var(--module-accent,var(--ui-primary))}
 .sidebar__menu-icon{width:24px;height:24px;flex:0 0 24px;display:grid;place-items:center;border-radius:7px;font-size:14px}
-.sidebar__menu-link[aria-current="page"] .sidebar__menu-icon{background:color-mix(in srgb,var(--ui-primary) 10%,transparent)}
+.sidebar__menu-link[aria-current="page"] .sidebar__menu-icon,.sidebar__utility[aria-current="page"] .sidebar__menu-icon{background:color-mix(in srgb,var(--ui-primary) 10%,transparent)}
 .sidebar__menu-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sidebar__menu-link[data-nav-key="messenger"]{position:relative}
 .sidebar__menu-badge{min-width:20px;height:20px;margin-left:auto;display:inline-grid;place-items:center;padding:0 6px;border-radius:999px;background:var(--ui-action);color:#fff;font-size:10px;font-weight:800;line-height:1;box-shadow:0 0 0 2px var(--ui-surface-soft)}

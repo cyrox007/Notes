@@ -124,30 +124,26 @@
 
         function updateCountdown() {
             if (!reconnectAt) return;
+
+            if (app.longPollActive === true) {
+                renderState('online', 'В сети', { hideRetry: true });
+                return;
+            }
+
             const remaining = Math.max(0, Math.ceil((reconnectAt - Date.now()) / 1000));
-            const fallback = app.longPollActive === true;
-            const state = fallback ? 'fallback' : 'connecting';
-            const text = fallback
-                ? (remaining > 0
-                    ? `Long Poll · WebSocket через ${remaining} с`
-                    : 'Long Poll · проверяем WebSocket…')
-                : (remaining > 0
-                    ? `Связь потеряна · повтор через ${remaining} с`
-                    : 'Восстанавливаем соединение…');
-            originalSetConnectionState(state, text);
+            const text = remaining > 0
+                ? `Связь потеряна · повтор через ${remaining} с`
+                : 'Восстанавливаем соединение…';
+            originalSetConnectionState('connecting', text);
             connectionText?.setAttribute('title', text);
-            root.dataset.connectionState = state;
+            root.dataset.connectionState = 'connecting';
             banner.hidden = false;
-            banner.dataset.state = state;
+            banner.dataset.state = 'connecting';
             banner.dataset.reason = 'server';
-            bannerIcon.className = fallback ? 'fa fa-exchange' : 'fa fa-refresh';
-            bannerText.textContent = fallback
-                ? (remaining > 0
-                    ? `Работа продолжается через Long Poll. WebSocket переподключится через ${remaining} с.`
-                    : 'Работа продолжается через Long Poll. Проверяем WebSocket…')
-                : (remaining > 0
-                    ? `Соединение прервано. Повторная попытка через ${remaining} с.`
-                    : 'Восстанавливаем соединение с сервером…');
+            bannerIcon.className = 'fa fa-refresh';
+            bannerText.textContent = remaining > 0
+                ? `Соединение прервано. Повторная попытка через ${remaining} с.`
+                : 'Восстанавливаем соединение с сервером…';
             bannerAction.hidden = true;
         }
 
@@ -214,10 +210,7 @@
                 } catch (error) {
                     console.warn('Messenger reconnect ticket refresh failed', error);
                     if (app.longPollActive === true) {
-                        renderState('fallback', 'Long Poll · WebSocket недоступен', {
-                            reason: 'server',
-                            bannerText: 'Messenger работает через Long Poll. WebSocket будет проверен повторно.'
-                        });
+                        renderState('online', 'В сети', { hideRetry: true });
                     } else {
                         renderState('offline', 'Сервер временно недоступен', {
                             reason: 'server',
@@ -260,17 +253,15 @@
             }
 
             reconnectInFlight = true;
-            renderState(
-                app.longPollActive === true ? 'fallback' : 'connecting',
-                app.longPollActive === true ? 'Long Poll · проверяем WebSocket…' : 'Восстанавливаем соединение…',
-                {
+            if (app.longPollActive === true) {
+                renderState('online', 'В сети', { hideRetry: true });
+            } else {
+                renderState('connecting', 'Восстанавливаем соединение…', {
                     reason: 'server',
-                    bannerText: app.longPollActive === true
-                        ? 'Messenger продолжает работать через Long Poll. Проверяем WebSocket в фоне…'
-                        : 'Восстанавливаем соединение с сервером…',
+                    bannerText: 'Восстанавливаем соединение с сервером…',
                     hideRetry: true
-                }
-            );
+                });
+            }
 
             try {
                 const refreshed = await refreshTicket();
@@ -290,7 +281,7 @@
             if (navigator.onLine === false) {
                 renderState('offline', 'Нет интернета', {
                     reason: 'network',
-                    bannerText: 'Нет подключения к интернету. Повторное подключение начнётся автоматически после восстановления сети.',
+                    bannerText: 'Нет подключения к интернету. Синхронизация восстановится автоматически после появления сети.',
                     hideRetry: true
                 });
                 return;
@@ -328,19 +319,48 @@
         retryButton.addEventListener('click', retryNow);
         bannerAction.addEventListener('click', retryNow);
 
+        document.addEventListener('wspace:messenger-session-unavailable', () => {
+            sessionUnavailable = true;
+            clearReconnectTimer();
+            app.stopLongPoll?.();
+            renderState('offline', 'Сессия завершена', {
+                reason: 'session',
+                bannerText: 'Сессия завершена. Обновите страницу и войдите снова.',
+                actionText: 'Обновить страницу'
+            });
+        });
+
         window.addEventListener('offline', () => {
             clearReconnectTimer();
+
+            // Сразу переводим realtime в ожидающий Long Poll режим. Это важно
+            // для браузеров, которые не всегда мгновенно присылают WebSocket close
+            // при смене сети или выходе ноутбука из сна.
+            app.socketAuthorized = false;
+            try {
+                app.socket?.close();
+            } catch (_) {
+                // Закрытие уже оборванного WebSocket безопасно игнорируется.
+            }
+            app.startLongPoll?.('ожидание сети');
+            app.pauseLongPollRequest?.();
+
             renderState('offline', 'Нет интернета', {
                 reason: 'network',
-                bannerText: 'Нет подключения к интернету. Повторное подключение начнётся автоматически после восстановления сети.',
+                bannerText: 'Нет подключения к интернету. Синхронизация восстановится автоматически после появления сети.',
                 hideRetry: true
             });
         });
 
         window.addEventListener('online', () => {
-            if (!sessionUnavailable && (!app.socket || app.socket.readyState !== WebSocket.OPEN)) {
-                clearReconnectTimer();
-                app.scheduleReconnect({ immediate: true });
+            if (!sessionUnavailable) {
+                app.startLongPoll?.('сеть восстановлена');
+                app.resumeLongPoll?.();
+
+                if (!app.socket || app.socket.readyState !== WebSocket.OPEN) {
+                    clearReconnectTimer();
+                    app.scheduleReconnect({ immediate: true });
+                }
             }
             verifySessionIdentity();
         });

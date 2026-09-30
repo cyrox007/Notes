@@ -41,16 +41,19 @@ updateNotificationAssert(
     'Центр уведомлений не привязан к фоновой проверке обновлений'
 );
 updateNotificationAssert(
-    str_contains($header, "route('admin_updates_apply_latest')"),
-    'В уведомлении отсутствует одношаговая установка последнего релиза'
+    str_contains($header, "route('admin_updates_web_start_latest')")
+        && str_contains($header, "route('admin_updates_web_step')")
+        && str_contains($header, 'data-update-web-mode="true"'),
+    'Глобальное уведомление не запускает последнее обновление через пошаговый web-updater'
 );
 updateNotificationAssert(
     str_contains($header, '$view->csrfInput()'),
     'Форма одношагового обновления потеряла CSRF-защиту'
 );
 updateNotificationAssert(
-    str_contains($base, '/assets/js/update-notifications.js'),
-    'Глобальная оболочка не подключает автоматическую проверку обновлений'
+    str_contains($base, '/assets/js/update-web-runner.js')
+        && str_contains($base, '/assets/js/update-notifications.js'),
+    'Глобальная оболочка не подключает общий web-updater и автоматическую проверку обновлений'
 );
 updateNotificationAssert(
     str_contains($script, 'const CHECK_INTERVAL_MS = 5 * 60 * 1000'),
@@ -61,8 +64,10 @@ updateNotificationAssert(
     'Клиент уведомлений не выполняет фоновую проверку'
 );
 updateNotificationAssert(
-    str_contains($script, "form.addEventListener('submit'"),
-    'Кнопка обновления не фиксирует начало одношаговой установки'
+    str_contains($script, "form.addEventListener('submit'")
+        && str_contains($script, 'window.wspace?.updateWebRunner')
+        && str_contains($script, 'event.preventDefault()'),
+    'Кнопка обновления не использует общий пошаговый web-updater'
 );
 updateNotificationAssert(
     str_contains($router, "->add('GET', '/updates/status'"),
@@ -73,6 +78,11 @@ updateNotificationAssert(
     'Маршрут одношаговой установки отсутствует'
 );
 updateNotificationAssert(
+    str_contains($router, "->add('POST', '/updates/web-start-latest'")
+        && str_contains($router, "'admin_updates_web_start_latest'"),
+    'Маршрут пошагового запуска последнего обновления отсутствует'
+);
+updateNotificationAssert(
     str_contains($controller, 'public function status'),
     'Контроллер не публикует безопасный фоновый статус обновления'
 );
@@ -81,16 +91,24 @@ updateNotificationAssert(
     'Контроллер не поддерживает одношаговую установку'
 );
 updateNotificationAssert(
+    str_contains($controller, 'public function webStartLatest')
+        && str_contains($service, 'public function beginLatestWebApply'),
+    'Глобальный one-click не переведён на пошаговый web-контур'
+);
+updateNotificationAssert(
     str_contains($service, 'public function applyLatest'),
     'Сервис не выполняет проверку и установку последнего релиза одним действием'
 );
 updateNotificationAssert(
-    str_contains($installer, "'proc_open для автоматических обновлений'"),
-    'Установщик не проверяет возможность запуска обновлятора'
+    !str_contains($installer, "'proc_open для автоматических обновлений'")
+        && !str_contains($installer, "'PHP CLI для автоматических обновлений'"),
+    'Установщик не должен блокировать shared hosting из-за process API или PHP CLI'
 );
 updateNotificationAssert(
-    str_contains($installer, "'PHP CLI для автоматических обновлений'"),
-    'Установщик не проверяет доступность PHP CLI'
+    str_contains($service, 'beginWebApply')
+        && str_contains($service, 'stepWebApply')
+        && str_contains($service, 'applyWebSynchronously'),
+    'Однокнопочная установка потеряла совместимый web-режим'
 );
 updateNotificationAssert(
     str_contains($installer, "'openssl' => extension_loaded('openssl')"),
@@ -200,14 +218,21 @@ updateNotificationAssert(
     'Сквозной релизный тест не запускает браузерную проверку автоматического отката'
 );
 updateNotificationAssert(
-    str_contains($adminUpdateE2e, '1.0.6-broken-e2e')
-        && str_contains($adminUpdateE2e, 'намеренный отказ миграции'),
-    'Сквозной релизный тест не содержит намеренно падающий подписанный пакет'
+    str_contains($adminUpdateE2e, 'name: 1.0.12 → 1.0.13 сквозной updater')
+        && str_contains($adminUpdateE2e, "E2E_SOURCE_VERSION=%s\\n' '1.0.12'")
+        && str_contains($adminUpdateE2e, "E2E_TARGET_VERSION=%s\\n' '1.0.13-admin-e2e'")
+        && !str_contains($adminUpdateE2e, 'bootstrap-1.0.9-updater.php'),
+    'Сквозной релизный тест не закрепляет штатную границу обновления 1.0.12 → 1.0.13 без bootstrap'
 );
 updateNotificationAssert(
-    str_contains($adminUpdateE2e, '1.0.6-health-broken-e2e')
-        && str_contains($adminUpdateE2e, 'намеренный отказ post-health'),
-    'Сквозной релизный тест не проверяет автоматический откат после ошибки post-health'
+    str_contains($adminUpdateE2e, '1.0.13-broken-e2e')
+        && str_contains($adminUpdateE2e, 'намеренный отказ миграции'),
+    'Сквозной релизный тест не содержит намеренно падающий подписанный пакет 1.0.13'
+);
+updateNotificationAssert(
+    str_contains($adminUpdateE2e, '1.0.13-health-broken-e2e')
+        && str_contains($adminUpdateE2e, 'намеренный отказ post-health после успешной миграции'),
+    'Сквозной релизный тест не проверяет автоматический откат 1.0.13 после ошибки post-health после успешной миграции'
 );
 updateNotificationAssert(
     str_contains($adminUpdateE2e, 'rollback_verified'),
@@ -219,7 +244,7 @@ updateNotificationAssert(
     'Сквозной релизный тест не доказывает recovery на следующем HTTP-запросе после обрыва процесса'
 );
 updateNotificationAssert(
-    str_contains($rollbackBrowserE2e, 'Рабочая версия автоматически восстановлена и проверена'),
+    str_contains($rollbackBrowserE2e, 'Предыдущая рабочая версия автоматически восстановлена'),
     'Браузерный тест не подтверждает автоматическое восстановление пользователю'
 );
 

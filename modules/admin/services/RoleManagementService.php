@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use Core\DatabaseManager;
+use Core\ModuleRegistry;
 use DomainException;
 use InvalidArgumentException;
 use Throwable;
@@ -39,9 +40,13 @@ final class RoleManagementService
     {
         $this->requireRoleManager($actorId);
 
-        $permissionRows = $this->db->fetchAll(
-            'SELECT id,code,module_id,description FROM permissions ORDER BY module_id ASC,code ASC'
-        );
+        $activeModules = array_fill_keys($this->activeModuleIds(), true);
+        $permissionRows = array_values(array_filter(
+            $this->db->fetchAll(
+                'SELECT id,code,module_id,description FROM permissions ORDER BY module_id ASC,code ASC'
+            ),
+            static fn (array $permission): bool => isset($activeModules[(string) ($permission['module_id'] ?? '')])
+        ));
         $rolePermissionRows = $this->db->fetchAll(
             'SELECT rp.role_id,p.code FROM role_permissions rp '
             . 'JOIN permissions p ON p.id = rp.permission_id ORDER BY rp.role_id,p.code'
@@ -78,6 +83,9 @@ final class RoleManagementService
 
             $policySections = [];
             foreach (RolePolicyService::definitions() as $module => $definitions) {
+                if (!isset($activeModules[$module])) {
+                    continue;
+                }
                 $items = [];
                 foreach ($definitions as $key => $definition) {
                     $isExplicit = array_key_exists($key, $explicitPolicies[$module] ?? []);
@@ -154,7 +162,7 @@ final class RoleManagementService
             'roles' => $roles,
             'permissions' => $permissionRows,
             'users' => $users,
-            'policy_definitions' => RolePolicyService::definitions(),
+            'policy_definitions' => array_intersect_key(RolePolicyService::definitions(), $activeModules),
         ];
     }
 
@@ -215,8 +223,9 @@ final class RoleManagementService
                 );
             }
 
+            $preservedPermissionCodes = $this->inactivePermissionCodesForRole($roleId);
             $this->db->execute('DELETE FROM role_permissions WHERE role_id = :role_id', [':role_id' => $roleId]);
-            foreach ($permissionCodes as $code) {
+            foreach (array_values(array_unique(array_merge($preservedPermissionCodes, $permissionCodes))) as $code) {
                 $this->db->execute(
                     'INSERT INTO role_permissions (role_id,permission_id) '
                     . 'SELECT :role_id,id FROM permissions WHERE code = :code',
@@ -370,11 +379,50 @@ final class RoleManagementService
             $params[$placeholder] = $code;
         }
         $existing = $this->db->fetchAll(
-            'SELECT code FROM permissions WHERE code IN (' . implode(',', $placeholders) . ')',
+            'SELECT code,module_id FROM permissions WHERE code IN (' . implode(',', $placeholders) . ')',
             $params
         );
         if (count($existing) !== count($codes)) {
             throw new InvalidArgumentException('Одна из выбранных возможностей не существует', 422);
+        }
+
+        $activeModules = array_fill_keys($this->activeModuleIds(), true);
+        foreach ($existing as $permission) {
+            if (!isset($activeModules[(string) ($permission['module_id'] ?? '')])) {
+                throw new InvalidArgumentException('Нельзя изменить разрешение отключённого модуля', 409);
+            }
+        }
+        return $codes;
+    }
+
+    /** @return list<string> */
+    private function activeModuleIds(): array
+    {
+        try {
+            return ModuleRegistry::getInstance()->enabledComposition();
+        } catch (\Throwable) {
+            // Служебные и изолированные проверки могут вызывать сервис без
+            // полного bootstrap. В обычном HTTP runtime реестр уже загружен.
+            return array_keys(self::MODULE_LABELS);
+        }
+    }
+
+    /** @return list<string> */
+    private function inactivePermissionCodesForRole(int $roleId): array
+    {
+        $activeModules = array_fill_keys($this->activeModuleIds(), true);
+        $rows = $this->db->fetchAll(
+            'SELECT p.code,p.module_id FROM role_permissions rp '
+            . 'JOIN permissions p ON p.id = rp.permission_id '
+            . 'WHERE rp.role_id = :role_id ORDER BY p.code',
+            [':role_id' => $roleId]
+        );
+
+        $codes = [];
+        foreach ($rows as $row) {
+            if (!isset($activeModules[(string) ($row['module_id'] ?? '')])) {
+                $codes[] = (string) $row['code'];
+            }
         }
         return $codes;
     }

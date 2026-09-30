@@ -98,6 +98,10 @@ moduleAssert($registry->defaultComposition() === $expected, 'default bundled com
 
 foreach ($registry->all() as $id => $manifest) {
     moduleAssert($manifest->id() === $id, "manifest id mismatch for {$id}");
+    moduleAssert(
+        $manifest->required() === ($id === 'admin'),
+        "{$id} required-system flag drifted"
+    );
     moduleAssert(strlen($manifest->integrityHash()) === 64, "{$id} manifest has no SHA-256 integrity hash");
     moduleAssert($manifest->licenseFeature() !== null, "{$id} has no entitlement feature");
     moduleAssert($manifest->isCompatibleWithCore(Version::VERSION), "{$id} is incompatible with current core");
@@ -154,6 +158,29 @@ try {
     moduleAssert($GLOBALS['moduleRoutes'] === ['beta', 'alpha'], 'route provider order drifted');
 } finally {
     unset($GLOBALS['moduleBoots'], $GLOBALS['moduleRoutes']);
+    removeFixtureTree($tmp);
+}
+
+$tmp = sys_get_temp_dir() . '/workspace-module-required-policy-' . bin2hex(random_bytes(6));
+mkdir($tmp, 0700, true);
+try {
+    writeFixture($tmp, 'external');
+    $manifestPath = $tmp . '/external/module.json';
+    $manifest = json_decode((string) file_get_contents($manifestPath), true, 32, JSON_THROW_ON_ERROR);
+    $manifest['package']['required'] = true;
+    file_put_contents(
+        $manifestPath,
+        json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n"
+    );
+
+    $rejected = false;
+    try {
+        ModuleRegistry::discover($tmp, Version::VERSION);
+    } catch (RuntimeException) {
+        $rejected = true;
+    }
+    moduleAssert($rejected, 'сторонний модуль не должен самостоятельно становиться обязательным');
+} finally {
     removeFixtureTree($tmp);
 }
 

@@ -82,10 +82,15 @@ $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
             </button>
         </div>
 
-        <?php if (!empty($access['profile'])): ?>
-            <a href="<?= $view->e($view->route('profile')) ?>" class="sidebar__utility" title="Настройки профиля">
+        <?php if (!empty($access['license_manage']) && !empty($access['admin'])): ?>
+            <a href="<?= $view->e($view->route('admin_settings')) ?>" class="sidebar__utility" data-nav-key="admin" title="Системные настройки">
                 <span class="sidebar__menu-icon"><i class="fa fa-cog" aria-hidden="true"></i></span>
                 <span class="sidebar__menu-label">Настройки</span>
+            </a>
+        <?php elseif (!empty($access['license_manage'])): ?>
+            <a href="<?= $view->e($view->route('system_license')) ?>" class="sidebar__utility" data-nav-key="license" title="Лицензия">
+                <span class="sidebar__menu-icon"><i class="fa fa-key" aria-hidden="true"></i></span>
+                <span class="sidebar__menu-label">Лицензия</span>
             </a>
         <?php endif; ?>
 

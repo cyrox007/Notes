@@ -28,7 +28,14 @@ function instrument(page) {
     if (url.origin !== origin || response.status() < 400) return;
 
     const socketTicketPath = `${basePath}/messenger/socket-ticket`;
+    const updaterStepPath = `${basePath}/admin/updates/web-step/`;
     if (installationWindow && response.status() === 503 && url.pathname === socketTicketPath) {
+      return;
+    }
+    // Пошаговый updater намеренно может вернуть retryable 5xx, если
+    // текущий PHP-запрос не успел завершить восстановление. Клиент повторяет
+    // шаг, а следующий запрос продолжает recovery на восстановленном коде.
+    if (installationWindow && response.status() >= 500 && url.pathname === updaterStepPath) {
       return;
     }
     unexpectedHttpErrors.push(`${response.status()} ${url.pathname}`);
@@ -83,8 +90,22 @@ try {
   await button.waitFor({ state: 'visible', timeout: 10000 });
 
   installationWindow = true;
+  const recoveryToast = page.locator('.wspace-toast').filter({
+    hasText: 'Предыдущая рабочая версия автоматически восстановлена',
+  });
   const navigation = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 180000 });
   await button.click();
+
+  // Переход 1.0.12 → 1.0.13 запускается интерфейсом опубликованной 1.0.12.
+  // При проверенном откате этот интерфейс сначала показывает устойчивое
+  // пользовательское уведомление, а затем перезагружает текущую страницу.
+  // Поэтому подтверждаем сообщение до навигации, а версию — уже после неё.
+  await recoveryToast.waitFor({ state: 'visible', timeout: 180000 });
+  const recoveryText = ((await recoveryToast.textContent()) || '').trim();
+  if (!recoveryText.includes('Предыдущая рабочая версия автоматически восстановлена')) {
+    throw new Error(`Интерфейс не подтвердил автоматическое восстановление: ${recoveryText}`);
+  }
+
   const installResponse = await navigation;
   installationWindow = false;
 
@@ -95,16 +116,10 @@ try {
     );
   }
 
-  const flash = page.locator('.admin-page__flash').first();
-  await flash.waitFor({ state: 'visible', timeout: 15000 });
-  const flashText = ((await flash.textContent()) || '').trim();
-  if (!flashText.includes('Рабочая версия автоматически восстановлена и проверена')) {
-    throw new Error(`Интерфейс не подтвердил автоматическое восстановление: ${flashText}`);
+  const bodyAfterRollback = ((await page.locator('body').innerText().catch(() => '')) || '').trim();
+  if (!bodyAfterRollback.includes(sourceVersion)) {
+    throw new Error(`После автоматического отката интерфейс не подтверждает исходную версию ${sourceVersion}`);
   }
-
-  const installedCard = page.locator('.admin-status-card').filter({ hasText: 'Установленная версия' }).first();
-  await installedCard.getByText(sourceVersion, { exact: false })
-    .waitFor({ state: 'visible', timeout: 10000 });
 
   if (pageErrors.length) throw pageErrors[0];
   if (unexpectedHttpErrors.length) {

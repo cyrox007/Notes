@@ -12,7 +12,7 @@ on:
       - 'v*'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   package:
@@ -27,7 +27,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: mysqli, pdo_mysql, mbstring, sodium, openssl, fileinfo, gd
+          extensions: mysqli, pdo_mysql, mbstring, sodium, openssl, fileinfo, gd, zlib
           coverage: none
 
       - name: Verify vendor-free application runtime
@@ -64,6 +64,17 @@ jobs:
           php -l core/UpdateRollbackCodeRestorer.php
           php -l core/MigrationManifest.php
           php -l core/UpdateMigrationPreflight.php
+          php -l core/UpdateCommandRunner.php
+          php -l core/UpdateProcessRunner.php
+          php -l core/UpdateInProcessRunner.php
+          php -l core/UpdateDatabaseMigrator.php
+          php -l core/UpdateWebHealthProbe.php
+          php -l core/UpdateVerifiedStage.php
+          php -l core/UpdateWebContinuation.php
+          php -l core/UpdateWebTransaction.php
+          php -l core/UpdateWebHttpBridge.php
+          php -l core/UpdateAutomaticRecovery.php
+          php -l core/UpdateBootRecoveryGate.php
           php -l core/UpdateApplyCommand.php
           php -l core/UpdateReadiness.php
           php -l core/UpdateArtifactCleaner.php
@@ -76,6 +87,8 @@ jobs:
           php tests/integration/updater_live_apply_contract.php
           php tests/integration/updater_recovery_invariants_contract.php
           php tests/integration/updater_readiness_contract.php
+          php tests/integration/updater_web_mode_contract.php
+          php tests/integration/external_update_runtime_contract.php
           php tests/integration/updater_artifact_retention_contract.php
 
       - name: Build hosting bundle
@@ -142,6 +155,17 @@ jobs:
           test -f "$ROOT/core/UpdateRollbackCodeRestorer.php"
           test -f "$ROOT/core/MigrationManifest.php"
           test -f "$ROOT/core/UpdateMigrationPreflight.php"
+          test -f "$ROOT/core/UpdateCommandRunner.php"
+          test -f "$ROOT/core/UpdateProcessRunner.php"
+          test -f "$ROOT/core/UpdateInProcessRunner.php"
+          test -f "$ROOT/core/UpdateDatabaseMigrator.php"
+          test -f "$ROOT/core/UpdateWebHealthProbe.php"
+          test -f "$ROOT/core/UpdateVerifiedStage.php"
+          test -f "$ROOT/core/UpdateWebContinuation.php"
+          test -f "$ROOT/core/UpdateWebTransaction.php"
+          test -f "$ROOT/core/UpdateWebHttpBridge.php"
+          test -f "$ROOT/core/UpdateAutomaticRecovery.php"
+          test -f "$ROOT/core/UpdateBootRecoveryGate.php"
           test -f "$ROOT/core/UpdateApplyCommand.php"
           test -f "$ROOT/core/UpdateReadiness.php"
           test -f "$ROOT/core/UpdateArtifactCleaner.php"
@@ -188,6 +212,17 @@ jobs:
           unzip -l "$BUNDLE" | grep -F 'core/UpdateRollbackCodeRestorer.php'
           unzip -l "$BUNDLE" | grep -F 'core/MigrationManifest.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdateMigrationPreflight.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateCommandRunner.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateProcessRunner.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateInProcessRunner.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateDatabaseMigrator.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateWebHealthProbe.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateVerifiedStage.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateWebContinuation.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateWebTransaction.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateWebHttpBridge.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateAutomaticRecovery.php'
+          unzip -l "$BUNDLE" | grep -F 'core/UpdateBootRecoveryGate.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdateApplyCommand.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdateReadiness.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdateArtifactCleaner.php'
@@ -221,28 +256,36 @@ jobs:
           BUNDLE_FILE="$(basename "$BUNDLE")"
           CHECKSUM_FILE="$BUNDLE.sha256"
           SOURCE_SHA_FILE="$BUNDLE.source-sha"
-          BOOTSTRAP_FILE="$GITHUB_WORKSPACE/bootstrap-1.0.2-updater.php"
-          BOOTSTRAP_CHECKSUM="$BOOTSTRAP_FILE.sha256"
-          cp "$GITHUB_WORKSPACE/tools/release/bootstrap-1.0.2-updater.php" "$BOOTSTRAP_FILE"
           (
             cd "$BUNDLE_DIR"
             sha256sum "$BUNDLE_FILE"
           ) > "$CHECKSUM_FILE"
-          (
-            cd "$GITHUB_WORKSPACE"
-            sha256sum "$(basename "$BOOTSTRAP_FILE")"
-          ) > "$BOOTSTRAP_CHECKSUM"
           printf '%s\n' "$GITHUB_SHA" > "$SOURCE_SHA_FILE"
           test -s "$CHECKSUM_FILE"
-          test -s "$BOOTSTRAP_CHECKSUM"
           test "$(cat "$SOURCE_SHA_FILE")" = "$GITHUB_SHA"
           cat "$CHECKSUM_FILE"
-          cat "$BOOTSTRAP_CHECKSUM"
           echo "Source SHA: $GITHUB_SHA"
           echo "BUNDLE_CHECKSUM=$CHECKSUM_FILE" >> "$GITHUB_ENV"
           echo "BUNDLE_SOURCE_SHA=$SOURCE_SHA_FILE" >> "$GITHUB_ENV"
-          echo "UPDATE_102_BOOTSTRAP=$BOOTSTRAP_FILE" >> "$GITHUB_ENV"
-          echo "UPDATE_102_BOOTSTRAP_CHECKSUM=$BOOTSTRAP_CHECKSUM" >> "$GITHUB_ENV"
+
+      - name: Подготовить bootstrap совместимости updater 1.0.9
+        shell: bash
+        run: |
+          set -euo pipefail
+          BOOTSTRAP_SOURCE="$GITHUB_WORKSPACE/tools/release/bootstrap-1.0.9-updater.php"
+          UPDATE_109_BOOTSTRAP="$GITHUB_WORKSPACE/bootstrap-1.0.9-updater.php"
+          UPDATE_109_BOOTSTRAP_CHECKSUM="$UPDATE_109_BOOTSTRAP.sha256"
+          php -l "$BOOTSTRAP_SOURCE"
+          cp "$BOOTSTRAP_SOURCE" "$UPDATE_109_BOOTSTRAP"
+          (
+            cd "$GITHUB_WORKSPACE"
+            sha256sum "$(basename "$UPDATE_109_BOOTSTRAP")"
+          ) > "$UPDATE_109_BOOTSTRAP_CHECKSUM"
+          test -s "$UPDATE_109_BOOTSTRAP"
+          test -s "$UPDATE_109_BOOTSTRAP_CHECKSUM"
+          cat "$UPDATE_109_BOOTSTRAP_CHECKSUM"
+          echo "UPDATE_109_BOOTSTRAP=$UPDATE_109_BOOTSTRAP" >> "$GITHUB_ENV"
+          echo "UPDATE_109_BOOTSTRAP_CHECKSUM=$UPDATE_109_BOOTSTRAP_CHECKSUM" >> "$GITHUB_ENV"
 
       - name: Upload immutable release-candidate artifact
         uses: actions/upload-artifact@v4
@@ -252,16 +295,51 @@ jobs:
             ${{ env.BUNDLE }}
             ${{ env.BUNDLE_CHECKSUM }}
             ${{ env.BUNDLE_SOURCE_SHA }}
-            ${{ env.UPDATE_102_BOOTSTRAP }}
-            ${{ env.UPDATE_102_BOOTSTRAP_CHECKSUM }}
+            ${{ env.UPDATE_109_BOOTSTRAP }}
+            ${{ env.UPDATE_109_BOOTSTRAP_CHECKSUM }}
           if-no-files-found: error
           retention-days: 14
 
-      - name: Verify tag matches application version
+      - name: Проверить соответствие тега версии приложения
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
         run: |
           set -euo pipefail
           EXPECTED_TAG="v$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")"
           test "$GITHUB_REF_NAME" = "$EXPECTED_TAG"
-          echo "Release tag matches application version: $EXPECTED_TAG"
+          echo "Тег релиза соответствует версии приложения: $EXPECTED_TAG"
+
+      - name: Опубликовать GitHub Release из проверенного пакета
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          TAG="$GITHUB_REF_NAME"
+          NOTES="docs/releases/$TAG.md"
+          test -s "$NOTES"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "GitHub Release $TAG уже существует; существующий релиз не изменяется."
+            exit 0
+          fi
+
+          PRERELEASE=()
+          if [[ "$TAG" == *-* ]]; then
+            PRERELEASE=(--prerelease)
+          fi
+
+          gh release create "$TAG" \
+            "$BUNDLE" \
+            "$BUNDLE_CHECKSUM" \
+            "$BUNDLE_SOURCE_SHA" \
+            "$UPDATE_109_BOOTSTRAP" \
+            "$UPDATE_109_BOOTSTRAP_CHECKSUM" \
+            --verify-tag \
+            --title "Workspace Organizer ${TAG#v}" \
+            --notes-file "$NOTES" \
+            "${PRERELEASE[@]}"
+
+          echo "GitHub Release $TAG опубликован из проверенного тега и неизменяемого пакета."

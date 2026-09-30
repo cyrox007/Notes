@@ -3,11 +3,11 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__, 2);
-require_once $root . '/core/request.php';
+require_once $root . '/core/Request.php';
 require_once $root . '/core/ViewRenderer.php';
 require_once $root . '/core/ViewContext.php';
 require_once $root . '/core/Version.php';
-require_once $root . '/core/controller.php';
+require_once $root . '/core/Controller.php';
 
 use Core\Controller;
 use Core\Request;

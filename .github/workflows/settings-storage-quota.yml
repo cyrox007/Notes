@@ -40,6 +40,7 @@ jobs:
           set -euo pipefail
           php -l app/services/PermissionService.php
           php -l app/services/StorageQuotaService.php
+          php -l app/services/FileUploadLimitService.php
           php -l app/middlewares/StorageQuotaLimit.php
           php -l modules/admin/controllers/SettingsController.php
           php -l bin/migrate.php
@@ -47,6 +48,8 @@ jobs:
           grep -Fq 'StorageQuotaLimit::class' modules/files/FilesRuntimeProvider.php
           grep -Fq 'RequireAdminSettingsManage::class' modules/admin/AdminRuntimeProvider.php
           grep -Fq "admin.settings.manage" app/services/StorageQuotaService.php
+          grep -Fq "admin.settings.manage" app/services/FileUploadLimitService.php
+          grep -Fq "20260930_file_upload_limit.sql" database/migrations/manifest.json
           grep -Fq '"20260913_system_settings_storage_quota.sql"' database/migrations/manifest.json
           grep -Fq "'database/migrations/20260913_system_settings_storage_quota.sql'" core/DatabaseOwnership.php
           grep -Fq 'GET_LOCK' app/services/StorageQuotaService.php
@@ -78,10 +81,11 @@ jobs:
           declare(strict_types=1);
           define('SITEPATH', getcwd());
           require SITEPATH . '/vendor/autoload.php';
-          require SITEPATH . '/core/config.php';
+          require SITEPATH . '/core/Config.php';
           require SITEPATH . '/core/DatabaseManager.php';
           require SITEPATH . '/app/services/PermissionService.php';
           require SITEPATH . '/app/services/StorageQuotaService.php';
+          require SITEPATH . '/app/services/FileUploadLimitService.php';
           $db = \Core\DatabaseManager::getInstance();
           $now = date('Y-m-d H:i:s');
           $hash = password_hash('quota-test-password', PASSWORD_ARGON2ID);
@@ -97,6 +101,10 @@ jobs:
           }
           $db->execute("INSERT INTO user_files (uid,user_id,parent_id,name,type,mime_type,size,path,extension,is_deleted) VALUES ('quota-file',2,NULL,'existing','file','application/pdf',2097152,'/tmp/quota.pdf','pdf',0)");
           $service = new \App\Services\StorageQuotaService($db);
+          $uploadLimit = new \App\Services\FileUploadLimitService($db);
+          if ($uploadLimit->configuredLimitBytes() !== 10 * 1024 * 1024) throw new RuntimeException('Default upload limit seed mismatch');
+          $uploadLimit->setConfiguredLimit(1, 100 * 1024 * 1024);
+          if ($uploadLimit->configuredLimitBytes() !== 100 * 1024 * 1024) throw new RuntimeException('Upload limit update failed');
           if ($service->defaultQuotaBytes() !== 1073741824) throw new RuntimeException('Default quota seed mismatch');
           $service->setDefaultQuota(1, 20 * 1024 * 1024);
           if ($service->effectiveQuotaBytes(2) !== 20 * 1024 * 1024) throw new RuntimeException('Default quota update failed');

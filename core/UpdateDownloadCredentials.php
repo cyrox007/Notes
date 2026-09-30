@@ -7,6 +7,7 @@ namespace Core;
 use RuntimeException;
 
 require_once __DIR__ . '/UpdatePath.php';
+require_once __DIR__ . '/PrivateStorageResolver.php';
 require_once __DIR__ . '/Version.php';
 
 /**
@@ -52,7 +53,7 @@ final class UpdateDownloadCredentials
         return $mode;
     }
 
-    public static function credentialsPath(): string
+    public static function credentialsPath(bool $preparePrivateStorage = true): string
     {
         $configured = trim((string) getenv('UPDATE_CREDENTIALS_FILE'));
         if ($configured !== '') {
@@ -65,30 +66,17 @@ final class UpdateDownloadCredentials
             }
         }
 
-        return self::defaultCredentialsPath();
+        return self::defaultCredentialsPath($preparePrivateStorage);
     }
 
-    public static function defaultCredentialsPath(): string
+    public static function defaultCredentialsPath(bool $preparePrivateStorage = true): string
     {
-        $private = trim((string) getenv('PRIVATE_STORAGE_PATH'));
-        if ($private === '') {
-            throw new RuntimeException('PRIVATE_STORAGE_PATH не настроен');
-        }
-        if (!UpdatePath::isAbsolute($private)) {
-            throw new RuntimeException('PRIVATE_STORAGE_PATH должен быть абсолютным');
-        }
+        $resolver = new PrivateStorageResolver(dirname(__DIR__));
+        $private = $preparePrivateStorage
+            ? $resolver->prepareAndPublish()
+            : $resolver->candidate();
 
-        $resolved = realpath($private);
-        if (!is_string($resolved) || !is_dir($resolved) || !is_writable($resolved)) {
-            throw new RuntimeException('PRIVATE_STORAGE_PATH недоступен для записи');
-        }
-
-        $appRoot = realpath(dirname(__DIR__));
-        if (!is_string($appRoot) || UpdatePath::inside($resolved, $appRoot)) {
-            throw new RuntimeException('PRIVATE_STORAGE_PATH должен находиться вне дерева приложения');
-        }
-
-        return rtrim($resolved, '/\\')
+        return rtrim($private, '/\\')
             . DIRECTORY_SEPARATOR . 'update-access'
             . DIRECTORY_SEPARATOR . 'update-access.json';
     }
@@ -162,6 +150,23 @@ final class UpdateDownloadCredentials
         @chmod($path, 0600);
 
         return $path;
+    }
+
+    public static function quarantine(): ?string
+    {
+        $path = self::credentialsPath();
+        if (!is_file($path)) {
+            return null;
+        }
+
+        self::assertExternalPath($path);
+        $quarantine = $path . '.rejected-' . gmdate('YmdHis') . '-' . bin2hex(random_bytes(4));
+        if (!@rename($path, $quarantine)) {
+            throw new RuntimeException('Не удалось изолировать устаревший доступ к обновлениям');
+        }
+        @chmod($quarantine, 0600);
+
+        return $quarantine;
     }
 
     public static function assertExternalPath(string $path): void

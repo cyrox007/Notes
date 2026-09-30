@@ -63,8 +63,61 @@ HTML;
 /**
  * @param array{ready:bool,missing_tables:list<string>,missing_user_columns:list<string>} $state
  */
+function isMessengerLongPollRequest(): bool
+{
+    if (strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'GET') {
+        return false;
+    }
+
+    $requestUri = (string) ($_SERVER['REQUEST_URI'] ?? '');
+    $path = parse_url($requestUri, PHP_URL_PATH);
+    if (!is_string($path) || $path === '') {
+        return false;
+    }
+
+    return preg_match('~(?:^|/)messenger/realtime/poll/?$~D', $path) === 1;
+}
+
+function handleSuspendedMessengerLongPoll(int $retryAfterMs = 3000): never
+{
+    http_response_code(200);
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('X-Workspace-Realtime-Suspended: 1');
+
+    $cursor = trim((string) ($_GET['cursor'] ?? ''));
+    if ($cursor !== '' && preg_match('/^[a-f0-9]{64}$/D', $cursor) !== 1) {
+        $cursor = '';
+    }
+
+    $revisionRaw = trim((string) ($_GET['revision'] ?? ''));
+    $revision = ctype_digit($revisionRaw) ? (int) $revisionRaw : null;
+
+    $activityCursor = trim((string) ($_GET['activity_cursor'] ?? ''));
+    if ($activityCursor !== '' && preg_match('/^[a-f0-9]{64}$/D', $activityCursor) !== 1) {
+        $activityCursor = '';
+    }
+
+    echo json_encode([
+        'status' => 'ok',
+        'transport' => 'long_poll',
+        'changed' => false,
+        'cursor' => $cursor,
+        'revision' => $revision,
+        'activity_cursor' => $activityCursor,
+        'events' => [],
+        'suspended' => true,
+        'retry_after_ms' => max(500, min(10000, $retryAfterMs)),
+    ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
+    exit;
+}
+
 function handleSchemaUpgradeRequired(array $state): never
 {
+    if (isMessengerLongPollRequest()) {
+        handleSuspendedMessengerLongPoll();
+    }
+
     http_response_code(503);
     header('Cache-Control: no-store');
     header('Retry-After: 60');
@@ -129,6 +182,10 @@ HTML;
 
 function handleMaintenanceMode(array $state): never
 {
+    if (isMessengerLongPollRequest()) {
+        handleSuspendedMessengerLongPoll();
+    }
+
     http_response_code(503);
     header('Cache-Control: no-store');
     header('Retry-After: 60');
@@ -176,19 +233,30 @@ HTML;
 }
 
 try {
-    // До проверки maintenance завершаем автоматическое восстановление оборванного
-    // обновления. Иначе ранний ответ 503 не даст recovery-коду запуститься вообще.
     require_once SITEPATH . '/core/Environment.php';
     \Core\Environment::load(SITEPATH . '/.env');
     require_once SITEPATH . '/app/services/MaintenanceModeService.php';
+
+    $maintenance = new \App\Services\MaintenanceModeService();
+    $maintenanceState = $maintenance->state();
+
+    // Во время пошагового web-обновления только один capability-защищённый
+    // endpoint может пройти раньше общего maintenance-барьера. Обычные запросы
+    // по-прежнему закрыты, а Router и модули до завершения миграций не грузятся.
+    if ($maintenanceState['active'] && $maintenanceState['valid']) {
+        require_once SITEPATH . '/core/UpdateWebHttpBridge.php';
+        if (\Core\UpdateWebHttpBridge::canHandle($maintenance, $maintenanceState)) {
+            \Core\UpdateWebHttpBridge::handle(SITEPATH, $maintenance, $maintenanceState);
+        }
+    }
+
+    // До обычного maintenance-ответа завершаем восстановление оборванного
+    // обновления. Активный lease живого web-updater recovery не перехватывает.
     require_once SITEPATH . '/core/UpdateAutomaticRecovery.php';
     require_once SITEPATH . '/core/UpdateBootRecoveryGate.php';
-
     \Core\UpdateBootRecoveryGate::enforce(SITEPATH);
 
-    // После попытки recovery обычный maintenance-барьер по-прежнему работает
-    // fail-closed для активного, повреждённого или ещё не завершённого состояния.
-    $maintenanceState = (new \App\Services\MaintenanceModeService())->state();
+    $maintenanceState = $maintenance->state();
     if ($maintenanceState['active']) {
         handleMaintenanceMode($maintenanceState);
     }

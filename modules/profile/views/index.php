@@ -46,10 +46,16 @@ ob_start();
         <div>
             <h1>Профиль</h1>
         </div>
-        <a class="profile__public-preview" aria-label="Посмотреть как другой пользователь" href="<?= $view->e($view->route('profile-public', ['uid' => $currentUser['uid'] ?? ''])) ?>">
-            <i class="fa fa-eye" aria-hidden="true"></i>
-            Публичный профиль
-        </a>
+        <div class="profile__header-actions">
+            <a class="profile__public-preview" href="<?= $view->e($view->route('profile-users')) ?>">
+                <i class="fa fa-users" aria-hidden="true"></i>
+                Пользователи
+            </a>
+            <a class="profile__public-preview" aria-label="Как видят меня" href="<?= $view->e($view->route('profile-public', ['uid' => $currentUser['uid'] ?? ''])) ?>">
+                <i class="fa fa-eye" aria-hidden="true"></i>
+                Как видят меня
+            </a>
+        </div>
     </header>
 
     <?php if ($profileErrors !== []): ?>
@@ -232,14 +238,29 @@ ob_start();
 
                     <?php if (!$twoFactorEnabled): ?>
                         <?php if ($twoFactorEnrollment !== null): ?>
-                            <p>Добавьте аккаунт в приложение-аутентификатор вручную или откройте ссылку настройки на устройстве с установленным приложением.</p>
-                            <div class="profile__card-info--edit--form-group">
-                                <label>Секретный ключ:</label>
-                                <code><?= $view->e($twoFactorEnrollment['secret'] ?? '') ?></code>
+                            <p>Отсканируйте QR-код приложением-аутентификатором. Ручной ключ остаётся запасным способом.</p>
+                            <div class="totp-enrollment">
+                                <div class="totp-enrollment__qr">
+                                    <div
+                                        class="totp-qr"
+                                        data-totp-qr
+                                        data-otpauth-uri="<?= $view->e($twoFactorEnrollment['uri'] ?? '') ?>"
+                                        aria-live="polite"
+                                    >
+                                        Подготавливаем QR-код…
+                                    </div>
+                                    <p class="totp-enrollment__hint">QR-код строится локально и никуда не отправляет TOTP-секрет.</p>
+                                </div>
+                                <div class="totp-enrollment__manual">
+                                    <div class="profile__card-info--edit--form-group">
+                                        <label>Секретный ключ:</label>
+                                        <code class="totp-enrollment__secret"><?= $view->e($twoFactorEnrollment['secret'] ?? '') ?></code>
+                                    </div>
+                                    <p>
+                                        <a href="<?= $view->e($twoFactorEnrollment['uri'] ?? '') ?>">Открыть в приложении-аутентификаторе</a>
+                                    </p>
+                                </div>
                             </div>
-                            <p>
-                                <a href="<?= $view->e($twoFactorEnrollment['uri'] ?? '') ?>">Открыть в приложении-аутентификаторе</a>
-                            </p>
                             <form action="<?= $view->e($view->route('profile-two-factor-confirm')) ?>" method="post" autocomplete="off">
                                 <?= $view->csrfInput() ?>
                                 <div class="profile__card-info--edit--form-group">
@@ -336,4 +357,14 @@ echo $view->layout('core/base', [
     'workspaceAccess' => $access,
     'socket_ticket' => $socket_ticket ?? '',
     'socket_url' => $socket_url ?? '',
+    'module_styles' => [
+        $view->moduleAsset('profile', 'style.css'),
+        $view->moduleAsset('profile', 'hub.css'),
+        $view->moduleAsset('profile', 'metrics.css'),
+        $baseUrl . '/assets/css/totp-qr.css',
+    ],
+    'module_scripts' => [
+        $view->moduleAsset('profile', 'profile.js'),
+        $baseUrl . '/assets/js/totp-qr.js',
+    ],
 ], $content);

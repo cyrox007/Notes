@@ -2,7 +2,7 @@ name: Product UI and production quality
 
 on:
   pull_request:
-    branches: [master, '1.0']
+    branches: [master, '1.0', 'release/1.0.*-rc']
   push:
     branches: [product-ui-production-refresh]
 
@@ -123,7 +123,7 @@ jobs:
         run: |
           set -euo pipefail
           grep -Fq 'text-preview-modal' modules/files/views/index.php
-          grep -Fq 'read-only' modules/files/assets/script.js
+          grep -Fq 'function openTextPreview(item)' modules/files/assets/script.js
           ! grep -Fq 'cdnjs.cloudflare.com' modules/files/views/index.php
           ! grep -Fq 'ace.js' modules/files/views/index.php
           ! grep -Fq 'runCodeInSandbox' modules/files/assets/script.js
@@ -153,30 +153,55 @@ jobs:
           grep -Fq "['/admin/settings', 'fa-sliders', 'Системные настройки']" modules/admin/assets/admin-settings-nav.js
           grep -Fq "route('admin_settings_user_quota')" modules/admin/views/settings.php
           grep -Fq 'StorageQuotaLimit::class' modules/files/FilesRuntimeProvider.php
+          grep -Fq "'/services/AvatarImageProcessor.php'" modules/profile/runtime.php
+          ! grep -Fq 'Core\\Images' modules/profile/services/UserAvatarService.php
           grep -Fq 'GET_LOCK' app/services/StorageQuotaService.php
           grep -Fq 'RELEASE_LOCK' app/services/StorageQuotaService.php
           grep -Fq 'data-confirm-deactivate' modules/admin/views/index.php
           ! grep -Fq 'onclick=' modules/admin/views/index.php
 
-      - name: Linux bootstrap path contract
+      - name: Контракт загрузки ядра в Linux
         shell: bash
         run: |
           set -euo pipefail
           for path in \
-            core/config.php \
-            core/Version.php \
-            core/DatabaseControll.php \
-            core/DatabaseManager.php \
-            core/ORM.php \
-            core/view.php \
-            core/request.php \
-            core/controller.php \
-            core/helper.php \
-            core/images.php
+            core/Config.php \
+            core/Request.php \
+            core/Controller.php
           do
             test -f "$path"
-            grep -Fq "/$path" core.php
           done
+
+          legacy_core='core'
+          for legacy_name in config request controller
+          do
+            path="${legacy_core}/${legacy_name}.php"
+            test ! -e "$path"
+            ! grep -Fq "/$path" core.php
+          done
+
+          ! grep -Fq '$coreFiles' core.php
+          grep -Fq 'RuntimeAutoloader::register' core.php
+          php -r '
+            define("SITEPATH", getcwd());
+            require SITEPATH . "/core/RuntimeAutoloader.php";
+            \Core\RuntimeAutoloader::register(SITEPATH);
+            foreach ([
+                "Core\\Config",
+                "Core\\Request",
+                "Core\\Controller",
+                "Core\\Version",
+                "Core\\DatabaseManager",
+                "Core\\ORM",
+                "Core\\Helper",
+                "Core\\NativeViewRenderer",
+            ] as $class) {
+                if (!class_exists($class) && !interface_exists($class)) {
+                    fwrite(STDERR, "Автозагрузка не разрешила обязательный класс ядра: {$class}\\n");
+                    exit(1);
+                }
+            }
+          '
 
       - name: Security wiring and headers
         shell: bash
@@ -263,9 +288,9 @@ jobs:
           declare(strict_types=1);
 
           $_SERVER['HTTP_HOST'] = 'localhost';
-          require getcwd() . '/core/config.php';
-          require getcwd() . '/core/DatabaseManager.php';
-          require getcwd() . '/app/services/PermissionService.php';
+          require getcwd() . '/core/RuntimeAutoloader.php';
+          \Core\RuntimeAutoloader::register(getcwd());
+          require getcwd() . '/modules/profile/services/AvatarImageProcessor.php';
           require getcwd() . '/modules/profile/services/UserAvatarService.php';
           require getcwd() . '/modules/admin/services/AdminUserService.php';
 
@@ -432,7 +457,7 @@ jobs:
           chmod 700 "$PRIVATE_STORAGE_PATH"
           php bin/healthcheck.php --json | tee /tmp/healthcheck.json
           grep -Fq '"status": "ok"' /tmp/healthcheck.json
-          grep -Fq '34 required tables present' /tmp/healthcheck.json
+          grep -Fq '35 required tables present' /tmp/healthcheck.json
           grep -Fq 'storage_quota_setting' /tmp/healthcheck.json
           grep -Fq 'private_storage_outside_app_root' /tmp/healthcheck.json
           grep -Fq 'websocket_allowed_origins' /tmp/healthcheck.json
@@ -446,7 +471,7 @@ jobs:
           grep -Fq 'database/audit_schema.sql' README.md
           grep -Fq 'database/settings_schema.sql' README.md
           grep -Fq 'database/module_lifecycle_schema.sql' README.md
-          grep -Fq '34 обязательных таблиц' README.md
+          grep -Fq '35 обязательных таблиц' README.md
           grep -Fq 'php bin/migrate.php' README.md
           grep -Fq 'php bin/migrate_crypto.php' README.md
           grep -Fq 'Saved Messages' README.md

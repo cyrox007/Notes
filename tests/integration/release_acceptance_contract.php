@@ -53,14 +53,25 @@ foreach ([
     'OSPanel 5.2.2',
     'Gate G — неизменяемый артефакт и подпись',
     'Gate H — финальный merge и tag',
-    'v1.0.5',
+    'v1.0.13',
     'нет открытых P0/P1 дефектов с риском потери данных',
     'нет открытых P0/P1 дефектов безопасности',
-    'работает только как сборка',
-    'не должен создавать или обновлять публичный GitHub Release',
+    'ручной pre-tag проверки',
+    'tag-driven `Build hosting package`',
+    'публикации GitHub Release',
 ] as $marker) {
     releaseAcceptanceAssert(str_contains($doc, $marker), "runbook release acceptance не содержит marker {$marker}");
 }
+
+$windowsAcceptance = releaseAcceptanceText($root, 'docs/WINDOWS_OSPANEL_ACCEPTANCE.md');
+releaseAcceptanceAssert(
+    str_contains($windowsAcceptance, '# Релизная приёмка Windows / OSPanel для 1.0.13')
+    && str_contains($windowsAcceptance, 'Сценарий A2 — private storage предыдущей установки')
+    && str_contains($windowsAcceptance, '1.0.12 → 1.0.13')
+    && str_contains($windowsAcceptance, 'отдельный bootstrap не требуется')
+    && str_contains($windowsAcceptance, 'rollback_failed'),
+    'Windows/OSPanel acceptance не закрепляет 1.0.12 → 1.0.13, stale recovery и прямой updater'
+);
 
 $preflight = releaseAcceptanceText($root, 'bin/release_acceptance.php');
 foreach ([
@@ -82,7 +93,7 @@ foreach ([
     'production_public_trust_roots',
     'release_evidence_harness',
     'private_signing_material_absent',
-    "Version::VERSION === '1.0.5'",
+    "Version::VERSION === '1.0.13'",
     "Version::STATUS === 'stable'",
     'exit(3)',
 ] as $marker) {
@@ -105,21 +116,30 @@ releaseAcceptanceAssert(
     'документ изоляции модулей не соответствует текущему runtime'
 );
 
-$releaseNotes = releaseAcceptanceText($root, 'docs/releases/v1.0.5.md');
-foreach (['## Назначение релиза', '## Совместимость', '## Граница поддержки'] as $marker) {
+$releaseNotes = releaseAcceptanceText($root, 'docs/releases/v1.0.13.md');
+foreach ([
+    '## Назначение релиза',
+    '## Явные разрешения лицензии',
+    '## Admin → Модули',
+    '## Исчезновение межмодульных возможностей',
+    '## Обновлятор и WebSocket',
+    '## Проверяемый путь обновления',
+    '## Совместимость',
+] as $marker) {
     releaseAcceptanceAssert(
         str_contains($releaseNotes, $marker),
-        "описание релиза 1.0.5 не содержит русский раздел {$marker}"
+        "описание релиза 1.0.13 не содержит русский раздел {$marker}"
     );
 }
 
-
 releaseAcceptanceAssert(
-    str_contains($releaseNotes, '1.0.4 → 1.0.5')
-    && str_contains($releaseNotes, '1.0.5 → 1.0.6')
-    && str_contains($releaseNotes, 'автоматическое уведомление')
-    && str_contains($releaseNotes, 'одна кнопка'),
-    'описание 1.0.5 не фиксирует переходный шаг и постоянный одношаговый контракт'
+    str_contains($releaseNotes, '1.0.12 → встроенный подписанный updater → 1.0.13')
+    && str_contains($releaseNotes, 'workspace.admin')
+    && str_contains($releaseNotes, 'workspace.messenger')
+    && str_contains($releaseNotes, 'unlicensed')
+    && str_contains($releaseNotes, 'Admin → Модули')
+    && str_contains($releaseNotes, 'WebSocket'),
+    'описание 1.0.13 не фиксирует модульный состав, лицензионные разрешения и штатный upgrade-path'
 );
 
 
@@ -191,6 +211,15 @@ releaseAcceptanceAssert(
     'документация 2FA не фиксирует системную/персональную политику и ротацию ключа'
 );
 
+$autoPublish = releaseAcceptanceText($root, '.github/workflows/prerelease-autotag.yml');
+releaseAcceptanceAssert(
+    str_contains($autoPublish, 'workflows: ["Stable release gate"]')
+    && str_contains($autoPublish, 'github.event.workflow_run.event == \'push\'')
+    && str_contains($autoPublish, "github.event.workflow_run.head_branch == 'master'")
+    && str_contains($autoPublish, 'gh workflow run hosting-package.yml --ref "$TAG" -f version="$TAG"'),
+    'автопубликация релиза не привязана к успешному push-gate master'
+);
+
 $releaseGate = releaseAcceptanceText($root, '.github/workflows/release-gate.yml');
 releaseAcceptanceAssert(
     str_contains($releaseGate, 'php tests/integration/release_acceptance_contract.php'),
@@ -205,4 +234,4 @@ releaseAcceptanceAssert(
     'Stable release gate не запускает контракт двухфакторной аутентификации'
 );
 
-fwrite(STDOUT, "[OK] финальный контракт release acceptance 1.0.5 выполнен\n");
+fwrite(STDOUT, "[OK] финальный контракт release acceptance 1.0.13 выполнен\n");

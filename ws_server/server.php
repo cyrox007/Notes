@@ -224,6 +224,15 @@ function workspaceWsPreflight(bool $daemon): bool
     try {
         require_once SITEPATH . '/core/WebSocketEndpoint.php';
 
+        if (!WebSocketEndpoint::enabled()) {
+            workspaceWsStartupFail(
+                'WebSocket-ускоритель',
+                'отключён через WS_ENABLED=0; Messenger уже работает через основной Long Poll transport',
+                'для использования WebSocket задайте WS_ENABLED=1 и повторите проверку'
+            );
+            return false;
+        }
+
         $siteUrl = WebSocketEndpoint::siteUrl();
         $publicUrl = WebSocketEndpoint::publicUrl();
         $bindHost = WebSocketEndpoint::bindHost();

@@ -11,6 +11,7 @@ $runtimeFiles = [
     '/models/UserToDialogsModel.php',
     '/handlers/MessengerCrypto.php',
     '/handlers/SocketTicket.php',
+    '/services/MessengerActivityService.php',
     '/services/MessengerDialogStateService.php',
     '/services/MessengerForwardService.php',
     '/services/MessengerGroupAvatarService.php',

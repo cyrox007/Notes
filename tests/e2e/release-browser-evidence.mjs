@@ -45,6 +45,22 @@ async function assertDocumentFits(page, label) {
   }
 }
 
+function isExpectedMessengerNavigationAbort(request) {
+  const url = new URL(request.url());
+  const messengerBase = (basePath === '/' ? '' : basePath) + '/messenger';
+  const expectedBackgroundPaths = new Set([
+    messengerBase + '/realtime/poll',
+    messengerBase + '/socket-ticket',
+  ]);
+  if (url.origin !== origin || !expectedBackgroundPaths.has(url.pathname)) return false;
+
+  const failure = String(request.failure()?.errorText || '');
+  const normalizedFailure = failure.toLowerCase();
+  return failure === 'net::ERR_ABORTED'
+    || failure === 'NS_BINDING_ABORTED'
+    || normalizedFailure.includes('cancel');
+}
+
 async function waitForSocketTicket(page, label) {
   // The shared shell starts notifications after DOMContentLoaded. A load event
   // alone does not guarantee its fetch has finished before the next navigation.
@@ -78,6 +94,64 @@ async function login(page, scenarioName) {
   ]);
   await page.locator('#main-content').waitFor({ state: 'visible', timeout: 15000 });
   await page.waitForLoadState('load');
+}
+
+async function assertMessengerDialogGeometry(page, scenarioName) {
+  const response = await page.goto(baseUrl + '/messenger/', { waitUntil: 'load' });
+  if (!response || response.status() !== 200) {
+    throw new Error(
+      scenarioName + ': /messenger/ returned ' + (response ? response.status() : 'no response')
+    );
+  }
+
+  await page.locator('.messenger-app').waitFor({ state: 'visible', timeout: 15000 });
+  await page.locator('#workspace-action-dialog').waitFor({ state: 'attached', timeout: 10000 });
+
+  const dialogIds = [
+    ['workspace-action-dialog', 'workspace-action-form'],
+    ['group-info-dialog', null],
+    ['storage-file-dialog', null],
+  ];
+
+  for (const [dialogId, formId] of dialogIds) {
+    const geometry = await page.evaluate(({ dialogId, formId }) => {
+      const dialog = document.getElementById(dialogId);
+      if (!(dialog instanceof HTMLDialogElement)) {
+        throw new Error('Не найден dialog #' + dialogId);
+      }
+
+      const surface = formId
+        ? document.getElementById(formId)
+        : dialog.querySelector('.messenger-dialog-modal__surface');
+      if (!(surface instanceof HTMLElement)) {
+        throw new Error('Не найден surface для #' + dialogId);
+      }
+
+      dialog.showModal();
+      const dialogRect = dialog.getBoundingClientRect();
+      const surfaceRect = surface.getBoundingClientRect();
+      const result = {
+        dialogWidth: dialog.clientWidth,
+        surfaceWidth: surfaceRect.width,
+        contentLeft: dialogRect.left + dialog.clientLeft,
+        surfaceLeft: surfaceRect.left,
+      };
+      dialog.close();
+      return result;
+    }, { dialogId, formId });
+
+    if (Math.abs(geometry.dialogWidth - geometry.surfaceWidth) > 1) {
+      throw new Error(
+        scenarioName + ': #' + dialogId + ' surface width differs from dialog: '
+        + geometry.surfaceWidth + ' vs ' + geometry.dialogWidth
+      );
+    }
+    if (Math.abs(geometry.contentLeft - geometry.surfaceLeft) > 1) {
+      throw new Error(
+        scenarioName + ': #' + dialogId + ' surface is horizontally shifted inside dialog'
+      );
+    }
+  }
 }
 
 async function assertMobileShell(page, scenarioName) {
@@ -122,6 +196,10 @@ for (const scenario of scenarios) {
     const escapedRequests = [];
     page.on('pageerror', error => pageErrors.push(String(error?.stack || error)));
     page.on('requestfailed', request => {
+      // При навигации браузер вправе отменить фоновые запросы Messenger:
+      // Long Poll и получение ticket для необязательного WebSocket-ускорителя.
+      // Такая отмена освобождает канал и не является сетевой ошибкой релиза.
+      if (isExpectedMessengerNavigationAbort(request)) return;
       failedRequests.push(request.url() + ': ' + (request.failure()?.errorText || 'request failed'));
     });
     page.on('request', request => {
@@ -140,6 +218,10 @@ for (const scenario of scenarios) {
 
     if (scenario.mobile) {
       await assertMobileShell(page, scenario.name);
+    } else {
+      // Проверяем реальную геометрию top-layer Messenger-модалок в каждом
+      // desktop-движке, а не только наличие нужных CSS-селекторов.
+      await assertMessengerDialogGeometry(page, scenario.name);
     }
 
     for (const module of modules) {

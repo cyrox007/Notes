@@ -64,7 +64,7 @@ jobs:
         run: |
           set -euo pipefail
           php -l index.php
-          php -l core/config.php
+          php -l core/Config.php
           php -l core/RequestOrigin.php
           php -l core/SessionSecurity.php
           php -l app/services/PermissionService.php
@@ -94,7 +94,7 @@ jobs:
           grep -Fq "messenger.use" modules/messenger/socket/NativeMessengerServer.php
           ! grep -Fq 'Workerman\\' ws_server/server.php
           ! grep -Fq 'Config::canAuthenticate' modules/messenger/socket/NativeMessengerServer.php
-          grep -Fq "getenv('SITEURL')" core/config.php
+          grep -Fq "getenv('SITEURL')" core/Config.php
           grep -Fq 'TRUSTED_PROXY_IPS' core/RequestOrigin.php
           php tests/integration/native_websocket_protocol_contract.php
 
@@ -205,6 +205,12 @@ jobs:
           ENV
           chmod 600 .env
 
+      - name: Активировать временную лицензию CI
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/support/ci_license_fixture.php
+
       - name: Create self-signed TLS certificate
         shell: bash
         run: |
@@ -220,7 +226,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -f /tmp/workspace-http-readiness-body /tmp/workspace-organizer-startup.log
-          php -S 127.0.0.1:8080 tests/e2e/router.php >/tmp/workspace-http.log 2>&1 &
+          PHP_CLI_SERVER_WORKERS=4 php -S 127.0.0.1:8080 tests/e2e/router.php >/tmp/workspace-http.log 2>&1 &
           echo $! >/tmp/workspace-http.pid
 
           php ws_server/server.php start >/tmp/workspace-ws-start.log 2>&1 &

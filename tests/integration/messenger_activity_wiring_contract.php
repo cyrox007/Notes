@@ -29,12 +29,27 @@ $voice = activityContractSource($module . '/views/voice.js');
 $media = activityContractSource($module . '/views/media.js');
 $socket = activityContractSource($module . '/socket/MessangerSocket.php');
 $server = activityContractSource($module . '/socket/NativeMessengerServer.php');
+$activityService = activityContractSource($module . '/services/MessengerActivityService.php');
+$longPoll = activityContractSource($module . '/services/MessengerLongPollService.php');
+$realtimeController = activityContractSource($module . '/controllers/MessengerRealtimeController.php');
+$moduleManifest = activityContractSource($module . '/module.json');
+$moduleSchema = activityContractSource($root . '/database/messenger_module_schema.sql');
+$migration = activityContractSource($root . '/database/migrations/20260928_messenger_activity.sql');
 
 activityContractAssert(
     strpos($index, "'protocol-origin.js', 'script.js', 'activity.js'") !== false,
     'activity.js must load immediately after the canonical Messenger client'
 );
-activityContractAssert(str_contains($activity, "action: 'MessangerSocket:activity'"), 'activity client does not emit the unified WS action');
+activityContractAssert(
+    str_contains($activity, "app.sendEvent('MessangerSocket:activity'")
+    && !str_contains($activity, 'app.socket.send(JSON.stringify({'),
+    'activity client must use the transport-neutral sendEvent path'
+);
+activityContractAssert(
+    str_contains($activity, "data?.action === 'activity_snapshot'")
+    && str_contains($activity, 'clearDialogActivities(dialogUid)'),
+    'activity client does not apply Long Poll snapshots'
+);
 activityContractAssert(str_contains($activity, 'ACTIVITY_TTL_MS = 5000'), 'remote activity TTL is missing');
 activityContractAssert(str_contains($activity, 'app.notifyTyping = () =>'), 'typing input path was not migrated to unified activity');
 activityContractAssert(str_contains($activity, "recording_voice: 'записывает голосовое…'"), 'voice recording label is missing');
@@ -72,5 +87,31 @@ activityContractAssert(
     preg_match("/'MessangerSocket'\\s*=>\\s*\\[[^\\]]*'activity'/s", $server) === 1,
     'activity must remain available through the Messenger read-only route set'
 );
+activityContractAssert(
+    str_contains($socket, 'MessengerActivityService')
+    && str_contains($socket, '->publish($userUid, $dialogUid, $activity, $active)')
+    && str_contains($socket, '->publish($userUid, $dialogUid, \'typing\', $typing)'),
+    'WebSocket/HTTP dispatcher does not persist short-lived activity state'
+);
+activityContractAssert(
+    str_contains($activityService, 'TTL_SECONDS = 6')
+    && str_contains($activityService, 'messenger_activity')
+    && str_contains($activityService, 'expires_at <= CURRENT_TIMESTAMP(3)')
+    && str_contains($activityService, 'expires_at > CURRENT_TIMESTAMP(3)'),
+    'activity service does not enforce short-lived TTL state'
+);
+activityContractAssert(
+    str_contains($longPoll, 'activity_state')
+    && str_contains($longPoll, 'messenger_activity')
+    && str_contains($realtimeController, "'action' => 'activity_snapshot'"),
+    'Long Poll does not observe and return activity state'
+);
+activityContractAssert(
+    str_contains($moduleManifest, 'messenger_activity')
+    && str_contains($moduleManifest, '20260928_messenger_activity.sql')
+    && str_contains($moduleSchema, 'CREATE TABLE IF NOT EXISTS `messenger_activity`')
+    && str_contains($migration, 'CREATE TABLE IF NOT EXISTS `messenger_activity`'),
+    'Messenger activity table is missing from fresh-install or upgrade ownership'
+);
 
-echo "[OK] Messenger realtime activity producer wiring contract\n";
+echo "[OK] Messenger activity works across WebSocket and Long Poll transports\n";

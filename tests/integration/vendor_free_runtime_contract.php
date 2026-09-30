@@ -58,14 +58,21 @@ foreach ($socketDirectory as $file) {
     vendorFreeAssert(!str_contains($source, 'Workerman\\'), 'Workerman leaked into ' . $file->getFilename());
 }
 
-$core = (string) file_get_contents($root . '/core.php');
-vendorFreeAssert(str_contains($core, '/core/NativeViewRenderer.php'), 'native view renderer is not bootstrapped');
-$controller = (string) file_get_contents($root . '/core/controller.php');
+require_once $root . '/core/RuntimeAutoloader.php';
+\Core\RuntimeAutoloader::register($root);
+vendorFreeAssert(interface_exists(\Core\ViewRenderer::class), 'Автозагрузчик не разрешил интерфейс ViewRenderer');
+vendorFreeAssert(class_exists(\Core\NativeViewRenderer::class), 'Автозагрузчик не разрешил NativeViewRenderer');
+
+$controller = (string) file_get_contents($root . '/core/Controller.php');
 vendorFreeAssert(str_contains($controller, 'new NativeViewRenderer('), 'HTTP controller does not use native view renderer');
 
 $installer = (string) file_get_contents($root . '/install.php');
 vendorFreeAssert(str_contains($installer, "'Native core runtime'"), 'installer does not verify native core runtime');
-vendorFreeAssert(str_contains($installer, "'Native WebSocket runtime'"), 'installer does not verify native WebSocket runtime');
+vendorFreeAssert(
+    str_contains($installer, "'HTTP Long Poll Messenger'")
+    && str_contains($installer, "'WebSocket-ускоритель Messenger'"),
+    'installer должен проверять обязательный Long Poll отдельно от необязательного WebSocket runtime'
+);
 
 $server = (string) file_get_contents($root . '/ws_server/server.php');
 vendorFreeAssert(str_contains($server, 'NativeMessengerServer'), 'native WebSocket server is not the active entrypoint');

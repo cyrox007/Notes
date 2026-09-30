@@ -1,19 +1,19 @@
 # Workspace Organizer
 
-**Версия:** `1.0.5`  
-**Актуально на:** 26 сентября 2026  
+**Версия:** `1.0.13`  
+**Актуально на:** 30 сентября 2026  
 **Статус:** stable
 
 Workspace Organizer — self-hosted PHP-приложение для корпоративной работы: заметки, личные и общие задачи, файлы, профиль, администрирование и real-time Messenger.
 
-`1.0.5` — переходный стабильный релиз, который закрепляет постоянный контракт обновлений «автоматическое уведомление → одна кнопка → подписанная транзакционная установка». Клиент сам проверяет защищённый канал, показывает новую версию в центре уведомлений и запускает существующий updater с повторной привязкой к `version_code` и SHA-256 пакета. Новые установки заранее проверяют `openssl`, `zlib`, `proc_open` и доступность PHP CLI, а сервер обновлений получает фактический `version_code` клиента для последовательной выдачи совместимых релизов. Переход `1.0.4 → 1.0.5` остаётся последним переходным шагом через Admin → Updates; начиная с `1.0.5 → 1.0.6` штатный пользовательский сценарий обязан проходить из уведомления одним нажатием без PowerShell, ручных миграций, bootstrap-файлов или правки `.env`.
+`1.0.13` завершает пользовательский контур модульной платформы: лицензия явно определяет доступный состав модулей, суперадминистратор управляет разрешёнными модулями через Admin, а отключённые модули исчезают из маршрутов, навигации и межмодульных возможностей без удаления данных. Основной проверяемый путь обновления — `1.0.12 → встроенный подписанный updater → 1.0.13`.
 
 ## Возможности
 
 - **Notes** — XChaCha20-Poly1305 для текста, writing-first editor, private attachments, first-class voice notes с duration/playback, view-only sharing по токену, autosave/dirty-state, server-side поиск и role policies для количества заметок, вложений, типов/размера файлов и sharing.
 - **Tasks** — личные kanban/list задачи, drag-and-drop статусов, приоритеты, сроки, категории, подзадачи, фильтры и server-side поиск/пагинация; beta.4 добавляет общие task boards с ACL, участниками, исполнителями и audience `all_active`.
 - **File Manager** — личные папки/файлы вне document root, protected download, media/read-only text preview, grid/list workspace, поиск/сортировка, drag-and-drop upload, storage quota и role policies для размера/типов файлов, общей ёмкости и создания папок.
-- **Messenger v2** — private/group chats, Saved Messages, forwarding, media, voice, reply/edit/delete, delivery/read receipts, reactions, encrypted search, pin/mute/archive, group roles/avatars, multi-device realtime, WebSocket-first transport с HTTP long-poll fallback и reconnect/offline/session-ended UX; role policies ограничивают частоту сообщений, вложения, voice и group capabilities.
+- **Messenger v2** — private/group chats, Saved Messages, forwarding, media, voice, reply/edit/delete, delivery/read receipts, reactions, encrypted search, pin/mute/archive, group roles/avatars, multi-device realtime; WebSocket работает как быстрый канал, а authenticated HTTP Long Poll — как полноценный durable-транспорт с автоматическим переключением и самовосстановлением; role policies ограничивают частоту сообщений, вложения, voice и group capabilities.
 - **Profile** — workspace hub с Notes/Tasks/Files/storage metrics, private avatar, account settings, безопасная деактивация и explicit `is_profile_public` publication model без раскрытия private content.
 - **Admin panel** — создание и lifecycle пользователей, managed registration `disabled/open/invite`, ограниченные/revocable инвайты, Role Manager с permission assignment и module policies, custom profile fields, системный лимит File Manager и персональные storage quota overrides без physical delete связанных данных.
 - **Responsive UI** — единый design system, desktop/mobile navigation, обновлённые формы/карточки/модалки, keyboard focus, reduced-motion support и общий feedback layer.
@@ -44,8 +44,8 @@ Workspace Organizer — self-hosted PHP-приложение для корпор
 ## Требования
 
 - PHP `8.1+` — технический compatibility floor; для Internet-facing production рекомендуется поддерживаемая ветка PHP, сейчас `8.3+`;
-- MySQL `8.x` — основной проверяемый CI path;
-- PHP extensions: `mysqli`, `pdo_mysql`, `mbstring`, `fileinfo`, `sodium`, `gd`;
+- БД: MySQL `8.0+` или MariaDB `10.5+`; CI проверяет MySQL 8.4 и MariaDB 10.11;
+- PHP extensions: `mysqli`, `pdo_mysql`, `mbstring`, `ctype`, `fileinfo`, `sodium`, `openssl`, `zlib`, `gd`; доступны `ini_get`/`getenv`/`putenv`, рабочие PHP-сессии и upload temp;
 - Messenger работает через обычный authenticated HTTP long poll даже без WebSocket process; для низкой задержки и меньшей нагрузки рекомендуется PHP CLI + long-running native WebSocket process и WebSocket endpoint/proxy; daemon mode на Unix дополнительно требует `pcntl`;
 - Argon2id support в `password_hash`;
 - Apache + `mod_rewrite` либо Nginx с эквивалентным front-controller routing;
@@ -81,9 +81,9 @@ https://example.com/workspace/install.php
 
 Web-installer автоматически:
 
-- проверяет PHP 8.1+, необходимые extensions и Argon2id; production runtime не требует `vendor/`;
-- пытается создать отсутствующую БД, если MySQL account это разрешает;
-- импортирует composition-aware canonical schemas и создаёт current contract из 34 обязательных таблиц;
+- проверяет PHP 8.1+, необходимые extensions, `ini_get/getenv/putenv`, PHP session/upload temp, `flock`/atomic rename, Argon2id, лимиты загрузки и низкий `memory_limit`; production runtime не требует `vendor/`;
+- проверяет MySQL 8.0+ / MariaDB 10.5+, права `CREATE/ALTER/TRIGGER/DROP` и пытается создать отсутствующую БД, если учётная запись БД это разрешает;
+- импортирует composition-aware canonical schemas и создаёт current contract из 35 обязательных таблиц;
 - создаёт `cache`/`compile`;
 - подбирает и создаёт `PRIVATE_STORAGE_PATH` вне document root;
 - создаёт private пространства `file_manager`, `messenger`, `notes`, `users`, `rate-limit`, `logs`, `legacy`;
@@ -136,7 +136,7 @@ database/settings_schema.sql
 database/module_lifecycle_schema.sql
 ```
 
-Fresh contract включает 34 обязательные таблицы: persisted `module_lifecycle`, RBAC + `role_module_policies`, а также `task_boards`, `task_board_members`, `task_board_items` и `task_board_assignees`. `system_settings` хранит редактируемые системные значения, а `user_storage_quotas` — только персональные overrides лимита; фактический used space всегда рассчитывается из canonical `user_files`, чтобы не поддерживать рассинхронизируемый usage counter. `install.php` предназначен только для новой/пустой БД. Для существующих установок используются compatibility upgrade SQL; они не заменяют canonical `*_schema.sql` как описание текущей схемы.
+Fresh contract включает 35 обязательных таблиц: persisted `module_lifecycle`, RBAC + `role_module_policies`, а также `task_boards`, `task_board_members`, `task_board_items` и `task_board_assignees`. `system_settings` хранит редактируемые системные значения, а `user_storage_quotas` — только персональные overrides лимита; фактический used space всегда рассчитывается из canonical `user_files`, чтобы не поддерживать рассинхронизируемый usage counter. `install.php` предназначен только для новой/пустой БД. Для существующих установок используются compatibility upgrade SQL; они не заменяют canonical `*_schema.sql` как описание текущей схемы.
 
 После успешной установки наличие `.env` блокирует повторный запуск web-installer.
 
@@ -165,7 +165,7 @@ WS_HOST=127.0.0.1
 WS_PORT=27800
 ```
 
-На production hosting WebSocket остаётся предпочтительным realtime transport: публичный `/ws` обычно проксируется на локальный native WebSocket process, а long-running PHP process запускается отдельно через hosting background-process manager, systemd/Supervisor или аналогичный process manager:
+На production hosting WebSocket остаётся рекомендуемым ускорителем realtime: публичный `/ws` обычно проксируется на локальный native WebSocket process, а long-running PHP process запускается отдельно через hosting background-process manager, systemd/Supervisor или аналогичный process manager:
 
 ```bash
 php ws_server/server.php check
@@ -231,7 +231,7 @@ php bin/healthcheck.php
 php bin/healthcheck.php --json
 ```
 
-Healthcheck проверяет PHP/extensions, secrets, private storage и его размещение вне application root, HTTPS/WSS/origin consistency, DB connection и current 32-table schema contract. Ненулевой exit code означает, что deployment нельзя считать healthy.
+Healthcheck проверяет PHP/extensions, secrets, private storage и его размещение вне application root, HTTPS/WSS/origin consistency, DB connection и current 35-table schema contract. Ненулевой exit code означает, что deployment нельзя считать healthy.
 
 ## Rate limiting
 
@@ -361,7 +361,7 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 
 `System settings and storage quota` проверяет canonical settings schema, admin ACL, default/per-user quota, live usage из `user_files`, reset override и quota overflow denial на MySQL 8.4.
 
-`Hosting installer` выполняет настоящий HTTP fresh-install через cookies/CSRF на MySQL в hosting-like `public_html/workspace`, проверяет subdirectory detection, private storage вне document root, 32-table contract, quota seed, admin account, generated `.env`, блокировку повторного installer и итоговый healthcheck.
+`Hosting installer` выполняет настоящий HTTP fresh-install через cookies/CSRF на MySQL в hosting-like `public_html/workspace`, проверяет subdirectory detection, private storage вне document root, 35-table contract, quota seed, admin account, generated `.env`, блокировку повторного installer и итоговый healthcheck; отдельно проверяются отказ при отключённом `putenv` и совместимость канонических схем с MariaDB 10.11.
 
 `Build hosting package` собирает upload-ready ZIP с production `vendor/`; теги `v*-*` публикуются как GitHub prerelease, а stable tag без suffix — как обычные Release.
 
@@ -405,14 +405,9 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 - browser lifecycle coverage для основных product modules и exact published 1.0.1 → 1.0.2 upgrade/rollback drill;
 - кросс-браузерная и мобильная проверка, а также нагрузочный и длительный контур доказательств релиза.
 
-Перед окончательным выпуском `v1.0.4` остаются только релизные проверки, а не новые возможности:
+Для `v1.0.7` автоматизируемая часть релизной проверки должна быть зелёной на точном HEAD release-кандидата: GitHub branch protection/ruleset, полный CI, browser/release evidence, Windows compatibility, полноценный Long Poll без обязательного WebSocket и сквозной переход `1.0.6 → 1.0.7` подтверждаются до финального merge в `master`.
 
-1. проверить GitHub branch protection/ruleset для `master` и `1.0`;
-2. получить зелёный полный CI, cross-browser/mobile и load/soak evidence на exact release head `1.0.4`;
-3. подтвердить fresh backup/restore drill, обязательный Admin E2E `v1.0.3 → 1.0.4` с exact-схемой предыдущего релиза, Windows compatibility CI и ручную проверку OSPanel 5.2.2; исторический путь `1.0.2 → 1.0.3` остаётся отдельной совместимостью через bootstrap;
-4. подтвердить отсутствие открытых P0/P1 data-loss/security/release blockers;
-5. собрать immutable `workspace-organizer-v1.0.4.zip`, сверить SHA-256/source SHA и подписать exact update manifest production update key;
-6. после strict acceptance слить exact release head в `master`, поставить `v1.0.4` и публиковать только проверенные immutable artifacts.
+Для `1.0.7` реальная приёмка выполняется уже с опубликованной `1.0.6` как исходной точкой: на Windows/OSPanel проверяются одна кнопка обновления, внешний runtime, пофайловый apply/rollback, сохранность private storage и лицензии, автоматический boot recovery и отсутствие наследованного maintenance предыдущей установки. Публикация `v1.0.7` выполняется только после принятия точного RC.
 
 Scalable encrypted-search redesign не является release blocker сам по себе; он требуется только если измерения на заявленном масштабе покажут, что bounded decrypt scan не выдерживает принятого performance envelope.
 

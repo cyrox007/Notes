@@ -9,10 +9,10 @@ use App\Services\LicenseRuntimePolicy;
 use App\Services\PermissionService;
 
 /**
- * Base HTTP controller.
+ * Базовый HTTP-контроллер.
  *
- * From 1.0 onward application views are rendered exclusively by the internal
- * NativeViewRenderer. There is no Smarty/legacy fallback in the HTTP runtime.
+ * Начиная с 1.0 представления приложения формируются только внутренним
+ * NativeViewRenderer. Запасного пути через Smarty или старый renderer нет.
  */
 class Controller
 {
@@ -34,8 +34,8 @@ class Controller
             $moduleViewRoots,
         );
 
-        // CSRF validation remains global for mutating HTTP requests and is
-        // independent from the selected presentation engine.
+        // Проверка CSRF остаётся общей для изменяющих HTTP-запросов и не
+        // зависит от механизма формирования представления.
         (new CSRFMiddleware())->handle();
     }
 
@@ -52,8 +52,8 @@ class Controller
     }
 
     /**
-     * Backward-compatible public helper retained for callers/tests while route
-     * generation is owned by ViewContext.
+     * Совместимый публичный метод для старых вызовов и проверок. Формирование
+     * маршрута при этом принадлежит ViewContext.
      *
      * @param array<string,mixed> $params
      */
@@ -74,14 +74,15 @@ class Controller
     }
 
     /**
-     * Render a logical application view through the internal native PHP engine.
-     * Isolated module views use the `@module-id/path` namespace and are resolved
-     * only from view roots registered by the active ModuleRuntimeLoader.
+     * Сформировать логическое представление через внутренний PHP-renderer.
+     * Представления изолированных модулей используют пространство
+     * `@module-id/path` и разрешаются только из корней, зарегистрированных
+     * активным ModuleRuntimeLoader.
      *
-     * `base_url` is intentionally a same-origin path prefix, not SITEURL. Static
-     * resources and in-app links must follow the protocol/authority of the HTTP
-     * request that actually loaded the page. SITEURL remains the canonical
-     * installation origin for the few services that explicitly need one.
+     * `base_url` намеренно хранит same-origin префикс пути, а не SITEURL.
+     * Статические ресурсы и внутренние ссылки должны наследовать протокол и
+     * адрес фактического HTTP-запроса. SITEURL остаётся каноническим адресом
+     * установки только для сервисов, которым он действительно нужен.
      *
      * @param array<string,mixed>|null $data
      */
@@ -94,7 +95,9 @@ class Controller
         $socketUrl = '';
         if (!empty($workspaceAccess['messenger'])) {
             try {
-                $socketUrl = WebSocketEndpoint::browserUrl();
+                if (WebSocketEndpoint::enabled()) {
+                    $socketUrl = WebSocketEndpoint::browserUrl();
+                }
             } catch (\Throwable $e) {
                 error_log('Global Messenger endpoint is unavailable: ' . $e->getMessage());
             }
@@ -114,8 +117,8 @@ class Controller
         if ($data !== null) {
             $normalized = $this->convertObjectsToArray($data);
             if (is_array($normalized)) {
-                // Preserve the legacy controller contract where explicitly
-                // supplied view variables can override common defaults.
+                // Сохраняем прежний контракт контроллера: явно переданные
+                // переменные представления могут переопределять общие значения.
                 $viewData = array_merge($viewData, $normalized);
             }
         }
@@ -144,14 +147,23 @@ class Controller
 
         try {
             $permissions = (new PermissionService())->permissionsForUser($viewerId);
+            $capabilities = ModuleRuntimeLoader::isBooted()
+                ? ModuleRuntimeLoader::getInstance()->capabilities()
+                : null;
+            $active = static fn (string $capability): bool =>
+                $capabilities !== null && $capabilities->has($capability);
+
+            $adminActive = $active('workspace.admin');
             return [
-                'notes' => in_array('notes.use', $permissions, true),
-                'tasks' => in_array('tasks.use', $permissions, true),
-                'files' => in_array('files.use', $permissions, true),
-                'messenger' => in_array('messenger.use', $permissions, true),
-                'profile' => in_array('profile.use', $permissions, true),
-                'admin' => in_array('admin.access', $permissions, true),
-                'admin_audit' => in_array('admin.audit.view', $permissions, true),
+                'notes' => $active('workspace.notes') && in_array('notes.use', $permissions, true),
+                'tasks' => $active('workspace.tasks') && in_array('tasks.use', $permissions, true),
+                'files' => $active('workspace.files') && in_array('files.use', $permissions, true),
+                'messenger' => $active('workspace.messenger') && in_array('messenger.use', $permissions, true),
+                'profile' => $active('workspace.profile') && in_array('profile.use', $permissions, true),
+                'admin' => $adminActive && in_array('admin.access', $permissions, true),
+                'admin_audit' => $adminActive && in_array('admin.audit.view', $permissions, true),
+                // Управление лицензией остаётся доступно через core recovery-маршрут,
+                // даже когда Admin не разрешён текущей лицензией.
                 'license_manage' => in_array('admin.settings.manage', $permissions, true),
             ];
         } catch (\Throwable $e) {

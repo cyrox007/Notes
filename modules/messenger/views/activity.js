@@ -108,12 +108,11 @@
         app.sendActivity = (activity, active, dialogUid = app.currentDialog?.uid || '') => {
             const uid = String(dialogUid || '');
             if (!uid || !Object.hasOwn(labels, activity)) return false;
-            if (!app.socket || app.socket.readyState !== WebSocket.OPEN) return false;
-            app.socket.send(JSON.stringify({
-                action: 'MessangerSocket:activity',
-                data: { dialog_uid: uid, activity, active: Boolean(active) }
-            }));
-            return true;
+            return app.sendEvent('MessangerSocket:activity', {
+                dialog_uid: uid,
+                activity,
+                active: Boolean(active)
+            });
         };
 
         app.setLocalActivity = (activity, active, dialogUid = app.currentDialog?.uid || '') => {
@@ -149,6 +148,20 @@
                 const data = JSON.parse(event.data);
                 if (data?.action === 'activity') {
                     app.receiveActivity(data);
+                    return;
+                }
+                if (data?.action === 'activity_snapshot') {
+                    const dialogUid = String(data.dialog_uid || '');
+                    clearDialogActivities(dialogUid);
+                    (Array.isArray(data.activities) ? data.activities : []).forEach((item) => {
+                        app.receiveActivity({
+                            action: 'activity',
+                            dialog_uid: dialogUid,
+                            user_uid: String(item?.user_uid || ''),
+                            activity: String(item?.activity || ''),
+                            active: true
+                        });
+                    });
                     return;
                 }
             } catch (_) {

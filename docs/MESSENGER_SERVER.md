@@ -1,13 +1,15 @@
 # Messenger WebSocket server — запуск, отдельный WS-узел и эксплуатация
 
-Workspace Organizer 1.0 использует WebSocket-first realtime transport: собственный native PHP WebSocket runtime является основным низколатентным каналом, а authenticated HTTP long poll — автоматическим резервным каналом. Сторонний Workerman и Composer `vendor/` для realtime Messenger не требуются. Обычные HTTP-запросы и fallback обслуживаются PHP-FPM/Apache, а ускоренный realtime — отдельным долгоживущим процессом `ws_server/server.php`.
+Workspace Organizer использует HTTP Long Poll как основной обязательный transport Messenger. Через него должен работать весь функционал: сообщения, медиа, группы, реакции, статусы доставки и прочтения, activity, глобальные уведомления и счётчики непрочитанных. WebSocket — необязательный низколатентный ускоритель: при наличии он временно заменяет Long Poll, но отсутствие WebSocket не должно ограничивать возможности Messenger. Сторонний Workerman и Composer `vendor/` для realtime Messenger не требуются. Обычные HTTP-запросы и long poll обслуживаются PHP-FPM/Apache, а WebSocket-ускорение — отдельным долгоживущим процессом `ws_server/server.php`.
 
 Поддерживаемый production-контракт:
 
 - при включённом WebSocket одна installation Workspace Organizer использует один активный WebSocket process;
 - этот process может работать рядом с HTTP-приложением либо на одном отдельном WS-узле;
-- при недоступном WebSocket Messenger автоматически продолжает durable realtime через HTTP long poll и параллельно пытается восстановить WS;
+- HTTP Long Poll запускается сразу как гарантированный durable-канал; WebSocket подключается параллельно как ускоритель и после успешной авторизации бесшовно заменяет Long Poll;
+- при отсутствии, зависании или разрыве WebSocket Messenger без перезагрузки продолжает durable realtime через HTTP long poll, сам восстанавливает зависшие poll-запросы и параллельно пробует вернуть WebSocket;
 - durable mutations из HTTP fallback публикуют shared DB realtime revision, поэтому активные WS-клиенты получают `sync_required` и перечитывают canonical state без reconnect;
+- ephemeral activity хранится только несколько секунд в `messenger_activity`, автоматически истекает и используется для parity между WebSocket и Long Poll без превращения presence в постоянные данные;
 - несколько одновременно активных WS instances одной installation пока не поддерживаются: connection registry находится в памяти процесса, а полноценный multi-node pub/sub/presence отсутствует.
 
 ## Архитектура
@@ -29,7 +31,7 @@ PHP-FPM / Apache        Native PHP WebSocket server
       MySQL + private storage
 ```
 
-TLS завершается на reverse proxy. Внутренний listener использует `stream_socket_server()` + `stream_select()`, собственный RFC6455 handshake/frame codec и общий Messenger transport boundary. HTTP fallback входит в тот же transport boundary: `/messenger/realtime/action` dispatch-ит те же allowlisted Messenger actions, а `/messenger/realtime/poll` ждёт изменения durable state и возвращает canonical snapshot.
+TLS завершается на reverse proxy. Внутренний listener использует `stream_socket_server()` + `stream_select()`, собственный RFC6455 handshake/frame codec и общий Messenger transport boundary. Long Poll не пересчитывает полный снимок Messenger на каждом коротком тике: WebSocket- и HTTP-мутации публикуют общую realtime-ревизию в БД, а короткоживущая активность имеет отдельный лёгкий сигнал. Полный fingerprint выполняется при изменении сигнала и периодически как страховочная сверка для редких путей записи в обход realtime-dispatcher. HTTP long poll входит в тот же transport boundary: `/messenger/realtime/action` передаёт те же разрешённые Messenger-действия, а `/messenger/realtime/poll` ждёт изменения durable state и возвращает canonical snapshot. Клиент рассматривает long poll как самостоятельный рабочий канал: единичный HTTP-сбой не переводит Messenger в постоянный offline, зависший запрос прерывается клиентским watchdog и запускается заново, а после возврата сети ожидание возобновляется автоматически. Во время updater maintenance или короткого рассогласования кода и схемы ранний bootstrap для безопасного `GET /messenger/realtime/poll` возвращает `200` со статусом `suspended` и рекомендуемой задержкой повтора; mutating-запросы по-прежнему остаются заблокированы maintenance-барьером. Перед запуском установки обновления интерфейс заранее останавливает WebSocket и Long Poll в текущей вкладке, чтобы старый клиент не успел открыть новый фоновый запрос между включением maintenance и перезагрузкой/rollback.
 
 ## Требования
 
@@ -63,6 +65,7 @@ Composer install для runtime не нужен.
 
 ```env
 SITEURL=https://app.example.com
+WS_ENABLED=1
 WS_PUBLIC_URL=wss://ws.example.com/ws
 WS_ALLOWED_ORIGINS=https://app.example.com
 WS_HOST=127.0.0.1
@@ -77,6 +80,7 @@ WS_PID_FILE=/run/workspace-organizer/ws-server.pid
 ```env
 SITEURL=https://workspace.example.com
 BASE_PATH=/
+WS_ENABLED=1
 WS_HOST=127.0.0.1
 WS_PORT=27800
 WS_PUBLIC_URL=wss://workspace.example.com/ws
@@ -223,11 +227,13 @@ user=www-data
 
 ## Shared hosting / Open Server
 
-Messenger остаётся работоспособным без long-running WebSocket process: browser автоматически переходит на authenticated HTTP long poll. WebSocket на том же сервере (обычно reverse proxy `/ws` → `WS_PORT`) или один отдельный WS-узел по контракту выше рекомендуются как fast path, потому что уменьшают задержку, число HTTP-запросов и занятость PHP workers.
+Messenger полностью работоспособен без long-running WebSocket process: authenticated HTTP Long Poll является базовым transport и не считается урезанным режимом. WebSocket на том же сервере (обычно reverse proxy `/ws` → `WS_PORT`) или один отдельный WS-узел остаются необязательным ускорением, уменьшающим задержку, число HTTP-запросов и занятость PHP workers.
 
 Для fallback shared hosting должен разрешать обычные длительные HTTP requests и иметь достаточную параллельность PHP/FPM. Клиент освобождает PHP session lock на long-poll request, прерывает текущий poll перед собственным mutating HTTP action или refresh socket ticket и затем возобновляет ожидание. Значение `MESSENGER_LONG_POLL_TIMEOUT_SECONDS` по умолчанию равно 15 секундам и ограничивается диапазоном 5–25.
 
-Ephemeral typing/activity остаются WebSocket enhancement; сообщения, диалоги, read/delivery state, reactions и другие durable изменения синхронизируются через fallback. После восстановления WebSocket клиент получает свежий ticket, проходит `Authorized`, отменяет long poll и бесшовно возвращается на основной канал.
+Глобальный realtime вне самой страницы Messenger координируется между вкладками одного browser-origin: одна вкладка держит активный WebSocket/Long Poll transport, остальные получают состояние непрочитанных через межвкладочный канал. Владелец lease продолжает держать transport и после ухода вкладки в фон; lease освобождается при закрытии/уходе страницы или истекает при аварийном завершении. Это не позволяет всем скрытым вкладкам одновременно оставить Workspace без realtime. Если `BroadcastChannel` или `localStorage` недоступны, клиент безопасно возвращается к независимому transport в каждой вкладке вместо потери realtime.
+
+Короткоживущая активность (`печатает…`, запись голоса/видео, загрузка файлов) также доступна без WebSocket: состояние хранится в отдельной TTL-таблице несколько секунд и попадает в Long Poll snapshot текущего диалога. WebSocket при наличии доставляет те же сигналы мгновенно, а HTTP-режим использует общий источник состояния. Сообщения, диалоги, read/delivery state, reactions и глобальный счётчик непрочитанных также продолжают работать без WebSocket. После восстановления WebSocket клиент получает свежий ticket, проходит `Authorized`, останавливает текущий long poll и бесшовно возвращается на быстрый канал. При следующем разрыве long poll включается снова автоматически.
 
 Для Open Server используйте `docs/OPEN_SERVER_WEBSOCKET.md`.
 
@@ -240,7 +246,7 @@ Ephemeral typing/activity остаются WebSocket enhancement; сообщен
 5. открыть Messenger двумя пользователями;
 6. при доступном WebSocket в DevTools → Network → WS увидеть `101 Switching Protocols` и состояние «WebSocket · в сети»;
 7. отправить сообщение и убедиться, что второй browser context получает его без reload;
-8. временно остановить WS process или сделать endpoint недоступным, дождаться состояния «Long Poll · резервный канал», повторить отправку между двумя пользователями и убедиться, что durable state синхронизируется;
+8. временно остановить WS process или установить `WS_ENABLED=0`, дождаться состояния «Long Poll · в сети», повторить отправку сообщений, файлов, реакций и проверить счётчик непрочитанных между двумя пользователями;
 9. вернуть WS process и убедиться, что клиент автоматически возвращается на WebSocket без reload.
 
 Repository CI выполняет production-like Chromium smoke через TLS Nginx + PHP + **native WebSocket server**, проверяет reconnect, HTTP fallback/worker-release и bridge fallback-mutation → активный WS-клиент; runtime проверяется без каталога `vendor/`.

@@ -14,8 +14,9 @@ if (is_file($root . '/.env')) {
 }
 require_once $root . '/core/RuntimeAutoloader.php';
 \Core\RuntimeAutoloader::register($root);
-require_once $root . '/core/config.php';
+require_once $root . '/core/Config.php';
 
+use App\Services\LicenseModuleEntitlementService;
 use App\Services\LicenseService;
 use Core\DatabaseManager;
 use Core\LocalControlPlaneContext;
@@ -166,7 +167,10 @@ try {
         $registry = ModuleRegistry::boot(
             $root . '/modules',
             Version::VERSION,
-            new ModuleLifecycleStore($db)
+            new ModuleLifecycleStore(
+                $db,
+                new LicenseModuleEntitlementService(),
+            )
         );
 
         if ($action === 'list') {

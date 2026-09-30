@@ -5,17 +5,42 @@ declare(strict_types=1);
 use App\Services\MaintenanceModeService;
 use Core\UpdateAutomaticRecovery;
 use Core\UpdateCoordinatorLock;
+use Core\UpdateTransactionJournal;
 
 $root = dirname(__DIR__, 2);
 require_once $root . '/app/services/MaintenanceModeService.php';
 require_once $root . '/core/UpdateAutomaticRecovery.php';
+require_once $root . '/core/UpdateBootRecoveryGate.php';
 require_once $root . '/core/UpdateCoordinatorLock.php';
+require_once $root . '/core/UpdateTransactionJournal.php';
 
 function automaticRecoveryAssert(bool $condition, string $message): void
 {
     if (!$condition) {
         throw new RuntimeException($message);
     }
+}
+
+function automaticRecoveryInitializeJournal(
+    string $stateRoot,
+    string $root,
+    string $temp,
+    string $transactionId
+): void {
+    $stage = $temp . '/stage/' . $transactionId;
+    if (!is_dir($stage) && !mkdir($stage, 0700, true) && !is_dir($stage)) {
+        throw new RuntimeException('Не удалось создать stage для recovery journal');
+    }
+
+    (new UpdateTransactionJournal($stateRoot, $root))->initialize([
+        'transaction_id' => $transactionId,
+        'installed_version' => '1.0.5-test',
+        'installed_version_code' => 10005,
+        'target_version' => '1.0.6-test',
+        'target_version_code' => 10006,
+        'package_sha256' => str_repeat('a', 64),
+        'stage_dir' => $stage,
+    ]);
 }
 
 function automaticRecoveryRemoveTree(string $path): void
@@ -43,6 +68,7 @@ try {
     $maintenance = new MaintenanceModeService($stateRoot, $root);
 
     $successTransaction = 'update-auto-recovery-success';
+    automaticRecoveryInitializeJournal($stateRoot, $root, $temp, $successTransaction);
     $maintenance->enter($successTransaction, 'Проверка автоматического восстановления');
 
     $invocations = 0;
@@ -122,7 +148,40 @@ try {
     $busyCoordinator->release();
     $maintenance->leave($busyTransaction);
 
+    $staleStartedAt = time() - 3600;
+    $freshInstallDate = date('YmdHis', time());
+    automaticRecoveryAssert(
+        \Core\UpdateBootRecoveryGate::maintenancePredatesCurrentInstallation(
+            ['started_at' => $staleStartedAt],
+            $freshInstallDate
+        ),
+        'Maintenance предыдущей установки не распознан по INSTALL_DATE'
+    );
+    automaticRecoveryAssert(
+        !\Core\UpdateBootRecoveryGate::maintenancePredatesCurrentInstallation(
+            ['started_at' => time()],
+            date('YmdHis', time() - 3600)
+        ),
+        'Текущая updater-транзакция ошибочно распознана как состояние предыдущей установки'
+    );
+    automaticRecoveryAssert(
+        !\Core\UpdateBootRecoveryGate::maintenancePredatesCurrentInstallation(
+            ['started_at' => $staleStartedAt],
+            'invalid'
+        ),
+        'Некорректный INSTALL_DATE не должен автоматически снимать maintenance'
+    );
+
+    $bootGateSource = (string) file_get_contents($root . '/core/UpdateBootRecoveryGate.php');
+    automaticRecoveryAssert(
+        str_contains($bootGateSource, 'maintenancePredatesCurrentInstallation($state)')
+            && str_contains($bootGateSource, '$maintenance->leave($transactionId)')
+            && str_contains($bootGateSource, 'предыдущей установки'),
+        'Boot recovery не содержит безопасного отсечения stale maintenance после fresh install'
+    );
+
     $failedTransaction = 'update-auto-recovery-failed';
+    automaticRecoveryInitializeJournal($stateRoot, $root, $temp, $failedTransaction);
     $maintenance->enter($failedTransaction, 'Проверка ошибки восстановления');
     $failed = new UpdateAutomaticRecovery(
         $root,
@@ -139,6 +198,17 @@ try {
     );
     $failedResult = $failed->attempt($maintenance);
     automaticRecoveryAssert($failedResult['status'] === 'failed', 'Ошибка recovery не распознана');
+    automaticRecoveryAssert(($failedResult['code'] ?? '') === 'rollback_failed', 'Потерян безопасный код диагностики recovery');
+    automaticRecoveryAssert(
+        ($failedResult['transaction_id'] ?? '') === $failedTransaction,
+        'Ошибка recovery потеряла ID транзакции для аварийной диагностики'
+    );
+    automaticRecoveryAssert(
+        str_contains($bootGateSource, 'diagnostic_code')
+            && str_contains($bootGateSource, 'transaction_id')
+            && str_contains($bootGateSource, 'diagnosticMessage'),
+        'Ранний recovery-барьер не показывает безопасную аварийную диагностику'
+    );
     automaticRecoveryAssert(
         $maintenance->state()['active'],
         'При неподтверждённом recovery maintenance обязан остаться активным'

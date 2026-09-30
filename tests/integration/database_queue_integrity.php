@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 $_SERVER['HTTP_HOST'] = $_SERVER['HTTP_HOST'] ?? 'localhost';
 
-require dirname(__DIR__, 2) . '/core/config.php';
-require dirname(__DIR__, 2) . '/core/DatabaseManager.php';
+$root = dirname(__DIR__, 2);
+require_once $root . '/core/RuntimeAutoloader.php';
+\Core\RuntimeAutoloader::register($root);
 
 use Core\DatabaseManager;
 

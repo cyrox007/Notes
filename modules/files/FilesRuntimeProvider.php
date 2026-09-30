@@ -7,6 +7,7 @@ use App\Controllers\FileController;
 use App\Controllers\FileDeleteController;
 use App\Controllers\FileQuotaController;
 use App\Controllers\FileShareController;
+use App\Middlewares\CSRFMiddleware;
 use App\Middlewares\EnforceFileFolderPolicy;
 use App\Middlewares\EnforceFileUploadPolicy;
 use App\Middlewares\LoginRequared;
@@ -53,9 +54,14 @@ final class FilesRuntimeProvider implements ModuleRuntimeProvider
             ->add('POST', '/delete/', [FileDeleteController::class, 'delete'], [LoginRequared::class, RequireFilesUse::class], 'files_delete')
             ->add('POST', '/rename/', [FileController::class, 'rename'], [LoginRequared::class, RequireFilesUse::class, StorageMutationLock::class], 'files_rename')
             ->add('GET', '/get/{int:fileId}/', [FileController::class, 'getFile'], [LoginRequared::class, RequireFilesUse::class], 'files_get')
-            ->add('POST', '/share/{str:uid}', [FileShareController::class, 'create'], [LoginRequared::class, RequireFilesUse::class], 'files_share')
-            ->add('POST', '/unshare/{str:uid}', [FileShareController::class, 'revoke'], [LoginRequared::class, RequireFilesUse::class], 'files_unshare')
-            ->add('GET', '/shared/{str:token}', [FileShareController::class, 'download'], [], 'files_shared')
+            ->add('GET', '/shares/', [FileShareController::class, 'index'], [LoginRequared::class, RequireFilesUse::class], 'files_shares')
+            ->add('POST', '/share/{str:uid}', [FileShareController::class, 'create'], [LoginRequared::class, RequireFilesUse::class, CSRFMiddleware::class], 'files_share')
+            ->add('POST', '/unshare/{str:uid}', [FileShareController::class, 'revoke'], [LoginRequared::class, RequireFilesUse::class, CSRFMiddleware::class], 'files_unshare')
+            ->add('POST', '/shares/{int:shareId}/revoke', [FileShareController::class, 'revokeShare'], [LoginRequared::class, RequireFilesUse::class, CSRFMiddleware::class], 'files_share_revoke')
+            ->add('POST', '/shares/{int:shareId}/expiry', [FileShareController::class, 'updateExpiry'], [LoginRequared::class, RequireFilesUse::class, CSRFMiddleware::class], 'files_share_expiry')
+            ->add('GET', '/shared/{str:token}', [FileShareController::class, 'open'], [], 'files_shared')
+            ->add('GET', '/shared/{str:token}/folder/{str:uid}', [FileShareController::class, 'folder'], [], 'files_shared_folder')
+            ->add('GET', '/shared/{str:token}/file/{str:uid}', [FileShareController::class, 'sharedFile'], [], 'files_shared_file')
             ->endGroup();
     }
 }

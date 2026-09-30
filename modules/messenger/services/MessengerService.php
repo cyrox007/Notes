@@ -9,7 +9,7 @@ use Core\DatabaseManager;
 use DomainException;
 use InvalidArgumentException;
 use RuntimeException;
-use UUID;
+use Core\Uuid;
 
 final class MessengerService
 {
@@ -383,7 +383,7 @@ final class MessengerService
             $groupName = 'Новая группа';
         }
 
-        $dialogUid = UUID::v4();
+        $dialogUid = Uuid::v4();
         $now = date('Y-m-d H:i:s');
 
         $this->db->beginTransaction();
@@ -466,7 +466,7 @@ final class MessengerService
             $replyToId = (int) $reply['id'];
         }
 
-        $messageUid = UUID::v4();
+        $messageUid = Uuid::v4();
         $encrypted = MessengerCrypto::encrypt($message, $messageUid);
         $now = date('Y-m-d H:i:s');
 

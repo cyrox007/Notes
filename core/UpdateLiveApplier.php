@@ -13,15 +13,11 @@ use mysqli;
 use RuntimeException;
 
 /**
- * Transactional updater facade.
+ * Транзакционный фасад updater.
  *
- * This class intentionally keeps the public API used by UpdateApplyCommand and
- * the existing integration contracts while delegating the three independent
- * responsibilities that previously lived in one large implementation:
- *
- * - candidate/backup verification -> UpdateCandidateVerifier
- * - release-owned filesystem switch -> UpdateCodeSwitcher
- * - database rollback -> UpdateDatabaseRestorer
+ * Публичный API для UpdateApplyCommand остаётся стабильным, а проверка
+ * candidate/backup, пофайловое переключение кода и rollback БД разделены
+ * между специализированными классами.
  */
 final class UpdateLiveApplier
 {
@@ -46,13 +42,13 @@ final class UpdateLiveApplier
     {
         $app = realpath($appRoot ?? dirname(__DIR__));
         if (!is_string($app) || !is_dir($app) || is_link($app)) {
-            throw new RuntimeException('Live application root cannot be resolved safely');
+            throw new RuntimeException('Не удалось безопасно определить live-root приложения');
         }
         $this->appRoot = UpdatePath::normalize($app);
 
         $parent = realpath(dirname($app));
         if (!is_string($parent) || !is_dir($parent) || !is_writable($parent)) {
-            throw new RuntimeException('Live application parent must be writable for controlled code switch');
+            throw new RuntimeException('Родительский каталог приложения должен быть доступен для записи updater-плана');
         }
         $this->parentRoot = UpdatePath::normalize($parent);
 
@@ -70,8 +66,8 @@ final class UpdateLiveApplier
     }
 
     /**
-     * Fail closed when a configured mutable path is nested under a release-owned
-     * top-level directory. Such a path cannot survive a directory-level switch.
+     * Запрещает mutable-путь внутри release-owned корня, пока он не описан
+     * отдельным правилом исключения пофайлового updater.
      *
      * @param list<string> $paths
      */
@@ -97,8 +93,8 @@ final class UpdateLiveApplier
             $top = explode('/', $relative, 2)[0] ?? '';
             if (!in_array($top, self::PRESERVED_ROOTS, true)) {
                 throw new RuntimeException(
-                    "Configured mutable path {$real} is nested below release-owned root {$top}; "
-                    . 'move it outside the application tree before live update'
+                    "Mutable-путь {$real} находится внутри релизного корня {$top}; "
+                    . 'вынесите его из рабочего дерева или добавьте явное правило сохранения до обновления'
                 );
             }
         }
@@ -113,7 +109,7 @@ final class UpdateLiveApplier
     }
 
     /**
-     * @return array{scratch_dir:string,new_dir:string,old_dir:string,entries:list<string>}
+     * @return array{scratch_dir:string,plan_path:string,plan_sha256:string,transaction_id:string,entries:list<string>}
      */
     public function prepareCodeSwitch(string $transactionId, string $candidateDir, string $backupDir): array
     {
@@ -121,7 +117,7 @@ final class UpdateLiveApplier
     }
 
     /**
-     * @param array{scratch_dir:string,new_dir:string,old_dir:string,entries:list<string>} $plan
+     * @param array<string,mixed> $plan
      * @return array<string,mixed>
      */
     public function switchPrepared(array $plan): array

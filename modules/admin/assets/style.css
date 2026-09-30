@@ -460,3 +460,36 @@
     grid-template-columns:1fr
   }
 }
+
+.admin-update-progress{
+  margin:0 16px 14px;
+  padding:12px 14px;
+  border:1px solid var(--ui-border);
+  border-radius:10px;
+  background:var(--ui-surface-soft)
+}
+.admin-update-progress[hidden]{
+  display:none
+}
+.admin-update-progress strong{
+  display:block;
+  margin-bottom:5px;
+  color:var(--ui-text)
+}
+.admin-update-progress p,
+.admin-update-progress small{
+  color:var(--ui-muted);
+  line-height:1.5
+}
+.admin-update-progress p{
+  margin:0
+}
+.admin-update-progress ol{
+  margin:9px 0;
+  padding-left:20px;
+  color:var(--ui-text)
+}
+.admin-update-progress li+li{
+  margin-top:3px
+}
+

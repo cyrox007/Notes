@@ -201,6 +201,22 @@ final class LicenseService
      */
     public function ensureUpdateAccess(): array
     {
+        return $this->updateAccess(false);
+    }
+
+    /**
+     * Перевыпускает updater credential после подтверждённого отказа 401.
+     *
+     * @return array<string,mixed>
+     */
+    public function refreshUpdateAccess(): array
+    {
+        return $this->updateAccess(true);
+    }
+
+    /** @return array<string,mixed> */
+    private function updateAccess(bool $refresh): array
+    {
         $token = $this->storedToken();
         if ($token === '') {
             throw new DomainException('Для обновлений сначала активируйте лицензию', 403);
@@ -214,7 +230,12 @@ final class LicenseService
             );
         }
 
-        return (new UpdateAccessBootstrap())->ensure($this->installationId(), $token);
+        $bootstrap = new UpdateAccessBootstrap();
+        if ($refresh) {
+            return $bootstrap->refresh($this->installationId(), $token);
+        }
+
+        return $bootstrap->ensure($this->installationId(), $token);
     }
 
     /** @return array<string,mixed> */

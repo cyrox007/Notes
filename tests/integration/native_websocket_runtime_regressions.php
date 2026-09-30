@@ -113,6 +113,7 @@ $server = $serverReflection->newInstanceWithoutConstructor();
 wsRuntimePrivateSet($server, 'allowedOrigins', []);
 wsRuntimePrivateSet($server, 'ticketValidator', static fn (string $ticket): ?int => 7);
 wsRuntimePrivateSet($server, 'messengerPermissionChecker', static fn (int $userId): bool => true);
+wsRuntimePrivateSet($server, 'messengerEntitlementChecker', static fn (): bool => true);
 wsRuntimePrivateSet($server, 'userUidResolver', static function (int $userId): ?string {
     throw new RuntimeException('simulated database outage');
 });
