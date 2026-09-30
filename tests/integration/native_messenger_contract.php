@@ -26,7 +26,11 @@ foreach (['{extends', '{include', '{foreach', '{if', '$smarty'] as $legacyToken)
     nativeMessengerAssert(!str_contains($view, $legacyToken), "Messenger native view still contains Smarty token {$legacyToken}");
 }
 nativeMessengerAssert(str_contains($view, '$view->e($currentUser[\'uid\'] ?? \'\')'), 'current Messenger user UID is not escaped');
-nativeMessengerAssert(str_contains($view, '$view->e($contact[\'uid\'] ?? \'\')'), 'Messenger contact UID is not escaped');
+nativeMessengerAssert(
+    str_contains($view, 'data-contact-uid="<?= $view->e($contactUid) ?>"')
+        && str_contains($view, 'value="<?= $view->e($contactUid) ?>"'),
+    'Messenger contact UID is not escaped'
+);
 nativeMessengerAssert(str_contains($view, "'socket_ticket' => \$socket_ticket ?? ''"), 'socket ticket is not propagated into native shell');
 nativeMessengerAssert(str_contains($view, "'socket_url' => \$socket_url ?? ''"), 'socket URL is not propagated into native shell');
 nativeMessengerAssert(str_contains($view, 'data-socket-url="<?= $view->e($socket_url ?? \'\') ?>"'), 'Messenger root does not carry a direct socket URL fallback');
