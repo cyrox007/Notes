@@ -49,6 +49,15 @@ async function login(page) {
 async function submitAndWait(page, button) {
   const navigation = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 });
   await button.click();
+
+  const dialog = page.locator('.wspace-dialog').last();
+  try {
+    await dialog.waitFor({ state: 'visible', timeout: 1000 });
+    await dialog.locator('.wspace-dialog__button--danger, .wspace-dialog__button--primary').last().click();
+  } catch {
+    // Обычные формы отправляются сразу и не открывают диалог подтверждения.
+  }
+
   await navigation;
 }
 
