@@ -21,7 +21,7 @@
 
 До финального тестирования RC:
 
-1. Все запланированные изменения релиза включены в `release/1.0.13`; посторонние ветки в RC отсутствуют.
+1. Все запланированные изменения релиза включены в `release/1.0.13-module-entitlements`; посторонние ветки в RC отсутствуют.
 2. Никакие посторонние или непроверенные ветки не сливаются «для удобства».
 3. `php bin/release_acceptance.php --json` не сообщает об ошибках source-contract.
 4. В релизном дереве нет приватных ключей подписи лицензий или обновлений.
@@ -156,7 +156,7 @@ php bin/release_acceptance.php --strict --json \
   --artifact-signed
 ```
 
-2. Слейте exact accepted HEAD `release/1.0.13` в `master` без внесения новых source changes.
+2. Слейте exact accepted HEAD `release/1.0.13-module-entitlements` в `master` без внесения новых source changes.
 3. Убедитесь, что `master` указывает на ожидаемое релизное содержимое.
 4. Создайте подписанный/аннотированный тег `v1.0.13` согласно release policy репозитория.
 5. Убедитесь, что tag-driven `Build hosting package` опубликовал GitHub Release из exact tagged SHA и приложил ZIP, checksum и source-SHA; update manifest и detached signature для production feed публикуются отдельно по операторскому процессу и не должны менять bytes принятого ZIP.
