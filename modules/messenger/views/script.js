@@ -1216,6 +1216,8 @@
 
         readContactAvatarUrls() {
             const avatars = new Map();
+            if (typeof document?.querySelectorAll !== 'function') return avatars;
+
             document.querySelectorAll('[data-contact-uid][data-contact-avatar-url]').forEach((element) => {
                 const uid = String(element.dataset.contactUid || '').trim();
                 const url = String(element.dataset.contactAvatarUrl || '').trim();
