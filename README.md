@@ -371,44 +371,49 @@ GitHub Actions покрывают security baseline, PHP/Composer, clean schemas
 
 `Production operations` проверяет shared rate-limit storage, trusted proxy contract, positive/negative multi-node healthcheck, MySQL dump/checksum/restore, private-storage restore и rotation `WS_TICKET_SECRET`.
 
-`0.14 beta readiness` проверяет beta identity, module/security lifecycle artifacts, release publishing contract и синхронизацию Version/README/CHANGELOG.
+`0.14 beta readiness` — исторически названная проверка платформенных инвариантов, сохранившаяся в CI ради регрессий после выхода 1.0.
 
 `Master release gate` запускается на каждом PR и после каждого push/merge в `master`: повторно проверяет объединённый commit — Composer/security audit, полный PHP/JS lint, canonical schema import, production healthcheck, согласованность версии, governance contract и upload-ready hosting bundle.
 
 ## Документация
 
-- [`CHANGELOG.md`](CHANGELOG.md) — история и Unreleased.
-- [`docs/CORE.md`](docs/CORE.md) — архитектура ядра.
-- [`docs/MODULE_DEVELOPMENT.md`](docs/MODULE_DEVELOPMENT.md) — создание, установка и lifecycle нового модуля.
-- [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) — пользовательские сценарии.
-- [`docs/HOSTING_INSTALL.md`](docs/HOSTING_INSTALL.md) — fresh install на shared hosting без Composer/CLI.
-- [`docs/PRODUCTION.md`](docs/PRODUCTION.md) — deployment, WSS, rate limiting и production checklist.
-- [`docs/OPERATIONS.md`](docs/OPERATIONS.md) — backup/restore drill, multi-node rate limiting, trusted proxies и key-rotation procedures.
-- [`docs/RELEASE_GOVERNANCE.md`](docs/RELEASE_GOVERNANCE.md) — required checks, branch protection и review policy.
-- [`docs/PRODUCT_UX_0.13.md`](docs/PRODUCT_UX_0.13.md) — закрытый 0.13 scope и beta backlog.
-- [`TASKS_MODULE_README.md`](TASKS_MODULE_README.md) — дополнительная документация Tasks.
-- [`default.env`](default.env) — environment variables и security comments.
+Главная точка входа: [`docs/README.md`](docs/README.md).
+
+Оттуда документация разделена на:
+
+- пользовательскую и административную;
+- эксплуатационную;
+- архитектурную;
+- план развития;
+- релизные материалы;
+- исторический архив.
+
+Актуальный план: [`docs/ROADMAP.md`](docs/ROADMAP.md). Идеи без назначенной версии: [`docs/PRODUCT_BACKLOG.md`](docs/PRODUCT_BACKLOG.md).
 
 ## 1.0 release readiness
 
-Основные platform/stability blockers исходного beta-аудита уже закрыты в ветке `1.0`:
+Линия 1.0 функционально завершена на **v1.0.13** и находится в режиме сопровождения.
 
-- vendor-free distributable runtime;
-- isolated module-owned runtime и composition-aware database/install/update/health ownership;
-- signed staged updater с transactional apply, durable recovery и code+DB rollback;
-- installation-wide licensing и Core recovery control plane;
-- production license/update Ed25519 keypairs прошли offline ceremony; в репозитории и customer bundle остаются только public trust roots;
-- structured security observability и operational alert thresholds;
-- resumable/rollback-safe rotation `UNIQUE_KEY` / `MSG_SECRET_KEY`;
+Закрытые платформенные и эксплуатационные контракты:
+
+- vendor-free runtime без обязательного Composer/`vendor`;
+- изолированный runtime модулей и composition-aware lifecycle;
+- явные лицензионные `workspace.*` entitlement;
+- signed updater с staging, backup, transactional apply, durable recovery и rollback кода/БД;
+- production license/update Ed25519 keypairs; в customer bundle находятся только публичные trust roots;
+- structured security observability;
 - nonce-based CSP без `unsafe-inline`;
-- explicit retention/permanent-purge contract с filesystem/DB safety guards;
-- browser lifecycle coverage для основных product modules и exact published 1.0.1 → 1.0.2 upgrade/rollback drill;
-- кросс-браузерная и мобильная проверка, а также нагрузочный и длительный контур доказательств релиза.
+- explicit retention/permanent-purge contract;
+- GitHub branch protection/ruleset и обязательные release checks;
+- browser lifecycle основных модулей;
+- кросс-браузерная и мобильная проверка;
+- Windows/OSPanel и Long Poll/WebSocket контракты;
+- модульное включение/отключение без потери данных.
 
-Для `v1.0.7` автоматизируемая часть релизной проверки должна быть зелёной на точном HEAD release-кандидата: GitHub branch protection/ruleset, полный CI, browser/release evidence, Windows compatibility, полноценный Long Poll без обязательного WebSocket и сквозной переход `1.0.6 → 1.0.7` подтверждаются до финального merge в `master`.
+GitHub Release `v1.0.13` опубликован. Регистрация версии во внешнем реестре, появление в stable-feed и контрольное пользовательское обновление `1.0.12 → 1.0.13` являются следующим эксплуатационным шагом после публикации, а не условием существования самого GitHub Release.
 
-Для `1.0.7` реальная приёмка выполняется уже с опубликованной `1.0.6` как исходной точкой: на Windows/OSPanel проверяются одна кнопка обновления, внешний runtime, пофайловый apply/rollback, сохранность private storage и лицензии, автоматический boot recovery и отсутствие наследованного maintenance предыдущей установки. Публикация `v1.0.7` выполняется только после принятия точного RC.
+Новые 1.0.x выпускаются только при обнаружении дефектов или необходимости небольшой совместимой доработки текущей функциональности.
 
-Scalable encrypted-search redesign не является release blocker сам по себе; он требуется только если измерения на заявленном масштабе покажут, что bounded decrypt scan не выдерживает принятого performance envelope.
+Следующая продуктовая линия: **1.1 — Календарь и ежедневник**.
 
-Финальный порядок действий: [`docs/RELEASE_ACCEPTANCE.md`](docs/RELEASE_ACCEPTANCE.md). Исторический hardening roadmap: [`docs/BETA_HARDENING_0.14.md`](docs/BETA_HARDENING_0.14.md).
+Актуальный статус: [`docs/RELEASE_STATUS_1.0.md`](docs/RELEASE_STATUS_1.0.md). Финальная релизная матрица: [`docs/RELEASE_ACCEPTANCE.md`](docs/RELEASE_ACCEPTANCE.md).
