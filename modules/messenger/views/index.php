@@ -58,7 +58,7 @@ ob_start();
         <header class="messenger-list__header">
             <div>
                 <h1 class="messenger-list__title">Чаты</h1>
-                <div class="messenger-connection" id="messenger-connection" data-state="online" data-transport="none" hidden><span class="messenger-connection__dot" aria-hidden="true"></span><span id="messenger-connection-text">В сети</span></div>
+                <div class="messenger-connection" id="messenger-connection" data-state="connecting" data-transport="none" role="status" aria-live="polite"><span class="messenger-connection__dot" aria-hidden="true"></span><span id="messenger-connection-text">Подключение…</span></div>
             </div>
             <button class="messenger-icon-button" id="new-chat-button" type="button" title="Новый чат" aria-label="Новый чат"><i class="fa fa-plus" aria-hidden="true"></i></button>
         </header>
@@ -81,7 +81,7 @@ ob_start();
             <header class="messenger-chat__header">
                 <button class="messenger-icon-button messenger-chat__back" id="chat-back-button" type="button" aria-label="Назад к диалогам"><i class="fa fa-arrow-left" aria-hidden="true"></i></button>
                 <div class="messenger-avatar" id="chat-avatar" aria-hidden="true">?</div>
-                <div class="messenger-chat__identity"><strong id="chat-title">Диалог</strong><span id="chat-subtitle">&nbsp;</span></div>
+                <div class="messenger-chat__identity" id="chat-identity"><strong id="chat-title">Диалог</strong><span id="chat-subtitle">&nbsp;</span></div>
                 <div class="messenger-chat__actions" aria-label="Действия с чатом">
                     <button class="messenger-icon-button" id="chat-group-button" type="button" hidden title="Информация о группе" aria-label="Информация о группе"><i class="fa fa-users" aria-hidden="true"></i></button>
                     <button class="messenger-icon-button" id="chat-pin-button" type="button" title="Закрепить чат" aria-label="Закрепить чат"><i class="fa fa-thumb-tack" aria-hidden="true"></i></button>
@@ -138,7 +138,19 @@ ob_start();
                     <?php if (!is_array($contact)) { continue; } $searchText = trim((string) ($contact['firstname'] ?? '') . ' ' . (string) ($contact['lastname'] ?? '') . ' ' . (string) ($contact['username'] ?? '')); ?>
                     <label class="messenger-contact" data-contact-search="<?= $view->e($searchText) ?>">
                         <input class="messenger-contact__checkbox" type="checkbox" value="<?= $view->e($contact['uid'] ?? '') ?>">
-                        <span class="messenger-avatar messenger-avatar--small" aria-hidden="true"><i class="fa fa-user"></i></span>
+                        <?php
+                            $contactUid = (string) ($contact['uid'] ?? '');
+                            $contactAvatar = !empty($contact['avatar']) && $contactUid !== ''
+                                ? $baseUrl . '/profile/avatar/' . rawurlencode($contactUid)
+                                : '';
+                        ?>
+                        <span class="messenger-avatar messenger-avatar--small" aria-hidden="true">
+                            <?php if ($contactAvatar !== ''): ?>
+                                <img src="<?= $view->e($contactAvatar) ?>" alt="">
+                            <?php else: ?>
+                                <i class="fa fa-user"></i>
+                            <?php endif; ?>
+                        </span>
                         <span class="messenger-contact__identity"><strong><?= $view->e($contact['firstname'] ?? '') ?> <?= $view->e($contact['lastname'] ?? '') ?></strong><small>@<?= $view->e($contact['username'] ?? '') ?></small></span>
                     </label>
                 <?php endforeach; ?>
