@@ -170,6 +170,15 @@ try {
   await page.goto(`${baseUrl}/files/folder/${nestedFolderId}/`, { waitUntil: 'domcontentloaded' });
   await page.locator('.file-manager__item').filter({ hasText: fileName }).waitFor({ state: 'visible', timeout: 5000 });
 
+  // Сценарий доказал сохранность объектов. Убираем только созданное им тестовое
+  // дерево, чтобы оно не меняло квоту и состояние последующих lifecycle-проверок.
+  await page.goto(`${baseUrl}/files/`, { waitUntil: 'domcontentloaded' });
+  rootFolder = page.locator('.file-manager__item[data-type="folder"]').filter({ hasText: folderName });
+  await rootFolder.waitFor({ state: 'visible', timeout: 5000 });
+  page.once('dialog', (dialog) => dialog.accept());
+  await rootFolder.locator('.btn-delete').click();
+  await rootFolder.waitFor({ state: 'detached', timeout: 10000 });
+
   console.log('[OK] File Manager share lifecycle: файл, папка, вложенная навигация, отзыв и истечение');
   await anonymous.close();
   await ownerContext.close();
