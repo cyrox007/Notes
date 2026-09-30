@@ -105,7 +105,14 @@ function workspaceEnsureCiLicense(): void
                 'issued_at' => time() - 5,
                 'expires_at' => null,
                 'edition' => 'ci',
-                'features' => ['notes', 'tasks', 'files', 'messenger', 'profile', 'admin'],
+                'features' => [
+                    'workspace.notes',
+                    'workspace.tasks',
+                    'workspace.files',
+                    'workspace.messenger',
+                    'workspace.profile',
+                    'workspace.admin',
+                ],
             ];
             $json = json_encode(
                 $payload,
