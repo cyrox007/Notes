@@ -388,27 +388,40 @@ jobs:
           rm -rf "$HEALTH_BROKEN"
           rsync -a "$FUTURE/" "$HEALTH_BROKEN/"
           perl -0pi -e "s/public const VERSION = '[^']+';/public const VERSION = '1.0.12-health-broken-e2e';/" "$HEALTH_BROKEN/core/Version.php"
-          # Второй аварийный кандидат должен падать уже после успешного
-          # применения миграций и healthcheck. Updater на этой границе запускает
-          # bin/migrate.php --status. Обычный запуск мигратора оставляем штатным,
-          # а status-проверку делаем намеренно неуспешной.
-          ORIGINAL_MIGRATOR="$HEALTH_BROKEN/bin/migrate.php"
-          TEMP_MIGRATOR="$HEALTH_BROKEN/bin/migrate.php.original"
-          mv "$ORIGINAL_MIGRATOR" "$TEMP_MIGRATOR"
-          cat > "$ORIGINAL_MIGRATOR" <<'PHP'
-          <?php
-          declare(strict_types=1);
+          # Второй аварийный кандидат должен успешно применить миграцию,
+          # а затем упасть на штатном healthcheck из-за неполной схемы БД.
+          # Это проверяет rollback уже после завершённой destructive-миграции.
+          cat > "$HEALTH_BROKEN/database/migrations/20991231_ci_post_health_failure.sql" <<'SQL'
+          DROP TABLE IF EXISTS file_shares;
+          SQL
 
-          if (in_array('--status', $argv, true)) {
-              fwrite(STDERR, "CI: намеренный отказ post-check после успешных миграций\n");
-              exit(92);
-          }
+          php -r '
+            $path=$argv[1];
+            $data=json_decode((string) file_get_contents($path), true, 32, JSON_THROW_ON_ERROR);
+            $data["migrations"][]="20991231_ci_post_health_failure.sql";
+            file_put_contents(
+                $path,
+                json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL,
+                LOCK_EX
+            );
+          ' "$HEALTH_BROKEN/database/migrations/manifest.json"
 
-          require __DIR__ . '/migrate.php.original';
-          PHP
-          php -l "$ORIGINAL_MIGRATOR"
-          php -l "$TEMP_MIGRATOR"
+          php -r '
+            $path=$argv[1];
+            $data=json_decode((string) file_get_contents($path), true, 32, JSON_THROW_ON_ERROR);
+            $data["database"]["migrations"][]="database/migrations/20991231_ci_post_health_failure.sql";
+            file_put_contents(
+                $path,
+                json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL,
+                LOCK_EX
+            );
+          ' "$HEALTH_BROKEN/modules/files/module.json"
+
+          grep -Fq '"20991231_ci_post_health_failure.sql"' "$HEALTH_BROKEN/database/migrations/manifest.json"
+          grep -Fq 'database/migrations/20991231_ci_post_health_failure.sql' "$HEALTH_BROKEN/modules/files/module.json"
+          test -s "$HEALTH_BROKEN/database/migrations/20991231_ci_post_health_failure.sql"
           test "$(php -r "require '$HEALTH_BROKEN/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.12-health-broken-e2e'
+          test "$(php -r "require '$HEALTH_BROKEN/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10012'
           test "$(php -r "require '$HEALTH_BROKEN/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10012'
 
           cd "$DRILL"
@@ -441,7 +454,7 @@ jobs:
             --source-commit="$GITHUB_SHA" \
             --min-source-version-code=10011 \
             --requires-php=8.1.0 \
-            --notes='CI: намеренный отказ post-check после успешных миграций' \
+            --notes='CI: намеренный отказ post-health после успешной миграции' \
             --out="$DRILL/release-10012-health-broken.json"
 
           php tools/vendor-update/sign-manifest.php \
@@ -683,7 +696,7 @@ jobs:
           PRIVATE_STORAGE_PATH="$PRIVATE" \
           php "$GITHUB_WORKSPACE/tests/support/admin_update_preservation_probe.php" --verify
 
-      - name: Переключить канал на 1.0.12 с намеренно сломанной post-check проверкой
+      - name: Переключить канал на 1.0.12 с намеренно сломанным post-health
         shell: bash
         run: |
           set -euo pipefail
@@ -692,14 +705,14 @@ jobs:
           {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10012-health-broken.json","signature":"release-10012-health-broken.sig"}
           JSON
 
-      - name: Проверить автоматический откат после ошибки post-check после успешных миграций
+      - name: Проверить автоматический откат после ошибки post-health после успешной миграции
         shell: bash
         env:
           SSL_CERT_FILE: /tmp/workspace-admin-update-e2e/ca.crt
           E2E_BROKEN_TARGET_VERSION: 1.0.12-health-broken-e2e
         run: node tests/e2e/admin-update-rollback.mjs
 
-      - name: Доказать восстановление 1.0.11 после ошибки post-check после успешных миграций
+      - name: Доказать восстановление 1.0.11 после ошибки post-health после успешной миграции
         shell: bash
         run: |
           set -euo pipefail
@@ -724,7 +737,7 @@ jobs:
             elif [[ "$state" = 'rollback_verified' ]]; then
               ROLLED_BACK=$((ROLLED_BACK + 1))
             else
-              echo "Неожиданное состояние транзакции после отказа post-check: $state ($journal)" >&2
+              echo "Неожиданное состояние транзакции после отказа post-health: $state ($journal)" >&2
               exit 1
             fi
           done
