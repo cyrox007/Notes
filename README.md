@@ -10,36 +10,35 @@ Workspace Organizer — self-hosted PHP-приложение для корпор
 
 ## Возможности
 
-- **Notes** — XChaCha20-Poly1305 для текста, writing-first editor, private attachments, first-class voice notes с duration/playback, view-only sharing по токену, autosave/dirty-state, server-side поиск и role policies для количества заметок, вложений, типов/размера файлов и sharing.
-- **Tasks** — личные kanban/list задачи, drag-and-drop статусов, приоритеты, сроки, категории, подзадачи, фильтры и server-side поиск/пагинация; beta.4 добавляет общие task boards с ACL, участниками, исполнителями и audience `all_active`.
-- **File Manager** — личные папки/файлы вне document root, protected download, media/read-only text preview, grid/list workspace, поиск/сортировка, drag-and-drop upload, storage quota и role policies для размера/типов файлов, общей ёмкости и создания папок.
-- **Messenger v2** — private/group chats, Saved Messages, forwarding, media, voice, reply/edit/delete, delivery/read receipts, reactions, encrypted search, pin/mute/archive, group roles/avatars, multi-device realtime; WebSocket работает как быстрый канал, а authenticated HTTP Long Poll — как полноценный durable-транспорт с автоматическим переключением и самовосстановлением; role policies ограничивают частоту сообщений, вложения, voice и group capabilities.
-- **Profile** — workspace hub с Notes/Tasks/Files/storage metrics, private avatar, account settings, безопасная деактивация и explicit `is_profile_public` publication model без раскрытия private content.
-- **Admin panel** — создание и lifecycle пользователей, managed registration `disabled/open/invite`, ограниченные/revocable инвайты, Role Manager с permission assignment и module policies, custom profile fields, системный лимит File Manager и персональные storage quota overrides без physical delete связанных данных.
-- **Responsive UI** — единый design system, desktop/mobile navigation, обновлённые формы/карточки/модалки, keyboard focus, reduced-motion support и общий feedback layer.
+- **Заметки** — зашифрованный текст, вложения, голосовые заметки, общий доступ только для просмотра, автосохранение, поиск и ограничения по ролям.
+- **Задачи** — личные и общие доски, список и канбан, статусы, приоритеты, сроки, категории, подзадачи, исполнители, фильтры и поиск.
+- **Файлы** — личные папки и файлы в закрытом хранилище, просмотр, поиск, сортировка, загрузка перетаскиванием, квоты и ограничения по ролям.
+- **Messenger** — личные и групповые диалоги, «Сохранённые сообщения», пересылка, медиа и голос, ответы, редактирование, удаление, реакции, статусы доставки/прочтения и работа с нескольких устройств. HTTP Long Poll является надёжным каналом, WebSocket — ускорителем.
+- **Профиль** — аватар, настройки аккаунта, показатели хранилища и безопасная публикация профиля без раскрытия закрытого содержимого.
+- **Администрирование** — пользователи, регистрация и приглашения, роли и разрешения, политики модулей, пользовательские поля, квоты, лицензия и управление составом модулей.
+- **Адаптивный интерфейс** — единая система оформления для настольных и мобильных экранов, клавиатурный фокус, уменьшение анимаций и общий механизм обратной связи.
 
-## Security model
+## Модель безопасности
 
-Ключевые свойства текущего contract:
+Основные свойства текущей версии:
 
-- passwords — `password_hash` / Argon2id;
-- Notes text — `UNIQUE_KEY` + XChaCha20-Poly1305, UID заметки используется как AAD;
-- Messenger text/captions — отдельный `MSG_SECRET_KEY` + versioned XChaCha20-Poly1305 payload;
-- crypto failures для новых encrypted данных — fail-closed;
-- WebSocket identity — подписанный server-issued ticket, client UID не считается доверенным;
-- WebSocket origins/actions — allowlist;
-- File Manager, Messenger media, Notes attachments и user avatars — `PRIVATE_STORAGE_PATH` вне document root;
-- File Manager quota проверяется до записи файла; concurrent uploads одного пользователя сериализуются MySQL advisory lock;
-- upload MIME — server-side `finfo` + allowlist;
-- unsafe HTTP actions — CSRF policy;
-- login/registration и upload endpoints — request rate limiting;
-- persisted RBAC отвечает за доступ к действиям, а `role_module_policies` отдельно задаёт количественные/типовые ограничения; server-side middleware/services остаются authorization boundary;
-- публичная регистрация по умолчанию закрыта; режимы `disabled/open/invite` управляются администратором, а managed invite-коды хранятся только как SHA-256 hash;
-- inactive/blocked user повторно проверяется на HTTP и WebSocket paths.
+- пароли хранятся через `password_hash` / Argon2id;
+- текст заметок шифруется XChaCha20-Poly1305 с `UNIQUE_KEY`, UID заметки используется как AAD;
+- текст и подписи Messenger шифруются отдельным `MSG_SECRET_KEY`;
+- ошибки расшифровки новых зашифрованных данных обрабатываются закрыто;
+- WebSocket использует подписанный сервером ticket и не доверяет UID, переданному клиентом;
+- разрешённые источники и действия WebSocket ограничены;
+- файлы, медиа Messenger, вложения заметок и аватары хранятся в `PRIVATE_STORAGE_PATH` вне document root;
+- MIME загружаемых файлов определяется на сервере через `finfo` и проверяется по разрешённому списку;
+- изменяющие HTTP-запросы защищаются политикой CSRF;
+- вход, регистрация и загрузка файлов ограничиваются по частоте;
+- RBAC отвечает за разрешения действий, а `role_module_policies` — за количественные и типовые ограничения;
+- публичная регистрация по умолчанию закрыта; приглашения хранятся только в виде SHA-256 hash;
+- состояние пользователя повторно проверяется как в HTTP, так и в WebSocket.
 
-> Messenger использует **server-side encryption at rest**, а не end-to-end encryption. Сервер способен расшифровать сообщения.
+> Messenger использует **серверное шифрование данных при хранении**, а не сквозное шифрование. Сервер способен расшифровать сообщения.
 
-> Attachment bytes и avatars защищаются private filesystem + ACL. Они не считаются отдельно зашифрованными at-rest, если конкретный storage flow явно не реализует такое шифрование. Для новых Notes attachments `is_encrypted=0` намеренно отражает реальность.
+> Вложения и аватары защищены закрытой файловой системой и ACL. Они не считаются отдельно зашифрованными при хранении, если конкретный поток хранения явно не реализует такое шифрование.
 
 ## Требования
 
