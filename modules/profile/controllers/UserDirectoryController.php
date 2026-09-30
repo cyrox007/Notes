@@ -34,9 +34,14 @@ final class UserDirectoryController extends Controller
         $params = [':current_user_id' => $currentUserId];
         $where = "is_active = 1 AND account_status = 'active' AND id <> :current_user_id";
         if ($query !== '') {
-            $where .= ' AND (username LIKE :query OR firstname LIKE :query OR lastname LIKE :query '
-                . "OR CONCAT(firstname, ' ', lastname) LIKE :query)";
-            $params[':query'] = '%' . $query . '%';
+            $where .= ' AND (username LIKE :username_query OR firstname LIKE :firstname_query '
+                . 'OR lastname LIKE :lastname_query '
+                . "OR CONCAT(firstname, ' ', lastname) LIKE :fullname_query)";
+            $pattern = '%' . $query . '%';
+            $params[':username_query'] = $pattern;
+            $params[':firstname_query'] = $pattern;
+            $params[':lastname_query'] = $pattern;
+            $params[':fullname_query'] = $pattern;
         }
 
         $db = DatabaseManager::getInstance();
