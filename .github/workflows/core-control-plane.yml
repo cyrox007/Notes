@@ -92,33 +92,43 @@ jobs:
       - name: Verify service and lifecycle independence
         run: php tests/integration/core_control_plane_contract.php
 
-      - name: Verify local CLI recovery surface
+      - name: Проверить локальный CLI управления и восстановления
         shell: bash
         run: |
           set -euo pipefail
-          php bin/control.php modules list --json
-          php bin/control.php modules disable admin --json
-          test "$(mysql -N -h 127.0.0.1 -uroot -proot core_control_plane_test -e "SELECT configured_state FROM module_lifecycle WHERE module_id='admin'")" = 'disabled'
+
+          php tests/support/ci_license_fixture.php
           php bin/control.php license status --json
-          if php bin/control.php license clear --json; then
-            echo 'license clear unexpectedly succeeded without --yes' >&2
+          php bin/control.php modules list --json
+
+          if php bin/control.php modules disable admin --json; then
+            echo 'Обязательный Admin неожиданно удалось отключить через CLI.' >&2
             exit 1
           fi
-          php bin/control.php modules enable admin --json
           test "$(mysql -N -h 127.0.0.1 -uroot -proot core_control_plane_test -e "SELECT configured_state FROM module_lifecycle WHERE module_id='admin'")" = 'enabled'
+
+          php bin/control.php modules disable notes --json
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot core_control_plane_test -e "SELECT configured_state FROM module_lifecycle WHERE module_id='notes'")" = 'disabled'
+          php bin/control.php modules enable notes --json
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot core_control_plane_test -e "SELECT configured_state FROM module_lifecycle WHERE module_id='notes'")" = 'enabled'
+
+          if php bin/control.php license clear --json; then
+            echo 'Очистка лицензии неожиданно прошла без --yes.' >&2
+            exit 1
+          fi
 
           mkdir -p modules/controlfixture
           cat > modules/controlfixture/module.json <<'JSON'
           {
             "schema": 1,
             "id": "controlfixture",
-            "name": "Control Fixture",
+            "name": "Контрольный модуль",
             "version": "1.0.0",
             "core": {"min": "1.0.0", "max_exclusive": "2.0.0"},
             "dependencies": [],
             "capabilities": ["fixture.control"],
-            "package": {"bundled": false, "default_enabled": false},
-            "license": {"feature": null},
+            "package": {"bundled": false, "default_enabled": false, "required": false},
+            "license": {"feature": "workspace.controlfixture"},
             "runtime": {"mode": "isolated", "entrypoint": "runtime.php"},
             "storage_namespaces": [],
             "database": {"tables": [], "schemas": [], "migrations": []}
@@ -138,8 +148,11 @@ jobs:
           test "$(mysql -N -h 127.0.0.1 -uroot -proot core_control_plane_test -e "SELECT configured_state FROM module_lifecycle WHERE module_id='controlfixture'")" = 'discovered'
           php bin/control.php modules install controlfixture --json
           test "$(mysql -N -h 127.0.0.1 -uroot -proot core_control_plane_test -e "SELECT configured_state FROM module_lifecycle WHERE module_id='controlfixture'")" = 'installed'
-          php bin/control.php modules enable controlfixture --json
-          test "$(mysql -N -h 127.0.0.1 -uroot -proot core_control_plane_test -e "SELECT configured_state FROM module_lifecycle WHERE module_id='controlfixture'")" = 'enabled'
-          php bin/control.php modules disable controlfixture --json
+          if php bin/control.php modules enable controlfixture --json; then
+            echo 'Модуль без workspace.controlfixture неожиданно удалось включить.' >&2
+            exit 1
+          fi
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot core_control_plane_test -e "SELECT configured_state FROM module_lifecycle WHERE module_id='controlfixture'")" = 'installed'
+
           rm -rf modules/controlfixture
           mysql -h 127.0.0.1 -uroot -proot core_control_plane_test -e "DELETE FROM module_lifecycle WHERE module_id='controlfixture'"
