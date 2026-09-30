@@ -60,9 +60,9 @@ ob_start();
         <section class="profile-public__content ux-section" aria-labelledby="public-content-title">
             <div class="ux-section__heading">
                 <div>
-                    <span class="ux-kicker">Публично</span>
+                    <span class="ux-kicker">Видимость профиля</span>
                     <h2 id="public-content-title">Материалы пользователя</h2>
-                    <p>Здесь показываются только объекты, которые владелец явно опубликовал в своём профиле.</p>
+                    <p>Здесь показываются только объекты, которые владелец разрешил видеть другим пользователям Workspace.</p>
                 </div>
                 <?php if ($publicTotal > 0): ?><span class="profile-public__counter"><?= $view->e($publicTotal) ?> опубликовано</span><?php endif; ?>
             </div>
@@ -117,8 +117,8 @@ ob_start();
                 <div class="ux-empty profile-public__empty">
                     <div>
                         <i class="fa fa-lock" aria-hidden="true"></i>
-                        <strong>Пользователь пока ничего не публиковал</strong>
-                        <p>Share-ссылки и приватные заметки, задачи и файлы здесь автоматически не раскрываются.</p>
+                        <strong>Пользователь пока ничего не открыл в профиле</strong>
+                        <p>Ссылки общего доступа к файлам и папкам существуют отдельно и здесь автоматически не показываются.</p>
                     </div>
                 </div>
             <?php endif; ?>
