@@ -69,6 +69,11 @@ jobs:
                           continue
                       }
 
+                      if ($statusCode -in @(500, 502, 503, 504)) {
+                          Write-Warning "GitHub временно не отменил запуск $($run.id), HTTP $statusCode. Очистка продолжена."
+                          continue
+                      }
+
                       throw
                   }
               }
