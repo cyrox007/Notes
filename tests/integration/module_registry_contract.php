@@ -161,6 +161,29 @@ try {
     removeFixtureTree($tmp);
 }
 
+$tmp = sys_get_temp_dir() . '/workspace-module-required-policy-' . bin2hex(random_bytes(6));
+mkdir($tmp, 0700, true);
+try {
+    writeFixture($tmp, 'external');
+    $manifestPath = $tmp . '/external/module.json';
+    $manifest = json_decode((string) file_get_contents($manifestPath), true, 32, JSON_THROW_ON_ERROR);
+    $manifest['package']['required'] = true;
+    file_put_contents(
+        $manifestPath,
+        json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n"
+    );
+
+    $rejected = false;
+    try {
+        ModuleRegistry::discover($tmp, Version::VERSION);
+    } catch (RuntimeException) {
+        $rejected = true;
+    }
+    moduleAssert($rejected, 'сторонний модуль не должен самостоятельно становиться обязательным');
+} finally {
+    removeFixtureTree($tmp);
+}
+
 $tmp = sys_get_temp_dir() . '/workspace-module-negative-' . bin2hex(random_bytes(6));
 mkdir($tmp, 0700, true);
 try {
