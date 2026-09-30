@@ -121,7 +121,7 @@
 
 ## Gate G — неизменяемый артефакт и подпись
 
-Соберите финальный upload-ready bundle из точного принятого SHA. Для ручной pre-tag проверки workflow `Build hosting package` можно запускать на точном commit/ref с `version=v1.0.13`: он сверяет версию с `core/Version.php` и сохраняет ZIP, SHA-256 и точный source SHA как workflow artifact. После появления проверенного неизменяемого тега тот же workflow имеет право `contents: write` только для публикации GitHub Release: он повторно собирает пакет с тега, проверяет соответствие версии и публикует Release вместе с checksum/source-SHA. Существующий Release автоматически не перезаписывается.
+Соберите финальный upload-ready bundle из точного принятого SHA. Для ручной pre-tag проверки workflow `Build hosting package` можно запускать на точном commit/ref с `version=v1.0.13`: он сверяет версию с `core/Version.php` и сохраняет ZIP, SHA-256 и точный source SHA как workflow artifact. После появления проверенного неизменяемого тега тот же workflow имеет право `contents: write` только для публикации GitHub Release: он повторно собирает пакет с тега, проверяет соответствие версии и публикует Release вместе с checksum/source-SHA. Опубликованный тег и существующие бинарные артефакты не перемещаются и не пересобираются постфактум; текст описания существующего GitHub Release может синхронизироваться с финальной документацией.
 
 Далее:
 
