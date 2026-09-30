@@ -5,6 +5,7 @@ namespace Modules\Profile;
 
 use App\Controllers\ProfileController;
 use App\Controllers\PublicProfileController;
+use App\Controllers\UserDirectoryController;
 use App\Middlewares\CSRFMiddleware;
 use App\Middlewares\LoginRequared;
 use App\Middlewares\RequireProfileUse;
@@ -40,6 +41,7 @@ final class ProfileRuntimeProvider implements ModuleRuntimeProvider
     {
         $router->group('/profile')
             ->add('GET', '/', [ProfileController::class, 'index'], [LoginRequared::class, RequireProfileUse::class], 'profile')
+            ->add('GET', '/users', [UserDirectoryController::class, 'index'], [LoginRequared::class, RequireProfileUse::class], 'profile-users')
             ->add('GET', '/user/{str:uid}', [PublicProfileController::class, 'view'], [LoginRequared::class, RequireProfileUse::class], 'profile-public')
             ->add('POST', '/publication', [ProfileController::class, 'setPublication'], [LoginRequared::class, RequireProfileUse::class], 'profile-publication')
             ->add('POST', '/', [ProfileController::class, 'update'], [LoginRequared::class, RequireProfileUse::class], 'profile-set')
