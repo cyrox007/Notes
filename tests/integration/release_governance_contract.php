@@ -155,6 +155,16 @@ foreach ([
     }
 }
 
+$publisher = requireFileText($root . '/.github/workflows/prerelease-autotag.yml');
+if (!str_contains($publisher, 'gh release edit "$TAG"')
+    || !str_contains($publisher, 'RELEASE_EXISTS=true')) {
+    failContract('публикация релиза не синхронизирует описание уже существующего GitHub Release');
+}
+if (!str_contains($publisher, 'Тег $TAG остаётся на опубликованной ревизии')
+    || !str_contains($publisher, 'обновлено только описание GitHub Release')) {
+    failContract('пострелизная документация не отделена от неизменяемого тега');
+}
+
 $releaseGate = requireFileText($releaseGatePath);
 if (!str_contains($releaseGate, 'php tests/integration/release_governance_contract.php')) {
     failContract('release-gate.yml не запускает release_governance_contract.php');

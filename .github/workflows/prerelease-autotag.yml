@@ -46,13 +46,28 @@ jobs:
           test -s "$NOTES"
           test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
 
+          RELEASE_EXISTS=false
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            RELEASE_EXISTS=true
+          fi
+
           if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
             git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
             TAG_SHA="$(git rev-list -n1 "$TAG")"
+
             if [[ "$TAG_SHA" != "$RELEASE_SHA" ]]; then
-              echo "Тег $TAG уже указывает на другую ревизию $TAG_SHA; опубликованный тег не перемещается." >&2
+              if [[ "$RELEASE_EXISTS" == "true" ]]; then
+                gh release edit "$TAG" \
+                  --title "Workspace Organizer $VERSION" \
+                  --notes-file "$NOTES"
+                echo "Тег $TAG остаётся на опубликованной ревизии $TAG_SHA; обновлено только описание GitHub Release."
+                exit 0
+              fi
+
+              echo "Тег $TAG уже указывает на другую ревизию $TAG_SHA, а GitHub Release отсутствует; опубликованный тег не перемещается." >&2
               exit 1
             fi
+
             echo "Тег $TAG уже существует на проверенной ревизии $RELEASE_SHA."
           else
             git config user.name 'github-actions[bot]'
@@ -62,7 +77,7 @@ jobs:
             echo "Опубликован тег $TAG на проверенной ревизии $RELEASE_SHA."
           fi
 
-          if gh release view "$TAG" >/dev/null 2>&1; then
+          if [[ "$RELEASE_EXISTS" == "true" ]]; then
             gh release edit "$TAG" \
               --title "Workspace Organizer $VERSION" \
               --notes-file "$NOTES"
