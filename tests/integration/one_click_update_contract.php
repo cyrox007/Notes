@@ -218,11 +218,11 @@ updateNotificationAssert(
     'Сквозной релизный тест не запускает браузерную проверку автоматического отката'
 );
 updateNotificationAssert(
-    str_contains($adminUpdateE2e, 'name: 1.0.11 → 1.0.12 сквозной updater')
-        && str_contains($adminUpdateE2e, "E2E_SOURCE_VERSION=%s\\n' '1.0.11'")
-        && str_contains($adminUpdateE2e, "E2E_TARGET_VERSION=%s\\n' '1.0.12-admin-e2e'")
+    str_contains($adminUpdateE2e, 'name: 1.0.12 → 1.0.13 сквозной updater')
+        && str_contains($adminUpdateE2e, "E2E_SOURCE_VERSION=%s\\n' '1.0.12'")
+        && str_contains($adminUpdateE2e, "E2E_TARGET_VERSION=%s\\n' '1.0.13-admin-e2e'")
         && !str_contains($adminUpdateE2e, 'bootstrap-1.0.9-updater.php'),
-    'Сквозной релизный тест не закрепляет штатную границу обновления 1.0.11 → 1.0.12 без bootstrap'
+    'Сквозной релизный тест не закрепляет штатную границу обновления 1.0.12 → 1.0.13 без bootstrap'
 );
 updateNotificationAssert(
     str_contains($adminUpdateE2e, '1.0.13-broken-e2e')
