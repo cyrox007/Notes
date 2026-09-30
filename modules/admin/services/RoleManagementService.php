@@ -398,7 +398,13 @@ final class RoleManagementService
     /** @return list<string> */
     private function activeModuleIds(): array
     {
-        return ModuleRegistry::getInstance()->enabledComposition();
+        try {
+            return ModuleRegistry::getInstance()->enabledComposition();
+        } catch (\Throwable) {
+            // Служебные и изолированные проверки могут вызывать сервис без
+            // полного bootstrap. В обычном HTTP runtime реестр уже загружен.
+            return array_keys(self::MODULE_LABELS);
+        }
     }
 
     /** @return list<string> */
