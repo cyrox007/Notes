@@ -155,6 +155,22 @@ foreach ([
     }
 }
 
+$releasePublish = requireFileText($root . '/.github/workflows/prerelease-autotag.yml');
+foreach ([
+    'gh release view "$TAG"',
+    'git diff --name-only "$TAG_SHA..$RELEASE_SHA"',
+    'docs/*|README.md|CHANGELOG.md|tests/*|.github/workflows/*',
+    'gh release edit "$TAG"',
+    'Для таких изменений требуется новый patch-релиз',
+] as $marker) {
+    if (!str_contains($releasePublish, $marker)) {
+        failContract('workflow публикации не защищает неизменяемый тег при синхронизации описания: ' . $marker);
+    }
+}
+if (strpos($releasePublish, 'gh release view "$TAG"') > strpos($releasePublish, 'if [[ "$TAG_SHA" != "$RELEASE_SHA" ]]; then')) {
+    failContract('существующий GitHub Release должен обрабатываться до запрета на отличие master от опубликованного тега');
+}
+
 $releaseGate = requireFileText($releaseGatePath);
 if (!str_contains($releaseGate, 'php tests/integration/release_governance_contract.php')) {
     failContract('release-gate.yml не запускает release_governance_contract.php');
