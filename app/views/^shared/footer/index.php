@@ -9,7 +9,7 @@ $workspaceVersion = isset($version) ? (string) $version : '';
 <footer class="main-footer">
     <div class="main-footer__brand">
         <strong><?= $view->e($siteName) ?></strong>
-        <span>Рабочее пространство для заметок, задач, файлов и общения.</span>
+        <span>Единое рабочее пространство с подключаемыми модулями.</span>
     </div>
     <div class="main-footer__meta">
         <span>Версия <?= $view->e($workspaceVersion) ?></span>
