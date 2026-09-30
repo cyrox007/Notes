@@ -64,5 +64,10 @@ nativeShellAssert(!str_contains($common, '{$'), 'static common runtime still con
 nativeShellAssert(str_contains($common, 'global.wspaceRuntime'), 'static common runtime does not consume native runtime configuration');
 nativeShellAssert(str_contains($common, 'X-CSRF-Token'), 'static common runtime dropped CSRF fetch/XHR hardening');
 nativeShellAssert(str_contains($common, 'workspace.sidebar.collapsed'), 'static common runtime dropped shell navigation behavior');
+nativeShellAssert(
+    str_contains($common, 'const MOBILE_BREAKPOINT = 900;')
+        && str_contains($sidebarStyle, '@media(max-width:900px)'),
+    'breakpoint кнопки меню и логики сайдбара расходится'
+);
 
 echo "[OK] native workspace shell and main page contract\n";
