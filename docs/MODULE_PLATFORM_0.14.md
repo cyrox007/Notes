@@ -84,7 +84,7 @@ Configured states are:
 - `quarantined`;
 - `uninstalled`.
 
-Effective state additionally includes `incompatible`.
+Фактическое состояние дополнительно включает `incompatible` и, начиная с 1.0.13, `unlicensed`.
 
 Bundled modules are registered on first reconciliation using `package.default_enabled`. A newly discovered **non-bundled** package is always registered as `discovered`; `default_enabled` cannot self-activate third-party code.
 
@@ -124,11 +124,19 @@ The SHA-256 hash exposed by the manifest/lifecycle registry represents local man
 
 Before remote installation/update is enabled, the platform must verify signed release metadata and package contents using trusted public verification keys. Package code must never execute before signature/integrity/compatibility verification. Private signing keys must never be distributed with customer installations.
 
-## Licensing boundary
+## Лицензионная граница
 
-`license.feature` is only an entitlement identifier. Modules do not implement independent license checks. A later `LicenseManager/EntitlementService` will evaluate a signed package entitlement and expose a central capability decision.
+`license.feature` является центральным идентификатором разрешения. Сам модуль не реализует собственную проверку ключа.
 
-License failure may disable commercial capability according to policy, but must never destroy customer data, prevent backup/recovery, or turn security updates into an unsafe state.
+Начиная с 1.0.13 реестр жизненного цикла получает решение от общего сервиса лицензирования до формирования runtime-композиции. Если feature отсутствует в действующей подписанной лицензии:
+
+- `configured_state` не изменяется;
+- `effective_state` становится `unlicensed`;
+- provider, capability, маршруты и межмодульные точки входа не загружаются;
+- оператор не может вручную включить модуль;
+- данные модуля не удаляются.
+
+Это позволяет заменить лицензию и вернуть ранее настроенный модуль без потери состояния.
 
 ## Migration rule
 
