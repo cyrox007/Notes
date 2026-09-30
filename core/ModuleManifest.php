@@ -12,6 +12,9 @@ final class ModuleManifest
 {
     public const SCHEMA_VERSION = 1;
 
+    /** @var list<string> */
+    public const REQUIRED_SYSTEM_MODULES = ['admin'];
+
     /** @param list<string> $dependencies */
     /** @param list<string> $capabilities */
     /** @param list<string> $storageNamespaces */
@@ -100,9 +103,15 @@ final class ModuleManifest
         }
         $bundled = self::requireBool($package, 'bundled');
         $defaultEnabled = self::requireBool($package, 'default_enabled');
+        $requiredByCore = in_array($id, self::REQUIRED_SYSTEM_MODULES, true);
         $required = array_key_exists('required', $package)
             ? self::requireBool($package, 'required')
-            : false;
+            : $requiredByCore;
+        if ($required !== $requiredByCore) {
+            throw new RuntimeException(
+                "Module {$id} package.required conflicts with the Core system-module policy"
+            );
+        }
 
         $license = $data['license'] ?? null;
         if (!is_array($license)) {
