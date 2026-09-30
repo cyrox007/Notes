@@ -1,307 +1,143 @@
-# Workspace Organizer — документация ядра
+# Ядро Workspace Organizer
 
-Актуально для `0.11.0-alpha`, 13.09.2026.
+Актуально для стабильной линии **1.0.13**.
 
-## 1. Bootstrap
+## Назначение Core
 
-HTTP entry point — `index.php`. Он определяет `SITEPATH`, настраивает runtime/error logging, подключает `core.php`, затем Router и route config.
+Core содержит только общие платформенные механизмы. Notes, Tasks, File Manager, Messenger, Profile и Admin являются изолированными модулями и подключаются через общий runtime.
 
-`core.php`:
+## Bootstrap
 
-- подключает Composer autoload;
-- загружает `.env` через `vlucas/phpdotenv`;
-- регистрирует namespace/path autoload;
-- подключает базовые `core/*` классы;
-- рекурсивно загружает `app/models`, `app/services`, `app/controllers`, `app/socket`, `app/handlers`, `app/middlewares`.
+HTTP entry point — `index.php`. Базовая загрузка выполняется через `core.php`.
 
-Имена bootstrap-файлов должны совпадать с реальным регистром имени на диске. Это обязательный Linux contract: `core/config.php`, `core/view.php`, `core/request.php` и другие lowercase-файлы нельзя подключать как `Config.php`/`View.php`.
+Текущий порядок:
 
-## 2. Router
+1. `Core\Environment` загружает окружение из `.env`;
+2. `Core\RuntimeAutoloader` регистрирует внутреннюю загрузку классов;
+3. настраивается безопасность сессии;
+4. `ModuleRegistry` обнаруживает manifests;
+5. `ModuleLifecycleStore` согласует persisted lifecycle и лицензионные разрешения;
+6. `ModuleRuntimeLoader` загружает provider только фактически активных модулей;
+7. Router получает core-маршруты и маршруты активных providers.
 
-Route source of truth — `core/routerConfig.php`.
+Runtime 1.0.13 не требует Composer, `vendor/`, Smarty или Workerman.
 
-Пример:
+## Маршрутизация
 
-```php
-$router->group('/notes')
-    ->add('GET', '/', [NoteController::class, 'index'], [LoginRequared::class], 'notes')
-    ->add('POST', '/', [NoteController::class, 'create'], [LoginRequared::class], 'note_create')
-    ->endGroup();
-```
+`core/routerConfig.php` содержит только общесистемные маршруты: главную страницу, аутентификацию, 2FA и восстановление лицензии.
 
-Динамические параметры:
+Маршруты прикладных модулей регистрируются их `ModuleRuntimeProvider` только когда модуль входит в активную композицию.
 
-- `{int:id}` -> digits -> `int`;
-- `{str:uid}` -> `\w`/hyphen contract, подходит для UUID/token-like values текущего Router.
+Динамические параметры Router типизируются шаблоном маршрута. Изменяющие HTTP-запросы защищаются CSRF и дополнительно проходят серверную авторизацию.
 
-Router нормализует URL, проверяет method, выполняет middleware по порядку и вызывает controller с `Request` первым аргументом.
+## Request и Controller
 
-Именованные routes используются через `Router::redirect()` и Smarty `{route_path ...}`.
+`Core\Request` инкапсулирует GET/POST/JSON/FILES/session.
 
-## 3. Request / CSRF
+`Core\Controller` использует внутренний `NativeViewRenderer`. Представления модулей разрешаются через зарегистрированные view roots активного `ModuleRuntimeLoader`.
 
-`Core\Request` инкапсулирует GET, POST, FILES, SERVER, JSON body и session.
+Общий shell строит доступность разделов из двух условий:
 
-Примеры:
+- соответствующая capability активного модуля существует;
+- пользователь имеет требуемое permission.
 
-```php
-$request->get('sort', 'created_at');
-$request->post('name', '');
-$request->json('action');
-$request->session('user_id');
-$request->hasFile('file');
-```
+Скрытый пункт меню не является границей безопасности: service/controller повторно проверяет права.
 
-Sanitize не заменяет domain validation. Enum, длины, ID/UID, ownership, MIME, paths и business rules проверяются отдельно.
+## Модульная композиция
 
-State-changing HTTP action не должен использовать GET. Unsafe methods проходят CSRF policy; browser bootstrap также автоматически добавляет CSRF header для same-origin `fetch`/XHR.
+`ModuleRegistry`:
 
-## 4. Controller / Smarty
+- валидирует `module.json`;
+- проверяет зависимости;
+- строит детерминированный порядок;
+- согласует persisted lifecycle;
+- формирует `enabledComposition()`.
 
-`Core\Controller` инициализирует Smarty, helpers и общий request/render contract.
+`ModuleRuntimeLoader`:
 
-Template helpers:
+- загружает только isolated entrypoints активных модулей;
+- проверяет соответствие provider идентификатору модуля;
+- регистрирует capability;
+- регистрирует view/assets roots;
+- передаёт providers Router.
 
-- `{route_path name="..."}`;
-- `{csrf_token}`;
-- `{session key="..."}`;
-- `{jsonParse ...}`.
+Полный контракт: [MODULE_PLATFORM.md](MODULE_PLATFORM.md).
 
-Пользовательский текст рендерится с escaping. Не создавайте HTML/JS из user-controlled string без отдельного безопасного renderer.
+## Лицензирование
 
-## 5. Middleware
+`LicenseModuleEntitlementService` связывает подписанный `features` лицензии с `license.feature` manifest.
 
-Основные middleware:
+Отсутствующий feature закрыто блокирует модуль, но не удаляет его данные и операторское состояние.
 
-- `LoginRequared` — authenticated active user;
-- `IsAdmin` — admin route gate;
-- `CSRFMiddleware` — state-changing request protection;
-- `AuthRateLimit` — login/registration fixed-window limit;
-- `UploadRateLimit` — upload endpoint limit;
-- `StorageQuotaLimit` — File Manager quota gate перед физической записью файла.
+Core-маршрут восстановления лицензии остаётся доступным независимо от Admin runtime.
 
-По умолчанию rate limiter state хранится под `PRIVATE_STORAGE_PATH/rate-limit`, файл блокируется `flock`, directory/file permissions — private. Для нескольких web-узлов используется отдельный общий `RATE_LIMIT_STORAGE_PATH` на POSIX volume с рабочими advisory locks.
+## Представления
 
-`StorageQuotaLimit` захватывает per-user MySQL advisory lock, проверяет текущий used space и effective quota, а lock удерживается до завершения HTTP upload request. Поэтому два одновременных upload одного пользователя не могут оба зарезервировать один и тот же остаток квоты.
+UI формируется PHP-шаблонами через `NativeViewRenderer`.
 
-Middleware определяет класс доступа к endpoint, но не заменяет resource ACL. Note/File/Dialog/Message/Task ownership проверяется в Controller/Service.
+Общие части находятся в:
 
-## 6. Database layer
+- `app/views/core/`;
+- `app/views/^shared/`.
 
-В проекте остаются два слоя:
+Модульные views/assets принадлежат соответствующим `modules/<id>/` и доступны только активному runtime.
 
-### ORM
+CSP использует nonce и не требует `unsafe-eval`.
 
-`Core\ORM` удобен для простого model CRUD/select.
+## База данных
 
-### DatabaseManager
+Каноническая fresh-схема определяется `Core\DatabaseOwnership`: core-owned schema плюс схемы установленных модулей.
 
-`Core\DatabaseManager` используется для parameterized SQL, транзакций, locking-aware operations и явных security-sensitive contracts.
+`database/migrations/` содержит compatibility-upgrades для существующих установок и не является каноническим описанием новой БД.
 
-Правила:
+Подробнее: [DB_ARCHITECTURE.md](DB_ARCHITECTURE.md).
 
-- user values передаются parameters;
-- SQL identifiers/order columns никогда не берутся напрямую из request;
-- sort/filter keys преобразуются через server allowlist;
-- ACL condition является частью SQL/service contract, а не только UI filter.
+## Private storage
 
-Постепенно новый security-sensitive код следует писать через явные Service + DatabaseManager contracts вместо добавления новой магии в legacy ORM.
+Пользовательские файлы хранятся вне document root в `PRIVATE_STORAGE_PATH`.
 
-## 7. Database schema and migrations
+Основные пространства:
 
-Canonical fresh schemas:
+- `file_manager/`;
+- `messenger/`;
+- `notes/`;
+- `users/`;
+- `rate-limit/`;
+- `logs/`;
+- `legacy/`.
 
-```text
-database/messenger_schema.sql
-database/notes_schema.sql
-database/file_manager_schema.sql
-database/user_fields_schema.sql
-database/tasks_schema.sql
-database/settings_schema.sql
-```
+Browser работает только с логическими ID/UID; физический путь не является пользовательским URL.
 
-Current fresh contract содержит 22 обязательные таблицы. `system_settings` хранит редактируемые системные значения, а `user_storage_quotas` — только per-user quota overrides. Использованный объём хранилища не кэшируется отдельным счётчиком: `StorageQuotaService` вычисляет его из активных строк `user_files`, поэтому delete/restore файлов не требует синхронизации отдельной usage-таблицы.
+## Realtime Messenger
 
-Existing DB обновляется только через versioned runner:
+Основной гарантированный transport — authenticated HTTP Long Poll.
 
-```bash
-php bin/migrate.php --status
-php bin/migrate.php --dry-run
-php bin/migrate.php
-```
+Нативный `ws_server/server.php` — необязательный быстрый канал. Оба пути используют общую серверную бизнес-логику и authorization boundary.
 
-Runner использует явный dependency order, delimiter-aware parsing и `schema_migrations` с SHA-256 checksum. Applied migration нельзя переписывать; для следующего изменения создаётся новый файл.
+Подробнее: [MESSENGER_SERVER.md](MESSENGER_SERVER.md).
 
-Web installer предназначен для empty/fresh DB и не заменяет upgrade runner.
+## RBAC
 
-## 8. Crypto
+Доступ складывается из:
 
-### Notes
+1. состояния аккаунта;
+2. лицензионного entitlement;
+3. RBAC permission;
+4. module policy;
+5. ACL/ownership конкретного объекта.
 
-`App\Helpers\CryptMethods`:
+Подробнее: [RBAC.md](RBAC.md).
 
-- key source `UNIQUE_KEY`;
-- HKDF-SHA256;
-- libsodium XChaCha20-Poly1305;
-- UID заметки используется как AAD;
-- failure — fail-closed.
+## Обновления
 
-Нельзя сохранять plaintext в flow, объявленном encrypted.
+Updater использует отдельный trust-domain Ed25519, проверяет manifest/signature/package до исполнения, ведёт внешний журнал транзакции, backup, maintenance, post-health и rollback/recovery.
 
-### Messenger
+Подробнее:
 
-Messenger использует отдельный `MSG_SECRET_KEY` и versioned XChaCha20-Poly1305 payload. Это server-side encryption at rest, **не E2E**.
+- [UPDATES.md](UPDATES.md)
+- [UPDATER_LIVE_APPLY.md](UPDATER_LIVE_APPLY.md)
+- [UPDATE_REMOTE_DELIVERY.md](UPDATE_REMOTE_DELIVERY.md)
 
-Legacy ciphertext переносится отдельным resumable CLI:
+## Правило развития Core
 
-```bash
-php bin/migrate_crypto.php --scope=all --dry-run --limit=1000
-php bin/migrate_crypto.php --scope=all --limit=1000
-```
-
-Unknown legacy Notes payload не должен автоматически трактоваться как plaintext.
-
-`WS_TICKET_SECRET` можно ротировать с coordinated restart HTTP/WS процессов; ранее выданные socket tickets после смены секрета перестают проходить проверку. `UNIQUE_KEY` и `MSG_SECRET_KEY` нельзя заменять напрямую в `.env`: для них требуется отдельный old-key -> new-key re-encryption process с верификацией.
-
-## 9. Private storage
-
-```env
-PRIVATE_STORAGE_PATH=/var/lib/notes/private
-```
-
-Layout:
-
-```text
-PRIVATE_STORAGE_PATH/
-├── file_manager/
-├── messenger/
-├── notes/
-├── users/
-├── rate-limit/
-├── logs/
-└── legacy/
-```
-
-Инварианты:
-
-1. storage вне document root;
-2. browser получает opaque ID/UID, не physical path;
-3. endpoint повторно проверяет ACL;
-4. resolved path остаётся внутри разрешённого root;
-5. MIME определяется сервером;
-6. private files не обслуживаются static web location;
-7. attachment encryption status должен отражать реальную защиту, а не желаемую.
-
-Notes attachment bytes сейчас private + ACL, но не отдельно encrypted at-rest; `is_encrypted=0` является намеренным contract.
-
-## 10. File Manager browser and quota contract
-
-File Manager не является code execution environment.
-
-- media открывается через protected `/files/get/{id}/`;
-- текстовые/code-файлы могут показываться только read-only;
-- user file content не подставляется в `eval`, `srcdoc` или executable script context;
-- внешние editor CDN не требуются;
-- effective storage quota = per-user override из `user_storage_quotas` либо `file_manager_default_quota_bytes` из `system_settings`;
-- used bytes = `SUM(user_files.size)` только для активных non-folder rows;
-- upload выше effective quota отклоняется до `move_uploaded_file`;
-- concurrent uploads одного пользователя сериализуются advisory lock.
-
-## 11. Realtime Messenger transport
-
-Preferred entry point — native `ws_server/server.php`; automatic fallback — authenticated HTTP `/messenger/realtime/poll` + `/messenger/realtime/action`.
-
-Security/transport contract:
-
-- browser получает short-lived socket ticket через authenticated HTTP для WebSocket fast path;
-- server связывает WS connection с user identity; HTTP fallback использует authenticated application session;
-- client-supplied identity fields не считаются доверенными;
-- Origin проверяется по `WS_ALLOWED_ORIGINS` для WebSocket;
-- realtime action находится в explicit allowlist;
-- оба transport path проходят persisted RBAC, role policies, maintenance state и license read-only enforcement через общий dispatcher/handlers;
-- active/role state повторно проверяется, поэтому deactivation/blocking отзывает дальнейшие действия;
-- один user может иметь несколько active WS connections, события fan-out идут на все его devices/tabs;
-- durable HTTP-fallback mutations bump shared DB realtime revision; native WS process отправляет `sync_required`, после чего WS clients перечитывают canonical state;
-- long-poll request освобождает PHP session lock и прерывается перед mutating HTTP request/ticket refresh;
-- typing/activity — ephemeral WebSocket enhancement и не является durable fallback contract.
-
-Socket handler должен оставаться transport boundary; authorization/business logic живёт в Services и переиспользуется обоими transport paths.
-
-Production-like E2E поднимает native RFC6455 server за TLS Nginx reverse proxy и проверяет две независимые Chromium-сессии, authenticated WSS, reconnect, HTTP fallback worker-release и fallback-mutation → active-WS-client synchronization.
-
-## 12. UI architecture
-
-UI остаётся server-rendered через внутренний `NativeViewRenderer` без Node build pipeline и без Smarty runtime dependency.
-
-Структура:
-
-- `app/views/core/common.css` — design tokens/global shell;
-- `app/views/core/theme-refresh.css` — product-wide compatibility/visual layer поверх legacy module CSS;
-- `app/views/core/accessibility.css` — reusable accessibility utilities;
-- `app/views/^shared/*` — sidebar/header/footer;
-- module CSS/JS — локальная логика.
-
-Новый UI не должен возвращать external font/CDN dependency без отдельного обоснования.
-
-CSP использует per-request cryptographic nonce и не требует `unsafe-inline` или `unsafe-eval`; этот boundary закреплён integration/CI contract.
-
-## 13. Registration / rate limiting
-
-Web-registration управляется persisted policy `disabled/open/invite`; default — `disabled`. В invite-режиме администратор выпускает ограниченные/revocable invite-коды, а в БД хранится только SHA-256 hash. Legacy `REGISTRATION_INVITE_CODE` из `.env` остаётся только compatibility fallback до первого явного сохранения managed policy.
-
-Rate limit config:
-
-```env
-MAX_LOGIN_ATTEMPTS=5
-AUTH_RATE_LIMIT_WINDOW_SECONDS=300
-UPLOAD_RATE_LIMIT_ATTEMPTS=60
-UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60
-```
-
-Single-node deployment использует private file-backed limiter. Multi-node deployment задаёт `DEPLOYMENT_NODE_COUNT>1` и отдельный shared `RATE_LIMIT_STORAGE_PATH`; healthcheck отклоняет multi-node config с локальным storage. `X-Real-IP`/`X-Forwarded-For` доверяются только если immediate proxy входит в `TRUSTED_PROXY_IPS`.
-
-## 14. Healthcheck
-
-```bash
-php bin/healthcheck.php
-php bin/healthcheck.php --json
-```
-
-Проверяются PHP version/extensions, required secrets, private storage, SITEURL/WSS consistency, deployment node count, rate-limit storage, trusted proxy allowlist, DB connection, 22-table schema contract и наличие валидного default File Manager quota seed.
-
-Healthcheck — deployment gate, а не замена application monitoring.
-
-## 15. Как добавлять новый модуль
-
-Рекомендуемый порядок:
-
-1. определить DB contract и migration;
-2. определить Service/ACL boundaries;
-3. реализовать Controller/Socket;
-4. зарегистрировать HTTP/socket route в explicit config/allowlist;
-5. добавить domain validation и resource ACL;
-6. добавить UI без расширения CSP без необходимости;
-7. добавить integration/runtime workflow;
-8. обновить README/CHANGELOG/USER_GUIDE/CORE при изменении contract.
-
-## 16. Security invariants
-
-Обязательные правила:
-
-- state-changing action не GET;
-- unsafe HTTP request проходит CSRF;
-- session/socket identity приоритетнее user ID из browser payload;
-- upload не исполняется web server/browser;
-- physical storage path не возвращается клиенту;
-- crypto failure не ведёт к plaintext fallback;
-- SQL identifiers/sort fields — allowlist;
-- soft-delete учитывается в read/ACL paths;
-- realtime broadcast не расширяет права Service read path;
-- deactivated/blocked account не продолжает authenticated HTTP/WS actions;
-- новый production-sensitive contract сопровождается integration test.
-
-## 17. Production operations
-
-Deployment, reverse proxy, WSS, healthcheck и release checklist описаны в [`PRODUCTION.md`](PRODUCTION.md). Backup/restore drill, shared rate limiting, trusted proxy contract и key-rotation procedures описаны в [`OPERATIONS.md`](OPERATIONS.md).
-
-После merge в `master` отдельный `Master release gate` повторно проверяет уже объединённый commit: Composer audit, PHP/JS syntax, canonical DB schemas, production healthcheck, version contract и upload-ready hosting bundle.
+Новая прикладная функция не переносится в Core ради удобства. Если возможность принадлежит конкретному продукту, она должна жить в модуле и взаимодействовать с платформой через стабильный контракт.
