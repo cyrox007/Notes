@@ -218,21 +218,21 @@ updateNotificationAssert(
     'Сквозной релизный тест не запускает браузерную проверку автоматического отката'
 );
 updateNotificationAssert(
-    str_contains($adminUpdateE2e, 'name: 1.0.12 → 1.0.13 сквозной updater')
+    str_contains($adminUpdateE2e, 'name: 1.0.12 → 1.0.14 сквозной updater')
         && str_contains($adminUpdateE2e, "E2E_SOURCE_VERSION=%s\\n' '1.0.12'")
-        && str_contains($adminUpdateE2e, "E2E_TARGET_VERSION=%s\\n' '1.0.13-admin-e2e'")
+        && str_contains($adminUpdateE2e, "E2E_TARGET_VERSION=%s\\n' '1.0.14-admin-e2e'")
         && !str_contains($adminUpdateE2e, 'bootstrap-1.0.9-updater.php'),
-    'Сквозной релизный тест не закрепляет штатную границу обновления 1.0.12 → 1.0.13 без bootstrap'
+    'Сквозной релизный тест не закрепляет штатную границу обновления 1.0.12 → 1.0.14 без bootstrap'
 );
 updateNotificationAssert(
-    str_contains($adminUpdateE2e, '1.0.13-broken-e2e')
+    str_contains($adminUpdateE2e, '1.0.14-broken-e2e')
         && str_contains($adminUpdateE2e, 'намеренный отказ миграции'),
-    'Сквозной релизный тест не содержит намеренно падающий подписанный пакет 1.0.13'
+    'Сквозной релизный тест не содержит намеренно падающий подписанный пакет 1.0.14'
 );
 updateNotificationAssert(
-    str_contains($adminUpdateE2e, '1.0.13-health-broken-e2e')
+    str_contains($adminUpdateE2e, '1.0.14-health-broken-e2e')
         && str_contains($adminUpdateE2e, 'намеренный отказ post-health после успешной миграции'),
-    'Сквозной релизный тест не проверяет автоматический откат 1.0.13 после ошибки post-health после успешной миграции'
+    'Сквозной релизный тест не проверяет автоматический откат 1.0.14 после ошибки post-health после успешной миграции'
 );
 updateNotificationAssert(
     str_contains($adminUpdateE2e, 'rollback_verified'),
