@@ -101,11 +101,9 @@ ob_start();
             <button id="btn-upload-file" type="button" class="file-manager__btn file-manager__btn--success">
                 <i class="fa fa-upload" aria-hidden="true"></i> Загрузить
             </button>
-            <?php if ($canShareFiles): ?>
-                <a href="<?= $view->e($view->route('files_shares')) ?>" class="file-manager__btn file-manager__btn--secondary">
-                    <i class="fa fa-link" aria-hidden="true"></i> Общий доступ
-                </a>
-            <?php endif; ?>
+            <a href="<?= $view->e($view->route('files_shares')) ?>" class="file-manager__btn file-manager__btn--secondary">
+                <i class="fa fa-link" aria-hidden="true"></i> Общий доступ
+            </a>
             <input type="file" id="file-input" hidden multiple>
         </div>
     </div>
