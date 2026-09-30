@@ -35,6 +35,21 @@ final class LicenseModuleEntitlementService implements ModuleEntitlementResolver
             ];
         }
 
+        return $this->featureDecision($feature);
+    }
+
+    /** @return array{entitled:bool,feature:string,reason:?string} */
+    public function featureDecision(string $feature): array
+    {
+        $feature = strtolower(trim($feature));
+        if (preg_match('/^[a-z][a-z0-9_.-]{1,95}$/', $feature) !== 1) {
+            return [
+                'entitled' => false,
+                'feature' => $feature,
+                'reason' => 'Некорректный идентификатор лицензионного разрешения',
+            ];
+        }
+
         $status = $this->status();
         if (empty($status['valid'])) {
             return [
@@ -72,5 +87,10 @@ final class LicenseModuleEntitlementService implements ModuleEntitlementResolver
     public function isEntitled(ModuleManifest $manifest): bool
     {
         return $this->decision($manifest)['entitled'];
+    }
+
+    public function isFeatureEntitled(string $feature): bool
+    {
+        return $this->featureDecision($feature)['entitled'];
     }
 }
