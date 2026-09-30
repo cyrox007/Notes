@@ -59,6 +59,7 @@ jobs:
           node --check modules/files/assets/drop-upload.js
           node --check tests/e2e/file-manager-lifecycle.mjs
           node --check tests/e2e/file-manager-ux-contract.mjs
+          node --check tests/e2e/file-manager-sharing.mjs
           grep -Fq "'mode': 'isolated'" <(python3 - <<'PY'
           import json
           print(repr(json.load(open('modules/files/module.json'))['runtime']))
@@ -221,6 +222,14 @@ jobs:
           E2E_ORIGIN: http://127.0.0.1:18091
           E2E_BASE_PATH: /workspace
         run: node tests/e2e/file-manager-lifecycle.mjs
+
+      - name: Run File Manager public-share lifecycle
+        shell: bash
+        env:
+          E2E_ORIGIN: http://127.0.0.1:18091
+          E2E_BASE_PATH: /workspace
+          E2E_DB_NAME: file_manager_browser_lifecycle
+        run: node tests/e2e/file-manager-sharing.mjs
 
       - name: Verify durable File Manager lifecycle state
         shell: bash
