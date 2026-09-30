@@ -53,7 +53,7 @@ foreach ([
     'OSPanel 5.2.2',
     'Gate G — неизменяемый артефакт и подпись',
     'Gate H — финальный merge и tag',
-    'v1.0.13',
+    'v1.0.14',
     'нет открытых P0/P1 дефектов с риском потери данных',
     'нет открытых P0/P1 дефектов безопасности',
     'ручной pre-tag проверки',
@@ -65,12 +65,12 @@ foreach ([
 
 $windowsAcceptance = releaseAcceptanceText($root, 'docs/WINDOWS_OSPANEL_ACCEPTANCE.md');
 releaseAcceptanceAssert(
-    str_contains($windowsAcceptance, '# Релизная приёмка Windows / OSPanel для 1.0.13')
+    str_contains($windowsAcceptance, '# Релизная приёмка Windows / OSPanel для 1.0.14')
     && str_contains($windowsAcceptance, 'Сценарий A2 — private storage предыдущей установки')
-    && str_contains($windowsAcceptance, '1.0.12 → 1.0.13')
+    && str_contains($windowsAcceptance, '1.0.12 → 1.0.14')
     && str_contains($windowsAcceptance, 'отдельный bootstrap не требуется')
     && str_contains($windowsAcceptance, 'rollback_failed'),
-    'Windows/OSPanel acceptance не закрепляет 1.0.12 → 1.0.13, stale recovery и прямой updater'
+    'Windows/OSPanel acceptance не закрепляет 1.0.12 → 1.0.14, stale recovery и прямой updater'
 );
 
 $preflight = releaseAcceptanceText($root, 'bin/release_acceptance.php');
