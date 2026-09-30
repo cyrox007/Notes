@@ -139,9 +139,12 @@ ob_start();
                         if (!is_array($contact)) { continue; }
                         $searchText = trim((string) ($contact['firstname'] ?? '') . ' ' . (string) ($contact['lastname'] ?? '') . ' ' . (string) ($contact['username'] ?? ''));
                         $contactUid = (string) ($contact['uid'] ?? '');
-                        $contactAvatar = !empty($contact['avatar']) && $contactUid !== ''
-                            ? $baseUrl . '/profile/avatar/' . rawurlencode($contactUid)
-                            : '';
+                        $contactAvatarValue = trim((string) ($contact['avatar'] ?? ''));
+                        $contactAvatar = $contactUid === ''
+                            ? ''
+                            : (($contactAvatarValue === '' || $contactAvatarValue === 'default_img')
+                                ? $baseUrl . '/assets/img/default_avatar.png'
+                                : $baseUrl . '/profile/avatar/' . rawurlencode($contactUid));
                     ?>
                     <label
                         class="messenger-contact"
@@ -255,9 +258,12 @@ ob_start();
                                 <?php
                                     if (!is_array($contact)) { continue; }
                                     $groupContactUid = (string) ($contact['uid'] ?? '');
-                                    $groupContactAvatar = !empty($contact['avatar']) && $groupContactUid !== ''
-                                        ? $baseUrl . '/profile/avatar/' . rawurlencode($groupContactUid)
-                                        : '';
+                                    $groupContactAvatarValue = trim((string) ($contact['avatar'] ?? ''));
+                                    $groupContactAvatar = $groupContactUid === ''
+                                        ? ''
+                                        : (($groupContactAvatarValue === '' || $groupContactAvatarValue === 'default_img')
+                                            ? $baseUrl . '/assets/img/default_avatar.png'
+                                            : $baseUrl . '/profile/avatar/' . rawurlencode($groupContactUid));
                                 ?>
                                 <label
                                     class="messenger-contact messenger-group-add-contact"
