@@ -138,8 +138,8 @@ assert(coldStartApp.longPollActive === true, 'холодный старт ждё
 assert(coldStartPollStarts === 1, 'Long Poll не стартовал синхронно при зависшем WebSocket handshake');
 assert(coldStartApp.socket instanceof HangingWebSocket, 'WebSocket не запускается параллельно с Long Poll');
 assert(
-    coldStartStates.some(([state, text]) => state === 'online' && text === 'В сети'),
-    'холодный старт не показывает обычное состояние «В сети» при рабочем Long Poll'
+    coldStartStates.some(([state, text]) => state === 'online' && text === 'Long Poll'),
+    'холодный старт не показывает активный транспорт Long Poll'
 );
 
 context.WebSocket = { OPEN: 1 };
