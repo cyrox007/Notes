@@ -57,6 +57,13 @@ nativeShellAssert(
 nativeShellAssert(str_contains($main, '$view->layout(\'core/base\''), 'native main page does not use native application shell');
 nativeShellAssert(str_contains($main, '$access[\'messenger\']'), 'native main page does not gate module cards by RBAC-derived access');
 
+$controller = (string) file_get_contents($root . '/core/Controller.php');
+nativeShellAssert(str_contains($controller, "capabilities()->has"), 'общая навигация не учитывает активную композицию модулей');
+nativeShellAssert(str_contains($controller, "'notes' => \$active('workspace.notes')"), 'доступ Notes не зависит от активной capability');
+nativeShellAssert(str_contains($controller, "'messenger' => \$active('workspace.messenger')"), 'доступ Messenger не зависит от активной capability');
+nativeShellAssert(str_contains($sidebar, "route('system_license')"), 'при недоступном Admin отсутствует core-маршрут восстановления лицензии');
+nativeShellAssert(str_contains($header, "route('system_license')"), 'палитра команд не сохраняет восстановление лицензии без Admin');
+
 $common = (string) file_get_contents($root . '/assets/js/common.js');
 nativeShellAssert($common !== '', 'static common runtime is missing');
 nativeShellAssert(!str_contains($common, '{literal}'), 'static common runtime still contains Smarty literal tags');
