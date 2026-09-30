@@ -169,6 +169,10 @@ nativeAdminAssert(str_contains($router, "RequireAdminSettingsManage::class, CSRF
 nativeAdminAssert(str_contains($router, "->add('GET', '/modules'"), 'module management page route missing');
 nativeAdminAssert(str_contains($router, "->add('POST', '/modules/state'"), 'module management state route missing');
 nativeAdminAssert(str_contains($router, "RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_modules_state'"), 'module state route lost admin/CSRF protection');
+nativeAdminAssert(
+    str_contains($router, "capabilities()->has('workspace.files')"),
+    'Admin регистрирует файловые настройки без проверки активного File Manager'
+);
 nativeAdminAssert(str_contains($router, "->add('POST', '/settings/upload-limit'"), 'upload limit settings route missing');
 nativeAdminAssert(str_contains($router, "RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_settings_upload_limit'"), 'upload limit settings route lost CSRF/admin protection');
 nativeAdminAssert(str_contains($router, "->add('POST', '/updates/apply'"), 'signed updater apply route missing');
