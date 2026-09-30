@@ -102,7 +102,7 @@ ob_start();
                 <label for="max_upload_mb">Лимит Workspace, МБ</label>
                 <input id="max_upload_mb" name="max_upload_mb" type="number" min="1" max="10485760" step="1"
                        value="<?= $view->e(round($uploadLimitBytes / 1048576)) ?>" required>
-                <small>Это прикладной лимит одного файла. Персональная квота хранилища пользователя проверяется отдельно.</small>
+                <small>Это прикладной лимит одного файла. Персональная квота хранилища пользователя проверяется отдельно. Ролевая политика может дополнительно уменьшить допустимый размер для отдельных групп пользователей.</small>
             </div>
             <button class="admin-action admin-action--primary" type="submit">Сохранить лимит загрузки</button>
         </form>
