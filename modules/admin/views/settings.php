@@ -8,11 +8,20 @@ $access = isset($workspaceAccess) && is_array($workspaceAccess) ? $workspaceAcce
 $storageUsers = isset($storage_users) && is_array($storage_users) ? $storage_users : [];
 $flash = isset($settings_flash) && is_array($settings_flash) ? $settings_flash : null;
 $defaultQuotaBytes = max(0, (int) ($default_quota_bytes ?? 0));
+$uploadLimitBytes = max(0, (int) ($upload_limit_bytes ?? 0));
+$uploadDiagnostics = isset($upload_limit_diagnostics) && is_array($upload_limit_diagnostics) ? $upload_limit_diagnostics : [];
 $twoFactorRequired = !empty($two_factor_required);
 $siteName = isset($sitename) ? (string) $sitename : 'Workspace Organizer';
 $workspaceVersion = isset($version) ? (string) $version : '';
 $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
 $bytesToMb = static fn (mixed $bytes, int $precision = 2): string => (string) round(max(0, (int) $bytes) / 1048576, $precision);
+$formatBytes = static function (mixed $bytes): string {
+    $value = max(0, (int) $bytes);
+    if ($value >= 1073741824) {
+        return round($value / 1073741824, 2) . ' ГБ';
+    }
+    return round($value / 1048576, 2) . ' МБ';
+};
 
 ob_start();
 ?>
@@ -76,6 +85,102 @@ ob_start();
             </div>
             <button class="admin-action admin-action--primary" type="submit">Сохранить лимит</button>
         </form>
+    </section>
+
+    <section class="admin-panel-card">
+        <div class="admin-panel-card__header">
+            <div>
+                <span class="admin-panel-card__kicker">Загрузка файлов</span>
+                <h2>Максимальный размер одного файла</h2>
+                <p>Workspace ограничивает размер файла самостоятельно и одновременно проверяет известные ограничения PHP и веб-сервера.</p>
+            </div>
+        </div>
+
+        <form action="<?= $view->e($view->route('admin_settings_upload_limit')) ?>" method="post" class="custom-fields-form">
+            <?= $view->csrfInput() ?>
+            <div class="custom-field__control">
+                <label for="max_upload_mb">Лимит Workspace, МБ</label>
+                <input id="max_upload_mb" name="max_upload_mb" type="number" min="1" max="10485760" step="1"
+                       value="<?= $view->e(round($uploadLimitBytes / 1048576)) ?>" required>
+                <small>Это прикладной лимит одного файла. Персональная квота хранилища пользователя проверяется отдельно.</small>
+            </div>
+            <button class="admin-action admin-action--primary" type="submit">Сохранить лимит загрузки</button>
+        </form>
+
+        <div class="admin-upload-diagnostics">
+            <h3>Диагностика ограничений сервера</h3>
+            <div class="admin-users-table-wrap">
+                <table class="admin-users-table">
+                    <tbody>
+                        <tr><th>Workspace</th><td><?= $view->e($formatBytes($uploadDiagnostics['configured_bytes'] ?? $uploadLimitBytes)) ?></td></tr>
+                        <tr><th>PHP upload_max_filesize</th><td><?= $view->e($uploadDiagnostics['php_upload_max_filesize'] ?? 'не удалось определить') ?></td></tr>
+                        <tr><th>PHP post_max_size</th><td><?= $view->e($uploadDiagnostics['php_post_max_size'] ?? 'не удалось определить') ?></td></tr>
+                        <tr><th>Активный php.ini</th><td><code><?= $view->e($uploadDiagnostics['php_ini_file'] ?? 'не удалось определить') ?></code></td></tr>
+                        <tr><th>Веб-сервер</th><td><?= $view->e($uploadDiagnostics['web_server_software'] ?? 'не удалось определить') ?></td></tr>
+                        <tr>
+                            <th>Лимит веб-сервера</th>
+                            <td>
+                                <?php if (!empty($uploadDiagnostics['web_server_limit_known'])): ?>
+                                    <?= ($uploadDiagnostics['web_server_limit_bytes'] ?? null) !== null
+                                        ? $view->e($formatBytes($uploadDiagnostics['web_server_limit_bytes']))
+                                        : 'отдельный конечный лимит не обнаружен' ?>
+                                    <small><?= $view->e($uploadDiagnostics['web_server_limit_source'] ?? '') ?></small>
+                                <?php else: ?>
+                                    не удалось определить автоматически
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                        <tr><th>Известный фактический потолок файла</th><td><?= $view->e($formatBytes($uploadDiagnostics['effective_known_file_bytes'] ?? $uploadLimitBytes)) ?></td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <?php if (!empty($uploadDiagnostics['conflict'])): ?>
+                <div class="admin-page__flash admin-page__flash--error" role="alert">
+                    <strong>Обнаружен конфликт настроек.</strong>
+                    <ul>
+                        <?php foreach (($uploadDiagnostics['conflicts'] ?? []) as $conflict): ?>
+                            <li><?= $view->e($conflict) ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            <?php elseif (empty($uploadDiagnostics['web_server_limit_known'])): ?>
+                <div class="admin-page__flash" role="status">
+                    PHP допускает заданный размер по известным параметрам, но активный лимит веб-сервера не удалось прочитать из приложения.
+                    Проверьте конфигурацию ниже.
+                </div>
+            <?php else: ?>
+                <div class="admin-page__flash admin-page__flash--success" role="status">Известные ограничения согласованы с лимитом Workspace.</div>
+            <?php endif; ?>
+
+            <details>
+                <summary>Как исправить конфликт лимитов</summary>
+                <p>После изменения конфигурации перезапустите соответствующий PHP/Web-сервер и снова откройте эту страницу.</p>
+                <h4>PHP</h4>
+                <p>В активном <code>php.ini</code> установите значения не ниже:</p>
+                <pre>upload_max_filesize = <?= $view->e($uploadDiagnostics['recommended_upload_max_filesize'] ?? '') . "\n" ?>post_max_size = <?= $view->e($uploadDiagnostics['recommended_post_max_size'] ?? '') ?></pre>
+
+                <?php $serverType = (string) ($uploadDiagnostics['web_server_type'] ?? 'other'); ?>
+                <?php if ($serverType === 'apache'): ?>
+                    <h4>Apache</h4>
+                    <p>Проверьте <code>LimitRequestBody</code> в конфигурации VirtualHost/Directory или <code>.htaccess</code>. Значение задаётся в байтах и должно быть не меньше полного HTTP-запроса:</p>
+                    <pre>LimitRequestBody <?= $view->e($uploadDiagnostics['required_request_bytes'] ?? '') ?></pre>
+                <?php elseif ($serverType === 'nginx'): ?>
+                    <h4>Nginx</h4>
+                    <p>В нужном блоке <code>http</code>, <code>server</code> или <code>location</code> задайте:</p>
+                    <pre>client_max_body_size <?= $view->e($uploadDiagnostics['recommended_post_max_size'] ?? '') ?>;</pre>
+                <?php elseif ($serverType === 'iis'): ?>
+                    <h4>IIS</h4>
+                    <p>Проверьте Request Filtering → <code>requestLimits.maxAllowedContentLength</code>. Значение задаётся в байтах и должно быть не меньше:</p>
+                    <pre><?= $view->e($uploadDiagnostics['required_request_bytes'] ?? '') ?></pre>
+                <?php else: ?>
+                    <h4>Веб-сервер или reverse proxy</h4>
+                    <p>Проверьте его максимальный размер тела HTTP-запроса. Он должен быть не меньше <?= $view->e($formatBytes($uploadDiagnostics['required_request_bytes'] ?? 0)) ?>.</p>
+                <?php endif; ?>
+
+                <p>Если лимит веб-сервера задаётся вне доступной приложению конфигурации, для точной диагностики можно передать его Workspace через переменную окружения <code>WEB_SERVER_MAX_UPLOAD_SIZE</code> в байтах или в формате <code>100M</code>. Эта переменная только сообщает приложению фактический внешний предел и сама конфигурацию сервера не изменяет.</p>
+            </details>
+        </div>
     </section>
 
     <section class="admin-panel-card">
