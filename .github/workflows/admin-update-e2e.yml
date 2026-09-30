@@ -388,21 +388,26 @@ jobs:
           rm -rf "$HEALTH_BROKEN"
           rsync -a "$FUTURE/" "$HEALTH_BROKEN/"
           perl -0pi -e "s/public const VERSION = '[^']+';/public const VERSION = '1.0.12-health-broken-e2e';/" "$HEALTH_BROKEN/core/Version.php"
-          cat > "$HEALTH_BROKEN/bin/healthcheck.php" <<'PHP'
+          # Второй аварийный кандидат должен падать уже после успешного
+          # применения миграций и healthcheck. Updater на этой границе запускает
+          # bin/migrate.php --status. Обычный запуск мигратора оставляем штатным,
+          # а status-проверку делаем намеренно неуспешной.
+          ORIGINAL_MIGRATOR="$HEALTH_BROKEN/bin/migrate.php"
+          TEMP_MIGRATOR="$HEALTH_BROKEN/bin/migrate.php.original"
+          mv "$ORIGINAL_MIGRATOR" "$TEMP_MIGRATOR"
+          cat > "$ORIGINAL_MIGRATOR" <<'PHP'
           <?php
           declare(strict_types=1);
 
-          if (in_array('--json', $argv, true)) {
-              echo json_encode([
-                  'status' => 'fail',
-                  'message' => 'CI: намеренный отказ post-health для проверки автоматического отката',
-              ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), PHP_EOL;
-          } else {
-              fwrite(STDERR, "CI: намеренный отказ post-health для проверки автоматического отката\n");
+          if (in_array('--status', $argv, true)) {
+              fwrite(STDERR, "CI: намеренный отказ post-check после успешных миграций\n");
+              exit(92);
           }
-          exit(92);
+
+          require __DIR__ . '/migrate.php.original';
           PHP
-          php -l "$HEALTH_BROKEN/bin/healthcheck.php"
+          php -l "$ORIGINAL_MIGRATOR"
+          php -l "$TEMP_MIGRATOR"
           test "$(php -r "require '$HEALTH_BROKEN/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.12-health-broken-e2e'
           test "$(php -r "require '$HEALTH_BROKEN/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10012'
 
@@ -436,7 +441,7 @@ jobs:
             --source-commit="$GITHUB_SHA" \
             --min-source-version-code=10011 \
             --requires-php=8.1.0 \
-            --notes='CI: намеренный отказ post-health после успешных миграций' \
+            --notes='CI: намеренный отказ post-check после успешных миграций' \
             --out="$DRILL/release-10012-health-broken.json"
 
           php tools/vendor-update/sign-manifest.php \
@@ -678,7 +683,7 @@ jobs:
           PRIVATE_STORAGE_PATH="$PRIVATE" \
           php "$GITHUB_WORKSPACE/tests/support/admin_update_preservation_probe.php" --verify
 
-      - name: Переключить канал на 1.0.12 с намеренно сломанным post-health
+      - name: Переключить канал на 1.0.12 с намеренно сломанной post-check проверкой
         shell: bash
         run: |
           set -euo pipefail
@@ -687,14 +692,14 @@ jobs:
           {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10012-health-broken.json","signature":"release-10012-health-broken.sig"}
           JSON
 
-      - name: Проверить автоматический откат после ошибки post-health
+      - name: Проверить автоматический откат после ошибки post-check после успешных миграций
         shell: bash
         env:
           SSL_CERT_FILE: /tmp/workspace-admin-update-e2e/ca.crt
           E2E_BROKEN_TARGET_VERSION: 1.0.12-health-broken-e2e
         run: node tests/e2e/admin-update-rollback.mjs
 
-      - name: Доказать восстановление 1.0.11 после ошибки post-health
+      - name: Доказать восстановление 1.0.11 после ошибки post-check после успешных миграций
         shell: bash
         run: |
           set -euo pipefail
@@ -719,7 +724,7 @@ jobs:
             elif [[ "$state" = 'rollback_verified' ]]; then
               ROLLED_BACK=$((ROLLED_BACK + 1))
             else
-              echo "Неожиданное состояние транзакции после отказа post-health: $state ($journal)" >&2
+              echo "Неожиданное состояние транзакции после отказа post-check: $state ($journal)" >&2
               exit 1
             fi
           done
@@ -731,8 +736,8 @@ jobs:
           test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_update_e2e -e "SELECT COUNT(*) FROM user_roles ur JOIN roles r ON r.id=ur.role_id JOIN users u ON u.id=ur.user_id WHERE u.username='admin-update-e2e' AND r.code='superadmin'")" = '1'
           test -n "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_update_e2e -e "SELECT setting_value FROM system_settings WHERE setting_key='installation_id'")"
 
-          (cd "$LIVE" && SSL_CERT_FILE="$DRILL/ca.crt" php bin/healthcheck.php --json) | tee "$DRILL/post-health-rollback-health.json"
-          grep -Fq '"status": "ok"' "$DRILL/post-health-rollback-health.json"
+          (cd "$LIVE" && SSL_CERT_FILE="$DRILL/ca.crt" php bin/healthcheck.php --json) | tee "$DRILL/post-check-rollback-health.json"
+          grep -Fq '"status": "ok"' "$DRILL/post-check-rollback-health.json"
           DBHOST=127.0.0.1 \
           DBPORT=3306 \
           DBUSER=root \
