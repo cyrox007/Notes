@@ -225,14 +225,14 @@ updateNotificationAssert(
     'Сквозной релизный тест не закрепляет штатную границу обновления 1.0.11 → 1.0.12 без bootstrap'
 );
 updateNotificationAssert(
-    str_contains($adminUpdateE2e, '1.0.12-broken-e2e')
+    str_contains($adminUpdateE2e, '1.0.13-broken-e2e')
         && str_contains($adminUpdateE2e, 'намеренный отказ миграции'),
-    'Сквозной релизный тест не содержит намеренно падающий подписанный пакет 1.0.12'
+    'Сквозной релизный тест не содержит намеренно падающий подписанный пакет 1.0.13'
 );
 updateNotificationAssert(
-    str_contains($adminUpdateE2e, '1.0.12-health-broken-e2e')
+    str_contains($adminUpdateE2e, '1.0.13-health-broken-e2e')
         && str_contains($adminUpdateE2e, 'намеренный отказ post-health после успешной миграции'),
-    'Сквозной релизный тест не проверяет автоматический откат 1.0.12 после ошибки post-health после успешной миграции'
+    'Сквозной релизный тест не проверяет автоматический откат 1.0.13 после ошибки post-health после успешной миграции'
 );
 updateNotificationAssert(
     str_contains($adminUpdateE2e, 'rollback_verified'),
