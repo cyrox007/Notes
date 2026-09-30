@@ -111,11 +111,10 @@ try {
   const folderId = await folderItem.getAttribute('data-id');
   if (!folderId) throw new Error('Created folder has no data-id');
 
-  const folderHref = await folderItem.locator('a[title="Открыть"]').getAttribute('href');
-  if (!folderHref || !folderHref.startsWith(`${basePath}/files/folder/`)) throw new Error(`Folder URL escaped BASE_PATH: ${folderHref}`);
+  const folderHref = `${basePath}/files/folder/${encodeURIComponent(folderId)}/`;
   await Promise.all([
     page.waitForURL((url) => url.pathname === folderHref, { timeout: 15000 }),
-    folderItem.locator('a[title="Открыть"]').click(),
+    folderItem.click(),
   ]);
 
   const fileInput = page.locator('#file-input');
