@@ -89,6 +89,11 @@ nativeAdminAssert(str_contains($registration, '$view->csrfInput()'), 'registrati
 $settings = (string) file_get_contents($root . '/modules/admin/views/settings.php');
 nativeAdminAssert(str_contains($settings, "route('admin_settings_default_quota')"), 'default quota route is missing');
 nativeAdminAssert(str_contains($settings, "route('admin_settings_user_quota')"), 'per-user quota route is missing');
+nativeAdminAssert(str_contains($settings, "route('admin_settings_upload_limit')"), 'upload limit settings route is missing');
+nativeAdminAssert(str_contains($settings, 'upload_max_filesize'), 'admin settings do not show PHP upload_max_filesize diagnostics');
+nativeAdminAssert(str_contains($settings, 'post_max_size'), 'admin settings do not show PHP post_max_size diagnostics');
+nativeAdminAssert(str_contains($settings, 'LimitRequestBody'), 'admin settings do not provide Apache upload-limit guidance');
+nativeAdminAssert(str_contains($settings, 'client_max_body_size'), 'admin settings do not provide Nginx upload-limit guidance');
 nativeAdminAssert(str_contains($settings, '1048576'), 'quota byte/MB conversion contract is missing');
 nativeAdminAssert(str_contains($settings, '$view->csrfInput()'), 'settings forms lost CSRF inputs');
 
@@ -133,6 +138,8 @@ nativeAdminAssert(str_contains($router, "->add('GET', '/updates'"), 'signed upda
 nativeAdminAssert(str_contains($router, "->add('GET', '/updates/check'"), 'signed updater read-only check route missing');
 nativeAdminAssert(str_contains($router, "->add('POST', '/updates/stage'"), 'signed updater stage route missing');
 nativeAdminAssert(str_contains($router, "RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_stage'"), 'signed updater stage middleware contract missing');
+nativeAdminAssert(str_contains($router, "->add('POST', '/settings/upload-limit'"), 'upload limit settings route missing');
+nativeAdminAssert(str_contains($router, "RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_settings_upload_limit'"), 'upload limit settings route lost CSRF/admin protection');
 nativeAdminAssert(str_contains($router, "->add('POST', '/updates/apply'"), 'signed updater apply route missing');
 nativeAdminAssert(str_contains($router, "RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_apply'"), 'signed updater apply middleware contract missing');
 
