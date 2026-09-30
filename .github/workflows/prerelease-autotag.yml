@@ -49,8 +49,40 @@ jobs:
           if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
             git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
             TAG_SHA="$(git rev-list -n1 "$TAG")"
+
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              if [[ "$TAG_SHA" != "$RELEASE_SHA" ]]; then
+                INVALID_CHANGES=()
+                while IFS= read -r changed_path; do
+                  [[ -z "$changed_path" ]] && continue
+                  case "$changed_path" in
+                    docs/*|README.md|CHANGELOG.md|tests/*|.github/workflows/*)
+                      ;;
+                    *)
+                      INVALID_CHANGES+=("$changed_path")
+                      ;;
+                  esac
+                done < <(git diff --name-only "$TAG_SHA..$RELEASE_SHA")
+
+                if (( ${#INVALID_CHANGES[@]} > 0 )); then
+                  echo "Версия $VERSION уже опубликована на $TAG_SHA, а после тега изменён runtime-код." >&2
+                  echo "Для таких изменений требуется новый patch-релиз; опубликованный тег не перемещается." >&2
+                  printf 'Недопустимое изменение: %s\n' "${INVALID_CHANGES[@]}" >&2
+                  exit 1
+                fi
+
+                echo "После опубликованного тега изменены только документация, проверки или release-workflow."
+              fi
+
+              gh release edit "$TAG" \
+                --title "Workspace Organizer $VERSION" \
+                --notes-file "$NOTES"
+              echo "GitHub Release $TAG уже существует; описание синхронизировано без изменения тега и артефактов."
+              exit 0
+            fi
+
             if [[ "$TAG_SHA" != "$RELEASE_SHA" ]]; then
-              echo "Тег $TAG уже указывает на другую ревизию $TAG_SHA; опубликованный тег не перемещается." >&2
+              echo "Тег $TAG уже указывает на другую ревизию $TAG_SHA; новый Release из текущего master создавать нельзя." >&2
               exit 1
             fi
             echo "Тег $TAG уже существует на проверенной ревизии $RELEASE_SHA."
@@ -60,14 +92,6 @@ jobs:
             git tag -a "$TAG" "$RELEASE_SHA" -m "Workspace Organizer $VERSION"
             git push origin "refs/tags/$TAG"
             echo "Опубликован тег $TAG на проверенной ревизии $RELEASE_SHA."
-          fi
-
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" \
-              --title "Workspace Organizer $VERSION" \
-              --notes-file "$NOTES"
-            echo "GitHub Release $TAG уже существует; описание синхронизировано с финальной документацией."
-            exit 0
           fi
 
           # Push через GITHUB_TOKEN не запускает следующий push-workflow автоматически,
