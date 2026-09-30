@@ -28,7 +28,14 @@ function instrument(page) {
     if (url.origin !== origin || response.status() < 400) return;
 
     const socketTicketPath = `${basePath}/messenger/socket-ticket`;
+    const updaterStepPath = `${basePath}/admin/updates/web-step/`;
     if (installationWindow && response.status() === 503 && url.pathname === socketTicketPath) {
+      return;
+    }
+    // Пошаговый updater намеренно может вернуть retryable 5xx, если
+    // текущий PHP-запрос не успел завершить восстановление. Клиент повторяет
+    // шаг, а следующий запрос продолжает recovery на восстановленном коде.
+    if (installationWindow && response.status() >= 500 && url.pathname === updaterStepPath) {
       return;
     }
     unexpectedHttpErrors.push(`${response.status()} ${url.pathname}`);
@@ -89,7 +96,7 @@ try {
   const navigation = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 180000 });
   await button.click();
 
-  // Переход 1.0.11 → 1.0.12 запускается интерфейсом опубликованной 1.0.11.
+  // Переход 1.0.12 → 1.0.13 запускается интерфейсом опубликованной 1.0.12.
   // При проверенном откате этот интерфейс сначала показывает устойчивое
   // пользовательское уведомление, а затем перезагружает текущую страницу.
   // Поэтому подтверждаем сообщение до навигации, а версию — уже после неё.
