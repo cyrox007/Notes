@@ -69,7 +69,6 @@ $hasWorkspaceContent = !empty($access['notes']) || !empty($access['tasks']) || !
     </div>
 </section>
 <?php endif; ?>
-<?php endif; ?>
 
 <?php if ($hasWorkspaceContent): ?>
 <section class="profile-publication ux-section" aria-labelledby="profile-publication-title">
@@ -137,3 +136,4 @@ $hasWorkspaceContent = !empty($access['notes']) || !empty($access['tasks']) || !
         <?php endforeach; ?>
     </div>
 </section>
+<?php endif; ?>
