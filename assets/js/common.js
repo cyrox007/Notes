@@ -132,7 +132,7 @@
     })();
 
     (function bootstrapWorkspaceShell() {
-        const MOBILE_BREAKPOINT = 768;
+        const MOBILE_BREAKPOINT = 900;
         const STORAGE_KEY = 'workspace.sidebar.collapsed';
 
         function normalizePath(path) {
