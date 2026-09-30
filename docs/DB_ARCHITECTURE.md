@@ -1,59 +1,59 @@
-# Database architecture
+# Архитектура базы данных
 
-## Decision
+## Источник истины
 
-Workspace Organizer does **not** use migrations as the canonical source of the database schema.
+Каноническая схема новой установки **не строится replay всех исторических миграций**.
 
-The authoritative database contract for a fresh installation is the composition-aware schema set resolved by `Core\\DatabaseOwnership`: core-owned schemas plus the schema files declared by each packaged module's `module.json`.
+`Core\DatabaseOwnership` собирает fresh-схему из:
 
-Core-owned fresh schemas currently include identity, RBAC/access control, the user-action audit journal, system settings and module lifecycle. Notes, Tasks, Files, Messenger and Profile contribute their own schema ownership through module manifests.
+- core-owned schema;
+- schema, объявленных установленными модулями в `module.json`.
 
-`install.php` imports this resolved schema set directly. A clean installation must be reproducible from these files without consulting upgrade history.
+`install.php` применяет именно этот набор.
 
-## Existing installations
+## Существующие установки
 
-SQL files currently stored in `database/migrations/` are retained as **compatibility upgrade scripts** for installations created by older versions of Workspace Organizer. They are not the canonical description of the current database.
+`database/migrations/` содержит compatibility-upgrade скрипты для установок, созданных предыдущими версиями.
 
-`bin/migrate.php` is therefore an upgrade runner retained for backward compatibility. Its `schema_migrations` table is an implementation detail used to prevent an already-applied compatibility script from being applied twice and to detect edited upgrade scripts by checksum.
+`bin/migrate.php`:
 
-The application runtime must never depend on:
+- применяет только ещё не применённые upgrade-скрипты;
+- хранит filename и SHA-256 в `schema_migrations`;
+- не позволяет молча изменить уже применённую миграцию;
+- поддерживает `--status` и `--dry-run`.
 
-- the number of rows in `schema_migrations`;
-- a particular historical sequence length;
-- `schema_migrations` being present on a fresh installation;
-- reconstructing the current schema by replaying every historical upgrade script.
+История строк `schema_migrations` не является частью runtime-контракта приложения.
 
-The runtime depends only on the current schema contract.
+## Правило изменения схемы
 
-## Rules for schema changes
+Для новой функции:
 
-### Fresh-install contract
+1. сначала изменяется каноническая схема владельца данных;
+2. если уже опубликованной установке нужен `ALTER`/backfill/reconciliation, добавляется новый compatibility-upgrade;
+3. ранее применённый SQL не переписывается;
+4. fresh install и upgrade должны приводить к одному фактическому контракту данных.
 
-Every schema change must first be reflected in the appropriate canonical `database/*_schema.sql` file. Fresh installations are validated by importing the canonical schema files into an empty database.
+## Владение данными
 
-### Upgrade contract
+Core владеет только платформенными таблицами: identity, access control, audit, settings, module lifecycle и другими общими контрактами.
 
-If an existing supported installation needs ALTER/backfill/reconciliation work, add an explicit compatibility SQL upgrade script. The script must:
+Прикладной модуль владеет собственными таблицами и объявляет их в manifest. Другой модуль не должен напрямую читать или изменять их как интеграционный API.
 
-- preserve existing user data unless the change explicitly documents otherwise;
-- validate ambiguous/incompatible legacy state and fail closed rather than guess;
-- be safe to execute through the compatibility upgrade runner;
-- end with the database matching the same contract produced by a fresh install.
+## Отключение модуля
 
-### CI contract
+`disabled` и `unlicensed` не означают удаление таблиц. Данные сохраняются для повторного включения и recovery.
 
-CI verifies outcomes, not history length. Tests may verify that a required compatibility upgrade was recorded, but must not assert an exact total number of historical scripts.
+Физическое удаление данных — отдельный явный lifecycle-шаг пакета и не должно происходить как побочный эффект выключения.
 
-Required checks are:
+## Проверки
 
-- canonical schema imports successfully into an empty database;
-- required tables, columns, indexes, foreign keys and seed values match the current contract;
-- supported legacy fixtures upgrade to that same contract without data loss;
-- a second upgrade run performs no additional schema/data mutation;
-- modified already-applied compatibility scripts are rejected by checksum protection.
+Релизные проверки должны подтверждать:
 
-## Terminology
+- fresh install на пустой БД;
+- upgrade с поддерживаемой предыдущей версии;
+- идемпотентность повторного запуска;
+- checksum-защиту миграций;
+- rollback/recovery updater;
+- одинаковый конечный schema contract.
 
-Use **schema** for the authoritative current database definition and **upgrade script** for compatibility SQL that transforms an older supported installation.
-
-The historical file/directory names `bin/migrate.php`, `database/migrations/` and `schema_migrations` remain temporarily for compatibility. New documentation and CI should describe their purpose as database upgrades, not as the primary schema architecture. Renaming/removing those compatibility names would itself require an upgrade/deprecation cycle and is intentionally outside the 0.12 usable-baseline scope.
+Историческое обоснование решения 0.12 сохранено в [DB_ARCHITECTURE_AUDIT_0.12.md](DB_ARCHITECTURE_AUDIT_0.12.md).
