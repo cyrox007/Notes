@@ -17,6 +17,7 @@ $title = (string) ($current['name'] ?? $root['name'] ?? 'Общая папка')
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="robots" content="noindex,nofollow,noarchive">
     <title><?= $view->e($title) ?> — общий доступ</title>
+    <link rel="stylesheet" href="<?= $view->e(($base_url ?? '') . '/assets/font-awesome/css/font-awesome.min.css') ?>">
     <link rel="stylesheet" href="<?= $view->e($view->moduleAsset('files', 'public-share.css')) ?>">
 </head>
 <body>
