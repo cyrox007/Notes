@@ -98,6 +98,20 @@ final class ModuleLifecycleStore
             $configured = (string) $rows[$moduleId]['configured_state'];
             $this->assertConfiguredState($configured);
 
+            if (
+                $manifest->required()
+                && in_array($configured, ['discovered', 'installed', 'disabled', 'uninstalled'], true)
+            ) {
+                $this->db->execute(
+                    'UPDATE module_lifecycle '
+                    . 'SET configured_state = :configured_state, state_changed_at = CURRENT_TIMESTAMP '
+                    . 'WHERE module_id = :module_id',
+                    [':configured_state' => 'enabled', ':module_id' => $moduleId]
+                );
+                $configured = 'enabled';
+                $rows[$moduleId]['configured_state'] = 'enabled';
+            }
+
             $entitlement = $this->entitlementDecision($manifest);
             if (!$entitlement['entitled']) {
                 $state = 'unlicensed';
@@ -182,7 +196,7 @@ final class ModuleLifecycleStore
         $current = (string) $rows[$moduleId]['configured_state'];
         $manifest = $modules[$moduleId];
 
-        if ($manifest->required() && $targetState !== 'enabled') {
+        if ($manifest->required() && in_array($targetState, ['disabled', 'uninstalled'], true)) {
             throw new RuntimeException("Обязательный системный модуль нельзя отключить: {$moduleId}");
         }
 
