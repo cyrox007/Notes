@@ -328,8 +328,16 @@ final class RolePolicyService
     private function activePolicyModuleIds(): array
     {
         $definitions = array_fill_keys(array_keys(self::DEFINITIONS), true);
+        try {
+            $composition = ModuleRegistry::getInstance()->enabledComposition();
+        } catch (\Throwable) {
+            // Сервис политик используется и отдельными служебными проверками,
+            // где полный runtime модулей намеренно не загружается.
+            $composition = array_keys($definitions);
+        }
+
         return array_values(array_filter(
-            ModuleRegistry::getInstance()->enabledComposition(),
+            $composition,
             static fn (string $module): bool => isset($definitions[$module])
         ));
     }
