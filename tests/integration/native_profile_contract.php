@@ -88,7 +88,7 @@ $profileController = (string) file_get_contents($root . '/modules/profile/contro
 $publicProfileController = (string) file_get_contents($root . '/modules/profile/controllers/PublicProfileController.php');
 nativeProfileAssert(str_contains($publicProfileController, "'profile' => $profile"), 'публичный профиль не передаётся в представление как массив');
 nativeProfileAssert(!str_contains($publicProfileController, "'profile' => (object) $profile"), 'публичный профиль снова ломается из-за несовместимого типа данных');
-nativeProfileAssert(!str_contains($publicProfileController, "hash_equals((string) $layoutUser['uid'], $uid)"), 'предпросмотр собственного публичного профиля снова перенаправляется в обычный профиль');
+nativeProfileAssert(!str_contains($publicProfileController, 'hash_equals((string) $layoutUser[\'uid\'], $uid)'), 'предпросмотр собственного публичного профиля снова перенаправляется в обычный профиль');
 foreach (['notes', 'tasks', 'user_files'] as $foreignTable) {
     nativeProfileAssert(
         !preg_match('/\b(?:from|join|update|into)\s+`?' . preg_quote($foreignTable, '/') . '`?\b/i', $publicationService),
