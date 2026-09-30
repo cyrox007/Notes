@@ -13,6 +13,16 @@ use InvalidArgumentException;
  */
 final class ModuleManagementService
 {
+    /** @var array<string,string> */
+    private const MODULE_LABELS = [
+        'admin' => 'Администрирование',
+        'files' => 'Файлы',
+        'messenger' => 'Мессенджер',
+        'notes' => 'Заметки',
+        'profile' => 'Профиль',
+        'tasks' => 'Задачи',
+    ];
+
     private PermissionService $permissions;
     private LicenseModuleEntitlementService $entitlements;
 
@@ -43,7 +53,7 @@ final class ModuleManagementService
             $lifecycle = $this->registry->lifecycleFor($moduleId);
             $rows[] = [
                 'id' => $moduleId,
-                'name' => $manifest->name(),
+                'name' => self::MODULE_LABELS[$moduleId] ?? $manifest->name(),
                 'version' => $manifest->version(),
                 'required' => $manifest->required(),
                 'license_feature' => $decision['feature'],
