@@ -1,4 +1,20 @@
 document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.file-shares__expiry input[name="expires_at"]').forEach((input) => {
+    if (!(input instanceof HTMLInputElement)) return;
+
+    const toLocalValue = (date) => {
+      const shifted = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+      return shifted.toISOString().slice(0, 16);
+    };
+
+    input.min = toLocalValue(new Date());
+
+    const timestamp = Number(input.dataset.expiryTimestamp || 0);
+    if (Number.isFinite(timestamp) && timestamp > 0) {
+      input.value = toLocalValue(new Date(timestamp * 1000));
+    }
+  });
+
   document.querySelectorAll('[data-copy-share]').forEach((button) => {
     button.addEventListener('click', async () => {
       const value = new URL(button.dataset.copyShare || '', window.location.origin).href;
