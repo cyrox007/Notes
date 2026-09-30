@@ -85,7 +85,7 @@ try {
   if (!rootFolderId) throw new Error('Shared folder has no id');
 
   await Promise.all([
-    page.waitForURL((url) => url.pathname === `${basePath}/files/folder/${rootFolderId}/`, { timeout: 15000 }),
+    page.waitForURL((url) => url.pathname.replace(/\/+$/, '') === `${basePath}/files/folder/${rootFolderId}`, { timeout: 15000 }),
     rootFolder.click(),
   ]);
 
@@ -94,7 +94,7 @@ try {
   if (!nestedFolderId) throw new Error('Nested folder has no id');
 
   await Promise.all([
-    page.waitForURL((url) => url.pathname === `${basePath}/files/folder/${nestedFolderId}/`, { timeout: 15000 }),
+    page.waitForURL((url) => url.pathname.replace(/\/+$/, '') === `${basePath}/files/folder/${nestedFolderId}`, { timeout: 15000 }),
     nestedFolder.click(),
   ]);
 
