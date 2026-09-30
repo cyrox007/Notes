@@ -6,6 +6,7 @@ namespace App\Controllers\Admin;
 
 use App\Helpers\CryptMethods;
 use App\Models\UserModel;
+use App\Services\FileUploadLimitService;
 use App\Services\StorageQuotaService;
 use App\Services\TwoFactorPolicyService;
 use Core\Controller;
@@ -26,12 +27,16 @@ final class SettingsController extends Controller
         }
 
         $service = new StorageQuotaService();
+        $uploadLimitService = new FileUploadLimitService();
+        $uploadLimitBytes = $uploadLimitService->configuredLimitBytes();
         $flash = $request->session('settings_flash');
         $request->unsetSession('settings_flash');
         $this->render_template('@admin/settings', [
             'user' => $user,
             'default_quota_bytes' => $service->defaultQuotaBytes(),
             'storage_users' => $service->adminUsage($actorId),
+            'upload_limit_bytes' => $uploadLimitBytes,
+            'upload_limit_diagnostics' => $uploadLimitService->diagnostics($uploadLimitBytes),
             'two_factor_required' => (new TwoFactorPolicyService())->required(),
             'settings_flash' => is_array($flash) ? $flash : null,
         ]);
@@ -83,6 +88,23 @@ final class SettingsController extends Controller
             $this->redirectWithFlash($request, true, 'Лимит по умолчанию обновлён');
         } catch (\Throwable $e) {
             $this->redirectWithFlash($request, false, $e->getMessage() ?: 'Не удалось сохранить лимит');
+        }
+    }
+
+    public function saveUploadLimit(Request $request): void
+    {
+        try {
+            $limit = $this->megabytesToBytes($request->post('max_upload_mb'));
+            $service = new FileUploadLimitService();
+            $service->setConfiguredLimit((int) $request->session('user_id', 0), $limit);
+            $diagnostics = $service->diagnostics($limit);
+
+            $message = !empty($diagnostics['conflict'])
+                ? 'Лимит сохранён, но серверные ограничения конфликтуют с ним. Ниже показано, что нужно изменить.'
+                : 'Максимальный размер одного файла обновлён';
+            $this->redirectWithFlash($request, true, $message);
+        } catch (\Throwable $e) {
+            $this->redirectWithFlash($request, false, $e->getMessage() ?: 'Не удалось сохранить лимит загрузки');
         }
     }
 
