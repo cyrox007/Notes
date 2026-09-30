@@ -53,6 +53,9 @@ nativeProfileAssert(str_contains($publication, "route('profile-publication')"), 
 nativeProfileAssert(str_contains($publication, '$view->csrfInput()'), 'publication forms lost CSRF input');
 nativeProfileAssert(str_contains($publication, 'is_profile_public'), 'publication visibility state is missing');
 nativeProfileAssert(str_contains($publication, '$view->e($label)'), 'publication item labels are not escaped');
+nativeProfileAssert(str_contains($publication, '$hasWorkspaceContent'), 'Profile не скрывает общий блок содержимого при отключённых прикладных модулях');
+nativeProfileAssert(str_contains($publication, "if (empty(\$access[\$key])) { continue; }"), 'Profile не исключает отключённые модули из настроек видимости');
+nativeProfileAssert(str_contains($publication, "!empty(\$access['files'])"), 'Profile не скрывает File Manager-специфичное пояснение');
 
 $public = (string) file_get_contents($root . '/modules/profile/views/public.php');
 nativeProfileAssert(str_contains($public, '$view->layout(\'core/base\''), 'public profile does not use native application shell');
