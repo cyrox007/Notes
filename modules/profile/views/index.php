@@ -46,10 +46,16 @@ ob_start();
         <div>
             <h1>Профиль</h1>
         </div>
-        <a class="profile__public-preview" aria-label="Посмотреть как другой пользователь" href="<?= $view->e($view->route('profile-public', ['uid' => $currentUser['uid'] ?? ''])) ?>">
-            <i class="fa fa-eye" aria-hidden="true"></i>
-            Публичный профиль
-        </a>
+        <div class="profile__header-actions">
+            <a class="profile__public-preview" href="<?= $view->e($view->route('profile-users')) ?>">
+                <i class="fa fa-users" aria-hidden="true"></i>
+                Пользователи
+            </a>
+            <a class="profile__public-preview" aria-label="Посмотреть как другой пользователь" href="<?= $view->e($view->route('profile-public', ['uid' => $currentUser['uid'] ?? ''])) ?>">
+                <i class="fa fa-eye" aria-hidden="true"></i>
+                Как видят меня
+            </a>
+        </div>
     </header>
 
     <?php if ($profileErrors !== []): ?>
