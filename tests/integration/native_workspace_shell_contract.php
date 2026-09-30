@@ -64,5 +64,6 @@ nativeShellAssert(!str_contains($common, '{$'), 'static common runtime still con
 nativeShellAssert(str_contains($common, 'global.wspaceRuntime'), 'static common runtime does not consume native runtime configuration');
 nativeShellAssert(str_contains($common, 'X-CSRF-Token'), 'static common runtime dropped CSRF fetch/XHR hardening');
 nativeShellAssert(str_contains($common, 'workspace.sidebar.collapsed'), 'static common runtime dropped shell navigation behavior');
+nativeShellAssert(str_contains($common, 'const MOBILE_BREAKPOINT = 900;'), 'JavaScript и CSS используют разные пороги мобильного сайдбара');
 
 echo "[OK] native workspace shell and main page contract\n";
