@@ -58,7 +58,8 @@ ob_start();
                         $status = (string) ($share['status'] ?? 'revoked');
                         $url = (string) ($share['share_url'] ?? '');
                         $expiresAt = (string) ($share['expires_at'] ?? '');
-                        $datetimeValue = $expiresAt !== '' ? date('Y-m-d\TH:i', strtotime($expiresAt)) : '';
+                        $expiresTimestamp = $expiresAt !== '' ? strtotime($expiresAt) : false;
+                        $datetimeValue = $expiresTimestamp !== false ? date('Y-m-d\TH:i', $expiresTimestamp) : '';
                     ?>
                     <tr>
                         <td data-label="Объект">
@@ -79,7 +80,10 @@ ob_start();
                                         <?= $view->csrfInput() ?>
                                         <label>
                                             <span class="visually-hidden">Новый срок действия</span>
-                                            <input type="datetime-local" name="expires_at" value="<?= $view->e($datetimeValue) ?>" min="<?= $view->e(date('Y-m-d\TH:i')) ?>">
+                                            <input type="datetime-local"
+                                                   name="expires_at"
+                                                   value="<?= $view->e($datetimeValue) ?>"
+                                                   data-expiry-timestamp="<?= $expiresTimestamp !== false ? $view->e((string) $expiresTimestamp) : '' ?>">
                                         </label>
                                         <button type="submit" class="file-manager__btn file-manager__btn--secondary">Срок</button>
                                     </form>
