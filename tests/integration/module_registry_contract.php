@@ -98,6 +98,10 @@ moduleAssert($registry->defaultComposition() === $expected, 'default bundled com
 
 foreach ($registry->all() as $id => $manifest) {
     moduleAssert($manifest->id() === $id, "manifest id mismatch for {$id}");
+    moduleAssert(
+        $manifest->required() === ($id === 'admin'),
+        "{$id} required-system flag drifted"
+    );
     moduleAssert(strlen($manifest->integrityHash()) === 64, "{$id} manifest has no SHA-256 integrity hash");
     moduleAssert($manifest->licenseFeature() !== null, "{$id} has no entitlement feature");
     moduleAssert($manifest->isCompatibleWithCore(Version::VERSION), "{$id} is incompatible with current core");
