@@ -13,6 +13,7 @@ const password = requiredEnv('E2E_PASSWORD');
 const sourceVersion = requiredEnv('E2E_SOURCE_VERSION');
 const sourceVersionCode = requiredEnv('E2E_SOURCE_VERSION_CODE');
 const brokenVersion = requiredEnv('E2E_BROKEN_TARGET_VERSION');
+const expectedDiagnostic = String(process.env.E2E_EXPECTED_DIAGNOSTIC || '').trim();
 const basePath = '/' + basePathRaw.replace(/^\/+|\/+$/g, '');
 const baseUrl = origin + basePath;
 
@@ -96,7 +97,7 @@ try {
   const navigation = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 180000 });
   await button.click();
 
-  // Переход 1.0.12 → 1.0.13 запускается интерфейсом опубликованной 1.0.12.
+  // Переход 1.0.12 → 1.0.14 запускается интерфейсом опубликованной 1.0.12.
   // При проверенном откате этот интерфейс сначала показывает устойчивое
   // пользовательское уведомление, а затем перезагружает текущую страницу.
   // Поэтому подтверждаем сообщение до навигации, а версию — уже после неё.
@@ -104,6 +105,11 @@ try {
   const recoveryText = ((await recoveryToast.textContent()) || '').trim();
   if (!recoveryText.includes('Предыдущая рабочая версия автоматически восстановлена')) {
     throw new Error(`Интерфейс не подтвердил автоматическое восстановление: ${recoveryText}`);
+  }
+  if (expectedDiagnostic && !recoveryText.includes(`Код диагностики: ${expectedDiagnostic}`)) {
+    throw new Error(
+      `После rollback потерян диагностический код ${expectedDiagnostic}: ${recoveryText}`
+    );
   }
 
   const installResponse = await navigation;
@@ -119,6 +125,18 @@ try {
   const bodyAfterRollback = ((await page.locator('body').innerText().catch(() => '')) || '').trim();
   if (!bodyAfterRollback.includes(sourceVersion)) {
     throw new Error(`После автоматического отката интерфейс не подтверждает исходную версию ${sourceVersion}`);
+  }
+
+  // Регрессия реального сбоя 1.0.12 → 1.0.13: после rollback_verified
+  // обычный запрос должен проходить сразу, не ожидая окончания 180-секундного lease.
+  const immediateRecoveryProbe = await page.request.get(`${baseUrl}/admin/updates/`, {
+    maxRedirects: 0,
+    timeout: 15000,
+  });
+  if (immediateRecoveryProbe.status() !== 200) {
+    throw new Error(
+      `После подтверждённого rollback Admin всё ещё заблокирован: HTTP ${immediateRecoveryProbe.status()}`
+    );
   }
 
   if (pageErrors.length) throw pageErrors[0];
