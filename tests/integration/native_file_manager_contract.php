@@ -39,6 +39,7 @@ nativeFileManagerAssert(str_contains($source, 'id="media-player-modal"'), 'media
 nativeFileManagerAssert(str_contains($source, 'id="text-preview-modal"'), 'text preview modal hook was dropped');
 nativeFileManagerAssert(str_contains($source, 'id="modal-upload-progress"'), 'upload progress modal hook was dropped');
 nativeFileManagerAssert(!str_contains($source, 'fa fa-eye'), 'кнопка-глазок всё ещё отображается вместо открытия по объекту');
+nativeFileManagerAssert(!str_contains($source, 'title="Открыть" aria-label="Открыть'), 'у папки осталась отдельная кнопка открытия вместо открытия по карточке');
 nativeFileManagerAssert(str_contains($source, "moduleAsset('files', 'script.js')"), 'Files module behavior asset was dropped');
 nativeFileManagerAssert(str_contains($source, "moduleAsset('files', 'quota.js')"), 'Files module quota asset was dropped');
 nativeFileManagerAssert(str_contains($source, "moduleAsset('files', 'share.js')"), 'Files module share behavior asset was dropped');
@@ -62,6 +63,8 @@ nativeFileManagerAssert(
 $scriptJs = (string) file_get_contents($root . '/modules/files/assets/script.js');
 nativeFileManagerAssert(str_contains($scriptJs, "root.addEventListener('click'"), 'открытие файла по клику на объект не подключено');
 nativeFileManagerAssert(str_contains($scriptJs, 'if (item) openItem(item);'), 'клик по объекту не вызывает открытие файла');
+nativeFileManagerAssert(str_contains($scriptJs, "event.target.closest('.file-manager__action-btn')"), 'клик по свободной области карточки блокируется контейнером действий');
+nativeFileManagerAssert(!str_contains($scriptJs, "event.target.closest('.file-manager__item-actions')"), 'контейнер действий всё ещё блокирует открытие папки по карточке');
 nativeFileManagerAssert(!str_contains($scriptJs, "root.addEventListener('dblclick'"), 'для открытия файла всё ещё требуется двойной клик');
 nativeFileManagerAssert(str_contains($scriptJs, "window.open(fileUrl(id), '_blank'"), 'обычные документы не открываются по клику на объект');
 
