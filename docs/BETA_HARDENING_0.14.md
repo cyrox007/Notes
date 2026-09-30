@@ -1,5 +1,8 @@
 # Workspace Organizer 0.14 — Beta Hardening / Modular Platform
 
+> **Архив.** Этот документ описывает исторический этап и сохранён как свидетельство принятых решений. Он не является текущим списком задач или источником требований для 1.0.13+. Актуальная навигация: [README.md](README.md), текущий план: [ROADMAP.md](ROADMAP.md), архивный индекс: [ARCHIVE.md](ARCHIVE.md).
+
+
 > Release channel: **beta**. `0.14.0-beta.1` фиксирует первый hardening baseline; незакрытые P0/P1 пункты этого документа продолжаются в `master` как blockers на пути к `1.0.0` stable.
 
 ## Цель релиза
