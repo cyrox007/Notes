@@ -1228,12 +1228,17 @@
             const uid = String(user?.uid || '').trim();
             if (!uid) return '';
 
-            if (user?.avatar) {
+            const storedAvatar = String(user?.avatar || '').trim();
+            if (storedAvatar && storedAvatar !== 'default_img') {
                 const path = `/profile/avatar/${encodeURIComponent(uid)}`;
                 return typeof window.wspace?.path === 'function' ? window.wspace.path(path) : path;
             }
 
-            return this.contactAvatarUrls.get(uid) || '';
+            const contactAvatar = this.contactAvatarUrls.get(uid);
+            if (contactAvatar) return contactAvatar;
+
+            const defaultPath = '/assets/img/default_avatar.png';
+            return typeof window.wspace?.path === 'function' ? window.wspace.path(defaultPath) : defaultPath;
         }
 
         configureProfileShortcut(user) {
