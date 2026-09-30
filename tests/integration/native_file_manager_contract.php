@@ -39,6 +39,10 @@ nativeFileManagerAssert(str_contains($source, 'id="media-player-modal"'), 'media
 nativeFileManagerAssert(str_contains($source, 'id="text-preview-modal"'), 'text preview modal hook was dropped');
 nativeFileManagerAssert(str_contains($source, 'id="modal-upload-progress"'), 'upload progress modal hook was dropped');
 nativeFileManagerAssert(!str_contains($source, 'fa fa-eye'), 'кнопка-глазок всё ещё отображается вместо открытия по объекту');
+nativeFileManagerAssert(!str_contains($source, 'title="Открыть" aria-label="Открыть'), 'у папки осталась отдельная кнопка открытия вместо открытия по карточке');
+nativeFileManagerAssert(str_contains($source, "route('files_shares')"), 'File Manager не показывает центр управления общим доступом');
+nativeFileManagerAssert(str_contains($source, 'id="modal-share"'), 'File Manager не показывает настройку срока публичной ссылки');
+nativeFileManagerAssert(str_contains($source, '$canShareFiles && !empty($file[\'uid\'])'), 'публикация папок не подключена к интерфейсу');
 nativeFileManagerAssert(str_contains($source, "moduleAsset('files', 'script.js')"), 'Files module behavior asset was dropped');
 nativeFileManagerAssert(str_contains($source, "moduleAsset('files', 'quota.js')"), 'Files module quota asset was dropped');
 nativeFileManagerAssert(str_contains($source, "moduleAsset('files', 'share.js')"), 'Files module share behavior asset was dropped');
@@ -50,6 +54,8 @@ nativeFileManagerAssert(str_contains($fileController, "'vsd' =>"), 'загруз
 nativeFileManagerAssert(str_contains($fileController, "'vsdx' =>"), 'загрузка VSDX не разрешена');
 nativeFileManagerAssert(str_contains($fileController, "'djvu' =>"), 'загрузка DJVU не разрешена');
 nativeFileManagerAssert(str_contains($fileController, "'zip' =>"), 'загрузка ZIP не разрешена');
+nativeFileManagerAssert(str_contains($fileController, 'FileUploadLimitService'), 'File Manager не использует системную настройку размера загрузки');
+nativeFileManagerAssert(!str_contains($fileController, 'DEFAULT_MAX_UPLOAD_SIZE'), 'в FileController остался жёстко заданный лимит 10 МБ');
 nativeFileManagerAssert(str_contains($fileController, 'application/vnd.ms-visio.drawing.main+xml'), 'MIME VSDX не разрешён');
 nativeFileManagerAssert(str_contains($fileController, 'image/vnd.djvu'), 'MIME DJVU не разрешён');
 $djvuTypePosition = strpos($fileController, "in_array(\$extension, ['pdf', 'djvu'");
@@ -62,8 +68,11 @@ nativeFileManagerAssert(
 $scriptJs = (string) file_get_contents($root . '/modules/files/assets/script.js');
 nativeFileManagerAssert(str_contains($scriptJs, "root.addEventListener('click'"), 'открытие файла по клику на объект не подключено');
 nativeFileManagerAssert(str_contains($scriptJs, 'if (item) openItem(item);'), 'клик по объекту не вызывает открытие файла');
+nativeFileManagerAssert(str_contains($scriptJs, "event.target.closest('.file-manager__action-btn')"), 'клик по свободной области карточки блокируется контейнером действий');
+nativeFileManagerAssert(!str_contains($scriptJs, "event.target.closest('.file-manager__item-actions')"), 'контейнер действий всё ещё блокирует открытие папки по карточке');
 nativeFileManagerAssert(!str_contains($scriptJs, "root.addEventListener('dblclick'"), 'для открытия файла всё ещё требуется двойной клик');
 nativeFileManagerAssert(str_contains($scriptJs, "window.open(fileUrl(id), '_blank'"), 'обычные документы не открываются по клику на объект');
+nativeFileManagerAssert(str_contains($scriptJs, 'effectiveUploadLimit'), 'интерфейс не проверяет известный серверный потолок до начала загрузки');
 
 $shareJs = (string) file_get_contents($root . '/modules/files/assets/share.js');
 nativeFileManagerAssert(str_contains($shareJs, "appPath('/files/share/'"), 'File Manager public-link request is not BASE_PATH-aware');
@@ -77,5 +86,12 @@ nativeFileManagerAssert(str_contains($capability, "'files', 'can_share'"), 'File
 $provider = (string) file_get_contents($root . '/modules/files/FilesRuntimeProvider.php');
 nativeFileManagerAssert(str_contains($provider, "'/share/{str:uid}'"), 'File share-create route is missing');
 nativeFileManagerAssert(str_contains($provider, "'/shared/{str:token}'"), 'Public file-share route is missing');
+
+$shareService = (string) file_get_contents($root . '/modules/files/services/FileShareService.php');
+nativeFileManagerAssert(str_contains($shareService, 'listOwnerShares('), 'Files не умеет перечислять созданные публичные ссылки');
+nativeFileManagerAssert(str_contains($shareService, 'revokeById('), 'Files не умеет отзывать отдельную публичную ссылку');
+nativeFileManagerAssert(str_contains($shareService, 'updateExpiry('), 'Files не умеет менять срок публичной ссылки');
+nativeFileManagerAssert(str_contains($shareService, 'folderView('), 'Files не умеет публиковать дерево папки');
+nativeFileManagerAssert(str_contains($shareService, 'isDescendant('), 'Files не ограничивает публичную навигацию опубликованным деревом');
 
 echo "[OK] native file manager view contract\n";

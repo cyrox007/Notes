@@ -6,6 +6,7 @@ namespace App\Controllers;
 
 use App\Models\FileModel;
 use App\Models\UserModel;
+use App\Services\FileUploadLimitService;
 use App\Services\RolePolicyService;
 use Core\Controller;
 use Core\DatabaseManager;
@@ -20,8 +21,6 @@ use Exception;
  */
 class FileController extends Controller
 {
-    private const DEFAULT_MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
-
     /** @var array<string, array<int, string>> */
     private const ALLOWED_UPLOADS = [
         'jpg' => ['image/jpeg'],
@@ -73,12 +72,15 @@ class FileController extends Controller
             ->orderBy('name', 'ASC')
             ->get();
 
+        $uploadLimits = $this->uploadLimitContext();
         $this->render_template('@files/index', [
             'user' => $user,
             'files' => $files,
             'current_folder' => null,
             'breadcrumb' => [['name' => 'Главная', 'id' => 0]],
             'can_share_files' => $this->canShareFiles((int) $user->id),
+            'max_upload_bytes' => $uploadLimits['configured_bytes'],
+            'effective_upload_bytes' => $uploadLimits['effective_known_file_bytes'],
         ]);
     }
 
@@ -110,12 +112,15 @@ class FileController extends Controller
             ->orderBy('name', 'ASC')
             ->get();
 
+        $uploadLimits = $this->uploadLimitContext();
         $this->render_template('@files/index', [
             'user' => $user,
             'files' => $files,
             'current_folder' => $folder,
             'breadcrumb' => $this->buildBreadcrumb($folderId, (int) $user->id),
             'can_share_files' => $this->canShareFiles((int) $user->id),
+            'max_upload_bytes' => $uploadLimits['configured_bytes'],
+            'effective_upload_bytes' => $uploadLimits['effective_known_file_bytes'],
         ]);
     }
 
@@ -194,6 +199,15 @@ class FileController extends Controller
             return;
         }
 
+        $uploadLimitService = new FileUploadLimitService();
+        if ($uploadLimitService->postLimitExceededByCurrentRequest()) {
+            $this->jsonError(
+                'Размер HTTP-запроса превышает PHP post_max_size. Администратору нужно согласовать лимиты в системных настройках.',
+                413
+            );
+            return;
+        }
+
         $file = $_FILES['file'] ?? null;
         if (!is_array($file)) {
             $this->jsonError('Файл не выбран', 422);
@@ -213,7 +227,7 @@ class FileController extends Controller
         }
 
         $size = (int) ($file['size'] ?? 0);
-        $maxSize = $this->maxUploadSize();
+        $maxSize = $uploadLimitService->configuredLimitBytes();
         if ($size <= 0 || $size > $maxSize) {
             $this->jsonError('Размер файла превышает лимит ' . $this->formatBytes($maxSize), 413);
             return;
@@ -439,18 +453,11 @@ class FileController extends Controller
         return 'file';
     }
 
-    private function maxUploadSize(): int
-    {
-        $configured = getenv('MAX_UPLOAD_SIZE');
-        return is_string($configured) && ctype_digit($configured) && (int) $configured > 0
-            ? (int) $configured
-            : self::DEFAULT_MAX_UPLOAD_SIZE;
-    }
-
     private function uploadErrorMessage(int $code): string
     {
         return match ($code) {
-            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'Файл превышает допустимый размер',
+            UPLOAD_ERR_INI_SIZE => 'Файл превышает серверный лимит PHP upload_max_filesize (' . (new FileUploadLimitService())->phpUploadLimitLabel() . ')',
+            UPLOAD_ERR_FORM_SIZE => 'Файл превышает допустимый размер формы',
             UPLOAD_ERR_PARTIAL => 'Файл загружен не полностью',
             UPLOAD_ERR_NO_FILE => 'Файл не выбран',
             UPLOAD_ERR_NO_TMP_DIR => 'На сервере отсутствует временная директория',
@@ -458,6 +465,17 @@ class FileController extends Controller
             UPLOAD_ERR_EXTENSION => 'Загрузка остановлена расширением PHP',
             default => 'Ошибка загрузки файла',
         };
+    }
+
+    /** @return array{configured_bytes:int,effective_known_file_bytes:int} */
+    private function uploadLimitContext(): array
+    {
+        $service = new FileUploadLimitService();
+        $diagnostics = $service->diagnostics();
+        return [
+            'configured_bytes' => (int) $diagnostics['configured_bytes'],
+            'effective_known_file_bytes' => (int) $diagnostics['effective_known_file_bytes'],
+        ];
     }
 
     private function canShareFiles(int $userId): bool

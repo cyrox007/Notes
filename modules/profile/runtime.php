@@ -11,6 +11,7 @@ foreach ([
     '/middlewares/RequireProfileUse.php',
     '/controllers/ProfileController.php',
     '/controllers/PublicProfileController.php',
+    '/controllers/UserDirectoryController.php',
     '/ProfileRuntimeProvider.php',
 ] as $relativePath) {
     $path = $moduleRoot . $relativePath;

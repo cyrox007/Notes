@@ -39,11 +39,6 @@ final class PublicProfileController extends Controller
             return;
         }
 
-        if (hash_equals((string) $layoutUser['uid'], $uid)) {
-            Router::getInstance()->redirect('profile');
-            return;
-        }
-
         $profile = $db->fetchOne(
             'SELECT id, uid, username, firstname, lastname, avatar, created_at
              FROM users
@@ -71,7 +66,7 @@ final class PublicProfileController extends Controller
 
         $this->render_template('profile_page/public', [
             'user' => $layoutUser,
-            'profile' => (object) $profile,
+            'profile' => $profile,
             'avatar_url' => $avatarUrl,
             'public_content' => $publicContent,
             'public_total' => $publicTotal,

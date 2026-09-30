@@ -72,9 +72,9 @@ $access = isset($workspaceAccess) && is_array($workspaceAccess) ? $workspaceAcce
 <section class="profile-publication ux-section" aria-labelledby="profile-publication-title">
     <div class="ux-section__heading profile-publication__heading">
         <div>
-            <span class="ux-kicker">Публичный профиль</span>
-            <h2 id="profile-publication-title">Что видят другие пользователи</h2>
-            <p>Публикация здесь отдельна от share-ссылок. По умолчанию все заметки, задачи и файлы остаются приватными.</p>
+            <span class="ux-kicker">Видимость профиля</span>
+            <h2 id="profile-publication-title">Что видно другим пользователям</h2>
+            <p>Эти настройки определяют содержимое вашего профиля для других пользователей Workspace. Доступ по специальной ссылке на файл или папку настраивается отдельно в File Manager.</p>
         </div>
         <a class="profile-publication__preview" href="<?= $view->e($view->route('profile-public', ['uid' => $currentUser['uid'] ?? ''])) ?>">
             <i class="fa fa-eye" aria-hidden="true"></i>
@@ -85,9 +85,9 @@ $access = isset($workspaceAccess) && is_array($workspaceAccess) ? $workspaceAcce
     <div class="profile-publication__columns">
         <?php
         $groups = [
-            'notes' => ['title' => 'Заметки', 'icon' => 'fa-sticky-note-o', 'type' => 'note', 'empty' => 'Нет заметок для публикации.'],
-            'tasks' => ['title' => 'Задачи', 'icon' => 'fa-check-square-o', 'type' => 'task', 'empty' => 'Нет задач для публикации.'],
-            'files' => ['title' => 'Файлы', 'icon' => 'fa-folder-open-o', 'type' => 'file', 'empty' => 'Нет файлов для публикации.'],
+            'notes' => ['title' => 'Заметки', 'icon' => 'fa-sticky-note-o', 'type' => 'note', 'empty' => 'Нет заметок для настройки видимости.'],
+            'tasks' => ['title' => 'Задачи', 'icon' => 'fa-check-square-o', 'type' => 'task', 'empty' => 'Нет задач для настройки видимости.'],
+            'files' => ['title' => 'Файлы', 'icon' => 'fa-folder-open-o', 'type' => 'file', 'empty' => 'Нет файлов для настройки видимости.'],
         ];
         ?>
         <?php foreach ($groups as $key => $group): ?>
@@ -121,7 +121,7 @@ $access = isset($workspaceAccess) && is_array($workspaceAccess) ? $workspaceAcce
                                     <input type="hidden" name="type" value="<?= $view->e($group['type']) ?>">
                                     <input type="hidden" name="uid" value="<?= $view->e($item['uid'] ?? '') ?>">
                                     <input type="hidden" name="public" value="<?= $isPublic ? '0' : '1' ?>">
-                                    <button type="submit" class="profile-publication__toggle"><?= $isPublic ? 'Скрыть' : 'Опубликовать' ?></button>
+                                    <button type="submit" class="profile-publication__toggle"><?= $isPublic ? 'Скрыть из профиля' : 'Показать в профиле' ?></button>
                                 </form>
                             </article>
                         <?php endforeach; ?>

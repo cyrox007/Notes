@@ -161,7 +161,7 @@ html[data-theme="dark"] .workspace-viewport--messenger{
   background:var(--msg-accent-soft);
   color:var(--msg-accent)
 }
-.messenger-list__header .messenger-connection{display:none!important}
+.messenger-list__header .messenger-connection{display:flex!important}
 
 .messenger-search{margin:10px 14px 9px}
 .messenger-search>i{left:13px;font-size:13px}
@@ -451,8 +451,8 @@ html[data-theme="dark"] .workspace-viewport--messenger{
   .messenger-app{grid-template-columns:232px minmax(0,1fr)}
   .messenger-folder-tab{padding-inline:7px!important}
   .messenger-folder-tab__count{display:none}
-  .messenger-chat__actions{max-width:164px;overflow-x:auto;scrollbar-width:none}
-  .messenger-chat__actions::-webkit-scrollbar{display:none}
+  .messenger-chat__actions{max-width:none;overflow:visible}
+  .messenger-chat__actions .messenger-icon-button{width:30px;height:30px}
   .messenger-message{max-width:88%}
 }
 @media(max-width:760px){
@@ -465,12 +465,91 @@ html[data-theme="dark"] .workspace-viewport--messenger{
   .messenger-history{padding:12px 10px 8px}
   .messenger-message{max-width:93%}
   .messenger-composer{padding:8px}
-  .messenger-composer__tools{max-width:122px;overflow-x:auto;scrollbar-width:none}
-  .messenger-composer__tools::-webkit-scrollbar{display:none}
+  .messenger-composer__tools{max-width:none;overflow:visible}
+  .messenger-composer__tools>.messenger-icon-button,.messenger-composer__tools>.messenger-workspace-create>.messenger-icon-button{width:30px;height:32px}
   .messenger-message__actions{position:static;opacity:1;transform:none;margin:0!important;align-self:flex-end}
 }
 @media(max-width:460px){
-  .messenger-chat__actions{max-width:108px}
-  .messenger-composer__tools{max-width:88px}
+  .messenger-chat__actions{max-width:none}
+  .messenger-chat__actions .messenger-icon-button{width:28px;height:28px}
+  .messenger-composer__tools{max-width:none}
   .messenger-message{max-width:97%}
+}
+
+
+/* Компактный Messenger на средней ширине: все действия остаются видимыми без горизонтальной прокрутки. */
+@media(max-width:900px){
+  .messenger-list__header,
+  .messenger-chat__header{min-height:54px;padding:8px 10px;gap:7px}
+  .messenger-chat__identity strong{font-size:13px}
+  .messenger-chat__identity span{font-size:10px}
+  .messenger-chat__actions{
+    max-width:none!important;
+    flex:0 0 auto;
+    gap:1px!important;
+    overflow:visible!important
+  }
+  .messenger-chat__actions .messenger-icon-button{
+    width:28px;
+    height:28px;
+    border-radius:7px;
+    font-size:12px
+  }
+  .messenger-history{padding-inline:12px}
+  .messenger-message{max-width:90%}
+  .messenger-message__actions{
+    top:-30px;
+    left:auto!important;
+    right:0!important;
+    margin:0!important;
+    padding:2px;
+    gap:2px;
+    transform:none;
+    z-index:4;
+    border:1px solid var(--msg-border);
+    border-radius:9px;
+    background:var(--msg-panel,var(--msg-surface));
+    box-shadow:var(--ui-shadow-sm)
+  }
+  .messenger-message--other .messenger-message__actions{
+    left:0!important;
+    right:auto!important
+  }
+  .messenger-message__action{
+    width:24px;
+    height:24px;
+    border:0;
+    border-radius:6px;
+    box-shadow:none
+  }
+  .messenger-composer{padding:8px 9px;gap:6px}
+  .messenger-composer__tools>.messenger-icon-button,
+  .messenger-composer__tools>.messenger-workspace-create>.messenger-icon-button{
+    width:32px;
+    height:32px
+  }
+  .messenger-send-button{width:38px;height:38px}
+}
+
+@media(max-width:760px){
+  .messenger-message__actions{
+    position:static;
+    padding:0;
+    border:0;
+    background:transparent;
+    box-shadow:none
+  }
+}
+
+@media(hover:none) and (pointer:coarse){
+  .messenger-message__actions{
+    position:static;
+    opacity:1;
+    transform:none;
+    margin:0!important;
+    padding:0;
+    border:0;
+    background:transparent;
+    box-shadow:none
+  }
 }

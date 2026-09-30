@@ -58,6 +58,7 @@
                 chatActive: document.getElementById('chat-active'),
                 chatBack: document.getElementById('chat-back-button'),
                 chatAvatar: document.getElementById('chat-avatar'),
+                chatIdentity: document.getElementById('chat-identity'),
                 chatTitle: document.getElementById('chat-title'),
                 chatSubtitle: document.getElementById('chat-subtitle'),
                 messageScroll: document.getElementById('message-scroll'),
@@ -85,6 +86,14 @@
             this.el.contactSearch?.addEventListener('input', () => this.filterContacts());
             this.el.createChatButton?.addEventListener('click', () => this.createChat());
             this.el.chatBack?.addEventListener('click', () => this.root.classList.remove('messenger-app--chat-open'));
+            [this.el.chatAvatar, this.el.chatIdentity].forEach((element) => {
+                element?.addEventListener('click', () => this.openCurrentProfile());
+                element?.addEventListener('keydown', (event) => {
+                    if (event.key !== 'Enter' && event.key !== ' ') return;
+                    event.preventDefault();
+                    this.openCurrentProfile();
+                });
+            });
             this.el.loadOlder?.addEventListener('click', () => this.loadOlder());
             this.el.send?.addEventListener('click', () => this.submitComposer());
             this.el.composeContextClose?.addEventListener('click', () => this.clearComposeContext());
@@ -223,7 +232,7 @@
                     this.socketAuthorized = true;
                     this.stopLongPoll();
                     this.setConnectionTransport('websocket');
-                    this.setConnectionState('online', 'В сети');
+                    this.setConnectionState('online', 'WebSocket');
                     this.sendEvent('MessangerSocket:get_dialogs', {});
                     break;
                 case 'get_dialogs':
@@ -411,7 +420,7 @@
                 return;
             }
 
-            this.setConnectionState('online', 'В сети');
+            this.setConnectionState('online', 'Long Poll');
 
             // Если предыдущий запрос завершился из-за браузерной/proxy-гонки,
             // активный флаг не должен оставлять Messenger без нового poll.
@@ -549,7 +558,7 @@
                         this.dispatchRealtimeEvents(payload.events);
                     }
                     this.longPollRetryAttempt = 0;
-                    this.setConnectionState('online', 'В сети');
+                    this.setConnectionState('online', 'Long Poll');
                 } catch (error) {
                     const manuallyAborted = error?.name === 'AbortError' && !watchdogExpired;
                     if (manuallyAborted) return;
@@ -637,7 +646,11 @@
                 }
                 button.addEventListener('click', () => this.openDialog(dialog.uid));
 
-                const avatar = this.createAvatar(dialog.title, 'messenger-avatar');
+                const avatar = this.createAvatar(
+                    dialog.title,
+                    'messenger-avatar',
+                    dialog.type === 'private' ? dialog.partner : null
+                );
                 const body = document.createElement('span');
                 body.className = 'messenger-dialog-item__body';
 
@@ -692,7 +705,9 @@
         renderChatHeader() {
             if (!this.currentDialog) return;
             this.el.chatTitle.textContent = this.currentDialog.title || 'Диалог';
-            this.setAvatar(this.el.chatAvatar, this.currentDialog.title || '?');
+            const profileUser = this.currentDialog.type === 'private' ? this.currentDialog.partner : null;
+            this.setAvatar(this.el.chatAvatar, this.currentDialog.title || '?', profileUser);
+            this.configureProfileShortcut(profileUser);
 
             if (this.currentDialog.type === 'private') {
                 const online = Boolean(this.currentDialog.partner?.online);
@@ -1167,17 +1182,62 @@
             if (offset < text.length) container.append(document.createTextNode(text.slice(offset)));
         }
 
-        createAvatar(title, className) {
+        createAvatar(title, className, user = null) {
             const avatar = document.createElement('span');
             avatar.className = className;
-            this.setAvatar(avatar, title);
+            this.setAvatar(avatar, title, user);
             return avatar;
         }
 
-        setAvatar(element, title) {
+        setAvatar(element, title, user = null) {
             if (!element) return;
+            element.replaceChildren();
+
+            const avatarUrl = this.profileAvatarUrl(user);
+            if (avatarUrl) {
+                const image = document.createElement('img');
+                image.src = avatarUrl;
+                image.alt = '';
+                image.loading = 'lazy';
+                element.append(image);
+                return;
+            }
+
             const value = (title || '?').trim();
             element.textContent = value ? Array.from(value)[0].toLocaleUpperCase('ru') : '?';
+        }
+
+        profileAvatarUrl(user) {
+            if (!user?.uid || !user?.avatar) return '';
+            const path = `/profile/avatar/${encodeURIComponent(String(user.uid))}`;
+            return typeof window.wspace?.path === 'function' ? window.wspace.path(path) : path;
+        }
+
+        configureProfileShortcut(user) {
+            const active = Boolean(user?.uid);
+            [this.el.chatAvatar, this.el.chatIdentity].forEach((element) => {
+                if (!element) return;
+                element.classList.toggle('messenger-profile-shortcut', active);
+                if (active) {
+                    element.setAttribute('role', 'link');
+                    element.setAttribute('tabindex', '0');
+                    element.setAttribute('title', 'Открыть профиль пользователя');
+                    element.dataset.profileUid = String(user.uid);
+                    return;
+                }
+                element.removeAttribute('role');
+                element.removeAttribute('tabindex');
+                element.removeAttribute('title');
+                delete element.dataset.profileUid;
+            });
+        }
+
+        openCurrentProfile() {
+            const uid = String(this.currentDialog?.partner?.uid || '').trim();
+            if (!uid || this.currentDialog?.type !== 'private') return;
+            const path = `/profile/user/${encodeURIComponent(uid)}`;
+            const target = typeof window.wspace?.path === 'function' ? window.wspace.path(path) : path;
+            window.location.assign(target);
         }
 
         displayUser(user) {

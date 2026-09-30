@@ -53,7 +53,7 @@ foreach ([
     'OSPanel 5.2.2',
     'Gate G — неизменяемый артефакт и подпись',
     'Gate H — финальный merge и tag',
-    'v1.0.11',
+    'v1.0.12',
     'нет открытых P0/P1 дефектов с риском потери данных',
     'нет открытых P0/P1 дефектов безопасности',
     'ручной pre-tag проверки',
@@ -65,11 +65,12 @@ foreach ([
 
 $windowsAcceptance = releaseAcceptanceText($root, 'docs/WINDOWS_OSPANEL_ACCEPTANCE.md');
 releaseAcceptanceAssert(
-    str_contains($windowsAcceptance, '# Релизная приёмка Windows / OSPanel для 1.0.11')
+    str_contains($windowsAcceptance, '# Релизная приёмка Windows / OSPanel для 1.0.12')
     && str_contains($windowsAcceptance, 'Сценарий A2 — private storage предыдущей установки')
-    && str_contains($windowsAcceptance, '1.0.9 → 1.0.11')
+    && str_contains($windowsAcceptance, '1.0.11 → 1.0.12')
+    && str_contains($windowsAcceptance, 'отдельный bootstrap не требуется')
     && str_contains($windowsAcceptance, 'rollback_failed'),
-    'Windows/OSPanel acceptance не закрепляет 1.0.11, stale recovery и upgrade-path'
+    'Windows/OSPanel acceptance не закрепляет 1.0.11 → 1.0.12, stale recovery и прямой updater'
 );
 
 $preflight = releaseAcceptanceText($root, 'bin/release_acceptance.php');
@@ -92,7 +93,7 @@ foreach ([
     'production_public_trust_roots',
     'release_evidence_harness',
     'private_signing_material_absent',
-    "Version::VERSION === '1.0.11'",
+    "Version::VERSION === '1.0.12'",
     "Version::STATUS === 'stable'",
     'exit(3)',
 ] as $marker) {
@@ -115,32 +116,32 @@ releaseAcceptanceAssert(
     'документ изоляции модулей не соответствует текущему runtime'
 );
 
-$releaseNotes = releaseAcceptanceText($root, 'docs/releases/v1.0.11.md');
+$releaseNotes = releaseAcceptanceText($root, 'docs/releases/v1.0.12.md');
 foreach ([
     '## Назначение релиза',
-    '## Updater и recovery',
-    '## Profile',
     '## Messenger',
-    '## Отозванный 1.0.10',
+    '## File Manager: общий доступ',
+    '## Ограничение размера загрузки',
+    '## Profile',
+    '## Автоматическая проверка общего доступа',
     '## Проверяемый путь обновления',
     '## Совместимость',
 ] as $marker) {
     releaseAcceptanceAssert(
         str_contains($releaseNotes, $marker),
-        "описание релиза 1.0.11 не содержит русский раздел {$marker}"
+        "описание релиза 1.0.12 не содержит русский раздел {$marker}"
     );
 }
 
 releaseAcceptanceAssert(
-    str_contains($releaseNotes, 'v1.0.9 → bootstrap совместимости 1.0.9 → подписанный updater → 1.0.11')
-    && str_contains($releaseNotes, 'UpdateExternalRuntime')
-    && str_contains($releaseNotes, 'require/require_once')
-    && str_contains($releaseNotes, 'Profile')
-    && str_contains($releaseNotes, 'HTTP fallback')
-    && str_contains($releaseNotes, '#1687ff')
-    && str_contains($releaseNotes, 'контрольные заметка, задача, файл')
-    && str_contains($releaseNotes, 'boot recovery'),
-    'описание 1.0.11 не фиксирует recovery, Profile, Messenger и полный upgrade-drill'
+    str_contains($releaseNotes, '1.0.11 → встроенный подписанный updater → 1.0.12')
+    && str_contains($releaseNotes, 'отзыв ссылки')
+    && str_contains($releaseNotes, 'публикация папок')
+    && str_contains($releaseNotes, 'Видимость профиля')
+    && str_contains($releaseNotes, 'upload_max_filesize')
+    && str_contains($releaseNotes, 'Long Poll')
+    && str_contains($releaseNotes, 'rollback/recovery'),
+    'описание 1.0.12 не фиксирует общий доступ, Profile, Messenger и штатный upgrade-path'
 );
 
 
@@ -235,4 +236,4 @@ releaseAcceptanceAssert(
     'Stable release gate не запускает контракт двухфакторной аутентификации'
 );
 
-fwrite(STDOUT, "[OK] финальный контракт release acceptance 1.0.11 выполнен\n");
+fwrite(STDOUT, "[OK] финальный контракт release acceptance 1.0.12 выполнен\n");

@@ -218,21 +218,21 @@ updateNotificationAssert(
     'Сквозной релизный тест не запускает браузерную проверку автоматического отката'
 );
 updateNotificationAssert(
-    str_contains($adminUpdateE2e, 'name: 1.0.9 → 1.0.11 сквозной updater')
-        && str_contains($adminUpdateE2e, "E2E_SOURCE_VERSION=%s\\n' '1.0.9'")
-        && str_contains($adminUpdateE2e, "E2E_TARGET_VERSION=%s\\n' '1.0.11-admin-e2e'")
-        && str_contains($adminUpdateE2e, 'bootstrap-1.0.9-updater.php'),
-    'Сквозной релизный тест не закрепляет новую границу обновления 1.0.9 → 1.0.11'
+    str_contains($adminUpdateE2e, 'name: 1.0.11 → 1.0.12 сквозной updater')
+        && str_contains($adminUpdateE2e, "E2E_SOURCE_VERSION=%s\\n' '1.0.11'")
+        && str_contains($adminUpdateE2e, "E2E_TARGET_VERSION=%s\\n' '1.0.12-admin-e2e'")
+        && !str_contains($adminUpdateE2e, 'bootstrap-1.0.9-updater.php'),
+    'Сквозной релизный тест не закрепляет штатную границу обновления 1.0.11 → 1.0.12 без bootstrap'
 );
 updateNotificationAssert(
-    str_contains($adminUpdateE2e, '1.0.11-broken-e2e')
+    str_contains($adminUpdateE2e, '1.0.12-broken-e2e')
         && str_contains($adminUpdateE2e, 'намеренный отказ миграции'),
-    'Сквозной релизный тест не содержит намеренно падающий подписанный пакет'
+    'Сквозной релизный тест не содержит намеренно падающий подписанный пакет 1.0.12'
 );
 updateNotificationAssert(
-    str_contains($adminUpdateE2e, '1.0.11-health-broken-e2e')
-        && str_contains($adminUpdateE2e, 'намеренный отказ post-health'),
-    'Сквозной релизный тест не проверяет автоматический откат после ошибки post-health'
+    str_contains($adminUpdateE2e, '1.0.12-health-broken-e2e')
+        && str_contains($adminUpdateE2e, 'намеренный отказ post-health после успешной миграции'),
+    'Сквозной релизный тест не проверяет автоматический откат 1.0.12 после ошибки post-health после успешной миграции'
 );
 updateNotificationAssert(
     str_contains($adminUpdateE2e, 'rollback_verified'),
@@ -244,7 +244,7 @@ updateNotificationAssert(
     'Сквозной релизный тест не доказывает recovery на следующем HTTP-запросе после обрыва процесса'
 );
 updateNotificationAssert(
-    str_contains($rollbackBrowserE2e, 'Рабочая версия автоматически восстановлена и проверена'),
+    str_contains($rollbackBrowserE2e, 'Предыдущая рабочая версия автоматически восстановлена'),
     'Браузерный тест не подтверждает автоматическое восстановление пользователю'
 );
 
