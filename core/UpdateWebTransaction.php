@@ -490,6 +490,7 @@ final class UpdateWebTransaction
             'message' => 'Предыдущая рабочая версия восстановлена.',
             'transaction_id' => $transactionId,
             'installed_version' => (string) ($state['installed_version'] ?? ''),
+            'diagnostic_code' => $this->diagnosticCodeFromJournal($state),
         ];
     }
 
