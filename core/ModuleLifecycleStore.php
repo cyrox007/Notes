@@ -12,6 +12,7 @@ use Throwable;
 
 final class ModuleLifecycleStore
 {
+    private ?bool $supportsUnlicensedState = null;
     /** @var list<string> */
     public const CONFIGURED_STATES = [
         'discovered',
@@ -114,7 +115,14 @@ final class ModuleLifecycleStore
 
             $entitlement = $this->entitlementDecision($manifest);
             if (!$entitlement['entitled']) {
-                $state = 'unlicensed';
+                // Во время обновления новый код может кратко работать поверх
+                // схемы 1.0.12 до применения миграции 1.0.13. Старый ENUM ещё
+                // не знает unlicensed, поэтому закрыто блокируем модуль через
+                // совместимое disabled. После миграции следующий reconcile
+                // автоматически зафиксирует каноническое unlicensed.
+                $state = $this->supportsUnlicensedEffectiveState()
+                    ? 'unlicensed'
+                    : 'disabled';
                 $errors[$moduleId] = $entitlement['reason'];
             } elseif (!$manifest->isCompatibleWithCore($coreVersion)) {
                 $state = 'incompatible';
@@ -337,6 +345,25 @@ final class ModuleLifecycleStore
         if (!in_array($to, $allowed[$from] ?? [], true)) {
             throw new RuntimeException("Invalid module lifecycle transition: {$from} -> {$to}");
         }
+    }
+
+    private function supportsUnlicensedEffectiveState(): bool
+    {
+        if ($this->supportsUnlicensedState !== null) {
+            return $this->supportsUnlicensedState;
+        }
+
+        $rows = $this->db->fetchAll(
+            "SELECT COLUMN_TYPE FROM information_schema.COLUMNS "
+            . "WHERE TABLE_SCHEMA = DATABASE() "
+            . "AND TABLE_NAME = 'module_lifecycle' "
+            . "AND COLUMN_NAME = 'effective_state' LIMIT 1"
+        );
+        $columnType = isset($rows[0]['COLUMN_TYPE'])
+            ? strtolower((string) $rows[0]['COLUMN_TYPE'])
+            : '';
+
+        return $this->supportsUnlicensedState = str_contains($columnType, "'unlicensed'");
     }
 
     /** @return array{entitled:bool,feature:?string,reason:?string} */
