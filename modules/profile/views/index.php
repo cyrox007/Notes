@@ -51,7 +51,7 @@ ob_start();
                 <i class="fa fa-users" aria-hidden="true"></i>
                 Пользователи
             </a>
-            <a class="profile__public-preview" aria-label="Посмотреть как другой пользователь" href="<?= $view->e($view->route('profile-public', ['uid' => $currentUser['uid'] ?? ''])) ?>">
+            <a class="profile__public-preview" aria-label="Как видят меня" href="<?= $view->e($view->route('profile-public', ['uid' => $currentUser['uid'] ?? ''])) ?>">
                 <i class="fa fa-eye" aria-hidden="true"></i>
                 Как видят меня
             </a>
