@@ -106,6 +106,10 @@ nativeMessengerAssert(str_contains($messengerStyle, '--msg-transport-long-poll:#
 nativeMessengerAssert(str_contains($script, "setConnectionState('online', 'WebSocket')"), 'WebSocket не подписан в видимом состоянии соединения');
 nativeMessengerAssert(str_contains($script, "setConnectionState('online', 'Long Poll')"), 'Long Poll не подписан в видимом состоянии соединения');
 nativeMessengerAssert(str_contains($script, 'profileAvatarUrl(user)'), 'Messenger не использует реальные аватары пользователей');
+nativeMessengerAssert(str_contains($script, 'readContactAvatarUrls()'), 'Messenger не восстанавливает URL аватара из серверного списка контактов');
+nativeMessengerAssert(str_contains($script, 'this.contactAvatarUrls.get(uid)'), 'Messenger теряет аватар, если realtime payload не содержит marker avatar');
+nativeMessengerAssert(str_contains($script, "image.addEventListener('error'"), 'Messenger не возвращается к инициалу при недоступном изображении');
+nativeMessengerAssert(str_contains($view, 'data-contact-avatar-url='), 'серверный список контактов не экспортирует резервный URL аватара');
 nativeMessengerAssert(str_contains($script, "openCurrentProfile()"), 'Messenger не даёт перейти в профиль собеседника');
 nativeMessengerAssert(str_contains($script, "/profile/user/"), 'Messenger не использует публичный маршрут профиля пользователя');
 nativeMessengerAssert(str_contains($messengerStyle, '.messenger-avatar img{width:100%;height:100%'), 'аватары Messenger не масштабируются внутри круглого контейнера');
