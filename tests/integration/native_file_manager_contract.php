@@ -50,6 +50,8 @@ nativeFileManagerAssert(str_contains($fileController, "'vsd' =>"), 'загруз
 nativeFileManagerAssert(str_contains($fileController, "'vsdx' =>"), 'загрузка VSDX не разрешена');
 nativeFileManagerAssert(str_contains($fileController, "'djvu' =>"), 'загрузка DJVU не разрешена');
 nativeFileManagerAssert(str_contains($fileController, "'zip' =>"), 'загрузка ZIP не разрешена');
+nativeFileManagerAssert(str_contains($fileController, 'FileUploadLimitService'), 'File Manager не использует системную настройку размера загрузки');
+nativeFileManagerAssert(!str_contains($fileController, 'DEFAULT_MAX_UPLOAD_SIZE'), 'в FileController остался жёстко заданный лимит 10 МБ');
 nativeFileManagerAssert(str_contains($fileController, 'application/vnd.ms-visio.drawing.main+xml'), 'MIME VSDX не разрешён');
 nativeFileManagerAssert(str_contains($fileController, 'image/vnd.djvu'), 'MIME DJVU не разрешён');
 $djvuTypePosition = strpos($fileController, "in_array(\$extension, ['pdf', 'djvu'");
@@ -64,6 +66,7 @@ nativeFileManagerAssert(str_contains($scriptJs, "root.addEventListener('click'")
 nativeFileManagerAssert(str_contains($scriptJs, 'if (item) openItem(item);'), 'клик по объекту не вызывает открытие файла');
 nativeFileManagerAssert(!str_contains($scriptJs, "root.addEventListener('dblclick'"), 'для открытия файла всё ещё требуется двойной клик');
 nativeFileManagerAssert(str_contains($scriptJs, "window.open(fileUrl(id), '_blank'"), 'обычные документы не открываются по клику на объект');
+nativeFileManagerAssert(str_contains($scriptJs, 'effectiveUploadLimit'), 'интерфейс не проверяет известный серверный потолок до начала загрузки');
 
 $shareJs = (string) file_get_contents($root . '/modules/files/assets/share.js');
 nativeFileManagerAssert(str_contains($shareJs, "appPath('/files/share/'"), 'File Manager public-link request is not BASE_PATH-aware');
