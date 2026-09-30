@@ -472,7 +472,8 @@ final class UpdateApplyCommand
                     $stateMachine,
                     $applier,
                     $backupManager,
-                    $restartWs
+                    $restartWs,
+                    'code_switch_failed'
                 );
             }
 
@@ -518,7 +519,8 @@ final class UpdateApplyCommand
                     $stateMachine,
                     $applier,
                     $backupManager,
-                    $restartWs
+                    $restartWs,
+                    'migration_failed'
                 );
             }
 
@@ -571,7 +573,8 @@ final class UpdateApplyCommand
                     $stateMachine,
                     $applier,
                     $backupManager,
-                    $restartWs
+                    $restartWs,
+                    'postcheck_failed'
                 );
             }
 
@@ -736,12 +739,15 @@ final class UpdateApplyCommand
         UpdateTransactionStateMachine $stateMachine,
         UpdateLiveApplier $applier,
         UpdateBackupManager $backupManager,
-        bool $restartWs
+        bool $restartWs,
+        string $failureCode = 'apply_failed'
     ): never {
         $journalState = $stateMachine->load($transactionId);
-        $applyErrorCode = $applyError instanceof UpdateApplyException
-            ? $applyError->errorCode
-            : 'apply_failed';
+        $applyErrorCode = preg_match('/^[a-z0-9_]{1,64}$/D', $failureCode) === 1
+            ? $failureCode
+            : ($applyError instanceof UpdateApplyException
+                ? $applyError->errorCode
+                : 'apply_failed');
 
         try {
             $verified = $this->rollback(
