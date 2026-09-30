@@ -106,6 +106,9 @@ nativeMessengerAssert(str_contains($messengerStyle, '--msg-transport-long-poll:#
 nativeMessengerAssert(str_contains($script, "setConnectionState('online', 'WebSocket')"), 'WebSocket не подписан в видимом состоянии соединения');
 nativeMessengerAssert(str_contains($script, "setConnectionState('online', 'Long Poll')"), 'Long Poll не подписан в видимом состоянии соединения');
 nativeMessengerAssert(str_contains($script, 'profileAvatarUrl(user)'), 'Messenger не использует реальные аватары пользователей');
+nativeMessengerAssert(str_contains($view, 'data-can-use-profile='), 'Messenger не получает состояние доступности Profile');
+nativeMessengerAssert(str_contains($script, 'this.canUseProfile'), 'Messenger не отключает Profile-интеграцию вместе с модулем');
+nativeMessengerAssert(str_contains($view, "!empty(\$workspaceActions['tasks']) || !empty(\$workspaceActions['notes'])"), 'Messenger оставляет пустую кнопку создания при отключённых Notes и Tasks');
 nativeMessengerAssert(str_contains($script, "openCurrentProfile()"), 'Messenger не даёт перейти в профиль собеседника');
 nativeMessengerAssert(str_contains($script, "/profile/user/"), 'Messenger не использует публичный маршрут профиля пользователя');
 nativeMessengerAssert(str_contains($messengerStyle, '.messenger-avatar img{width:100%;height:100%'), 'аватары Messenger не масштабируются внутри круглого контейнера');
@@ -172,6 +175,7 @@ $controller = (string) file_get_contents($controllerPath);
 nativeMessengerAssert(str_contains($controller, 'SocketTicket::issue'), 'Messenger controller no longer issues short-lived socket tickets');
 nativeMessengerAssert(str_contains($controller, "'socket_ticket' => \$socketTicket"), 'socket ticket is not passed to Messenger view');
 nativeMessengerAssert(str_contains($controller, "'socket_url' => \$socketUrl"), 'socket URL is not passed to Messenger view');
+nativeMessengerAssert(str_contains($controller, "'profile' => \$capabilities->has('workspace.profile')"), 'Messenger не связывает Profile-интеграцию с активной capability');
 nativeMessengerAssert(str_contains($controller, 'MessengerMediaService'), 'protected Messenger media service boundary is missing');
 
 $workspaceControllerPath = $module . '/controllers/MessengerWorkspaceController.php';
