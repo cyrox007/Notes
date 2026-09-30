@@ -1,5 +1,8 @@
 # Workspace 0.12 — execution status
 
+> **Архив.** Этот документ описывает исторический этап и сохранён как свидетельство принятых решений. Он не является текущим списком задач или источником требований для 1.0.13+. Актуальная навигация: [README.md](README.md), текущий план: [ROADMAP.md](ROADMAP.md), архивный индекс: [ARCHIVE.md](ARCHIVE.md).
+
+
 ## Working state
 
 - Roadmap: `docs/USABLE_BASELINE_0.12.md`.
