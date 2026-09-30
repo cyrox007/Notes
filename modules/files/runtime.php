@@ -6,6 +6,7 @@ foreach ([
     '/FilesCapability.php',
     '/models/FileModel.php',
     '/services/FileLifecycleService.php',
+    '/services/FileShareService.php',
     '/middlewares/RequireFilesUse.php',
     '/middlewares/EnforceFileUploadPolicy.php',
     '/middlewares/EnforceFileFolderPolicy.php',
