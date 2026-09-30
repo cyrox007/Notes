@@ -55,6 +55,7 @@ final class DatabaseOwnership
         'database/migrations/20260915_installation_license.sql',
         'database/migrations/20260920_user_action_log.sql',
         'database/migrations/20260921_totp_two_factor.sql',
+        'database/migrations/20260930_module_entitlements.sql',
     ];
 
     /** @param array<string,ModuleManifest> $modules */
