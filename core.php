@@ -25,7 +25,10 @@ $deferModuleLifecyclePersistence = defined('WORKSPACE_DEFER_MODULE_LIFECYCLE')
     && WORKSPACE_DEFER_MODULE_LIFECYCLE === true;
 $moduleLifecycleStore = $deferModuleLifecyclePersistence
     ? null
-    : new \Core\ModuleLifecycleStore(\Core\DatabaseManager::getInstance());
+    : new \Core\ModuleLifecycleStore(
+        \Core\DatabaseManager::getInstance(),
+        new \App\Services\LicenseModuleEntitlementService(),
+    );
 $moduleRegistry = \Core\ModuleRegistry::boot(
     SITEPATH . '/modules',
     \Core\Version::VERSION,
