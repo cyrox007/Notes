@@ -81,7 +81,21 @@ final class UpdateAutomaticRecovery
         }
 
         try {
-            if ((new UpdateWebContinuation($stateRoot))->active($transactionId)) {
+            $continuation = new UpdateWebContinuation($stateRoot);
+            $journalState = (new UpdateTransactionJournal($stateRoot, $this->appRoot))
+                ->load($transactionId);
+            $journalStatus = (string) ($journalState['state'] ?? '');
+            $terminalCleanup = in_array(
+                $journalStatus,
+                ['committed', 'rollback_verified'],
+                true
+            );
+
+            // Активный web-lease защищает паузу между штатными HTTP-шагами,
+            // но не должен задерживать завершение уже доказанного terminal state.
+            // Если rollback/commit подтверждён журналом, recovery безопасно
+            // снимает maintenance немедленно, даже если браузерный lease ещё жив.
+            if (!$terminalCleanup && $continuation->active($transactionId)) {
                 return $this->result(
                     'in_progress',
                     $transactionId,
@@ -112,9 +126,6 @@ final class UpdateAutomaticRecovery
         }
 
         try {
-            $journalState = (new UpdateTransactionJournal($stateRoot, $this->appRoot))
-                ->load($transactionId);
-
             if ($this->processInvoker === null && !UpdateProcessRunner::available()) {
                 $backupDir = is_array($journalState['backups'] ?? null)
                     ? trim((string) ($journalState['backups']['backup_dir'] ?? ''))
@@ -160,6 +171,7 @@ final class UpdateAutomaticRecovery
                     );
                 }
 
+                $this->revokeContinuation($continuation, $transactionId);
                 return $this->result(
                     'recovered',
                     $transactionId,
@@ -248,6 +260,7 @@ final class UpdateAutomaticRecovery
                 );
             }
 
+            $this->revokeContinuation($continuation, $transactionId);
             return $this->result(
                 'recovered',
                 $transactionId,
@@ -256,6 +269,21 @@ final class UpdateAutomaticRecovery
             );
         } catch (Throwable $e) {
             return $this->result('failed', $transactionId, 'recovery_exception', $e->getMessage());
+        }
+    }
+
+    private function revokeContinuation(
+        UpdateWebContinuation $continuation,
+        string $transactionId
+    ): void {
+        try {
+            $continuation->revoke($transactionId);
+        } catch (Throwable $e) {
+            error_log(
+                'Не удалось удалить завершённый web-lease updater'
+                . ' [transaction=' . $transactionId . ']: '
+                . $e->getMessage()
+            );
         }
     }
 
