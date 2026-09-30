@@ -9,6 +9,8 @@ $fileItems = isset($files) && is_array($files) ? $files : [];
 $currentFolder = isset($current_folder) && is_array($current_folder) ? $current_folder : null;
 $crumbs = isset($breadcrumb) && is_array($breadcrumb) ? $breadcrumb : [];
 $canShareFiles = !empty($can_share_files);
+$maxUploadBytes = max(0, (int) ($max_upload_bytes ?? 0));
+$effectiveUploadBytes = max(0, (int) ($effective_upload_bytes ?? $maxUploadBytes));
 $siteName = isset($sitename) ? (string) $sitename : 'Workspace Organizer';
 $workspaceVersion = isset($version) ? (string) $version : '';
 $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
@@ -69,7 +71,11 @@ ob_start();
 <section class="module-page-header module-page-header--files">
     <div><h1>Файлы</h1></div>
 </section>
-<div class="file-manager" data-view="list"<?php if ($currentFolder !== null): ?> data-current-folder-id="<?= $view->e($currentFolder['id'] ?? '') ?>"<?php endif; ?>>
+<div class="file-manager"
+     data-view="list"
+     data-max-upload-bytes="<?= $view->e($maxUploadBytes) ?>"
+     data-effective-upload-bytes="<?= $view->e($effectiveUploadBytes) ?>"
+     <?php if ($currentFolder !== null): ?>data-current-folder-id="<?= $view->e($currentFolder['id'] ?? '') ?>"<?php endif; ?>>
     <div class="file-manager__toolbar">
         <div class="file-manager__breadcrumb" aria-label="Путь к папке">
             <?php foreach ($crumbs as $index => $crumb): ?>
