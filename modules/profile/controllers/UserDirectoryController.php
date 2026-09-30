@@ -23,11 +23,11 @@ final class UserDirectoryController extends Controller
             return;
         }
 
-        $query = trim((string) $request->query('q', ''));
+        $query = trim((string) $request->get('q', ''));
         if (mb_strlen($query) > 100) {
             $query = mb_substr($query, 0, 100);
         }
-        $page = max(1, (int) $request->query('page', 1));
+        $page = max(1, (int) $request->get('page', 1));
         $perPage = 40;
         $offset = ($page - 1) * $perPage;
 
