@@ -510,6 +510,11 @@ try {
         'Сценарий прогресса установки не защищён от отменённой или повторной отправки'
     );
     adminUpdateAssert(
+        str_contains($updatesJsSource, 'diagnostic_code')
+            && str_contains($updatesJsSource, 'Код диагностики:'),
+        'Admin скрывает безопасный код причины автоматического rollback'
+    );
+    adminUpdateAssert(
         str_contains($updatesJsSource, 'window.wspace?.updateWebRunner')
             && str_contains($webRunnerSource, 'X-Workspace-Update-Transaction')
             && str_contains($webRunnerSource, 'MAX_TRANSIENT_RETRIES'),
