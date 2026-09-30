@@ -267,8 +267,8 @@ final class FileShareService
             }
             $visited[$parentId] = true;
             $row = $this->db()->fetchOne(
-                'SELECT id,parent_id FROM user_files WHERE id = :id AND is_deleted = 0 LIMIT 1',
-                [':id' => $parentId]
+                'SELECT id,parent_id FROM user_files WHERE id = :id AND user_id = :user_id AND is_deleted = 0 LIMIT 1',
+                [':id' => $parentId, ':user_id' => (int) $item['user_id']]
             );
             if (!$row) {
                 return false;
@@ -296,8 +296,9 @@ final class FileShareService
             }
             $visited[$parentId] = true;
             $parent = $this->db()->fetchOne(
-                'SELECT id,uid,parent_id,name FROM user_files WHERE id = :id AND is_deleted = 0 LIMIT 1',
-                [':id' => $parentId]
+                'SELECT id,uid,user_id,parent_id,name FROM user_files '
+                . 'WHERE id = :id AND user_id = :user_id AND is_deleted = 0 LIMIT 1',
+                [':id' => $parentId, ':user_id' => (int) $current['user_id']]
             );
             if (!$parent) {
                 break;
