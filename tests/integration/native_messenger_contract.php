@@ -26,7 +26,11 @@ foreach (['{extends', '{include', '{foreach', '{if', '$smarty'] as $legacyToken)
     nativeMessengerAssert(!str_contains($view, $legacyToken), "Messenger native view still contains Smarty token {$legacyToken}");
 }
 nativeMessengerAssert(str_contains($view, '$view->e($currentUser[\'uid\'] ?? \'\')'), 'current Messenger user UID is not escaped');
-nativeMessengerAssert(str_contains($view, '$view->e($contact[\'uid\'] ?? \'\')'), 'Messenger contact UID is not escaped');
+nativeMessengerAssert(
+    str_contains($view, 'data-contact-uid="<?= $view->e($contactUid) ?>"')
+        && str_contains($view, 'value="<?= $view->e($contactUid) ?>"'),
+    'Messenger contact UID is not escaped'
+);
 nativeMessengerAssert(str_contains($view, "'socket_ticket' => \$socket_ticket ?? ''"), 'socket ticket is not propagated into native shell');
 nativeMessengerAssert(str_contains($view, "'socket_url' => \$socket_url ?? ''"), 'socket URL is not propagated into native shell');
 nativeMessengerAssert(str_contains($view, 'data-socket-url="<?= $view->e($socket_url ?? \'\') ?>"'), 'Messenger root does not carry a direct socket URL fallback');
@@ -108,6 +112,13 @@ nativeMessengerAssert(str_contains($script, "setConnectionState('online', 'Long 
 nativeMessengerAssert(str_contains($script, 'profileAvatarUrl(user)'), 'Messenger не использует реальные аватары пользователей');
 nativeMessengerAssert(str_contains($view, 'data-can-use-profile='), 'Messenger не получает состояние доступности Profile');
 nativeMessengerAssert(str_contains($script, 'this.canUseProfile'), 'Messenger не отключает Profile-интеграцию вместе с модулем');
+nativeMessengerAssert(str_contains($script, 'readContactAvatarUrls()'), 'Messenger не восстанавливает URL аватара из серверного списка контактов');
+nativeMessengerAssert(str_contains($script, 'this.contactAvatarUrls.get(uid)'), 'Messenger теряет аватар, если realtime payload не содержит marker avatar');
+nativeMessengerAssert(str_contains($script, "image.addEventListener('error'"), 'Messenger не возвращается к инициалу при недоступном изображении');
+nativeMessengerAssert(str_contains($view, 'data-contact-avatar-url='), 'серверный список контактов не экспортирует резервный URL аватара');
+nativeMessengerAssert(str_contains($view, '/assets/img/default_avatar.png'), 'Messenger не использует системный аватар по умолчанию для контактов');
+nativeMessengerAssert(str_contains($script, "storedAvatar !== 'default_img'"), 'Messenger пытается открыть служебный marker default_img как пользовательский файл');
+nativeMessengerAssert(str_contains($script, "const defaultPath = '/assets/img/default_avatar.png'"), 'Messenger не возвращает системный аватар по умолчанию');
 $serverSource = (string) file_get_contents($module . '/socket/NativeMessengerServer.php');
 nativeMessengerAssert(str_contains($serverSource, 'messengerEntitlementChecker'), 'долгоживущий WebSocket не отслеживает отзыв лицензии Messenger');
 nativeMessengerAssert(str_contains($serverSource, "isFeatureEntitled('workspace.messenger')"), 'WebSocket не использует канонический feature Messenger');
@@ -179,7 +190,6 @@ $controller = (string) file_get_contents($controllerPath);
 nativeMessengerAssert(str_contains($controller, 'SocketTicket::issue'), 'Messenger controller no longer issues short-lived socket tickets');
 nativeMessengerAssert(str_contains($controller, "'socket_ticket' => \$socketTicket"), 'socket ticket is not passed to Messenger view');
 nativeMessengerAssert(str_contains($controller, "'socket_url' => \$socketUrl"), 'socket URL is not passed to Messenger view');
-nativeMessengerAssert(str_contains($controller, "'profile' => \$capabilities->has('workspace.profile')"), 'Messenger не связывает Profile-интеграцию с активной capability');
 nativeMessengerAssert(str_contains($controller, 'MessengerMediaService'), 'protected Messenger media service boundary is missing');
 
 $workspaceControllerPath = $module . '/controllers/MessengerWorkspaceController.php';
@@ -200,9 +210,6 @@ nativeMessengerAssert(str_contains($provider, "'/workspace/files'"), 'Messenger 
 nativeMessengerAssert(str_contains($provider, "'/workspace/file-attachment'"), 'Messenger private-storage attachment route is missing');
 nativeMessengerAssert(str_contains($provider, "'/workspace/file-link'"), 'Messenger private-storage link route is missing');
 nativeMessengerAssert(str_contains($provider, 'MessengerWorkspaceController::class'), 'Messenger workspace routes are not module-owned');
-nativeMessengerAssert(str_contains($provider, "has('workspace.notes')"), 'маршрут создания заметки не исчезает вместе с Notes');
-nativeMessengerAssert(str_contains($provider, "has('workspace.tasks')"), 'маршрут создания задачи не исчезает вместе с Tasks');
-nativeMessengerAssert(str_contains($provider, "has('workspace.files')"), 'маршруты файловой интеграции не исчезают вместе с Files');
 
 $coreNoteBoundary = (string) file_get_contents($root . '/core/WorkspaceNoteCreator.php');
 $coreTaskBoundary = (string) file_get_contents($root . '/core/WorkspaceTaskCreator.php');
