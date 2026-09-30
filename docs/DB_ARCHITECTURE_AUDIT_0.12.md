@@ -1,5 +1,8 @@
 # 0.12 Database architecture audit
 
+> **Архив.** Этот документ описывает исторический этап и сохранён как свидетельство принятых решений. Он не является текущим списком задач или источником требований для 1.0.13+. Актуальная навигация: [README.md](README.md), текущий план: [ROADMAP.md](ROADMAP.md), архивный индекс: [ARCHIVE.md](ARCHIVE.md).
+
+
 ## Finding
 
 Workspace Organizer historically provisions its database by importing canonical SQL schema files directly. The current `install.php` still follows that model and imports `database/*.sql`; it does not bootstrap the database by replaying `database/migrations/`.
