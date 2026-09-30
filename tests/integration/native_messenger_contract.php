@@ -196,6 +196,9 @@ nativeMessengerAssert(str_contains($provider, "'/workspace/files'"), 'Messenger 
 nativeMessengerAssert(str_contains($provider, "'/workspace/file-attachment'"), 'Messenger private-storage attachment route is missing');
 nativeMessengerAssert(str_contains($provider, "'/workspace/file-link'"), 'Messenger private-storage link route is missing');
 nativeMessengerAssert(str_contains($provider, 'MessengerWorkspaceController::class'), 'Messenger workspace routes are not module-owned');
+nativeMessengerAssert(str_contains($provider, "has('workspace.notes')"), 'маршрут создания заметки не исчезает вместе с Notes');
+nativeMessengerAssert(str_contains($provider, "has('workspace.tasks')"), 'маршрут создания задачи не исчезает вместе с Tasks');
+nativeMessengerAssert(str_contains($provider, "has('workspace.files')"), 'маршруты файловой интеграции не исчезают вместе с Files');
 
 $coreNoteBoundary = (string) file_get_contents($root . '/core/WorkspaceNoteCreator.php');
 $coreTaskBoundary = (string) file_get_contents($root . '/core/WorkspaceTaskCreator.php');
