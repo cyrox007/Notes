@@ -120,6 +120,81 @@ try {
   await page.getByRole('heading', { name: 'Роли пользователей', exact: true })
     .waitFor({ state: 'visible', timeout: 10000 });
 
+  // Управление модулями должно менять весь runtime, а не только пункт меню.
+  const modulesLink = page
+    .getByRole('navigation', { name: 'Разделы админпанели' })
+    .getByRole('link', { name: 'Модули', exact: true });
+  const modulesHref = await modulesLink.getAttribute('href');
+  if (!modulesHref?.startsWith(`${basePath}/admin/modules`)) {
+    throw new Error(`Ссылка управления модулями вышла за BASE_PATH: ${modulesHref}`);
+  }
+  await Promise.all([
+    page.waitForURL((url) => url.pathname.replace(/\/+$/, '') === `${basePath}/admin/modules`, { timeout: 15000 }),
+    modulesLink.click(),
+  ]);
+  await page.getByRole('heading', { name: 'Модули', exact: true }).waitFor({ state: 'visible', timeout: 10000 });
+
+  const moduleRow = (id) => page.locator('.admin-users-table tbody tr').filter({
+    has: page.locator('td:first-child small', { hasText: id }),
+  });
+
+  const adminModuleRow = moduleRow('admin');
+  await adminModuleRow.waitFor({ state: 'visible', timeout: 10000 });
+  await adminModuleRow.getByText('Отключение запрещено', { exact: true }).waitFor({ state: 'visible' });
+  if (await adminModuleRow.getByRole('button', { name: 'Отключить', exact: true }).count()) {
+    throw new Error('Обязательный Admin неожиданно можно отключить');
+  }
+
+  let notesModuleRow = moduleRow('notes');
+  await notesModuleRow.waitFor({ state: 'visible', timeout: 10000 });
+  await submitAndWait(page, notesModuleRow.getByRole('button', { name: 'Отключить', exact: true }));
+  await page.locator('.admin-page__flash').filter({ hasText: 'Модуль отключён' })
+    .waitFor({ state: 'visible', timeout: 10000 });
+  notesModuleRow = moduleRow('notes');
+  await notesModuleRow.getByText('Отключён', { exact: true }).first().waitFor({ state: 'visible' });
+  await notesModuleRow.getByRole('button', { name: 'Включить', exact: true }).waitFor({ state: 'visible' });
+
+  if (await page.getByRole('link', { name: 'Заметки', exact: true }).count()) {
+    throw new Error('Отключённый Notes остался в общей навигации');
+  }
+
+  const notesRoute = await page.request.get(`${baseUrl}/notes/`, { maxRedirects: 0 });
+  if (notesRoute.status() !== 404) {
+    throw new Error(`Маршрут отключённого Notes вернул HTTP ${notesRoute.status()} вместо 404`);
+  }
+
+  const messengerResponse = await page.goto(`${baseUrl}/messenger/`, { waitUntil: 'domcontentloaded' });
+  if (!messengerResponse || messengerResponse.status() !== 200) {
+    throw new Error(`Messenger после отключения Notes вернул ${messengerResponse?.status()}`);
+  }
+  if (await page.locator('[data-create-workspace="note"]').count()) {
+    throw new Error('Messenger оставил создание заметки после отключения Notes');
+  }
+
+  const profileResponse = await page.goto(`${baseUrl}/profile/`, { waitUntil: 'domcontentloaded' });
+  if (!profileResponse || profileResponse.status() !== 200) {
+    throw new Error(`Profile после отключения Notes вернул ${profileResponse?.status()}`);
+  }
+  if (await page.locator('#publication-notes-title').count()) {
+    throw new Error('Profile оставил настройки видимости Notes после отключения модуля');
+  }
+
+  await page.goto(`${baseUrl}/admin/modules`, { waitUntil: 'domcontentloaded' });
+  notesModuleRow = moduleRow('notes');
+  await submitAndWait(page, notesModuleRow.getByRole('button', { name: 'Включить', exact: true }));
+  await page.locator('.admin-page__flash').filter({ hasText: 'Модуль включён' })
+    .waitFor({ state: 'visible', timeout: 10000 });
+  notesModuleRow = moduleRow('notes');
+  await notesModuleRow.getByText('Включён', { exact: true }).first().waitFor({ state: 'visible' });
+  await notesModuleRow.getByRole('button', { name: 'Отключить', exact: true }).waitFor({ state: 'visible' });
+
+  const homeResponse = await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
+  if (!homeResponse || homeResponse.status() !== 200) {
+    throw new Error(`Главная после повторного включения Notes вернула ${homeResponse?.status()}`);
+  }
+  await page.getByRole('link', { name: 'Заметки', exact: true }).first()
+    .waitFor({ state: 'visible', timeout: 10000 });
+
   // Open quota settings using the real generated link.
   const settingsLink = page
     .getByRole('navigation', { name: 'Разделы админпанели' })
