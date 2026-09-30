@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!root || !modal || !uidInput || !expiryMode || !createButton) return;
 
   const appPath = (path) => window.wspace?.path ? window.wspace.path(path) : path;
+  const csrfToken = document.querySelector('#csrf-token-template input[name="csrf_token"]')?.value || '';
 
   function showToast(message, url = '') {
     document.querySelector('.file-manager-share-toast')?.remove();
@@ -86,6 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!uid) return;
 
     const body = new URLSearchParams();
+    if (csrfToken) body.set('csrf_token', csrfToken);
     if (expiryMode.value === 'custom') {
       const value = String(customInput?.value || '').trim();
       if (!value) {
