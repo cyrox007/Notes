@@ -140,7 +140,10 @@ try {
   const foundUser = page.locator('.profile-directory__person').filter({ hasText: '@profile-public-user' });
   await foundUser.waitFor({ state: 'visible', timeout: 5000 });
   await Promise.all([
-    page.waitForURL((url) => url.pathname === `${basePath}/profile/user/${otherUid}`, { timeout: 15000 }),
+    page.waitForURL(
+      (url) => url.pathname.replace(/\/+$/, '') === `${basePath}/profile/user/${otherUid}`,
+      { timeout: 15000 }
+    ),
     foundUser.click(),
   ]);
   await page.getByRole('heading', { name: 'Public Viewer' }).waitFor({ state: 'visible', timeout: 5000 });
