@@ -6,6 +6,8 @@ use App\Sockets\NativeMessengerServer;
 
 $root = dirname(__DIR__, 2);
 require_once $root . '/app/services/LicenseRuntimePolicy.php';
+require_once $root . '/modules/messenger/socket/SocketConnection.php';
+require_once $root . '/modules/messenger/socket/SocketFrameCodec.php';
 require_once $root . '/modules/messenger/socket/NativeMessengerServer.php';
 
 function wsLicenseAssert(bool $condition, string $message): void
@@ -100,4 +102,60 @@ wsLicenseAssert(str_contains($source, "'action' => 'MaintenanceMode'"), 'WebSock
 wsLicenseAssert(str_contains($source, "'action' => 'LicenseReadOnly'"), 'WebSocket must report read-only state to clients');
 wsLicenseAssert(str_contains($source, '$this->sendReadOnlyLicenseState($client);'), 'WebSocket handshake must surface existing read-only state');
 
-echo "[OK] WebSocket license read-only classification contract\n";
+$connection = new class extends \App\Sockets\SocketConnection {
+    /** @var list<string> */
+    public array $sent = [];
+    public bool $closed = false;
+
+    public function send(string $payload): void
+    {
+        $this->sent[] = $payload;
+    }
+
+    public function close(): void
+    {
+        $this->closed = true;
+    }
+
+    public function destroy(): void
+    {
+        $this->closed = true;
+    }
+};
+$connection->authenticated = true;
+$connection->uid = 'license-revoked-user';
+$connection->userId = 7;
+
+$policy = new \App\Services\LicenseRuntimePolicy(
+    static fn (): bool => true,
+    static fn (): array => [
+        'valid' => true,
+        'code' => 'valid',
+        'message' => 'Лицензия действительна',
+    ],
+    static fn (): array => ['active' => false, 'valid' => true]
+);
+$server = new NativeMessengerServer(
+    host: '127.0.0.1',
+    port: 27800,
+    allowedOrigins: [],
+    maxConnections: 1,
+    maxPayloadBytes: 65536,
+    licensePolicy: $policy,
+    messengerPermissionChecker: static fn (int $userId): bool => true,
+    messengerEntitlementChecker: static fn (): bool => false,
+);
+$server->dispatchTransportMessage(
+    $connection,
+    '{"action":"PingSocket:index","data":{}}',
+    [],
+    'long_poll'
+);
+
+wsLicenseAssert($connection->closed, 'соединение не закрыто после отзыва workspace.messenger');
+wsLicenseAssert(count($connection->sent) === 1, 'клиент не получил единственное уведомление об отключении Messenger');
+$revokedPayload = json_decode($connection->sent[0], true, 16, JSON_THROW_ON_ERROR);
+wsLicenseAssert(($revokedPayload['action'] ?? null) === 'ModuleUnavailable', 'отзыв Messenger не возвращает ModuleUnavailable');
+wsLicenseAssert(($revokedPayload['module'] ?? null) === 'messenger', 'уведомление об отзыве содержит неверный модуль');
+
+echo "[OK] лицензионная политика WebSocket Messenger\n";
