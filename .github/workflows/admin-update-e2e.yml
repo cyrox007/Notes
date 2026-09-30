@@ -259,6 +259,12 @@ jobs:
         run: |
           set -euo pipefail
           LIVE=/tmp/workspace-admin-update-e2e/live
+
+          # Тег v1.0.12 уже документировал workspace.* как production feature,
+          # но его CI-fixture ещё использовал исторические короткие имена.
+          # Для upgrade-drill выдаём тестовую лицензию по опубликованному
+          # production-контракту 1.0.12, не добавляя legacy aliases в runtime.
+          cp tests/support/ci_license_fixture.php "$LIVE/tests/support/ci_license_fixture.php"
           (cd "$LIVE" && php tests/support/ci_license_fixture.php)
           test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_update_e2e -e "SELECT COUNT(*) FROM user_roles ur JOIN roles r ON r.id=ur.role_id JOIN users u ON u.id=ur.user_id WHERE u.username='admin-update-e2e' AND r.code='superadmin'")" = '1'
           test -n "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_update_e2e -e "SELECT setting_value FROM system_settings WHERE setting_key='workspace_license_token'")"
