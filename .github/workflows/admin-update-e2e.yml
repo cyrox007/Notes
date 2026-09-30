@@ -346,14 +346,41 @@ jobs:
           rm -rf "$BROKEN"
           rsync -a "$FUTURE/" "$BROKEN/"
           perl -0pi -e "s/public const VERSION = '[^']+';/public const VERSION = '1.0.12-broken-e2e';/" "$BROKEN/core/Version.php"
-          cat > "$BROKEN/bin/migrate.php" <<'PHP'
-          <?php
-          declare(strict_types=1);
 
-          fwrite(STDERR, "CI: намеренный отказ миграции для проверки автоматического отката\n");
-          exit(91);
-          PHP
-          php -l "$BROKEN/bin/migrate.php"
+          # Современный updater не запускает bin/migrate.php: миграции выполняет
+          # UpdateDatabaseMigrator внутри destructive-фазы. Поэтому fault-injection
+          # должен быть настоящей pending SQL-миграцией кандидата, которая проходит
+          # read-only preflight, но гарантированно падает уже после переключения кода.
+          cat > "$BROKEN/database/migrations/20991231_ci_forced_failure.sql" <<'SQL'
+          SIGNAL SQLSTATE '45000'
+              SET MESSAGE_TEXT = 'CI: намеренный отказ миграции для проверки автоматического отката';
+          SQL
+
+          php -r '
+            $path=$argv[1];
+            $data=json_decode((string) file_get_contents($path), true, 32, JSON_THROW_ON_ERROR);
+            $data["migrations"][]="20991231_ci_forced_failure.sql";
+            file_put_contents(
+                $path,
+                json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL,
+                LOCK_EX
+            );
+          ' "$BROKEN/database/migrations/manifest.json"
+
+          php -r '
+            $path=$argv[1];
+            $data=json_decode((string) file_get_contents($path), true, 32, JSON_THROW_ON_ERROR);
+            $data["database"]["migrations"][]="database/migrations/20991231_ci_forced_failure.sql";
+            file_put_contents(
+                $path,
+                json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL,
+                LOCK_EX
+            );
+          ' "$BROKEN/modules/files/module.json"
+
+          grep -Fq '"20991231_ci_forced_failure.sql"' "$BROKEN/database/migrations/manifest.json"
+          grep -Fq 'database/migrations/20991231_ci_forced_failure.sql' "$BROKEN/modules/files/module.json"
+          test -s "$BROKEN/database/migrations/20991231_ci_forced_failure.sql"
           test "$(php -r "require '$BROKEN/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.12-broken-e2e'
           test "$(php -r "require '$BROKEN/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10012'
 
