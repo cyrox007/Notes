@@ -110,6 +110,9 @@ nativeMessengerAssert(str_contains($script, 'readContactAvatarUrls()'), 'Messeng
 nativeMessengerAssert(str_contains($script, 'this.contactAvatarUrls.get(uid)'), 'Messenger теряет аватар, если realtime payload не содержит marker avatar');
 nativeMessengerAssert(str_contains($script, "image.addEventListener('error'"), 'Messenger не возвращается к инициалу при недоступном изображении');
 nativeMessengerAssert(str_contains($view, 'data-contact-avatar-url='), 'серверный список контактов не экспортирует резервный URL аватара');
+nativeMessengerAssert(str_contains($view, '/assets/img/default_avatar.png'), 'Messenger не использует системный аватар по умолчанию для контактов');
+nativeMessengerAssert(str_contains($script, "storedAvatar !== 'default_img'"), 'Messenger пытается открыть служебный marker default_img как пользовательский файл');
+nativeMessengerAssert(str_contains($script, "const defaultPath = '/assets/img/default_avatar.png'"), 'Messenger не возвращает системный аватар по умолчанию');
 nativeMessengerAssert(str_contains($script, "openCurrentProfile()"), 'Messenger не даёт перейти в профиль собеседника');
 nativeMessengerAssert(str_contains($script, "/profile/user/"), 'Messenger не использует публичный маршрут профиля пользователя');
 nativeMessengerAssert(str_contains($messengerStyle, '.messenger-avatar img{width:100%;height:100%'), 'аватары Messenger не масштабируются внутри круглого контейнера');
