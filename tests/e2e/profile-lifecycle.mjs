@@ -125,7 +125,28 @@ try {
   await page.locator('.profile-metric--storage .profile-metric__value').filter({ hasText: '0%' })
     .waitFor({ state: 'visible', timeout: 5000 });
 
-  const previewHref = await page.getByRole('link', { name: 'Посмотреть как другой пользователь' }).getAttribute('href');
+  const usersHref = await page.getByRole('link', { name: 'Пользователи', exact: true }).getAttribute('href');
+  if (!usersHref || new URL(usersHref, origin).pathname !== `${basePath}/profile/users`) {
+    throw new Error(`Каталог пользователей имеет неверный адрес: ${usersHref}`);
+  }
+  await page.goto(new URL(usersHref, origin).href, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('heading', { name: 'Люди в Workspace' }).waitFor({ state: 'visible', timeout: 5000 });
+  await page.locator('#profile-user-search').fill('profile-public-user');
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }),
+    page.getByRole('button', { name: 'Найти', exact: true }).click(),
+  ]);
+  const foundUser = page.locator('.profile-directory__person').filter({ hasText: '@profile-public-user' });
+  await foundUser.waitFor({ state: 'visible', timeout: 5000 });
+  await Promise.all([
+    page.waitForURL((url) => url.pathname === `${basePath}/profile/user/${otherUid}`, { timeout: 15000 }),
+    foundUser.click(),
+  ]);
+  await page.getByRole('heading', { name: 'Public Viewer' }).waitFor({ state: 'visible', timeout: 5000 });
+
+  await page.goto(`${baseUrl}/profile/`, { waitUntil: 'domcontentloaded' });
+
+  const previewHref = await page.getByRole('link', { name: 'Как видят меня' }).getAttribute('href');
   if (!previewHref || !new URL(previewHref, origin).pathname.startsWith(`${basePath}/profile/user/`)) {
     throw new Error(`Public-profile preview link is invalid: ${previewHref}`);
   }
@@ -136,9 +157,9 @@ try {
   // the durable DB assertion in the workflow prove that the mutation really happened.
   const ownPublishItem = page.locator('.profile-publication__item').filter({ hasText: ownPublicationNote });
   await ownPublishItem.waitFor({ state: 'visible', timeout: 5000 });
-  await ownPublishItem.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+  await ownPublishItem.getByRole('button', { name: 'Показать в профиле', exact: true }).click();
   await page.locator('.profile-publication__item').filter({ hasText: ownPublicationNote })
-    .getByRole('button', { name: 'Скрыть', exact: true })
+    .getByRole('button', { name: 'Скрыть из профиля', exact: true })
     .waitFor({ state: 'visible', timeout: 5000 });
 
   const stamp = Date.now();
@@ -225,17 +246,20 @@ try {
   if (await page.locator('.profile__edit_user-info').count()) throw new Error('Other-user profile exposed own-profile edit control');
   if (await page.locator('.profile-public__item a').count()) throw new Error('Public profile exposed direct content/storage links');
 
-  await page.goto(`${baseUrl}/profile/user/${ownUid}`, { waitUntil: 'domcontentloaded' });
-  if (new URL(page.url()).pathname.replace(/\/+$/, '') !== `${basePath}/profile`) {
-    throw new Error(`Own public-profile route did not redirect to profile hub: ${page.url()}`);
+  const ownPublicResponse = await page.goto(`${baseUrl}/profile/user/${ownUid}`, { waitUntil: 'domcontentloaded' });
+  if (!ownPublicResponse || ownPublicResponse.status() !== 200) {
+    throw new Error(`Предпросмотр собственного публичного профиля вернул ${ownPublicResponse?.status()}`);
   }
-  await page.getByRole('link', { name: /Мои заметки/ }).waitFor({ state: 'visible', timeout: 5000 });
+  if (new URL(page.url()).pathname.replace(/\/+$/, '') !== `${basePath}/profile/user/${ownUid}`) {
+    throw new Error(`Предпросмотр собственной видимости ушёл с публичного маршрута: ${page.url()}`);
+  }
+  await page.getByText(ownPublicationNote, { exact: true }).waitFor({ state: 'visible', timeout: 5000 });
 
   if (pageErrors.length) throw pageErrors[0];
   if (escapedRequests.length) throw new Error(`Requests escaped BASE_PATH: ${[...new Set(escapedRequests)].join(', ')}`);
   if (unexpectedHttpErrors.length) throw new Error(`Unexpected HTTP errors: ${unexpectedHttpErrors.join(', ')}`);
 
-  console.log('Profile hub/metrics/settings/edit/avatar/explicit-public-content lifecycle: OK');
+  console.log('Profile: каталог пользователей, настройки, аватар и видимость профиля — OK');
   await context.close();
 } finally {
   await browser.close();
