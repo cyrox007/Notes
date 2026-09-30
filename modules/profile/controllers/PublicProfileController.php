@@ -71,7 +71,7 @@ final class PublicProfileController extends Controller
 
         $this->render_template('profile_page/public', [
             'user' => $layoutUser,
-            'profile' => (object) $profile,
+            'profile' => $profile,
             'avatar_url' => $avatarUrl,
             'public_content' => $publicContent,
             'public_total' => $publicTotal,
