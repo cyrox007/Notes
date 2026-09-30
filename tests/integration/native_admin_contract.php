@@ -15,6 +15,7 @@ function nativeAdminAssert(bool $condition, string $message): void
 $views = [
     'modules/admin/views/index.php',
     'modules/admin/views/registration.php',
+    'modules/admin/views/modules.php',
     'modules/admin/views/settings.php',
     'modules/admin/views/roles.php',
     'modules/admin/views/updates.php',
@@ -53,6 +54,7 @@ nativeAdminAssert(str_contains($index, 'class="admin-pagination"'), 'Admin user 
 nativeAdminAssert(!str_contains($index, 'data-findability-slot'), 'Admin user list still delegates controls to generic findability JS');
 
 $adminNav = (string) file_get_contents($root . '/modules/admin/assets/admin-settings-nav.js');
+nativeAdminAssert(str_contains($adminNav, "['/admin/modules', 'fa-cubes', 'Модули']"), 'Admin section navigation does not expose module management');
 nativeAdminAssert(str_contains($adminNav, "['/admin/updates', 'fa-refresh', 'Обновления']"), 'Admin section navigation does not expose signed updates');
 nativeAdminAssert(str_contains($adminNav, "['/admin/audit', 'fa-history', 'Журнал действий']"), 'Admin section navigation does not expose the user action journal');
 nativeAdminAssert(str_contains($adminNav, 'window.wspaceRuntime?.adminAudit'), 'Admin audit navigation is not permission-aware');
@@ -96,6 +98,7 @@ nativeAdminAssert(str_contains($settings, 'LimitRequestBody'), 'admin settings d
 nativeAdminAssert(str_contains($settings, 'client_max_body_size'), 'admin settings do not provide Nginx upload-limit guidance');
 nativeAdminAssert(str_contains($settings, '1048576'), 'quota byte/MB conversion contract is missing');
 nativeAdminAssert(str_contains($settings, '$view->csrfInput()'), 'settings forms lost CSRF inputs');
+nativeAdminAssert(str_contains($settings, '$filesEnabled'), 'системные настройки не скрывают параметры отключённого File Manager');
 
 $roles = (string) file_get_contents($root . '/modules/admin/views/roles.php');
 foreach (['admin_roles_create', 'admin_roles_update', 'admin_roles_policies', 'admin_roles_assign', 'admin_roles_delete'] as $route) {
@@ -107,6 +110,24 @@ nativeAdminAssert(str_contains($roles, "policies["), 'role policy controls are m
 nativeAdminAssert(str_contains($roles, '__inherit__'), 'policy inheritance control is missing');
 nativeAdminAssert(str_contains($roles, '$view->csrfInput()'), 'role management forms lost CSRF inputs');
 nativeAdminAssert(str_contains($roles, '$view->e($permission[\'code\'] ?? \'\')'), 'permission codes are not escaped');
+
+$moduleView = (string) file_get_contents($root . '/modules/admin/views/modules.php');
+nativeAdminAssert(str_contains($moduleView, "route('admin_modules_state')"), 'страница модулей не содержит действие включения/отключения');
+nativeAdminAssert(str_contains($moduleView, 'Отключение запрещено'), 'страница модулей не защищает обязательный системный модуль');
+nativeAdminAssert(str_contains($moduleView, 'license_feature'), 'страница модулей не показывает лицензионное разрешение');
+
+$moduleService = (string) file_get_contents($root . '/modules/admin/services/ModuleManagementService.php');
+nativeAdminAssert(str_contains($moduleService, 'if (!$decision[\'entitled\'])'), 'неразрешённые лицензией модули не скрываются из Admin');
+nativeAdminAssert(str_contains($moduleService, '$manifest->required() && !$enabled'), 'Admin не запрещает отключение обязательного модуля');
+nativeAdminAssert(str_contains($moduleService, "hasRole($actorId, 'superadmin')"), 'управление модулями не ограничено суперадминистратором');
+
+$roleService = (string) file_get_contents($root . '/modules/admin/services/RoleManagementService.php');
+nativeAdminAssert(str_contains($roleService, 'inactivePermissionCodesForRole'), 'RBAC не сохраняет разрешения отключённых модулей');
+nativeAdminAssert(str_contains($roleService, 'enabledComposition()'), 'RBAC показывает настройки модулей вне активной композиции');
+
+$rolePolicyService = (string) file_get_contents($root . '/app/services/RolePolicyService.php');
+nativeAdminAssert(str_contains($rolePolicyService, 'activePolicyModuleIds'), 'политики ролей не фильтруются по активным модулям');
+
 
 nativeAdminAssert(str_contains($roles, 'admin-roles-unavailable-title'), 'страница ролей не показывает диагностическое состояние при ошибке загрузки');
 
@@ -138,6 +159,9 @@ nativeAdminAssert(str_contains($router, "->add('GET', '/updates'"), 'signed upda
 nativeAdminAssert(str_contains($router, "->add('GET', '/updates/check'"), 'signed updater read-only check route missing');
 nativeAdminAssert(str_contains($router, "->add('POST', '/updates/stage'"), 'signed updater stage route missing');
 nativeAdminAssert(str_contains($router, "RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_stage'"), 'signed updater stage middleware contract missing');
+nativeAdminAssert(str_contains($router, "->add('GET', '/modules'"), 'module management page route missing');
+nativeAdminAssert(str_contains($router, "->add('POST', '/modules/state'"), 'module management state route missing');
+nativeAdminAssert(str_contains($router, "RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_modules_state'"), 'module state route lost admin/CSRF protection');
 nativeAdminAssert(str_contains($router, "->add('POST', '/settings/upload-limit'"), 'upload limit settings route missing');
 nativeAdminAssert(str_contains($router, "RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_settings_upload_limit'"), 'upload limit settings route lost CSRF/admin protection');
 nativeAdminAssert(str_contains($router, "->add('POST', '/updates/apply'"), 'signed updater apply route missing');
@@ -162,5 +186,6 @@ nativeAdminAssert(!str_contains($findability, "kind === 'admin'"), 'generic find
 $manifest = json_decode((string) file_get_contents($root . '/modules/admin/module.json'), true, 32, JSON_THROW_ON_ERROR);
 nativeAdminAssert(($manifest['runtime']['mode'] ?? null) === 'isolated', 'Admin manifest is not isolated');
 nativeAdminAssert(($manifest['runtime']['entrypoint'] ?? null) === 'runtime.php', 'Admin runtime entrypoint drifted');
+nativeAdminAssert(($manifest['package']['required'] ?? null) === true, 'Admin must remain a required system module');
 
 echo "[OK] isolated native admin contract\n";
