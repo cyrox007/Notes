@@ -204,6 +204,12 @@ try {
   await page.getByRole('link', { name: 'Заметки', exact: true }).first()
     .waitFor({ state: 'visible', timeout: 10000 });
 
+  // Возвращаемся в Admin перед проверкой внутренней навигации.
+  // После проверки общей главной страницы admin-навигации в DOM закономерно нет.
+  await page.goto(`${baseUrl}/admin/modules`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('heading', { name: 'Модули', exact: true })
+    .waitFor({ state: 'visible', timeout: 10000 });
+
   // Open quota settings using the real generated link.
   const settingsLink = page
     .getByRole('navigation', { name: 'Разделы админпанели' })
