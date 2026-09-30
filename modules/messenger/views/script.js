@@ -73,6 +73,7 @@
                 input: document.getElementById('message-input'),
                 send: document.getElementById('message-send-button')
             };
+            this.contactAvatarUrls = this.readContactAvatarUrls();
         }
 
         init() {
@@ -1189,28 +1190,57 @@
             return avatar;
         }
 
-        setAvatar(element, title, user = null) {
+        renderAvatarFallback(element, title) {
             if (!element) return;
             element.replaceChildren();
-
-            const avatarUrl = this.profileAvatarUrl(user);
-            if (avatarUrl) {
-                const image = document.createElement('img');
-                image.src = avatarUrl;
-                image.alt = '';
-                image.loading = 'lazy';
-                element.append(image);
-                return;
-            }
-
             const value = (title || '?').trim();
             element.textContent = value ? Array.from(value)[0].toLocaleUpperCase('ru') : '?';
         }
 
+        setAvatar(element, title, user = null) {
+            if (!element) return;
+            const avatarUrl = this.profileAvatarUrl(user);
+            if (!avatarUrl) {
+                this.renderAvatarFallback(element, title);
+                return;
+            }
+
+            element.replaceChildren();
+            const image = document.createElement('img');
+            image.src = avatarUrl;
+            image.alt = '';
+            image.loading = 'lazy';
+            image.addEventListener('error', () => this.renderAvatarFallback(element, title), { once: true });
+            element.append(image);
+        }
+
+        readContactAvatarUrls() {
+            const avatars = new Map();
+            if (typeof document?.querySelectorAll !== 'function') return avatars;
+
+            document.querySelectorAll('[data-contact-uid][data-contact-avatar-url]').forEach((element) => {
+                const uid = String(element.dataset.contactUid || '').trim();
+                const url = String(element.dataset.contactAvatarUrl || '').trim();
+                if (uid && url && !avatars.has(uid)) avatars.set(uid, url);
+            });
+            return avatars;
+        }
+
         profileAvatarUrl(user) {
-            if (!user?.uid || !user?.avatar) return '';
-            const path = `/profile/avatar/${encodeURIComponent(String(user.uid))}`;
-            return typeof window.wspace?.path === 'function' ? window.wspace.path(path) : path;
+            const uid = String(user?.uid || '').trim();
+            if (!uid) return '';
+
+            const storedAvatar = String(user?.avatar || '').trim();
+            if (storedAvatar && storedAvatar !== 'default_img') {
+                const path = `/profile/avatar/${encodeURIComponent(uid)}`;
+                return typeof window.wspace?.path === 'function' ? window.wspace.path(path) : path;
+            }
+
+            const contactAvatar = this.contactAvatarUrls.get(uid);
+            if (contactAvatar) return contactAvatar;
+
+            const defaultPath = '/assets/img/default_avatar.png';
+            return typeof window.wspace?.path === 'function' ? window.wspace.path(defaultPath) : defaultPath;
         }
 
         configureProfileShortcut(user) {
