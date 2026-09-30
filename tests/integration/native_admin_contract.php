@@ -153,6 +153,8 @@ nativeAdminAssert(!str_contains($updateController, "'stage_dir' =>"), 'signed up
 $runtime = (string) file_get_contents($root . '/modules/admin/runtime.php');
 nativeAdminAssert(str_contains($runtime, "'/middlewares/RequireAdminAuditView.php'"), 'Admin runtime does not load audit permission middleware');
 nativeAdminAssert(str_contains($runtime, "'/controllers/AuditController.php'"), 'Admin runtime does not load the audit controller');
+nativeAdminAssert(str_contains($runtime, "'/services/ModuleManagementService.php'"), 'Admin runtime не загружает сервис управления модулями');
+nativeAdminAssert(str_contains($runtime, "'/controllers/ModuleManagementController.php'"), 'Admin runtime не загружает контроллер управления модулями');
 
 $router = (string) file_get_contents($root . '/modules/admin/AdminRuntimeProvider.php');
 nativeAdminAssert(str_contains($router, "->add('GET', '/updates'"), 'signed updater page route missing');
