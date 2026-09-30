@@ -653,6 +653,7 @@ jobs:
         shell: bash
         env:
           SSL_CERT_FILE: /tmp/workspace-admin-update-e2e/ca.crt
+          E2E_EXPECTED_DIAGNOSTIC: migration_failed
         run: node tests/e2e/admin-update-rollback.mjs
 
       - name: Доказать восстановление 1.0.12 после ошибки миграции
@@ -716,6 +717,7 @@ jobs:
         env:
           SSL_CERT_FILE: /tmp/workspace-admin-update-e2e/ca.crt
           E2E_BROKEN_TARGET_VERSION: 1.0.14-health-broken-e2e
+          E2E_EXPECTED_DIAGNOSTIC: postcheck_failed
         run: node tests/e2e/admin-update-rollback.mjs
 
       - name: Доказать восстановление 1.0.12 после ошибки post-health после успешной миграции
