@@ -1,80 +1,106 @@
-# Workspace Organizer 0.14 — Module Platform Contract
+# Workspace Organizer — контракт модульной платформы
 
-Practical developer/operator instructions for adding a new module are in [`MODULE_DEVELOPMENT.md`](MODULE_DEVELOPMENT.md).
+Практические инструкции по созданию модуля приведены в [MODULE_DEVELOPMENT.md](MODULE_DEVELOPMENT.md).
 
-This document defines the target contract for independently distributable product modules. Phase 1 introduced the manifest/registry control plane. Phase 5 adds persisted lifecycle state while current product code remains explicitly marked `runtime.mode = legacy`.
+Этот документ описывает фактический контракт платформы в линии 1.0.x. Начиная с 1.0.13 все шесть встроенных прикладных модулей работают через изолированный runtime и участвуют в общем жизненном цикле, лицензионной проверке и композиции.
 
-## Core versus module
+## Граница Core и модулей
 
-The core owns only platform primitives: bootstrap, request/router primitives, authentication/session/security primitives, database transaction/migration coordination, module registry, update verification, entitlement verification, health/observability and shared UI shell contracts.
+Core владеет только платформенными механизмами:
 
-Product capabilities such as Notes, Tasks, File Manager, Messenger, Profile and Administration are modules. A module must not become part of the trusted core merely because its PHP files exist on disk.
+- bootstrap и окружение;
+- маршрутизатор, запросы и формирование представлений;
+- аутентификация, сессии и общие механизмы безопасности;
+- транзакции и миграции БД;
+- реестр и жизненный цикл модулей;
+- проверка лицензии и разрешений модулей;
+- проверка обновлений, rollback и recovery;
+- общий каркас интерфейса и межмодульные контракты.
 
-## Manifest location
+Notes, Tasks, File Manager, Messenger, Profile и Admin являются модулями. Наличие PHP-файла на диске само по себе не даёт ему права выполняться.
 
-Each installed module has exactly one manifest:
+## Manifest
+
+Каждый установленный модуль имеет один файл:
 
 ```text
 modules/<module-id>/module.json
 ```
 
-The directory name and manifest `id` must match. Module IDs and capability IDs are restricted identifiers. The manifest is validated before product application code is loaded.
+Имя каталога и `id` обязаны совпадать. Текущая версия схемы — `1`.
 
-Current schema version: `1`.
-
-Required fields:
+Основные поля:
 
 - `id`, `name`, `version`;
 - `core.min`, `core.max_exclusive`;
 - `dependencies`;
-- globally unique `capabilities`;
+- глобально уникальные `capabilities`;
 - `package.bundled`, `package.default_enabled`;
-- `license.feature` (central entitlement key; not a local license implementation);
-- `runtime.mode` (`legacy` or `isolated`);
-- `storage_namespaces`.
+- `package.required` для обязательного системного модуля;
+- `license.feature`;
+- `runtime.mode`, для production-модулей — `isolated`;
+- `runtime.entrypoint`;
+- `storage_namespaces`;
+- описание принадлежащих модулю таблиц, схем и миграций.
 
-## Fail-closed rules
+### Обязательные системные модули
 
-Discovery/startup fails when:
+Решение о том, какой модуль является обязательным, принадлежит Core, а не устанавливаемому пакету.
 
-- the modules root or manifest is missing/invalid;
-- a module directory is a symlink at the discovery boundary;
-- manifest schema/types/identifiers are invalid;
-- directory and manifest IDs differ;
-- a declared dependency is absent;
-- dependencies contain a cycle;
-- two modules claim the same capability;
-- a persisted module that is not explicitly `uninstalled` disappears from disk;
-- the lifecycle table is missing or contains invalid state.
+В 1.0.13 Core содержит единственный обязательный идентификатор:
 
-A **valid** manifest whose core range does not include the running core is different from a malformed package. It remains registered, keeps its configured lifecycle intent and reconciles to effective state `incompatible`. It is never runtime-enabled while incompatible. This allows a later compatible core update to restore the prior configured state without silently forgetting operator intent.
+```text
+admin
+```
 
-## Composition
+`modules/admin/module.json` обязан объявлять `package.required=true`. Любой другой модуль с `package.required=true` отклоняется как конфликт с политикой Core.
 
-`ModuleRegistry::resolveComposition()` is manifest-only: it takes a requested package set, adds required dependencies and returns deterministic dependency-first order. Package/distribution planning therefore does not change because one installation has a module disabled.
+Это не позволяет стороннему модулю самостоятельно сделать себя неотключаемым.
 
-`ModuleRegistry::enabledComposition()` is runtime-state-aware: it returns only modules whose persisted **effective** state is `enabled`. Disabled, incompatible, degraded, quarantined and uninstalled modules are never silently enabled to satisfy a dependency.
+## Правила закрытого отказа
 
-Target supported package forms include:
+Запуск или обнаружение завершается ошибкой, если:
 
-- core + Notes;
-- core + Tasks;
-- core + Files;
-- core + Messenger;
-- curated bundles;
-- full Workspace;
-- licensed/custom enterprise composition.
+- каталог модулей или manifest отсутствует либо повреждён;
+- каталог модуля является символьной ссылкой на границе обнаружения;
+- схема, типы или идентификаторы manifest некорректны;
+- `id` не совпадает с каталогом;
+- отсутствует объявленная зависимость;
+- зависимости образуют цикл;
+- два активных модуля экспортируют одну capability;
+- обязательный признак противоречит политике Core;
+- ранее зарегистрированный модуль исчез с диска без состояния `uninstalled`;
+- таблица жизненного цикла отсутствует или содержит неизвестное состояние.
 
-A package builder must use the same manifest resolver as installer/update preflight so distribution cannot create a composition with missing or cyclic dependencies.
+Совместимый по формату, но несовместимый с текущей версией Core модуль не считается повреждённым. Его операторское состояние сохраняется, а фактическое состояние становится `incompatible`.
 
-## Persisted lifecycle
+## Композиция
 
-Lifecycle state is stored in `module_lifecycle`. The platform separates two concepts:
+`ModuleRegistry::resolveComposition()` работает с manifest и формирует детерминированный порядок модулей с учётом зависимостей.
 
-- `configured_state` — persisted operator/package intent;
-- `effective_state` — what the running core can actually expose after compatibility and dependency reconciliation.
+`ModuleRegistry::enabledComposition()` формирует реальный состав текущего runtime и включает только модули с `effective_state=enabled`.
 
-Configured states are:
+В runtime не попадают состояния:
+
+- `disabled`;
+- `unlicensed`;
+- `incompatible`;
+- `degraded`;
+- `quarantined`;
+- `uninstalled`.
+
+Модуль, не попавший в активную композицию, не должен регистрировать provider, capability, маршруты, элементы общей навигации или межмодульные действия.
+
+## Жизненный цикл
+
+Состояние хранится в `module_lifecycle`.
+
+Платформа разделяет:
+
+- `configured_state` — намерение оператора или пакета;
+- `effective_state` — фактический результат после проверки лицензии, совместимости и зависимостей.
+
+Настраиваемые состояния:
 
 - `discovered`;
 - `installed`;
@@ -84,60 +110,140 @@ Configured states are:
 - `quarantined`;
 - `uninstalled`.
 
-Фактическое состояние дополнительно включает `incompatible` и, начиная с 1.0.13, `unlicensed`.
+Фактическое состояние дополнительно может быть:
 
-Bundled modules are registered on first reconciliation using `package.default_enabled`. A newly discovered **non-bundled** package is always registered as `discovered`; `default_enabled` cannot self-activate third-party code.
+- `unlicensed`;
+- `incompatible`.
 
-When a configured `enabled` module loses an enabled dependency, its effective state becomes `degraded` while configured intent remains `enabled`. When compatibility/dependencies recover, reconciliation can return it to `enabled` without inventing new operator intent.
+### Сохранение данных
 
-Lifecycle transitions are constrained. Enabling requires all dependencies to be effectively enabled and core-compatible. Disabling, quarantining or uninstalling a module is rejected while another effectively enabled module depends on it. Quarantine recovery requires an explicit transition to `disabled` before re-enabling.
+Отключение, отсутствие лицензии и изменение фактического состояния не удаляют данные модуля.
 
-Disabling and uninstall state changes are non-destructive: they do not purge customer data. Physical package removal, data retention/purge and signed update recovery remain separate explicit operations.
+В частности, сохраняются:
 
-`manifest_hash` records the currently observed local manifest identity. Reconciliation may update it when deployed package contents change. It is **not** a publisher signature or authorization to execute downloaded code.
+- таблицы и записи;
+- private storage;
+- операторский `configured_state`;
+- разрешения ролей;
+- ролевые политики.
 
-## Current runtime boundary
+Поэтому после восстановления лицензии или повторного включения модуль может вернуться с прежними данными.
 
-Phase 5 persists and reconciles lifecycle state before recursive `app/*` loading. The registry now exposes the effective runtime composition, but current modules are still `runtime.mode = legacy`; their PHP files/routes are not yet physically isolated by lifecycle state.
+### Зависимости
 
-Therefore `disabled`/`quarantined` state is a control-plane contract in this phase, not a claim that all legacy code has already stopped being loaded. The next phase moves module-owned route/bootstrap providers behind `enabledComposition()` and proves isolation with a reference module.
+Включение разрешено только при доступных зависимостях и совместимом Core.
 
-## Isolation target
+Если включённый модуль теряет зависимость, он становится `degraded`, сохраняя `configured_state=enabled`.
 
-An `isolated` module will own its:
-
-- route provider;
-- controllers/services/domain models;
-- migrations and schema ownership metadata;
-- assets/templates;
-- storage namespace;
-- permissions/capabilities;
-- healthcheck;
-- update metadata;
-- lifecycle hooks.
-
-Cross-module access must go through a declared contract/capability/service. Direct writes into another module's tables/storage are not a supported integration boundary.
-
-## Package integrity and signatures
-
-The SHA-256 hash exposed by the manifest/lifecycle registry represents local manifest content identity only. It is **not** a cryptographic publisher signature.
-
-Before remote installation/update is enabled, the platform must verify signed release metadata and package contents using trusted public verification keys. Package code must never execute before signature/integrity/compatibility verification. Private signing keys must never be distributed with customer installations.
+Нельзя отключить, поместить в карантин или удалить модуль, пока от него зависит другой фактически включённый модуль.
 
 ## Лицензионная граница
 
-`license.feature` является центральным идентификатором разрешения. Сам модуль не реализует собственную проверку ключа.
+Каждый production-модуль обязан объявлять `license.feature`.
 
-Начиная с 1.0.13 реестр жизненного цикла получает решение от общего сервиса лицензирования до формирования runtime-композиции. Если feature отсутствует в действующей подписанной лицензии:
+Встроенные разрешения 1.0.13:
 
-- `configured_state` не изменяется;
-- `effective_state` становится `unlicensed`;
-- provider, capability, маршруты и межмодульные точки входа не загружаются;
-- оператор не может вручную включить модуль;
-- данные модуля не удаляются.
+- `workspace.admin`;
+- `workspace.notes`;
+- `workspace.tasks`;
+- `workspace.files`;
+- `workspace.messenger`;
+- `workspace.profile`.
 
-Это позволяет заменить лицензию и вернуть ранее настроенный модуль без потери состояния.
+Модуль запускается только если:
 
-## Migration rule
+1. лицензия действительна;
+2. подписанный список `features` явно содержит его `license.feature`;
+3. операторское состояние допускает запуск;
+4. совместимость и зависимости допускают запуск.
 
-Existing modules remain `legacy` until their complete runtime boundary moves behind the module contract. Changing the manifest to `isolated` without route/bootstrap/storage/migration ownership and regression coverage is prohibited.
+Отсутствующее поле `features`, пустой список или отсутствие конкретного feature не означают полный доступ.
+
+Если разрешения нет:
+
+- `configured_state` сохраняется;
+- `effective_state=unlicensed`;
+- ручное включение запрещено;
+- модуль отсутствует в `enabledComposition()`;
+- соседние модули не получают его capability.
+
+Модуль не реализует собственную криптографическую проверку лицензии. Все решения проходят через общий сервис Core.
+
+## Изолированный runtime
+
+Все встроенные production-модули используют `runtime.mode=isolated`.
+
+Каждый такой модуль владеет:
+
+- `runtime.php`;
+- provider;
+- своими контроллерами, сервисами и моделями;
+- маршрутами;
+- представлениями и ресурсами;
+- своей схемой и миграциями;
+- storage namespace;
+- разрешениями и capability;
+- модульными проверками.
+
+`ModuleRuntimeLoader` загружает entrypoint только для активной композиции.
+
+## Межмодульный доступ
+
+Связь между модулями выполняется через контракты и capability.
+
+Прямой доступ одного модуля к внутренним контроллерам, сервисам, таблицам или private storage другого модуля не является поддерживаемой интеграционной границей.
+
+Потребитель обязан допускать отсутствие capability. Например, Messenger не может считать Notes, Tasks, Files или Profile обязательными.
+
+## Административное управление
+
+В 1.0.13 суперадминистратор использует **Admin → Модули**.
+
+Интерфейс показывает только модули, разрешённые текущей лицензией.
+
+Обычный модуль можно включить или отключить. Admin отображается как обязательный и не имеет действия отключения.
+
+Если лицензия не содержит `workspace.admin`, сам Admin не загружается. Восстановление лицензии остаётся доступно через core-маршрут `/license`.
+
+## База данных и миграции
+
+Состояние runtime не определяет, применять ли миграции установленного пакета. Отключённый модуль сохраняет данные и должен оставаться совместимым со следующими версиями схемы.
+
+Физическое удаление пакета и очистка его данных — отдельные операции и не являются следствием `disabled` или `unlicensed`.
+
+## Целостность и подписи
+
+`manifest_hash` в реестре — SHA-256 локального manifest для обнаружения изменения содержимого. Это не подпись издателя.
+
+Удалённый пакет до выполнения своего кода должен пройти проверку подписанного релизного metadata, хэшей, совместимости и допустимой композиции.
+
+Закрытые ключи подписи не могут находиться в пользовательской установке.
+
+## Обновление и WebSocket
+
+Updater обязан учитывать изменение активной композиции.
+
+Если WebSocket Messenger работал до обновления:
+
+- при доступном Messenger он перезапускается и проверяется;
+- при недоступном после обновления Messenger прежний процесс останавливается и не считается обязательным;
+- при rollback старая версия восстанавливает прежний WebSocket.
+
+Так отключённый или нелицензированный Messenger не оставляет параллельный фоновый runtime.
+
+## Проверки контракта
+
+Минимальный набор:
+
+```bash
+php tests/integration/module_registry_contract.php
+php tests/integration/module_lifecycle_runtime.php
+php tests/integration/module_runtime_composition_contract.php
+php tests/integration/module_entitlement_contract.php
+php tests/integration/native_admin_contract.php
+php tests/integration/native_messenger_contract.php
+php tests/integration/native_profile_contract.php
+php tests/integration/native_workspace_shell_contract.php
+```
+
+Для релиза дополнительно выполняются browser lifecycle и полный release-gate.
