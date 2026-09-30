@@ -169,12 +169,12 @@ mkdir($tmp, 0700, true);
 try {
     lifecycleFixture($tmp, 'allowed', [], true, true);
     lifecycleFixture($tmp, 'denied', [], true, true);
-    lifecycleFixture($tmp, 'system', [], true, true, [], true);
+    lifecycleFixture($tmp, 'admin', [], true, true, [], true);
 
     $resolver = new class implements ModuleEntitlementResolver {
         public function decision(ModuleManifest $manifest): array
         {
-            $entitled = in_array($manifest->id(), ['allowed', 'system'], true);
+            $entitled = in_array($manifest->id(), ['allowed', 'admin'], true);
             return [
                 'entitled' => $entitled,
                 'feature' => $manifest->licenseFeature(),
@@ -213,7 +213,7 @@ try {
 
     $blockedRequiredDisable = false;
     try {
-        $licensed->transitionLifecycle('system', 'disabled');
+        $licensed->transitionLifecycle('admin', 'disabled');
     } catch (RuntimeException) {
         $blockedRequiredDisable = true;
     }
