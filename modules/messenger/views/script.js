@@ -7,6 +7,7 @@
             this.root = root;
             this.userUid = root.dataset.userUid || '';
             this.userName = root.dataset.userName || 'Вы';
+            this.canUseProfile = root.dataset.canUseProfile === '1';
             this.socket = null;
             this.socketAuthorized = false;
             this.sessionUnavailable = false;
@@ -1208,13 +1209,13 @@
         }
 
         profileAvatarUrl(user) {
-            if (!user?.uid || !user?.avatar) return '';
+            if (!this.canUseProfile || !user?.uid || !user?.avatar) return '';
             const path = `/profile/avatar/${encodeURIComponent(String(user.uid))}`;
             return typeof window.wspace?.path === 'function' ? window.wspace.path(path) : path;
         }
 
         configureProfileShortcut(user) {
-            const active = Boolean(user?.uid);
+            const active = this.canUseProfile && Boolean(user?.uid);
             [this.el.chatAvatar, this.el.chatIdentity].forEach((element) => {
                 if (!element) return;
                 element.classList.toggle('messenger-profile-shortcut', active);
@@ -1234,7 +1235,7 @@
 
         openCurrentProfile() {
             const uid = String(this.currentDialog?.partner?.uid || '').trim();
-            if (!uid || this.currentDialog?.type !== 'private') return;
+            if (!this.canUseProfile || !uid || this.currentDialog?.type !== 'private') return;
             const path = `/profile/user/${encodeURIComponent(uid)}`;
             const target = typeof window.wspace?.path === 'function' ? window.wspace.path(path) : path;
             window.location.assign(target);
