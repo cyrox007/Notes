@@ -739,6 +739,10 @@ final class UpdateApplyCommand
         bool $restartWs
     ): never {
         $journalState = $stateMachine->load($transactionId);
+        $applyErrorCode = $applyError instanceof UpdateApplyException
+            ? $applyError->errorCode
+            : 'apply_failed';
+
         try {
             $verified = $this->rollback(
                 $transactionId,
@@ -746,11 +750,13 @@ final class UpdateApplyCommand
                 $stateMachine,
                 $applier,
                 $backupManager,
-                $restartWs
+                $restartWs,
+                $applyErrorCode
             );
         } catch (Throwable $rollbackError) {
             $this->recordRollbackFailure($stateMachine, $transactionId, [
                 'apply_error' => $applyError->getMessage(),
+                'apply_error_code' => $applyErrorCode,
                 'rollback_error' => $rollbackError->getMessage(),
                 'at' => time(),
             ]);
@@ -787,7 +793,11 @@ final class UpdateApplyCommand
             . $applyError->getMessage(),
             'apply_rolled_back',
             1,
-            ['rollback' => $verified, 'maintenance_active' => false]
+            [
+                'rollback' => $verified,
+                'maintenance_active' => false,
+                'apply_error_code' => $applyErrorCode,
+            ]
         );
     }
 
@@ -797,7 +807,8 @@ final class UpdateApplyCommand
         UpdateTransactionStateMachine $stateMachine,
         UpdateLiveApplier $applier,
         UpdateBackupManager $backupManager,
-        bool $restartWs
+        bool $restartWs,
+        ?string $failureCode = null
     ): array {
         $artifacts = $this->recoveryArtifacts($journalState);
         $backups = $backupManager->verify($artifacts['backup_dir'], $transactionId);
@@ -811,10 +822,19 @@ final class UpdateApplyCommand
             'postcheck_verified',
             'rollback_failed',
         ], true)) {
-            $current = $stateMachine->markRollbackStarted($transactionId, [
+            $rollbackStart = [
                 'started_at' => time(),
                 'from_state' => $state,
-            ]);
+            ];
+            if (is_string($failureCode)
+                && preg_match('/^[a-z0-9_]{1,64}$/D', $failureCode) === 1) {
+                $rollbackStart['failure_code'] = $failureCode;
+            }
+
+            $current = $stateMachine->markRollbackStarted(
+                $transactionId,
+                $rollbackStart
+            );
             $state = 'rollback_started';
         }
 
