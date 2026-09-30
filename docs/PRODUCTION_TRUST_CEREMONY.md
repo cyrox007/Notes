@@ -94,13 +94,13 @@ php tools/vendor-license/issue.php \
 
 ```bash
 php tools/vendor-update/build-manifest.php \
-  --package=/secure/release/workspace-organizer-v1.0.2.zip \
-  --version=1.0.2 \
-  --version-code=10002 \
+  --package=/secure/release/workspace-organizer-v<VERSION>.zip \
+  --version=<VERSION> \
+  --version-code=<VERSION_CODE> \
   --channel=stable \
   --source-commit=<FULL_40_HEX_RELEASE_COMMIT> \
-  --min-source-version-code=10001 \
-  --requires-php=8.1.0 \
+  --min-source-version-code=<MIN_SOURCE_VERSION_CODE> \
+  --requires-php=<MIN_PHP> \
   --out=/secure/release/update.json
 ```
 
@@ -116,9 +116,9 @@ php tools/vendor-update/sign-manifest.php \
 
 Updater должен принимать manifest только при наличии соответствующего public key в `config/update_trusted_keys.php`.
 
-## 7. Приёмка перед выпуском в master
+## 7. Приёмка перед публикацией нового выпуска
 
-До merge финального release candidate в `master`:
+Перед публикацией нового тега/релиза:
 
 1. оба public registry непустые;
 2. key ID не пересекаются;
