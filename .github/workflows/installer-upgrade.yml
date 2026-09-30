@@ -67,7 +67,8 @@ jobs:
           grep -Fq 'CHANGE COLUMN `surname` `lastname`' database/migrations/20260913_messenger_v2.sql
           test -f database/settings_schema.sql
           test -f database/access_control_schema.sql
-          grep -Fq 'does **not** use migrations as the canonical source' docs/DB_ARCHITECTURE.md
+          grep -Fq 'Каноническая схема новой установки' docs/DB_ARCHITECTURE.md
+          grep -Fq 'database/migrations/' docs/DB_ARCHITECTURE.md
 
       - name: Fresh install schema contract
         shell: bash
