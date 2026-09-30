@@ -1,6 +1,6 @@
 # Module development and installation guide
 
-This guide is the practical companion to `docs/MODULE_PLATFORM_0.14.md` and
+This guide is the practical companion to `docs/MODULE_PLATFORM.md` and
 `docs/MODULE_RUNTIME_ISOLATION_1.0.md`. It describes how to add a new isolated
 module to Workspace Organizer 1.x and how an operator introduces a non-bundled
 module into an existing installation.
