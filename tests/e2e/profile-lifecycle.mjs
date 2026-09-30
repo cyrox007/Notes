@@ -126,7 +126,8 @@ try {
     .waitFor({ state: 'visible', timeout: 5000 });
 
   const usersHref = await page.getByRole('link', { name: 'Пользователи', exact: true }).getAttribute('href');
-  if (!usersHref || new URL(usersHref, origin).pathname !== `${basePath}/profile/users`) {
+  const usersPath = usersHref ? new URL(usersHref, origin).pathname.replace(/\/+$/, '') : '';
+  if (!usersHref || usersPath !== `${basePath}/profile/users`) {
     throw new Error(`Каталог пользователей имеет неверный адрес: ${usersHref}`);
   }
   await page.goto(new URL(usersHref, origin).href, { waitUntil: 'domcontentloaded' });
