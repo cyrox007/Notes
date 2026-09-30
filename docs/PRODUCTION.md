@@ -1,6 +1,6 @@
 # Production deployment — Workspace Organizer
 
-Этот документ дополняет `README.md` и описывает production-путь для stable-линии `1.0.x` (актуальный release candidate — `1.0.2`). Перед критичным deployment обязательны staging, backup и restore test.
+Этот документ дополняет `README.md` и описывает production-путь для стабильной линии `1.0.x`. Текущий опубликованный baseline — `1.0.13`. Перед критичным развёртыванием обязательны staging, backup и restore test.
 
 ## 1. Рекомендуемая схема
 
@@ -27,9 +27,9 @@ Browser не должен иметь прямого доступа к `PRIVATE_S
 Минимум:
 
 - PHP 8.1+ как технический compatibility floor; для Internet-facing production используйте поддерживаемую ветку PHP, сейчас рекомендуется 8.3+;
-- MySQL 8.x;
+- MySQL 8.0+ или MariaDB 10.5+;
 - runtime не требует Composer/vendor dependencies;
-- extensions `mysqli`, `pdo_mysql`, `mbstring`, `json`, `fileinfo`, `sodium`, `gd`;
+- расширения `mysqli`, `pdo_mysql`, `mbstring`, `ctype`, `fileinfo`, `sodium`, `openssl`, `zlib`, `gd`;
 - writable `PRIVATE_STORAGE_PATH` вне document root;
 - TLS certificate и HTTPS для browser traffic;
 - обычные long-lived HTTP requests и достаточная параллельность PHP workers для Messenger fallback;
