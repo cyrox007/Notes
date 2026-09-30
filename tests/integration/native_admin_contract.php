@@ -81,6 +81,11 @@ nativeAdminAssert(str_contains($licenseScript, 'navigator.clipboard?.writeText')
 nativeAdminAssert(str_contains($licenseScript, "document.execCommand('copy')"), 'Installation ID copy lacks the local HTTP/browser fallback');
 nativeAdminAssert(str_contains($licenseScript, 'Скопировано'), 'Installation ID copy does not provide success feedback');
 
+$licenseController = (string) file_get_contents($root . '/modules/admin/controllers/LicenseController.php');
+nativeAdminAssert(str_contains($licenseController, "in_array('workspace.admin', \$features, true)"), 'смена лицензии не проверяет сохранение доступа к Admin');
+nativeAdminAssert(str_contains($licenseController, "'system_license_flash'"), 'удаление/смена лицензии не использует безопасный core recovery flash');
+nativeAdminAssert(str_contains($licenseController, "'system_license'"), 'контроллер лицензии не умеет перейти на core recovery после отключения Admin');
+
 $registration = (string) file_get_contents($root . '/modules/admin/views/registration.php');
 nativeAdminAssert(str_contains($registration, "route('admin_registration_mode')"), 'registration mode route is missing');
 nativeAdminAssert(str_contains($registration, "route('admin_registration_invite_create')"), 'invite create route is missing');
