@@ -97,12 +97,18 @@ nativeMessengerAssert(str_contains($media, "appPath('/messenger/upload')"), 'Mes
 
 $connectionCss = (string) file_get_contents($root . '/assets/css/messenger-connection-ux.css');
 nativeMessengerAssert(str_contains($connectionCss, '.messenger-app .messenger-list__header{height:auto;min-height:64px;max-height:none;align-items:center}'), 'шапка списка чатов не использует компактную высоту');
-nativeMessengerAssert(str_contains($connectionCss, '.messenger-list__header .messenger-connection{display:none!important}'), 'служебный транспортный статус всё ещё занимает место в шапке Messenger');
-nativeMessengerAssert(str_contains($view, 'data-state="online" data-transport="none" hidden'), 'Messenger не задаёт безопасное начальное состояние транспортного маркера');
+nativeMessengerAssert(str_contains($connectionCss, '.messenger-list__header .messenger-connection{display:flex!important}'), 'состояние транспорта скрыто в шапке Messenger');
+nativeMessengerAssert(str_contains($view, 'data-state="connecting" data-transport="none" role="status"'), 'Messenger не показывает безопасное начальное состояние транспорта');
 nativeMessengerAssert(str_contains($script, "setConnectionTransport('websocket')"), 'Messenger не отмечает активный WebSocket зелёным транспортным состоянием');
 nativeMessengerAssert(str_contains($script, "setConnectionTransport('long-poll')"), 'Messenger не отмечает активный Long Poll отдельным транспортным состоянием');
 nativeMessengerAssert(str_contains($messengerStyle, '[data-transport="long-poll"]'), 'Messenger не содержит отдельный стиль Long Poll маркера');
 nativeMessengerAssert(str_contains($messengerStyle, '--msg-transport-long-poll:#1687ff'), 'Long Poll маркер не использует ярко-синий цвет');
+nativeMessengerAssert(str_contains($script, "setConnectionState('online', 'WebSocket')"), 'WebSocket не подписан в видимом состоянии соединения');
+nativeMessengerAssert(str_contains($script, "setConnectionState('online', 'Long Poll')"), 'Long Poll не подписан в видимом состоянии соединения');
+nativeMessengerAssert(str_contains($script, 'profileAvatarUrl(user)'), 'Messenger не использует реальные аватары пользователей');
+nativeMessengerAssert(str_contains($script, "openCurrentProfile()"), 'Messenger не даёт перейти в профиль собеседника');
+nativeMessengerAssert(str_contains($script, "/profile/user/"), 'Messenger не использует публичный маршрут профиля пользователя');
+nativeMessengerAssert(str_contains($messengerStyle, '.messenger-avatar img{width:100%;height:100%'), 'аватары Messenger не масштабируются внутри круглого контейнера');
 
 $connectionUx = (string) file_get_contents($root . '/assets/js/messenger-connection-ux.js');
 nativeMessengerAssert(str_contains($connectionUx, 'ticketSubject'), 'account-switch ticket identity guard is missing');
@@ -119,6 +125,8 @@ $visualRefresh = (string) file_get_contents($module . '/views/visual-refresh.css
 nativeMessengerAssert(str_contains($visualRefresh, 'grid-template-columns:clamp(248px,23vw,304px)'), 'Messenger balanced desktop column contract is missing');
 nativeMessengerAssert(str_contains($visualRefresh, '@media(max-width:1020px)'), 'Messenger medium-width layout breakpoint is missing');
 nativeMessengerAssert(str_contains($visualRefresh, '@media(max-width:760px)'), 'Messenger mobile single-pane breakpoint is missing');
+nativeMessengerAssert(!str_contains($visualRefresh, '.messenger-chat__actions{max-width:164px;overflow-x:auto'), 'действия чата снова скрываются горизонтальным обрезанием');
+nativeMessengerAssert(!str_contains($visualRefresh, '.messenger-composer__tools{max-width:122px;overflow-x:auto'), 'инструменты ввода снова скрываются горизонтальным обрезанием');
 nativeMessengerAssert(str_contains($messengerStyle, '.messenger-list__empty{min-height:0;flex:1}'), 'пустое состояние списка диалогов не занимает свободную область');
 nativeMessengerAssert(str_contains($script, 'const showEmptyState = this.dialogs.length === 0'), 'Messenger не определяет глобально пустой список диалогов');
 nativeMessengerAssert(str_contains($script, 'this.el.dialogList.hidden = showEmptyState'), 'пустой список диалогов продолжает резервировать место над empty-state');
