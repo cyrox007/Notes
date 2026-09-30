@@ -95,6 +95,11 @@ ob_start();
             <button id="btn-upload-file" type="button" class="file-manager__btn file-manager__btn--success">
                 <i class="fa fa-upload" aria-hidden="true"></i> Загрузить
             </button>
+            <?php if ($canShareFiles): ?>
+                <a href="<?= $view->e($view->route('files_shares')) ?>" class="file-manager__btn file-manager__btn--secondary">
+                    <i class="fa fa-link" aria-hidden="true"></i> Общий доступ
+                </a>
+            <?php endif; ?>
             <input type="file" id="file-input" hidden multiple>
         </div>
     </div>
@@ -151,12 +156,7 @@ ob_start();
                             <?= $type === 'folder' ? 'Папка' : $view->e($formatSize($file['size'] ?? 0)) ?>
                         </div>
                         <div class="file-manager__item-actions">
-                            <?php if ($type === 'folder'): ?>
-                                <a href="<?= $view->e($view->route('files_folder', ['folderId' => $id])) ?>" class="file-manager__action-btn" title="Открыть" aria-label="Открыть <?= $view->e($name) ?>">
-                                    <i class="fa fa-folder-open-o" aria-hidden="true"></i>
-                                </a>
-                            <?php endif; ?>
-                            <?php if ($canShareFiles && $type !== 'folder' && !empty($file['uid'])): ?>
+                            <?php if ($canShareFiles && !empty($file['uid'])): ?>
                                 <button type="button" class="file-manager__action-btn file-manager__action-btn--share btn-share" title="Поделиться ссылкой" aria-label="Поделиться <?= $view->e($name) ?>">
                                     <i class="fa fa-link" aria-hidden="true"></i>
                                 </button>
@@ -229,6 +229,36 @@ ob_start();
         <div class="file-manager__modal-body">
             <pre id="text-preview-content" class="file-manager__text-preview" tabindex="0"></pre>
             <div class="file-manager__editor-info"><small>Режим только для чтения. Код на странице не выполняется.</small></div>
+        </div>
+    </div>
+</div>
+
+<div id="modal-share" class="file-manager__modal" role="dialog" aria-modal="true" aria-labelledby="share-title">
+    <div class="file-manager__modal-content">
+        <div class="file-manager__modal-header">
+            <h3 id="share-title">Публичная ссылка</h3>
+            <button type="button" class="file-manager__modal-close" aria-label="Закрыть">&times;</button>
+        </div>
+        <div class="file-manager__modal-body">
+            <p>Объект: <strong id="share-item-name"></strong></p>
+            <input type="hidden" id="share-item-uid">
+            <label for="share-expiry-mode">Срок действия</label>
+            <select id="share-expiry-mode">
+                <option value="0">Без срока</option>
+                <option value="24">1 день</option>
+                <option value="168">7 дней</option>
+                <option value="720">30 дней</option>
+                <option value="custom">Указать дату</option>
+            </select>
+            <div id="share-expiry-custom-wrap" hidden>
+                <label for="share-expiry-custom">Действует до</label>
+                <input type="datetime-local" id="share-expiry-custom">
+            </div>
+            <small>Ссылку можно в любой момент отозвать в разделе «Общий доступ». Сам файл или папка при этом не удаляются.</small>
+        </div>
+        <div class="file-manager__modal-footer">
+            <button type="button" class="file-manager__btn file-manager__btn--secondary modal-cancel">Отмена</button>
+            <button type="button" id="share-create-button" class="file-manager__btn file-manager__btn--primary">Создать ссылку</button>
         </div>
     </div>
 </div>
