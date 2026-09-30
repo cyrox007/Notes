@@ -151,11 +151,6 @@ ob_start();
                             <?= $type === 'folder' ? 'Папка' : $view->e($formatSize($file['size'] ?? 0)) ?>
                         </div>
                         <div class="file-manager__item-actions">
-                            <?php if ($type === 'folder'): ?>
-                                <a href="<?= $view->e($view->route('files_folder', ['folderId' => $id])) ?>" class="file-manager__action-btn" title="Открыть" aria-label="Открыть <?= $view->e($name) ?>">
-                                    <i class="fa fa-folder-open-o" aria-hidden="true"></i>
-                                </a>
-                            <?php endif; ?>
                             <?php if ($canShareFiles && $type !== 'folder' && !empty($file['uid'])): ?>
                                 <button type="button" class="file-manager__action-btn file-manager__action-btn--share btn-share" title="Поделиться ссылкой" aria-label="Поделиться <?= $view->e($name) ?>">
                                     <i class="fa fa-link" aria-hidden="true"></i>
