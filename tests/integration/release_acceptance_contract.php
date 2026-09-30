@@ -93,7 +93,7 @@ foreach ([
     'production_public_trust_roots',
     'release_evidence_harness',
     'private_signing_material_absent',
-    "Version::VERSION === '1.0.13'",
+    "Version::VERSION === '1.0.14'",
     "Version::STATUS === 'stable'",
     'exit(3)',
 ] as $marker) {
@@ -116,30 +116,29 @@ releaseAcceptanceAssert(
     'документ изоляции модулей не соответствует текущему runtime'
 );
 
-$releaseNotes = releaseAcceptanceText($root, 'docs/releases/v1.0.13.md');
+$releaseNotes = releaseAcceptanceText($root, 'docs/releases/v1.0.14.md');
 foreach ([
     '## Назначение релиза',
-    '## Явные разрешения лицензии',
-    '## Admin → Модули',
-    '## Исчезновение межмодульных возможностей',
-    '## Обновлятор и WebSocket',
+    '## Исправление восстановления',
+    '## OPcache на PHP-FPM',
+    '## Диагностика автоматического отката',
     '## Проверяемый путь обновления',
     '## Совместимость',
 ] as $marker) {
     releaseAcceptanceAssert(
         str_contains($releaseNotes, $marker),
-        "описание релиза 1.0.13 не содержит русский раздел {$marker}"
+        "описание релиза 1.0.14 не содержит русский раздел {$marker}"
     );
 }
 
 releaseAcceptanceAssert(
-    str_contains($releaseNotes, '1.0.12 → встроенный подписанный updater → 1.0.13')
-    && str_contains($releaseNotes, 'workspace.admin')
-    && str_contains($releaseNotes, 'workspace.messenger')
-    && str_contains($releaseNotes, 'unlicensed')
-    && str_contains($releaseNotes, 'Admin → Модули')
-    && str_contains($releaseNotes, 'WebSocket'),
-    'описание 1.0.13 не фиксирует модульный состав, лицензионные разрешения и штатный upgrade-path'
+    str_contains($releaseNotes, '1.0.12 → встроенный подписанный updater → 1.0.14')
+    && str_contains($releaseNotes, 'rollback_verified')
+    && str_contains($releaseNotes, 'OPcache')
+    && str_contains($releaseNotes, 'diagnostic_code')
+    && str_contains($releaseNotes, 'min_source_version_code')
+    && str_contains($releaseNotes, '10012'),
+    'описание 1.0.14 не фиксирует исправление recovery и прямой upgrade-path'
 );
 
 
@@ -234,4 +233,4 @@ releaseAcceptanceAssert(
     'Stable release gate не запускает контракт двухфакторной аутентификации'
 );
 
-fwrite(STDOUT, "[OK] финальный контракт release acceptance 1.0.13 выполнен\n");
+fwrite(STDOUT, "[OK] финальный контракт release acceptance 1.0.14 выполнен\n");
