@@ -138,17 +138,24 @@ ob_start();
         <div class="messenger-contact-list" id="contact-list">
             <?php if ($contactRows !== []): ?>
                 <?php foreach ($contactRows as $contact): ?>
-                    <?php if (!is_array($contact)) { continue; } $searchText = trim((string) ($contact['firstname'] ?? '') . ' ' . (string) ($contact['lastname'] ?? '') . ' ' . (string) ($contact['username'] ?? '')); ?>
-                    <label class="messenger-contact" data-contact-search="<?= $view->e($searchText) ?>">
-                        <input class="messenger-contact__checkbox" type="checkbox" value="<?= $view->e($contact['uid'] ?? '') ?>">
-                        <?php
-                            $contactUid = (string) ($contact['uid'] ?? '');
-                            $contactAvatar = !empty($workspaceActions['profile'])
-                                && !empty($contact['avatar'])
-                                && $contactUid !== ''
-                                ? $baseUrl . '/profile/avatar/' . rawurlencode($contactUid)
-                                : '';
-                        ?>
+                    <?php
+                        if (!is_array($contact)) { continue; }
+                        $searchText = trim((string) ($contact['firstname'] ?? '') . ' ' . (string) ($contact['lastname'] ?? '') . ' ' . (string) ($contact['username'] ?? ''));
+                        $contactUid = (string) ($contact['uid'] ?? '');
+                        $contactAvatarValue = trim((string) ($contact['avatar'] ?? ''));
+                        $contactAvatar = empty($workspaceActions['profile']) || $contactUid === ''
+                            ? ''
+                            : (($contactAvatarValue === '' || $contactAvatarValue === 'default_img')
+                                ? $baseUrl . '/assets/img/default_avatar.png'
+                                : $baseUrl . '/profile/avatar/' . rawurlencode($contactUid));
+                    ?>
+                    <label
+                        class="messenger-contact"
+                        data-contact-search="<?= $view->e($searchText) ?>"
+                        data-contact-uid="<?= $view->e($contactUid) ?>"
+                        data-contact-avatar-url="<?= $view->e($contactAvatar) ?>"
+                    >
+                        <input class="messenger-contact__checkbox" type="checkbox" value="<?= $view->e($contactUid) ?>">
                         <span class="messenger-avatar messenger-avatar--small" aria-hidden="true">
                             <?php if ($contactAvatar !== ''): ?>
                                 <img src="<?= $view->e($contactAvatar) ?>" alt="">
@@ -251,10 +258,29 @@ ob_start();
                     <div class="messenger-group-add-list" id="group-add-contact-list">
                         <?php if ($contactRows !== []): ?>
                             <?php foreach ($contactRows as $contact): ?>
-                                <?php if (!is_array($contact)) { continue; } ?>
-                                <label class="messenger-contact messenger-group-add-contact" data-contact-uid="<?= $view->e($contact['uid'] ?? '') ?>">
-                                    <input class="messenger-contact__checkbox messenger-group-add-checkbox" type="checkbox" value="<?= $view->e($contact['uid'] ?? '') ?>">
-                                    <span class="messenger-avatar messenger-avatar--small" aria-hidden="true"><i class="fa fa-user"></i></span>
+                                <?php
+                                    if (!is_array($contact)) { continue; }
+                                    $groupContactUid = (string) ($contact['uid'] ?? '');
+                                    $groupContactAvatarValue = trim((string) ($contact['avatar'] ?? ''));
+                                    $groupContactAvatar = empty($workspaceActions['profile']) || $groupContactUid === ''
+                                        ? ''
+                                        : (($groupContactAvatarValue === '' || $groupContactAvatarValue === 'default_img')
+                                            ? $baseUrl . '/assets/img/default_avatar.png'
+                                            : $baseUrl . '/profile/avatar/' . rawurlencode($groupContactUid));
+                                ?>
+                                <label
+                                    class="messenger-contact messenger-group-add-contact"
+                                    data-contact-uid="<?= $view->e($groupContactUid) ?>"
+                                    data-contact-avatar-url="<?= $view->e($groupContactAvatar) ?>"
+                                >
+                                    <input class="messenger-contact__checkbox messenger-group-add-checkbox" type="checkbox" value="<?= $view->e($groupContactUid) ?>">
+                                    <span class="messenger-avatar messenger-avatar--small" aria-hidden="true">
+                                        <?php if ($groupContactAvatar !== ''): ?>
+                                            <img src="<?= $view->e($groupContactAvatar) ?>" alt="">
+                                        <?php else: ?>
+                                            <i class="fa fa-user"></i>
+                                        <?php endif; ?>
+                                    </span>
                                     <span class="messenger-contact__identity"><strong><?= $view->e($contact['firstname'] ?? '') ?> <?= $view->e($contact['lastname'] ?? '') ?></strong><small>@<?= $view->e($contact['username'] ?? '') ?></small></span>
                                 </label>
                             <?php endforeach; ?>
