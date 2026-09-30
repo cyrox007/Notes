@@ -136,6 +136,14 @@ try {
     fileRollbackAssert(!str_contains($restorerSource, 'failed-release'), 'Rollback всё ещё содержит quarantine целого release-каталога');
     fileRollbackAssert(!str_contains($restorerSource, '@rename($live'), 'Rollback всё ещё переименовывает live entry верхнего уровня');
 
+    $mutatorSource = file_get_contents($root . '/core/UpdateFileMutator.php');
+    fileRollbackAssert(
+        is_string($mutatorSource)
+            && str_contains($mutatorSource, "function_exists('opcache_invalidate')")
+            && str_contains($mutatorSource, '@opcache_invalidate($path, true)'),
+        'Пофайловый updater не инвалидирует OPcache после замены кода'
+    );
+
     echo "[OK] Пофайловый rollback: восстановление, удаление target-only файлов и сохранение mutable-путей\n";
 } finally {
     fileRollbackRemove($temp);
