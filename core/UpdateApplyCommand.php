@@ -542,8 +542,16 @@ final class UpdateApplyCommand
                     'Post-update live version does not match signed target'
                 );
                 $migrationStatus = $this->migrationStatus($this->appRoot);
+                $wsRestarted = false;
+                $wsStoppedBecauseMessengerUnavailable = false;
                 if ($restartWs) {
-                    $this->restartWs($this->appRoot);
+                    if ($this->messengerRuntimeEnabled($this->appRoot)) {
+                        $this->restartWs($this->appRoot);
+                        $wsRestarted = true;
+                    } else {
+                        $this->stopWs($this->appRoot);
+                        $wsStoppedBecauseMessengerUnavailable = true;
+                    }
                 }
 
                 $stateMachine->markPostcheckVerified($transactionId, [
@@ -551,7 +559,8 @@ final class UpdateApplyCommand
                     'version_code' => $postVersion['version_code'],
                     'health_status' => $postHealth['status'] ?? null,
                     'migration_status_sha256' => hash('sha256', $migrationStatus['stdout']),
-                    'ws_restarted' => $restartWs,
+                    'ws_restarted' => $wsRestarted,
+                    'ws_stopped_messenger_unavailable' => $wsStoppedBecauseMessengerUnavailable,
                     'verified_at' => time(),
                 ]);
             } catch (Throwable $applyError) {
@@ -949,6 +958,46 @@ final class UpdateApplyCommand
         }
 
         throw new RuntimeException('Не удалось определить состояние WebSocket-процесса: ' . $this->commandFailureDetails($result));
+    }
+
+    private function messengerRuntimeEnabled(string $root): bool
+    {
+        $probe = <<<'PHP'
+$root = (string) ($argv[1] ?? '');
+if ($root === '' || !is_dir($root)) {
+    exit(2);
+}
+if (!defined('SITEPATH')) {
+    define('SITEPATH', $root);
+}
+require $root . '/core.php';
+$runtime = \Core\ModuleRuntimeLoader::getInstance();
+exit(isset($runtime->providers()['messenger']) ? 0 : 3);
+PHP;
+
+        $result = $this->run([PHP_BINARY, '-r', $probe, $root], $root, 30);
+        if ($result['code'] === 0) {
+            return true;
+        }
+        if ($result['code'] === 3) {
+            return false;
+        }
+
+        throw new RuntimeException(
+            'Не удалось определить доступность Messenger после обновления: '
+            . $this->commandFailureDetails($result)
+        );
+    }
+
+    private function stopWs(string $root): void
+    {
+        $result = $this->run([PHP_BINARY, $root . '/ws_server/server.php', 'stop'], $root, 20);
+        if ($result['code'] !== 0) {
+            throw new RuntimeException(
+                'Не удалось остановить WebSocket после отключения Messenger: '
+                . $this->commandFailureDetails($result)
+            );
+        }
     }
 
     private function restartWs(string $root): void
