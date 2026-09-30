@@ -125,6 +125,18 @@ try {
         str_contains($applyCommandSource, '$maintenance->leave($transactionId);'),
         'Потеряно снятие maintenance при ошибке до изменения рабочих файлов'
     );
+    liveApplyAssert(
+        str_contains($applyCommandSource, 'messengerRuntimeEnabled($this->appRoot)'),
+        'Обновлятор не проверяет доступность Messenger перед перезапуском WebSocket'
+    );
+    liveApplyAssert(
+        str_contains($applyCommandSource, 'stopWs($this->appRoot)'),
+        'Обновлятор не останавливает прежний WebSocket при недоступном Messenger'
+    );
+    liveApplyAssert(
+        str_contains($applyCommandSource, "'ws_stopped_messenger_unavailable'"),
+        'Журнал обновления не фиксирует остановку WebSocket из-за недоступного Messenger'
+    );
 
     $live = $temp . '/live';
     $candidateDir = $temp . '/candidate';
