@@ -256,7 +256,10 @@ jobs:
           test -n "$FILE_PATH"
           test ! -f "$FILE_PATH"
           test "$(mysql -N -B -h 127.0.0.1 -uroot -proot file_manager_browser_lifecycle -e "SELECT COUNT(*) FROM user_files WHERE user_id=${USER_ID} AND name LIKE 'fm-overflow-%'")" = '0'
-          test "$(mysql -N -B -h 127.0.0.1 -uroot -proot file_manager_browser_lifecycle -e "SELECT COALESCE(SUM(size),0) FROM user_files WHERE user_id=${USER_ID} AND is_deleted=0 AND type <> 'folder'")" = '10481664'
+          SHARED_BYTES="$(mysql -N -B -h 127.0.0.1 -uroot -proot file_manager_browser_lifecycle -e "SELECT COALESCE(SUM(size),0) FROM user_files WHERE user_id=${USER_ID} AND name LIKE 'shared-%' AND extension='txt' AND is_deleted=0")"
+          test "$SHARED_BYTES" -gt '0'
+          ACTIVE_BYTES="$(mysql -N -B -h 127.0.0.1 -uroot -proot file_manager_browser_lifecycle -e "SELECT COALESCE(SUM(size),0) FROM user_files WHERE user_id=${USER_ID} AND is_deleted=0 AND type <> 'folder'")"
+          test "$ACTIVE_BYTES" = "$((10481664 + SHARED_BYTES))"
 
       - name: Verify clean PHP runtime log
         shell: bash
