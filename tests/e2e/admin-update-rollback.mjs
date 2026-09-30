@@ -84,7 +84,7 @@ try {
 
   installationWindow = true;
   const recoveryToast = page.locator('.wspace-toast').filter({
-    hasText: 'Рабочая версия автоматически восстановлена и проверена',
+    hasText: 'Предыдущая рабочая версия автоматически восстановлена',
   });
   const navigation = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 180000 });
   await button.click();
@@ -95,7 +95,7 @@ try {
   // Поэтому подтверждаем сообщение до навигации, а версию — уже после неё.
   await recoveryToast.waitFor({ state: 'visible', timeout: 180000 });
   const recoveryText = ((await recoveryToast.textContent()) || '').trim();
-  if (!recoveryText.includes('Рабочая версия автоматически восстановлена и проверена')) {
+  if (!recoveryText.includes('Предыдущая рабочая версия автоматически восстановлена')) {
     throw new Error(`Интерфейс не подтвердил автоматическое восстановление: ${recoveryText}`);
   }
 
