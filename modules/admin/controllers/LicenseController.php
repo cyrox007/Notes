@@ -42,7 +42,15 @@ final class LicenseController extends Controller
             $message = $accessReady
                 ? 'Лицензия активирована. Доступ к обновлениям настроен автоматически.'
                 : 'Лицензия активирована. Доступ к обновлениям настроится автоматически при следующей проверке.';
-            $this->redirectWithFlash($request, true, $message);
+            $features = isset($status['features']) && is_array($status['features'])
+                ? array_values(array_map('strval', $status['features']))
+                : [];
+            $this->redirectWithFlash(
+                $request,
+                true,
+                $message,
+                in_array('workspace.admin', $features, true)
+            );
         } catch (\Throwable $e) {
             $this->redirectWithFlash($request, false, $e->getMessage() ?: 'Не удалось активировать лицензию');
         }
@@ -52,18 +60,23 @@ final class LicenseController extends Controller
     {
         try {
             (new LicenseService())->clear((int) $request->session('user_id', 0));
-            $this->redirectWithFlash($request, true, 'Лицензионный ключ удалён из установки');
+            $this->redirectWithFlash($request, true, 'Лицензионный ключ удалён из установки', false);
         } catch (\Throwable $e) {
             $this->redirectWithFlash($request, false, $e->getMessage() ?: 'Не удалось удалить лицензионный ключ');
         }
     }
 
-    private function redirectWithFlash(Request $request, bool $success, string $message): void
-    {
-        $request->setSession('license_flash', [
+    private function redirectWithFlash(
+        Request $request,
+        bool $success,
+        string $message,
+        bool $adminWillRemainAvailable = true
+    ): void {
+        $flashKey = $adminWillRemainAvailable ? 'license_flash' : 'system_license_flash';
+        $request->setSession($flashKey, [
             'type' => $success ? 'success' : 'error',
             'message' => $message,
         ]);
-        Router::getInstance()->redirect('admin_license');
+        Router::getInstance()->redirect($adminWillRemainAvailable ? 'admin_license' : 'system_license');
     }
 }

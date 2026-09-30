@@ -1,9 +1,9 @@
 <?php
 declare(strict_types=1);
 namespace Modules\Admin;
-use App\Controllers\Admin\{AdminController,AuditController,LicenseController,RegistrationSettingsController,RoleManagementController,SettingsController,UpdateController,UserProvisioningController};
+use App\Controllers\Admin\{AdminController,AuditController,LicenseController,ModuleManagementController,RegistrationSettingsController,RoleManagementController,SettingsController,UpdateController,UserProvisioningController};
 use App\Middlewares\{CSRFMiddleware,LoginRequared,RequireAdminAccess,RequireAdminAuditView,RequireAdminRolesManage,RequireAdminSettingsManage,RequireAdminUsersManage};
-use Core\{ModuleRuntimeProvider,Router};
+use Core\{ModuleRuntimeLoader,ModuleRuntimeProvider,Router};
 final class AdminRuntimeProvider implements ModuleRuntimeProvider
 {
     private AdminCapability $capability;
@@ -14,7 +14,7 @@ final class AdminRuntimeProvider implements ModuleRuntimeProvider
     public function capabilities(): array { return ['workspace.admin' => $this->capability]; }
     public function registerRoutes(Router $router): void
     {
-        $router->group('/admin')
+        $group = $router->group('/admin')
             ->add('GET', '/', [AdminController::class, 'index'], [LoginRequared::class, RequireAdminAccess::class], 'adminpanel')
             ->add('GET', '/audit', [AuditController::class, 'index'], [LoginRequared::class, RequireAdminAuditView::class], 'admin_audit')
             ->add('POST', '/', [AdminController::class, 'saveCustomFields'], [LoginRequared::class, RequireAdminUsersManage::class], 'save_custom_fields')
@@ -31,11 +31,19 @@ final class AdminRuntimeProvider implements ModuleRuntimeProvider
             ->add('POST', '/registration/mode', [RegistrationSettingsController::class, 'saveMode'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_registration_mode')
             ->add('POST', '/registration/invites/create', [RegistrationSettingsController::class, 'createInvite'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_registration_invite_create')
             ->add('POST', '/registration/invites/revoke', [RegistrationSettingsController::class, 'revokeInvite'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_registration_invite_revoke')
+            ->add('GET', '/modules', [ModuleManagementController::class, 'index'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_modules')
+            ->add('POST', '/modules/state', [ModuleManagementController::class, 'setState'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_modules_state')
             ->add('GET', '/settings', [SettingsController::class, 'index'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_settings')
-            ->add('POST', '/settings/two-factor', [SettingsController::class, 'saveTwoFactorPolicy'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_settings_two_factor')
-            ->add('POST', '/settings/default-quota', [SettingsController::class, 'saveDefaultQuota'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_settings_default_quota')
-            ->add('POST', '/settings/upload-limit', [SettingsController::class, 'saveUploadLimit'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_settings_upload_limit')
-            ->add('POST', '/settings/user-quota', [SettingsController::class, 'saveUserQuota'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_settings_user_quota')
+            ->add('POST', '/settings/two-factor', [SettingsController::class, 'saveTwoFactorPolicy'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_settings_two_factor');
+
+        if (ModuleRuntimeLoader::getInstance()->capabilities()->has('workspace.files')) {
+            $group
+                ->add('POST', '/settings/default-quota', [SettingsController::class, 'saveDefaultQuota'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_settings_default_quota')
+                ->add('POST', '/settings/upload-limit', [SettingsController::class, 'saveUploadLimit'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_settings_upload_limit')
+                ->add('POST', '/settings/user-quota', [SettingsController::class, 'saveUserQuota'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_settings_user_quota');
+        }
+
+        $group
             ->add('GET', '/license', [LicenseController::class, 'index'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_license')
             ->add('POST', '/license/activate', [LicenseController::class, 'activate'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_license_activate')
             ->add('POST', '/license/clear', [LicenseController::class, 'clear'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_license_clear')

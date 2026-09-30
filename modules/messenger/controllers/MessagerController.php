@@ -52,7 +52,7 @@ final class MessagerController extends Controller
             error_log('WebSocket ускоритель недоступен: ' . $e->getMessage());
         }
 
-        $workspaceActions = ['notes' => false, 'tasks' => false, 'files' => false];
+        $workspaceActions = ['notes' => false, 'tasks' => false, 'files' => false, 'profile' => false];
         try {
             $permissions = new PermissionService();
             $capabilities = ModuleRuntimeLoader::getInstance()->capabilities();
@@ -63,6 +63,8 @@ final class MessagerController extends Controller
                     && $permissions->hasPermission((int) $user->id, 'tasks.use'),
                 'files' => $capabilities->has('workspace.files')
                     && $permissions->hasPermission((int) $user->id, 'files.use'),
+                'profile' => $capabilities->has('workspace.profile')
+                    && $permissions->hasPermission((int) $user->id, 'profile.use'),
             ];
         } catch (\Throwable $e) {
             error_log('Messenger workspace actions are unavailable: ' . $e->getMessage());

@@ -27,6 +27,7 @@
     "20260920_file_public_shares.sql",
     "20260921_totp_two_factor.sql",
     "20260928_messenger_activity.sql",
-    "20260930_file_upload_limit.sql"
+    "20260930_file_upload_limit.sql",
+    "20260930_module_entitlements.sql"
   ]
 }

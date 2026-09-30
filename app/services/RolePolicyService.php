@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use Core\DatabaseManager;
+use Core\ModuleRegistry;
 use DomainException;
 use InvalidArgumentException;
 use JsonException;
@@ -277,10 +278,30 @@ final class RolePolicyService
             throw new DomainException('Суперадминистратор не ограничивается политиками модулей', 409);
         }
 
-        $normalized = $this->normalizeSubmitted($submitted);
+        $activeModules = array_fill_keys($this->activePolicyModuleIds(), true);
+        foreach ($submitted as $module => $moduleValues) {
+            if (is_string($module) && is_array($moduleValues) && !isset($activeModules[$module]) && $moduleValues !== []) {
+                throw new InvalidArgumentException('Нельзя изменить политику отключённого модуля', 409);
+            }
+        }
+
+        $normalized = $this->normalizeSubmitted(array_intersect_key($submitted, $activeModules));
         $this->db->beginTransaction();
         try {
-            $this->db->execute('DELETE FROM role_module_policies WHERE role_id = :role_id', [':role_id' => $roleId]);
+            $params = [':role_id' => $roleId];
+            $placeholders = [];
+            foreach (array_keys($activeModules) as $index => $module) {
+                $placeholder = ':module_' . $index;
+                $placeholders[] = $placeholder;
+                $params[$placeholder] = $module;
+            }
+            if ($placeholders !== []) {
+                $this->db->execute(
+                    'DELETE FROM role_module_policies WHERE role_id = :role_id '
+                    . 'AND module_id IN (' . implode(',', $placeholders) . ')',
+                    $params
+                );
+            }
             foreach ($normalized as $row) {
                 $this->db->execute(
                     'INSERT INTO role_module_policies '
@@ -301,6 +322,24 @@ final class RolePolicyService
             $this->db->endTransaction(false);
             throw $e;
         }
+    }
+
+    /** @return list<string> */
+    private function activePolicyModuleIds(): array
+    {
+        $definitions = array_fill_keys(array_keys(self::DEFINITIONS), true);
+        try {
+            $composition = ModuleRegistry::getInstance()->enabledComposition();
+        } catch (\Throwable) {
+            // Сервис политик используется и отдельными служебными проверками,
+            // где полный runtime модулей намеренно не загружается.
+            $composition = array_keys($definitions);
+        }
+
+        return array_values(array_filter(
+            $composition,
+            static fn (string $module): bool => isset($definitions[$module])
+        ));
     }
 
     /** @return array<string,array<string,mixed>> */

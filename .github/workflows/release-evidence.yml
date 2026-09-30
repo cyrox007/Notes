@@ -165,6 +165,12 @@ jobs:
           printf 'E2E_BROWSER_RESULT_OUT=%s\n' '/tmp/release-browser-evidence.json' >> "$GITHUB_ENV"
           printf 'E2E_LOAD_RESULT_OUT=%s\n' '/tmp/release-load-evidence.json' >> "$GITHUB_ENV"
 
+      - name: Активировать временную лицензию CI
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/support/ci_license_fixture.php
+
       - name: Start release candidate application
         shell: bash
         run: |

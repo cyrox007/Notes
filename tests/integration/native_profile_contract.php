@@ -53,6 +53,9 @@ nativeProfileAssert(str_contains($publication, "route('profile-publication')"), 
 nativeProfileAssert(str_contains($publication, '$view->csrfInput()'), 'publication forms lost CSRF input');
 nativeProfileAssert(str_contains($publication, 'is_profile_public'), 'publication visibility state is missing');
 nativeProfileAssert(str_contains($publication, '$view->e($label)'), 'publication item labels are not escaped');
+nativeProfileAssert(str_contains($publication, '$hasWorkspaceContent'), 'Profile не скрывает общий блок содержимого при отключённых прикладных модулях');
+nativeProfileAssert(str_contains($publication, "if (empty(\$access[\$key])) { continue; }"), 'Profile не исключает отключённые модули из настроек видимости');
+nativeProfileAssert(str_contains($publication, "!empty(\$access['files'])"), 'Profile не скрывает File Manager-специфичное пояснение');
 
 $public = (string) file_get_contents($root . '/modules/profile/views/public.php');
 nativeProfileAssert(str_contains($public, '$view->layout(\'core/base\''), 'public profile does not use native application shell');
@@ -86,8 +89,8 @@ $publicationService = (string) file_get_contents($root . '/modules/profile/servi
 $metricsService = (string) file_get_contents($root . '/modules/profile/services/ProfileMetricsService.php');
 $profileController = (string) file_get_contents($root . '/modules/profile/controllers/ProfileController.php');
 $publicProfileController = (string) file_get_contents($root . '/modules/profile/controllers/PublicProfileController.php');
-nativeProfileAssert(str_contains($publicProfileController, "'profile' => $profile"), 'публичный профиль не передаётся в представление как массив');
-nativeProfileAssert(!str_contains($publicProfileController, "'profile' => (object) $profile"), 'публичный профиль снова ломается из-за несовместимого типа данных');
+nativeProfileAssert(str_contains($publicProfileController, "'profile' => \$profile"), 'публичный профиль не передаётся в представление как массив');
+nativeProfileAssert(!str_contains($publicProfileController, "'profile' => (object) \$profile"), 'публичный профиль снова ломается из-за несовместимого типа данных');
 nativeProfileAssert(!str_contains($publicProfileController, 'hash_equals((string) $layoutUser[\'uid\'], $uid)'), 'предпросмотр собственного публичного профиля снова перенаправляется в обычный профиль');
 foreach (['notes', 'tasks', 'user_files'] as $foreignTable) {
     nativeProfileAssert(

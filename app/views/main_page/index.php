@@ -22,7 +22,7 @@ ob_start();
         <div class="workspace-home__hero-copy">
             <span class="workspace-home__eyebrow">Notes <?= $view->e($workspaceVersion !== '' ? $workspaceVersion : '1.0') ?></span>
             <h1>Добро пожаловать, <?= $view->e($displayName) ?></h1>
-            <p>Всё рабочее пространство — заметки, задачи, файлы и общение — в одном компактном интерфейсе.</p>
+            <p>Доступные вашей учётной записи инструменты собраны в одном компактном интерфейсе.</p>
         </div>
         <div class="workspace-home__hero-actions">
             <?php if (!empty($access['notes'])): ?>

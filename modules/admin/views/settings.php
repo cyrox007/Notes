@@ -11,6 +11,7 @@ $defaultQuotaBytes = max(0, (int) ($default_quota_bytes ?? 0));
 $uploadLimitBytes = max(0, (int) ($upload_limit_bytes ?? 0));
 $uploadDiagnostics = isset($upload_limit_diagnostics) && is_array($upload_limit_diagnostics) ? $upload_limit_diagnostics : [];
 $twoFactorRequired = !empty($two_factor_required);
+$filesEnabled = !empty($files_enabled);
 $siteName = isset($sitename) ? (string) $sitename : 'Workspace Organizer';
 $workspaceVersion = isset($version) ? (string) $version : '';
 $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
@@ -30,7 +31,7 @@ ob_start();
         <div>
             <span class="admin-page__eyebrow">Хранилище Workspace</span>
             <h1>Системные настройки</h1>
-            <p>Общий лимит файлового менеджера, персональные квоты пользователей и installation-wide операции.</p>
+            <p>Общие политики безопасности и параметры включённых системных модулей.</p>
         </div>
     </header>
 
@@ -73,6 +74,7 @@ ob_start();
         </form>
     </section>
 
+    <?php if ($filesEnabled): ?>
     <section class="admin-panel-card">
         <div class="admin-panel-card__header">
             <div><span class="admin-panel-card__kicker">По умолчанию</span><h2>Лимит хранилища</h2><p>Используется для пользователей без персонального override.</p></div>
@@ -214,6 +216,7 @@ ob_start();
             </table>
         </div>
     </section>
+    <?php endif; ?>
 </section>
 <?php
 $content = (string) ob_get_clean();

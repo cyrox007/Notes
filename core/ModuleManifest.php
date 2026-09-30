@@ -12,6 +12,9 @@ final class ModuleManifest
 {
     public const SCHEMA_VERSION = 1;
 
+    /** @var list<string> */
+    public const REQUIRED_SYSTEM_MODULES = ['admin'];
+
     /** @param list<string> $dependencies */
     /** @param list<string> $capabilities */
     /** @param list<string> $storageNamespaces */
@@ -28,6 +31,7 @@ final class ModuleManifest
         private readonly array $capabilities,
         private readonly bool $bundled,
         private readonly bool $defaultEnabled,
+        private readonly bool $required,
         private readonly ?string $licenseFeature,
         private readonly string $runtimeMode,
         private readonly ?string $runtimeEntrypoint,
@@ -99,6 +103,15 @@ final class ModuleManifest
         }
         $bundled = self::requireBool($package, 'bundled');
         $defaultEnabled = self::requireBool($package, 'default_enabled');
+        $requiredByCore = in_array($id, self::REQUIRED_SYSTEM_MODULES, true);
+        $required = array_key_exists('required', $package)
+            ? self::requireBool($package, 'required')
+            : $requiredByCore;
+        if ($required !== $requiredByCore) {
+            throw new RuntimeException(
+                "Модуль {$id}: package.required противоречит политике обязательных модулей Core"
+            );
+        }
 
         $license = $data['license'] ?? null;
         if (!is_array($license)) {
@@ -145,6 +158,7 @@ final class ModuleManifest
             $capabilities,
             $bundled,
             $defaultEnabled,
+            $required,
             $licenseFeature,
             $runtimeMode,
             $runtimeEntrypoint,
@@ -208,6 +222,11 @@ final class ModuleManifest
     public function defaultEnabled(): bool
     {
         return $this->defaultEnabled;
+    }
+
+    public function required(): bool
+    {
+        return $this->required;
     }
 
     public function licenseFeature(): ?string

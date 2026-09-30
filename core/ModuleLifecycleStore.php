@@ -8,9 +8,11 @@ require_once __DIR__ . '/SecurityEventLog.php';
 
 use InvalidArgumentException;
 use RuntimeException;
+use Throwable;
 
 final class ModuleLifecycleStore
 {
+    private ?bool $supportsUnlicensedState = null;
     /** @var list<string> */
     public const CONFIGURED_STATES = [
         'discovered',
@@ -28,14 +30,17 @@ final class ModuleLifecycleStore
         'installed',
         'enabled',
         'disabled',
+        'unlicensed',
         'incompatible',
         'degraded',
         'quarantined',
         'uninstalled',
     ];
 
-    public function __construct(private readonly DatabaseManager $db)
-    {
+    public function __construct(
+        private readonly DatabaseManager $db,
+        private readonly ?ModuleEntitlementResolver $entitlements = null,
+    ) {
     }
 
     /**
@@ -94,7 +99,32 @@ final class ModuleLifecycleStore
             $configured = (string) $rows[$moduleId]['configured_state'];
             $this->assertConfiguredState($configured);
 
-            if (!$manifest->isCompatibleWithCore($coreVersion)) {
+            if (
+                $manifest->required()
+                && in_array($configured, ['discovered', 'installed', 'disabled', 'uninstalled'], true)
+            ) {
+                $this->db->execute(
+                    'UPDATE module_lifecycle '
+                    . 'SET configured_state = :configured_state, state_changed_at = CURRENT_TIMESTAMP '
+                    . 'WHERE module_id = :module_id',
+                    [':configured_state' => 'enabled', ':module_id' => $moduleId]
+                );
+                $configured = 'enabled';
+                $rows[$moduleId]['configured_state'] = 'enabled';
+            }
+
+            $entitlement = $this->entitlementDecision($manifest);
+            if (!$entitlement['entitled']) {
+                // Во время обновления новый код может кратко работать поверх
+                // схемы 1.0.12 до применения миграции 1.0.13. Старый ENUM ещё
+                // не знает unlicensed, поэтому закрыто блокируем модуль через
+                // совместимое disabled. После миграции следующий reconcile
+                // автоматически зафиксирует каноническое unlicensed.
+                $state = $this->supportsUnlicensedEffectiveState()
+                    ? 'unlicensed'
+                    : 'disabled';
+                $errors[$moduleId] = $entitlement['reason'];
+            } elseif (!$manifest->isCompatibleWithCore($coreVersion)) {
                 $state = 'incompatible';
                 $errors[$moduleId] = $this->compatibilityError($manifest, $coreVersion);
             } elseif ($configured === 'enabled') {
@@ -172,12 +202,26 @@ final class ModuleLifecycleStore
 
         $rows = $this->reconcile($modules, $coreVersion);
         $current = (string) $rows[$moduleId]['configured_state'];
+        $manifest = $modules[$moduleId];
+
+        if ($manifest->required() && in_array($targetState, ['disabled', 'uninstalled'], true)) {
+            throw new RuntimeException("Обязательный системный модуль нельзя отключить: {$moduleId}");
+        }
+
+        if ($targetState === 'enabled') {
+            $entitlement = $this->entitlementDecision($manifest);
+            if (!$entitlement['entitled']) {
+                throw new RuntimeException(
+                    $entitlement['reason'] ?? "Модуль не разрешён лицензией: {$moduleId}"
+                );
+            }
+        }
+
         if ($current === $targetState) {
             return $rows[$moduleId];
         }
 
         $this->assertTransitionAllowed($current, $targetState);
-        $manifest = $modules[$moduleId];
 
         if ($targetState === 'enabled') {
             if (!$manifest->isCompatibleWithCore($coreVersion)) {
@@ -300,6 +344,59 @@ final class ModuleLifecycleStore
         ];
         if (!in_array($to, $allowed[$from] ?? [], true)) {
             throw new RuntimeException("Invalid module lifecycle transition: {$from} -> {$to}");
+        }
+    }
+
+    private function supportsUnlicensedEffectiveState(): bool
+    {
+        if ($this->supportsUnlicensedState !== null) {
+            return $this->supportsUnlicensedState;
+        }
+
+        $rows = $this->db->fetchAll(
+            "SELECT COLUMN_TYPE FROM information_schema.COLUMNS "
+            . "WHERE TABLE_SCHEMA = DATABASE() "
+            . "AND TABLE_NAME = 'module_lifecycle' "
+            . "AND COLUMN_NAME = 'effective_state' LIMIT 1"
+        );
+        $columnType = isset($rows[0]['COLUMN_TYPE'])
+            ? strtolower((string) $rows[0]['COLUMN_TYPE'])
+            : '';
+
+        return $this->supportsUnlicensedState = str_contains($columnType, "'unlicensed'");
+    }
+
+    /** @return array{entitled:bool,feature:?string,reason:?string} */
+    private function entitlementDecision(ModuleManifest $manifest): array
+    {
+        if ($this->entitlements === null) {
+            return [
+                'entitled' => true,
+                'feature' => $manifest->licenseFeature(),
+                'reason' => null,
+            ];
+        }
+
+        try {
+            $decision = $this->entitlements->decision($manifest);
+            if (!array_key_exists('entitled', $decision)) {
+                throw new RuntimeException('Проверка лицензии модуля вернула неполный результат');
+            }
+
+            return [
+                'entitled' => (bool) $decision['entitled'],
+                'feature' => isset($decision['feature']) ? (string) $decision['feature'] : null,
+                'reason' => isset($decision['reason']) && trim((string) $decision['reason']) !== ''
+                    ? (string) $decision['reason']
+                    : null,
+            ];
+        } catch (Throwable $e) {
+            error_log('Проверка лицензионного разрешения модуля завершилась ошибкой: ' . $e->getMessage());
+            return [
+                'entitled' => false,
+                'feature' => $manifest->licenseFeature(),
+                'reason' => 'Не удалось безопасно подтвердить право лицензии на модуль',
+            ];
         }
     }
 

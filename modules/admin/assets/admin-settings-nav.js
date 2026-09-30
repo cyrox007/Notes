@@ -17,6 +17,7 @@
             ...(canViewAudit ? [['/admin/audit', 'fa-history', 'Журнал действий']] : []),
             ['/admin/roles', 'fa-shield', 'Роли и доступ'],
             ['/admin/registration', 'fa-user-plus', 'Регистрация'],
+            ['/admin/modules', 'fa-cubes', 'Модули'],
             ['/admin/settings', 'fa-sliders', 'Системные настройки'],
             ['/admin/license', 'fa-key', 'Лицензия'],
             ['/admin/updates', 'fa-refresh', 'Обновления'],

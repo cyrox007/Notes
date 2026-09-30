@@ -27,20 +27,29 @@ jobs:
       - name: Lint module platform
         run: |
           php -l core/ModuleManifest.php
+          php -l core/ModuleEntitlementResolver.php
           php -l core/ModuleRegistry.php
           php -l core/ModuleRuntimeProvider.php
           php -l core/ModuleCapabilityRegistry.php
           php -l core/ModuleRuntimeLoader.php
           php -l core/DatabaseOwnership.php
+          php -l app/services/LicenseModuleEntitlementService.php
+          php -l modules/admin/services/ModuleManagementService.php
+          php -l modules/admin/controllers/ModuleManagementController.php
+          php -l modules/admin/views/modules.php
           php -l core.php
           php -l index.php
           php -l tests/integration/module_registry_contract.php
+          php -l tests/integration/module_entitlement_contract.php
           php -l tests/integration/database_ownership_contract.php
           php -l tests/integration/module_user_avatar_contract.php
           php -l tests/e2e/router.php
 
       - name: Verify module registry, isolated runtime and capability contracts
         run: php tests/integration/module_registry_contract.php
+
+      - name: Проверить лицензионные разрешения модулей
+        run: php tests/integration/module_entitlement_contract.php
 
       - name: Verify database ownership compositions
         run: php tests/integration/database_ownership_contract.php

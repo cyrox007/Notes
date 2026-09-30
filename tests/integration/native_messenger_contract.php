@@ -110,6 +110,8 @@ nativeMessengerAssert(str_contains($messengerStyle, '--msg-transport-long-poll:#
 nativeMessengerAssert(str_contains($script, "setConnectionState('online', 'WebSocket')"), 'WebSocket не подписан в видимом состоянии соединения');
 nativeMessengerAssert(str_contains($script, "setConnectionState('online', 'Long Poll')"), 'Long Poll не подписан в видимом состоянии соединения');
 nativeMessengerAssert(str_contains($script, 'profileAvatarUrl(user)'), 'Messenger не использует реальные аватары пользователей');
+nativeMessengerAssert(str_contains($view, 'data-can-use-profile='), 'Messenger не получает состояние доступности Profile');
+nativeMessengerAssert(str_contains($script, 'this.canUseProfile'), 'Messenger не отключает Profile-интеграцию вместе с модулем');
 nativeMessengerAssert(str_contains($script, 'readContactAvatarUrls()'), 'Messenger не восстанавливает URL аватара из серверного списка контактов');
 nativeMessengerAssert(str_contains($script, 'this.contactAvatarUrls.get(uid)'), 'Messenger теряет аватар, если realtime payload не содержит marker avatar');
 nativeMessengerAssert(str_contains($script, "image.addEventListener('error'"), 'Messenger не возвращается к инициалу при недоступном изображении');
@@ -117,6 +119,11 @@ nativeMessengerAssert(str_contains($view, 'data-contact-avatar-url='), 'серв
 nativeMessengerAssert(str_contains($view, '/assets/img/default_avatar.png'), 'Messenger не использует системный аватар по умолчанию для контактов');
 nativeMessengerAssert(str_contains($script, "storedAvatar !== 'default_img'"), 'Messenger пытается открыть служебный marker default_img как пользовательский файл');
 nativeMessengerAssert(str_contains($script, "const defaultPath = '/assets/img/default_avatar.png'"), 'Messenger не возвращает системный аватар по умолчанию');
+$serverSource = (string) file_get_contents($module . '/socket/NativeMessengerServer.php');
+nativeMessengerAssert(str_contains($serverSource, 'messengerEntitlementChecker'), 'долгоживущий WebSocket не отслеживает отзыв лицензии Messenger');
+nativeMessengerAssert(str_contains($serverSource, "isFeatureEntitled('workspace.messenger')"), 'WebSocket не использует канонический feature Messenger');
+nativeMessengerAssert(str_contains($serverSource, "ModuleUnavailable"), 'WebSocket не завершает старые соединения после отзыва Messenger');
+nativeMessengerAssert(str_contains($view, "!empty(\$workspaceActions['tasks']) || !empty(\$workspaceActions['notes'])"), 'Messenger оставляет пустую кнопку создания при отключённых Notes и Tasks');
 nativeMessengerAssert(str_contains($script, "openCurrentProfile()"), 'Messenger не даёт перейти в профиль собеседника');
 nativeMessengerAssert(str_contains($script, "/profile/user/"), 'Messenger не использует публичный маршрут профиля пользователя');
 nativeMessengerAssert(str_contains($messengerStyle, '.messenger-avatar img{width:100%;height:100%'), 'аватары Messenger не масштабируются внутри круглого контейнера');

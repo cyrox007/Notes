@@ -147,14 +147,23 @@ class Controller
 
         try {
             $permissions = (new PermissionService())->permissionsForUser($viewerId);
+            $capabilities = ModuleRuntimeLoader::isBooted()
+                ? ModuleRuntimeLoader::getInstance()->capabilities()
+                : null;
+            $active = static fn (string $capability): bool =>
+                $capabilities !== null && $capabilities->has($capability);
+
+            $adminActive = $active('workspace.admin');
             return [
-                'notes' => in_array('notes.use', $permissions, true),
-                'tasks' => in_array('tasks.use', $permissions, true),
-                'files' => in_array('files.use', $permissions, true),
-                'messenger' => in_array('messenger.use', $permissions, true),
-                'profile' => in_array('profile.use', $permissions, true),
-                'admin' => in_array('admin.access', $permissions, true),
-                'admin_audit' => in_array('admin.audit.view', $permissions, true),
+                'notes' => $active('workspace.notes') && in_array('notes.use', $permissions, true),
+                'tasks' => $active('workspace.tasks') && in_array('tasks.use', $permissions, true),
+                'files' => $active('workspace.files') && in_array('files.use', $permissions, true),
+                'messenger' => $active('workspace.messenger') && in_array('messenger.use', $permissions, true),
+                'profile' => $active('workspace.profile') && in_array('profile.use', $permissions, true),
+                'admin' => $adminActive && in_array('admin.access', $permissions, true),
+                'admin_audit' => $adminActive && in_array('admin.audit.view', $permissions, true),
+                // Управление лицензией остаётся доступно через core recovery-маршрут,
+                // даже когда Admin не разрешён текущей лицензией.
                 'license_manage' => in_array('admin.settings.manage', $permissions, true),
             ];
         } catch (\Throwable $e) {

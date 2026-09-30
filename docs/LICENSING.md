@@ -143,6 +143,24 @@ When a valid signed payload contains `max_users`, Workspace Organizer enforces t
 
 Licenses issued before this field existed remain valid and unlimited. User-limit enforcement is an entitlement boundary only: exceeding the limit never deletes or disables existing customer accounts automatically.
 
+## Разрешения модулей в 1.0.13
+
+Начиная с `1.0.13`, поле `features` является не описательной метаданной, а обязательной границей запуска модулей.
+
+- каждый `modules/<id>/module.json` объявляет ровно одно `license.feature`;
+- разрешение должно явно присутствовать в подписанном `features`;
+- отсутствие поля, пустой список или отсутствие конкретного значения не означают полный доступ;
+- оператор не может включить модуль, которого нет в лицензии;
+- такой модуль получает `effective_state=unlicensed`, но его `configured_state`, данные, разрешения ролей и политики сохраняются;
+- после установки новой лицензии с нужным feature модуль может вернуться без миграции или восстановления данных;
+- Admin защищён от операторского отключения, но также требует `workspace.admin` в лицензии; при его отсутствии используется независимая core-страница `/license`.
+
+Лицензия полного встроенного состава должна содержать:
+
+```text
+workspace.admin,workspace.notes,workspace.tasks,workspace.files,workspace.messenger,workspace.profile
+```
+
 ## Runtime enforcement and recovery
 
 Once at least one trusted production public key is present, invalid/missing/expired license state places the application into recovery-safe read-only mode:
