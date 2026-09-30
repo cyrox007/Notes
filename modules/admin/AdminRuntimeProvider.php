@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 namespace Modules\Admin;
-use App\Controllers\Admin\{AdminController,AuditController,LicenseController,RegistrationSettingsController,RoleManagementController,SettingsController,UpdateController,UserProvisioningController};
+use App\Controllers\Admin\{AdminController,AuditController,LicenseController,ModuleManagementController,RegistrationSettingsController,RoleManagementController,SettingsController,UpdateController,UserProvisioningController};
 use App\Middlewares\{CSRFMiddleware,LoginRequared,RequireAdminAccess,RequireAdminAuditView,RequireAdminRolesManage,RequireAdminSettingsManage,RequireAdminUsersManage};
 use Core\{ModuleRuntimeProvider,Router};
 final class AdminRuntimeProvider implements ModuleRuntimeProvider
@@ -31,6 +31,8 @@ final class AdminRuntimeProvider implements ModuleRuntimeProvider
             ->add('POST', '/registration/mode', [RegistrationSettingsController::class, 'saveMode'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_registration_mode')
             ->add('POST', '/registration/invites/create', [RegistrationSettingsController::class, 'createInvite'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_registration_invite_create')
             ->add('POST', '/registration/invites/revoke', [RegistrationSettingsController::class, 'revokeInvite'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_registration_invite_revoke')
+            ->add('GET', '/modules', [ModuleManagementController::class, 'index'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_modules')
+            ->add('POST', '/modules/state', [ModuleManagementController::class, 'setState'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_modules_state')
             ->add('GET', '/settings', [SettingsController::class, 'index'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_settings')
             ->add('POST', '/settings/two-factor', [SettingsController::class, 'saveTwoFactorPolicy'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_settings_two_factor')
             ->add('POST', '/settings/default-quota', [SettingsController::class, 'saveDefaultQuota'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_settings_default_quota')
