@@ -576,6 +576,9 @@ jobs:
               E2E_SUPPORT_ROOT="$GITHUB_WORKSPACE" \
               PHP_CLI_SERVER_WORKERS=4 \
               php -d "openssl.cafile=$DRILL/ca.crt" \
+              -d opcache.enable=1 \
+              -d opcache.enable_cli=1 \
+              -d opcache.validate_timestamps=0 \
               -S 127.0.0.1:18094 "$GITHUB_WORKSPACE/tests/e2e/router.php" \
               >"$DRILL/app-http.log" 2>&1 &
             echo $! >"$DRILL/app-http.pid"
