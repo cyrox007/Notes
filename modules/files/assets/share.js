@@ -94,7 +94,12 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('Укажите дату окончания доступа');
         return;
       }
-      body.set('expires_at', value);
+      const expiresAt = new Date(value);
+      if (Number.isNaN(expiresAt.getTime())) {
+        showToast('Укажите корректную дату окончания доступа');
+        return;
+      }
+      body.set('expires_at', expiresAt.toISOString());
     } else {
       body.set('expires_hours', expiryMode.value);
     }
