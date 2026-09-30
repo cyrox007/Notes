@@ -8,6 +8,7 @@ require_once __DIR__ . '/SecurityEventLog.php';
 
 use InvalidArgumentException;
 use RuntimeException;
+use Throwable;
 
 final class ModuleLifecycleStore
 {
@@ -28,14 +29,17 @@ final class ModuleLifecycleStore
         'installed',
         'enabled',
         'disabled',
+        'unlicensed',
         'incompatible',
         'degraded',
         'quarantined',
         'uninstalled',
     ];
 
-    public function __construct(private readonly DatabaseManager $db)
-    {
+    public function __construct(
+        private readonly DatabaseManager $db,
+        private readonly ?ModuleEntitlementResolver $entitlements = null,
+    ) {
     }
 
     /**
@@ -94,7 +98,11 @@ final class ModuleLifecycleStore
             $configured = (string) $rows[$moduleId]['configured_state'];
             $this->assertConfiguredState($configured);
 
-            if (!$manifest->isCompatibleWithCore($coreVersion)) {
+            $entitlement = $this->entitlementDecision($manifest);
+            if (!$entitlement['entitled']) {
+                $state = 'unlicensed';
+                $errors[$moduleId] = $entitlement['reason'];
+            } elseif (!$manifest->isCompatibleWithCore($coreVersion)) {
                 $state = 'incompatible';
                 $errors[$moduleId] = $this->compatibilityError($manifest, $coreVersion);
             } elseif ($configured === 'enabled') {
@@ -172,14 +180,24 @@ final class ModuleLifecycleStore
 
         $rows = $this->reconcile($modules, $coreVersion);
         $current = (string) $rows[$moduleId]['configured_state'];
+        $manifest = $modules[$moduleId];
+
+        if ($manifest->required() && $targetState !== 'enabled') {
+            throw new RuntimeException("Обязательный системный модуль нельзя отключить: {$moduleId}");
+        }
         if ($current === $targetState) {
             return $rows[$moduleId];
         }
 
         $this->assertTransitionAllowed($current, $targetState);
-        $manifest = $modules[$moduleId];
 
         if ($targetState === 'enabled') {
+            $entitlement = $this->entitlementDecision($manifest);
+            if (!$entitlement['entitled']) {
+                throw new RuntimeException(
+                    $entitlement['reason'] ?? "Модуль не разрешён лицензией: {$moduleId}"
+                );
+            }
             if (!$manifest->isCompatibleWithCore($coreVersion)) {
                 throw new RuntimeException("Cannot enable core-incompatible module: {$moduleId}");
             }
@@ -300,6 +318,40 @@ final class ModuleLifecycleStore
         ];
         if (!in_array($to, $allowed[$from] ?? [], true)) {
             throw new RuntimeException("Invalid module lifecycle transition: {$from} -> {$to}");
+        }
+    }
+
+    /** @return array{entitled:bool,feature:?string,reason:?string} */
+    private function entitlementDecision(ModuleManifest $manifest): array
+    {
+        if ($this->entitlements === null) {
+            return [
+                'entitled' => true,
+                'feature' => $manifest->licenseFeature(),
+                'reason' => null,
+            ];
+        }
+
+        try {
+            $decision = $this->entitlements->decision($manifest);
+            if (!array_key_exists('entitled', $decision)) {
+                throw new RuntimeException('Проверка лицензии модуля вернула неполный результат');
+            }
+
+            return [
+                'entitled' => (bool) $decision['entitled'],
+                'feature' => isset($decision['feature']) ? (string) $decision['feature'] : null,
+                'reason' => isset($decision['reason']) && trim((string) $decision['reason']) !== ''
+                    ? (string) $decision['reason']
+                    : null,
+            ];
+        } catch (Throwable $e) {
+            error_log('Проверка лицензионного разрешения модуля завершилась ошибкой: ' . $e->getMessage());
+            return [
+                'entitled' => false,
+                'feature' => $manifest->licenseFeature(),
+                'reason' => 'Не удалось безопасно подтвердить право лицензии на модуль',
+            ];
         }
     }
 
