@@ -109,7 +109,7 @@ final class ModuleManifest
             : $requiredByCore;
         if ($required !== $requiredByCore) {
             throw new RuntimeException(
-                "Module {$id} package.required conflicts with the Core system-module policy"
+                "Модуль {$id}: package.required противоречит политике обязательных модулей Core"
             );
         }
 
