@@ -185,11 +185,6 @@ final class ModuleLifecycleStore
         if ($manifest->required() && $targetState !== 'enabled') {
             throw new RuntimeException("Обязательный системный модуль нельзя отключить: {$moduleId}");
         }
-        if ($current === $targetState) {
-            return $rows[$moduleId];
-        }
-
-        $this->assertTransitionAllowed($current, $targetState);
 
         if ($targetState === 'enabled') {
             $entitlement = $this->entitlementDecision($manifest);
@@ -198,6 +193,15 @@ final class ModuleLifecycleStore
                     $entitlement['reason'] ?? "Модуль не разрешён лицензией: {$moduleId}"
                 );
             }
+        }
+
+        if ($current === $targetState) {
+            return $rows[$moduleId];
+        }
+
+        $this->assertTransitionAllowed($current, $targetState);
+
+        if ($targetState === 'enabled') {
             if (!$manifest->isCompatibleWithCore($coreVersion)) {
                 throw new RuntimeException("Cannot enable core-incompatible module: {$moduleId}");
             }
