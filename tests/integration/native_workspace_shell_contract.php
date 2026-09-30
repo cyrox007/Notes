@@ -58,7 +58,11 @@ nativeShellAssert(str_contains($main, '$view->layout(\'core/base\''), 'native ma
 nativeShellAssert(str_contains($main, '$access[\'messenger\']'), 'native main page does not gate module cards by RBAC-derived access');
 
 $controller = (string) file_get_contents($root . '/core/Controller.php');
-nativeShellAssert(str_contains($controller, "capabilities()->has"), 'общая навигация не учитывает активную композицию модулей');
+nativeShellAssert(
+    str_contains($controller, 'ModuleRuntimeLoader::getInstance()->capabilities()')
+        && str_contains($controller, '$capabilities->has($capability)'),
+    'общая навигация не учитывает активную композицию модулей'
+);
 nativeShellAssert(str_contains($controller, "'notes' => \$active('workspace.notes')"), 'доступ Notes не зависит от активной capability');
 nativeShellAssert(str_contains($controller, "'messenger' => \$active('workspace.messenger')"), 'доступ Messenger не зависит от активной capability');
 nativeShellAssert(str_contains($sidebar, "route('system_license')"), 'при недоступном Admin отсутствует core-маршрут восстановления лицензии');

@@ -63,7 +63,10 @@ jobs:
           fi
 
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "GitHub Release $TAG уже существует; повторная сборка не требуется."
+            gh release edit "$TAG" \
+              --title "Workspace Organizer $VERSION" \
+              --notes-file "$NOTES"
+            echo "GitHub Release $TAG уже существует; описание синхронизировано с финальной документацией."
             exit 0
           fi
 
