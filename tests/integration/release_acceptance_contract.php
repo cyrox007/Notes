@@ -93,7 +93,7 @@ foreach ([
     'production_public_trust_roots',
     'release_evidence_harness',
     'private_signing_material_absent',
-    "Version::VERSION === '1.0.12'",
+    "Version::VERSION === '1.0.13'",
     "Version::STATUS === 'stable'",
     'exit(3)',
 ] as $marker) {
@@ -116,20 +116,19 @@ releaseAcceptanceAssert(
     'документ изоляции модулей не соответствует текущему runtime'
 );
 
-$releaseNotes = releaseAcceptanceText($root, 'docs/releases/v1.0.12.md');
+$releaseNotes = releaseAcceptanceText($root, 'docs/releases/v1.0.13.md');
 foreach ([
     '## Назначение релиза',
-    '## Messenger',
-    '## File Manager: общий доступ',
-    '## Ограничение размера загрузки',
-    '## Profile',
-    '## Автоматическая проверка общего доступа',
+    '## Явные разрешения лицензии',
+    '## Admin → Модули',
+    '## Исчезновение межмодульных возможностей',
+    '## Обновлятор и WebSocket',
     '## Проверяемый путь обновления',
     '## Совместимость',
 ] as $marker) {
     releaseAcceptanceAssert(
         str_contains($releaseNotes, $marker),
-        "описание релиза 1.0.12 не содержит русский раздел {$marker}"
+        "описание релиза 1.0.13 не содержит русский раздел {$marker}"
     );
 }
 
@@ -141,7 +140,7 @@ releaseAcceptanceAssert(
     && str_contains($releaseNotes, 'upload_max_filesize')
     && str_contains($releaseNotes, 'Long Poll')
     && str_contains($releaseNotes, 'rollback/recovery'),
-    'описание 1.0.12 не фиксирует общий доступ, Profile, Messenger и штатный upgrade-path'
+    'описание 1.0.13 не фиксирует модульный состав, лицензионные разрешения и штатный upgrade-path'
 );
 
 
@@ -236,4 +235,4 @@ releaseAcceptanceAssert(
     'Stable release gate не запускает контракт двухфакторной аутентификации'
 );
 
-fwrite(STDOUT, "[OK] финальный контракт release acceptance 1.0.12 выполнен\n");
+fwrite(STDOUT, "[OK] финальный контракт release acceptance 1.0.13 выполнен\n");
