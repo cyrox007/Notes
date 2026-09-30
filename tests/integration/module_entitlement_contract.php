@@ -54,7 +54,7 @@ moduleEntitlementAssert(
     'lifecycle не имеет отдельного состояния отсутствия разрешения лицензии'
 );
 moduleEntitlementAssert(
-    str_contains($lifecycle, '$manifest->required() && $targetState !== \'enabled\''),
+    str_contains($lifecycle, "$manifest->required() && in_array($targetState, ['disabled', 'uninstalled'], true)"),
     'lifecycle не защищает обязательный системный модуль от отключения'
 );
 
