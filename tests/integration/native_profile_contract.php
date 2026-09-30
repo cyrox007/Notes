@@ -85,6 +85,9 @@ nativeProfileAssert(str_contains($hubCss, 'var(--module-accent)'), 'Profile hub 
 $publicationService = (string) file_get_contents($root . '/modules/profile/services/ProfilePublicationService.php');
 $metricsService = (string) file_get_contents($root . '/modules/profile/services/ProfileMetricsService.php');
 $profileController = (string) file_get_contents($root . '/modules/profile/controllers/ProfileController.php');
+$publicProfileController = (string) file_get_contents($root . '/modules/profile/controllers/PublicProfileController.php');
+nativeProfileAssert(str_contains($publicProfileController, "'profile' => $profile"), 'публичный профиль не передаётся в представление как массив');
+nativeProfileAssert(!str_contains($publicProfileController, "'profile' => (object) $profile"), 'публичный профиль снова ломается из-за несовместимого типа данных');
 foreach (['notes', 'tasks', 'user_files'] as $foreignTable) {
     nativeProfileAssert(
         !preg_match('/\b(?:from|join|update|into)\s+`?' . preg_quote($foreignTable, '/') . '`?\b/i', $publicationService),
