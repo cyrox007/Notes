@@ -167,7 +167,7 @@ try {
   if (recoveryResponse.status === 503) {
     if (
       !recoveryBody.includes('Завершается безопасное восстановление')
-      || !recoveryBody.includes('Обновление или восстановление уже выполняется')
+      || !recoveryBody.includes('Пошаговое web-обновление ещё выполняется')
     ) {
       throw new Error(
         'Активная lease web-updater вернула неожиданный 503: '
