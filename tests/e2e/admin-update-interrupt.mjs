@@ -137,6 +137,14 @@ try {
         `Updater завершился до точки прерывания ${interruptPhase}: status=${status}; phase=${phase}`
       );
     }
+
+    const runtimeRefreshDelay = Math.max(
+      0,
+      Number(result.runtime_refresh_delay_ms || 0)
+    );
+    if (runtimeRefreshDelay > 0) {
+      await new Promise((resolve) => setTimeout(resolve, runtimeRefreshDelay));
+    }
   }
 
   if (!reached) {
