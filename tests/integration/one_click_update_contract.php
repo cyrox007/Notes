@@ -220,16 +220,16 @@ updateNotificationAssert(
     'Сквозной релизный тест не запускает браузерную проверку автоматического отката'
 );
 updateNotificationAssert(
-    str_contains($adminUpdateE2e, 'name: 1.0.12 → 1.0.14 сквозной updater')
+    str_contains($adminUpdateE2e, 'name: 1.0.12/1.0.13 → 1.0.14 сквозной updater')
         && str_contains($adminUpdateE2e, "source_version: '1.0.12'")
         && str_contains($adminUpdateE2e, "source_code: '10012'")
-        && !str_contains($adminUpdateE2e, "source_version: '1.0.13'")
-        && !str_contains($adminUpdateE2e, "source_code: '10013'")
+        && str_contains($adminUpdateE2e, "source_version: '1.0.13'")
+        && str_contains($adminUpdateE2e, "source_code: '10013'")
         && str_contains($adminUpdateE2e, "E2E_TARGET_VERSION=%s\\n' '1.0.14-admin-e2e'")
         && str_contains($adminUpdateE2e, '--min-source-version-code=10012')
         && !str_contains($adminUpdateE2e, 'php tools/release/bootstrap-1.0.12-updater.php')
         && !str_contains($adminUpdateE2e, 'bootstrap-1.0.9-updater.php'),
-    'Сквозной релизный тест должен закреплять прямой web-only путь 1.0.12 → 1.0.14 без CLI-моста'
+    'Сквозной релизный тест должен закреплять прямой web-only путь 1.0.12/1.0.13 → 1.0.14 без CLI-моста'
 );
 updateNotificationAssert(
     str_contains($bootstrap1012, "liveVersion !== '1.0.12'")
