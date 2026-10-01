@@ -636,7 +636,7 @@ jobs:
             SSL_CERT_FILE="$DRILL/ca.crt" \
               E2E_APP_ROOT="$LIVE" \
               E2E_SUPPORT_ROOT="$GITHUB_WORKSPACE" \
-              E2E_UPDATER_GUARD_PATH="$PRIVATE/state/e2e-updater-handoff-guard.json" \
+              E2E_UPDATER_GUARD_PATH="$DRILL/private/state/e2e-updater-handoff-guard.json" \
               PHP_CLI_SERVER_WORKERS=4 \
               php -d "openssl.cafile=$DRILL/ca.crt" \
               -d "disable_functions=${{ matrix.disable_functions }}" \
