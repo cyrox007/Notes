@@ -12,6 +12,7 @@ use Throwable;
 require_once __DIR__ . '/MigrationManifest.php';
 require_once __DIR__ . '/ModuleManifest.php';
 require_once __DIR__ . '/DatabaseOwnership.php';
+require_once __DIR__ . '/MigrationBaseline.php';
 
 /**
  * Выполняет миграции БД без запуска отдельного PHP-процесса.
@@ -36,7 +37,7 @@ final class UpdateDatabaseMigrator
     /**
      * @return array{stdout:string,pending:int,applied:int}
      */
-    public function run(bool $statusOnly = false): array
+    public function run(bool $statusOnly = false, ?int $baselineVersionCode = null): array
     {
         $canonicalManifest = new MigrationManifest($this->root);
         $canonical = $canonicalManifest->names();
@@ -48,8 +49,32 @@ final class UpdateDatabaseMigrator
 
         $db = $this->connect();
         try {
+            $ledgerPresent = $this->migrationTableExists($db);
             $applied = $this->appliedMigrations($db);
             $this->verifyAppliedChecksums($canonicalManifest, $canonical, $applied);
+
+            $baseline = [];
+            if (!$ledgerPresent && is_int($baselineVersionCode) && $baselineVersionCode > 0) {
+                $baseline = MigrationBaseline::appliedNames($canonical, $baselineVersionCode);
+                foreach ($baseline as $filename) {
+                    $applied[$filename] = hash('sha256', $canonicalManifest->readMigration($filename));
+                }
+
+                if (!$statusOnly && $baseline !== []) {
+                    // Baseline фиксирует уже присутствующую схему опубликованной
+                    // исходной версии. Полный целевой контракт проверяется только
+                    // после применения действительно ожидающих миграций.
+                    $this->ensureMigrationTable($db);
+                    foreach ($baseline as $filename) {
+                        $this->recordMigration(
+                            $db,
+                            $filename,
+                            (string) $applied[$filename]
+                        );
+                    }
+                    $ledgerPresent = true;
+                }
+            }
 
             $pending = [];
             foreach ($manifest as $filename) {
@@ -83,6 +108,13 @@ final class UpdateDatabaseMigrator
 
             $this->ensureMigrationTable($db);
             $lines = [];
+            if ($baseline !== []) {
+                $lines[] = sprintf(
+                    'Журнал миграций инициализирован из опубликованной версии %d: %d записей',
+                    $baselineVersionCode,
+                    count($baseline)
+                );
+            }
             foreach ($pending as $filename) {
                 $sql = $canonicalManifest->readMigration($filename);
                 $checksum = hash('sha256', $sql);

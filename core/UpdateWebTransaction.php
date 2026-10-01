@@ -328,6 +328,9 @@ final class UpdateWebTransaction
                     'message' => 'Обновление не установлено. Предыдущая рабочая версия автоматически восстановлена.',
                     'transaction_id' => $transactionId,
                     'installed_version' => (string) ($state['installed_version'] ?? ''),
+                    'diagnostic_code' => $this->safeDiagnosticCode(
+                        $e->details['apply_error_code'] ?? null
+                    ),
                 ];
             }
 
@@ -351,6 +354,10 @@ final class UpdateWebTransaction
                 'message' => (string) ($result['message'] ?? 'Обновление продолжается.'),
                 'transaction_id' => $transactionId,
                 'target_version' => (string) ($state['target_version'] ?? ''),
+                'runtime_refresh_delay_ms' => max(
+                    0,
+                    (int) ($result['runtime_refresh_delay_ms'] ?? 0)
+                ),
             ];
         }
 
@@ -416,7 +423,31 @@ final class UpdateWebTransaction
             'message' => 'Обновление не завершилось. Предыдущая рабочая версия автоматически восстановлена.',
             'transaction_id' => $transactionId,
             'installed_version' => (string) ($state['installed_version'] ?? ''),
+            'diagnostic_code' => $this->diagnosticCodeFromJournal($state),
         ];
+    }
+
+    /** @param array<string,mixed> $state */
+    private function diagnosticCodeFromJournal(array $state): ?string
+    {
+        $rollback = is_array($state['rollback'] ?? null) ? $state['rollback'] : [];
+        $rollbackFailure = is_array($state['rollback_failure'] ?? null)
+            ? $state['rollback_failure']
+            : [];
+
+        return $this->safeDiagnosticCode(
+            $rollback['failure_code']
+                ?? $rollbackFailure['apply_error_code']
+                ?? null
+        );
+    }
+
+    private function safeDiagnosticCode(mixed $value): ?string
+    {
+        $code = is_string($value) ? strtolower(trim($value)) : '';
+        return preg_match('/^[a-z0-9_]{1,64}$/D', $code) === 1
+            ? $code
+            : null;
     }
 
     /** @param array<string,mixed> $state @return array<string,mixed> */
@@ -463,6 +494,7 @@ final class UpdateWebTransaction
             'message' => 'Предыдущая рабочая версия восстановлена.',
             'transaction_id' => $transactionId,
             'installed_version' => (string) ($state['installed_version'] ?? ''),
+            'diagnostic_code' => $this->diagnosticCodeFromJournal($state),
         ];
     }
 

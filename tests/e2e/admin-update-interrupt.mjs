@@ -137,6 +137,14 @@ try {
         `Updater завершился до точки прерывания ${interruptPhase}: status=${status}; phase=${phase}`
       );
     }
+
+    const runtimeRefreshDelay = Math.max(
+      0,
+      Number(result.runtime_refresh_delay_ms || 0)
+    );
+    if (runtimeRefreshDelay > 0) {
+      await new Promise((resolve) => setTimeout(resolve, runtimeRefreshDelay));
+    }
   }
 
   if (!reached) {
@@ -159,7 +167,7 @@ try {
   if (recoveryResponse.status === 503) {
     if (
       !recoveryBody.includes('Завершается безопасное восстановление')
-      || !recoveryBody.includes('Обновление или восстановление уже выполняется')
+      || !recoveryBody.includes('Ручные команды не требуются.')
     ) {
       throw new Error(
         'Активная lease web-updater вернула неожиданный 503: '
@@ -167,17 +175,52 @@ try {
       );
     }
 
-    // Пока lease продолжения активна, boot recovery обязан не вмешиваться
-    // в потенциально живой updater. Здесь имитируем естественное истечение
-    // lease после потери браузерного клиента, не ожидая три минуты в CI.
+    // Проверяем не формулировку промежуточного ответа, а сам инвариант:
+    // живой lease не должен запускать rollback и менять состояние транзакции.
+    const journalPath = `${stateRoot}/transactions/${transactionId}.json`;
+    const journal = JSON.parse(await readFile(journalPath, 'utf8'));
+    const expectedState = interruptPhase === 'migrations'
+      ? 'code_switched'
+      : 'migrations_applied';
+    const actualState = String(journal.state || '');
+    if (actualState !== expectedState) {
+      throw new Error(
+        `Активная lease изменила состояние транзакции: ${actualState}; ожидалось ${expectedState}`
+      );
+    }
+
+    // После закрытия клиента имитируем истечение защиты без ожидания.
+    // В обычном случае состариваем валидный lease. Если старый runtime попал
+    // ровно в окно передачи и lease отсутствует, состариваем journal за пределы
+    // серверного handoff grace.
     const continuationPath = `${stateRoot}/web-continuations/${transactionId}.json`;
-    const continuation = JSON.parse(await readFile(continuationPath, 'utf8'));
-    continuation.expires_at = Math.floor(Date.now() / 1000) - 1;
-    await writeFile(
-      continuationPath,
-      JSON.stringify(continuation, null, 2) + '\n',
-      { mode: 0o600 }
-    );
+    let continuation = null;
+    try {
+      continuation = JSON.parse(await readFile(continuationPath, 'utf8'));
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error;
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    if (continuation) {
+      continuation.created_at = Math.min(
+        Number(continuation.created_at || now - 2),
+        now - 2
+      );
+      continuation.expires_at = now - 1;
+      await writeFile(
+        continuationPath,
+        JSON.stringify(continuation, null, 2) + '\n',
+        { mode: 0o600 }
+      );
+    } else {
+      journal.updated_at = now - 300;
+      await writeFile(
+        journalPath,
+        JSON.stringify(journal, null, 2) + '\n',
+        { mode: 0o600 }
+      );
+    }
 
     recoveryResponse = await fetch(`${baseUrl}/`, {
       redirect: 'follow',

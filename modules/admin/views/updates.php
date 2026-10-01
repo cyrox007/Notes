@@ -8,6 +8,9 @@ $access = isset($workspaceAccess) && is_array($workspaceAccess) ? $workspaceAcce
 $state = isset($update_state) && is_array($update_state) ? $update_state : [];
 $result = isset($update_result) && is_array($update_result) ? $update_result : null;
 $flash = isset($updates_flash) && is_array($updates_flash) ? $updates_flash : null;
+$supportGrant = isset($support_diagnostics_grant) && is_array($support_diagnostics_grant)
+    ? $support_diagnostics_grant
+    : null;
 $siteName = isset($sitename) ? (string) $sitename : 'Workspace Organizer';
 $workspaceVersion = isset($version) ? (string) $version : '';
 $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
@@ -261,6 +264,45 @@ ob_start();
             </div>
         </section>
     <?php endif; ?>
+
+    <section class="admin-panel-card" aria-labelledby="support-diagnostics-title">
+        <div class="admin-panel-card__header">
+            <div>
+                <span class="admin-panel-card__kicker">Диагностика поддержки</span>
+                <h2 id="support-diagnostics-title">Одноразовый сервисный пакет</h2>
+                <p>Создаёт обезличенный ZIP-снимок состояния, профиля хостинга, сервисных событий и updater-журналов. Пользовательские данные, .env, пароли, лицензия и ключи в архив не включаются.</p>
+            </div>
+        </div>
+
+        <?php if ($supportGrant !== null): ?>
+            <div class="admin-page__flash admin-page__flash--success admin-update-alert" role="status">
+                <strong>Одноразовая ссылка готова.</strong>
+                <p>Действует до <?= $view->e(date('Y-m-d H:i:s', (int) ($supportGrant['expires_at'] ?? 0))) ?> и перестанет работать после первого скачивания.</p>
+                <p><code><?= $view->e((string) ($supportGrant['url'] ?? '')) ?></code></p>
+                <small>Передавайте эту ссылку только специалисту поддержки, которому вы разрешаете получить диагностический снимок.</small>
+            </div>
+        <?php endif; ?>
+
+        <form action="<?= $view->e($view->route('admin_support_diagnostics_create')) ?>" method="post" class="custom-fields-form">
+            <?= $view->csrfInput() ?>
+            <div class="custom-fields-form__footer">
+                <small>ZIP фиксируется в момент создания. Удалённая сторона получает только этот снимок и не получает постоянный доступ к журналам или новым событиям.</small>
+                <button class="admin-action admin-action--secondary" type="submit">
+                    <i class="fa fa-life-ring" aria-hidden="true"></i> Создать ZIP для поддержки
+                </button>
+            </div>
+        </form>
+
+        <form action="<?= $view->e($view->route('admin_support_diagnostics_send')) ?>" method="post" class="custom-fields-form" data-confirm-message="Отправить обезличенный диагностический ZIP разработчику через активированный сервер обновлений?" data-confirm-title="Отправить диагностику" data-confirm-danger="false" data-confirm-text="Отправить">
+            <?= $view->csrfInput() ?>
+            <div class="custom-fields-form__footer">
+                <small>Пакет отправляется только на уже активированный Notes control plane. В него не входят пользовательские документы, .env, пароли, лицензия или приватные ключи.</small>
+                <button class="admin-action admin-action--primary" type="submit">
+                    <i class="fa fa-paper-plane" aria-hidden="true"></i> Отправить диагностику разработчику
+                </button>
+            </div>
+        </form>
+    </section>
 
     <section class="admin-panel-card admin-update-safety">
         <div class="admin-panel-card__header">

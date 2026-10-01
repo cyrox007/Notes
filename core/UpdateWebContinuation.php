@@ -96,11 +96,42 @@ final class UpdateWebContinuation
 
     public function active(string $transactionId): bool
     {
+        return $this->leaseStatus($transactionId) === 'active';
+    }
+
+    public function leaseStatus(string $transactionId): string
+    {
         $transactionId = $this->transactionId($transactionId);
-        $state = $this->read($transactionId);
-        return $state !== null
-            && $this->validState($state, $transactionId)
-            && (int) $state['expires_at'] >= time();
+        $path = $this->path($transactionId);
+
+        if (!file_exists($path)) {
+            return 'missing';
+        }
+        if (!is_file($path) || is_link($path)) {
+            return 'invalid';
+        }
+
+        $size = filesize($path);
+        if (!is_int($size) || $size <= 0 || $size > self::MAX_BYTES) {
+            return 'invalid';
+        }
+
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            return 'invalid';
+        }
+
+        try {
+            $state = json_decode($bytes, true, 16, JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            return 'invalid';
+        }
+
+        if (!is_array($state) || array_is_list($state) || !$this->validState($state, $transactionId)) {
+            return 'invalid';
+        }
+
+        return (int) $state['expires_at'] < time() ? 'expired' : 'active';
     }
 
     public function revoke(string $transactionId): void
@@ -195,13 +226,16 @@ final class UpdateWebContinuation
         }
         @chmod($temp, 0600);
 
-        if ($replace && file_exists($path) && !@unlink($path)) {
-            @unlink($temp);
-            throw new RuntimeException('Не удалось обновить lease web-продолжения');
-        }
+        // rename() заменяет существующий файл атомарно. Нельзя сначала
+        // удалять старый lease: параллельный HTTP-запрос успеет увидеть
+        // отсутствие живого web-updater и ошибочно запустит rollback.
         if (!@rename($temp, $path)) {
             @unlink($temp);
-            throw new RuntimeException('Не удалось атомарно сохранить web-продолжение');
+            throw new RuntimeException(
+                $replace
+                    ? 'Не удалось атомарно обновить lease web-продолжения'
+                    : 'Не удалось атомарно сохранить web-продолжение'
+            );
         }
         @chmod($path, 0600);
     }

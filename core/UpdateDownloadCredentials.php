@@ -220,6 +220,19 @@ final class UpdateDownloadCredentials
         return $this->data['base_url'];
     }
 
+    public function headersForDiagnostics(string $url): string
+    {
+        $expected = $this->data['base_url'] . 'diagnostics';
+        if (!hash_equals($expected, $url)) {
+            throw new RuntimeException('Диагностические учётные данные нельзя отправлять за пределы control plane');
+        }
+
+        return 'Authorization: Bearer ' . $this->data['token'] . "\r\n"
+            . 'X-Notes-Installation: ' . $this->data['installation_id'] . "\r\n"
+            . 'X-Notes-Version: ' . Version::VERSION . "\r\n"
+            . 'X-Notes-Version-Code: ' . Version::VERSION_CODE . "\r\n";
+    }
+
     public function headersFor(string $url): string
     {
         $base = $this->data['base_url'];

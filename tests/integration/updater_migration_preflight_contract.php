@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
+use Core\MigrationBaseline;
 use Core\MigrationManifest;
 use Core\UpdateMigrationPreflight;
 
 $root = dirname(__DIR__, 2);
+require_once $root . '/core/MigrationBaseline.php';
 require_once $root . '/core/MigrationManifest.php';
 require_once $root . '/core/UpdateMigrationPreflight.php';
 
@@ -66,6 +68,7 @@ $db->set_charset('utf8mb4');
 
 $temp = sys_get_temp_dir() . '/wo-migration-preflight-' . bin2hex(random_bytes(6));
 migrationPreflightAssert(mkdir($temp, 0700, true), 'cannot create migration preflight temp root');
+$previousUpdateStatePath = getenv('UPDATE_STATE_PATH');
 
 try {
     $migrationRoot = $temp . '/database/migrations';
@@ -154,6 +157,69 @@ try {
 
     $canonical = (new MigrationManifest($root))->names();
     migrationPreflightAssert($canonical !== [], 'canonical migration manifest is empty');
+    migrationPreflightAssert(
+        count(MigrationBaseline::appliedNames($canonical, 10012)) === 26,
+        'baseline 1.0.12 больше не совпадает с опубликованной схемой'
+    );
+    migrationPreflightAssert(
+        count(MigrationBaseline::appliedNames($canonical, 10013)) === 27,
+        'baseline 1.0.13 больше не совпадает с опубликованной схемой'
+    );
+
+    $activeStateRoot = $temp . '/active-update-state';
+    migrationPreflightAssert(
+        mkdir($activeStateRoot . '/transactions', 0700, true),
+        'не удалось создать внешний updater state fixture'
+    );
+    putenv('UPDATE_STATE_PATH=' . $activeStateRoot);
+
+    $activeTransactionId = 'web-update-baseline01';
+    migrationPreflightWrite(
+        $activeStateRoot . '/workspace-maintenance.json',
+        json_encode([
+            'schema' => 1,
+            'mode' => 'update',
+            'transaction_id' => $activeTransactionId,
+            'reason' => 'Проверка baseline старого updater',
+            'started_at' => time(),
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . PHP_EOL
+    );
+    $journalPath = $activeStateRoot . '/transactions/' . $activeTransactionId . '.json';
+    $journal = [
+        'schema' => 1,
+        'transaction_id' => $activeTransactionId,
+        'state' => 'code_switched',
+        'installed_version' => '1.0.13',
+        'installed_version_code' => 10013,
+        'target_version' => '1.0.14',
+        'target_version_code' => 10014,
+        'live_mutation_started' => true,
+    ];
+    migrationPreflightWrite(
+        $journalPath,
+        json_encode($journal, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . PHP_EOL
+    );
+
+    migrationPreflightAssert(
+        MigrationBaseline::activeUpdaterSourceVersionCode($root, 10014) === 10013,
+        'active updater transaction не восстановила baseline исходной версии 1.0.13'
+    );
+    migrationPreflightAssert(
+        MigrationBaseline::activeUpdaterSourceVersionCode($root, 10015) === null,
+        'baseline принят для чужой целевой версии'
+    );
+
+    $journal['state'] = 'backup_verified';
+    $journal['live_mutation_started'] = false;
+    migrationPreflightWrite(
+        $journalPath,
+        json_encode($journal, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . PHP_EOL
+    );
+    migrationPreflightAssert(
+        MigrationBaseline::activeUpdaterSourceVersionCode($root, 10014) === null,
+        'baseline принят до destructive boundary'
+    );
+
     $migrateSource = file_get_contents($root . '/bin/migrate.php');
     migrationPreflightAssert(is_string($migrateSource), 'cannot read bin/migrate.php for manifest ownership contract');
     migrationPreflightAssert(
@@ -168,9 +234,45 @@ try {
         !str_contains($migrateSource, '$manifest = ['),
         'bin/migrate.php still duplicates the canonical migration order'
     );
+    migrationPreflightAssert(
+        str_contains($migrateSource, 'activeUpdaterSourceVersionCode')
+            && str_contains($migrateSource, '\\Core\\Version::VERSION_CODE'),
+        'bin/migrate.php не восстанавливает baseline из активной updater-транзакции'
+    );
+
+    $webMigratorSource = file_get_contents($root . '/core/UpdateDatabaseMigrator.php');
+    migrationPreflightAssert(
+        is_string($webMigratorSource),
+        'не удалось прочитать UpdateDatabaseMigrator.php'
+    );
+    $baselineStart = strpos(
+        $webMigratorSource,
+        'if (!$ledgerPresent && is_int($baselineVersionCode) && $baselineVersionCode > 0)'
+    );
+    $pendingStart = $baselineStart === false
+        ? false
+        : strpos($webMigratorSource, '$pending = [];', $baselineStart);
+    migrationPreflightAssert(
+        $baselineStart !== false && $pendingStart !== false && $pendingStart > $baselineStart,
+        'не удалось определить baseline-блок web migrator'
+    );
+    $baselineBlock = substr(
+        $webMigratorSource,
+        (int) $baselineStart,
+        (int) $pendingStart - (int) $baselineStart
+    );
+    migrationPreflightAssert(
+        !str_contains($baselineBlock, 'verifyCurrentContract'),
+        'web migrator проверяет целевой контракт до применения ожидающих миграций'
+    );
 
     echo "[OK] updater data-only migration preflight contract\n";
 } finally {
+    if (is_string($previousUpdateStatePath)) {
+        putenv('UPDATE_STATE_PATH=' . $previousUpdateStatePath);
+    } else {
+        putenv('UPDATE_STATE_PATH');
+    }
     $db->close();
     migrationPreflightRemoveTree($temp);
 }

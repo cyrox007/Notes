@@ -7,6 +7,9 @@ namespace Core;
 use App\Services\MaintenanceModeService;
 use Throwable;
 
+require_once __DIR__ . '/UpdateTransactionJournal.php';
+require_once __DIR__ . '/UpdateWebContinuation.php';
+
 /**
  * Ранний HTTP-барьер восстановления updater до инициализации БД и модулей.
  *
@@ -60,6 +63,15 @@ final class UpdateBootRecoveryGate
                     'stale_maintenance_cleanup_failed'
                 );
             }
+        }
+
+        // Пока capability lease живой web-транзакции активен, любой фоновый
+        // HTTP-запрос обязан остановиться до automatic recovery. Иначе пауза
+        // между code switch и следующим web-step может ошибочно запустить rollback.
+        // Terminal/recovery-состояния являются исключением: для них lease уже
+        // не должен мешать немедленно завершить commit/rollback cleanup.
+        if (self::liveWebContinuationActive($appRoot, $stateRoot, $transactionId)) {
+            self::reject('Пошаговое web-обновление ещё выполняется.');
         }
 
         $recovery = (new UpdateAutomaticRecovery($appRoot))->attempt($maintenance);
@@ -126,6 +138,39 @@ final class UpdateBootRecoveryGate
         }
 
         return date('YmdHis', $startedAt) < $installDate;
+    }
+
+    private static function liveWebContinuationActive(
+        string $appRoot,
+        ?string $stateRoot,
+        string $transactionId
+    ): bool {
+        if (!is_string($stateRoot) || trim($stateRoot) === '') {
+            return false;
+        }
+
+        try {
+            $journal = (new UpdateTransactionJournal($stateRoot, $appRoot))
+                ->load($transactionId);
+            $journalState = (string) ($journal['state'] ?? '');
+
+            if (in_array($journalState, [
+                'rollback_started',
+                'code_restored',
+                'database_restored',
+                'rollback_verified',
+                'rollback_failed',
+                'committed',
+            ], true)) {
+                return false;
+            }
+
+            return (new UpdateWebContinuation($stateRoot))->active($transactionId);
+        } catch (Throwable) {
+            // Повреждённое состояние должен обработать основной recovery-контур,
+            // а не маскировать его как живое продолжение.
+            return false;
+        }
     }
 
     private static function hasRecoveryJournal(?string $stateRoot, string $transactionId): bool

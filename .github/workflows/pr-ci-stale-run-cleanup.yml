@@ -38,8 +38,10 @@ jobs:
           }
 
           $encodedBranch = [uri]::EscapeDataString($env:HEAD_BRANCH)
-          $page = 1
           $cancelled = 0
+
+          Start-Sleep -Seconds 10
+          $page = 1
 
           do {
               $uri = "https://api.github.com/repos/$env:REPOSITORY/actions/runs?event=pull_request&branch=$encodedBranch&per_page=100&page=$page"

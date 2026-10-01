@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Core;
 
 require_once __DIR__ . '/DatabaseSqlInspector.php';
+require_once __DIR__ . '/ServiceLog.php';
 
 use Exception;
 use PDO;
@@ -129,6 +130,16 @@ class DatabaseManager
             return $pdo;
         } catch (PDOException $e) {
             $this->log('[createConnection] Ошибка подключения: ' . $e->getMessage(), LogLevel::ERROR);
+            ServiceLog::emit(
+                'database.connection_failed',
+                'error',
+                'database',
+                [
+                    'driver' => $driver,
+                    'error_type' => $e::class,
+                    'error_code' => (string) $e->getCode(),
+                ]
+            );
             throw $e;
         }
     }
@@ -164,6 +175,15 @@ class DatabaseManager
             $this->pdo->getAttribute(PDO::ATTR_SERVER_VERSION);
         } catch (PDOException $e) {
             $this->log('[ensureConnection] Переподключение: ' . $e->getMessage(), LogLevel::WARNING);
+            ServiceLog::emit(
+                'database.connection_lost',
+                'warning',
+                'database',
+                [
+                    'error_type' => $e::class,
+                    'error_code' => (string) $e->getCode(),
+                ]
+            );
             $this->pdo = $this->createConnection();
         }
     }
@@ -278,12 +298,23 @@ class DatabaseManager
             $this->transactionQueue = [];
             return $results;
         } catch (Throwable $e) {
+            $operationCount = count($this->transactionQueue);
             if ($this->pdo->inTransaction()) {
                 $this->pdo->rollBack();
             }
             $this->inTransaction = false;
             $this->transactionQueue = [];
             $this->log('[commit] Откат: ' . $e->getMessage(), LogLevel::ERROR);
+            ServiceLog::emit(
+                'database.transaction_failed',
+                'error',
+                'database',
+                [
+                    'operations' => $operationCount,
+                    'error_type' => $e::class,
+                    'error_code' => (string) $e->getCode(),
+                ]
+            );
             throw $e;
         }
     }
@@ -310,9 +341,23 @@ class DatabaseManager
             );
         }
 
-        $stmt = $this->pdo->prepare($query);
-        $started = $this->enableLogging ? microtime(true) : null;
-        $stmt->execute($params);
+        try {
+            $stmt = $this->pdo->prepare($query);
+            $started = $this->enableLogging ? microtime(true) : null;
+            $stmt->execute($params);
+        } catch (Throwable $e) {
+            ServiceLog::emit(
+                'database.query_failed',
+                'error',
+                'database',
+                [
+                    'query_type' => $queryType,
+                    'error_type' => $e::class,
+                    'error_code' => (string) $e->getCode(),
+                ]
+            );
+            throw $e;
+        }
 
         if ($started !== null) {
             $elapsed = round((microtime(true) - $started) * 1000, 2);

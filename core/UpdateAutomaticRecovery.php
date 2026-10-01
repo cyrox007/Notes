@@ -16,6 +16,7 @@ require_once __DIR__ . '/UpdateCoordinatorLock.php';
 require_once __DIR__ . '/UpdateWebContinuation.php';
 require_once __DIR__ . '/UpdateTransactionJournal.php';
 require_once __DIR__ . '/UpdateExternalRuntime.php';
+require_once __DIR__ . '/ServiceLog.php';
 
 /**
  * Автоматически продолжает восстановление оборванной updater-транзакции.
@@ -26,6 +27,8 @@ require_once __DIR__ . '/UpdateExternalRuntime.php';
  */
 final class UpdateAutomaticRecovery
 {
+    private const WEB_HANDOFF_GRACE_SECONDS = 90;
+
     private string $appRoot;
 
     /** @var (\Closure(list<string>,string,int):array{code:int,stdout:string,stderr:string})|null */
@@ -81,24 +84,8 @@ final class UpdateAutomaticRecovery
         }
 
         try {
-            if ((new UpdateWebContinuation($stateRoot))->active($transactionId)) {
-                return $this->result(
-                    'in_progress',
-                    $transactionId,
-                    'web_update_in_progress',
-                    'Пошаговое web-обновление ещё выполняется'
-                );
-            }
-        } catch (Throwable $e) {
-            return $this->result(
-                'failed',
-                $transactionId,
-                'web_continuation_state_failed',
-                $e->getMessage()
-            );
-        }
-
-        try {
+            // Сначала проверяем владение живой операцией. Это не позволяет
+            // recovery читать ещё не созданный журнал поверх выполняющегося updater.
             $coordinatorLock = new UpdateCoordinatorLock($stateRoot, $transactionId);
         } catch (UpdateCoordinatorBusyException) {
             return $this->result(
@@ -109,6 +96,22 @@ final class UpdateAutomaticRecovery
             );
         } catch (Throwable $e) {
             return $this->result('failed', $transactionId, 'coordinator_lock_failed', $e->getMessage());
+        }
+
+        try {
+            $journalState = (new UpdateTransactionJournal($stateRoot, $this->appRoot))
+                ->load($transactionId);
+            $guard = $this->webRecoveryGuard($stateRoot, $transactionId, $journalState);
+            if ($guard !== null) {
+                return $guard;
+            }
+        } catch (Throwable $e) {
+            return $this->result(
+                'failed',
+                $transactionId,
+                'web_continuation_state_failed',
+                $e->getMessage()
+            );
         }
 
         try {
@@ -159,6 +162,8 @@ final class UpdateAutomaticRecovery
                         'Восстановление завершилось, но режим обслуживания остался активным'
                     );
                 }
+
+                $this->revokeWebContinuation($stateRoot, $transactionId);
 
                 return $this->result(
                     'recovered',
@@ -248,6 +253,8 @@ final class UpdateAutomaticRecovery
                 );
             }
 
+            $this->revokeWebContinuation($stateRoot, $transactionId);
+
             return $this->result(
                 'recovered',
                 $transactionId,
@@ -256,6 +263,92 @@ final class UpdateAutomaticRecovery
             );
         } catch (Throwable $e) {
             return $this->result('failed', $transactionId, 'recovery_exception', $e->getMessage());
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $journalState
+     * @return array{status:string,transaction_id:?string,code:?string,message:string}|null
+     */
+    private function webRecoveryGuard(
+        string $stateRoot,
+        string $transactionId,
+        array $journalState
+    ): ?array {
+        $journalStatus = (string) ($journalState['state'] ?? '');
+        if (in_array($journalStatus, [
+            'rollback_started',
+            'code_restored',
+            'database_restored',
+            'rollback_verified',
+            'rollback_failed',
+            'committed',
+        ], true)) {
+            return null;
+        }
+
+        $leaseStatus = (new UpdateWebContinuation($stateRoot))->leaseStatus($transactionId);
+        if ($leaseStatus === 'active') {
+            return $this->result(
+                'in_progress',
+                $transactionId,
+                'web_update_in_progress',
+                'Пошаговое web-обновление ещё выполняется'
+            );
+        }
+
+        $handoffState = in_array($journalStatus, [
+            'code_switched',
+            'migrations_applied',
+            'postcheck_verified',
+        ], true);
+        if (!$handoffState) {
+            return null;
+        }
+
+        if ($leaseStatus === 'invalid') {
+            return $this->result(
+                'failed',
+                $transactionId,
+                'web_continuation_state_invalid',
+                'Состояние web-продолжения повреждено; автоматический rollback заблокирован'
+            );
+        }
+
+        if ($leaseStatus === 'missing' && $this->journalRecentlyUpdated($journalState)) {
+            return $this->result(
+                'in_progress',
+                $transactionId,
+                'web_continuation_handoff',
+                'Web-updater переключает runtime; автоматический rollback временно отложен'
+            );
+        }
+
+        return null;
+    }
+
+    /** @param array<string,mixed> $journalState */
+    private function journalRecentlyUpdated(array $journalState): bool
+    {
+        $updatedAt = $journalState['updated_at'] ?? null;
+        if (!is_int($updatedAt) || $updatedAt <= 0) {
+            return false;
+        }
+
+        $now = time();
+        return $updatedAt <= $now + 5
+            && $updatedAt >= $now - self::WEB_HANDOFF_GRACE_SECONDS;
+    }
+
+    private function revokeWebContinuation(string $stateRoot, string $transactionId): void
+    {
+        try {
+            (new UpdateWebContinuation($stateRoot))->revoke($transactionId);
+        } catch (Throwable $e) {
+            error_log(
+                'Не удалось удалить завершённое web-продолжение updater'
+                . ' [transaction=' . $transactionId . ']: ' . $e->getMessage()
+            );
         }
     }
 
@@ -298,6 +391,26 @@ final class UpdateAutomaticRecovery
      */
     private function result(string $status, ?string $transactionId, ?string $code, string $message): array
     {
+        if ($status !== 'not_required') {
+            $level = match ($status) {
+                'failed' => 'error',
+                'blocked' => 'warning',
+                'recovered' => 'warning',
+                default => 'info',
+            };
+
+            ServiceLog::emit(
+                'updater.recovery_' . preg_replace('/[^a-z0-9_]+/', '_', strtolower($status)),
+                $level,
+                'updater',
+                [
+                    'transaction_id' => $transactionId,
+                    'code' => $code,
+                    'message' => $message,
+                ]
+            );
+        }
+
         return [
             'status' => $status,
             'transaction_id' => $transactionId,

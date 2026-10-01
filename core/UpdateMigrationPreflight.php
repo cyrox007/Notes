@@ -10,6 +10,7 @@ use RuntimeException;
 require_once __DIR__ . '/MigrationManifest.php';
 require_once __DIR__ . '/ModuleManifest.php';
 require_once __DIR__ . '/DatabaseOwnership.php';
+require_once __DIR__ . '/MigrationBaseline.php';
 
 /**
  * Read-only migration preflight for a verified release candidate.
@@ -43,7 +44,7 @@ final class UpdateMigrationPreflight
      *   sql_set_sha256:string
      * }
      */
-    public function check(mysqli $db): array
+    public function check(mysqli $db, ?int $baselineVersionCode = null): array
     {
         $manifest = $this->manifest->load();
         $canonicalFiles = $manifest['migrations'];
@@ -96,6 +97,15 @@ final class UpdateMigrationPreflight
                     throw new RuntimeException('Target migration manifest changes the order of already applied migrations');
                 }
                 $lastTargetIndex = $targetIndex;
+                $applied[$name] = true;
+            }
+        } elseif (is_int($baselineVersionCode) && $baselineVersionCode > 0) {
+            foreach (MigrationBaseline::appliedNames($canonicalFiles, $baselineVersionCode) as $name) {
+                if (!isset($target[$name])) {
+                    throw new RuntimeException(
+                        'Baseline исходной версии отсутствует в целевом релизе: ' . $name
+                    );
+                }
                 $applied[$name] = true;
             }
         }

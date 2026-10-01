@@ -170,6 +170,9 @@ jobs:
           test -f "$ROOT/core/UpdateReadiness.php"
           test -f "$ROOT/core/UpdateArtifactCleaner.php"
           test -f "$ROOT/database/migrations/manifest.json"
+          test -f "$ROOT/assets/css/workspace-brand-1.0.14.css"
+          test -f "$ROOT/assets/img/workspace-brand-mark.svg"
+          test -f "$ROOT/assets/img/workspace-brand-lockup.svg"
           test ! -e "$ROOT/.env"
           cd /tmp
           zip -qr "$GITHUB_WORKSPACE/$NAME.zip" "$NAME"
@@ -227,6 +230,9 @@ jobs:
           unzip -l "$BUNDLE" | grep -F 'core/UpdateReadiness.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdateArtifactCleaner.php'
           unzip -l "$BUNDLE" | grep -F 'database/migrations/manifest.json'
+          unzip -l "$BUNDLE" | grep -F 'assets/css/workspace-brand-1.0.14.css'
+          unzip -l "$BUNDLE" | grep -F 'assets/img/workspace-brand-mark.svg'
+          unzip -l "$BUNDLE" | grep -F 'assets/img/workspace-brand-lockup.svg'
           if unzip -l "$BUNDLE" | grep -Eq '/vendor/'; then
             echo 'Vendor-free bundle must not contain vendor/'
             exit 1
@@ -287,6 +293,25 @@ jobs:
           echo "UPDATE_109_BOOTSTRAP=$UPDATE_109_BOOTSTRAP" >> "$GITHUB_ENV"
           echo "UPDATE_109_BOOTSTRAP_CHECKSUM=$UPDATE_109_BOOTSTRAP_CHECKSUM" >> "$GITHUB_ENV"
 
+      - name: Подготовить мост updater exact-версии 1.0.12
+        shell: bash
+        run: |
+          set -euo pipefail
+          BOOTSTRAP_SOURCE="$GITHUB_WORKSPACE/tools/release/bootstrap-1.0.12-updater.php"
+          UPDATE_1012_BOOTSTRAP="$GITHUB_WORKSPACE/bootstrap-1.0.12-updater.php"
+          UPDATE_1012_BOOTSTRAP_CHECKSUM="$UPDATE_1012_BOOTSTRAP.sha256"
+          php -l "$BOOTSTRAP_SOURCE"
+          cp "$BOOTSTRAP_SOURCE" "$UPDATE_1012_BOOTSTRAP"
+          (
+            cd "$GITHUB_WORKSPACE"
+            sha256sum "$(basename "$UPDATE_1012_BOOTSTRAP")"
+          ) > "$UPDATE_1012_BOOTSTRAP_CHECKSUM"
+          test -s "$UPDATE_1012_BOOTSTRAP"
+          test -s "$UPDATE_1012_BOOTSTRAP_CHECKSUM"
+          cat "$UPDATE_1012_BOOTSTRAP_CHECKSUM"
+          echo "UPDATE_1012_BOOTSTRAP=$UPDATE_1012_BOOTSTRAP" >> "$GITHUB_ENV"
+          echo "UPDATE_1012_BOOTSTRAP_CHECKSUM=$UPDATE_1012_BOOTSTRAP_CHECKSUM" >> "$GITHUB_ENV"
+
       - name: Upload immutable release-candidate artifact
         uses: actions/upload-artifact@v4
         with:
@@ -297,6 +322,8 @@ jobs:
             ${{ env.BUNDLE_SOURCE_SHA }}
             ${{ env.UPDATE_109_BOOTSTRAP }}
             ${{ env.UPDATE_109_BOOTSTRAP_CHECKSUM }}
+            ${{ env.UPDATE_1012_BOOTSTRAP }}
+            ${{ env.UPDATE_1012_BOOTSTRAP_CHECKSUM }}
           if-no-files-found: error
           retention-days: 14
 
@@ -337,6 +364,8 @@ jobs:
             "$BUNDLE_SOURCE_SHA" \
             "$UPDATE_109_BOOTSTRAP" \
             "$UPDATE_109_BOOTSTRAP_CHECKSUM" \
+            "$UPDATE_1012_BOOTSTRAP" \
+            "$UPDATE_1012_BOOTSTRAP_CHECKSUM" \
             --verify-tag \
             --title "Workspace Organizer ${TAG#v}" \
             --notes-file "$NOTES" \

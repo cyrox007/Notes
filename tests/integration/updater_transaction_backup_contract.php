@@ -130,6 +130,10 @@ try {
         'JSON values are not serialized with an explicit UTF-8 conversion'
     );
     backupAssert(str_contains($dump, 'CREATE') && str_contains($dump, 'TRIGGER'), 'database dump lacks trigger DDL');
+    backupAssert(
+        stripos($dump, 'CREATE DEFINER=') === false,
+        'rollback-дамп не должен привязывать триггер к DEFINER исходного сервера'
+    );
     backupAssert(!str_contains($dump, 'must-never-enter-code-backup'), 'code secret leaked into database dump');
 
     $restorer = new UpdateDatabaseRestorer();
@@ -160,6 +164,16 @@ try {
         $dump
     );
     backupAssert(is_string($legacySql) && $legacySql !== $dump, 'Не удалось сформировать legacy mysql-sql-v1 fixture');
+    $legacySql = preg_replace(
+        '/CREATE\\s+TRIGGER\\b/i',
+        'CREATE DEFINER=`root`@`%` TRIGGER',
+        $legacySql,
+        1
+    );
+    backupAssert(
+        is_string($legacySql) && stripos($legacySql, 'CREATE DEFINER=') !== false,
+        'Не удалось сформировать legacy rollback с чужим DEFINER'
+    );
     $legacyPath = $legacyDir . '/database.sql';
     backupAssert(file_put_contents($legacyPath, $legacySql, LOCK_EX) === strlen($legacySql), 'Не удалось записать legacy rollback fixture');
 

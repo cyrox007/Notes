@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 180" role="img" aria-labelledby="title">
+<title id="title">Workspace Organizer</title>
+<defs>
+  <linearGradient id="g1" x1="12" y1="9" x2="139" y2="159" gradientUnits="userSpaceOnUse"><stop stop-color="#16DDF4"/><stop offset=".5" stop-color="#167CFF"/><stop offset="1" stop-color="#7138F4"/></linearGradient>
+  <linearGradient id="g2" x1="44" y1="33" x2="118" y2="143" gradientUnits="userSpaceOnUse"><stop stop-color="#F8FFFF"/><stop offset=".42" stop-color="#B8EEFF"/><stop offset=".76" stop-color="#68B6FF"/><stop offset="1" stop-color="#9B79FF"/></linearGradient>
+  <linearGradient id="word" x1="194" y1="104" x2="512" y2="160" gradientUnits="userSpaceOnUse"><stop stop-color="#08C9F3"/><stop offset=".52" stop-color="#1582FF"/><stop offset="1" stop-color="#1450F4"/></linearGradient>
+</defs>
+<g transform="translate(10 10)">
+  <path fill="url(#g1)" d="M18 45c0-9 7-16 16-16h52c10 0 18 5 24 13l18 24c4 6 4 15-1 21l-34 40c-6 7-14 10-23 9l-30-5c-13-2-22-12-22-25V45z"/>
+  <path fill="#0B60DE" fill-opacity=".78" d="M26 67c17 11 35 16 55 12 20-4 35-17 49-35-4 14-11 27-20 38-13 16-28 28-46 39-13 8-30 2-37-11L26 67z"/>
+  <path fill="url(#g2)" d="M41 52c0-7 6-13 13-13h58c6 0 10 7 6 12l-37 60c-4 6-11 9-18 8l-9-1c-7-1-12-7-12-14L41 52z"/>
+</g>
+<text x="174" y="84" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="68" font-weight="800" letter-spacing="-4" fill="#061A4D">Workspace</text>
+<text x="174" y="148" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="62" font-weight="800" letter-spacing="-3" fill="url(#word)">Organizer</text>
+</svg>

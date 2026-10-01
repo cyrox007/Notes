@@ -1,0 +1,330 @@
+/* Брендовый слой Workspace Organizer 1.0.14.
+   Референсы релиза задают единый визуальный язык приложения:
+   глубокий синий контур, голубой акцент, мягкие градиенты и цветовые роли модулей. */
+:root{
+  --brand-navy:#061a4d;
+  --brand-navy-2:#0b2d69;
+  --brand-blue:#1677ff;
+  --brand-blue-strong:#075bea;
+  --brand-cyan:#11c9ef;
+  --brand-violet:#7245f5;
+  --brand-green:#20c77a;
+  --brand-orange:#ff9c2b;
+  --brand-teal:#16c1c2;
+  --brand-shadow:0 18px 48px rgba(13,61,145,.13);
+  --brand-shadow-soft:0 8px 26px rgba(19,65,144,.09);
+  --ui-bg:#f4f8ff;
+  --ui-surface:#ffffff;
+  --ui-surface-soft:#f5f9ff;
+  --ui-surface-raised:#ffffff;
+  --ui-text:#071a4a;
+  --ui-muted:#647394;
+  --ui-subtle:#91a0ba;
+  --ui-border:#dce7f6;
+  --ui-border-strong:#c7d8ef;
+  --ui-action:var(--brand-blue);
+  --ui-action-hover:var(--brand-blue-strong);
+  --ui-primary:var(--brand-blue);
+  --ui-primary-hover:var(--brand-blue-strong);
+  --ui-primary-soft:#eaf3ff;
+  --ui-success:var(--brand-green);
+  --ui-success-soft:#eafaf3;
+  --ui-warning:#e88c19;
+  --ui-warning-soft:#fff4e3;
+  --ui-info:#168fdc;
+  --ui-info-soft:#e9f6ff;
+  --ui-shadow:var(--brand-shadow);
+  --ui-shadow-sm:var(--brand-shadow-soft);
+  --ui-radius:18px;
+  --ui-radius-sm:12px;
+  --ui-sidebar:204px;
+  --ui-header:60px;
+}
+html[data-theme="dark"]{
+  --ui-bg:#061329;
+  --ui-surface:#0b1f3d;
+  --ui-surface-soft:#0d274b;
+  --ui-surface-raised:#102b50;
+  --ui-text:#f4f8ff;
+  --ui-muted:#9eb2d3;
+  --ui-subtle:#7087ab;
+  --ui-border:#1f3f69;
+  --ui-border-strong:#31547f;
+  --ui-primary:#50a5ff;
+  --ui-primary-hover:#75b8ff;
+  --ui-primary-soft:#113a70;
+  --ui-success:#42d895;
+  --ui-success-soft:#123c31;
+  --ui-warning:#ffc063;
+  --ui-warning-soft:#3c2b14;
+  --ui-info:#5bbcf0;
+  --ui-info-soft:#123854;
+  --ui-shadow:0 22px 58px rgba(0,0,0,.32);
+  --ui-shadow-sm:0 8px 24px rgba(0,0,0,.22);
+}
+html,body{background:var(--ui-bg)}
+body{
+  background:
+    radial-gradient(circle at 82% -5%,color-mix(in srgb,var(--brand-cyan) 14%,transparent),transparent 30rem),
+    radial-gradient(circle at 10% 100%,color-mix(in srgb,var(--brand-blue) 9%,transparent),transparent 34rem),
+    var(--ui-bg);
+}
+html[data-theme="dark"] body{
+  background:
+    radial-gradient(circle at 80% 0,rgba(27,119,255,.22),transparent 34rem),
+    radial-gradient(circle at 12% 100%,rgba(34,207,237,.12),transparent 36rem),
+    linear-gradient(145deg,#061329,#071a38 55%,#081a31);
+}
+.content-wrapper{padding-top:20px}
+.card,.admin-panel-card,.settings-card,.profile-card{
+  border-color:color-mix(in srgb,var(--ui-border) 88%,var(--brand-blue));
+  box-shadow:var(--ui-shadow-sm);
+}
+.card:hover{border-color:color-mix(in srgb,var(--brand-blue) 22%,var(--ui-border))}
+
+/* Фирменная навигация */
+.sidebar{
+  overflow:hidden;
+  background:
+    radial-gradient(circle at 20% 0,rgba(31,151,255,.34),transparent 13rem),
+    linear-gradient(180deg,#071b4c 0%,#082454 48%,#071a40 100%);
+  border-right:1px solid rgba(103,170,255,.2);
+  box-shadow:14px 0 40px rgba(5,23,60,.12);
+}
+.sidebar::after{
+  content:"";
+  position:absolute;
+  left:-76px;
+  bottom:90px;
+  width:260px;
+  height:160px;
+  border-radius:50%;
+  border:24px solid rgba(28,153,255,.14);
+  transform:rotate(-28deg);
+  pointer-events:none;
+}
+.sidebar__top{position:relative;z-index:1;border-bottom-color:rgba(145,197,255,.14)}
+.sidebar__brand{gap:9px;color:#fff}
+.sidebar__brand:hover{background:rgba(255,255,255,.08)}
+.sidebar__brand-mark{
+  width:38px;
+  height:38px;
+  flex:0 0 38px;
+  display:block;
+  object-fit:contain;
+  border-radius:0;
+  background:none;
+  box-shadow:none;
+}
+.sidebar__brand-copy strong{color:#fff;font-size:13px;font-weight:800;letter-spacing:-.02em}
+.sidebar__brand-copy small{color:#72dfff;font-size:9px;font-weight:700}
+.sidebar__menu,.sidebar__bottom{position:relative;z-index:1}
+.sidebar__menu-link,.sidebar__utility{color:#afc5e8;border:1px solid transparent}
+.sidebar__menu-link:hover,.sidebar__utility:hover{background:rgba(255,255,255,.08);color:#fff}
+.sidebar__menu-link[aria-current="page"],.sidebar__utility[aria-current="page"]{
+  border-color:rgba(104,190,255,.2);
+  background:linear-gradient(135deg,rgba(30,133,255,.72),rgba(37,91,218,.74));
+  color:#fff;
+  box-shadow:0 7px 18px rgba(0,84,214,.24);
+}
+.sidebar__menu-link[aria-current="page"] .sidebar__menu-icon,.sidebar__utility[aria-current="page"] .sidebar__menu-icon{background:rgba(255,255,255,.1)}
+.sidebar__bottom{border-top-color:rgba(145,197,255,.14)}
+.sidebar__theme{border-color:rgba(145,197,255,.16);background:rgba(0,14,47,.24)}
+.sidebar__theme button{color:#91acd5}
+.sidebar__theme button:hover{color:#fff}
+.sidebar__theme button.is-active{background:rgba(63,155,255,.22);color:#72dfff;box-shadow:none}
+.sidebar__menu-badge{background:linear-gradient(135deg,var(--brand-cyan),var(--brand-blue));box-shadow:0 0 0 2px #082454}
+
+/* Верхняя панель */
+.navbar{
+  background:color-mix(in srgb,var(--ui-surface) 84%,transparent);
+  border-bottom-color:color-mix(in srgb,var(--ui-border) 86%,var(--brand-blue));
+  box-shadow:0 5px 22px rgba(17,67,141,.045);
+  backdrop-filter:saturate(1.15) blur(18px);
+}
+.workspace-command-trigger{
+  border-color:color-mix(in srgb,var(--ui-border) 82%,var(--brand-blue));
+  border-radius:13px;
+  background:color-mix(in srgb,var(--ui-surface-soft) 88%,transparent);
+}
+.workspace-command-trigger__icon{color:var(--brand-blue)}
+.navbar__icon-button:hover,.navbar__menu-button:hover,.navbar__profile:hover{background:var(--ui-primary-soft);color:var(--ui-primary)}
+
+/* Семантические цвета разделов */
+body[data-workspace-section="notes"],.workspace-module--notes{--module-accent:#1677ff;--module-soft:#e9f3ff}
+body[data-workspace-section="tasks"],.workspace-module--tasks{--module-accent:#20c77a;--module-soft:#e8fbf2}
+body[data-workspace-section="files"],.workspace-module--files{--module-accent:#ff9826;--module-soft:#fff2e2}
+body[data-workspace-section="messenger"],.workspace-module--messenger{--module-accent:#7046ef;--module-soft:#f1edff}
+body[data-workspace-section="profile"],.workspace-module--profile{--module-accent:#13a8d8;--module-soft:#e6f8ff}
+body[data-workspace-section="admin"],.workspace-module--admin{--module-accent:#16bfc2;--module-soft:#e7fbfa}
+html[data-theme="dark"] body[data-workspace-section="notes"],html[data-theme="dark"] .workspace-module--notes{--module-accent:#65b2ff;--module-soft:#113b6c}
+html[data-theme="dark"] body[data-workspace-section="tasks"],html[data-theme="dark"] .workspace-module--tasks{--module-accent:#55dfa0;--module-soft:#113c31}
+html[data-theme="dark"] body[data-workspace-section="files"],html[data-theme="dark"] .workspace-module--files{--module-accent:#ffb761;--module-soft:#472d15}
+html[data-theme="dark"] body[data-workspace-section="messenger"],html[data-theme="dark"] .workspace-module--messenger{--module-accent:#a58cff;--module-soft:#2b245c}
+html[data-theme="dark"] body[data-workspace-section="profile"],html[data-theme="dark"] .workspace-module--profile{--module-accent:#64d4ef;--module-soft:#103c50}
+html[data-theme="dark"] body[data-workspace-section="admin"],html[data-theme="dark"] .workspace-module--admin{--module-accent:#5ce0db;--module-soft:#113f40}
+
+/* Главная */
+.workspace-home{gap:20px}
+.workspace-home__hero{
+  position:relative;
+  isolation:isolate;
+  min-height:170px;
+  overflow:hidden;
+  padding:26px 28px;
+  border:1px solid rgba(72,163,255,.24);
+  border-radius:24px;
+  background:
+    radial-gradient(circle at 92% 14%,rgba(22,212,239,.34),transparent 18rem),
+    radial-gradient(circle at 72% 120%,rgba(90,60,245,.4),transparent 21rem),
+    linear-gradient(125deg,#061a4d 0%,#083675 58%,#0a58bd 100%);
+  box-shadow:0 24px 54px rgba(9,55,139,.2);
+}
+.workspace-home__hero::after{
+  content:"";
+  position:absolute;
+  z-index:-1;
+  right:-55px;
+  bottom:-95px;
+  width:430px;
+  height:250px;
+  border:38px solid rgba(96,199,255,.14);
+  border-radius:50%;
+  transform:rotate(-18deg);
+}
+.workspace-home__hero-copy{max-width:720px}
+.workspace-home__eyebrow{color:#67e7ff}
+.workspace-home__hero h1{color:#fff;font-size:31px}
+.workspace-home__hero p{color:#c8d9f3;max-width:660px;font-size:14px}
+.workspace-home__primary-action,.workspace-home__secondary-action{
+  min-height:42px;
+  border-radius:12px;
+  padding-inline:15px;
+  backdrop-filter:blur(8px);
+}
+.workspace-home__primary-action{background:linear-gradient(135deg,#18c9f1,#1677ff);box-shadow:0 9px 22px rgba(15,115,240,.28)}
+.workspace-home__primary-action:hover{background:linear-gradient(135deg,#36d7f5,#2d87ff)}
+.workspace-home__secondary-action{border-color:rgba(255,255,255,.2);background:rgba(255,255,255,.1);color:#fff}
+.workspace-home__secondary-action:hover{border-color:rgba(255,255,255,.34);background:rgba(255,255,255,.16)}
+.workspace-home__section-heading span{color:var(--brand-blue)}
+.workspace-home__grid{gap:14px}
+.workspace-module{
+  min-height:112px;
+  grid-template-columns:48px minmax(0,1fr) 18px;
+  padding:17px;
+  border-radius:18px;
+  border-color:color-mix(in srgb,var(--module-accent) 12%,var(--ui-border));
+  box-shadow:var(--ui-shadow-sm);
+}
+.workspace-module:hover,.workspace-module:focus-visible{
+  transform:translateY(-3px);
+  border-color:color-mix(in srgb,var(--module-accent) 34%,var(--ui-border));
+  box-shadow:0 16px 34px color-mix(in srgb,var(--module-accent) 12%,transparent);
+}
+.workspace-module__icon{
+  width:48px;
+  height:48px;
+  border-radius:15px;
+  color:#fff;
+  background:linear-gradient(145deg,color-mix(in srgb,var(--module-accent) 78%,#fff),var(--module-accent));
+  box-shadow:0 9px 20px color-mix(in srgb,var(--module-accent) 22%,transparent);
+}
+.workspace-module__body strong{color:var(--ui-text);font-size:14px}
+.workspace-module__body small{line-height:1.35}
+
+/* Общий язык карточек и элементов управления */
+.module-page-header,.admin-page__hero{padding-inline:2px}
+.module-page-header__eyebrow,.admin-page__eyebrow,.admin-panel-card__kicker{color:var(--module-accent,var(--brand-blue))}
+.module-page-header h1,.admin-page__hero h1{font-weight:800;letter-spacing:-.035em}
+button,.btn,.admin-action,.workspace-notifications__apply{transition:transform .15s ease,background .15s ease,border-color .15s ease,box-shadow .15s ease}
+.workspace-notifications__item-icon{
+  border-radius:12px;
+  background:linear-gradient(145deg,#20d0f3,#1677ff);
+  color:#fff;
+  box-shadow:0 7px 16px rgba(22,119,255,.18);
+}
+.workspace-command-palette__surface,.workspace-notifications__panel{border-radius:18px;box-shadow:0 28px 72px rgba(5,28,72,.24)}
+input,textarea,select{accent-color:var(--brand-blue)}
+
+/* Экран входа использует тот же брендовый язык. */
+body .login-page,body .register-page{position:relative;isolation:isolate}
+body.workspace-auth{
+  background:
+    radial-gradient(circle at 90% 0,rgba(20,196,239,.22),transparent 32rem),
+    radial-gradient(circle at 0 100%,rgba(43,112,255,.18),transparent 34rem),
+    linear-gradient(140deg,#f8fbff,#eef6ff 55%,#f6fbff);
+}
+.login-page__brand-mark{
+  width:48px!important;
+  height:48px!important;
+  object-fit:contain;
+  border-radius:0!important;
+  background:none!important;
+  box-shadow:none!important;
+}
+.login-page__brand-copy strong{color:#061a4d;font-size:16px!important;font-weight:800}
+.login-page__brand-copy small{color:#1677ff!important;font-size:11px!important;font-weight:700}
+.login-page__card,.register-page .register form{
+  border-color:#d8e7f7!important;
+  border-radius:20px!important;
+  box-shadow:0 28px 70px rgba(11,62,138,.13)!important;
+}
+.login-page button[type="submit"],.register-page button[type="submit"]{
+  min-height:44px!important;
+  border-radius:12px!important;
+  background:linear-gradient(135deg,#19c9ef,#1677ff)!important;
+  box-shadow:0 10px 24px rgba(22,119,255,.22);
+}
+.login-page button[type="submit"]:hover,.register-page button[type="submit"]:hover{filter:brightness(1.04)}
+.login-page input:focus,.register-page input:focus{border-color:#1677ff!important;box-shadow:0 0 0 4px rgba(22,119,255,.1)!important}
+
+@media(max-width:900px){
+  :root{--ui-sidebar:204px}
+  .workspace-home__hero{min-height:154px;padding:22px}
+}
+@media(max-width:680px){
+  .workspace-home__hero{display:grid;min-height:0;padding:20px;border-radius:20px}
+  .workspace-home__hero-actions{flex-wrap:wrap}
+  .workspace-home__grid{grid-template-columns:1fr}
+}
+@media(max-width:560px){
+  .workspace-home__hero h1{font-size:26px}
+  .workspace-home__hero p{font-size:13px}
+  .workspace-module{min-height:96px}
+}
+
+
+/* Цвет раздела применяется к основному действию внутри каждого модуля. */
+body[data-workspace-section="notes"] .notes__submit button,
+body[data-workspace-section="tasks"] .btn-primary,
+body[data-workspace-section="files"] .file-manager__btn--success,
+body[data-workspace-section="profile"] .profile__edit_user-info,
+body[data-workspace-section="profile"] .profile__card-info--edit--set-save,
+body[data-workspace-section="profile"] .profile__write-message-btn,
+body[data-workspace-section="admin"] .admin-action--primary{
+  background:linear-gradient(135deg,color-mix(in srgb,var(--module-accent) 72%,#fff),var(--module-accent));
+  box-shadow:0 8px 18px color-mix(in srgb,var(--module-accent) 18%,transparent);
+}
+.sidebar__menu-link[data-nav-key="notes"] .sidebar__menu-icon{color:#65b2ff}
+.sidebar__menu-link[data-nav-key="tasks"] .sidebar__menu-icon{color:#55dfa0}
+.sidebar__menu-link[data-nav-key="files"] .sidebar__menu-icon{color:#ffb761}
+.sidebar__menu-link[data-nav-key="messenger"] .sidebar__menu-icon{color:#a58cff}
+.sidebar__menu-link[data-nav-key="profile"] .sidebar__menu-icon{color:#64d4ef}
+.sidebar__menu-link[data-nav-key="admin"] .sidebar__menu-icon{color:#5ce0db}
+.sidebar__menu-link[aria-current="page"] .sidebar__menu-icon{color:#fff}
+
+/* Messenger получает фиолетовый командный акцент из брендовой палитры. */
+.workspace-viewport--messenger{
+  --msg-accent:#7046ef;
+  --msg-accent-strong:#5c35d8;
+  --msg-accent-soft:#f0ecff;
+  --msg-own-bg:#ebe7ff;
+  --msg-own-border:#d9d0ff;
+}
+html[data-theme="dark"] .workspace-viewport--messenger{
+  --msg-accent:#a58cff;
+  --msg-accent-strong:#b8a4ff;
+  --msg-accent-soft:#2b245c;
+  --msg-own-bg:#372b76;
+  --msg-own-border:#55449a;
+}

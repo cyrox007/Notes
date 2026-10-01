@@ -11,6 +11,7 @@ require_once __DIR__ . '/UpdateProcessRunner.php';
 require_once __DIR__ . '/UpdateApplyOperationLock.php';
 require_once __DIR__ . '/UpdateLiveApplier.php';
 require_once __DIR__ . '/UpdateRollbackCodeRestorer.php';
+require_once __DIR__ . '/ServiceLog.php';
 
 use App\Services\MaintenanceModeService;
 use mysqli;
@@ -170,7 +171,10 @@ final class UpdateApplyCommand
             $version = $applier->readLiveVersion();
             $this->assertVersion($journalState, $version, true, 'Committed transaction does not match live target version');
             $health = $this->health($this->appRoot);
-            $migrationStatus = $this->migrationStatus($this->appRoot);
+            $migrationStatus = $this->migrationStatus(
+                $this->appRoot,
+                (int) ($journalState['target_version_code'] ?? 0)
+            );
             try {
                 $maintenance->leave($transactionId);
             } catch (Throwable $e) {
@@ -198,7 +202,10 @@ final class UpdateApplyCommand
             $version = $applier->readLiveVersion();
             $this->assertVersion($journalState, $version, false, 'Verified rollback no longer matches installed version');
             $health = $this->health($this->appRoot);
-            $migrationStatus = $this->migrationStatus($this->appRoot);
+            $migrationStatus = $this->migrationStatus(
+                $this->appRoot,
+                (int) ($journalState['installed_version_code'] ?? 0)
+            );
             try {
                 $maintenance->leave($transactionId);
             } catch (Throwable $e) {
@@ -240,6 +247,11 @@ final class UpdateApplyCommand
                 $restartWs
             );
         } catch (Throwable $rollbackError) {
+            $this->logService('updater.rollback_failed', 'critical', $transactionId, [
+                'recovery_mode' => true,
+                'rollback_error_type' => $rollbackError::class,
+                'message' => $rollbackError->getMessage(),
+            ]);
             $this->recordRollbackFailure($stateMachine, $transactionId, [
                 'rollback_error' => $rollbackError->getMessage(),
                 'at' => time(),
@@ -406,7 +418,10 @@ final class UpdateApplyCommand
             // До destructive-границы выполняются только проверки исходного
             // приложения, candidate и rollback backup.
             $health = $this->health($this->appRoot);
-            $migrationPreflight = $this->migrationPreflight($candidate['candidate_dir']);
+            $migrationPreflight = $this->migrationPreflight(
+                $candidate['candidate_dir'],
+                (int) ($journalState['installed_version_code'] ?? 0)
+            );
             $candidate = $applier->verifyCandidateTree($candidate['candidate_dir']);
             $verifiedBackup = $backupManager->verify($verifiedBackup['backup_dir'], $transactionId);
             $ws = $this->wsStatus($this->appRoot);
@@ -428,6 +443,12 @@ final class UpdateApplyCommand
                 'backup_manifest_sha256' => $verifiedBackup['manifest_sha256'],
                 'ws_was_running' => $ws['running'],
                 'verified_at' => time(),
+            ]);
+            $this->logService('updater.preflight_verified', 'info', $transactionId, [
+                'installed_version' => (string) ($journalState['installed_version'] ?? ''),
+                'target_version' => (string) ($journalState['target_version'] ?? ''),
+                'migration_ledger_present' => (bool) $migrationPreflight['ledger_present'],
+                'migration_pending' => (int) $migrationPreflight['pending'],
             ]);
 
             return $this->phaseResult(
@@ -464,6 +485,11 @@ final class UpdateApplyCommand
                 );
                 $switch = $applier->switchPrepared($plan);
                 $stateMachine->markCodeSwitched($transactionId, $switch);
+                $this->logService('updater.code_switched', 'info', $transactionId, [
+                    'target_version' => (string) ($journalState['target_version'] ?? ''),
+                    'files_replaced' => count((array) ($switch['replaced_files'] ?? [])),
+                    'files_deleted' => count((array) ($switch['deleted_files'] ?? [])),
+                ]);
             } catch (Throwable $applyError) {
                 $this->rollbackAfterApplyError(
                     $transactionId,
@@ -472,7 +498,8 @@ final class UpdateApplyCommand
                     $stateMachine,
                     $applier,
                     $backupManager,
-                    $restartWs
+                    $restartWs,
+                    'code_switch_failed'
                 );
             }
 
@@ -481,7 +508,8 @@ final class UpdateApplyCommand
                 'code_switched',
                 'migrations',
                 84,
-                'Код переключён. Выполняются миграции базы данных.'
+                'Код переключён. Выполняются миграции базы данных.',
+                $this->runtimeRefreshDelayMs()
             );
         }
 
@@ -496,7 +524,12 @@ final class UpdateApplyCommand
                 );
 
                 $migrate = $this->run(
-                    [PHP_BINARY, $this->appRoot . '/bin/migrate.php'],
+                    [
+                        PHP_BINARY,
+                        $this->appRoot . '/bin/migrate.php',
+                        '--baseline-version-code='
+                            . (int) ($journalState['installed_version_code'] ?? 0),
+                    ],
                     $this->appRoot,
                     300
                 );
@@ -510,6 +543,10 @@ final class UpdateApplyCommand
                     'output_sha256' => hash('sha256', $migrate['stdout']),
                     'completed_at' => time(),
                 ]);
+                $this->logService('updater.migrations_applied', 'info', $transactionId, [
+                    'source_version_code' => (int) ($journalState['installed_version_code'] ?? 0),
+                    'target_version_code' => (int) ($journalState['target_version_code'] ?? 0),
+                ]);
             } catch (Throwable $applyError) {
                 $this->rollbackAfterApplyError(
                     $transactionId,
@@ -518,7 +555,8 @@ final class UpdateApplyCommand
                     $stateMachine,
                     $applier,
                     $backupManager,
-                    $restartWs
+                    $restartWs,
+                    'migration_failed'
                 );
             }
 
@@ -563,6 +601,11 @@ final class UpdateApplyCommand
                     'ws_stopped_messenger_unavailable' => $wsStoppedBecauseMessengerUnavailable,
                     'verified_at' => time(),
                 ]);
+                $this->logService('updater.postcheck_verified', 'info', $transactionId, [
+                    'version' => (string) $postVersion['version'],
+                    'health_status' => (string) ($postHealth['status'] ?? ''),
+                    'ws_restarted' => $wsRestarted,
+                ]);
             } catch (Throwable $applyError) {
                 $this->rollbackAfterApplyError(
                     $transactionId,
@@ -571,7 +614,8 @@ final class UpdateApplyCommand
                     $stateMachine,
                     $applier,
                     $backupManager,
-                    $restartWs
+                    $restartWs,
+                    'postcheck_failed'
                 );
             }
 
@@ -591,6 +635,10 @@ final class UpdateApplyCommand
             $stateMachine->markCommitted($transactionId, [
                 'committed_at' => time(),
                 'version' => (string) ($post['version'] ?? $journalState['target_version'] ?? ''),
+            ]);
+            $this->logService('updater.committed', 'info', $transactionId, [
+                'version' => (string) ($journalState['target_version'] ?? ''),
+                'version_code' => (int) ($journalState['target_version_code'] ?? 0),
             ]);
 
             try {
@@ -716,9 +764,10 @@ final class UpdateApplyCommand
         string $state,
         string $phase,
         int $progress,
-        string $message
+        string $message,
+        int $runtimeRefreshDelayMs = 0
     ): array {
-        return [
+        $result = [
             'status' => 'in_progress',
             'transaction_id' => $transactionId,
             'state' => $state,
@@ -727,6 +776,28 @@ final class UpdateApplyCommand
             'message' => $message,
             'maintenance_active' => true,
         ];
+
+        if ($runtimeRefreshDelayMs > 0) {
+            $result['runtime_refresh_delay_ms'] = $runtimeRefreshDelayMs;
+        }
+
+        return $result;
+    }
+
+    private function runtimeRefreshDelayMs(): int
+    {
+        if (!extension_loaded('Zend OPcache')) {
+            return 250;
+        }
+
+        $validate = ini_get('opcache.validate_timestamps');
+        if ($validate !== false
+            && in_array(strtolower(trim((string) $validate)), ['0', 'off', 'false', 'no'], true)) {
+            return 5000;
+        }
+
+        $seconds = max(0, (int) ini_get('opcache.revalidate_freq'));
+        return min(60000, max(500, ($seconds + 1) * 1000));
     }
 
     private function rollbackAfterApplyError(
@@ -736,9 +807,22 @@ final class UpdateApplyCommand
         UpdateTransactionStateMachine $stateMachine,
         UpdateLiveApplier $applier,
         UpdateBackupManager $backupManager,
-        bool $restartWs
+        bool $restartWs,
+        string $failureCode = 'apply_failed'
     ): never {
         $journalState = $stateMachine->load($transactionId);
+        $applyErrorCode = preg_match('/^[a-z0-9_]{1,64}$/D', $failureCode) === 1
+            ? $failureCode
+            : ($applyError instanceof UpdateApplyException
+                ? $applyError->errorCode
+                : 'apply_failed');
+
+        $this->logService('updater.apply_failed', 'error', $transactionId, [
+            'state' => (string) ($journalState['state'] ?? ''),
+            'error_type' => $applyError::class,
+            'message' => $applyError->getMessage(),
+            'failure_code' => $applyErrorCode,
+        ]);
         try {
             $verified = $this->rollback(
                 $transactionId,
@@ -746,11 +830,13 @@ final class UpdateApplyCommand
                 $stateMachine,
                 $applier,
                 $backupManager,
-                $restartWs
+                $restartWs,
+                $applyErrorCode
             );
         } catch (Throwable $rollbackError) {
             $this->recordRollbackFailure($stateMachine, $transactionId, [
                 'apply_error' => $applyError->getMessage(),
+                'apply_error_code' => $applyErrorCode,
                 'rollback_error' => $rollbackError->getMessage(),
                 'at' => time(),
             ]);
@@ -787,7 +873,11 @@ final class UpdateApplyCommand
             . $applyError->getMessage(),
             'apply_rolled_back',
             1,
-            ['rollback' => $verified, 'maintenance_active' => false]
+            [
+                'rollback' => $verified,
+                'maintenance_active' => false,
+                'apply_error_code' => $applyErrorCode,
+            ]
         );
     }
 
@@ -797,7 +887,8 @@ final class UpdateApplyCommand
         UpdateTransactionStateMachine $stateMachine,
         UpdateLiveApplier $applier,
         UpdateBackupManager $backupManager,
-        bool $restartWs
+        bool $restartWs,
+        ?string $failureCode = null
     ): array {
         $artifacts = $this->recoveryArtifacts($journalState);
         $backups = $backupManager->verify($artifacts['backup_dir'], $transactionId);
@@ -811,10 +902,19 @@ final class UpdateApplyCommand
             'postcheck_verified',
             'rollback_failed',
         ], true)) {
-            $current = $stateMachine->markRollbackStarted($transactionId, [
+            $rollbackStart = [
                 'started_at' => time(),
                 'from_state' => $state,
-            ]);
+            ];
+            if (is_string($failureCode)
+                && preg_match('/^[a-z0-9_]{1,64}$/D', $failureCode) === 1) {
+                $rollbackStart['failure_code'] = $failureCode;
+            }
+
+            $current = $stateMachine->markRollbackStarted(
+                $transactionId,
+                $rollbackStart
+            );
             $state = 'rollback_started';
         }
 
@@ -848,8 +948,11 @@ final class UpdateApplyCommand
 
         $restored = $applier->readLiveVersion();
         $this->assertVersion($journalState, $restored, false, 'Rollback restored an unexpected application version');
-        $health = $this->health($this->appRoot);
-        $migrationStatus = $this->migrationStatus($this->appRoot);
+        $verification = $this->verifyRollbackState(
+            $transactionId,
+            $journalState,
+            $stateMachine
+        );
         if ($restartWs) {
             $this->restartWs($this->appRoot);
         }
@@ -857,13 +960,90 @@ final class UpdateApplyCommand
         $verified = [
             'version' => $restored['version'],
             'version_code' => $restored['version_code'],
-            'health_status' => $health['status'] ?? null,
-            'migration_status_sha256' => hash('sha256', $migrationStatus['stdout']),
+            'health_status' => $verification['health_status'],
+            'migration_status_sha256' => $verification['migration_status_sha256'],
+            'verification_mode' => $verification['verification_mode'],
             'ws_restarted' => $restartWs,
             'verified_at' => time(),
         ];
         $stateMachine->markRollbackVerified($transactionId, $verified);
+        $this->logService('updater.rollback_verified', 'warning', $transactionId, [
+            'version' => (string) $restored['version'],
+            'version_code' => (int) $restored['version_code'],
+            'health_status' => (string) $verification['health_status'],
+            'verification_mode' => (string) $verification['verification_mode'],
+        ]);
         return $verified;
+    }
+
+    /**
+     * После пофайлового возврата старой версии web-only режим остаётся в том же
+     * PHP-запросе. Загруженные классы целевой версии уже нельзя выгрузить, поэтому
+     * запуск migrate/health из восстановленного дерева в этом процессе создаёт
+     * смешанный runtime двух версий. Для web-only подтверждаем уже проверенный
+     * снимок кода и БД; следующий HTTP-запрос стартует с чистым runtime.
+     *
+     * @param array<string,mixed> $journalState
+     * @return array{health_status:string,migration_status_sha256:string,verification_mode:string}
+     */
+    private function verifyRollbackState(
+        string $transactionId,
+        array $journalState,
+        UpdateTransactionStateMachine $stateMachine
+    ): array {
+        if ($this->processRunner::class !== __NAMESPACE__ . '\\UpdateInProcessRunner') {
+            $health = $this->health($this->appRoot);
+            $migrationStatus = $this->migrationStatus(
+                $this->appRoot,
+                (int) ($journalState['installed_version_code'] ?? 0)
+            );
+
+            return [
+                'health_status' => (string) ($health['status'] ?? ''),
+                'migration_status_sha256' => hash('sha256', $migrationStatus['stdout']),
+                'verification_mode' => 'cold_process',
+            ];
+        }
+
+        $current = $stateMachine->load($transactionId);
+        $database = is_array($current['rollback_database'] ?? null)
+            ? $current['rollback_database']
+            : [];
+        $preflight = is_array($current['preflight'] ?? null)
+            ? $current['preflight']
+            : [];
+
+        $dumpSha = strtolower(trim((string) ($database['dump_sha256'] ?? '')));
+        $tables = (int) ($database['tables'] ?? 0);
+        $triggers = (int) ($database['triggers'] ?? -1);
+        if (
+            preg_match('/^[0-9a-f]{64}$/D', $dumpSha) !== 1
+            || $tables < 1
+            || $triggers < 0
+            || (string) ($preflight['health_status'] ?? '') !== 'ok'
+        ) {
+            throw new RuntimeException(
+                'Rollback web-only не содержит достаточного подтверждения проверенного снимка'
+            );
+        }
+
+        $proof = json_encode(
+            [
+                'installed_version' => (string) ($journalState['installed_version'] ?? ''),
+                'installed_version_code' => (int) ($journalState['installed_version_code'] ?? 0),
+                'dump_sha256' => $dumpSha,
+                'tables' => $tables,
+                'triggers' => $triggers,
+                'preflight_health_status' => 'ok',
+            ],
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        );
+
+        return [
+            'health_status' => 'rollback_snapshot_verified',
+            'migration_status_sha256' => hash('sha256', $proof),
+            'verification_mode' => 'web_snapshot',
+        ];
     }
 
     /** @param array<string,mixed> $journalState @return array{backup_dir:string} */
@@ -909,11 +1089,16 @@ final class UpdateApplyCommand
      *
      * @return array{sha256:string,manifest_sha256:string,ledger_present:bool,pending:int}
      */
-    private function migrationPreflight(string $candidateRoot): array
-    {
+    private function migrationPreflight(
+        string $candidateRoot,
+        int $baselineVersionCode
+    ): array {
         $db = $this->database();
         try {
-            $result = (new UpdateMigrationPreflight($candidateRoot))->check($db);
+            $result = (new UpdateMigrationPreflight($candidateRoot))->check(
+                $db,
+                $baselineVersionCode
+            );
         } finally {
             $db->close();
         }
@@ -931,9 +1116,14 @@ final class UpdateApplyCommand
     }
 
     /** @return array{code:int,stdout:string,stderr:string} */
-    private function migrationStatus(string $root): array
+    private function migrationStatus(string $root, ?int $baselineVersionCode = null): array
     {
-        $result = $this->run([PHP_BINARY, $root . '/bin/migrate.php', '--status'], $root, 180);
+        $command = [PHP_BINARY, $root . '/bin/migrate.php', '--status'];
+        if (is_int($baselineVersionCode) && $baselineVersionCode > 0) {
+            $command[] = '--baseline-version-code=' . $baselineVersionCode;
+        }
+
+        $result = $this->run($command, $root, 180);
         if ($result['code'] !== 0) {
             throw new RuntimeException(
                 'Migration checksum/schema status failed: ' . $this->commandFailureDetails($result)
@@ -1094,6 +1284,17 @@ PHP;
         );
         $db->set_charset('utf8mb4');
         return $db;
+    }
+
+    /** @param array<string,mixed> $details */
+    private function logService(
+        string $event,
+        string $level,
+        string $transactionId,
+        array $details = []
+    ): void {
+        $details['transaction_id'] = $transactionId;
+        ServiceLog::emit($event, $level, 'updater', $details);
     }
 
     /** @param array<string,mixed> $details */

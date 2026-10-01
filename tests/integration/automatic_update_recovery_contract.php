@@ -6,6 +6,7 @@ use App\Services\MaintenanceModeService;
 use Core\UpdateAutomaticRecovery;
 use Core\UpdateCoordinatorLock;
 use Core\UpdateTransactionJournal;
+use Core\UpdateWebContinuation;
 
 $root = dirname(__DIR__, 2);
 require_once $root . '/app/services/MaintenanceModeService.php';
@@ -13,6 +14,7 @@ require_once $root . '/core/UpdateAutomaticRecovery.php';
 require_once $root . '/core/UpdateBootRecoveryGate.php';
 require_once $root . '/core/UpdateCoordinatorLock.php';
 require_once $root . '/core/UpdateTransactionJournal.php';
+require_once $root . '/core/UpdateWebContinuation.php';
 
 function automaticRecoveryAssert(bool $condition, string $message): void
 {
@@ -117,6 +119,173 @@ try {
     automaticRecoveryAssert($invocations === 1, 'Recovery должен запускаться ровно один раз');
     automaticRecoveryAssert(!$maintenance->state()['active'], 'Maintenance не снят после recovery');
 
+    $handoffTransaction = 'update-auto-recovery-handoff';
+    automaticRecoveryInitializeJournal($stateRoot, $root, $temp, $handoffTransaction);
+    $handoffJournalPath = $stateRoot . '/transactions/' . $handoffTransaction . '.json';
+    $handoffJournal = json_decode(
+        (string) file_get_contents($handoffJournalPath),
+        true,
+        32,
+        JSON_THROW_ON_ERROR
+    );
+    $handoffJournal['state'] = 'code_switched';
+    $handoffJournal['live_mutation_started'] = true;
+    $handoffJournal['updated_at'] = time();
+    automaticRecoveryAssert(
+        file_put_contents(
+            $handoffJournalPath,
+            json_encode(
+                $handoffJournal,
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+            )
+        ) !== false,
+        'Не удалось подготовить свежий code_switched journal без web-lease'
+    );
+
+    $maintenance->enter($handoffTransaction, 'Проверка handoff web-updater');
+    $handoffInvocations = 0;
+    $handoffRecovery = new UpdateAutomaticRecovery(
+        $root,
+        static function () use (&$handoffInvocations): array {
+            $handoffInvocations++;
+            return ['code' => 0, 'stdout' => '{}', 'stderr' => ''];
+        }
+    );
+    $handoffResult = $handoffRecovery->attempt($maintenance);
+    automaticRecoveryAssert(
+        $handoffResult['status'] === 'in_progress',
+        'Свежий code_switched без lease ошибочно запустил rollback'
+    );
+    automaticRecoveryAssert(
+        ($handoffResult['code'] ?? '') === 'web_continuation_handoff',
+        'Свежий handoff не вернул отдельный код защиты'
+    );
+    automaticRecoveryAssert(
+        $handoffInvocations === 0,
+        'Recovery subprocess не должен запускаться в окне смены runtime'
+    );
+    automaticRecoveryAssert(
+        $maintenance->state()['active'],
+        'Handoff-защита не должна снимать maintenance'
+    );
+
+    $handoffJournal['updated_at'] = time() - 300;
+    automaticRecoveryAssert(
+        file_put_contents(
+            $handoffJournalPath,
+            json_encode(
+                $handoffJournal,
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+            )
+        ) !== false,
+        'Не удалось состарить handoff journal'
+    );
+
+    $expiredHandoffInvocations = 0;
+    $expiredHandoffRecovery = new UpdateAutomaticRecovery(
+        $root,
+        static function () use (
+            &$expiredHandoffInvocations,
+            $maintenance,
+            $handoffTransaction
+        ): array {
+            $expiredHandoffInvocations++;
+            $maintenance->leave($handoffTransaction);
+            return [
+                'code' => 0,
+                'stdout' => json_encode([
+                    'status' => 'rolled_back',
+                    'transaction_id' => $handoffTransaction,
+                    'maintenance_active' => false,
+                ], JSON_THROW_ON_ERROR),
+                'stderr' => '',
+            ];
+        }
+    );
+    $expiredHandoffResult = $expiredHandoffRecovery->attempt($maintenance);
+    automaticRecoveryAssert(
+        $expiredHandoffResult['status'] === 'recovered',
+        'После окна handoff recovery не был разрешён'
+    );
+    automaticRecoveryAssert(
+        $expiredHandoffInvocations === 1,
+        'После окна handoff recovery должен запускаться ровно один раз'
+    );
+    automaticRecoveryAssert(
+        !$maintenance->state()['active'],
+        'После recovery состаренного handoff maintenance не снят'
+    );
+
+    $rollbackLeaseTransaction = 'update-auto-recovery-rollback-lease';
+    automaticRecoveryInitializeJournal($stateRoot, $root, $temp, $rollbackLeaseTransaction);
+    $journalPath = $stateRoot . '/transactions/' . $rollbackLeaseTransaction . '.json';
+    $journalPayload = json_decode(
+        (string) file_get_contents($journalPath),
+        true,
+        32,
+        JSON_THROW_ON_ERROR
+    );
+    $journalPayload['state'] = 'rollback_verified';
+    $journalPayload['live_mutation_started'] = true;
+    $journalPayload['updated_at'] = time();
+    automaticRecoveryAssert(
+        file_put_contents(
+            $journalPath,
+            json_encode(
+                $journalPayload,
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+            )
+        ) !== false,
+        'Не удалось подготовить rollback_verified journal'
+    );
+
+    $maintenance->enter($rollbackLeaseTransaction, 'Проверка stale web-lease после rollback');
+    $rollbackContinuation = new UpdateWebContinuation($stateRoot);
+    $rollbackContinuation->create($rollbackLeaseTransaction);
+    automaticRecoveryAssert(
+        $rollbackContinuation->active($rollbackLeaseTransaction),
+        'Не удалось подготовить активный web-lease для rollback recovery'
+    );
+
+    $rollbackLeaseInvocations = 0;
+    $rollbackLeaseRecovery = new UpdateAutomaticRecovery(
+        $root,
+        static function () use (
+            &$rollbackLeaseInvocations,
+            $maintenance,
+            $rollbackLeaseTransaction
+        ): array {
+            $rollbackLeaseInvocations++;
+            $maintenance->leave($rollbackLeaseTransaction);
+            return [
+                'code' => 0,
+                'stdout' => json_encode([
+                    'status' => 'rollback_recovery_verified',
+                    'transaction_id' => $rollbackLeaseTransaction,
+                    'maintenance_active' => false,
+                ], JSON_THROW_ON_ERROR),
+                'stderr' => '',
+            ];
+        }
+    );
+    $rollbackLeaseResult = $rollbackLeaseRecovery->attempt($maintenance);
+    automaticRecoveryAssert(
+        $rollbackLeaseResult['status'] === 'recovered',
+        'rollback_verified ошибочно заблокирован живым web-lease'
+    );
+    automaticRecoveryAssert(
+        $rollbackLeaseInvocations === 1,
+        'Recovery rollback_verified не был запущен немедленно'
+    );
+    automaticRecoveryAssert(
+        !$rollbackContinuation->active($rollbackLeaseTransaction),
+        'Завершённый recovery оставил web-lease активным'
+    );
+    automaticRecoveryAssert(
+        !$maintenance->state()['active'],
+        'Завершённый rollback recovery оставил maintenance активным'
+    );
+
     $busyTransaction = 'update-auto-recovery-busy';
     $maintenance->enter($busyTransaction, 'Проверка конкурентного обновления');
     $busyCoordinator = new UpdateCoordinatorLock($stateRoot, $busyTransaction);
@@ -170,6 +339,38 @@ try {
             'invalid'
         ),
         'Некорректный INSTALL_DATE не должен автоматически снимать maintenance'
+    );
+
+    $applyCommandSource = (string) file_get_contents($root . '/core/UpdateApplyCommand.php');
+    automaticRecoveryAssert(
+        !str_contains($applyCommandSource, "'apply_error_type' => \$applyError::class"),
+        'Recovery rollback снова ссылается на отсутствующую переменную applyError'
+    );
+    automaticRecoveryAssert(
+        str_contains($applyCommandSource, "'recovery_mode' => true")
+            && str_contains($applyCommandSource, "'rollback_error_type' => \$rollbackError::class"),
+        'Recovery rollback не сохраняет безопасный контекст первичной ошибки'
+    );
+    automaticRecoveryAssert(
+        str_contains($applyCommandSource, 'verifyRollbackState(')
+            && str_contains(
+                $applyCommandSource,
+                "\$this->processRunner::class !== __NAMESPACE__ . '\\\\UpdateInProcessRunner'"
+            )
+            && str_contains($applyCommandSource, "'verification_mode' => 'cold_process'")
+            && str_contains($applyCommandSource, "'verification_mode' => 'web_snapshot'")
+            && str_contains($applyCommandSource, "'health_status' => 'rollback_snapshot_verified'"),
+        'Rollback не разделяет холодную process-проверку и web-only проверку восстановленного снимка'
+    );
+
+    $continuationSource = (string) file_get_contents($root . '/core/UpdateWebContinuation.php');
+    automaticRecoveryAssert(
+        !str_contains(
+            $continuationSource,
+            "if (\$replace && file_exists(\$path) && !@unlink(\$path))"
+        )
+            && str_contains($continuationSource, 'if (!@rename($temp, $path))'),
+        'Продление web-lease снова создаёт окно без continuation-файла перед атомарной заменой'
     );
 
     $bootGateSource = (string) file_get_contents($root . '/core/UpdateBootRecoveryGate.php');

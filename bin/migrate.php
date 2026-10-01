@@ -12,19 +12,31 @@ require_once $root . '/core/Environment.php';
 require_once $root . '/core/MigrationManifest.php';
 require_once $root . '/core/ModuleManifest.php';
 require_once $root . '/core/DatabaseOwnership.php';
+require_once $root . '/core/MigrationBaseline.php';
+require_once $root . '/core/Version.php';
 if (is_file($root . '/.env')) {
     \Core\Environment::load($root . '/.env');
 }
 
-$options = getopt('', ['dry-run', 'status', 'help']);
+$options = getopt('', ['dry-run', 'status', 'help', 'baseline-version-code:']);
 if (isset($options['help'])) {
-    echo "Usage: php bin/migrate.php [--dry-run|--status]\n";
-    echo "  --dry-run  Show pending migrations without changing the database.\n";
-    echo "  --status   Show applied/pending migrations and verify checksums.\n";
+    echo "Использование: php bin/migrate.php [--dry-run|--status] [--baseline-version-code=N]\n";
+    echo "  --dry-run               Показать ожидающие миграции без изменения БД.\n";
+    echo "  --status                Показать применённые/ожидающие миграции и проверить контрольные суммы.\n";
+    echo "  --baseline-version-code Код опубликованной исходной версии без schema_migrations.\n";
     exit(0);
 }
 $dryRun = isset($options['dry-run']);
 $statusOnly = isset($options['status']);
+$baselineVersionCode = null;
+if (isset($options['baseline-version-code'])) {
+    $baselineRaw = trim((string) $options['baseline-version-code']);
+    if (preg_match('/^[1-9][0-9]{0,8}$/D', $baselineRaw) !== 1) {
+        fwrite(STDERR, "Некорректный --baseline-version-code\n");
+        exit(2);
+    }
+    $baselineVersionCode = (int) $baselineRaw;
+}
 
 $canonicalManifest = new \Core\MigrationManifest($root);
 $canonical = $canonicalManifest->names();
@@ -237,9 +249,37 @@ function verifyCurrentContract(mysqli $db, array $tables, bool $hasFiles): void
 
 try {
     $db = dbConnection();
+    $ledgerPresent = migrationTableExists($db);
     $applied = appliedMigrations($db);
+    $baseline = [];
 
-    // Every ledger entry remains verifiable against the immutable canonical set,
+    // Старые опубликованные updater 1.0.12/1.0.13 запускают уже новый
+    // bin/migrate.php после переключения файлов, но ещё не умеют передавать
+    // --baseline-version-code. В этом узком случае исходная версия берётся
+    // только из активной внешней updater-транзакции, уже пересёкшей destructive boundary.
+    if (!$ledgerPresent && $baselineVersionCode === null) {
+        $baselineVersionCode = \Core\MigrationBaseline::activeUpdaterSourceVersionCode(
+            $root,
+            \Core\Version::VERSION_CODE
+        );
+    }
+
+    if (!$ledgerPresent && is_int($baselineVersionCode) && $baselineVersionCode > 0) {
+        $baseline = \Core\MigrationBaseline::appliedNames($canonical, $baselineVersionCode);
+        foreach ($baseline as $filename) {
+            $applied[$filename] = hash('sha256', $canonicalManifest->readMigration($filename));
+        }
+
+        if (!$statusOnly && !$dryRun && $baseline !== []) {
+            ensureMigrationTable($db);
+            foreach ($baseline as $filename) {
+                recordMigration($db, $filename, (string) $applied[$filename]);
+            }
+            $ledgerPresent = true;
+        }
+    }
+
+    // Каждая запись журнала остаётся проверяемой по неизменяемому каноническому набору,
     // even when its owning module is absent from this packaged composition.
     foreach ($applied as $filename => $checksum) {
         if (!in_array($filename, $canonical, true)) {
@@ -275,6 +315,13 @@ try {
     }
 
     ensureMigrationTable($db);
+    if ($baseline !== []) {
+        echo sprintf(
+            "Журнал миграций инициализирован из опубликованной версии %d: %d записей\n",
+            $baselineVersionCode,
+            count($baseline)
+        );
+    }
     foreach ($pending as $filename) {
         $sql = $canonicalManifest->readMigration($filename);
         $checksum = hash('sha256', $sql);

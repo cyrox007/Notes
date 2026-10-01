@@ -88,10 +88,16 @@
             }
 
             if (String(result.status || '') === 'recovered') {
-                failProgress(
-                    elements,
+                const diagnosticCode = String(result.diagnostic_code || '').trim();
+                const recoveredMessage = String(
                     result.message
                         || 'Обновление не установлено. Предыдущая версия автоматически восстановлена.'
+                );
+                failProgress(
+                    elements,
+                    diagnosticCode
+                        ? `${recoveredMessage} Код диагностики: ${diagnosticCode}.`
+                        : recoveredMessage
                 );
                 window.setTimeout(() => window.location.reload(), 1400);
                 return;

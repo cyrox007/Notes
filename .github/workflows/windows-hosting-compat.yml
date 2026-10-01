@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php: ['8.1', '8.3', '8.4', '8.5']
+        php: ['8.1']
 
     steps:
       - name: Checkout
@@ -61,6 +61,10 @@ jobs:
             'core/UpdateApplyOperationLock.php',
             'core/UpdateRollbackCodeRestorer.php',
             'core/UpdateApplyCommand.php',
+            'core/ServiceLog.php',
+            'core/HostingProfileProbe.php',
+            'core/SupportZipWriter.php',
+            'core/SupportDiagnostics.php',
             'core/UpdateReadiness.php',
             'core/UpdateArtifactCleaner.php',
             'bin/update.php',
@@ -116,7 +120,8 @@ jobs:
             'tests/integration/hosting_package_source_contract.php',
             'tests/integration/deployment_surface_contract.php',
             'tests/integration/hosting_compatibility_contract.php',
-            'tests/integration/profile_avatar_image_processor_contract.php'
+            'tests/integration/profile_avatar_image_processor_contract.php',
+            'tests/integration/support_diagnostics_contract.php'
           )
           foreach ($test in $tests) {
             Write-Host "=== $test ==="

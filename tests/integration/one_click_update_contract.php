@@ -14,6 +14,7 @@ function updateNotificationAssert(bool $condition, string $message): void
 $header = (string) file_get_contents($root . '/app/views/^shared/header/index.php');
 $base = (string) file_get_contents($root . '/app/views/core/base.php');
 $script = (string) file_get_contents($root . '/assets/js/update-notifications.js');
+$webRunner = (string) file_get_contents($root . '/assets/js/update-web-runner.js');
 $router = (string) file_get_contents($root . '/modules/admin/AdminRuntimeProvider.php');
 $controller = (string) file_get_contents($root . '/modules/admin/controllers/UpdateController.php');
 $service = (string) file_get_contents($root . '/modules/admin/services/AdminUpdateService.php');
@@ -31,6 +32,7 @@ $coreBootstrap = (string) file_get_contents($root . '/core.php');
 $liveApplyContract = (string) file_get_contents($root . '/tests/integration/updater_live_apply_contract.php');
 $adminUpdateE2e = (string) file_get_contents($root . '/.github/workflows/admin-update-e2e.yml');
 $rollbackBrowserE2e = (string) file_get_contents($root . '/tests/e2e/admin-update-rollback.mjs');
+$bootstrap1012 = (string) file_get_contents($root . '/tools/release/bootstrap-1.0.12-updater.php');
 
 updateNotificationAssert(
     str_contains($header, 'data-update-notifications'),
@@ -214,25 +216,54 @@ updateNotificationAssert(
     'Ранний recovery должен выполняться в index.php до проверки схемы и запуска core'
 );
 updateNotificationAssert(
+    str_contains($entrypoint, "\$supportDiagnosticsPath = SITEPATH . '/core/SupportDiagnostics.php'")
+        && str_contains($entrypoint, 'is_file($supportDiagnosticsPath)')
+        && str_contains($entrypoint, 'require_once $supportDiagnosticsPath'),
+    'Ранний bootstrap диагностики должен переживать пофайловый code switch без Warning/Fatal до публикации SupportDiagnostics.php'
+);
+updateNotificationAssert(
     str_contains($adminUpdateE2e, 'tests/e2e/admin-update-rollback.mjs'),
     'Сквозной релизный тест не запускает браузерную проверку автоматического отката'
 );
 updateNotificationAssert(
-    str_contains($adminUpdateE2e, 'name: 1.0.12 → 1.0.13 сквозной updater')
-        && str_contains($adminUpdateE2e, "E2E_SOURCE_VERSION=%s\\n' '1.0.12'")
-        && str_contains($adminUpdateE2e, "E2E_TARGET_VERSION=%s\\n' '1.0.13-admin-e2e'")
+    str_contains($adminUpdateE2e, 'name: 1.0.12/1.0.13 → 1.0.14 сквозной updater')
+        && str_contains($adminUpdateE2e, "source_version: '1.0.12'")
+        && str_contains($adminUpdateE2e, "source_code: '10012'")
+        && str_contains($adminUpdateE2e, "source_version: '1.0.13'")
+        && str_contains($adminUpdateE2e, "source_code: '10013'")
+        && str_contains($adminUpdateE2e, "E2E_TARGET_VERSION=%s\\n' '1.0.14-admin-e2e'")
+        && str_contains($adminUpdateE2e, '--min-source-version-code=10012')
+        && str_contains($adminUpdateE2e, 'Подготовить совместимый updater-контур')
+        && str_contains(
+            $adminUpdateE2e,
+            'php tools/release/bootstrap-1.0.12-updater.php --yes --root="$LIVE"'
+        )
         && !str_contains($adminUpdateE2e, 'bootstrap-1.0.9-updater.php'),
-    'Сквозной релизный тест не закрепляет штатную границу обновления 1.0.12 → 1.0.13 без bootstrap'
+    'Сквозной релизный тест должен закреплять совместимый handoff 1.0.12/1.0.13 перед штатным web-обновлением 1.0.14'
 );
 updateNotificationAssert(
-    str_contains($adminUpdateE2e, '1.0.13-broken-e2e')
+    str_contains($bootstrap1012, "'1.0.12' => 10012")
+        && str_contains($bootstrap1012, "'1.0.13' => 10013")
+        && str_contains($bootstrap1012, "'core/UpdateInProcessRunner.php'")
+        && str_contains($bootstrap1012, "'core/MigrationBaseline.php'")
+        && str_contains($bootstrap1012, "'core/UpdateFileMutator.php'")
+        && str_contains($bootstrap1012, 'Мост не должен менять версию приложения до штатного обновления.'),
+    'Совместимый handoff должен быть ограничен exact 1.0.12/1.0.13 и менять только updater-контур до штатного обновления'
+);
+updateNotificationAssert(
+    str_contains($webRunner, 'runtime_refresh_delay_ms')
+        && str_contains($webRunner, 'await wait(runtimeRefreshDelay)'),
+    'Web-runner не выдерживает паузу для обновления PHP runtime после переключения кода'
+);
+updateNotificationAssert(
+    str_contains($adminUpdateE2e, '1.0.14-broken-e2e')
         && str_contains($adminUpdateE2e, 'намеренный отказ миграции'),
-    'Сквозной релизный тест не содержит намеренно падающий подписанный пакет 1.0.13'
+    'Сквозной релизный тест не содержит намеренно падающий подписанный пакет 1.0.14'
 );
 updateNotificationAssert(
-    str_contains($adminUpdateE2e, '1.0.13-health-broken-e2e')
+    str_contains($adminUpdateE2e, '1.0.14-health-broken-e2e')
         && str_contains($adminUpdateE2e, 'намеренный отказ post-health после успешной миграции'),
-    'Сквозной релизный тест не проверяет автоматический откат 1.0.13 после ошибки post-health после успешной миграции'
+    'Сквозной релизный тест не проверяет автоматический откат 1.0.14 после ошибки post-health после успешной миграции'
 );
 updateNotificationAssert(
     str_contains($adminUpdateE2e, 'rollback_verified'),

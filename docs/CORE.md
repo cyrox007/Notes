@@ -1,6 +1,6 @@
 # Ядро Workspace Organizer
 
-Актуально для стабильной линии **1.0.13**.
+Актуально для стабильной линии **1.0.14**.
 
 ## Назначение Core
 
@@ -20,7 +20,7 @@ HTTP entry point — `index.php`. Базовая загрузка выполня
 6. `ModuleRuntimeLoader` загружает provider только фактически активных модулей;
 7. Router получает core-маршруты и маршруты активных providers.
 
-Runtime 1.0.13 не требует Composer, `vendor/`, Smarty или Workerman.
+Runtime 1.0.14 не требует Composer, `vendor/`, Smarty или Workerman.
 
 ## Маршрутизация
 

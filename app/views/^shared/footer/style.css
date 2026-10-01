@@ -1,3 +1,6 @@
+.wrapper__content{display:flex;min-height:100vh;flex-direction:column}
+.content-wrapper{flex:1 0 auto}
+.main-footer{flex:0 0 auto;margin-top:auto}
 .main-footer{width:min(100%,var(--ui-content));margin:0 auto;padding:16px 28px 22px;display:flex;align-items:center;justify-content:space-between;gap:14px;color:var(--ui-muted);font-size:11px}
 .main-footer__brand,.main-footer__meta{display:flex;align-items:center;gap:8px}
 .main-footer__brand strong{color:var(--ui-text)}

@@ -63,6 +63,7 @@ final class UpdateDatabaseRestorer
         $this->dropCurrentDatabaseObjects($db);
         foreach ($this->parseSqlStatements($sql) as $index => $statement) {
             try {
+                $statement = $this->normalizePortableTriggerDefinition($statement);
                 $statement = $this->normalizeLegacyJsonInsert($db, $statement);
                 $result = $db->query($statement);
                 if ($result instanceof mysqli_result) {
@@ -187,6 +188,28 @@ final class UpdateDatabaseRestorer
         }
 
         return $statements;
+    }
+
+    private function normalizePortableTriggerDefinition(string $statement): string
+    {
+        $trimmed = trim($statement);
+        if (preg_match('/^CREATE\\s+DEFINER\\s*=/i', $trimmed) !== 1) {
+            return $statement;
+        }
+
+        $portable = preg_replace(
+            '/^CREATE\\s+DEFINER\\s*=\\s*(?:`(?:``|[^`])*`|[^@\\s]+)\\s*@\\s*(?:`(?:``|[^`])*`|[^\\s]+)\\s+TRIGGER\\b/i',
+            'CREATE TRIGGER',
+            $trimmed,
+            1
+        );
+        if (!is_string($portable) || preg_match('/^CREATE\\s+TRIGGER\\b/i', $portable) !== 1) {
+            throw new RuntimeException(
+                'Rollback содержит неподдерживаемое определение объекта с DEFINER'
+            );
+        }
+
+        return $portable;
     }
 
     /**
