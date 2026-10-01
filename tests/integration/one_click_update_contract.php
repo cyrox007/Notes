@@ -15,7 +15,6 @@ $header = (string) file_get_contents($root . '/app/views/^shared/header/index.ph
 $base = (string) file_get_contents($root . '/app/views/core/base.php');
 $script = (string) file_get_contents($root . '/assets/js/update-notifications.js');
 $webRunner = (string) file_get_contents($root . '/assets/js/update-web-runner.js');
-$bootstrap1012 = (string) file_get_contents($root . '/tools/release/bootstrap-1.0.12-updater.php');
 $router = (string) file_get_contents($root . '/modules/admin/AdminRuntimeProvider.php');
 $controller = (string) file_get_contents($root . '/modules/admin/controllers/UpdateController.php');
 $service = (string) file_get_contents($root . '/modules/admin/services/AdminUpdateService.php');
@@ -230,12 +229,6 @@ updateNotificationAssert(
         && !str_contains($adminUpdateE2e, 'php tools/release/bootstrap-1.0.12-updater.php')
         && !str_contains($adminUpdateE2e, 'bootstrap-1.0.9-updater.php'),
     'Сквозной релизный тест должен закреплять прямой web-only путь 1.0.12/1.0.13 → 1.0.14 без CLI-моста'
-);
-updateNotificationAssert(
-    str_contains($bootstrap1012, "liveVersion !== '1.0.12'")
-        && str_contains($bootstrap1012, "sourceVersion !== '1.0.14'")
-        && str_contains($bootstrap1012, 'Версия приложения и база данных не изменялись'),
-    'Одноразовый мост updater не закрепляет exact-границы 1.0.12 → 1.0.14'
 );
 updateNotificationAssert(
     str_contains($webRunner, 'runtime_refresh_delay_ms')
