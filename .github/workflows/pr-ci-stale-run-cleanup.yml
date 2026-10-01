@@ -39,16 +39,6 @@ jobs:
 
           $encodedBranch = [uri]::EscapeDataString($env:HEAD_BRANCH)
           $cancelled = 0
-          $keepCurrent = @(
-              'Stable release gate',
-              '1.0.12 → 1.0.14 сквозной updater',
-              '1.0 обновление из админ-панели',
-              '1.0 updater transaction backup',
-              '1.0 updater live apply rollback',
-              'PHP runtime compatibility',
-              'Windows hosting compatibility',
-              'Notes private storage'
-          )
 
           Start-Sleep -Seconds 10
           $page = 1
@@ -60,13 +50,9 @@ jobs:
               foreach ($run in @($response.workflow_runs)) {
                   $belongsToPr = @($run.pull_requests | Where-Object { $_.number -eq [int]$env:PR_NUMBER }).Count -gt 0
                   $isOldSha = $run.head_sha -ne $env:CURRENT_SHA
-                  $isCurrentSha = $run.head_sha -eq $env:CURRENT_SHA
                   $isActive = $run.status -in @('queued', 'in_progress')
-                  $isCurrentCritical = $isCurrentSha -and $run.name -in $keepCurrent
-                  $isCleanup = $run.name -eq 'Очистка устаревших PR-проверок'
-                  $cancelCurrentNoise = $isCurrentSha -and -not $isCurrentCritical -and -not $isCleanup
 
-                  if (-not $belongsToPr -or -not $isActive -or (-not $isOldSha -and -not $cancelCurrentNoise)) {
+                  if (-not $belongsToPr -or -not $isOldSha -or -not $isActive) {
                       continue
                   }
 
@@ -75,12 +61,7 @@ jobs:
                   try {
                       Invoke-RestMethod -Uri $cancelUri -Headers $headers -Method Post | Out-Null
                       $shortSha = $run.head_sha.Substring(0, [Math]::Min(8, $run.head_sha.Length))
-                      if ($isOldSha) {
-                          Write-Host "Отменён устаревший запуск $($run.id): $($run.name), SHA $shortSha."
-                      }
-                      else {
-                          Write-Host "Отменён необязательный запуск текущего SHA $($run.id): $($run.name)."
-                      }
+                      Write-Host "Отменён устаревший запуск $($run.id): $($run.name), SHA $shortSha."
                       $cancelled++
                   }
                   catch {
