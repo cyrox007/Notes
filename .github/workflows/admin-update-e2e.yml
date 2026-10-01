@@ -637,7 +637,6 @@ jobs:
               E2E_APP_ROOT="$LIVE" \
               E2E_SUPPORT_ROOT="$GITHUB_WORKSPACE" \
               E2E_UPDATER_GUARD_PATH="$DRILL/private/state/e2e-updater-handoff-guard.json" \
-              PHP_CLI_SERVER_WORKERS=4 \
               php -d "openssl.cafile=$DRILL/ca.crt" \
               -d "disable_functions=${{ matrix.disable_functions }}" \
               -S 127.0.0.1:18094 "$GITHUB_WORKSPACE/tests/e2e/router.php" \
