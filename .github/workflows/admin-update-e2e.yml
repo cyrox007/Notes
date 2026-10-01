@@ -447,8 +447,18 @@ jobs:
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
           SQL
 
-          perl -0pi -e "s/'status' => \\$failed \? 'fail' : 'ok'/'status' => 'fail'/" \
-            "$HEALTH_BROKEN/core/UpdateWebHealthProbe.php"
+          python3 - "$HEALTH_BROKEN/core/UpdateWebHealthProbe.php" <<'PY'
+          from pathlib import Path
+          import sys
+
+          path = Path(sys.argv[1])
+          source = path.read_text(encoding='utf-8')
+          old = "'status' => $failed ? 'fail' : 'ok'"
+          new = "'status' => 'fail'"
+          if old not in source:
+              raise SystemExit('Не найден ожидаемый health-status контракт кандидата')
+          path.write_text(source.replace(old, new, 1), encoding='utf-8')
+          PY
           grep -Fq "'status' => 'fail'" "$HEALTH_BROKEN/core/UpdateWebHealthProbe.php"
 
           php -r '
