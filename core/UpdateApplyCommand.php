@@ -248,7 +248,7 @@ final class UpdateApplyCommand
             );
         } catch (Throwable $rollbackError) {
             $this->logService('updater.rollback_failed', 'critical', $transactionId, [
-                'apply_error_type' => $applyError::class,
+                'recovery_mode' => true,
                 'rollback_error_type' => $rollbackError::class,
                 'message' => $rollbackError->getMessage(),
             ]);
