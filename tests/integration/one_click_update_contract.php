@@ -216,6 +216,12 @@ updateNotificationAssert(
     'Ранний recovery должен выполняться в index.php до проверки схемы и запуска core'
 );
 updateNotificationAssert(
+    str_contains($entrypoint, "\$supportDiagnosticsPath = SITEPATH . '/core/SupportDiagnostics.php'")
+        && str_contains($entrypoint, 'is_file($supportDiagnosticsPath)')
+        && str_contains($entrypoint, 'require_once $supportDiagnosticsPath'),
+    'Ранний bootstrap диагностики должен переживать пофайловый code switch без Warning/Fatal до публикации SupportDiagnostics.php'
+);
+updateNotificationAssert(
     str_contains($adminUpdateE2e, 'tests/e2e/admin-update-rollback.mjs'),
     'Сквозной релизный тест не запускает браузерную проверку автоматического отката'
 );
