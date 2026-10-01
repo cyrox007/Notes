@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, unlink } from 'node:fs/promises';
 import { chromium } from 'playwright';
 
 function requiredEnv(name) {
@@ -16,6 +16,24 @@ const expectedTarget = requiredEnv('E2E_TARGET_VERSION');
 const stateRoot = requiredEnv('E2E_STATE_ROOT');
 const basePath = '/' + basePathRaw.replace(/^\/+|\/+$/g, '');
 const baseUrl = origin + basePath;
+const routerGuardPath = `${stateRoot}/e2e-updater-handoff-guard.json`;
+
+async function armRouterGuard(transactionId = '') {
+  await writeFile(
+    routerGuardPath,
+    JSON.stringify({ transaction_id: transactionId }, null, 2) + '\n',
+    { mode: 0o600 }
+  );
+}
+
+async function disarmRouterGuard() {
+  try {
+    await unlink(routerGuardPath);
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+  }
+}
+
 
 const allowedPhases = new Set(['migrations', 'postcheck']);
 if (!allowedPhases.has(interruptPhase)) {
@@ -119,6 +137,10 @@ try {
     throw new Error(`Проверка обновления перед запуском транзакции вернула HTTP ${checkResponse?.status()}`);
   }
 
+  // С этого момента любые фоновые динамические запросы страницы блокируются
+  // тестовым router до завершения выбранной точки прерывания.
+  await armRouterGuard();
+
   const start = await postJson(page, `${basePath}/admin/updates/web-start`);
   if (!start.ok || !start.payload?.success || !start.payload?.result) {
     throw new Error(
@@ -134,6 +156,7 @@ try {
   if (!transactionId || !token) {
     throw new Error('Updater не вернул transaction_id/continuation_token');
   }
+  await armRouterGuard(transactionId);
   if (targetVersion !== expectedTarget) {
     throw new Error(
       `Updater выбрал неожиданную версию: ${targetVersion}; ожидалась ${expectedTarget}`
@@ -229,6 +252,8 @@ try {
     contextClosed = true;
   }
 
+  await disarmRouterGuard();
+
   let recoveryResponse = await fetch(`${baseUrl}/`, {
     redirect: 'follow',
     signal: AbortSignal.timeout(120000),
@@ -318,5 +343,6 @@ try {
   console.log(`INTERRUPTED_PHASE=${interruptPhase}`);
   console.log('Автоматический boot recovery после реального прерывания web-updater: OK');
 } finally {
+  await disarmRouterGuard();
   await browser.close();
 }
