@@ -61,7 +61,9 @@ final class UpdateDatabaseMigrator
                 }
 
                 if (!$statusOnly && $baseline !== []) {
-                    $this->verifyCurrentContract($db, $currentTables, $hasFiles);
+                    // Baseline фиксирует уже присутствующую схему опубликованной
+                    // исходной версии. Полный целевой контракт проверяется только
+                    // после применения действительно ожидающих миграций.
                     $this->ensureMigrationTable($db);
                     foreach ($baseline as $filename) {
                         $this->recordMigration(
