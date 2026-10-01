@@ -238,12 +238,19 @@ try {
 
     require_once SITEPATH . '/core/ServiceLog.php';
     \Core\ServiceLog::registerRuntimeCapture();
-    require_once SITEPATH . '/core/SupportDiagnostics.php';
 
-    // Одноразовый пакет поддержки должен оставаться доступен даже когда
-    // обычный bootstrap заблокирован maintenance/recovery или схемой БД.
-    if (\Core\SupportDiagnostics::canHandleRequest()) {
-        \Core\SupportDiagnostics::handleRequest(SITEPATH);
+    // При пофайловом code switch новый index.php может стать видимым на долю
+    // секунды раньше нового SupportDiagnostics.php. В этот момент нельзя
+    // превращать штатный maintenance/recovery в PHP Warning/Fatal.
+    $supportDiagnosticsPath = SITEPATH . '/core/SupportDiagnostics.php';
+    if (is_file($supportDiagnosticsPath) && !is_link($supportDiagnosticsPath)) {
+        require_once $supportDiagnosticsPath;
+
+        // Одноразовый пакет поддержки остаётся доступен даже когда обычный
+        // bootstrap заблокирован maintenance/recovery или схемой БД.
+        if (\Core\SupportDiagnostics::canHandleRequest()) {
+            \Core\SupportDiagnostics::handleRequest(SITEPATH);
+        }
     }
 
     require_once SITEPATH . '/app/services/MaintenanceModeService.php';
