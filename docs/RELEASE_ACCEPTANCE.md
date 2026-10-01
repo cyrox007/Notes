@@ -77,13 +77,13 @@
 - локальный TOTP QR: матрица строится внутри приложения без внешних API, длинный `otpauth://` URI проходит runtime-контракт;
 - shared-hosting профиль: базовая установка и Messenger работают при `WS_ENABLED=0` и отключённых process API;
 - signed updater/staging/apply/backup/recovery;
-- автоматический bootstrap update credential по действующей лицензии без activation code и ручного пути; обязательные матрицы `online-update-access (8.1/8.3)` и `admin-update-ui (8.1/8.3)`;
-- обязательный `admin-update-e2e`: матрица поднимает `1.0.12` и `1.0.13`, использует web-only режим PHP 8.1/8.3 и MySQL-пользователя без повышенных административных привилегий; подписанный `1.0.14` должен пройти успешную установку, rollback при ошибке миграции, rollback при ошибке post-healthcheck и ранний recovery без CLI;
+- автоматический bootstrap update credential по действующей лицензии без activation code и ручного пути; обязательные матрицы `online-update-access (8.1)` и `admin-update-ui (8.1)`;
+- обязательный `admin-update-e2e`: матрица поднимает `1.0.12` и `1.0.13`, использует web-only режим PHP 8.1 и MySQL-пользователя без повышенных административных привилегий; подписанный `1.0.14` должен пройти успешную установку, rollback при ошибке миграции, rollback при ошибке post-healthcheck и ранний recovery без CLI;
 - точный upgrade/rollback drill опубликованного `v1.0.1` (`0e6e4a3b352cfb7436db6b749fd869bbb07310c9`) -> `1.0.2`;
 - hosting installer/package;
 - cross-browser/mobile release evidence;
 - authenticated load/soak release evidence;
-- Windows hosting compatibility CI на PHP 8.1/8.3/8.4/8.5 и финальная ручная приёмка OSPanel 5.2.2 на production-signed artifacts.
+- Windows hosting compatibility CI на PHP 8.1 и финальная ручная приёмка OSPanel 5.2.2 на production-signed artifacts.
 
 Результат со старого commit не может заменять failed, skipped или unrun check на frozen release HEAD.
 
@@ -111,7 +111,7 @@
 - exact frozen RC/artifact прошёл live visual acceptance из #172, включая light/dark/system и проверку компактной ширины ноутбука;
 - exact frozen RC/artifact прошёл Windows/OSPanel transport acceptance: WebSocket `101` + `Authorized`, автоматический переход на Long Poll, durable delivery и автоматический возврат к WebSocket;
 - exact frozen RC прошёл автоматический updater acceptance: обычная лицензия сама создаёт внешний installation credential, повторная проверка не требует кода, а offline-режим не обращается в сеть;
-- автоматический CI-контур подтвердил прямые переходы `1.0.12 → 1.0.14` и `1.0.13 → 1.0.14`, включая web-only rollback/recovery на PHP 8.1/8.3; реальная Windows/OSPanel-приёмка exact RC выполняется до публикации `v1.0.14`;
+- автоматический CI-контур подтвердил прямые переходы `1.0.12 → 1.0.14` и `1.0.13 → 1.0.14`, включая web-only rollback/recovery на PHP 8.1; реальная Windows/OSPanel-приёмка exact RC выполняется до публикации `v1.0.14`;
 - exact frozen RC прошёл 2FA/TOTP acceptance: персональное включение/отключение, обязательная политика Admin, принудительная настройка аккаунта без TOTP, одноразовый recovery code и сохранение работоспособности после прямой/обратной ротации `UNIQUE_KEY`;
 - нет открытых P0/P1 дефектов с риском потери данных;
 - нет открытых P0/P1 дефектов безопасности;
