@@ -57,7 +57,7 @@ $view = (string) file_get_contents($root . '/modules/admin/views/updates.php');
 $support = (string) file_get_contents($root . '/core/SupportDiagnostics.php');
 
 diagnosticsRemoteAssert(
-    str_contains($sender, "$credentials->baseUrl() . 'diagnostics'")
+    str_contains($sender, "\$credentials->baseUrl() . 'diagnostics'")
         && str_contains($sender, 'multipart/form-data')
         && str_contains($sender, 'application/zip')
         && str_contains($sender, 'manual_admin'),
