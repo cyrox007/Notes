@@ -122,6 +122,14 @@ jobs:
           test "$(php -r "require '$SOURCE/core/Version.php'; echo Core\\Version::VERSION;")" = '${{ matrix.source_version }}'
           test "$(php -r "require '$SOURCE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '${{ matrix.source_code }}'
 
+          mysql -h 127.0.0.1 -uroot -proot <<'SQL'
+          CREATE USER 'workspace_app'@'%' IDENTIFIED BY 'workspace-ci-limited-db';
+          GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, DROP,
+                REFERENCES, TRIGGER, CREATE VIEW, SHOW VIEW, LOCK TABLES
+            ON admin_update_e2e.* TO 'workspace_app'@'%';
+          FLUSH PRIVILEGES;
+          SQL
+
           mapfile -t SCHEMAS < <(
             cd "$SOURCE"
             php -r '
@@ -135,10 +143,10 @@ jobs:
           test "${#SCHEMAS[@]}" -gt 0
           for schema in "${SCHEMAS[@]}"; do
             echo "Импорт схемы тестовой ${{ matrix.source_version }}: $schema"
-            mysql -h 127.0.0.1 -uroot -proot admin_update_e2e < "$schema"
+            mysql -h 127.0.0.1 -uworkspace_app -pworkspace-ci-limited-db admin_update_e2e < "$schema"
           done
 
-          DBHOST=127.0.0.1 DBPORT=3306 DBUSER=root DBPASS=root DBNAME=admin_update_e2e EXPECT_READY=1 \
+          DBHOST=127.0.0.1 DBPORT=3306 DBUSER=workspace_app DBPASS=workspace-ci-limited-db DBNAME=admin_update_e2e EXPECT_READY=1 \
             php "$SOURCE/tests/integration/schema_readiness_runtime.php"
 
           TEST_PASSWORD="$(php -r 'echo bin2hex(random_bytes(18));')"
@@ -170,16 +178,14 @@ jobs:
           ]);
           PHP
 
-          mysql -h 127.0.0.1 -uroot -proot <<'SQL'
-          CREATE USER 'workspace_app'@'%' IDENTIFIED BY 'workspace-ci-limited-db';
-          GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, DROP,
-                REFERENCES, TRIGGER, CREATE VIEW, SHOW VIEW, LOCK TABLES
-            ON admin_update_e2e.* TO 'workspace_app'@'%';
-          FLUSH PRIVILEGES;
-          SQL
-
           APP_GRANTS="$(mysql -N -B -h 127.0.0.1 -uworkspace_app -pworkspace-ci-limited-db \
             -e 'SHOW GRANTS FOR CURRENT_USER')"
+          FOREIGN_TRIGGER_DEFINERS="$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_update_e2e \
+            -e "SELECT COUNT(*) FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() AND DEFINER <> 'workspace_app@%';")"
+          if [[ "$FOREIGN_TRIGGER_DEFINERS" != '0' ]]; then
+            echo 'Исходная E2E-установка содержит триггеры чужого DB-пользователя и не соответствует штатному installer contract' >&2
+            exit 1
+          fi
           if grep -Eq 'CREATE ROUTINE|ALTER ROUTINE' <<<"$APP_GRANTS"; then
             echo 'Тестовый пользователь БД неожиданно получил права на хранимые процедуры' >&2
             exit 1
