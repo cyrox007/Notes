@@ -41,7 +41,7 @@ jobs:
           $cancelled = 0
           $keepCurrent = @(
               'Stable release gate',
-              '1.0.12/1.0.13 → 1.0.14 сквозной updater',
+              '1.0.12 → 1.0.14 сквозной updater',
               '1.0 обновление из админ-панели',
               '1.0 updater transaction backup',
               '1.0 updater live apply rollback',
