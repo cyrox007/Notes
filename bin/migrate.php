@@ -13,6 +13,7 @@ require_once $root . '/core/MigrationManifest.php';
 require_once $root . '/core/ModuleManifest.php';
 require_once $root . '/core/DatabaseOwnership.php';
 require_once $root . '/core/MigrationBaseline.php';
+require_once $root . '/core/Version.php';
 if (is_file($root . '/.env')) {
     \Core\Environment::load($root . '/.env');
 }
@@ -251,6 +252,17 @@ try {
     $ledgerPresent = migrationTableExists($db);
     $applied = appliedMigrations($db);
     $baseline = [];
+
+    // Старые опубликованные updater 1.0.12/1.0.13 запускают уже новый
+    // bin/migrate.php после переключения файлов, но ещё не умеют передавать
+    // --baseline-version-code. В этом узком случае исходная версия берётся
+    // только из активной внешней updater-транзакции, уже пересёкшей destructive boundary.
+    if (!$ledgerPresent && $baselineVersionCode === null) {
+        $baselineVersionCode = \Core\MigrationBaseline::activeUpdaterSourceVersionCode(
+            $root,
+            \Core\Version::VERSION_CODE
+        );
+    }
 
     if (!$ledgerPresent && is_int($baselineVersionCode) && $baselineVersionCode > 0) {
         $baseline = \Core\MigrationBaseline::appliedNames($canonical, $baselineVersionCode);
