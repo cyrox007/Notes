@@ -85,16 +85,16 @@ GitHub Release и релизный ZIP уже опубликованы.
 
 ## Стабилизационная ветка 1.0
 
-PR #323 синхронизирует ветку `1.0` с опубликованным состоянием `master` после 1.0.13.
-
-После его закрытия ветка 1.0 служит только стабилизационной линией для возможных совместимых patch-исправлений.
+PR #323 слит: ветка `1.0` синхронизирована с опубликованным состоянием после 1.0.13 и служит только стабилизационной линией для возможных совместимых patch-исправлений.
 
 ## Авторитетные документы
 
 - `docs/releases/v1.0.13.md`;
 - `docs/LICENSING.md`;
-- `docs/MODULE_PLATFORM_0.14.md`;
+- `docs/MODULE_PLATFORM.md`;
 - `docs/RELEASE_ACCEPTANCE.md`;
 - `docs/RELEASE_GOVERNANCE.md`;
+- `docs/SYSTEM_REQUIREMENTS.md`;
+- `docs/README.md`;
 - `CHANGELOG.md`;
 - `docs/ROADMAP.md`.

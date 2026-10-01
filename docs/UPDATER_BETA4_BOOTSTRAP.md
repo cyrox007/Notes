@@ -1,5 +1,8 @@
 # Beta4 -> 1.0 trusted bootstrap update
 
+> **Архив.** Этот документ описывает исторический этап и сохранён как свидетельство принятых решений. Он не является текущим списком задач или источником требований для 1.0.13+. Актуальная навигация: [README.md](README.md), текущий план: [ROADMAP.md](ROADMAP.md), архивный индекс: [ARCHIVE.md](ARCHIVE.md).
+
+
 `v0.14.0-beta.4` is a published release from before the signed updater runtime existed. The tag resolves to commit `743d9283f3bb4fca8f536ad133d542a7078af3a9`; that release does not contain `bin/update.php`, `UpdateManifestVerifier`, maintenance ownership, rollback backups, release candidates, or live apply/recovery.
 
 For that reason the first supported upgrade from Beta4 to 1.0 cannot truthfully be a self-update started by the installed Beta4 tree. It requires one explicit trusted bootstrap step. After 1.0 is installed, normal future signed updates run from the installed updater runtime.

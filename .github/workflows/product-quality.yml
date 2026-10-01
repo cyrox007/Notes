@@ -462,23 +462,11 @@ jobs:
           grep -Fq 'private_storage_outside_app_root' /tmp/healthcheck.json
           grep -Fq 'websocket_allowed_origins' /tmp/healthcheck.json
 
-      - name: Documentation freshness
+      - name: Проверка актуальности документации
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fq 'database/tasks_schema.sql' README.md
-          grep -Fq 'database/access_control_schema.sql' README.md
-          grep -Fq 'database/audit_schema.sql' README.md
-          grep -Fq 'database/settings_schema.sql' README.md
-          grep -Fq 'database/module_lifecycle_schema.sql' README.md
-          grep -Fq '35 обязательных таблиц' README.md
-          grep -Fq 'php bin/migrate.php' README.md
-          grep -Fq 'php bin/migrate_crypto.php' README.md
-          grep -Fq 'Saved Messages' README.md
-          grep -Fq 'PRIVATE_STORAGE_PATH/notes' README.md
-          grep -Fq 'docs/PRODUCTION.md' README.md
-          grep -Fq 'File Manager code execution удалён' README.md
-          grep -Fq '/admin/settings' README.md
+          php tests/integration/documentation_structure_contract.php
           test -s docs/PRODUCTION.md
-          grep -Fq 'read-only preview' docs/USER_GUIDE.md
-          grep -Fq 'versioned runner' docs/CORE.md
+          test -s docs/USER_GUIDE.md
+          test -s docs/CORE.md

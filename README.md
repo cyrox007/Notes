@@ -10,36 +10,35 @@ Workspace Organizer — self-hosted PHP-приложение для корпор
 
 ## Возможности
 
-- **Notes** — XChaCha20-Poly1305 для текста, writing-first editor, private attachments, first-class voice notes с duration/playback, view-only sharing по токену, autosave/dirty-state, server-side поиск и role policies для количества заметок, вложений, типов/размера файлов и sharing.
-- **Tasks** — личные kanban/list задачи, drag-and-drop статусов, приоритеты, сроки, категории, подзадачи, фильтры и server-side поиск/пагинация; beta.4 добавляет общие task boards с ACL, участниками, исполнителями и audience `all_active`.
-- **File Manager** — личные папки/файлы вне document root, protected download, media/read-only text preview, grid/list workspace, поиск/сортировка, drag-and-drop upload, storage quota и role policies для размера/типов файлов, общей ёмкости и создания папок.
-- **Messenger v2** — private/group chats, Saved Messages, forwarding, media, voice, reply/edit/delete, delivery/read receipts, reactions, encrypted search, pin/mute/archive, group roles/avatars, multi-device realtime; WebSocket работает как быстрый канал, а authenticated HTTP Long Poll — как полноценный durable-транспорт с автоматическим переключением и самовосстановлением; role policies ограничивают частоту сообщений, вложения, voice и group capabilities.
-- **Profile** — workspace hub с Notes/Tasks/Files/storage metrics, private avatar, account settings, безопасная деактивация и explicit `is_profile_public` publication model без раскрытия private content.
-- **Admin panel** — создание и lifecycle пользователей, managed registration `disabled/open/invite`, ограниченные/revocable инвайты, Role Manager с permission assignment и module policies, custom profile fields, системный лимит File Manager и персональные storage quota overrides без physical delete связанных данных.
-- **Responsive UI** — единый design system, desktop/mobile navigation, обновлённые формы/карточки/модалки, keyboard focus, reduced-motion support и общий feedback layer.
+- **Заметки** — зашифрованный текст, вложения, голосовые заметки, общий доступ только для просмотра, автосохранение, поиск и ограничения по ролям.
+- **Задачи** — личные и общие доски, список и канбан, статусы, приоритеты, сроки, категории, подзадачи, исполнители, фильтры и поиск.
+- **Файлы** — личные папки и файлы в закрытом хранилище, просмотр, поиск, сортировка, загрузка перетаскиванием, квоты и ограничения по ролям.
+- **Messenger** — личные и групповые диалоги, «Сохранённые сообщения», пересылка, медиа и голос, ответы, редактирование, удаление, реакции, статусы доставки/прочтения и работа с нескольких устройств. HTTP Long Poll является надёжным каналом, WebSocket — ускорителем.
+- **Профиль** — аватар, настройки аккаунта, показатели хранилища и безопасная публикация профиля без раскрытия закрытого содержимого.
+- **Администрирование** — пользователи, регистрация и приглашения, роли и разрешения, политики модулей, пользовательские поля, квоты, лицензия и управление составом модулей.
+- **Адаптивный интерфейс** — единая система оформления для настольных и мобильных экранов, клавиатурный фокус, уменьшение анимаций и общий механизм обратной связи.
 
-## Security model
+## Модель безопасности
 
-Ключевые свойства текущего contract:
+Основные свойства текущей версии:
 
-- passwords — `password_hash` / Argon2id;
-- Notes text — `UNIQUE_KEY` + XChaCha20-Poly1305, UID заметки используется как AAD;
-- Messenger text/captions — отдельный `MSG_SECRET_KEY` + versioned XChaCha20-Poly1305 payload;
-- crypto failures для новых encrypted данных — fail-closed;
-- WebSocket identity — подписанный server-issued ticket, client UID не считается доверенным;
-- WebSocket origins/actions — allowlist;
-- File Manager, Messenger media, Notes attachments и user avatars — `PRIVATE_STORAGE_PATH` вне document root;
-- File Manager quota проверяется до записи файла; concurrent uploads одного пользователя сериализуются MySQL advisory lock;
-- upload MIME — server-side `finfo` + allowlist;
-- unsafe HTTP actions — CSRF policy;
-- login/registration и upload endpoints — request rate limiting;
-- persisted RBAC отвечает за доступ к действиям, а `role_module_policies` отдельно задаёт количественные/типовые ограничения; server-side middleware/services остаются authorization boundary;
-- публичная регистрация по умолчанию закрыта; режимы `disabled/open/invite` управляются администратором, а managed invite-коды хранятся только как SHA-256 hash;
-- inactive/blocked user повторно проверяется на HTTP и WebSocket paths.
+- пароли хранятся через `password_hash` / Argon2id;
+- текст заметок шифруется XChaCha20-Poly1305 с `UNIQUE_KEY`, UID заметки используется как AAD;
+- текст и подписи Messenger шифруются отдельным `MSG_SECRET_KEY`;
+- ошибки расшифровки новых зашифрованных данных обрабатываются закрыто;
+- WebSocket использует подписанный сервером ticket и не доверяет UID, переданному клиентом;
+- разрешённые источники и действия WebSocket ограничены;
+- файлы, медиа Messenger, вложения заметок и аватары хранятся в `PRIVATE_STORAGE_PATH` вне document root;
+- MIME загружаемых файлов определяется на сервере через `finfo` и проверяется по разрешённому списку;
+- изменяющие HTTP-запросы защищаются политикой CSRF;
+- вход, регистрация и загрузка файлов ограничиваются по частоте;
+- RBAC отвечает за разрешения действий, а `role_module_policies` — за количественные и типовые ограничения;
+- публичная регистрация по умолчанию закрыта; приглашения хранятся только в виде SHA-256 hash;
+- состояние пользователя повторно проверяется как в HTTP, так и в WebSocket.
 
-> Messenger использует **server-side encryption at rest**, а не end-to-end encryption. Сервер способен расшифровать сообщения.
+> Messenger использует **серверное шифрование данных при хранении**, а не сквозное шифрование. Сервер способен расшифровать сообщения.
 
-> Attachment bytes и avatars защищаются private filesystem + ACL. Они не считаются отдельно зашифрованными at-rest, если конкретный storage flow явно не реализует такое шифрование. Для новых Notes attachments `is_encrypted=0` намеренно отражает реальность.
+> Вложения и аватары защищены закрытой файловой системой и ACL. Они не считаются отдельно зашифрованными при хранении, если конкретный поток хранения явно не реализует такое шифрование.
 
 ## Требования
 
@@ -260,36 +259,29 @@ CSP формируется Core на каждый HTML request с криптог
 
 HSTS намеренно задаётся на production TLS reverse proxy, а не в repository `.htaccess`.
 
-## UI / UX 0.13 + beta.4 collaboration
+## Интерфейс и пользовательские модули
 
-Интерфейс остаётся server-rendered на native PHP views без отдельного frontend build pipeline; bundled product modules больше не зависят от Smarty runtime.
+Интерфейс формируется native PHP views без отдельного frontend build pipeline и без runtime-зависимости от Smarty.
 
-Текущий product UI layer включает:
+Текущий слой интерфейса включает:
 
-- системный font stack без Google Fonts;
-- единые tokens для colors/surfaces/borders/radii/shadows;
-- responsive sidebar: desktop collapse + mobile drawer/overlay; видимые пункты модулей рассчитываются из effective RBAC;
-- current-route navigation state;
-- Tasks kanban/list switch, drag/drop статусов и quick-create;
-- shared Tasks boards с отдельным Kanban, board ACL, участниками и assignees;
-- Notes writing-first editor, attachments/share/voice workspace и local draft protection;
-- Profile hub с workspace counters, storage usage/quota и explicit publication controls;
-- File Manager grid/list, local search/sort и drag-and-drop upload;
-- Messenger connection recovery states и fresh-ticket WSS reconnect;
-- Role Manager с адаптивными формами permission/policy assignment;
-- общий toast/inline feedback/confirmation layer;
-- server-side findability для Notes, Tasks и Admin users;
-- keyboard focus, skip-link, aria-live region и доступные labels;
-- `prefers-reduced-motion`;
-- touch/mobile actions не зависят только от hover;
-- File Manager code execution удалён; текстовые/code-файлы открываются только в read-only preview.
+- единые design tokens и адаптивный shell;
+- desktop collapse и mobile drawer sidebar;
+- видимость разделов по активным модулям и RBAC;
+- Tasks: kanban/list, общие доски, ACL и исполнители;
+- Notes: writing-first editor, вложения, sharing и голосовые заметки;
+- Profile: hub, avatar, настройки и явную публикацию разрешённых объектов;
+- File Manager: grid/list, поиск, сортировку, drag-and-drop upload и безопасный preview;
+- Messenger: private/group chats, media/voice, реакции, поиск, Long Poll и WebSocket;
+- Admin: пользователи, роли, политики, модули, системные настройки и лицензирование;
+- keyboard focus, reduced-motion и mobile/touch сценарии.
 
-Полный 0.13 scope и отложенный beta polish: [`docs/PRODUCT_UX_0.13.md`](docs/PRODUCT_UX_0.13.md).
+История UX-цикла 0.13 сохранена только как архив: [`docs/PRODUCT_UX_0.13.md`](docs/PRODUCT_UX_0.13.md).
 
 ## Основные URL
 
 ```text
-/                    dashboard
+/                    главная
 /auth/login          вход
 /notes/              заметки
 /tasks/              личные задачи
@@ -297,49 +289,42 @@ HSTS намеренно задаётся на production TLS reverse proxy, а �
 /files/              личные файлы
 /messenger/          Messenger
 /profile/            профиль
-/admin/              admin panel
-/admin/roles         роли, permissions и module policies
-/admin/settings      system settings и storage quotas
+/admin/              панель администратора
+/admin/roles         роли и политики
+/admin/modules       управление модулями
+/admin/settings      системные настройки
+/system/license      восстановление лицензии
 ```
 
-Полный route contract: `core/routerConfig.php`.
+Core-маршруты находятся в `core/routerConfig.php`; прикладные маршруты регистрируются providers активных модулей.
 
-## Module notes
+## Кратко о модулях
 
 ### Notes
 
-- writing-first 0.13 editor и first-class voice attachments;
-- server-side search/pagination/sort allowlist;
-- owner-only edit/delete;
-- private attachment upload/download/delete;
-- public view-only share token;
-- shared attachment ACL;
-- encrypted text fail-closed;
-- beta.4 role policies ограничивают количество заметок, sharing и attachment limits/types.
+Зашифрованный текст, attachments, voice notes, view-only sharing, search/pagination и role policies.
 
 ### Tasks
 
-`database/tasks_schema.sql` входит в canonical install. Личные задачи сохраняют прежний ownership contract и поддерживают kanban/list views, drag-and-drop status, statuses/priorities/due dates/subtasks/categories и server-side search/filter/sort/pagination. Beta.4 добавляет отдельные shared boards для выбранной команды или `all_active`, board-level ACL, несколько исполнителей и ограничения на создание/размер досок через role policies.
+Личные задачи и общие boards, kanban/list, статусы, сроки, подзадачи, категории, ACL, участники и исполнители.
 
-### Messenger v2
+### Messenger
 
-Current contract включает private/group dialogs, Saved Messages, forwarding, media/voice, replies/edit/delete, delivered/read cursors, reactions, multi-device fanout, pin/mute/archive, group ownership/admin roles/avatars, orphan cleanup, bounded encrypted search и WebSocket-first/HTTP-long-poll realtime recovery с fresh WebSocket ticket перед reconnect. Durable fallback mutations bridge-ятся через shared DB revision к активным WS-клиентам; typing/activity остаются WebSocket-only enhancement. Beta.4 применяет server-side role policies к message rate, attachment limits/types, созданию/размеру групп и voice messages.
-
-Encrypted search не хранит plaintext index: он расшифровывает только ограниченное число последних доступных сообщений (`MESSENGER_SEARCH_SCAN_LIMIT`, default `1000`).
+Private/group dialogs, Saved Messages, forwarding, media/voice, reply/edit/delete, delivery/read state, reactions, multi-device, pin/mute/archive и bounded encrypted search. Long Poll — гарантированный transport, WebSocket — быстрый канал.
 
 ### Profile
 
-Private avatar выдаётся через authenticated endpoint. Self-delete заменён на deactivation (`is_active=0`), данные не каскадно удаляются; group owner должен сначала передать ownership. Собственный hub показывает bounded workspace metrics и storage quota; чужой профиль получает только whitelist metadata объектов, явно опубликованных владельцем через `is_profile_public`.
+Private avatar, настройки аккаунта, безопасная деактивация, workspace metrics и явная публикация разрешённых Notes/Tasks/Files.
+
+### File Manager
+
+Private storage, папки/файлы, protected download, media/text preview, quotas, поиск/сортировка и sharing.
 
 ### Admin
 
-Admin lifecycle использует safe deactivation вместо physical delete. Administrative targets и group owners защищены отдельными checks. Custom profile fields используют canonical `user_fields`.
+Управление пользователями, регистрацией, ролями, permissions, module policies, включением/отключением модулей, лицензией и системными настройками.
 
-`/admin/roles` позволяет superadmin создавать прикладные роли, назначать роли пользователям, управлять boolean permissions и отдельными типизированными policies Notes/Tasks/Files/Messenger. Системные роли не удаляются, текущий superadmin защищён от самоблокировки/самоснятия, а изменения доступа применяются через persisted RBAC при следующей серверной проверке.
-
-`/admin/settings` управляет default File Manager quota и персональными overrides. Изменение квоты повторно авторизуется внутри service-layer; File Manager upload проверяет эффективный лимит до физической записи файла. Для одного пользователя concurrent uploads сериализуются advisory lock, поэтому параллельные запросы не могут независимо занять один и тот же остаток квоты.
-
-## Scheduled maintenance
+## Плановое обслуживание
 
 Messenger orphan cleanup:
 
@@ -349,66 +334,74 @@ php bin/cleanup_messenger_orphans.php
 
 Рекомендуемый cron/systemd timer: каждые 15–60 минут.
 
-Также контролируйте disk space, права private storage, compatibility-upgrade state, logs, backup/restore tests и удаление временных legacy keys.
+Также контролируйте свободное место, private storage, upgrade state, журналы, backup/restore и временные legacy keys.
 
 ## CI
 
-GitHub Actions покрывают security baseline, PHP/Composer, clean schemas, DB compatibility upgrades, crypto migration, Notes/Tasks/Profile contracts и Messenger groups/media/search/voice/reactions/forwarding. Workflow `Product UI and production quality` дополнительно проверяет UI/accessibility wiring, File Manager safe preview, Linux bootstrap paths, rate limit middleware, CSP/web-root protection, healthcheck contract и freshness документации.
+Обязательная матрица проверяет:
 
-`0.14 installer schema contract` явно проверяет publication fields Notes/Tasks/Files, voice-note duration, settings/quota schemas, persisted RBAC/module policies и shared task-board tables.
+- PHP/runtime и security contracts;
+- canonical schemas и compatibility upgrades;
+- installer на MySQL и MariaDB;
+- lifecycle Notes/Tasks/Files/Profile/Admin;
+- Messenger Long Poll/WebSocket и HTTPS/WSS;
+- updater success/rollback/recovery;
+- Windows compatibility;
+- cross-browser/mobile release evidence;
+- fault injection DB/storage;
+- release governance и production healthcheck.
 
-`0.14 Beta 4 role policies` и `0.14 Beta 4 shared task boards` проверяют policy composition/enforcement, Role Manager wiring, board ACL и compatibility migrations.
+Некоторые workflow сохраняют исторические имена 0.14/Beta4 ради стабильности check contexts. Их название не означает, что соответствующий старый roadmap остаётся активным.
 
-`System settings and storage quota` проверяет canonical settings schema, admin ACL, default/per-user quota, live usage из `user_files`, reset override и quota overflow denial на MySQL 8.4.
+`Build hosting package` собирает самодостаточный release ZIP без runtime-зависимости от Composer/vendor.
 
-`Hosting installer` выполняет настоящий HTTP fresh-install через cookies/CSRF на MySQL в hosting-like `public_html/workspace`, проверяет subdirectory detection, private storage вне document root, 35-table contract, quota seed, admin account, generated `.env`, блокировку повторного installer и итоговый healthcheck; отдельно проверяются отказ при отключённом `putenv` и совместимость канонических схем с MariaDB 10.11.
-
-`Build hosting package` собирает upload-ready ZIP с production `vendor/`; теги `v*-*` публикуются как GitHub prerelease, а stable tag без suffix — как обычные Release.
-
-`Browser HTTPS and WSS E2E` поднимает PHP + native WebSocket server + TLS Nginx + MySQL и реальные Chromium-сессии: проверяет login, основные модули, authenticated WSS, realtime delivery и 0.13 reconnect recovery.
-
-Отдельные browser lifecycle workflows проверяют Notes, Tasks, File Manager, Profile и Admin, включая реальную quota-ошибку и DB/storage fault injection без production test hooks.
-
-`Production operations` проверяет shared rate-limit storage, trusted proxy contract, positive/negative multi-node healthcheck, MySQL dump/checksum/restore, private-storage restore и rotation `WS_TICKET_SECRET`.
-
-`0.14 beta readiness` проверяет beta identity, module/security lifecycle artifacts, release publishing contract и синхронизацию Version/README/CHANGELOG.
-
-`Master release gate` запускается на каждом PR и после каждого push/merge в `master`: повторно проверяет объединённый commit — Composer/security audit, полный PHP/JS lint, canonical schema import, production healthcheck, согласованность версии, governance contract и upload-ready hosting bundle.
+`Master release gate` выполняется для релизных PR и объединённого `master` и проверяет текущий commit, а не доказательства со старого SHA.
 
 ## Документация
 
-- [`CHANGELOG.md`](CHANGELOG.md) — история и Unreleased.
-- [`docs/CORE.md`](docs/CORE.md) — архитектура ядра.
-- [`docs/MODULE_DEVELOPMENT.md`](docs/MODULE_DEVELOPMENT.md) — создание, установка и lifecycle нового модуля.
-- [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) — пользовательские сценарии.
-- [`docs/HOSTING_INSTALL.md`](docs/HOSTING_INSTALL.md) — fresh install на shared hosting без Composer/CLI.
-- [`docs/PRODUCTION.md`](docs/PRODUCTION.md) — deployment, WSS, rate limiting и production checklist.
-- [`docs/OPERATIONS.md`](docs/OPERATIONS.md) — backup/restore drill, multi-node rate limiting, trusted proxies и key-rotation procedures.
-- [`docs/RELEASE_GOVERNANCE.md`](docs/RELEASE_GOVERNANCE.md) — required checks, branch protection и review policy.
-- [`docs/PRODUCT_UX_0.13.md`](docs/PRODUCT_UX_0.13.md) — закрытый 0.13 scope и beta backlog.
-- [`TASKS_MODULE_README.md`](TASKS_MODULE_README.md) — дополнительная документация Tasks.
-- [`default.env`](default.env) — environment variables и security comments.
+Главная точка входа: [`docs/README.md`](docs/README.md).
+
+Оттуда документация разделена на:
+
+- пользовательскую и административную;
+- эксплуатационную;
+- архитектурную;
+- план развития;
+- релизные материалы;
+- исторический архив.
+
+Актуальный план: [`docs/ROADMAP.md`](docs/ROADMAP.md). Идеи без назначенной версии: [`docs/PRODUCT_BACKLOG.md`](docs/PRODUCT_BACKLOG.md).
 
 ## 1.0 release readiness
 
-Основные platform/stability blockers исходного beta-аудита уже закрыты в ветке `1.0`:
+Линия 1.0 функционально завершена на **v1.0.13** и находится в режиме сопровождения.
 
-- vendor-free distributable runtime;
-- isolated module-owned runtime и composition-aware database/install/update/health ownership;
-- signed staged updater с transactional apply, durable recovery и code+DB rollback;
-- installation-wide licensing и Core recovery control plane;
-- production license/update Ed25519 keypairs прошли offline ceremony; в репозитории и customer bundle остаются только public trust roots;
-- structured security observability и operational alert thresholds;
-- resumable/rollback-safe rotation `UNIQUE_KEY` / `MSG_SECRET_KEY`;
+Закрытые платформенные и эксплуатационные контракты:
+
+- vendor-free runtime без обязательного Composer/`vendor`;
+- изолированный runtime модулей и composition-aware lifecycle;
+- явные лицензионные `workspace.*` entitlement;
+- signed updater с staging, backup, transactional apply, durable recovery и rollback кода/БД;
+- production license/update Ed25519 keypairs; в customer bundle находятся только публичные trust roots;
+- structured security observability;
 - nonce-based CSP без `unsafe-inline`;
-- explicit retention/permanent-purge contract с filesystem/DB safety guards;
-- browser lifecycle coverage для основных product modules и exact published 1.0.1 → 1.0.2 upgrade/rollback drill;
-- кросс-браузерная и мобильная проверка, а также нагрузочный и длительный контур доказательств релиза.
+- explicit retention/permanent-purge contract;
+- GitHub branch protection/ruleset и обязательные release checks;
+- browser lifecycle основных модулей;
+- кросс-браузерная и мобильная проверка;
+- Windows/OSPanel и Long Poll/WebSocket контракты;
+- модульное включение/отключение без потери данных.
 
-Для `v1.0.7` автоматизируемая часть релизной проверки должна быть зелёной на точном HEAD release-кандидата: GitHub branch protection/ruleset, полный CI, browser/release evidence, Windows compatibility, полноценный Long Poll без обязательного WebSocket и сквозной переход `1.0.6 → 1.0.7` подтверждаются до финального merge в `master`.
+GitHub Release `v1.0.13` опубликован. Регистрация версии во внешнем реестре, появление в stable-feed и контрольное пользовательское обновление `1.0.12 → 1.0.13` являются следующим эксплуатационным шагом после публикации, а не условием существования самого GitHub Release.
 
-Для `1.0.7` реальная приёмка выполняется уже с опубликованной `1.0.6` как исходной точкой: на Windows/OSPanel проверяются одна кнопка обновления, внешний runtime, пофайловый apply/rollback, сохранность private storage и лицензии, автоматический boot recovery и отсутствие наследованного maintenance предыдущей установки. Публикация `v1.0.7` выполняется только после принятия точного RC.
+Новые 1.0.x выпускаются только при обнаружении дефектов или необходимости небольшой совместимой доработки текущей функциональности.
 
-Scalable encrypted-search redesign не является release blocker сам по себе; он требуется только если измерения на заявленном масштабе покажут, что bounded decrypt scan не выдерживает принятого performance envelope.
+Следующая продуктовая линия: **1.1 — Календарь и ежедневник**.
 
-Финальный порядок действий: [`docs/RELEASE_ACCEPTANCE.md`](docs/RELEASE_ACCEPTANCE.md). Исторический hardening roadmap: [`docs/BETA_HARDENING_0.14.md`](docs/BETA_HARDENING_0.14.md).
+Актуальный статус: [`docs/RELEASE_STATUS_1.0.md`](docs/RELEASE_STATUS_1.0.md). Финальная релизная матрица: [`docs/RELEASE_ACCEPTANCE.md`](docs/RELEASE_ACCEPTANCE.md).
+
+
+### Быстрые ссылки по архитектуре и использованию
+
+- Ядро: [docs/CORE.md](docs/CORE.md)
+- Руководство пользователя: [docs/USER_GUIDE.md](docs/USER_GUIDE.md)

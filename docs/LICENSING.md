@@ -1,49 +1,30 @@
-# Installation-wide licensing
+# Лицензирование установки
 
-Workspace Organizer 1.0 uses one offline-verifiable license per installation.
+Workspace Organizer использует одну подписанную лицензию на установку. Проверка лицензии выполняется локально и не делает обычную работу приложения зависимой от сети.
 
-Optional server-controlled access to official update packages is documented in
-[ONLINE_UPDATE_ACCESS.md](ONLINE_UPDATE_ACCESS.md). The vendor registry stores
-the signed license and update entitlement. It does not replace local runtime
-verification or make normal application use depend on network availability.
+Серверный доступ к официальным обновлениям описан отдельно в [ONLINE_UPDATE_ACCESS.md](ONLINE_UPDATE_ACCESS.md).
 
-## Trust model
+## Доверие
 
-- Every installation has a stable `installation_id` stored in `system_settings`.
-- A license is an Ed25519-signed token bound to exactly that `installation_id`.
-- Runtime installations contain **public verification keys only**.
-- The Ed25519 private signing key must never be committed to this repository, copied into a hosting bundle, written to `.env`, installed on a customer server, attached to a CI artifact, or placed in a support archive/application backup.
-- Verification is offline. Normal license checks do not contact a licensing server.
-- Invalid, missing, expired, or foreign-installation licenses never delete, rewrite, encrypt, or otherwise damage user data.
-- Runtime enforcement is dormant while the release public trust registry is empty. Once a trusted public key is shipped, invalid license state is recovery-safe read-only: reads/login/logout/license recovery remain available while data mutations are blocked.
+- установка имеет стабильный `installation_id` в `system_settings`;
+- лицензия Ed25519 привязана к точному `installation_id`;
+- клиентская установка содержит только публичные ключи проверки;
+- приватный ключ подписи никогда не входит в Git, release ZIP, `.env`, сервер клиента, CI artifact или backup приложения;
+- отсутствие/ошибка/истечение лицензии не удаляет пользовательские данные.
 
-## Public trust registry
-
-Production public keys live in the data-only file:
+Публичные ключи находятся в:
 
 ```text
 config/license_trusted_keys.php
 ```
 
-The registry returns a map of immutable key id to base64url-encoded raw 32-byte Ed25519 **public** key. `LicenseVerifier` loads this registry by default; tests may inject ephemeral public keys directly.
-
-Do not put key generation, private key paths, tokens, customer secrets, or signing credentials into that file. A normal customer release must contain the public registry but must not contain `tools/vendor-license/` or any private-key file.
-
-An empty registry is intentional before the production key ceremony. It keeps enforcement disabled rather than silently trusting a generated/local key.
-
-## Token format
+## Формат токена
 
 ```text
 wo1.<key-id>.<base64url-json-payload>.<base64url-ed25519-signature>
 ```
 
-The signature covers the exact ASCII bytes:
-
-```text
-wo1.<key-id>.<base64url-json-payload>
-```
-
-Required payload fields:
+Обязательные поля payload:
 
 ```json
 {
@@ -56,126 +37,71 @@ Required payload fields:
 }
 ```
 
-`expires_at` may be `null` for a perpetual license. Optional fields currently understood by the verifier are `not_before`, `customer`, `features`, and `max_users`. A positive integer `max_users` limits the installation's active accounts; absence of the field means unlimited for backward compatibility.
+Дополнительно поддерживаются `not_before`, `customer`, `features` и `max_users`. `expires_at=null` означает бессрочную лицензию.
 
-## Key rotation
+## Лимит пользователей
 
-The token carries a `key-id`. `LicenseVerifier` accepts a map of trusted public keys, so a release can contain both the retiring and replacement public key during a rotation window.
+Если задан `max_users`, он ограничивает число активных аккаунтов.
 
-Rotation procedure:
+- blocked-аккаунт продолжает занимать место, пока `is_active=1`;
+- деактивированный аккаунт освобождает место;
+- создание, регистрация и повторная активация проходят через общий seat-boundary;
+- активация лицензии с лимитом ниже текущего числа активных пользователей отклоняется;
+- превышение лимита не удаляет и не деактивирует существующие данные автоматически.
 
-1. Generate the replacement pair in the offline vendor signing environment.
-2. Add only the replacement public key to `config/license_trusted_keys.php` while keeping the retiring public key.
-3. Release that dual-trust build first.
-4. Start issuing new licenses with the replacement key id.
-5. Reissue/allow expiry of licenses that still depend on the retiring key.
-6. Remove the retiring public key only in a later release after its dependency window is closed.
+## Разрешения модулей 1.0.13
 
-Removing a public key immediately makes licenses signed only by that key unverifiable, so key retirement is a release-management action, not routine cleanup.
+Каждый production-модуль объявляет `license.feature`. Модуль запускается только если feature явно присутствует в подписанном `features`.
 
-## Production signing-key ceremony
+Встроенный набор:
 
-Vendor-only CLI helpers live in `tools/vendor-license/` in the source repository. The hosting-package workflow explicitly excludes that directory from customer release ZIPs. These helpers contain no production secret themselves.
+- `workspace.admin`;
+- `workspace.notes`;
+- `workspace.tasks`;
+- `workspace.files`;
+- `workspace.messenger`;
+- `workspace.profile`.
 
-### 1. Generate the pair on the controlled/offline signing machine
+Отсутствующее поле `features`, пустой список или отсутствие конкретного значения **не означают полный доступ**.
 
-Use an absolute private-key path outside the repository tree:
+Модуль без разрешения:
 
-```bash
-php tools/vendor-license/keygen.php \
-  --key-id=prod-2026-01 \
-  --private-out=/secure/offline/workspace-prod-2026-01.license-secret
-```
+- получает `effective_state=unlicensed`;
+- не входит в runtime composition;
+- не регистрирует provider/routes/capabilities;
+- не может быть вручную включён оператором;
+- сохраняет `configured_state`, данные, permissions и policies.
 
-The command:
+Admin нельзя отключить операторским переключателем, но он тоже требует `workspace.admin`. Если feature отсутствует, восстановление лицензии остаётся доступно через core-маршрут `/system/license`.
 
-- refuses to write the private key inside the repository tree;
-- refuses to overwrite an existing private key;
-- writes the private key with mode `0600` on Unix-like systems;
-- prints only the public key/registry entry, never the private key;
-- zeroes in-process secret buffers before exiting.
+## Read-only recovery
 
-Back up the private key only in the vendor's secure offline/secret storage according to the organization's recovery policy.
+После появления production trust root недействительная/отсутствующая/истёкшая лицензия переводит установку в безопасный режим восстановления:
 
-### 2. Add only the public key to the release registry
+- чтение, login/logout и восстановление лицензии остаются доступны согласно RBAC/ACL;
+- обычные изменения блокируются;
+- Messenger может читать/переподключаться, но изменяющие действия запрещаются;
+- WebSocket повторно проверяет лицензию и feature Messenger, поэтому старое соединение не обходится удержанием сокета.
 
-Copy the printed registry entry into `config/license_trusted_keys.php`, for example:
+## Активация и удаление
 
-```php
-return [
-    'prod-2026-01' => '<base64url-public-key>',
-];
-```
+Состояние лицензии доступно через системный recovery UI и административные разделы при наличии соответствующих прав.
 
-Commit/review the public-key-only change and run the licensing plus full release CI. Inspect the built customer ZIP and confirm it includes the public registry but not `tools/vendor-license/`, `*.license-secret`, or any other signing material.
+Активация сначала проверяет подпись, Installation ID и временные границы, и только затем заменяет сохранённый токен.
 
-### 3. Issue a license offline
+Удаление лицензии очищает только токен; `installation_id` и пользовательские данные сохраняются.
 
-Copy the customer's exact Installation ID from `/admin/license` and run on the offline signing machine:
+## Ротация ключей
 
-```bash
-php tools/vendor-license/issue.php \
-  --private-key=/secure/offline/workspace-prod-2026-01.license-secret \
-  --key-id=prod-2026-01 \
-  --installation-id=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx \
-  --license-id=lic-customer-001 \
-  --edition=team \
-  --expires-at=1798761599 \
-  --customer='Customer name' \
-  --max-users=20 \
-  --features=workspace.notes,workspace.tasks,workspace.files,workspace.messenger,workspace.profile,workspace.admin
-```
+Токен содержит `key-id`, поэтому release может временно доверять старому и новому публичному ключу одновременно.
 
-If `--expires-at` is omitted the issued license is perpetual. Optional `--not-before` is a Unix timestamp. The issuer writes only the final `wo1...` token to stdout, derives the public key from the external private key, self-verifies the generated token with `LicenseVerifier`, and zeroes the loaded secret before exit.
+Порядок:
 
-Do not pipe issuer stdout to shared CI logs or ticketing systems: a license token is not a signing secret, but it is still customer-specific entitlement material.
+1. создать новую пару во внешнем защищённом signing environment;
+2. добавить только новый публичный ключ, не удаляя старый;
+3. выпустить dual-trust версию;
+4. начать выдачу лицензий новым ключом;
+5. закрыть зависимость от старого;
+6. удалить старый публичный ключ в следующем релизе.
 
-## User-seat enforcement
-
-When a valid signed payload contains `max_users`, Workspace Organizer enforces that limit against accounts with `users.is_active = 1`.
-
-- blocked accounts still consume a seat because they remain active identities;
-- deactivated accounts release a seat;
-- Admin provisioning and public/invite registration share the same central provisioning boundary;
-- reactivating a deactivated account consumes a seat;
-- license activation is rejected when the new signed limit is lower than the current active-user count;
-- license-token row locking serializes seat-changing operations so concurrent registrations cannot intentionally or accidentally overrun the limit.
-
-Licenses issued before this field existed remain valid and unlimited. User-limit enforcement is an entitlement boundary only: exceeding the limit never deletes or disables existing customer accounts automatically.
-
-## Разрешения модулей в 1.0.13
-
-Начиная с `1.0.13`, поле `features` является не описательной метаданной, а обязательной границей запуска модулей.
-
-- каждый `modules/<id>/module.json` объявляет ровно одно `license.feature`;
-- разрешение должно явно присутствовать в подписанном `features`;
-- отсутствие поля, пустой список или отсутствие конкретного значения не означают полный доступ;
-- оператор не может включить модуль, которого нет в лицензии;
-- такой модуль получает `effective_state=unlicensed`, но его `configured_state`, данные, разрешения ролей и политики сохраняются;
-- после установки новой лицензии с нужным feature модуль может вернуться без миграции или восстановления данных;
-- Admin защищён от операторского отключения, но также требует `workspace.admin` в лицензии; при его отсутствии используется независимая core-страница `/license`.
-
-Лицензия полного встроенного состава должна содержать:
-
-```text
-workspace.admin,workspace.notes,workspace.tasks,workspace.files,workspace.messenger,workspace.profile
-```
-
-## Runtime enforcement and recovery
-
-Once at least one trusted production public key is present, invalid/missing/expired license state places the application into recovery-safe read-only mode:
-
-- GET/HEAD/OPTIONS and normal read views remain available subject to RBAC/ACL;
-- login and logout remain available;
-- `/admin/license` activation/removal remains available for recovery;
-- ordinary HTTP mutations are denied;
-- Messenger may reconnect/read/search, while message/reaction/receipt/media/dialog/group mutations are denied;
-- open WebSocket connections re-check the license before each mutating action, so expiry cannot be bypassed by keeping a socket open.
-
-A license verification failure never performs destructive data actions.
-
-## Administration
-
-`/admin/license` shows the stable Installation ID and current verification state. Users with `admin.settings.manage` may view the state; activation/removal additionally requires the actual `superadmin` role. Activation verifies the signature, installation binding and time window **before** replacing the stored token.
-
-Removing a token clears only `workspace_license_token`; user content and the installation identifier remain untouched.
+Операторская процедура выпуска лицензии: [LICENSE_ISSUANCE.md](LICENSE_ISSUANCE.md).

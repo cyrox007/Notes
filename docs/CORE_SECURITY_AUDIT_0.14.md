@@ -1,5 +1,8 @@
 # Workspace Organizer 0.14 — Core/Security Audit Ledger
 
+> **Архив.** Этот документ описывает исторический этап и сохранён как свидетельство принятых решений. Он не является текущим списком задач или источником требований для 1.0.13+. Актуальная навигация: [README.md](README.md), текущий план: [ROADMAP.md](ROADMAP.md), архивный индекс: [ARCHIVE.md](ARCHIVE.md).
+
+
 Status: **active audit**. This file is the release evidence ledger for the 0.14 beta hardening cycle. It is intentionally not a one-time prose review: every security-sensitive surface must end in an explicit reviewed/fixed/regression-covered state before beta can be declared.
 
 ## Audit rule

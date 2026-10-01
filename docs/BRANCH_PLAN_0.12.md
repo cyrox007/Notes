@@ -1,5 +1,8 @@
 # Workspace 0.12 — six-PR execution plan
 
+> **Архив.** Этот документ описывает исторический этап и сохранён как свидетельство принятых решений. Он не является текущим списком задач или источником требований для 1.0.13+. Актуальная навигация: [README.md](README.md), текущий план: [ROADMAP.md](ROADMAP.md), архивный индекс: [ARCHIVE.md](ARCHIVE.md).
+
+
 The remaining 0.12 work is intentionally split into six independently reviewable branches/PRs:
 
 1. `0.12-db-architecture` — canonical schema + compatibility upgrade contract.
