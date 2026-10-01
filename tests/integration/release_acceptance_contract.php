@@ -143,7 +143,11 @@ foreach ([
 }
 
 releaseAcceptanceAssert(
-    str_contains($releaseNotes, '1.0.12 → встроенный подписанный updater → 1.0.14')
+    str_contains(
+        $releaseNotes,
+        '1.0.12/1.0.13 → одноразовый совместимый updater-handoff → штатный подписанный web-updater → 1.0.14'
+    )
+    && str_contains($releaseNotes, 'bootstrap-1.0.12-updater.php')
     && str_contains($releaseNotes, 'rollback_verified')
     && str_contains($releaseNotes, 'OPcache')
     && str_contains($releaseNotes, 'diagnostic_code')
