@@ -508,7 +508,8 @@ final class UpdateApplyCommand
                 'code_switched',
                 'migrations',
                 84,
-                'Код переключён. Выполняются миграции базы данных.'
+                'Код переключён. Выполняются миграции базы данных.',
+                $this->runtimeRefreshDelayMs()
             );
         }
 
@@ -763,9 +764,10 @@ final class UpdateApplyCommand
         string $state,
         string $phase,
         int $progress,
-        string $message
+        string $message,
+        int $runtimeRefreshDelayMs = 0
     ): array {
-        return [
+        $result = [
             'status' => 'in_progress',
             'transaction_id' => $transactionId,
             'state' => $state,
@@ -774,6 +776,28 @@ final class UpdateApplyCommand
             'message' => $message,
             'maintenance_active' => true,
         ];
+
+        if ($runtimeRefreshDelayMs > 0) {
+            $result['runtime_refresh_delay_ms'] = $runtimeRefreshDelayMs;
+        }
+
+        return $result;
+    }
+
+    private function runtimeRefreshDelayMs(): int
+    {
+        if (!extension_loaded('Zend OPcache')) {
+            return 250;
+        }
+
+        $validate = ini_get('opcache.validate_timestamps');
+        if ($validate !== false
+            && in_array(strtolower(trim((string) $validate)), ['0', 'off', 'false', 'no'], true)) {
+            return 5000;
+        }
+
+        $seconds = max(0, (int) ini_get('opcache.revalidate_freq'));
+        return min(60000, max(500, ($seconds + 1) * 1000));
     }
 
     private function rollbackAfterApplyError(
