@@ -34,7 +34,23 @@ final class MigrationBaseline
             $stateRoot = rtrim($privateRoot, '/\\') . DIRECTORY_SEPARATOR . 'updates';
         }
 
-        $markerPath = rtrim($stateRoot, '/\\') . DIRECTORY_SEPARATOR . 'workspace-maintenance.json';
+        $appReal = realpath($appRoot);
+        $stateReal = realpath($stateRoot);
+        if (!is_string($appReal)
+            || !is_dir($appReal)
+            || !is_string($stateReal)
+            || !is_dir($stateReal)
+            || is_link($stateRoot)) {
+            return null;
+        }
+
+        $appReal = self::normalizePath($appReal);
+        $stateReal = self::normalizePath($stateReal);
+        if ($stateReal === $appReal || str_starts_with($stateReal . '/', $appReal . '/')) {
+            return null;
+        }
+
+        $markerPath = $stateReal . DIRECTORY_SEPARATOR . 'workspace-maintenance.json';
         $marker = self::readJsonObject($markerPath, 16384);
         if ($marker === null
             || ($marker['schema'] ?? null) !== 1
@@ -76,6 +92,12 @@ final class MigrationBaseline
         }
 
         return $sourceVersionCode;
+    }
+
+    private static function normalizePath(string $path): string
+    {
+        $normalized = rtrim(str_replace('\\\\', '/', $path), '/');
+        return PHP_OS_FAMILY === 'Windows' ? strtolower($normalized) : $normalized;
     }
 
     /** @return array<string,mixed>|null */
