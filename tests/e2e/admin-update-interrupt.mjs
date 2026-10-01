@@ -167,11 +167,25 @@ try {
   if (recoveryResponse.status === 503) {
     if (
       !recoveryBody.includes('Завершается безопасное восстановление')
-      || !recoveryBody.includes('Пошаговое web-обновление ещё выполняется')
+      || !recoveryBody.includes('Ручные команды не требуются.')
     ) {
       throw new Error(
         'Активная lease web-updater вернула неожиданный 503: '
         + recoveryBody.slice(0, 1200)
+      );
+    }
+
+    // Проверяем не формулировку промежуточного ответа, а сам инвариант:
+    // живой lease не должен запускать rollback и менять состояние транзакции.
+    const journalPath = `${stateRoot}/transactions/${transactionId}.json`;
+    const journal = JSON.parse(await readFile(journalPath, 'utf8'));
+    const expectedState = interruptPhase === 'migrations'
+      ? 'code_switched'
+      : 'migrations_applied';
+    const actualState = String(journal.state || '');
+    if (actualState !== expectedState) {
+      throw new Error(
+        `Активная lease изменила состояние транзакции: ${actualState}; ожидалось ${expectedState}`
       );
     }
 
