@@ -11,6 +11,7 @@ use Core\Request;
 use Core\Router;
 use Core\ServiceLog;
 use Core\SupportDiagnostics;
+use Core\SupportDiagnosticsSender;
 use InvalidArgumentException;
 
 final class UpdateController extends Controller
@@ -383,6 +384,42 @@ final class UpdateController extends Controller
                 $request,
                 false,
                 $e->getMessage() ?: 'Не удалось установить обновление'
+            );
+        }
+    }
+
+    public function sendSupportDiagnostics(Request $request): void
+    {
+        $actorId = (int) $request->session('user_id', 0);
+
+        try {
+            $result = (new SupportDiagnosticsSender())->send($actorId);
+            $request->setSession('support_diagnostics_sent', [
+                'diagnostic_id' => (string) $result['diagnostic_id'],
+                'bundle_id' => (string) $result['bundle_id'],
+            ]);
+
+            $this->redirectWithFlash(
+                $request,
+                true,
+                'Диагностика отправлена разработчику. ID: ' . (string) $result['diagnostic_id']
+            );
+        } catch (\Throwable $e) {
+            ServiceLog::emit(
+                'admin.support_diagnostics_send_failed',
+                'error',
+                'admin',
+                [
+                    'actor_id' => $actorId,
+                    'error_type' => $e::class,
+                    'message' => $e->getMessage(),
+                ]
+            );
+
+            $this->redirectWithFlash(
+                $request,
+                false,
+                $e->getMessage() ?: 'Не удалось отправить диагностику разработчику'
             );
         }
     }
