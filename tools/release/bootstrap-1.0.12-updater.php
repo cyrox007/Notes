@@ -3,13 +3,13 @@
 declare(strict_types=1);
 
 if (PHP_SAPI !== 'cli') {
-    fwrite(STDERR, "Мост updater 1.0.12 доступен только из PHP CLI.\n");
+    fwrite(STDERR, "Мост updater 1.0.12/1.0.13 доступен только из PHP CLI.\n");
     exit(2);
 }
 
 $options = getopt('', ['yes', 'root:', 'help']);
 if (isset($options['help']) || !isset($options['yes'])) {
-    echo "Одноразовый мост updater Workspace Organizer 1.0.12 → 1.0.14\n\n";
+    echo "Одноразовый мост updater Workspace Organizer 1.0.12/1.0.13 → 1.0.14\n\n";
     echo "Запускайте этот файл из доверенного распакованного пакета 1.0.14, а не из live-каталога 1.0.12.\n\n";
     echo "Использование:\n";
     echo "  php tools/release/bootstrap-1.0.12-updater.php --yes --root=/path/to/workspace\n";
@@ -134,10 +134,10 @@ if (!is_string($sourceRoot) || !is_dir($sourceRoot)) {
     bootstrapFail('Не удалось определить корень доверенного пакета 1.0.14.', 3);
 }
 if (!is_string($liveRoot) || !is_dir($liveRoot) || is_link($requestedRoot)) {
-    bootstrapFail('Укажите существующий live-каталог 1.0.12 через --root.', 3);
+    bootstrapFail('Укажите существующий live-каталог 1.0.12 или 1.0.13 через --root.', 3);
 }
 if (bootstrapInside($sourceRoot, $liveRoot) || bootstrapInside($liveRoot, $sourceRoot)) {
-    bootstrapFail('Доверенный пакет 1.0.14 и live-установка 1.0.12 должны находиться в разных каталогах.', 3);
+    bootstrapFail('Доверенный пакет 1.0.14 и live-установка должны находиться в разных каталогах.', 3);
 }
 
 [$sourceVersion, $sourceCode] = bootstrapVersion($sourceRoot);
@@ -148,9 +148,15 @@ if ($sourceVersion !== '1.0.14' || $sourceCode !== 10014) {
         4
     );
 }
-if ($liveVersion !== '1.0.12' || $liveCode !== 10012) {
+$allowedLiveVersions = [
+    '1.0.12' => 10012,
+    '1.0.13' => 10013,
+];
+if (!isset($allowedLiveVersions[$liveVersion])
+    || $allowedLiveVersions[$liveVersion] !== $liveCode) {
     bootstrapFail(
-        "Мост предназначен только для exact live-версии 1.0.12 (10012), получено {$liveVersion} ({$liveCode}).",
+        "Мост предназначен только для exact live-версий 1.0.12 (10012) и 1.0.13 (10013), "
+        . "получено {$liveVersion} ({$liveCode}).",
         4
     );
 }
@@ -203,7 +209,7 @@ $files = [
 ];
 
 $backupRoot = sys_get_temp_dir() . DIRECTORY_SEPARATOR
-    . 'notes-updater-bootstrap-1.0.12-' . bin2hex(random_bytes(8));
+    . 'notes-updater-bootstrap-1.0.14-' . bin2hex(random_bytes(8));
 if (!mkdir($backupRoot, 0700, true) && !is_dir($backupRoot)) {
     bootstrapFail('Не удалось создать временную резервную копию файлов updater.', 5);
 }
@@ -240,7 +246,7 @@ try {
     }
 
     [$afterVersion, $afterCode] = bootstrapVersion($liveRoot);
-    if ($afterVersion !== '1.0.12' || $afterCode !== 10012) {
+    if ($afterVersion !== $liveVersion || $afterCode !== $liveCode) {
         throw new RuntimeException('Мост не должен менять версию приложения до штатного обновления.');
     }
 
@@ -253,8 +259,10 @@ try {
     $applySource = file_get_contents($apply);
     if (!is_string($baselineSource)
         || !str_contains($baselineSource, "10012 => '20260930_file_upload_limit.sql'")
+        || !str_contains($baselineSource, "10013 => '20260930_module_entitlements.sql'")
         || !is_string($continuationSource)
         || str_contains($continuationSource, "if (\$replace && file_exists(\$path) && !@unlink(\$path))")
+        || !str_contains($continuationSource, 'rename(\$temp, \$path)')
         || !is_string($applySource)
         || !str_contains($applySource, '--baseline-version-code=')) {
         throw new RuntimeException('Проверка применённого updater-моста не пройдена.');
@@ -278,6 +286,6 @@ try {
 
 fwrite(
     STDOUT,
-    "[OK] Updater exact-версии 1.0.12 подготовлен к безопасному web-only обновлению на 1.0.14. "
+    "[OK] Updater exact-версии {$liveVersion} подготовлен к безопасному web-only обновлению на 1.0.14. "
     . "Версия приложения и база данных не изменялись. Теперь установите 1.0.14 обычной кнопкой в интерфейсе.\n"
 );
