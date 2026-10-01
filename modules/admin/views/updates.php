@@ -292,6 +292,16 @@ ob_start();
                 </button>
             </div>
         </form>
+
+        <form action="<?= $view->e($view->route('admin_support_diagnostics_send')) ?>" method="post" class="custom-fields-form" data-confirm-message="Отправить обезличенный диагностический ZIP разработчику через активированный сервер обновлений?" data-confirm-title="Отправить диагностику" data-confirm-danger="false" data-confirm-text="Отправить">
+            <?= $view->csrfInput() ?>
+            <div class="custom-fields-form__footer">
+                <small>Пакет отправляется только на уже активированный Notes control plane. В него не входят пользовательские документы, .env, пароли, лицензия или приватные ключи.</small>
+                <button class="admin-action admin-action--primary" type="submit">
+                    <i class="fa fa-paper-plane" aria-hidden="true"></i> Отправить диагностику разработчику
+                </button>
+            </div>
+        </form>
     </section>
 
     <section class="admin-panel-card admin-update-safety">
