@@ -354,6 +354,10 @@ final class UpdateWebTransaction
                 'message' => (string) ($result['message'] ?? 'Обновление продолжается.'),
                 'transaction_id' => $transactionId,
                 'target_version' => (string) ($state['target_version'] ?? ''),
+                'runtime_refresh_delay_ms' => max(
+                    0,
+                    (int) ($result['runtime_refresh_delay_ms'] ?? 0)
+                ),
             ];
         }
 
