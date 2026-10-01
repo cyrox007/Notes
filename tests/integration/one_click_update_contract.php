@@ -32,6 +32,7 @@ $coreBootstrap = (string) file_get_contents($root . '/core.php');
 $liveApplyContract = (string) file_get_contents($root . '/tests/integration/updater_live_apply_contract.php');
 $adminUpdateE2e = (string) file_get_contents($root . '/.github/workflows/admin-update-e2e.yml');
 $rollbackBrowserE2e = (string) file_get_contents($root . '/tests/e2e/admin-update-rollback.mjs');
+$bootstrap1012 = (string) file_get_contents($root . '/tools/release/bootstrap-1.0.12-updater.php');
 
 updateNotificationAssert(
     str_contains($header, 'data-update-notifications'),
@@ -215,6 +216,12 @@ updateNotificationAssert(
     'Ранний recovery должен выполняться в index.php до проверки схемы и запуска core'
 );
 updateNotificationAssert(
+    str_contains($entrypoint, "\$supportDiagnosticsPath = SITEPATH . '/core/SupportDiagnostics.php'")
+        && str_contains($entrypoint, 'is_file($supportDiagnosticsPath)')
+        && str_contains($entrypoint, 'require_once $supportDiagnosticsPath'),
+    'Ранний bootstrap диагностики должен переживать пофайловый code switch без Warning/Fatal до публикации SupportDiagnostics.php'
+);
+updateNotificationAssert(
     str_contains($adminUpdateE2e, 'tests/e2e/admin-update-rollback.mjs'),
     'Сквозной релизный тест не запускает браузерную проверку автоматического отката'
 );
@@ -226,9 +233,22 @@ updateNotificationAssert(
         && str_contains($adminUpdateE2e, "source_code: '10013'")
         && str_contains($adminUpdateE2e, "E2E_TARGET_VERSION=%s\\n' '1.0.14-admin-e2e'")
         && str_contains($adminUpdateE2e, '--min-source-version-code=10012')
-        && !str_contains($adminUpdateE2e, 'php tools/release/bootstrap-1.0.12-updater.php')
+        && str_contains($adminUpdateE2e, 'Подготовить совместимый updater-контур')
+        && str_contains(
+            $adminUpdateE2e,
+            'php tools/release/bootstrap-1.0.12-updater.php --yes --root="$LIVE"'
+        )
         && !str_contains($adminUpdateE2e, 'bootstrap-1.0.9-updater.php'),
-    'Сквозной релизный тест должен закреплять прямой web-only путь 1.0.12/1.0.13 → 1.0.14 без CLI-моста'
+    'Сквозной релизный тест должен закреплять совместимый handoff 1.0.12/1.0.13 перед штатным web-обновлением 1.0.14'
+);
+updateNotificationAssert(
+    str_contains($bootstrap1012, "'1.0.12' => 10012")
+        && str_contains($bootstrap1012, "'1.0.13' => 10013")
+        && str_contains($bootstrap1012, "'core/UpdateInProcessRunner.php'")
+        && str_contains($bootstrap1012, "'core/MigrationBaseline.php'")
+        && str_contains($bootstrap1012, "'core/UpdateFileMutator.php'")
+        && str_contains($bootstrap1012, 'Мост не должен менять версию приложения до штатного обновления.'),
+    'Совместимый handoff должен быть ограничен exact 1.0.12/1.0.13 и менять только updater-контур до штатного обновления'
 );
 updateNotificationAssert(
     str_contains($webRunner, 'runtime_refresh_delay_ms')

@@ -283,6 +283,22 @@ jobs:
           test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '${{ matrix.source_version }}'
           test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '${{ matrix.source_code }}'
 
+      - name: Подготовить совместимый updater-контур ${{ matrix.source_version }} → 1.0.14
+        shell: bash
+        run: |
+          set -euo pipefail
+          LIVE=/tmp/workspace-admin-update-e2e/live
+
+          php tools/release/bootstrap-1.0.12-updater.php --yes --root="$LIVE"
+
+          # Совместимый handoff обновляет только updater-контур. Версия приложения
+          # и база данных до штатного web-обновления обязаны остаться исходными.
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '${{ matrix.source_version }}'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '${{ matrix.source_code }}'
+          grep -Fq -- '--baseline-version-code=' "$LIVE/core/UpdateApplyCommand.php"
+          grep -Fq 'baselineVersionCode' "$LIVE/core/UpdateInProcessRunner.php"
+          grep -Fq 'invalidateRuntimeCache' "$LIVE/core/UpdateFileMutator.php"
+
       - name: Создать контрольные пользовательские данные ${{ matrix.source_version }}
         shell: bash
         env:
