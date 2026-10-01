@@ -14,6 +14,8 @@ function updateNotificationAssert(bool $condition, string $message): void
 $header = (string) file_get_contents($root . '/app/views/^shared/header/index.php');
 $base = (string) file_get_contents($root . '/app/views/core/base.php');
 $script = (string) file_get_contents($root . '/assets/js/update-notifications.js');
+$webRunner = (string) file_get_contents($root . '/assets/js/update-web-runner.js');
+$bootstrap1012 = (string) file_get_contents($root . '/tools/release/bootstrap-1.0.12-updater.php');
 $router = (string) file_get_contents($root . '/modules/admin/AdminRuntimeProvider.php');
 $controller = (string) file_get_contents($root . '/modules/admin/controllers/UpdateController.php');
 $service = (string) file_get_contents($root . '/modules/admin/services/AdminUpdateService.php');
@@ -225,8 +227,20 @@ updateNotificationAssert(
         && !str_contains($adminUpdateE2e, "source_code: '10013'")
         && str_contains($adminUpdateE2e, "E2E_TARGET_VERSION=%s\\n' '1.0.14-admin-e2e'")
         && str_contains($adminUpdateE2e, '--min-source-version-code=10012')
+        && str_contains($adminUpdateE2e, 'bootstrap-1.0.12-updater.php')
         && !str_contains($adminUpdateE2e, 'bootstrap-1.0.9-updater.php'),
-    'Сквозной релизный тест должен закреплять только поддерживаемый путь 1.0.12 → 1.0.14 без bootstrap'
+    'Сквозной релизный тест должен закреплять exact-путь 1.0.12 → updater-мост → 1.0.14'
+);
+updateNotificationAssert(
+    str_contains($bootstrap1012, "liveVersion !== '1.0.12'")
+        && str_contains($bootstrap1012, "sourceVersion !== '1.0.14'")
+        && str_contains($bootstrap1012, 'Версия приложения и база данных не изменялись'),
+    'Одноразовый мост updater не закрепляет exact-границы 1.0.12 → 1.0.14'
+);
+updateNotificationAssert(
+    str_contains($webRunner, 'runtime_refresh_delay_ms')
+        && str_contains($webRunner, 'await wait(runtimeRefreshDelay)'),
+    'Web-runner не выдерживает паузу для обновления PHP runtime после переключения кода'
 );
 updateNotificationAssert(
     str_contains($adminUpdateE2e, '1.0.14-broken-e2e')
