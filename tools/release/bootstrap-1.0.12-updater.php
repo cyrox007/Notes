@@ -262,7 +262,7 @@ try {
         || !str_contains($baselineSource, "10013 => '20260930_module_entitlements.sql'")
         || !is_string($continuationSource)
         || str_contains($continuationSource, "if (\$replace && file_exists(\$path) && !@unlink(\$path))")
-        || !str_contains($continuationSource, 'rename(\$temp, \$path)')
+        || !str_contains($continuationSource, 'rename($temp, $path)')
         || !is_string($applySource)
         || !str_contains($applySource, '--baseline-version-code=')) {
         throw new RuntimeException('Проверка применённого updater-моста не пройдена.');
