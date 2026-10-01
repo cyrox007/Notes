@@ -127,6 +127,26 @@ try {
     const phase = String(result.phase || '');
     const status = String(result.status || '');
 
+    const traceJournalPath = `${stateRoot}/transactions/${transactionId}.json`;
+    const traceContinuationPath = `${stateRoot}/web-continuations/${transactionId}.json`;
+    let traceJournalState = 'missing';
+    let traceLease = 'missing';
+    try {
+      const traceJournal = JSON.parse(await readFile(traceJournalPath, 'utf8'));
+      traceJournalState = String(traceJournal.state || 'unknown');
+    } catch (error) {
+      if (error?.code !== 'ENOENT') traceJournalState = `error:${error.message}`;
+    }
+    try {
+      const traceContinuation = JSON.parse(await readFile(traceContinuationPath, 'utf8'));
+      traceLease = `created=${traceContinuation.created_at};expires=${traceContinuation.expires_at};now=${Math.floor(Date.now() / 1000)}`;
+    } catch (error) {
+      if (error?.code !== 'ENOENT') traceLease = `error:${error.message}`;
+    }
+    console.log(
+      `UPDATER_TRACE step=${stepNumber + 1} status=${status} phase=${phase} journal=${traceJournalState} lease=${traceLease}`
+    );
+
     if (phase === interruptPhase && status === 'in_progress') {
       reached = true;
       break;
