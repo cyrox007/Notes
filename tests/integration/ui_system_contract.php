@@ -10,6 +10,8 @@ $sidebarPath = $root . '/app/views/^shared/sidebar/index.php';
 $headerStylePath = $root . '/app/views/^shared/header/style.css';
 $sidebarStylePath = $root . '/app/views/^shared/sidebar/style.css';
 $cssPath = $root . '/assets/css/workspace-ui-1.0.css';
+$brandCssPath = $root . '/assets/css/workspace-brand-1.0.14.css';
+$brandMarkPath = $root . '/assets/img/workspace-brand-mark.svg';
 $scriptPath = $root . '/assets/js/theme-mode.js';
 
 function uiSystemAssert(bool $condition, string $message): void
@@ -20,7 +22,7 @@ function uiSystemAssert(bool $condition, string $message): void
     }
 }
 
-foreach ([$basePath, $commonStylePath, $headerPath, $sidebarPath, $headerStylePath, $sidebarStylePath, $cssPath, $scriptPath] as $path) {
+foreach ([$basePath, $commonStylePath, $headerPath, $sidebarPath, $headerStylePath, $sidebarStylePath, $cssPath, $brandCssPath, $brandMarkPath, $scriptPath] as $path) {
     uiSystemAssert(is_file($path), 'missing UI system file: ' . $path);
 }
 
@@ -31,6 +33,8 @@ $sidebar = file_get_contents($sidebarPath);
 $headerStyle = file_get_contents($headerStylePath);
 $sidebarStyle = file_get_contents($sidebarStylePath);
 $css = file_get_contents($cssPath);
+$brandCss = file_get_contents($brandCssPath);
+$brandMark = file_get_contents($brandMarkPath);
 $script = file_get_contents($scriptPath);
 
 uiSystemAssert(
@@ -41,6 +45,8 @@ uiSystemAssert(
     && is_string($headerStyle)
     && is_string($sidebarStyle)
     && is_string($css)
+    && is_string($brandCss)
+    && is_string($brandMark)
     && is_string($script),
     'UI system source is unreadable'
 );
@@ -51,6 +57,10 @@ $uiPosition = strpos($base, $uiStylesheet);
 $controlsPosition = strpos($base, $controlsMarker);
 uiSystemAssert($uiPosition !== false, 'unified UI stylesheet is not loaded');
 uiSystemAssert($controlsPosition !== false && $uiPosition > $controlsPosition, 'unified UI stylesheet must load after controls and module styles');
+$brandStylesheet = '/assets/css/workspace-brand-1.0.14.css';
+$brandPosition = strpos($base, $brandStylesheet);
+uiSystemAssert($brandPosition !== false && $brandPosition > $uiPosition, 'брендовый слой 1.0.14 должен загружаться последним');
+uiSystemAssert(str_contains($base, '/assets/img/workspace-brand-mark.svg'), 'фирменный знак не используется как favicon');
 uiSystemAssert(str_contains($base, '/assets/js/theme-mode.js'), 'theme controller is not loaded');
 $commonScript = (string) file_get_contents($root . '/assets/js/common.js');
 uiSystemAssert(
@@ -75,6 +85,13 @@ uiSystemAssert(str_contains($header, 'data-command-open'), 'top command/search t
 uiSystemAssert(str_contains($header, 'data-command-palette'), 'command palette is missing from the structural shell');
 uiSystemAssert(str_contains($sidebar, 'data-nav-key="home"'), 'sidebar home navigation is missing');
 uiSystemAssert(str_contains($sidebar, 'data-sidebar-toggle'), 'sidebar collapse control is missing');
+uiSystemAssert(
+    str_contains($sidebar, '/assets/img/workspace-brand-mark.svg')
+        && str_contains($sidebar, '<strong>Workspace</strong>')
+        && !str_contains($sidebar, 'title="Notes"')
+        && !str_contains($sidebar, '<strong>Notes</strong>'),
+    'боковая панель вернула старый бренд Notes вместо Workspace Organizer'
+);
 uiSystemAssert(
     str_contains($sidebar, "route('admin_settings')")
         && str_contains($sidebar, "!empty(\$access['license_manage'])")
@@ -128,13 +145,20 @@ foreach ([
     uiSystemAssert(str_contains($css, $marker), "unified workspace layer is missing marker: {$marker}");
 }
 
+foreach (['--brand-navy:', '--brand-blue:', '--brand-cyan:', '--brand-violet:', '--brand-orange:', '--brand-teal:', '.workspace-home__hero', '.workspace-viewport--messenger'] as $marker) {
+    uiSystemAssert(str_contains($brandCss, $marker), "брендовый слой 1.0.14 потерял маркер: {$marker}");
+}
+uiSystemAssert(str_contains($brandMark, '<svg') && str_contains($brandMark, 'Workspace Organizer'), 'фирменный SVG-знак повреждён');
+
 foreach ([
     "workspace.theme",
     "prefers-color-scheme: dark",
     "aria-pressed",
     "dataset.theme",
+    "#061329",
+    "#f4f8ff",
 ] as $marker) {
     uiSystemAssert(str_contains($script, $marker), "theme controller is missing marker: {$marker}");
 }
 
-fwrite(STDOUT, "[OK] unified light/dark UI system contract\n");
+fwrite(STDOUT, "[OK] единая светлая/тёмная бренд-система Workspace Organizer 1.0.14\n");
