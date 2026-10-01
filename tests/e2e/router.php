@@ -156,6 +156,40 @@ if ($updaterGuardPath !== '' && is_file($updaterGuardPath)) {
         echo 'E2E updater handoff guard';
         return true;
     }
+
+    // Помеченный driver-step передаём прямо в тот же ранний bridge, который
+    // использует production index.php. Так проверка точки прерывания не зависит
+    // от гонки между bootstrap recovery и следующим тестовым HTTP-запросом.
+    if ($isStep) {
+        require_once $root . '/core/Environment.php';
+        \Core\Environment::load($root . '/.env');
+        require_once $root . '/app/services/MaintenanceModeService.php';
+        require_once $root . '/core/UpdateWebHttpBridge.php';
+
+        $maintenance = new \App\Services\MaintenanceModeService(null, $root);
+        $maintenanceState = $maintenance->state();
+
+        if (!\Core\UpdateWebHttpBridge::canHandle($maintenance, $maintenanceState)) {
+            http_response_code(409);
+            header('Cache-Control: no-store');
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(
+                [
+                    'success' => false,
+                    'error' => 'e2e_bridge_handoff_failed',
+                    'message' => 'Тестовый updater driver не прошёл production bridge.',
+                ],
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+            ) . PHP_EOL;
+            return true;
+        }
+
+        \Core\UpdateWebHttpBridge::handle(
+            $root,
+            $maintenance,
+            $maintenanceState
+        );
+    }
 }
 
 $configuredSupportRoot = trim((string) getenv('E2E_SUPPORT_ROOT'));
