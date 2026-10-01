@@ -1045,6 +1045,10 @@ jobs:
           cat /tmp/workspace-organizer-startup.log 2>/dev/null || true
           echo '--- журналы updater ---'
           find "$DRILL/private" -maxdepth 4 -type f -name '*.json' -print -exec sh -c 'echo "--- $1"; cat "$1"' _ {} \; 2>/dev/null || true
+          echo '--- сервисный журнал updater/recovery ---'
+          if [[ -f "$DRILL/private/logs/service-events.jsonl" ]]; then
+            tail -n 200 "$DRILL/private/logs/service-events.jsonl" || true
+          fi
 
       - name: Остановить тестовые процессы и восстановить DNS
         if: always()
