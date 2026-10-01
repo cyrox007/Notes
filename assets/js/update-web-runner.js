@@ -85,6 +85,14 @@
                 retries = 0;
                 result = step.payload.result;
                 if (typeof onProgress === 'function') onProgress(result);
+
+                const runtimeRefreshDelay = Math.max(
+                    0,
+                    Math.min(60000, Number(result.runtime_refresh_delay_ms || 0))
+                );
+                if (runtimeRefreshDelay > 0) {
+                    await wait(runtimeRefreshDelay);
+                }
             } catch (error) {
                 if (retries >= MAX_TRANSIENT_RETRIES) throw error;
                 retries += 1;
