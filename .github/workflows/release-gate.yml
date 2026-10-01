@@ -90,8 +90,12 @@ jobs:
       - name: Verify security observability contract
         run: php tests/integration/security_observability_contract.php
 
-      - name: Проверить сервисный журнал и одноразовую диагностику
-        run: php tests/integration/support_diagnostics_contract.php
+      - name: Проверить сервисный журнал и диагностику поддержки
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/integration/support_diagnostics_contract.php
+          php tests/integration/support_diagnostics_remote_contract.php
 
       - name: Проверить двухфакторную аутентификацию TOTP
         run: php tests/integration/two_factor_contract.php
