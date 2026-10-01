@@ -157,6 +157,7 @@ if ($liveVersion !== '1.0.12' || $liveCode !== 10012) {
 
 $files = [
     'app/services/MaintenanceModeService.php',
+    'assets/js/update-web-runner.js',
     'bin/migrate.php',
     'core/DatabaseOwnership.php',
     'core/HostingCompatibility.php',
