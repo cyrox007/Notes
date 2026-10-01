@@ -122,6 +122,12 @@ jobs:
           test "$(php -r "require '$SOURCE/core/Version.php'; echo Core\\Version::VERSION;")" = '${{ matrix.source_version }}'
           test "$(php -r "require '$SOURCE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '${{ matrix.source_code }}'
 
+          # Стенд моделирует хостинг, где приложение действительно может
+          # самостоятельно создать свои триггеры без административного DB-пользователя.
+          # SUPER приложению не выдаётся.
+          mysql -h 127.0.0.1 -uroot -proot \
+            -e "SET GLOBAL log_bin_trust_function_creators = 1;"
+
           mysql -h 127.0.0.1 -uroot -proot <<'SQL'
           CREATE USER 'workspace_app'@'%' IDENTIFIED BY 'workspace-ci-limited-db';
           GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, DROP,
