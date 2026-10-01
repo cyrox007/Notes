@@ -244,7 +244,18 @@ try {
         'Некорректный INSTALL_DATE не должен автоматически снимать maintenance'
     );
 
-    $bootGateSource = (string) file_get_contents($root . '/core/UpdateBootRecoveryGate.php');
+    $applyCommandSource = (string) file_get_contents($root . '/core/UpdateApplyCommand.php');
+automaticRecoveryAssert(
+    !str_contains($applyCommandSource, "'apply_error_type' => \$applyError::class"),
+    'Recovery rollback снова ссылается на отсутствующую переменную applyError'
+);
+automaticRecoveryAssert(
+    str_contains($applyCommandSource, "'recovery_mode' => true")
+        && str_contains($applyCommandSource, "'rollback_error_type' => \$rollbackError::class"),
+    'Recovery rollback не сохраняет безопасный контекст первичной ошибки'
+);
+
+$bootGateSource = (string) file_get_contents($root . '/core/UpdateBootRecoveryGate.php');
     automaticRecoveryAssert(
         str_contains($bootGateSource, 'maintenancePredatesCurrentInstallation($state)')
             && str_contains($bootGateSource, '$maintenance->leave($transactionId)')
