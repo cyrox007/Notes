@@ -266,6 +266,16 @@ try {
         'Rollback не разделяет холодную process-проверку и web-only проверку восстановленного снимка'
     );
 
+    $continuationSource = (string) file_get_contents($root . '/core/UpdateWebContinuation.php');
+    automaticRecoveryAssert(
+        !str_contains(
+            $continuationSource,
+            "if (\$replace && file_exists(\$path) && !@unlink(\$path))"
+        )
+            && str_contains($continuationSource, 'if (!@rename($temp, $path))'),
+        'Продление web-lease снова создаёт окно без continuation-файла перед атомарной заменой'
+    );
+
     $bootGateSource = (string) file_get_contents($root . '/core/UpdateBootRecoveryGate.php');
     automaticRecoveryAssert(
         str_contains($bootGateSource, 'maintenancePredatesCurrentInstallation($state)')
