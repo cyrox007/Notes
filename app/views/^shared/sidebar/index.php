@@ -10,16 +10,16 @@ $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
 ?>
 <aside class="sidebar" id="workspaceSidebar" aria-label="Основная навигация">
     <div class="sidebar__top">
-        <a href="<?= $view->e($view->route('main')) ?>" class="sidebar__brand" title="Notes">
-            <span class="sidebar__brand-mark" aria-hidden="true">N</span>
+        <a href="<?= $view->e($view->route('main')) ?>" class="sidebar__brand" title="Workspace Organizer">
+            <img class="sidebar__brand-mark" src="<?= $view->e($baseUrl) ?>/assets/img/workspace-brand-mark.svg" alt="" aria-hidden="true">
             <span class="sidebar__brand-copy">
-                <strong>Notes</strong>
-                <small><?= $view->e($workspaceVersion !== '' ? $workspaceVersion : '1.0') ?></small>
+                <strong>Workspace</strong>
+                <small>Organizer <?= $view->e($workspaceVersion !== '' ? $workspaceVersion : '1.0') ?></small>
             </span>
         </a>
     </div>
 
-    <nav class="sidebar__menu" aria-label="Разделы Notes">
+    <nav class="sidebar__menu" aria-label="Разделы Workspace Organizer">
         <a href="<?= $view->e($view->route('main')) ?>" class="sidebar__menu-link" data-nav-key="home" title="Главная">
             <span class="sidebar__menu-icon"><i class="fa fa-home" aria-hidden="true"></i></span>
             <span class="sidebar__menu-label">Главная</span>
