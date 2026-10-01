@@ -20,9 +20,9 @@ ob_start();
 <section class="workspace-home">
     <header class="workspace-home__hero">
         <div class="workspace-home__hero-copy">
-            <span class="workspace-home__eyebrow">Notes <?= $view->e($workspaceVersion !== '' ? $workspaceVersion : '1.0') ?></span>
+            <span class="workspace-home__eyebrow">Workspace Organizer <?= $view->e($workspaceVersion !== '' ? $workspaceVersion : '1.0') ?></span>
             <h1>Добро пожаловать, <?= $view->e($displayName) ?></h1>
-            <p>Доступные вашей учётной записи инструменты собраны в одном компактном интерфейсе.</p>
+            <p>Заметки, задачи, файлы и командная работа — в одном защищённом рабочем пространстве.</p>
         </div>
         <div class="workspace-home__hero-actions">
             <?php if (!empty($access['notes'])): ?>
@@ -35,7 +35,7 @@ ob_start();
     </header>
 
     <div class="workspace-home__section-heading">
-        <div><span>Разделы</span><h2>Рабочее пространство</h2></div>
+        <div><span>Рабочее пространство</span><h2>Всё важное — под контролем</h2></div>
     </div>
 
     <div class="workspace-home__grid">
