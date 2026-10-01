@@ -924,10 +924,10 @@ final class UpdateApplyCommand
 
         $restored = $applier->readLiveVersion();
         $this->assertVersion($journalState, $restored, false, 'Rollback restored an unexpected application version');
-        $health = $this->health($this->appRoot);
-        $migrationStatus = $this->migrationStatus(
-            $this->appRoot,
-            (int) ($journalState['installed_version_code'] ?? 0)
+        $verification = $this->verifyRollbackState(
+            $transactionId,
+            $journalState,
+            $stateMachine
         );
         if ($restartWs) {
             $this->restartWs($this->appRoot);
@@ -936,8 +936,9 @@ final class UpdateApplyCommand
         $verified = [
             'version' => $restored['version'],
             'version_code' => $restored['version_code'],
-            'health_status' => $health['status'] ?? null,
-            'migration_status_sha256' => hash('sha256', $migrationStatus['stdout']),
+            'health_status' => $verification['health_status'],
+            'migration_status_sha256' => $verification['migration_status_sha256'],
+            'verification_mode' => $verification['verification_mode'],
             'ws_restarted' => $restartWs,
             'verified_at' => time(),
         ];
@@ -948,6 +949,76 @@ final class UpdateApplyCommand
             'health_status' => (string) ($health['status'] ?? ''),
         ]);
         return $verified;
+    }
+
+    /**
+     * После пофайлового возврата старой версии web-only режим остаётся в том же
+     * PHP-запросе. Загруженные классы целевой версии уже нельзя выгрузить, поэтому
+     * запуск migrate/health из восстановленного дерева в этом процессе создаёт
+     * смешанный runtime двух версий. Для web-only подтверждаем уже проверенный
+     * снимок кода и БД; следующий HTTP-запрос стартует с чистым runtime.
+     *
+     * @param array<string,mixed> $journalState
+     * @return array{health_status:string,migration_status_sha256:string,verification_mode:string}
+     */
+    private function verifyRollbackState(
+        string $transactionId,
+        array $journalState,
+        UpdateTransactionStateMachine $stateMachine
+    ): array {
+        if ($this->processRunner::class !== __NAMESPACE__ . '\\UpdateInProcessRunner') {
+            $health = $this->health($this->appRoot);
+            $migrationStatus = $this->migrationStatus(
+                $this->appRoot,
+                (int) ($journalState['installed_version_code'] ?? 0)
+            );
+
+            return [
+                'health_status' => (string) ($health['status'] ?? ''),
+                'migration_status_sha256' => hash('sha256', $migrationStatus['stdout']),
+                'verification_mode' => 'cold_process',
+            ];
+        }
+
+        $current = $stateMachine->load($transactionId);
+        $database = is_array($current['rollback_database'] ?? null)
+            ? $current['rollback_database']
+            : [];
+        $preflight = is_array($current['preflight'] ?? null)
+            ? $current['preflight']
+            : [];
+
+        $dumpSha = strtolower(trim((string) ($database['dump_sha256'] ?? '')));
+        $tables = (int) ($database['tables'] ?? 0);
+        $triggers = (int) ($database['triggers'] ?? -1);
+        if (
+            preg_match('/^[0-9a-f]{64}$/D', $dumpSha) !== 1
+            || $tables < 1
+            || $triggers < 0
+            || (string) ($preflight['health_status'] ?? '') !== 'ok'
+        ) {
+            throw new RuntimeException(
+                'Rollback web-only не содержит достаточного подтверждения проверенного снимка'
+            );
+        }
+
+        $proof = json_encode(
+            [
+                'installed_version' => (string) ($journalState['installed_version'] ?? ''),
+                'installed_version_code' => (int) ($journalState['installed_version_code'] ?? 0),
+                'dump_sha256' => $dumpSha,
+                'tables' => $tables,
+                'triggers' => $triggers,
+                'preflight_health_status' => 'ok',
+            ],
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        );
+
+        return [
+            'health_status' => 'rollback_snapshot_verified',
+            'migration_status_sha256' => hash('sha256', $proof),
+            'verification_mode' => 'web_snapshot',
+        ];
     }
 
     /** @param array<string,mixed> $journalState @return array{backup_dir:string} */
