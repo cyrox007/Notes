@@ -946,7 +946,8 @@ final class UpdateApplyCommand
         $this->logService('updater.rollback_verified', 'warning', $transactionId, [
             'version' => (string) $restored['version'],
             'version_code' => (int) $restored['version_code'],
-            'health_status' => (string) ($health['status'] ?? ''),
+            'health_status' => (string) $verification['health_status'],
+            'verification_mode' => (string) $verification['verification_mode'],
         ]);
         return $verified;
     }
