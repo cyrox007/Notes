@@ -25,10 +25,12 @@ $pageScripts = isset($page_scripts) && is_array($page_scripts)
     <title><?= $view->e($siteName) ?> — <?= $view->e($title) ?></title>
     <link rel="stylesheet" href="<?= $view->e($base . '/assets/css/auth_page/style.css') ?>">
     <link rel="stylesheet" href="<?= $view->e($base . '/assets/font-awesome/css/font-awesome.min.css') ?>">
+    <link rel="stylesheet" href="<?= $view->e($base . '/assets/css/workspace-brand-1.0.14.css') ?>">
 <?php foreach ($pageStyles as $pageStyle): ?>
     <link rel="stylesheet" href="<?= $view->e($base . '/' . ltrim($pageStyle, '/')) ?>">
 <?php endforeach; ?>
-    <link rel="icon" href="<?= $view->e($base . '/favicon.ico') ?>" type="image/x-icon">
+    <link rel="icon" href="<?= $view->e($base . '/assets/img/workspace-brand-mark.svg') ?>" type="image/svg+xml">
+    <link rel="alternate icon" href="<?= $view->e($base . '/favicon.ico') ?>" type="image/x-icon">
 </head>
 <body>
     <?php // $content is trusted HTML rendered by an internal native child template. ?>
