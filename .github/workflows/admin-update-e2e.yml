@@ -620,6 +620,20 @@ jobs:
               if (!str_contains($v,"release-10014-broken.json")) exit(1);
             '
 
+      - name: Применить одноразовый мост updater exact-версии 1.0.12
+        shell: bash
+        run: |
+          set -euo pipefail
+          DRILL=/tmp/workspace-admin-update-e2e
+          LIVE="$DRILL/live"
+
+          php tools/release/bootstrap-1.0.12-updater.php --yes --root="$LIVE"
+
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '${{ matrix.source_version }}'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '${{ matrix.source_code }}'
+          grep -Fq -- '--baseline-version-code=' "$LIVE/core/UpdateApplyCommand.php"
+          grep -Fq "10012 => '20260930_file_upload_limit.sql'" "$LIVE/core/MigrationBaseline.php"
+
       - name: Запустить живую установку
         shell: bash
         run: |
