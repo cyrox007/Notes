@@ -119,6 +119,103 @@ try {
     automaticRecoveryAssert($invocations === 1, 'Recovery должен запускаться ровно один раз');
     automaticRecoveryAssert(!$maintenance->state()['active'], 'Maintenance не снят после recovery');
 
+    $handoffTransaction = 'update-auto-recovery-handoff';
+    automaticRecoveryInitializeJournal($stateRoot, $root, $temp, $handoffTransaction);
+    $handoffJournalPath = $stateRoot . '/transactions/' . $handoffTransaction . '.json';
+    $handoffJournal = json_decode(
+        (string) file_get_contents($handoffJournalPath),
+        true,
+        32,
+        JSON_THROW_ON_ERROR
+    );
+    $handoffJournal['state'] = 'code_switched';
+    $handoffJournal['live_mutation_started'] = true;
+    $handoffJournal['updated_at'] = time();
+    automaticRecoveryAssert(
+        file_put_contents(
+            $handoffJournalPath,
+            json_encode(
+                $handoffJournal,
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+            )
+        ) !== false,
+        'Не удалось подготовить свежий code_switched journal без web-lease'
+    );
+
+    $maintenance->enter($handoffTransaction, 'Проверка handoff web-updater');
+    $handoffInvocations = 0;
+    $handoffRecovery = new UpdateAutomaticRecovery(
+        $root,
+        static function () use (&$handoffInvocations): array {
+            $handoffInvocations++;
+            return ['code' => 0, 'stdout' => '{}', 'stderr' => ''];
+        }
+    );
+    $handoffResult = $handoffRecovery->attempt($maintenance);
+    automaticRecoveryAssert(
+        $handoffResult['status'] === 'in_progress',
+        'Свежий code_switched без lease ошибочно запустил rollback'
+    );
+    automaticRecoveryAssert(
+        ($handoffResult['code'] ?? '') === 'web_continuation_handoff',
+        'Свежий handoff не вернул отдельный код защиты'
+    );
+    automaticRecoveryAssert(
+        $handoffInvocations === 0,
+        'Recovery subprocess не должен запускаться в окне смены runtime'
+    );
+    automaticRecoveryAssert(
+        $maintenance->state()['active'],
+        'Handoff-защита не должна снимать maintenance'
+    );
+
+    $handoffJournal['updated_at'] = time() - 300;
+    automaticRecoveryAssert(
+        file_put_contents(
+            $handoffJournalPath,
+            json_encode(
+                $handoffJournal,
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+            )
+        ) !== false,
+        'Не удалось состарить handoff journal'
+    );
+
+    $expiredHandoffInvocations = 0;
+    $expiredHandoffRecovery = new UpdateAutomaticRecovery(
+        $root,
+        static function () use (
+            &$expiredHandoffInvocations,
+            $maintenance,
+            $handoffTransaction
+        ): array {
+            $expiredHandoffInvocations++;
+            $maintenance->leave($handoffTransaction);
+            return [
+                'code' => 0,
+                'stdout' => json_encode([
+                    'status' => 'rolled_back',
+                    'transaction_id' => $handoffTransaction,
+                    'maintenance_active' => false,
+                ], JSON_THROW_ON_ERROR),
+                'stderr' => '',
+            ];
+        }
+    );
+    $expiredHandoffResult = $expiredHandoffRecovery->attempt($maintenance);
+    automaticRecoveryAssert(
+        $expiredHandoffResult['status'] === 'recovered',
+        'После окна handoff recovery не был разрешён'
+    );
+    automaticRecoveryAssert(
+        $expiredHandoffInvocations === 1,
+        'После окна handoff recovery должен запускаться ровно один раз'
+    );
+    automaticRecoveryAssert(
+        !$maintenance->state()['active'],
+        'После recovery состаренного handoff maintenance не снят'
+    );
+
     $rollbackLeaseTransaction = 'update-auto-recovery-rollback-lease';
     automaticRecoveryInitializeJournal($stateRoot, $root, $temp, $rollbackLeaseTransaction);
     $journalPath = $stateRoot . '/transactions/' . $rollbackLeaseTransaction . '.json';
