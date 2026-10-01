@@ -22,19 +22,9 @@ jobs:
             php: '8.1'
             mode: web-only
             disable_functions: 'proc_open,proc_get_status,proc_terminate,proc_close,exec,system,passthru,shell_exec,popen'
-          - source_version: '1.0.12'
-            source_code: '10012'
-            php: '8.3'
-            mode: web-only
-            disable_functions: 'proc_open,proc_get_status,proc_terminate,proc_close,exec,system,passthru,shell_exec,popen'
           - source_version: '1.0.13'
             source_code: '10013'
             php: '8.1'
-            mode: web-only
-            disable_functions: 'proc_open,proc_get_status,proc_terminate,proc_close,exec,system,passthru,shell_exec,popen'
-          - source_version: '1.0.13'
-            source_code: '10013'
-            php: '8.3'
             mode: web-only
             disable_functions: 'proc_open,proc_get_status,proc_terminate,proc_close,exec,system,passthru,shell_exec,popen'
 
