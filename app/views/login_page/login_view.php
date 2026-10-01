@@ -13,15 +13,15 @@ ob_start();
 <div class="login-page">
     <div class="login-page__box">
         <a href="<?= $view->e($view->route('main')) ?>" class="login-page__brand" aria-label="<?= $view->e($siteName) ?>">
-            <span class="login-page__brand-mark" aria-hidden="true">W</span>
+            <img class="login-page__brand-mark" src="<?= $view->e(rtrim((string) ($base_url ?? ''), '/')) ?>/assets/img/workspace-brand-mark.svg" alt="" aria-hidden="true">
             <span class="login-page__brand-copy">
-                <strong><?= $view->e($siteName) ?></strong>
-                <small>Workspace <?= $view->e($workspaceVersion) ?></small>
+                <strong>Workspace Organizer</strong>
+                <small>Версия <?= $view->e($workspaceVersion) ?></small>
             </span>
         </a>
 
         <div class="login-page__card">
-            <h1 class="login-page__title">Вход в Workspace</h1>
+            <h1 class="login-page__title">Вход в Workspace Organizer</h1>
             <p class="login-page__subtitle">Используйте свою учётную запись, чтобы открыть заметки, задачи, файлы и сообщения.</p>
 
             <?php if ($errors !== []): ?>
