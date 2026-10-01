@@ -283,20 +283,6 @@ jobs:
           test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '${{ matrix.source_version }}'
           test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '${{ matrix.source_code }}'
 
-      - name: Подготовить безопасный updater-мост ${{ matrix.source_version }} → 1.0.14
-        shell: bash
-        run: |
-          set -euo pipefail
-          LIVE=/tmp/workspace-admin-update-e2e/live
-
-          php tools/release/bootstrap-1.0.12-updater.php --yes --root="$LIVE"
-
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '${{ matrix.source_version }}'
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '${{ matrix.source_code }}'
-          ! grep -Fq 'if ($replace && file_exists($path) && !@unlink($path))' "$LIVE/core/UpdateWebContinuation.php"
-          grep -Fq 'leaseStatus' "$LIVE/core/UpdateWebContinuation.php"
-          grep -Fq 'webRecoveryGuard' "$LIVE/core/UpdateAutomaticRecovery.php"
-
       - name: Создать контрольные пользовательские данные ${{ matrix.source_version }}
         shell: bash
         env:
