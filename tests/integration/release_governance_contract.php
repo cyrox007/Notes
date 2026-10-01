@@ -165,6 +165,24 @@ if (!str_contains($publisher, 'Тег $TAG остаётся на опублик�
     failContract('пострелизная документация не отделена от неизменяемого тега');
 }
 
+$hostingPackage = requireFileText($root . '/.github/workflows/hosting-package.yml');
+foreach ([
+    'bootstrap-1.0.12-updater.php',
+    'UPDATE_1012_BOOTSTRAP',
+    'UPDATE_1012_BOOTSTRAP_CHECKSUM',
+    'assets/css/workspace-brand-1.0.14.css',
+    'assets/img/workspace-brand-mark.svg',
+    'assets/img/workspace-brand-lockup.svg',
+] as $marker) {
+    if (!str_contains($hostingPackage, $marker)) {
+        failContract("hosting package 1.0.14 не содержит обязательный marker: {$marker}");
+    }
+}
+if (!str_contains($hostingPackage, '"$UPDATE_1012_BOOTSTRAP" \\')
+    || !str_contains($hostingPackage, '"$UPDATE_1012_BOOTSTRAP_CHECKSUM" \\')) {
+    failContract('GitHub Release не прикладывает мост updater 1.0.12 и его SHA-256');
+}
+
 $releaseGate = requireFileText($releaseGatePath);
 if (!str_contains($releaseGate, 'php tests/integration/release_governance_contract.php')) {
     failContract('release-gate.yml не запускает release_governance_contract.php');
