@@ -132,6 +132,43 @@ final class SupportDiagnostics
         ];
     }
 
+    /**
+     * Формирует тот же обезличенный ZIP для защищённой отправки в control plane.
+     *
+     * @return array{bundle_id:string,bytes:string,sha256:string,size:int}
+     */
+    public function createUploadBundle(int $actorId): array
+    {
+        if ($actorId <= 0) {
+            throw new RuntimeException('Не определён пользователь, запросивший диагностику');
+        }
+
+        $now = time();
+        $bundleId = gmdate('Ymd-His', $now) . '-' . bin2hex(random_bytes(6));
+        $bytes = $this->buildArchive($bundleId, $actorId, $now);
+        if (strlen($bytes) > self::MAX_BUNDLE_BYTES) {
+            throw new RuntimeException('Диагностический ZIP превышает допустимый размер');
+        }
+
+        ServiceLog::emit(
+            'support.diagnostics_upload_bundle_created',
+            'info',
+            'support',
+            [
+                'bundle_id' => $bundleId,
+                'created_by' => $actorId,
+                'size' => strlen($bytes),
+            ]
+        );
+
+        return [
+            'bundle_id' => $bundleId,
+            'bytes' => $bytes,
+            'sha256' => hash('sha256', $bytes),
+            'size' => strlen($bytes),
+        ];
+    }
+
     public static function canHandleRequest(): bool
     {
         if (strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'GET') {
