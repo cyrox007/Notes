@@ -218,15 +218,15 @@ updateNotificationAssert(
     'Сквозной релизный тест не запускает браузерную проверку автоматического отката'
 );
 updateNotificationAssert(
-    str_contains($adminUpdateE2e, 'name: 1.0.12/1.0.13 → 1.0.14 сквозной updater')
+    str_contains($adminUpdateE2e, 'name: 1.0.12 → 1.0.14 сквозной updater')
         && str_contains($adminUpdateE2e, "source_version: '1.0.12'")
         && str_contains($adminUpdateE2e, "source_code: '10012'")
-        && str_contains($adminUpdateE2e, "source_version: '1.0.13'")
-        && str_contains($adminUpdateE2e, "source_code: '10013'")
+        && !str_contains($adminUpdateE2e, "source_version: '1.0.13'")
+        && !str_contains($adminUpdateE2e, "source_code: '10013'")
         && str_contains($adminUpdateE2e, "E2E_TARGET_VERSION=%s\\n' '1.0.14-admin-e2e'")
         && str_contains($adminUpdateE2e, '--min-source-version-code=10012')
         && !str_contains($adminUpdateE2e, 'bootstrap-1.0.9-updater.php'),
-    'Сквозной релизный тест не закрепляет пути 1.0.12/1.0.13 → 1.0.14 без bootstrap'
+    'Сквозной релизный тест должен закреплять только поддерживаемый путь 1.0.12 → 1.0.14 без bootstrap'
 );
 updateNotificationAssert(
     str_contains($adminUpdateE2e, '1.0.14-broken-e2e')
