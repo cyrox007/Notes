@@ -96,6 +96,34 @@ final class UpdateReadiness
         $processModeAvailable = $procOpen && $phpCliReady;
         $installMode = $processModeAvailable ? 'process' : 'web';
 
+        $opcacheLoaded = extension_loaded('Zend OPcache');
+        $opcacheEnabledRaw = ini_get('opcache.enable');
+        $opcacheEnabled = $opcacheLoaded
+            && $opcacheEnabledRaw !== false
+            && !in_array(
+                strtolower(trim((string) $opcacheEnabledRaw)),
+                ['', '0', 'off', 'false', 'no'],
+                true
+            );
+        $validateTimestampsRaw = ini_get('opcache.validate_timestamps');
+        $validateTimestamps = $validateTimestampsRaw === false
+            || !in_array(
+                strtolower(trim((string) $validateTimestampsRaw)),
+                ['0', 'off', 'false', 'no'],
+                true
+            );
+        $webRuntimeRefreshReady = $installMode !== 'web'
+            || !$opcacheEnabled
+            || $validateTimestamps;
+        $record(
+            'web_runtime_refresh',
+            $webRuntimeRefreshReady,
+            $webRuntimeRefreshReady
+                ? ''
+                : 'Web-only обновление небезопасно: OPcache не проверяет изменения файлов. '
+                    . 'Включите opcache.validate_timestamps либо используйте режим с отдельным PHP-процессом.'
+        );
+
         $maxExecution = (int) HostingCompatibility::iniValue('max_execution_time');
         $executionComfortable = $installMode !== 'web' || $maxExecution <= 0 || $maxExecution >= 30;
         $recordOptional(
@@ -236,7 +264,8 @@ final class UpdateReadiness
             && $mysqli
             && $zlib
             && $pathReady
-            && $dbConfigReady;
+            && $dbConfigReady
+            && $webRuntimeRefreshReady;
 
         return [
             'ready_for_check' => $readyForCheck,
