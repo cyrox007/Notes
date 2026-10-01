@@ -136,10 +136,14 @@ if ($updaterGuardPath !== '' && is_file($updaterGuardPath)) {
     $requestTransaction = trim(
         (string) ($_SERVER['HTTP_X_WORKSPACE_UPDATE_TRANSACTION'] ?? '')
     );
+    $e2eDriver = trim((string) ($_SERVER['HTTP_X_E2E_UPDATER_DRIVER'] ?? ''));
+    $isTestDriver = hash_equals('1', $e2eDriver);
 
-    $isStart = $method === 'POST'
+    $isStart = $isTestDriver
+        && $method === 'POST'
         && str_ends_with($normalizedPath, '/admin/updates/web-start');
-    $isStep = $method === 'POST'
+    $isStep = $isTestDriver
+        && $method === 'POST'
         && str_ends_with($normalizedPath, '/admin/updates/web-step')
         && $guardTransaction !== ''
         && $requestTransaction !== ''
