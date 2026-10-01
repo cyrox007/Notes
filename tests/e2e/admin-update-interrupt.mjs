@@ -40,6 +40,36 @@ async function login(page) {
   ]);
 }
 
+async function postContinuationStep(transactionId, token) {
+  const response = await fetch(`${baseUrl}/admin/updates/web-step`, {
+    method: 'POST',
+    redirect: 'manual',
+    cache: 'no-store',
+    headers: {
+      Accept: 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+      'X-Workspace-Update-Transaction': transactionId,
+      'X-Workspace-Update-Token': token,
+    },
+    signal: AbortSignal.timeout(120000),
+  });
+
+  const text = await response.text();
+  let payload = null;
+  try {
+    payload = JSON.parse(text);
+  } catch (_) {
+    // Текст попадёт в диагностическую ошибку вызывающего кода.
+  }
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    text,
+    payload,
+  };
+}
+
 async function postJson(page, path, headers = {}) {
   return await page.evaluate(async ({ path, headers }) => {
     const csrf = String(window.wspace?.security?.getCSRFToken?.() || '');
@@ -111,11 +141,14 @@ try {
   }
 
   let reached = false;
+  let contextClosed = false;
   for (let stepNumber = 0; stepNumber < 8; stepNumber += 1) {
-    const step = await postJson(page, `${basePath}/admin/updates/web-step`, {
-      'X-Workspace-Update-Transaction': transactionId,
-      'X-Workspace-Update-Token': token,
-    });
+    const step = contextClosed
+      ? await postContinuationStep(transactionId, token)
+      : await postJson(page, `${basePath}/admin/updates/web-step`, {
+          'X-Workspace-Update-Transaction': transactionId,
+          'X-Workspace-Update-Token': token,
+        });
 
     if (!step.ok || !step.payload?.success || !step.payload?.result) {
       throw new Error(
@@ -158,6 +191,20 @@ try {
       );
     }
 
+    // После переключения файлов старая страница больше не должна создавать
+    // фоновые HTTP-запросы: опубликованные 1.0.12/1.0.13 ещё не знали о lease
+    // в раннем recovery-барьере. Для точки postcheck закрываем браузер и
+    // продолжаем capability-защищённый web-step напрямую. Это устраняет гонку
+    // тестового клиента, не добавляя задержек и специальных веток в продукт.
+    if (
+      interruptPhase === 'postcheck'
+      && phase === 'migrations'
+      && !contextClosed
+    ) {
+      await context.close();
+      contextClosed = true;
+    }
+
     const runtimeRefreshDelay = Math.max(
       0,
       Number(result.runtime_refresh_delay_ms || 0)
@@ -173,10 +220,14 @@ try {
 
   if (pageErrors.length) throw pageErrors[0];
 
-  // Закрываем весь браузерный контекст и намеренно не вызываем следующий
-  // updater step. На диске остаётся настоящая незавершённая транзакция после
-  // destructive boundary — тот же класс ситуации, что при обрыве клиента.
-  await context.close();
+  // Закрываем браузерный контекст и намеренно не вызываем следующий
+  // updater step. Для postcheck он уже закрыт перед handoff-запросом выше.
+  // На диске остаётся настоящая незавершённая транзакция после destructive
+  // boundary — тот же класс ситуации, что при обрыве клиента.
+  if (!contextClosed) {
+    await context.close();
+    contextClosed = true;
+  }
 
   let recoveryResponse = await fetch(`${baseUrl}/`, {
     redirect: 'follow',
