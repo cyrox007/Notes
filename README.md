@@ -399,3 +399,9 @@ GitHub Release `v1.0.13` опубликован. Регистрация верс
 Следующая продуктовая линия: **1.1 — Календарь и ежедневник**.
 
 Актуальный статус: [`docs/RELEASE_STATUS_1.0.md`](docs/RELEASE_STATUS_1.0.md). Финальная релизная матрица: [`docs/RELEASE_ACCEPTANCE.md`](docs/RELEASE_ACCEPTANCE.md).
+
+
+### Быстрые ссылки по архитектуре и использованию
+
+- Ядро: [docs/CORE.md](docs/CORE.md)
+- Руководство пользователя: [docs/USER_GUIDE.md](docs/USER_GUIDE.md)
