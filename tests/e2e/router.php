@@ -164,31 +164,37 @@ if ($updaterGuardPath !== '' && is_file($updaterGuardPath)) {
         require_once $root . '/core/Environment.php';
         \Core\Environment::load($root . '/.env');
         require_once $root . '/app/services/MaintenanceModeService.php';
-        require_once $root . '/core/UpdateWebHttpBridge.php';
 
         $maintenance = new \App\Services\MaintenanceModeService(null, $root);
         $maintenanceState = $maintenance->state();
 
-        if (!\Core\UpdateWebHttpBridge::canHandle($maintenance, $maintenanceState)) {
-            http_response_code(409);
-            header('Cache-Control: no-store');
-            header('Content-Type: application/json; charset=utf-8');
-            echo json_encode(
-                [
-                    'success' => false,
-                    'error' => 'e2e_bridge_handoff_failed',
-                    'message' => 'Тестовый updater driver не прошёл production bridge.',
-                ],
-                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
-            ) . PHP_EOL;
-            return true;
-        }
+        // Первый web-step штатно идёт через обычный Router: именно он включает
+        // maintenance. После этого все driver-step обязаны проходить через
+        // production early bridge и не могут быть обогнаны boot recovery.
+        if (!empty($maintenanceState['active']) && !empty($maintenanceState['valid'])) {
+            require_once $root . '/core/UpdateWebHttpBridge.php';
 
-        \Core\UpdateWebHttpBridge::handle(
-            $root,
-            $maintenance,
-            $maintenanceState
-        );
+            if (!\Core\UpdateWebHttpBridge::canHandle($maintenance, $maintenanceState)) {
+                http_response_code(409);
+                header('Cache-Control: no-store');
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(
+                    [
+                        'success' => false,
+                        'error' => 'e2e_bridge_handoff_failed',
+                        'message' => 'Тестовый updater driver не прошёл production bridge.',
+                    ],
+                    JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+                ) . PHP_EOL;
+                return true;
+            }
+
+            \Core\UpdateWebHttpBridge::handle(
+                $root,
+                $maintenance,
+                $maintenanceState
+            );
+        }
     }
 }
 
