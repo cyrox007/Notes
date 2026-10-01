@@ -63,7 +63,7 @@ final class MigrationBaseline
             return null;
         }
 
-        $journalPath = rtrim($stateRoot, '/\\')
+        $journalPath = $stateReal
             . DIRECTORY_SEPARATOR . 'transactions'
             . DIRECTORY_SEPARATOR . $transactionId . '.json';
         $journal = self::readJsonObject($journalPath, 262144);
@@ -96,7 +96,7 @@ final class MigrationBaseline
 
     private static function normalizePath(string $path): string
     {
-        $normalized = rtrim(str_replace('\\\\', '/', $path), '/');
+        $normalized = rtrim(str_replace('\\', '/', $path), '/');
         return PHP_OS_FAMILY === 'Windows' ? strtolower($normalized) : $normalized;
     }
 
