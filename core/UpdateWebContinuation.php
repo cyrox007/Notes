@@ -195,13 +195,16 @@ final class UpdateWebContinuation
         }
         @chmod($temp, 0600);
 
-        if ($replace && file_exists($path) && !@unlink($path)) {
-            @unlink($temp);
-            throw new RuntimeException('Не удалось обновить lease web-продолжения');
-        }
+        // rename() заменяет существующий файл атомарно. Нельзя сначала
+        // удалять старый lease: параллельный HTTP-запрос успеет увидеть
+        // отсутствие живого web-updater и ошибочно запустит rollback.
         if (!@rename($temp, $path)) {
             @unlink($temp);
-            throw new RuntimeException('Не удалось атомарно сохранить web-продолжение');
+            throw new RuntimeException(
+                $replace
+                    ? 'Не удалось атомарно обновить lease web-продолжения'
+                    : 'Не удалось атомарно сохранить web-продолжение'
+            );
         }
         @chmod($path, 0600);
     }
