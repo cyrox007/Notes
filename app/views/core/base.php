@@ -76,7 +76,7 @@ $partialData = [
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="description" content="Workspace Organizer — единое рабочее пространство с подключаемыми модулями">
-    <meta name="theme-color" content="#f4f6fb">
+    <meta name="theme-color" content="#f4f8ff">
     <meta name="color-scheme" content="light dark">
     <script nonce="<?= $view->e($cspNonce) ?>">
     (() => {
@@ -129,7 +129,9 @@ if (is_file($controlsPath) && is_readable($controlsPath)) {
 ?>
     </style>
     <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/css/workspace-ui-1.0.css')) ?>">
-    <link rel="icon" href="<?= $view->e($baseUrl) ?>/favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/css/workspace-brand-1.0.14.css')) ?>">
+    <link rel="icon" href="<?= $view->e($assetUrl($baseUrl . '/assets/img/workspace-brand-mark.svg')) ?>" type="image/svg+xml">
+    <link rel="alternate icon" href="<?= $view->e($baseUrl) ?>/favicon.ico" type="image/x-icon">
     <template id="csrf-token-template"><?= $view->csrfInput() ?></template>
     <script nonce="<?= $view->e($cspNonce) ?>">window.wspaceRuntime = <?= $runtimeConfig ?>; window.wspace = window.wspace || {};</script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/common.js')) ?>" defer></script>
