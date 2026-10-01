@@ -245,24 +245,28 @@ try {
     );
 
     $applyCommandSource = (string) file_get_contents($root . '/core/UpdateApplyCommand.php');
-automaticRecoveryAssert(
-    !str_contains($applyCommandSource, "'apply_error_type' => \$applyError::class"),
-    'Recovery rollback снова ссылается на отсутствующую переменную applyError'
-);
-automaticRecoveryAssert(
-    str_contains($applyCommandSource, "'recovery_mode' => true")
-        && str_contains($applyCommandSource, "'rollback_error_type' => \$rollbackError::class"),
-    'Recovery rollback не сохраняет безопасный контекст первичной ошибки'
-);
+    automaticRecoveryAssert(
+        !str_contains($applyCommandSource, "'apply_error_type' => \$applyError::class"),
+        'Recovery rollback снова ссылается на отсутствующую переменную applyError'
+    );
+    automaticRecoveryAssert(
+        str_contains($applyCommandSource, "'recovery_mode' => true")
+            && str_contains($applyCommandSource, "'rollback_error_type' => \$rollbackError::class"),
+        'Recovery rollback не сохраняет безопасный контекст первичной ошибки'
+    );
+    automaticRecoveryAssert(
+        str_contains($applyCommandSource, 'verifyRollbackState(')
+            && str_contains(
+                $applyCommandSource,
+                "\$this->processRunner::class !== __NAMESPACE__ . '\\\\UpdateInProcessRunner'"
+            )
+            && str_contains($applyCommandSource, "'verification_mode' => 'cold_process'")
+            && str_contains($applyCommandSource, "'verification_mode' => 'web_snapshot'")
+            && str_contains($applyCommandSource, "'health_status' => 'rollback_snapshot_verified'"),
+        'Rollback не разделяет холодную process-проверку и web-only проверку восстановленного снимка'
+    );
 
-automaticRecoveryAssert(
-    str_contains($applyCommandSource, 'verifyRollbackState(')
-        && str_contains($applyCommandSource, "'verification_mode' => (string) \$verification['verification_mode']")
-        && !str_contains($applyCommandSource, "(string) (\$health['status'] ?? '')"),
-    'Rollback после восстановления старой версии снова использует устаревший health-контекст'
-);
-
-$bootGateSource = (string) file_get_contents($root . '/core/UpdateBootRecoveryGate.php');
+    $bootGateSource = (string) file_get_contents($root . '/core/UpdateBootRecoveryGate.php');
     automaticRecoveryAssert(
         str_contains($bootGateSource, 'maintenancePredatesCurrentInstallation($state)')
             && str_contains($bootGateSource, '$maintenance->leave($transactionId)')
