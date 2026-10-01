@@ -41,7 +41,7 @@ foreach ([
 
 $roadmap = documentationText($root, 'docs/ROADMAP.md');
 documentationAssert(str_contains($roadmap, 'v1.0.14'), 'ROADMAP не фиксирует текущий baseline 1.0.14');
-documentationAssert(str_contains($roadmap, '1.1 — Календарь и ежедневник'), 'ROADMAP не содержит следующую продуктовую линию 1.1');
+documentationAssert(str_contains($roadmap, '1.1.0 — Календарь и ежедневник'), 'ROADMAP не содержит следующую продуктовую линию 1.1.0');
 documentationAssert(!str_contains($roadmap, '### 1.0.12'), 'ROADMAP снова содержит исторический релиз 1.0.12 как активный раздел');
 documentationAssert(!str_contains($roadmap, '### 1.0.2'), 'ROADMAP снова содержит исторический релиз 1.0.2 как активный раздел');
 documentationAssert(!str_contains($roadmap, '### 2FA/TOTP'), 'ROADMAP снова содержит закрытый 2FA как будущую задачу');
