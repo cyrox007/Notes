@@ -32,7 +32,7 @@ $pageScripts = isset($page_scripts) && is_array($page_scripts)
     <link rel="icon" href="<?= $view->e($base . '/assets/img/workspace-brand-mark.svg') ?>" type="image/svg+xml">
     <link rel="alternate icon" href="<?= $view->e($base . '/favicon.ico') ?>" type="image/x-icon">
 </head>
-<body>
+<body class="workspace-auth">
     <?php // $content is trusted HTML rendered by an internal native child template. ?>
     <?= $content ?>
     <script src="<?= $view->e($base . '/assets/js/reg-script.js') ?>" defer></script>
