@@ -248,7 +248,7 @@ input,textarea,select{accent-color:var(--brand-blue)}
 
 /* Экран входа использует тот же брендовый язык. */
 body .login-page,body .register-page{position:relative;isolation:isolate}
-body:has(.login-page),body:has(.register-page){
+body.workspace-auth{
   background:
     radial-gradient(circle at 90% 0,rgba(20,196,239,.22),transparent 32rem),
     radial-gradient(circle at 0 100%,rgba(43,112,255,.18),transparent 34rem),
@@ -291,4 +291,40 @@ body:has(.login-page),body:has(.register-page){
   .workspace-home__hero h1{font-size:26px}
   .workspace-home__hero p{font-size:13px}
   .workspace-module{min-height:96px}
+}
+
+
+/* Цвет раздела применяется к основному действию внутри каждого модуля. */
+body[data-workspace-section="notes"] .notes__submit button,
+body[data-workspace-section="tasks"] .btn-primary,
+body[data-workspace-section="files"] .file-manager__btn--success,
+body[data-workspace-section="profile"] .profile__edit_user-info,
+body[data-workspace-section="profile"] .profile__card-info--edit--set-save,
+body[data-workspace-section="profile"] .profile__write-message-btn,
+body[data-workspace-section="admin"] .admin-action--primary{
+  background:linear-gradient(135deg,color-mix(in srgb,var(--module-accent) 72%,#fff),var(--module-accent));
+  box-shadow:0 8px 18px color-mix(in srgb,var(--module-accent) 18%,transparent);
+}
+.sidebar__menu-link[data-nav-key="notes"] .sidebar__menu-icon{color:#65b2ff}
+.sidebar__menu-link[data-nav-key="tasks"] .sidebar__menu-icon{color:#55dfa0}
+.sidebar__menu-link[data-nav-key="files"] .sidebar__menu-icon{color:#ffb761}
+.sidebar__menu-link[data-nav-key="messenger"] .sidebar__menu-icon{color:#a58cff}
+.sidebar__menu-link[data-nav-key="profile"] .sidebar__menu-icon{color:#64d4ef}
+.sidebar__menu-link[data-nav-key="admin"] .sidebar__menu-icon{color:#5ce0db}
+.sidebar__menu-link[aria-current="page"] .sidebar__menu-icon{color:#fff}
+
+/* Messenger получает фиолетовый командный акцент из брендовой палитры. */
+.workspace-viewport--messenger{
+  --msg-accent:#7046ef;
+  --msg-accent-strong:#5c35d8;
+  --msg-accent-soft:#f0ecff;
+  --msg-own-bg:#ebe7ff;
+  --msg-own-border:#d9d0ff;
+}
+html[data-theme="dark"] .workspace-viewport--messenger{
+  --msg-accent:#a58cff;
+  --msg-accent-strong:#b8a4ff;
+  --msg-accent-soft:#2b245c;
+  --msg-own-bg:#372b76;
+  --msg-own-border:#55449a;
 }
