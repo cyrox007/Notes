@@ -235,6 +235,17 @@ HTML;
 try {
     require_once SITEPATH . '/core/Environment.php';
     \Core\Environment::load(SITEPATH . '/.env');
+
+    require_once SITEPATH . '/core/ServiceLog.php';
+    \Core\ServiceLog::registerRuntimeCapture();
+    require_once SITEPATH . '/core/SupportDiagnostics.php';
+
+    // Одноразовый пакет поддержки должен оставаться доступен даже когда
+    // обычный bootstrap заблокирован maintenance/recovery или схемой БД.
+    if (\Core\SupportDiagnostics::canHandleRequest()) {
+        \Core\SupportDiagnostics::handleRequest(SITEPATH);
+    }
+
     require_once SITEPATH . '/app/services/MaintenanceModeService.php';
 
     $maintenance = new \App\Services\MaintenanceModeService();
@@ -278,6 +289,18 @@ try {
         16
     );
     error_log("Workspace bootstrap failed [{$incidentId}] {$exceptionClass}: {$e->getMessage()}");
+    if (class_exists('Core\\ServiceLog', false)) {
+        \Core\ServiceLog::emit(
+            'bootstrap.failed',
+            'critical',
+            'bootstrap',
+            [
+                'incident_id' => $incidentId,
+                'error_type' => $exceptionClass,
+                'message' => $e->getMessage(),
+            ]
+        );
+    }
     handleStartupError(
         "Не удалось безопасно запустить приложение. Код ошибки: {$incidentId}. Подробности записаны в server error log.",
         'Configuration Error'

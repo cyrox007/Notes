@@ -1,4 +1,4 @@
-name: 1.0.12 → 1.0.13 сквозной updater
+name: 1.0.12/1.0.13 → 1.0.14 сквозной updater
 
 on:
   pull_request:
@@ -10,13 +10,43 @@ permissions:
 
 jobs:
   admin-update-e2e:
-    name: exact-upgrade (PHP ${{ matrix.php }})
-    runs-on: ubuntu-latest
+    name: exact-upgrade (${{ matrix.source_version }} → 1.0.14, PHP ${{ matrix.php }}, ${{ matrix.mode }})
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
-        php: ['8.1', '8.3']
+        include:
+          - source_version: '1.0.13'
+            source_code: '10013'
+            php: '8.1'
+            mode: process
+            disable_functions: ''
+          - source_version: '1.0.13'
+            source_code: '10013'
+            php: '8.3'
+            mode: process
+            disable_functions: ''
+          - source_version: '1.0.13'
+            source_code: '10013'
+            php: '8.1'
+            mode: web-only
+            disable_functions: 'proc_open,proc_get_status,proc_terminate,proc_close,exec,system,passthru,shell_exec,popen'
+          - source_version: '1.0.13'
+            source_code: '10013'
+            php: '8.3'
+            mode: web-only
+            disable_functions: 'proc_open,proc_get_status,proc_terminate,proc_close,exec,system,passthru,shell_exec,popen'
+          - source_version: '1.0.12'
+            source_code: '10012'
+            php: '8.1'
+            mode: web-only
+            disable_functions: 'proc_open,proc_get_status,proc_terminate,proc_close,exec,system,passthru,shell_exec,popen'
+          - source_version: '1.0.12'
+            source_code: '10012'
+            php: '8.3'
+            mode: web-only
+            disable_functions: 'proc_open,proc_get_status,proc_terminate,proc_close,exec,system,passthru,shell_exec,popen'
 
     services:
       mysql:
@@ -68,8 +98,10 @@ jobs:
           php -l modules/admin/services/AdminUpdateService.php
           php -l bin/update_run.php
           php -l tests/support/admin_update_preservation_probe.php
+          printf 'Режим updater E2E: %s; отключённые функции: %s\n' \
+            '${{ matrix.mode }}' '${{ matrix.disable_functions }}'
 
-      - name: Подготовить тестовую базу 1.0.12 и суперадминистратора
+      - name: Подготовить тестовую базу ${{ matrix.source_version }} и суперадминистратора
         shell: bash
         env:
           DBHOST: 127.0.0.1
@@ -80,15 +112,15 @@ jobs:
         run: |
           set -euo pipefail
           DRILL=/tmp/workspace-admin-update-e2e
-          SOURCE="$DRILL/source-v1.0.12"
+          SOURCE="$DRILL/source-v${{ matrix.source_version }}"
           rm -rf "$DRILL"
           mkdir -p "$SOURCE"
 
-          git rev-parse --verify 'refs/tags/v1.0.12'
-          git archive --format=tar 'v1.0.12' | tar -xf - -C "$SOURCE"
+          git rev-parse --verify 'refs/tags/v${{ matrix.source_version }}'
+          git archive --format=tar 'v${{ matrix.source_version }}' | tar -xf - -C "$SOURCE"
 
-          test "$(php -r "require '$SOURCE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.12'
-          test "$(php -r "require '$SOURCE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10012'
+          test "$(php -r "require '$SOURCE/core/Version.php'; echo Core\\Version::VERSION;")" = '${{ matrix.source_version }}'
+          test "$(php -r "require '$SOURCE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '${{ matrix.source_code }}'
 
           mapfile -t SCHEMAS < <(
             cd "$SOURCE"
@@ -102,7 +134,7 @@ jobs:
           )
           test "${#SCHEMAS[@]}" -gt 0
           for schema in "${SCHEMAS[@]}"; do
-            echo "Импорт схемы тестовой 1.0.12: $schema"
+            echo "Импорт схемы тестовой ${{ matrix.source_version }}: $schema"
             mysql -h 127.0.0.1 -uroot -proot admin_update_e2e < "$schema"
           done
 
@@ -138,24 +170,42 @@ jobs:
           ]);
           PHP
 
+          mysql -h 127.0.0.1 -uroot -proot <<'SQL'
+          CREATE USER 'workspace_app'@'%' IDENTIFIED BY 'workspace-ci-limited-db';
+          GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, DROP,
+                REFERENCES, TRIGGER, CREATE VIEW, SHOW VIEW, LOCK TABLES
+            ON admin_update_e2e.* TO 'workspace_app'@'%';
+          FLUSH PRIVILEGES;
+          SQL
+
+          APP_GRANTS="$(mysql -N -B -h 127.0.0.1 -uworkspace_app -pworkspace-ci-limited-db \
+            -e 'SHOW GRANTS FOR CURRENT_USER')"
+          if grep -Eq 'CREATE ROUTINE|ALTER ROUTINE' <<<"$APP_GRANTS"; then
+            echo 'Тестовый пользователь БД неожиданно получил права на хранимые процедуры' >&2
+            exit 1
+          fi
+
+          printf 'E2E_DB_USER=%s\n' 'workspace_app' >> "$GITHUB_ENV"
+          printf 'E2E_DB_PASSWORD=%s\n' 'workspace-ci-limited-db' >> "$GITHUB_ENV"
+
           printf 'E2E_USER=%s\n' 'admin-update-e2e' >> "$GITHUB_ENV"
           printf 'E2E_PASSWORD=%s\n' "$TEST_PASSWORD" >> "$GITHUB_ENV"
           printf 'E2E_ORIGIN=%s\n' 'http://127.0.0.1:18094' >> "$GITHUB_ENV"
           printf 'E2E_BASE_PATH=%s\n' '/workspace' >> "$GITHUB_ENV"
-          printf 'E2E_SOURCE_VERSION=%s\n' '1.0.12' >> "$GITHUB_ENV"
-          printf 'E2E_SOURCE_VERSION_CODE=%s\n' '10012' >> "$GITHUB_ENV"
-          printf 'E2E_TARGET_VERSION=%s\n' '1.0.13-admin-e2e' >> "$GITHUB_ENV"
-          printf 'E2E_TARGET_VERSION_CODE=%s\n' '10013' >> "$GITHUB_ENV"
-          printf 'E2E_BROKEN_TARGET_VERSION=%s\n' '1.0.13-broken-e2e' >> "$GITHUB_ENV"
-          printf 'E2E_HEALTH_BROKEN_TARGET_VERSION=%s\n' '1.0.13-health-broken-e2e' >> "$GITHUB_ENV"
+          printf 'E2E_SOURCE_VERSION=%s\n' '${{ matrix.source_version }}' >> "$GITHUB_ENV"
+          printf 'E2E_SOURCE_VERSION_CODE=%s\n' '${{ matrix.source_code }}' >> "$GITHUB_ENV"
+          printf 'E2E_TARGET_VERSION=%s\n' '1.0.14-admin-e2e' >> "$GITHUB_ENV"
+          printf 'E2E_TARGET_VERSION_CODE=%s\n' '10014' >> "$GITHUB_ENV"
+          printf 'E2E_BROKEN_TARGET_VERSION=%s\n' '1.0.14-broken-e2e' >> "$GITHUB_ENV"
+          printf 'E2E_HEALTH_BROKEN_TARGET_VERSION=%s\n' '1.0.14-health-broken-e2e' >> "$GITHUB_ENV"
 
-      - name: Подготовить отдельную живую установку 1.0.12
+      - name: Подготовить отдельную живую установку ${{ matrix.source_version }}
         shell: bash
         run: |
           set -euo pipefail
           DRILL=/tmp/workspace-admin-update-e2e
           LIVE="$DRILL/live"
-          SOURCE="$DRILL/source-v1.0.12"
+          SOURCE="$DRILL/source-v${{ matrix.source_version }}"
           PRIVATE="$DRILL/private"
           rm -rf "$LIVE" "$PRIVATE"
           mkdir -p \
@@ -205,8 +255,8 @@ jobs:
           DBDRIVER=mysql
           DBHOST=127.0.0.1
           DBPORT=3306
-          DBUSER=root
-          DBPASS=root
+          DBUSER=${E2E_DB_USER}
+          DBPASS=${E2E_DB_PASSWORD}
           DBNAME=admin_update_e2e
           UNIQUE_KEY=${APP_KEY}
           MSG_SECRET_KEY=${MESSAGE_KEY}
@@ -238,10 +288,10 @@ jobs:
           chmod 600 "$LIVE/.env"
 
           mkdir -p "$LIVE/cache" "$LIVE/compile"
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.12'
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10012'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '${{ matrix.source_version }}'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '${{ matrix.source_code }}'
 
-      - name: Создать контрольные пользовательские данные 1.0.12
+      - name: Создать контрольные пользовательские данные ${{ matrix.source_version }}
         shell: bash
         env:
           DBHOST: 127.0.0.1
@@ -260,10 +310,10 @@ jobs:
           set -euo pipefail
           LIVE=/tmp/workspace-admin-update-e2e/live
 
-          # Тег v1.0.12 уже документировал workspace.* как production feature,
+          # Опубликованная исходная версия уже документирует workspace.* как production feature,
           # но его CI-fixture ещё использовал исторические короткие имена.
           # Для upgrade-drill выдаём тестовую лицензию по опубликованному
-          # production-контракту 1.0.12, не добавляя legacy aliases в runtime.
+          # production-контракту исходной версии, не добавляя legacy aliases в runtime.
           cp tests/support/ci_license_fixture.php "$LIVE/tests/support/ci_license_fixture.php"
           (cd "$LIVE" && php tests/support/ci_license_fixture.php)
           test "$(mysql -N -B -h 127.0.0.1 -uroot -proot admin_update_e2e -e "SELECT COUNT(*) FROM user_roles ur JOIN roles r ON r.id=ur.role_id JOIN users u ON u.id=ur.user_id WHERE u.username='admin-update-e2e' AND r.code='superadmin'")" = '1'
@@ -297,14 +347,14 @@ jobs:
           printf '%s\n' "$PUBLIC_KEY" > "$DRILL/update-public-key.txt"
           chmod 600 "$DRILL/update-public-key.txt"
 
-      - name: Подготовить подписанный 1.0.13 для проверки автоматического уведомления
+      - name: Подготовить подписанный 1.0.14 для проверки автоматического уведомления
         shell: bash
         run: |
           set -euo pipefail
           DRILL=/tmp/workspace-admin-update-e2e
           LIVE="$DRILL/live"
           FEED_ROOT="$DRILL/feed-root"
-          FUTURE="$DRILL/workspace-organizer-v1.0.13-admin-e2e"
+          FUTURE="$DRILL/workspace-organizer-v1.0.14-admin-e2e"
           KEY_ID=ci-admin-update-e2e
           PRIVATE_KEY="$DRILL/$KEY_ID.update-secret"
           PUBLIC_KEY="$(cat "$DRILL/update-public-key.txt")"
@@ -334,8 +384,8 @@ jobs:
           cp "$LIVE/config/license_trusted_keys.php" "$FUTURE/config/license_trusted_keys.php"
           php -l "$FUTURE/config/license_trusted_keys.php"
 
-          perl -0pi -e "s/public const VERSION = '[^']+';/public const VERSION = '1.0.13-admin-e2e';/" "$FUTURE/core/Version.php"
-          perl -0pi -e "s/public const VERSION_CODE = [0-9]+;/public const VERSION_CODE = 10013;/" "$FUTURE/core/Version.php"
+          perl -0pi -e "s/public const VERSION = '[^']+';/public const VERSION = '1.0.14-admin-e2e';/" "$FUTURE/core/Version.php"
+          perl -0pi -e "s/public const VERSION_CODE = [0-9]+;/public const VERSION_CODE = 10014;/" "$FUTURE/core/Version.php"
 
           TEST_UPDATE_PUBLIC_KEY="$PUBLIC_KEY" php -r '
             $path=$argv[1];
@@ -345,13 +395,13 @@ jobs:
             if (file_put_contents($path,$bytes,LOCK_EX)===false) exit(1);
           ' "$FUTURE/config/update_trusted_keys.php"
 
-          test "$(php -r "require '$FUTURE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.13-admin-e2e'
-          test "$(php -r "require '$FUTURE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10013'
+          test "$(php -r "require '$FUTURE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.14-admin-e2e'
+          test "$(php -r "require '$FUTURE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10014'
 
-          BROKEN="$DRILL/workspace-organizer-v1.0.13-broken-e2e"
+          BROKEN="$DRILL/workspace-organizer-v1.0.14-broken-e2e"
           rm -rf "$BROKEN"
           rsync -a "$FUTURE/" "$BROKEN/"
-          perl -0pi -e "s/public const VERSION = '[^']+';/public const VERSION = '1.0.13-broken-e2e';/" "$BROKEN/core/Version.php"
+          perl -0pi -e "s/public const VERSION = '[^']+';/public const VERSION = '1.0.14-broken-e2e';/" "$BROKEN/core/Version.php"
 
           # Современный updater не запускает bin/migrate.php: миграции выполняет
           # UpdateDatabaseMigrator внутри destructive-фазы. Поэтому fault-injection
@@ -387,13 +437,13 @@ jobs:
           grep -Fq '"20991231_ci_forced_failure.sql"' "$BROKEN/database/migrations/manifest.json"
           grep -Fq 'database/migrations/20991231_ci_forced_failure.sql' "$BROKEN/modules/files/module.json"
           test -s "$BROKEN/database/migrations/20991231_ci_forced_failure.sql"
-          test "$(php -r "require '$BROKEN/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.13-broken-e2e'
-          test "$(php -r "require '$BROKEN/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10013'
+          test "$(php -r "require '$BROKEN/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.14-broken-e2e'
+          test "$(php -r "require '$BROKEN/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10014'
 
-          HEALTH_BROKEN="$DRILL/workspace-organizer-v1.0.13-health-broken-e2e"
+          HEALTH_BROKEN="$DRILL/workspace-organizer-v1.0.14-health-broken-e2e"
           rm -rf "$HEALTH_BROKEN"
           rsync -a "$FUTURE/" "$HEALTH_BROKEN/"
-          perl -0pi -e "s/public const VERSION = '[^']+';/public const VERSION = '1.0.13-health-broken-e2e';/" "$HEALTH_BROKEN/core/Version.php"
+          perl -0pi -e "s/public const VERSION = '[^']+';/public const VERSION = '1.0.14-health-broken-e2e';/" "$HEALTH_BROKEN/core/Version.php"
           # Второй аварийный кандидат должен успешно применить миграцию,
           # а затем упасть на штатном healthcheck из-за неполной схемы БД.
           # Это проверяет rollback уже после завершённой destructive-миграции.
@@ -426,82 +476,82 @@ jobs:
           grep -Fq '"20991231_ci_post_health_failure.sql"' "$HEALTH_BROKEN/database/migrations/manifest.json"
           grep -Fq 'database/migrations/20991231_ci_post_health_failure.sql' "$HEALTH_BROKEN/modules/files/module.json"
           test -s "$HEALTH_BROKEN/database/migrations/20991231_ci_post_health_failure.sql"
-          test "$(php -r "require '$HEALTH_BROKEN/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.13-health-broken-e2e'
-          test "$(php -r "require '$HEALTH_BROKEN/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10013'
-          test "$(php -r "require '$HEALTH_BROKEN/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10013'
+          test "$(php -r "require '$HEALTH_BROKEN/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.14-health-broken-e2e'
+          test "$(php -r "require '$HEALTH_BROKEN/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10014'
+          test "$(php -r "require '$HEALTH_BROKEN/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10014'
 
           cd "$DRILL"
-          zip -qr "$DRILL/workspace-organizer-v1.0.13-broken-e2e.zip" "$(basename "$BROKEN")"
-          zip -qr "$DRILL/workspace-organizer-v1.0.13-health-broken-e2e.zip" "$(basename "$HEALTH_BROKEN")"
+          zip -qr "$DRILL/workspace-organizer-v1.0.14-broken-e2e.zip" "$(basename "$BROKEN")"
+          zip -qr "$DRILL/workspace-organizer-v1.0.14-health-broken-e2e.zip" "$(basename "$HEALTH_BROKEN")"
           cd "$GITHUB_WORKSPACE"
 
           php tools/vendor-update/build-manifest.php \
-            --package="$DRILL/workspace-organizer-v1.0.13-broken-e2e.zip" \
-            --version=1.0.13-broken-e2e \
-            --version-code=10013 \
+            --package="$DRILL/workspace-organizer-v1.0.14-broken-e2e.zip" \
+            --version=1.0.14-broken-e2e \
+            --version-code=10014 \
             --channel=stable \
             --source-commit="$GITHUB_SHA" \
             --min-source-version-code=10012 \
             --requires-php=8.1.0 \
             --notes='CI: намеренный отказ миграции для проверки автоматического отката' \
-            --out="$DRILL/release-10013-broken.json"
+            --out="$DRILL/release-10014-broken.json"
 
           php tools/vendor-update/sign-manifest.php \
             --private-key="$PRIVATE_KEY" \
             --key-id="$KEY_ID" \
-            --manifest="$DRILL/release-10013-broken.json" \
-            --signature-out="$DRILL/release-10013-broken.sig"
+            --manifest="$DRILL/release-10014-broken.json" \
+            --signature-out="$DRILL/release-10014-broken.sig"
 
           php tools/vendor-update/build-manifest.php \
-            --package="$DRILL/workspace-organizer-v1.0.13-health-broken-e2e.zip" \
-            --version=1.0.13-health-broken-e2e \
-            --version-code=10013 \
+            --package="$DRILL/workspace-organizer-v1.0.14-health-broken-e2e.zip" \
+            --version=1.0.14-health-broken-e2e \
+            --version-code=10014 \
             --channel=stable \
             --source-commit="$GITHUB_SHA" \
             --min-source-version-code=10012 \
             --requires-php=8.1.0 \
             --notes='CI: намеренный отказ post-health после успешной миграции' \
-            --out="$DRILL/release-10013-health-broken.json"
+            --out="$DRILL/release-10014-health-broken.json"
 
           php tools/vendor-update/sign-manifest.php \
             --private-key="$PRIVATE_KEY" \
             --key-id="$KEY_ID" \
-            --manifest="$DRILL/release-10013-health-broken.json" \
-            --signature-out="$DRILL/release-10013-health-broken.sig"
+            --manifest="$DRILL/release-10014-health-broken.json" \
+            --signature-out="$DRILL/release-10014-health-broken.sig"
 
           cd "$DRILL"
-          zip -qr "$DRILL/workspace-organizer-v1.0.13-admin-e2e.zip" "$(basename "$FUTURE")"
+          zip -qr "$DRILL/workspace-organizer-v1.0.14-admin-e2e.zip" "$(basename "$FUTURE")"
           cd "$GITHUB_WORKSPACE"
 
           php tools/vendor-update/build-manifest.php \
-            --package="$DRILL/workspace-organizer-v1.0.13-admin-e2e.zip" \
-            --version=1.0.13-admin-e2e \
-            --version-code=10013 \
+            --package="$DRILL/workspace-organizer-v1.0.14-admin-e2e.zip" \
+            --version=1.0.14-admin-e2e \
+            --version-code=10014 \
             --channel=stable \
             --source-commit="$GITHUB_SHA" \
             --min-source-version-code=10012 \
             --requires-php=8.1.0 \
             --notes='CI: одношаговая установка из автоматического уведомления' \
-            --out="$DRILL/release-10013.json"
+            --out="$DRILL/release-10014.json"
 
           php tools/vendor-update/sign-manifest.php \
             --private-key="$PRIVATE_KEY" \
             --key-id="$KEY_ID" \
-            --manifest="$DRILL/release-10013.json" \
-            --signature-out="$DRILL/release-10013.sig"
+            --manifest="$DRILL/release-10014.json" \
+            --signature-out="$DRILL/release-10014.sig"
 
-          cp "$DRILL/release-10013.json" "$FEED_ROOT/stable/release-10013.json"
-          cp "$DRILL/release-10013.sig" "$FEED_ROOT/stable/release-10013.sig"
-          printf '%s\n' 'CI intentionally invalid signature' > "$FEED_ROOT/stable/release-10013-tampered.sig"
-          cp "$DRILL/workspace-organizer-v1.0.13-admin-e2e.zip" "$FEED_ROOT/stable/workspace-organizer-v1.0.13-admin-e2e.zip"
-          cp "$DRILL/release-10013-broken.json" "$FEED_ROOT/stable/release-10013-broken.json"
-          cp "$DRILL/release-10013-broken.sig" "$FEED_ROOT/stable/release-10013-broken.sig"
-          cp "$DRILL/workspace-organizer-v1.0.13-broken-e2e.zip" "$FEED_ROOT/stable/workspace-organizer-v1.0.13-broken-e2e.zip"
-          cp "$DRILL/release-10013-health-broken.json" "$FEED_ROOT/stable/release-10013-health-broken.json"
-          cp "$DRILL/release-10013-health-broken.sig" "$FEED_ROOT/stable/release-10013-health-broken.sig"
-          cp "$DRILL/workspace-organizer-v1.0.13-health-broken-e2e.zip" "$FEED_ROOT/stable/workspace-organizer-v1.0.13-health-broken-e2e.zip"
+          cp "$DRILL/release-10014.json" "$FEED_ROOT/stable/release-10014.json"
+          cp "$DRILL/release-10014.sig" "$FEED_ROOT/stable/release-10014.sig"
+          printf '%s\n' 'CI intentionally invalid signature' > "$FEED_ROOT/stable/release-10014-tampered.sig"
+          cp "$DRILL/workspace-organizer-v1.0.14-admin-e2e.zip" "$FEED_ROOT/stable/workspace-organizer-v1.0.14-admin-e2e.zip"
+          cp "$DRILL/release-10014-broken.json" "$FEED_ROOT/stable/release-10014-broken.json"
+          cp "$DRILL/release-10014-broken.sig" "$FEED_ROOT/stable/release-10014-broken.sig"
+          cp "$DRILL/workspace-organizer-v1.0.14-broken-e2e.zip" "$FEED_ROOT/stable/workspace-organizer-v1.0.14-broken-e2e.zip"
+          cp "$DRILL/release-10014-health-broken.json" "$FEED_ROOT/stable/release-10014-health-broken.json"
+          cp "$DRILL/release-10014-health-broken.sig" "$FEED_ROOT/stable/release-10014-health-broken.sig"
+          cp "$DRILL/workspace-organizer-v1.0.14-health-broken-e2e.zip" "$FEED_ROOT/stable/workspace-organizer-v1.0.14-health-broken-e2e.zip"
           cat > "$FEED_ROOT/stable/feed.json" <<'JSON'
-          {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10013-broken.json","signature":"release-10013-broken.sig"}
+          {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10014-broken.json","signature":"release-10014-broken.sig"}
           JSON
 
           rm -f "$PRIVATE_KEY" "$DRILL/update-public-key.txt"
@@ -551,13 +601,13 @@ jobs:
             exit 1
           fi
 
-          grep -Fq '"version_code"' "$DRILL/release-10013-broken.json"
+          grep -Fq '"version_code"' "$DRILL/release-10014-broken.json"
           SSL_CERT_FILE="$DRILL/ca.crt" UPDATE_FEED_URL='https://updates.e2e.test/stable/feed.json' \
             php -r '
               require "/tmp/workspace-admin-update-e2e/live/core/UpdateRemoteTransport.php";
               $t=new Core\UpdateHttpsTransport(3,5);
               $v=$t->fetchText(getenv("UPDATE_FEED_URL"),32768);
-              if (!str_contains($v,"release-10013-broken.json")) exit(1);
+              if (!str_contains($v,"release-10014-broken.json")) exit(1);
             '
 
       - name: Запустить живую установку
@@ -576,6 +626,7 @@ jobs:
               E2E_SUPPORT_ROOT="$GITHUB_WORKSPACE" \
               PHP_CLI_SERVER_WORKERS=4 \
               php -d "openssl.cafile=$DRILL/ca.crt" \
+              -d "disable_functions=${{ matrix.disable_functions }}" \
               -S 127.0.0.1:18094 "$GITHUB_WORKSPACE/tests/e2e/router.php" \
               >"$DRILL/app-http.log" 2>&1 &
             echo $! >"$DRILL/app-http.pid"
@@ -607,7 +658,7 @@ jobs:
           set -euo pipefail
           FEED_ROOT=/tmp/workspace-admin-update-e2e/feed-root
           cat > "$FEED_ROOT/stable/feed.json" <<'JSON'
-          {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10013.json","signature":"release-10013-tampered.sig"}
+          {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10014.json","signature":"release-10014-tampered.sig"}
           JSON
 
       - name: Доказать отказ повреждённой подписи до destructive-фазы
@@ -622,8 +673,8 @@ jobs:
 
           node tests/e2e/admin-update-reject.mjs
 
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.12'
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10012'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '${{ matrix.source_version }}'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '${{ matrix.source_code }}'
           test ! -e "$PRIVATE/state/workspace-maintenance.json"
 
           JOURNAL_COUNT=0
@@ -646,16 +697,16 @@ jobs:
           set -euo pipefail
           FEED_ROOT=/tmp/workspace-admin-update-e2e/feed-root
           cat > "$FEED_ROOT/stable/feed.json" <<'JSON'
-          {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10013-broken.json","signature":"release-10013-broken.sig"}
+          {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10014-broken.json","signature":"release-10014-broken.sig"}
           JSON
 
-      - name: Проверить автоматический откат намеренно сломанного 1.0.13
+      - name: Проверить автоматический откат намеренно сломанного 1.0.14
         shell: bash
         env:
           SSL_CERT_FILE: /tmp/workspace-admin-update-e2e/ca.crt
         run: node tests/e2e/admin-update-rollback.mjs
 
-      - name: Доказать восстановление 1.0.12 после ошибки миграции
+      - name: Доказать восстановление исходной версии после ошибки миграции
         shell: bash
         run: |
           set -euo pipefail
@@ -663,8 +714,8 @@ jobs:
           LIVE="$DRILL/live"
           PRIVATE="$DRILL/private"
 
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.12'
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10012'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '${{ matrix.source_version }}'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '${{ matrix.source_code }}'
 
           mapfile -t JOURNALS < <(
             find "$PRIVATE/state/transactions" -maxdepth 1 -type f \
@@ -702,23 +753,23 @@ jobs:
           PRIVATE_STORAGE_PATH="$PRIVATE" \
           php "$GITHUB_WORKSPACE/tests/support/admin_update_preservation_probe.php" --verify
 
-      - name: Переключить канал на 1.0.13 с намеренно сломанным post-health
+      - name: Переключить канал на 1.0.14 с намеренно сломанным post-health
         shell: bash
         run: |
           set -euo pipefail
           FEED_ROOT=/tmp/workspace-admin-update-e2e/feed-root
           cat > "$FEED_ROOT/stable/feed.json" <<'JSON'
-          {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10013-health-broken.json","signature":"release-10013-health-broken.sig"}
+          {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10014-health-broken.json","signature":"release-10014-health-broken.sig"}
           JSON
 
       - name: Проверить автоматический откат после ошибки post-health после успешной миграции
         shell: bash
         env:
           SSL_CERT_FILE: /tmp/workspace-admin-update-e2e/ca.crt
-          E2E_BROKEN_TARGET_VERSION: 1.0.13-health-broken-e2e
+          E2E_BROKEN_TARGET_VERSION: 1.0.14-health-broken-e2e
         run: node tests/e2e/admin-update-rollback.mjs
 
-      - name: Доказать восстановление 1.0.12 после ошибки post-health после успешной миграции
+      - name: Доказать восстановление исходной версии после ошибки post-health после успешной миграции
         shell: bash
         run: |
           set -euo pipefail
@@ -726,8 +777,8 @@ jobs:
           LIVE="$DRILL/live"
           PRIVATE="$DRILL/private"
 
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.12'
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10012'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '${{ matrix.source_version }}'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '${{ matrix.source_code }}'
 
           mapfile -t JOURNALS < <(
             find "$PRIVATE/state/transactions" -maxdepth 1 -type f \
@@ -765,13 +816,13 @@ jobs:
           PRIVATE_STORAGE_PATH="$PRIVATE" \
           php "$GITHUB_WORKSPACE/tests/support/admin_update_preservation_probe.php" --verify
 
-      - name: Переключить канал на исправный подписанный 1.0.13
+      - name: Переключить канал на исправный подписанный 1.0.14
         shell: bash
         run: |
           set -euo pipefail
           FEED_ROOT=/tmp/workspace-admin-update-e2e/feed-root
           cat > "$FEED_ROOT/stable/feed.json" <<'JSON'
-          {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10013.json","signature":"release-10013.sig"}
+          {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10014.json","signature":"release-10014.sig"}
           JSON
 
       - name: Прервать web-updater после переключения кода
@@ -795,8 +846,8 @@ jobs:
           TX="$(sed -n 's/^INTERRUPTED_TRANSACTION=//p' "$DRILL/interruption-code-switch.log" | tail -n1)"
 
           test -n "$TX"
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.12'
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10012'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '${{ matrix.source_version }}'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '${{ matrix.source_code }}'
           test "$(jq -r '.state' "$PRIVATE/state/transactions/$TX.json")" = 'rollback_verified'
           test "$(jq -r '.live_mutation_started' "$PRIVATE/state/transactions/$TX.json")" = 'true'
           test ! -e "$PRIVATE/state/workspace-maintenance.json"
@@ -827,8 +878,8 @@ jobs:
           TX="$(sed -n 's/^INTERRUPTED_TRANSACTION=//p' "$DRILL/interruption-migrations.log" | tail -n1)"
 
           test -n "$TX"
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.12'
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10012'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '${{ matrix.source_version }}'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '${{ matrix.source_code }}'
           test "$(jq -r '.state' "$PRIVATE/state/transactions/$TX.json")" = 'rollback_verified'
           test "$(jq -r '.live_mutation_started' "$PRIVATE/state/transactions/$TX.json")" = 'true'
           test ! -e "$PRIVATE/state/workspace-maintenance.json"
@@ -838,7 +889,7 @@ jobs:
 
           DBHOST=127.0.0.1           DBPORT=3306           DBUSER=root           DBPASS=root           DBNAME=admin_update_e2e           PRIVATE_STORAGE_PATH="$PRIVATE"           php "$GITHUB_WORKSPACE/tests/support/admin_update_preservation_probe.php" --verify
 
-      - name: Установить исправный 1.0.13 одной кнопкой из автоматического уведомления
+      - name: Установить исправный 1.0.14 одной кнопкой из автоматического уведомления
         shell: bash
         env:
           SSL_CERT_FILE: /tmp/workspace-admin-update-e2e/ca.crt
@@ -852,8 +903,8 @@ jobs:
           LIVE="$DRILL/live"
           PRIVATE="$DRILL/private"
 
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.13-admin-e2e'
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10013'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.14-admin-e2e'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10014'
 
           mapfile -t JOURNALS < <(
             find "$PRIVATE/state/transactions" -maxdepth 1 -type f \
@@ -892,7 +943,7 @@ jobs:
           PRIVATE_STORAGE_PATH="$PRIVATE" \
           php "$GITHUB_WORKSPACE/tests/support/admin_update_preservation_probe.php" --verify
 
-      - name: Проверить фактически обновлённую 1.0.13 в браузере
+      - name: Проверить фактически обновлённую 1.0.14 в браузере
         shell: bash
         env:
           SSL_CERT_FILE: /tmp/workspace-admin-update-e2e/ca.crt
@@ -909,7 +960,7 @@ jobs:
           TX=update-boot-recovery-e2e
           NOW="$(date +%s)"
 
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.13-admin-e2e'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.14-admin-e2e'
           mkdir -p "$STATE/transactions"
 
           cat > "$STATE/transactions/$TX.json" <<JSON
@@ -917,10 +968,10 @@ jobs:
             "schema": 1,
             "transaction_id": "$TX",
             "state": "rollback_verified",
-            "installed_version": "1.0.13-admin-e2e",
-            "installed_version_code": 10013,
-            "target_version": "1.0.13-crash-e2e",
-            "target_version_code": 10013,
+            "installed_version": "1.0.14-admin-e2e",
+            "installed_version_code": 10014,
+            "target_version": "1.0.14-crash-e2e",
+            "target_version_code": 10014,
             "package_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "stage_dir": "$PRIVATE/updates/crash-e2e",
             "live_mutation_started": true,

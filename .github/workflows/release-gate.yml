@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   release-gate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     services:
@@ -90,6 +90,9 @@ jobs:
       - name: Verify security observability contract
         run: php tests/integration/security_observability_contract.php
 
+      - name: Проверить сервисный журнал и одноразовую диагностику
+        run: php tests/integration/support_diagnostics_contract.php
+
       - name: Проверить двухфакторную аутентификацию TOTP
         run: php tests/integration/two_factor_contract.php
 
@@ -150,14 +153,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.13'
-          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10013'
+          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.14'
+          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10014'
           test "$(php -r "require 'core/Version.php'; echo Core\\Version::STATUS;")" = 'stable'
-          test "$(php -r "require 'core/Version.php'; echo Core\\Version::RELEASE_DATE;")" = '2026-09-30'
-          grep -Fq '**Версия:** `1.0.13`' README.md
-          grep -Fq '## 1.0.13 — 2026-09-30' CHANGELOG.md
-          test -s docs/releases/v1.0.13.md
-          grep -Fq '# Workspace Organizer 1.0.13' docs/releases/v1.0.13.md
+          test "$(php -r "require 'core/Version.php'; echo Core\\Version::RELEASE_DATE;")" = '2026-10-01'
+          grep -Fq '**Версия:** `1.0.14`' README.md
+          grep -Fq '## 1.0.14 — 2026-10-01' CHANGELOG.md
+          test -s docs/releases/v1.0.14.md
+          grep -Fq '# Workspace Organizer 1.0.14' docs/releases/v1.0.14.md
 
       - name: Verify migration manifest contract
         shell: bash
@@ -325,4 +328,4 @@ jobs:
           test -f "$bundle/core/UpdateCoordinatorLock.php"
           test -f "$bundle/core/UpdateBootRecoveryGate.php"
           test -f "$bundle/database/migrations/manifest.json"
-          test -f "$bundle/docs/releases/v1.0.13.md"
+          test -f "$bundle/docs/releases/v1.0.14.md"

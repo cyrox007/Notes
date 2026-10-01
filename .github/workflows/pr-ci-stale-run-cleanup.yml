@@ -16,7 +16,7 @@ jobs:
   cancel-stale-runs:
     name: Отменить проверки старых SHA
     if: github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: windows-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
 
     steps:
@@ -38,8 +38,18 @@ jobs:
           }
 
           $encodedBranch = [uri]::EscapeDataString($env:HEAD_BRANCH)
-          $page = 1
           $cancelled = 0
+          $keepCurrent = @(
+              'Stable release gate',
+              '1.0.12/1.0.13 → 1.0.14 сквозной updater',
+              '1.0 обновление из админ-панели',
+              'PHP runtime compatibility',
+              'Windows hosting compatibility',
+              'Notes private storage'
+          )
+
+          Start-Sleep -Seconds 10
+          $page = 1
 
           do {
               $uri = "https://api.github.com/repos/$env:REPOSITORY/actions/runs?event=pull_request&branch=$encodedBranch&per_page=100&page=$page"
@@ -48,9 +58,13 @@ jobs:
               foreach ($run in @($response.workflow_runs)) {
                   $belongsToPr = @($run.pull_requests | Where-Object { $_.number -eq [int]$env:PR_NUMBER }).Count -gt 0
                   $isOldSha = $run.head_sha -ne $env:CURRENT_SHA
+                  $isCurrentSha = $run.head_sha -eq $env:CURRENT_SHA
                   $isActive = $run.status -in @('queued', 'in_progress')
+                  $isCurrentCritical = $isCurrentSha -and $run.name -in $keepCurrent
+                  $isCleanup = $run.name -eq 'Очистка устаревших PR-проверок'
+                  $cancelCurrentNoise = $isCurrentSha -and -not $isCurrentCritical -and -not $isCleanup
 
-                  if (-not $belongsToPr -or -not $isOldSha -or -not $isActive) {
+                  if (-not $belongsToPr -or -not $isActive -or (-not $isOldSha -and -not $cancelCurrentNoise)) {
                       continue
                   }
 
@@ -59,7 +73,12 @@ jobs:
                   try {
                       Invoke-RestMethod -Uri $cancelUri -Headers $headers -Method Post | Out-Null
                       $shortSha = $run.head_sha.Substring(0, [Math]::Min(8, $run.head_sha.Length))
-                      Write-Host "Отменён устаревший запуск $($run.id): $($run.name), SHA $shortSha."
+                      if ($isOldSha) {
+                          Write-Host "Отменён устаревший запуск $($run.id): $($run.name), SHA $shortSha."
+                      }
+                      else {
+                          Write-Host "Отменён необязательный запуск текущего SHA $($run.id): $($run.name)."
+                      }
                       $cancelled++
                   }
                   catch {

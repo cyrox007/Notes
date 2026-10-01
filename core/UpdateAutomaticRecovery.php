@@ -16,6 +16,7 @@ require_once __DIR__ . '/UpdateCoordinatorLock.php';
 require_once __DIR__ . '/UpdateWebContinuation.php';
 require_once __DIR__ . '/UpdateTransactionJournal.php';
 require_once __DIR__ . '/UpdateExternalRuntime.php';
+require_once __DIR__ . '/ServiceLog.php';
 
 /**
  * Автоматически продолжает восстановление оборванной updater-транзакции.
@@ -81,7 +82,35 @@ final class UpdateAutomaticRecovery
         }
 
         try {
-            if ((new UpdateWebContinuation($stateRoot))->active($transactionId)) {
+            // Сначала проверяем владение живой операцией. Это не позволяет
+            // recovery читать ещё не созданный журнал поверх выполняющегося updater.
+            $coordinatorLock = new UpdateCoordinatorLock($stateRoot, $transactionId);
+        } catch (UpdateCoordinatorBusyException) {
+            return $this->result(
+                'in_progress',
+                $transactionId,
+                'operation_busy',
+                'Исходная операция обновления ещё выполняется'
+            );
+        } catch (Throwable $e) {
+            return $this->result('failed', $transactionId, 'coordinator_lock_failed', $e->getMessage());
+        }
+
+        try {
+            $journalState = (new UpdateTransactionJournal($stateRoot, $this->appRoot))
+                ->load($transactionId);
+            $journalStatus = (string) ($journalState['state'] ?? '');
+            $recoveryHasPriority = in_array($journalStatus, [
+                'rollback_started',
+                'code_restored',
+                'database_restored',
+                'rollback_verified',
+                'rollback_failed',
+                'committed',
+            ], true);
+
+            if (!$recoveryHasPriority
+                && (new UpdateWebContinuation($stateRoot))->active($transactionId)) {
                 return $this->result(
                     'in_progress',
                     $transactionId,
@@ -96,19 +125,6 @@ final class UpdateAutomaticRecovery
                 'web_continuation_state_failed',
                 $e->getMessage()
             );
-        }
-
-        try {
-            $coordinatorLock = new UpdateCoordinatorLock($stateRoot, $transactionId);
-        } catch (UpdateCoordinatorBusyException) {
-            return $this->result(
-                'in_progress',
-                $transactionId,
-                'operation_busy',
-                'Исходная операция обновления ещё выполняется'
-            );
-        } catch (Throwable $e) {
-            return $this->result('failed', $transactionId, 'coordinator_lock_failed', $e->getMessage());
         }
 
         try {
@@ -159,6 +175,8 @@ final class UpdateAutomaticRecovery
                         'Восстановление завершилось, но режим обслуживания остался активным'
                     );
                 }
+
+                $this->revokeWebContinuation($stateRoot, $transactionId);
 
                 return $this->result(
                     'recovered',
@@ -248,6 +266,8 @@ final class UpdateAutomaticRecovery
                 );
             }
 
+            $this->revokeWebContinuation($stateRoot, $transactionId);
+
             return $this->result(
                 'recovered',
                 $transactionId,
@@ -256,6 +276,18 @@ final class UpdateAutomaticRecovery
             );
         } catch (Throwable $e) {
             return $this->result('failed', $transactionId, 'recovery_exception', $e->getMessage());
+        }
+    }
+
+    private function revokeWebContinuation(string $stateRoot, string $transactionId): void
+    {
+        try {
+            (new UpdateWebContinuation($stateRoot))->revoke($transactionId);
+        } catch (Throwable $e) {
+            error_log(
+                'Не удалось удалить завершённое web-продолжение updater'
+                . ' [transaction=' . $transactionId . ']: ' . $e->getMessage()
+            );
         }
     }
 
@@ -298,6 +330,26 @@ final class UpdateAutomaticRecovery
      */
     private function result(string $status, ?string $transactionId, ?string $code, string $message): array
     {
+        if ($status !== 'not_required') {
+            $level = match ($status) {
+                'failed' => 'error',
+                'blocked' => 'warning',
+                'recovered' => 'warning',
+                default => 'info',
+            };
+
+            ServiceLog::emit(
+                'updater.recovery_' . preg_replace('/[^a-z0-9_]+/', '_', strtolower($status)),
+                $level,
+                'updater',
+                [
+                    'transaction_id' => $transactionId,
+                    'code' => $code,
+                    'message' => $message,
+                ]
+            );
+        }
+
         return [
             'status' => $status,
             'transaction_id' => $transactionId,

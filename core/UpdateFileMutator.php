@@ -134,6 +134,7 @@ final class UpdateFileMutator
         }
 
         @chmod($target, $mode & 0777);
+        $this->invalidateRuntimeCache($target);
         $actualSize = filesize($target);
         $actualSha = hash_file('sha256', $target);
         if (
@@ -170,6 +171,7 @@ final class UpdateFileMutator
             . '-'
             . bin2hex(random_bytes(4));
 
+        $this->invalidateRuntimeCache($target);
         if (!@rename($target, $quarantine)) {
             throw new RuntimeException('Не удалось изолировать удаляемый updater-файл: ' . $relative);
         }
@@ -178,6 +180,17 @@ final class UpdateFileMutator
         }
 
         $this->pruneParents($relative);
+    }
+
+    private function invalidateRuntimeCache(string $path): void
+    {
+        clearstatcache(true, $path);
+
+        // На PHP-FPM и виртуальном хостинге следующий HTTP-шаг updater
+        // не должен продолжать выполнять старый байткод после замены файла.
+        if (function_exists('opcache_invalidate')) {
+            @opcache_invalidate($path, true);
+        }
     }
 
     private function copyToNewFile(

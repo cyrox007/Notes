@@ -44,7 +44,11 @@ final class UpdateInProcessRunner implements UpdateCommandRunner
             if (str_ends_with($normalized, '/bin/migrate.php')) {
                 $root = dirname($script, 2);
                 $statusOnly = in_array('--status', $arguments, true);
-                $result = (new UpdateDatabaseMigrator($root))->run($statusOnly);
+                $baselineVersionCode = $this->baselineVersionCode($arguments);
+                $result = (new UpdateDatabaseMigrator($root))->run(
+                    $statusOnly,
+                    $baselineVersionCode
+                );
                 return [
                     'code' => 0,
                     'stdout' => $result['stdout'],
@@ -90,6 +94,27 @@ final class UpdateInProcessRunner implements UpdateCommandRunner
         } catch (Throwable $e) {
             return $this->failed($e->getMessage());
         }
+    }
+
+    /**
+     * @param list<string> $arguments
+     */
+    private function baselineVersionCode(array $arguments): ?int
+    {
+        foreach ($arguments as $argument) {
+            if (!str_starts_with($argument, '--baseline-version-code=')) {
+                continue;
+            }
+
+            $value = substr($argument, strlen('--baseline-version-code='));
+            if (preg_match('/^[1-9][0-9]{0,8}$/D', $value) !== 1) {
+                throw new RuntimeException('Некорректный код baseline-версии миграций');
+            }
+
+            return (int) $value;
+        }
+
+        return null;
     }
 
     /** @param array{code:int,stdout:string,stderr:string} $result */

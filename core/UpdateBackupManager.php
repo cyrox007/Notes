@@ -473,8 +473,9 @@ final class UpdateBackupManager
                 if ($statement === '') {
                     throw new RuntimeException("Cannot read CREATE TRIGGER for {$name}");
                 }
-                $this->writeAll($handle, "DELIMITER $$\nDROP TRIGGER IF EXISTS " . $this->quoteIdentifier($name) . "$$\n");
-                $this->writeAll($handle, $statement . "$$\nDELIMITER ;\n\n");
+                $statement = $this->portableTriggerDefinition($statement);
+                $this->writeAll($handle, "DELIMITER $\nDROP TRIGGER IF EXISTS " . $this->quoteIdentifier($name) . "$\n");
+                $this->writeAll($handle, $statement . "$\nDELIMITER ;\n\n");
                 $triggerCount++;
             }
 
@@ -749,6 +750,26 @@ final class UpdateBackupManager
         // но не отдаёт MySQL значение с CHARACTER SET binary. Это одинаково
         // безопасно для JSON и обычных текстовых колонок.
         return "CONVERT(X'{$hex}' USING utf8mb4)";
+    }
+
+    private function portableTriggerDefinition(string $statement): string
+    {
+        $statement = trim($statement);
+        if (preg_match('/^CREATE\\s+TRIGGER\\b/i', $statement) === 1) {
+            return $statement;
+        }
+
+        $portable = preg_replace(
+            '/^CREATE\\s+DEFINER\\s*=\\s*(?:`(?:``|[^`])*`|[^@\\s]+)\\s*@\\s*(?:`(?:``|[^`])*`|[^\\s]+)\\s+TRIGGER\\b/i',
+            'CREATE TRIGGER',
+            $statement,
+            1
+        );
+        if (!is_string($portable) || preg_match('/^CREATE\\s+TRIGGER\\b/i', $portable) !== 1) {
+            throw new RuntimeException('Не удалось подготовить переносимое определение триггера для rollback');
+        }
+
+        return $portable;
     }
 
     private function quoteIdentifier(string $identifier): string

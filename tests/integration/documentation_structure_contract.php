@@ -40,14 +40,14 @@ foreach ([
 }
 
 $roadmap = documentationText($root, 'docs/ROADMAP.md');
-documentationAssert(str_contains($roadmap, 'v1.0.13'), 'ROADMAP не фиксирует текущий baseline 1.0.13');
+documentationAssert(str_contains($roadmap, 'v1.0.14'), 'ROADMAP не фиксирует текущий baseline 1.0.14');
 documentationAssert(str_contains($roadmap, '1.1 — Календарь и ежедневник'), 'ROADMAP не содержит следующую продуктовую линию 1.1');
 documentationAssert(!str_contains($roadmap, '### 1.0.12'), 'ROADMAP снова содержит исторический релиз 1.0.12 как активный раздел');
 documentationAssert(!str_contains($roadmap, '### 1.0.2'), 'ROADMAP снова содержит исторический релиз 1.0.2 как активный раздел');
 documentationAssert(!str_contains($roadmap, '### 2FA/TOTP'), 'ROADMAP снова содержит закрытый 2FA как будущую задачу');
 
 $core = documentationText($root, 'docs/CORE.md');
-documentationAssert(str_contains($core, '1.0.13'), 'CORE.md не привязан к текущей стабильной линии');
+documentationAssert(str_contains($core, '1.0.14'), 'CORE.md не привязан к текущей стабильной линии');
 documentationAssert(str_contains($core, 'RuntimeAutoloader'), 'CORE.md не описывает текущий внутренний autoload');
 documentationAssert(!str_contains($core, '0.11.0-alpha'), 'CORE.md снова описывает 0.11 alpha');
 documentationAssert(!str_contains($core, 'подключает Composer autoload'), 'CORE.md снова описывает старый Composer bootstrap');

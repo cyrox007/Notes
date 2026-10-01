@@ -6,6 +6,7 @@ use App\Services\MaintenanceModeService;
 use Core\UpdateAutomaticRecovery;
 use Core\UpdateCoordinatorLock;
 use Core\UpdateTransactionJournal;
+use Core\UpdateWebContinuation;
 
 $root = dirname(__DIR__, 2);
 require_once $root . '/app/services/MaintenanceModeService.php';
@@ -13,6 +14,7 @@ require_once $root . '/core/UpdateAutomaticRecovery.php';
 require_once $root . '/core/UpdateBootRecoveryGate.php';
 require_once $root . '/core/UpdateCoordinatorLock.php';
 require_once $root . '/core/UpdateTransactionJournal.php';
+require_once $root . '/core/UpdateWebContinuation.php';
 
 function automaticRecoveryAssert(bool $condition, string $message): void
 {
@@ -116,6 +118,76 @@ try {
     automaticRecoveryAssert($result['status'] === 'recovered', 'Успешный recovery не распознан');
     automaticRecoveryAssert($invocations === 1, 'Recovery должен запускаться ровно один раз');
     automaticRecoveryAssert(!$maintenance->state()['active'], 'Maintenance не снят после recovery');
+
+    $rollbackLeaseTransaction = 'update-auto-recovery-rollback-lease';
+    automaticRecoveryInitializeJournal($stateRoot, $root, $temp, $rollbackLeaseTransaction);
+    $journalPath = $stateRoot . '/transactions/' . $rollbackLeaseTransaction . '.json';
+    $journalPayload = json_decode(
+        (string) file_get_contents($journalPath),
+        true,
+        32,
+        JSON_THROW_ON_ERROR
+    );
+    $journalPayload['state'] = 'rollback_verified';
+    $journalPayload['live_mutation_started'] = true;
+    $journalPayload['updated_at'] = time();
+    automaticRecoveryAssert(
+        file_put_contents(
+            $journalPath,
+            json_encode(
+                $journalPayload,
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+            )
+        ) !== false,
+        'Не удалось подготовить rollback_verified journal'
+    );
+
+    $maintenance->enter($rollbackLeaseTransaction, 'Проверка stale web-lease после rollback');
+    $rollbackContinuation = new UpdateWebContinuation($stateRoot);
+    $rollbackContinuation->create($rollbackLeaseTransaction);
+    automaticRecoveryAssert(
+        $rollbackContinuation->active($rollbackLeaseTransaction),
+        'Не удалось подготовить активный web-lease для rollback recovery'
+    );
+
+    $rollbackLeaseInvocations = 0;
+    $rollbackLeaseRecovery = new UpdateAutomaticRecovery(
+        $root,
+        static function () use (
+            &$rollbackLeaseInvocations,
+            $maintenance,
+            $rollbackLeaseTransaction
+        ): array {
+            $rollbackLeaseInvocations++;
+            $maintenance->leave($rollbackLeaseTransaction);
+            return [
+                'code' => 0,
+                'stdout' => json_encode([
+                    'status' => 'rollback_recovery_verified',
+                    'transaction_id' => $rollbackLeaseTransaction,
+                    'maintenance_active' => false,
+                ], JSON_THROW_ON_ERROR),
+                'stderr' => '',
+            ];
+        }
+    );
+    $rollbackLeaseResult = $rollbackLeaseRecovery->attempt($maintenance);
+    automaticRecoveryAssert(
+        $rollbackLeaseResult['status'] === 'recovered',
+        'rollback_verified ошибочно заблокирован живым web-lease'
+    );
+    automaticRecoveryAssert(
+        $rollbackLeaseInvocations === 1,
+        'Recovery rollback_verified не был запущен немедленно'
+    );
+    automaticRecoveryAssert(
+        !$rollbackContinuation->active($rollbackLeaseTransaction),
+        'Завершённый recovery оставил web-lease активным'
+    );
+    automaticRecoveryAssert(
+        !$maintenance->state()['active'],
+        'Завершённый rollback recovery оставил maintenance активным'
+    );
 
     $busyTransaction = 'update-auto-recovery-busy';
     $maintenance->enter($busyTransaction, 'Проверка конкурентного обновления');

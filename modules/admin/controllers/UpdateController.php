@@ -9,6 +9,8 @@ use App\Services\AdminUpdateService;
 use Core\Controller;
 use Core\Request;
 use Core\Router;
+use Core\ServiceLog;
+use Core\SupportDiagnostics;
 use InvalidArgumentException;
 
 final class UpdateController extends Controller
@@ -27,8 +29,10 @@ final class UpdateController extends Controller
 
         $flash = $request->session('updates_flash');
         $result = $request->session('updates_result');
+        $supportGrant = $request->session('support_diagnostics_grant');
         $request->unsetSession('updates_flash');
         $request->unsetSession('updates_result');
+        $request->unsetSession('support_diagnostics_grant');
 
         // Привязки действуют только для результата, который прямо сейчас показан
         // администратору. Перезагрузка или другой результат не должны оставлять
@@ -74,6 +78,7 @@ final class UpdateController extends Controller
             'update_state' => $snapshot,
             'update_result' => is_array($result) ? $result : null,
             'updates_flash' => is_array($flash) ? $flash : null,
+            'support_diagnostics_grant' => is_array($supportGrant) ? $supportGrant : null,
         ]);
     }
 
@@ -380,6 +385,72 @@ final class UpdateController extends Controller
                 $e->getMessage() ?: 'Не удалось установить обновление'
             );
         }
+    }
+
+    public function createSupportDiagnostics(Request $request): void
+    {
+        $actorId = (int) $request->session('user_id', 0);
+
+        try {
+            $grant = (new SupportDiagnostics(SITEPATH))->createGrant($actorId, 900);
+            $url = $this->supportDiagnosticsUrl((string) $grant['token']);
+
+            $request->setSession('support_diagnostics_grant', [
+                'url' => $url,
+                'expires_at' => (int) $grant['expires_at'],
+                'bundle_id' => (string) $grant['bundle_id'],
+            ]);
+
+            ServiceLog::emit(
+                'admin.support_diagnostics_created',
+                'info',
+                'admin',
+                [
+                    'actor_id' => $actorId,
+                    'bundle_id' => (string) $grant['bundle_id'],
+                    'expires_at' => (int) $grant['expires_at'],
+                ]
+            );
+
+            $this->redirectWithFlash(
+                $request,
+                true,
+                'Диагностический пакет создан. Одноразовая ссылка показана ниже и действует 15 минут.'
+            );
+        } catch (\Throwable $e) {
+            ServiceLog::emit(
+                'admin.support_diagnostics_failed',
+                'error',
+                'admin',
+                [
+                    'actor_id' => $actorId,
+                    'error_type' => $e::class,
+                    'message' => $e->getMessage(),
+                ]
+            );
+
+            $this->redirectWithFlash(
+                $request,
+                false,
+                $e->getMessage() ?: 'Не удалось создать диагностический пакет'
+            );
+        }
+    }
+
+    private function supportDiagnosticsUrl(string $token): string
+    {
+        $siteUrl = rtrim(trim((string) (getenv('SITEURL') ?: '')), '/');
+        if ($siteUrl === '') {
+            throw new InvalidArgumentException('SITEURL не настроен');
+        }
+
+        $basePath = trim((string) (getenv('BASE_PATH') ?: ''), '/');
+        $sitePath = trim((string) (parse_url($siteUrl, PHP_URL_PATH) ?: ''), '/');
+        if ($basePath !== '' && $sitePath !== $basePath && !str_ends_with($sitePath, '/' . $basePath)) {
+            $siteUrl .= '/' . $basePath;
+        }
+
+        return $siteUrl . '/support-diagnostics?token=' . rawurlencode($token);
     }
 
     /** @return array{0:int,1:string} */
