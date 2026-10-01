@@ -240,6 +240,32 @@ try {
         'bin/migrate.php не восстанавливает baseline из активной updater-транзакции'
     );
 
+    $webMigratorSource = file_get_contents($root . '/core/UpdateDatabaseMigrator.php');
+    migrationPreflightAssert(
+        is_string($webMigratorSource),
+        'не удалось прочитать UpdateDatabaseMigrator.php'
+    );
+    $baselineStart = strpos(
+        $webMigratorSource,
+        'if (!$ledgerPresent && is_int($baselineVersionCode) && $baselineVersionCode > 0)'
+    );
+    $pendingStart = $baselineStart === false
+        ? false
+        : strpos($webMigratorSource, '$pending = [];', $baselineStart);
+    migrationPreflightAssert(
+        $baselineStart !== false && $pendingStart !== false && $pendingStart > $baselineStart,
+        'не удалось определить baseline-блок web migrator'
+    );
+    $baselineBlock = substr(
+        $webMigratorSource,
+        (int) $baselineStart,
+        (int) $pendingStart - (int) $baselineStart
+    );
+    migrationPreflightAssert(
+        !str_contains($baselineBlock, 'verifyCurrentContract'),
+        'web migrator проверяет целевой контракт до применения ожидающих миграций'
+    );
+
     echo "[OK] updater data-only migration preflight contract\n";
 } finally {
     if (is_string($previousUpdateStatePath)) {
