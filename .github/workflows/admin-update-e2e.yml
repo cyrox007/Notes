@@ -437,11 +437,19 @@ jobs:
           rsync -a "$FUTURE/" "$HEALTH_BROKEN/"
           perl -0pi -e "s/public const VERSION = '[^']+';/public const VERSION = '1.0.14-health-broken-e2e';/" "$HEALTH_BROKEN/core/Version.php"
           # Второй аварийный кандидат должен успешно применить миграцию,
-          # а затем упасть на штатном healthcheck из-за неполной схемы БД.
-          # Это проверяет rollback уже после завершённой destructive-миграции.
+          # сохранить корректный контракт БД, а затем упасть именно на post-health.
+          # Нельзя ломать обязательную таблицу в SQL: такой дефект мигратор обязан
+          # поймать раньше post-health, и тест проверял бы не ту границу.
           cat > "$HEALTH_BROKEN/database/migrations/20991231_ci_post_health_failure.sql" <<'SQL'
-          DROP TABLE IF EXISTS file_shares;
+          CREATE TABLE IF NOT EXISTS ci_post_health_marker (
+              id INT NOT NULL PRIMARY KEY,
+              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
           SQL
+
+          perl -0pi -e "s/'status' => \\$failed \? 'fail' : 'ok'/'status' => 'fail'/" \
+            "$HEALTH_BROKEN/core/UpdateWebHealthProbe.php"
+          grep -Fq "'status' => 'fail'" "$HEALTH_BROKEN/core/UpdateWebHealthProbe.php"
 
           php -r '
             $path=$argv[1];
