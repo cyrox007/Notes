@@ -66,6 +66,7 @@ async function postContinuationStep(transactionId, token) {
     headers: {
       Accept: 'application/json',
       'X-Requested-With': 'XMLHttpRequest',
+      'X-E2E-Updater-Driver': '1',
       'X-Workspace-Update-Transaction': transactionId,
       'X-Workspace-Update-Token': token,
     },
@@ -141,7 +142,11 @@ try {
   // тестовым router до завершения выбранной точки прерывания.
   await armRouterGuard();
 
-  const start = await postJson(page, `${basePath}/admin/updates/web-start`);
+  const start = await postJson(
+    page,
+    `${basePath}/admin/updates/web-start`,
+    { 'X-E2E-Updater-Driver': '1' }
+  );
   if (!start.ok || !start.payload?.success || !start.payload?.result) {
     throw new Error(
       `Не удалось начать updater-транзакцию: HTTP=${start.status}; body=${start.text}`
@@ -169,6 +174,7 @@ try {
     const step = contextClosed
       ? await postContinuationStep(transactionId, token)
       : await postJson(page, `${basePath}/admin/updates/web-step`, {
+          'X-E2E-Updater-Driver': '1',
           'X-Workspace-Update-Transaction': transactionId,
           'X-Workspace-Update-Token': token,
         });
