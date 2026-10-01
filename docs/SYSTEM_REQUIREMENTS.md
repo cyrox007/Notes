@@ -1,6 +1,6 @@
 # Системные требования Workspace Organizer
 
-Актуально для стабильной линии **1.0.13**.
+Актуально для стабильной линии **1.0.14**.
 
 ## PHP
 
@@ -42,7 +42,7 @@ CI линии 1.0 проверяет MySQL 8.4 и MariaDB 10.11.
 
 ## Composer и vendor
 
-Runtime 1.0.13 не зависит от Composer и каталога `vendor/`. Готовый GitHub Release и исходный tree запускаются встроенным autoload/runtime.
+Runtime 1.0.14 не зависит от Composer и каталога `vendor/`. Готовый GitHub Release и исходный tree запускаются встроенным autoload/runtime.
 
 Composer допускается как инструмент разработки, но не является требованием production.
 

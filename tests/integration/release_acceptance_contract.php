@@ -67,10 +67,11 @@ $windowsAcceptance = releaseAcceptanceText($root, 'docs/WINDOWS_OSPANEL_ACCEPTAN
 releaseAcceptanceAssert(
     str_contains($windowsAcceptance, '# Релизная приёмка Windows / OSPanel для 1.0.14')
     && str_contains($windowsAcceptance, 'Сценарий A2 — private storage предыдущей установки')
-    && str_contains($windowsAcceptance, '1.0.12 → 1.0.14')
-    && str_contains($windowsAcceptance, 'отдельный bootstrap не требуется')
+    && str_contains($windowsAcceptance, '1.0.12/1.0.13 → 1.0.14')
+    && str_contains($windowsAcceptance, 'одноразовый совместимый updater-handoff')
+    && str_contains($windowsAcceptance, 'bootstrap-1.0.12-updater.php')
     && str_contains($windowsAcceptance, 'rollback_failed'),
-    'Windows/OSPanel acceptance не закрепляет 1.0.12 → 1.0.14, stale recovery и прямой updater'
+    'Windows/OSPanel acceptance не закрепляет updater-handoff 1.0.12/1.0.13 → 1.0.14 и recovery-контракт'
 );
 
 $preflight = releaseAcceptanceText($root, 'bin/release_acceptance.php');

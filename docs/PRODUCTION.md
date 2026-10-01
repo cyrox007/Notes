@@ -1,6 +1,6 @@
 # Production deployment — Workspace Organizer
 
-Этот документ дополняет `README.md` и описывает production-путь для стабильной линии `1.0.x`. Текущий опубликованный baseline — `1.0.13`. Перед критичным развёртыванием обязательны staging, backup и restore test.
+Этот документ дополняет `README.md` и описывает production-путь для стабильной линии `1.0.x`. Текущий стабильный baseline — `1.0.14`. Перед критичным развёртыванием обязательны staging, backup и restore test.
 
 ## 1. Рекомендуемая схема
 
@@ -205,7 +205,7 @@ php bin/healthcheck.php --json
 
 Проверяются:
 
-- PHP >= 8.3;
+- PHP >= 8.1; для публичного production рекомендуется PHP 8.3+;
 - required extensions;
 - crypto/WebSocket secrets;
 - writable private storage;
