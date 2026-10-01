@@ -16,7 +16,7 @@ jobs:
   cancel-stale-runs:
     name: Отменить проверки старых SHA
     if: github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-24.04
+    runs-on: windows-latest
     timeout-minutes: 5
 
     steps:
@@ -43,6 +43,8 @@ jobs:
               'Stable release gate',
               '1.0.12/1.0.13 → 1.0.14 сквозной updater',
               '1.0 обновление из админ-панели',
+              '1.0 updater transaction backup',
+              '1.0 updater live apply rollback',
               'PHP runtime compatibility',
               'Windows hosting compatibility',
               'Notes private storage'
