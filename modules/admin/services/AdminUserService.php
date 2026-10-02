@@ -266,7 +266,7 @@ final class AdminUserService
             : 'Данные пользователя и пароль обновлены';
     }
 
-    public function requestDeletion(int $actorId, int $targetId, int $retentionDays = 30): string
+    public function requestDeletion(int $actorId, int $targetId, ?int $retentionDays = null): string
     {
         $this->permissions->requirePermission($actorId, 'admin.users.manage');
         $target = $this->targetUser($targetId);
@@ -293,6 +293,14 @@ final class AdminUserService
                 409
             );
         }
+
+        if ($retentionDays === null) {
+            $configured = trim((string) (getenv('RETENTION_ACCOUNT_DELETE_DAYS') ?: ''));
+            $retentionDays = ctype_digit($configured)
+                ? (int) $configured
+                : UserLifecycleService::DEFAULT_RETENTION_DAYS;
+        }
+        $retentionDays = max(1, min(365, $retentionDays));
 
         $purgeAfter = (new UserLifecycleService($this->db))->schedule($targetId, $retentionDays);
         return 'Аккаунт помечен на удаление. Персональные данные будут очищены после ' . $purgeAfter;
