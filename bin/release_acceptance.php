@@ -84,7 +84,8 @@ $governanceOk = is_array($governance)
     && in_array('online-update-access (8.3)', $requiredChecks, true)
     && in_array('admin-update-ui (8.1)', $requiredChecks, true)
     && in_array('admin-update-ui (8.3)', $requiredChecks, true)
-    && in_array('admin-update-e2e', $requiredChecks, true);
+    && in_array('admin-update-e2e', $requiredChecks, true)
+    && in_array('previous-stable-upgrade', $requiredChecks, true);
 $record('governance_source_contract', $governanceOk, 'master + 1.0 / единый обязательный набор checks');
 
 foreach ([
