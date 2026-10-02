@@ -24,6 +24,9 @@ class UserModel extends ORM
     public int $role = 0;
     public int $is_active = 0;
     public string $account_status = 'active';
+    public ?string $deletion_requested_at = null;
+    public ?string $purge_after = null;
+    public ?string $anonymized_at = null;
     public int $totp_enabled = 0;
     public ?string $totp_secret = null;
     public ?int $totp_last_counter = null;
