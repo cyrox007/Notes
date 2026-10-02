@@ -146,7 +146,10 @@ try {
   const copyInvite = admin.locator('[data-copy-target="#new_invite_code"]');
   await copyInvite.waitFor({ state: 'visible', timeout: 5000 });
   await copyInvite.click();
-  await copyInvite.getByText('Скопировано', { exact: true }).waitFor({ state: 'visible', timeout: 5000 });
+  await admin.waitForFunction(() => {
+    const button = document.querySelector('[data-copy-target="#new_invite_code"]');
+    return button?.textContent?.trim() === 'Скопировано';
+  }, null, { timeout: 5000 });
 
   const inviteContext = await browser.newContext();
   const invitePage = await inviteContext.newPage();
