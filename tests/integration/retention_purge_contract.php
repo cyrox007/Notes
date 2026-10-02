@@ -29,6 +29,15 @@ $expectedMigrations = [
     '20260918_notes_retention_timestamps.sql',
     '20260918_messenger_retention_timestamps.sql',
 ];
+retentionAssert(
+    in_array('20261002_user_lifecycle.sql', $migrations, true),
+    'canonical manifest missing user lifecycle migration'
+);
+$lifecycleSql = retentionText($root, 'database/migrations/20261002_user_lifecycle.sql');
+foreach (['deletion_requested_at', 'purge_after', 'anonymized_at', 'idx_users_purge'] as $marker) {
+    retentionAssert(str_contains($lifecycleSql, $marker), "user lifecycle migration missing {$marker}");
+}
+
 foreach ($expectedMigrations as $migration) {
     retentionAssert(in_array($migration, $migrations, true), "canonical manifest missing {$migration}");
     $sql = retentionText($root, 'database/migrations/' . $migration);
@@ -108,21 +117,32 @@ foreach ([
 ] as $marker) {
     retentionAssert(str_contains($service, $marker), "RetentionService missing safety marker {$marker}");
 }
-$filesystemCleanupPosition = strpos($service, '$this->removePaths($paths, $result)');
-$userDeletePosition = strpos($service, 'DELETE FROM users WHERE id = :id');
-retentionAssert($filesystemCleanupPosition !== false, 'account filesystem cleanup marker missing');
-retentionAssert($userDeletePosition !== false, 'irreversible user DELETE marker missing');
 retentionAssert(
-    $filesystemCleanupPosition < $userDeletePosition,
-    'account filesystem cleanup must occur before irreversible user DELETE'
+    !str_contains($service, 'DELETE FROM users WHERE id = :id'),
+    'retention снова физически удаляет users и может каскадно уничтожить совместные данные'
+);
+foreach ([
+    'deletion_requested_at IS NOT NULL',
+    'purge_after IS NOT NULL',
+    'anonymized_at IS NULL',
+    "firstname='Удалённый'",
+    "lastname='пользователь'",
+    'public function purgeScheduledAccounts',
+    "'mode' => 'anonymized_tombstone'",
+] as $marker) {
+    retentionAssert(str_contains($service, $marker), "RetentionService не закрепляет lifecycle marker {$marker}");
+}
+retentionAssert(
+    str_contains($service, '$this->removePaths($this->identityPaths($userId), $result)'),
+    'очистка аккаунта не ограничена идентификационными файлами'
 );
 
 $cli = retentionText($root, 'bin/retention.php');
 retentionAssert(str_contains($cli, "'apply'"), 'retention CLI lacks apply flag');
 retentionAssert(str_contains($cli, "'yes'"), 'retention CLI lacks explicit confirmation flag');
 retentionAssert(
-    str_contains($cli, 'Permanent purge requires explicit --yes confirmation'),
-    'retention CLI does not fail closed without confirmation'
+    str_contains($cli, 'Очистка требует явного подтверждения --yes'),
+    'retention CLI не закрывается безопасно без подтверждения'
 );
 retentionAssert(
     str_contains($cli, '$service->preview'),
@@ -130,16 +150,17 @@ retentionAssert(
 );
 
 $env = retentionText($root, 'default.env');
-foreach (['RETENTION_SOFT_DELETE_DAYS=30', 'RETENTION_DEACTIVATED_ACCOUNT_DAYS=30'] as $marker) {
+foreach (['RETENTION_SOFT_DELETE_DAYS=30', 'RETENTION_DEACTIVATED_ACCOUNT_DAYS=30', 'RETENTION_ACCOUNT_DELETE_DAYS=30'] as $marker) {
     retentionAssert(str_contains($env, $marker), "default.env missing {$marker}");
 }
 
 $docs = retentionText($root, 'docs/OPERATIONS.md');
 foreach ([
-    '## Retention and permanent purge',
+    '## Хранение и окончательная очистка',
     'php bin/retention.php --apply --yes --json',
-    'backup/restore drill',
-    'Permanent account deletion exists only in the retention CLI',
+    'проверка восстановления из резервной копии',
+    'техническая tombstone-запись',
+    'RETENTION_ACCOUNT_DELETE_DAYS',
 ] as $marker) {
     retentionAssert(str_contains($docs, $marker), "operations runbook missing {$marker}");
 }
