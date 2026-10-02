@@ -845,7 +845,33 @@
                 );
             }
 
-            row.append(actions, bubble);
+            const actionsToggle = document.createElement('button');
+            actionsToggle.type = 'button';
+            actionsToggle.className = 'messenger-message__actions-toggle';
+            actionsToggle.title = 'Действия с сообщением';
+            actionsToggle.setAttribute('aria-label', 'Показать действия с сообщением');
+            actionsToggle.setAttribute('aria-expanded', 'false');
+
+            const actionsId = `message-actions-${String(message.uid || message.id || 'item').replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+            actions.id = actionsId;
+            actionsToggle.setAttribute('aria-controls', actionsId);
+
+            const toggleIcon = document.createElement('i');
+            toggleIcon.className = 'fa fa-ellipsis-h';
+            toggleIcon.setAttribute('aria-hidden', 'true');
+            actionsToggle.append(toggleIcon);
+
+            actionsToggle.addEventListener('click', (event) => {
+                event.stopPropagation();
+                const opened = row.classList.toggle('messenger-message--actions-open');
+                actionsToggle.setAttribute('aria-expanded', opened ? 'true' : 'false');
+                actionsToggle.setAttribute(
+                    'aria-label',
+                    opened ? 'Скрыть действия с сообщением' : 'Показать действия с сообщением'
+                );
+            });
+
+            row.append(bubble, actionsToggle, actions);
             return row;
         }
 
