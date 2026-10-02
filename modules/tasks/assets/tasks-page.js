@@ -23,20 +23,46 @@
             node.style.width = percent + '%';
         });
 
+        let modalCloseTimer = null;
+
+        function openTaskModal() {
+            if (!modal) return;
+            if (modalCloseTimer !== null) {
+                window.clearTimeout(modalCloseTimer);
+                modalCloseTimer = null;
+            }
+            modal.classList.remove('is-closing');
+            modal.hidden = false;
+        }
+
+        function closeTaskModal() {
+            if (!modal || modal.hidden || modal.classList.contains('is-closing')) return;
+            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                modal.hidden = true;
+                return;
+            }
+            modal.classList.add('is-closing');
+            modalCloseTimer = window.setTimeout(() => {
+                modal.hidden = true;
+                modal.classList.remove('is-closing');
+                modalCloseTimer = null;
+            }, 170);
+        }
+
         if (openBtn && modal) {
-            openBtn.addEventListener('click', () => {
-                modal.hidden = false;
-            });
+            openBtn.addEventListener('click', openTaskModal);
         }
 
         closeBtns.forEach((btn) => {
-            btn.addEventListener('click', () => {
-                if (modal) modal.hidden = true;
-            });
+            btn.addEventListener('click', closeTaskModal);
         });
 
         window.addEventListener('click', (event) => {
-            if (modal && event.target === modal) modal.hidden = true;
+            if (modal && event.target === modal) closeTaskModal();
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && modal && !modal.hidden) closeTaskModal();
         });
 
         async function requestJson(url, options = {}) {
