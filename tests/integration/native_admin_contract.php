@@ -40,6 +40,13 @@ $index = (string) file_get_contents($root . '/modules/admin/views/index.php');
 nativeAdminAssert(str_contains($index, "route('admin_create_user')"), 'admin user provisioning route is missing');
 nativeAdminAssert(str_contains($index, "route('admin_toggle_user')"), 'admin status route is missing');
 nativeAdminAssert(str_contains($index, "route('admin_delete_user')"), 'admin deactivation route is missing');
+nativeAdminAssert(str_contains($index, "route('admin_update_user')"), 'admin user edit route is missing');
+nativeAdminAssert(str_contains($index, "route('admin_request_user_deletion')"), 'admin scheduled deletion route is missing');
+nativeAdminAssert(str_contains($index, "route('admin_cancel_user_deletion')"), 'admin deletion cancellation route is missing');
+nativeAdminAssert(str_contains($index, "route('admin_purge_due_users')"), 'admin manual due-user cleanup route is missing');
+nativeAdminAssert(str_contains($index, 'Блокирован'), 'admin UI does not explain blocked account semantics');
+nativeAdminAssert(str_contains($index, 'Деактивирован'), 'admin UI does not explain deactivated account semantics');
+nativeAdminAssert(str_contains($index, 'Удаление запланировано'), 'admin UI does not expose scheduled deletion state');
 nativeAdminAssert(str_contains($index, "route('save_custom_fields')"), 'custom field route is missing');
 nativeAdminAssert(str_contains($index, '$view->csrfInput()'), 'admin forms lost CSRF inputs');
 nativeAdminAssert(str_contains($index, 'id="custom-fields-container"'), 'custom field JS container hook is missing');
@@ -143,6 +150,9 @@ nativeAdminAssert(str_contains($roleController, "http_response_code(503)"), 'о�
 $updates = (string) file_get_contents($root . '/modules/admin/views/updates.php');
 nativeAdminAssert(str_contains($updates, "route('admin_updates_check')"), 'signed updater check route is missing');
 nativeAdminAssert(str_contains($updates, "route('admin_updates_stage')"), 'signed updater stage route is missing');
+nativeAdminAssert(str_contains($updates, "route('admin_updates_offline_upload')"), 'offline update upload route is missing');
+nativeAdminAssert(str_contains($updates, 'Установить обновление из архива'), 'offline update UI is missing');
+nativeAdminAssert(str_contains($updates, 'manifest.json') && str_contains($updates, 'manifest.sig'), 'offline update UI does not explain signed bundle contents');
 nativeAdminAssert(str_contains($updates, '$view->csrfInput()'), 'signed updater forms lost CSRF input');
 nativeAdminAssert(str_contains($updates, 'Рабочие файлы не менялись'), 'интерфейс обновлений потерял указание о неизменности рабочих файлов на staging');
 nativeAdminAssert(str_contains($updates, "route('admin_updates_apply')"), 'Admin UI не показывает защищённую установку обновления');
@@ -153,18 +163,44 @@ nativeAdminAssert(str_contains($updates, 'class="admin-status-card"'), 'signed u
 
 $updateController = (string) file_get_contents($root . '/modules/admin/controllers/UpdateController.php');
 nativeAdminAssert(str_contains($updateController, "render_template('@admin/updates'"), 'admin controller does not render the module view directly');
-nativeAdminAssert(!str_contains($updateController, "'stage_dir' =>"), 'signed updater controller persists absolute stage path into UI state');
+$safeStageMethod = '';
+if (preg_match(
+    '/private function safeStageResult\(array \$result\): array\s*\{(?<body>.*?)\n    \}/s',
+    $updateController,
+    $safeStageMatch
+) === 1) {
+    $safeStageMethod = (string) ($safeStageMatch['body'] ?? '');
+}
+nativeAdminAssert(
+    $safeStageMethod !== '' && !str_contains($safeStageMethod, "'stage_dir'"),
+    'signed updater exposes absolute stage path in renderable Admin state'
+);
+nativeAdminAssert(
+    str_contains($updateController, "'stage_dir' => (string) (\$result['stage_dir'] ?? '')"),
+    'offline updater lost server-side one-shot stage binding'
+);
 
 $runtime = (string) file_get_contents($root . '/modules/admin/runtime.php');
 nativeAdminAssert(str_contains($runtime, "'/middlewares/RequireAdminAuditView.php'"), 'Admin runtime does not load audit permission middleware');
 nativeAdminAssert(str_contains($runtime, "'/controllers/AuditController.php'"), 'Admin runtime does not load the audit controller');
 nativeAdminAssert(str_contains($runtime, "'/services/ModuleManagementService.php'"), 'Admin runtime не загружает сервис управления модулями');
+$adminUserService = (string) file_get_contents($root . '/modules/admin/services/AdminUserService.php');
+nativeAdminAssert(str_contains($adminUserService, 'public function updateUser'), 'AdminUserService не умеет редактировать пользователя');
+nativeAdminAssert(str_contains($adminUserService, 'public function requestDeletion'), 'AdminUserService не умеет планировать удаление пользователя');
+nativeAdminAssert(str_contains($adminUserService, 'RETENTION_ACCOUNT_DELETE_DAYS'), 'срок удаления пользователя не настраивается');
+nativeAdminAssert(str_contains($adminUserService, 'UserLifecycleService'), 'AdminUserService не использует общий lifecycle пользователей');
 nativeAdminAssert(str_contains($runtime, "'/controllers/ModuleManagementController.php'"), 'Admin runtime не загружает контроллер управления модулями');
 
 $router = (string) file_get_contents($root . '/modules/admin/AdminRuntimeProvider.php');
 nativeAdminAssert(str_contains($router, "->add('GET', '/updates'"), 'signed updater page route missing');
 nativeAdminAssert(str_contains($router, "->add('GET', '/updates/check'"), 'signed updater read-only check route missing');
 nativeAdminAssert(str_contains($router, "->add('POST', '/updates/stage'"), 'signed updater stage route missing');
+nativeAdminAssert(str_contains($router, "->add('POST', '/updates/offline-upload'"), 'offline updater route missing');
+nativeAdminAssert(str_contains($router, "RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_offline_upload'"), 'offline updater route lost settings/CSRF protection');
+nativeAdminAssert(str_contains($router, "->add('POST', '/users/update'"), 'admin user edit route missing');
+nativeAdminAssert(str_contains($router, "->add('POST', '/users/request-deletion'"), 'admin user deletion schedule route missing');
+nativeAdminAssert(str_contains($router, "->add('POST', '/users/cancel-deletion'"), 'admin user deletion cancellation route missing');
+nativeAdminAssert(str_contains($router, "->add('POST', '/users/purge-due'"), 'admin user cleanup route missing');
 nativeAdminAssert(str_contains($router, "RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_stage'"), 'signed updater stage middleware contract missing');
 nativeAdminAssert(str_contains($router, "->add('GET', '/modules'"), 'module management page route missing');
 nativeAdminAssert(str_contains($router, "->add('POST', '/modules/state'"), 'module management state route missing');
