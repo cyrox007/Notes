@@ -55,6 +55,7 @@ final class AdminRuntimeProvider implements ModuleRuntimeProvider
             ->add('GET', '/updates/status', [UpdateController::class, 'status'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_updates_status')
             ->add('GET', '/updates/check', [UpdateController::class, 'check'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_updates_check')
             ->add('POST', '/updates/stage', [UpdateController::class, 'stage'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_stage')
+            ->add('POST', '/updates/offline-upload', [UpdateController::class, 'uploadOffline'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_offline_upload')
             ->add('POST', '/updates/apply-latest', [UpdateController::class, 'applyLatest'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_apply_latest')
             ->add('POST', '/updates/web-start', [UpdateController::class, 'webStart'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_web_start')
             ->add('POST', '/updates/web-start-latest', [UpdateController::class, 'webStartLatest'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_web_start_latest')
