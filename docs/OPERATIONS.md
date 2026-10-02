@@ -244,56 +244,55 @@ Recommended production scheduling is a cron/systemd timer that runs `php bin/obs
 `php bin/healthcheck.php` also verifies that security event storage resolves outside the live application tree and is writable.
 
 
-## Retention and permanent purge
+## Хранение и окончательная очистка
 
-Workspace Organizer 1.0 separates ordinary user-facing soft-delete/deactivation from irreversible physical purge.
+Workspace Organizer разделяет обычное пользовательское удаление, деактивацию аккаунта и окончательную очистку.
 
-Default retention windows are configured through:
+Периоды по умолчанию:
 
-- `RETENTION_SOFT_DELETE_DAYS=30`;
-- `RETENTION_DEACTIVATED_ACCOUNT_DAYS=30`.
+- `RETENTION_SOFT_DELETE_DAYS=30` — хранение объектов, помеченных как удалённые;
+- `RETENTION_ACCOUNT_DELETE_DAYS=30` — срок от явной команды администратора «Удалить пользователя» до обезличивания его регистрационных данных;
+- `RETENTION_DEACTIVATED_ACCOUNT_DAYS=30` сохранён как параметр совместимости старого CLI и больше не превращает простую деактивацию в автоматическое удаление.
 
-Soft-deleted Notes, Note attachments, File Manager entries, Messenger messages/attachments, Tasks, shared-board items and deleted task categories are retained until their applicable cutoff. Deactivated accounts are retained independently from content soft-delete.
+Деактивация пользователя **не запускает удаление по времени**. Пользователь остаётся в базе, вход запрещён, место лицензии освобождается, а его данные и связи сохраняются. Для запуска окончательной очистки администратор должен отдельно выбрать «Удалить»; после этого фиксируются `deletion_requested_at` и `purge_after`.
 
-Preview is the default and never changes data:
+По истечении срока регистрационные данные обезличиваются. Физический `DELETE FROM users` не выполняется: остаётся техническая tombstone-запись, необходимая для целостности общих сообщений, задач и других объектов. Удаляются логин/email/телефон/ФИО/аватар/TOTP/роли и создаётся непригодный для входа случайный пароль.
+
+Предварительный просмотр ничего не меняет:
 
 ```bash
 php bin/retention.php
-php bin/retention.php --soft-days=30 --account-days=30 --json
+php bin/retention.php --soft-days=30 --json
 ```
 
-Permanent purge is deliberately explicit and irreversible:
+Фактическая очистка требует двух явных флагов:
 
 ```bash
 php bin/retention.php --apply --yes --json
 ```
 
-Do not schedule `--apply --yes` until backup/restore drill evidence exists for the deployment.
+Для обычной эксплуатации эту команду можно запускать cron/systemd timer один раз в сутки. На хостинге без cron суперадминистратор может выполнить обработку просроченных заявок кнопкой **«Очистить просроченные сейчас»** в Admin. Перед включением периодического запуска должна быть подтверждена проверка восстановления из резервной копии.
 
-Safety rules:
+Правила безопасности:
 
-1. Physical managed files are deleted before the corresponding DB metadata is hard-deleted. If a file cannot be removed safely, the row remains for retry.
-2. Paths outside managed private/legacy upload roots and symlink escapes are blocked.
-3. Old soft-deleted attachment rows that predate the 1.0 timestamp contract start their retention clock at migration time; they are not purged immediately after upgrade.
-4. A soft-deleted Note is not physically removed while any attachment has not yet completed its own retention window.
-5. Deactivated administrative identities are never purged automatically.
-6. A deactivated account remains blocked from purge while it still owns a Messenger group or a shared/all-active Task board. Ownership must be transferred or the collaborative object explicitly retired first.
-7. User-facing deactivation stays non-destructive; the existing Admin action only disables authentication and removes the avatar. Permanent account deletion exists only in the retention CLI.
-8. Backup archives are outside the live retention policy. Purging live data does not rewrite or erase previously created backups; backup retention is controlled by the operator's backup policy.
+1. Физически удаляемые soft-delete файлы удаляются раньше соответствующих строк БД. Если файл нельзя удалить безопасно, запись остаётся для повторной попытки.
+2. Пути вне управляемого private storage/legacy uploads и symlink-выходы блокируются.
+3. Старые soft-delete записи, появившиеся до timestamp-контракта 1.0, начинают срок хранения с момента compatibility migration и не очищаются сразу после обновления.
+4. Заметка не удаляется физически, пока хотя бы одно её вложение не прошло собственный срок хранения.
+5. Обычная деактивация никогда сама не становится заявкой на удаление.
+6. Аккаунт не обезличивается, пока за ним закреплена административная роль, владение группой Messenger или общей Task-доской. Владение нужно передать либо объект удалить.
+7. При окончательной очистке совместные сообщения, задачи, заметки и прикладные связи не удаляются каскадно вместе с пользователем.
+8. Резервные копии не входят в live retention: очистка рабочей БД не переписывает ранее созданные backup-архивы.
 
-The purge command emits structured security events including `retention.purge_completed`, `retention.account_blocked`, `retention.account_purged` and failure events. Review them through the security observability pipeline.
+Сервис пишет события `retention.purge_completed`, `retention.account_blocked`, `retention.account_purged` и события ошибок в общий журнал безопасности.
 
-Recommended production operation:
+Рекомендуемый порядок:
 
-1. run preview and archive the JSON result;
-2. confirm a recent successful backup/restore drill;
-3. resolve blocked ownership;
-4. run `--apply --yes --json`;
-5. investigate exit code 3, which indicates blocked/failed filesystem cleanup or account failures;
-6. run preview again; only intentionally blocked/newly retained rows should remain.
-
-A cron/systemd timer may run preview frequently. If automatic permanent purge is enabled, use a separate reviewed timer with explicit `--apply --yes`, capture JSON output and alert on any non-zero exit status.
-
+1. выполнить preview и сохранить JSON-результат;
+2. убедиться, что есть свежая успешная проверка восстановления из резервной копии;
+3. устранить блокирующее владение общими объектами;
+4. выполнить `--apply --yes --json` вручную либо включить ежедневный cron;
+5. расследовать код возврата 3: он означает заблокированную/неудачную файловую очистку или ошибку обработки аккаунта.
 
 ## User action audit retention
 
