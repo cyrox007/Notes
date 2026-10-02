@@ -141,6 +141,8 @@ foreach ([
     '.admin-settings-tabs',
     'body[data-workspace-section="notes"]',
     'body[data-workspace-section="admin"]',
+    'workspace-modal-content-in',
+    'workspace-modal-content-out',
 ] as $marker) {
     uiSystemAssert(str_contains($css, $marker), "unified workspace layer is missing marker: {$marker}");
 }
@@ -160,5 +162,14 @@ foreach ([
 ] as $marker) {
     uiSystemAssert(str_contains($script, $marker), "theme controller is missing marker: {$marker}");
 }
+
+$feedbackCss = (string) file_get_contents($root . '/assets/css/feedback.css');
+$feedbackJs = (string) file_get_contents($root . '/assets/js/feedback.js');
+uiSystemAssert(
+    str_contains($feedbackCss, 'wspace-dialog-in')
+        && str_contains($feedbackCss, 'wspace-dialog-out')
+        && str_contains($feedbackJs, "classList.add('is-closing')"),
+    'системные confirm/prompt потеряли плавное появление или закрытие'
+);
 
 fwrite(STDOUT, "[OK] единая светлая/тёмная бренд-система Workspace Organizer 1.0.14\n");
