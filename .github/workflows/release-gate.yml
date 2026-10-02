@@ -176,6 +176,13 @@ jobs:
           php -l bin/repair_phpmyadmin_dump.php
           php -l tests/integration/database_dump_compatibility_contract.php
           php tests/integration/database_dump_compatibility_contract.php
+          php -l core/UpdateOfflineBundle.php
+          php -l tools/release/build-offline-update-bundle.php
+          php -l tests/integration/offline_update_bundle_contract.php
+          php tests/integration/offline_update_bundle_contract.php
+          php -l app/services/UserLifecycleService.php
+          php -l tests/integration/retention_purge_contract.php
+          php tests/integration/retention_purge_contract.php
           php -r '$m=json_decode(file_get_contents("database/migrations/manifest.json"),true,32,JSON_THROW_ON_ERROR); if (($m["schema"]??null)!==1 || ($m["product"]??null)!=="workspace-organizer" || !is_array($m["migrations"]??null) || $m["migrations"]===[]) exit(1);'
           mysql -h 127.0.0.1 -uroot -proot -e "DROP DATABASE IF EXISTS updater_migration_preflight_test; CREATE DATABASE updater_migration_preflight_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
           DBHOST=127.0.0.1 DBPORT=3306 DBUSER=root DBPASS=root MIGRATION_PREFLIGHT_DBNAME=updater_migration_preflight_test php tests/integration/updater_migration_preflight_contract.php
