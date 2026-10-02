@@ -239,6 +239,9 @@ try {
     require_once SITEPATH . '/core/ServiceLog.php';
     \Core\ServiceLog::registerRuntimeCapture();
 
+    require_once SITEPATH . '/core/CrawlerDefense.php';
+    \Core\CrawlerDefense::handleEarlyRequest();
+
     // При пофайловом code switch новый index.php может стать видимым на долю
     // секунды раньше нового SupportDiagnostics.php. В этот момент нельзя
     // превращать штатный maintenance/recovery в PHP Warning/Fatal.
