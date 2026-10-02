@@ -184,6 +184,31 @@
             syncTaskStatus(task, detail.nextStatus, detail.previousStatus);
         });
 
+        const dropPlaceholder = document.createElement('div');
+        dropPlaceholder.className = 'tasks-board__drop-placeholder';
+        dropPlaceholder.setAttribute('aria-hidden', 'true');
+
+        function clearDragState() {
+            board.classList.remove('tasks-board--dragging');
+            dropPlaceholder.remove();
+            board.querySelectorAll('.tasks-board__dropzone--active,.tasks-board__dropzone--ready').forEach((zone) => {
+                zone.classList.remove('tasks-board__dropzone--active', 'tasks-board__dropzone--ready');
+            });
+        }
+
+        function dragPreviewFor(task) {
+            const preview = document.createElement('div');
+            preview.className = 'tasks-board__drag-preview';
+            const icon = document.createElement('span');
+            icon.className = 'tasks-board__drag-preview-icon';
+            icon.innerHTML = '<i class="fa fa-bars" aria-hidden="true"></i>';
+            const title = document.createElement('strong');
+            title.textContent = task.querySelector('.task-title')?.textContent?.trim() || 'Задача';
+            preview.append(icon, title);
+            document.body.appendChild(preview);
+            return preview;
+        }
+
         for (const task of tasks) {
             task.draggable = false;
             task.dataset.status = task.dataset.status || task.querySelector('.task-status-toggle')?.value || 'pending';
@@ -210,13 +235,22 @@
                     event.preventDefault();
                     return;
                 }
+
                 task.classList.add('task-item--dragging');
+                board.classList.add('tasks-board--dragging');
+                board.querySelectorAll('.tasks-board__dropzone').forEach((zone) => {
+                    if (zone !== task.parentElement) zone.classList.add('tasks-board__dropzone--ready');
+                });
+
+                const preview = dragPreviewFor(task);
                 transfer.effectAllowed = 'move';
                 transfer.setData('text/plain', task.dataset.taskId || '');
+                transfer.setDragImage(preview, 28, 20);
+                window.setTimeout(() => preview.remove(), 0);
             });
             handle?.addEventListener('dragend', () => {
                 task.classList.remove('task-item--dragging', 'task-item--status-pending');
-                board.querySelectorAll('.tasks-board__dropzone--active').forEach((zone) => zone.classList.remove('tasks-board__dropzone--active'));
+                clearDragState();
             });
         }
 
@@ -224,19 +258,29 @@
             zone.addEventListener('dragover', (event) => {
                 event.preventDefault();
                 if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+
+                board.querySelectorAll('.tasks-board__dropzone--active').forEach((candidate) => {
+                    if (candidate !== zone) candidate.classList.remove('tasks-board__dropzone--active');
+                });
                 zone.classList.add('tasks-board__dropzone--active');
+                dropPlaceholder.textContent = 'Переместить сюда';
+                zone.appendChild(dropPlaceholder);
             });
-            zone.addEventListener('dragleave', () => zone.classList.remove('tasks-board__dropzone--active'));
+            zone.addEventListener('dragleave', (event) => {
+                if (event.relatedTarget instanceof Node && zone.contains(event.relatedTarget)) return;
+                zone.classList.remove('tasks-board__dropzone--active');
+                if (dropPlaceholder.parentElement === zone) dropPlaceholder.remove();
+            });
             zone.addEventListener('drop', (event) => {
                 event.preventDefault();
-                zone.classList.remove('tasks-board__dropzone--active');
                 const uid = event.dataTransfer?.getData('text/plain') || '';
                 const task = tasks.find((candidate) => candidate.dataset.taskId === uid);
                 const select = task?.querySelector('.task-status-toggle');
+                clearDragState();
                 if (!task || !select || select.value === status) return;
 
                 const previousStatus = statusOf(task);
-                task.classList.add('task-item--status-pending');
+                task.classList.add('task-item--status-pending', 'task-item--just-moved');
 
                 // Drag/drop owns the immediate optimistic visual transition. The
                 // generic select handler persists it but must not re-apply the
@@ -246,6 +290,7 @@
                 select.dataset.uiSynced = '1';
                 select.value = status;
                 select.dispatchEvent(new Event('change', { bubbles: true }));
+                window.setTimeout(() => task.classList.remove('task-item--just-moved'), 520);
                 window.setTimeout(() => task.classList.remove('task-item--status-pending'), 6000);
             });
         }
