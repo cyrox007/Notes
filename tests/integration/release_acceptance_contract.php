@@ -63,6 +63,17 @@ foreach ([
     releaseAcceptanceAssert(str_contains($doc, $marker), "runbook release acceptance не содержит marker {$marker}");
 }
 
+$previousStableUpgrade = releaseAcceptanceText($root, '.github/workflows/1.0.14-to-1.0.15-upgrade.yml');
+releaseAcceptanceAssert(
+    str_contains($previousStableUpgrade, 'name: 1.0.14 → 1.0.15 обновление без переустановки')
+    && str_contains($previousStableUpgrade, 'git archive --format=tar v1.0.14')
+    && str_contains($previousStableUpgrade, '--min-source-version-code=10014')
+    && str_contains($previousStableUpgrade, 'node tests/e2e/admin-update-apply.mjs')
+    && str_contains($previousStableUpgrade, 'admin_update_preservation_probe.php --verify')
+    && str_contains($previousStableUpgrade, "disable_functions=proc_open,proc_get_status,proc_terminate,proc_close,exec,system,passthru,shell_exec,popen"),
+    'exact upgrade 1.0.14 → 1.0.15 не закреплён как web-only проверка с сохранением данных'
+);
+
 $windowsAcceptance = releaseAcceptanceText($root, 'docs/WINDOWS_OSPANEL_ACCEPTANCE_1.0.15.md');
 releaseAcceptanceAssert(
     str_contains($windowsAcceptance, '# Релизная приёмка Windows / OSPanel для 1.0.15')
