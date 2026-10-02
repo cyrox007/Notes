@@ -47,6 +47,39 @@ foreach (['idx_user_notes', 'idx_updated_notes', 'idx_notes_profile_public'] as 
     );
 }
 
+$orderedIndexPattern = '/\b(?:KEY|INDEX)\b[^;]*\b(?:ASC|DESC)\b/i';
+$canonicalSchemas = glob($root . '/database/*_schema.sql') ?: [];
+dumpCompatibilityAssert($canonicalSchemas !== [], 'не найдены канонические схемы БД');
+foreach ($canonicalSchemas as $schemaPath) {
+    $sql = (string) file_get_contents($schemaPath);
+    dumpCompatibilityAssert(
+        preg_match($orderedIndexPattern, $sql) !== 1,
+        'ordered index part остался в канонической схеме: ' . basename($schemaPath)
+    );
+}
+
+$historicalOrderedIndexFiles = [];
+foreach (glob($root . '/database/migrations/*.sql') ?: [] as $migrationPath) {
+    $sql = (string) file_get_contents($migrationPath);
+    $sql = preg_replace('/^\s*--.*$/m', '', $sql) ?? $sql;
+    if (preg_match($orderedIndexPattern, $sql) === 1) {
+        $historicalOrderedIndexFiles[] = basename($migrationPath);
+    }
+}
+sort($historicalOrderedIndexFiles, SORT_STRING);
+dumpCompatibilityAssert(
+    $historicalOrderedIndexFiles === ['20260914_profile_publication.sql'],
+    'обнаружены новые миграции с ASC/DESC в определениях индексов: '
+        . implode(', ', $historicalOrderedIndexFiles)
+);
+dumpCompatibilityAssert(
+    str_contains(
+        (string) file_get_contents($root . '/database/migrations/20260914_profile_publication.sql'),
+        '`updated_note` DESC'
+    ),
+    'неизменяемая историческая миграция профиля неожиданно изменилась'
+);
+
 $migrationName = '20261002_notes_dump_compatibility.sql';
 $manifest = json_decode(
     (string) file_get_contents($root . '/database/migrations/manifest.json'),
