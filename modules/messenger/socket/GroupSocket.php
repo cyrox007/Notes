@@ -134,6 +134,20 @@ final class GroupSocket
         });
     }
 
+    public function delete_group(array $connections, SocketConnection $connection, string $userUid, array $payload = []): void
+    {
+        $dialogUid = $this->requiredString($payload, 'dialog_uid');
+        $before = $this->messenger->participantUids($userUid, $dialogUid);
+
+        $this->guard($connection, function () use ($connections, $userUid, $dialogUid, $before): void {
+            $this->groups->deleteGroup($userUid, $dialogUid);
+            $this->broadcastKnown($connections, $before, [
+                'action' => 'group_deleted',
+                'dialog_uid' => $dialogUid,
+            ]);
+        });
+    }
+
     private function mutate(
         array $connections,
         SocketConnection $connection,
