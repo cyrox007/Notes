@@ -222,8 +222,7 @@ final class AdminController extends Controller
         try {
             $message = (new AdminUserService())->requestDeletion(
                 (int) $request->session('user_id', 0),
-                (int) $request->post('user_id', 0),
-                30
+                (int) $request->post('user_id', 0)
             );
             $this->respondAdminAction($request, true, $message);
         } catch (InvalidArgumentException|DomainException $e) {
