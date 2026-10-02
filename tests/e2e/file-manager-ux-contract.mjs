@@ -73,7 +73,6 @@ try {
   await page.locator('.file-manager-dropzone').waitFor({ state: 'visible', timeout: 5000 });
   await page.getByText('Перетащите файлы сюда', { exact: true }).waitFor({ state: 'visible' });
 
-  const dropNavigation = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 });
   await page.evaluate(() => {
     const root = document.querySelector('.file-manager');
     const transfer = window.__fileManagerDropTransfer;
@@ -89,7 +88,6 @@ try {
       dataTransfer: transfer,
     }));
   });
-  await dropNavigation;
 
   const droppedItem = page.locator('.file-manager__item').filter({
     has: page.locator(`.file-manager__item-name:text-is("${droppedName}")`),
@@ -112,10 +110,7 @@ try {
   const folderName = `UX search ${stamp}`;
   await page.locator('#btn-create-folder').click();
   await page.locator('#folder-name-input').fill(folderName);
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }),
-    page.locator('#modal-create-folder .modal-ok').click(),
-  ]);
+  await page.locator('#modal-create-folder .modal-ok').click();
 
   const item = page.locator('.file-manager__item[data-type="folder"]').filter({ hasText: folderName });
   await item.waitFor({ state: 'visible', timeout: 10000 });
@@ -129,7 +124,7 @@ try {
   await confirmDelete(page);
   await item.waitFor({ state: 'detached', timeout: 10000 });
 
-  console.log('Файловый менеджер: поиск, сортировка, вид, drag/drop и открытие объекта — OK');
+  console.log('Файловый менеджер: изменения видны без ручной перезагрузки, поиск, сортировка, drag/drop и открытие объекта — OK');
 } finally {
   await context.close();
   await browser.close();
