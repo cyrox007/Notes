@@ -62,9 +62,9 @@ try {
   const adminResponse = await admin.goto(`${baseUrl}/admin/`, { waitUntil: 'domcontentloaded' });
   if (!adminResponse || adminResponse.status() !== 200) throw new Error(`Admin page returned ${adminResponse?.status()}`);
 
-  // Open the account-creation disclosure before exercising provisioning.
+  // Открываем форму создания пользователя перед проверкой административного сценария.
   await admin.locator('.admin-create-user > summary').click();
-  // Admin-side provisioning works regardless of public registration mode.
+  // Создание пользователя администратором работает независимо от публичного режима регистрации.
   await admin.locator('#new_user_login').fill('browser-admin-created');
   await admin.locator('#new_user_email').fill('browser-admin-created@example.test');
   await admin.locator('#new_user_password').fill('BrowserAdminCreated-2026');
@@ -96,7 +96,7 @@ try {
     throw new Error(`Пустое состояние инвайтов потеряло внутренние отступы: ${emptyInvitePadding.join('/')}`);
   }
 
-  // Enable open registration from the real admin settings page.
+  // Включаем открытую регистрацию через реальную страницу настроек.
   await admin.locator('#registration_mode').selectOption('open');
   await submitAndWait(admin, admin.getByRole('button', { name: 'Сохранить режим', exact: true }));
   await admin.locator('.admin-page__flash').filter({ hasText: 'Режим регистрации обновлён' })
@@ -112,14 +112,28 @@ try {
     publicPage.waitForURL((url) => url.pathname.includes('/auth/registration'), { timeout: 15000 }),
     openLink.click(),
   ]);
+
+  const brandMark = publicPage.locator('img.login-page__brand-mark');
+  await brandMark.waitFor({ state: 'visible', timeout: 5000 });
+  const brandState = await brandMark.evaluate((image) => ({
+    src: image.getAttribute('src') || '',
+    naturalWidth: image.naturalWidth,
+  }));
+  if (!brandState.src.endsWith('/assets/img/workspace-brand-mark.svg') || brandState.naturalWidth <= 0) {
+    throw new Error(`Фирменный знак регистрации не загрузился: ${JSON.stringify(brandState)}`);
+  }
+  if (await publicPage.locator('#user_phone').getAttribute('placeholder') !== '+7 ...') {
+    throw new Error('Регистрация показывает неверный телефонный код страны');
+  }
+
   await fillRegistration(publicPage, 'open');
   await submitAndWait(publicPage, publicPage.getByRole('button', { name: 'Создать аккаунт', exact: true }));
   await publicPage.waitForURL((url) => url.pathname.includes('/auth/login'), { timeout: 10000 });
   await login(publicPage, 'browser-open', 'BrowserPass-open-2026');
   await publicContext.close();
 
-  // Switch to invite-only, create a one-use invite, and consume it from a
-  // separate anonymous browser context.
+  // Переключаемся на регистрацию по приглашениям, создаём одноразовый код
+  // и используем его в отдельном анонимном контексте браузера.
   await admin.goto(`${baseUrl}/admin/registration`, { waitUntil: 'domcontentloaded' });
   await admin.locator('#registration_mode').selectOption('invite');
   await submitAndWait(admin, admin.getByRole('button', { name: 'Сохранить режим', exact: true }));
@@ -127,7 +141,12 @@ try {
   await admin.locator('#invite_max_uses').fill('1');
   await submitAndWait(admin, admin.getByRole('button', { name: 'Создать инвайт', exact: true }));
   const inviteCode = await admin.locator('#new_invite_code').inputValue();
-  if (!inviteCode || inviteCode.length < 20) throw new Error('Admin UI did not reveal the one-time invite code');
+  if (!inviteCode || inviteCode.length < 20) throw new Error('Админка не показала одноразовый код приглашения');
+
+  const copyInvite = admin.locator('[data-copy-target="#new_invite_code"]');
+  await copyInvite.waitFor({ state: 'visible', timeout: 5000 });
+  await copyInvite.click();
+  await copyInvite.getByText('Скопировано', { exact: true }).waitFor({ state: 'visible', timeout: 5000 });
 
   const inviteContext = await browser.newContext();
   const invitePage = await inviteContext.newPage();
