@@ -128,6 +128,24 @@ try {
         'сервисный журнал не пометил очищенные значения'
     );
 
+    $diagnostics = new SupportDiagnostics($root);
+    $diagnosticsReflection = new ReflectionClass($diagnostics);
+    $privateRootProperty = $diagnosticsReflection->getProperty('privateRoot');
+    $privateRootProperty->setValue($diagnostics, 'C:/OSPanel/home/.workspace-organizer-private-fixture');
+    $appRootProperty = $diagnosticsReflection->getProperty('appRoot');
+    $appRootProperty->setValue($diagnostics, 'C:/OSPanel/domains/notes.local');
+
+    $sanitizeMethod = $diagnosticsReflection->getMethod('sanitize');
+    $windowsPathFixture = $sanitizeMethod->invoke(
+        $diagnostics,
+        'c:/ospanel/home/.workspace-organizer-private-fixture/updates/workspace-maintenance.json',
+        0
+    );
+    supportDiagnosticsAssert(
+        $windowsPathFixture === '[private-storage]/updates/workspace-maintenance.json',
+        'Windows-путь private storage раскрывается при отличии регистра drive/path'
+    );
+
     $grant = (new SupportDiagnostics($root))->createGrant(7, 120);
     $token = (string) ($grant['token'] ?? '');
     supportDiagnosticsAssert(
