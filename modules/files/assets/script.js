@@ -20,8 +20,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const folderNameInput = document.getElementById('folder-name-input');
     const renameInput = document.getElementById('rename-input');
     const renameIdInput = document.getElementById('rename-id');
-    const progressBar = modalUploadProgress ? modalUploadProgress.querySelector('.progress-bar') : null;
-    const progressBarFill = document.getElementById('progress-bar-fill');
+    const progressBar = document.getElementById('upload-progress-bar');
     const progressPercent = document.getElementById('progress-percent');
     const uploadFileName = document.getElementById('upload-file-name');
 
@@ -200,9 +199,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function resetProgress(fileName) {
         if (uploadFileName) uploadFileName.textContent = fileName;
-        if (progressBarFill) progressBarFill.style.width = '0%';
+        if (progressBar instanceof HTMLProgressElement) progressBar.value = 0;
         if (progressPercent) progressPercent.textContent = '0%';
-        if (progressBar) progressBar.setAttribute('aria-valuenow', '0');
     }
 
     function formatUploadLimit(bytes) {
@@ -236,9 +234,8 @@ document.addEventListener('DOMContentLoaded', function () {
             xhr.upload.onprogress = function (event) {
                 if (!event.lengthComputable) return;
                 const percent = Math.round((event.loaded / event.total) * 100);
-                if (progressBarFill) progressBarFill.style.width = `${percent}%`;
+                if (progressBar instanceof HTMLProgressElement) progressBar.value = percent;
                 if (progressPercent) progressPercent.textContent = `${percent}%`;
-                if (progressBar) progressBar.setAttribute('aria-valuenow', String(percent));
             };
 
             xhr.onload = function () {
