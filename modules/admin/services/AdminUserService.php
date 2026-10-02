@@ -6,6 +6,7 @@ namespace App\Services;
 
 require_once dirname(__DIR__, 3) . '/app/services/LicenseSeatPolicy.php';
 
+use App\Helpers\CryptMethods;
 use Core\DatabaseManager;
 use DomainException;
 use InvalidArgumentException;
@@ -37,7 +38,7 @@ final class AdminUserService
     {
         $this->permissions->requirePermission($actorId, 'admin.access');
         $users = $this->db->fetchAll(
-            'SELECT id,uid,username,email,firstname,lastname,role,is_active,account_status,created_at '
+            'SELECT id,uid,username,email,firstname,patronymic,lastname,phone,role,is_active,account_status,deletion_requested_at,purge_after,anonymized_at,created_at '
             . 'FROM users ORDER BY id ASC'
         );
         return $this->decorateUsers($users, $actorId);
@@ -77,7 +78,7 @@ final class AdminUserService
         $whereSql = $where === [] ? '' : ' WHERE ' . implode(' AND ', $where);
         $total = (int) $this->db->fetchValue('SELECT COUNT(*) FROM users' . $whereSql, $params);
         $users = $this->db->fetchAll(
-            'SELECT id,uid,username,email,firstname,lastname,role,is_active,account_status,created_at '
+            'SELECT id,uid,username,email,firstname,patronymic,lastname,phone,role,is_active,account_status,deletion_requested_at,purge_after,anonymized_at,created_at '
             . 'FROM users' . $whereSql
             . ' ORDER BY ' . $sortColumn . ' ' . $directionSql . ', id ASC'
             . ' LIMIT ' . $limit . ' OFFSET ' . $offset,
@@ -96,6 +97,13 @@ final class AdminUserService
         $this->permissions->requirePermission($actorId, 'admin.users.manage');
         $target = $this->targetUser($targetId);
         $this->assertManageableTarget($actorId, $target);
+
+        if (!empty($target['anonymized_at'])) {
+            throw new DomainException('Очищенный аккаунт нельзя активировать или блокировать', 409);
+        }
+        if ($status === 'active' && !empty($target['deletion_requested_at'])) {
+            throw new DomainException('Сначала отмените запланированное удаление аккаунта', 409);
+        }
 
         if (
             $status === 'blocked'
@@ -170,6 +178,151 @@ final class AdminUserService
         return 'Пользователь деактивирован, связанные данные сохранены';
     }
 
+    /** @param array<string,mixed> $input */
+    public function updateUser(int $actorId, int $targetId, array $input): string
+    {
+        $this->permissions->requirePermission($actorId, 'admin.users.manage');
+        $target = $this->targetUser($targetId);
+        $this->assertManageableTarget($actorId, $target);
+
+        if (!empty($target['anonymized_at'])) {
+            throw new DomainException('Персональные данные этого аккаунта уже очищены', 409);
+        }
+        if (!empty($target['deletion_requested_at'])) {
+            throw new DomainException('Сначала отмените запланированное удаление аккаунта', 409);
+        }
+
+        $username = trim((string) ($input['username'] ?? ''));
+        $email = mb_strtolower(trim((string) ($input['email'] ?? '')));
+        $firstname = trim((string) ($input['firstname'] ?? ''));
+        $patronymic = trim((string) ($input['patronymic'] ?? ''));
+        $lastname = trim((string) ($input['lastname'] ?? ''));
+        $phone = trim((string) ($input['phone'] ?? ''));
+        $password = (string) ($input['password'] ?? '');
+
+        if (preg_match('/^[A-Za-z0-9._-]{3,50}$/', $username) !== 1) {
+            throw new InvalidArgumentException('Логин должен содержать 3–50 латинских букв, цифр, точек, дефисов или подчёркиваний', 422);
+        }
+        if ($email === '' || mb_strlen($email) > 190 || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+            throw new InvalidArgumentException('Укажите корректный email', 422);
+        }
+        if ($firstname === '' || mb_strlen($firstname) > 80) {
+            throw new InvalidArgumentException('Укажите корректное имя длиной до 80 символов', 422);
+        }
+        if ($lastname === '' || mb_strlen($lastname) > 80) {
+            throw new InvalidArgumentException('Укажите корректную фамилию длиной до 80 символов', 422);
+        }
+        if ($patronymic !== '' && mb_strlen($patronymic) > 80) {
+            throw new InvalidArgumentException('Отчество слишком длинное', 422);
+        }
+        if ($phone !== '' && mb_strlen($phone) > 32) {
+            throw new InvalidArgumentException('Телефон слишком длинный', 422);
+        }
+        if ($password !== '' && (strlen($password) < 10 || strlen($password) > 200)) {
+            throw new InvalidArgumentException('Новый пароль должен содержать от 10 до 200 символов', 422);
+        }
+
+        $duplicate = $this->db->fetchOne(
+            'SELECT id FROM users
+             WHERE id <> :id AND (username = :username OR email = :email)
+             LIMIT 1',
+            [':id' => $targetId, ':username' => $username, ':email' => $email]
+        );
+        if ($duplicate !== null) {
+            throw new DomainException('Пользователь с таким логином или email уже существует', 409);
+        }
+
+        $sets = [
+            'username = :username',
+            'email = :email',
+            'firstname = :firstname',
+            'patronymic = :patronymic',
+            'lastname = :lastname',
+            'phone = :phone',
+            'updated_at = :updated_at',
+        ];
+        $params = [
+            ':username' => $username,
+            ':email' => $email,
+            ':firstname' => $firstname,
+            ':patronymic' => $patronymic !== '' ? $patronymic : null,
+            ':lastname' => $lastname,
+            ':phone' => $phone !== '' ? $phone : null,
+            ':updated_at' => date('Y-m-d H:i:s'),
+            ':id' => $targetId,
+        ];
+        if ($password !== '') {
+            $sets[] = 'password_hash = :password_hash';
+            $params[':password_hash'] = CryptMethods::hashPassword($password);
+        }
+
+        $this->db->execute(
+            'UPDATE users SET ' . implode(', ', $sets) . ' WHERE id = :id',
+            $params
+        );
+
+        return $password === ''
+            ? 'Регистрационные данные пользователя обновлены'
+            : 'Данные пользователя и пароль обновлены';
+    }
+
+    public function requestDeletion(int $actorId, int $targetId, int $retentionDays = 30): string
+    {
+        $this->permissions->requirePermission($actorId, 'admin.users.manage');
+        $target = $this->targetUser($targetId);
+        $this->assertManageableTarget($actorId, $target);
+
+        if (!empty($target['anonymized_at'])) {
+            return 'Персональные данные аккаунта уже очищены';
+        }
+
+        $ownedGroup = $this->db->fetchOne(
+            "SELECT d.uid, COALESCE(NULLIF(d.name, ''), 'Без названия') AS name
+             FROM user_to_dialogs utd
+             JOIN dialogs d ON d.id = utd.dialog_id
+             WHERE utd.user_id = :user_id
+               AND utd.role = 'owner'
+               AND utd.is_deleted = 0
+               AND d.type = 'group'
+             LIMIT 1",
+            [':user_id' => $targetId]
+        );
+        if ($ownedGroup !== null) {
+            throw new DomainException(
+                'Перед удалением передайте владение группой «' . (string) $ownedGroup['name'] . '» или удалите её',
+                409
+            );
+        }
+
+        $purgeAfter = (new UserLifecycleService($this->db))->schedule($targetId, $retentionDays);
+        return 'Аккаунт помечен на удаление. Персональные данные будут очищены после ' . $purgeAfter;
+    }
+
+    public function cancelDeletion(int $actorId, int $targetId): string
+    {
+        $this->permissions->requirePermission($actorId, 'admin.users.manage');
+        $target = $this->targetUser($targetId);
+        $this->assertManageableTarget($actorId, $target);
+
+        if (!empty($target['anonymized_at'])) {
+            throw new DomainException('Персональные данные уже очищены; отменить удаление нельзя', 409);
+        }
+
+        (new UserLifecycleService($this->db))->cancel($targetId);
+        return 'Запланированное удаление отменено. Аккаунт остаётся деактивированным.';
+    }
+
+    public function purgeDue(int $actorId): string
+    {
+        $this->permissions->requirePermission($actorId, 'admin.users.manage');
+        if (!$this->permissions->hasRole($actorId, 'superadmin')) {
+            throw new DomainException('Ручная очистка доступна только суперадминистратору', 403);
+        }
+
+        $result = (new UserLifecycleService($this->db))->purgeDue();
+        return 'Очищено аккаунтов: ' . (int) $result['processed'];
+    }
+
     /** @param list<array<string,mixed>> $users @return list<array<string,mixed>> */
     private function decorateUsers(array $users, int $actorId): array
     {
@@ -212,12 +365,22 @@ final class AdminUserService
             $user['status_code'] = in_array($status, ['active', 'inactive', 'blocked'], true)
                 ? $status
                 : 'inactive';
-            $user['status_label'] = match ($user['status_code']) {
-                'inactive' => 'Деактивирован',
-                'blocked' => 'Заблокирован',
-                default => 'Активен',
-            };
-            $user['can_manage'] = $userId !== $actorId && !isset($privileged[$userId]);
+            if (!empty($user['anonymized_at'])) {
+                $user['status_code'] = 'anonymized';
+                $user['status_label'] = 'Персональные данные очищены';
+            } elseif (!empty($user['deletion_requested_at'])) {
+                $user['status_code'] = 'deletion_pending';
+                $user['status_label'] = 'Удаление запланировано';
+            } else {
+                $user['status_label'] = match ($user['status_code']) {
+                    'inactive' => 'Деактивирован',
+                    'blocked' => 'Заблокирован',
+                    default => 'Активен',
+                };
+            }
+            $user['can_manage'] = $userId !== $actorId
+                && !isset($privileged[$userId])
+                && empty($user['anonymized_at']);
         }
         unset($user);
         return $users;
@@ -231,7 +394,7 @@ final class AdminUserService
         }
 
         $target = $this->db->fetchOne(
-            'SELECT id,uid,username,role,is_active,account_status,avatar FROM users WHERE id = :id LIMIT 1',
+            'SELECT id,uid,username,email,firstname,patronymic,lastname,phone,role,is_active,account_status,avatar,deletion_requested_at,purge_after,anonymized_at FROM users WHERE id = :id LIMIT 1',
             [':id' => $targetId]
         );
         if (!$target) {
