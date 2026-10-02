@@ -84,6 +84,7 @@ final class UpdateOfflineBundle
         }
 
         $packageTemp = null;
+        $uploadTempDir = null;
         try {
             $names = [];
             for ($i = 0; $i < $zip->numFiles; $i++) {
@@ -138,8 +139,18 @@ final class UpdateOfflineBundle
             $stager = new UpdatePackageStager($this->appRoot);
             $stager->assertCompatibility($manifest, $currentVersionCode, $currentPhpVersion);
 
-            $packageTemp = $stageRoot . DIRECTORY_SEPARATOR
-                . '.offline-package-' . bin2hex(random_bytes(8)) . '-' . basename($packageName);
+            $uploadTempDir = $stageRoot . DIRECTORY_SEPARATOR
+                . '.offline-upload-' . bin2hex(random_bytes(8));
+            $oldUmask = umask(0077);
+            $created = @mkdir($uploadTempDir, 0700, false);
+            umask($oldUmask);
+            if (!$created && !is_dir($uploadTempDir)) {
+                throw new RuntimeException('Не удалось создать временный каталог offline-пакета');
+            }
+
+            // UpdatePackageStager требует точное имя файла из подписанного manifest.
+            // Случайность переносим в имя каталога, а не в basename ZIP релиза.
+            $packageTemp = $uploadTempDir . DIRECTORY_SEPARATOR . $packageName;
             $input = $zip->getStream($packageName);
             if (!is_resource($input)) {
                 throw new RuntimeException('Не удалось открыть ZIP релиза внутри offline-пакета');
@@ -194,6 +205,9 @@ final class UpdateOfflineBundle
             $zip->close();
             if (is_string($packageTemp) && $packageTemp !== '' && is_file($packageTemp)) {
                 @unlink($packageTemp);
+            }
+            if (is_string($uploadTempDir) && $uploadTempDir !== '' && is_dir($uploadTempDir)) {
+                @rmdir($uploadTempDir);
             }
         }
     }
