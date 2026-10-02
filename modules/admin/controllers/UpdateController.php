@@ -69,6 +69,8 @@ final class UpdateController extends Controller
                 'stage_configured' => false,
                 'can_check' => false,
                 'can_stage' => false,
+                'can_offline_upload' => false,
+                'offline_zip_available' => class_exists(\ZipArchive::class),
                 'can_manage_stage' => false,
                 'issues' => [$e->getMessage() ?: 'Не удалось определить состояние updater'],
             ];
@@ -182,6 +184,44 @@ final class UpdateController extends Controller
         }
     }
 
+    public function uploadOffline(Request $request): void
+    {
+        $request->unsetSession(self::STAGE_BINDING_SESSION_KEY);
+        $request->unsetSession(self::APPLY_BINDING_SESSION_KEY);
+
+        try {
+            $file = $request->file('offline_update_bundle');
+            if (!is_array($file)) {
+                throw new InvalidArgumentException('Выберите offline-пакет обновления');
+            }
+
+            $result = (new AdminUpdateService())->stageUploadedBundle(
+                (int) $request->session('user_id', 0),
+                $file
+            );
+            $safe = $this->safeStageResult($result);
+            $request->setSession('updates_result', $safe);
+            $request->setSession(self::APPLY_BINDING_SESSION_KEY, [
+                'target_version_code' => (int) ($result['target_version_code'] ?? 0),
+                'package_sha256' => strtolower((string) ($result['package_sha256'] ?? '')),
+                'stage_dir' => (string) ($result['stage_dir'] ?? ''),
+                'source' => 'offline_bundle',
+            ]);
+
+            $this->redirectWithFlash(
+                $request,
+                true,
+                'Offline-пакет проверен по production-подписи и помещён во внешний staging. Можно устанавливать.'
+            );
+        } catch (\Throwable $e) {
+            $this->redirectWithFlash(
+                $request,
+                false,
+                $e->getMessage() ?: 'Не удалось проверить offline-пакет обновления'
+            );
+        }
+    }
+
     public function webStart(Request $request): void
     {
         $binding = $request->session(self::APPLY_BINDING_SESSION_KEY);
@@ -190,11 +230,20 @@ final class UpdateController extends Controller
 
         try {
             [$targetVersionCode, $packageSha256] = $this->validatedBinding($binding);
-            $result = (new AdminUpdateService())->beginWebApply(
-                (int) $request->session('user_id', 0),
-                $targetVersionCode,
-                $packageSha256
-            );
+            $stageDir = is_array($binding) ? trim((string) ($binding['stage_dir'] ?? '')) : '';
+            $service = new AdminUpdateService();
+            $result = $stageDir !== ''
+                ? $service->beginStagedWebApply(
+                    (int) $request->session('user_id', 0),
+                    $stageDir,
+                    $targetVersionCode,
+                    $packageSha256
+                )
+                : $service->beginWebApply(
+                    (int) $request->session('user_id', 0),
+                    $targetVersionCode,
+                    $packageSha256
+                );
 
             $this->jsonResponse(200, [
                 'success' => true,
@@ -367,11 +416,20 @@ final class UpdateController extends Controller
                 throw new InvalidArgumentException('Сначала повторно проверьте подписанное обновление');
             }
 
-            $result = (new AdminUpdateService())->apply(
-                (int) $request->session('user_id', 0),
-                $targetVersionCode,
-                $packageSha256
-            );
+            $stageDir = trim((string) ($binding['stage_dir'] ?? ''));
+            $service = new AdminUpdateService();
+            $result = $stageDir !== ''
+                ? $service->applyStaged(
+                    (int) $request->session('user_id', 0),
+                    $stageDir,
+                    $targetVersionCode,
+                    $packageSha256
+                )
+                : $service->apply(
+                    (int) $request->session('user_id', 0),
+                    $targetVersionCode,
+                    $packageSha256
+                );
             $this->resetOpcodeCacheAfterUpdate();
             $request->setSession('updates_result', $this->safeApplyResult($result));
             $this->redirectWithFlash(
@@ -567,6 +625,7 @@ final class UpdateController extends Controller
         return [
             'kind' => 'stage',
             'status' => (string) ($result['status'] ?? 'unknown'),
+            'source' => (string) ($result['source'] ?? 'remote'),
             'channel' => (string) ($result['channel'] ?? ''),
             'target_version' => (string) ($result['target_version'] ?? ''),
             'target_version_code' => (int) ($result['target_version_code'] ?? 0),
