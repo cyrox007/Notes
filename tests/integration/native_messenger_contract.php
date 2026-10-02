@@ -49,6 +49,7 @@ foreach ([
     'message-file-input', 'message-storage-button', 'storage-file-dialog', 'storage-file-list',
     'workspace-create-button', 'workspace-create-menu', 'workspace-action-dialog',
     'workspace-action-form', 'new-chat-dialog', 'group-info-dialog', 'group-member-list',
+    'dialog-list-loading', 'dialog-list-retry', 'group-delete-button',
 ] as $id) {
     nativeMessengerAssert(str_contains($view, 'id="' . $id . '"'), "Messenger DOM hook {$id} is missing");
 }
@@ -78,6 +79,14 @@ nativeMessengerAssert(str_contains($script, 'this.root.dataset.socketUrl'), 'Mes
 nativeMessengerAssert(str_contains($script, "deepLink.get('dialog')"), 'Messenger cannot deep-link back to a source dialog');
 nativeMessengerAssert(str_contains($script, "deepLink.get('message')"), 'Messenger cannot deep-link back to a source message');
 nativeMessengerAssert(str_contains($script, 'focusRequestedMessage()'), 'Messenger source-message highlighting contract is missing');
+nativeMessengerAssert(str_contains($script, 'loadInitialDialogs()'), 'Messenger не запускает быстрый первичный snapshot диалогов');
+nativeMessengerAssert(
+    str_contains($script, "performHttpEvent('MessangerSocket:get_dialogs', {})"),
+    'первичная загрузка диалогов всё ещё зависит от WebSocket/Long Poll'
+);
+nativeMessengerAssert(str_contains($script, 'sessionStorage.getItem(this.dialogCacheKey)'), 'Messenger не восстанавливает безопасный session-кэш списка диалогов');
+nativeMessengerAssert(str_contains($script, "this.el.newChatButton.disabled = state !== 'loaded'"), 'создание нового чата доступно до подтверждения списка существующих диалогов');
+nativeMessengerAssert(str_contains($script, "this.dialogSnapshotState = 'error'"), 'Messenger не различает ошибку загрузки и реально пустой список');
 
 $workspaceActions = (string) file_get_contents($module . '/views/workspace-actions.js');
 nativeMessengerAssert(str_contains($workspaceActions, "appPath('/messenger/workspace/' + kind)"), 'Messenger workspace actions are not BASE_PATH-aware');
@@ -146,8 +155,9 @@ nativeMessengerAssert(str_contains($visualRefresh, '@media(max-width:760px)'), '
 nativeMessengerAssert(!str_contains($visualRefresh, '.messenger-chat__actions{max-width:164px;overflow-x:auto'), 'действия чата снова скрываются горизонтальным обрезанием');
 nativeMessengerAssert(!str_contains($visualRefresh, '.messenger-composer__tools{max-width:122px;overflow-x:auto'), 'инструменты ввода снова скрываются горизонтальным обрезанием');
 nativeMessengerAssert(str_contains($messengerStyle, '.messenger-list__empty{min-height:0;flex:1}'), 'пустое состояние списка диалогов не занимает свободную область');
-nativeMessengerAssert(str_contains($script, 'const showEmptyState = this.dialogs.length === 0'), 'Messenger не определяет глобально пустой список диалогов');
-nativeMessengerAssert(str_contains($script, 'this.el.dialogList.hidden = showEmptyState'), 'пустой список диалогов продолжает резервировать место над empty-state');
+nativeMessengerAssert(str_contains($script, "const confirmed = this.dialogSnapshotState === 'loaded'"), 'Messenger показывает пустое состояние до ответа сервера');
+nativeMessengerAssert(str_contains($script, 'const showEmptyState = confirmed && this.dialogs.length === 0'), 'Messenger не отличает подтверждённый пустой список от загрузки');
+nativeMessengerAssert(str_contains($script, 'this.el.dialogList.hidden = this.dialogs.length === 0'), 'список диалогов не сворачивается при отсутствии элементов');
 $workspaceCss = (string) file_get_contents($module . '/views/workspace-actions.css');
 $storageCss = (string) file_get_contents($module . '/views/storage-files.css');
 nativeMessengerAssert(str_contains($workspaceCss, '.messenger-workspace-task-fields[hidden]{display:none!important}'), 'workspace task fields ignore hidden state');
@@ -170,6 +180,15 @@ nativeMessengerAssert(
         && !str_contains($groupCss, '.messenger-group-dialog{width:'),
     'group modal must not override the shared dialog width'
 );
+$groupService = (string) file_get_contents($module . '/services/MessengerGroupService.php');
+$groupSocket = (string) file_get_contents($module . '/socket/GroupSocket.php');
+$groupJs = (string) file_get_contents($module . '/views/group.js');
+nativeMessengerAssert(str_contains($groupService, 'public function deleteGroup'), 'Messenger не умеет удалить группу целиком');
+nativeMessengerAssert(str_contains($groupService, "if ($context['role'] !== 'owner')"), 'удаление группы не ограничено владельцем');
+nativeMessengerAssert(str_contains($groupSocket, 'public function delete_group'), 'realtime action удаления группы отсутствует');
+nativeMessengerAssert(str_contains($serverSource, "'delete_group'"), 'удаление группы отсутствует в realtime allow-list');
+nativeMessengerAssert(str_contains($groupJs, "GroupSocket:delete_group"), 'кнопка удаления группы не отправляет действие');
+nativeMessengerAssert(str_contains($groupJs, "data?.action === 'group_deleted'"), 'клиент не закрывает удалённую группу');
 nativeMessengerAssert(
     str_contains($storageCss, '.messenger-storage-dialog__surface{width:100%;max-height:')
         && !str_contains($storageCss, '.messenger-storage-dialog{width:'),
