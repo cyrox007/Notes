@@ -290,7 +290,10 @@ ob_start();
                     </div>
                     <div class="messenger-group-section__footer"><button class="messenger-primary-button" id="group-add-button" type="button">Добавить выбранных</button></div>
                 </section>
-                <section class="messenger-group-section messenger-group-danger-row"><button class="messenger-danger-button" id="group-leave-button" type="button">Выйти из группы</button></section>
+                <section class="messenger-group-section messenger-group-danger-row">
+                    <button class="messenger-danger-button" id="group-leave-button" type="button">Выйти из группы</button>
+                    <button class="messenger-danger-button" id="group-delete-button" type="button" hidden>Удалить группу</button>
+                </section>
             </div>
         </div>
     </form>
