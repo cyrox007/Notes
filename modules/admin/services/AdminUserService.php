@@ -294,6 +294,29 @@ final class AdminUserService
             );
         }
 
+        if ($this->tableExists('task_boards')) {
+            $ownedBoard = $this->db->fetchOne(
+                "SELECT id,name FROM task_boards
+                 WHERE owner_user_id = :user_id
+                   AND (audience = 'all_active'
+                        OR EXISTS (
+                            SELECT 1 FROM task_board_members m
+                            WHERE m.board_id = task_boards.id
+                              AND m.user_id <> :user_id_member
+                        ))
+                 LIMIT 1",
+                [':user_id' => $targetId, ':user_id_member' => $targetId]
+            );
+            if ($ownedBoard !== null) {
+                throw new DomainException(
+                    'Перед удалением передайте владение общей доской задач «'
+                    . (string) ($ownedBoard['name'] ?? 'Без названия')
+                    . '» или удалите её',
+                    409
+                );
+            }
+        }
+
         if ($retentionDays === null) {
             $configured = trim((string) (getenv('RETENTION_ACCOUNT_DELETE_DAYS') ?: ''));
             $retentionDays = ctype_digit($configured)
@@ -434,6 +457,15 @@ final class AdminUserService
         if ($hasAdministrativeAssignment) {
             throw new DomainException('Административный аккаунт защищён от этой операции', 403);
         }
+    }
+
+    private function tableExists(string $table): bool
+    {
+        return $this->db->fetchValue(
+            'SELECT 1 FROM information_schema.tables
+             WHERE table_schema = DATABASE() AND table_name = :table_name LIMIT 1',
+            [':table_name' => $table]
+        ) !== null;
     }
 
     /** @param list<array{code:string,name:string}> $roles */
