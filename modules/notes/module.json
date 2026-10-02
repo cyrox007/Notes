@@ -39,7 +39,8 @@
     ],
     "migrations": [
       "database/migrations/20260913_notes_private_attachments.sql",
-      "database/migrations/20260918_notes_retention_timestamps.sql"
+      "database/migrations/20260918_notes_retention_timestamps.sql",
+      "database/migrations/20261002_notes_dump_compatibility.sql"
     ]
   }
 }
