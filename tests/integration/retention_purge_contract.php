@@ -33,6 +33,12 @@ retentionAssert(
     in_array('20261002_user_lifecycle.sql', $migrations, true),
     'canonical manifest missing user lifecycle migration'
 );
+$ownership = retentionText($root, 'core/DatabaseOwnership.php');
+retentionAssert(
+    str_contains($ownership, "'database/migrations/20261002_user_lifecycle.sql'"),
+    'core database ownership не включает migration lifecycle пользователей'
+);
+
 $lifecycleSql = retentionText($root, 'database/migrations/20261002_user_lifecycle.sql');
 foreach (['deletion_requested_at', 'purge_after', 'anonymized_at', 'idx_users_purge'] as $marker) {
     retentionAssert(str_contains($lifecycleSql, $marker), "user lifecycle migration missing {$marker}");
