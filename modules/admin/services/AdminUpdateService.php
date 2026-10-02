@@ -10,6 +10,7 @@ use Core\UpdateArchiveInspector;
 use Core\UpdateDownloadCredentials;
 use Core\UpdateHttpsTransport;
 use Core\UpdateManifestVerifier;
+use Core\UpdateOfflineBundle;
 use Core\UpdatePackageStager;
 use Core\UpdatePhpCli;
 use Core\UpdateProcessRunner;
@@ -25,6 +26,7 @@ use RuntimeException;
 $updateCoreRoot = dirname(__DIR__, 3);
 require_once $updateCoreRoot . '/core/UpdateAccessBootstrap.php';
 require_once $updateCoreRoot . '/core/UpdateManifestVerifier.php';
+require_once $updateCoreRoot . '/core/UpdateOfflineBundle.php';
 require_once $updateCoreRoot . '/core/UpdatePackageStager.php';
 require_once $updateCoreRoot . '/core/UpdateArchiveInspector.php';
 require_once $updateCoreRoot . '/core/UpdatePhpCli.php';
@@ -135,6 +137,8 @@ final class AdminUpdateService
             'update_access_mode' => $accessMode,
             'can_check' => $canCheck,
             'can_stage' => $canCheck && $stageConfigured && $canManageStage,
+            'can_offline_upload' => $trustConfigured && $stageConfigured && $canManageStage && class_exists(\ZipArchive::class),
+            'offline_zip_available' => class_exists(\ZipArchive::class),
             'can_manage_stage' => $canManageStage,
             'can_apply' => $canManageStage && (bool) ($operator['ready_for_apply'] ?? false),
             'operator_ready' => (bool) ($operator['ready_for_apply'] ?? false),
@@ -225,6 +229,73 @@ final class AdminUpdateService
         }
 
         return $this->beginWebApply($actorId, $targetVersionCode, $packageSha256);
+    }
+
+    /**
+     * Проверяет и помещает в staging единый offline-пакет, загруженный администратором.
+     *
+     * @param array<string,mixed> $file
+     * @return array<string,mixed>
+     */
+    public function stageUploadedBundle(int $actorId, array $file): array
+    {
+        $this->permissions->requirePermission($actorId, 'admin.settings.manage');
+        if (!$this->permissions->hasRole($actorId, 'superadmin')) {
+            throw new DomainException('Ручная установка обновления доступна только суперадминистратору', 403);
+        }
+
+        $state = $this->snapshot($actorId);
+        if (empty($state['trust_configured']) || empty($state['stage_configured'])) {
+            throw new DomainException(
+                'Ручной пакет недоступен, пока не настроены доверенный ключ и внешний staging',
+                503
+            );
+        }
+        if (!class_exists(\ZipArchive::class)) {
+            throw new DomainException('Для ручного offline-пакета требуется PHP extension zip', 503);
+        }
+
+        return (new UpdateOfflineBundle($this->appRoot, $this->verifier))->stageUploaded(
+            $file,
+            $this->stageRootOrFail(),
+            Version::VERSION_CODE,
+            PHP_VERSION
+        );
+    }
+
+    /** @return array<string,mixed> */
+    public function beginStagedWebApply(
+        int $actorId,
+        string $stageDir,
+        int $expectedTargetVersionCode,
+        string $expectedPackageSha256
+    ): array {
+        $this->permissions->requirePermission($actorId, 'admin.settings.manage');
+        if (!$this->permissions->hasRole($actorId, 'superadmin')) {
+            throw new DomainException('Установка обновления доступна только суперадминистратору', 403);
+        }
+
+        return (new UpdateWebTransaction($this->appRoot, $this->verifier))->begin(
+            ['stage_dir' => trim($stageDir)],
+            $expectedTargetVersionCode,
+            strtolower(trim($expectedPackageSha256))
+        );
+    }
+
+    /** @return array<string,mixed> */
+    public function applyStaged(
+        int $actorId,
+        string $stageDir,
+        int $expectedTargetVersionCode,
+        string $expectedPackageSha256
+    ): array {
+        $started = $this->beginStagedWebApply(
+            $actorId,
+            $stageDir,
+            $expectedTargetVersionCode,
+            $expectedPackageSha256
+        );
+        return $this->finishWebApplySynchronously($actorId, $started);
     }
 
     /** @return array<string,mixed> */
