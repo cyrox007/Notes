@@ -325,12 +325,6 @@ final class AdminUserService
         }
         $retentionDays = max(1, min(365, $retentionDays));
 
-        if ($retentionDays === null) {
-            $configured = trim((string) (getenv('RETENTION_ACCOUNT_DELETE_DAYS') ?: '30'));
-            $retentionDays = ctype_digit($configured) ? (int) $configured : 30;
-        }
-        $retentionDays = max(1, min(365, $retentionDays));
-
         $purgeAfter = (new UserLifecycleService($this->db))->schedule($targetId, $retentionDays);
         return 'Аккаунт помечен на удаление. Персональные данные будут очищены после ' . $purgeAfter;
     }
@@ -449,10 +443,10 @@ final class AdminUserService
             throw new DomainException('Нельзя изменять собственный административный статус этой операцией', 409);
         }
 
-        // Protect privileged identities by assigned authorization, not by their
-        // current effective permission. This remains true even while the target
-        // is blocked/inactive, when PermissionService intentionally returns no
-        // effective capabilities.
+        // Защищаем административные аккаунты по назначенным правам, а не по
+        // текущим эффективным разрешениям. Это важно и для заблокированного
+        // или деактивированного аккаунта, когда PermissionService намеренно
+        // не возвращает активные возможности.
         $hasAdministrativeAssignment = $this->db->fetchValue(
             "SELECT 1 FROM user_roles ur "
             . 'JOIN role_permissions rp ON rp.role_id = ur.role_id '
