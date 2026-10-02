@@ -222,6 +222,7 @@ assertLongPollContract(
 );
 assertLongPollContract(
     str_contains($connectionUx, 'app.socketAuthorized !== true')
+    && !str_contains($connectionUx, '!refreshed && resumeLongPoll')
     && substr_count(
         $connectionUx,
         'const socketReady = app.socket?.readyState === WebSocket.OPEN && app.socketAuthorized === true;'
