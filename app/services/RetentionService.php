@@ -587,42 +587,6 @@ final class RetentionService
         ];
     }
 
-    /** @return list<string> */
-    private function accountPaths(int $userId): array
-    {
-        $paths = [];
-
-        if ($this->hasTable('user_files')) {
-            foreach ($this->db->fetchAll(
-                "SELECT path FROM user_files WHERE user_id=:user_id AND type<>'folder' AND path IS NOT NULL AND path<>''",
-                [':user_id' => $userId]
-            ) as $row) {
-                $paths[] = (string) $row['path'];
-            }
-        }
-        if ($this->hasTable('notes') && $this->hasTable('note_attachments')) {
-            foreach ($this->db->fetchAll(
-                'SELECT a.file_path FROM note_attachments a JOIN notes n ON n.id=a.note_id WHERE n.user_id=:user_id',
-                [':user_id' => $userId]
-            ) as $row) {
-                $paths[] = (string) $row['file_path'];
-            }
-        }
-        if ($this->hasTable('messenger_attachments')) {
-            foreach ($this->db->fetchAll(
-                'SELECT stored_path FROM messenger_attachments WHERE uploader_user_id=:user_id',
-                [':user_id' => $userId]
-            ) as $row) {
-                $paths[] = (string) $row['stored_path'];
-            }
-        }
-
-        $paths[] = $this->privateRoot . DIRECTORY_SEPARATOR . 'users'
-            . DIRECTORY_SEPARATOR . $userId . DIRECTORY_SEPARATOR . 'avatar' . DIRECTORY_SEPARATOR . 'avatar.jpg';
-
-        return array_values(array_unique(array_filter($paths, static fn (string $path): bool => trim($path) !== '')));
-    }
-
     /** @param list<string> $paths @param array<string,mixed> $result */
     private function removePaths(array $paths, array &$result): bool
     {
