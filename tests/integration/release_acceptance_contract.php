@@ -53,7 +53,7 @@ foreach ([
     'OSPanel 5.2.2',
     'Gate G — неизменяемый артефакт и подпись',
     'Gate H — финальный merge и tag',
-    'v1.0.14',
+    'v1.0.15',
     'нет открытых P0/P1 дефектов с риском потери данных',
     'нет открытых P0/P1 дефектов безопасности',
     'ручной pre-tag проверки',
@@ -63,15 +63,14 @@ foreach ([
     releaseAcceptanceAssert(str_contains($doc, $marker), "runbook release acceptance не содержит marker {$marker}");
 }
 
-$windowsAcceptance = releaseAcceptanceText($root, 'docs/WINDOWS_OSPANEL_ACCEPTANCE.md');
+$windowsAcceptance = releaseAcceptanceText($root, 'docs/WINDOWS_OSPANEL_ACCEPTANCE_1.0.15.md');
 releaseAcceptanceAssert(
-    str_contains($windowsAcceptance, '# Релизная приёмка Windows / OSPanel для 1.0.14')
-    && str_contains($windowsAcceptance, 'Сценарий A2 — private storage предыдущей установки')
-    && str_contains($windowsAcceptance, '1.0.12/1.0.13 → 1.0.14')
-    && str_contains($windowsAcceptance, 'одноразовый совместимый updater-handoff')
-    && str_contains($windowsAcceptance, 'bootstrap-1.0.12-updater.php')
+    str_contains($windowsAcceptance, '# Релизная приёмка Windows / OSPanel для 1.0.15')
+    && str_contains($windowsAcceptance, 'существующая установка 1.0.14 должна обновляться до 1.0.15 без переустановки с нуля')
+    && str_contains($windowsAcceptance, '1.0.14 → 1.0.15')
+    && str_contains($windowsAcceptance, 'повторный `bootstrap-1.0.12-updater.php` запрещён как ненужный')
     && str_contains($windowsAcceptance, 'rollback_failed'),
-    'Windows/OSPanel acceptance не закрепляет updater-handoff 1.0.12/1.0.13 → 1.0.14 и recovery-контракт'
+    'Windows/OSPanel acceptance не закрепляет прямой переход 1.0.14 → 1.0.15 и recovery-контракт'
 );
 
 $preflight = releaseAcceptanceText($root, 'bin/release_acceptance.php');
@@ -94,7 +93,7 @@ foreach ([
     'production_public_trust_roots',
     'release_evidence_harness',
     'private_signing_material_absent',
-    "Version::VERSION === '1.0.14'",
+    "Version::VERSION === '1.0.15'",
     "Version::STATUS === 'stable'",
     'exit(3)',
 ] as $marker) {
@@ -127,37 +126,30 @@ releaseAcceptanceAssert(
     'документация диагностики не закрепляет ZIP, Bearer-доступ и профиль ограниченного хостинга'
 );
 
-$releaseNotes = releaseAcceptanceText($root, 'docs/releases/v1.0.14.md');
+$releaseNotes = releaseAcceptanceText($root, 'docs/releases/v1.0.15.md');
 foreach ([
     '## Назначение релиза',
-    '## Исправление восстановления',
-    '## OPcache на PHP-FPM',
-    '## Диагностика автоматического отката',
-    '## Сервисная диагностика',
+    '## Messenger и переключение вкладок',
+    '## Файловый менеджер без ручного F5',
+    '## Регистрация и приглашения',
+    '## Мобильные действия Messenger',
     '## Проверяемый путь обновления',
-    '## Совместимость',
+    '## Совместимость и восстановление',
 ] as $marker) {
     releaseAcceptanceAssert(
         str_contains($releaseNotes, $marker),
-        "описание релиза 1.0.14 не содержит русский раздел {$marker}"
+        "описание релиза 1.0.15 не содержит русский раздел {$marker}"
     );
 }
 
 releaseAcceptanceAssert(
-    str_contains(
-        $releaseNotes,
-        '1.0.12/1.0.13 → одноразовый совместимый updater-handoff → штатный подписанный web-updater → 1.0.14'
-    )
+    str_contains($releaseNotes, 'exact v1.0.14')
+    && str_contains($releaseNotes, '1.0.15 (10015)')
+    && str_contains($releaseNotes, 'не требуется')
     && str_contains($releaseNotes, 'bootstrap-1.0.12-updater.php')
-    && str_contains($releaseNotes, 'rollback_verified')
-    && str_contains($releaseNotes, 'OPcache')
-    && str_contains($releaseNotes, 'diagnostic_code')
-    && str_contains($releaseNotes, 'одноразовый диагностический ZIP')
-    && str_contains($releaseNotes, 'hosting-profile.json')
-    && str_contains($releaseNotes, 'Authorization: Bearer')
-    && str_contains($releaseNotes, 'min_source_version_code')
-    && str_contains($releaseNotes, '10012'),
-    'описание 1.0.14 не фиксирует исправление recovery и прямой upgrade-path'
+    && str_contains($releaseNotes, 'Переустановка с нуля не считается проверкой upgrade-path')
+    && str_contains($releaseNotes, 'private storage'),
+    'описание 1.0.15 не фиксирует прямой upgrade-path и сохранность данных'
 );
 
 
@@ -252,4 +244,4 @@ releaseAcceptanceAssert(
     'Stable release gate не запускает контракт двухфакторной аутентификации'
 );
 
-fwrite(STDOUT, "[OK] финальный контракт release acceptance 1.0.14 выполнен\n");
+fwrite(STDOUT, "[OK] финальный контракт release acceptance 1.0.15 выполнен\n");
