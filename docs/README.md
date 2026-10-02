@@ -22,6 +22,7 @@
 - [Выпуск лицензии](LICENSE_ISSUANCE.md)
 - [Доступ к обновлениям через реестр](ONLINE_UPDATE_ACCESS.md)
 - [Подписанные обновления](UPDATES.md)
+- [Резервная копия и восстановление базы данных](DATABASE_BACKUP_RESTORE.md)
 - [Сервисная диагностика и отправка отчётов](SUPPORT_DIAGNOSTICS.md)
 - [Удалённая доставка обновлений](UPDATE_REMOTE_DELIVERY.md)
 - [Транзакционное применение и откат обновления](UPDATER_LIVE_APPLY.md)
