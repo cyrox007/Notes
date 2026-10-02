@@ -728,6 +728,9 @@
             }
 
             if (this.el.dialogRetry) this.el.dialogRetry.hidden = !failed && state !== 'stale';
+            if (this.el.dialogEmpty && !failed && state !== 'loaded') {
+                this.el.dialogEmpty.hidden = true;
+            }
 
             if (failed && this.el.dialogEmpty) {
                 this.el.dialogEmpty.hidden = false;
