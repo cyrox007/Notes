@@ -344,6 +344,10 @@ jobs:
           test ! -e "$PRIVATE/state/workspace-maintenance.json"
 
           php tests/support/admin_update_preservation_probe.php --verify
+
+          descending_indexes="$(mysql -N -h 127.0.0.1 -uroot -proot previous_stable_upgrade -e "SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema=DATABASE() AND collation='D'")"
+          test "$descending_indexes" = '0'
+
           (
             cd "$LIVE"
             php bin/healthcheck.php --json > "$DRILL/post-update-health.json"
