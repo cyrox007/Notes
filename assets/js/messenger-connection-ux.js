@@ -222,7 +222,15 @@
                     }
                     return false;
                 } finally {
-                    if (!refreshed && resumeLongPoll && !sessionUnavailable && app.longPollActive === true) {
+                    // Проверка/обновление ticket не должна оставлять рабочий Long Poll
+                    // в паузе при успешном ответе. Он остаётся резервным каналом до
+                    // фактической авторизации WebSocket.
+                    if (
+                        resumeLongPoll
+                        && !sessionUnavailable
+                        && app.longPollActive === true
+                        && app.socketAuthorized !== true
+                    ) {
                         app.resumeLongPoll?.();
                     }
                     refreshPromise = null;
@@ -367,15 +375,21 @@
 
         window.addEventListener('focus', () => {
             verifySessionIdentity();
+            const socketReady = app.socket?.readyState === WebSocket.OPEN && app.socketAuthorized === true;
+            if (navigator.onLine !== false && !sessionUnavailable && !socketReady) {
+                clearReconnectTimer();
+                app.scheduleReconnect({ immediate: true });
+            }
         });
 
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState !== 'visible') return;
             verifySessionIdentity();
+            const socketReady = app.socket?.readyState === WebSocket.OPEN && app.socketAuthorized === true;
             if (
                 navigator.onLine !== false
                 && !sessionUnavailable
-                && (!app.socket || app.socket.readyState !== WebSocket.OPEN)
+                && !socketReady
             ) {
                 clearReconnectTimer();
                 app.scheduleReconnect({ immediate: true });
