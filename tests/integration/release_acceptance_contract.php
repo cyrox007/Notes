@@ -217,6 +217,7 @@ foreach ([
     'admin-update-ui (8.1)',
     'admin-update-ui (8.3)',
     'admin-update-e2e',
+    'previous-stable-upgrade',
 ] as $requiredCheck) {
     releaseAcceptanceAssert(
         in_array($requiredCheck, $requiredChecks, true),
