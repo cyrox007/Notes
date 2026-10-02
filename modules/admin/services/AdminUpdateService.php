@@ -483,6 +483,12 @@ final class AdminUpdateService
             $expectedTargetVersionCode,
             $expectedPackageSha256
         );
+        return $this->finishWebApplySynchronously($actorId, $started);
+    }
+
+    /** @param array<string,mixed> $started @return array<string,mixed> */
+    private function finishWebApplySynchronously(int $actorId, array $started): array
+    {
         $transactionId = (string) ($started['transaction_id'] ?? '');
         $token = (string) ($started['continuation_token'] ?? '');
 
