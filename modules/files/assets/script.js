@@ -87,6 +87,43 @@ document.addEventListener('DOMContentLoaded', function () {
         return appPath(`/files/get/${encodeURIComponent(String(id))}/`);
     }
 
+    async function refreshVisibleItems() {
+        const response = await fetch(window.location.href, {
+            method: 'GET',
+            credentials: 'same-origin',
+            cache: 'no-store',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+        if (!response.ok) {
+            throw new Error(`Не удалось обновить список файлов (HTTP ${response.status})`);
+        }
+
+        const html = await response.text();
+        const nextDocument = new DOMParser().parseFromString(html, 'text/html');
+        const nextContent = nextDocument.querySelector('.file-manager__content');
+        const currentContent = root.querySelector('.file-manager__content');
+        if (!nextContent || !currentContent) {
+            throw new Error('Сервер не вернул список файлов');
+        }
+
+        const nodes = Array.from(nextContent.childNodes).map((node) => document.importNode(node, true));
+        currentContent.replaceChildren(...nodes);
+        document.dispatchEvent(new CustomEvent('wspace:files-changed'));
+    }
+
+    async function refreshAfterMutation() {
+        try {
+            await refreshVisibleItems();
+            return true;
+        } catch (error) {
+            console.warn('Не удалось обновить файловый менеджер без перезагрузки страницы', error);
+            window.location.assign(window.location.href);
+            return false;
+        }
+    }
+
     async function createFolder() {
         const folderName = folderNameInput ? folderNameInput.value.trim() : '';
         if (!folderName) {
@@ -105,7 +142,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
             hideModal(modalCreateFolder);
-            window.location.reload();
+            if (folderNameInput) folderNameInput.value = '';
+            await refreshAfterMutation();
         } catch (error) {
             console.error('Create folder failed:', error);
             showError('Ошибка при создании папки');
@@ -130,7 +168,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
             hideModal(modalRename);
-            window.location.reload();
+            await refreshAfterMutation();
         } catch (error) {
             console.error('Rename failed:', error);
             showError('Ошибка при переименовании');
@@ -150,8 +188,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
             item.remove();
+            document.dispatchEvent(new CustomEvent('wspace:files-changed'));
             if (!root.querySelector('.file-manager__item')) {
-                window.location.reload();
+                await refreshAfterMutation();
             }
         } catch (error) {
             console.error('Delete failed:', error);
@@ -227,7 +266,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 await uploadSingleFile(file);
             }
             hideModal(modalUploadProgress);
-            window.location.reload();
+            await refreshAfterMutation();
         } catch (error) {
             hideModal(modalUploadProgress);
             console.error('Upload failed:', error);
