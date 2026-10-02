@@ -493,3 +493,17 @@
   margin-top:3px
 }
 
+
+
+/* Копируемые значения в админпанели: поле остаётся читаемым, действие доступно рядом. */
+.admin-copy-control{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:8px;
+  align-items:center;
+}
+.admin-copy-control .admin-action{margin:0}
+@media(max-width:640px){
+  .admin-copy-control{grid-template-columns:1fr}
+  .admin-copy-control .admin-action{width:100%}
+}
