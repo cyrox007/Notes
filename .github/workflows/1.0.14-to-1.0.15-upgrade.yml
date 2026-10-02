@@ -365,6 +365,8 @@ jobs:
           cat "$DRILL/app-http.log" 2>/dev/null || true
           echo '--- HTTPS fixture ---'
           cat "$DRILL/fixture.log" 2>/dev/null || true
+          echo '--- журнал приложения/updater ---'
+          cat "$DRILL/private/logs/app.log" 2>/dev/null || true
           echo '--- журналы updater ---'
           find "$DRILL/private" -maxdepth 4 -type f -name '*.json' -print -exec sh -c 'echo "--- $1"; cat "$1"' _ {} \; 2>/dev/null || true
 
