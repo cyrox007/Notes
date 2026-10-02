@@ -41,6 +41,8 @@ protection живут вне истории Git** и должны быть пр�
 - `two-factor-contract (8.1)` и `two-factor-contract (8.3)` — TOTP, резервные коды, системная/персональная политика и контракт безопасной ротации секретов;
 - `online-update-access (8.1)` и `online-update-access (8.3)` — автоматический bootstrap update credential, scoped delivery и legacy-совместимость;
 - `admin-update-ui (8.1)` и `admin-update-ui (8.3)` — безопасная проверка/подготовка обновления и отсутствие destructive web-boundary.
+- `admin-update-e2e` — историческая exact-матрица перехода 1.0.12/1.0.13 → 1.0.14 с rollback/recovery;
+- `previous-stable-upgrade` — обязательное обновление exact предыдущей stable 1.0.14 → 1.0.15 без переустановки с проверкой сохранности данных.
 
 Каждый обязательный workflow обязан запускаться **на каждом** pull request в
 `1.0` и `master`. Для pull_request-триггера запрещены `paths` и
