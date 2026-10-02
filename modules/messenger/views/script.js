@@ -88,6 +88,9 @@
             this.bindEvents();
             this.restoreDialogCache();
             this.renderDialogSnapshotState();
+            if (this.dialogs.length > 0) {
+                this.renderDialogs();
+            }
             void this.loadInitialDialogs();
             this.connect();
         }
