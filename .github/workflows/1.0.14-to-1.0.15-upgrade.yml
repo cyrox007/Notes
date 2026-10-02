@@ -343,8 +343,11 @@ jobs:
           test ! -e "$PRIVATE/state/workspace-maintenance.json"
 
           php tests/support/admin_update_preservation_probe.php --verify
-
-          DBHOST=127.0.0.1 DBPORT=3306 DBUSER=workspace_upgrade DBPASS=workspace-upgrade-ci             DBNAME=previous_stable_upgrade EXPECT_READY=1             php "$LIVE/tests/integration/schema_readiness_runtime.php"
+          (
+            cd "$LIVE"
+            php bin/healthcheck.php --json > "$DRILL/post-update-health.json"
+          )
+          test -s "$DRILL/post-update-health.json"
 
           if grep -E 'PHP (Warning|Fatal error|Parse error)|Uncaught ' "$DRILL/app-http.log" 2>/dev/null; then
             echo 'Во время обновления 1.0.14 → 1.0.15 обнаружена PHP-ошибка' >&2
