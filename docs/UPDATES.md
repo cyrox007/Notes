@@ -100,6 +100,30 @@ Entitlement выдачи: [ONLINE_UPDATE_ACCESS.md](ONLINE_UPDATE_ACCESS.md).
 
 Staging, journal, maintenance marker, rollback backup и release candidates находятся вне live application tree. Это позволяет продолжить recovery даже после частичной замены файлов.
 
+## Ручной подписанный offline-пакет
+
+Если установка не может получить релиз через штатный канал, суперадминистратор может открыть **Admin → Обновления → Установить обновление из архива**.
+
+Это не установка произвольного ZIP. Принимается единый offline-пакет, внутри которого находятся ровно:
+
+- `manifest.json`;
+- `manifest.sig`;
+- ZIP релиза с точным именем из подписанного manifest.
+
+Перед staging приложение проверяет production Ed25519-подпись, целевую и минимальную исходную версию, требование PHP, имя/размер/SHA-256 ZIP и безопасную структуру обоих архивов. После проверки используется тот же внешний immutable staging и тот же транзакционный web-updater с backup, migration, postcheck и rollback/recovery.
+
+Релизный offline-пакет собирается только из уже подписанных метаданных:
+
+```bash
+php tools/release/build-offline-update-bundle.php \
+  --manifest=manifest.json \
+  --signature=manifest.sig \
+  --package=workspace-organizer-vX.Y.Z.zip \
+  --output=workspace-organizer-vX.Y.Z-offline-update.zip
+```
+
+Private signing key в Workspace не попадает: инструмент только упаковывает уже подписанные файлы.
+
 ## Retention
 
 Terminal artifacts не удаляются как побочный эффект успешного commit. Отдельная retention-процедура удаляет только достаточно старые, безопасные и неиспользуемые rollback/candidate artifacts, сохраняя заданное число последних транзакций.
