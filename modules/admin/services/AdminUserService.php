@@ -325,6 +325,12 @@ final class AdminUserService
         }
         $retentionDays = max(1, min(365, $retentionDays));
 
+        if ($retentionDays === null) {
+            $configured = trim((string) (getenv('RETENTION_ACCOUNT_DELETE_DAYS') ?: '30'));
+            $retentionDays = ctype_digit($configured) ? (int) $configured : 30;
+        }
+        $retentionDays = max(1, min(365, $retentionDays));
+
         $purgeAfter = (new UserLifecycleService($this->db))->schedule($targetId, $retentionDays);
         return 'Аккаунт помечен на удаление. Персональные данные будут очищены после ' . $purgeAfter;
     }
