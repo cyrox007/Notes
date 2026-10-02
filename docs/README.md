@@ -43,7 +43,6 @@
 - [Дорожная карта](ROADMAP.md)
 - [Банк идей и отложенных направлений](PRODUCT_BACKLOG.md)
 - [1.1 — Календарь и ежедневник](plans/1.1-calendar.md)
-- [1.1 — Общая система уведомлений](plans/1.1-notifications.md)
 - [1.2 — Дефекты](plans/1.2-defects.md)
 - [1.3 — Наряды и допуски](plans/1.3-work-permits.md)
 - [1.4 — Общий медиаслой](plans/1.4-media.md)
