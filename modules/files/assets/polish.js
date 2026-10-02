@@ -2,7 +2,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const root = document.querySelector('.file-manager');
   if (!root) return;
   const content = root.querySelector('.file-manager__content');
-  const grid = root.querySelector('.file-manager__grid');
 
   const controls = document.createElement('section');
   controls.className = 'file-manager-polish';
@@ -49,7 +48,6 @@ document.addEventListener('DOMContentLoaded', () => {
   controls.append(search, sort, view, count);
   content?.before(controls);
 
-  const items = grid ? Array.from(grid.querySelectorAll('.file-manager__item')) : [];
   const fullName = (item) => {
     const name = item.dataset.name || '';
     const ext = item.dataset.type === 'folder' ? '' : (item.dataset.extension || '');
@@ -58,10 +56,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const byName = (a,b) => fullName(a).localeCompare(fullName(b), 'ru', { numeric: true, sensitivity: 'base' });
 
   function apply() {
+    const grid = root.querySelector('.file-manager__grid');
     if (!grid) {
       count.textContent = '0 элементов';
       return;
     }
+
+    const items = Array.from(grid.querySelectorAll('.file-manager__item'));
     const query = search.value.trim().toLocaleLowerCase('ru');
     const ordered = [...items].sort((a,b) => {
       const folderOrder = (a.dataset.type === 'folder' ? 0 : 1) - (b.dataset.type === 'folder' ? 0 : 1);
@@ -85,6 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   search.addEventListener('input', apply);
   sort.addEventListener('change', apply);
+  document.addEventListener('wspace:files-changed', apply);
 
   const storageKey = 'wspace:file-manager:view';
   function setView(mode) {
