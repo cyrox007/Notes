@@ -233,7 +233,7 @@ try {
         json_encode($journal, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . PHP_EOL
     );
     migrationPreflightAssert(
-        MigrationBaseline::activeUpdaterSourceVersionCode($root, 10014) === null,
+        MigrationBaseline::activeUpdaterSourceVersionCode($root, 10015) === null,
         'baseline принят до destructive boundary'
     );
 
