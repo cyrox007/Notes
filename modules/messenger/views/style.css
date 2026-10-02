@@ -233,3 +233,7 @@ html[data-theme="dark"] .workspace-viewport--messenger{
 .messenger-dialog-item{padding:11px 9px;gap:10px}
 .messenger-dialog-item__preview{margin-top:4px}
 @media(prefers-reduced-motion:reduce){.messenger-typing>span{animation:none}}
+
+
+/* На настольных экранах отдельный переключатель не нужен: действия остаются hover/focus-панелью. */
+.messenger-message__actions-toggle{display:none}
