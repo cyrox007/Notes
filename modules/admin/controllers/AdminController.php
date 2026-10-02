@@ -52,6 +52,7 @@ final class AdminController extends Controller
             $permissionService = new PermissionService();
             $canManageRoles = $permissionService->hasPermission($actorId, 'admin.roles.manage');
             $canViewAudit = $permissionService->hasPermission($actorId, 'admin.audit.view');
+            $canPurgeUsers = $permissionService->hasRole($actorId, 'superadmin');
         } catch (DomainException $e) {
             http_response_code($this->exceptionStatus($e, 403));
             return;
@@ -67,6 +68,7 @@ final class AdminController extends Controller
             'pagination' => ListQuery::pagination($query, (int) $result['total']),
             'canManageRoles' => $canManageRoles,
             'canViewAudit' => $canViewAudit,
+            'canPurgeUsers' => $canPurgeUsers ?? false,
             'admin_flash' => is_array($flash) ? $flash : null,
         ]);
     }
