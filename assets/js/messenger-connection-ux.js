@@ -277,6 +277,20 @@
                     if (!sessionUnavailable) app.scheduleReconnect();
                     return;
                 }
+
+                if (
+                    app.socket
+                    && app.socketAuthorized !== true
+                    && (app.socket.readyState === WebSocket.OPEN || app.socket.readyState === WebSocket.CONNECTING)
+                ) {
+                    try {
+                        app.socket.close();
+                    } catch (_) {
+                        // Старый неавторизованный socket не должен мешать новому подключению.
+                    }
+                    app.socket = null;
+                }
+
                 originalConnect();
             } finally {
                 reconnectInFlight = false;
@@ -284,7 +298,7 @@
         };
 
         app.scheduleReconnect = function scheduleConnectionRetry(options = {}) {
-            if (sessionUnavailable || app.reconnectTimer) return;
+            if (sessionUnavailable || reconnectInFlight || app.reconnectTimer) return;
 
             if (navigator.onLine === false) {
                 renderState('offline', 'Нет интернета', {
