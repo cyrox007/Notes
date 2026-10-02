@@ -36,7 +36,7 @@ final class DatabaseDumpCompatibility
             throw new RuntimeException('Не удалось безопасно определить пути дампа');
         }
 
-        $candidateOutput = rtrim(str_replace('\\\\', '/', $outputDirectoryReal), '/') . '/' . basename($outputPath);
+        $candidateOutput = rtrim(str_replace('\\', '/', $outputDirectoryReal), '/') . '/' . basename($outputPath);
         if (self::samePath($inputReal, $candidateOutput)) {
             throw new RuntimeException('Исходный дамп нельзя перезаписывать на месте');
         }
@@ -94,17 +94,23 @@ final class DatabaseDumpCompatibility
 
     private static function repairLine(string $line, int &$replacements): string
     {
-        $pairs = [
-            'ADD KEY `idx_user_notes` (`user_id`, `is_deleted`, DESC)'
-                => 'ADD KEY `idx_user_notes` (`user_id`, `is_deleted`, `created_note`)',
-            'ADD KEY `idx_updated_notes` (`user_id`, DESC)'
-                => 'ADD KEY `idx_updated_notes` (`user_id`, `updated_note`)',
-            'ADD KEY `idx_notes_profile_public` (`user_id`, `is_profile_public`, `is_deleted`, DESC)'
-                => 'ADD KEY `idx_notes_profile_public` (`user_id`, `is_profile_public`, `is_deleted`, `updated_note`)',
+        $rules = [
+            [
+                '~ADD\\s+KEY\\s+`?idx_user_notes`?\\s*\\(\\s*`?user_id`?\\s*,\\s*`?is_deleted`?\\s*,\\s*DESC\\s*\\)~i',
+                'ADD KEY `idx_user_notes` (`user_id`, `is_deleted`, `created_note`)',
+            ],
+            [
+                '~ADD\\s+KEY\\s+`?idx_updated_notes`?\\s*\\(\\s*`?user_id`?\\s*,\\s*DESC\\s*\\)~i',
+                'ADD KEY `idx_updated_notes` (`user_id`, `updated_note`)',
+            ],
+            [
+                '~ADD\\s+KEY\\s+`?idx_notes_profile_public`?\\s*\\(\\s*`?user_id`?\\s*,\\s*`?is_profile_public`?\\s*,\\s*`?is_deleted`?\\s*,\\s*DESC\\s*\\)~i',
+                'ADD KEY `idx_notes_profile_public` (`user_id`, `is_profile_public`, `is_deleted`, `updated_note`)',
+            ],
         ];
 
-        foreach ($pairs as $broken => $fixed) {
-            $line = str_replace($broken, $fixed, $line, $count);
+        foreach ($rules as [$pattern, $replacement]) {
+            $line = preg_replace($pattern, $replacement, $line, -1, $count) ?? $line;
             $replacements += $count;
         }
 
@@ -113,8 +119,8 @@ final class DatabaseDumpCompatibility
 
     private static function samePath(string $left, string $right): bool
     {
-        $left = str_replace('\\\\', '/', $left);
-        $right = str_replace('\\\\', '/', $right);
+        $left = str_replace('\\', '/', $left);
+        $right = str_replace('\\', '/', $right);
         if (PHP_OS_FAMILY === 'Windows') {
             $left = strtolower($left);
             $right = strtolower($right);
