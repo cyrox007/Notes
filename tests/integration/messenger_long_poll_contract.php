@@ -281,6 +281,13 @@ assertLongPollContract(
     'updater start must quiesce all Messenger transports before maintenance begins'
 );
 assertLongPollContract(
+    str_contains($client, 'void this.loadInitialDialogs();')
+    && str_contains($client, "performHttpEvent('MessangerSocket:get_dialogs', {})")
+    && strpos($client, 'void this.loadInitialDialogs();') < strpos($client, 'this.connect();')
+    && str_contains($client, "this.el.newChatButton.disabled = state !== 'loaded'"),
+    'первичный список диалогов должен загружаться быстрым HTTP snapshot до realtime и блокировать создание дубликата'
+);
+assertLongPollContract(
     str_contains($client, "case 'sync_required':")
     && str_contains($client, 'syncDurableState()')
     && str_contains($client, "MessangerSocket:get_dialogs")
