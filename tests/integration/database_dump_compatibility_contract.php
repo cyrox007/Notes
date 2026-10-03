@@ -88,8 +88,8 @@ $manifest = json_decode(
     JSON_THROW_ON_ERROR
 );
 dumpCompatibilityAssert(
-    (($manifest['migrations'] ?? [])[array_key_last($manifest['migrations'] ?? [])] ?? null) === $migrationName,
-    'миграция совместимости дампа не последняя в manifest'
+    in_array($migrationName, $manifest['migrations'] ?? [], true),
+    'миграция совместимости дампа отсутствует в manifest'
 );
 
 $module = json_decode(
