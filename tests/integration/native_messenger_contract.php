@@ -86,7 +86,10 @@ nativeMessengerAssert(
 );
 nativeMessengerAssert(str_contains($script, 'sessionStorage.getItem(this.dialogCacheKey)'), 'Messenger не восстанавливает безопасный session-кэш списка диалогов');
 nativeMessengerAssert(str_contains($script, "this.el.newChatButton.disabled = state !== 'loaded'"), 'создание нового чата доступно до подтверждения списка существующих диалогов');
-nativeMessengerAssert(str_contains($script, "this.dialogSnapshotState = 'error'"), 'Messenger не различает ошибку загрузки и реально пустой список');
+nativeMessengerAssert(
+    str_contains($script, "this.dialogs.length > 0 ? 'stale' : 'error'"),
+    'Messenger не различает устаревший кэш и ошибку первичной загрузки'
+);
 
 $workspaceActions = (string) file_get_contents($module . '/views/workspace-actions.js');
 nativeMessengerAssert(str_contains($workspaceActions, "appPath('/messenger/workspace/' + kind)"), 'Messenger workspace actions are not BASE_PATH-aware');
@@ -107,7 +110,6 @@ nativeMessengerAssert(str_contains($media, 'stagePastedFiles(files)'), 'clipboar
 nativeMessengerAssert(str_contains($media, 'app.submitComposer = () =>'), 'explicit composer send hook for staged clipboard files is missing');
 nativeMessengerAssert(str_contains($media, 'sendFiles(files).then'), 'staged clipboard files are not sent through explicit composer submission');
 nativeMessengerAssert(str_contains($media, "appPath('/messenger/upload')"), 'Messenger media upload is not BASE_PATH-aware');
-
 $connectionCss = (string) file_get_contents($root . '/assets/css/messenger-connection-ux.css');
 nativeMessengerAssert(str_contains($connectionCss, '.messenger-app .messenger-list__header{height:auto;min-height:64px;max-height:none;align-items:center}'), 'шапка списка чатов не использует компактную высоту');
 nativeMessengerAssert(str_contains($connectionCss, '.messenger-list__header .messenger-connection{display:flex!important}'), 'состояние транспорта скрыто в шапке Messenger');

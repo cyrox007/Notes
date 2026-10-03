@@ -245,7 +245,11 @@
                 const preview = dragPreviewFor(task);
                 transfer.effectAllowed = 'move';
                 transfer.setData('text/plain', task.dataset.taskId || '');
-                transfer.setDragImage(preview, 28, 20);
+                try {
+                    transfer.setDragImage(preview, 28, 20);
+                } catch (_) {
+                    // Синтетическое событие или ограниченный браузер может не поддерживать изображение перетаскивания.
+                }
                 window.setTimeout(() => preview.remove(), 0);
             });
             handle?.addEventListener('dragend', () => {
@@ -282,10 +286,9 @@
                 const previousStatus = statusOf(task);
                 task.classList.add('task-item--status-pending', 'task-item--just-moved');
 
-                // Drag/drop owns the immediate optimistic visual transition. The
-                // generic select handler persists it but must not re-apply the
-                // same UI event (which would double-count stats and make the
-                // result depend on listener ordering).
+                // Перетаскивание сразу обновляет интерфейс оптимистично. Обычный обработчик select
+                // только сохраняет изменение и не должен повторно применять то же событие интерфейса,
+                // иначе статистика посчитается дважды и результат будет зависеть от порядка обработчиков.
                 syncTaskStatus(task, status, previousStatus);
                 select.dataset.uiSynced = '1';
                 select.value = status;
