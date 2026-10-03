@@ -242,7 +242,19 @@ jobs:
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM messenger_attachments WHERE id=701;')" = '0'
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM users WHERE id=102;')" = '1'
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM users WHERE id=102 AND anonymized_at IS NOT NULL AND purge_after IS NULL;')" = '1'
-          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e \"SELECT COUNT(*) FROM users WHERE id=102 AND firstname='Удалённый' AND lastname='пользователь' AND username LIKE 'deleted\\_102\\_%';\")" = '1'
+
+          anonymized_user_count="$(
+            mysql -N -h 127.0.0.1 -uroot -proot notes_retention <<'SQL'
+          SELECT COUNT(*)
+          FROM users
+          WHERE id=102
+            AND firstname='Удалённый'
+            AND lastname='пользователь'
+            AND username LIKE 'deleted\_102\_%';
+          SQL
+          )"
+          test "$anonymized_user_count" = '1'
+
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM users WHERE id=103 AND anonymized_at IS NULL;')" = '1'
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM task_boards WHERE id=1001;')" = '1'
 
