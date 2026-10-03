@@ -41,7 +41,6 @@
         const resolved = resolveTheme(normalized);
         document.documentElement.dataset.themePreference = normalized;
         document.documentElement.dataset.theme = resolved;
-        document.documentElement.style.colorScheme = resolved;
         syncThemeColor(resolved);
         syncControls(normalized);
 
@@ -49,7 +48,7 @@
             try {
                 global.localStorage.setItem(STORAGE_KEY, normalized);
             } catch (error) {
-                // Theme persistence is optional in restricted browser contexts.
+                // В ограниченном окружении браузера сохранение темы может быть недоступно.
             }
         }
     }

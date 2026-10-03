@@ -131,9 +131,7 @@
             const label = container.querySelector('.task-subtasks__percent');
             if (label) label.textContent = String(percent);
             const progress = container.querySelector('.task-subtasks__progress');
-            const bar = container.querySelector('.task-subtasks__progress-bar');
-            if (progress) progress.setAttribute('aria-valuenow', String(percent));
-            if (bar) bar.style.width = `${percent}%`;
+            if (progress) progress.value = percent;
             toggle.closest('.subtask-item')?.classList.toggle('completed', toggle.checked);
         }
 
