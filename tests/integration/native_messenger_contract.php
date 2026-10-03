@@ -184,7 +184,7 @@ $groupService = (string) file_get_contents($module . '/services/MessengerGroupSe
 $groupSocket = (string) file_get_contents($module . '/socket/GroupSocket.php');
 $groupJs = (string) file_get_contents($module . '/views/group.js');
 nativeMessengerAssert(str_contains($groupService, 'public function deleteGroup'), 'Messenger не умеет удалить группу целиком');
-nativeMessengerAssert(str_contains($groupService, "if ($context['role'] !== 'owner')"), 'удаление группы не ограничено владельцем');
+nativeMessengerAssert(str_contains($groupService, "if (\$context['role'] !== 'owner')"), 'удаление группы не ограничено владельцем');
 nativeMessengerAssert(str_contains($groupSocket, 'public function delete_group'), 'realtime action удаления группы отсутствует');
 nativeMessengerAssert(str_contains($serverSource, "'delete_group'"), 'удаление группы отсутствует в realtime allow-list');
 nativeMessengerAssert(str_contains($groupJs, "GroupSocket:delete_group"), 'кнопка удаления группы не отправляет действие');
@@ -216,7 +216,7 @@ nativeMessengerAssert(is_file($workspaceControllerPath), 'Messenger workspace ac
 $workspaceController = (string) file_get_contents($workspaceControllerPath);
 nativeMessengerAssert(str_contains($workspaceController, "require('workspace.notes', WorkspaceNoteCreator::class)"), 'Messenger note action bypasses the module capability registry');
 nativeMessengerAssert(str_contains($workspaceController, "require('workspace.tasks', WorkspaceTaskCreator::class)"), 'Messenger task action bypasses the module capability registry');
-nativeMessengerAssert(str_contains($workspaceController, "require('workspace.files', WorkspaceFileProvider::class)"), 'Messenger file actions bypass the module capability registry');
+nativeMessengerAssert(str_contains($workspaceController, "require('workspace.files', WorkspaceFileProvider::class)"), 'Messenger file actions bypasses the module capability registry');
 nativeMessengerAssert(str_contains($workspaceController, 'importWorkspaceFile'), 'Messenger cannot import a private-storage file as a chat attachment');
 nativeMessengerAssert(str_contains($workspaceController, 'createWorkspaceFileShare'), 'Messenger cannot create a public file link');
 nativeMessengerAssert(str_contains($workspaceController, 'messageForWorkspaceAction'), 'Messenger workspace action does not validate source-message access');
