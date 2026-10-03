@@ -553,3 +553,67 @@ html[data-theme="dark"] .workspace-viewport--messenger{
     box-shadow:none
   }
 }
+
+
+/* На телефоне действия сообщения не должны отнимать ширину у самого сообщения.
+   Показываем одну кнопку под пузырём и раскрываем панель только по запросу. */
+@media(max-width:760px), (hover:none) and (pointer:coarse){
+  .messenger-message{
+    flex-direction:column;
+    gap:4px;
+    max-width:94%;
+  }
+  .messenger-message--own{align-items:flex-end}
+  .messenger-message--other{align-items:flex-start}
+  .messenger-message__bubble{
+    min-width:0;
+    max-width:100%;
+  }
+  .messenger-message__actions-toggle{
+    display:grid;
+    place-items:center;
+    width:30px;
+    height:24px;
+    margin:0;
+    padding:0;
+    border:1px solid var(--msg-border);
+    border-radius:7px;
+    background:var(--msg-surface);
+    color:var(--msg-muted);
+    box-shadow:var(--ui-shadow-sm);
+    cursor:pointer;
+  }
+  .messenger-message__actions-toggle[aria-expanded="true"]{
+    color:var(--msg-accent);
+    border-color:var(--msg-accent);
+    background:var(--msg-accent-soft);
+  }
+  .messenger-message__actions{
+    display:none;
+    position:static!important;
+    left:auto!important;
+    right:auto!important;
+    top:auto!important;
+    width:max-content;
+    max-width:100%;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:3px!important;
+    margin:0!important;
+    padding:4px;
+    opacity:1;
+    transform:none;
+    border:1px solid var(--msg-border);
+    border-radius:9px;
+    background:var(--msg-surface);
+    box-shadow:var(--ui-shadow-sm);
+  }
+  .messenger-message--actions-open .messenger-message__actions{display:flex}
+  .messenger-message__action{
+    width:30px;
+    height:30px;
+    border:0;
+    border-radius:7px;
+    box-shadow:none;
+  }
+}

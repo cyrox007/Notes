@@ -102,6 +102,7 @@ $workflowByCheck = [
     'admin-update-ui (8.1)' => ['.github/workflows/admin-update-ui.yml', 'admin-update-ui'],
     'admin-update-ui (8.3)' => ['.github/workflows/admin-update-ui.yml', 'admin-update-ui'],
     'admin-update-e2e' => ['.github/workflows/admin-update-e2e.yml', 'admin-update-e2e'],
+    'previous-stable-upgrade' => ['.github/workflows/1.0.14-to-1.0.15-upgrade.yml', 'previous-stable-upgrade'],
 ];
 
 $checkedWorkflows = [];

@@ -60,6 +60,7 @@ final class NativeMessengerServer
             'set_role',
             'transfer_owner',
             'leave',
+            'delete_group',
         ],
         'SearchSocket' => ['all', 'messages', 'dialogs'],
         'ForwardSocket' => ['saved', 'save_message', 'forward'],

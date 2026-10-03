@@ -20,9 +20,9 @@ CREATE TABLE IF NOT EXISTS `notes` (
     INDEX `idx_uid` (`uid`),
     INDEX `idx_created_note` (`created_note`),
     INDEX `idx_is_deleted` (`is_deleted`),
-    INDEX `idx_user_notes` (`user_id`, `is_deleted`, `created_note` DESC),
-    INDEX `idx_updated_notes` (`user_id`, `updated_note` DESC),
-    INDEX `idx_notes_profile_public` (`user_id`, `is_profile_public`, `is_deleted`, `updated_note` DESC),
+    INDEX `idx_user_notes` (`user_id`, `is_deleted`, `created_note`),
+    INDEX `idx_updated_notes` (`user_id`, `updated_note`),
+    INDEX `idx_notes_profile_public` (`user_id`, `is_profile_public`, `is_deleted`, `updated_note`),
     FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Личные заметки пользователей';
 

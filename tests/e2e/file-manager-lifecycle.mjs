@@ -46,11 +46,6 @@ async function login(page) {
   ]);
 }
 
-async function waitForNavigation(page, action) {
-  const navigation = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 });
-  await action();
-  await navigation;
-}
 
 async function acceptDialog(page, expectedText) {
   return new Promise((resolve, reject) => {
@@ -101,13 +96,15 @@ try {
   const fileBuffer = Buffer.from(fileContent, 'utf8');
   if (fileBuffer.length > 2048) throw new Error('Success fixture unexpectedly large');
 
+  const rootUrlBeforeMutation = page.url();
   await page.locator('#btn-create-folder').click();
   await page.locator('#modal-create-folder').waitFor({ state: 'visible', timeout: 5000 });
   await page.locator('#folder-name-input').fill(folderName);
-  await waitForNavigation(page, () => page.locator('#modal-create-folder .modal-ok').click());
+  await page.locator('#modal-create-folder .modal-ok').click();
 
   let folderItem = page.locator('.file-manager__item[data-type="folder"]').filter({ hasText: folderName });
   await folderItem.waitFor({ state: 'visible', timeout: 10000 });
+  if (page.url() !== rootUrlBeforeMutation) throw new Error('Создание папки неожиданно перезагрузило страницу');
   const folderId = await folderItem.getAttribute('data-id');
   if (!folderId) throw new Error('Created folder has no data-id');
 
@@ -118,12 +115,12 @@ try {
   ]);
 
   const fileInput = page.locator('#file-input');
-  const uploadNavigation = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 });
+  const folderUrlBeforeUpload = page.url();
   await fileInput.setInputFiles({ name: fileName, mimeType: 'text/plain', buffer: fileBuffer });
-  await uploadNavigation;
 
   let fileItem = page.locator('.file-manager__item').filter({ has: page.locator(`.file-manager__item-name:text-is("${fileName}")`) });
   await fileItem.waitFor({ state: 'visible', timeout: 10000 });
+  if (page.url() !== folderUrlBeforeUpload) throw new Error('Загрузка файла неожиданно перезагрузила страницу');
   const fileId = await fileItem.getAttribute('data-id');
   if (!fileId) throw new Error('Uploaded file has no data-id');
 
@@ -157,13 +154,13 @@ try {
   quotaFailureExpected = false;
   if (await page.locator('.file-manager__item').filter({ hasText: overflowName }).count()) throw new Error('Quota-rejected file appeared in File Manager');
 
-  // Общее подтверждение обрабатывает удаление; пустая папка перезагружается для корректного пустого состояния.
+  // Удаление синхронно обновляет текущий список без полной перезагрузки страницы.
   fileItem = page.locator(`.file-manager__item[data-id="${fileId}"]`);
+  const folderUrlBeforeDelete = page.url();
   await fileItem.locator('.btn-delete').click();
-  const deleteFileNavigation = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 });
   await confirmWorkspaceDialog(page, `Удалить «${renamedStem}»?`);
-  await deleteFileNavigation;
-  if (await page.locator(`.file-manager__item[data-id="${fileId}"]`).count()) throw new Error('Deleted file is still visible');
+  await page.locator(`.file-manager__item[data-id="${fileId}"]`).waitFor({ state: 'detached', timeout: 10000 });
+  if (page.url() !== folderUrlBeforeDelete) throw new Error('Удаление файла неожиданно перезагрузило страницу');
 
   const rootHref = await page.locator('.file-manager__breadcrumb-item').first().getAttribute('href');
   if (!rootHref || rootHref.replace(/\/+$/, '') !== `${basePath}/files`) throw new Error(`Root breadcrumb escaped BASE_PATH: ${rootHref}`);

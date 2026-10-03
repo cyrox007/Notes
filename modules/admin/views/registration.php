@@ -37,7 +37,16 @@ ob_start();
             <?php if (!empty($flash['invite_code'])): ?>
                 <div class="custom-field__control custom-field__control--spaced">
                     <label for="new_invite_code">Новый код приглашения</label>
-                    <input id="new_invite_code" type="text" readonly value="<?= $view->e($flash['invite_code']) ?>" data-select-on-click>
+                    <div class="admin-copy-control">
+                        <input id="new_invite_code" type="text" readonly value="<?= $view->e($flash['invite_code']) ?>" data-select-on-click>
+                        <button
+                            class="admin-action admin-action--secondary"
+                            type="button"
+                            data-copy-target="#new_invite_code"
+                            aria-describedby="new-invite-copy-status"
+                        >Копировать</button>
+                    </div>
+                    <span id="new-invite-copy-status" class="form-hint" role="status" aria-live="polite"></span>
                     <small>Код хранится в системе только в виде SHA-256 hash и повторно показан не будет.</small>
                 </div>
             <?php endif; ?>
@@ -133,5 +142,6 @@ echo $view->layout('core/base', [
     ],
     'module_scripts' => [
         $view->moduleAsset('admin', 'admin-settings-nav.js'),
+        $view->moduleAsset('admin', 'copy-field.js'),
     ],
 ], $content);

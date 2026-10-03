@@ -100,12 +100,30 @@ nativeTasksAssert(str_contains($tasksJs, 'window.wspace?.path'), 'Tasks API path
 nativeTasksAssert(str_contains($tasksJs, "querySelectorAll('[data-task-modal-close]')"), 'task modal JS does not bind explicit close controls');
 nativeTasksAssert(str_contains($tasksJs, 'syncSubtaskProgress'), 'subtask progress synchronization is missing');
 nativeTasksAssert(str_contains($tasksJs, "markSaveState(this, 'saving')"), 'task status save feedback is missing');
+nativeTasksAssert(str_contains($tasksJs, 'closeTaskModal'), 'task modal close motion is missing');
+nativeTasksAssert(str_contains($tasksJs, "classList.add('is-closing')"), 'task modal does not expose closing animation state');
 $taskStyle = (string) file_get_contents($moduleRoot . '/assets/style.css');
 nativeTasksAssert(str_contains($taskStyle, '.modal-close-button{'), 'task modal close icon style is missing');
 nativeTasksAssert(!str_contains($taskStyle, '.close-modal{'), 'modal cancel button still shares close-icon styling');
 
 $kanban = (string) file_get_contents($moduleRoot . '/assets/tasks-kanban.js');
 nativeTasksAssert(str_contains($kanban, 'shiftStats'), 'live Tasks stats synchronization is missing');
+nativeTasksAssert(str_contains($kanban, 'dragPreviewFor'), 'personal kanban drag preview is missing');
+nativeTasksAssert(str_contains($kanban, 'tasks-board__drop-placeholder'), 'personal kanban drop placeholder is missing');
+nativeTasksAssert(str_contains($kanban, 'setDragImage'), 'personal kanban does not render a drag ghost');
+
+$kanbanStyle = (string) file_get_contents($moduleRoot . '/assets/kanban.css');
+nativeTasksAssert(str_contains($kanbanStyle, '.tasks-board__drag-preview'), 'personal kanban drag preview style is missing');
+nativeTasksAssert(str_contains($kanbanStyle, '.tasks-board__drop-placeholder'), 'personal kanban drop placeholder style is missing');
+
+$sharedBoardJs = (string) file_get_contents($moduleRoot . '/assets/task-boards.js');
+nativeTasksAssert(str_contains($sharedBoardJs, 'createDragPreview'), 'shared board drag preview is missing');
+nativeTasksAssert(str_contains($sharedBoardJs, 'task-board-drop-placeholder'), 'shared board drop placeholder is missing');
+nativeTasksAssert(str_contains($sharedBoardJs, 'setDragImage'), 'shared board does not render a drag ghost');
+
+$sharedBoardStyle = (string) file_get_contents($moduleRoot . '/assets/boards.css');
+nativeTasksAssert(str_contains($sharedBoardStyle, '.task-board-drag-preview'), 'shared board drag preview style is missing');
+nativeTasksAssert(str_contains($sharedBoardStyle, '.task-board-drop-placeholder'), 'shared board drop placeholder style is missing');
 
 $boardController = (string) file_get_contents($moduleRoot . '/controllers/TaskBoardController.php');
 nativeTasksAssert(str_contains($boardController, "render_template('@tasks/boards'"), 'board controller is not using isolated view namespace');

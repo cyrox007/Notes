@@ -81,8 +81,18 @@ html[data-theme="dark"] .workspace-module--admin{--module-soft:#3d2027}
 
 .modal{position:fixed;inset:0;z-index:2100;display:grid;place-items:center;padding:18px;background:rgba(6,12,24,.5);backdrop-filter:blur(4px)}
 .modal[hidden]{display:none!important}
+.modal:not([hidden]){animation:workspace-modal-backdrop-in .18s ease-out both}
 .modal-content{width:min(560px,100%);max-height:calc(100vh - 36px);overflow:auto;border:1px solid var(--ui-border);border-radius:15px;background:var(--ui-surface);box-shadow:0 24px 70px rgba(7,13,25,.28)}
+.modal:not([hidden]) .modal-content{animation:workspace-modal-content-in .22s cubic-bezier(.2,.8,.2,1) both}
+.modal.is-closing{animation:workspace-modal-backdrop-out .16s ease-in both}
+.modal.is-closing .modal-content{animation:workspace-modal-content-out .16s ease-in both}
+@keyframes workspace-modal-backdrop-in{from{opacity:0}to{opacity:1}}
+@keyframes workspace-modal-content-in{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes workspace-modal-backdrop-out{from{opacity:1}to{opacity:0}}
+@keyframes workspace-modal-content-out{from{opacity:1;transform:none}to{opacity:0;transform:translateY(8px) scale(.99)}}
 
 @media(max-width:1100px){.workspace-home__grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:820px){.workspace-home__hero{align-items:flex-start;flex-direction:column;padding:20px}.workspace-home__hero-actions{width:100%}.workspace-home__primary-action,.workspace-home__secondary-action{flex:1;justify-content:center}.workspace-home__grid{grid-template-columns:1fr}.module-page-header{align-items:flex-start;flex-direction:column}}
 @media(max-width:560px){.workspace-home__hero h1{font-size:25px}.workspace-home__hero-actions{flex-direction:column}.workspace-home__primary-action,.workspace-home__secondary-action{width:100%}.admin-panel-card__header{align-items:flex-start;flex-direction:column}}
+
+@media(prefers-reduced-motion:reduce){.modal:not([hidden]),.modal:not([hidden]) .modal-content,.modal.is-closing,.modal.is-closing .modal-content{animation:none}}

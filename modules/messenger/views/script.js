@@ -34,6 +34,9 @@
 
             this.dialogs = [];
             this.dialogMap = new Map();
+            this.dialogSnapshotState = 'loading';
+            this.dialogSnapshotTimer = null;
+            this.dialogCacheKey = `wspace:messenger-dialogs:v1:${this.userUid || 'anonymous'}`;
             this.currentDialog = null;
             this.messages = [];
             this.readCursors = new Map();
@@ -47,7 +50,11 @@
                 connectionText: document.getElementById('messenger-connection-text'),
                 dialogSearch: document.getElementById('dialog-search'),
                 dialogList: document.getElementById('dialog-list'),
+                dialogLoading: document.getElementById('dialog-list-loading'),
                 dialogEmpty: document.getElementById('dialog-list-empty'),
+                dialogEmptyTitle: document.getElementById('dialog-list-empty-title'),
+                dialogEmptyText: document.getElementById('dialog-list-empty-text'),
+                dialogRetry: document.getElementById('dialog-list-retry'),
                 newChatButton: document.getElementById('new-chat-button'),
                 newChatDialog: document.getElementById('new-chat-dialog'),
                 newChatName: document.getElementById('new-chat-name'),
@@ -79,12 +86,19 @@
 
         init() {
             this.bindEvents();
+            this.restoreDialogCache();
+            this.renderDialogSnapshotState();
+            if (this.dialogs.length > 0) {
+                this.renderDialogs();
+            }
+            void this.loadInitialDialogs();
             this.connect();
         }
 
         bindEvents() {
             this.el.dialogSearch?.addEventListener('input', () => this.renderDialogs());
             this.el.newChatButton?.addEventListener('click', () => this.openNewChatDialog());
+            this.el.dialogRetry?.addEventListener('click', () => void this.loadInitialDialogs());
             this.el.contactSearch?.addEventListener('input', () => this.filterContacts());
             this.el.createChatButton?.addEventListener('click', () => this.createChat());
             this.el.chatBack?.addEventListener('click', () => this.root.classList.remove('messenger-app--chat-open'));
@@ -605,8 +619,15 @@
         }
 
         applyDialogs(dialogs) {
+            this.dialogSnapshotState = 'loaded';
+            if (this.dialogSnapshotTimer !== null) {
+                window.clearTimeout(this.dialogSnapshotTimer);
+                this.dialogSnapshotTimer = null;
+            }
             this.dialogs = dialogs;
             this.dialogMap = new Map(dialogs.map((dialog) => [dialog.uid, dialog]));
+            this.storeDialogCache(dialogs);
+            this.renderDialogSnapshotState();
             this.renderDialogs();
             document.dispatchEvent(new CustomEvent('wspace:messenger-dialogs', {
                 detail: { dialogs: this.dialogs }
@@ -624,6 +645,119 @@
             }
         }
 
+        async loadInitialDialogs() {
+            if (this.sessionUnavailable || this.transportSuspended) return;
+
+            this.dialogSnapshotState = this.dialogs.length > 0 ? 'syncing' : 'loading';
+            this.renderDialogSnapshotState();
+
+            if (this.dialogSnapshotTimer !== null) {
+                window.clearTimeout(this.dialogSnapshotTimer);
+            }
+            this.dialogSnapshotTimer = window.setTimeout(() => {
+                if (!['loading', 'syncing'].includes(this.dialogSnapshotState)) return;
+                this.dialogSnapshotState = this.dialogs.length > 0 ? 'stale' : 'error';
+                this.renderDialogSnapshotState();
+            }, 7000);
+
+            try {
+                await this.performHttpEvent('MessangerSocket:get_dialogs', {});
+            } catch (error) {
+                if (error?.code === 'session_unavailable') return;
+                console.warn('Initial messenger snapshot failed', error);
+                if (this.dialogSnapshotState !== 'loaded') {
+                    this.dialogSnapshotState = this.dialogs.length > 0 ? 'stale' : 'error';
+                    this.renderDialogSnapshotState();
+                }
+            }
+        }
+
+        restoreDialogCache() {
+            try {
+                const raw = sessionStorage.getItem(this.dialogCacheKey);
+                if (!raw) return;
+                const parsed = JSON.parse(raw);
+                if (!Array.isArray(parsed) || parsed.length === 0) return;
+                const dialogs = parsed
+                    .filter((dialog) => dialog && typeof dialog === 'object' && typeof dialog.uid === 'string')
+                    .slice(0, 200);
+                if (dialogs.length === 0) return;
+                this.dialogs = dialogs;
+                this.dialogMap = new Map(dialogs.map((dialog) => [dialog.uid, dialog]));
+                this.dialogSnapshotState = 'syncing';
+            } catch (_) {
+                try { sessionStorage.removeItem(this.dialogCacheKey); } catch (_) {}
+            }
+        }
+
+        storeDialogCache(dialogs) {
+            try {
+                const safe = (Array.isArray(dialogs) ? dialogs : []).slice(0, 200).map((dialog) => ({
+                    uid: String(dialog.uid || ''),
+                    type: String(dialog.type || ''),
+                    title: String(dialog.title || 'Диалог'),
+                    avatar: dialog.avatar || null,
+                    updated_at: dialog.updated_at || null,
+                    unread_count: Number(dialog.unread_count || 0),
+                    last_message_preview: null,
+                    last_message_at: dialog.last_message_at || null,
+                    partner: dialog.partner ? {
+                        uid: String(dialog.partner.uid || ''),
+                        username: String(dialog.partner.username || ''),
+                        firstname: String(dialog.partner.firstname || ''),
+                        lastname: String(dialog.partner.lastname || ''),
+                        avatar: dialog.partner.avatar || null
+                    } : null,
+                    participants: []
+                })).filter((dialog) => dialog.uid !== '');
+                sessionStorage.setItem(this.dialogCacheKey, JSON.stringify(safe));
+            } catch (_) {
+                // Кэш — только ускоритель интерфейса; Messenger не зависит от него.
+            }
+        }
+
+        renderDialogSnapshotState() {
+            const state = this.dialogSnapshotState;
+            const loading = state === 'loading';
+            const syncing = state === 'syncing' || state === 'stale';
+            const failed = state === 'error';
+
+            if (this.el.dialogLoading) this.el.dialogLoading.hidden = !loading;
+            if (this.el.newChatButton) {
+                this.el.newChatButton.disabled = state !== 'loaded';
+                this.el.newChatButton.title = state === 'loaded'
+                    ? 'Новый чат'
+                    : 'Список диалогов ещё синхронизируется';
+            }
+
+            if (this.el.dialogRetry) this.el.dialogRetry.hidden = !failed && state !== 'stale';
+            if (this.el.dialogEmpty && !failed && state !== 'loaded') {
+                this.el.dialogEmpty.hidden = true;
+            }
+
+            if (failed && this.el.dialogEmpty) {
+                this.el.dialogEmpty.hidden = false;
+                if (this.el.dialogEmptyTitle) this.el.dialogEmptyTitle.textContent = 'Не удалось загрузить диалоги';
+                if (this.el.dialogEmptyText) this.el.dialogEmptyText.textContent = 'Список чатов не подтверждён сервером. Повторите загрузку.';
+            }
+
+            if (syncing && this.dialogs.length > 0) {
+                if (this.el.dialogLoading) {
+                    this.el.dialogLoading.hidden = false;
+                    const label = this.el.dialogLoading.querySelector('.messenger-dialog-loading__label');
+                    if (label) label.textContent = state === 'stale'
+                        ? 'Показан сохранённый список. Повторяем синхронизацию…'
+                        : 'Показываем сохранённый список. Синхронизируем…';
+                    this.el.dialogLoading.classList.add('messenger-dialog-loading--compact');
+                }
+                if (this.el.dialogList) this.el.dialogList.hidden = false;
+            } else if (this.el.dialogLoading) {
+                this.el.dialogLoading.classList.remove('messenger-dialog-loading--compact');
+                const label = this.el.dialogLoading.querySelector('.messenger-dialog-loading__label');
+                if (label) label.textContent = 'Загружаем диалоги…';
+            }
+        }
+
         renderDialogs() {
             const query = (this.el.dialogSearch?.value || '').trim().toLocaleLowerCase('ru');
             const dialogs = this.dialogs.filter((dialog) => {
@@ -633,10 +767,16 @@
 
             this.el.dialogList.replaceChildren();
 
-            const showEmptyState = this.dialogs.length === 0 && query === '';
-            this.el.dialogList.hidden = showEmptyState;
+            const confirmed = this.dialogSnapshotState === 'loaded';
+            const showEmptyState = confirmed && this.dialogs.length === 0 && query === '';
+            this.el.dialogList.hidden = this.dialogs.length === 0;
             if (this.el.dialogEmpty) {
                 this.el.dialogEmpty.hidden = !showEmptyState;
+                if (showEmptyState) {
+                    if (this.el.dialogEmptyTitle) this.el.dialogEmptyTitle.textContent = 'Диалогов пока нет';
+                    if (this.el.dialogEmptyText) this.el.dialogEmptyText.textContent = 'Создайте первый чат с коллегой.';
+                    if (this.el.dialogRetry) this.el.dialogRetry.hidden = true;
+                }
             }
 
             dialogs.forEach((dialog) => {
@@ -845,7 +985,33 @@
                 );
             }
 
-            row.append(actions, bubble);
+            const actionsToggle = document.createElement('button');
+            actionsToggle.type = 'button';
+            actionsToggle.className = 'messenger-message__actions-toggle';
+            actionsToggle.title = 'Действия с сообщением';
+            actionsToggle.setAttribute('aria-label', 'Показать действия с сообщением');
+            actionsToggle.setAttribute('aria-expanded', 'false');
+
+            const actionsId = `message-actions-${String(message.uid || message.id || 'item').replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+            actions.id = actionsId;
+            actionsToggle.setAttribute('aria-controls', actionsId);
+
+            const toggleIcon = document.createElement('i');
+            toggleIcon.className = 'fa fa-ellipsis-h';
+            toggleIcon.setAttribute('aria-hidden', 'true');
+            actionsToggle.append(toggleIcon);
+
+            actionsToggle.addEventListener('click', (event) => {
+                event.stopPropagation();
+                const opened = row.classList.toggle('messenger-message--actions-open');
+                actionsToggle.setAttribute('aria-expanded', opened ? 'true' : 'false');
+                actionsToggle.setAttribute(
+                    'aria-label',
+                    opened ? 'Скрыть действия с сообщением' : 'Показать действия с сообщением'
+                );
+            });
+
+            row.append(bubble, actionsToggle, actions);
             return row;
         }
 
@@ -1052,6 +1218,11 @@
         }
 
         openNewChatDialog() {
+            if (this.dialogSnapshotState !== 'loaded') {
+                this.showToast('Сначала дождитесь загрузки существующих диалогов');
+                void this.loadInitialDialogs();
+                return;
+            }
             if (!this.el.newChatDialog) return;
             this.el.newChatName.value = '';
             this.el.contactSearch.value = '';

@@ -76,6 +76,7 @@ $partialData = [
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="description" content="Workspace Organizer — единое рабочее пространство с подключаемыми модулями">
+    <meta name="robots" content="noindex,nofollow,noarchive,nosnippet,noimageindex">
     <meta name="theme-color" content="#f4f8ff">
     <meta name="color-scheme" content="light dark">
     <script nonce="<?= $view->e($cspNonce) ?>">
@@ -170,6 +171,7 @@ if (is_file($controlsPath) && is_readable($controlsPath)) {
         echo ' ' . $attribute . '="' . $view->e($value) . '"';
     }
 endif; ?>>
+    <a href="<?= $view->e($baseUrl . '/.well-known/workspace-crawl-trap') ?>" hidden aria-hidden="true" tabindex="-1" rel="nofollow">.</a>
     <a class="skip-link" href="#main-content">Перейти к содержимому</a>
     <div class="wrapper">
         <?= $view->partial('^shared/sidebar/index', $partialData) ?>

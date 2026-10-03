@@ -222,7 +222,15 @@
                     }
                     return false;
                 } finally {
-                    if (!refreshed && resumeLongPoll && !sessionUnavailable && app.longPollActive === true) {
+                    // Проверка/обновление ticket не должна оставлять рабочий Long Poll
+                    // в паузе при успешном ответе. Он остаётся резервным каналом до
+                    // фактической авторизации WebSocket.
+                    if (
+                        resumeLongPoll
+                        && !sessionUnavailable
+                        && app.longPollActive === true
+                        && app.socketAuthorized !== true
+                    ) {
                         app.resumeLongPoll?.();
                     }
                     refreshPromise = null;
@@ -269,6 +277,20 @@
                     if (!sessionUnavailable) app.scheduleReconnect();
                     return;
                 }
+
+                if (
+                    app.socket
+                    && app.socketAuthorized !== true
+                    && (app.socket.readyState === WebSocket.OPEN || app.socket.readyState === WebSocket.CONNECTING)
+                ) {
+                    try {
+                        app.socket.close();
+                    } catch (_) {
+                        // Старый неавторизованный socket не должен мешать новому подключению.
+                    }
+                    app.socket = null;
+                }
+
                 originalConnect();
             } finally {
                 reconnectInFlight = false;
@@ -276,7 +298,7 @@
         };
 
         app.scheduleReconnect = function scheduleConnectionRetry(options = {}) {
-            if (sessionUnavailable || app.reconnectTimer) return;
+            if (sessionUnavailable || reconnectInFlight || app.reconnectTimer) return;
 
             if (navigator.onLine === false) {
                 renderState('offline', 'Нет интернета', {
@@ -367,15 +389,21 @@
 
         window.addEventListener('focus', () => {
             verifySessionIdentity();
+            const socketReady = app.socket?.readyState === WebSocket.OPEN && app.socketAuthorized === true;
+            if (navigator.onLine !== false && !sessionUnavailable && !socketReady) {
+                clearReconnectTimer();
+                app.scheduleReconnect({ immediate: true });
+            }
         });
 
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState !== 'visible') return;
             verifySessionIdentity();
+            const socketReady = app.socket?.readyState === WebSocket.OPEN && app.socketAuthorized === true;
             if (
                 navigator.onLine !== false
                 && !sessionUnavailable
-                && (!app.socket || app.socket.readyState !== WebSocket.OPEN)
+                && !socketReady
             ) {
                 clearReconnectTimer();
                 app.scheduleReconnect({ immediate: true });

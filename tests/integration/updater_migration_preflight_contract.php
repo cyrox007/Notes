@@ -165,6 +165,10 @@ try {
         count(MigrationBaseline::appliedNames($canonical, 10013)) === 27,
         'baseline 1.0.13 больше не совпадает с опубликованной схемой'
     );
+    migrationPreflightAssert(
+        count(MigrationBaseline::appliedNames($canonical, 10014)) === 27,
+        'baseline 1.0.14 больше не совпадает с опубликованной схемой'
+    );
 
     $activeStateRoot = $temp . '/active-update-state';
     migrationPreflightAssert(
@@ -209,6 +213,19 @@ try {
         'baseline принят для чужой целевой версии'
     );
 
+    $journal['installed_version'] = '1.0.14';
+    $journal['installed_version_code'] = 10014;
+    $journal['target_version'] = '1.0.15';
+    $journal['target_version_code'] = 10015;
+    migrationPreflightWrite(
+        $journalPath,
+        json_encode($journal, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . PHP_EOL
+    );
+    migrationPreflightAssert(
+        MigrationBaseline::activeUpdaterSourceVersionCode($root, 10015) === 10014,
+        'active updater transaction не восстановила baseline исходной версии 1.0.14'
+    );
+
     $journal['state'] = 'backup_verified';
     $journal['live_mutation_started'] = false;
     migrationPreflightWrite(
@@ -216,7 +233,7 @@ try {
         json_encode($journal, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . PHP_EOL
     );
     migrationPreflightAssert(
-        MigrationBaseline::activeUpdaterSourceVersionCode($root, 10014) === null,
+        MigrationBaseline::activeUpdaterSourceVersionCode($root, 10015) === null,
         'baseline принят до destructive boundary'
     );
 

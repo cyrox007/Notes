@@ -120,9 +120,11 @@ ob_start();
                 <span>Осталось <strong data-quota-remaining>—</strong></span>
             </div>
         </div>
-        <div class="file-manager__quota-track" role="progressbar" aria-label="Заполненность хранилища" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-            <div class="file-manager__quota-bar" data-quota-bar></div>
-        </div>
+        <progress class="file-manager__quota-track"
+                  data-quota-progress
+                  value="0"
+                  max="100"
+                  aria-label="Заполненность хранилища"></progress>
     </section>
 
     <div class="file-manager__content" aria-live="polite">
@@ -273,9 +275,11 @@ ob_start();
         <div class="file-manager__modal-body">
             <div class="upload-progress-item" id="upload-progress-container">
                 <div class="upload-file-name" id="upload-file-name">Файл...</div>
-                <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-                    <div class="progress-bar-fill" id="progress-bar-fill"></div>
-                </div>
+                <progress class="progress-bar"
+                          id="upload-progress-bar"
+                          value="0"
+                          max="100"
+                          aria-label="Прогресс загрузки"></progress>
                 <div class="progress-percent" id="progress-percent">0%</div>
             </div>
         </div>

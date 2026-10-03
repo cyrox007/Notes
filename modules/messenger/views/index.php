@@ -71,8 +71,19 @@ ob_start();
             <button class="messenger-folder-tab" id="chat-folder-archive" type="button" role="tab" aria-selected="false"><i class="fa fa-archive" aria-hidden="true"></i><span>Архив</span><span class="messenger-folder-tab__count" id="chat-folder-archive-count">0</span></button>
         </div>
 
-        <div class="messenger-dialogs" id="dialog-list" aria-live="polite"></div>
-        <div class="messenger-list__empty" id="dialog-list-empty" hidden><i class="fa fa-comments-o" aria-hidden="true"></i><strong id="dialog-list-empty-title">Диалогов пока нет</strong><span id="dialog-list-empty-text">Создайте первый чат с коллегой.</span></div>
+        <div class="messenger-dialog-loading" id="dialog-list-loading" role="status" aria-live="polite">
+            <span class="messenger-dialog-loading__label">Загружаем диалоги…</span>
+            <span class="messenger-dialog-skeleton"></span>
+            <span class="messenger-dialog-skeleton"></span>
+            <span class="messenger-dialog-skeleton"></span>
+        </div>
+        <div class="messenger-dialogs" id="dialog-list" aria-live="polite" hidden></div>
+        <div class="messenger-list__empty" id="dialog-list-empty" hidden>
+            <i class="fa fa-comments-o" aria-hidden="true"></i>
+            <strong id="dialog-list-empty-title">Диалогов пока нет</strong>
+            <span id="dialog-list-empty-text">Создайте первый чат с коллегой.</span>
+            <button class="messenger-secondary-button" id="dialog-list-retry" type="button" hidden>Повторить загрузку</button>
+        </div>
     </aside>
 
     <main class="messenger-chat" id="messenger-chat">
@@ -290,7 +301,10 @@ ob_start();
                     </div>
                     <div class="messenger-group-section__footer"><button class="messenger-primary-button" id="group-add-button" type="button">Добавить выбранных</button></div>
                 </section>
-                <section class="messenger-group-section messenger-group-danger-row"><button class="messenger-danger-button" id="group-leave-button" type="button">Выйти из группы</button></section>
+                <section class="messenger-group-section messenger-group-danger-row">
+                    <button class="messenger-danger-button" id="group-leave-button" type="button">Выйти из группы</button>
+                    <button class="messenger-danger-button" id="group-delete-button" type="button" hidden>Удалить группу</button>
+                </section>
             </div>
         </div>
     </form>

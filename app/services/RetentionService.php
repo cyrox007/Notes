@@ -49,6 +49,7 @@ final class RetentionService
         [$softDeleteDays, $accountDays, $limit] = $this->normalize($softDeleteDays, $accountDays, $limit);
         $softCutoff = $this->cutoff($softDeleteDays);
         $accountCutoff = $this->cutoff($accountDays);
+        $accountDueAt = gmdate('Y-m-d H:i:s');
 
         $soft = [];
         foreach ($this->softDeleteDefinitions() as $name => $definition) {
@@ -79,7 +80,7 @@ final class RetentionService
 
         $accounts = ['eligible' => 0, 'blocked' => 0];
         if ($this->hasTable('users')) {
-            $rows = $this->accountCandidates($accountCutoff, $limit);
+            $rows = $this->accountCandidates($accountDueAt, $limit);
             foreach ($rows as $row) {
                 if ($this->accountBlockReason((int) $row['id']) !== null) {
                     $accounts['blocked']++;
@@ -95,6 +96,7 @@ final class RetentionService
             'account_days' => $accountDays,
             'soft_delete_cutoff' => $softCutoff,
             'account_cutoff' => $accountCutoff,
+            'account_due_at' => $accountDueAt,
             'limit' => $limit,
             'soft_delete_candidates' => $soft,
             'account_candidates' => $accounts,
@@ -107,6 +109,7 @@ final class RetentionService
         [$softDeleteDays, $accountDays, $limit] = $this->normalize($softDeleteDays, $accountDays, $limit);
         $softCutoff = $this->cutoff($softDeleteDays);
         $accountCutoff = $this->cutoff($accountDays);
+        $accountDueAt = gmdate('Y-m-d H:i:s');
 
         $result = [
             'status' => 'applied',
@@ -114,6 +117,7 @@ final class RetentionService
             'account_days' => $accountDays,
             'soft_delete_cutoff' => $softCutoff,
             'account_cutoff' => $accountCutoff,
+            'account_due_at' => $accountDueAt,
             'purged' => [],
             'files_deleted' => 0,
             'files_missing' => 0,
@@ -132,7 +136,7 @@ final class RetentionService
         $this->purgeSimpleRows('tasks', 'tasks', 'is_deleted = 1 AND deleted_at IS NOT NULL AND deleted_at < :cutoff', $softCutoff, $limit, $result);
         $this->purgeSimpleRows('task_board_items', 'task_board_items', 'is_deleted = 1 AND deleted_at IS NOT NULL AND deleted_at < :cutoff', $softCutoff, $limit, $result);
         $this->purgeSimpleRows('task_categories', 'task_categories', 'is_deleted = 1 AND updated_at < :cutoff', $softCutoff, $limit, $result);
-        $this->purgeAccounts($accountCutoff, $limit, $result);
+        $this->purgeAccounts($accountDueAt, $limit, $result);
 
         SecurityEventLog::emit(
             'retention.purge_completed',
@@ -346,13 +350,22 @@ final class RetentionService
         $this->addPurged($result, $resultKey, $purged);
     }
 
-    /** @param array<string,mixed> $result */
-    private function purgeAccounts(string $cutoff, int $limit, array &$result): void
+    /**
+     * Очищает только аккаунты, явно помеченные на удаление и уже достигшие purge_after.
+     *
+     * Строка users остаётся как технический tombstone: физический DELETE мог бы
+     * каскадно уничтожить сообщения и другие совместные объекты других пользователей.
+     * Персональные регистрационные данные при этом удаляются необратимо.
+     *
+     * @param array<string,mixed> $result
+     */
+    private function purgeAccounts(string $dueAt, int $limit, array &$result): void
     {
         if (!$this->hasTable('users')) {
             return;
         }
-        foreach ($this->accountCandidates($cutoff, $limit) as $user) {
+
+        foreach ($this->accountCandidates($dueAt, $limit) as $user) {
             $userId = (int) $user['id'];
             $reason = $this->accountBlockReason($userId);
             if ($reason !== null) {
@@ -368,18 +381,93 @@ final class RetentionService
                 continue;
             }
 
-            $paths = $this->accountPaths($userId);
-            if (!$this->removePaths($paths, $result)) {
+            // Удаляем только отдельный аватар профиля. Пользовательские заметки,
+            // сообщения, задачи и совместные вложения не должны исчезать каскадно.
+            if (!$this->removePaths($this->identityPaths($userId), $result)) {
                 $result['accounts_failed']++;
                 continue;
             }
 
             try {
                 $this->db->beginTransaction();
-                $affected = $this->db->execute(
-                    "DELETE FROM users WHERE id = :id AND is_active = 0 AND account_status = 'inactive' AND updated_at < :cutoff",
-                    [':id' => $userId, ':cutoff' => $cutoff]
+                $locked = $this->db->fetchOne(
+                    "SELECT id,uid,purge_after,anonymized_at
+                     FROM users
+                     WHERE id=:id
+                       AND is_active=0
+                       AND account_status='inactive'
+                       AND deletion_requested_at IS NOT NULL
+                       AND purge_after IS NOT NULL
+                       AND purge_after <= :due_at
+                       AND anonymized_at IS NULL
+                     LIMIT 1 FOR UPDATE",
+                    [':id' => $userId, ':due_at' => $dueAt]
                 );
+                if (!$locked) {
+                    $this->db->endTransaction(false);
+                    continue;
+                }
+
+                $uidToken = strtolower(substr(
+                    preg_replace('/[^a-f0-9]/i', '', (string) ($locked['uid'] ?? '')) ?: 'user',
+                    0,
+                    12
+                ));
+                $username = 'deleted_' . $userId . '_' . $uidToken;
+                $email = 'deleted+' . $userId . '+' . $uidToken . '@invalid.workspace.local';
+                $passwordHash = password_hash(bin2hex(random_bytes(32)), PASSWORD_DEFAULT);
+                if (!is_string($passwordHash) || $passwordHash === '') {
+                    throw new RuntimeException('Не удалось подготовить tombstone-пароль');
+                }
+
+                $now = gmdate('Y-m-d H:i:s');
+                $affected = $this->db->execute(
+                    "UPDATE users SET
+                        username=:username,
+                        email=:email,
+                        password_hash=:password_hash,
+                        firstname='Удалённый',
+                        patronymic=NULL,
+                        lastname='пользователь',
+                        phone=NULL,
+                        avatar=NULL,
+                        property=:property,
+                        role=888,
+                        is_active=0,
+                        account_status='inactive',
+                        purge_after=NULL,
+                        anonymized_at=:anonymized_at,
+                        totp_enabled=0,
+                        totp_secret=NULL,
+                        totp_last_counter=NULL,
+                        totp_recovery_codes=NULL,
+                        totp_confirmed_at=NULL,
+                        updated_at=:updated_at
+                     WHERE id=:id AND anonymized_at IS NULL",
+                    [
+                        ':username' => $username,
+                        ':email' => $email,
+                        ':password_hash' => $passwordHash,
+                        ':property' => '{}',
+                        ':anonymized_at' => $now,
+                        ':updated_at' => $now,
+                        ':id' => $userId,
+                    ]
+                );
+
+                if ($this->hasTable('user_roles')) {
+                    $this->db->execute(
+                        'DELETE FROM user_roles WHERE user_id=:user_id',
+                        [':user_id' => $userId]
+                    );
+                }
+                if ($this->hasTable('user_storage_quotas')) {
+                    $this->db->execute(
+                        'DELETE FROM user_storage_quotas WHERE user_id=:user_id',
+                        [':user_id' => $userId]
+                    );
+                }
+
                 $this->db->endTransaction(true);
             } catch (Throwable $e) {
                 $this->db->endTransaction(false);
@@ -403,21 +491,45 @@ final class RetentionService
                     'retention',
                     'cli',
                     null,
-                    ['user_id' => $userId]
+                    ['user_id' => $userId, 'mode' => 'anonymized_tombstone']
                 );
                 $this->removeEmptyUserStorage($userId);
             }
         }
     }
 
+    /** @return array{accounts_purged:int,accounts_blocked:int,accounts_failed:int,files_deleted:int,files_missing:int,files_blocked:int,files_failed:int} */
+    public function purgeScheduledAccounts(int $limit = 100): array
+    {
+        $limit = max(1, min(self::MAX_LIMIT, $limit));
+        $result = [
+            'accounts_purged' => 0,
+            'accounts_blocked' => 0,
+            'accounts_failed' => 0,
+            'files_deleted' => 0,
+            'files_missing' => 0,
+            'files_blocked' => 0,
+            'files_failed' => 0,
+        ];
+        $this->purgeAccounts(gmdate('Y-m-d H:i:s'), $limit, $result);
+        return $result;
+    }
+
     /** @return list<array<string,mixed>> */
-    private function accountCandidates(string $cutoff, int $limit): array
+    private function accountCandidates(string $dueAt, int $limit): array
     {
         return $this->db->fetchAll(
-            "SELECT id,uid,updated_at FROM users "
-            . "WHERE is_active = 0 AND account_status = 'inactive' AND updated_at < :cutoff "
-            . 'ORDER BY updated_at ASC,id ASC LIMIT ' . $limit,
-            [':cutoff' => $cutoff]
+            "SELECT id,uid,deletion_requested_at,purge_after,anonymized_at
+             FROM users
+             WHERE is_active=0
+               AND account_status='inactive'
+               AND deletion_requested_at IS NOT NULL
+               AND purge_after IS NOT NULL
+               AND purge_after <= :due_at
+               AND anonymized_at IS NULL
+             ORDER BY purge_after ASC,id ASC
+             LIMIT " . $limit,
+            [':due_at' => $dueAt]
         );
     }
 
@@ -467,39 +579,12 @@ final class RetentionService
     }
 
     /** @return list<string> */
-    private function accountPaths(int $userId): array
+    private function identityPaths(int $userId): array
     {
-        $paths = [];
-
-        if ($this->hasTable('user_files')) {
-            foreach ($this->db->fetchAll(
-                "SELECT path FROM user_files WHERE user_id=:user_id AND type<>'folder' AND path IS NOT NULL AND path<>''",
-                [':user_id' => $userId]
-            ) as $row) {
-                $paths[] = (string) $row['path'];
-            }
-        }
-        if ($this->hasTable('notes') && $this->hasTable('note_attachments')) {
-            foreach ($this->db->fetchAll(
-                'SELECT a.file_path FROM note_attachments a JOIN notes n ON n.id=a.note_id WHERE n.user_id=:user_id',
-                [':user_id' => $userId]
-            ) as $row) {
-                $paths[] = (string) $row['file_path'];
-            }
-        }
-        if ($this->hasTable('messenger_attachments')) {
-            foreach ($this->db->fetchAll(
-                'SELECT stored_path FROM messenger_attachments WHERE uploader_user_id=:user_id',
-                [':user_id' => $userId]
-            ) as $row) {
-                $paths[] = (string) $row['stored_path'];
-            }
-        }
-
-        $paths[] = $this->privateRoot . DIRECTORY_SEPARATOR . 'users'
-            . DIRECTORY_SEPARATOR . $userId . DIRECTORY_SEPARATOR . 'avatar' . DIRECTORY_SEPARATOR . 'avatar.jpg';
-
-        return array_values(array_unique(array_filter($paths, static fn (string $path): bool => trim($path) !== '')));
+        return [
+            $this->privateRoot . DIRECTORY_SEPARATOR . 'users'
+                . DIRECTORY_SEPARATOR . $userId . DIRECTORY_SEPARATOR . 'avatar' . DIRECTORY_SEPARATOR . 'avatar.jpg',
+        ];
     }
 
     /** @param list<string> $paths @param array<string,mixed> $result */

@@ -44,6 +44,7 @@
         return new Promise((resolve) => {
             const root = ensureDialogRoot();
             root.replaceChildren();
+            root.classList.remove('is-closing');
             root.hidden = false;
             document.body.classList.add('wspace-dialog-open');
 
@@ -87,14 +88,29 @@
             root.appendChild(dialog);
 
             let settled = false;
-            const finish = (value) => {
-                if (settled) return;
-                settled = true;
+            let closeTimer = null;
+            const onBackdropMouseDown = (event) => {
+                if (event.target === root) finish(input ? null : false);
+            };
+            const cleanup = (value) => {
                 root.hidden = true;
+                root.classList.remove('is-closing');
                 root.replaceChildren();
                 document.body.classList.remove('wspace-dialog-open');
                 document.removeEventListener('keydown', onKeydown, true);
+                root.removeEventListener('mousedown', onBackdropMouseDown);
+                if (closeTimer !== null) window.clearTimeout(closeTimer);
                 resolve(value);
+            };
+            const finish = (value) => {
+                if (settled) return;
+                settled = true;
+                if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                    cleanup(value);
+                    return;
+                }
+                root.classList.add('is-closing');
+                closeTimer = window.setTimeout(() => cleanup(value), 170);
             };
             const onKeydown = (event) => {
                 if (event.key === 'Escape') finish(input ? null : false);
@@ -106,9 +122,7 @@
 
             cancel.addEventListener('click', () => finish(input ? null : false));
             confirmButton.addEventListener('click', () => finish(input ? field.value : true));
-            root.addEventListener('mousedown', (event) => {
-                if (event.target === root) finish(input ? null : false);
-            }, { once: true });
+            root.addEventListener('mousedown', onBackdropMouseDown);
             document.addEventListener('keydown', onKeydown, true);
 
             window.setTimeout(() => (field || confirmButton).focus(), 0);

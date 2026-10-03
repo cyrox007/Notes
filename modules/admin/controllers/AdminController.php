@@ -52,6 +52,7 @@ final class AdminController extends Controller
             $permissionService = new PermissionService();
             $canManageRoles = $permissionService->hasPermission($actorId, 'admin.roles.manage');
             $canViewAudit = $permissionService->hasPermission($actorId, 'admin.audit.view');
+            $canPurgeUsers = $permissionService->hasRole($actorId, 'superadmin');
         } catch (DomainException $e) {
             http_response_code($this->exceptionStatus($e, 403));
             return;
@@ -67,6 +68,7 @@ final class AdminController extends Controller
             'pagination' => ListQuery::pagination($query, (int) $result['total']),
             'canManageRoles' => $canManageRoles,
             'canViewAudit' => $canViewAudit,
+            'canPurgeUsers' => $canPurgeUsers ?? false,
             'admin_flash' => is_array($flash) ? $flash : null,
         ]);
     }
@@ -187,6 +189,78 @@ final class AdminController extends Controller
         } catch (Throwable $e) {
             error_log('Admin custom fields update failed: ' . $e->getMessage());
             $this->respondAdminAction($request, false, 'Не удалось сохранить пользовательские поля', 500);
+        }
+    }
+
+    public function updateUser(Request $request): void
+    {
+        try {
+            $message = (new AdminUserService())->updateUser(
+                (int) $request->session('user_id', 0),
+                (int) $request->post('user_id', 0),
+                [
+                    'username' => $request->post('username'),
+                    'email' => $request->post('email'),
+                    'firstname' => $request->post('firstname'),
+                    'patronymic' => $request->post('patronymic'),
+                    'lastname' => $request->post('lastname'),
+                    'phone' => $request->post('phone'),
+                    'password' => $request->rawPost('password'),
+                ]
+            );
+            $this->respondAdminAction($request, true, $message);
+        } catch (InvalidArgumentException|DomainException $e) {
+            $this->respondAdminAction($request, false, $e->getMessage(), $this->exceptionStatus($e, 422));
+        } catch (Throwable $e) {
+            error_log('Admin user update failed: ' . $e->getMessage());
+            $this->respondAdminAction($request, false, 'Не удалось обновить пользователя', 500);
+        }
+    }
+
+    public function requestUserDeletion(Request $request): void
+    {
+        try {
+            $message = (new AdminUserService())->requestDeletion(
+                (int) $request->session('user_id', 0),
+                (int) $request->post('user_id', 0)
+            );
+            $this->respondAdminAction($request, true, $message);
+        } catch (InvalidArgumentException|DomainException $e) {
+            $this->respondAdminAction($request, false, $e->getMessage(), $this->exceptionStatus($e, 422));
+        } catch (Throwable $e) {
+            error_log('Admin user deletion schedule failed: ' . $e->getMessage());
+            $this->respondAdminAction($request, false, 'Не удалось запланировать удаление пользователя', 500);
+        }
+    }
+
+    public function cancelUserDeletion(Request $request): void
+    {
+        try {
+            $message = (new AdminUserService())->cancelDeletion(
+                (int) $request->session('user_id', 0),
+                (int) $request->post('user_id', 0)
+            );
+            $this->respondAdminAction($request, true, $message);
+        } catch (InvalidArgumentException|DomainException $e) {
+            $this->respondAdminAction($request, false, $e->getMessage(), $this->exceptionStatus($e, 422));
+        } catch (Throwable $e) {
+            error_log('Admin user deletion cancellation failed: ' . $e->getMessage());
+            $this->respondAdminAction($request, false, 'Не удалось отменить удаление пользователя', 500);
+        }
+    }
+
+    public function purgeDueUsers(Request $request): void
+    {
+        try {
+            $message = (new AdminUserService())->purgeDue(
+                (int) $request->session('user_id', 0)
+            );
+            $this->respondAdminAction($request, true, $message);
+        } catch (InvalidArgumentException|DomainException $e) {
+            $this->respondAdminAction($request, false, $e->getMessage(), $this->exceptionStatus($e, 422));
+        } catch (Throwable $e) {
+            error_log('Admin due user purge failed: ' . $e->getMessage());
+            $this->respondAdminAction($request, false, 'Не удалось выполнить очистку пользователей', 500);
         }
     }
 

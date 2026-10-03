@@ -55,6 +55,8 @@ final class SecurityHeaders
         }
 
         header('Content-Security-Policy: ' . self::policy());
+        header('X-Robots-Tag: noindex, nofollow, noarchive, nosnippet, noimageindex');
+        header('Referrer-Policy: no-referrer');
         self::$applied = true;
     }
 }
