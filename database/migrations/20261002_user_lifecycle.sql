@@ -7,30 +7,41 @@
 -- или индекс уже существуют в совместимом виде, они не создаются повторно.
 -- Несовместимое состояние отклоняется до изменения таблицы.
 
-DELIMITER //
-CREATE PROCEDURE `workspace_reconcile_user_lifecycle`()
-BEGIN
-    IF NOT EXISTS (
+-- Хостинг не обязан разрешать CREATE ROUTINE / ALTER ROUTINE / EXECUTE.
+-- Условные изменения выполняются через подготовленные обычные запросы.
+-- При несовместимости PREPARE заведомо неверного SELECT останавливает миграцию
+-- до первого ALTER; ссылка на отсутствующую колонку содержит причину отказа.
+
+SET @workspace_lifecycle_sql = IF(
+    NOT EXISTS (
         SELECT 1
         FROM information_schema.tables
         WHERE table_schema = DATABASE() AND table_name = 'users'
-    ) THEN
-        SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'Не найдена таблица users для миграции жизненного цикла';
-    END IF;
+    ),
+    'SELECT `Не найдена таблица users для миграции жизненного цикла` FROM (SELECT 1 AS valid_schema) AS updater_schema_guard',
+    'SELECT 1'
+);
+PREPARE workspace_lifecycle_stmt FROM @workspace_lifecycle_sql;
+EXECUTE workspace_lifecycle_stmt;
+DEALLOCATE PREPARE workspace_lifecycle_stmt;
 
-    IF NOT EXISTS (
+SET @workspace_lifecycle_sql = IF(
+    NOT EXISTS (
         SELECT 1
         FROM information_schema.columns
         WHERE table_schema = DATABASE()
           AND table_name = 'users'
           AND column_name = 'account_status'
-    ) THEN
-        SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'В users отсутствует обязательное поле account_status';
-    END IF;
+    ),
+    'SELECT `В users отсутствует обязательное поле account_status` FROM (SELECT 1 AS valid_schema) AS updater_schema_guard',
+    'SELECT 1'
+);
+PREPARE workspace_lifecycle_stmt FROM @workspace_lifecycle_sql;
+EXECUTE workspace_lifecycle_stmt;
+DEALLOCATE PREPARE workspace_lifecycle_stmt;
 
-    IF EXISTS (
+SET @workspace_lifecycle_sql = IF(
+    EXISTS (
         SELECT 1
         FROM information_schema.columns
         WHERE table_schema = DATABASE()
@@ -44,12 +55,16 @@ BEGIN
           AND column_name = 'deletion_requested_at'
           AND data_type = 'datetime'
           AND is_nullable = 'YES'
-    ) THEN
-        SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'Несовместимое поле users.deletion_requested_at';
-    END IF;
+    ),
+    'SELECT `Несовместимое поле users.deletion_requested_at` FROM (SELECT 1 AS valid_schema) AS updater_schema_guard',
+    'SELECT 1'
+);
+PREPARE workspace_lifecycle_stmt FROM @workspace_lifecycle_sql;
+EXECUTE workspace_lifecycle_stmt;
+DEALLOCATE PREPARE workspace_lifecycle_stmt;
 
-    IF EXISTS (
+SET @workspace_lifecycle_sql = IF(
+    EXISTS (
         SELECT 1
         FROM information_schema.columns
         WHERE table_schema = DATABASE()
@@ -63,12 +78,16 @@ BEGIN
           AND column_name = 'purge_after'
           AND data_type = 'datetime'
           AND is_nullable = 'YES'
-    ) THEN
-        SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'Несовместимое поле users.purge_after';
-    END IF;
+    ),
+    'SELECT `Несовместимое поле users.purge_after` FROM (SELECT 1 AS valid_schema) AS updater_schema_guard',
+    'SELECT 1'
+);
+PREPARE workspace_lifecycle_stmt FROM @workspace_lifecycle_sql;
+EXECUTE workspace_lifecycle_stmt;
+DEALLOCATE PREPARE workspace_lifecycle_stmt;
 
-    IF EXISTS (
+SET @workspace_lifecycle_sql = IF(
+    EXISTS (
         SELECT 1
         FROM information_schema.columns
         WHERE table_schema = DATABASE()
@@ -82,12 +101,16 @@ BEGIN
           AND column_name = 'anonymized_at'
           AND data_type = 'datetime'
           AND is_nullable = 'YES'
-    ) THEN
-        SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'Несовместимое поле users.anonymized_at';
-    END IF;
+    ),
+    'SELECT `Несовместимое поле users.anonymized_at` FROM (SELECT 1 AS valid_schema) AS updater_schema_guard',
+    'SELECT 1'
+);
+PREPARE workspace_lifecycle_stmt FROM @workspace_lifecycle_sql;
+EXECUTE workspace_lifecycle_stmt;
+DEALLOCATE PREPARE workspace_lifecycle_stmt;
 
-    IF EXISTS (
+SET @workspace_lifecycle_sql = IF(
+    EXISTS (
         SELECT 1
         FROM information_schema.statistics
         WHERE table_schema = DATABASE()
@@ -117,56 +140,70 @@ BEGIN
               AND seq_in_index = 2
               AND column_name = 'anonymized_at'
         )
-    ) THEN
-        SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'Несовместимый индекс users.idx_users_purge';
-    END IF;
+    ),
+    'SELECT `Несовместимый индекс users.idx_users_purge` FROM (SELECT 1 AS valid_schema) AS updater_schema_guard',
+    'SELECT 1'
+);
+PREPARE workspace_lifecycle_stmt FROM @workspace_lifecycle_sql;
+EXECUTE workspace_lifecycle_stmt;
+DEALLOCATE PREPARE workspace_lifecycle_stmt;
 
-    IF NOT EXISTS (
+SET @workspace_lifecycle_sql = IF(
+    NOT EXISTS (
         SELECT 1
         FROM information_schema.columns
         WHERE table_schema = DATABASE()
           AND table_name = 'users'
           AND column_name = 'deletion_requested_at'
-    ) THEN
-        ALTER TABLE `users`
-            ADD COLUMN `deletion_requested_at` DATETIME NULL AFTER `account_status`;
-    END IF;
+    ),
+    'ALTER TABLE `users` ADD COLUMN `deletion_requested_at` DATETIME NULL AFTER `account_status`',
+    'SELECT 1'
+);
+PREPARE workspace_lifecycle_stmt FROM @workspace_lifecycle_sql;
+EXECUTE workspace_lifecycle_stmt;
+DEALLOCATE PREPARE workspace_lifecycle_stmt;
 
-    IF NOT EXISTS (
+SET @workspace_lifecycle_sql = IF(
+    NOT EXISTS (
         SELECT 1
         FROM information_schema.columns
         WHERE table_schema = DATABASE()
           AND table_name = 'users'
           AND column_name = 'purge_after'
-    ) THEN
-        ALTER TABLE `users`
-            ADD COLUMN `purge_after` DATETIME NULL AFTER `deletion_requested_at`;
-    END IF;
+    ),
+    'ALTER TABLE `users` ADD COLUMN `purge_after` DATETIME NULL AFTER `deletion_requested_at`',
+    'SELECT 1'
+);
+PREPARE workspace_lifecycle_stmt FROM @workspace_lifecycle_sql;
+EXECUTE workspace_lifecycle_stmt;
+DEALLOCATE PREPARE workspace_lifecycle_stmt;
 
-    IF NOT EXISTS (
+SET @workspace_lifecycle_sql = IF(
+    NOT EXISTS (
         SELECT 1
         FROM information_schema.columns
         WHERE table_schema = DATABASE()
           AND table_name = 'users'
           AND column_name = 'anonymized_at'
-    ) THEN
-        ALTER TABLE `users`
-            ADD COLUMN `anonymized_at` DATETIME NULL AFTER `purge_after`;
-    END IF;
+    ),
+    'ALTER TABLE `users` ADD COLUMN `anonymized_at` DATETIME NULL AFTER `purge_after`',
+    'SELECT 1'
+);
+PREPARE workspace_lifecycle_stmt FROM @workspace_lifecycle_sql;
+EXECUTE workspace_lifecycle_stmt;
+DEALLOCATE PREPARE workspace_lifecycle_stmt;
 
-    IF NOT EXISTS (
+SET @workspace_lifecycle_sql = IF(
+    NOT EXISTS (
         SELECT 1
         FROM information_schema.statistics
         WHERE table_schema = DATABASE()
           AND table_name = 'users'
           AND index_name = 'idx_users_purge'
-    ) THEN
-        ALTER TABLE `users`
-            ADD KEY `idx_users_purge` (`purge_after`, `anonymized_at`);
-    END IF;
-END//
-
-CALL `workspace_reconcile_user_lifecycle`()//
-DROP PROCEDURE `workspace_reconcile_user_lifecycle`//
-DELIMITER ;
+    ),
+    'ALTER TABLE `users` ADD KEY `idx_users_purge` (`purge_after`, `anonymized_at`)',
+    'SELECT 1'
+);
+PREPARE workspace_lifecycle_stmt FROM @workspace_lifecycle_sql;
+EXECUTE workspace_lifecycle_stmt;
+DEALLOCATE PREPARE workspace_lifecycle_stmt;

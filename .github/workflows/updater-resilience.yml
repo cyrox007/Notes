@@ -9,6 +9,19 @@ jobs:
   bounded-recovery:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: updater_hosting_migration
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=12
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
@@ -25,3 +38,17 @@ jobs:
           php tests/integration/external_update_runtime_contract.php
           php tests/integration/updater_web_mode_contract.php
           php tests/integration/updater_preapply_crash_recovery_contract.php
+      - name: Проверить миграцию с ограниченными правами БД
+        env:
+          DBHOST: 127.0.0.1
+          DBUSER: updater_hosting
+          DBPASS: hosting-test
+          DBNAME: updater_hosting_migration
+        run: |
+          mysql -h127.0.0.1 -uroot -proot <<'SQL'
+          CREATE USER 'updater_hosting'@'%' IDENTIFIED BY 'hosting-test';
+          GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, DROP, INDEX,
+                REFERENCES, TRIGGER, LOCK TABLES
+            ON updater_hosting_migration.* TO 'updater_hosting'@'%';
+          SQL
+          php tests/integration/updater_hosting_migration_contract.php

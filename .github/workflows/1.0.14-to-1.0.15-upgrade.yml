@@ -207,7 +207,9 @@ jobs:
         if: matrix.migration_ledger == 'with-ledger'
         run: |
           cd /tmp/workspace-1014-1015/live
-          php bin/migrate.php --baseline-version-code=10014
+          # 1.0.14 содержит схему 1.0.13, но её опубликованный исполнитель
+          # ещё не знает baseline 10014. Имитируем журнал прошлого обновления.
+          php bin/migrate.php --baseline-version-code=10013
           php bin/migrate.php --status
 
       - name: Подготовить подписанный exact-head 1.0.15
