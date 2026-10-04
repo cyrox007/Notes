@@ -1,12 +1,10 @@
 name: 1.0 updater transaction backup
 
 on:
-  push:
-    branches: ['fix/updater-resilience-20261004']
   pull_request:
     branches: [master, '1.0']
   push:
-    branches: ['1.0-updater-transaction-backup']
+    branches: ['1.0-updater-transaction-backup', 'fix/updater-resilience-20261004']
 
 permissions:
   contents: read
