@@ -1,0 +1,99 @@
+name: Предварительный updater 1.0.14 → 1.0.15
+
+on:
+  push:
+    branches: ['fix/updater-resilience-20261004']
+    paths:
+      - 'tools/release/bootstrap-1.0.14-updater.php'
+      - 'tests/integration/updater_1014_bootstrap_contract.php'
+      - '.github/workflows/updater-bootstrap-1014.yml'
+      - 'assets/js/update-web-runner.js'
+      - 'assets/js/update-notifications.js'
+      - 'core/UpdateApplyCommand.php'
+      - 'core/UpdateBackupManager.php'
+      - 'core/UpdateDatabaseMigrator.php'
+      - 'core/UpdateDatabaseRestorer.php'
+      - 'core/UpdateRemoteDelivery.php'
+      - 'modules/admin/controllers/UpdateController.php'
+  pull_request:
+    branches: ['fix/1.0.15-post-release-regressions', master, '1.0']
+    paths:
+      - 'tools/release/bootstrap-1.0.14-updater.php'
+      - 'tests/integration/updater_1014_bootstrap_contract.php'
+      - '.github/workflows/updater-bootstrap-1014.yml'
+      - 'assets/js/update-web-runner.js'
+      - 'assets/js/update-notifications.js'
+      - 'core/UpdateApplyCommand.php'
+      - 'core/UpdateBackupManager.php'
+      - 'core/UpdateDatabaseMigrator.php'
+      - 'core/UpdateDatabaseRestorer.php'
+      - 'core/UpdateRemoteDelivery.php'
+      - 'modules/admin/controllers/UpdateController.php'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: updater-bootstrap-1014-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  updater-bootstrap-1014:
+    name: exact 1.0.14 получает только исправленный исполнитель
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+
+    steps:
+      - name: Получить исходники и опубликованный тег
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Подготовить PHP 8.1
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          coverage: none
+
+      - name: Проверить синтаксис и аварийный откат моста
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l tools/release/bootstrap-1.0.14-updater.php
+          php -l tests/integration/updater_1014_bootstrap_contract.php
+          php tests/integration/updater_1014_bootstrap_contract.php
+
+      - name: Применить мост к опубликованной exact 1.0.14
+        shell: bash
+        run: |
+          set -euo pipefail
+          LIVE=/tmp/notes-bootstrap-exact-1014
+          rm -rf "$LIVE"
+          mkdir -p "$LIVE"
+
+          git rev-parse --verify refs/tags/v1.0.14
+          git archive --format=tar v1.0.14 | tar -xf - -C "$LIVE"
+
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.14'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10014'
+          VERSION_SHA="$(sha256sum "$LIVE/core/Version.php" | cut -d' ' -f1)"
+          MIGRATIONS_SHA="$(sha256sum "$LIVE/database/migrations/manifest.json" | cut -d' ' -f1)"
+
+          php tools/release/bootstrap-1.0.14-updater.php --yes --root="$LIVE"
+
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.14'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10014'
+          test "$(sha256sum "$LIVE/core/Version.php" | cut -d' ' -f1)" = "$VERSION_SHA"
+          test "$(sha256sum "$LIVE/database/migrations/manifest.json" | cut -d' ' -f1)" = "$MIGRATIONS_SHA"
+
+          cmp core/UpdateBackupManager.php "$LIVE/core/UpdateBackupManager.php"
+          cmp core/UpdateDatabaseRestorer.php "$LIVE/core/UpdateDatabaseRestorer.php"
+          cmp core/UpdateRemoteDelivery.php "$LIVE/core/UpdateRemoteDelivery.php"
+          cmp assets/js/update-web-runner.js "$LIVE/assets/js/update-web-runner.js"
+          grep -Fq 'validateDump($databasePath)' "$LIVE/core/UpdateBackupManager.php"
+          grep -Fq 'public function validateDump(string $path): void' "$LIVE/core/UpdateDatabaseRestorer.php"
+          grep -Fq 'updater.attempt_started' "$LIVE/core/UpdateRemoteDelivery.php"
+          grep -Fq 'REQUEST_TIMEOUT_MS = 90000' "$LIVE/assets/js/update-web-runner.js"
+
+          echo '[OK] exact v1.0.14 получила исправленный updater без смены версии и миграций'
