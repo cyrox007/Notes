@@ -8,13 +8,16 @@ on:
       - 'tests/integration/updater_1014_bootstrap_contract.php'
       - '.github/workflows/updater-bootstrap-1014.yml'
       - 'assets/js/update-web-runner.js'
-      - 'assets/js/update-notifications.js'
-      - 'core/UpdateApplyCommand.php'
-      - 'core/UpdateBackupManager.php'
-      - 'core/UpdateDatabaseMigrator.php'
-      - 'core/UpdateDatabaseRestorer.php'
-      - 'core/UpdateRemoteDelivery.php'
-      - 'modules/admin/controllers/UpdateController.php'
+      - 'app/services/MaintenanceModeService.php'
+      - 'core/DatabaseOwnership.php'
+      - 'core/HostingCompatibility.php'
+      - 'core/MigrationBaseline.php'
+      - 'core/MigrationManifest.php'
+      - 'core/ModuleManifest.php'
+      - 'core/PrivateStorageResolver.php'
+      - 'core/SecurityEventLog.php'
+      - 'core/ServiceLog.php'
+      - 'core/Update*.php'
   pull_request:
     branches: ['fix/1.0.15-post-release-regressions', master, '1.0']
     paths:
@@ -22,13 +25,16 @@ on:
       - 'tests/integration/updater_1014_bootstrap_contract.php'
       - '.github/workflows/updater-bootstrap-1014.yml'
       - 'assets/js/update-web-runner.js'
-      - 'assets/js/update-notifications.js'
-      - 'core/UpdateApplyCommand.php'
-      - 'core/UpdateBackupManager.php'
-      - 'core/UpdateDatabaseMigrator.php'
-      - 'core/UpdateDatabaseRestorer.php'
-      - 'core/UpdateRemoteDelivery.php'
-      - 'modules/admin/controllers/UpdateController.php'
+      - 'app/services/MaintenanceModeService.php'
+      - 'core/DatabaseOwnership.php'
+      - 'core/HostingCompatibility.php'
+      - 'core/MigrationBaseline.php'
+      - 'core/MigrationManifest.php'
+      - 'core/ModuleManifest.php'
+      - 'core/PrivateStorageResolver.php'
+      - 'core/SecurityEventLog.php'
+      - 'core/ServiceLog.php'
+      - 'core/Update*.php'
   workflow_dispatch:
 
 permissions:
@@ -69,8 +75,9 @@ jobs:
         run: |
           set -euo pipefail
           LIVE=/tmp/notes-bootstrap-exact-1014
-          rm -rf "$LIVE"
-          mkdir -p "$LIVE"
+          PRIVATE=/tmp/notes-bootstrap-private
+          rm -rf "$LIVE" "$PRIVATE"
+          mkdir -p "$LIVE" "$PRIVATE"
 
           git rev-parse --verify refs/tags/v1.0.14
           git archive --format=tar v1.0.14 | tar -xf - -C "$LIVE"
@@ -79,6 +86,9 @@ jobs:
           test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10014'
           VERSION_SHA="$(sha256sum "$LIVE/core/Version.php" | cut -d' ' -f1)"
           MIGRATIONS_SHA="$(sha256sum "$LIVE/database/migrations/manifest.json" | cut -d' ' -f1)"
+          CONTROLLER_SHA="$(sha256sum "$LIVE/modules/admin/controllers/UpdateController.php" | cut -d' ' -f1)"
+          ADMIN_SERVICE_SHA="$(sha256sum "$LIVE/modules/admin/services/AdminUpdateService.php" | cut -d' ' -f1)"
+          NOTIFICATIONS_SHA="$(sha256sum "$LIVE/assets/js/update-notifications.js" | cut -d' ' -f1)"
 
           php tools/release/bootstrap-1.0.14-updater.php --yes --root="$LIVE"
 
@@ -86,14 +96,25 @@ jobs:
           test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10014'
           test "$(sha256sum "$LIVE/core/Version.php" | cut -d' ' -f1)" = "$VERSION_SHA"
           test "$(sha256sum "$LIVE/database/migrations/manifest.json" | cut -d' ' -f1)" = "$MIGRATIONS_SHA"
+          test "$(sha256sum "$LIVE/modules/admin/controllers/UpdateController.php" | cut -d' ' -f1)" = "$CONTROLLER_SHA"
+          test "$(sha256sum "$LIVE/modules/admin/services/AdminUpdateService.php" | cut -d' ' -f1)" = "$ADMIN_SERVICE_SHA"
+          test "$(sha256sum "$LIVE/assets/js/update-notifications.js" | cut -d' ' -f1)" = "$NOTIFICATIONS_SHA"
 
+          cmp core/DatabaseOwnership.php "$LIVE/core/DatabaseOwnership.php"
+          cmp core/MigrationBaseline.php "$LIVE/core/MigrationBaseline.php"
           cmp core/UpdateBackupManager.php "$LIVE/core/UpdateBackupManager.php"
           cmp core/UpdateDatabaseRestorer.php "$LIVE/core/UpdateDatabaseRestorer.php"
           cmp core/UpdateRemoteDelivery.php "$LIVE/core/UpdateRemoteDelivery.php"
+          cmp core/UpdateWebTransaction.php "$LIVE/core/UpdateWebTransaction.php"
           cmp assets/js/update-web-runner.js "$LIVE/assets/js/update-web-runner.js"
+
+          grep -Fq "10014 => '20260930_module_entitlements.sql'" "$LIVE/core/MigrationBaseline.php"
           grep -Fq 'validateDump($databasePath)' "$LIVE/core/UpdateBackupManager.php"
           grep -Fq 'public function validateDump(string $path): void' "$LIVE/core/UpdateDatabaseRestorer.php"
           grep -Fq 'updater.attempt_started' "$LIVE/core/UpdateRemoteDelivery.php"
           grep -Fq 'REQUEST_TIMEOUT_MS = 90000' "$LIVE/assets/js/update-web-runner.js"
 
-          echo '[OK] exact v1.0.14 получила исправленный updater без смены версии и миграций'
+          PRIVATE_STORAGE_PATH="$PRIVATE" php -r \
+            "require '$LIVE/core/UpdateWebTransaction.php'; new Core\\UpdateWebTransaction('$LIVE');"
+
+          echo '[OK] exact v1.0.14 получила замкнутый updater-контур без смены версии, миграций и прикладного кода'

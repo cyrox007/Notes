@@ -103,7 +103,7 @@ try {
         'Не удалось создать старый runner'
     );
     bootstrapContractAssert(
-        mkdir($rollback . '/assets/js/update-notifications.js', 0700, true),
+        mkdir($rollback . '/core/UpdateApplyCommand.php', 0700, true),
         'Не удалось создать отказной live-путь'
     );
     [$rollbackCode, , $rollbackError] = bootstrapContractRun($bridge, $rollback);
