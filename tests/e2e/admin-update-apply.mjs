@@ -141,7 +141,7 @@ try {
 
   if (!versionConfirmed) {
     throw new Error(
-      `Updater завершил commit, но свежий интерфейс не подтверждает ${expectedVersion} (${expectedVersionCode}); `
+      `Обновление не подтвердило целевую версию ${expectedVersion} (${expectedVersionCode}); `
       + `первый URL=${installUrl}; страница=${confirmationBody.slice(0, 2000)}`
     );
   }

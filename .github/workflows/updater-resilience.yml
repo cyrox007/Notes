@@ -1,0 +1,27 @@
+name: Устойчивость обновлятора — память и HTTP
+on:
+  push:
+    branches: ['fix/updater-resilience-20261004']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  bounded-recovery:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: mysqli, mbstring, sodium
+          coverage: none
+      - name: Проверить память отката и поведение браузера
+        run: |
+          php -d memory_limit=32M tests/integration/updater_streaming_dump_contract.php
+          node tests/integration/updater_web_runner_behavior.mjs
+          php tests/integration/updater_attempt_log_contract.php
+          php tests/integration/updater_remote_delivery_contract.php
+          php tests/integration/external_update_runtime_contract.php
+          php tests/integration/updater_web_mode_contract.php
+          php tests/integration/updater_preapply_crash_recovery_contract.php

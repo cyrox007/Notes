@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Core;
 
 require_once __DIR__ . '/UpdatePath.php';
+require_once __DIR__ . '/ServiceLog.php';
 
 use JsonException;
 use RuntimeException;
@@ -28,6 +29,7 @@ final class UpdateRemoteDelivery
     private string $appRoot;
     private UpdatePackageStager $stager;
     private UpdateArchiveInspector $archiveInspector;
+    private string $attemptPhase = 'preflight';
 
     public function __construct(
         string $appRoot,
@@ -59,6 +61,13 @@ final class UpdateRemoteDelivery
         int $currentVersionCode,
         string $currentPhpVersion
     ): array {
+        return $this->observeAttempt('check', $feedUrl, $currentVersionCode,
+            fn (): array => $this->checkInternal($feedUrl, $channel, $currentVersionCode, $currentPhpVersion));
+    }
+
+    /** @return array<string,mixed> */
+    private function checkInternal(string $feedUrl, string $channel, int $currentVersionCode, string $currentPhpVersion): array
+    {
         $resolved = $this->resolve($feedUrl, $channel);
         $manifest = $resolved['manifest'];
         $targetVersionCode = (int) $manifest['version_code'];
@@ -123,6 +132,16 @@ final class UpdateRemoteDelivery
         ?int $expectedTargetVersionCode = null,
         ?string $expectedPackageSha256 = null
     ): array {
+        return $this->observeAttempt('stage', $feedUrl, $currentVersionCode,
+            fn (): array => $this->stageInternal($feedUrl, $channel, $stageRoot,
+                $currentVersionCode, $currentPhpVersion, $expectedTargetVersionCode, $expectedPackageSha256));
+    }
+
+    /** @return array<string,mixed> */
+    private function stageInternal(
+        string $feedUrl, string $channel, string $stageRoot, int $currentVersionCode,
+        string $currentPhpVersion, ?int $expectedTargetVersionCode, ?string $expectedPackageSha256
+    ): array {
         $resolved = $this->resolve($feedUrl, $channel);
         $manifest = $resolved['manifest'];
         $package = $manifest['package'] ?? null;
@@ -130,6 +149,7 @@ final class UpdateRemoteDelivery
             throw new RuntimeException('Verified manifest package metadata is missing');
         }
 
+        $this->attemptPhase = 'preflight';
         $this->assertExpectedRelease(
             $manifest,
             $package,
@@ -175,6 +195,7 @@ final class UpdateRemoteDelivery
             }
 
             $downloadedPackage = $tempDir . DIRECTORY_SEPARATOR . $filename;
+            $this->attemptPhase = 'package_download';
             $download = $this->transport->downloadExact(
                 $packageUrl,
                 $downloadedPackage,
@@ -187,8 +208,10 @@ final class UpdateRemoteDelivery
 
             // Re-run the same local package and ZIP contracts used by manual
             // updater ingress. Network delivery never bypasses local verification.
+            $this->attemptPhase = 'package_verify';
             $verifiedPackage = $this->stager->verifyPackage($manifest, $downloadedPackage);
             $archive = $this->archiveInspector->inspect($downloadedPackage);
+            $this->attemptPhase = 'staging';
             $staged = $this->stager->stage(
                 $manifest,
                 $resolved['manifest_bytes'],
@@ -280,6 +303,7 @@ final class UpdateRemoteDelivery
         }
 
         $feedUrl = $this->canonicalFeedUrl($feedUrl);
+        $this->attemptPhase = 'feed';
         $feedBytes = $this->transport->fetchText($feedUrl, self::MAX_FEED_BYTES);
         try {
             $feed = json_decode($feedBytes, true, 16, JSON_THROW_ON_ERROR);
@@ -310,12 +334,15 @@ final class UpdateRemoteDelivery
 
         $manifestUrl = $this->assetUrl($feedUrl, $manifestName);
         $signatureUrl = $this->assetUrl($feedUrl, $signatureName);
+        $this->attemptPhase = 'manifest';
         $manifestBytes = $this->transport->fetchText($manifestUrl, UpdateManifestVerifier::MAX_MANIFEST_BYTES);
+        $this->attemptPhase = 'signature_download';
         $signatureToken = trim($this->transport->fetchText($signatureUrl, self::MAX_SIGNATURE_BYTES));
         if ($signatureToken === '') {
             throw new RuntimeException('Remote update signature is empty');
         }
 
+        $this->attemptPhase = 'signature_verify';
         $verification = $this->verifier->verify($manifestBytes, $signatureToken);
         if (!($verification['valid'] ?? false) || !is_array($verification['manifest'] ?? null)) {
             throw new RuntimeException((string) ($verification['message'] ?? 'Remote update manifest verification failed'));
@@ -341,6 +368,54 @@ final class UpdateRemoteDelivery
             'signature_token' => $signatureToken,
             'key_id' => (string) ($verification['key_id'] ?? ''),
         ];
+    }
+
+    /**
+     * Попытка фиксируется до сети, даже когда transaction journal ещё отсутствует.
+     * В журнал не попадают URL-параметры, заголовки, SQL или текст внешней ошибки.
+     * @param \Closure():array<string,mixed> $operation
+     * @return array<string,mixed>
+     */
+    private function observeAttempt(string $action, string $url, int $sourceVersionCode, \Closure $operation): array
+    {
+        $attemptId = 'update-attempt-' . bin2hex(random_bytes(12));
+        $startedAt = hrtime(true);
+        $this->attemptPhase = 'preflight';
+        $context = [
+            'attempt_id' => $attemptId,
+            'action' => $action,
+            'source_version_code' => $sourceVersionCode,
+            'remote_host' => (string) (parse_url($url, PHP_URL_HOST) ?: ''),
+        ];
+        $log = null;
+        try { $log = new ServiceLog(null, $this->appRoot); }
+        catch (Throwable) { /* Проверка может выполняться до настройки хранилища. */ }
+        $record = static function (string $event, string $level, array $details) use ($log): void {
+            if ($log === null) return;
+            try { $log->record($event, $level, 'updater', $details); }
+            catch (Throwable) { /* Отказ журнала не заменяет первичную ошибку. */ }
+        };
+        $record('updater.attempt_started', 'info', $context);
+        try {
+            $result = $operation();
+            $record('updater.attempt_completed', 'info', $context + [
+                'phase' => $this->attemptPhase,
+                'duration_ms' => (int) ((hrtime(true) - $startedAt) / 1000000),
+                'target_version_code' => (int) ($result['target_version_code'] ?? 0),
+                'status' => (string) ($result['status'] ?? ''),
+            ]);
+            return $result;
+        } catch (Throwable $error) {
+            $record('updater.attempt_failed', 'error', $context + [
+                'phase' => $this->attemptPhase,
+                'failure_code' => $this->attemptPhase . '_failed',
+                'duration_ms' => (int) ((hrtime(true) - $startedAt) / 1000000),
+                'error_type' => $error::class,
+                'http_status' => $error->getCode() >= 400 && $error->getCode() <= 599
+                    ? $error->getCode() : null,
+            ]);
+            throw $error;
+        }
     }
 
     private function canonicalFeedUrl(string $url): string

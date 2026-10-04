@@ -173,6 +173,7 @@ final class UpdateController extends Controller
             $request->setSession(self::APPLY_BINDING_SESSION_KEY, [
                 'target_version_code' => (int) ($safe['target_version_code'] ?? 0),
                 'package_sha256' => (string) ($safe['package_sha256'] ?? ''),
+                'stage_dir' => (string) ($result['stage_dir'] ?? ''),
             ]);
             $this->redirectWithFlash(
                 $request,

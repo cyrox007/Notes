@@ -86,8 +86,11 @@
                     }
                     if (status === 'recovered') {
                         safeStorageSet(CHECKED_AT_KEY, '0');
+                        const diagnosticCode = String(result?.diagnostic_code || '').trim();
+                        const recoveredMessage = result?.message
+                            || 'Обновление не установлено. Предыдущая версия восстановлена.';
                         window.wspace?.feedback?.toast?.(
-                            result?.message || 'Обновление не установлено. Предыдущая версия восстановлена.',
+                            diagnosticCode ? `${recoveredMessage} Код диагностики: ${diagnosticCode}.` : recoveredMessage,
                             'error',
                             9000
                         );

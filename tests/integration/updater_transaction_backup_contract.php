@@ -137,6 +137,20 @@ try {
     backupAssert(!str_contains($dump, 'must-never-enter-code-backup'), 'code secret leaked into database dump');
 
     $restorer = new UpdateDatabaseRestorer();
+    // Hash корректен, но SQL оборван: таблицы должны остаться нетронутыми.
+    $invalidDir = $base . '/invalid-db';
+    backupAssert(mkdir($invalidDir, 0700, true), 'Не удалось создать каталог оборванного дампа');
+    $invalidSql = "SET NAMES utf8mb4;\nCREATE TABLE unfinished (id INT)";
+    file_put_contents($invalidDir . '/database.sql', $invalidSql);
+    $invalidMetadata = $backups['database'];
+    $invalidMetadata['bytes'] = strlen($invalidSql);
+    $invalidMetadata['sha256'] = hash('sha256', $invalidSql);
+    $invalidRejected = false;
+    try { $restorer->restore($db, $invalidDir, $invalidMetadata); }
+    catch (RuntimeException $error) { $invalidRejected = true; }
+    backupAssert($invalidRejected, 'Оборванный дамп принят');
+    backupAssert((int) $db->query('SELECT COUNT(*) AS c FROM items')->fetch_assoc()['c'] === 2,
+        'Рабочие таблицы удалены до проверки SQL');
     $restored = $restorer->restore($db, $backupDir, $backups['database']);
     backupAssert((int) ($restored['tables'] ?? 0) >= 2, 'Новый rollback-дамп не восстановил таблицы');
     backupAssert(

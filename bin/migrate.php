@@ -155,16 +155,26 @@ function drainResults(mysqli $db): void
     }
 }
 
-function executeMigration(mysqli $db, string $sql): void
+function executeMigration(mysqli $db, string $sql, string $filename): void
 {
     $db->query('SET FOREIGN_KEY_CHECKS=0');
     try {
-        foreach (parseMigrationStatements($sql) as $statement) {
-            $result = $db->query($statement);
-            if ($result instanceof mysqli_result) {
-                $result->free();
+        foreach (parseMigrationStatements($sql) as $index => $statement) {
+            try {
+                $result = $db->query($statement);
+                if ($result instanceof mysqli_result) {
+                    $result->free();
+                }
+                drainResults($db);
+            } catch (Throwable $error) {
+                $sqlState = $error instanceof mysqli_sql_exception ? $error->getSqlState() : 'HY000';
+                throw new RuntimeException(
+                    'Ошибка миграции ' . $filename . '; SQL #' . ($index + 1)
+                    . '; SQLSTATE=' . $sqlState . '; MySQL=' . $error->getCode()
+                    . '; SHA-256=' . hash('sha256', $statement),
+                    (int) $error->getCode(), $error
+                );
             }
-            drainResults($db);
         }
     } finally {
         $db->query('SET FOREIGN_KEY_CHECKS=1');
@@ -326,7 +336,7 @@ try {
         $sql = $canonicalManifest->readMigration($filename);
         $checksum = hash('sha256', $sql);
         echo "Applying {$filename} ... ";
-        executeMigration($db, $sql);
+        executeMigration($db, $sql, $filename);
         recordMigration($db, $filename, $checksum);
         echo "OK\n";
     }

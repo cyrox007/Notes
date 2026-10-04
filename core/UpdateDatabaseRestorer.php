@@ -55,13 +55,12 @@ final class UpdateDatabaseRestorer
             throw new RuntimeException('Rollback database dump failed final SHA-256/size verification');
         }
 
-        $sql = file_get_contents($dumpPath);
-        if (!is_string($sql) || $sql === '') {
-            throw new RuntimeException('Rollback database dump cannot be read');
-        }
-
+        // Полный проход до удаления объектов: повреждённый или слишком большой
+        // SQL не должен обнаруживаться уже после разрушения рабочей схемы.
+        $this->validateDump($dumpPath);
+        $this->jsonColumnsCache = [];
         $this->dropCurrentDatabaseObjects($db);
-        foreach ($this->parseSqlStatements($sql) as $index => $statement) {
+        foreach ($this->readSqlStatements($dumpPath) as $index => $statement) {
             try {
                 $statement = $this->normalizePortableTriggerDefinition($statement);
                 $statement = $this->normalizeLegacyJsonInsert($db, $statement);
@@ -71,10 +70,10 @@ final class UpdateDatabaseRestorer
                 }
                 $this->drainResults($db);
             } catch (\Throwable $e) {
-                $summary = preg_replace('/\\s+/u', ' ', trim($statement));
-                $summary = is_string($summary) ? mb_substr($summary, 0, 180) : 'неизвестный SQL';
                 throw new RuntimeException(
-                    'Восстановление БД остановилось на SQL #' . ($index + 1) . ': ' . $summary . '; ' . $e->getMessage(),
+                    'Восстановление БД остановилось на SQL #' . ($index + 1)
+                    . '; код ошибки ' . $e->getCode()
+                    . '; SHA-256 выражения ' . hash('sha256', $statement),
                     0,
                     $e
                 );
@@ -144,50 +143,76 @@ final class UpdateDatabaseRestorer
         }
     }
 
-    /** @return list<string> */
-    private function parseSqlStatements(string $sql): array
+    /** Проверяет формат и предел памяти без выполнения SQL. */
+    public function validateDump(string $path): void
     {
+        $count = 0;
+        foreach ($this->readSqlStatements($path) as $statement) {
+            $this->normalizePortableTriggerDefinition($statement);
+            ++$count;
+        }
+        if ($count === 0) {
+            throw new RuntimeException('Дамп восстановления не содержит SQL-выражений');
+        }
+    }
+
+    /** @return \Generator<int,string> */
+    private function readSqlStatements(string $path): \Generator
+    {
+        $handle = fopen($path, 'rb');
+        if ($handle === false) {
+            throw new RuntimeException('Не удалось открыть дамп восстановления');
+        }
+        // Одна строка INSERT ограничена отдельно от общего размера базы.
+        // Это оставляет запас для преобразования старых JSON и mysqli.
+        $maxStatementBytes = 8 * 1024 * 1024;
         $delimiter = ';';
         $buffer = '';
-        $statements = [];
-        $lines = preg_split('/\R/u', $sql);
-        if ($lines === false) {
-            throw new RuntimeException('Rollback SQL is not valid UTF-8 text');
-        }
-
-        foreach ($lines as $line) {
-            if (preg_match('/^\s*--/', $line) === 1) {
-                continue;
-            }
-            if (preg_match('/^\s*DELIMITER\s+(\S+)\s*$/i', $line, $match) === 1) {
-                if (trim($buffer) !== '') {
-                    throw new RuntimeException('Rollback SQL changed DELIMITER before statement ended');
+        try {
+            while (($line = fgets($handle, $maxStatementBytes + 2)) !== false) {
+                if (strlen($line) > $maxStatementBytes || strlen($buffer) + strlen($line) > $maxStatementBytes) {
+                    throw new RuntimeException('SQL-выражение дампа превышает безопасный предел 8 МБ');
                 }
-                $delimiter = $match[1];
-                continue;
-            }
-            if (trim($line) === '' && trim($buffer) === '') {
-                continue;
+                if (preg_match('//u', $line) !== 1) {
+                    throw new RuntimeException('Дамп восстановления содержит некорректный UTF-8');
+                }
+                $line = rtrim($line, "\r\n");
+                if (preg_match('/^\s*--/', $line) === 1) {
+                    continue;
+                }
+                if (preg_match('/^\s*DELIMITER\s+(\S+)\s*$/i', $line, $match) === 1) {
+                    if (trim($buffer) !== '') {
+                        throw new RuntimeException('Разделитель дампа изменён до завершения SQL-выражения');
+                    }
+                    $delimiter = $match[1];
+                    continue;
+                }
+                if (trim($line) === '' && trim($buffer) === '') {
+                    continue;
+                }
+
+                $buffer .= $line . "\n";
+                $trimmed = rtrim($buffer);
+                if ($trimmed === '' || !str_ends_with($trimmed, $delimiter)) {
+                    continue;
+                }
+
+                $statement = trim(substr($trimmed, 0, -strlen($delimiter)));
+                $buffer = '';
+                if ($statement !== '') {
+                    yield $statement;
+                }
             }
 
-            $buffer .= $line . "\n";
-            $trimmed = rtrim($buffer);
-            if ($trimmed === '' || !str_ends_with($trimmed, $delimiter)) {
-                continue;
+            if (trim($buffer) !== '') {
+                throw new RuntimeException('Дамп восстановления содержит незавершённое SQL-выражение');
             }
-
-            $statement = trim(substr($trimmed, 0, -strlen($delimiter)));
-            $buffer = '';
-            if ($statement !== '') {
-                $statements[] = $statement;
+            if (!feof($handle)) {
+                throw new RuntimeException('Не удалось полностью прочитать дамп восстановления');
             }
+        } finally {
+            fclose($handle);
         }
-
-        if (trim($buffer) !== '') {
-            throw new RuntimeException('Rollback SQL contains unterminated statement');
-        }
-
-        return $statements;
     }
 
     private function normalizePortableTriggerDefinition(string $statement): string

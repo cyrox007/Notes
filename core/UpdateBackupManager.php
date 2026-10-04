@@ -6,6 +6,7 @@ namespace Core;
 
 require_once __DIR__ . '/UpdatePath.php';
 require_once __DIR__ . '/HostingCompatibility.php';
+require_once __DIR__ . '/UpdateDatabaseRestorer.php';
 
 use mysqli;
 use mysqli_result;
@@ -565,6 +566,7 @@ final class UpdateBackupManager
         ) {
             throw new RuntimeException('Updater database backup SHA-256/size verification failed');
         }
+        (new UpdateDatabaseRestorer())->validateDump($databasePath);
 
         return $manifest;
     }

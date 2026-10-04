@@ -1,6 +1,8 @@
 name: 1.0.14 → 1.0.15 обновление без переустановки
 
 on:
+  push:
+    branches: ['fix/updater-resilience-20261004']
   pull_request:
     branches: [master, '1.0']
   workflow_dispatch:
@@ -13,6 +15,10 @@ jobs:
     name: previous-stable-upgrade
     runs-on: ubuntu-24.04
     timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        migration_ledger: [without-ledger, with-ledger]
 
     services:
       mysql:
@@ -76,7 +82,7 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot <<'SQL'
           CREATE USER 'workspace_upgrade'@'%' IDENTIFIED BY 'workspace-upgrade-ci';
           GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, DROP,
-                REFERENCES, TRIGGER, CREATE VIEW, SHOW VIEW, LOCK TABLES
+                REFERENCES, TRIGGER, LOCK TABLES
             ON previous_stable_upgrade.* TO 'workspace_upgrade'@'%';
           SET GLOBAL log_bin_trust_function_creators = 1;
           FLUSH PRIVILEGES;
@@ -197,6 +203,13 @@ jobs:
           php tests/support/admin_update_preservation_probe.php --seed
           test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.14'
 
+      - name: Подготовить вариант с журналом прошлых миграций
+        if: matrix.migration_ledger == 'with-ledger'
+        run: |
+          cd /tmp/workspace-1014-1015/live
+          php bin/migrate.php --baseline-version-code=10014
+          php bin/migrate.php --status
+
       - name: Подготовить подписанный exact-head 1.0.15
         shell: bash
         run: |
@@ -300,7 +313,7 @@ jobs:
 
           (
             cd "$LIVE"
-            SSL_CERT_FILE="$DRILL/ca.crt"               E2E_APP_ROOT="$LIVE"               E2E_SUPPORT_ROOT="$GITHUB_WORKSPACE"               PHP_CLI_SERVER_WORKERS=4               php -d "openssl.cafile=$DRILL/ca.crt"               -d "disable_functions=proc_open,proc_get_status,proc_terminate,proc_close,exec,system,passthru,shell_exec,popen"               -S 127.0.0.1:18115 "$GITHUB_WORKSPACE/tests/e2e/router.php"               >"$DRILL/app-http.log" 2>&1 &
+            SSL_CERT_FILE="$DRILL/ca.crt"               E2E_APP_ROOT="$LIVE"               E2E_SUPPORT_ROOT="$GITHUB_WORKSPACE"               PHP_CLI_SERVER_WORKERS=4               php -d "openssl.cafile=$DRILL/ca.crt"               -d memory_limit=256M -d max_execution_time=80 -d "disable_functions=opcache_reset,proc_open,proc_get_status,proc_terminate,proc_close,exec,system,passthru,shell_exec,popen"               -S 127.0.0.1:18115 "$GITHUB_WORKSPACE/tests/e2e/router.php"               >"$DRILL/app-http.log" 2>&1 &
             echo $! >"$DRILL/app-http.pid"
           )
 
@@ -372,6 +385,8 @@ jobs:
           cat "$DRILL/fixture.log" 2>/dev/null || true
           echo '--- журнал приложения/updater ---'
           cat "$DRILL/private/logs/app.log" 2>/dev/null || true
+          echo '--- сервисный журнал updater/recovery ---'
+          tail -n 200 "$DRILL/private/logs/service-events.jsonl" 2>/dev/null || true
           echo '--- журналы updater ---'
           find "$DRILL/private" -maxdepth 4 -type f -name '*.json' -print -exec sh -c 'echo "--- $1"; cat "$1"' _ {} \; 2>/dev/null || true
 

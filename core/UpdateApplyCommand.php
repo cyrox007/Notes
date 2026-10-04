@@ -822,6 +822,8 @@ final class UpdateApplyCommand
             'error_type' => $applyError::class,
             'message' => $applyError->getMessage(),
             'failure_code' => $applyErrorCode,
+            'source_version_code' => (int) ($journalState['installed_version_code'] ?? 0),
+            'target_version_code' => (int) ($journalState['target_version_code'] ?? 0),
         ]);
         try {
             $verified = $this->rollback(

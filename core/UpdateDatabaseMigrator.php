@@ -118,7 +118,7 @@ final class UpdateDatabaseMigrator
             foreach ($pending as $filename) {
                 $sql = $canonicalManifest->readMigration($filename);
                 $checksum = hash('sha256', $sql);
-                $this->executeMigration($db, $sql);
+                $this->executeMigration($db, $sql, $filename);
                 $this->recordMigration($db, $filename, $checksum);
                 $lines[] = "Applying {$filename} ... OK";
             }
@@ -223,16 +223,30 @@ final class UpdateDatabaseMigrator
         );
     }
 
-    private function executeMigration(mysqli $db, string $sql): void
+    private function executeMigration(mysqli $db, string $sql, string $filename): void
     {
         $db->query('SET FOREIGN_KEY_CHECKS=0');
         try {
-            foreach ($this->parseMigrationStatements($sql) as $statement) {
-                $result = $db->query($statement);
-                if ($result instanceof mysqli_result) {
-                    $result->free();
+            foreach ($this->parseMigrationStatements($sql) as $index => $statement) {
+                try {
+                    $result = $db->query($statement);
+                    if ($result instanceof mysqli_result) {
+                        $result->free();
+                    }
+                    $this->drainResults($db);
+                } catch (Throwable $error) {
+                    // SQL и текст ответа MySQL могут содержать данные пользователей.
+                    // Для локализации достаточно имени, номера, кодов и хэша SQL.
+                    $sqlState = $error instanceof \mysqli_sql_exception
+                        ? $error->getSqlState() : 'HY000';
+                    throw new RuntimeException(
+                        'Ошибка миграции ' . $filename . '; SQL #' . ($index + 1)
+                        . '; SQLSTATE=' . $sqlState . '; MySQL=' . $error->getCode()
+                        . '; SHA-256=' . hash('sha256', $statement),
+                        (int) $error->getCode(),
+                        $error
+                    );
                 }
-                $this->drainResults($db);
             }
         } finally {
             $db->query('SET FOREIGN_KEY_CHECKS=1');

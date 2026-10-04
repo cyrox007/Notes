@@ -1,6 +1,8 @@
 name: 1.0 updater transaction backup
 
 on:
+  push:
+    branches: ['fix/updater-resilience-20261004']
   pull_request:
     branches: [master, '1.0']
   push:
@@ -297,4 +299,3 @@ jobs:
           DBNAME: updater_backup_test
           BACKUP_CONTRACT_TAG: mariadb-10-11
         run: php tests/integration/updater_transaction_backup_contract.php
-
