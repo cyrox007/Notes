@@ -50,5 +50,17 @@ jobs:
           GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, DROP, INDEX,
                 REFERENCES, TRIGGER, LOCK TABLES
             ON updater_hosting_migration.* TO 'updater_hosting'@'%';
+          CREATE DATABASE updater_interrupted_restore CHARACTER SET utf8mb4;
+          GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, DROP, INDEX,
+                REFERENCES, TRIGGER, LOCK TABLES
+            ON updater_interrupted_restore.* TO 'updater_hosting'@'%';
+          SET GLOBAL log_bin_trust_function_creators = 1;
           SQL
           php tests/integration/updater_hosting_migration_contract.php
+      - name: Прервать PHP посреди SQL-отката и повторить восстановление
+        env:
+          DBHOST: 127.0.0.1
+          DBUSER: updater_hosting
+          DBPASS: hosting-test
+          DBNAME: updater_interrupted_restore
+        run: php tests/integration/updater_interrupted_restore_contract.php
