@@ -392,11 +392,11 @@ jobs:
           test "$(jq -r '.state' "$TX")" = 'rollback_verified'
           test "$(jq -r '.live_mutation_started' "$TX")" = 'true'
           if [[ '${{ matrix.scenario }}' = 'sql-failure' ]]; then
-            test "$(jq -r '.failure_code' "$TX")" = 'migration_failed'
+            test "$(jq -r '.rollback.failure_code' "$TX")" = 'migration_failed'
           fi
           leaked_tables="$(mysql -N -h 127.0.0.1 -uroot -proot previous_stable_upgrade -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='updater_ci_partial_migration'")"
           test "$leaked_tables" = '0'
-          lifecycle_columns="$(mysql -N -h 127.0.0.1 -uroot -proot previous_stable_upgrade -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='users' AND column_name IN ('deletion_requested_at','deletion_requested_by','deleted_at','purge_after')")"
+          lifecycle_columns="$(mysql -N -h 127.0.0.1 -uroot -proot previous_stable_upgrade -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='users' AND column_name IN ('deletion_requested_at','purge_after','anonymized_at')")"
           test "$lifecycle_columns" = '0'
 
           (
