@@ -30,6 +30,7 @@ final class UpdateRollbackCodeRestorer
         'uploads',
         'notes-private-storage',
         '.logs',
+        'update-continuations',
     ];
 
     private string $appRoot;

@@ -80,6 +80,10 @@ jobs:
         shell: bash
         run: php tests/integration/external_update_runtime_contract.php
 
+      - name: Проверить независимый браузерный updater без process API
+        shell: bash
+        run: php tests/integration/updater_external_web_contract.php
+
       - name: Prepare updater database fixtures
         shell: bash
         run: |

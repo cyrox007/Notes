@@ -61,6 +61,8 @@ file_put_contents($appRoot . '/binary.dat', "\x00\x01fixture\xff");
 file_put_contents($appRoot . '/.env', "DBPASS=must-never-enter-code-backup\n");
 file_put_contents($appRoot . '/cache/runtime.cache', 'mutable-cache');
 file_put_contents($appRoot . '/uploads/user.bin', 'mutable-upload');
+mkdir($appRoot . '/update-continuations', 0755);
+file_put_contents($appRoot . '/update-continuations/entry.php', '<?php // fixed external entry');
 file_put_contents($stageDir . '/stage.json', "{}\n");
 
 $transactionId = 'backup-contract-001';
@@ -106,7 +108,28 @@ $db->set_charset('utf8mb4');
 
 try {
     $manager = new UpdateBackupManager($backupRoot, $appRoot);
-    $backups = $manager->create($transactionId, $db);
+    $resumable = in_array('--resumable', $argv, true);
+    $pauses = 0;
+    do {
+        try {
+            $backups = (new UpdateBackupManager($backupRoot, $appRoot))->create(
+                $transactionId, $db, $resumable ? new Core\UpdateStepBudget(1) : null);
+            break;
+        } catch (Core\UpdateStepPending) {
+            ++$pauses;
+            backupAssert($pauses < 20, 'Резервирование не продвигается');
+            if ($pauses === 1) {
+                file_put_contents($backupRoot . '/.pending-' . $transactionId . '/code/binary.dat', 'partial copy');
+            }
+        }
+    } while (true);
+    if ($resumable) {
+        backupAssert($pauses >= 3, 'Копирование кода не разбито на шаги');
+        // Смерть между записью manifest и атомарной публикацией каталога.
+        backupAssert(rename($backups['backup_dir'], $backupRoot . '/.pending-' . $transactionId), 'Нет фикстуры публикации');
+        $again = $manager->create($transactionId, $db, new Core\UpdateStepBudget(1));
+        backupAssert($again['manifest_sha256'] === $backups['manifest_sha256'], 'Повтор изменил готовый snapshot');
+    }
     backupAssert(is_dir($backups['backup_dir']), 'backup directory missing');
     backupAssert(is_file($backups['manifest_path']), 'backup manifest missing');
     backupAssert(preg_match('/^[0-9a-f]{64}$/', $backups['manifest_sha256']) === 1, 'backup manifest hash invalid');
@@ -121,6 +144,7 @@ try {
     backupAssert(!file_exists($backupDir . '/code/.env'), '.env leaked into rollback code snapshot');
     backupAssert(!file_exists($backupDir . '/code/cache'), 'cache leaked into rollback code snapshot');
     backupAssert(!file_exists($backupDir . '/code/uploads'), 'uploads leaked into rollback code snapshot');
+    backupAssert(!file_exists($backupDir . '/code/update-continuations'), 'HTTP-вход попал в rollback snapshot');
 
     $dump = file_get_contents($backupDir . '/database.sql');
     backupAssert(is_string($dump) && str_contains($dump, 'CREATE TABLE'), 'database dump lacks CREATE TABLE');

@@ -6,15 +6,17 @@ const source = fs.readFileSync(new URL('../../assets/js/update-web-runner.js', i
 async function scenario(replies) {
     let calls = 0;
     const window = {
+        location: { href: 'https://notes.test/workspace/admin/updates', origin: 'https://notes.test' },
         setTimeout(callback, delay) { if (delay < 90000) queueMicrotask(callback); return 1; },
         clearTimeout() {},
     };
     class HTMLFormElement {}
     const context = vm.createContext({
-        window, HTMLFormElement, AbortController,
+        window, HTMLFormElement, AbortController, URL,
         FormData: class {},
-        fetch: async () => {
+        fetch: async (url) => {
             const reply = replies[Math.min(calls++, replies.length - 1)];
+            if (reply.expectedUrl) assert.equal(url, reply.expectedUrl);
             if (reply instanceof Error) throw reply;
             return { ok: reply.status < 400, status: reply.status, json: async () => {
                 if (reply.invalidJson) throw new Error('HTML вместо JSON');
@@ -51,4 +53,14 @@ for (const transient of [
 const exhausted = await scenario([start, { status: 503, payload: { retryable: true } }]);
 assert.equal(exhausted.calls, 10, 'После восьми повторов операция должна остановиться');
 assert.ok(exhausted.error);
+const externalStart = { status: 200, payload: { success: true, result: {
+    ...start.payload.result, continuation_url: '/workspace/update-continuations/frozen.php',
+} } };
+const external = await scenario([externalStart, { ...done, expectedUrl: 'https://notes.test/workspace/update-continuations/frozen.php' }]);
+assert.equal(external.result.status, 'committed');
+const foreign = await scenario([{ status: 200, payload: { success: true, result: {
+    ...start.payload.result, continuation_url: 'https://evil.test/collect',
+} } }]);
+assert.equal(foreign.calls, 1, 'Токен не должен уходить на чужой origin');
+assert.ok(foreign.error);
 console.log('[OK] Окончательные отказы, WAF, обрыв сети и ограниченные повторы');

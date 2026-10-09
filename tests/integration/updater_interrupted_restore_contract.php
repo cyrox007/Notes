@@ -25,7 +25,17 @@ if (($argv[1] ?? '') === '--child') {
     $manifest = json_decode((string) file_get_contents($backupDir . '/backup.json'), true, 64, JSON_THROW_ON_ERROR);
     $db = interruptedRestoreDatabase();
     try {
-        (new Core\UpdateDatabaseRestorer())->restore($db, $backupDir, $manifest['database']);
+        do {
+            try {
+                (new Core\UpdateDatabaseRestorer())->restore($db, $backupDir, $manifest['database'],
+                    in_array('--resumable', $argv, true) ? new Core\UpdateStepBudget(1) : null);
+                break;
+            } catch (Core\UpdateStepPending) {
+                // Новый объект и новое соединение имитируют следующий HTTP-запрос.
+                $db->close();
+                $db = interruptedRestoreDatabase();
+            }
+        } while (true);
         echo "[OK] Отдельный процесс завершил восстановление\n";
     } finally {
         $db->close();
@@ -35,7 +45,10 @@ if (($argv[1] ?? '') === '--child') {
 
 function interruptedRestoreStart(string $backupDir, string $logPath): mixed
 {
-    $process = proc_open([PHP_BINARY, __FILE__, '--child', $backupDir], [
+    global $argv;
+    $command = [PHP_BINARY, __FILE__, '--child', $backupDir];
+    if (in_array('--resumable', $argv, true)) $command[] = '--resumable';
+    $process = proc_open($command, [
         0 => ['file', '/dev/null', 'r'],
         1 => ['file', $logPath, 'a'],
         2 => ['file', $logPath, 'a'],

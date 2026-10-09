@@ -64,4 +64,6 @@ jobs:
           DBUSER: updater_hosting
           DBPASS: hosting-test
           DBNAME: updater_interrupted_restore
-        run: php tests/integration/updater_interrupted_restore_contract.php
+        run: |
+          php tests/integration/updater_interrupted_restore_contract.php
+          php tests/integration/updater_interrupted_restore_contract.php --resumable

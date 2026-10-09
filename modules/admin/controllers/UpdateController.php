@@ -255,6 +255,7 @@ final class UpdateController extends Controller
                     'message' => (string) ($result['message'] ?? ''),
                     'transaction_id' => (string) ($result['transaction_id'] ?? ''),
                     'continuation_token' => (string) ($result['continuation_token'] ?? ''),
+                    'continuation_url' => (string) ($result['continuation_url'] ?? ''),
                     'target_version' => (string) ($result['target_version'] ?? ''),
                 ],
             ]);
@@ -297,6 +298,7 @@ final class UpdateController extends Controller
                     'message' => (string) ($result['message'] ?? ''),
                     'transaction_id' => (string) ($result['transaction_id'] ?? ''),
                     'continuation_token' => (string) ($result['continuation_token'] ?? ''),
+                    'continuation_url' => (string) ($result['continuation_url'] ?? ''),
                     'target_version' => (string) ($result['target_version'] ?? ''),
                 ],
             ]);

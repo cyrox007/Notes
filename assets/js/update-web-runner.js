@@ -52,7 +52,7 @@
         }
 
         const startUrl = String(form.dataset.updateStartUrl || form.action || '');
-        const stepUrl = String(form.dataset.updateStepUrl || '');
+        let stepUrl = String(form.dataset.updateStepUrl || '');
         if (!startUrl || !stepUrl) {
             throw new Error('Не найден безопасный endpoint web-updater.');
         }
@@ -66,6 +66,13 @@
         }
 
         let result = started.payload.result;
+        if (result.continuation_url) {
+            const continuationUrl = new URL(String(result.continuation_url), window.location.href);
+            if (continuationUrl.origin !== window.location.origin) {
+                throw new Error('Недопустимый адрес продолжения обновления.');
+            }
+            stepUrl = continuationUrl.href;
+        }
         const transactionId = String(result.transaction_id || '');
         const token = String(result.continuation_token || '');
         if (!transactionId || !token) {

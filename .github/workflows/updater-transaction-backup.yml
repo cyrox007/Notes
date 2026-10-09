@@ -98,7 +98,7 @@ jobs:
           DBPASS: root
           DBNAME: updater_backup_test
           BACKUP_CONTRACT_TAG: php-${{ matrix.php }}
-        run: php tests/integration/updater_transaction_backup_contract.php
+        run: php tests/integration/updater_transaction_backup_contract.php --resumable
 
       - name: Restore verified SQL dump into fresh database
         shell: bash

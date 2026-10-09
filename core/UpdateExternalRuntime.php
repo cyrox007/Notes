@@ -25,6 +25,10 @@ final class UpdateExternalRuntime
     /** @var list<string> */
     private const FILES = [
         'bin/update_external_apply.php',
+        'bin/update_web_entry.php',
+        'config/update_trusted_keys.php',
+        'core/UpdateWebTransaction.php',
+        'core/UpdateWebRuntimeLauncher.php',
         'app/services/MaintenanceModeService.php',
         'core/Environment.php',
         'core/HostingCompatibility.php',
@@ -207,7 +211,10 @@ final class UpdateExternalRuntime
     {
         $files = [];
 
-        foreach (self::FILES as $relative) {
+        $pending = self::FILES;
+        for ($index = 0; $index < count($pending); ++$index) {
+            $relative = $pending[$index];
+            if (isset($files[$relative])) continue;
             if (!UpdatePath::safeRelative($relative)) {
                 throw new RuntimeException('Список внешнего updater runtime содержит небезопасный путь');
             }
@@ -224,6 +231,11 @@ final class UpdateExternalRuntime
             }
 
             $files[$relative] = ['size' => $size, 'sha256' => $sha];
+            $source = file_get_contents($path);
+            if (!is_string($source)) throw new RuntimeException('Не удалось прочитать runtime: ' . $relative);
+            foreach ($this->literalDependencies($relative, $source) as $dependency) {
+                if (!isset($files[$dependency])) $pending[] = $dependency;
+            }
         }
 
         $this->assertDependencyClosure(array_keys($files));

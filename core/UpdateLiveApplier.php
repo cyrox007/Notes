@@ -30,6 +30,7 @@ final class UpdateLiveApplier
         'uploads',
         'notes-private-storage',
         '.logs',
+        'update-continuations',
     ];
 
     private string $appRoot;
