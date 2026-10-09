@@ -312,6 +312,17 @@ jobs:
           echo "UPDATE_1012_BOOTSTRAP=$UPDATE_1012_BOOTSTRAP" >> "$GITHUB_ENV"
           echo "UPDATE_1012_BOOTSTRAP_CHECKSUM=$UPDATE_1012_BOOTSTRAP_CHECKSUM" >> "$GITHUB_ENV"
 
+      - name: Подготовить CLI-мост exact 1.0.14 для распакованного пакета
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l tools/release/bootstrap-1.0.14-updater.php
+          BRIDGE="$GITHUB_WORKSPACE/${BUNDLE_NAME%.zip}-updater-bridge.zip"
+          zip -q "$BRIDGE" tools/release/bootstrap-1.0.14-updater.php
+          (cd "$GITHUB_WORKSPACE" && sha256sum "$(basename "$BRIDGE")") > "$BRIDGE.sha256"
+          echo "UPDATE_1014_BRIDGE=$BRIDGE" >> "$GITHUB_ENV"
+          echo "UPDATE_1014_BRIDGE_CHECKSUM=$BRIDGE.sha256" >> "$GITHUB_ENV"
+
       - name: Upload immutable release-candidate artifact
         uses: actions/upload-artifact@v4
         with:
@@ -324,6 +335,8 @@ jobs:
             ${{ env.UPDATE_109_BOOTSTRAP_CHECKSUM }}
             ${{ env.UPDATE_1012_BOOTSTRAP }}
             ${{ env.UPDATE_1012_BOOTSTRAP_CHECKSUM }}
+            ${{ env.UPDATE_1014_BRIDGE }}
+            ${{ env.UPDATE_1014_BRIDGE_CHECKSUM }}
           if-no-files-found: error
           retention-days: 14
 
@@ -366,6 +379,8 @@ jobs:
             "$UPDATE_109_BOOTSTRAP_CHECKSUM" \
             "$UPDATE_1012_BOOTSTRAP" \
             "$UPDATE_1012_BOOTSTRAP_CHECKSUM" \
+            "$UPDATE_1014_BRIDGE" \
+            "$UPDATE_1014_BRIDGE_CHECKSUM" \
             --verify-tag \
             --title "Workspace Organizer ${TAG#v}" \
             --notes-file "$NOTES" \

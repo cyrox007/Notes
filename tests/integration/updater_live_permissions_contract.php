@@ -126,7 +126,18 @@ try {
         livePermAssert(is_int($planMode) && ($planMode & 0777) === 0600, 'updater-план должен быть приватным');
     }
 
-    $switch = $applier->switchPrepared($plan);
+    $paused = false;
+    try {
+        $applier->switchPrepared($plan, new Core\UpdateStepBudget(1));
+    } catch (Core\UpdateStepPending $pause) {
+        $paused = true;
+    }
+    livePermAssert($paused, 'Переключение не сохранило шаг');
+    // Имитируем обрыв между атомарной заменой файла и записью курсора.
+    unlink($plan['scratch_dir'] . '/progress.json');
+    $switch = (new UpdateLiveApplier($live))->switchPrepared($plan, new Core\UpdateStepBudget(1));
+    // Повтор до записи code_switched в основной журнал тоже безопасен.
+    (new UpdateLiveApplier($live))->switchPrepared($plan, new Core\UpdateStepBudget(1));
     livePermAssert(($switch['file_level'] ?? false) === true, 'apply не подтвердил пофайловый режим');
     clearstatcache(true, $live . '/core');
     if (PHP_OS_FAMILY !== 'Windows') {

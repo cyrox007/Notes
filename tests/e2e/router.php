@@ -81,6 +81,13 @@ if ($publicPath !== '/' && !str_contains($publicPath, "\0") && !str_contains($pu
             return false;
         }
 
+        // Apache/FPM исполняет опубликованный PHP-вход продолжения. В стенде
+        // с BASE_PATH его нельзя отдавать как статический исходный текст.
+        if (preg_match('~^/update-continuations/[a-f0-9]{32}\.php$~D', $publicPath) === 1) {
+            require $candidate;
+            return true;
+        }
+
         // Do not rely on mime_content_type() for browser executable assets: on
         // many Linux runners .js is reported as text/plain, which modern Chromium
         // refuses to execute under strict MIME checking.

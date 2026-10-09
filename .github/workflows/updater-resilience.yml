@@ -1,0 +1,72 @@
+name: Устойчивость обновлятора — память и HTTP
+on:
+  pull_request:
+    branches: [master, '1.0']
+  push:
+    branches: ['fix/updater-resilience-20261004']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  bounded-recovery:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: updater_hosting_migration
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: mysqli, mbstring, sodium
+          coverage: none
+      - name: Проверить память отката и поведение браузера
+        run: |
+          php -d memory_limit=32M tests/integration/updater_streaming_dump_contract.php
+          node tests/integration/updater_web_runner_behavior.mjs
+          php tests/integration/updater_attempt_log_contract.php
+          php tests/integration/updater_remote_delivery_contract.php
+          php tests/integration/external_update_runtime_contract.php
+          php tests/integration/updater_web_mode_contract.php
+          php tests/integration/updater_step_checkpoint_contract.php
+          php tests/integration/updater_preapply_crash_recovery_contract.php
+          php tests/integration/updater_interrupted_code_contract.php
+      - name: Проверить миграцию с ограниченными правами БД
+        env:
+          DBHOST: 127.0.0.1
+          DBUSER: updater_hosting
+          DBPASS: hosting-test
+          DBNAME: updater_hosting_migration
+        run: |
+          mysql -h127.0.0.1 -uroot -proot <<'SQL'
+          CREATE USER 'updater_hosting'@'%' IDENTIFIED BY 'hosting-test';
+          GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, DROP, INDEX,
+                REFERENCES, TRIGGER, LOCK TABLES
+            ON updater_hosting_migration.* TO 'updater_hosting'@'%';
+          CREATE DATABASE updater_interrupted_restore CHARACTER SET utf8mb4;
+          GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, DROP, INDEX,
+                REFERENCES, TRIGGER, LOCK TABLES
+            ON updater_interrupted_restore.* TO 'updater_hosting'@'%';
+          SET GLOBAL log_bin_trust_function_creators = 1;
+          SQL
+          php tests/integration/updater_hosting_migration_contract.php
+      - name: Прервать PHP посреди SQL-отката и повторить восстановление
+        env:
+          DBHOST: 127.0.0.1
+          DBUSER: updater_hosting
+          DBPASS: hosting-test
+          DBNAME: updater_interrupted_restore
+        run: |
+          php tests/integration/updater_interrupted_restore_contract.php
+          php tests/integration/updater_interrupted_restore_contract.php --resumable

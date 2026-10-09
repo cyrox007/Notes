@@ -6,6 +6,8 @@ namespace Core;
 
 require_once __DIR__ . '/UpdatePath.php';
 require_once __DIR__ . '/HostingCompatibility.php';
+require_once __DIR__ . '/UpdateDatabaseRestorer.php';
+require_once __DIR__ . '/UpdateStepBudget.php';
 
 use mysqli;
 use mysqli_result;
@@ -35,6 +37,7 @@ final class UpdateBackupManager
         'uploads',
         'notes-private-storage',
         '.logs',
+        'update-continuations',
     ];
 
     private string $appRoot;
@@ -70,11 +73,11 @@ final class UpdateBackupManager
     /**
      * @return array{backup_dir:string,manifest_path:string,manifest_sha256:string,code:array<string,mixed>,database:array<string,mixed>}
      */
-    public function create(string $transactionId, mysqli $db): array
+    public function create(string $transactionId, mysqli $db, ?UpdateStepBudget $budget = null): array
     {
         $this->validateTransactionId($transactionId);
 
-        return $this->withLock(function () use ($transactionId, $db): array {
+        return $this->withLock(function () use ($transactionId, $db, $budget): array {
             $finalDir = $this->backupRoot . DIRECTORY_SEPARATOR . $transactionId;
             if (is_dir($finalDir)) {
                 return $this->verify($finalDir, $transactionId);
@@ -85,16 +88,35 @@ final class UpdateBackupManager
 
             $this->assertCapacity($db);
 
-            $tempDir = $this->backupRoot . DIRECTORY_SEPARATOR . '.tmp-' . $transactionId . '-' . bin2hex(random_bytes(6));
+            $tempDir = $this->backupRoot . DIRECTORY_SEPARATOR . ($budget === null
+                ? '.tmp-' . $transactionId . '-' . bin2hex(random_bytes(6))
+                : '.pending-' . $transactionId);
+            if (is_link($tempDir) || (file_exists($tempDir) && !is_dir($tempDir))) {
+                throw new RuntimeException('Небезопасная незавершённая резервная точка');
+            }
             $oldUmask = umask(0077);
-            $made = @mkdir($tempDir, 0700, false);
+            $made = is_dir($tempDir) || @mkdir($tempDir, 0700, false);
             umask($oldUmask);
             if (!$made || !is_dir($tempDir)) {
                 throw new RuntimeException('Cannot create temporary updater backup directory');
             }
 
             try {
-                $code = $this->snapshotCode($tempDir);
+                // Смерть PHP после полной записи manifest, но до rename: повторно
+                // проверяем уже согласованный снимок, не создавая новую точку БД.
+                if ($budget !== null && is_file($tempDir . '/backup.json')) {
+                    $this->verifyDirectory($tempDir, $transactionId);
+                    if (!rename($tempDir, $finalDir)) throw new RuntimeException('Не удалось опубликовать резервную точку');
+                    return $this->verify($finalDir, $transactionId);
+                }
+                $code = $this->snapshotCode($tempDir, $budget);
+                // Снимок БД пока выполняется одной транзакцией. Незавершённый
+                // дамп после смерти PHP никогда не продолжается из другой snapshot.
+                if ($budget !== null && file_exists($tempDir . '/database.sql')) {
+                    if (is_link($tempDir . '/database.sql') || !unlink($tempDir . '/database.sql')) {
+                        throw new RuntimeException('Не удалось удалить незавершённый дамп БД');
+                    }
+                }
                 $database = $this->dumpDatabase($db, $tempDir . DIRECTORY_SEPARATOR . 'database.sql');
 
                 $manifest = [
@@ -114,6 +136,8 @@ final class UpdateBackupManager
                 }
                 @chmod($finalDir, 0700);
                 return $this->verify($finalDir, $transactionId);
+            } catch (UpdateStepPending $pause) {
+                throw $pause;
             } catch (Throwable $e) {
                 if (is_dir($tempDir)) {
                     $this->removeTree($tempDir);
@@ -232,16 +256,16 @@ final class UpdateBackupManager
     }
 
     /** @return array<string,mixed> */
-    private function snapshotCode(string $tempDir): array
+    private function snapshotCode(string $tempDir, ?UpdateStepBudget $budget = null): array
     {
         $destination = $tempDir . DIRECTORY_SEPARATOR . 'code';
-        if (!mkdir($destination, 0700, false) && !is_dir($destination)) {
+        if (is_link($destination) || (!is_dir($destination) && !mkdir($destination, 0700, false))) {
             throw new RuntimeException('Cannot create updater code snapshot directory');
         }
 
         $entries = [];
         $totalBytes = 0;
-        $this->copyCodeDirectory($this->appRoot, $destination, '', $entries, $totalBytes);
+        $this->copyCodeDirectory($this->appRoot, $destination, '', $entries, $totalBytes, $budget);
         usort($entries, static fn (array $a, array $b): int => strcmp((string) $a['path'], (string) $b['path']));
 
         if ($entries === []) {
@@ -256,6 +280,9 @@ final class UpdateBackupManager
             'entries' => $entries,
         ];
         $manifestPath = $tempDir . DIRECTORY_SEPARATOR . 'code-manifest.json';
+        if ($budget !== null && file_exists($manifestPath)) {
+            if (is_link($manifestPath) || !unlink($manifestPath)) throw new RuntimeException('Небезопасный code manifest');
+        }
         $this->writeJsonExclusive($manifestPath, $manifest);
         $manifestHash = hash_file('sha256', $manifestPath);
         if (!is_string($manifestHash)) {
@@ -275,7 +302,7 @@ final class UpdateBackupManager
     /**
      * @param list<array{path:string,sha256:string,size:int,mode:int}> $entries
      */
-    private function copyCodeDirectory(string $sourceDir, string $destinationDir, string $relative, array &$entries, int &$totalBytes): void
+    private function copyCodeDirectory(string $sourceDir, string $destinationDir, string $relative, array &$entries, int &$totalBytes, ?UpdateStepBudget $budget = null): void
     {
         $items = scandir($sourceDir);
         if (!is_array($items)) {
@@ -297,10 +324,10 @@ final class UpdateBackupManager
             }
             if (is_dir($source)) {
                 $dest = $destinationDir . DIRECTORY_SEPARATOR . $name;
-                if (!mkdir($dest, 0700, false) && !is_dir($dest)) {
+                if (is_link($dest) || (!is_dir($dest) && !mkdir($dest, 0700, false))) {
                     throw new RuntimeException("Cannot create code backup directory: {$relativePath}");
                 }
-                $this->copyCodeDirectory($source, $dest, $relativePath, $entries, $totalBytes);
+                $this->copyCodeDirectory($source, $dest, $relativePath, $entries, $totalBytes, $budget);
                 continue;
             }
             if (!is_file($source) || !is_readable($source)) {
@@ -317,7 +344,13 @@ final class UpdateBackupManager
             }
 
             $dest = $destinationDir . DIRECTORY_SEPARATOR . $name;
-            $this->copyVerified($source, $dest, $size, $sourceHash);
+            $alreadyCopied = false;
+            if ($budget !== null && file_exists($dest)) {
+                if (is_link($dest) || !is_file($dest)) throw new RuntimeException('Небезопасный файл резервной точки');
+                $alreadyCopied = filesize($dest) === $size && hash_equals($sourceHash, (string) hash_file('sha256', $dest));
+                if (!$alreadyCopied && !unlink($dest)) throw new RuntimeException('Не удалось повторить неполную копию файла');
+            }
+            if (!$alreadyCopied) $this->copyVerified($source, $dest, $size, $sourceHash);
             $permissions = fileperms($source);
             $mode = is_int($permissions) ? ($permissions & 0777) : 0644;
             @chmod($dest, $mode);
@@ -329,6 +362,7 @@ final class UpdateBackupManager
                 'mode' => $mode,
             ];
             $totalBytes += $size;
+            if ($budget !== null && !$alreadyCopied) $budget->checkpoint('backup');
         }
     }
 
@@ -565,6 +599,7 @@ final class UpdateBackupManager
         ) {
             throw new RuntimeException('Updater database backup SHA-256/size verification failed');
         }
+        (new UpdateDatabaseRestorer())->validateDump($databasePath);
 
         return $manifest;
     }
@@ -630,6 +665,9 @@ final class UpdateBackupManager
             $copied = stream_copy_to_stream($input, $output);
             if ($copied !== $size || !fflush($output)) {
                 throw new RuntimeException('Updater code backup copy is incomplete');
+            }
+            if (function_exists('fsync') && !fsync($output)) {
+                throw new RuntimeException('Не удалось синхронизировать файл резервной точки');
             }
         } finally {
             fclose($input);
@@ -781,8 +819,12 @@ final class UpdateBackupManager
     private function writeJsonExclusive(string $path, array $value): void
     {
         $bytes = json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . PHP_EOL;
+        if (file_exists($path) || is_link($path)) {
+            throw new RuntimeException('Updater backup metadata already exists');
+        }
+        $temporary = $path . '.' . bin2hex(random_bytes(6)) . '.tmp';
         $oldUmask = umask(0077);
-        $handle = @fopen($path, 'xb');
+        $handle = @fopen($temporary, 'xb');
         umask($oldUmask);
         if ($handle === false) {
             throw new RuntimeException('Cannot create updater backup metadata file');
@@ -791,10 +833,14 @@ final class UpdateBackupManager
             if (fwrite($handle, $bytes) !== strlen($bytes) || !fflush($handle)) {
                 throw new RuntimeException('Cannot write updater backup metadata file');
             }
+            if (function_exists('fsync') && !fsync($handle)) {
+                throw new RuntimeException('Не удалось синхронизировать manifest резервной точки');
+            }
         } finally {
             fclose($handle);
         }
-        @chmod($path, 0600);
+        @chmod($temporary, 0600);
+        if (!rename($temporary, $path)) throw new RuntimeException('Не удалось опубликовать manifest резервной точки');
     }
 
     /** @return mixed */

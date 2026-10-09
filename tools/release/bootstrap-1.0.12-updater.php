@@ -64,6 +64,75 @@ function bootstrapVersion(string $root): array
     return [$version, $code];
 }
 
+function bootstrapRemoveTree(string $path): void
+{
+    if (!is_dir($path) || is_link($path)) {
+        return;
+    }
+
+    foreach (array_diff(scandir($path) ?: [], ['.', '..']) as $item) {
+        $target = $path . DIRECTORY_SEPARATOR . $item;
+        if (is_dir($target) && !is_link($target)) {
+            bootstrapRemoveTree($target);
+            continue;
+        }
+        @unlink($target);
+    }
+    @rmdir($path);
+}
+
+function bootstrapExactSourceRoot(string $sourceRoot): string
+{
+    [$version, $code] = bootstrapVersion($sourceRoot);
+    if ($version === '1.0.14' && $code === 10014) {
+        return $sourceRoot;
+    }
+
+    // В опубликованном пакете остаётся жёсткое требование exact 1.0.14.
+    // Репозиторный checkout нужен только разработке и CI: из него материализуем
+    // опубликованный тег и дальше выполняем тот же мост без файлов текущего HEAD.
+    $gitMarker = $sourceRoot . DIRECTORY_SEPARATOR . '.git';
+    if (PHP_OS_FAMILY === 'Windows' || !file_exists($gitMarker) || !is_callable('exec')) {
+        return $sourceRoot;
+    }
+
+    $temporaryRoot = sys_get_temp_dir() . DIRECTORY_SEPARATOR
+        . 'notes-updater-exact-1.0.14-' . bin2hex(random_bytes(8));
+    $archive = $temporaryRoot . '.tar';
+    if (!mkdir($temporaryRoot, 0700, true) && !is_dir($temporaryRoot)) {
+        return $sourceRoot;
+    }
+
+    $command = 'git -C ' . escapeshellarg($sourceRoot)
+        . ' rev-parse --verify ' . escapeshellarg('refs/tags/v1.0.14^{commit}')
+        . ' >/dev/null 2>&1 && git -C ' . escapeshellarg($sourceRoot)
+        . ' archive --format=tar --output=' . escapeshellarg($archive)
+        . ' ' . escapeshellarg('v1.0.14')
+        . ' && tar -xf ' . escapeshellarg($archive)
+        . ' -C ' . escapeshellarg($temporaryRoot);
+
+    $output = [];
+    $status = 1;
+    exec($command . ' 2>&1', $output, $status);
+    @unlink($archive);
+    if ($status !== 0) {
+        bootstrapRemoveTree($temporaryRoot);
+        return $sourceRoot;
+    }
+
+    [$tagVersion, $tagCode] = bootstrapVersion($temporaryRoot);
+    if ($tagVersion !== '1.0.14' || $tagCode !== 10014) {
+        bootstrapRemoveTree($temporaryRoot);
+        return $sourceRoot;
+    }
+
+    register_shutdown_function(static function () use ($temporaryRoot): void {
+        bootstrapRemoveTree($temporaryRoot);
+    });
+
+    return $temporaryRoot;
+}
+
 function bootstrapCopyVerified(string $source, string $target): void
 {
     if (!is_file($source) || is_link($source) || !is_readable($source)) {
@@ -136,6 +205,8 @@ if (!is_string($sourceRoot) || !is_dir($sourceRoot)) {
 if (!is_string($liveRoot) || !is_dir($liveRoot) || is_link($requestedRoot)) {
     bootstrapFail('Укажите существующий live-каталог 1.0.12 или 1.0.13 через --root.', 3);
 }
+
+$sourceRoot = bootstrapExactSourceRoot($sourceRoot);
 if (bootstrapInside($sourceRoot, $liveRoot) || bootstrapInside($liveRoot, $sourceRoot)) {
     bootstrapFail('Доверенный пакет 1.0.14 и live-установка должны находиться в разных каталогах.', 3);
 }

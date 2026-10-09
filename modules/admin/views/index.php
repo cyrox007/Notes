@@ -175,26 +175,60 @@ ob_start();
                         <td data-label="Действия">
                             <div class="admin-user-actions">
                                 <?php if ($canManage): ?>
-                                    <form action="<?= $view->e($view->route('admin_toggle_user')) ?>" method="post">
-                                        <?= $view->csrfInput() ?>
-                                        <input type="hidden" name="user_id" value="<?= $view->e($listedUser['id'] ?? '') ?>">
-                                        <?php if (in_array($statusCode, ['inactive', 'blocked'], true)): ?>
-                                            <input type="hidden" name="new_status" value="active">
-                                            <button type="submit" class="admin-action admin-action--secondary"><i class="fa fa-check-circle" aria-hidden="true"></i> Активировать</button>
-                                        <?php else: ?>
-                                            <input type="hidden" name="new_status" value="blocked">
-                                            <button type="submit" class="admin-action admin-action--secondary"><i class="fa fa-ban" aria-hidden="true"></i> Блокировать</button>
-                                        <?php endif; ?>
-                                    </form>
-                                    <?php if ($statusCode !== 'inactive'): ?>
-                                        <form action="<?= $view->e($view->route('admin_delete_user')) ?>" method="post" data-confirm-deactivate="@<?= $view->e($listedUser['username'] ?? '') ?>">
+                                    <details class="admin-user-editor">
+                                        <summary class="admin-action admin-action--secondary"><i class="fa fa-pencil" aria-hidden="true"></i> Редактировать</summary>
+                                        <form action="<?= $view->e($view->route('admin_update_user')) ?>" method="post" class="admin-user-editor__form">
                                             <?= $view->csrfInput() ?>
                                             <input type="hidden" name="user_id" value="<?= $view->e($listedUser['id'] ?? '') ?>">
-                                            <button type="submit" class="admin-action admin-action--danger"><i class="fa fa-user-times" aria-hidden="true"></i> Деактивировать</button>
+                                            <label>Логин<input name="username" type="text" minlength="3" maxlength="50" pattern="[A-Za-z0-9._-]+" required value="<?= $view->e($listedUser['username'] ?? '') ?>"></label>
+                                            <label>Email<input name="email" type="email" maxlength="190" required value="<?= $view->e($listedUser['email'] ?? '') ?>"></label>
+                                            <label>Имя<input name="firstname" type="text" maxlength="80" required value="<?= $view->e($listedUser['firstname'] ?? '') ?>"></label>
+                                            <label>Отчество<input name="patronymic" type="text" maxlength="80" value="<?= $view->e($listedUser['patronymic'] ?? '') ?>"></label>
+                                            <label>Фамилия<input name="lastname" type="text" maxlength="80" required value="<?= $view->e($listedUser['lastname'] ?? '') ?>"></label>
+                                            <label>Телефон<input name="phone" type="tel" maxlength="32" value="<?= $view->e($listedUser['phone'] ?? '') ?>"></label>
+                                            <label>Новый пароль<input name="password" type="password" minlength="10" maxlength="200" autocomplete="new-password" placeholder="Оставьте пустым, чтобы не менять"></label>
+                                            <button type="submit" class="admin-action admin-action--primary">Сохранить</button>
                                         </form>
+                                    </details>
+
+                                    <?php if ($statusCode === 'deletion_pending'): ?>
+                                        <form action="<?= $view->e($view->route('admin_cancel_user_deletion')) ?>" method="post">
+                                            <?= $view->csrfInput() ?>
+                                            <input type="hidden" name="user_id" value="<?= $view->e($listedUser['id'] ?? '') ?>">
+                                            <button type="submit" class="admin-action admin-action--secondary"><i class="fa fa-undo" aria-hidden="true"></i> Отменить удаление</button>
+                                        </form>
+                                        <small class="admin-user-actions__hint">Очистка после <?= $view->e($listedUser['purge_after'] ?? '—') ?></small>
+                                    <?php else: ?>
+                                        <form action="<?= $view->e($view->route('admin_toggle_user')) ?>" method="post">
+                                            <?= $view->csrfInput() ?>
+                                            <input type="hidden" name="user_id" value="<?= $view->e($listedUser['id'] ?? '') ?>">
+                                            <?php if (in_array($statusCode, ['inactive', 'blocked'], true)): ?>
+                                                <input type="hidden" name="new_status" value="active">
+                                                <button type="submit" class="admin-action admin-action--secondary"><i class="fa fa-check-circle" aria-hidden="true"></i> Активировать</button>
+                                            <?php else: ?>
+                                                <input type="hidden" name="new_status" value="blocked">
+                                                <button type="submit" class="admin-action admin-action--secondary" title="Запрещает вход, но сохраняет место лицензии"><i class="fa fa-ban" aria-hidden="true"></i> Блокировать</button>
+                                            <?php endif; ?>
+                                        </form>
+
+                                        <?php if ($statusCode !== 'inactive'): ?>
+                                            <form action="<?= $view->e($view->route('admin_delete_user')) ?>" method="post" data-confirm-deactivate="@<?= $view->e($listedUser['username'] ?? '') ?>">
+                                                <?= $view->csrfInput() ?>
+                                                <input type="hidden" name="user_id" value="<?= $view->e($listedUser['id'] ?? '') ?>">
+                                                <button type="submit" class="admin-action admin-action--secondary" title="Запрещает вход и освобождает место лицензии, данные сохраняются"><i class="fa fa-pause-circle" aria-hidden="true"></i> Деактивировать</button>
+                                            </form>
+                                        <?php endif; ?>
+
+                                        <?php if ($statusCode === 'inactive'): ?>
+                                            <form action="<?= $view->e($view->route('admin_request_user_deletion')) ?>" method="post" data-confirm-message="Пометить @<?= $view->e($listedUser['username'] ?? '') ?> на удаление? Через 30 дней персональные регистрационные данные будут необратимо обезличены. Общие сообщения и объекты сохранят технического автора." data-confirm-title="Удаление пользователя" data-confirm-danger="true" data-confirm-text="Запланировать удаление">
+                                                <?= $view->csrfInput() ?>
+                                                <input type="hidden" name="user_id" value="<?= $view->e($listedUser['id'] ?? '') ?>">
+                                                <button type="submit" class="admin-action admin-action--danger"><i class="fa fa-trash" aria-hidden="true"></i> Удалить</button>
+                                            </form>
+                                        <?php endif; ?>
                                     <?php endif; ?>
                                 <?php else: ?>
-                                    <span class="admin-user-actions__locked"><?= $isSelf ? 'Текущий аккаунт' : 'Защищённая роль' ?></span>
+                                    <span class="admin-user-actions__locked"><?= $isSelf ? 'Текущий аккаунт' : ($statusCode === 'anonymized' ? 'Очищенный аккаунт' : 'Защищённая роль') ?></span>
                                 <?php endif; ?>
                             </div>
                         </td>
@@ -202,6 +236,19 @@ ob_start();
                 <?php endforeach; ?>
                 </tbody>
             </table>
+        </div>
+
+        <div class="admin-user-lifecycle-note">
+            <strong>Статусы:</strong>
+            <span><b>Блокирован</b> — вход запрещён, место лицензии сохраняется.</span>
+            <span><b>Деактивирован</b> — вход запрещён, место лицензии освобождается, данные сохраняются.</span>
+            <span><b>Удаление запланировано</b> — через 30 дней регистрационные данные обезличиваются; технический tombstone остаётся для целостности общих сообщений и задач.</span>
+            <?php if (!empty($canPurgeUsers)): ?>
+                <form action="<?= $view->e($view->route('admin_purge_due_users')) ?>" method="post" data-confirm-message="Запустить очистку всех аккаунтов, у которых уже истёк 30-дневный срок?" data-confirm-title="Очистка пользователей" data-confirm-danger="true" data-confirm-text="Запустить очистку">
+                    <?= $view->csrfInput() ?>
+                    <button class="admin-action admin-action--secondary" type="submit"><i class="fa fa-eraser" aria-hidden="true"></i> Очистить просроченные сейчас</button>
+                </form>
+            <?php endif; ?>
         </div>
 
         <nav class="admin-pagination" aria-label="Пагинация пользователей">

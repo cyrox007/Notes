@@ -6,6 +6,8 @@ namespace Core;
 
 require_once __DIR__ . '/UpdatePath.php';
 require_once __DIR__ . '/HostingCompatibility.php';
+require_once __DIR__ . '/UpdateStepBudget.php';
+require_once __DIR__ . '/UpdateStepCheckpoint.php';
 
 use RuntimeException;
 use Throwable;
@@ -31,7 +33,7 @@ final class UpdateReleaseCandidate
      * @param array<string,mixed> $manifest
      * @return array{candidate_dir:string,archive_root:string,files:int,total_bytes:int,tree_manifest:string,tree_sha256:string}
      */
-    public function extract(string $archivePath, string $candidateRoot, array $manifest): array
+    public function extract(string $archivePath, string $candidateRoot, array $manifest, ?UpdateStepBudget $budget = null): array
     {
         (new UpdateArchiveInspector())->inspect($archivePath);
         if (!function_exists('inflate_init') || !function_exists('inflate_add')) {
@@ -52,7 +54,19 @@ final class UpdateReleaseCandidate
             return $this->verifyCandidate($finalDir, $archiveRoot, $manifest);
         }
 
-        $tempDir = $candidateRoot . DIRECTORY_SEPARATOR . '.candidate-' . bin2hex(random_bytes(8)) . '.tmp';
+        $tempDir = $candidateRoot . DIRECTORY_SEPARATOR . '.candidate-'
+            . ($budget === null ? bin2hex(random_bytes(8)) : $packageSha) . '.tmp';
+        $checkpoint = new UpdateStepCheckpoint(
+            $candidateRoot . '/.extract-' . $packageSha . '.json', $packageSha
+        );
+        $cursor = $budget === null ? 0 : (int) ($checkpoint->read()['cursor'] ?? 0);
+        if ($cursor < 0 || $cursor > count($entries)) {
+            throw new RuntimeException('Некорректный курсор распаковки');
+        }
+        if ($cursor > 0 && !is_dir($tempDir)) {
+            throw new RuntimeException('Сохранённая распаковка потеряла временный каталог');
+        }
+        if (is_link($tempDir)) throw new RuntimeException('Каталог кандидата не должен быть ссылкой');
         $oldUmask = umask(0022);
         $made = @mkdir($tempDir, 0755, false);
         umask($oldUmask);
@@ -67,7 +81,8 @@ final class UpdateReleaseCandidate
         }
 
         try {
-            foreach ($entries as $entry) {
+            foreach ($entries as $index => $entry) {
+                if ($index < $cursor) continue;
                 $relative = $this->relativePath((string) $entry['name'], $archiveRoot);
                 if ($relative === '') {
                     continue;
@@ -78,19 +93,35 @@ final class UpdateReleaseCandidate
                     continue;
                 }
                 $this->ensureDirectory(dirname($target));
+                // Если PHP погиб после записи файла, но до сохранения курсора,
+                // повторяем только этот файл. Готовые предыдущие файлы не меняются.
+                if ($budget !== null && is_file($target) && !is_link($target)) @unlink($target);
                 $this->extractEntry($handle, $entry, $target);
+                if ($budget !== null) {
+                    $checkpoint->write(['cursor' => $index + 1]);
+                    $budget->checkpoint('candidate');
+                }
             }
             fclose($handle);
             $handle = null;
 
             $tree = $this->buildTreeManifest($tempDir, $archiveRoot, $manifest);
             $treePath = $tempDir . DIRECTORY_SEPARATOR . '.workspace-release-tree.json';
-            $this->writeExclusive($treePath, $tree['bytes']);
+            if (file_exists($treePath)) {
+                if (is_link($treePath) || file_get_contents($treePath) !== $tree['bytes']) {
+                    throw new RuntimeException('Сохранённый манифест кандидата изменился');
+                }
+            } else {
+                $this->writeExclusive($treePath, $tree['bytes']);
+            }
 
             if (!@rename($tempDir, $finalDir)) {
                 throw new RuntimeException('Cannot atomically publish verified release candidate');
             }
             return $this->verifyCandidate($finalDir, $archiveRoot, $manifest);
+        } catch (UpdateStepPending $pause) {
+            if (is_resource($handle)) fclose($handle);
+            throw $pause;
         } catch (Throwable $e) {
             if (is_resource($handle)) {
                 fclose($handle);

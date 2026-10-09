@@ -22,7 +22,8 @@
             addSection: document.getElementById('group-add-section'),
             addList: document.getElementById('group-add-contact-list'),
             addButton: document.getElementById('group-add-button'),
-            leaveButton: document.getElementById('group-leave-button')
+            leaveButton: document.getElementById('group-leave-button'),
+            deleteButton: document.getElementById('group-delete-button')
         };
 
         if (!el.infoButton || !el.dialog) return;
@@ -242,6 +243,20 @@
             app.sendEvent('GroupSocket:leave', { dialog_uid: group.dialog_uid });
         });
 
+        el.deleteButton?.addEventListener('click', async () => {
+            if (!group || group.current_role !== 'owner') return;
+            const name = group.name || 'эту группу';
+            const confirmDelete = window.wspace?.feedback?.confirm
+                ? await window.wspace.feedback.confirm(
+                    `Удалить группу «${name}» целиком? Сообщения и вложения этой группы будут удалены без возможности восстановления.`,
+                    { title: 'Удаление группы', danger: true, confirmText: 'Удалить группу' }
+                )
+                : window.confirm(`Удалить группу «${name}» целиком? Это действие необратимо.`);
+            if (!confirmDelete) return;
+            el.deleteButton.disabled = true;
+            app.sendEvent('GroupSocket:delete_group', { dialog_uid: group.dialog_uid });
+        });
+
         const memberAction = (label, handler, danger = false) => {
             const button = document.createElement('button');
             button.type = 'button';
@@ -350,6 +365,8 @@
             el.saveName.hidden = !canManage;
             el.addSection.hidden = !canManage;
             el.leaveButton.hidden = group.current_role === 'owner';
+            el.deleteButton.hidden = group.current_role !== 'owner';
+            el.deleteButton.disabled = false;
             avatarActions.hidden = !canManage;
             avatarChange.disabled = avatarUploading;
             avatarRemove.disabled = avatarUploading || !group.avatar;
@@ -408,6 +425,11 @@
 
             if (data?.action === 'group_left') {
                 closeRemovedGroup(data.dialog_uid, 'Вы вышли из группы');
+                return;
+            }
+
+            if (data?.action === 'group_deleted') {
+                closeRemovedGroup(data.dialog_uid, 'Группа удалена');
                 return;
             }
 

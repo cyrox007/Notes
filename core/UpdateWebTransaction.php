@@ -19,6 +19,7 @@ require_once __DIR__ . '/UpdateCoordinatorLock.php';
 require_once __DIR__ . '/UpdateWebContinuation.php';
 require_once __DIR__ . '/UpdateInProcessRunner.php';
 require_once __DIR__ . '/UpdateApplyCommand.php';
+require_once __DIR__ . '/UpdateWebRuntimeLauncher.php';
 require_once dirname(__DIR__) . '/app/services/MaintenanceModeService.php';
 
 /**
@@ -88,8 +89,13 @@ final class UpdateWebTransaction
 
         $continuation = new UpdateWebContinuation($this->stateRoot);
         try {
+            $runtime = (new UpdateExternalRuntime($this->appRoot))->prepare();
             $token = $continuation->create($transactionId);
+            $stepUrl = (new UpdateWebRuntimeLauncher())->publish(
+                $this->appRoot, $this->stateRoot, $transactionId, $runtime
+            );
         } catch (Throwable $e) {
+            $continuation->revoke($transactionId);
             throw new RuntimeException(
                 'Не удалось подготовить безопасное продолжение web-обновления',
                 0,
@@ -104,6 +110,7 @@ final class UpdateWebTransaction
             'message' => 'Пакет проверен. Создаётся резервная точка.',
             'transaction_id' => $transactionId,
             'continuation_token' => $token,
+            'continuation_url' => $stepUrl,
             'target_version' => $verified['target_version'],
             'target_version_code' => $verified['target_version_code'],
             'package_sha256' => $verified['package_sha256'],
@@ -120,6 +127,17 @@ final class UpdateWebTransaction
                 'continuation_invalid',
                 403
             );
+        }
+
+        // Контроллер exact 1.0.14 фильтрует поля ответа begin. Первый web-step
+        // передаёт браузер внешнему входу до maintenance и любых изменений.
+        if (PHP_SAPI !== 'cli' && UpdatePath::inside(__DIR__, $this->appRoot)) {
+            $url = (new UpdateWebRuntimeLauncher())->recordedUrl($this->stateRoot, $transactionId);
+            if ($url !== '') return [
+                'status' => 'in_progress', 'phase' => 'backup', 'progress' => 20,
+                'transaction_id' => $transactionId, 'continuation_url' => $url,
+                'message' => 'Подготовлено безопасное продолжение обновления.',
+            ];
         }
 
         try {
@@ -162,6 +180,7 @@ final class UpdateWebTransaction
                 ),
                 'candidate_verified',
                 'preflight_verified',
+                'live_mutation_started',
                 'code_switched',
                 'migrations_applied',
                 'postcheck_verified' => $this->applyStep(
@@ -182,7 +201,6 @@ final class UpdateWebTransaction
                     $maintenance,
                     $continuation
                 ),
-                'live_mutation_started',
                 'rollback_started',
                 'code_restored',
                 'database_restored',
@@ -198,6 +216,8 @@ final class UpdateWebTransaction
                     409
                 ),
             };
+        } catch (UpdateStepPending $pause) {
+            return $pause->result($transactionId);
         } catch (Throwable $e) {
             $this->cleanupPreMutationFailure(
                 $transactionId,
@@ -229,13 +249,15 @@ final class UpdateWebTransaction
                 $this->appRoot,
                 $this->excludedPaths()
             );
-            $backups = $manager->create($transactionId, $db);
+            $backups = $manager->create($transactionId, $db, new UpdateStepBudget());
         } finally {
             $db->close();
         }
 
         (new UpdateTransactionJournal($this->stateRoot, $this->appRoot))
             ->recordBackups($transactionId, $backups);
+        (new UpdateTransactionStateMachine($this->stateRoot, $this->appRoot))
+            ->attachExternalRuntime($transactionId, (new UpdateExternalRuntime($this->appRoot))->prepare());
 
         return [
             'status' => 'in_progress',
@@ -257,12 +279,18 @@ final class UpdateWebTransaction
         MaintenanceModeService $maintenance
     ): array {
         $this->assertMaintenanceOwner($maintenance, $transactionId);
+        // Обрыв мог произойти после recordBackups, но до attachExternalRuntime.
+        if (!is_array($state['external_runtime'] ?? null)) {
+            (new UpdateTransactionStateMachine($this->stateRoot, $this->appRoot))
+                ->attachExternalRuntime($transactionId, (new UpdateExternalRuntime($this->appRoot))->prepare());
+        }
         $verified = $this->verifyJournalStage($state);
 
         $candidate = (new UpdateReleaseCandidate($this->appRoot))->extract(
             $verified['package_path'],
             $this->releaseRoot,
-            $verified['manifest']
+            $verified['manifest'],
+            new UpdateStepBudget()
         );
 
         (new UpdateTransactionStateMachine($this->stateRoot, $this->appRoot))
@@ -397,8 +425,10 @@ final class UpdateWebTransaction
             'recover' => true,
             'state-root' => $this->stateRoot,
             'backup-root' => $this->backupRoot,
+            'single-step' => true,
         ]);
 
+        if (($result['status'] ?? '') === 'in_progress') return $result;
         $continuation->revoke($transactionId);
         $status = (string) ($result['status'] ?? '');
 

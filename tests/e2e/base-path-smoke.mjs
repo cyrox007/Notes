@@ -159,24 +159,19 @@ try {
 
   // Exercise a real JS mutation path. This proves fetch/XHR requests inherit the
   // application prefix rather than accidentally posting to the host root.
+  const mutationUrl = page.url();
   await page.locator('#btn-create-folder').click();
   await page.locator('#folder-name-input').fill('Base Path Folder');
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: 'load', timeout: 15000 }),
-    page.locator('#modal-create-folder .modal-ok').click(),
-  ]);
+  await page.locator('#modal-create-folder .modal-ok').click();
   await page.getByText('Base Path Folder', { exact: true }).waitFor({ timeout: 15000 });
-  // После серверной перезагрузки дожидаемся полной загрузки документа,
-  // чтобы обработчик change у #file-input был гарантированно подключён.
-  await page.waitForLoadState('load');
+  if (page.url() !== mutationUrl) {
+    throw new Error('Создание папки неожиданно перезагрузило страницу');
+  }
 
   const uploadResponsePromise = page.waitForResponse(response => (
     response.request().method() === 'POST'
     && new URL(response.url()).pathname === `${basePath}/files/upload/`
   ), { timeout: 15000 });
-  const uploadNavigationPromise = page
-    .waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 })
-    .catch(error => error);
   await page.locator('#file-input').setInputFiles({
     name: 'base-path.txt',
     mimeType: 'text/plain',
@@ -197,12 +192,8 @@ try {
     );
   }
 
-  const uploadNavigation = await uploadNavigationPromise;
-  if (uploadNavigation instanceof Error) {
-    throw new Error(
-      `Successful file upload did not reload the File Manager: ${uploadNavigation.message} `
-      + `consoleErrors=${JSON.stringify(consoleErrors)} failedResponses=${JSON.stringify(failedResponses)}`
-    );
+  if (page.url() !== mutationUrl) {
+    throw new Error('Успешная загрузка файла неожиданно перезагрузила страницу');
   }
   const fileItem = page.locator('.file-manager__item[data-name="base-path"]');
   await fileItem.waitFor({ state: 'visible', timeout: 15000 });

@@ -30,6 +30,7 @@ final class UpdateLiveApplier
         'uploads',
         'notes-private-storage',
         '.logs',
+        'update-continuations',
     ];
 
     private string $appRoot;
@@ -120,9 +121,9 @@ final class UpdateLiveApplier
      * @param array<string,mixed> $plan
      * @return array<string,mixed>
      */
-    public function switchPrepared(array $plan): array
+    public function switchPrepared(array $plan, ?UpdateStepBudget $budget = null): array
     {
-        return $this->codeSwitcher->switchPrepared($plan);
+        return $this->codeSwitcher->switchPrepared($plan, $budget);
     }
 
     /**
@@ -137,9 +138,9 @@ final class UpdateLiveApplier
      * @param array<string,mixed> $databaseMetadata
      * @return array<string,mixed>
      */
-    public function restoreDatabase(mysqli $db, string $backupDir, array $databaseMetadata): array
+    public function restoreDatabase(mysqli $db, string $backupDir, array $databaseMetadata, ?UpdateStepBudget $budget = null): array
     {
-        return $this->databaseRestorer->restore($db, $backupDir, $databaseMetadata);
+        return $this->databaseRestorer->restore($db, $backupDir, $databaseMetadata, $budget);
     }
 
     /** @return array{version:string,version_code:int} */

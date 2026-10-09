@@ -20,8 +20,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const folderNameInput = document.getElementById('folder-name-input');
     const renameInput = document.getElementById('rename-input');
     const renameIdInput = document.getElementById('rename-id');
-    const progressBar = modalUploadProgress ? modalUploadProgress.querySelector('.progress-bar') : null;
-    const progressBarFill = document.getElementById('progress-bar-fill');
+    const progressBar = document.getElementById('upload-progress-bar');
     const progressPercent = document.getElementById('progress-percent');
     const uploadFileName = document.getElementById('upload-file-name');
 
@@ -87,6 +86,46 @@ document.addEventListener('DOMContentLoaded', function () {
         return appPath(`/files/get/${encodeURIComponent(String(id))}/`);
     }
 
+    async function refreshVisibleItems() {
+        const response = await fetch(window.location.href, {
+            method: 'GET',
+            credentials: 'same-origin',
+            cache: 'no-store',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+        if (!response.ok) {
+            throw new Error(`Не удалось обновить список файлов (HTTP ${response.status})`);
+        }
+
+        const html = await response.text();
+        // Ответ содержит весь документ с новым nonce. Разбираем его в инертном
+        // шаблоне, чтобы стили страницы не применялись при обновлении списка.
+        const nextTemplate = document.createElement('template');
+        nextTemplate.innerHTML = html;
+        const nextContent = nextTemplate.content.querySelector('.file-manager__content');
+        const currentContent = root.querySelector('.file-manager__content');
+        if (!nextContent || !currentContent) {
+            throw new Error('Сервер не вернул список файлов');
+        }
+
+        const nodes = Array.from(nextContent.childNodes).map((node) => document.importNode(node, true));
+        currentContent.replaceChildren(...nodes);
+        document.dispatchEvent(new CustomEvent('wspace:files-changed'));
+    }
+
+    async function refreshAfterMutation() {
+        try {
+            await refreshVisibleItems();
+            return true;
+        } catch (error) {
+            console.warn('Не удалось обновить файловый менеджер без перезагрузки страницы', error);
+            window.location.assign(window.location.href);
+            return false;
+        }
+    }
+
     async function createFolder() {
         const folderName = folderNameInput ? folderNameInput.value.trim() : '';
         if (!folderName) {
@@ -105,7 +144,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
             hideModal(modalCreateFolder);
-            window.location.reload();
+            if (folderNameInput) folderNameInput.value = '';
+            await refreshAfterMutation();
         } catch (error) {
             console.error('Create folder failed:', error);
             showError('Ошибка при создании папки');
@@ -130,7 +170,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
             hideModal(modalRename);
-            window.location.reload();
+            await refreshAfterMutation();
         } catch (error) {
             console.error('Rename failed:', error);
             showError('Ошибка при переименовании');
@@ -150,8 +190,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
             item.remove();
+            document.dispatchEvent(new CustomEvent('wspace:files-changed'));
             if (!root.querySelector('.file-manager__item')) {
-                window.location.reload();
+                await refreshAfterMutation();
             }
         } catch (error) {
             console.error('Delete failed:', error);
@@ -161,9 +202,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function resetProgress(fileName) {
         if (uploadFileName) uploadFileName.textContent = fileName;
-        if (progressBarFill) progressBarFill.style.width = '0%';
+        if (progressBar instanceof HTMLProgressElement) progressBar.value = 0;
         if (progressPercent) progressPercent.textContent = '0%';
-        if (progressBar) progressBar.setAttribute('aria-valuenow', '0');
     }
 
     function formatUploadLimit(bytes) {
@@ -197,9 +237,8 @@ document.addEventListener('DOMContentLoaded', function () {
             xhr.upload.onprogress = function (event) {
                 if (!event.lengthComputable) return;
                 const percent = Math.round((event.loaded / event.total) * 100);
-                if (progressBarFill) progressBarFill.style.width = `${percent}%`;
+                if (progressBar instanceof HTMLProgressElement) progressBar.value = percent;
                 if (progressPercent) progressPercent.textContent = `${percent}%`;
-                if (progressBar) progressBar.setAttribute('aria-valuenow', String(percent));
             };
 
             xhr.onload = function () {
@@ -227,7 +266,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 await uploadSingleFile(file);
             }
             hideModal(modalUploadProgress);
-            window.location.reload();
+            await refreshAfterMutation();
         } catch (error) {
             hideModal(modalUploadProgress);
             console.error('Upload failed:', error);

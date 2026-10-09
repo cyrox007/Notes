@@ -31,6 +31,7 @@ $connection = file_get_contents($root . '/modules/messenger/socket/BufferedSocke
 $server = file_get_contents($root . '/modules/messenger/socket/NativeMessengerServer.php');
 $client = file_get_contents($root . '/modules/messenger/views/script.js');
 $connectionUx = file_get_contents($root . '/assets/js/messenger-connection-ux.js');
+$visualCss = file_get_contents($root . '/modules/messenger/views/visual-refresh.css');
 $globalNotifications = file_get_contents($root . '/assets/js/messenger-global-notifications.js');
 $updateNotifications = file_get_contents($root . '/assets/js/update-notifications.js');
 $adminUpdates = file_get_contents($root . '/modules/admin/assets/admin-updates.js');
@@ -53,6 +54,7 @@ foreach ([
     'server' => $server,
     'client' => $client,
     'connection UX' => $connectionUx,
+    'visual CSS' => $visualCss,
     'global notifications' => $globalNotifications,
     'update notifications' => $updateNotifications,
     'admin updates' => $adminUpdates,
@@ -219,6 +221,19 @@ assertLongPollContract(
     'network transitions must resume Long Poll without waiting for a WebSocket reconnect'
 );
 assertLongPollContract(
+    str_contains($connectionUx, 'app.socketAuthorized !== true')
+    && !str_contains($connectionUx, '!refreshed && resumeLongPoll')
+    && substr_count(
+        $connectionUx,
+        'const socketReady = app.socket?.readyState === WebSocket.OPEN && app.socketAuthorized === true;'
+    ) >= 2
+    && preg_match(
+        '/finally\s*\{.*?resumeLongPoll\?\.\(\).*?refreshPromise = null;/s',
+        $connectionUx
+    ) === 1,
+    'успешное обновление ticket при возврате во вкладку не должно оставлять Long Poll в паузе'
+);
+assertLongPollContract(
     str_contains($client, 'markSessionUnavailable()')
     && str_contains($client, "error.code = 'session_unavailable'")
     && str_contains($client, 'this.sessionUnavailable = true')
@@ -266,6 +281,13 @@ assertLongPollContract(
     'updater start must quiesce all Messenger transports before maintenance begins'
 );
 assertLongPollContract(
+    str_contains($client, 'void this.loadInitialDialogs();')
+    && str_contains($client, "performHttpEvent('MessangerSocket:get_dialogs', {})")
+    && strpos($client, 'void this.loadInitialDialogs();') < strpos($client, 'this.connect();')
+    && str_contains($client, "this.el.newChatButton.disabled = state !== 'loaded'"),
+    'первичный список диалогов должен загружаться быстрым HTTP snapshot до realtime и блокировать создание дубликата'
+);
+assertLongPollContract(
     str_contains($client, "case 'sync_required':")
     && str_contains($client, 'syncDurableState()')
     && str_contains($client, "MessangerSocket:get_dialogs")
@@ -275,6 +297,15 @@ assertLongPollContract(
 assertLongPollContract(
     str_contains($client, "state !== 'online' && state !== 'fallback'"),
     'composer must remain usable in long-poll fallback mode'
+);
+assertLongPollContract(
+    str_contains($client, "actionsToggle.className = 'messenger-message__actions-toggle'")
+    && str_contains($client, "row.classList.toggle('messenger-message--actions-open')")
+    && str_contains($client, "row.append(bubble, actionsToggle, actions)")
+    && is_string($visualCss)
+    && str_contains($visualCss, '.messenger-message--actions-open .messenger-message__actions{display:flex}')
+    && str_contains($visualCss, '.messenger-message__actions-toggle'),
+    'на мобильном экране действия сообщения должны раскрываться под сообщением одной кнопкой'
 );
 assertLongPollContract(
     str_contains($connectionUx, 'app.longPollActive === true')

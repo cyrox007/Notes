@@ -243,7 +243,13 @@ try {
     // секунды раньше нового SupportDiagnostics.php. В этот момент нельзя
     // превращать штатный maintenance/recovery в PHP Warning/Fatal.
     $supportDiagnosticsPath = SITEPATH . '/core/SupportDiagnostics.php';
-    if (is_file($supportDiagnosticsPath) && !is_link($supportDiagnosticsPath)) {
+    $supportDiagnosticsRequest = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) === 'GET'
+        && preg_match('~(?:^|/)support-diagnostics/?$~D',
+            (string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH)) === 1;
+    if ($supportDiagnosticsRequest
+        && is_file($supportDiagnosticsPath) && !is_link($supportDiagnosticsPath)
+        && is_file(SITEPATH . '/core/SupportZipWriter.php')
+        && is_file(SITEPATH . '/core/HostingProfileProbe.php')) {
         require_once $supportDiagnosticsPath;
 
         // Одноразовый пакет поддержки остаётся доступен даже когда обычный
@@ -261,7 +267,12 @@ try {
     // Во время пошагового web-обновления только один capability-защищённый
     // endpoint может пройти раньше общего maintenance-барьера. Обычные запросы
     // по-прежнему закрыты, а Router и модули до завершения миграций не грузятся.
-    if ($maintenanceState['active'] && $maintenanceState['valid']) {
+    $updateStepRequest = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? '')) === 'POST'
+        && str_ends_with(
+            rtrim((string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH), '/'),
+            '/admin/updates/web-step'
+        );
+    if ($maintenanceState['active'] && $maintenanceState['valid'] && $updateStepRequest) {
         require_once SITEPATH . '/core/UpdateWebHttpBridge.php';
         if (\Core\UpdateWebHttpBridge::canHandle($maintenance, $maintenanceState)) {
             \Core\UpdateWebHttpBridge::handle(SITEPATH, $maintenance, $maintenanceState);
@@ -270,7 +281,6 @@ try {
 
     // До обычного maintenance-ответа завершаем восстановление оборванного
     // обновления. Активный lease живого web-updater recovery не перехватывает.
-    require_once SITEPATH . '/core/UpdateAutomaticRecovery.php';
     require_once SITEPATH . '/core/UpdateBootRecoveryGate.php';
     \Core\UpdateBootRecoveryGate::enforce(SITEPATH);
 
@@ -278,6 +288,9 @@ try {
     if ($maintenanceState['active']) {
         handleMaintenanceMode($maintenanceState);
     }
+
+    require_once SITEPATH . '/core/CrawlerDefense.php';
+    \Core\CrawlerDefense::handleEarlyRequest();
 
     require_once SITEPATH . '/core/ModuleManifest.php';
     require_once SITEPATH . '/core/DatabaseOwnership.php';

@@ -1,0 +1,411 @@
+name: 1.0.14 → 1.0.15 обновление без переустановки
+
+on:
+  push:
+    branches: ['fix/updater-resilience-20261004']
+  pull_request:
+    branches: [master, '1.0']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  previous-stable-upgrade:
+    name: previous-stable-upgrade
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        migration_ledger: [without-ledger, with-ledger]
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: previous_stable_upgrade
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Получить исходники и опубликованный тег
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Подготовить PHP 8.1
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: mysqli, pdo_mysql, mbstring, sodium, openssl, fileinfo, gd, zlib
+          coverage: none
+
+      - name: Подготовить браузерные зависимости
+        shell: bash
+        run: |
+          set -euo pipefail
+          composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader --no-progress
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+          node --check tests/e2e/admin-update-apply.mjs
+          python3 -m py_compile tests/support/admin_update_https_fixture.py
+          php -l tests/support/admin_update_preservation_probe.php
+          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.15'
+          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10015'
+          git rev-parse --verify refs/tags/v1.0.14
+
+      - name: Подготовить exact v1.0.14 и тестовую БД
+        shell: bash
+        run: |
+          set -euo pipefail
+          DRILL=/tmp/workspace-1014-1015
+          SOURCE="$DRILL/source-v1.0.14"
+          LIVE="$DRILL/live"
+          PRIVATE="$DRILL/private"
+          rm -rf "$DRILL"
+          mkdir -p "$SOURCE" "$LIVE"
+          for directory in logs file_manager messenger notes users rate-limit legacy staging state backups releases; do
+            install -d -m 700 "$PRIVATE/$directory"
+          done
+
+          git archive --format=tar v1.0.14 | tar -xf - -C "$SOURCE"
+          test "$(php -r "require '$SOURCE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.14'
+          test "$(php -r "require '$SOURCE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10014'
+
+          mysql -h 127.0.0.1 -uroot -proot <<'SQL'
+          CREATE USER 'workspace_upgrade'@'%' IDENTIFIED BY 'workspace-upgrade-ci';
+          GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, DROP,
+                REFERENCES, TRIGGER, LOCK TABLES
+            ON previous_stable_upgrade.* TO 'workspace_upgrade'@'%';
+          SET GLOBAL log_bin_trust_function_creators = 1;
+          FLUSH PRIVILEGES;
+          SQL
+
+          mapfile -t SCHEMAS < <(
+            cd "$SOURCE"
+            php -r '
+              require "core/ModuleManifest.php";
+              require "core/DatabaseOwnership.php";
+              foreach (Core\DatabaseOwnership::fromPackageRoot(getcwd())->schemaFiles() as $path) {
+                  echo getcwd(), DIRECTORY_SEPARATOR, $path, PHP_EOL;
+              }
+            '
+          )
+          test "${#SCHEMAS[@]}" -gt 0
+          for schema in "${SCHEMAS[@]}"; do
+            mysql -h 127.0.0.1 -uworkspace_upgrade -pworkspace-upgrade-ci previous_stable_upgrade < "$schema"
+          done
+
+          TEST_PASSWORD="$(php -r 'echo bin2hex(random_bytes(18));')"
+          echo "::add-mask::$TEST_PASSWORD"
+          export TEST_PASSWORD
+          php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          $pdo = new PDO(
+              'mysql:host=127.0.0.1;port=3306;dbname=previous_stable_upgrade;charset=utf8mb4',
+              'root',
+              'root',
+              [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+          );
+          $hash = password_hash((string) getenv('TEST_PASSWORD'), PASSWORD_ARGON2ID);
+          $stmt = $pdo->prepare(
+              'INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active,created_at,updated_at) '
+              . 'VALUES (:uid,:username,:email,:password_hash,:firstname,:lastname,1,1,NOW(),NOW())'
+          );
+          $stmt->execute([
+              ':uid' => 'ba5e0000-0000-4000-8000-000000001015',
+              ':username' => 'previous-stable-upgrade',
+              ':email' => 'previous-stable-upgrade@example.test',
+              ':password_hash' => $hash,
+              ':firstname' => 'Previous',
+              ':lastname' => 'Stable',
+          ]);
+          PHP
+
+          rsync -a "$SOURCE/" "$LIVE/"             --exclude '.git'             --exclude '.github'             --exclude '.env'             --exclude 'node_modules'             --exclude 'cache/*'             --exclude 'compile/*'
+          mkdir -p "$LIVE/cache" "$LIVE/compile"
+
+          APP_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
+          MESSAGE_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
+          TICKET_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
+          echo "::add-mask::$APP_KEY"
+          echo "::add-mask::$MESSAGE_KEY"
+          echo "::add-mask::$TICKET_KEY"
+
+          cat > "$LIVE/.env" <<ENV
+          DBDRIVER=mysql
+          DBHOST=127.0.0.1
+          DBPORT=3306
+          DBUSER=workspace_upgrade
+          DBPASS=workspace-upgrade-ci
+          DBNAME=previous_stable_upgrade
+          UNIQUE_KEY=$APP_KEY
+          MSG_SECRET_KEY=$MESSAGE_KEY
+          WS_TICKET_SECRET=$TICKET_KEY
+          PRIVATE_STORAGE_PATH=$PRIVATE
+          RATE_LIMIT_STORAGE_PATH=$PRIVATE/rate-limit
+          SITEURL=http://127.0.0.1:18115
+          BASE_PATH=/workspace/
+          WS_HOST=127.0.0.1
+          WS_PORT=27815
+          WS_PUBLIC_URL=ws://127.0.0.1:27815/workspace/ws
+          WS_ALLOWED_ORIGINS=http://127.0.0.1:18115
+          MAX_LOGIN_ATTEMPTS=50
+          AUTH_RATE_LIMIT_WINDOW_SECONDS=60
+          UPLOAD_RATE_LIMIT_ATTEMPTS=100
+          UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60
+          LOG_LEVEL=INFO
+          LOG_FILE=$PRIVATE/logs/app.log
+          CSRF_ENABLED=true
+          UPDATE_FEED_URL=https://updates-1015.e2e.test/stable/feed.json
+          UPDATE_CHANNEL=stable
+          UPDATE_ACCESS_MODE=offline
+          UPDATE_STAGING_PATH=$PRIVATE/staging
+          UPDATE_STATE_PATH=$PRIVATE/state
+          UPDATE_BACKUP_PATH=$PRIVATE/backups
+          UPDATE_RELEASE_PATH=$PRIVATE/releases
+          ENV
+          chmod 600 "$LIVE/.env"
+
+          printf 'E2E_USER=%s\n' 'previous-stable-upgrade' >> "$GITHUB_ENV"
+          printf 'E2E_PASSWORD=%s\n' "$TEST_PASSWORD" >> "$GITHUB_ENV"
+          printf 'E2E_ORIGIN=%s\n' 'http://127.0.0.1:18115' >> "$GITHUB_ENV"
+          printf 'E2E_BASE_PATH=%s\n' '/workspace' >> "$GITHUB_ENV"
+          printf 'E2E_SOURCE_VERSION=%s\n' '1.0.14' >> "$GITHUB_ENV"
+          printf 'E2E_SOURCE_VERSION_CODE=%s\n' '10014' >> "$GITHUB_ENV"
+          printf 'E2E_TARGET_VERSION=%s\n' '1.0.15' >> "$GITHUB_ENV"
+          printf 'E2E_TARGET_VERSION_CODE=%s\n' '10015' >> "$GITHUB_ENV"
+
+      - name: Активировать тестовую лицензию и создать контрольные данные
+        shell: bash
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: previous_stable_upgrade
+          E2E_USER: previous-stable-upgrade
+          PRIVATE_STORAGE_PATH: /tmp/workspace-1014-1015/private
+        run: |
+          set -euo pipefail
+          LIVE=/tmp/workspace-1014-1015/live
+          mkdir -p "$LIVE/tests/support"
+          cp tests/support/ci_license_fixture.php "$LIVE/tests/support/ci_license_fixture.php"
+          (cd "$LIVE" && php tests/support/ci_license_fixture.php)
+          php tests/support/admin_update_preservation_probe.php --seed
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.14'
+
+      - name: Подготовить вариант с журналом прошлых миграций
+        if: matrix.migration_ledger == 'with-ledger'
+        run: |
+          cd /tmp/workspace-1014-1015/live
+          # 1.0.14 содержит схему 1.0.13, но её опубликованный исполнитель
+          # ещё не знает baseline 10014. Имитируем журнал прошлого обновления.
+          php bin/migrate.php --baseline-version-code=10013
+          php bin/migrate.php --status
+
+      - name: Подготовить подписанный exact-head 1.0.15
+        shell: bash
+        run: |
+          set -euo pipefail
+          DRILL=/tmp/workspace-1014-1015
+          LIVE="$DRILL/live"
+          TARGET="$DRILL/workspace-organizer-v1.0.15"
+          FEED_ROOT="$DRILL/feed-root"
+          KEY_ID=ci-previous-stable-upgrade
+          PRIVATE_KEY="$DRILL/$KEY_ID.update-secret"
+
+          php tools/vendor-update/keygen.php             --key-id="$KEY_ID"             --private-out="$PRIVATE_KEY" | tee "$DRILL/keygen.txt"
+          PUBLIC_KEY="$(sed -n 's/^Public key: //p' "$DRILL/keygen.txt" | head -n1)"
+          test -n "$PUBLIC_KEY"
+
+          TEST_UPDATE_PUBLIC_KEY="$PUBLIC_KEY" php -r '
+            $path=$argv[1];
+            $keys=require $path;
+            $keys["ci-previous-stable-upgrade"]=getenv("TEST_UPDATE_PUBLIC_KEY");
+            $bytes="<?php\n\ndeclare(strict_types=1);\n\nreturn ".var_export($keys,true).";\n";
+            if (file_put_contents($path,$bytes,LOCK_EX)===false) exit(1);
+          ' "$LIVE/config/update_trusted_keys.php"
+
+          rm -rf "$TARGET"
+          mkdir -p "$TARGET"
+          rsync -a "$GITHUB_WORKSPACE/" "$TARGET/"             --exclude '.git'             --exclude '.github'             --exclude '.env'             --exclude 'vendor'             --exclude 'node_modules'             --exclude 'tests'             --exclude 'tools'             --exclude 'cache/*'             --exclude 'compile/*'             --exclude '*.license-secret'             --exclude '*.update-secret'             --exclude '*.log'
+          mkdir -p "$TARGET/cache" "$TARGET/compile"
+
+          cp "$LIVE/config/license_trusted_keys.php" "$TARGET/config/license_trusted_keys.php"
+          TEST_UPDATE_PUBLIC_KEY="$PUBLIC_KEY" php -r '
+            $path=$argv[1];
+            $keys=require $path;
+            $keys["ci-previous-stable-upgrade"]=getenv("TEST_UPDATE_PUBLIC_KEY");
+            $bytes="<?php\n\ndeclare(strict_types=1);\n\nreturn ".var_export($keys,true).";\n";
+            if (file_put_contents($path,$bytes,LOCK_EX)===false) exit(1);
+          ' "$TARGET/config/update_trusted_keys.php"
+
+          test "$(php -r "require '$TARGET/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.15'
+          test "$(php -r "require '$TARGET/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10015'
+
+          cd "$DRILL"
+          zip -qr "$DRILL/workspace-organizer-v1.0.15.zip" "$(basename "$TARGET")"
+          cd "$GITHUB_WORKSPACE"
+
+          php tools/vendor-update/build-manifest.php             --package="$DRILL/workspace-organizer-v1.0.15.zip"             --version=1.0.15             --version-code=10015             --channel=stable             --source-commit="$GITHUB_SHA"             --min-source-version-code=10014             --requires-php=8.1.0             --notes='CI: обновление exact v1.0.14 до exact-head 1.0.15 без переустановки'             --out="$DRILL/release-10015.json"
+
+          php tools/vendor-update/sign-manifest.php             --private-key="$PRIVATE_KEY"             --key-id="$KEY_ID"             --manifest="$DRILL/release-10015.json"             --signature-out="$DRILL/release-10015.sig"
+
+          mkdir -p "$FEED_ROOT/stable"
+          cp "$DRILL/release-10015.json" "$FEED_ROOT/stable/release-10015.json"
+          cp "$DRILL/release-10015.sig" "$FEED_ROOT/stable/release-10015.sig"
+          cp "$DRILL/workspace-organizer-v1.0.15.zip" "$FEED_ROOT/stable/workspace-organizer-v1.0.15.zip"
+          cat > "$FEED_ROOT/stable/feed.json" <<'JSON'
+          {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-10015.json","signature":"release-10015.sig"}
+          JSON
+
+          php -r '
+            $manifest=json_decode((string) file_get_contents($argv[1]),true,32,JSON_THROW_ON_ERROR);
+            if (($manifest["version_code"]??0)!==10015) exit(1);
+            if (($manifest["min_source_version_code"]??0)!==10014) exit(1);
+          ' "$DRILL/release-10015.json"
+
+          rm -f "$PRIVATE_KEY"
+          test ! -e "$PRIVATE_KEY"
+
+      - name: Поднять HTTPS-канал обновлений
+        shell: bash
+        run: |
+          set -euo pipefail
+          DRILL=/tmp/workspace-1014-1015
+
+          openssl req -x509 -newkey rsa:2048 -nodes             -keyout "$DRILL/ca.key" -out "$DRILL/ca.crt" -days 1             -subj '/CN=Workspace 1.0.15 Upgrade E2E CA' >/dev/null 2>&1
+          openssl req -newkey rsa:2048 -nodes             -keyout "$DRILL/server.key" -out "$DRILL/server.csr"             -subj '/CN=updates-1015.e2e.test' >/dev/null 2>&1
+          cat > "$DRILL/server.ext" <<'EOF'
+          subjectAltName=DNS:updates-1015.e2e.test
+          extendedKeyUsage=serverAuth
+          EOF
+          openssl x509 -req -in "$DRILL/server.csr"             -CA "$DRILL/ca.crt" -CAkey "$DRILL/ca.key" -CAcreateserial             -out "$DRILL/server.crt" -days 1 -sha256 -extfile "$DRILL/server.ext" >/dev/null 2>&1
+
+          sudo ip addr add 8.8.8.15/32 dev lo
+          sudo cp /etc/resolv.conf "$DRILL/resolv.conf.bak"
+          sudo sh -c "python3 '$GITHUB_WORKSPACE/tests/support/admin_update_https_fixture.py'             --root '$DRILL/feed-root'             --cert '$DRILL/server.crt'             --key '$DRILL/server.key'             --host updates-1015.e2e.test             --ip 8.8.8.15 >'$DRILL/fixture.log' 2>&1 & echo \$! >'$DRILL/fixture.pid'"
+          printf 'nameserver 127.0.0.1\noptions timeout:1 attempts:1\n' | sudo tee /etc/resolv.conf >/dev/null
+
+          for i in {1..40}; do
+            if SSL_CERT_FILE="$DRILL/ca.crt" curl --noproxy '*' --cacert "$DRILL/ca.crt" -fsS               https://updates-1015.e2e.test/stable/feed.json >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 0.25
+          done
+          cat "$DRILL/fixture.log" >&2
+          exit 1
+
+      - name: Запустить exact v1.0.14 в web-only режиме
+        shell: bash
+        run: |
+          set -euo pipefail
+          DRILL=/tmp/workspace-1014-1015
+          LIVE="$DRILL/live"
+          : > "$DRILL/app-http.log"
+
+          (
+            cd "$LIVE"
+            SSL_CERT_FILE="$DRILL/ca.crt"               E2E_APP_ROOT="$LIVE"               E2E_SUPPORT_ROOT="$GITHUB_WORKSPACE"               PHP_CLI_SERVER_WORKERS=4               php -d "openssl.cafile=$DRILL/ca.crt"               -d memory_limit=256M -d max_execution_time=80 -d "disable_functions=opcache_reset,proc_open,proc_get_status,proc_terminate,proc_close,exec,system,passthru,shell_exec,popen"               -S 127.0.0.1:18115 "$GITHUB_WORKSPACE/tests/e2e/router.php"               >"$DRILL/app-http.log" 2>&1 &
+            echo $! >"$DRILL/app-http.pid"
+          )
+
+          READY=0
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:18115/workspace/auth/login/ >/dev/null; then
+              READY=1
+              break
+            fi
+            sleep 0.25
+          done
+          if [[ "$READY" != '1' ]]; then
+            cat "$DRILL/app-http.log" >&2
+            exit 1
+          fi
+
+      - name: Обновить 1.0.14 до 1.0.15 через Admin
+        shell: bash
+        env:
+          SSL_CERT_FILE: /tmp/workspace-1014-1015/ca.crt
+        run: node tests/e2e/admin-update-apply.mjs
+
+      - name: Проверить версию и сохранность данных
+        shell: bash
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: previous_stable_upgrade
+          E2E_USER: previous-stable-upgrade
+          PRIVATE_STORAGE_PATH: /tmp/workspace-1014-1015/private
+        run: |
+          set -euo pipefail
+          DRILL=/tmp/workspace-1014-1015
+          LIVE="$DRILL/live"
+          PRIVATE="$DRILL/private"
+
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.15'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10015'
+          test ! -e "$PRIVATE/state/workspace-maintenance.json"
+
+          php tests/support/admin_update_preservation_probe.php --verify
+
+          descending_indexes="$(mysql -N -h 127.0.0.1 -uroot -proot previous_stable_upgrade -e "SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema=DATABASE() AND collation='D'")"
+          test "$descending_indexes" = '0'
+
+          (
+            cd "$LIVE"
+            php bin/healthcheck.php --json > "$DRILL/post-update-health.json"
+          )
+          test -s "$DRILL/post-update-health.json"
+
+          if grep -E 'PHP (Warning|Fatal error|Parse error)|Uncaught ' "$DRILL/app-http.log" 2>/dev/null; then
+            echo 'Во время обновления 1.0.14 → 1.0.15 обнаружена PHP-ошибка' >&2
+            exit 1
+          fi
+
+          echo '[OK] exact v1.0.14 обновлён до 1.0.15 без переустановки; контрольные данные сохранены'
+
+      - name: Диагностика при ошибке
+        if: failure()
+        shell: bash
+        run: |
+          DRILL=/tmp/workspace-1014-1015
+          echo '--- приложение ---'
+          cat "$DRILL/app-http.log" 2>/dev/null || true
+          echo '--- HTTPS fixture ---'
+          cat "$DRILL/fixture.log" 2>/dev/null || true
+          echo '--- журнал приложения/updater ---'
+          cat "$DRILL/private/logs/app.log" 2>/dev/null || true
+          echo '--- сервисный журнал updater/recovery ---'
+          tail -n 200 "$DRILL/private/logs/service-events.jsonl" 2>/dev/null || true
+          echo '--- журналы updater ---'
+          find "$DRILL/private" -maxdepth 4 -type f -name '*.json' -print -exec sh -c 'echo "--- $1"; cat "$1"' _ {} \; 2>/dev/null || true
+
+      - name: Остановить тестовые процессы и восстановить DNS
+        if: always()
+        shell: bash
+        run: |
+          DRILL=/tmp/workspace-1014-1015
+          if [[ -f "$DRILL/app-http.pid" ]]; then
+            PID="$(cat "$DRILL/app-http.pid")"
+            pkill -TERM -P "$PID" >/dev/null 2>&1 || true
+            kill "$PID" >/dev/null 2>&1 || true
+          fi
+          if [[ -f "$DRILL/fixture.pid" ]]; then
+            sudo kill "$(cat "$DRILL/fixture.pid")" >/dev/null 2>&1 || true
+          fi
+          if [[ -f "$DRILL/resolv.conf.bak" ]]; then
+            sudo cp "$DRILL/resolv.conf.bak" /etc/resolv.conf || true
+          fi
+          sudo ip addr del 8.8.8.15/32 dev lo >/dev/null 2>&1 || true

@@ -620,11 +620,7 @@ final class SupportDiagnostics
         }
 
         if (is_string($value)) {
-            $safe = str_replace(
-                [$this->appRoot, $this->privateRoot],
-                ['[app-root]', '[private-storage]'],
-                self::normalize($value)
-            );
+            $safe = $this->redactKnownRoots($value);
 
             $safe = preg_replace(
                 "/(command denied to user)\\s+'[^']+'@'[^']+'/i",
@@ -687,6 +683,23 @@ final class SupportDiagnostics
     private static function base64UrlEncode(string $bytes): string
     {
         return rtrim(strtr(base64_encode($bytes), '+/', '-_'), '=');
+    }
+
+    private function redactKnownRoots(string $value): string
+    {
+        $safe = self::normalize($value);
+
+        foreach ([
+            [$this->appRoot, '[app-root]'],
+            [$this->privateRoot, '[private-storage]'],
+        ] as [$root, $replacement]) {
+            $normalizedRoot = self::normalize((string) $root);
+            $modifier = preg_match('/^[A-Za-z]:\//D', $normalizedRoot) === 1 ? 'i' : '';
+            $pattern = '~' . preg_quote($normalizedRoot, '~') . '~' . $modifier;
+            $safe = preg_replace($pattern, (string) $replacement, $safe) ?? $safe;
+        }
+
+        return $safe;
     }
 
     private static function isAbsolute(string $path): bool

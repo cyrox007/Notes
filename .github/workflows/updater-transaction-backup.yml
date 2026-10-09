@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [master, '1.0']
   push:
-    branches: ['1.0-updater-transaction-backup']
+    branches: ['1.0-updater-transaction-backup', 'fix/updater-resilience-20261004']
 
 permissions:
   contents: read
@@ -98,7 +98,7 @@ jobs:
           DBPASS: root
           DBNAME: updater_backup_test
           BACKUP_CONTRACT_TAG: php-${{ matrix.php }}
-        run: php tests/integration/updater_transaction_backup_contract.php
+        run: php tests/integration/updater_transaction_backup_contract.php --resumable
 
       - name: Restore verified SQL dump into fresh database
         shell: bash
@@ -297,4 +297,3 @@ jobs:
           DBNAME: updater_backup_test
           BACKUP_CONTRACT_TAG: mariadb-10-11
         run: php tests/integration/updater_transaction_backup_contract.php
-

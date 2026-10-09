@@ -34,7 +34,22 @@ jobs:
           php-version: '8.3'
           coverage: none
 
+      - name: Проверить готовность версии к публичному выпуску
+        id: readiness
+        shell: bash
+        run: |
+          php -r '
+            require "core/Version.php";
+            $policy = json_decode(file_get_contents(".github/release-readiness.json"), true, 32, JSON_THROW_ON_ERROR);
+            $ready = ($policy["version"] ?? null) === Core\Version::VERSION && ($policy["ready"] ?? false) === true;
+            file_put_contents(getenv("GITHUB_OUTPUT"), "ready=" . ($ready ? "true" : "false") . PHP_EOL, FILE_APPEND);
+            if (!$ready) {
+              echo "Публичная публикация приостановлена: " . implode("; ", $policy["blockers"] ?? []) . PHP_EOL;
+            }
+          '
+
       - name: Создать неизменяемый тег и запустить сборку релиза
+        if: steps.readiness.outputs.ready == 'true'
         shell: bash
         run: |
           set -euo pipefail

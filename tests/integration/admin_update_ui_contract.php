@@ -444,7 +444,23 @@ try {
     $webRunnerSource = (string) file_get_contents($root . '/assets/js/update-web-runner.js');
     $routerSource = (string) file_get_contents($root . '/modules/admin/AdminRuntimeProvider.php');
 
-    adminUpdateAssert(!str_contains($controllerSource, "'stage_dir' =>"), 'admin controller persists/displays absolute stage path');
+    $safeStageMethod = '';
+    if (preg_match(
+        '/private function safeStageResult\(array \$result\): array\s*\{(?<body>.*?)\n    \}/s',
+        $controllerSource,
+        $safeStageMatch
+    ) === 1) {
+        $safeStageMethod = (string) ($safeStageMatch['body'] ?? '');
+    }
+    adminUpdateAssert(
+        $safeStageMethod !== '' && !str_contains($safeStageMethod, "'stage_dir'"),
+        'admin controller exposes absolute stage path in renderable state'
+    );
+    adminUpdateAssert(
+        str_contains($controllerSource, "'source' => 'offline_bundle'")
+            && str_contains($controllerSource, "'stage_dir' => (string) (\$result['stage_dir'] ?? '')"),
+        'offline stage is not bound server-side to one-shot apply state'
+    );
     adminUpdateAssert(str_contains($controllerSource, 'STAGE_BINDING_SESSION_KEY'), 'admin controller lost server-side reviewed release binding');
     adminUpdateAssert(
         str_contains($controllerSource, '$request->unsetSession(self::STAGE_BINDING_SESSION_KEY)'),
@@ -463,6 +479,12 @@ try {
     adminUpdateAssert(str_contains($controllerSource, 'public function webStartLatest'), 'admin controller lost one-click web transaction start');
     adminUpdateAssert(str_contains($viewSource, "route('admin_updates_check')"), 'admin update check action is missing');
     adminUpdateAssert(str_contains($viewSource, "route('admin_updates_stage')"), 'admin update stage action is missing');
+    adminUpdateAssert(str_contains($viewSource, "route('admin_updates_offline_upload')"), 'offline update upload action is missing');
+    adminUpdateAssert(str_contains($viewSource, 'Установить обновление из архива'), 'offline update UI is missing');
+    adminUpdateAssert(str_contains($serviceSource, 'stageUploadedBundle'), 'Admin update service does not accept signed offline bundle');
+    adminUpdateAssert(str_contains($serviceSource, 'beginStagedWebApply'), 'offline bundle does not reuse web transaction');
+    adminUpdateAssert(is_file($root . '/core/UpdateOfflineBundle.php'), 'offline bundle verifier is missing');
+    adminUpdateAssert(is_file($root . '/tools/release/build-offline-update-bundle.php'), 'offline bundle release builder is missing');
     adminUpdateAssert(str_contains($viewSource, '$view->csrfInput()'), 'admin update forms lost CSRF token');
     adminUpdateAssert(str_contains($viewSource, "route('admin_updates_apply')"), 'admin update view does not expose reviewed web apply action');
     adminUpdateAssert(str_contains($viewSource, 'Установить обновление'), 'admin update view lost install action copy');
@@ -533,6 +555,11 @@ try {
         'one-click web start route lost login/settings/CSRF middleware chain'
     );
     adminUpdateAssert(str_contains($routerSource, "->add('POST', '/updates/stage'"), 'admin stage route must remain POST');
+    adminUpdateAssert(str_contains($routerSource, "->add('POST', '/updates/offline-upload'"), 'offline update route must be POST');
+    adminUpdateAssert(
+        str_contains($routerSource, "[LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_offline_upload'"),
+        'offline update route lost login/settings/CSRF middleware chain'
+    );
     adminUpdateAssert(
         str_contains($routerSource, "[LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_updates_stage'"),
         'admin stage route lost login/settings/CSRF middleware chain'

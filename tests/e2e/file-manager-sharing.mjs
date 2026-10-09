@@ -35,12 +35,14 @@ async function waitForNavigation(page, action) {
 }
 
 async function createFolder(page, name) {
+  const currentUrl = page.url();
   await page.locator('#btn-create-folder').click();
   await page.locator('#modal-create-folder').waitFor({ state: 'visible', timeout: 5000 });
   await page.locator('#folder-name-input').fill(name);
-  await waitForNavigation(page, () => page.locator('#modal-create-folder .modal-ok').click());
+  await page.locator('#modal-create-folder .modal-ok').click();
   const item = page.locator('.file-manager__item[data-type="folder"]').filter({ hasText: name });
   await item.waitFor({ state: 'visible', timeout: 10000 });
+  if (page.url() !== currentUrl) throw new Error('Создание папки неожиданно перезагрузило страницу');
   return item;
 }
 
@@ -98,16 +100,16 @@ try {
     nestedFolder.click(),
   ]);
 
-  const uploadNavigation = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 });
+  const uploadUrl = page.url();
   await page.locator('#file-input').setInputFiles({
     name: fileName,
     mimeType: 'text/plain',
     buffer: Buffer.from(fileText, 'utf8'),
   });
-  await uploadNavigation;
 
   let fileItem = page.locator('.file-manager__item').filter({ hasText: fileName });
   await fileItem.waitFor({ state: 'visible', timeout: 10000 });
+  if (page.url() !== uploadUrl) throw new Error('Загрузка файла неожиданно перезагрузила страницу');
 
   // Возвращаемся к корню и публикуем всю папку одной ссылкой.
   await page.goto(`${baseUrl}/files/`, { waitUntil: 'domcontentloaded' });

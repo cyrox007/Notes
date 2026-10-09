@@ -29,9 +29,9 @@ $options = getopt('', [
 ]);
 
 if (isset($options['help'])) {
-    echo "Usage: php bin/retention.php [--soft-days=N] [--account-days=N] [--limit=N] [--json]\n";
-    echo "       php bin/retention.php --apply --yes [same options]\n";
-    echo "Default mode is dry-run/preview. Permanent purge is irreversible and requires both --apply and --yes.\n";
+    echo "Использование: php bin/retention.php [--soft-days=N] [--account-days=N] [--limit=N] [--json]\n";
+    echo "              php bin/retention.php --apply --yes [те же параметры]\n";
+    echo "По умолчанию выполняется только просмотр. Физическая очистка soft-delete и обезличивание просроченных заявок на удаление требуют --apply --yes.\n";
     exit(0);
 }
 
@@ -48,10 +48,10 @@ $json = isset($options['json']);
 
 try {
     if ($apply && !$confirmed) {
-        throw new RuntimeException('Permanent purge requires explicit --yes confirmation');
+        throw new RuntimeException('Очистка требует явного подтверждения --yes');
     }
     if (!$apply && $confirmed) {
-        throw new RuntimeException('--yes is valid only together with --apply');
+        throw new RuntimeException('--yes допустим только вместе с --apply');
     }
 
     $service = new RetentionService();
@@ -65,27 +65,27 @@ try {
             JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
         ) . PHP_EOL;
     } elseif (!$apply) {
-        echo "Retention preview\n";
-        echo "Soft-delete retention: {$result['soft_delete_days']} day(s), cutoff {$result['soft_delete_cutoff']} UTC\n";
-        echo "Deactivated-account retention: {$result['account_days']} day(s), cutoff {$result['account_cutoff']} UTC\n";
+        echo "Предварительный просмотр очистки\n";
+        echo "Хранение soft-delete: {$result['soft_delete_days']} дн., граница {$result['soft_delete_cutoff']} UTC\n";
+        echo "Заявки на удаление пользователя обрабатываются только после индивидуального purge_after; контрольное время {$result['account_due_at']} UTC\n";
         foreach ($result['soft_delete_candidates'] as $type => $count) {
             echo sprintf("  %-28s %d\n", $type, $count);
         }
-        echo 'Accounts eligible: ' . $result['account_candidates']['eligible'] . PHP_EOL;
-        echo 'Accounts blocked by safety policy: ' . $result['account_candidates']['blocked'] . PHP_EOL;
-        echo "No data changed. Re-run with --apply --yes to purge eligible records.\n";
+        echo 'Аккаунтов готово к обезличиванию: ' . $result['account_candidates']['eligible'] . PHP_EOL;
+        echo 'Аккаунтов остановлено защитной политикой: ' . $result['account_candidates']['blocked'] . PHP_EOL;
+        echo "Данные не изменены. Для очистки повторите команду с --apply --yes.\n";
     } else {
-        echo "Retention purge applied\n";
+        echo "Очистка выполнена\n";
         foreach ($result['purged'] as $type => $count) {
             echo sprintf("  %-28s %d\n", $type, $count);
         }
-        echo 'Files deleted: ' . $result['files_deleted'] . PHP_EOL;
-        echo 'Files missing: ' . $result['files_missing'] . PHP_EOL;
-        echo 'Files blocked: ' . $result['files_blocked'] . PHP_EOL;
-        echo 'Files failed: ' . $result['files_failed'] . PHP_EOL;
-        echo 'Accounts purged: ' . $result['accounts_purged'] . PHP_EOL;
-        echo 'Accounts blocked: ' . $result['accounts_blocked'] . PHP_EOL;
-        echo 'Accounts failed: ' . $result['accounts_failed'] . PHP_EOL;
+        echo 'Файлов удалено: ' . $result['files_deleted'] . PHP_EOL;
+        echo 'Файлов уже отсутствовало: ' . $result['files_missing'] . PHP_EOL;
+        echo 'Файлов заблокировано защитой: ' . $result['files_blocked'] . PHP_EOL;
+        echo 'Ошибок удаления файлов: ' . $result['files_failed'] . PHP_EOL;
+        echo 'Аккаунтов обезличено: ' . $result['accounts_purged'] . PHP_EOL;
+        echo 'Аккаунтов остановлено защитой: ' . $result['accounts_blocked'] . PHP_EOL;
+        echo 'Ошибок очистки аккаунтов: ' . $result['accounts_failed'] . PHP_EOL;
     }
 
     if ($apply && (

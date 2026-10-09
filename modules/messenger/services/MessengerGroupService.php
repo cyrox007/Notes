@@ -238,6 +238,48 @@ final class MessengerGroupService
         return ['dialog_uid' => $dialogUid, 'left' => true];
     }
 
+    /** @return array{dialog_uid:string,deleted:bool} */
+    public function deleteGroup(string $userUid, string $dialogUid): array
+    {
+        $context = $this->context($userUid, $dialogUid);
+        if ($context['role'] !== 'owner') {
+            throw new DomainException('Удалить группу может только владелец');
+        }
+
+        $dialogId = (int) $context['dialog_id'];
+        $attachmentPaths = array_values(array_filter(array_map(
+            static fn (array $row): string => trim((string) ($row['stored_path'] ?? '')),
+            $this->db->fetchAll(
+                'SELECT stored_path FROM messenger_attachments WHERE dialog_id = :dialog_id',
+                [':dialog_id' => $dialogId]
+            )
+        )));
+
+        $this->db->beginTransaction();
+        try {
+            $this->db->execute(
+                'DELETE FROM dialogs WHERE id = :dialog_id AND type = :type',
+                [':dialog_id' => $dialogId, ':type' => 'group']
+            );
+            $this->db->endTransaction(true);
+        } catch (\Throwable $e) {
+            $this->db->endTransaction(false);
+            throw $e;
+        }
+
+        foreach ($attachmentPaths as $path) {
+            $this->removeMessengerStoredFile($path);
+        }
+        $this->removeDirectoryTree(
+            $this->privateStorageRoot()
+            . DIRECTORY_SEPARATOR . 'messenger'
+            . DIRECTORY_SEPARATOR . 'group_avatars'
+            . DIRECTORY_SEPARATOR . $dialogId
+        );
+
+        return ['dialog_uid' => $dialogUid, 'deleted' => true];
+    }
+
     /** @return array<string,mixed> */
     private function context(string $userUid, string $dialogUid): array
     {
@@ -351,6 +393,77 @@ final class MessengerGroupService
             'UPDATE dialogs SET updated_at = :updated_at WHERE id = :dialog_id',
             [':updated_at' => date('Y-m-d H:i:s'), ':dialog_id' => $dialogId]
         );
+    }
+
+    private function privateStorageRoot(): string
+    {
+        $configured = getenv('PRIVATE_STORAGE_PATH');
+        $root = is_string($configured) && trim($configured) !== ''
+            ? trim($configured)
+            : dirname(SITEPATH) . DIRECTORY_SEPARATOR . 'notes-private-storage';
+
+        return rtrim($root, DIRECTORY_SEPARATOR);
+    }
+
+    private function removeMessengerStoredFile(string $path): void
+    {
+        if ($path === '') {
+            return;
+        }
+
+        $root = realpath($this->privateStorageRoot() . DIRECTORY_SEPARATOR . 'messenger');
+        $real = realpath($path);
+        if (!is_string($root) || !is_string($real) || !is_file($real)) {
+            return;
+        }
+
+        $root = rtrim(str_replace('\\', '/', $root), '/') . '/';
+        $candidate = str_replace('\\', '/', $real);
+        if (PHP_OS_FAMILY === 'Windows') {
+            $root = strtolower($root);
+            $candidate = strtolower($candidate);
+        }
+        if (!str_starts_with($candidate . '/', $root)) {
+            return;
+        }
+
+        @unlink($real);
+    }
+
+    private function removeDirectoryTree(string $path): void
+    {
+        if (!is_dir($path) || is_link($path)) {
+            return;
+        }
+
+        $root = realpath($this->privateStorageRoot() . DIRECTORY_SEPARATOR . 'messenger');
+        $real = realpath($path);
+        if (!is_string($root) || !is_string($real)) {
+            return;
+        }
+
+        $rootNormalized = rtrim(str_replace('\\', '/', $root), '/') . '/';
+        $candidate = rtrim(str_replace('\\', '/', $real), '/') . '/';
+        if (PHP_OS_FAMILY === 'Windows') {
+            $rootNormalized = strtolower($rootNormalized);
+            $candidate = strtolower($candidate);
+        }
+        if (!str_starts_with($candidate, $rootNormalized)) {
+            return;
+        }
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($real, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+        foreach ($iterator as $item) {
+            if ($item->isLink()) {
+                @unlink($item->getPathname());
+                continue;
+            }
+            $item->isDir() ? @rmdir($item->getPathname()) : @unlink($item->getPathname());
+        }
+        @rmdir($real);
     }
 
     /** @return array<string,mixed> */

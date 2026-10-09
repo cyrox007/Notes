@@ -126,6 +126,7 @@ final class UpdateAutomaticRecovery
                 $options = [
                     'transaction' => $transactionId,
                     'recover' => true,
+                    'single-step' => true,
                     'state-root' => $stateRoot,
                 ];
                 if ($backupDir !== '') {
@@ -139,6 +140,10 @@ final class UpdateAutomaticRecovery
                 ))->execute($options);
 
                 $status = (string) ($payload['status'] ?? '');
+                if ($status === 'in_progress') return $this->result(
+                    'in_progress', $transactionId, 'recovery_step_saved',
+                    'Шаг восстановления сохранён. Следующий запрос продолжит откат.'
+                );
                 if (!in_array($status, [
                     'rolled_back',
                     'rollback_recovery_verified',

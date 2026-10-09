@@ -8,7 +8,6 @@ use App\Services\MaintenanceModeService;
 use Throwable;
 
 require_once __DIR__ . '/UpdateWebContinuation.php';
-require_once __DIR__ . '/UpdateWebTransaction.php';
 
 /**
  * Ранний HTTP-мост web-updater во время maintenance.
@@ -90,6 +89,7 @@ final class UpdateWebHttpBridge
         }
 
         try {
+            require_once __DIR__ . '/UpdateWebTransaction.php';
             $result = (new UpdateWebTransaction($appRoot))->step(
                 $transactionId,
                 $token

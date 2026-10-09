@@ -18,6 +18,8 @@ $issues = isset($state['issues']) && is_array($state['issues']) ? $state['issues
 $trustedKeys = isset($state['trusted_key_ids']) && is_array($state['trusted_key_ids']) ? $state['trusted_key_ids'] : [];
 $canCheck = !empty($state['can_check']);
 $canStage = !empty($state['can_stage']);
+$canOfflineUpload = !empty($state['can_offline_upload']);
+$offlineZipAvailable = !empty($state['offline_zip_available']);
 $canManageStage = !empty($state['can_manage_stage']);
 $canApply = !empty($state['can_apply']);
 $operatorReady = !empty($state['operator_ready']);
@@ -124,12 +126,51 @@ ob_start();
         <?php endif; ?>
     </section>
 
+    <?php if ($canManageStage): ?>
+        <section class="admin-panel-card" aria-labelledby="updates-offline-title">
+            <div class="admin-panel-card__header">
+                <div>
+                    <span class="admin-panel-card__kicker">Резервный способ</span>
+                    <h2 id="updates-offline-title">Установить обновление из архива</h2>
+                    <p>Если сервер обновлений недоступен, загрузите единый подписанный offline-пакет. Он проходит ту же проверку production-подписи, версии, SHA-256 и ZIP, что и обычное обновление.</p>
+                </div>
+            </div>
+
+            <?php if ($canOfflineUpload): ?>
+                <form action="<?= $view->e($view->route('admin_updates_offline_upload')) ?>" method="post" enctype="multipart/form-data" class="custom-fields-form">
+                    <?= $view->csrfInput() ?>
+                    <div class="custom-field__control">
+                        <label for="offline_update_bundle">Offline-пакет (.zip)</label>
+                        <input id="offline_update_bundle" name="offline_update_bundle" type="file" accept=".zip,application/zip" required>
+                        <small>Архив должен содержать ровно <code>manifest.json</code>, <code>manifest.sig</code> и подписанный ZIP релиза. Произвольный архив приложения не устанавливается.</small>
+                    </div>
+                    <div class="custom-fields-form__footer">
+                        <small>После проверки пакет будет только подготовлен. Установка начнётся отдельной кнопкой «Установить обновление» с резервной копией и rollback.</small>
+                        <button class="admin-action admin-action--secondary" type="submit"><i class="fa fa-upload" aria-hidden="true"></i> Загрузить и проверить</button>
+                    </div>
+                </form>
+            <?php elseif (!$offlineZipAvailable): ?>
+                <div class="admin-page__flash admin-page__flash--error admin-update-alert" role="status">
+                    Ручной offline-пакет недоступен: на сервере отсутствует PHP extension <code>zip</code>.
+                </div>
+            <?php else: ?>
+                <div class="admin-page__flash admin-page__flash--error admin-update-alert" role="status">
+                    Ручной пакет станет доступен после настройки доверенного ключа обновлений и внешнего staging.
+                </div>
+            <?php endif; ?>
+        </section>
+    <?php endif; ?>
+
     <?php if ($result !== null): ?>
         <?php $resultStatus = (string) ($result['status'] ?? 'unknown'); ?>
         <section class="admin-panel-card" aria-labelledby="updates-result-title">
             <div class="admin-panel-card__header">
                 <div>
-                    <span class="admin-panel-card__kicker"><?= ($result['kind'] ?? '') === 'apply' ? 'Установка завершена' : (($result['kind'] ?? '') === 'stage' ? 'Проверенный пакет' : 'Результат проверки канала') ?></span>
+                    <span class="admin-panel-card__kicker"><?= ($result['kind'] ?? '') === 'apply'
+                        ? 'Установка завершена'
+                        : (($result['kind'] ?? '') === 'stage'
+                            ? (($result['source'] ?? '') === 'offline_bundle' ? 'Проверенный offline-пакет' : 'Проверенный пакет')
+                            : 'Результат проверки канала') ?></span>
                     <h2 id="updates-result-title"><?= $view->e($statusLabels[$resultStatus] ?? $resultStatus) ?></h2>
                     <p>Результат подтверждён подписью манифеста. Сам канал используется только для доставки указателей.</p>
                 </div>

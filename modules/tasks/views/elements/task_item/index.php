@@ -10,8 +10,6 @@ $status = (string) ($taskRow['status'] ?? 'pending');
 $priority = (string) ($taskRow['priority'] ?? 'medium');
 $title = (string) ($taskRow['title'] ?? '');
 $description = (string) ($taskRow['description'] ?? '');
-$priorityColor = strtolower((string) ($taskRow['priority_color'] ?? '#3498db'));
-if (preg_match('/^#[0-9a-f]{6}$/', $priorityColor) !== 1) { $priorityColor = '#3498db'; }
 $taskCategories = isset($taskRow['categories']) && is_array($taskRow['categories']) ? $taskRow['categories'] : [];
 $subtasks = isset($taskRow['subtasks']) && is_array($taskRow['subtasks']) ? $taskRow['subtasks'] : [];
 $completion = max(0, min(100, (int) ($taskRow['completion_percentage'] ?? 0)));
@@ -36,7 +34,7 @@ $createdAt = $formatDate($taskRow['created_at'] ?? '', 'd.m.Y H:i');
         <div class="task-title-section">
             <input type="checkbox" class="task-complete-toggle" <?= $status === 'completed' ? 'checked' : '' ?> data-task-id="<?= $view->e($uid) ?>" title="Отметить как выполненную">
             <h3 class="task-title<?= $status === 'completed' ? ' completed' : '' ?>"><?= $view->e($title) ?></h3>
-            <span class="task-priority-badge" data-task-priority-color="<?= $view->e($priorityColor) ?>"><?= $view->e($priority) ?></span>
+            <span class="task-priority-badge"><?= $view->e($priority) ?></span>
         </div>
 
         <div class="task-actions">
@@ -76,7 +74,8 @@ $createdAt = $formatDate($taskRow['created_at'] ?? '', 'd.m.Y H:i');
                         $categoryIcon = strtolower((string) ($category['icon'] ?? 'fa-folder'));
                         if (preg_match('/^fa-[a-z0-9-]{1,48}$/', $categoryIcon) !== 1) { $categoryIcon = 'fa-folder'; }
                     ?>
-                    <span class="category-badge" data-category-color="<?= $view->e($categoryColor) ?>">
+                    <span class="category-badge">
+                        <svg class="category-color-dot" viewBox="0 0 10 10" width="10" height="10" aria-hidden="true" focusable="false"><circle cx="5" cy="5" r="5" fill="<?= $view->e($categoryColor) ?>"></circle></svg>
                         <i class="fa <?= $view->e($categoryIcon) ?>" aria-hidden="true"></i>
                         <?= $view->e($category['name'] ?? '') ?>
                         <button type="button" class="detach-category-btn" data-task-id="<?= $view->e($uid) ?>" data-category-id="<?= $view->e($category['id'] ?? '') ?>" title="Убрать категорию" aria-label="Убрать категорию">×</button>
@@ -107,9 +106,7 @@ $createdAt = $formatDate($taskRow['created_at'] ?? '', 'd.m.Y H:i');
             <span class="task-subtasks__label">Подзадачи (<span class="task-subtasks__percent"><?= $completion ?></span>%)</span>
             <button type="button" class="btn-sm add-subtask-btn" data-task-id="<?= $view->e($uid) ?>">+ Добавить</button>
         </div>
-        <div class="task-subtasks__progress" role="progressbar" aria-label="Прогресс подзадач" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<?= $completion ?>">
-            <span class="task-subtasks__progress-bar" data-progress="<?= $completion ?>"></span>
-        </div>
+        <progress class="task-subtasks__progress" max="100" value="<?= $completion ?>" aria-label="Прогресс подзадач"><?= $completion ?>%</progress>
         <ul class="subtasks-list">
             <?php foreach ($subtasks as $subtask): ?>
                 <?php if (!is_array($subtask)) { continue; } $subtaskDone = (int) ($subtask['is_completed'] ?? 0) === 1; ?>

@@ -22,11 +22,14 @@ const pageErrors = [];
 const unexpectedHttpErrors = [];
 const maintenanceHttpErrors = [];
 let installationWindow = false;
+let externalSteps = 0;
 
 function instrument(page) {
   page.on('pageerror', (error) => pageErrors.push(error));
   page.on('response', (response) => {
     const url = new URL(response.url());
+    if (url.origin === origin && url.pathname.startsWith(`${basePath}/update-continuations/`)
+        && response.status() === 200) externalSteps += 1;
     if (url.origin !== origin || response.status() < 400) {
       return;
     }
@@ -141,7 +144,7 @@ try {
 
   if (!versionConfirmed) {
     throw new Error(
-      `Updater завершил commit, но свежий интерфейс не подтверждает ${expectedVersion} (${expectedVersionCode}); `
+      `Обновление не подтвердило целевую версию ${expectedVersion} (${expectedVersionCode}); `
       + `первый URL=${installUrl}; страница=${confirmationBody.slice(0, 2000)}`
     );
   }
@@ -162,6 +165,9 @@ try {
   await page.waitForTimeout(1500);
 
   if (pageErrors.length) throw pageErrors[0];
+  if (process.env.E2E_REQUIRE_EXTERNAL === '1' && externalSteps === 0) {
+    throw new Error('Обновление не использовало внешний HTTP runtime');
+  }
   if (unexpectedHttpErrors.length) {
     throw new Error(`Неожиданные HTTP-ошибки: ${unexpectedHttpErrors.join(', ')}`);
   }

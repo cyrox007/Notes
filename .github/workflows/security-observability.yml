@@ -5,6 +5,12 @@ on:
     branches: [master, '1.0']
     paths:
       - 'core/SecurityEventLog.php'
+      - 'core/SecurityHeaders.php'
+      - 'core/CrawlerDefense.php'
+      - 'app/services/RequestRateLimiter.php'
+      - 'robots.txt'
+      - 'app/views/core/base.php'
+      - 'app/views/login_page/login_layout.php'
       - 'app/controllers/AuthController.php'
       - 'app/middlewares/AuthRateLimit.php'
       - 'app/services/LicenseService.php'
@@ -15,12 +21,16 @@ on:
       - 'default.env'
       - 'docs/OPERATIONS.md'
       - 'tests/integration/security_observability_contract.php'
+      - 'tests/integration/crawler_defense_contract.php'
       - '.github/workflows/security-observability.yml'
       - '.github/workflows/release-gate.yml'
   push:
     branches: ['1.0']
     paths:
       - 'core/SecurityEventLog.php'
+      - 'core/SecurityHeaders.php'
+      - 'core/CrawlerDefense.php'
+      - 'robots.txt'
       - 'bin/observability.php'
       - 'tests/integration/security_observability_contract.php'
 
@@ -55,6 +65,8 @@ jobs:
       - name: Lint observability boundary
         run: |
           php -l core/SecurityEventLog.php
+          php -l core/SecurityHeaders.php
+          php -l core/CrawlerDefense.php
           php -l app/controllers/AuthController.php
           php -l app/middlewares/AuthRateLimit.php
           php -l app/services/LicenseService.php
@@ -63,9 +75,13 @@ jobs:
           php -l bin/healthcheck.php
           php -l bin/observability.php
           php -l tests/integration/security_observability_contract.php
+          php -l tests/integration/crawler_defense_contract.php
 
       - name: Verify structured security event contract
         run: php tests/integration/security_observability_contract.php
+
+      - name: Проверить защиту от поисковых роботов и сканеров
+        run: php tests/integration/crawler_defense_contract.php
 
       - name: Verify CLI clean state
         shell: bash

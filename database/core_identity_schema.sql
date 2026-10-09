@@ -19,6 +19,9 @@ CREATE TABLE IF NOT EXISTS `users` (
     `role` INT NOT NULL DEFAULT 888,
     `is_active` TINYINT(1) NOT NULL DEFAULT 1,
     `account_status` ENUM('active', 'inactive', 'blocked') NOT NULL DEFAULT 'active',
+    `deletion_requested_at` DATETIME DEFAULT NULL,
+    `purge_after` DATETIME DEFAULT NULL,
+    `anonymized_at` DATETIME DEFAULT NULL,
     `totp_enabled` TINYINT(1) NOT NULL DEFAULT 0,
     `totp_secret` TEXT DEFAULT NULL,
     `totp_last_counter` BIGINT UNSIGNED DEFAULT NULL,
@@ -29,5 +32,6 @@ CREATE TABLE IF NOT EXISTS `users` (
     UNIQUE KEY `uq_users_uid` (`uid`),
     UNIQUE KEY `uq_users_username` (`username`),
     UNIQUE KEY `uq_users_email` (`email`),
-    KEY `idx_users_active` (`is_active`)
+    KEY `idx_users_active` (`is_active`),
+    KEY `idx_users_purge` (`purge_after`, `anonymized_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

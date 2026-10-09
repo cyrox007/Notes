@@ -6,6 +6,7 @@ namespace Core;
 
 require_once __DIR__ . '/UpdatePath.php';
 require_once __DIR__ . '/UpdateFileMutator.php';
+require_once __DIR__ . '/UpdateStepBudget.php';
 
 use JsonException;
 use RuntimeException;
@@ -29,6 +30,7 @@ final class UpdateRollbackCodeRestorer
         'uploads',
         'notes-private-storage',
         '.logs',
+        'update-continuations',
     ];
 
     private string $appRoot;
@@ -46,7 +48,7 @@ final class UpdateRollbackCodeRestorer
     }
 
     /** @return array<string,mixed> */
-    public function restore(string $transactionId, string $backupDir): array
+    public function restore(string $transactionId, string $backupDir, ?UpdateStepBudget $budget = null): array
     {
         $this->validateTransactionId($transactionId);
         $backup = $this->loadVerifiedCodeBackup($backupDir, $transactionId);
@@ -58,6 +60,7 @@ final class UpdateRollbackCodeRestorer
 
         foreach ($delete as $relative) {
             $this->mutator->delete($relative, $transactionId);
+            $budget?->checkpoint('rollback_code');
         }
 
         $restore = array_keys($backupMap);
@@ -65,6 +68,12 @@ final class UpdateRollbackCodeRestorer
 
         foreach ($restore as $relative) {
             $entry = $backupMap[$relative];
+            $current = $liveMap[$relative] ?? null;
+            if ($budget !== null && is_array($current)
+                && (int) $current['size'] === (int) $entry['size']
+                && hash_equals((string) $entry['sha256'], (string) $current['sha256'])
+                && (PHP_OS_FAMILY === 'Windows'
+                    || ((fileperms($this->appRoot . '/' . $relative) & 0777) === ((int) $entry['mode'] & 0777)))) continue;
             $source = $backup['backup_dir']
                 . DIRECTORY_SEPARATOR
                 . 'code'
@@ -79,6 +88,7 @@ final class UpdateRollbackCodeRestorer
                 (int) $entry['mode'],
                 $transactionId
             );
+            $budget?->checkpoint('rollback_code');
         }
 
         $this->verifyExactLiveSnapshot($backupMap);

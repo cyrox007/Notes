@@ -21,6 +21,15 @@ function releaseAcceptanceText(string $root, string $path): string
     return $text;
 }
 
+function releaseAcceptanceDisabledFunctions(string $workflow): array
+{
+    if (preg_match('/disable_functions=([^"\\s]+)/', $workflow, $matches) !== 1) {
+        return [];
+    }
+
+    return array_values(array_filter(array_map('trim', explode(',', $matches[1]))));
+}
+
 $readme = releaseAcceptanceText($root, 'README.md');
 releaseAcceptanceAssert(
     !str_contains($readme, 'Пока остаётся'),
@@ -53,7 +62,7 @@ foreach ([
     'OSPanel 5.2.2',
     'Gate G — неизменяемый артефакт и подпись',
     'Gate H — финальный merge и tag',
-    'v1.0.14',
+    'v1.0.15',
     'нет открытых P0/P1 дефектов с риском потери данных',
     'нет открытых P0/P1 дефектов безопасности',
     'ручной pre-tag проверки',
@@ -63,15 +72,37 @@ foreach ([
     releaseAcceptanceAssert(str_contains($doc, $marker), "runbook release acceptance не содержит marker {$marker}");
 }
 
-$windowsAcceptance = releaseAcceptanceText($root, 'docs/WINDOWS_OSPANEL_ACCEPTANCE.md');
+$previousStableUpgrade = releaseAcceptanceText($root, '.github/workflows/1.0.14-to-1.0.15-upgrade.yml');
+$disabledFunctions = releaseAcceptanceDisabledFunctions($previousStableUpgrade);
+$requiredDisabledFunctions = [
+    'proc_open',
+    'proc_get_status',
+    'proc_terminate',
+    'proc_close',
+    'exec',
+    'system',
+    'passthru',
+    'shell_exec',
+    'popen',
+];
 releaseAcceptanceAssert(
-    str_contains($windowsAcceptance, '# Релизная приёмка Windows / OSPanel для 1.0.14')
-    && str_contains($windowsAcceptance, 'Сценарий A2 — private storage предыдущей установки')
-    && str_contains($windowsAcceptance, '1.0.12/1.0.13 → 1.0.14')
-    && str_contains($windowsAcceptance, 'одноразовый совместимый updater-handoff')
-    && str_contains($windowsAcceptance, 'bootstrap-1.0.12-updater.php')
+    str_contains($previousStableUpgrade, 'name: 1.0.14 → 1.0.15 обновление без переустановки')
+    && str_contains($previousStableUpgrade, 'git archive --format=tar v1.0.14')
+    && str_contains($previousStableUpgrade, '--min-source-version-code=10014')
+    && str_contains($previousStableUpgrade, 'node tests/e2e/admin-update-apply.mjs')
+    && str_contains($previousStableUpgrade, 'admin_update_preservation_probe.php --verify')
+    && array_diff($requiredDisabledFunctions, $disabledFunctions) === [],
+    'exact upgrade 1.0.14 → 1.0.15 не закреплён как web-only проверка с сохранением данных'
+);
+
+$windowsAcceptance = releaseAcceptanceText($root, 'docs/WINDOWS_OSPANEL_ACCEPTANCE_1.0.15.md');
+releaseAcceptanceAssert(
+    str_contains($windowsAcceptance, '# Релизная приёмка Windows / OSPanel для 1.0.15')
+    && str_contains($windowsAcceptance, 'существующая установка 1.0.14 должна обновляться до 1.0.15 без переустановки с нуля')
+    && str_contains($windowsAcceptance, '1.0.14 → 1.0.15')
+    && str_contains($windowsAcceptance, 'повторный `bootstrap-1.0.12-updater.php` запрещён как ненужный')
     && str_contains($windowsAcceptance, 'rollback_failed'),
-    'Windows/OSPanel acceptance не закрепляет updater-handoff 1.0.12/1.0.13 → 1.0.14 и recovery-контракт'
+    'Windows/OSPanel acceptance не закрепляет прямой переход 1.0.14 → 1.0.15 и recovery-контракт'
 );
 
 $preflight = releaseAcceptanceText($root, 'bin/release_acceptance.php');
@@ -94,7 +125,7 @@ foreach ([
     'production_public_trust_roots',
     'release_evidence_harness',
     'private_signing_material_absent',
-    "Version::VERSION === '1.0.14'",
+    "Version::VERSION === '1.0.15'",
     "Version::STATUS === 'stable'",
     'exit(3)',
 ] as $marker) {
@@ -127,37 +158,32 @@ releaseAcceptanceAssert(
     'документация диагностики не закрепляет ZIP, Bearer-доступ и профиль ограниченного хостинга'
 );
 
-$releaseNotes = releaseAcceptanceText($root, 'docs/releases/v1.0.14.md');
+$releaseNotes = releaseAcceptanceText($root, 'docs/releases/v1.0.15.md');
 foreach ([
     '## Назначение релиза',
-    '## Исправление восстановления',
-    '## OPcache на PHP-FPM',
-    '## Диагностика автоматического отката',
-    '## Сервисная диагностика',
+    '## Messenger и переключение вкладок',
+    '## Файловый менеджер без ручного F5',
+    '## Регистрация и приглашения',
+    '## Мобильные действия Messenger',
     '## Проверяемый путь обновления',
-    '## Совместимость',
+    '## Совместимость и восстановление',
 ] as $marker) {
     releaseAcceptanceAssert(
         str_contains($releaseNotes, $marker),
-        "описание релиза 1.0.14 не содержит русский раздел {$marker}"
+        "описание релиза 1.0.15 не содержит русский раздел {$marker}"
     );
 }
 
 releaseAcceptanceAssert(
-    str_contains(
-        $releaseNotes,
-        '1.0.12/1.0.13 → одноразовый совместимый updater-handoff → штатный подписанный web-updater → 1.0.14'
-    )
-    && str_contains($releaseNotes, 'bootstrap-1.0.12-updater.php')
-    && str_contains($releaseNotes, 'rollback_verified')
-    && str_contains($releaseNotes, 'OPcache')
-    && str_contains($releaseNotes, 'diagnostic_code')
-    && str_contains($releaseNotes, 'одноразовый диагностический ZIP')
-    && str_contains($releaseNotes, 'hosting-profile.json')
-    && str_contains($releaseNotes, 'Authorization: Bearer')
-    && str_contains($releaseNotes, 'min_source_version_code')
-    && str_contains($releaseNotes, '10012'),
-    'описание 1.0.14 не фиксирует исправление recovery и прямой upgrade-path'
+    str_contains($releaseNotes, 'exact v1.0.14')
+    && str_contains($releaseNotes, '1.0.15 (10015)')
+    && str_contains($releaseNotes, 'сначала требуется CLI-мост')
+    && str_contains($releaseNotes, 'bootstrap-1.0.14-updater.php')
+    && str_contains($releaseNotes, 'На хостинге без CLI полностью браузерный переход пока не готов')
+    && str_contains($releaseNotes, 'GitHub pre-release')
+    && str_contains($releaseNotes, 'Переустановка с нуля не считается проверкой upgrade-path')
+    && str_contains($releaseNotes, 'private storage'),
+    'описание 1.0.15 не фиксирует проверенный CLI-handoff, ограничения предварительного выпуска и сохранность данных'
 );
 
 
@@ -214,6 +240,7 @@ foreach ([
     'admin-update-ui (8.1)',
     'admin-update-ui (8.3)',
     'admin-update-e2e',
+    'previous-stable-upgrade',
 ] as $requiredCheck) {
     releaseAcceptanceAssert(
         in_array($requiredCheck, $requiredChecks, true),
@@ -234,6 +261,8 @@ releaseAcceptanceAssert(
     str_contains($autoPublish, 'workflows: ["Stable release gate"]')
     && str_contains($autoPublish, 'github.event.workflow_run.event == \'push\'')
     && str_contains($autoPublish, "github.event.workflow_run.head_branch == 'master'")
+    && str_contains($autoPublish, '.github/release-readiness.json')
+    && str_contains($autoPublish, "if: steps.readiness.outputs.ready == 'true'")
     && str_contains($autoPublish, 'gh workflow run hosting-package.yml --ref "$TAG" -f version="$TAG"'),
     'автопубликация релиза не привязана к успешному push-gate master'
 );
@@ -252,4 +281,4 @@ releaseAcceptanceAssert(
     'Stable release gate не запускает контракт двухфакторной аутентификации'
 );
 
-fwrite(STDOUT, "[OK] финальный контракт release acceptance 1.0.14 выполнен\n");
+fwrite(STDOUT, "[OK] финальный контракт release acceptance 1.0.15 выполнен\n");

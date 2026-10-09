@@ -1,0 +1,6 @@
+User-agent: *
+Disallow: /
+
+# Workspace Organizer — закрытое рабочее пространство.
+# Служебный маршрут ниже является ловушкой для сканеров, игнорирующих robots.txt.
+Disallow: /.well-known/workspace-crawl-trap

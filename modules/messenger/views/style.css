@@ -233,3 +233,12 @@ html[data-theme="dark"] .workspace-viewport--messenger{
 .messenger-dialog-item{padding:11px 9px;gap:10px}
 .messenger-dialog-item__preview{margin-top:4px}
 @media(prefers-reduced-motion:reduce){.messenger-typing>span{animation:none}}
+
+
+/* На настольных экранах отдельный переключатель не нужен: действия остаются hover/focus-панелью. */
+.messenger-message__actions-toggle{display:none}
+
+.messenger-dialog-loading{display:grid;gap:8px;padding:10px}.messenger-dialog-loading[hidden]{display:none}.messenger-dialog-loading__label{color:var(--msg-muted);font-size:11px;font-weight:700}.messenger-dialog-skeleton{display:block;height:58px;border-radius:10px;background:linear-gradient(90deg,var(--msg-soft) 0%,color-mix(in srgb,var(--msg-surface) 72%,var(--msg-soft)) 45%,var(--msg-soft) 100%);background-size:220% 100%;animation:messenger-dialog-skeleton 1.25s ease-in-out infinite}.messenger-dialog-loading--compact{padding-top:4px;padding-bottom:4px}.messenger-dialog-loading--compact .messenger-dialog-skeleton{display:none}
+#new-chat-button:disabled{opacity:.45;cursor:wait}
+@keyframes messenger-dialog-skeleton{0%{background-position:100% 0}100%{background-position:-100% 0}}
+@media(prefers-reduced-motion:reduce){.messenger-dialog-skeleton{animation:none}}

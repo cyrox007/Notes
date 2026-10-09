@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace Core;
 
+require_once __DIR__ . '/UpdateTransactionJournal.php';
+require_once __DIR__ . '/UpdateTransactionStateMachine.php';
+require_once __DIR__ . '/UpdateBackupManager.php';
+require_once dirname(__DIR__) . '/app/services/MaintenanceModeService.php';
 require_once __DIR__ . '/MigrationManifest.php';
 require_once __DIR__ . '/UpdateMigrationPreflight.php';
 require_once __DIR__ . '/UpdateCommandRunner.php';
@@ -12,6 +16,7 @@ require_once __DIR__ . '/UpdateApplyOperationLock.php';
 require_once __DIR__ . '/UpdateLiveApplier.php';
 require_once __DIR__ . '/UpdateRollbackCodeRestorer.php';
 require_once __DIR__ . '/ServiceLog.php';
+require_once __DIR__ . '/UpdateStepBudget.php';
 
 use App\Services\MaintenanceModeService;
 use mysqli;
@@ -30,6 +35,7 @@ final class UpdateApplyCommand
     private string $appRoot;
     private bool $json;
     private UpdateCommandRunner $processRunner;
+    private ?UpdateStepBudget $budget = null;
 
     public function __construct(string $appRoot, bool $json = false, ?UpdateCommandRunner $processRunner = null)
     {
@@ -63,6 +69,10 @@ final class UpdateApplyCommand
         $backupRoot = $this->resolveRoot((string) ($options['backup-root'] ?? ''), 'UPDATE_BACKUP_PATH', 'update-backups');
         $candidateOption = trim((string) ($options['candidate-dir'] ?? ''));
         $singleStep = array_key_exists('single-step', $options);
+        // Межфайловые HTTP-паузы допустимы только во внешнем окружении:
+        // следующий запрос не должен загружать частично заменённые классы.
+        $externalExecutor = !UpdatePath::inside(UpdatePath::normalize(__DIR__), $this->appRoot);
+        $this->budget = $singleStep && $externalExecutor ? new UpdateStepBudget() : null;
 
         try {
             // Intentionally retained in this function scope so its flock covers
@@ -93,14 +103,18 @@ final class UpdateApplyCommand
         $backupManager = new UpdateBackupManager($backupRoot, $this->appRoot, $mutablePaths);
 
         if ($recover) {
-            return $this->recover(
+            try {
+                return $this->recover(
                 $transactionId,
                 $journalState,
                 $maintenance,
                 $stateMachine,
                 $applier,
                 $backupManager
-            );
+                );
+            } catch (UpdateStepPending $pause) {
+                return $pause->result($transactionId);
+            }
         }
 
         if ($candidateOption === '') {
@@ -118,6 +132,8 @@ final class UpdateApplyCommand
                 $backupManager,
                 $singleStep
             );
+        } catch (UpdateStepPending $pause) {
+            return $pause->result($transactionId);
         } catch (Throwable $e) {
             $latest = $stateMachine->load($transactionId);
             if (($latest['live_mutation_started'] ?? false) !== true) {
@@ -246,6 +262,8 @@ final class UpdateApplyCommand
                 $backupManager,
                 $restartWs
             );
+        } catch (UpdateStepPending $pause) {
+            throw $pause;
         } catch (Throwable $rollbackError) {
             $this->logService('updater.rollback_failed', 'critical', $transactionId, [
                 'recovery_mode' => true,
@@ -380,6 +398,7 @@ final class UpdateApplyCommand
             'backup_verified',
             'candidate_verified',
             'preflight_verified',
+            'live_mutation_started',
             'code_switched',
             'migrations_applied',
             'postcheck_verified',
@@ -408,6 +427,11 @@ final class UpdateApplyCommand
                 false,
                 'Live version changed since rollback checkpoint was created'
             );
+            // Bootstrap привязывает Version к исходной live-установке после
+            // загрузки класса команды. Ранний include подменил бы эту версию.
+            if (!class_exists(Version::class, false)) {
+                require_once __DIR__ . '/Version.php';
+            }
             if ($liveVersion['version_code'] !== Version::VERSION_CODE) {
                 throw new UpdateApplyException(
                     'Updater code no longer matches the live application version before switch',
@@ -462,34 +486,32 @@ final class UpdateApplyCommand
 
         $restartWs = (bool) ($journalState['preflight']['ws_was_running'] ?? false);
 
-        if ($state === 'preflight_verified') {
-            $liveVersion = $applier->readLiveVersion();
-            $this->assertVersion(
-                $journalState,
-                $liveVersion,
-                false,
-                'Live version changed after updater preflight'
-            );
-
-            $stateMachine->markLiveMutationStarted($transactionId, [
-                'started_at' => time(),
-                'target_version' => $candidate['target_version'],
-                'target_version_code' => $candidate['target_version_code'],
-            ]);
-
+        if (in_array($state, ['preflight_verified', 'live_mutation_started'], true)) {
+            if ($state === 'preflight_verified') {
+                $liveVersion = $applier->readLiveVersion();
+                $this->assertVersion($journalState, $liveVersion, false,
+                    'Рабочая версия изменилась после предварительной проверки');
+                // План фиксируется до изменения первого рабочего файла.
+                $plan = $applier->prepareCodeSwitch($transactionId,
+                    $candidate['candidate_dir'], $verifiedBackup['backup_dir']);
+                $journalState = $stateMachine->markLiveMutationStarted($transactionId, [
+                    'started_at' => time(), 'target_version' => $candidate['target_version'],
+                    'target_version_code' => $candidate['target_version_code'], 'plan' => $plan,
+                ]);
+            } else {
+                $plan = $journalState['apply']['plan'] ?? null;
+                if (!is_array($plan)) throw new RuntimeException('Журнал не содержит план продолжения переключения');
+            }
             try {
-                $plan = $applier->prepareCodeSwitch(
-                    $transactionId,
-                    $candidate['candidate_dir'],
-                    $verifiedBackup['backup_dir']
-                );
-                $switch = $applier->switchPrepared($plan);
+                $switch = $applier->switchPrepared($plan, $this->budget);
                 $stateMachine->markCodeSwitched($transactionId, $switch);
                 $this->logService('updater.code_switched', 'info', $transactionId, [
                     'target_version' => (string) ($journalState['target_version'] ?? ''),
                     'files_replaced' => count((array) ($switch['replaced_files'] ?? [])),
                     'files_deleted' => count((array) ($switch['deleted_files'] ?? [])),
                 ]);
+            } catch (UpdateStepPending $pause) {
+                throw $pause;
             } catch (Throwable $applyError) {
                 $this->rollbackAfterApplyError(
                     $transactionId,
@@ -547,6 +569,8 @@ final class UpdateApplyCommand
                     'source_version_code' => (int) ($journalState['installed_version_code'] ?? 0),
                     'target_version_code' => (int) ($journalState['target_version_code'] ?? 0),
                 ]);
+            } catch (UpdateStepPending $pause) {
+                throw $pause;
             } catch (Throwable $applyError) {
                 $this->rollbackAfterApplyError(
                     $transactionId,
@@ -606,6 +630,8 @@ final class UpdateApplyCommand
                     'health_status' => (string) ($postHealth['status'] ?? ''),
                     'ws_restarted' => $wsRestarted,
                 ]);
+            } catch (UpdateStepPending $pause) {
+                throw $pause;
             } catch (Throwable $applyError) {
                 $this->rollbackAfterApplyError(
                     $transactionId,
@@ -822,6 +848,8 @@ final class UpdateApplyCommand
             'error_type' => $applyError::class,
             'message' => $applyError->getMessage(),
             'failure_code' => $applyErrorCode,
+            'source_version_code' => (int) ($journalState['installed_version_code'] ?? 0),
+            'target_version_code' => (int) ($journalState['target_version_code'] ?? 0),
         ]);
         try {
             $verified = $this->rollback(
@@ -833,6 +861,8 @@ final class UpdateApplyCommand
                 $restartWs,
                 $applyErrorCode
             );
+        } catch (UpdateStepPending $pause) {
+            throw $pause;
         } catch (Throwable $rollbackError) {
             $this->recordRollbackFailure($stateMachine, $transactionId, [
                 'apply_error' => $applyError->getMessage(),
@@ -921,7 +951,8 @@ final class UpdateApplyCommand
         if ($state === 'rollback_started') {
             $code = (new UpdateRollbackCodeRestorer($this->appRoot))->restore(
                 $transactionId,
-                $backups['backup_dir']
+                $backups['backup_dir'],
+                $this->budget
             );
             $stateMachine->markCodeRestored($transactionId, $code);
             $state = 'code_restored';
@@ -933,7 +964,8 @@ final class UpdateApplyCommand
                 $database = $applier->restoreDatabase(
                     $db,
                     $backups['backup_dir'],
-                    $backups['database']
+                    $backups['database'],
+                    $this->budget
                 );
             } finally {
                 $db->close();

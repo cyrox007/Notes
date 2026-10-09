@@ -144,7 +144,10 @@ if [[ "$NEGATIVE_STATUS" -eq 0 ]]; then
   cat /tmp/storage-legacy-negative.out >&2 || true
   exit 1
 fi
-grep -Fq 'Cannot reconcile duplicate system_settings.setting_key values' /tmp/storage-legacy-negative.err
+# Диагностика не публикует текст SQL и пользовательские значения. Проверяем
+# структурированные признаки отказа и отсутствие изменений схемы ниже.
+grep -Fq '20260914_storage_quota_legacy_reconcile.sql' /tmp/storage-legacy-negative.err
+grep -Fq 'SQLSTATE=45000; MySQL=1644; SHA-256=' /tmp/storage-legacy-negative.err
 test "$(mysql_db "$NEGATIVE_DB" -N -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name='system_settings' AND column_name='setting_type'")" = '0'
 test "$(mysql_db "$NEGATIVE_DB" -N -e "SELECT COUNT(*) FROM schema_migrations WHERE migration='20260914_storage_quota_legacy_reconcile.sql'")" = '0'
 

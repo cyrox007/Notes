@@ -61,6 +61,8 @@ file_put_contents($appRoot . '/binary.dat', "\x00\x01fixture\xff");
 file_put_contents($appRoot . '/.env', "DBPASS=must-never-enter-code-backup\n");
 file_put_contents($appRoot . '/cache/runtime.cache', 'mutable-cache');
 file_put_contents($appRoot . '/uploads/user.bin', 'mutable-upload');
+mkdir($appRoot . '/update-continuations', 0755);
+file_put_contents($appRoot . '/update-continuations/entry.php', '<?php // fixed external entry');
 file_put_contents($stageDir . '/stage.json', "{}\n");
 
 $transactionId = 'backup-contract-001';
@@ -106,7 +108,28 @@ $db->set_charset('utf8mb4');
 
 try {
     $manager = new UpdateBackupManager($backupRoot, $appRoot);
-    $backups = $manager->create($transactionId, $db);
+    $resumable = in_array('--resumable', $argv, true);
+    $pauses = 0;
+    do {
+        try {
+            $backups = (new UpdateBackupManager($backupRoot, $appRoot))->create(
+                $transactionId, $db, $resumable ? new Core\UpdateStepBudget(1) : null);
+            break;
+        } catch (Core\UpdateStepPending) {
+            ++$pauses;
+            backupAssert($pauses < 20, 'Резервирование не продвигается');
+            if ($pauses === 1) {
+                file_put_contents($backupRoot . '/.pending-' . $transactionId . '/code/binary.dat', 'partial copy');
+            }
+        }
+    } while (true);
+    if ($resumable) {
+        backupAssert($pauses >= 3, 'Копирование кода не разбито на шаги');
+        // Смерть между записью manifest и атомарной публикацией каталога.
+        backupAssert(rename($backups['backup_dir'], $backupRoot . '/.pending-' . $transactionId), 'Нет фикстуры публикации');
+        $again = $manager->create($transactionId, $db, new Core\UpdateStepBudget(1));
+        backupAssert($again['manifest_sha256'] === $backups['manifest_sha256'], 'Повтор изменил готовый snapshot');
+    }
     backupAssert(is_dir($backups['backup_dir']), 'backup directory missing');
     backupAssert(is_file($backups['manifest_path']), 'backup manifest missing');
     backupAssert(preg_match('/^[0-9a-f]{64}$/', $backups['manifest_sha256']) === 1, 'backup manifest hash invalid');
@@ -121,6 +144,7 @@ try {
     backupAssert(!file_exists($backupDir . '/code/.env'), '.env leaked into rollback code snapshot');
     backupAssert(!file_exists($backupDir . '/code/cache'), 'cache leaked into rollback code snapshot');
     backupAssert(!file_exists($backupDir . '/code/uploads'), 'uploads leaked into rollback code snapshot');
+    backupAssert(!file_exists($backupDir . '/code/update-continuations'), 'HTTP-вход попал в rollback snapshot');
 
     $dump = file_get_contents($backupDir . '/database.sql');
     backupAssert(is_string($dump) && str_contains($dump, 'CREATE TABLE'), 'database dump lacks CREATE TABLE');
@@ -137,6 +161,20 @@ try {
     backupAssert(!str_contains($dump, 'must-never-enter-code-backup'), 'code secret leaked into database dump');
 
     $restorer = new UpdateDatabaseRestorer();
+    // Hash корректен, но SQL оборван: таблицы должны остаться нетронутыми.
+    $invalidDir = $base . '/invalid-db';
+    backupAssert(mkdir($invalidDir, 0700, true), 'Не удалось создать каталог оборванного дампа');
+    $invalidSql = "SET NAMES utf8mb4;\nCREATE TABLE unfinished (id INT)";
+    file_put_contents($invalidDir . '/database.sql', $invalidSql);
+    $invalidMetadata = $backups['database'];
+    $invalidMetadata['bytes'] = strlen($invalidSql);
+    $invalidMetadata['sha256'] = hash('sha256', $invalidSql);
+    $invalidRejected = false;
+    try { $restorer->restore($db, $invalidDir, $invalidMetadata); }
+    catch (RuntimeException $error) { $invalidRejected = true; }
+    backupAssert($invalidRejected, 'Оборванный дамп принят');
+    backupAssert((int) $db->query('SELECT COUNT(*) AS c FROM items')->fetch_assoc()['c'] === 2,
+        'Рабочие таблицы удалены до проверки SQL');
     $restored = $restorer->restore($db, $backupDir, $backups['database']);
     backupAssert((int) ($restored['tables'] ?? 0) >= 2, 'Новый rollback-дамп не восстановил таблицы');
     backupAssert(
@@ -155,6 +193,24 @@ try {
         (string) ($db->query("SELECT JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.kind')) AS value FROM items WHERE id=1")->fetch_assoc()['value'] ?? '') === 'rollback',
         'JSON изменился после восстановления нового rollback-дампа'
     );
+
+    // Каждый вызов завершает одну операцию; новый объект имитирует новый HTTP-запрос.
+    $pauses = 0;
+    $stepped = null;
+    for ($attempt = 0; $attempt < 200 && $stepped === null; ++$attempt) {
+        try {
+            $stepped = (new UpdateDatabaseRestorer())->restore(
+                $db, $backupDir, $backups['database'], new Core\UpdateStepBudget(1)
+            );
+        } catch (Core\UpdateStepPending $pause) {
+            ++$pauses;
+        }
+    }
+    backupAssert($stepped !== null && $pauses > 5, 'Пошаговое восстановление не завершилось через контрольные точки');
+    backupAssert((int) $db->query('SELECT COUNT(*) AS c FROM items')->fetch_assoc()['c'] === 2,
+        'Повторные запросы продублировали данные');
+    backupAssert((int) $db->query('SELECT COUNT(*) AS c FROM audit')->fetch_assoc()['c'] === 2,
+        'Повторное восстановление изменило аудит');
 
     $legacyDir = $base . '/legacy-db';
     backupAssert(mkdir($legacyDir, 0700, true), 'Не удалось создать каталог legacy rollback');

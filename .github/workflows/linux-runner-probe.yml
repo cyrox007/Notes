@@ -1,0 +1,44 @@
+name: Проверка пулов GitHub-hosted runner
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - ci/linux-runner-probe-20261001
+
+permissions:
+  contents: read
+
+jobs:
+  ubuntu-22:
+    name: Ubuntu 22.04
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - name: Проверить runner
+        run: |
+          echo "runner=$RUNNER_NAME"
+          uname -a
+          php -v || true
+
+  ubuntu-24:
+    name: Ubuntu 24.04
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Проверить runner
+        run: |
+          echo "runner=$RUNNER_NAME"
+          uname -a
+          php -v || true
+
+  windows:
+    name: Windows latest
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - name: Проверить runner
+        shell: pwsh
+        run: |
+          Write-Host "runner=$env:RUNNER_NAME"
+          php -v

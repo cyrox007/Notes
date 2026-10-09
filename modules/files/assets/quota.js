@@ -10,7 +10,7 @@
     const usedNode = root.querySelector('[data-quota-used]');
     const quotaNode = root.querySelector('[data-quota-total]');
     const remainingNode = root.querySelector('[data-quota-remaining]');
-    const bar = root.querySelector('[data-quota-bar]');
+    const progress = root.querySelector('[data-quota-progress]');
     const status = root.querySelector('[data-quota-status]');
 
     function formatBytes(bytes) {
@@ -29,40 +29,46 @@
         if (status) status.textContent = 'Данные хранилища временно недоступны';
     }
 
-    if (!endpoint) {
-        showError();
-        return;
-    }
+    async function loadQuota() {
+        if (!endpoint) {
+            showError();
+            return;
+        }
 
-    fetch(endpoint, {
-        headers: {
-            'Accept': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'
-        },
-        credentials: 'same-origin'
-    })
-        .then(async (response) => {
+        try {
+            const response = await fetch(endpoint, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin',
+                cache: 'no-store'
+            });
             const data = await response.json();
             if (!response.ok || !data.success || !data.storage) {
                 throw new Error(data.message || `HTTP ${response.status}`);
             }
-            return data.storage;
-        })
-        .then((storage) => {
+
+            const storage = data.storage;
             if (usedNode) usedNode.textContent = formatBytes(storage.used_bytes);
             if (quotaNode) quotaNode.textContent = formatBytes(storage.quota_bytes);
             if (remainingNode) remainingNode.textContent = formatBytes(storage.remaining_bytes);
-            if (bar) {
+            if (progress instanceof HTMLProgressElement) {
                 const percent = Math.max(0, Math.min(100, Number(storage.percent) || 0));
-                bar.style.width = `${percent}%`;
-                bar.parentElement?.setAttribute('aria-valuenow', String(Math.round(percent)));
+                progress.value = percent;
             }
             if (status) status.textContent = `${Number(storage.percent || 0).toFixed(1)}% занято`;
             root.classList.remove('file-manager__quota--error');
             root.classList.add('file-manager__quota--ready');
-        })
-        .catch((error) => {
-            console.error('File Manager quota load failed', error);
+        } catch (error) {
+            console.error('Не удалось обновить данные квоты файлового менеджера', error);
             showError();
-        });
+        }
+    }
+
+    document.addEventListener('wspace:files-changed', () => {
+        void loadQuota();
+    });
+
+    void loadQuota();
 })();

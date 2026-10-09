@@ -7,3 +7,4 @@ workspace-license-*.secret
 workspace-update-*.secret
 /compile/*
 /uploads/*
+/update-continuations/

@@ -56,7 +56,7 @@ jobs:
           extensions: mysqli, pdo_mysql, mbstring, sodium
           coverage: none
 
-      - name: Lint and verify retention contract
+      - name: Проверить синтаксис и контракт хранения
         shell: bash
         run: |
           set -euo pipefail
@@ -68,7 +68,7 @@ jobs:
           php -l tests/integration/retention_purge_contract.php
           php tests/integration/retention_purge_contract.php
 
-      - name: Prepare composition-aware database
+      - name: Подготовить БД с активной композицией модулей
         shell: bash
         run: |
           set -euo pipefail
@@ -82,7 +82,7 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot notes_retention < database/file_storage_quota_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_retention < database/tasks_schema.sql
 
-      - name: Prepare external private storage and environment
+      - name: Подготовить внешнее приватное хранилище и окружение
         shell: bash
         run: |
           set -euo pipefail
@@ -107,22 +107,23 @@ jobs:
           SECURITY_EVENT_LOG_PATH=/tmp/notes-retention/private/logs/security-events.jsonl
           RETENTION_SOFT_DELETE_DAYS=30
           RETENTION_DEACTIVATED_ACCOUNT_DAYS=30
+          RETENTION_ACCOUNT_DELETE_DAYS=30
           SITEURL=http://localhost
           BASE_PATH=/
           ENV
           chmod 600 .env
 
-      - name: Seed retained and purgeable fixtures
+      - name: Создать данные для проверки хранения и очистки
         shell: bash
         run: |
           set -euo pipefail
           mysql -h 127.0.0.1 -uroot -proot notes_retention <<'SQL'
           INSERT INTO users
-            (id,uid,username,email,password_hash,firstname,lastname,role,is_active,account_status,created_at,updated_at)
+            (id,uid,username,email,password_hash,firstname,lastname,role,is_active,account_status,deletion_requested_at,purge_after,created_at,updated_at)
           VALUES
-            (101,'00000000-0000-4000-8000-000000000101','retention_owner','owner@example.test','fixture','Retention','Owner',888,1,'active','2026-07-01 00:00:00','2026-07-01 00:00:00'),
-            (102,'00000000-0000-4000-8000-000000000102','retention_purge','purge@example.test','fixture','Retention','Purge',888,0,'inactive','2026-07-01 00:00:00','2026-07-01 00:00:00'),
-            (103,'00000000-0000-4000-8000-000000000103','retention_blocked','blocked@example.test','fixture','Retention','Blocked',888,0,'inactive','2026-07-01 00:00:00','2026-07-01 00:00:00');
+            (101,'00000000-0000-4000-8000-000000000101','retention_owner','owner@example.test','fixture','Retention','Owner',888,1,'active',NULL,NULL,'2026-07-01 00:00:00','2026-07-01 00:00:00'),
+            (102,'00000000-0000-4000-8000-000000000102','retention_purge','purge@example.test','fixture','Retention','Purge',888,0,'inactive','2026-07-01 00:00:00','2026-08-01 00:00:00','2026-07-01 00:00:00','2026-07-01 00:00:00'),
+            (103,'00000000-0000-4000-8000-000000000103','retention_blocked','blocked@example.test','fixture','Retention','Blocked',888,0,'inactive','2026-07-01 00:00:00','2026-08-01 00:00:00','2026-07-01 00:00:00','2026-07-01 00:00:00');
 
           INSERT INTO notes
             (id,uid,user_id,notename,content,is_deleted,deleted_at,created_note,updated_note)
@@ -179,7 +180,7 @@ jobs:
             (1101,'00000000000000000000000000001101',1002,101,'Old board item','cancelled','medium',1,'2026-07-01 00:00:00','2026-07-01 00:00:00','2026-07-01 00:00:00');
           SQL
 
-      - name: Prove preview is non-destructive and safety-aware
+      - name: Проверить предварительный просмотр без изменения данных
         shell: bash
         run: |
           set -euo pipefail
@@ -197,7 +198,7 @@ jobs:
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM users WHERE id=102;')" = '1'
           test -f /tmp/notes-retention/private/file_manager/account-file.bin
 
-      - name: Refuse irreversible purge without explicit confirmation
+      - name: Запретить необратимую очистку без явного подтверждения
         shell: bash
         run: |
           set -euo pipefail
@@ -206,10 +207,10 @@ jobs:
           status=$?
           set -e
           test "$status" -eq 1
-          grep -Fq 'Permanent purge requires explicit --yes confirmation' /tmp/retention-unconfirmed.json
+          grep -Fq 'Очистка требует явного подтверждения --yes' /tmp/retention-unconfirmed.json
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM users WHERE id=102;')" = '1'
 
-      - name: Apply permanent purge and verify DB plus filesystem
+      - name: Выполнить очистку и проверить БД и файловую систему
         shell: bash
         run: |
           set -euo pipefail
@@ -231,7 +232,7 @@ jobs:
           test -f /tmp/notes-retention/private/notes/young-note.bin
           test ! -e /tmp/notes-retention/private/file_manager/old-file.bin
           test ! -e /tmp/notes-retention/private/messenger/old-message.bin
-          test ! -e /tmp/notes-retention/private/file_manager/account-file.bin
+          test -f /tmp/notes-retention/private/file_manager/account-file.bin
           test ! -e /tmp/notes-retention/private/users/102/avatar/avatar.jpg
 
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM note_attachments WHERE id=401;')" = '0'
@@ -239,11 +240,25 @@ jobs:
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM note_attachments WHERE id=402;')" = '1'
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM messages WHERE id=601;')" = '0'
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM messenger_attachments WHERE id=701;')" = '0'
-          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM users WHERE id=102;')" = '0'
-          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM users WHERE id=103;')" = '1'
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM users WHERE id=102;')" = '1'
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM users WHERE id=102 AND anonymized_at IS NOT NULL AND purge_after IS NULL;')" = '1'
+
+          anonymized_user_count="$(
+            mysql -N -h 127.0.0.1 -uroot -proot notes_retention <<'SQL'
+          SELECT COUNT(*)
+          FROM users
+          WHERE id=102
+            AND firstname='Удалённый'
+            AND lastname='пользователь'
+            AND username LIKE 'deleted\_102\_%';
+          SQL
+          )"
+          test "$anonymized_user_count" = '1'
+
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM users WHERE id=103 AND anonymized_at IS NULL;')" = '1'
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM task_boards WHERE id=1001;')" = '1'
 
-      - name: Prove child retention delays parent Note purge
+      - name: Проверить, что дочерний срок хранения задерживает очистку заметки
         shell: bash
         run: |
           set -euo pipefail
@@ -254,7 +269,7 @@ jobs:
           test ! -e /tmp/notes-retention/private/notes/young-note.bin
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM notes WHERE id=302;')" = '0'
 
-      - name: Prove unmanaged paths fail closed and remain retryable
+      - name: Проверить закрытый отказ для путей вне управляемого хранилища
         shell: bash
         run: |
           set -euo pipefail
@@ -274,7 +289,7 @@ jobs:
           test -f /tmp/notes-retention-outside.bin
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM user_files WHERE id=203;')" = '1'
 
-      - name: Verify retention audit events
+      - name: Проверить события аудита очистки
         shell: bash
         run: |
           set -euo pipefail

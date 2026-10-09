@@ -56,8 +56,8 @@ $record = static function (string $name, bool $ok, string $details = '') use (&$
 
 $record(
     'release_identity',
-    Version::VERSION === '1.0.14'
-        && Version::VERSION_CODE === 10014
+    Version::VERSION === '1.0.15'
+        && Version::VERSION_CODE === 10015
         && Version::STATUS === 'stable',
     Version::VERSION . ' / ' . Version::VERSION_CODE . ' / ' . Version::STATUS
 );
@@ -84,15 +84,16 @@ $governanceOk = is_array($governance)
     && in_array('online-update-access (8.3)', $requiredChecks, true)
     && in_array('admin-update-ui (8.1)', $requiredChecks, true)
     && in_array('admin-update-ui (8.3)', $requiredChecks, true)
-    && in_array('admin-update-e2e', $requiredChecks, true);
+    && in_array('admin-update-e2e', $requiredChecks, true)
+    && in_array('previous-stable-upgrade', $requiredChecks, true);
 $record('governance_source_contract', $governanceOk, 'master + 1.0 / единый обязательный набор checks');
 
 foreach ([
     'README.md',
     'CHANGELOG.md',
-    'docs/releases/v1.0.14.md',
+    'docs/releases/v1.0.15.md',
     'docs/RELEASE_ACCEPTANCE.md',
-    'docs/WINDOWS_OSPANEL_ACCEPTANCE.md',
+    'docs/WINDOWS_OSPANEL_ACCEPTANCE_1.0.15.md',
     'docs/RELEASE_GOVERNANCE.md',
     'docs/PRODUCTION_TRUST_CEREMONY.md',
     'docs/TWO_FACTOR_AUTH.md',

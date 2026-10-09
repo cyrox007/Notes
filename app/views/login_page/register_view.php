@@ -8,13 +8,14 @@ $inviteCode = isset($invite_code) ? (string) $invite_code : '';
 $errors = isset($errors) && is_array($errors) ? $errors : [];
 $formValues = isset($form_values) && is_array($form_values) ? $form_values : [];
 $siteName = isset($sitename) ? (string) $sitename : 'Workspace Organizer';
+$assetBase = isset($base_url) ? rtrim((string) $base_url, '/') : '';
 
 ob_start();
 ?>
 <div class="register-page">
     <div class="register">
         <a href="<?= $view->e($view->route('main')) ?>" class="login-page__brand" aria-label="<?= $view->e($siteName) ?>">
-            <span class="login-page__brand-mark" aria-hidden="true">W</span>
+            <img class="login-page__brand-mark" src="<?= $view->e($assetBase . '/assets/img/workspace-brand-mark.svg') ?>" alt="" aria-hidden="true">
             <span class="login-page__brand-copy">
                 <strong><?= $view->e($siteName) ?></strong>
                 <small>Создание аккаунта</small>
@@ -81,7 +82,7 @@ ob_start();
 
             <div class="form-group">
                 <label for="user_phone">Телефон</label>
-                <input type="tel" name="user_phone" id="user_phone" value="<?= $view->e($formValues['user_phone'] ?? '') ?>" placeholder="+49 ..." autocomplete="tel" maxlength="32">
+                <input type="tel" name="user_phone" id="user_phone" value="<?= $view->e($formValues['user_phone'] ?? '') ?>" placeholder="+7 ..." autocomplete="tel" maxlength="32">
             </div>
 
             <button id="btn-reg" type="submit">Создать аккаунт</button>
@@ -94,5 +95,5 @@ $content = (string) ob_get_clean();
 echo $view->layout('login_page/login_layout', [
     'title' => 'Регистрация',
     'sitename' => $siteName,
-    'base_url' => $base_url ?? '',
+    'base_url' => $assetBase,
 ], $content);

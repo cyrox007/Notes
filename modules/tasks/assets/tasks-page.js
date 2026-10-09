@@ -11,32 +11,46 @@
         const openBtn = document.getElementById('open-create-task');
         const closeBtns = document.querySelectorAll('[data-task-modal-close]');
 
-        const safeColor = (value) => /^#[0-9a-f]{6}$/i.test(String(value || '')) ? String(value) : '#3498db';
-        root.querySelectorAll('[data-task-priority-color]').forEach((node) => {
-            node.style.backgroundColor = safeColor(node.dataset.taskPriorityColor);
-        });
-        root.querySelectorAll('[data-category-color]').forEach((node) => {
-            node.style.backgroundColor = safeColor(node.dataset.categoryColor);
-        });
-        root.querySelectorAll('[data-progress]').forEach((node) => {
-            const percent = Math.max(0, Math.min(100, Number(node.dataset.progress || 0)));
-            node.style.width = percent + '%';
-        });
+        let modalCloseTimer = null;
+
+        function openTaskModal() {
+            if (!modal) return;
+            if (modalCloseTimer !== null) {
+                window.clearTimeout(modalCloseTimer);
+                modalCloseTimer = null;
+            }
+            modal.classList.remove('is-closing');
+            modal.hidden = false;
+        }
+
+        function closeTaskModal() {
+            if (!modal || modal.hidden || modal.classList.contains('is-closing')) return;
+            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                modal.hidden = true;
+                return;
+            }
+            modal.classList.add('is-closing');
+            modalCloseTimer = window.setTimeout(() => {
+                modal.hidden = true;
+                modal.classList.remove('is-closing');
+                modalCloseTimer = null;
+            }, 170);
+        }
 
         if (openBtn && modal) {
-            openBtn.addEventListener('click', () => {
-                modal.hidden = false;
-            });
+            openBtn.addEventListener('click', openTaskModal);
         }
 
         closeBtns.forEach((btn) => {
-            btn.addEventListener('click', () => {
-                if (modal) modal.hidden = true;
-            });
+            btn.addEventListener('click', closeTaskModal);
         });
 
         window.addEventListener('click', (event) => {
-            if (modal && event.target === modal) modal.hidden = true;
+            if (modal && event.target === modal) closeTaskModal();
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && modal && !modal.hidden) closeTaskModal();
         });
 
         async function requestJson(url, options = {}) {
@@ -80,10 +94,11 @@
             const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
             const percentNode = container.querySelector('.task-subtasks__percent');
             const progress = container.querySelector('.task-subtasks__progress');
-            const bar = container.querySelector('.task-subtasks__progress-bar');
             if (percentNode) percentNode.textContent = String(percent);
-            if (progress) progress.setAttribute('aria-valuenow', String(percent));
-            if (bar) bar.style.width = `${percent}%`;
+            if (progress) {
+                progress.value = percent;
+                progress.setAttribute('aria-valuenow', String(percent));
+            }
             toggle.closest('.subtask-item')?.classList.toggle('completed', toggle.checked);
         }
 
