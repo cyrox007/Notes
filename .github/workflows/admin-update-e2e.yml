@@ -1,8 +1,6 @@
 name: Сквозной браузерный updater из опубликованных версий
 
 on:
-  push:
-    branches: ['fix/1.0.14-web-updater-recovery']
   pull_request:
     branches: [dev, '1.0', master, 'release/1.0.*-rc']
   workflow_dispatch:
@@ -663,7 +661,7 @@ jobs:
             SSL_CERT_FILE="$DRILL/ca.crt" \
               E2E_APP_ROOT="$LIVE" \
               E2E_SUPPORT_ROOT="$GITHUB_WORKSPACE" \
-              E2E_UPDATER_GUARD_PATH="$DRILL/private/state/e2e-updater-handoff-guard.json" \
+              PHP_CLI_SERVER_WORKERS=4 \
               php -d "openssl.cafile=$DRILL/ca.crt" \
               -d "disable_functions=${{ matrix.disable_functions }}" \
               -d memory_limit=256M -d max_execution_time=80 \
@@ -693,7 +691,6 @@ jobs:
           fi
 
       - name: Подать пакет с повреждённой подписью
-        if: github.ref != 'refs/heads/fix/1.0.14-web-updater-recovery'
         shell: bash
         run: |
           set -euo pipefail
@@ -703,7 +700,6 @@ jobs:
           JSON
 
       - name: Доказать отказ повреждённой подписи до destructive-фазы
-        if: github.ref != 'refs/heads/fix/1.0.14-web-updater-recovery'
         shell: bash
         env:
           SSL_CERT_FILE: /tmp/workspace-admin-update-e2e/ca.crt
@@ -734,7 +730,6 @@ jobs:
           php "$GITHUB_WORKSPACE/tests/support/admin_update_preservation_probe.php" --verify
 
       - name: Вернуть канал на пакет с намеренно сломанной миграцией
-        if: github.ref != 'refs/heads/fix/1.0.14-web-updater-recovery'
         shell: bash
         run: |
           set -euo pipefail
@@ -750,7 +745,6 @@ jobs:
         run: node tests/e2e/admin-update-rollback.mjs
 
       - name: Доказать восстановление исходной версии после ошибки миграции
-        if: github.ref != 'refs/heads/fix/1.0.14-web-updater-recovery'
         shell: bash
         run: |
           set -euo pipefail
@@ -807,7 +801,6 @@ jobs:
           JSON
 
       - name: Проверить автоматический откат после ошибки post-health после успешной миграции
-        if: github.ref != 'refs/heads/fix/1.0.14-web-updater-recovery'
         shell: bash
         env:
           SSL_CERT_FILE: /tmp/workspace-admin-update-e2e/ca.crt
@@ -815,7 +808,6 @@ jobs:
         run: node tests/e2e/admin-update-rollback.mjs
 
       - name: Доказать восстановление исходной версии после ошибки post-health после успешной миграции
-        if: github.ref != 'refs/heads/fix/1.0.14-web-updater-recovery'
         shell: bash
         run: |
           set -euo pipefail
@@ -875,7 +867,6 @@ jobs:
           JSON
 
       - name: Прервать web-updater после переключения кода
-        if: github.ref != 'refs/heads/fix/1.0.14-web-updater-recovery'
         shell: bash
         env:
           SSL_CERT_FILE: /tmp/workspace-admin-update-e2e/ca.crt
@@ -887,7 +878,6 @@ jobs:
           node tests/e2e/admin-update-interrupt.mjs | tee "$DRILL/interruption-code-switch.log"
 
       - name: Доказать автоматический recovery после прерывания кода
-        if: github.ref != 'refs/heads/fix/1.0.14-web-updater-recovery'
         shell: bash
         run: |
           set -euo pipefail
@@ -947,7 +937,6 @@ jobs:
         run: node tests/e2e/admin-update-apply.mjs
 
       - name: Доказать фактическое изменение версии и сохранность установки
-        if: github.ref != 'refs/heads/fix/1.0.14-web-updater-recovery'
         shell: bash
         run: |
           set -euo pipefail
@@ -1002,7 +991,6 @@ jobs:
         run: node tests/e2e/admin-update-post-smoke.mjs
 
       - name: Доказать раннее самовосстановление на следующем HTTP-запросе
-        if: github.ref != 'refs/heads/fix/1.0.14-web-updater-recovery'
         shell: bash
         run: |
           set -euo pipefail
@@ -1066,7 +1054,6 @@ jobs:
           php "$GITHUB_WORKSPACE/tests/support/admin_update_preservation_probe.php" --verify
 
       - name: Проверить отсутствие PHP-ошибок
-        if: github.ref != 'refs/heads/fix/1.0.14-web-updater-recovery'
         shell: bash
         run: |
           set -euo pipefail
