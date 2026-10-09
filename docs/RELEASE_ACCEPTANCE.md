@@ -109,7 +109,7 @@
 
 ## Gate F — дефекты и ручная приёмка
 
-До того как владелец релиза объявит RC принятым:
+До того как владелец релиза объявит выпуск принятым:
 
 - exact frozen RC/artifact прошёл live visual acceptance из #172, включая light/dark/system и проверку компактной ширины ноутбука;
 - exact frozen RC/artifact прошёл Windows/OSPanel transport acceptance: WebSocket `101` + `Authorized`, автоматический переход на Long Poll, durable delivery и автоматический возврат к WebSocket;
@@ -166,4 +166,4 @@ php bin/release_acceptance.php --strict --json \
 5. Убедитесь, что tag-driven `Build hosting package` опубликовал GitHub Release из exact tagged SHA и приложил ZIP, checksum и source-SHA; update manifest и detached signature для production feed публикуются отдельно по операторскому процессу и не должны менять bytes принятого ZIP.
 6. Ещё раз проверьте checksum опубликованной загрузки и release metadata.
 
-Если после приёмки RC требуется любое изменение исходников, предыдущие exact-head доказательства аннулируются, а затронутые gates повторяются на новом SHA.
+Если после финальной приёмки требуется любое изменение исходников, предыдущие exact-head доказательства аннулируются, а затронутые gates повторяются на новом SHA.

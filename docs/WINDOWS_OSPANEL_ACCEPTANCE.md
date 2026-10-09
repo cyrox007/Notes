@@ -193,7 +193,7 @@ php bin/migrate.php --status
 php bin/update_doctor.php --json
 ```
 
-Для принятого release-candidate ожидается:
+Для принятой релизной сборки ожидается:
 
 ```text
 1.0.14
