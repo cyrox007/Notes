@@ -65,7 +65,10 @@ final class UpdateApplyCommand
         $backupRoot = $this->resolveRoot((string) ($options['backup-root'] ?? ''), 'UPDATE_BACKUP_PATH', 'update-backups');
         $candidateOption = trim((string) ($options['candidate-dir'] ?? ''));
         $singleStep = array_key_exists('single-step', $options);
-        $this->budget = $singleStep ? new UpdateStepBudget() : null;
+        // Межфайловые HTTP-паузы допустимы только во внешнем окружении:
+        // следующий запрос не должен загружать частично заменённые классы.
+        $externalExecutor = !UpdatePath::inside(UpdatePath::normalize(__DIR__), $this->appRoot);
+        $this->budget = $singleStep && $externalExecutor ? new UpdateStepBudget() : null;
 
         try {
             // Intentionally retained in this function scope so its flock covers
