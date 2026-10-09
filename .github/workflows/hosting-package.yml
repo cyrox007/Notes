@@ -317,7 +317,7 @@ jobs:
         run: |
           set -euo pipefail
           php -l tools/release/bootstrap-1.0.14-updater.php
-          BRIDGE="$GITHUB_WORKSPACE/${BUNDLE_NAME}-updater-bridge.zip"
+          BRIDGE="$GITHUB_WORKSPACE/${BUNDLE_NAME%.zip}-updater-bridge.zip"
           zip -q "$BRIDGE" tools/release/bootstrap-1.0.14-updater.php
           (cd "$GITHUB_WORKSPACE" && sha256sum "$(basename "$BRIDGE")") > "$BRIDGE.sha256"
           echo "UPDATE_1014_BRIDGE=$BRIDGE" >> "$GITHUB_ENV"
