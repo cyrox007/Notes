@@ -86,7 +86,20 @@ final class UpdateBootRecoveryGate
         }
 
         if (!$afterRecovery['active']) {
-            return;
+            // Rollback мог удалить зависимости уже загруженного нового
+            // index.php. Продолжать его bootstrap поверх старого дерева нельзя.
+            $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+            if (!in_array($method, ['GET', 'HEAD'], true)) {
+                self::reject('Восстановление завершено. Повторите запрос.');
+            }
+            $uri = (string) ($_SERVER['REQUEST_URI'] ?? '/');
+            if (!str_starts_with($uri, '/') || str_starts_with($uri, '//')
+                || str_contains($uri, '\\') || preg_match('/[\x00-\x20\x7f]/', $uri) === 1) {
+                $uri = '/';
+            }
+            header('Cache-Control: no-store');
+            header('Location: ' . $uri, true, 303);
+            exit;
         }
 
         $status = (string) ($recovery['status'] ?? 'failed');
