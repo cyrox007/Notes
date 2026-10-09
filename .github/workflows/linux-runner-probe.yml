@@ -1,6 +1,7 @@
 name: Проверка пулов GitHub-hosted runner
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - ci/linux-runner-probe-20261001
