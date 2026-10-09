@@ -98,6 +98,7 @@ PHP);
     }
     file_put_contents($app . '/core/UpdateAutomaticRecovery.php', '<?php throw new RuntimeException("LIVE_RECOVERY_LOADED");');
     file_put_contents($app . '/core/UpdateWebHttpBridge.php', '<?php throw new RuntimeException("LIVE_BRIDGE_LOADED");');
+    unlink($app . '/core/CrawlerDefense.php');
     $data['state'] = 'live_mutation_started';
     file_put_contents($journal->path($transaction), json_encode($data, JSON_THROW_ON_ERROR));
     $maintenance = new App\Services\MaintenanceModeService($state, $app);

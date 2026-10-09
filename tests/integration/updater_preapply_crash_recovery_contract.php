@@ -11,6 +11,11 @@ $root = dirname(__DIR__, 2);
 // Boot recovery подключает команду напрямую, без CLI entrypoint и web-start.
 // Команда обязана самостоятельно загрузить все необходимые классы.
 require_once $root . '/core/UpdateApplyCommand.php';
+if (class_exists(Core\Version::class, false)) {
+    throw new RuntimeException('Команда загрузила Version до привязки bootstrap к live-версии');
+}
+// Версия нужна только для подготовки идентичности тестового журнала.
+require_once $root . '/core/Version.php';
 
 function preapplyCrashAssert(bool $condition, string $message): void
 {

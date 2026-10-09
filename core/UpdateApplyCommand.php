@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Core;
 
-require_once __DIR__ . '/Version.php';
 require_once __DIR__ . '/UpdateTransactionJournal.php';
 require_once __DIR__ . '/UpdateTransactionStateMachine.php';
 require_once __DIR__ . '/UpdateBackupManager.php';
@@ -428,6 +427,11 @@ final class UpdateApplyCommand
                 false,
                 'Live version changed since rollback checkpoint was created'
             );
+            // Bootstrap привязывает Version к исходной live-установке после
+            // загрузки класса команды. Ранний include подменил бы эту версию.
+            if (!class_exists(Version::class, false)) {
+                require_once __DIR__ . '/Version.php';
+            }
             if ($liveVersion['version_code'] !== Version::VERSION_CODE) {
                 throw new UpdateApplyException(
                     'Updater code no longer matches the live application version before switch',
