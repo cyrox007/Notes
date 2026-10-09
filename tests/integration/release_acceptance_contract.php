@@ -177,11 +177,13 @@ foreach ([
 releaseAcceptanceAssert(
     str_contains($releaseNotes, 'exact v1.0.14')
     && str_contains($releaseNotes, '1.0.15 (10015)')
-    && str_contains($releaseNotes, 'не требуется')
-    && str_contains($releaseNotes, 'bootstrap-1.0.12-updater.php')
+    && str_contains($releaseNotes, 'сначала требуется CLI-мост')
+    && str_contains($releaseNotes, 'bootstrap-1.0.14-updater.php')
+    && str_contains($releaseNotes, 'На хостинге без CLI полностью браузерный переход пока не готов')
+    && str_contains($releaseNotes, 'GitHub pre-release')
     && str_contains($releaseNotes, 'Переустановка с нуля не считается проверкой upgrade-path')
     && str_contains($releaseNotes, 'private storage'),
-    'описание 1.0.15 не фиксирует прямой upgrade-path и сохранность данных'
+    'описание 1.0.15 не фиксирует проверенный CLI-handoff, ограничения предварительного выпуска и сохранность данных'
 );
 
 
@@ -259,6 +261,8 @@ releaseAcceptanceAssert(
     str_contains($autoPublish, 'workflows: ["Stable release gate"]')
     && str_contains($autoPublish, 'github.event.workflow_run.event == \'push\'')
     && str_contains($autoPublish, "github.event.workflow_run.head_branch == 'master'")
+    && str_contains($autoPublish, '.github/release-readiness.json')
+    && str_contains($autoPublish, "if: steps.readiness.outputs.ready == 'true'")
     && str_contains($autoPublish, 'gh workflow run hosting-package.yml --ref "$TAG" -f version="$TAG"'),
     'автопубликация релиза не привязана к успешному push-gate master'
 );
