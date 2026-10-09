@@ -8,14 +8,8 @@ use Core\UpdateTransactionJournal;
 
 $root = dirname(__DIR__, 2);
 
-require_once $root . '/core/Version.php';
-require_once $root . '/core/UpdateTransactionJournal.php';
-require_once $root . '/core/UpdateTransactionStateMachine.php';
-require_once $root . '/core/UpdateBackupManager.php';
-require_once $root . '/core/UpdateLiveApplier.php';
-require_once $root . '/core/UpdateApplyOperationLock.php';
-require_once $root . '/core/UpdateRollbackCodeRestorer.php';
-require_once $root . '/app/services/MaintenanceModeService.php';
+// Boot recovery подключает команду напрямую, без CLI entrypoint и web-start.
+// Команда обязана самостоятельно загрузить все необходимые классы.
 require_once $root . '/core/UpdateApplyCommand.php';
 
 function preapplyCrashAssert(bool $condition, string $message): void

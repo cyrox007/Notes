@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace Core;
 
+require_once __DIR__ . '/Version.php';
+require_once __DIR__ . '/UpdateTransactionJournal.php';
+require_once __DIR__ . '/UpdateTransactionStateMachine.php';
+require_once __DIR__ . '/UpdateBackupManager.php';
+require_once dirname(__DIR__) . '/app/services/MaintenanceModeService.php';
 require_once __DIR__ . '/MigrationManifest.php';
 require_once __DIR__ . '/UpdateMigrationPreflight.php';
 require_once __DIR__ . '/UpdateCommandRunner.php';
