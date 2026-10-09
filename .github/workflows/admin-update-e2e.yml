@@ -476,29 +476,17 @@ jobs:
           rsync -a "$FUTURE/" "$HEALTH_BROKEN/"
           perl -0pi -e "s/public const VERSION = '[^']+';/public const VERSION = '${{ matrix.target_version }}-health-broken-e2e';/" "$HEALTH_BROKEN/core/Version.php"
           # Второй аварийный кандидат должен успешно применить миграцию,
-          # сохранить корректный контракт БД, а затем упасть именно на post-health.
-          # Нельзя ломать обязательную таблицу в SQL: такой дефект мигратор обязан
-          # поймать раньше post-health, и тест проверял бы не ту границу.
+          # пройти проверку мигратора, а затем упасть именно на post-health.
+          # Мигратор проверяет наличие таблиц; post-health дополнительно проверяет
+          # обязательные поля users. Дефект должен пережить успешную миграцию
+          # и быть обнаружен зафиксированным внешним health-probe, без замены его PHP.
           cat > "$HEALTH_BROKEN/database/migrations/20991231_ci_post_health_failure.sql" <<'SQL'
           CREATE TABLE IF NOT EXISTS ci_post_health_marker (
               id INT NOT NULL PRIMARY KEY,
               created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
           ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+          ALTER TABLE users DROP COLUMN totp_confirmed_at;
           SQL
-
-          python3 - "$HEALTH_BROKEN/core/UpdateWebHealthProbe.php" <<'PY'
-          from pathlib import Path
-          import sys
-
-          path = Path(sys.argv[1])
-          source = path.read_text(encoding='utf-8')
-          old = "'status' => $failed ? 'fail' : 'ok'"
-          new = "'status' => 'fail'"
-          if old not in source:
-              raise SystemExit('Не найден ожидаемый health-status контракт кандидата')
-          path.write_text(source.replace(old, new, 1), encoding='utf-8')
-          PY
-          grep -Fq "'status' => 'fail'" "$HEALTH_BROKEN/core/UpdateWebHealthProbe.php"
 
           php -r '
             $path=$argv[1];
@@ -846,6 +834,9 @@ jobs:
             else
               echo "Неожиданное состояние транзакции после отказа post-health: $state ($journal)" >&2
               exit 1
+            fi
+            if [[ "$(jq -r '.target_version' "$journal")" == '${{ matrix.target_version }}-health-broken-e2e' ]]; then
+              jq -e 'any(.history[]; .state == "migrations_applied") and (any(.history[]; .state == "postcheck_verified") | not)' "$journal" >/dev/null
             fi
           done
           test "$COMMITTED" -eq 0
