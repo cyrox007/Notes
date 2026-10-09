@@ -111,8 +111,16 @@ try {
   }
 
   let reached = false;
-  for (let stepNumber = 0; stepNumber < 8; stepNumber += 1) {
-    const step = await postJson(page, `${basePath}/admin/updates/web-step`, {
+  let stepUrl = `${basePath}/admin/updates/web-step`;
+  const handoff = (value) => {
+    if (!value) return;
+    const url = new URL(String(value), origin);
+    if (url.origin !== origin) throw new Error('Чужой origin продолжения updater');
+    stepUrl = url.pathname + url.search;
+  };
+  handoff(result.continuation_url);
+  for (let stepNumber = 0; stepNumber < 256; stepNumber += 1) {
+    const step = await postJson(page, stepUrl, {
       'X-Workspace-Update-Transaction': transactionId,
       'X-Workspace-Update-Token': token,
     });
@@ -124,6 +132,7 @@ try {
     }
 
     result = step.payload.result;
+    handoff(result.continuation_url);
     const phase = String(result.phase || '');
     const status = String(result.status || '');
 

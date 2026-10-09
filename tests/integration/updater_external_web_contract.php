@@ -63,9 +63,11 @@ PHP);
     webExternalAssert(is_resource($listener), 'Нет свободного HTTP-порта');
     $address = stream_socket_get_name($listener, false);
     fclose($listener);
+    putenv('E2E_APP_ROOT=' . $app);
     $server = proc_open([
         PHP_BINARY, '-d', 'disable_functions=proc_open,popen,exec,shell_exec,system,passthru,opcache_reset',
         '-d', 'memory_limit=32M', '-S', $address, '-t', $app,
+        dirname(__DIR__) . '/e2e/router.php',
     ], [0 => ['pipe', 'r'], 1 => ['file', $temp . '/server.log', 'a'], 2 => ['file', $temp . '/server.log', 'a']], $pipes);
     webExternalAssert(is_resource($server), 'HTTP-сервер не запущен');
     for ($i = 0; $i < 100; ++$i) {
@@ -79,7 +81,7 @@ PHP);
         $context = stream_context_create(['http' => [
             'method' => $method, 'header' => $headers, 'ignore_errors' => true, 'timeout' => 10,
         ]]);
-        $body = file_get_contents('http://' . $address . ($requestPath ?: substr($url, strlen('/workspace'))), false, $context);
+        $body = file_get_contents('http://' . $address . ($requestPath ?: $url), false, $context);
         return ['status' => $http_response_header[0] ?? '', 'body' => json_decode((string) $body, true)];
     };
     $handoff = $request('POST', $token, '', '/legacy-step.php');
