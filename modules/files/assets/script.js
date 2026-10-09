@@ -100,8 +100,11 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         const html = await response.text();
-        const nextDocument = new DOMParser().parseFromString(html, 'text/html');
-        const nextContent = nextDocument.querySelector('.file-manager__content');
+        // Ответ содержит весь документ с новым nonce. Разбираем его в инертном
+        // шаблоне, чтобы стили страницы не применялись при обновлении списка.
+        const nextTemplate = document.createElement('template');
+        nextTemplate.innerHTML = html;
+        const nextContent = nextTemplate.content.querySelector('.file-manager__content');
         const currentContent = root.querySelector('.file-manager__content');
         if (!nextContent || !currentContent) {
             throw new Error('Сервер не вернул список файлов');
