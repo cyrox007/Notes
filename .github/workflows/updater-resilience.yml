@@ -1,5 +1,7 @@
 name: Устойчивость обновлятора — память и HTTP
 on:
+  pull_request:
+    branches: [master, '1.0']
   push:
     branches: ['fix/updater-resilience-20261004']
   workflow_dispatch:
@@ -39,6 +41,7 @@ jobs:
           php tests/integration/updater_web_mode_contract.php
           php tests/integration/updater_step_checkpoint_contract.php
           php tests/integration/updater_preapply_crash_recovery_contract.php
+          php tests/integration/updater_interrupted_code_contract.php
       - name: Проверить миграцию с ограниченными правами БД
         env:
           DBHOST: 127.0.0.1
