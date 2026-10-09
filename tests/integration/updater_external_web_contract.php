@@ -6,6 +6,7 @@ require_once dirname(__DIR__, 2) . '/core/UpdateWebRuntimeLauncher.php';
 require_once dirname(__DIR__, 2) . '/core/UpdateWebContinuation.php';
 require_once dirname(__DIR__, 2) . '/core/UpdateTransactionJournal.php';
 require_once dirname(__DIR__, 2) . '/core/UpdateFileMutator.php';
+require_once dirname(__DIR__, 2) . '/app/services/MaintenanceModeService.php';
 
 use Core\UpdateExternalRuntime;
 use Core\UpdateWebRuntimeLauncher;
@@ -85,6 +86,25 @@ PHP);
     webExternalAssert(($handoff['body']['result']['continuation_url'] ?? '') === $url,
         'Старый контроллер не передаёт продолжение внешнему runtime: ' . json_encode($handoff));
     webExternalAssert(!file_exists($state . '/maintenance.json'), 'Перед handoff уже включён maintenance');
+    // Обычный запрос во время частичного switch не должен загружать live
+    // updater: часть новых зависимостей могла ещё не попасть в live-tree.
+    $sourceRoot = dirname(__DIR__, 2);
+    foreach (['index.php', 'core/SecurityHeaders.php', 'core/CrawlerDefense.php',
+        'core/RequestOrigin.php', 'core/SecurityEventLog.php', 'core/UpdateBootRecoveryGate.php',
+        'app/services/RequestRateLimiter.php'] as $relative) {
+        copy($sourceRoot . '/' . $relative, $app . '/' . $relative);
+    }
+    file_put_contents($app . '/core/UpdateAutomaticRecovery.php', '<?php throw new RuntimeException("LIVE_RECOVERY_LOADED");');
+    file_put_contents($app . '/core/UpdateWebHttpBridge.php', '<?php throw new RuntimeException("LIVE_BRIDGE_LOADED");');
+    $data['state'] = 'live_mutation_started';
+    file_put_contents($journal->path($transaction), json_encode($data, JSON_THROW_ON_ERROR));
+    $maintenance = new App\Services\MaintenanceModeService($state, $app);
+    $maintenance->enter($transaction);
+    webExternalAssert(str_contains($request('GET', '', '', '/index.php')['status'], '503'),
+        'Обычный запрос загрузил частично переключённый live updater');
+    $maintenance->leave($transaction);
+    $data['state'] = 'rollback_verified';
+    file_put_contents($journal->path($transaction), json_encode($data, JSON_THROW_ON_ERROR));
     foreach ($runtimeManifest['files'] as $relative => $metadata) {
         if (str_starts_with($relative, 'core/')) {
             file_put_contents($app . '/' . $relative, '<?php throw new RuntimeException("LIVE_CORE_LOADED");');

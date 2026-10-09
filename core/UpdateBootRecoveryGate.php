@@ -74,6 +74,9 @@ final class UpdateBootRecoveryGate
             self::reject('Пошаговое web-обновление ещё выполняется.');
         }
 
+        // Во время пофайлового switch зависимости recovery могут быть ещё
+        // не установлены. Живой lease проверяется до загрузки этой цепочки.
+        require_once __DIR__ . '/UpdateAutomaticRecovery.php';
         $recovery = (new UpdateAutomaticRecovery($appRoot))->attempt($maintenance);
 
         try {
