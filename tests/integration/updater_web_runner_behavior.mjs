@@ -63,4 +63,7 @@ const foreign = await scenario([{ status: 200, payload: { success: true, result:
 } } }]);
 assert.equal(foreign.calls, 1, 'Токен не должен уходить на чужой origin');
 assert.ok(foreign.error);
+const handedOff = await scenario([start, { status: 200, payload: externalStart.payload },
+    { ...done, expectedUrl: 'https://notes.test/workspace/update-continuations/frozen.php' }]);
+assert.equal(handedOff.result.status, 'committed', 'Контроллер 1.0.14 должен получить URL на первом шаге');
 console.log('[OK] Окончательные отказы, WAF, обрыв сети и ограниченные повторы');

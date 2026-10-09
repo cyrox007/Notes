@@ -112,6 +112,13 @@
 
                 retries = 0;
                 result = step.payload.result;
+                if (result.continuation_url) {
+                    const continuationUrl = new URL(String(result.continuation_url), window.location.href);
+                    if (continuationUrl.origin !== window.location.origin) {
+                        throw new UpdateRequestError('Недопустимый адрес продолжения обновления.', false);
+                    }
+                    stepUrl = continuationUrl.href;
+                }
                 if (typeof onProgress === 'function') onProgress(result);
 
                 const runtimeRefreshDelay = Math.max(

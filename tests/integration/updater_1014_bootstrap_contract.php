@@ -89,6 +89,11 @@ try {
             === hash_file('sha256', $root . '/assets/js/update-web-runner.js'),
         'Браузерный исполнитель не перенесён без изменений'
     );
+    foreach (['core/UpdateWebRuntimeLauncher.php', 'bin/update_web_entry.php'] as $relative) {
+        bootstrapContractAssert(is_file($success . '/' . $relative)
+            && hash_file('sha256', $success . '/' . $relative) === hash_file('sha256', $root . '/' . $relative),
+            'Зависимость внешнего HTTP-входа не перенесена: ' . $relative);
+    }
     $versionAfter = (string) file_get_contents($success . '/core/Version.php');
     bootstrapContractAssert(str_contains($versionAfter, "VERSION = '1.0.14'"), 'Мост изменил версию приложения');
     bootstrapContractAssert(str_contains($versionAfter, 'VERSION_CODE = 10014'), 'Мост изменил код версии приложения');

@@ -199,6 +199,7 @@ if ($liveVersion !== '1.0.14' || $liveCode !== 10014) {
 // Переносится только исполнитель обновления. Version.php, миграции и прикладной
 // код остаются 1.0.14 до штатной транзакции, поэтому мост не считается релизом.
 $files = [
+    'bin/update_web_entry.php',
     'assets/js/update-web-runner.js',
     'app/services/MaintenanceModeService.php',
     'core/DatabaseOwnership.php',
@@ -220,7 +221,7 @@ $files = [
     'core/UpdateCoordinatorLock.php',
     'core/UpdateDatabaseMigrator.php',
     'core/UpdateDatabaseRestorer.php',
-        'core/UpdateDatabaseRestoreSteps.php',
+    'core/UpdateDatabaseRestoreSteps.php',
     'core/UpdateExternalRuntime.php',
     'core/UpdateFileMutator.php',
     'core/UpdateInProcessRunner.php',
@@ -243,6 +244,7 @@ $files = [
     'core/UpdateWebContinuation.php',
     'core/UpdateWebHealthProbe.php',
     'core/UpdateWebHttpBridge.php',
+    'core/UpdateWebRuntimeLauncher.php',
     'core/UpdateWebTransaction.php',
 ];
 

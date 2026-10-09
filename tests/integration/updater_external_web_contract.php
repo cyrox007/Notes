@@ -42,8 +42,20 @@ try {
     $data['state'] = 'rollback_verified';
     file_put_contents($journal->path($transaction), json_encode($data, JSON_THROW_ON_ERROR));
     file_put_contents($app . '/.env', 'PRIVATE_STORAGE_PATH=' . $private . "\n");
+    $runtimeManifest = json_decode((string) file_get_contents($runtime['manifest']), true, 32, JSON_THROW_ON_ERROR);
+    foreach ($runtimeManifest['files'] as $relative => $metadata) {
+        if (!is_dir(dirname($app . '/' . $relative))) mkdir(dirname($app . '/' . $relative), 0755, true);
+        copy($runtime['runtime_root'] . '/' . $relative, $app . '/' . $relative);
+    }
+    file_put_contents($app . '/legacy-step.php', <<<'PHP'
+<?php
+require __DIR__ . '/core/UpdateWebTransaction.php';
+$result = (new Core\UpdateWebTransaction(__DIR__))->step(
+    $_SERVER['HTTP_X_WORKSPACE_UPDATE_TRANSACTION'], $_SERVER['HTTP_X_WORKSPACE_UPDATE_TOKEN']);
+header('Content-Type: application/json');
+echo json_encode(['success' => true, 'result' => $result]);
+PHP);
     file_put_contents($app . '/index.php', '<?php throw new RuntimeException("LIVE_INDEX_LOADED");');
-    file_put_contents($app . '/core/UpdateWebTransaction.php', '<?php throw new RuntimeException("LIVE_CORE_LOADED");');
     $url = (new UpdateWebRuntimeLauncher())->publish($app, $state, $transaction, $runtime);
     webExternalAssert(str_starts_with($url, '/workspace/update-continuations/'), 'BASE_PATH потерян');
     $listener = stream_socket_server('tcp://127.0.0.1:0', $errno, $error);
@@ -60,15 +72,24 @@ try {
         if (is_resource($socket)) { fclose($socket); break; }
         usleep(20000);
     }
-    $request = static function (string $method, string $credential, string $origin = '') use ($address, $url, $transaction): array {
+    $request = static function (string $method, string $credential, string $origin = '', string $requestPath = '') use ($address, $url, $transaction): array {
         $headers = "X-Workspace-Update-Transaction: {$transaction}\r\nX-Workspace-Update-Token: {$credential}\r\n";
         if ($origin !== '') $headers .= "Origin: {$origin}\r\n";
         $context = stream_context_create(['http' => [
             'method' => $method, 'header' => $headers, 'ignore_errors' => true, 'timeout' => 10,
         ]]);
-        $body = file_get_contents('http://' . $address . substr($url, strlen('/workspace')), false, $context);
+        $body = file_get_contents('http://' . $address . ($requestPath ?: substr($url, strlen('/workspace'))), false, $context);
         return ['status' => $http_response_header[0] ?? '', 'body' => json_decode((string) $body, true)];
     };
+    $handoff = $request('POST', $token, '', '/legacy-step.php');
+    webExternalAssert(($handoff['body']['result']['continuation_url'] ?? '') === $url,
+        'Старый контроллер не передаёт продолжение внешнему runtime: ' . json_encode($handoff));
+    webExternalAssert(!file_exists($state . '/maintenance.json'), 'Перед handoff уже включён maintenance');
+    foreach ($runtimeManifest['files'] as $relative => $metadata) {
+        if (str_starts_with($relative, 'core/')) {
+            file_put_contents($app . '/' . $relative, '<?php throw new RuntimeException("LIVE_CORE_LOADED");');
+        }
+    }
     webExternalAssert(str_contains($request('GET', $token)['status'], '403'), 'Принят GET');
     webExternalAssert(str_contains($request('POST', 'wrong')['status'], '403'), 'Принят чужой токен');
     webExternalAssert(str_contains($request('POST', $token, 'https://evil.invalid')['status'], '403'), 'Принят чужой Origin');

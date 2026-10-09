@@ -129,6 +129,17 @@ final class UpdateWebTransaction
             );
         }
 
+        // Контроллер exact 1.0.14 фильтрует поля ответа begin. Первый web-step
+        // передаёт браузер внешнему входу до maintenance и любых изменений.
+        if (PHP_SAPI !== 'cli' && UpdatePath::inside(__DIR__, $this->appRoot)) {
+            $url = (new UpdateWebRuntimeLauncher())->recordedUrl($this->stateRoot, $transactionId);
+            if ($url !== '') return [
+                'status' => 'in_progress', 'phase' => 'backup', 'progress' => 20,
+                'transaction_id' => $transactionId, 'continuation_url' => $url,
+                'message' => 'Подготовлено безопасное продолжение обновления.',
+            ];
+        }
+
         try {
             $coordinator = new UpdateCoordinatorLock($this->stateRoot, $transactionId);
         } catch (UpdateCoordinatorBusyException $e) {

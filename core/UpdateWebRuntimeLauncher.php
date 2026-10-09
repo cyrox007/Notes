@@ -58,6 +58,38 @@ final class UpdateWebRuntimeLauncher
             throw new RuntimeException('Не удалось опубликовать HTTP-продолжение');
         }
         $base = '/' . trim((string) (getenv('BASE_PATH') ?: ''), '/');
-        return rtrim($base, '/') . '/update-continuations/' . $name;
+        $url = rtrim($base, '/') . '/update-continuations/' . $name;
+        $mapRoot = $stateRoot . '/web-endpoints';
+        if (is_link($mapRoot) || (!is_dir($mapRoot) && !mkdir($mapRoot, 0700))) {
+            throw new RuntimeException('Не удалось сохранить адрес HTTP-продолжения');
+        }
+        $mapPath = $mapRoot . '/' . $transactionId . '.json';
+        $map = json_encode(['transaction_id' => $transactionId, 'url' => $url], JSON_THROW_ON_ERROR);
+        if (file_exists($mapPath) || is_link($mapPath)
+            || file_put_contents($mapPath, $map, LOCK_EX) !== strlen($map)) {
+            throw new RuntimeException('Не удалось привязать адрес HTTP-продолжения');
+        }
+        chmod($mapPath, 0600);
+        return $url;
+    }
+
+    public function recordedUrl(string $stateRoot, string $transactionId): string
+    {
+        if (preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]{7,95}$/D', $transactionId) !== 1) {
+            throw new RuntimeException('Некорректная транзакция HTTP-продолжения');
+        }
+        $path = $stateRoot . '/web-endpoints/' . $transactionId . '.json';
+        if (!file_exists($path)) return '';
+        if (is_link(dirname($path)) || is_link($path) || !is_file($path) || filesize($path) > 4096) {
+            throw new RuntimeException('Небезопасный адрес HTTP-продолжения');
+        }
+        $map = json_decode((string) file_get_contents($path), true, 8, JSON_THROW_ON_ERROR);
+        $url = $map['url'] ?? '';
+        if (($map['transaction_id'] ?? '') !== $transactionId || !is_string($url)
+            || !str_starts_with($url, '/') || str_starts_with($url, '//')
+            || !str_contains($url, '/update-continuations/') || str_contains($url, '\\')) {
+            throw new RuntimeException('Повреждён адрес HTTP-продолжения');
+        }
+        return $url;
     }
 }
