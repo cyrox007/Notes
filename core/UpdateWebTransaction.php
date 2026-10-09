@@ -162,6 +162,7 @@ final class UpdateWebTransaction
                 ),
                 'candidate_verified',
                 'preflight_verified',
+                'live_mutation_started',
                 'code_switched',
                 'migrations_applied',
                 'postcheck_verified' => $this->applyStep(
@@ -182,7 +183,6 @@ final class UpdateWebTransaction
                     $maintenance,
                     $continuation
                 ),
-                'live_mutation_started',
                 'rollback_started',
                 'code_restored',
                 'database_restored',
@@ -198,6 +198,8 @@ final class UpdateWebTransaction
                     409
                 ),
             };
+        } catch (UpdateStepPending $pause) {
+            return $pause->result($transactionId);
         } catch (Throwable $e) {
             $this->cleanupPreMutationFailure(
                 $transactionId,
@@ -262,7 +264,8 @@ final class UpdateWebTransaction
         $candidate = (new UpdateReleaseCandidate($this->appRoot))->extract(
             $verified['package_path'],
             $this->releaseRoot,
-            $verified['manifest']
+            $verified['manifest'],
+            new UpdateStepBudget()
         );
 
         (new UpdateTransactionStateMachine($this->stateRoot, $this->appRoot))
@@ -397,8 +400,10 @@ final class UpdateWebTransaction
             'recover' => true,
             'state-root' => $this->stateRoot,
             'backup-root' => $this->backupRoot,
+            'single-step' => true,
         ]);
 
+        if (($result['status'] ?? '') === 'in_progress') return $result;
         $continuation->revoke($transactionId);
         $status = (string) ($result['status'] ?? '');
 

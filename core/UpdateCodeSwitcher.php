@@ -8,6 +8,8 @@ require_once __DIR__ . '/UpdateCandidateVerifier.php';
 require_once __DIR__ . '/UpdateFileMutator.php';
 require_once __DIR__ . '/UpdatePath.php';
 require_once __DIR__ . '/UpdateRollbackCodeRestorer.php';
+require_once __DIR__ . '/UpdateStepBudget.php';
+require_once __DIR__ . '/UpdateStepCheckpoint.php';
 
 use JsonException;
 use RuntimeException;
@@ -66,9 +68,12 @@ final class UpdateCodeSwitcher
         }
 
         $scratch = $this->scratchPath($transactionId);
-        if (file_exists($scratch) || is_link($scratch)) {
-            throw new RuntimeException('Каталог updater-плана уже существует; требуется recovery перед повторным apply');
+        if (is_link($scratch)) {
+            throw new RuntimeException('Каталог updater-плана не должен быть ссылкой');
         }
+        // До начала изменений исходное дерево уже сверено с резервной точкой.
+        // Незавершённое создание плана можно безопасно повторить.
+        if (is_dir($scratch)) UpdatePath::removeTree($scratch);
 
         $oldUmask = umask(0077);
         $made = @mkdir($scratch, 0700, false);
@@ -114,7 +119,7 @@ final class UpdateCodeSwitcher
      * @param array<string,mixed> $plan
      * @return array<string,mixed>
      */
-    public function switchPrepared(array $plan): array
+    public function switchPrepared(array $plan, ?UpdateStepBudget $budget = null): array
     {
         $prepared = $this->loadPreparedPlan($plan);
         $payload = $prepared['payload'];
@@ -136,14 +141,34 @@ final class UpdateCodeSwitcher
             throw new RuntimeException('Candidate file-map изменился после фиксации пофайлового updater-плана');
         }
 
-        $liveMap = $this->mutator->releaseFiles();
-        $this->assertContentMapsEqual(
-            $sourceMap,
-            $liveMap,
-            'Live-tree изменился после фиксации пофайлового updater-плана'
+        $checkpoint = new UpdateStepCheckpoint(
+            $prepared['scratch_dir'] . '/progress.json', (string) $plan['plan_sha256']
         );
-
-        $expectedOperations = $this->buildOperations($liveMap, $targetMap);
+        $cursor = $budget === null ? 0 : (int) ($checkpoint->read()['cursor'] ?? 0);
+        $expectedOperations = $this->buildOperations($sourceMap, $targetMap);
+        if ($cursor < 0 || $cursor > count($expectedOperations)) {
+            throw new RuntimeException('Некорректный курсор переключения кода');
+        }
+        $expectedLive = $sourceMap;
+        foreach (array_slice($expectedOperations, 0, $cursor) as $operation) {
+            $this->advanceMap($expectedLive, $operation);
+        }
+        $liveMap = $this->mutator->releaseFiles();
+        // Смерть PHP могла произойти после атомарной замены текущего файла,
+        // но до сохранения курсора. Допустим только этот единственный разрыв.
+        if ($budget !== null && isset($expectedOperations[$cursor])) {
+            $afterCurrent = $expectedLive;
+            $this->advanceMap($afterCurrent, $expectedOperations[$cursor]);
+            if (hash_equals($this->mapSha256($afterCurrent), $this->mapSha256($liveMap))) {
+                ++$cursor;
+                $checkpoint->write(['cursor' => $cursor]);
+                $expectedLive = $afterCurrent;
+            }
+        }
+        $this->assertContentMapsEqual(
+            $expectedLive, $liveMap,
+            'Рабочие файлы изменились вне сохранённого плана обновления'
+        );
         $recordedOperations = is_array($payload['operations'] ?? null)
             ? array_values($payload['operations'])
             : [];
@@ -155,11 +180,16 @@ final class UpdateCodeSwitcher
         }
 
         try {
-            foreach ($expectedOperations as $operation) {
+            foreach ($expectedOperations as $index => $operation) {
+                if ($index < $cursor) continue;
                 $relative = (string) $operation['path'];
 
                 if ($operation['action'] === 'delete') {
                     $this->mutator->delete($relative, $transactionId);
+                    if ($budget !== null) {
+                        $checkpoint->write(['cursor' => $index + 1]);
+                        $budget->checkpoint('switch');
+                    }
                     continue;
                 }
 
@@ -176,6 +206,10 @@ final class UpdateCodeSwitcher
                     (int) $after['mode'],
                     $transactionId
                 );
+                if ($budget !== null) {
+                    $checkpoint->write(['cursor' => $index + 1]);
+                    $budget->checkpoint('switch');
+                }
             }
 
             $this->assertContentMapsEqual(
@@ -183,13 +217,17 @@ final class UpdateCodeSwitcher
                 $this->mutator->releaseFiles(),
                 'Live-tree не совпадает с candidate после пофайлового apply'
             );
+        } catch (UpdateStepPending $pause) {
+            throw $pause;
         } catch (Throwable $e) {
             $this->cleanupScratch((string) $prepared['scratch_dir']);
             throw $e;
         }
 
         $entries = $this->topLevelsFromOperations($expectedOperations);
-        $this->cleanupScratch((string) $prepared['scratch_dir']);
+        // В HTTP-режиме журнал может ещё не успеть записать code_switched.
+        // Оставляем план для повторного подтверждения после обрыва запроса.
+        if ($budget === null) $this->cleanupScratch((string) $prepared['scratch_dir']);
 
         return [
             'entries' => $entries,
@@ -197,6 +235,19 @@ final class UpdateCodeSwitcher
             'file_level' => true,
             'switched_at' => time(),
         ];
+    }
+
+    /** @param array<string,array<string,mixed>> $map @param array<string,mixed> $operation */
+    private function advanceMap(array &$map, array $operation): void
+    {
+        $path = (string) $operation['path'];
+        if ($operation['action'] === 'delete') {
+            unset($map[$path]);
+        } else {
+            $map[$path] = ['size' => (int) $operation['after']['size'],
+                'sha256' => (string) $operation['after']['sha256']];
+        }
+        ksort($map, SORT_STRING);
     }
 
     /** @return array<string,mixed> */

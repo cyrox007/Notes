@@ -37,6 +37,7 @@ jobs:
           php tests/integration/updater_remote_delivery_contract.php
           php tests/integration/external_update_runtime_contract.php
           php tests/integration/updater_web_mode_contract.php
+          php tests/integration/updater_step_checkpoint_contract.php
           php tests/integration/updater_preapply_crash_recovery_contract.php
       - name: Проверить миграцию с ограниченными правами БД
         env:

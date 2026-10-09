@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Core;
 
 require_once __DIR__ . '/UpdatePath.php';
+require_once __DIR__ . '/UpdateDatabaseRestoreSteps.php';
 
 use mysqli;
 use mysqli_result;
@@ -26,7 +27,7 @@ final class UpdateDatabaseRestorer
      * @param array<string,mixed> $databaseMetadata
      * @return array<string,mixed>
      */
-    public function restore(mysqli $db, string $backupDir, array $databaseMetadata): array
+    public function restore(mysqli $db, string $backupDir, array $databaseMetadata, ?UpdateStepBudget $budget = null): array
     {
         $backupDirReal = realpath($backupDir);
         if (!is_string($backupDirReal) || !is_dir($backupDirReal) || is_link($backupDir)) {
@@ -59,6 +60,19 @@ final class UpdateDatabaseRestorer
         // SQL не должен обнаруживаться уже после разрушения рабочей схемы.
         $this->validateDump($dumpPath);
         $this->jsonColumnsCache = [];
+        if ($budget !== null) {
+            $databaseName = (string) ($db->query('SELECT DATABASE() AS name')->fetch_assoc()['name'] ?? '');
+            $identity = hash('sha256', $backupDirReal . ':' . $hash . ':' . $databaseName);
+            $verified = (new UpdateDatabaseRestoreSteps())->run(
+                $db, $dumpPath, $identity, $databaseMetadata, $budget,
+                fn (int $offset, string $delimiter, \Closure $position): \Generator =>
+                    $this->readSqlStatements($dumpPath, $offset, $delimiter, $position),
+                fn (string $sql): string => $this->normalizeLegacyJsonInsert(
+                    $db, $this->normalizePortableTriggerDefinition($sql)),
+                fn (): array => $this->verifyRestoredDatabase($db, $databaseMetadata)
+            );
+            return ['dump_sha256' => $hash, 'dump_bytes' => $size] + $verified + ['restored_at' => time()];
+        }
         $this->dropCurrentDatabaseObjects($db);
         foreach ($this->readSqlStatements($dumpPath) as $index => $statement) {
             try {
@@ -157,7 +171,7 @@ final class UpdateDatabaseRestorer
     }
 
     /** @return \Generator<int,string> */
-    private function readSqlStatements(string $path): \Generator
+    private function readSqlStatements(string $path, int $offset = 0, string $delimiter = ';', ?\Closure $position = null): \Generator
     {
         $handle = fopen($path, 'rb');
         if ($handle === false) {
@@ -166,7 +180,10 @@ final class UpdateDatabaseRestorer
         // Одна строка INSERT ограничена отдельно от общего размера базы.
         // Это оставляет запас для преобразования старых JSON и mysqli.
         $maxStatementBytes = 8 * 1024 * 1024;
-        $delimiter = ';';
+        if ($offset < 0 || fseek($handle, $offset) !== 0) {
+            fclose($handle);
+            throw new RuntimeException('Некорректное смещение в дампе восстановления');
+        }
         $buffer = '';
         try {
             while (($line = fgets($handle, $maxStatementBytes + 2)) !== false) {
@@ -200,6 +217,7 @@ final class UpdateDatabaseRestorer
                 $statement = trim(substr($trimmed, 0, -strlen($delimiter)));
                 $buffer = '';
                 if ($statement !== '') {
+                    if ($position !== null) $position((int) ftell($handle), $delimiter);
                     yield $statement;
                 }
             }

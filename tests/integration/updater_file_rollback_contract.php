@@ -114,11 +114,22 @@ try {
     fileRollbackWrite($live . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'user.bin', "user-data\n");
     fileRollbackWrite($live . DIRECTORY_SEPARATOR . 'tools' . DIRECTORY_SEPARATOR . 'vendor-update' . DIRECTORY_SEPARATOR . 'private.key', "must-survive\n");
 
-    $result = (new UpdateRollbackCodeRestorer($live))->restore($transactionId, $backup);
+    $result = null;
+    $pauses = 0;
+    for ($attempt = 0; $attempt < 30 && $result === null; ++$attempt) {
+        try {
+            $result = (new UpdateRollbackCodeRestorer($live))->restore(
+                $transactionId, $backup, new Core\UpdateStepBudget(1)
+            );
+        } catch (Core\UpdateStepPending $pause) {
+            ++$pauses;
+        }
+    }
+    fileRollbackAssert($result !== null && $pauses >= 3, 'Откат не продолжился после сохранённых шагов');
 
     fileRollbackAssert(($result['file_level'] ?? false) === true, 'Rollback не подтвердил пофайловый режим');
     fileRollbackAssert(($result['candidate_required'] ?? true) === false, 'Rollback не должен зависеть от candidate');
-    fileRollbackAssert(($result['restored_files'] ?? 0) === 3, 'Rollback восстановил неверное число файлов');
+    fileRollbackAssert(($result['restored_files'] ?? 0) === 3, 'Rollback подтвердил неверное число файлов');
 
     foreach ($sourceFiles as $relative => $content) {
         $path = $live . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relative);

@@ -30,6 +30,8 @@ final class UpdateExternalRuntime
         'core/HostingCompatibility.php',
         'core/Version.php',
         'core/UpdatePath.php',
+        'core/UpdateStepBudget.php',
+        'core/UpdateStepCheckpoint.php',
         'core/UpdateFileMutator.php',
         'core/UpdateTransactionJournal.php',
         'core/UpdateTransactionStateMachine.php',
@@ -48,6 +50,7 @@ final class UpdateExternalRuntime
         'core/UpdateCandidateVerifier.php',
         'core/UpdateCodeSwitcher.php',
         'core/UpdateDatabaseRestorer.php',
+        'core/UpdateDatabaseRestoreSteps.php',
         'core/ModuleManifest.php',
         'core/DatabaseOwnership.php',
     ];

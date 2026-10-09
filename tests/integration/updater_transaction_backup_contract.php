@@ -170,6 +170,24 @@ try {
         'JSON изменился после восстановления нового rollback-дампа'
     );
 
+    // Каждый вызов завершает одну операцию; новый объект имитирует новый HTTP-запрос.
+    $pauses = 0;
+    $stepped = null;
+    for ($attempt = 0; $attempt < 200 && $stepped === null; ++$attempt) {
+        try {
+            $stepped = (new UpdateDatabaseRestorer())->restore(
+                $db, $backupDir, $backups['database'], new Core\UpdateStepBudget(1)
+            );
+        } catch (Core\UpdateStepPending $pause) {
+            ++$pauses;
+        }
+    }
+    backupAssert($stepped !== null && $pauses > 5, 'Пошаговое восстановление не завершилось через контрольные точки');
+    backupAssert((int) $db->query('SELECT COUNT(*) AS c FROM items')->fetch_assoc()['c'] === 2,
+        'Повторные запросы продублировали данные');
+    backupAssert((int) $db->query('SELECT COUNT(*) AS c FROM audit')->fetch_assoc()['c'] === 2,
+        'Повторное восстановление изменило аудит');
+
     $legacyDir = $base . '/legacy-db';
     backupAssert(mkdir($legacyDir, 0700, true), 'Не удалось создать каталог legacy rollback');
     $legacySql = preg_replace(
