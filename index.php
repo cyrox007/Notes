@@ -243,7 +243,13 @@ try {
     // секунды раньше нового SupportDiagnostics.php. В этот момент нельзя
     // превращать штатный maintenance/recovery в PHP Warning/Fatal.
     $supportDiagnosticsPath = SITEPATH . '/core/SupportDiagnostics.php';
-    if (is_file($supportDiagnosticsPath) && !is_link($supportDiagnosticsPath)) {
+    $supportDiagnosticsRequest = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) === 'GET'
+        && preg_match('~(?:^|/)support-diagnostics/?$~D',
+            (string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH)) === 1;
+    if ($supportDiagnosticsRequest
+        && is_file($supportDiagnosticsPath) && !is_link($supportDiagnosticsPath)
+        && is_file(SITEPATH . '/core/SupportZipWriter.php')
+        && is_file(SITEPATH . '/core/HostingProfileProbe.php')) {
         require_once $supportDiagnosticsPath;
 
         // Одноразовый пакет поддержки остаётся доступен даже когда обычный
