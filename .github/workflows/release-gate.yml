@@ -160,9 +160,9 @@ jobs:
           test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.15'
           test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '10015'
           test "$(php -r "require 'core/Version.php'; echo Core\\Version::STATUS;")" = 'stable'
-          test "$(php -r "require 'core/Version.php'; echo Core\\Version::RELEASE_DATE;")" = '2026-10-02'
+          test "$(php -r "require 'core/Version.php'; echo Core\\Version::RELEASE_DATE;")" = '2026-10-09'
           grep -Fq '**Версия:** `1.0.15`' README.md
-          grep -Fq '## 1.0.15 — 2026-10-02' CHANGELOG.md
+          grep -Fq '## 1.0.15 — 2026-10-09' CHANGELOG.md
           test -s docs/releases/v1.0.15.md
           grep -Fq '# Workspace Organizer 1.0.15' docs/releases/v1.0.15.md
 
