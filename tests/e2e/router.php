@@ -127,6 +127,45 @@ if ($publicPath !== '/' && !str_contains($publicPath, "\0") && !str_contains($pu
     }
 }
 
+// Во время детерминированной проверки updater не пропускаем фоновые
+// динамические запросы старой страницы в bootstrap/recovery. Статические файлы
+// уже обработаны выше, а сам updater продолжает работать через web-start/web-step.
+$updaterGuardPath = trim((string) getenv('E2E_UPDATER_GUARD_PATH'));
+if ($updaterGuardPath !== '' && is_file($updaterGuardPath)) {
+    $guardBytes = file_get_contents($updaterGuardPath);
+    $guard = is_string($guardBytes) ? json_decode($guardBytes, true) : null;
+    $guardTransaction = is_array($guard)
+        ? trim((string) ($guard['transaction_id'] ?? ''))
+        : '';
+
+    $normalizedPath = rtrim($publicPath, '/');
+    $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? ''));
+    $requestTransaction = trim(
+        (string) ($_SERVER['HTTP_X_WORKSPACE_UPDATE_TRANSACTION'] ?? '')
+    );
+    $e2eDriver = trim((string) ($_SERVER['HTTP_X_E2E_UPDATER_DRIVER'] ?? ''));
+    $isTestDriver = hash_equals('1', $e2eDriver);
+
+    $isStart = $isTestDriver
+        && $method === 'POST'
+        && str_ends_with($normalizedPath, '/admin/updates/web-start');
+    $isStep = $isTestDriver
+        && $method === 'POST'
+        && str_ends_with($normalizedPath, '/admin/updates/web-step')
+        && $guardTransaction !== ''
+        && $requestTransaction !== ''
+        && hash_equals($guardTransaction, $requestTransaction);
+
+    if (!$isStart && !$isStep) {
+        http_response_code(503);
+        header('Cache-Control: no-store');
+        header('Content-Type: text/plain; charset=utf-8');
+        echo 'E2E updater handoff guard';
+        return true;
+    }
+
+}
+
 $configuredSupportRoot = trim((string) getenv('E2E_SUPPORT_ROOT'));
 $supportRoot = $configuredSupportRoot !== '' ? (realpath($configuredSupportRoot) ?: '') : $root;
 $licenseFixture = $supportRoot !== '' ? $supportRoot . '/tests/support/ci_license_fixture.php' : '';

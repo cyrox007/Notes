@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, unlink } from 'node:fs/promises';
 import { chromium } from 'playwright';
 
 function requiredEnv(name) {
@@ -16,6 +16,24 @@ const expectedTarget = requiredEnv('E2E_TARGET_VERSION');
 const stateRoot = requiredEnv('E2E_STATE_ROOT');
 const basePath = '/' + basePathRaw.replace(/^\/+|\/+$/g, '');
 const baseUrl = origin + basePath;
+const routerGuardPath = `${stateRoot}/e2e-updater-handoff-guard.json`;
+
+async function armRouterGuard(transactionId = '') {
+  await writeFile(
+    routerGuardPath,
+    JSON.stringify({ transaction_id: transactionId }, null, 2) + '\n',
+    { mode: 0o600 }
+  );
+}
+
+async function disarmRouterGuard() {
+  try {
+    await unlink(routerGuardPath);
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+  }
+}
+
 
 const allowedPhases = new Set(['migrations', 'postcheck']);
 if (!allowedPhases.has(interruptPhase)) {
@@ -38,6 +56,37 @@ async function login(page) {
     }),
     page.getByRole('button', { name: 'Войти' }).click(),
   ]);
+}
+
+async function postContinuationStep(transactionId, token) {
+  const response = await fetch(`${baseUrl}/admin/updates/web-step`, {
+    method: 'POST',
+    redirect: 'manual',
+    cache: 'no-store',
+    headers: {
+      Accept: 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+      'X-E2E-Updater-Driver': '1',
+      'X-Workspace-Update-Transaction': transactionId,
+      'X-Workspace-Update-Token': token,
+    },
+    signal: AbortSignal.timeout(120000),
+  });
+
+  const text = await response.text();
+  let payload = null;
+  try {
+    payload = JSON.parse(text);
+  } catch (_) {
+    // Текст попадёт в диагностическую ошибку вызывающего кода.
+  }
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    text,
+    payload,
+  };
 }
 
 async function postJson(page, path, headers = {}) {
@@ -89,7 +138,15 @@ try {
     throw new Error(`Проверка обновления перед запуском транзакции вернула HTTP ${checkResponse?.status()}`);
   }
 
-  const start = await postJson(page, `${basePath}/admin/updates/web-start`);
+  // С этого момента любые фоновые динамические запросы страницы блокируются
+  // тестовым router до завершения выбранной точки прерывания.
+  await armRouterGuard();
+
+  const start = await postJson(
+    page,
+    `${basePath}/admin/updates/web-start`,
+    { 'X-E2E-Updater-Driver': '1' }
+  );
   if (!start.ok || !start.payload?.success || !start.payload?.result) {
     throw new Error(
       `Не удалось начать updater-транзакцию: HTTP=${start.status}; body=${start.text}`
@@ -104,6 +161,7 @@ try {
   if (!transactionId || !token) {
     throw new Error('Updater не вернул transaction_id/continuation_token');
   }
+  await armRouterGuard(transactionId);
   if (targetVersion !== expectedTarget) {
     throw new Error(
       `Updater выбрал неожиданную версию: ${targetVersion}; ожидалась ${expectedTarget}`
@@ -136,6 +194,26 @@ try {
     const phase = String(result.phase || '');
     const status = String(result.status || '');
 
+    const traceJournalPath = `${stateRoot}/transactions/${transactionId}.json`;
+    const traceContinuationPath = `${stateRoot}/web-continuations/${transactionId}.json`;
+    let traceJournalState = 'missing';
+    let traceLease = 'missing';
+    try {
+      const traceJournal = JSON.parse(await readFile(traceJournalPath, 'utf8'));
+      traceJournalState = String(traceJournal.state || 'unknown');
+    } catch (error) {
+      if (error?.code !== 'ENOENT') traceJournalState = `error:${error.message}`;
+    }
+    try {
+      const traceContinuation = JSON.parse(await readFile(traceContinuationPath, 'utf8'));
+      traceLease = `created=${traceContinuation.created_at};expires=${traceContinuation.expires_at};now=${Math.floor(Date.now() / 1000)}`;
+    } catch (error) {
+      if (error?.code !== 'ENOENT') traceLease = `error:${error.message}`;
+    }
+    console.log(
+      `UPDATER_TRACE step=${stepNumber + 1} status=${status} phase=${phase} journal=${traceJournalState} lease=${traceLease}`
+    );
+
     if (phase === interruptPhase && status === 'in_progress') {
       reached = true;
       break;
@@ -145,6 +223,20 @@ try {
       throw new Error(
         `Updater завершился до точки прерывания ${interruptPhase}: status=${status}; phase=${phase}`
       );
+    }
+
+    // После переключения файлов старая страница больше не должна создавать
+    // фоновые HTTP-запросы: опубликованные 1.0.12/1.0.13 ещё не знали о lease
+    // в раннем recovery-барьере. Для точки postcheck закрываем браузер и
+    // продолжаем capability-защищённый web-step напрямую. Это устраняет гонку
+    // тестового клиента, не добавляя задержек и специальных веток в продукт.
+    if (
+      interruptPhase === 'postcheck'
+      && phase === 'migrations'
+      && !contextClosed
+    ) {
+      await context.close();
+      contextClosed = true;
     }
 
     const runtimeRefreshDelay = Math.max(
@@ -162,10 +254,16 @@ try {
 
   if (pageErrors.length) throw pageErrors[0];
 
-  // Закрываем весь браузерный контекст и намеренно не вызываем следующий
-  // updater step. На диске остаётся настоящая незавершённая транзакция после
-  // destructive boundary — тот же класс ситуации, что при обрыве клиента.
-  await context.close();
+  // Закрываем браузерный контекст и намеренно не вызываем следующий
+  // updater step. Для postcheck он уже закрыт перед handoff-запросом выше.
+  // На диске остаётся настоящая незавершённая транзакция после destructive
+  // boundary — тот же класс ситуации, что при обрыве клиента.
+  if (!contextClosed) {
+    await context.close();
+    contextClosed = true;
+  }
+
+  await disarmRouterGuard();
 
   let recoveryResponse = await fetch(`${baseUrl}/`, {
     redirect: 'follow',
@@ -256,5 +354,6 @@ try {
   console.log(`INTERRUPTED_PHASE=${interruptPhase}`);
   console.log('Автоматический boot recovery после реального прерывания web-updater: OK');
 } finally {
+  await disarmRouterGuard();
   await browser.close();
 }
