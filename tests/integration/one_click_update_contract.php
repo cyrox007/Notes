@@ -226,12 +226,13 @@ updateNotificationAssert(
     'Сквозной релизный тест не запускает браузерную проверку автоматического отката'
 );
 updateNotificationAssert(
-    str_contains($adminUpdateE2e, 'name: 1.0.12/1.0.13 → 1.0.14 сквозной updater')
+    str_contains($adminUpdateE2e, "target_version: '1.0.14'")
+        && str_contains($adminUpdateE2e, "target_code: '10014'")
         && str_contains($adminUpdateE2e, "source_version: '1.0.12'")
         && str_contains($adminUpdateE2e, "source_code: '10012'")
         && str_contains($adminUpdateE2e, "source_version: '1.0.13'")
         && str_contains($adminUpdateE2e, "source_code: '10013'")
-        && str_contains($adminUpdateE2e, "E2E_TARGET_VERSION=%s\\n' '1.0.14-admin-e2e'")
+        && str_contains($adminUpdateE2e, '${{ matrix.target_version }}-admin-e2e')
         && str_contains($adminUpdateE2e, '--min-source-version-code=10012')
         && str_contains($adminUpdateE2e, 'Подготовить совместимый updater-контур')
         && str_contains(
@@ -256,12 +257,12 @@ updateNotificationAssert(
     'Web-runner не выдерживает паузу для обновления PHP runtime после переключения кода'
 );
 updateNotificationAssert(
-    str_contains($adminUpdateE2e, '1.0.14-broken-e2e')
+    str_contains($adminUpdateE2e, '${{ matrix.target_version }}-broken-e2e')
         && str_contains($adminUpdateE2e, 'намеренный отказ миграции'),
     'Сквозной релизный тест не содержит намеренно падающий подписанный пакет 1.0.14'
 );
 updateNotificationAssert(
-    str_contains($adminUpdateE2e, '1.0.14-health-broken-e2e')
+    str_contains($adminUpdateE2e, '${{ matrix.target_version }}-health-broken-e2e')
         && str_contains($adminUpdateE2e, 'намеренный отказ post-health после успешной миграции'),
     'Сквозной релизный тест не проверяет автоматический откат 1.0.14 после ошибки post-health после успешной миграции'
 );
