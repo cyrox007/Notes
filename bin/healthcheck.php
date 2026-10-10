@@ -2,21 +2,17 @@
 
 declare(strict_types=1);
 
-if (PHP_SAPI !== 'cli') {
-    fwrite(STDERR, "This command is CLI-only.\n");
-    exit(2);
-}
+require_once dirname(__DIR__) . '/core/CliRuntime.php';
+\Core\CliRuntime::assertCli();
+$root = \Core\CliRuntime::projectRoot();
 
-$root = dirname(__DIR__);
-require_once $root . '/core/Environment.php';
 require_once $root . '/core/HostingCompatibility.php';
 if (!\Core\HostingCompatibility::processEnvironmentAvailable()) {
     fwrite(STDERR, "PHP-функции getenv/putenv недоступны; окружение Workspace Organizer загрузить нельзя.\n");
     exit(1);
 }
-if (is_file($root . '/.env')) {
-    \Core\Environment::load($root . '/.env');
-}
+\Core\CliRuntime::loadEnvironment($root);
+
 require_once $root . '/core/WebSocketEndpoint.php';
 require_once $root . '/core/ModuleManifest.php';
 require_once $root . '/core/DatabaseOwnership.php';
@@ -30,7 +26,7 @@ try {
     $databaseOwnership = \Core\DatabaseOwnership::fromPackageRoot($root);
     $packagedModules = $databaseOwnership->moduleIds();
 } catch (Throwable $e) {
-    fwrite(STDERR, 'Cannot resolve packaged module database ownership: ' . $e->getMessage() . PHP_EOL);
+    fwrite(STDERR, 'Не удалось определить владение БД модулей из пакета: ' . $e->getMessage() . PHP_EOL);
     exit(1);
 }
 $hasMessenger = in_array('messenger', $packagedModules, true);
@@ -59,7 +55,13 @@ function pathIsInside(string $path, string $parent): bool
     return $path === $parent || str_starts_with($path . '/', $parent . '/');
 }
 
-recordHealth($checks, $failed, 'php_version', version_compare(PHP_VERSION, '8.1.0', '>='), PHP_VERSION . ' (technical floor 8.1; production 8.3+ recommended)');
+recordHealth(
+    $checks,
+    $failed,
+    'php_version',
+    version_compare(PHP_VERSION, '8.2.0', '>='),
+    PHP_VERSION . ' (технический минимум 8.2; для production рекомендуется 8.3+)'
+);
 foreach (['mysqli', 'pdo_mysql', 'mbstring', 'sodium', 'openssl', 'zlib', 'fileinfo', 'gd'] as $extension) {
     recordHealth($checks, $failed, 'extension_' . $extension, extension_loaded($extension));
 }
@@ -75,7 +77,7 @@ if ($hasMessenger) {
             $failed,
             'messenger_transport',
             true,
-            $webSocketEnabled ? 'Long Poll + WebSocket ускоритель' : 'Long Poll only'
+            $webSocketEnabled ? 'Long Poll + WebSocket-ускоритель' : 'только Long Poll'
         );
     } catch (Throwable $e) {
         recordHealth($checks, $failed, 'messenger_transport', false, $e->getMessage());
@@ -92,7 +94,7 @@ foreach ($requiredSecrets as $secretName) {
         $failed,
         'secret_' . strtolower($secretName),
         strlen($secret) >= 32,
-        $secret === '' ? 'missing' : 'configured'
+        $secret === '' ? 'не задан' : 'настроен'
     );
 }
 
@@ -104,7 +106,7 @@ recordHealth(
     $failed,
     'private_storage',
     $privateOk,
-    !$needsPrivateStorage ? 'not required by packaged composition' : ($privateStorage === '' ? 'missing' : $privateStorage)
+    !$needsPrivateStorage ? 'не требуется текущим составом модулей' : ($privateStorage === '' ? 'не задан' : $privateStorage)
 );
 
 $appReal = realpath($root);
@@ -133,7 +135,7 @@ if ($needsPrivateStorage) {
         $failed,
         'private_storage_outside_app_root',
         $outsideApp,
-        $privateReal ?: 'unresolved'
+        $privateReal ?: 'путь не разрешён'
     );
 }
 
@@ -144,7 +146,7 @@ recordHealth(
     $failed,
     'deployment_node_count',
     $nodeCount >= 1,
-    $nodeCountRaw === '' ? '1 (default)' : $nodeCountRaw
+    $nodeCountRaw === '' ? '1 (по умолчанию)' : $nodeCountRaw
 );
 
 if ($needsPrivateStorage) {
@@ -162,8 +164,8 @@ if ($needsPrivateStorage) {
         'rate_limit_storage',
         $rateLimitOk,
         $nodeCount > 1 && $rateLimitUsesPrivate
-            ? 'multi-node requires explicit shared RATE_LIMIT_STORAGE_PATH'
-            : ($rateLimitUsesPrivate ? 'PRIVATE_STORAGE_PATH (single-node default)' : $rateLimitStorage)
+            ? 'для нескольких узлов требуется явно заданный общий RATE_LIMIT_STORAGE_PATH'
+            : ($rateLimitUsesPrivate ? 'PRIVATE_STORAGE_PATH (значение по умолчанию для одного узла)' : $rateLimitStorage)
     );
 
     if (!$rateLimitUsesPrivate) {
@@ -175,7 +177,7 @@ if ($needsPrivateStorage) {
             $failed,
             'rate_limit_storage_outside_app_root',
             $rateLimitOutsideApp,
-            $rateLimitReal ?: 'unresolved'
+            $rateLimitReal ?: 'путь не разрешён'
         );
     }
 }
@@ -193,7 +195,7 @@ recordHealth(
     $failed,
     'trusted_proxy_ips',
     $trustedProxyOk,
-    $trustedProxyValues === [] ? 'none configured' : implode(', ', $trustedProxyValues)
+    $trustedProxyValues === [] ? 'не настроены' : implode(', ', $trustedProxyValues)
 );
 
 $siteUrl = envValue('SITEURL');
@@ -203,8 +205,8 @@ if ($hasMessenger) {
         $siteUrl = \Core\WebSocketEndpoint::siteUrl();
         $siteScheme = strtolower((string) parse_url($siteUrl, PHP_URL_SCHEME));
         recordHealth($checks, $failed, 'site_url', true, $siteUrl);
-    } catch (Throwable $e) {
-        recordHealth($checks, $failed, 'site_url', false, $siteUrl !== '' ? $siteUrl : 'missing');
+    } catch (Throwable) {
+        recordHealth($checks, $failed, 'site_url', false, $siteUrl !== '' ? $siteUrl : 'не задан');
     }
 
     if ($webSocketEnabled) {
@@ -223,10 +225,10 @@ if ($hasMessenger) {
                     'websocket_proxy_contract',
                     true,
                     \Core\WebSocketEndpoint::proxyPath() . ' -> ' . \Core\WebSocketEndpoint::proxyBackendUrl()
-                        . ' (verify reachability with php bin/ws_doctor.php)'
+                        . ' (доступность проверьте командой php bin/ws_doctor.php)'
                 );
             } else {
-                recordHealth($checks, $failed, 'websocket_proxy_contract', true, 'custom/external public WebSocket endpoint');
+                recordHealth($checks, $failed, 'websocket_proxy_contract', true, 'внешняя публичная точка WebSocket');
             }
         } catch (Throwable $e) {
             recordHealth($checks, $failed, 'websocket_url', false, $e->getMessage());
@@ -246,7 +248,7 @@ if ($hasMessenger) {
             $failed,
             'websocket_allowed_origins',
             $originsOk,
-            $origins === [] ? 'missing' : implode(', ', $origins)
+            $origins === [] ? 'не заданы' : implode(', ', $origins)
         );
     } else {
         recordHealth(
@@ -254,11 +256,11 @@ if ($hasMessenger) {
             $failed,
             'messenger_websocket',
             true,
-            'disabled by WS_ENABLED=0; Long Poll is the active primary transport'
+            'отключён через WS_ENABLED=0; основным транспортом остаётся Long Poll'
         );
     }
 } else {
-    recordHealth($checks, $failed, 'messenger_websocket', true, 'not required by packaged composition');
+    recordHealth($checks, $failed, 'messenger_websocket', true, 'не требуется текущим составом модулей');
 }
 
 $requiredTables = $databaseOwnership->tables();
@@ -272,7 +274,7 @@ try {
     $database = envValue('DBNAME');
 
     if ($user === '' || $database === '') {
-        throw new RuntimeException('DBUSER/DBNAME are not configured');
+        throw new RuntimeException('DBUSER/DBNAME не настроены');
     }
 
     $db = new mysqli($host, $user, $pass, $database, $port);
@@ -306,7 +308,9 @@ try {
         $failed,
         'database_contract',
         $missing === [],
-        $missing === [] ? count($requiredTables) . ' required tables present' : 'missing: ' . implode(', ', $missing)
+        $missing === []
+            ? count($requiredTables) . ' обязательных таблиц на месте'
+            : 'отсутствуют: ' . implode(', ', $missing)
     );
 
     if ($missing === [] && $hasFiles) {
@@ -319,7 +323,7 @@ try {
             $failed,
             'storage_quota_setting',
             $quotaSeedOk,
-            $quotaSeedOk ? (string) $quotaSeed[0] . ' bytes default' : 'missing/invalid default quota'
+            $quotaSeedOk ? (string) $quotaSeed[0] . ' байт по умолчанию' : 'значение квоты отсутствует или некорректно'
         );
     }
     $db->close();
@@ -328,18 +332,18 @@ try {
 }
 
 if ($json) {
-    echo json_encode([
+    \Core\CliRuntime::writeJson([
         'status' => $failed ? 'fail' : 'ok',
         'packaged_modules' => $packagedModules,
         'checks' => $checks,
-    ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
+    ], true);
 } else {
     foreach ($checks as $check) {
         $prefix = $check['ok'] ? '[OK]  ' : '[FAIL]';
         $details = $check['details'] !== null && $check['details'] !== '' ? ' — ' . $check['details'] : '';
         echo $prefix . ' ' . $check['name'] . $details . PHP_EOL;
     }
-    echo $failed ? "Healthcheck: FAIL\n" : "Healthcheck: OK\n";
+    echo $failed ? "Проверка состояния: ОШИБКА\n" : "Проверка состояния: OK\n";
 }
 
 exit($failed ? 1 : 0);
