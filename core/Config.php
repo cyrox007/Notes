@@ -6,7 +6,8 @@ namespace Core;
 
 class Config
 {
-    public static $db_connection;
+    /** @var array{driver:string,hostname:string,port:int|string,username:string,password:string,database:string} */
+    public static array $db_connection = [];
     private static array $configValues = [];
 
     /**
@@ -69,11 +70,11 @@ class Config
     }
 
     // Совместимость со старыми участками кода.
-    public $user_role_superadmin = self::USER_ROLE_SUPERADMIN;
-    public $user_role_admin = self::USER_ROLE_ADMIN;
-    public $user_role_activate = self::USER_ROLE_USER;
-    public $user_role_inactive = self::USER_ROLE_INACTIVE;
-    public $user_role_blocked = self::USER_ROLE_BLOCKED;
+    public int $user_role_superadmin = self::USER_ROLE_SUPERADMIN;
+    public int $user_role_admin = self::USER_ROLE_ADMIN;
+    public int $user_role_activate = self::USER_ROLE_USER;
+    public int $user_role_inactive = self::USER_ROLE_INACTIVE;
+    public int $user_role_blocked = self::USER_ROLE_BLOCKED;
 
     public function base_url(): string
     {
