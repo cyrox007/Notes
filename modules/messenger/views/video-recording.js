@@ -50,17 +50,18 @@
    xhr.onerror=xhr.ontimeout=()=>reject(new Error('Не удалось загрузить запись.'));xhr.onabort=()=>reject(new Error('Отправка отменена.'));xhr.send(form);
   });}
   send.addEventListener('click',async()=>{
-   if(!blob||uploading)return;uploading=true;send.disabled=true;controller=new AbortController();
+   if(!blob||uploading)return;uploading=true;send.disabled=true;controller=new AbortController();let confirmationTimeout=null;
    try{
     if(!attachment)attachment=await upload();
     if(attachment?.media_kind!=='video')throw new Error('Сервер не распознал видеозапись');
     status.textContent='Подтверждаем отправку…';
+    confirmationTimeout=setTimeout(()=>controller?.abort(),30000);
     const response=await fetch(path(`/messenger/recorded/${encodeURIComponent(attachment.uid)}/send`),{method:'POST',headers:{'Accept':'application/json','Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:new URLSearchParams({reply_to_uid:reply}),signal:controller.signal});
     const payload=await response.json();if(!response.ok||!payload.success)throw new Error(payload.message||'Не удалось подтвердить отправку');
     if(app.currentDialog?.uid===dialogUid)app.sendEvent('MessangerSocket:load',{dialog_uid:dialogUid});app.sendEvent('MessangerSocket:get_dialogs',{});
     reset();dialog.close();app.showToast('Видеосообщение отправлено');
    }catch(error){status.textContent=`${error.name==='AbortError'?'Отправка отменена.':error.message} Запись не потеряна: повторите отправку или скачайте её.`;send.textContent='Повторить отправку';}
-   finally{uploading=false;send.disabled=false;controller=null;xhr=null;}
+   finally{clearTimeout(confirmationTimeout);uploading=false;send.disabled=false;controller=null;xhr=null;}
   });
   dialog.querySelector('[data-video=cancel]').addEventListener('click',close);dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
   window.addEventListener('pagehide',()=>{controller?.abort();xhr?.abort();reset();});
