@@ -9,8 +9,8 @@ $headerPath = $root . '/app/views/^shared/header/index.php';
 $sidebarPath = $root . '/app/views/^shared/sidebar/index.php';
 $headerStylePath = $root . '/app/views/^shared/header/style.css';
 $sidebarStylePath = $root . '/app/views/^shared/sidebar/style.css';
-$cssPath = $root . '/assets/css/workspace-ui-1.0.css';
-$brandCssPath = $root . '/assets/css/workspace-brand-1.0.14.css';
+$cssPath = $root . '/assets/css/workspace.css';
+$brandCssPath = $root . '/assets/css/workspace.css';
 $brandMarkPath = $root . '/assets/img/workspace-brand-mark.svg';
 $scriptPath = $root . '/assets/js/theme-mode.js';
 
@@ -51,15 +51,20 @@ uiSystemAssert(
     'UI system source is unreadable'
 );
 
-$uiStylesheet = '/assets/css/workspace-ui-1.0.css';
+$uiStylesheet = '/assets/css/workspace.css';
+uiSystemAssert(substr_count($base, '/assets/css/workspace.css') === 1, 'current design stylesheet must load exactly once');
+uiSystemAssert(str_contains($base, '<body data-workspace-section='), 'module accent must exist in server-rendered HTML before deferred scripts');
+foreach (['workspace-ui-1.0.css', 'workspace-brand-1.0.14.css', 'workspace-dark-1.0.16.css'] as $retiredStyle) {
+    uiSystemAssert(!is_file($root . '/assets/css/' . $retiredStyle), 'retired stylesheet still ships: ' . $retiredStyle);
+}
 $controlsMarker = 'echo $controlsCss';
 $uiPosition = strpos($base, $uiStylesheet);
 $controlsPosition = strpos($base, $controlsMarker);
 uiSystemAssert($uiPosition !== false, 'unified UI stylesheet is not loaded');
 uiSystemAssert($controlsPosition !== false && $uiPosition > $controlsPosition, 'unified UI stylesheet must load after controls and module styles');
-$brandStylesheet = '/assets/css/workspace-brand-1.0.14.css';
+$brandStylesheet = '/assets/css/workspace.css';
 $brandPosition = strpos($base, $brandStylesheet);
-uiSystemAssert($brandPosition !== false && $brandPosition > $uiPosition, 'брендовый слой 1.0.14 должен загружаться последним');
+uiSystemAssert($brandPosition !== false && $brandPosition === $uiPosition, 'единая текущая система должна загружаться один раз');
 uiSystemAssert(str_contains($base, '/assets/img/workspace-brand-mark.svg'), 'фирменный знак не используется как favicon');
 uiSystemAssert(str_contains($base, '/assets/js/theme-mode.js'), 'theme controller is not loaded');
 $commonScript = (string) file_get_contents($root . '/assets/js/common.js');
@@ -132,7 +137,7 @@ foreach (['core/theme-refresh.css', 'core/product-ux-013.css', '/assets/css/live
 }
 
 foreach (['--ui-bg:', '--ui-surface:', '--ui-text:', '--ui-border:', '--ui-primary:', 'html[data-theme="dark"]'] as $marker) {
-    uiSystemAssert(str_contains($commonStyle, $marker), "core visual tokens are missing marker: {$marker}");
+    uiSystemAssert(str_contains($css, $marker), "core visual tokens are missing marker: {$marker}");
 }
 foreach ([
     '.workspace-home__hero',
@@ -148,7 +153,7 @@ foreach ([
 }
 
 foreach (['--brand-navy:', '--brand-blue:', '--brand-cyan:', '--brand-violet:', '--brand-orange:', '--brand-teal:', '.workspace-home__hero', '.workspace-viewport--messenger'] as $marker) {
-    uiSystemAssert(str_contains($brandCss, $marker), "брендовый слой 1.0.14 потерял маркер: {$marker}");
+    uiSystemAssert(str_contains($brandCss, $marker), "единая система потеряла маркер: {$marker}");
 }
 uiSystemAssert(str_contains($brandMark, '<svg') && str_contains($brandMark, 'Workspace Organizer'), 'фирменный SVG-знак повреждён');
 
@@ -157,7 +162,7 @@ foreach ([
     "prefers-color-scheme: dark",
     "aria-pressed",
     "dataset.theme",
-    "#061329",
+    "#121314",
     "#f4f8ff",
 ] as $marker) {
     uiSystemAssert(str_contains($script, $marker), "theme controller is missing marker: {$marker}");
@@ -172,4 +177,4 @@ uiSystemAssert(
     'системные confirm/prompt потеряли плавное появление или закрытие'
 );
 
-fwrite(STDOUT, "[OK] единая светлая/тёмная бренд-система Workspace Organizer 1.0.14\n");
+fwrite(STDOUT, "[OK] единая светлая/тёмная бренд-система Workspace Organizer 1.0.16\n");

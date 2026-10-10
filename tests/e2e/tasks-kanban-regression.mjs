@@ -18,7 +18,7 @@ try {
  <div class="tasks__list"><div class="task-item" data-task-id="test" data-status="pending"><div class="task-header"><h3 class="task-title">Video regression</h3><input type="checkbox" class="task-complete-toggle" data-task-id="test"></div>
  <select class="task-status-toggle" data-task-id="test">${['pending','in_progress','completed','cancelled'].map(s=>`<option>${s}</option>`).join('')}</select><span class="task-status-label"></span>
  <button type="button" class="btn-sm">Добавить категорию</button><button type="button" class="btn-primary">Сохранить</button><div class="task-subtasks"><button type="button" class="btn-sm">+ Добавить</button></div></div></div></section></body></html>`);
- for(const path of ['app/views/core/common.css','modules/tasks/assets/style.css','modules/tasks/assets/hardening.css','modules/tasks/assets/kanban.css','app/views/core/controls.css','assets/css/workspace-ui-1.0.css','assets/css/workspace-brand-1.0.14.css','assets/css/workspace-dark-1.0.16.css']) await page.addStyleTag({content:await readFile(path,'utf8')});
+ for(const path of ['app/views/core/common.css','modules/tasks/assets/style.css','modules/tasks/assets/hardening.css','modules/tasks/assets/kanban.css','app/views/core/controls.css','assets/css/workspace.css']) await page.addStyleTag({content:await readFile(path,'utf8')});
  await page.evaluate(()=>{window.wspace={path:p=>'http://tasks.test'+p};window.alert=()=>{};});
  for(const path of ['assets/js/usability-actions.js','modules/tasks/assets/tasks-page.js','modules/tasks/assets/tasks-kanban.js']) await page.addScriptTag({content:await readFile(path,'utf8')});
  const card=page.locator('.task-item');

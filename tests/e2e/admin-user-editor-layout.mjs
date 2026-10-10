@@ -7,7 +7,7 @@ const browser=await chromium.launch({headless:true,...(process.env.E2E_BROWSER_E
 try{
  const page=await browser.newPage();
  await page.setContent(`<html><body><main class="admin-page"><section class="admin-panel-card"><div class="admin-users-table-wrap"><table class="admin-users-table"><tbody><tr><td data-label="Пользователь">Test user</td><td data-label="Действия"><div class="admin-user-actions"><details open class="admin-user-editor"><summary class="admin-action">Редактировать</summary><form class="admin-user-editor__form">${['Логин','Email','Имя','Отчество','Фамилия','Телефон','Новый пароль'].map(label=>`<label>${label}<input value="Example value"></label>`).join('')}<button class="admin-action">Сохранить</button></form></details><form><button class="admin-action">Блокировать</button></form></div></td></tr></tbody></table></div></section></main></body></html>`);
- for(const file of ['app/views/core/common.css','app/views/core/controls.css','assets/css/workspace-ui-1.0.css','assets/css/workspace-brand-1.0.14.css','modules/admin/assets/style.css','assets/css/workspace-dark-1.0.16.css'])await page.addStyleTag({content:await readFile(file,'utf8')});
+ for(const file of ['app/views/core/common.css','app/views/core/controls.css','modules/admin/assets/style.css','assets/css/workspace.css'])await page.addStyleTag({content:await readFile(file,'utf8')});
  for(const width of [1440,390])for(const theme of ['light','dark']){
   await page.setViewportSize({width,height:900});await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);
   const geometry=await page.locator('.admin-user-editor__form').evaluate(form=>{

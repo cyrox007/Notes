@@ -173,7 +173,7 @@ foreach ([
     'bootstrap-1.0.12-updater.php',
     'UPDATE_1012_BOOTSTRAP',
     'UPDATE_1012_BOOTSTRAP_CHECKSUM',
-    'assets/css/workspace-brand-1.0.14.css',
+    'assets/css/workspace.css',
     'assets/img/workspace-brand-mark.svg',
     'assets/img/workspace-brand-lockup.svg',
 ] as $marker) {

@@ -58,6 +58,7 @@ jobs:
           php -l core/routerConfig.php
           php -l tests/e2e/router.php
           php tests/integration/native_admin_contract.php
+          php tests/integration/storage_capacity_contract.php
           node --check modules/admin/assets/admin-page.js
           node --check modules/admin/assets/admin-settings-nav.js
           node --check tests/e2e/admin-lifecycle.mjs
@@ -210,6 +211,7 @@ jobs:
         run: |
           node tests/e2e/admin-lifecycle.mjs
           node tests/e2e/admin-user-editor-layout.mjs
+          node tests/e2e/workspace-style-startup.mjs
 
       - name: Verify durable Admin lifecycle state
         shell: bash

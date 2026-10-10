@@ -6,6 +6,7 @@ declare(strict_types=1);
 $currentUser = isset($user) && is_array($user) ? $user : [];
 $access = isset($workspaceAccess) && is_array($workspaceAccess) ? $workspaceAccess : [];
 $storageUsers = isset($storage_users) && is_array($storage_users) ? $storage_users : [];
+$capacity = isset($storage_capacity) && is_array($storage_capacity) ? $storage_capacity : [];
 $flash = isset($settings_flash) && is_array($settings_flash) ? $settings_flash : null;
 $defaultQuotaBytes = max(0, (int) ($default_quota_bytes ?? 0));
 $uploadLimitBytes = max(0, (int) ($upload_limit_bytes ?? 0));
@@ -75,6 +76,23 @@ ob_start();
     </section>
 
     <?php if ($filesEnabled): ?>
+    <section class="admin-panel-card">
+        <div class="admin-panel-card__header">
+            <div><span class="admin-panel-card__kicker">Планирование места</span><h2>Вместимость хранилища</h2><p>Снимок доступного места на разделе диска, где находится приватное хранилище.</p></div>
+        </div>
+        <div class="admin-storage-capacity">
+            <dl class="admin-storage-capacity__metrics">
+                <?php foreach (['total_bytes' => 'Объём раздела диска', 'free_bytes' => 'Свободно на диске сейчас', 'used_bytes' => 'Активные файлы пользователей', 'assigned_bytes' => 'Сумма назначенных квот', 'potential_bytes' => 'До заполнения всех квот'] as $key => $label): ?>
+                <div><dt><?= $view->e($label) ?></dt><dd><?= isset($capacity[$key]) ? $view->e($formatBytes($capacity[$key])) : 'Не удалось определить' ?></dd></div>
+                <?php endforeach; ?>
+            </dl>
+            <p>Квоты — верхние пределы, они не резервируют место. При распределении ориентируйтесь на свободное место и оставляйте запас для базы, резервных копий, корзины и других данных. Сумма квот указана без дополнительных ограничений ролей.</p>
+            <?php if (!empty($capacity['overcommitted'])): ?>
+                <p class="admin-page__flash admin-page__flash--error" role="status">Если все пользователи заполнят свои квоты, не хватит <?= $view->e($formatBytes($capacity['shortfall_bytes'])) ?>. Уменьшите квоты или увеличьте доступное хранилище.</p>
+            <?php endif; ?>
+            <p>На общем хостинге PHP может показывать весь раздел сервера. Тарифная квота аккаунта может быть меньше и не определяется автоматически — сверяйте её с панелью хостинга. Эти показатели относятся к диску, а не к оперативной памяти.</p>
+        </div>
+    </section>
     <section class="admin-panel-card">
         <div class="admin-panel-card__header">
             <div><span class="admin-panel-card__kicker">По умолчанию</span><h2>Лимит хранилища</h2><p>Используется для пользователей без персонального override.</p></div>

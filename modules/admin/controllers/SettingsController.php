@@ -8,6 +8,7 @@ use App\Helpers\CryptMethods;
 use App\Models\UserModel;
 use App\Services\FileUploadLimitService;
 use App\Services\StorageQuotaService;
+use App\Services\StorageCapacityService;
 use App\Services\TwoFactorPolicyService;
 use Core\Controller;
 use Core\ModuleRuntimeLoader;
@@ -49,6 +50,7 @@ final class SettingsController extends Controller
             'files_enabled' => $filesEnabled,
             'default_quota_bytes' => $defaultQuotaBytes,
             'storage_users' => $storageUsers,
+            'storage_capacity' => $filesEnabled ? (new StorageCapacityService())->snapshot($storageUsers) : [],
             'upload_limit_bytes' => $uploadLimitBytes,
             'upload_limit_diagnostics' => $uploadLimitDiagnostics,
             'two_factor_required' => (new TwoFactorPolicyService())->required(),
