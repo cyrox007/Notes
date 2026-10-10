@@ -6,6 +6,7 @@ use App\Helpers\CryptMethods;
 use App\Helpers\MessengerCrypto;
 use App\Services\LicenseVerifier;
 use App\Services\TwoFactorService;
+use Core\DatabaseManager;
 use Core\UpdateDownloadCredentials;
 
 function sensitiveParameterAssert(bool $condition, string $message): void
@@ -68,6 +69,7 @@ sensitiveParameterAssert(
 require_once $root . '/app/handlers/CryptMethods.php';
 require_once $root . '/app/services/TwoFactorService.php';
 require_once $root . '/app/services/LicenseVerifier.php';
+require_once $root . '/core/DatabaseManager.php';
 require_once $root . '/core/UpdateDownloadCredentials.php';
 require_once $root . '/modules/messenger/handlers/MessengerCrypto.php';
 
@@ -87,6 +89,13 @@ sensitiveParameterAssertMarked(UpdateDownloadCredentials::class, 'store', 'data'
 sensitiveParameterAssertMarked(MessengerCrypto::class, 'encryptWithSecret', 'plaintext');
 sensitiveParameterAssertMarked(MessengerCrypto::class, 'encryptWithSecret', 'secret');
 sensitiveParameterAssertMarked(MessengerCrypto::class, 'decryptCurrentWithSecret', 'secret');
+
+foreach (['queueInsert', 'queueUpdate', 'execute', 'fetchAll', 'fetchOne', 'fetchValue'] as $method) {
+    $parameter = in_array($method, ['queueInsert', 'queueUpdate'], true) ? 'data' : 'params';
+    sensitiveParameterAssertMarked(DatabaseManager::class, $method, $parameter);
+}
+sensitiveParameterAssertMarked(DatabaseManager::class, 'buildDsn', 'config');
+sensitiveParameterAssertMarked(DatabaseManager::class, 'maskQuery', 'params');
 
 $credentialsClass = new ReflectionClass(UpdateDownloadCredentials::class);
 sensitiveParameterAssert(
