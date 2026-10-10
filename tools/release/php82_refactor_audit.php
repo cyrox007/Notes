@@ -38,6 +38,7 @@ $deprecatedPatterns = [
 $deprecated = [];
 $strictTypesMissing = [];
 $untypedProperties = [];
+$resourceProperties = [];
 $dynamicPropertyCandidates = [];
 
 foreach ($files as $relative => $source) {
@@ -67,12 +68,20 @@ foreach ($files as $relative => $source) {
         $strictTypesMissing[] = $relative;
     }
 
+    $resourceBacked = resourceBackedPropertyNames($source);
     foreach (untypedPropertyMatches($code) as $match) {
-        $untypedProperties[] = [
+        $finding = [
             'file' => $relative,
             'line' => sourceLine($source, $match['offset']),
             'property' => $match['property'],
         ];
+
+        if (isset($resourceBacked[$match['property']])) {
+            $resourceProperties[] = $finding;
+            continue;
+        }
+
+        $untypedProperties[] = $finding;
     }
 
     $declared = declaredPropertyNames($code);
@@ -96,11 +105,13 @@ $report = [
     'deprecated' => $deprecated,
     'strict_types_missing' => array_values($strictTypesMissing),
     'untyped_properties' => $untypedProperties,
+    'resource_properties' => $resourceProperties,
     'dynamic_property_candidates' => $dynamicPropertyCandidates,
     'summary' => [
         'deprecated' => count($deprecated),
         'strict_types_missing' => count($strictTypesMissing),
         'untyped_properties' => count($untypedProperties),
+        'resource_properties' => count($resourceProperties),
         'dynamic_property_candidates' => count($dynamicPropertyCandidates),
     ],
 ];
@@ -118,6 +129,7 @@ echo 'Проверено PHP-файлов: ' . $report['files_scanned'] . PHP_EO
 echo 'Устаревших конструкций: ' . $report['summary']['deprecated'] . PHP_EOL;
 echo 'Файлов с классами без strict_types: ' . $report['summary']['strict_types_missing'] . PHP_EOL;
 echo 'Нетипизированных свойств: ' . $report['summary']['untyped_properties'] . PHP_EOL;
+echo 'Свойств с PHP resource: ' . $report['summary']['resource_properties'] . PHP_EOL;
 echo 'Кандидатов на динамические свойства: ' . $report['summary']['dynamic_property_candidates'] . PHP_EOL;
 
 /** @return array<string,string> */
@@ -286,6 +298,26 @@ function untypedPropertyMatches(string $source): array
             'property' => (string) $property[0],
             'offset' => (int) $matches[0][$index][1],
         ];
+    }
+
+    return $result;
+}
+
+/** @return array<string,true> */
+function resourceBackedPropertyNames(string $source): array
+{
+    $pattern = '/\/\*\*\s*@var\s+resource(?:\|null)?\s*\*\/\s*(?:public|protected|private)\s+\$([A-Za-z_][A-Za-z0-9_]*)/';
+    $count = @preg_match_all($pattern, $source, $matches);
+    if ($count === false) {
+        throw invalidAuditPattern($pattern);
+    }
+    if ($count === 0) {
+        return [];
+    }
+
+    $result = [];
+    foreach ($matches[1] as $property) {
+        $result[(string) $property] = true;
     }
 
     return $result;
