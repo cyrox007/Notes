@@ -192,13 +192,6 @@ final class Environment
         return str_replace('\\$', '$', $expanded);
     }
 
-    private static function isDefined(string $key): bool
-    {
-        return getenv($key) !== false
-            || array_key_exists($key, $_ENV)
-            || array_key_exists($key, $_SERVER);
-    }
-
     private static function syntaxError(string $file, int $lineNumber, string $reason): RuntimeException
     {
         return new RuntimeException(
