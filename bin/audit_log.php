@@ -2,27 +2,19 @@
 
 declare(strict_types=1);
 
-if (PHP_SAPI !== 'cli') {
-    fwrite(STDERR, "This command is CLI-only.\n");
-    exit(2);
-}
-
-$root = dirname(__DIR__);
-require_once $root . '/core/Environment.php';
-if (is_file($root . '/.env')) {
-    \Core\Environment::load($root . '/.env');
-}
-require_once $root . '/core/RuntimeAutoloader.php';
-\Core\RuntimeAutoloader::register($root);
+require_once dirname(__DIR__) . '/core/CliRuntime.php';
+$root = \Core\CliRuntime::loadEnvironment();
+\Core\CliRuntime::registerAutoloader($root);
 require_once $root . '/core/Config.php';
 
+use Core\CliRuntime;
 use Core\UserActionLog;
 
 $options = getopt('', ['days:', 'limit:', 'apply', 'yes', 'json', 'help']);
 if (isset($options['help'])) {
-    echo "Usage: php bin/audit_log.php [--days=N] [--limit=N] [--json]\n";
-    echo "       php bin/audit_log.php --apply --yes [same options]\n";
-    echo "Default mode is preview. --apply --yes permanently deletes expired audit rows.\n";
+    echo "Использование: php bin/audit_log.php [--days=N] [--limit=N] [--json]\n";
+    echo "              php bin/audit_log.php --apply --yes [те же параметры]\n";
+    echo "По умолчанию выполняется только просмотр. --apply --yes безвозвратно удаляет просроченные записи аудита.\n";
     exit(0);
 }
 
@@ -36,19 +28,15 @@ $json = isset($options['json']);
 
 try {
     if ($apply && !$confirmed) {
-        throw new RuntimeException('Audit purge requires explicit --yes confirmation');
+        throw new RuntimeException('Для очистки журнала аудита требуется явное подтверждение --yes');
     }
     if (!$apply && $confirmed) {
-        throw new RuntimeException('--yes is valid only together with --apply');
+        throw new RuntimeException('--yes допустим только вместе с --apply');
     }
 
     $log = new UserActionLog();
     $eligible = $log->countOlderThan($days);
-    $deleted = 0;
-    if ($apply) {
-        $deleted = $log->purgeOlderThan($days, $limit);
-    }
-
+    $deleted = $apply ? $log->purgeOlderThan($days, $limit) : 0;
     $result = [
         'status' => 'ok',
         'mode' => $apply ? 'apply' : 'preview',
@@ -59,28 +47,22 @@ try {
     ];
 
     if ($json) {
-        echo json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . PHP_EOL;
-    } elseif ($apply) {
-        echo "Audit retention purge applied\n";
-        echo "Retention: {$days} day(s)\n";
-        echo "Eligible before purge: {$eligible}\n";
-        echo "Deleted this batch: {$deleted}\n";
-    } else {
-        echo "Audit retention preview\n";
-        echo "Retention: {$days} day(s)\n";
-        echo "Eligible rows: {$eligible}\n";
-        echo "No data changed. Re-run with --apply --yes to delete up to {$result['limit']} rows.\n";
+        CliRuntime::writeJson($result, true);
+        exit(0);
     }
-    exit(0);
+
+    if ($apply) {
+        echo "Очистка журнала аудита выполнена\n";
+        echo "Хранение: {$days} дн.\n";
+        echo "Подходило к удалению до очистки: {$eligible}\n";
+        echo "Удалено в этом проходе: {$deleted}\n";
+        exit(0);
+    }
+
+    echo "Предварительный просмотр журнала аудита\n";
+    echo "Хранение: {$days} дн.\n";
+    echo "Подходящих записей: {$eligible}\n";
+    echo "Данные не изменены. Для удаления до {$result['limit']} записей повторите команду с --apply --yes.\n";
 } catch (Throwable $e) {
-    if ($json) {
-        echo json_encode([
-            'status' => 'fail',
-            'error' => 'audit_retention_failed',
-            'message' => $e->getMessage(),
-        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
-    } else {
-        fwrite(STDERR, '[FAIL] ' . $e->getMessage() . PHP_EOL);
-    }
-    exit(1);
+    CliRuntime::fail($e, $json, 'audit_retention_failed');
 }
