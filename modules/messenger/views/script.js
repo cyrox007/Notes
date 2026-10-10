@@ -896,20 +896,64 @@
         renderMessages(options = {}) {
             const oldHeight = this.el.messageScroll.scrollHeight;
             const oldTop = this.el.messageScroll.scrollTop;
-            this.el.messageList.replaceChildren();
-
+            const list = this.el.messageList;
+            const existing = new Map(Array.from(list.children)
+                .filter(node => node.dataset.uid)
+                .map(node => [node.dataset.uid, node]));
+            const separators = new Map(Array.from(list.children)
+                .filter(node => node.dataset.day)
+                .map(node => [node.dataset.day, node]));
+            const desired = [];
             let lastDay = '';
             this.messages.forEach((message) => {
                 const day = this.dayKey(message.created_at);
                 if (day !== lastDay) {
                     lastDay = day;
-                    const separator = document.createElement('div');
+                    const separator = separators.get(day) || document.createElement('div');
                     separator.className = 'messenger-day';
+                    separator.dataset.day = day;
                     separator.textContent = this.formatDay(message.created_at);
-                    this.el.messageList.append(separator);
+                    desired.push(separator);
                 }
-                this.el.messageList.append(this.renderMessage(message));
+                const content = { ...message };
+                for (const field of ['message_status', 'read_at', 'delivered_at', 'updated_at']) delete content[field];
+                const signature = JSON.stringify([content, this.userUid, this.currentDialog?.type]);
+                const previous = existing.get(message.uid);
+                // Receipt renderers use cursor state outside the message object.
+                // Refresh metadata without disconnecting unchanged media or transcription.
+                const rendered = this.renderMessage(message);
+                const actionBar = rendered.querySelector('.messenger-message__actions');
+                const moreActions = rendered.querySelector('.messenger-message__actions-toggle');
+                if (actionBar && moreActions) {
+                    moreActions.className = 'messenger-message__action messenger-message__more-actions';
+                    moreActions.title = 'Ещё действия';
+                    actionBar.append(moreActions);
+                }
+                if (previous && previous.messageRenderSignature === signature) {
+                    const oldMeta = previous.querySelector('.messenger-message__meta');
+                    const newMeta = rendered.querySelector('.messenger-message__meta');
+                    if (oldMeta && newMeta) oldMeta.replaceWith(newMeta);
+                    const oldReactions = previous.querySelector('.messenger-reactions');
+                    const newReactions = rendered.querySelector('.messenger-reactions');
+                    if (oldReactions && newReactions) oldReactions.replaceWith(newReactions);
+                    else if (oldReactions) oldReactions.remove();
+                    else if (newReactions) previous.querySelector('.messenger-message__bubble')?.append(newReactions);
+                    desired.push(previous);
+                } else {
+                    rendered.messageRenderSignature = signature;
+                    desired.push(rendered);
+                }
             });
+            let cursor = list.firstChild;
+            for (const node of desired) {
+                if (node === cursor) cursor = cursor.nextSibling;
+                else list.insertBefore(node, cursor);
+            }
+            while (cursor) {
+                const next = cursor.nextSibling;
+                list.removeChild(cursor);
+                cursor = next;
+            }
 
             if (options.preservePosition) {
                 const newHeight = this.el.messageScroll.scrollHeight;
@@ -1011,6 +1055,7 @@
                 );
             });
 
+            actions.querySelector('button')?.classList.add('messenger-message__reply-action');
             row.append(bubble, actionsToggle, actions);
             return row;
         }

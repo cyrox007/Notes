@@ -498,7 +498,7 @@ html[data-theme="dark"] .workspace-viewport--messenger{
   .messenger-history{padding-inline:12px}
   .messenger-message{max-width:90%}
   .messenger-message__actions{
-    top:-30px;
+    top:auto;
     left:auto!important;
     right:0!important;
     margin:0!important;
@@ -545,6 +545,7 @@ html[data-theme="dark"] .workspace-viewport--messenger{
   .messenger-message__actions{
     position:static;
     opacity:1;
+    pointer-events:auto;
     transform:none;
     margin:0!important;
     padding:0;
@@ -570,6 +571,7 @@ html[data-theme="dark"] .workspace-viewport--messenger{
     max-width:100%;
   }
   .messenger-message__actions-toggle{
+    order:-2;
     display:grid;
     place-items:center;
     width:30px;
@@ -589,7 +591,7 @@ html[data-theme="dark"] .workspace-viewport--messenger{
     background:var(--msg-accent-soft);
   }
   .messenger-message__actions{
-    display:none;
+    display:flex;
     position:static!important;
     left:auto!important;
     right:auto!important;
@@ -602,6 +604,7 @@ html[data-theme="dark"] .workspace-viewport--messenger{
     margin:0!important;
     padding:4px;
     opacity:1;
+    pointer-events:auto;
     transform:none;
     border:1px solid var(--msg-border);
     border-radius:9px;

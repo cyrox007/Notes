@@ -26,6 +26,8 @@ jobs:
           php -l modules/messenger/controllers/MessengerVoiceController.php
           php tests/integration/messenger_calls_contract.php
           php tests/integration/messenger_recorded_retry_contract.php
+          php tests/integration/messenger_storage_environment_contract.php
+          php tests/integration/messenger_crypto_environment_contract.php
           php tests/integration/native_messenger_contract.php
           php tests/integration/module_runtime_composition_contract.php
       - name: Install browser test tools
@@ -44,6 +46,7 @@ jobs:
             sleep 1
           done
           node tests/e2e/messenger-native-media.mjs
+          node tests/e2e/messenger-message-stability.mjs
       - name: Failure logs
         if: failure()
         run: cat /tmp/native-media-http.log || true
