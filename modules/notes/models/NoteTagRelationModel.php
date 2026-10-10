@@ -1,13 +1,17 @@
 <?php
+
+declare(strict_types=1);
+
 namespace App\Models;
 
 use Core\ORM;
 
 /**
- * Модель связей заметок и тегов
+ * Модель связей заметок и тегов.
  */
-class NoteTagRelationModel extends ORM {
-    protected ?string $_tablename = "note_tag_relations";
+class NoteTagRelationModel extends ORM
+{
+    protected ?string $_tablename = 'note_tag_relations';
 
     public int $id = 0;
     public int $note_id = 0;
