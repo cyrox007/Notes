@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-if (PHP_VERSION_ID < 80100) {
+if (PHP_VERSION_ID < 80200) {
     http_response_code(500);
     echo '<!doctype html><html lang="ru"><meta charset="utf-8"><title>Несовместимый PHP</title>'
-        . '<body><h1>Требуется PHP 8.1 или новее</h1><p>Сейчас сервер использует PHP '
+        . '<body><h1>Требуется PHP 8.2 или новее</h1><p>Сейчас сервер использует PHP '
         . htmlspecialchars(PHP_VERSION, ENT_QUOTES, 'UTF-8')
-        . '. Выберите PHP 8.1+ в панели хостинга и повторите установку.</p></body></html>';
+        . '. Выберите PHP 8.2+ в панели хостинга и повторите установку.</p></body></html>';
     exit;
 }
 
@@ -43,7 +43,7 @@ session_set_cookie_params([
 ]);
 if (!session_start()) {
     http_response_code(500);
-    exit('PHP session storage недоступно. Проверьте session.save_path и права хостинга.');
+    exit('Хранилище PHP-сессий недоступно. Проверьте session.save_path и права хостинга.');
 }
 
 $basePath = __DIR__;
@@ -55,7 +55,7 @@ try {
     $databaseOwnership = \Core\DatabaseOwnership::fromPackageRoot($basePath);
 } catch (Throwable $e) {
     http_response_code(500);
-    exit('Invalid packaged module database ownership: ' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8'));
+    exit('Некорректное описание владения БД модулей в пакете: ' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8'));
 }
 $packagedModules = $databaseOwnership->moduleIds();
 $requiredTables = $databaseOwnership->tables();
@@ -68,7 +68,7 @@ $needsPrivateStorage = array_intersect($packagedModules, ['notes', 'files', 'mes
 
 if (is_file($envFile) && empty($_SESSION['notes_install_in_progress'])) {
     http_response_code(404);
-    exit('Installer is locked.');
+    exit('Установщик заблокирован.');
 }
 
 $_SESSION['notes_install_in_progress'] = true;
@@ -100,7 +100,7 @@ function verifyInstallerCsrf(): void
     $provided = (string) ($_POST['csrf_token'] ?? '');
     if ($expected === '' || $provided === '' || !hash_equals($expected, $provided)) {
         http_response_code(419);
-        exit('Invalid installer CSRF token.');
+        exit('Недействительный CSRF-токен установщика.');
     }
 }
 
@@ -357,8 +357,13 @@ function prepareRuntimeDirectories(string $basePath): void
     }
 }
 
-function connectDatabase(string $host, int $port, string $database, string $username, string $password): PDO
-{
+function connectDatabase(
+    string $host,
+    int $port,
+    string $database,
+    string $username,
+    #[SensitiveParameter] string $password
+): PDO {
     return new PDO(
         sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $host, $port, $database),
         $username,
@@ -372,8 +377,12 @@ function connectDatabase(string $host, int $port, string $database, string $user
     );
 }
 
-function connectDatabaseServer(string $host, int $port, string $username, string $password): PDO
-{
+function connectDatabaseServer(
+    string $host,
+    int $port,
+    string $username,
+    #[SensitiveParameter] string $password
+): PDO {
     return new PDO(
         sprintf('mysql:host=%s;port=%d;charset=utf8mb4', $host, $port),
         $username,
@@ -467,8 +476,13 @@ function assertDatabaseSchemaPrivileges(PDO $pdo): void
     }
 }
 
-function connectOrCreateDatabase(string $host, int $port, string $database, string $username, string $password): PDO
-{
+function connectOrCreateDatabase(
+    string $host,
+    int $port,
+    string $database,
+    string $username,
+    #[SensitiveParameter] string $password
+): PDO {
     if (preg_match('/^[A-Za-z0-9_]{1,64}$/', $database) !== 1) {
         throw new RuntimeException('Имя базы может содержать только латиницу, цифры и _.');
     }
@@ -499,8 +513,14 @@ function existingTables(PDO $pdo): array
 }
 
 /** @param list<string> $files */
-function importSchemas(string $host, int $port, string $database, string $username, string $password, array $files): void
-{
+function importSchemas(
+    string $host,
+    int $port,
+    string $database,
+    string $username,
+    #[SensitiveParameter] string $password,
+    array $files
+): void {
     mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
     $mysqli = new mysqli($host, $username, $password, $database, $port);
     $mysqli->set_charset('utf8mb4');
@@ -527,8 +547,14 @@ function importSchemas(string $host, int $port, string $database, string $userna
     }
 }
 
-function createAdminUser(PDO $pdo, string $username, string $email, string $password, string $firstname, string $lastname): void
-{
+function createAdminUser(
+    PDO $pdo,
+    string $username,
+    string $email,
+    #[SensitiveParameter] string $password,
+    string $firstname,
+    string $lastname
+): void {
     $passwordHash = password_hash($password, PASSWORD_ARGON2ID);
     if ($passwordHash === false) {
         throw new RuntimeException('Не удалось создать Argon2id хеш пароля.');
@@ -549,12 +575,12 @@ function envQuoted(string $value): string
     return '"' . str_replace(["\\", '"', "\r", "\n"], ['\\\\', '\\"', '', '\\n'], $value) . '"';
 }
 
-function writeEnvironmentFile(string $file, array $data): void
+function writeEnvironmentFile(string $file, #[SensitiveParameter] array $data): void
 {
     $privateStorage = rtrim((string) $data['private_storage'], '/');
     $lines = [
-        '# Generated by Workspace Organizer web installer',
-        '# Installer profile: ' . (string) ($data['install_mode'] ?? 'hosting'),
+        '# Создано web-установщиком Workspace Organizer',
+        '# Профиль установки: ' . (string) ($data['install_mode'] ?? 'hosting'),
         'DBDRIVER=mysql',
         'DBHOST=' . envQuoted((string) $data['db_host']),
         'DBPORT=' . (int) $data['db_port'],
@@ -628,8 +654,8 @@ function writeEnvironmentFile(string $file, array $data): void
 function installerRequirements(string $basePath, array $schemaFiles, array $packagedModules): array
 {
     $checks = [
-        'PHP 8.1+' => version_compare(PHP_VERSION, '8.1.0', '>='),
-        'Native core runtime' => is_file($basePath . '/core/Environment.php') && is_file($basePath . '/core/NativeViewRenderer.php'),
+        'PHP 8.2+' => version_compare(PHP_VERSION, '8.2.0', '>='),
+        'Нативное ядро приложения' => is_file($basePath . '/core/Environment.php') && is_file($basePath . '/core/NativeViewRenderer.php'),
         'mbstring' => extension_loaded('mbstring'),
         'ctype' => extension_loaded('ctype'),
         'pdo_mysql' => extension_loaded('pdo_mysql'),
@@ -639,21 +665,21 @@ function installerRequirements(string $basePath, array $schemaFiles, array $pack
         'zlib' => extension_loaded('zlib'),
         'fileinfo' => extension_loaded('fileinfo'),
         'gd' => extension_loaded('gd'),
-        'Argon2id password hashing' => in_array('argon2id', password_algos(), true),
+        'Хеширование паролей Argon2id' => in_array('argon2id', password_algos(), true),
         'random_bytes' => function_exists('random_bytes'),
         'ini_get' => installerFunctionAvailable('ini_get'),
         'getenv / putenv' => \Core\HostingCompatibility::processEnvironmentAvailable(),
-        'HTTP file uploads' => filter_var(
+        'HTTP-загрузка файлов' => filter_var(
             \Core\HostingCompatibility::iniValue('file_uploads'),
             FILTER_VALIDATE_BOOLEAN
         ),
-        'Writable PHP upload temp' => installerUploadTempWritable(),
-        'flock / atomic rename' => installerFunctionAvailable('flock')
+        'Доступный временный каталог PHP для загрузок' => installerUploadTempWritable(),
+        'flock / атомарное переименование' => installerFunctionAvailable('flock')
             && installerFunctionAvailable('rename')
             && installerFunctionAvailable('fopen')
             && installerFunctionAvailable('unlink'),
         'Запись .env в корень проекта' => is_writable($basePath),
-        'Composition database schemas' => $schemaFiles !== [] && array_reduce(
+        'Схемы БД состава модулей' => $schemaFiles !== [] && array_reduce(
             $schemaFiles,
             static fn (bool $ok, string $file): bool => $ok && is_file($file) && !is_link($file),
             true
@@ -666,9 +692,9 @@ function installerRequirements(string $basePath, array $schemaFiles, array $pack
     }
     try {
         prepareRuntimeDirectories($basePath);
-        $checks['Writable runtime directories'] = true;
+        $checks['Каталоги runtime доступны для записи'] = true;
     } catch (Throwable $ignored) {
-        $checks['Writable runtime directories'] = false;
+        $checks['Каталоги runtime доступны для записи'] = false;
     }
     return $checks;
 }
@@ -745,8 +771,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                     throw new RuntimeException('Для Workspace Organizer нужна отдельная пустая база данных. В указанной базе уже есть чужие таблицы.');
                 } elseif ($missing !== []) {
                     throw new RuntimeException(
-                        'Обнаружена существующая база старой/неполной версии. Web-installer не изменяет существующие данные. '
-                        . 'Для upgrade используйте versioned migration path. Отсутствуют таблицы: ' . implode(', ', $missing)
+                        'Обнаружена существующая база старой/неполной версии. Web-установщик не изменяет существующие данные. '
+                        . 'Для обновления используйте версионные миграции. Отсутствуют таблицы: ' . implode(', ', $missing)
                     );
                 }
                 $remaining = array_values(array_diff($requiredTables, existingTables($pdo)));
@@ -755,7 +781,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 }
                 $userCount = (int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn();
                 if ($userCount > 0) {
-                    throw new RuntimeException('В базе уже есть пользователи. Восстановите существующую установку и используйте migrations.');
+                    throw new RuntimeException('В базе уже есть пользователи. Восстановите существующую установку и используйте миграции.');
                 }
                 $_SESSION['notes_install_db'] = [
                     'db_host' => $host, 'db_port' => $port, 'db_name' => $database, 'db_user' => $username, 'db_pass' => $password,
@@ -767,7 +793,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 header('Location: install.php?step=3');
                 exit;
             } catch (Throwable $e) {
-                error_log('Installer database/config step failed: ' . $e->getMessage());
+                error_log('Ошибка шага БД/конфигурации установщика: ' . $e->getMessage());
                 $errors[] = 'Не удалось подготовить установку: ' . $e->getMessage();
             }
         }
@@ -825,7 +851,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 $installedAppUrl = appUrl((string) $db['site_url'], (string) $db['base_path']);
                 $successMessage = 'Установка завершена: база, private storage, секреты и первый администратор готовы.';
             } catch (Throwable $e) {
-                error_log('Installer admin/finalize step failed: ' . $e->getMessage());
+                error_log('Ошибка шага администратора/завершения установщика: ' . $e->getMessage());
                 $errors[] = 'Не удалось завершить установку: ' . $e->getMessage();
                 $step = 3;
             }
@@ -894,7 +920,7 @@ $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SU
 <body>
 <main class="card">
     <h1>Workspace Organizer — установка</h1>
-    <p>Fresh install рассчитан на обычный PHP/MySQL hosting: мастер сам создаёт схему, private storage, секреты, конфигурацию домена и первого admin. Composer и каталог <code>vendor/</code> для runtime не нужны.</p>
+    <p>Новая установка рассчитана на обычный PHP/MySQL-хостинг: мастер сам создаёт схему, private storage, секреты, конфигурацию домена и первого администратора. Composer и каталог <code>vendor/</code> для runtime не нужны.</p>
     <div class="steps" aria-label="Шаг <?= $step ?> из 4"><?php for ($i=1;$i<=4;$i++): ?><span class="<?= $i <= $step ? 'active' : '' ?>"></span><?php endfor; ?></div>
     <?php foreach ($errors as $error): ?><div class="notice error" role="alert"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></div><?php endforeach; ?>
     <?php foreach ($warnings as $warning): ?><div class="notice warning"><?= htmlspecialchars($warning, ENT_QUOTES, 'UTF-8') ?></div><?php endforeach; ?>
@@ -906,7 +932,7 @@ $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SU
         <ul><?php foreach ($requirements as $label => $ok): ?><li class="<?= $ok ? 'ok' : 'fail' ?>"><?= $ok ? '✓' : '✕' ?> <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></li><?php endforeach; ?></ul>
         <p><strong>Необязательные ускорения</strong></p>
         <ul><?php foreach ($optionalCapabilities as $label => $capability): ?><li class="<?= $capability['available'] ? 'ok' : '' ?>"><?= $capability['available'] ? '✓' : '—' ?> <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?><small><?= htmlspecialchars($capability['message'], ENT_QUOTES, 'UTF-8') ?></small></li><?php endforeach; ?></ul>
-        <div class="summary"><strong>Автоопределение</strong><p>Профиль: <code><?= $detectedInstallMode === 'openserver_local' ? 'OpenServer local' : 'Shared hosting / production' ?></code><br>Сайт: <code><?= htmlspecialchars(appUrl($detectedSiteUrl,$detectedBasePath), ENT_QUOTES, 'UTF-8') ?></code><br>Messenger: <code>HTTP Long Poll</code> — основной transport<br>WebSocket: <code>необязательный ускоритель</code><br>Long Poll timeout: <code><?= installerLongPollTimeoutSeconds() ?> с</code><br>Private storage: <code><?= htmlspecialchars($detectedPrivateStorage !== '' ? $detectedPrivateStorage : 'нужно указать', ENT_QUOTES, 'UTF-8') ?></code></p></div>
+        <div class="summary"><strong>Автоопределение</strong><p>Профиль: <code><?= $detectedInstallMode === 'openserver_local' ? 'OpenServer local' : 'Обычный хостинг / production' ?></code><br>Сайт: <code><?= htmlspecialchars(appUrl($detectedSiteUrl,$detectedBasePath), ENT_QUOTES, 'UTF-8') ?></code><br>Messenger: <code>HTTP Long Poll</code> — основной transport<br>WebSocket: <code>необязательный ускоритель</code><br>Long Poll timeout: <code><?= installerLongPollTimeoutSeconds() ?> с</code><br>Private storage: <code><?= htmlspecialchars($detectedPrivateStorage !== '' ? $detectedPrivateStorage : 'нужно указать', ENT_QUOTES, 'UTF-8') ?></code></p></div>
         <?php if ($errors === []): ?><a class="button" href="?step=2">Продолжить</a><?php endif; ?>
     <?php elseif ($step === 2): ?>
         <h2>2. База и окружение</h2>
@@ -919,7 +945,7 @@ $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SU
                     </label>
                     <label class="mode-option">
                         <input type="radio" name="install_mode" value="hosting" <?= $selectedInstallMode === 'hosting' ? 'checked' : '' ?>>
-                        <span><strong>Hosting / production</strong><small>Long Poll не требует фоновых процессов или WebSocket proxy. WebSocket можно включить только если хостинг это поддерживает.</small></span>
+                        <span><strong>Хостинг / production</strong><small>Long Poll не требует фоновых процессов или WebSocket proxy. WebSocket можно включить только если хостинг это поддерживает.</small></span>
                     </label>
                 </div>
                 <?php if ($detectedOpenServer): ?><p class="inline-note">Обнаружена структура OpenServer/OSPanel <code>domains\...</code>. Дополнительная настройка для Messenger не требуется: Long Poll работает через обычный HTTP. WebSocket можно включить ниже для уменьшения задержки.</p><?php endif; ?>
@@ -946,7 +972,7 @@ $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SU
         </form>
     <?php elseif ($step === 3): ?>
         <h2>3. Первый администратор</h2>
-        <p><code>.env</code> будет создан только после успешного создания admin.</p>
+        <p><code>.env</code> будет создан только после успешного создания администратора.</p>
         <form method="post"><input type="hidden" name="csrf_token" value="<?= $csrf ?>"><input type="hidden" name="step" value="3">
             <label>Имя<input name="admin_firstname" value="Admin" maxlength="80" required></label>
             <label>Фамилия<input name="admin_lastname" value="User" maxlength="80" required></label>
@@ -958,7 +984,7 @@ $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SU
         </form>
     <?php else: ?>
         <h2>4. Готово</h2>
-        <p>Схема БД, private storage, секреты, <code>.env</code> и первый admin созданы. Повторный запуск installer автоматически закрыт.</p>
+        <p>Схема БД, private storage, секреты, <code>.env</code> и первый администратор созданы. Повторный запуск установщика автоматически закрыт.</p>
         <?php if ($hasMessenger && empty($db['ws_enabled'])): ?>
             <div class="notice success"><strong>Messenger готов:</strong> основной Long Poll transport уже работает через обычный HTTP. WebSocket не включён и для работы Messenger не требуется.</div>
         <?php elseif ($hasMessenger && (($db['install_mode'] ?? 'hosting') === 'openserver_local')): ?>
