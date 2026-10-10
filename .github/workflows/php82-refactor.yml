@@ -1,0 +1,75 @@
+name: Рефакторинг PHP 8.2
+
+on:
+  push:
+    branches: ['1.1']
+  pull_request:
+    branches: ['1.1']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  php82-refactor:
+    name: php82-refactor (${{ matrix.php }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.3']
+
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+
+      - name: Подготовить PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mysqli, pdo_mysql, mbstring, ctype, fileinfo, sodium, openssl, zlib, gd
+          coverage: none
+
+      - name: Проверить Composer и технический минимум
+        shell: bash
+        run: |
+          set -euo pipefail
+          composer validate --no-check-publish
+          php tests/integration/php82_refactor_contract.php
+
+      - name: Проверить синтаксис всего PHP-кода
+        shell: bash
+        run: |
+          set -euo pipefail
+          find . -type f -name '*.php' \
+            -not -path './vendor/*' \
+            -not -path './node_modules/*' \
+            -print0 | xargs -0 -n1 php -l
+
+      - name: Построить карту рефакторинга
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tools/release/php82_refactor_audit.php --json | tee /tmp/php82-refactor-audit.json
+          php -r '
+            $data = json_decode(file_get_contents("/tmp/php82-refactor-audit.json"), true, 64, JSON_THROW_ON_ERROR);
+            if (($data["minimum_supported_php"] ?? null) !== "8.2") {
+                fwrite(STDERR, "Аудит сообщает неверный технический минимум\n");
+                exit(1);
+            }
+            printf(
+                "deprecated=%d strict_types_missing=%d untyped_properties=%d dynamic_property_candidates=%d\n",
+                (int) ($data["summary"]["deprecated"] ?? -1),
+                (int) ($data["summary"]["strict_types_missing"] ?? -1),
+                (int) ($data["summary"]["untyped_properties"] ?? -1),
+                (int) ($data["summary"]["dynamic_property_candidates"] ?? -1),
+            );
+          '
+
+      - name: Проверить базовые границы ядра
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/integration/core_refactor_contract.php
+          php tests/integration/router_session_security_contract.php
