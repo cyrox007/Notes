@@ -1,13 +1,17 @@
 <?php
+
+declare(strict_types=1);
+
 namespace App\Models;
 
 use Core\ORM;
 
 /**
- * Модель тегов для заметок
+ * Модель тегов заметок.
  */
-class NoteTagModel extends ORM {
-    protected ?string $_tablename = "note_tags";
+class NoteTagModel extends ORM
+{
+    protected ?string $_tablename = 'note_tags';
 
     public int $id = 0;
     public int $user_id = 0;
