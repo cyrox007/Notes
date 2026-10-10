@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Core;
 
 require_once __DIR__ . '/UpdatePath.php';
+require_once __DIR__ . '/ServiceLog.php';
 
 use JsonException;
 use RuntimeException;
@@ -250,6 +251,18 @@ final class UpdateTransactionStateMachine
             $journal['history'] = $history;
 
             $this->writeAtomic($path, $journal);
+            ServiceLog::emit('updater.state_changed', $nextState === 'rollback_failed' ? 'critical' : 'info', 'updater', [
+                'transaction_id' => $transactionId,
+                'previous_state' => $current,
+                'state' => $nextState,
+                'source_version_code' => (int) ($journal['installed_version_code'] ?? 0),
+                'target_version_code' => (int) ($journal['target_version_code'] ?? 0),
+                'executor' => PHP_SAPI,
+                'platform' => PHP_OS_FAMILY,
+                'pid' => getmypid(),
+                'elapsed_seconds' => max(0, $now - (int) ($journal['created_at'] ?? $now)),
+                'details' => $patch,
+            ]);
             return $this->readPath($path);
         });
     }

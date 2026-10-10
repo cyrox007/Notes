@@ -136,6 +136,17 @@ final class UpdateApplyCommand
             return $pause->result($transactionId);
         } catch (Throwable $e) {
             $latest = $stateMachine->load($transactionId);
+            $this->logService('updater.execution_failed', 'error', $transactionId, [
+                'state' => (string) ($latest['state'] ?? ''),
+                'error_type' => $e::class,
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'executor' => PHP_SAPI,
+                'platform' => PHP_OS_FAMILY,
+                'pid' => getmypid(),
+                'live_mutation_started' => ($latest['live_mutation_started'] ?? false) === true,
+            ]);
             if (($latest['live_mutation_started'] ?? false) !== true) {
                 try {
                     $maintenance->leave($transactionId);
@@ -868,6 +879,9 @@ final class UpdateApplyCommand
                 'apply_error' => $applyError->getMessage(),
                 'apply_error_code' => $applyErrorCode,
                 'rollback_error' => $rollbackError->getMessage(),
+                'rollback_error_type' => $rollbackError::class,
+                'rollback_file' => $rollbackError->getFile(),
+                'rollback_line' => $rollbackError->getLine(),
                 'at' => time(),
             ]);
             throw new UpdateApplyException(

@@ -68,6 +68,8 @@ try {
     readinessAssert(($snapshot['ready_for_apply'] ?? false) === true, 'valid external updater roots are not apply-ready');
     readinessAssert(($snapshot['checks']['php_cli']['ok'] ?? false) === true, 'PHP CLI не найден для web-установки');
     readinessAssert(($snapshot['issues'] ?? []) === [], 'ready snapshot unexpectedly reports issues');
+    readinessAssert(($snapshot['install_mode'] ?? '') === (PHP_OS_FAMILY === 'Windows' ? 'web' : 'process'),
+        'Windows browser updater must use the external HTTP path even when PHP CLI is available');
 
     putenv('UPDATE_FEED_URL=http://updates.example.test/stable/feed.json');
     $badFeed = (new UpdateReadiness($root))->inspect();

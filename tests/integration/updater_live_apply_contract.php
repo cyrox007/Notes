@@ -322,7 +322,26 @@ try {
     $machine->markMigrationsApplied('live-state-001', ['ok' => true]);
     $machine->markRollbackStarted('live-state-001', ['reason' => 'contract']);
     $machine->markCodeRestored('live-state-001', ['ok' => true]);
-    $machine->markRollbackFailed('live-state-001', ['reason' => 'simulated crash']);
+    $oldLogPath = getenv('SERVICE_LOG_PATH');
+    putenv('SERVICE_LOG_PATH=' . $temp . '/diagnostic-events.jsonl');
+    try {
+        $machine->markRollbackFailed('live-state-001', [
+            'reason' => 'simulated crash', 'rollback_error' => 'Locked file: .index.php.update-old-test',
+            'token' => 'MUST_NOT_APPEAR',
+        ]);
+        $bytes = (string) file_get_contents($temp . '/diagnostic-events.jsonl');
+        $event = json_decode(trim($bytes), true, 32, JSON_THROW_ON_ERROR);
+        liveApplyAssert($event['event'] === 'updater.state_changed'
+            && $event['level'] === 'critical'
+            && $event['context']['transaction_id'] === 'live-state-001'
+            && $event['context']['previous_state'] === 'code_restored'
+            && $event['context']['state'] === 'rollback_failed'
+            && $event['context']['executor'] === PHP_SAPI
+            && str_contains($bytes, '.index.php.update-old-test')
+            && !str_contains($bytes, 'MUST_NOT_APPEAR'), 'rollback diagnostics lost cause/state or leaked secrets');
+    } finally {
+        putenv($oldLogPath === false ? 'SERVICE_LOG_PATH' : 'SERVICE_LOG_PATH=' . $oldLogPath);
+    }
     $machine->markRollbackStarted('live-state-001', ['reason' => 'retry']);
     $machine->markCodeRestored('live-state-001', ['ok' => true]);
     $machine->markDatabaseRestored('live-state-001', ['ok' => true]);

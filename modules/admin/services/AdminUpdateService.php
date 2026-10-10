@@ -478,6 +478,10 @@ final class AdminUpdateService
         int $expectedTargetVersionCode,
         string $expectedPackageSha256
     ): array {
+        // updater-repair-windows-sync-guard
+        if (PHP_OS_FAMILY === 'Windows' && PHP_SAPI !== 'cli') {
+            throw new RuntimeException('Для безопасного обновления на Windows обновите страницу и включите JavaScript. Установка выполняется отдельными HTTP-запросами.');
+        }
         $started = $this->beginWebApply(
             $actorId,
             $expectedTargetVersionCode,

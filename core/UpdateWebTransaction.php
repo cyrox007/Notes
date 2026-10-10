@@ -219,6 +219,17 @@ final class UpdateWebTransaction
         } catch (UpdateStepPending $pause) {
             return $pause->result($transactionId);
         } catch (Throwable $e) {
+            ServiceLog::emit('updater.web_step_failed', 'error', 'updater', [
+                'transaction_id' => $transactionId,
+                'state' => (string) ($state['state'] ?? ''),
+                'error_type' => $e::class,
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'executor' => PHP_SAPI,
+                'platform' => PHP_OS_FAMILY,
+                'pid' => getmypid(),
+            ]);
             $this->cleanupPreMutationFailure(
                 $transactionId,
                 $maintenance,

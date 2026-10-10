@@ -247,6 +247,7 @@ $files = [
     'core/UpdateReleaseCandidate.php',
     'core/UpdateRemoteDelivery.php',
     'core/UpdateRollbackCodeRestorer.php',
+    'core/UpdateReadiness.php',
     'core/UpdateTransactionJournal.php',
     'core/UpdateTransactionStateMachine.php',
     'core/UpdateVerifiedStage.php',
@@ -301,6 +302,38 @@ try {
         }
 
         repairUpdaterCopyVerified($source, $target);
+    }
+
+    // Backport only the synchronous Windows guard, preserving the installed
+    // admin service and its version-specific dependencies.
+    $relative = 'modules/admin/services/AdminUpdateService.php';
+    $target = $liveRoot . '/' . $relative;
+    if (is_file($target) && !is_link($target)) {
+        $service = (string) file_get_contents($target);
+        $marker = '// updater-repair-windows-sync-guard';
+        if (!str_contains($service, $marker)) {
+            $guard = "\n        // updater-repair-windows-sync-guard\n"
+                . "        if (PHP_OS_FAMILY === 'Windows' && PHP_SAPI !== 'cli') {\n"
+                . "            throw new \\RuntimeException('Обновите страницу и включите JavaScript для безопасного обновления на Windows.');\n"
+                . "        }\n";
+            $patched = preg_replace_callback(
+                '/(private function applyWebSynchronously\([^{}]*\): array\s*\{)/s',
+                static fn (array $match): string => $match[1] . $guard,
+                $service, 1, $count
+            );
+            if (!is_string($patched) || $count !== 1) {
+                throw new RuntimeException('Не найден безопасный путь backport Windows: ' . $relative);
+            }
+            $backup = $backupRoot . '/' . $relative;
+            repairUpdaterEnsureParent(dirname($backup), 0700);
+            repairUpdaterCopyVerified($target, $backup);
+            $backedUp[$relative] = $backup;
+            $patchedSource = $backupRoot . '/patched-admin-service.php';
+            if (file_put_contents($patchedSource, $patched) !== strlen($patched)) {
+                throw new RuntimeException('Не удалось подготовить Windows guard');
+            }
+            repairUpdaterCopyVerified($patchedSource, $target);
+        }
     }
 
     [$afterVersion, $afterCode] = repairUpdaterVersion($liveRoot);

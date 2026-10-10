@@ -94,7 +94,9 @@ final class UpdateReadiness
         }
         $recordOptional('php_cli', $phpCliReady, $phpCliIssue);
         $processModeAvailable = $procOpen && $phpCliReady;
-        $installMode = $processModeAvailable ? 'process' : 'web';
+        // A synchronous browser request keeps index.php open while its CLI child
+        // replaces the live tree. Windows cannot delete that open entrypoint.
+        $installMode = $processModeAvailable && PHP_OS_FAMILY !== 'Windows' ? 'process' : 'web';
 
         $opcacheLoaded = extension_loaded('Zend OPcache');
         $opcacheEnabledRaw = ini_get('opcache.enable');
