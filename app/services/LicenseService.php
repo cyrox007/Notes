@@ -14,13 +14,15 @@ use Core\UpdateAccessBootstrap;
 use DomainException;
 use InvalidArgumentException;
 use RuntimeException;
+use SensitiveParameter;
 use Throwable;
 
 /**
- * Installation-wide license state boundary.
+ * Граница состояния лицензии всей установки.
  *
- * License failures never delete, rewrite or migrate user data. This service only
- * reads/writes the two licensing settings: installation_id and signed token.
+ * Ошибки лицензирования никогда не удаляют, не переписывают и не мигрируют
+ * пользовательские данные. Сервис работает только с installation_id и
+ * подписанным лицензионным токеном.
  */
 final class LicenseService
 {
@@ -64,8 +66,8 @@ final class LicenseService
 
         $value = strtolower($value);
         if (!$this->isUuid($value)) {
-            // Never silently replace an existing identifier: that could detach a
-            // valid installation-bound license from the installation.
+            // Существующий идентификатор нельзя незаметно заменять: это может
+            // отвязать действующую installation-bound лицензию от установки.
             throw new RuntimeException('Некорректный installation_id в system_settings');
         }
 
@@ -73,8 +75,8 @@ final class LicenseService
     }
 
     /**
-     * Safe read for health/status surfaces. It performs no authorization check
-     * and never exposes the full stored token.
+     * Безопасное чтение для health/status поверхностей. Проверка полномочий не
+     * требуется, а полный сохранённый токен никогда не возвращается наружу.
      *
      * @return array<string,mixed>
      */
@@ -123,8 +125,10 @@ final class LicenseService
     }
 
     /** @return array<string,mixed> */
-    public function activate(int $actorId, string $token): array
-    {
+    public function activate(
+        int $actorId,
+        #[SensitiveParameter] string $token
+    ): array {
         $this->requireLicenseManager($actorId);
         try {
             $status = $this->activateToken($token);
@@ -155,15 +159,17 @@ final class LicenseService
     }
 
     /**
-     * Local recovery path for the installation control plane.
+     * Локальный путь восстановления через control plane установки.
      *
-     * The context can only be created in PHP CLI, so HTTP code cannot use this
-     * method to bypass the normal superadmin/RBAC authorization boundary.
+     * Контекст создаётся только в PHP CLI, поэтому HTTP-код не может этим
+     * методом обойти обычную границу superadmin/RBAC.
      *
      * @return array<string,mixed>
      */
-    public function activateFromControlPlane(LocalControlPlaneContext $context, string $token): array
-    {
+    public function activateFromControlPlane(
+        LocalControlPlaneContext $context,
+        #[SensitiveParameter] string $token
+    ): array {
         $context->assertCli();
         try {
             $status = $this->activateToken($token);
@@ -293,7 +299,7 @@ final class LicenseService
     }
 
     /** @return array<string,mixed> */
-    private function activateToken(string $token): array
+    private function activateToken(#[SensitiveParameter] string $token): array
     {
         $token = trim($token);
         if ($token === '') {
