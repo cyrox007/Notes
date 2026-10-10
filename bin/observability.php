@@ -2,18 +2,11 @@
 
 declare(strict_types=1);
 
-if (PHP_SAPI !== 'cli') {
-    fwrite(STDERR, "This command is CLI-only.\n");
-    exit(2);
-}
-
-$root = dirname(__DIR__);
-require_once $root . '/core/Environment.php';
-if (is_file($root . '/.env')) {
-    \Core\Environment::load($root . '/.env');
-}
+require_once dirname(__DIR__) . '/core/CliRuntime.php';
+$root = \Core\CliRuntime::loadEnvironment();
 require_once $root . '/core/SecurityEventLog.php';
 
+use Core\CliRuntime;
 use Core\SecurityEventLog;
 
 $options = getopt('', [
@@ -26,9 +19,9 @@ $options = getopt('', [
 ]);
 
 if (isset($options['help'])) {
-    echo "Usage: php bin/observability.php [--window=SECONDS] [--json]\n";
-    echo "       [--critical-threshold=N] [--auth-failure-threshold=N] [--rate-limit-threshold=N]\n";
-    echo "Summarizes structured security events and exits 3 when alert thresholds are crossed.\n";
+    echo "Использование: php bin/observability.php [--window=СЕКУНДЫ] [--json]\n";
+    echo "              [--critical-threshold=N] [--auth-failure-threshold=N] [--rate-limit-threshold=N]\n";
+    echo "Команда сводит структурированные события безопасности и завершает работу с кодом 3 при превышении порогов.\n";
     exit(0);
 }
 
@@ -51,42 +44,32 @@ $json = isset($options['json']);
 try {
     $summary = (new SecurityEventLog())->summarize($window, $thresholds);
     if ($json) {
-        echo json_encode(
-            $summary,
-            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
-        ) . PHP_EOL;
-    } else {
-        echo 'Security event window: ' . $summary['window_seconds'] . "s\n";
-        echo 'Events: ' . $summary['events'] . PHP_EOL;
-        echo 'Severity: info=' . $summary['severity']['info']
-            . ' warning=' . $summary['severity']['warning']
-            . ' critical=' . $summary['severity']['critical'] . PHP_EOL;
-        foreach ($summary['counts'] as $event => $count) {
-            echo sprintf("  %-36s %d\n", $event, $count);
-        }
-        if ($summary['alerts'] === []) {
-            echo "Alerts: none\n";
-        } else {
-            echo "Alerts:\n";
-            foreach ($summary['alerts'] as $alert) {
-                echo '  [ALERT] ' . $alert['code']
-                    . ' count=' . $alert['count']
-                    . ' threshold=' . $alert['threshold'] . PHP_EOL;
-            }
-        }
-        echo 'Log: ' . $summary['log_path'] . PHP_EOL;
+        CliRuntime::writeJson($summary, true);
+        exit($summary['alerts'] === [] ? 0 : 3);
     }
+
+    echo 'Окно событий безопасности: ' . $summary['window_seconds'] . " с\n";
+    echo 'Событий: ' . $summary['events'] . PHP_EOL;
+    echo 'Уровни: info=' . $summary['severity']['info']
+        . ' warning=' . $summary['severity']['warning']
+        . ' critical=' . $summary['severity']['critical'] . PHP_EOL;
+    foreach ($summary['counts'] as $event => $count) {
+        echo sprintf("  %-36s %d\n", $event, $count);
+    }
+
+    if ($summary['alerts'] === []) {
+        echo "Предупреждения: нет\n";
+    } else {
+        echo "Предупреждения:\n";
+        foreach ($summary['alerts'] as $alert) {
+            echo '  [ALERT] ' . $alert['code']
+                . ' count=' . $alert['count']
+                . ' threshold=' . $alert['threshold'] . PHP_EOL;
+        }
+    }
+    echo 'Журнал: ' . $summary['log_path'] . PHP_EOL;
 
     exit($summary['alerts'] === [] ? 0 : 3);
 } catch (Throwable $e) {
-    if ($json) {
-        echo json_encode([
-            'status' => 'fail',
-            'error' => 'observability_unavailable',
-            'message' => $e->getMessage(),
-        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
-    } else {
-        fwrite(STDERR, '[FAIL] ' . $e->getMessage() . PHP_EOL);
-    }
-    exit(1);
+    CliRuntime::fail($e, $json, 'observability_unavailable');
 }
