@@ -131,7 +131,18 @@
         if (label) label.textContent = String(percent);
         const progress = container.querySelector('.task-subtasks__progress');
         if (progress) {
-            progress.value = percent;
+            cancelAnimationFrame(progress._animation);
+                const from = progress.value, begun = performance.now();
+                const animationLabel = container.querySelector('.task-subtasks__percent');
+                const duration = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 260;
+                const frame = now => {
+                    const t = duration ? Math.min(1, (now - begun) / duration) : 1;
+                    const value = from + (percent - from) * (1 - Math.pow(1 - t, 3));
+                    progress.value = value;
+                    if (animationLabel) animationLabel.textContent = String(Math.round(value));
+                    if (t < 1) progress._animation = requestAnimationFrame(frame);
+                };
+                frame(begun);
             progress.textContent = `${percent}%`;
             progress.setAttribute('aria-valuenow', String(percent));
         }

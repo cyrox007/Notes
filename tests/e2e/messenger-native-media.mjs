@@ -33,6 +33,18 @@ try{
   for(const page of pages){await page.locator('dialog.workspace-call').first().waitFor({state:'hidden',timeout:10000});assert.equal(await page.evaluate(()=>fixtureTracks.every(t=>t.readyState==='ended')),true);}
   console.log(`PASS: ${mode} call, remote media and track cleanup`);
  }
+ await pages[1].evaluate(()=>{window.originalCapture=navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);navigator.mediaDevices.getUserMedia=constraints=>constraints.video?Promise.reject(new DOMException('Camera occupied','NotReadableError')):window.originalCapture(constraints);});
+ await pages[0].locator('[data-call-mode=video]').click();
+ await pages[1].locator('[data-call-action=accept]').waitFor({state:'visible'});
+ await pages[1].locator('[data-call-action=accept]').click();
+ for(const page of pages)await page.locator('.workspace-call__status').filter({hasText:'Соединение установлено'}).waitFor({timeout:30000});
+ assert.equal(await pages[1].evaluate(()=>document.querySelector('.workspace-call__local').srcObject.getVideoTracks().length),0);
+ assert.equal(await pages[1].locator('[data-call-action=camera]').isDisabled(),true);
+ assert.match(await pages[1].evaluate(()=>window.lastToast),/Камера недоступна/);
+ await pages[0].locator('[data-call-action=end]').click();
+ for(const page of pages)await page.locator('dialog.workspace-call').first().waitFor({state:'hidden'});
+ await pages[1].evaluate(()=>{navigator.mediaDevices.getUserMedia=window.originalCapture;});
+ console.log('PASS: camera busy preserves video call with audio-only participant');
  const voicePage=pages[0];let voiceUploads=0,voiceSends=0;
  await voicePage.route('**/messenger/voice-upload',async route=>{voiceUploads++;await route.fulfill({json:{success:true,attachment:{uid:'fixture-voice',media_kind:'voice'}}});});
  await voicePage.route('**/messenger/recorded/fixture-voice/send',async route=>{voiceSends++;await route.fulfill({status:voiceSends===1?503:200,json:voiceSends===1?{success:false,message:'test voice outage'}:{success:true}});});
@@ -81,7 +93,7 @@ try{
  });
  await stt.addScriptTag({content:await readFile('assets/js/local-transcription.js','utf8')});
  const unsupported=await bounded('unavailable local language',stt.evaluate(async()=>{try{await wspace.localTranscription('/fixture.wav','ru-RU');}catch(error){return error.message;}}));
- assert.match(unsupported,/не поддерживается/);assert.equal(audioReads,0,'no audio read when the on-device language is unavailable');
+ assert.match(unsupported,/не предоставляет локальное распознавание выбранного языка/);assert.equal(audioReads,0,'no audio read when the on-device language is unavailable');
  const transcript=await bounded('local audio track transcription',stt.evaluate(async()=>{window.fixtureAvailability='available';return await wspace.localTranscription('/fixture.wav','ru-RU');}));
  assert.equal(transcript,'Проверка локальной расшифровки');assert.equal(audioReads,1);
  const engine=await stt.evaluate(()=>fixtureRecognition);assert.equal(engine.local,true);assert.equal(engine.options.processLocally,true);assert.equal(engine.track,'audio');

@@ -53,7 +53,7 @@ RewriteRule .* index.php [L]
     Header always set X-Robots-Tag "noindex, nofollow, noarchive, nosnippet, noimageindex"
     Header always set Referrer-Policy "no-referrer"
     Header always set X-Frame-Options "SAMEORIGIN"
-    Header always set Permissions-Policy "camera=(), geolocation=(), microphone=(self), payment=(), usb=()"
+    Header always set Permissions-Policy "camera=(self), geolocation=(), microphone=(self), payment=(), usb=()"
     Header always set Cross-Origin-Opener-Policy "same-origin"
     # Content-Security-Policy is emitted by PHP Core\\SecurityHeaders with a per-request nonce.
 </IfModule>

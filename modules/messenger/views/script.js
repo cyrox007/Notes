@@ -26,11 +26,18 @@
             this.typingTimer = null;
             this.typingSent = false;
             this.pendingOpenUid = null;
+            this.activeDialogStateKey = `wspace:messenger-active:v1:${this.userUid || 'anonymous'}`;
+            this.restoredDialogState = null;
+            try {
+                const saved = JSON.parse(sessionStorage.getItem(this.activeDialogStateKey) || 'null');
+                if (saved && typeof saved.uid === 'string' && saved.uid.length <= 128) this.restoredDialogState = saved;
+            } catch (_) { /* Storage may be disabled. */ }
             const deepLink = new URLSearchParams(window.location.search);
             this.requestedDialogUid = String(deepLink.get('dialog') || '').trim();
             this.requestedMessageUid = String(deepLink.get('message') || '').trim();
             this.requestedMessageAttempts = 0;
             if (this.requestedDialogUid) this.pendingOpenUid = this.requestedDialogUid;
+            else if (this.restoredDialogState) this.pendingOpenUid = this.restoredDialogState.uid;
 
             this.dialogs = [];
             this.dialogMap = new Map();
@@ -96,6 +103,19 @@
         }
 
         bindEvents() {
+            window.setTimeout(() => {
+                const tools = this.root.querySelector('.messenger-composer__tools');
+                if (!tools || tools.querySelector('.messenger-tools-toggle')) return;
+                const toggle = document.createElement('button');toggle.type = 'button';toggle.className = 'messenger-icon-button messenger-tools-toggle';toggle.textContent = '+';toggle.setAttribute('aria-label', 'Вложения и действия');toggle.setAttribute('aria-expanded', 'false');
+                const panel = document.createElement('div');panel.className = 'messenger-tools-panel';panel.id = 'messenger-tools-panel';panel.inert = true;toggle.setAttribute('aria-controls', panel.id);
+                while (tools.firstChild) panel.append(tools.firstChild);
+                tools.append(toggle, panel);
+                const close = () => {panel.classList.remove('is-open');panel.inert = true;toggle.setAttribute('aria-expanded', 'false');};
+                toggle.addEventListener('click', () => {const open = toggle.getAttribute('aria-expanded') !== 'true';panel.classList.toggle('is-open', open);panel.inert = !open;toggle.setAttribute('aria-expanded', String(open));});
+                tools.addEventListener('keydown', event => {if (event.key === 'Escape') {close();toggle.focus();event.stopPropagation();}});
+                document.addEventListener('click', event => {if (!tools.contains(event.target)) close();});
+                new MutationObserver(() => {for (const child of Array.from(tools.childNodes)) if (child !== toggle && child !== panel) panel.append(child);}).observe(tools, {childList:true});
+            }, 0);
             this.el.dialogSearch?.addEventListener('input', () => this.renderDialogs());
             this.el.newChatButton?.addEventListener('click', () => this.openNewChatDialog());
             this.el.dialogRetry?.addEventListener('click', () => void this.loadInitialDialogs());
@@ -129,6 +149,7 @@
                 this.notifyTyping();
             });
 
+            window.addEventListener('pagehide', () => this.storeActiveDialogState());
             window.addEventListener('focus', () => this.markCurrentRead());
             document.addEventListener('wspace:update-install-start', () => this.suspendTransportForUpdate());
         }
@@ -638,6 +659,11 @@
                 this.renderChatHeader();
             }
 
+            if (this.pendingOpenUid && !this.requestedDialogUid && !this.dialogMap.has(this.pendingOpenUid)) {
+                this.pendingOpenUid = null;
+                this.restoredDialogState = null;
+                try { sessionStorage.removeItem(this.activeDialogStateKey); } catch (_) {}
+            }
             if (this.pendingOpenUid && this.dialogMap.has(this.pendingOpenUid)) {
                 const uid = this.pendingOpenUid;
                 this.pendingOpenUid = null;
@@ -825,10 +851,23 @@
             });
         }
 
+        storeActiveDialogState() {
+            if (!this.currentDialog?.uid) return;
+            const scroll = this.el.messageScroll;
+            const state = {
+                uid: this.currentDialog.uid,
+                draft: this.editing ? '' : String(this.el.input?.value || '').slice(0, 20000),
+                scrollTop: scroll?.scrollTop || 0,
+                atBottom: !scroll || scroll.scrollHeight - scroll.clientHeight - scroll.scrollTop < 40
+            };
+            try { sessionStorage.setItem(this.activeDialogStateKey, JSON.stringify(state)); } catch (_) {}
+        }
+
         openDialog(uid) {
             const dialog = this.dialogMap.get(uid);
             if (!dialog) return;
 
+            this.storeActiveDialogState();
             this.currentDialog = dialog;
             this.messages = [];
             this.replyTo = null;
@@ -840,7 +879,26 @@
             this.renderDialogs();
             this.renderChatHeader();
             this.el.messageList.replaceChildren();
+            this.el.messageList.dataset.loading = 'true';
+            this.el.messageList.setAttribute('aria-busy', 'true');
+            this.el.messageList.setAttribute('aria-label', 'Загружаем сообщения');
+            this.keepHistoryAtBottom = true;
+            if (!this.historyResizeObserver && typeof ResizeObserver === 'function') {
+                this.historyResizeObserver = new ResizeObserver(() => {
+                    if (this.keepHistoryAtBottom && !this.requestedMessageUid) this.scrollToBottom();
+                });
+                this.historyResizeObserver.observe(this.el.messageList);
+                this.el.messageScroll.addEventListener('scroll', () => {
+                    const scroll = this.el.messageScroll;
+                    this.keepHistoryAtBottom = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight <= 48;
+                }, { passive: true });
+            }
             this.el.loadOlder.hidden = true;
+            if (this.restoredDialogState?.uid === uid && !this.requestedMessageUid) {
+                if (this.el.input) this.el.input.value = typeof this.restoredDialogState.draft === 'string' ? this.restoredDialogState.draft.slice(0, 20000) : '';
+                this.autosizeComposer();
+            }
+            this.storeActiveDialogState();
             this.sendEvent('MessangerSocket:load', { dialog_uid: uid });
         }
 
@@ -867,6 +925,9 @@
 
         applyMessages(data) {
             if (!this.currentDialog || data.dialog_uid !== this.currentDialog.uid) return;
+            delete this.el.messageList.dataset.loading;
+            this.el.messageList.setAttribute('aria-busy', 'false');
+            this.el.messageList.setAttribute('aria-label', 'Сообщения');
 
             const incoming = Array.isArray(data.messages) ? data.messages : [];
             if (data.dialog) {
@@ -891,31 +952,83 @@
             this.el.loadOlder.hidden = !this.hasMore;
             this.markCurrentRead();
             this.focusRequestedMessage();
+            const restored = this.restoredDialogState;
+            if (restored?.uid === this.currentDialog.uid) {
+                this.restoredDialogState = null;
+            }
         }
 
         renderMessages(options = {}) {
             const oldHeight = this.el.messageScroll.scrollHeight;
             const oldTop = this.el.messageScroll.scrollTop;
-            this.el.messageList.replaceChildren();
-
+            const list = this.el.messageList;
+            const existing = new Map(Array.from(list.children)
+                .filter(node => node.dataset.uid)
+                .map(node => [node.dataset.uid, node]));
+            const separators = new Map(Array.from(list.children)
+                .filter(node => node.dataset.day)
+                .map(node => [node.dataset.day, node]));
+            const desired = [];
             let lastDay = '';
             this.messages.forEach((message) => {
                 const day = this.dayKey(message.created_at);
                 if (day !== lastDay) {
                     lastDay = day;
-                    const separator = document.createElement('div');
+                    const separator = separators.get(day) || document.createElement('div');
                     separator.className = 'messenger-day';
+                    separator.dataset.day = day;
                     separator.textContent = this.formatDay(message.created_at);
-                    this.el.messageList.append(separator);
+                    desired.push(separator);
                 }
-                this.el.messageList.append(this.renderMessage(message));
+                const content = { ...message };
+                for (const field of ['message_status', 'read_at', 'delivered_at', 'updated_at']) delete content[field];
+                const signature = JSON.stringify([content, this.userUid, this.currentDialog?.type]);
+                const previous = existing.get(message.uid);
+                // Receipt renderers use cursor state outside the message object.
+                // Refresh metadata without disconnecting unchanged media or transcription.
+                const rendered = this.renderMessage(message);
+                const actionBar = rendered.querySelector('.messenger-message__actions');
+                const moreActions = rendered.querySelector('.messenger-message__actions-toggle');
+                if (actionBar && moreActions) {
+                    moreActions.className = 'messenger-message__action messenger-message__more-actions';
+                    moreActions.title = 'Ещё действия';
+                    actionBar.append(moreActions);
+                }
+                if (previous && previous.messageRenderSignature === signature) {
+                    const oldMeta = previous.querySelector('.messenger-message__meta');
+                    const newMeta = rendered.querySelector('.messenger-message__meta');
+                    if (oldMeta && newMeta) oldMeta.replaceWith(newMeta);
+                    const oldReactions = previous.querySelector('.messenger-reactions');
+                    const newReactions = rendered.querySelector('.messenger-reactions');
+                    if (oldReactions && newReactions) oldReactions.replaceWith(newReactions);
+                    else if (oldReactions) oldReactions.remove();
+                    else if (newReactions) previous.querySelector('.messenger-message__bubble')?.append(newReactions);
+                    desired.push(previous);
+                } else {
+                    rendered.messageRenderSignature = signature;
+                    desired.push(rendered);
+                }
             });
+            let cursor = list.firstChild;
+            for (const node of desired) {
+                if (node === cursor) cursor = cursor.nextSibling;
+                else list.insertBefore(node, cursor);
+            }
+            while (cursor) {
+                const next = cursor.nextSibling;
+                list.removeChild(cursor);
+                cursor = next;
+            }
 
             if (options.preservePosition) {
                 const newHeight = this.el.messageScroll.scrollHeight;
                 this.el.messageScroll.scrollTop = oldTop + (newHeight - oldHeight);
             } else if (options.scrollBottom) {
-                requestAnimationFrame(() => this.scrollToBottom());
+                this.keepHistoryAtBottom = !this.requestedMessageUid;
+                const dialogUid = this.currentDialog?.uid;
+                requestAnimationFrame(() => {
+                    if (this.currentDialog?.uid === dialogUid && this.keepHistoryAtBottom) this.scrollToBottom();
+                });
             }
         }
 
@@ -967,6 +1080,8 @@
             if (own) {
                 const status = document.createElement('span');
                 status.className = 'messenger-message__status';
+                status.dataset.state = this.isMessageRead(message) ? 'read' : 'sent';
+                status.setAttribute('aria-label', this.isMessageRead(message) ? 'Прочитано' : 'Отправлено');
                 status.textContent = this.isMessageRead(message) ? '✓✓' : '✓';
                 meta.append(status);
             }
@@ -976,12 +1091,11 @@
             actions.className = 'messenger-message__actions';
             actions.append(
                 this.messageAction('Ответить', 'fa-reply', () => this.startReply(message)),
-                this.messageAction('Удалить у меня', 'fa-trash-o', () => this.deleteMessage(message, false))
+                this.messageAction('Удалить сообщение', 'fa-trash-o', () => this.deleteMessage(message))
             );
             if (own) {
                 actions.append(
-                    this.messageAction('Изменить', 'fa-pencil', () => this.startEdit(message)),
-                    this.messageAction('Удалить у всех', 'fa-trash', () => this.deleteMessage(message, true))
+                    this.messageAction('Изменить', 'fa-pencil', () => this.startEdit(message))
                 );
             }
 
@@ -1011,6 +1125,7 @@
                 );
             });
 
+            actions.querySelector('button')?.classList.add('messenger-message__reply-action');
             row.append(bubble, actionsToggle, actions);
             return row;
         }
@@ -1166,16 +1281,29 @@
             }
         }
 
-        deleteMessage(message, forAll) {
-            const question = forAll
-                ? 'Удалить это сообщение у всех участников?'
-                : 'Удалить это сообщение только у вас?';
-            if (!window.confirm(question)) return;
-
-            this.sendEvent('MessangerSocket:delete_message', {
-                message_uid: message.uid,
-                for_all: forAll
+        deleteMessage(message) {
+            if (this.deleteConfirmation?.open) return;
+            const dialog = document.createElement('dialog');dialog.className = 'messenger-delete-dialog';this.deleteConfirmation = dialog;
+            dialog.setAttribute('aria-labelledby', 'messenger-delete-title');
+            const title = document.createElement('h2');title.id = 'messenger-delete-title';title.textContent = 'Удалить сообщение?';
+            const description = document.createElement('p');description.textContent = 'Выберите, у кого удалить сообщение. Это действие нельзя отменить.';
+            dialog.append(title, description);
+            let forAll = false;
+            if (message.user?.uid === this.userUid) {
+                const choices = document.createElement('fieldset');const legend = document.createElement('legend');legend.textContent = 'Область удаления';choices.append(legend);
+                for (const [value, label] of [['self','Только у меня'],['all','У всех участников']]) {
+                    const option = document.createElement('label');const input = document.createElement('input');input.type = 'radio';input.name = 'message-delete-scope';input.value = value;input.checked = value === 'self';input.addEventListener('change', () => {if (input.checked) forAll = value === 'all';});option.append(input, document.createTextNode(label));choices.append(option);
+                }
+                dialog.append(choices);
+            } else description.textContent = 'Сообщение будет удалено только у вас. У остальных участников оно останется.';
+            const status = document.createElement('p');status.setAttribute('role','status');dialog.append(status);
+            const actions = document.createElement('div');actions.className = 'messenger-delete-dialog__actions';
+            const cancel = document.createElement('button');cancel.type = 'button';cancel.textContent = 'Отмена';cancel.autofocus = true;cancel.addEventListener('click', () => dialog.close());
+            const confirm = document.createElement('button');confirm.type = 'button';confirm.className = 'messenger-delete-dialog__confirm';confirm.textContent = 'Удалить';confirm.addEventListener('click', () => {
+                if (this.sendEvent('MessangerSocket:delete_message', {message_uid:message.uid,for_all:forAll})) dialog.close();
+                else status.textContent = 'Нет соединения. Сообщение не удалено. Повторите попытку после подключения.';
             });
+            actions.append(cancel, confirm);dialog.append(actions);dialog.addEventListener('close', () => {dialog.remove();if (this.deleteConfirmation === dialog) this.deleteConfirmation = null;}, {once:true});document.body.append(dialog);dialog.showModal();
         }
 
         notifyTyping() {

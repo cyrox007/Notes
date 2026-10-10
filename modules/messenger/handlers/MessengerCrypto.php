@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Helpers;
 
+require_once dirname(__DIR__, 3) . '/core/Environment.php';
+
 /**
  * Versioned encryption for messenger message bodies.
  *
@@ -21,7 +23,7 @@ final class MessengerCrypto
 
     private static function key(): string
     {
-        return self::keyFromSecret((string) (getenv('MSG_SECRET_KEY') ?: ''));
+        return self::keyFromSecret((string) (\Core\Environment::get('MSG_SECRET_KEY') ?: ''));
     }
 
     private static function keyFromSecret(string $secret): string

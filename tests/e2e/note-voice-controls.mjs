@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {readFile} from 'node:fs/promises';
+const require=createRequire(import.meta.url);const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
+const browser=await chromium.launch({headless:true,...(process.env.E2E_BROWSER_EXECUTABLE?{executablePath:process.env.E2E_BROWSER_EXECUTABLE}:{channel:'chromium'})});
+try {
+ const page=await browser.newPage();await page.route('https://note.test/',route=>route.fulfill({contentType:'text/html',body:'<div id="root"><button id="recordVoiceBtn">Голосовая</button><section id="voiceRecorder" hidden><span class="note-voice-recorder__pulse"></span><span id="recordingStatus"></span><span id="recordingTimer"></span><audio id="voicePreview" hidden></audio><button id="startRecord">Начать</button><button id="stopRecord">Стоп</button><button id="discardRecord">Отмена</button><button id="sendVoice">Сохранить</button></section></div>'}));await page.goto('https://note.test/');
+ await page.addStyleTag({content:await readFile('modules/notes/assets/editor-013.css','utf8')});
+ const source=await readFile('modules/notes/assets/notes-editor-013.js','utf8');const functions=source.slice(source.indexOf('    function setupAudioPlayer('),source.indexOf("    if (document.readyState === 'loading')"));
+ await page.evaluate(()=>{window.testAudio=new AudioContext();const oscillator=testAudio.createOscillator();const gain=testAudio.createGain();const destination=testAudio.createMediaStreamDestination();oscillator.connect(gain);gain.connect(destination);oscillator.start();window.testGain=gain;window.testStream=destination.stream;navigator.mediaDevices.getUserMedia=async()=>testStream;});
+ await page.addScriptTag({content:functions+'\nsetupVoiceRecorder(document.querySelector("#root"),"",()=>{},{});'});
+ await page.click('#recordVoiceBtn');await page.click('#startRecord');
+ await page.waitForFunction(()=>document.querySelector('#recordingStatus').textContent.includes('принимает звук'));
+ assert.equal(await page.locator('.note-voice-meter').isVisible(),true);
+ await page.evaluate(()=>testGain.gain.value=0);
+ await page.waitForFunction(()=>document.querySelector('#recordingStatus').textContent.includes('не обнаружен'));
+ await page.click('#stopRecord');await page.waitForFunction(()=>!document.querySelector('#sendVoice').disabled);
+ assert.equal(await page.locator('.note-audio-player').isVisible(),true);
+ assert.equal(await page.locator('#voicePreview').evaluate(el=>el.controls),false);
+ assert.equal(await page.evaluate(()=>testStream.getTracks().every(t=>t.readyState==='ended')),true);
+ assert.equal(await page.locator('.note-voice-meter').isVisible(),false);
+ await page.locator('.note-audio-player button').click();await page.waitForFunction(()=>!document.querySelector('#voicePreview').paused);
+ await page.click('#discardRecord');assert.equal(await page.locator('#voiceRecorder').isVisible(),false);
+ console.log('PASS: real audio signal/silence meter, recording preview playback, custom controls and track cleanup');
+ await page.route('**/tasks/subtask/1/toggle',route=>route.fulfill({json:{success:true,is_completed:1}}));
+ await page.setContent('<div class="task-item"><div class="task-subtasks"><span class="task-subtasks__percent">0</span><progress class="task-subtasks__progress" max="100" value="0"></progress><div class="subtask-item"><input class="subtask-toggle" type="checkbox" data-subtask-id="1"></div></div></div>');
+ await page.addScriptTag({content:await readFile('assets/js/usability-actions.js','utf8')});
+ await page.locator('.subtask-toggle').check();
+ await page.waitForFunction(()=>{const value=document.querySelector('progress').value;return value>0&&value<100;});
+ await page.waitForFunction(()=>document.querySelector('progress').value===100);
+ assert.equal(await page.locator('.task-subtasks__percent').innerText(),'100');
+ console.log('PASS: task progress animates through intermediate values and reaches confirmed percentage');
+}finally{await browser.close();}

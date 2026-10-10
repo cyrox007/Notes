@@ -41,6 +41,15 @@
         const recordingLabel = document.createElement('span');
         recordingLabel.className = 'messenger-voice-recorder__label';
         recordingLabel.textContent = 'Запись голосового сообщения';
+        const levelMeter = document.createElement('canvas');
+        levelMeter.className = 'messenger-voice-recorder__meter';
+        levelMeter.width = 240;
+        levelMeter.height = 40;
+        levelMeter.setAttribute('role', 'img');
+        levelMeter.setAttribute('aria-label', 'Уровень микрофона');
+        const levelStatus = document.createElement('span');
+        levelStatus.className = 'messenger-voice-recorder__level-status';
+        levelStatus.textContent = 'Проверка микрофона…';
         const cancelButton = document.createElement('button');
         cancelButton.type = 'button';
         cancelButton.className = 'messenger-icon-button messenger-voice-recorder__cancel';
@@ -53,7 +62,7 @@
         finishButton.title = 'Отправить голосовое сообщение';
         finishButton.setAttribute('aria-label', finishButton.title);
         finishButton.innerHTML = '<i class="fa fa-paper-plane" aria-hidden="true"></i>';
-        recorderBar.append(recordingDot, recordingTime, recordingLabel, cancelButton, finishButton);
+        recorderBar.append(recordingDot, recordingTime, recordingLabel, levelMeter, levelStatus, cancelButton, finishButton);
         composer.before(recorderBar);
 
         const supportsRecording = Boolean(
@@ -80,6 +89,72 @@
             { mime: 'audio/mp4', extension: 'm4a' },
             { mime: 'audio/webm', extension: 'webm' },
         ];
+
+        let meterContext = null;
+        let meterSource = null;
+        let meterFrame = null;
+        const stopMeter = () => {
+            if (meterFrame !== null) cancelAnimationFrame(meterFrame);
+            meterFrame = null;
+            meterSource?.disconnect();
+            meterSource = null;
+            const context = meterContext;
+            meterContext = null;
+            if (context) void context.close().catch(() => {});
+            levelMeter.getContext('2d')?.clearRect(0, 0, levelMeter.width, levelMeter.height);
+        };
+        const startMeter = (microphoneStream) => {
+            stopMeter();
+            levelStatus.textContent = 'Проверка микрофона…';
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContextClass) {
+                levelStatus.textContent = 'Индикатор недоступен';
+                return;
+            }
+            try {
+                meterContext = new AudioContextClass();
+                const context = meterContext;
+                const analyser = context.createAnalyser();
+                analyser.fftSize = 256;
+                analyser.smoothingTimeConstant = 0.7;
+                meterSource = context.createMediaStreamSource(microphoneStream);
+                meterSource.connect(analyser); // Never connect microphone to speakers.
+                void context.resume().catch(() => {});
+                const samples = new Uint8Array(analyser.fftSize);
+                const frequencies = new Uint8Array(analyser.frequencyBinCount);
+                const drawing = levelMeter.getContext('2d');
+                let lastSoundAt = 0;
+                const meterStartedAt = performance.now();
+                const draw = () => {
+                    if (meterContext !== context) return;
+                    analyser.getByteTimeDomainData(samples);
+                    analyser.getByteFrequencyData(frequencies);
+                    let energy = 0;
+                    for (const sample of samples) energy += ((sample - 128) / 128) ** 2;
+                    const rms = Math.sqrt(energy / samples.length);
+                    const now = performance.now();
+                    if (rms > 0.008) lastSoundAt = now;
+                    const status = context.state !== 'running' ? 'Индикатор недоступен'
+                        : lastSoundAt && now - lastSoundAt <= 1500 ? 'Микрофон принимает звук'
+                        : now - meterStartedAt > 1500 ? 'Звук не обнаружен' : 'Проверка микрофона…';
+                    if (levelStatus.textContent !== status) levelStatus.textContent = status;
+                    levelMeter.setAttribute('aria-label', status);
+                    if (drawing) {
+                        drawing.clearRect(0, 0, 240, 40);
+                        drawing.fillStyle = getComputedStyle(levelMeter).color;
+                        for (let bar = 0; bar < 24; bar++) {
+                            const height = Math.max(2, frequencies[bar * 3] / 255 * 38);
+                            drawing.fillRect(bar * 10 + 2, (40 - height) / 2, 6, height);
+                        }
+                    }
+                    meterFrame = requestAnimationFrame(draw);
+                };
+                draw();
+            } catch {
+                stopMeter();
+                levelStatus.textContent = 'Индикатор недоступен';
+            }
+        };
 
         let recorder = null;
         let stream = null;
@@ -167,6 +242,7 @@
         };
 
         const stopTracks = () => {
+            stopMeter();
             if (stream) {
                 stream.getTracks().forEach((track) => track.stop());
             }
@@ -356,6 +432,7 @@
                 }, { once: true });
 
                 recorder.start(1000);
+                startMeter(stream);
                 startedAt = Date.now();
                 setRecordingUi(true);
                 recordingTime.textContent = '0:00';
@@ -466,7 +543,7 @@
             currentTime.textContent = '0:00';
             const durationTime = document.createElement('span');
             durationTime.className = 'messenger-voice-player__time messenger-voice-player__time--duration';
-            durationTime.textContent = '0:00';
+            durationTime.textContent = '—';
             timing.append(currentTime, durationTime);
             body.append(waveform, timing);
 
@@ -482,7 +559,7 @@
                 const ratio = duration > 0 ? Math.max(0, Math.min(1, current / duration)) : 0;
                 progress.value = String(Math.round(ratio * 1000));
                 currentTime.textContent = formatDuration(current);
-                durationTime.textContent = formatDuration(duration);
+                durationTime.textContent = duration > 0 ? formatDuration(duration) : '—';
                 const playedBars = Math.round(ratio * bars.length);
                 bars.forEach((bar, index) => bar.classList.toggle('is-played', index < playedBars));
             };
@@ -509,6 +586,7 @@
                 playIcon.className = 'fa fa-play';
                 play.setAttribute('aria-label', 'Воспроизвести голосовое сообщение');
             });
+            nativeAudio.addEventListener('error', () => { durationTime.textContent = 'Недоступно'; play.disabled = true; play.setAttribute('aria-label', 'Аудиозапись недоступна'); });
             nativeAudio.addEventListener('loadedmetadata', updateTime);
             nativeAudio.addEventListener('durationchange', updateTime);
             nativeAudio.addEventListener('timeupdate', updateTime);
