@@ -72,6 +72,36 @@
   }
  }
  window.wspace=window.wspace||{};window.wspace.localTranscription=transcribe;
+ let helpDialog=null,helpReason=null;
+ function showHelp(reason){
+  if(!helpDialog){
+   helpDialog=document.createElement('dialog');helpDialog.className='local-transcription-dialog';helpDialog.setAttribute('aria-labelledby','local-transcription-help-title');
+   const title=document.createElement('h2');title.id='local-transcription-help-title';title.textContent='Почему не работает расшифровка?';
+   helpReason=document.createElement('p');helpReason.className='local-transcription-dialog__reason';
+   helpDialog.append(title,helpReason);
+   const section=(heading,description)=>{const h=document.createElement('h3');h.textContent=heading;const p=document.createElement('p');p.textContent=description;helpDialog.append(h,p);};
+   section('Что требуется','Откройте сайт по HTTPS без предупреждения о сертификате. Нужны браузер с локальным распознаванием готовых аудиозаписей и установленный пакет языка речи. Для расшифровки готовой записи говорить в микрофон не нужно.');
+   section('Браузеры и ограничения','Сведения проверены 10.10.2026. Поддержка API не гарантирует доступность нужного языка.');
+   const list=document.createElement('ul');
+   for(const description of [
+    'Chrome на компьютере, версия 139 и новее: необходимые возможности заявлены. Доступность пакета русского языка нужно проверять в конкретном браузере.',
+    'Edge Canary / Dev, версия 150.0.4076 и новее: Microsoft документирует экспериментальный локальный режим. Русского языка в опубликованном списке поддерживаемых языков нет. Для стабильного Edge работу не обещаем.',
+    'Firefox: текущий способ Notes с передачей готовой аудиозаписи не поддерживается. Экспериментальная поддержка голосового ввода этого не заменяет.',
+    'Safari и Chrome на Android: нужный набор возможностей для текущего способа Notes не поддерживается.',
+    'Яндекс Браузер: поддержка этого локального режима и установка языковых пакетов не подтверждены. Наличие Алисы и голосового ввода не означает поддержку расшифровки в Notes.'
+   ]){const item=document.createElement('li');item.textContent=description;list.append(item);}helpDialog.append(list);
+   section('Как настроить','Обновите браузер, перезапустите его и откройте Notes по HTTPS. Выберите язык, на котором говорят в записи, и нажмите «Расшифровать на устройстве». Если браузер не поддерживает локальный режим, попробуйте совместимый браузер. Смена браузера не гарантирует распознавание русского языка.');
+   section('Если не установлен языковой пакет','Язык Windows, клавиатуры и интерфейса браузера не заменяет пакет распознавания. Notes пока не умеет его устанавливать. Если пакет загружается, дождитесь завершения и повторите попытку. Если браузер не предоставляет пакет или способ его установки, расшифровка здесь пока недоступна; запись можно прослушать.');
+   section('Экспериментальный режим Edge','Только в указанной версии Canary / Dev: откройте edge://flags, найдите «Speech Recognition with on-device model», выберите Enabled и перезапустите браузер. Если настройка отсутствует, не включайте другие флаги наугад. Это не добавляет русский язык. Модель устанавливается через поддерживающую это страницу; Notes пока такую установку не выполняет.');
+   section('Разрешения и качество записи','Если распознавание запрещено, проверьте разрешения сайта и политики браузера. На рабочем устройстве обратитесь к системному администратору. Если речь не обнаружена, прослушайте запись и проверьте язык. Ограничения Notes: до 10 минут и 25 МБ.');
+   section('Обработка данных','Распознавание выполняется средствами браузера на устройстве. Notes не отправляет звук во внешние сервисы распознавания. Установка модели браузера может потребовать загрузки из интернета. Полученный текст нужно проверить.');
+   const sources=document.createElement('p');sources.textContent='Документация: ';
+   for(const [label,url] of [['совместимость браузеров','https://github.com/mdn/browser-compat-data/blob/main/api/SpeechRecognition.json'],['локальный режим Edge','https://learn.microsoft.com/en-us/microsoft-edge/web-platform/speech-recognition-api']]){const a=document.createElement('a');a.textContent=label;a.href=url;a.target='_blank';a.rel='noopener noreferrer';sources.append(a,document.createTextNode(' '));}helpDialog.append(sources);
+   const close=document.createElement('button');close.type='button';close.textContent='Закрыть';close.autofocus=true;close.addEventListener('click',()=>helpDialog.close());helpDialog.append(close);document.body.append(helpDialog);
+  }
+  helpReason.textContent=reason;
+  if(!helpDialog.open)helpDialog.showModal();
+ }
  function attach(audio){
   if(audio.dataset.localTranscription==='1')return;audio.dataset.localTranscription='1';
   const panel=document.createElement('div');panel.className='local-transcription';
@@ -85,22 +115,18 @@
   const editor=audio.closest('[data-note-editor-013]')?.querySelector('textarea[name="content"]')||document.querySelector('.messenger-composer textarea');
   insert.textContent=audio.closest('[data-note-editor-013]')?'Вставить в заметку':'Вставить в сообщение';
   insert.addEventListener('click',()=>{if(!editor||!text.value.trim())return;editor.setRangeText(text.value,editor.selectionStart,editor.selectionEnd,'end');editor.dispatchEvent(new Event('input',{bubbles:true}));editor.focus();});
-  const help=document.createElement('details');help.className='local-transcription__help';
-  const summary=document.createElement('summary');summary.textContent='Что нужно для расшифровки?';
-  const requirements=document.createElement('p');requirements.textContent='Нужны HTTPS без предупреждения о сертификате, браузер с локальным распознаванием записей и установленный пакет языка речи. Поддержка зависит от браузера и языка; обновление браузера не гарантирует её появления. Для записи микрофон нужен, для расшифровки готового файла говорить в него не нужно.';
-  const packages=document.createElement('p');packages.textContent='Выберите язык, на котором говорят в записи, и нажмите «Расшифровать на устройстве». Notes проверит доступность. Установка языка Windows, клавиатуры или интерфейса браузера не заменяет пакет распознавания. Notes пока не устанавливает такие пакеты; если браузер их не предоставляет, запись остаётся доступна для прослушивания.';
-  const privacy=document.createElement('p');privacy.textContent='Распознавание выполняется средствами браузера на вашем устройстве. Notes не отправляет звук во внешние сервисы распознавания. Доступны записи до 10 минут и 25 МБ. Полученный текст нужно проверить.';
-  help.append(summary,requirements,packages,privacy);
+  const help=document.createElement('button');help.type='button';help.textContent='Почему не работает?';help.hidden=true;help.setAttribute('aria-haspopup','dialog');
+  let failureReason='';help.addEventListener('click',()=>showHelp(failureReason));
   panel.append(language,button,cancel,insert,status,help,text);audio.parentElement.append(panel);
   let controller=null;
   button.addEventListener('click',async()=>{
-   controller=new AbortController();button.disabled=true;language.disabled=true;cancel.hidden=false;status.textContent='Проверяем локальное распознавание…';
+   controller=new AbortController();button.disabled=true;language.disabled=true;cancel.hidden=false;help.hidden=true;status.textContent='Проверяем локальное распознавание…';
    try{
     const url=audio.currentSrc||audio.src||audio.querySelector('source')?.src;
     if(!url)throw new Error('Запись не найдена');
     const result=await transcribe(url,language.value,value=>{text.hidden=false;text.value=value;status.textContent='Расшифровываем на устройстве…';},controller.signal);
     text.value=result;text.hidden=false;insert.hidden=!editor;status.textContent='Расшифровка готова. Проверьте текст перед использованием.';
-   }catch(error){status.textContent=error.name==='AbortError'?'Расшифровка отменена.':error.message;}
+   }catch(error){if(error.name==='AbortError'){status.textContent='Расшифровка отменена.';}else{failureReason=error.message;status.textContent='Не удалось расшифровать запись.';help.hidden=false;}}
    finally{button.disabled=false;language.disabled=false;cancel.hidden=true;controller=null;}
   });
   cancel.addEventListener('click',()=>controller?.abort());
