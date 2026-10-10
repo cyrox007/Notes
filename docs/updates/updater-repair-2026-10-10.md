@@ -15,6 +15,11 @@ The HTTP boundary logs otherwise unhandled exceptions to private
 updates/http-events.jsonl without relying on loaded environment. Browser failures
 show HTTP status, error code, transaction ID and retry count.
 This stop occurred before live mutation; the original version remained healthy.
+The user's subsequent real admin-button transaction
+web-update-20261010-071104-fa7d0ccc32 committed original signed 1.0.14 on local
+Windows/Apache. Full repair was reapplied afterward; health status is ok.
+The legacy 1.0.12/14 bridges now carry the environment reader's dependencies too;
+the full archive also includes the compatibility stage-repair entrypoint.
 
 ## Revision 3: real browser mode and diagnostics
 

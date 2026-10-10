@@ -233,6 +233,10 @@ if (!isset($allowedLiveVersions[$liveVersion])
 }
 
 $files = [
+    'core/Environment.php',
+    'core/SchemaReadiness.php',
+    'core/WebSocketEndpoint.php',
+    'core/UpdateReadiness.php',
     'app/services/MaintenanceModeService.php',
     'assets/js/update-web-runner.js',
     'bin/migrate.php',
