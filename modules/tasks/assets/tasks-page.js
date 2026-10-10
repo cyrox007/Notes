@@ -118,6 +118,7 @@
         }
 
         root.querySelectorAll('.task-status-toggle').forEach((toggle) => {
+            toggle.dataset.nativeTaskChange = '1';
             toggle.dataset.previousValue = toggle.value;
             toggle.addEventListener('change', async function () {
                 const previous = this.dataset.previousValue || this.defaultValue || 'pending';
@@ -147,6 +148,7 @@
         });
 
         root.querySelectorAll('.task-complete-toggle').forEach((toggle) => {
+            toggle.dataset.nativeTaskChange = '1';
             toggle.addEventListener('change', async function () {
                 const task = taskItemFor(this);
                 const statusSelect = task?.querySelector('.task-status-toggle');
@@ -205,6 +207,7 @@
         });
 
         root.querySelectorAll('.subtask-toggle').forEach((toggle) => {
+            toggle.dataset.nativeTaskChange = '1';
             toggle.addEventListener('change', async function () {
                 const previous = !this.checked;
                 this.disabled = true;

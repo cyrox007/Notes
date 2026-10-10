@@ -43,3 +43,10 @@ html[data-theme="dark"] :is(.btn-danger,.button--danger,.task-board-button--dang
 html[data-theme="dark"] :is(.btn-danger,.button--danger,.task-board-button--danger,.wspace-dialog__button--danger):hover{background:#bd4032}
 html[data-theme="dark"] .task-priority-badge{color:#121314}
 html[data-theme="dark"] .task-priority-urgent .task-priority-badge{background:var(--ui-danger);color:#121314}
+
+html[data-theme="dark"] .sidebar::after{display:none}
+html[data-theme="dark"] :is(.sidebar__top,.sidebar__bottom){border-color:var(--ui-border)}
+html[data-theme="dark"] .sidebar__utility{color:var(--ui-text)}
+html[data-theme="dark"] .sidebar__utility[aria-current="page"]{background:#313233;color:#ededed;border-color:var(--ui-border);box-shadow:inset 3px 0 #48a0c7}
+html[data-theme="dark"] .sidebar__brand-copy strong{color:#ededed}
+html[data-theme="dark"] .sidebar__brand-copy small{color:var(--ui-primary)}
