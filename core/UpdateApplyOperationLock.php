@@ -7,27 +7,27 @@ namespace Core;
 use RuntimeException;
 
 /**
- * Holds a non-blocking transaction-scoped lock for the entire live apply/recover
- * command, not only for individual journal writes.
+ * Неблокирующая блокировка одной транзакции на всё применение или восстановление.
+ * Она удерживается всей командой, а не только отдельными записями журнала.
  */
 final class UpdateApplyOperationLock
 {
     /** @var resource|null */
-    private $handle = null;
+    private mixed $handle = null;
     private string $path;
 
     public function __construct(string $stateRoot, string $transactionId)
     {
         if (preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]{7,95}$/', trim($transactionId)) !== 1) {
-            throw new RuntimeException('Invalid updater transaction id for operation lock');
+            throw new RuntimeException('Некорректный идентификатор транзакции для блокировки применения');
         }
 
         $root = realpath($stateRoot);
         if (!is_string($root) || !is_dir($root) || is_link($stateRoot)) {
-            throw new RuntimeException('Updater state root cannot be resolved safely for operation lock');
+            throw new RuntimeException('Не удалось безопасно определить каталог состояния обновлятора');
         }
         if (!is_writable($root)) {
-            throw new RuntimeException('Updater state root is not writable for operation lock');
+            throw new RuntimeException('Каталог состояния обновлятора недоступен для записи');
         }
 
         $locksRoot = rtrim($root, '/\\') . DIRECTORY_SEPARATOR . 'operation-locks';
@@ -36,30 +36,32 @@ final class UpdateApplyOperationLock
             $made = @mkdir($locksRoot, 0700, false);
             umask($oldUmask);
             if (!$made && !is_dir($locksRoot)) {
-                throw new RuntimeException('Cannot create updater operation lock directory');
+                throw new RuntimeException('Не удалось создать каталог блокировок применения');
             }
         }
         if (!is_dir($locksRoot) || is_link($locksRoot)) {
-            throw new RuntimeException('Updater operation lock directory is unsafe');
+            throw new RuntimeException('Каталог блокировок применения небезопасен');
         }
         @chmod($locksRoot, 0700);
 
         $this->path = $locksRoot . DIRECTORY_SEPARATOR . trim($transactionId) . '.lock';
         if (is_link($this->path) || (file_exists($this->path) && !is_file($this->path))) {
-            throw new RuntimeException('Updater operation lock path is unsafe');
+            throw new RuntimeException('Путь блокировки применения небезопасен');
         }
 
         $oldUmask = umask(0077);
         $handle = @fopen($this->path, 'c');
         umask($oldUmask);
         if ($handle === false) {
-            throw new RuntimeException('Cannot open updater operation lock');
+            throw new RuntimeException('Не удалось открыть блокировку применения');
         }
         @chmod($this->path, 0600);
 
         if (!@flock($handle, LOCK_EX | LOCK_NB)) {
             fclose($handle);
-            throw new UpdateOperationBusyException('Another live apply/recovery process already owns this updater transaction');
+            throw new UpdateOperationBusyException(
+                'Другая команда применения или восстановления уже выполняет эту транзакцию'
+            );
         }
 
         $this->handle = $handle;
