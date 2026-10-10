@@ -24,6 +24,7 @@ try{
   assert.equal(await pages[0].evaluate(()=>fixtureTracks.find(t=>t.kind==='audio').enabled),false);
   await pages[0].locator('[data-call-action=end]').click();
   for(const page of pages){await page.locator('dialog.workspace-call').first().waitFor({state:'hidden',timeout:10000});assert.equal(await page.evaluate(()=>fixtureTracks.every(t=>t.readyState==='ended')),true);}
+  console.log(`PASS: ${mode} call, remote media and track cleanup`);
  }
  const voicePage=pages[0];let voiceUploads=0,voiceSends=0;
  await voicePage.route('**/messenger/voice-upload',async route=>{voiceUploads++;await route.fulfill({json:{success:true,attachment:{uid:'fixture-voice',media_kind:'voice'}}});});
@@ -31,6 +32,7 @@ try{
  await voicePage.locator('#message-voice-button').click();await voicePage.locator('.messenger-voice-recorder').waitFor({state:'visible'});await voicePage.waitForTimeout(1100);await voicePage.locator('.messenger-voice-recorder__send').click();
  await voicePage.locator('.messenger-voice-recovery').waitFor({state:'visible'});assert.equal(voiceUploads,1);
  await voicePage.getByRole('button',{name:'Повторить отправку голосового'}).click();await voicePage.locator('.messenger-voice-recovery').waitFor({state:'hidden'});assert.equal(voiceUploads,1);assert.equal(voiceSends,2);
+ console.log('PASS: voice confirmation retry');
  // A real MediaRecorder recording survives a failed send and retries the same attachment.
  const page=pages[0];let uploads=0,sends=0;let recorded=null;
  await page.route('**/messenger/upload',async route=>{uploads++;recorded=route.request().postDataBuffer();await route.fulfill({json:{success:true,attachment:{uid:'fixture-video',media_kind:'video'}}});});
@@ -40,6 +42,7 @@ try{
  await page.locator('[data-video=send]').waitFor({state:'visible'});assert.equal(await page.locator('[data-video=download]').isVisible(),true);
  await page.locator('[data-video=send]').click();await page.locator('.workspace-video-recording [role=status]').filter({hasText:'Запись не потеряна'}).waitFor();
  assert.equal(uploads,1);assert.ok(recorded.length>1000);await page.locator('[data-video=send]').click();await page.locator('.workspace-video-recording').waitFor({state:'hidden'});assert.equal(uploads,1);assert.equal(sends,2);
+ console.log('PASS: video confirmation retry');
  // Local STT fails closed without an installed on-device language, before reading audio.
  await page.addScriptTag({content:await readFile('assets/js/local-transcription.js','utf8')});
  const available=await page.evaluate(async()=>{
