@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Helpers\CryptMethods;
 use Core\DatabaseManager;
 use RuntimeException;
+use SensitiveParameter;
 use Throwable;
 
 final class TwoFactorService
@@ -24,8 +25,11 @@ final class TwoFactorService
         return self::base32Encode(random_bytes(self::SECRET_BYTES));
     }
 
-    public function provisioningUri(string $account, string $issuer, string $secret): string
-    {
+    public function provisioningUri(
+        string $account,
+        string $issuer,
+        #[SensitiveParameter] string $secret
+    ): string {
         $account = trim($account);
         $issuer = trim($issuer);
         if ($account === '' || $issuer === '') {
@@ -43,8 +47,10 @@ final class TwoFactorService
             . '&period=' . self::PERIOD_SECONDS;
     }
 
-    public function encryptSecret(string $secret, string $userUid): string
-    {
+    public function encryptSecret(
+        #[SensitiveParameter] string $secret,
+        string $userUid
+    ): string {
         if (!self::isBase32Secret($secret) || trim($userUid) === '') {
             throw new RuntimeException('Нельзя зашифровать некорректный секрет TOTP');
         }
@@ -52,25 +58,29 @@ final class TwoFactorService
         return CryptMethods::encrypt($secret, $this->secretAad($userUid));
     }
 
-    public function decryptSecret(string $payload, string $userUid): string
-    {
+    public function decryptSecret(
+        #[SensitiveParameter] string $payload,
+        string $userUid
+    ): string {
         $secret = CryptMethods::decrypt($payload, $this->secretAad($userUid));
         if (!self::isBase32Secret($secret)) {
-            throw new RuntimeException('Stored Некорректный секрет TOTP');
+            throw new RuntimeException('Сохранённый секрет TOTP некорректен');
         }
 
         return $secret;
     }
 
-    public function codeForTime(string $secret, int $unixTime): string
-    {
+    public function codeForTime(
+        #[SensitiveParameter] string $secret,
+        int $unixTime
+    ): string {
         $counter = intdiv(max(0, $unixTime), self::PERIOD_SECONDS);
         return $this->codeForCounter($secret, $counter);
     }
 
     public function matchingCounter(
-        string $secret,
-        string $code,
+        #[SensitiveParameter] string $secret,
+        #[SensitiveParameter] string $code,
         ?int $lastAcceptedCounter = null,
         ?int $unixTime = null
     ): ?int {
@@ -89,10 +99,12 @@ final class TwoFactorService
             if (abs($offset) > self::WINDOW_STEPS) {
                 continue;
             }
+
             $counter = $current + $offset;
             if ($counter < 0 || ($lastAcceptedCounter !== null && $counter <= $lastAcceptedCounter)) {
                 continue;
             }
+
             if (hash_equals($this->codeForCounter($secret, $counter), $code)) {
                 return $counter;
             }
@@ -109,11 +121,12 @@ final class TwoFactorService
             $raw = strtoupper(bin2hex(random_bytes(10)));
             $codes[] = implode('-', str_split($raw, 5));
         }
+
         return $codes;
     }
 
     /** @param list<string> $codes */
-    public function hashRecoveryCodes(array $codes): string
+    public function hashRecoveryCodes(#[SensitiveParameter] array $codes): string
     {
         $hashes = [];
         foreach ($codes as $code) {
@@ -132,8 +145,11 @@ final class TwoFactorService
      *
      * @return array{ok:bool,used_recovery:bool}
      */
-    public function verifyAndConsume(DatabaseManager $db, int $userId, string $code): array
-    {
+    public function verifyAndConsume(
+        DatabaseManager $db,
+        int $userId,
+        #[SensitiveParameter] string $code
+    ): array {
         if ($userId <= 0) {
             return ['ok' => false, 'used_recovery' => false];
         }
@@ -201,8 +217,10 @@ final class TwoFactorService
         }
     }
 
-    public function consumeRecoveryCodeHashSet(?string $json, string $code): ?string
-    {
+    public function consumeRecoveryCodeHashSet(
+        #[SensitiveParameter] ?string $json,
+        #[SensitiveParameter] string $code
+    ): ?string {
         if ($json === null || trim($json) === '') {
             return null;
         }
@@ -237,8 +255,10 @@ final class TwoFactorService
         return null;
     }
 
-    private function codeForCounter(string $secret, int $counter): string
-    {
+    private function codeForCounter(
+        #[SensitiveParameter] string $secret,
+        int $counter
+    ): string {
         if (!self::isBase32Secret($secret) || $counter < 0) {
             throw new RuntimeException('Нельзя вычислить TOTP для некорректных входных данных');
         }
@@ -262,17 +282,17 @@ final class TwoFactorService
         return 'two-factor-totp-secret:' . trim($userUid);
     }
 
-    private static function isBase32Secret(string $secret): bool
+    private static function isBase32Secret(#[SensitiveParameter] string $secret): bool
     {
         return preg_match('/^[A-Z2-7]{16,128}$/D', strtoupper(trim($secret))) === 1;
     }
 
-    private static function normalizeRecoveryCode(string $code): string
+    private static function normalizeRecoveryCode(#[SensitiveParameter] string $code): string
     {
         return strtoupper((string) preg_replace('/[^A-Fa-f0-9]/', '', trim($code)));
     }
 
-    private static function base32Encode(string $bytes): string
+    private static function base32Encode(#[SensitiveParameter] string $bytes): string
     {
         $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
         $output = '';
@@ -296,7 +316,7 @@ final class TwoFactorService
         return $output;
     }
 
-    private static function base32Decode(string $secret): string
+    private static function base32Decode(#[SensitiveParameter] string $secret): string
     {
         $alphabet = array_flip(str_split('ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'));
         $secret = strtoupper(trim($secret));
