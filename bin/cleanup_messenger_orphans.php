@@ -3,18 +3,17 @@
 
 declare(strict_types=1);
 
-if (PHP_SAPI !== 'cli') {
-    fwrite(STDERR, "This command is CLI-only.\n");
-    exit(1);
-}
+require_once dirname(__DIR__) . '/core/CliRuntime.php';
+\Core\CliRuntime::assertCli(1);
 
 if (!defined('SITEPATH')) {
-    define('SITEPATH', dirname(__DIR__));
+    define('SITEPATH', \Core\CliRuntime::projectRoot());
 }
 
 require_once SITEPATH . '/core.php';
 
 use App\Services\MessengerMediaCleanupService;
+use Core\CliRuntime;
 
 $options = getopt('', ['ttl::', 'limit::']);
 $ttl = isset($options['ttl']) && ctype_digit((string) $options['ttl'])
@@ -26,10 +25,8 @@ $limit = isset($options['limit']) && ctype_digit((string) $options['limit'])
 
 try {
     $result = (new MessengerMediaCleanupService())->cleanup($ttl, $limit);
-    fwrite(STDOUT, json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . PHP_EOL);
-    exit(0);
+    CliRuntime::writeJson($result);
 } catch (Throwable $e) {
-    error_log('Messenger orphan cleanup failed: ' . $e->getMessage());
-    fwrite(STDERR, "Messenger orphan cleanup failed.\n");
-    exit(1);
+    error_log('Ошибка очистки сиротских файлов Messenger: ' . $e->getMessage());
+    CliRuntime::fail($e, false, 'messenger_cleanup_failed');
 }
