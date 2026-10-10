@@ -104,17 +104,37 @@
                 const result = await requestJson(`/tasks/subtask/${encodeURIComponent(id)}/toggle`, { method: 'POST' });
                 target.checked = Number(result.is_completed) === 1;
                 target.closest('.subtask-item')?.classList.toggle('completed', target.checked);
+                syncSubtaskProgress(target);
                 target.disabled = false;
                 feedback()?.toast('Подзадача обновлена', 'success');
             } catch (error) {
                 target.checked = previous;
                 target.disabled = false;
                 feedback()?.toast(`Не удалось изменить подзадачу: ${error.message}`, 'error');
+                syncSubtaskProgress(target);
             }
             return true;
         }
 
         return false;
+    }
+
+    function syncSubtaskProgress(anchor) {
+        const container = anchor?.closest('.task-subtasks') || anchor?.querySelector('.task-subtasks');
+        if (!container) return;
+        const toggles = Array.from(container.querySelectorAll('.subtask-toggle'));
+        const completed = toggles.filter(toggle => toggle.checked).length;
+        const percent = toggles.length ? Math.round(completed * 100 / toggles.length) : 0;
+        container.dataset.subtaskTotal = String(toggles.length);
+        container.dataset.subtaskCompleted = String(completed);
+        const label = container.querySelector('.task-subtasks__percent');
+        if (label) label.textContent = String(percent);
+        const progress = container.querySelector('.task-subtasks__progress');
+        if (progress) {
+            progress.value = percent;
+            progress.textContent = `${percent}%`;
+            progress.setAttribute('aria-valuenow', String(percent));
+        }
     }
 
     function createSubtaskNode(subtask) {
@@ -170,6 +190,7 @@
                 });
                 const item = taskItem(add);
                 item?.querySelector('.subtasks-list')?.appendChild(createSubtaskNode(result.subtask));
+                syncSubtaskProgress(item);
                 feedback()?.toast('Подзадача добавлена', 'success');
             } catch (error) {
                 feedback()?.toast(`Не удалось добавить подзадачу: ${error.message}`, 'error');
@@ -189,7 +210,9 @@
             if (!confirmed) return true;
             try {
                 await requestJson(`/tasks/subtask/${encodeURIComponent(id)}/delete`, { method: 'POST' });
+                const container = remove.closest('.task-subtasks');
                 remove.closest('.subtask-item')?.remove();
+                syncSubtaskProgress(container);
                 feedback()?.toast('Подзадача удалена', 'success');
             } catch (error) {
                 feedback()?.toast(`Не удалось удалить подзадачу: ${error.message}`, 'error');

@@ -95,6 +95,34 @@ try {
   observer.disconnect();card.dispatchEvent(new DragEvent('dragend',{bubbles:true,dataTransfer:transfer}));return result;
  });
  assert.deepEqual(sharedHint,{same:true,mutations:0,active:'true',pointerEvents:'none'},'shared board hint is also stable');
+ // Subtasks created after boot use the delegated handler and must update progress too.
+ let nextSubtask=0, failSubtask=false;
+ const states=new Map();
+ await page.route('**/tasks/**',async route=>{
+  const url=new URL(route.request().url());let payload={success:true};
+  if(url.pathname.endsWith('/subtask')){const id=String(++nextSubtask);states.set(id,false);payload.subtask={id,title:'Dynamic subtask'};}
+  else if(url.pathname.endsWith('/toggle')){const id=url.pathname.split('/')[3];states.set(id,!states.get(id));payload.is_completed=states.get(id)?1:0;}
+  await route.fulfill({status:failSubtask?500:200,json:failSubtask?{success:false,error:'save failed'}:payload});
+ });
+ await page.evaluate(()=>{
+  window.wspace.feedback={prompt:async()=> 'Dynamic subtask',confirm:async()=>true,toast:()=>{}};
+  const task=document.createElement('div');task.id='dynamic-subtasks';task.className='task-item';
+  task.innerHTML='<div class="task-subtasks"><span class="task-subtasks__percent">0</span><progress class="task-subtasks__progress" max="100" value="0"></progress><button class="add-subtask-btn" data-task-id="dynamic">Добавить</button><ul class="subtasks-list"></ul></div>';
+  document.querySelector('.tasks').append(task);
+ });
+ const dynamic=page.locator('#dynamic-subtasks');
+ const progressValue=()=>dynamic.locator('progress').evaluate(p=>p.value);
+ const waitProgress=percent=>page.waitForFunction(value=>document.querySelector('#dynamic-subtasks progress').value===value,percent);
+ await dynamic.locator('.add-subtask-btn').click();await dynamic.locator('.subtask-toggle').waitFor();
+ await dynamic.locator('.subtask-toggle').check();await waitProgress(100);
+ await dynamic.locator('.add-subtask-btn').click();await waitProgress(50);
+ await dynamic.locator('.subtask-toggle').nth(1).check();await waitProgress(100);
+ await dynamic.locator('.delete-subtask').first().click();await page.waitForFunction(()=>document.querySelectorAll('#dynamic-subtasks .subtask-toggle').length===1);
+ assert.equal(await progressValue(),100);
+ await dynamic.locator('.delete-subtask').click();await waitProgress(0);
+ await dynamic.locator('.add-subtask-btn').click();await dynamic.locator('.subtask-toggle').waitFor();failSubtask=true;
+ await dynamic.locator('.subtask-toggle').check();await page.waitForFunction(()=>{const toggle=document.querySelector('#dynamic-subtasks .subtask-toggle');return !toggle.checked&&!toggle.disabled;});
+ assert.equal(await progressValue(),0);assert.equal(await dynamic.locator('.task-subtasks__percent').textContent(),'0');
  assert.deepEqual(errors,[]);
  console.log('PASS: native task save, move without dragend, rollback, counters, stable personal/shared drop hints and Dark 2026 controls');
 } finally {await browser.close();}
