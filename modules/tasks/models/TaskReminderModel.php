@@ -1,11 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
 use Core\ORM;
 
-class TaskReminderModel extends ORM {
-    protected ?string $_tablename = "task_reminders";
+class TaskReminderModel extends ORM
+{
+    protected ?string $_tablename = 'task_reminders';
 
     public int $id = 0;
     public int $task_id = 0;
