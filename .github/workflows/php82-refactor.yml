@@ -37,6 +37,7 @@ jobs:
           set -euo pipefail
           composer validate --no-check-publish
           php tests/integration/php82_refactor_contract.php
+          php tests/integration/php82_sensitive_parameters_contract.php
 
       - name: Проверить синтаксис всего PHP-кода
         shell: bash
@@ -59,11 +60,12 @@ jobs:
                 exit(1);
             }
             printf(
-                "deprecated=%d strict_types_missing=%d untyped_properties=%d dynamic_property_candidates=%d\n",
+                "deprecated=%d strict_types_missing=%d untyped_properties=%d dynamic_property_candidates=%d resource_properties=%d\n",
                 (int) ($data["summary"]["deprecated"] ?? -1),
                 (int) ($data["summary"]["strict_types_missing"] ?? -1),
                 (int) ($data["summary"]["untyped_properties"] ?? -1),
                 (int) ($data["summary"]["dynamic_property_candidates"] ?? -1),
+                (int) ($data["summary"]["resource_properties"] ?? -1),
             );
           '
 
