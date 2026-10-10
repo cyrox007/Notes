@@ -8,7 +8,19 @@
   const recognition=new Recognition();
   if(!('processLocally' in recognition))throw new Error('Браузер не поддерживает локальное распознавание. Внешнее распознавание отключено.');
   recognition.processLocally=true;
-  const availability=await Recognition.available({langs:[lang],processLocally:true});
+  if(signal?.aborted)throw new DOMException('Отменено','AbortError');
+  let availabilityTimer=null,abortAvailability=null;
+  let availability;
+  try{
+   availability=await Promise.race([
+    Recognition.available({langs:[lang],processLocally:true}),
+    new Promise((_,reject)=>{
+     availabilityTimer=setTimeout(()=>reject(new Error('Браузер не ответил на проверку локального языка. Аудио никуда не отправлено.')),5000);
+     abortAvailability=()=>reject(new DOMException('Отменено','AbortError'));
+     signal?.addEventListener('abort',abortAvailability,{once:true});
+    })
+   ]);
+  }finally{clearTimeout(availabilityTimer);if(abortAvailability)signal?.removeEventListener('abort',abortAvailability);}
   if(availability!=='available')throw new Error(availability==='downloadable'||availability==='downloading'?'Локальный языковой пакет не установлен. Расшифровка в этом браузере пока недоступна.':'Локальное распознавание выбранного языка не поддерживается браузером.');
   const target=new URL(url,location.href);
   if(target.origin!==location.origin)throw new Error('Разрешены только записи этой установки Notes');
