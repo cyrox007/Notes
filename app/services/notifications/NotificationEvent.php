@@ -8,7 +8,7 @@ use DateTimeImmutable;
 use DateTimeZone;
 use InvalidArgumentException;
 
-final class NotificationEvent
+final readonly class NotificationEvent
 {
     public const IMPORTANCE_LOW = 'low';
     public const IMPORTANCE_NORMAL = 'normal';
@@ -16,25 +16,25 @@ final class NotificationEvent
     public const IMPORTANCE_CRITICAL = 'critical';
 
     /** @var list<int> */
-    public readonly array $recipientUserIds;
-    public readonly DateTimeImmutable $occurredAt;
+    public array $recipientUserIds;
+    public DateTimeImmutable $occurredAt;
 
     /**
      * @param list<int> $recipientUserIds
      * @param array<string, mixed> $payload
      */
     public function __construct(
-        public readonly string $name,
-        public readonly int $version,
-        public readonly string $idempotencyKey,
-        public readonly string $source,
-        public readonly string $category,
-        public readonly string $importance,
-        public readonly string $title,
-        public readonly string $body,
+        public string $name,
+        public int $version,
+        public string $idempotencyKey,
+        public string $source,
+        public string $category,
+        public string $importance,
+        public string $title,
+        public string $body,
         array $recipientUserIds,
-        public readonly array $payload = [],
-        public readonly ?string $targetPath = null,
+        public array $payload = [],
+        public ?string $targetPath = null,
         ?DateTimeImmutable $occurredAt = null
     ) {
         $this->assertValidName($name);
