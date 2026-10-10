@@ -554,7 +554,7 @@ final class MessengerMediaService
 
     private function privateStorageRoot(): string
     {
-        $configured = getenv('PRIVATE_STORAGE_PATH');
+        $configured = \Core\Environment::get('PRIVATE_STORAGE_PATH');
         $root = is_string($configured) && trim($configured) !== ''
             ? trim($configured)
             : dirname(SITEPATH) . DIRECTORY_SEPARATOR . 'notes-private-storage';
