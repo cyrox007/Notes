@@ -866,6 +866,20 @@
             this.renderDialogs();
             this.renderChatHeader();
             this.el.messageList.replaceChildren();
+            this.el.messageList.dataset.loading = 'true';
+            this.el.messageList.setAttribute('aria-busy', 'true');
+            this.el.messageList.setAttribute('aria-label', 'Загружаем сообщения');
+            this.keepHistoryAtBottom = true;
+            if (!this.historyResizeObserver && typeof ResizeObserver === 'function') {
+                this.historyResizeObserver = new ResizeObserver(() => {
+                    if (this.keepHistoryAtBottom && !this.requestedMessageUid) this.scrollToBottom();
+                });
+                this.historyResizeObserver.observe(this.el.messageList);
+                this.el.messageScroll.addEventListener('scroll', () => {
+                    const scroll = this.el.messageScroll;
+                    this.keepHistoryAtBottom = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight <= 48;
+                }, { passive: true });
+            }
             this.el.loadOlder.hidden = true;
             if (this.restoredDialogState?.uid === uid && !this.requestedMessageUid) {
                 if (this.el.input) this.el.input.value = typeof this.restoredDialogState.draft === 'string' ? this.restoredDialogState.draft.slice(0, 20000) : '';
@@ -898,6 +912,9 @@
 
         applyMessages(data) {
             if (!this.currentDialog || data.dialog_uid !== this.currentDialog.uid) return;
+            delete this.el.messageList.dataset.loading;
+            this.el.messageList.setAttribute('aria-busy', 'false');
+            this.el.messageList.setAttribute('aria-label', 'Сообщения');
 
             const incoming = Array.isArray(data.messages) ? data.messages : [];
             if (data.dialog) {
@@ -925,11 +942,6 @@
             const restored = this.restoredDialogState;
             if (restored?.uid === this.currentDialog.uid) {
                 this.restoredDialogState = null;
-                if (!this.requestedMessageUid && !restored.atBottom) {
-                    requestAnimationFrame(() => {
-                        if (this.currentDialog?.uid === restored.uid) this.el.messageScroll.scrollTop = Math.max(0, Number(restored.scrollTop) || 0);
-                    });
-                }
             }
         }
 
@@ -999,7 +1011,11 @@
                 const newHeight = this.el.messageScroll.scrollHeight;
                 this.el.messageScroll.scrollTop = oldTop + (newHeight - oldHeight);
             } else if (options.scrollBottom) {
-                requestAnimationFrame(() => this.scrollToBottom());
+                this.keepHistoryAtBottom = !this.requestedMessageUid;
+                const dialogUid = this.currentDialog?.uid;
+                requestAnimationFrame(() => {
+                    if (this.currentDialog?.uid === dialogUid && this.keepHistoryAtBottom) this.scrollToBottom();
+                });
             }
         }
 
@@ -1051,6 +1067,8 @@
             if (own) {
                 const status = document.createElement('span');
                 status.className = 'messenger-message__status';
+                status.dataset.state = this.isMessageRead(message) ? 'read' : 'sent';
+                status.setAttribute('aria-label', this.isMessageRead(message) ? 'Прочитано' : 'Отправлено');
                 status.textContent = this.isMessageRead(message) ? '✓✓' : '✓';
                 meta.append(status);
             }

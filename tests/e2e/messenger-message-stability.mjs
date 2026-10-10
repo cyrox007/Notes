@@ -52,12 +52,21 @@ try{
  await page.reload();await installStateFixture();
  assert.equal(await page.evaluate(()=>stateApp.currentDialog.uid),'a');
  assert.equal(await page.locator('#message-input').inputValue(),'Черновик');
+ assert.equal(await page.locator('#message-list').getAttribute('aria-busy'),'true');
+ await page.evaluate(()=>stateApp.applyMessages({dialog_uid:'b',messages:[]}));
+ assert.equal(await page.locator('#message-list').getAttribute('aria-busy'),'true','A stale response must not clear loading');
  await page.evaluate(()=>stateApp.applyMessages({dialog_uid:'a',messages:[]}));await page.waitForTimeout(50);
- assert.equal(await page.locator('#message-scroll').evaluate(el=>el.scrollTop),123);
+ assert.equal(await page.locator('#message-list').getAttribute('aria-busy'),'false');
+ assert.equal(await page.locator('#message-scroll').evaluate(el=>el.scrollTop),900);
+ await page.evaluate(()=>stateApp.el.messageList.firstChild.style.height='1100px');await page.waitForTimeout(50);
+ assert.equal(await page.locator('#message-scroll').evaluate(el=>el.scrollTop),1000,'Late media layout must keep latest message visible');
+ await page.locator('#message-scroll').evaluate(el=>el.scrollTop=123);await page.waitForTimeout(50);
+ await page.evaluate(()=>stateApp.el.messageList.firstChild.style.height='1200px');await page.waitForTimeout(50);
+ assert.equal(await page.locator('#message-scroll').evaluate(el=>el.scrollTop),123,'Reading history must not be interrupted');
  await page.goto('https://state.test/?dialog=b');await installStateFixture();
  assert.equal(await page.evaluate(()=>stateApp.currentDialog.uid),'b');
  await page.goto('https://state.test/');await installStateFixture('other');
  assert.equal(await page.evaluate(()=>stateApp.currentDialog),null);
- console.log('PASS: reload restores authorized dialog, draft and scroll; explicit links and user isolation preserved');
+ console.log('PASS: reload restores dialog and draft at latest message; loading, late media layout, manual history scroll and user isolation preserved');
  console.log('PASS: video node stays connected across receipt changes and prepend; actions above cards at 390/900/1440px');
 }finally{await browser.close();}
