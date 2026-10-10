@@ -127,4 +127,27 @@ foreach ($sourceRequirements as $relative => $needles) {
     }
 }
 
+$installer = file_get_contents($root . '/install.php');
+sensitiveParameterAssert(is_string($installer), 'Не удалось прочитать install.php');
+sensitiveParameterAssert(
+    str_contains($installer, 'PHP_VERSION_ID < 80200'),
+    'Установщик должен отклонять PHP ниже 8.2'
+);
+sensitiveParameterAssert(
+    str_contains($installer, "'PHP 8.2+' => version_compare(PHP_VERSION, '8.2.0', '>=')"),
+    'Проверка требований установщика должна соответствовать минимуму PHP 8.2'
+);
+sensitiveParameterAssert(
+    !str_contains($installer, 'PHP 8.1+'),
+    'В установщике не должно оставаться старого требования PHP 8.1+'
+);
+sensitiveParameterAssert(
+    substr_count($installer, '#[SensitiveParameter] string $password') >= 5,
+    'Пароли БД и администратора должны скрываться из трассировок установщика'
+);
+sensitiveParameterAssert(
+    str_contains($installer, 'function writeEnvironmentFile(string $file, #[SensitiveParameter] array $data): void'),
+    'Массив секретов .env должен быть чувствительным параметром установщика'
+);
+
 fwrite(STDOUT, "[OK] чувствительные параметры PHP 8.2 скрыты из трассировок\n");
