@@ -51,6 +51,7 @@ function isExpectedMessengerNavigationAbort(request) {
   const expectedBackgroundPaths = new Set([
     messengerBase + '/realtime/poll',
     messengerBase + '/socket-ticket',
+    messengerBase + '/calls',
   ]);
   if (url.origin !== origin || !expectedBackgroundPaths.has(url.pathname)) return false;
 
