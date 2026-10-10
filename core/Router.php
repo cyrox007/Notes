@@ -20,13 +20,12 @@ class Router
     /** @var array<class-string> */
     private array $globalMiddlewares = [];
 
-    /** @var string|null */
     private ?string $groupPrefix = null;
 
-    /** @var array<string,string> normalized route path => compiled regex */
+    /** @var array<string,string> нормализованный путь маршрута => скомпилированное регулярное выражение */
     private array $compiledPatterns = [];
 
-    /** @var array<string,int> route name => index in $routes */
+    /** @var array<string,int> имя маршрута => индекс в $routes */
     private array $routeNameIndex = [];
 
     private function __construct() {}
@@ -38,24 +37,26 @@ class Router
         if (self::$instance === null) {
             self::$instance = new self();
         }
+
         return self::$instance;
     }
 
     /**
-     * Register middleware that runs for every matched route before route-specific
-     * middleware. A global guard therefore also protects future routes unless
-     * the guard itself explicitly classifies an operation as safe/recovery-only.
+     * Добавляет middleware, который выполняется для каждого совпавшего маршрута
+     * до middleware самого маршрута. Такой guard защищает и будущие маршруты,
+     * если сам явно не классифицирует операцию как безопасную или восстановительную.
      *
      * @param class-string $middleware
      */
     public function addGlobalMiddleware(string $middleware): self
     {
         if ($middleware === '') {
-            throw new InvalidArgumentException('Global middleware class cannot be empty');
+            throw new InvalidArgumentException('Класс глобального middleware не может быть пустым');
         }
         if (!in_array($middleware, $this->globalMiddlewares, true)) {
             $this->globalMiddlewares[] = $middleware;
         }
+
         return $this;
     }
 
@@ -65,15 +66,7 @@ class Router
         return $basePath !== false ? $basePath : '/';
     }
 
-    /**
-     * Start a route group with a given prefix.
-     * Returns $this to allow method chaining.
-     *
-     * Usage:
-     * $router->group('/admin')
-     *       ->get('/', [AdminController::class, 'index'])
-     *       ->post('/save', [AdminController::class, 'save']);
-     */
+    /** Начинает группу маршрутов с заданным префиксом. */
     public function group(string $prefix): self
     {
         $basePath = $this->getBasePath();
@@ -82,13 +75,10 @@ class Router
             : $basePath . $prefix;
 
         $this->groupPrefix = $this->normalizePath($currentPrefix);
-
         return $this;
     }
 
-    /**
-     * End the current group scope.
-     */
+    /** Завершает текущую группу маршрутов. */
     public function endGroup(): self
     {
         $this->groupPrefix = null;
@@ -101,10 +91,10 @@ class Router
     }
 
     /**
-     * @param array<string, mixed> $matched
-     * @return array<string, mixed>
+     * @param array<string,mixed>|null $matched
+     * @return array<string,mixed>
      */
-    private function clearParams(array|null $matched, string $routePath): array
+    private function clearParams(?array $matched, string $routePath): array
     {
         return RouteTemplate::typedParams($matched, $routePath);
     }
@@ -122,38 +112,22 @@ class Router
     {
         $method = strtoupper(trim($method));
         if (!in_array($method, ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'], true)) {
-            throw new InvalidArgumentException("Unsupported HTTP method: {$method}");
+            throw new InvalidArgumentException("Неподдерживаемый HTTP-метод: {$method}");
         }
-        if (
-            count($controller) !== 2
-            || !is_string($controller[0] ?? null)
-            || trim((string) ($controller[0] ?? '')) === ''
-            || !is_string($controller[1] ?? null)
-            || trim((string) ($controller[1] ?? '')) === ''
-        ) {
-            throw new InvalidArgumentException('Route controller must be [class, method]');
+        if (!$this->validControllerTuple($controller)) {
+            throw new InvalidArgumentException('Контроллер маршрута должен быть задан как [класс, метод]');
         }
 
-        $basePath = $this->getBasePath();
-        if ($this->groupPrefix !== null) {
-            $path = $this->normalizePath($this->groupPrefix . $path);
-        } else {
-            $path = $this->normalizePath($basePath . $path);
-        }
-
-        // Invalid placeholders and duplicate parameter names fail during route
-        // registration rather than on the first request that reaches the route.
-        // Cache the compiled pattern so dispatch does not rebuild the same regex
-        // on every request.
+        $path = $this->routePath($path);
         $compiledPattern = $this->createPattern($path);
 
         foreach ($this->routes as $existing) {
             if ($existing['method'] === $method && $existing['path'] === $path) {
-                throw new RuntimeException("Duplicate route registration: {$method} {$path}");
+                throw new RuntimeException("Повторная регистрация маршрута: {$method} {$path}");
             }
         }
         if ($name !== '' && isset($this->routeNameIndex[$name])) {
-            throw new RuntimeException("Duplicate route name: {$name}");
+            throw new RuntimeException("Повторное имя маршрута: {$name}");
         }
 
         $route = [
@@ -162,7 +136,6 @@ class Router
             'controller' => $controller,
             'middlewares' => $middlewares,
         ];
-
         if ($name !== '') {
             $route['name'] = $name;
         }
@@ -179,6 +152,36 @@ class Router
 
     public function dispatch(): void
     {
+        [$requestUrl, $requestMethod] = $this->requestTarget();
+        $allowedMethods = [];
+
+        foreach ($this->routes as $route) {
+            $params = $this->matchRoute($route, $requestUrl);
+            if ($params === null) {
+                continue;
+            }
+
+            $allowedMethods[$route['method']] = true;
+            if ($route['method'] !== $requestMethod) {
+                continue;
+            }
+
+            $this->dispatchMatchedRoute($route, $params, $requestMethod);
+            return;
+        }
+
+        if ($allowedMethods !== []) {
+            $methods = array_keys($allowedMethods);
+            sort($methods, SORT_STRING);
+            $this->handleMethodNotAllowed($methods);
+        }
+
+        $this->handle404();
+    }
+
+    /** @return array{0:string,1:string} */
+    private function requestTarget(): array
+    {
         $rawRequestUri = (string) ($_SERVER['REQUEST_URI'] ?? '/');
         if (preg_match('/[\x00-\x1F\x7F]/', $rawRequestUri) === 1) {
             $this->handleBadRequest('invalid_request_path');
@@ -194,70 +197,93 @@ class Router
         } catch (InvalidArgumentException) {
             $this->handleBadRequest('invalid_request_path');
         }
+
         $requestMethod = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
-        $pathMatched = false;
-        $allowedMethods = [];
+        return [$requestUrl, $requestMethod];
+    }
 
-        foreach ($this->routes as $route) {
-            $pathPattern = $this->compiledPatterns[$route['path']] ?? $this->createPattern($route['path']);
-            $params = null;
-            if (preg_match($pathPattern, $requestUrl, $params) !== 1) {
-                continue;
-            }
+    /**
+     * @param array{path:string,method:string,controller:array{0:class-string,1:non-empty-string},middlewares:array<class-string>,name?:string} $route
+     * @return array<string,mixed>|null
+     */
+    private function matchRoute(array $route, string $requestUrl): ?array
+    {
+        $pathPattern = $this->compiledPatterns[$route['path']] ?? $this->createPattern($route['path']);
+        $params = [];
+        if (preg_match($pathPattern, $requestUrl, $params) !== 1) {
+            return null;
+        }
 
-            $pathMatched = true;
-            $allowedMethods[$route['method']] = true;
-            if ($route['method'] !== $requestMethod) {
-                continue;
-            }
+        return $params;
+    }
 
-            $request = new Request();
-            if ($request->hasInvalidJson()) {
-                $this->handleBadRequest($request->jsonError() ?? 'invalid_json');
-            }
+    /**
+     * @param array{path:string,method:string,controller:array{0:class-string,1:non-empty-string},middlewares:array<class-string>,name?:string} $route
+     * @param array<string,mixed> $params
+     */
+    private function dispatchMatchedRoute(array $route, array $params, string $requestMethod): void
+    {
+        $request = new Request();
+        if ($request->hasInvalidJson()) {
+            $this->handleBadRequest($request->jsonError() ?? 'invalid_json');
+        }
 
-            if (!$this->executeMiddlewares($this->globalMiddlewares, $request)) {
-                return;
-            }
-
-            // Once an exact method/path route is matched, denial is terminal.
-            // Never continue scanning in search of a route with weaker guards.
-            if (!$this->executeMiddlewares($route['middlewares'], $request)) {
-                return;
-            }
-
-            [$className, $methodName] = $route['controller'];
-
-            if (!class_exists($className)) {
-                throw new RuntimeException("Controller class does not exist: {$className}");
-            }
-
-            $controllerInstance = new $className();
-
-            if (!method_exists($controllerInstance, $methodName)) {
-                throw new RuntimeException("Method {$methodName} does not exist in controller {$className}");
-            }
-
-            $params = $this->clearParams($params, $route['path']);
-
-            UserActionLog::registerHttpMutation(
-                (int) $request->session('user_id', 0),
-                $requestMethod,
-                (string) ($route['name'] ?? ''),
-                (string) $route['path']
-            );
-            $this->invokeController($controllerInstance, $methodName, $request, $params);
-
+        if (!$this->executeMiddlewares($this->globalMiddlewares, $request)) {
+            return;
+        }
+        if (!$this->executeMiddlewares($route['middlewares'], $request)) {
             return;
         }
 
-        if ($pathMatched) {
-            $methods = array_keys($allowedMethods);
-            sort($methods, SORT_STRING);
-            $this->handleMethodNotAllowed($methods);
+        [$controllerInstance, $methodName] = $this->controllerFor($route['controller']);
+        $typedParams = $this->clearParams($params, $route['path']);
+
+        UserActionLog::registerHttpMutation(
+            (int) $request->session('user_id', 0),
+            $requestMethod,
+            (string) ($route['name'] ?? ''),
+            $route['path']
+        );
+
+        $this->invokeController($controllerInstance, $methodName, $request, $typedParams);
+    }
+
+    /**
+     * @param array{0:class-string,1:non-empty-string} $controller
+     * @return array{0:object,1:non-empty-string}
+     */
+    private function controllerFor(array $controller): array
+    {
+        [$className, $methodName] = $controller;
+        if (!class_exists($className)) {
+            throw new RuntimeException("Класс контроллера не существует: {$className}");
         }
 
-        $this->handle404();
+        $controllerInstance = new $className();
+        if (!method_exists($controllerInstance, $methodName)) {
+            throw new RuntimeException("Метод {$methodName} отсутствует в контроллере {$className}");
+        }
+
+        return [$controllerInstance, $methodName];
+    }
+
+    /** @param array<mixed> $controller */
+    private function validControllerTuple(array $controller): bool
+    {
+        return count($controller) === 2
+            && is_string($controller[0] ?? null)
+            && trim((string) ($controller[0] ?? '')) !== ''
+            && is_string($controller[1] ?? null)
+            && trim((string) ($controller[1] ?? '')) !== '';
+    }
+
+    private function routePath(string $path): string
+    {
+        if ($this->groupPrefix !== null) {
+            return $this->normalizePath($this->groupPrefix . $path);
+        }
+
+        return $this->normalizePath($this->getBasePath() . $path);
     }
 
     private function handle404(): never
@@ -294,46 +320,42 @@ class Router
         exit;
     }
 
-    /**
-     * @param array<string, mixed> $params
-     */
+    /** @param array<string,mixed> $params */
     private function invokeController(object $controllerInstance, string $methodName, Request $request, array $params): void
     {
         if ($params === []) {
             $controllerInstance->$methodName($request);
-        } else {
-            $controllerInstance->$methodName($request, ...array_values($params));
+            return;
         }
+
+        $controllerInstance->$methodName($request, ...array_values($params));
     }
 
-    /**
-     * @param array<class-string> $middlewares
-     */
+    /** @param array<class-string> $middlewares */
     private function executeMiddlewares(array $middlewares, Request $request): bool
     {
         foreach ($middlewares as $middleware) {
             if (!class_exists($middleware)) {
-                throw new RuntimeException("Middleware class does not exist: {$middleware}");
+                throw new RuntimeException("Класс middleware не существует: {$middleware}");
             }
 
             $middlewareInstance = new $middleware();
-
             if (!method_exists($middlewareInstance, 'handle')) {
-                throw new RuntimeException("Middleware {$middleware} does not have a handle method");
+                throw new RuntimeException("Middleware {$middleware} не содержит метод handle");
             }
-
             if (!$middlewareInstance->handle($request)) {
                 return false;
             }
         }
+
         return true;
     }
 
     /**
-     * Redirects to a named route or to a same-origin local URL.
-     * Arbitrary external redirects are intentionally not supported by this core API.
+     * Перенаправляет на именованный маршрут или локальный URL того же источника.
+     * Произвольные внешние перенаправления этим API намеренно не поддерживаются.
      *
-     * @param array<string, mixed> $params
+     * @param array<string,mixed> $params
      */
     public function redirect(string $to, string $type = 'name', array $params = []): void
     {
@@ -352,22 +374,20 @@ class Router
                 exit;
             }
 
-            throw new RuntimeException("Route for redirect not found: {$to}");
+            throw new RuntimeException("Маршрут для перенаправления не найден: {$to}");
         }
 
-        throw new InvalidArgumentException("Invalid type provided for redirect: {$type}");
+        throw new InvalidArgumentException("Некорректный тип перенаправления: {$type}");
     }
 
-    /**
-     * @param array<string, mixed> $params
-     */
+    /** @param array<string,mixed> $params */
     private function buildUrlFromRoute(string $path, array $params): string
     {
         return RouteTemplate::bind($path, $params);
     }
 
     /**
-     * @return array{path: string, method: string, controller: array{0: class-string, 1: non-empty-string}, middlewares: array<class-string>, name?: string}|null
+     * @return array{path:string,method:string,controller:array{0:class-string,1:non-empty-string},middlewares:array<class-string>,name?:string}|null
      */
     private function findRouteByName(string $name): ?array
     {
@@ -382,9 +402,7 @@ class Router
     }
 
     /**
-     * Get all registered routes
-     *
-     * @return array<int, array{path: string, method: string, controller: array{0: class-string, 1: non-empty-string}, middlewares: array<class-string>, name?: string}>
+     * @return array<int,array{path:string,method:string,controller:array{0:class-string,1:non-empty-string},middlewares:array<class-string>,name?:string}>
      */
     public function getRoutes(): array
     {
