@@ -100,13 +100,18 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 $db = new mysqli(
     (string) (getenv('DBHOST') ?: '127.0.0.1'),
     (string) (getenv('DBUSER') ?: 'root'),
-    (string) (getenv('DBPASS') ?: 'root'),
+    (string) (getenv('DBPASS') === false ? 'root' : getenv('DBPASS')),
     (string) (getenv('DBNAME') ?: 'updater_backup_test'),
     (int) (getenv('DBPORT') ?: 3306)
 );
 $db->set_charset('utf8mb4');
 
 try {
+    $db->query("ALTER TABLE items ADD COLUMN repair_created_at DATETIME DEFAULT CURRENT_TIMESTAMP, "
+        . "ADD COLUMN repair_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, "
+        . "ADD COLUMN repair_computed INT GENERATED ALWAYS AS (amount * 2) STORED");
+    $db->query("UPDATE items SET repair_created_at='2001-02-03 04:05:06', "
+        . "repair_updated_at='2002-03-04 05:06:07'");
     $manager = new UpdateBackupManager($backupRoot, $appRoot);
     $resumable = in_array('--resumable', $argv, true);
     $pauses = 0;
@@ -177,6 +182,11 @@ try {
         'Рабочие таблицы удалены до проверки SQL');
     $restored = $restorer->restore($db, $backupDir, $backups['database']);
     backupAssert((int) ($restored['tables'] ?? 0) >= 2, 'Новый rollback-дамп не восстановил таблицы');
+    $dates = $db->query('SELECT repair_created_at, repair_updated_at, repair_computed FROM items WHERE id=1')->fetch_assoc();
+    backupAssert($dates['repair_created_at'] === '2001-02-03 04:05:06'
+        && $dates['repair_updated_at'] === '2002-03-04 05:06:07'
+        && (int) $dates['repair_computed'] === 25,
+        'DEFAULT_GENERATED timestamps or computed columns changed during backup/restore');
     backupAssert(
         (string) ($db->query("SELECT title FROM items WHERE id=1")->fetch_assoc()['title'] ?? '') === 'Привет rollback',
         'Unicode-текст изменился после восстановления нового rollback-дампа'

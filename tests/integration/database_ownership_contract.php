@@ -73,6 +73,21 @@ try {
     ], 'core-only package requires only platform tables');
     ownershipAssert(!in_array('dialogs', $coreOnly->tables(), true), 'core-only does not require Messenger tables');
     ownershipAssert(!in_array('user_storage_quotas', $coreOnly->tables(), true), 'core-only does not require Files quota');
+    mkdir($coreFixture . '/core');
+    file_put_contents($coreFixture . '/core/Version.php', "<?php\nclass FixtureVersion { public const VERSION_CODE = 10014; }\n");
+    $legacyCanonical = array_values(array_filter($canonical['migrations'],
+        static fn (string $name): bool => $name !== '20261002_user_lifecycle.sql'));
+    $legacyNames = DatabaseOwnership::fromPackageRoot($coreFixture)->migrationNamesInCanonicalOrder($legacyCanonical);
+    ownershipAssert(!in_array('20261002_user_lifecycle.sql', $legacyNames, true),
+        'frozen 1.0.15 updater must not require a future migration in a 1.0.14 package');
+    file_put_contents($coreFixture . '/core/Version.php', "<?php\nclass FixtureVersion { public const VERSION_CODE = 10015; }\n");
+    $missingRejected = false;
+    try {
+        DatabaseOwnership::fromPackageRoot($coreFixture)->migrationNamesInCanonicalOrder($legacyCanonical);
+    } catch (RuntimeException $error) {
+        $missingRejected = str_contains($error->getMessage(), '20261002_user_lifecycle.sql');
+    }
+    ownershipAssert($missingRejected, '1.0.15 must still reject a missing required migration');
 } finally {
     removeFixture($coreFixture);
 }

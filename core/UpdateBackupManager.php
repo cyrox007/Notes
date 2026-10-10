@@ -708,7 +708,9 @@ final class UpdateBackupManager
         $columns = [];
         while ($row = $result->fetch_assoc()) {
             $extra = strtoupper((string) ($row['EXTRA'] ?? ''));
-            if (str_contains($extra, 'GENERATED')) {
+            // DEFAULT_GENERATED is an ordinary writable value (e.g. created_at).
+            // Only computed columns must be omitted from INSERT statements.
+            if (preg_match('/\b(?:VIRTUAL|STORED)\s+GENERATED\b/', $extra) === 1) {
                 continue;
             }
             $name = (string) ($row['COLUMN_NAME'] ?? '');
