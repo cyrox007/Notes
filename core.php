@@ -1,24 +1,32 @@
 <?php
 
-// Загрузка окружения и инфраструктура 1.0 являются внутренними. Запуск не должен
+declare(strict_types=1);
+
+// Загрузка окружения и инфраструктура являются внутренними. Запуск не должен
 // зависеть от Composer/vendor, чтобы приложение стартовало прямо из релизного пакета.
-$environmentLoader = SITEPATH . '/core/Environment.php';
-if (!is_file($environmentLoader)) {
-    throw new RuntimeException('Core environment loader is missing.');
-}
-require_once $environmentLoader;
+$requireCoreBootstrapFile = static function (string $path, string $error): void {
+    if (!is_file($path)) {
+        throw new RuntimeException($error);
+    }
+
+    require_once $path;
+};
+
+$requireCoreBootstrapFile(
+    SITEPATH . '/core/Environment.php',
+    'Не найден загрузчик окружения ядра.'
+);
 \Core\Environment::load(SITEPATH . '/.env');
 
-$runtimeAutoloader = SITEPATH . '/core/RuntimeAutoloader.php';
-if (!is_file($runtimeAutoloader)) {
-    throw new RuntimeException('Core runtime autoloader is missing.');
-}
-require_once $runtimeAutoloader;
+$requireCoreBootstrapFile(
+    SITEPATH . '/core/RuntimeAutoloader.php',
+    'Не найден загрузчик классов ядра.'
+);
 \Core\RuntimeAutoloader::register(SITEPATH);
+unset($requireCoreBootstrapFile);
 
 // Классы ядра после регистрации RuntimeAutoloader загружаются только по
 // фактическому обращению. Ручного списка файлов bootstrap больше нет.
-
 \Core\SessionSecurity::configure();
 
 $deferModuleLifecyclePersistence = defined('WORKSPACE_DEFER_MODULE_LIFECYCLE')
