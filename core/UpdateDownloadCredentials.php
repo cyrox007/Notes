@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Core;
 
 use RuntimeException;
+use SensitiveParameter;
 
 require_once __DIR__ . '/UpdatePath.php';
 require_once __DIR__ . '/PrivateStorageResolver.php';
@@ -17,9 +18,10 @@ require_once __DIR__ . '/Version.php';
  * небезопасный путь внутри приложения, используется безопасный путь под
  * PRIVATE_STORAGE_PATH.
  */
-final class UpdateDownloadCredentials
+final readonly class UpdateDownloadCredentials
 {
-    public function __construct(private array $data)
+    /** @param array<string,mixed> $data */
+    public function __construct(#[SensitiveParameter] private array $data)
     {
         if (($data['schema'] ?? null) !== 1
             || !is_string($data['installation_id'] ?? null)
@@ -118,7 +120,7 @@ final class UpdateDownloadCredentials
     }
 
     /** @param array<string,mixed> $data */
-    public static function store(array $data): string
+    public static function store(#[SensitiveParameter] array $data): string
     {
         new self($data);
 
