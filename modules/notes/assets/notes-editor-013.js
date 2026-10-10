@@ -141,7 +141,25 @@
             }
         });
 
+        root.querySelectorAll('.attachment-item--voice audio').forEach(setupAudioPlayer);
         setupVoiceRecorder(root, uploadUrl, parseJson, feedback);
+    }
+
+    function setupAudioPlayer(audio) {
+        if (audio._notePlayer) return audio._notePlayer;
+        audio.controls = false;
+        const player = document.createElement('div');player.className = 'note-audio-player';
+        const play = document.createElement('button');play.type = 'button';play.textContent = '▶';play.setAttribute('aria-label', 'Воспроизвести запись');
+        const seek = document.createElement('input');seek.type = 'range';seek.min = '0';seek.max = '100';seek.value = '0';seek.setAttribute('aria-label', 'Позиция записи');
+        const time = document.createElement('span');time.textContent = '0:00';
+        const update = () => {const seconds = Math.floor(audio.currentTime || 0);time.textContent = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;seek.disabled = !Number.isFinite(audio.duration) || audio.duration <= 0;seek.value = seek.disabled ? 0 : audio.currentTime / audio.duration * 100;};
+        play.addEventListener('click', async () => {if (!audio.paused) audio.pause();else try {await audio.play();}catch (_) {time.textContent = 'Запись недоступна';}});
+        for (const event of ['play','pause','ended']) audio.addEventListener(event, () => {play.textContent = audio.paused ? '▶' : 'Ⅱ';play.setAttribute('aria-label', audio.paused ? 'Воспроизвести запись' : 'Приостановить запись');});
+        for (const event of ['timeupdate','loadedmetadata','emptied']) audio.addEventListener(event, update);
+        seek.addEventListener('input', () => {if (Number.isFinite(audio.duration)) audio.currentTime = Number(seek.value) / 100 * audio.duration;});
+        player.append(play,seek,time);audio.after(player);audio.style.display = 'none';
+        const sync = () => {player.hidden = audio.hidden;};
+        new MutationObserver(sync).observe(audio,{attributes:true,attributeFilter:['hidden']});sync();update();audio._notePlayer = player;return player;
     }
 
     function setupVoiceRecorder(root, uploadUrl, parseJson, feedback) {
@@ -157,6 +175,20 @@
         const pulse = root.querySelector('.note-voice-recorder__pulse');
         if (!open || !recorderPanel || !start || !stop || !discard || !send || !preview || !timer || !status) return;
 
+        setupAudioPlayer(preview);
+        const meter = document.createElement('canvas');meter.width = 240;meter.height = 40;meter.className = 'note-voice-meter';meter.hidden = true;meter.setAttribute('aria-label','Уровень сигнала микрофона');status.parentElement.append(meter);
+        let meterContext = null, meterSource = null, meterFrame = 0;
+        function stopMeter() {cancelAnimationFrame(meterFrame);meterFrame = 0;try {meterSource?.disconnect();}catch (_) {}meterSource = null;meterContext?.close().catch(()=>{});meterContext = null;meter.hidden = true;}
+        function startMeter() {
+            try {
+                const Audio = window.AudioContext || window.webkitAudioContext;if (!Audio) return;
+                meterContext = new Audio();meterSource = meterContext.createMediaStreamSource(stream);
+                const analyser = meterContext.createAnalyser();analyser.fftSize = 256;meterSource.connect(analyser);
+                meterContext.resume().catch(()=>{});meter.hidden = false;
+                const samples = new Uint8Array(analyser.fftSize), frequencies = new Uint8Array(analyser.frequencyBinCount), ctx = meter.getContext('2d');let lastSound = performance.now();
+                const draw = () => {analyser.getByteTimeDomainData(samples);analyser.getByteFrequencyData(frequencies);let power = 0;for (const sample of samples) power += Math.pow((sample - 128) / 128, 2);if (Math.sqrt(power / samples.length) > .008) lastSound = performance.now();status.textContent = performance.now() - lastSound < 1500 ? 'Идёт запись · микрофон принимает звук' : 'Идёт запись · звук не обнаружен';ctx.clearRect(0,0,240,40);ctx.fillStyle = getComputedStyle(meter).color;for(let i=0;i<24;i++){const height = Math.max(2,frequencies[i*3] / 255 * 36);ctx.fillRect(i*10,(40-height)/2,6,height);}meterFrame = requestAnimationFrame(draw);};draw();
+            } catch (_) {stopMeter();}
+        }
         let recorder = null;
         let stream = null;
         let chunks = [];
@@ -187,6 +219,7 @@
         }
 
         function stopTracks() {
+            stopMeter();
             stream?.getTracks?.().forEach((track) => track.stop());
             stream = null;
         }
@@ -240,7 +273,9 @@
                 recorder = preferred ? new MediaRecorder(stream, { mimeType: preferred }) : new MediaRecorder(stream);
                 chunks = [];
                 recorder.addEventListener('dataavailable', (event) => { if (event.data?.size) chunks.push(event.data); });
+                const activeRecorder = recorder;
                 recorder.addEventListener('stop', () => {
+                    if (recorder !== activeRecorder) return;
                     clearTicker();
                     elapsedMs = Math.max(elapsedMs, Date.now() - startedAt);
                     blob = new Blob(chunks, { type: recorder.mimeType || chunks[0]?.type || 'audio/webm' });
@@ -256,6 +291,7 @@
                     updateTimer();
                 }, { once: true });
                 recorder.start(500);
+                startMeter();
                 startedAt = Date.now();
                 elapsedMs = 0;
                 start.disabled = true;
@@ -303,6 +339,7 @@
             }
         });
 
+        window.addEventListener('pagehide', () => {stopTracks();preview.pause();});
         reset({ close: true });
     }
 
