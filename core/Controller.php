@@ -7,6 +7,7 @@ namespace Core;
 use App\Middlewares\CSRFMiddleware;
 use App\Services\LicenseRuntimePolicy;
 use App\Services\PermissionService;
+use Throwable;
 
 /**
  * Базовый HTTP-контроллер.
@@ -25,13 +26,10 @@ class Controller
         ob_start();
         $this->request = new Request();
         $this->viewContext = new ViewContext($this->request);
-        $moduleViewRoots = ModuleRuntimeLoader::isBooted()
-            ? ModuleRuntimeLoader::getInstance()->viewRoots()
-            : [];
         $this->renderer = new NativeViewRenderer(
             SITEPATH . '/app/views',
             $this->viewContext,
-            $moduleViewRoots,
+            $this->moduleViewRoots(),
         );
 
         // Проверка CSRF остаётся общей для изменяющих HTTP-запросов и не
@@ -42,12 +40,15 @@ class Controller
     public function __destruct()
     {
         $output = ob_get_clean();
-        if ($output !== '' && $output !== false) {
-            if (is_string($output)) {
-                echo $output;
-            } elseif (is_array($output) || is_object($output)) {
-                $this->responseJson((array) $output);
-            }
+        if ($output === '' || $output === false) {
+            return;
+        }
+        if (is_string($output)) {
+            echo $output;
+            return;
+        }
+        if (is_array($output) || is_object($output)) {
+            $this->responseJson((array) $output);
         }
     }
 
@@ -88,48 +89,132 @@ class Controller
      */
     protected function render_template(string $template, ?array $data = null): void
     {
-        $basePathSegment = trim((string) getenv('BASE_PATH'), '/');
-        $basePath = $basePathSegment !== '' ? '/' . $basePathSegment : '';
-        $baseUrl = $basePath;
         $workspaceAccess = $this->workspaceAccess();
-        $socketUrl = '';
-        if (!empty($workspaceAccess['messenger'])) {
-            try {
-                if (WebSocketEndpoint::enabled()) {
-                    $socketUrl = WebSocketEndpoint::browserUrl();
-                }
-            } catch (\Throwable $e) {
-                error_log('Global Messenger endpoint is unavailable: ' . $e->getMessage());
-            }
+        $basePath = $this->basePath();
+        $viewData = $this->commonViewData($basePath, $workspaceAccess);
+        $viewData = $this->mergeViewData($viewData, $data);
+
+        $this->renderer->render($template, $viewData);
+    }
+
+    /** @return array<string,string> */
+    private function moduleViewRoots(): array
+    {
+        if (!ModuleRuntimeLoader::isBooted()) {
+            return [];
         }
 
-        $viewData = [
-            'base_url' => $baseUrl,
+        return ModuleRuntimeLoader::getInstance()->viewRoots();
+    }
+
+    private function basePath(): string
+    {
+        $segment = trim((string) getenv('BASE_PATH'), '/');
+        return $segment === '' ? '' : '/' . $segment;
+    }
+
+    /**
+     * @param array{notes:bool,tasks:bool,files:bool,messenger:bool,profile:bool,admin:bool,admin_audit:bool,license_manage:bool} $workspaceAccess
+     * @return array<string,mixed>
+     */
+    private function commonViewData(string $basePath, array $workspaceAccess): array
+    {
+        return [
+            'base_url' => $basePath,
             'base_path' => $basePath,
             'sitename' => getenv('SITENAME') ?: 'Workspace Organizer',
             'version' => Version::VERSION,
             'product_name' => Version::PRODUCT_NAME,
             'workspaceAccess' => $workspaceAccess,
             'licenseRuntime' => $this->licenseRuntimeState($workspaceAccess),
-            'socket_url' => $socketUrl,
+            'socket_url' => $this->socketUrl($workspaceAccess),
         ];
+    }
 
-        if ($data !== null) {
-            $normalized = $this->convertObjectsToArray($data);
-            if (is_array($normalized)) {
-                // Сохраняем прежний контракт контроллера: явно переданные
-                // переменные представления могут переопределять общие значения.
-                $viewData = array_merge($viewData, $normalized);
-            }
+    /**
+     * @param array<string,mixed> $viewData
+     * @param array<string,mixed>|null $data
+     * @return array<string,mixed>
+     */
+    private function mergeViewData(array $viewData, ?array $data): array
+    {
+        if ($data === null) {
+            return $viewData;
         }
 
-        $this->renderer->render($template, $viewData);
+        $normalized = $this->convertObjectsToArray($data);
+        if (!is_array($normalized)) {
+            return $viewData;
+        }
+
+        // Сохраняем прежний контракт контроллера: явно переданные переменные
+        // представления могут переопределять общие значения.
+        return array_merge($viewData, $normalized);
+    }
+
+    /**
+     * @param array{notes:bool,tasks:bool,files:bool,messenger:bool,profile:bool,admin:bool,admin_audit:bool,license_manage:bool} $workspaceAccess
+     */
+    private function socketUrl(array $workspaceAccess): string
+    {
+        if (empty($workspaceAccess['messenger'])) {
+            return '';
+        }
+
+        try {
+            return WebSocketEndpoint::enabled() ? WebSocketEndpoint::browserUrl() : '';
+        } catch (Throwable $e) {
+            error_log('Глобальная точка подключения Messenger недоступна: ' . $e->getMessage());
+            return '';
+        }
     }
 
     /** @return array{notes:bool,tasks:bool,files:bool,messenger:bool,profile:bool,admin:bool,admin_audit:bool,license_manage:bool} */
     private function workspaceAccess(): array
     {
-        $access = [
+        $emptyAccess = $this->emptyWorkspaceAccess();
+        $viewerId = (int) $this->request->session('user_id', 0);
+        if ($viewerId <= 0) {
+            return $emptyAccess;
+        }
+
+        try {
+            return $this->resolveWorkspaceAccess($viewerId);
+        } catch (Throwable $e) {
+            error_log('Не удалось вычислить права навигации: ' . $e->getMessage());
+            return $emptyAccess;
+        }
+    }
+
+    /** @return array{notes:bool,tasks:bool,files:bool,messenger:bool,profile:bool,admin:bool,admin_audit:bool,license_manage:bool} */
+    private function resolveWorkspaceAccess(int $viewerId): array
+    {
+        $permissions = (new PermissionService())->permissionsForUser($viewerId);
+        $capabilities = ModuleRuntimeLoader::isBooted()
+            ? ModuleRuntimeLoader::getInstance()->capabilities()
+            : null;
+        $active = static fn (string $capability): bool =>
+            $capabilities !== null && $capabilities->has($capability);
+
+        $adminActive = $active('workspace.admin');
+        return [
+            'notes' => $active('workspace.notes') && in_array('notes.use', $permissions, true),
+            'tasks' => $active('workspace.tasks') && in_array('tasks.use', $permissions, true),
+            'files' => $active('workspace.files') && in_array('files.use', $permissions, true),
+            'messenger' => $active('workspace.messenger') && in_array('messenger.use', $permissions, true),
+            'profile' => $active('workspace.profile') && in_array('profile.use', $permissions, true),
+            'admin' => $adminActive && in_array('admin.access', $permissions, true),
+            'admin_audit' => $adminActive && in_array('admin.audit.view', $permissions, true),
+            // Управление лицензией остаётся доступно через core recovery-маршрут,
+            // даже когда Admin не разрешён текущей лицензией.
+            'license_manage' => in_array('admin.settings.manage', $permissions, true),
+        ];
+    }
+
+    /** @return array{notes:bool,tasks:bool,files:bool,messenger:bool,profile:bool,admin:bool,admin_audit:bool,license_manage:bool} */
+    private function emptyWorkspaceAccess(): array
+    {
+        return [
             'notes' => false,
             'tasks' => false,
             'files' => false,
@@ -139,37 +224,6 @@ class Controller
             'admin_audit' => false,
             'license_manage' => false,
         ];
-
-        $viewerId = (int) $this->request->session('user_id', 0);
-        if ($viewerId <= 0) {
-            return $access;
-        }
-
-        try {
-            $permissions = (new PermissionService())->permissionsForUser($viewerId);
-            $capabilities = ModuleRuntimeLoader::isBooted()
-                ? ModuleRuntimeLoader::getInstance()->capabilities()
-                : null;
-            $active = static fn (string $capability): bool =>
-                $capabilities !== null && $capabilities->has($capability);
-
-            $adminActive = $active('workspace.admin');
-            return [
-                'notes' => $active('workspace.notes') && in_array('notes.use', $permissions, true),
-                'tasks' => $active('workspace.tasks') && in_array('tasks.use', $permissions, true),
-                'files' => $active('workspace.files') && in_array('files.use', $permissions, true),
-                'messenger' => $active('workspace.messenger') && in_array('messenger.use', $permissions, true),
-                'profile' => $active('workspace.profile') && in_array('profile.use', $permissions, true),
-                'admin' => $adminActive && in_array('admin.access', $permissions, true),
-                'admin_audit' => $adminActive && in_array('admin.audit.view', $permissions, true),
-                // Управление лицензией остаётся доступно через core recovery-маршрут,
-                // даже когда Admin не разрешён текущей лицензией.
-                'license_manage' => in_array('admin.settings.manage', $permissions, true),
-            ];
-        } catch (\Throwable $e) {
-            error_log('Navigation RBAC evaluation failed: ' . $e->getMessage());
-            return $access;
-        }
     }
 
     /**
@@ -196,13 +250,14 @@ class Controller
     private function convertObjectsToArray(mixed $data): mixed
     {
         if (is_object($data)) {
-            $data = get_object_vars($data);
+            return $this->convertObjectsToArray(get_object_vars($data));
+        }
+        if (!is_array($data)) {
+            return $data;
         }
 
-        if (is_array($data)) {
-            foreach ($data as $key => $value) {
-                $data[$key] = $this->convertObjectsToArray($value);
-            }
+        foreach ($data as $key => $value) {
+            $data[$key] = $this->convertObjectsToArray($value);
         }
 
         return $data;
