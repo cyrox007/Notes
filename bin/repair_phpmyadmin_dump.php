@@ -2,9 +2,12 @@
 
 declare(strict_types=1);
 
-$root = dirname(__DIR__);
+require_once dirname(__DIR__) . '/core/CliRuntime.php';
+\Core\CliRuntime::assertCli();
+$root = \Core\CliRuntime::projectRoot();
 require_once $root . '/core/DatabaseDumpCompatibility.php';
 
+use Core\CliRuntime;
 use Core\DatabaseDumpCompatibility;
 
 $options = getopt('', ['input:', 'output:']);
@@ -26,6 +29,5 @@ try {
     );
     exit(0);
 } catch (Throwable $e) {
-    fwrite(STDERR, "[FAIL] Не удалось исправить дамп: {$e->getMessage()}\n");
-    exit(1);
+    CliRuntime::fail($e, false, 'dump_repair_failed');
 }
