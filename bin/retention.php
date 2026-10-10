@@ -2,21 +2,13 @@
 
 declare(strict_types=1);
 
-if (PHP_SAPI !== 'cli') {
-    fwrite(STDERR, "This command is CLI-only.\n");
-    exit(2);
-}
-
-$root = dirname(__DIR__);
-require_once $root . '/core/Environment.php';
-if (is_file($root . '/.env')) {
-    \Core\Environment::load($root . '/.env');
-}
-require_once $root . '/core/RuntimeAutoloader.php';
-\Core\RuntimeAutoloader::register($root);
+require_once dirname(__DIR__) . '/core/CliRuntime.php';
+$root = \Core\CliRuntime::loadEnvironment();
+\Core\CliRuntime::registerAutoloader($root);
 require_once $root . '/core/Config.php';
 
 use App\Services\RetentionService;
+use Core\CliRuntime;
 
 $options = getopt('', [
     'soft-days:',
@@ -60,10 +52,7 @@ try {
         : $service->preview($softDays, $accountDays, $limit);
 
     if ($json) {
-        echo json_encode(
-            $result,
-            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
-        ) . PHP_EOL;
+        CliRuntime::writeJson($result, true);
     } elseif (!$apply) {
         echo "Предварительный просмотр очистки\n";
         echo "Хранение soft-delete: {$result['soft_delete_days']} дн., граница {$result['soft_delete_cutoff']} UTC\n";
@@ -97,14 +86,5 @@ try {
     }
     exit(0);
 } catch (Throwable $e) {
-    if ($json) {
-        echo json_encode([
-            'status' => 'fail',
-            'error' => 'retention_failed',
-            'message' => $e->getMessage(),
-        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
-    } else {
-        fwrite(STDERR, '[FAIL] ' . $e->getMessage() . PHP_EOL);
-    }
-    exit(1);
+    CliRuntime::fail($e, $json, 'retention_failed');
 }
