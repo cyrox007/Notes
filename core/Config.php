@@ -8,6 +8,7 @@ class Config
 {
     /** @var array{driver:string,hostname:string,port:int|string,username:string,password:string,database:string} */
     public static array $db_connection = [];
+
     private static array $configValues = [];
 
     /**
@@ -22,27 +23,8 @@ class Config
 
     public function __construct()
     {
-        self::$db_connection = [
-            'driver' => getenv('DBDRIVER') ?: 'mysql',
-            'hostname' => getenv('DBHOST') ?: 'localhost',
-            'port' => getenv('DBPORT') ?: 3306,
-            'username' => getenv('DBUSER') ?: 'root',
-            'password' => getenv('DBPASS') ?: '',
-            'database' => getenv('DBNAME') ?: 'workspace',
-        ];
-
-        // HTTP-процессы, CLI-миграции и WebSocket runtime используют один Config.
-        // Сначала берём явно заданный канонический адрес; данные запроса служат
-        // только запасным вариантом для разработки, когда SITEURL не указан.
-        $configuredSiteUrl = trim((string) (getenv('SITEURL') ?: ''));
-        if ($configuredSiteUrl !== '') {
-            self::$configValues['SITEURL'] = rtrim($configuredSiteUrl, '/');
-        } else {
-            $https = strtolower((string) ($_SERVER['HTTPS'] ?? ''));
-            $scheme = in_array($https, ['on', '1', 'true'], true) ? 'https' : 'http';
-            $host = trim((string) ($_SERVER['HTTP_HOST'] ?? 'localhost')) ?: 'localhost';
-            self::$configValues['SITEURL'] = $scheme . '://' . $host;
-        }
+        self::$db_connection = self::databaseConnectionFromEnvironment();
+        self::$configValues['SITEURL'] = self::siteUrlFromEnvironmentOrRequest();
     }
 
     public static function get(string $key, mixed $default = null): mixed
@@ -79,6 +61,39 @@ class Config
     public function base_url(): string
     {
         return rtrim((string) self::get('SITEURL', 'http://localhost'), '/') . '/';
+    }
+
+    /**
+     * @return array{driver:string,hostname:string,port:int|string,username:string,password:string,database:string}
+     */
+    private static function databaseConnectionFromEnvironment(): array
+    {
+        return [
+            'driver' => getenv('DBDRIVER') ?: 'mysql',
+            'hostname' => getenv('DBHOST') ?: 'localhost',
+            'port' => getenv('DBPORT') ?: 3306,
+            'username' => getenv('DBUSER') ?: 'root',
+            'password' => getenv('DBPASS') ?: '',
+            'database' => getenv('DBNAME') ?: 'workspace',
+        ];
+    }
+
+    private static function siteUrlFromEnvironmentOrRequest(): string
+    {
+        $configuredSiteUrl = trim((string) (getenv('SITEURL') ?: ''));
+        if ($configuredSiteUrl !== '') {
+            return rtrim($configuredSiteUrl, '/');
+        }
+
+        $scheme = self::requestScheme();
+        $host = trim((string) ($_SERVER['HTTP_HOST'] ?? 'localhost')) ?: 'localhost';
+        return $scheme . '://' . $host;
+    }
+
+    private static function requestScheme(): string
+    {
+        $https = strtolower((string) ($_SERVER['HTTPS'] ?? ''));
+        return in_array($https, ['on', '1', 'true'], true) ? 'https' : 'http';
     }
 }
 
