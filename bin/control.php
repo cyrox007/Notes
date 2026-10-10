@@ -2,22 +2,14 @@
 
 declare(strict_types=1);
 
-if (PHP_SAPI !== 'cli') {
-    fwrite(STDERR, "This command is CLI-only.\n");
-    exit(2);
-}
-
-$root = dirname(__DIR__);
-require_once $root . '/core/Environment.php';
-if (is_file($root . '/.env')) {
-    \Core\Environment::load($root . '/.env');
-}
-require_once $root . '/core/RuntimeAutoloader.php';
-\Core\RuntimeAutoloader::register($root);
+require_once dirname(__DIR__) . '/core/CliRuntime.php';
+$root = \Core\CliRuntime::loadEnvironment();
+\Core\CliRuntime::registerAutoloader($root);
 require_once $root . '/core/Config.php';
 
 use App\Services\LicenseModuleEntitlementService;
 use App\Services\LicenseService;
+use Core\CliRuntime;
 use Core\DatabaseManager;
 use Core\LocalControlPlaneContext;
 use Core\ModuleLifecycleStore;
@@ -46,22 +38,17 @@ function controlOptionValue(array $args, string $name): ?string
 function controlEmit(array $payload, bool $json): void
 {
     if ($json) {
-        echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
-        return;
-    }
-
-    if (($payload['status'] ?? '') !== 'ok') {
-        fwrite(STDERR, '[FAIL] ' . (string) ($payload['message'] ?? 'Control-plane operation failed') . PHP_EOL);
+        CliRuntime::writeJson($payload, true);
         return;
     }
 
     if (isset($payload['license']) && is_array($payload['license'])) {
         $license = $payload['license'];
-        echo 'Installation ID: ' . (string) ($license['installation_id'] ?? '') . PHP_EOL;
-        echo 'License: ' . (string) ($license['code'] ?? 'unknown') . PHP_EOL;
-        echo 'Valid: ' . (!empty($license['valid']) ? 'yes' : 'no') . PHP_EOL;
+        echo 'ID установки: ' . (string) ($license['installation_id'] ?? '') . PHP_EOL;
+        echo 'Лицензия: ' . (string) ($license['code'] ?? 'неизвестно') . PHP_EOL;
+        echo 'Действительна: ' . (!empty($license['valid']) ? 'да' : 'нет') . PHP_EOL;
         if (!empty($license['license_id'])) {
-            echo 'License ID: ' . (string) $license['license_id'] . PHP_EOL;
+            echo 'ID лицензии: ' . (string) $license['license_id'] . PHP_EOL;
         }
         return;
     }
@@ -72,12 +59,12 @@ function controlEmit(array $payload, bool $json): void
                 continue;
             }
             echo sprintf(
-                "%-12s configured=%-11s effective=%-11s version=%s%s\n",
+                "%-12s задано=%-11s фактически=%-11s версия=%s%s\n",
                 (string) ($row['module_id'] ?? ''),
                 (string) ($row['configured_state'] ?? ''),
                 (string) ($row['effective_state'] ?? ''),
                 (string) ($row['installed_version'] ?? ''),
-                empty($row['last_error']) ? '' : ' error=' . (string) $row['last_error']
+                empty($row['last_error']) ? '' : ' ошибка=' . (string) $row['last_error']
             );
         }
         return;
@@ -86,7 +73,7 @@ function controlEmit(array $payload, bool $json): void
     if (isset($payload['module']) && is_array($payload['module'])) {
         $row = $payload['module'];
         echo sprintf(
-            "%s: configured=%s effective=%s\n",
+            "%s: задано=%s фактически=%s\n",
             (string) ($row['module_id'] ?? ''),
             (string) ($row['configured_state'] ?? ''),
             (string) ($row['effective_state'] ?? '')
@@ -96,10 +83,10 @@ function controlEmit(array $payload, bool $json): void
 
 function controlUsage(): void
 {
-    echo "Usage:\n";
+    echo "Использование:\n";
     echo "  php bin/control.php license status [--json]\n";
     echo "  php bin/control.php license activate --stdin [--json]\n";
-    echo "  php bin/control.php license activate --token-file=/secure/path/license.txt [--json]\n";
+    echo "  php bin/control.php license activate --token-file=/защищённый/путь/license.txt [--json]\n";
     echo "  php bin/control.php license clear --yes [--json]\n";
     echo "  php bin/control.php modules list [--json]\n";
     echo "  php bin/control.php modules install <module-id> [--json]\n";
@@ -129,33 +116,33 @@ try {
             $fromStdin = controlHasFlag($args, '--stdin');
             $tokenFile = controlOptionValue($args, '--token-file');
             if ($fromStdin === ($tokenFile !== null)) {
-                throw new RuntimeException('Choose exactly one token source: --stdin or --token-file=PATH');
+                throw new RuntimeException('Выберите ровно один источник токена: --stdin или --token-file=PATH');
             }
 
             if ($fromStdin) {
                 $token = stream_get_contents(STDIN);
                 if (!is_string($token)) {
-                    throw new RuntimeException('Unable to read license token from STDIN');
+                    throw new RuntimeException('Не удалось прочитать лицензионный токен из STDIN');
                 }
             } else {
                 $resolved = realpath((string) $tokenFile);
                 if ($resolved === false || !is_file($resolved) || !is_readable($resolved) || is_link((string) $tokenFile)) {
-                    throw new RuntimeException('License token file is missing, unreadable or unsafe');
+                    throw new RuntimeException('Файл лицензионного токена отсутствует, недоступен или небезопасен');
                 }
                 $token = file_get_contents($resolved);
                 if (!is_string($token)) {
-                    throw new RuntimeException('Unable to read license token file');
+                    throw new RuntimeException('Не удалось прочитать файл лицензионного токена');
                 }
             }
 
             $result = ['status' => 'ok', 'license' => $service->activateFromControlPlane($context, $token)];
         } elseif ($action === 'clear') {
             if (!controlHasFlag($args, '--yes')) {
-                throw new RuntimeException('Refusing to clear the installation license without --yes');
+                throw new RuntimeException('Для очистки лицензии установки требуется явное подтверждение --yes');
             }
             $result = ['status' => 'ok', 'license' => $service->clearFromControlPlane($context)];
         } else {
-            throw new RuntimeException('Unknown license action; use status, activate or clear');
+            throw new RuntimeException('Неизвестное действие лицензии; используйте status, activate или clear');
         }
 
         controlEmit($result, $json);
@@ -181,7 +168,7 @@ try {
         } elseif (in_array($action, ['install', 'enable', 'disable'], true)) {
             $moduleId = trim((string) ($args[2] ?? ''));
             if ($moduleId === '') {
-                throw new RuntimeException('Module id is required');
+                throw new RuntimeException('Требуется идентификатор модуля');
             }
             $target = match ($action) {
                 'install' => 'installed',
@@ -193,20 +180,14 @@ try {
                 'module' => $registry->transitionLifecycle($moduleId, $target),
             ];
         } else {
-            throw new RuntimeException('Unknown modules action; use list, install, enable or disable');
+            throw new RuntimeException('Неизвестное действие модулей; используйте list, install, enable или disable');
         }
 
         controlEmit($result, $json);
         exit(0);
     }
 
-    throw new RuntimeException('Unknown control-plane area; use license or modules');
+    throw new RuntimeException('Неизвестная область управления; используйте license или modules');
 } catch (Throwable $e) {
-    $payload = [
-        'status' => 'fail',
-        'error' => 'control_plane_error',
-        'message' => $e->getMessage(),
-    ];
-    controlEmit($payload, $json);
-    exit(1);
+    CliRuntime::fail($e, $json, 'control_plane_error');
 }
