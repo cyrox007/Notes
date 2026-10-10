@@ -99,4 +99,17 @@ foreach (($auditReport['deprecated'] ?? []) as $finding) {
     );
 }
 
-fwrite(STDOUT, "[OK] минимальный PHP 8.2 и достоверный контур полного рефакторинга 1.1\n");
+$zeroDebtCategories = [
+    'deprecated' => 'устаревшие конструкции',
+    'strict_types_missing' => 'файлы с классами без strict_types',
+    'untyped_properties' => 'обычные нетипизированные свойства',
+    'dynamic_property_candidates' => 'кандидаты на динамические свойства',
+];
+foreach ($zeroDebtCategories as $key => $label) {
+    php82RefactorAssert(
+        (int) ($auditReport['summary'][$key] ?? -1) === 0,
+        'В ветке 1.1 снова появились ' . $label
+    );
+}
+
+fwrite(STDOUT, "[OK] минимальный PHP 8.2 и нулевой базовый долг рефакторинга 1.1\n");
