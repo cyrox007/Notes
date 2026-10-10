@@ -101,7 +101,9 @@
                             || step.response.status >= 500;
                     if (!retryable || retries >= MAX_TRANSIENT_RETRIES) {
                         throw new UpdateRequestError(
-                            step.payload?.message || 'Не удалось продолжить обновление.', retryable
+                            `${step.payload?.message || 'Не удалось продолжить обновление.'} `
+                                + `(HTTP ${step.response.status}; код: ${step.payload?.error || 'unknown'}; `
+                                + `транзакция: ${transactionId}; повторов: ${retries}).`, retryable
                         );
                     }
 

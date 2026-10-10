@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Core;
 
+require_once __DIR__ . '/Environment.php';
+
 use RuntimeException;
 use Throwable;
 
@@ -94,7 +96,9 @@ final class UpdateReadiness
         }
         $recordOptional('php_cli', $phpCliReady, $phpCliIssue);
         $processModeAvailable = $procOpen && $phpCliReady;
-        $installMode = $processModeAvailable ? 'process' : 'web';
+        // A synchronous browser request keeps index.php open while its CLI child
+        // replaces the live tree. Windows cannot delete that open entrypoint.
+        $installMode = $processModeAvailable && PHP_OS_FAMILY !== 'Windows' ? 'process' : 'web';
 
         $opcacheLoaded = extension_loaded('Zend OPcache');
         $opcacheEnabledRaw = ini_get('opcache.enable');
@@ -239,8 +243,8 @@ final class UpdateReadiness
             }
         }
 
-        $dbUser = trim((string) (getenv('DBUSER') ?: ''));
-        $dbName = trim((string) (getenv('DBNAME') ?: ''));
+        $dbUser = trim((string) (Environment::get('DBUSER') ?: ''));
+        $dbName = trim((string) (Environment::get('DBNAME') ?: ''));
         $dbConfigReady = $dbUser !== '' && $dbName !== '';
         $record(
             'database_config',
@@ -282,7 +286,7 @@ final class UpdateReadiness
 
     private function configuredRoot(string $envName, string $privateRoot, string $fallbackSuffix): string
     {
-        $configured = trim((string) (getenv($envName) ?: ''));
+        $configured = trim((string) (Environment::get($envName) ?: ''));
         if ($configured !== '') {
             return $configured;
         }

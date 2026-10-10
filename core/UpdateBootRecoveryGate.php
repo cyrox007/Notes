@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Core;
 
+require_once __DIR__ . '/Environment.php';
+
 use App\Services\MaintenanceModeService;
 use Throwable;
 
@@ -143,7 +145,7 @@ final class UpdateBootRecoveryGate
         }
 
         if ($installDate === null) {
-            $value = getenv('INSTALL_DATE');
+            $value = Environment::get('INSTALL_DATE');
             $installDate = is_string($value) ? trim($value) : '';
         } else {
             $installDate = trim($installDate);

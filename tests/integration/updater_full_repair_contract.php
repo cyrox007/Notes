@@ -32,6 +32,10 @@ try {
         $version = "<?php\nclass Version { public const VERSION = '1.0.{$patch}'; public const VERSION_CODE = 100{$patch}; }\n";
         file_put_contents($app . '/core/Version.php', $version);
         file_put_contents($app . '/.env', "REPAIR_SENTINEL=unchanged\n");
+        mkdir($app . '/modules/admin/services', 0700, true);
+        file_put_contents($app . '/modules/admin/services/AdminUpdateService.php',
+            '<?php class AdminUpdateService { private function applyWebSynchronously(int $actorId, int $code, string $sha): array { return []; } }');
+
         foreach (['core/Environment.php', 'core/HostingCompatibility.php', 'app/services/MaintenanceModeService.php'] as $relative) {
             copy($root . '/' . $relative, $app . '/' . $relative);
         }
@@ -43,10 +47,12 @@ try {
         }
         foreach (['bin/update_web_entry.php', 'core/UpdateWebRuntimeLauncher.php', 'core/UpdateExternalRuntime.php',
             'core/UpdateBackupManager.php', 'core/UpdatePackageStager.php', 'core/DatabaseOwnership.php',
-            'assets/js/update-web-runner.js', 'bin/migrate.php'] as $relative) {
+            'assets/js/update-web-runner.js', 'core/UpdateReadiness.php', 'core/UpdateTransactionStateMachine.php', 'bin/migrate.php'] as $relative) {
             repairAssert(hash_file('sha256', $app . '/' . $relative) === hash_file('sha256', $root . '/' . $relative),
                 'Missing or changed updater dependency: ' . $relative);
         }
+        $service = file_get_contents($app . '/modules/admin/services/AdminUpdateService.php');
+        repairAssert(substr_count($service, 'updater-repair-windows-sync-guard') === 1, 'Synchronous guard missing or duplicated');
         repairAssert(!is_dir($app . '/database'), 'Repair copied migrations');
     }
 

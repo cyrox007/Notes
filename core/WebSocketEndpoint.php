@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace Core;
 
+require_once __DIR__ . '/Environment.php';
+
 use InvalidArgumentException;
 
 final class WebSocketEndpoint
 {
     public static function enabled(): bool
     {
-        $value = getenv('WS_ENABLED');
+        $value = Environment::get('WS_ENABLED');
         $raw = is_string($value) ? trim($value) : '';
         if ($raw === '') {
             // Старые установки до появления WS_ENABLED сохраняют прежнее
@@ -33,7 +35,7 @@ final class WebSocketEndpoint
 
     public static function bindHost(): string
     {
-        $host = trim((string) (getenv('WS_HOST') ?: '127.0.0.1'));
+        $host = trim((string) (Environment::get('WS_HOST') ?: '127.0.0.1'));
         if (
             $host === ''
             || str_contains($host, '/')
@@ -47,7 +49,7 @@ final class WebSocketEndpoint
 
     public static function port(): int
     {
-        $raw = trim((string) (getenv('WS_PORT') ?: '27800'));
+        $raw = trim((string) (Environment::get('WS_PORT') ?: '27800'));
         if ($raw === '' || !ctype_digit($raw)) {
             throw new InvalidArgumentException('WS_PORT должен быть целым числом');
         }
@@ -62,7 +64,7 @@ final class WebSocketEndpoint
     public static function publicUrl(): string
     {
         $siteUrl = self::siteUrl();
-        $configured = trim((string) (getenv('WS_PUBLIC_URL') ?: ''));
+        $configured = trim((string) (Environment::get('WS_PUBLIC_URL') ?: ''));
         if ($configured === '') {
             return self::sameOriginPublicUrl($siteUrl, self::basePath());
         }
@@ -95,7 +97,7 @@ final class WebSocketEndpoint
      */
     public static function allowedOrigins(): array
     {
-        $raw = (string) (getenv('WS_ALLOWED_ORIGINS') ?: getenv('SITEURL') ?: '');
+        $raw = (string) (Environment::get('WS_ALLOWED_ORIGINS') ?: Environment::get('SITEURL') ?: '');
         $origins = [];
         foreach (explode(',', $raw) as $value) {
             $origin = rtrim(trim($value), '/');
@@ -119,7 +121,7 @@ final class WebSocketEndpoint
 
     public static function siteUrl(): string
     {
-        $siteUrl = rtrim(trim((string) (getenv('SITEURL') ?: 'http://localhost')), '/');
+        $siteUrl = rtrim(trim((string) (Environment::get('SITEURL') ?: 'http://localhost')), '/');
         $scheme = strtolower((string) parse_url($siteUrl, PHP_URL_SCHEME));
         $host = (string) parse_url($siteUrl, PHP_URL_HOST);
         $path = (string) (parse_url($siteUrl, PHP_URL_PATH) ?? '');
@@ -136,7 +138,7 @@ final class WebSocketEndpoint
 
     public static function basePath(): string
     {
-        $raw = trim((string) (getenv('BASE_PATH') ?: '/'));
+        $raw = trim((string) (Environment::get('BASE_PATH') ?: '/'));
         $path = '/' . trim($raw, '/') . '/';
         if ($path === '//') {
             return '/';

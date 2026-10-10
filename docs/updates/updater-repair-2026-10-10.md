@@ -1,8 +1,45 @@
-# Full updater repair, 2026-10-10 (revision 2)
+# Full updater repair, 2026-10-10 (revision 4)
 
 The original two-file repair fixed preparation and backup dates only. It did
 not fix installation on Windows. **Use the full archive and `repair-updater.php`**
 described below; the old two-file archive is superseded.
+
+## Revision 4: Apache environment and HTTP error visibility
+
+The real admin button then reached candidate_verified, but the external Apache
+request's preflight health check could no longer read environment values.
+Environment now captures pre-existing process values into request-local arrays;
+updater readers fall back to that captured configuration if getenv loses a value.
+The frozen closure includes health schema/WebSocket dependencies explicitly.
+The HTTP boundary logs otherwise unhandled exceptions to private
+updates/http-events.jsonl without relying on loaded environment. Browser failures
+show HTTP status, error code, transaction ID and retry count.
+This stop occurred before live mutation; the original version remained healthy.
+The user's subsequent real admin-button transaction
+web-update-20261010-071104-fa7d0ccc32 committed original signed 1.0.14 on local
+Windows/Apache. Full repair was reapplied afterward; health status is ok.
+The next real admin-button transaction
+web-update-20261010-071727-565c20c53f committed original signed 1.0.15 from 1.0.14
+on the same Windows/Apache installation. Health status is ok. Full repair was
+reapplied after both stock releases; before/after row values and .env were unchanged.
+The legacy 1.0.12/14 bridges now carry the environment reader's dependencies too;
+the full archive also includes the compatibility stage-repair entrypoint.
+
+## Revision 3: real browser mode and diagnostics
+
+Revision 2 tested the external HTTP executor directly, but the admin button
+still selected synchronous CLI mode on Windows when PHP CLI was available.
+The parent browser request retained index.php and blocked replacement/rollback.
+Revision 3 transfers UpdateReadiness too: Windows selects external HTTP mode
+regardless of CLI availability. Reload the admin page after applying the patch.
+
+Service logs now record every durable apply/rollback state change with transaction
+ID, previous/current state, source/target versions, executor, platform, PID and
+elapsed seconds. Apply/web failures include exception class, message, source
+file and line; rollback failure includes its original error and location.
+Context uses the existing private ServiceLog rotation and secret redaction.
+An old flash error can remain after a separate successful recovery: the durable
+journal and current maintenance/health status determine whether recovery is done.
 
 ## Incident and version audit
 

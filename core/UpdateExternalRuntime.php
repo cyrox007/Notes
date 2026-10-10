@@ -31,6 +31,8 @@ final class UpdateExternalRuntime
         'core/UpdateWebRuntimeLauncher.php',
         'app/services/MaintenanceModeService.php',
         'core/Environment.php',
+        'core/SchemaReadiness.php',
+        'core/WebSocketEndpoint.php',
         'core/HostingCompatibility.php',
         'core/Version.php',
         'core/UpdatePath.php',

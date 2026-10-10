@@ -199,6 +199,10 @@ if ($liveVersion !== '1.0.14' || $liveCode !== 10014) {
 // Переносится только исполнитель обновления. Version.php, миграции и прикладной
 // код остаются 1.0.14 до штатной транзакции, поэтому мост не считается релизом.
 $files = [
+    'core/Environment.php',
+    'core/SchemaReadiness.php',
+    'core/WebSocketEndpoint.php',
+    'core/UpdateReadiness.php',
     'bin/update_web_entry.php',
     'assets/js/update-web-runner.js',
     'app/services/MaintenanceModeService.php',

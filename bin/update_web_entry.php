@@ -9,7 +9,17 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 
-$respond = static function (int $status, array $payload): never {
+$respond = static function (int $status, array $payload) use ($config): never {
+    if (empty($payload['success'])) {
+        $code = (string) ($payload['error'] ?? 'update_step_failed');
+        $messages = [
+            'continuation_invalid' => 'Продолжение обновления недействительно или истекло. Повторите проверку обновления.',
+            'origin_forbidden' => 'Адрес страницы не совпадает с адресом установки. Откройте обновления по основному адресу сайта.',
+        ];
+        $payload['message'] = $payload['message'] ?? ($messages[$code]
+            ?? 'Внешний шаг обновления завершился ошибкой. Подробная причина записана в приватный журнал.');
+        $payload['transaction_id'] = (string) ($config['transaction_id'] ?? '');
+    }
     http_response_code($status);
     echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
     exit;
@@ -36,6 +46,7 @@ if ($origin !== '') {
     }
 }
 
+$runtimeVerified = false;
 try {
     $root = $config['runtime_root'];
     $manifestPath = $root . '/runtime.json';
@@ -54,6 +65,7 @@ try {
             throw new RuntimeException('Runtime file mismatch');
         }
     }
+    $runtimeVerified = true;
     require_once $root . '/core/UpdateWebContinuation.php';
     if (!(new \Core\UpdateWebContinuation($config['state_root']))->verify($transactionId, $token)) {
         $respond(403, ['success' => false, 'error' => 'continuation_invalid', 'retryable' => false]);
@@ -72,5 +84,17 @@ try {
     ]);
 } catch (Throwable $e) {
     error_log('External web updater: ' . $e->getMessage());
+    try {
+        if (!$runtimeVerified) throw new RuntimeException('Unverified runtime cannot supply diagnostics');
+        require_once $config['runtime_root'] . '/core/ServiceLog.php';
+        (new \Core\ServiceLog($config['state_root'] . '/http-events.jsonl', $config['app_root']))
+            ->record('updater.external_step_failed', 'error', 'updater', [
+                'transaction_id' => $config['transaction_id'],
+                'error_type' => $e::class, 'message' => $e->getMessage(),
+                'file' => $e->getFile(), 'line' => $e->getLine(),
+                'executor' => PHP_SAPI, 'platform' => PHP_OS_FAMILY,
+            ]);
+    } catch (Throwable) { /* Preserve the original error if diagnostics are unavailable. */ }
+
     $respond(500, ['success' => false, 'error' => 'external_update_step_failed', 'retryable' => true]);
 }

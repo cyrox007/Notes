@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Core;
 
+require_once __DIR__ . '/Environment.php';
+
 use RuntimeException;
 use Throwable;
 
@@ -229,11 +231,11 @@ final class ServiceLog
     {
         $path = trim((string) ($explicit ?? ''));
         if ($path === '') {
-            $configured = getenv('SERVICE_LOG_PATH');
+            $configured = Environment::get('SERVICE_LOG_PATH');
             $path = is_string($configured) ? trim($configured) : '';
         }
         if ($path === '') {
-            $private = getenv('PRIVATE_STORAGE_PATH');
+            $private = Environment::get('PRIVATE_STORAGE_PATH');
             $private = is_string($private) ? trim($private) : '';
             if ($private === '') {
                 throw new RuntimeException('PRIVATE_STORAGE_PATH или SERVICE_LOG_PATH не настроен');
@@ -308,7 +310,7 @@ final class ServiceLog
 
         if (is_string($value)) {
             $value = str_replace($this->appRoot, '[app-root]', $value);
-            $private = getenv('PRIVATE_STORAGE_PATH');
+            $private = Environment::get('PRIVATE_STORAGE_PATH');
             if (is_string($private) && trim($private) !== '') {
                 $value = str_replace(
                     self::normalize(trim($private)),

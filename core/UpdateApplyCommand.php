@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Core;
 
+require_once __DIR__ . '/Environment.php';
+
 require_once __DIR__ . '/UpdateTransactionJournal.php';
 require_once __DIR__ . '/UpdateTransactionStateMachine.php';
 require_once __DIR__ . '/UpdateBackupManager.php';
@@ -136,6 +138,17 @@ final class UpdateApplyCommand
             return $pause->result($transactionId);
         } catch (Throwable $e) {
             $latest = $stateMachine->load($transactionId);
+            $this->logService('updater.execution_failed', 'error', $transactionId, [
+                'state' => (string) ($latest['state'] ?? ''),
+                'error_type' => $e::class,
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'executor' => PHP_SAPI,
+                'platform' => PHP_OS_FAMILY,
+                'pid' => getmypid(),
+                'live_mutation_started' => ($latest['live_mutation_started'] ?? false) === true,
+            ]);
             if (($latest['live_mutation_started'] ?? false) !== true) {
                 try {
                     $maintenance->leave($transactionId);
@@ -868,6 +881,9 @@ final class UpdateApplyCommand
                 'apply_error' => $applyError->getMessage(),
                 'apply_error_code' => $applyErrorCode,
                 'rollback_error' => $rollbackError->getMessage(),
+                'rollback_error_type' => $rollbackError::class,
+                'rollback_file' => $rollbackError->getFile(),
+                'rollback_line' => $rollbackError->getLine(),
                 'at' => time(),
             ]);
             throw new UpdateApplyException(
@@ -1263,7 +1279,7 @@ PHP;
             'WS_PID_FILE',
             'LOG_FILE',
         ] as $name) {
-            $value = getenv($name);
+            $value = Environment::get($name);
             if (!is_string($value) || trim($value) === '') {
                 continue;
             }
@@ -1281,11 +1297,11 @@ PHP;
         if ($explicit !== '') {
             return rtrim($explicit, '/\\');
         }
-        $configured = getenv($envName);
+        $configured = Environment::get($envName);
         if (is_string($configured) && trim($configured) !== '') {
             return rtrim(trim($configured), '/\\');
         }
-        $private = getenv('PRIVATE_STORAGE_PATH');
+        $private = Environment::get('PRIVATE_STORAGE_PATH');
         if (is_string($private) && trim($private) !== '') {
             return rtrim(trim($private), '/\\') . DIRECTORY_SEPARATOR . $privateSuffix;
         }
@@ -1301,18 +1317,18 @@ PHP;
         if (!extension_loaded('mysqli')) {
             throw new RuntimeException('PHP mysqli extension is required for updater database operations');
         }
-        $user = getenv('DBUSER');
-        $name = getenv('DBNAME');
+        $user = Environment::get('DBUSER');
+        $name = Environment::get('DBNAME');
         if (!is_string($user) || trim($user) === '' || !is_string($name) || trim($name) === '') {
             throw new RuntimeException('Database environment is incomplete');
         }
         mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
         $db = new mysqli(
-            (string) (getenv('DBHOST') ?: 'localhost'),
+            (string) (Environment::get('DBHOST') ?: 'localhost'),
             trim($user),
-            (string) (getenv('DBPASS') ?: ''),
+            (string) (Environment::get('DBPASS') ?: ''),
             trim($name),
-            (int) (getenv('DBPORT') ?: 3306)
+            (int) (Environment::get('DBPORT') ?: 3306)
         );
         $db->set_charset('utf8mb4');
         return $db;

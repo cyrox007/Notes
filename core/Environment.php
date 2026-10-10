@@ -49,6 +49,16 @@ final class Environment
         }
     }
 
+    /** Request-local fallback when Apache loses process environment values. */
+    public static function get(string $name): string|false
+    {
+        $value = getenv($name);
+        if ($value !== false) return $value;
+        if (array_key_exists($name, $_ENV)) return (string) $_ENV[$name];
+        if (array_key_exists($name, $_SERVER)) return (string) $_SERVER[$name];
+        return false;
+    }
+
     private static function loadLine(string $line, int $lineNumber, string $file): void
     {
         $trimmed = trim($line);
@@ -67,8 +77,15 @@ final class Environment
         $key = $matches[1];
         $value = self::parseValue($matches[2], $file, $lineNumber);
 
-        if (self::isDefined($key)) {
-            return;
+        // Apache on Windows may expose a variable only through getenv().
+        // Capture it in request-local arrays too, before another request ends.
+        $existing = getenv($key);
+        if ($existing !== false) {
+            $value = $existing;
+        } elseif (array_key_exists($key, $_ENV)) {
+            $value = (string) $_ENV[$key];
+        } elseif (array_key_exists($key, $_SERVER)) {
+            $value = (string) $_SERVER[$key];
         }
 
         if (!putenv($key . '=' . $value)) {
@@ -173,13 +190,6 @@ final class Environment
         // После подстановки возвращаем экранированные доллары. Это сохраняет
         // литералы вида ${VAR} и другие последовательности с \$ внутри кавычек.
         return str_replace('\\$', '$', $expanded);
-    }
-
-    private static function isDefined(string $key): bool
-    {
-        return getenv($key) !== false
-            || array_key_exists($key, $_ENV)
-            || array_key_exists($key, $_SERVER);
     }
 
     private static function syntaxError(string $file, int $lineNumber, string $reason): RuntimeException

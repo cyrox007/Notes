@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Core;
 
+require_once __DIR__ . '/Environment.php';
+
 use RuntimeException;
 
 require_once __DIR__ . '/UpdateExternalRuntime.php';
@@ -35,7 +37,7 @@ final class UpdateWebRuntimeLauncher
             'transaction_id' => $transactionId,
             'runtime_root' => $runtime['runtime_root'],
             'manifest_sha256' => $runtime['manifest_sha256'],
-            'site_url' => (string) (getenv('SITEURL') ?: ''),
+            'site_url' => (string) (Environment::get('SITEURL') ?: ''),
         ];
         $bytes = str_replace('/* UPDATE_WEB_CONFIG */ []', var_export($config, true), $template);
         $name = bin2hex(random_bytes(16)) . '.php';
@@ -57,7 +59,7 @@ final class UpdateWebRuntimeLauncher
         if (!rename($temporary, $directory . '/' . $name)) {
             throw new RuntimeException('Не удалось опубликовать HTTP-продолжение');
         }
-        $base = '/' . trim((string) (getenv('BASE_PATH') ?: ''), '/');
+        $base = '/' . trim((string) (Environment::get('BASE_PATH') ?: ''), '/');
         $url = rtrim($base, '/') . '/update-continuations/' . $name;
         $mapRoot = $stateRoot . '/web-endpoints';
         if (is_link($mapRoot) || (!is_dir($mapRoot) && !mkdir($mapRoot, 0700))) {

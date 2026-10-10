@@ -32,6 +32,10 @@ jobs:
           php tests/integration/updater_full_repair_contract.php
           php tests/integration/database_ownership_contract.php
           php tests/integration/updater_external_web_contract.php
+          php tests/integration/environment_loader_contract.php
+          php tests/integration/updater_readiness_contract.php
+          php tests/integration/updater_attempt_log_contract.php
+          php tests/integration/updater_live_apply_contract.php
           python3 tools/release/build-updater-repair.py --output notes-updater-repair-full-1.0.13-1.0.15.zip
       - uses: actions/upload-artifact@v4
         with:

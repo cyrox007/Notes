@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Core;
 
+require_once __DIR__ . '/Environment.php';
+
 use mysqli;
 use RuntimeException;
 
@@ -92,19 +94,19 @@ final class SchemaReadiness
 
     private static function connect(): mysqli
     {
-        $user = trim((string) (getenv('DBUSER') ?: ''));
-        $database = trim((string) (getenv('DBNAME') ?: ''));
+        $user = trim((string) (Environment::get('DBUSER') ?: ''));
+        $database = trim((string) (Environment::get('DBNAME') ?: ''));
         if ($user === '' || $database === '') {
             throw new RuntimeException('Не заданы DBUSER/DBNAME для проверки схемы');
         }
 
         mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
         $db = new mysqli(
-            (string) (getenv('DBHOST') ?: 'localhost'),
+            (string) (Environment::get('DBHOST') ?: 'localhost'),
             $user,
-            (string) (getenv('DBPASS') ?: ''),
+            (string) (Environment::get('DBPASS') ?: ''),
             $database,
-            (int) (getenv('DBPORT') ?: 3306)
+            (int) (Environment::get('DBPORT') ?: 3306)
         );
         $db->set_charset('utf8mb4');
         return $db;
