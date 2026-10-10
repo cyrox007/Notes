@@ -29,10 +29,6 @@ $deprecatedPatterns = [
         'pattern' => '/\bFILTER_SANITIZE_STRING\b/',
         'description' => 'Устаревший FILTER_SANITIZE_STRING',
     ],
-    'dollar_brace_interpolation' => [
-        'pattern' => '/\$\{[A-Za-z_][A-Za-z0-9_]*\}/',
-        'description' => 'Устаревшая интерполяция ${var}',
-    ],
     'strftime' => [
         'pattern' => '/\b(?:gm)?strftime\s*\(/i',
         'description' => 'Устаревшая функция strftime()/gmstrftime()',
@@ -45,8 +41,10 @@ $untypedProperties = [];
 $dynamicPropertyCandidates = [];
 
 foreach ($files as $relative => $source) {
+    $code = maskNonCodeText($source);
+
     foreach ($deprecatedPatterns as $key => $definition) {
-        foreach (matchOffsets($definition['pattern'], $source) as $offset) {
+        foreach (matchOffsets($definition['pattern'], $code) as $offset) {
             $deprecated[] = [
                 'kind' => $key,
                 'description' => $definition['description'],
@@ -56,11 +54,20 @@ foreach ($files as $relative => $source) {
         }
     }
 
-    if (containsClassLikeDeclaration($source) && !str_contains($source, 'declare(strict_types=1)')) {
+    foreach (dollarBraceInterpolationOffsets($source) as $offset) {
+        $deprecated[] = [
+            'kind' => 'dollar_brace_interpolation',
+            'description' => 'Устаревшая интерполяция ${var}',
+            'file' => $relative,
+            'line' => sourceLine($source, $offset),
+        ];
+    }
+
+    if (containsClassLikeDeclaration($code) && !str_contains($code, 'declare(strict_types=1)')) {
         $strictTypesMissing[] = $relative;
     }
 
-    foreach (untypedPropertyMatches($source) as $match) {
+    foreach (untypedPropertyMatches($code) as $match) {
         $untypedProperties[] = [
             'file' => $relative,
             'line' => sourceLine($source, $match['offset']),
@@ -68,8 +75,8 @@ foreach ($files as $relative => $source) {
         ];
     }
 
-    $declared = declaredPropertyNames($source);
-    foreach (assignedThisPropertyNames($source) as $assignment) {
+    $declared = declaredPropertyNames($code);
+    foreach (assignedThisPropertyNames($code) as $assignment) {
         if (isset($declared[$assignment['property']])) {
             continue;
         }
@@ -109,7 +116,7 @@ if (in_array('--json', $argv, true)) {
 echo 'Аудит рефакторинга PHP 8.2' . PHP_EOL;
 echo 'Проверено PHP-файлов: ' . $report['files_scanned'] . PHP_EOL;
 echo 'Устаревших конструкций: ' . $report['summary']['deprecated'] . PHP_EOL;
-echo 'Class-like файлов без strict_types: ' . $report['summary']['strict_types_missing'] . PHP_EOL;
+echo 'Файлов с классами без strict_types: ' . $report['summary']['strict_types_missing'] . PHP_EOL;
 echo 'Нетипизированных свойств: ' . $report['summary']['untyped_properties'] . PHP_EOL;
 echo 'Кандидатов на динамические свойства: ' . $report['summary']['dynamic_property_candidates'] . PHP_EOL;
 
@@ -168,11 +175,74 @@ function hasExcludedSegment(string $relative, array $excluded): bool
     return false;
 }
 
+/**
+ * Убирает из анализа комментарии и текстовые литералы, сохраняя длину исходника.
+ * Это не даёт словам из документации, регулярных выражений и сообщений становиться
+ * ложными срабатываниями, а исходные смещения строк остаются точными.
+ */
+function maskNonCodeText(string $source): string
+{
+    $masked = '';
+    foreach (token_get_all($source) as $token) {
+        if (is_string($token)) {
+            $masked .= $token;
+            continue;
+        }
+
+        [$id, $text] = $token;
+        if (in_array($id, [T_COMMENT, T_DOC_COMMENT, T_CONSTANT_ENCAPSED_STRING, T_ENCAPSED_AND_WHITESPACE, T_INLINE_HTML], true)) {
+            $masked .= maskTextPreservingLines($text);
+            continue;
+        }
+
+        $masked .= $text;
+    }
+
+    return $masked;
+}
+
+function maskTextPreservingLines(string $text): string
+{
+    $result = '';
+    $length = strlen($text);
+    for ($index = 0; $index < $length; $index++) {
+        $char = $text[$index];
+        $result .= ($char === "\n" || $char === "\r") ? $char : ' ';
+    }
+
+    return $result;
+}
+
+/** @return list<int> */
+function dollarBraceInterpolationOffsets(string $source): array
+{
+    $offsets = [];
+    $offset = 0;
+
+    foreach (token_get_all($source) as $token) {
+        if (is_string($token)) {
+            $offset += strlen($token);
+            continue;
+        }
+
+        [$id, $text] = $token;
+        if ($id === T_DOLLAR_OPEN_CURLY_BRACES) {
+            $offsets[] = $offset;
+        }
+        $offset += strlen($text);
+    }
+
+    return $offsets;
+}
+
 /** @return list<int> */
 function matchOffsets(string $pattern, string $source): array
 {
-    $matched = preg_match_all($pattern, $source, $matches, PREG_OFFSET_CAPTURE);
-    if ($matched === false || $matched === 0) {
+    $matched = @preg_match_all($pattern, $source, $matches, PREG_OFFSET_CAPTURE);
+    if ($matched === false) {
+        throw invalidAuditPattern($pattern);
+    }
+    if ($matched === 0) {
         return [];
     }
 
@@ -189,15 +259,24 @@ function sourceLine(string $source, int $offset): int
 
 function containsClassLikeDeclaration(string $source): bool
 {
-    return preg_match('/\b(?:class|interface|trait|enum)\s+[A-Za-z_][A-Za-z0-9_]*/', $source) === 1;
+    $pattern = '/\b(?:class|interface|trait|enum)\s+[A-Za-z_][A-Za-z0-9_]*/';
+    $matched = @preg_match($pattern, $source);
+    if ($matched === false) {
+        throw invalidAuditPattern($pattern);
+    }
+
+    return $matched === 1;
 }
 
 /** @return list<array{property:string,offset:int}> */
 function untypedPropertyMatches(string $source): array
 {
     $pattern = '/\b(?:public|protected|private|var)\s+(?:static\s+)?\$([A-Za-z_][A-Za-z0-9_]*)/';
-    $count = preg_match_all($pattern, $source, $matches, PREG_OFFSET_CAPTURE);
-    if ($count === false || $count === 0) {
+    $count = @preg_match_all($pattern, $source, $matches, PREG_OFFSET_CAPTURE);
+    if ($count === false) {
+        throw invalidAuditPattern($pattern);
+    }
+    if ($count === 0) {
         return [];
     }
 
@@ -215,9 +294,12 @@ function untypedPropertyMatches(string $source): array
 /** @return array<string,true> */
 function declaredPropertyNames(string $source): array
 {
-    $pattern = '/\b(?:public|protected|private|var)\s+(?:static\s+)?(?:readonly\s+)?(?:[?\\A-Za-z_][\\A-Za-z0-9_|&?]*\s+)?\$([A-Za-z_][A-Za-z0-9_]*)/';
-    $count = preg_match_all($pattern, $source, $matches);
-    if ($count === false || $count === 0) {
+    $pattern = '/\b(?:public|protected|private|var)\s+(?:(?:static|readonly)\s+)*(?:(?:[()?A-Za-z_\\\\][()A-Za-z0-9_\\\\|&? ]*)\s+)?\$([A-Za-z_][A-Za-z0-9_]*)/';
+    $count = @preg_match_all($pattern, $source, $matches);
+    if ($count === false) {
+        throw invalidAuditPattern($pattern);
+    }
+    if ($count === 0) {
         return [];
     }
 
@@ -233,8 +315,11 @@ function declaredPropertyNames(string $source): array
 function assignedThisPropertyNames(string $source): array
 {
     $pattern = '/\$this->([A-Za-z_][A-Za-z0-9_]*)\s*=/';
-    $count = preg_match_all($pattern, $source, $matches, PREG_OFFSET_CAPTURE);
-    if ($count === false || $count === 0) {
+    $count = @preg_match_all($pattern, $source, $matches, PREG_OFFSET_CAPTURE);
+    if ($count === false) {
+        throw invalidAuditPattern($pattern);
+    }
+    if ($count === 0) {
         return [];
     }
 
@@ -247,4 +332,13 @@ function assignedThisPropertyNames(string $source): array
     }
 
     return $result;
+}
+
+function invalidAuditPattern(string $pattern): RuntimeException
+{
+    return new RuntimeException(sprintf(
+        'Некорректное регулярное выражение аудита %s: %s',
+        $pattern,
+        preg_last_error_msg()
+    ));
 }
