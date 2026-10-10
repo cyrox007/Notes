@@ -2,27 +2,20 @@
 
 declare(strict_types=1);
 
-if (PHP_SAPI !== 'cli') {
-    fwrite(STDERR, "This command is CLI-only.\n");
-    exit(2);
-}
-
-$root = dirname(__DIR__);
-require_once $root . '/core/Environment.php';
-if (is_file($root . '/.env')) {
-    \Core\Environment::load($root . '/.env');
-}
+require_once dirname(__DIR__) . '/core/CliRuntime.php';
+$root = \Core\CliRuntime::loadEnvironment();
 require_once $root . '/app/services/MaintenanceModeService.php';
 
 use App\Services\MaintenanceModeService;
+use Core\CliRuntime;
 
 $options = getopt('', ['action:', 'transaction:', 'reason:', 'state-root:', 'force', 'json', 'help']);
 if (isset($options['help'])) {
-    echo "Usage:\n";
-    echo "  php bin/maintenance.php --action=status [--state-root=/external/path] [--json]\n";
-    echo "  php bin/maintenance.php --action=enter --transaction=update-... [--reason='Обновление'] [--state-root=/external/path]\n";
-    echo "  php bin/maintenance.php --action=leave --transaction=update-... [--state-root=/external/path]\n";
-    echo "  php bin/maintenance.php --action=leave --force [--state-root=/external/path]\n";
+    echo "Использование:\n";
+    echo "  php bin/maintenance.php --action=status [--state-root=/внешний/путь] [--json]\n";
+    echo "  php bin/maintenance.php --action=enter --transaction=update-... [--reason='Обновление'] [--state-root=/внешний/путь]\n";
+    echo "  php bin/maintenance.php --action=leave --transaction=update-... [--state-root=/внешний/путь]\n";
+    echo "  php bin/maintenance.php --action=leave --force [--state-root=/внешний/путь]\n";
     exit(0);
 }
 
@@ -37,49 +30,41 @@ try {
 
     if ($action === 'enter') {
         if ($transaction === '') {
-            throw new RuntimeException('--transaction is required for maintenance enter');
+            throw new RuntimeException('Для входа в режим обслуживания требуется --transaction');
         }
         $state = $service->enter($transaction, $reason);
     } elseif ($action === 'leave') {
         $force = isset($options['force']);
         if (!$force && $transaction === '') {
-            throw new RuntimeException('--transaction is required unless --force is used');
+            throw new RuntimeException('Укажите --transaction либо используйте --force');
         }
         $service->leave($transaction, $force);
         $state = $service->state();
     } elseif ($action === 'status') {
         $state = $service->state();
     } else {
-        throw new RuntimeException('Unknown maintenance action; use status, enter or leave');
+        throw new RuntimeException('Неизвестное действие maintenance; используйте status, enter или leave');
     }
 
     if ($json) {
-        echo json_encode([
+        CliRuntime::writeJson([
             'status' => 'ok',
             'maintenance' => $state,
-        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
-    } else {
-        echo $state['active'] ? "Maintenance: ACTIVE\n" : "Maintenance: inactive\n";
-        echo 'State valid: ' . ($state['valid'] ? 'yes' : 'NO') . PHP_EOL;
-        if ($state['transaction_id'] !== null) {
-            echo 'Transaction: ' . $state['transaction_id'] . PHP_EOL;
-        }
-        if ($state['reason'] !== '') {
-            echo 'Reason: ' . $state['reason'] . PHP_EOL;
-        }
-        if ($state['state_path'] !== null) {
-            echo 'State file: ' . $state['state_path'] . PHP_EOL;
-        }
+        ], true);
+        exit(0);
+    }
+
+    echo $state['active'] ? "Обслуживание: ВКЛЮЧЕНО\n" : "Обслуживание: выключено\n";
+    echo 'Состояние корректно: ' . ($state['valid'] ? 'да' : 'НЕТ') . PHP_EOL;
+    if ($state['transaction_id'] !== null) {
+        echo 'Транзакция: ' . $state['transaction_id'] . PHP_EOL;
+    }
+    if ($state['reason'] !== '') {
+        echo 'Причина: ' . $state['reason'] . PHP_EOL;
+    }
+    if ($state['state_path'] !== null) {
+        echo 'Файл состояния: ' . $state['state_path'] . PHP_EOL;
     }
 } catch (Throwable $e) {
-    if ($json) {
-        echo json_encode([
-            'status' => 'fail',
-            'error' => 'maintenance_error',
-            'message' => $e->getMessage(),
-        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
-    } else {
-        fwrite(STDERR, '[FAIL] ' . $e->getMessage() . PHP_EOL);
-    }
-    exit(1);
+    CliRuntime::fail($e, $json, 'maintenance_error');
 }
