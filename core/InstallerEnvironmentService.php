@@ -74,6 +74,8 @@ final class InstallerEnvironmentService
         $webSocketRuntime = !$hasMessenger || $this->webSocketRuntimeAvailable($basePath);
         $httpsPrerequisites = HostingCompatibility::outboundHttpsPrerequisites();
         $onlineUpdates = $httpsPrerequisites['ok'];
+        $procOpen = $this->functionAvailable('proc_open');
+        $pcntl = $this->functionAvailable('pcntl_fork');
 
         return [
             'Онлайн-обновления через HTTPS' => [
@@ -89,14 +91,14 @@ final class InstallerEnvironmentService
                     : 'Недоступен в этом PHP; Messenger будет полностью работать через Long Poll.',
             ],
             'Изолированный обновлятор через proc_open' => [
-                'available' => $this->functionAvailable('proc_open'),
-                'message' => $this->functionAvailable('proc_open')
+                'available' => $procOpen,
+                'message' => $procOpen
                     ? 'Доступен ускоренный режим обновления в отдельном PHP-процессе.'
                     : 'Не требуется: обновлятор автоматически использует совместимый web-режим.',
             ],
             'Фоновый WebSocket через pcntl' => [
-                'available' => $this->functionAvailable('pcntl_fork'),
-                'message' => $this->functionAvailable('pcntl_fork')
+                'available' => $pcntl,
+                'message' => $pcntl
                     ? 'Доступен фоновый режим Unix.'
                     : 'Не требуется: WebSocket можно запускать менеджером процессов или не использовать.',
             ],
@@ -238,6 +240,9 @@ final class InstallerEnvironmentService
 
         try {
             $this->assertStorageWrite($handle);
+            fclose($handle);
+            $handle = null;
+
             if (!@rename($source, $target) || !is_file($target)) {
                 throw new RuntimeException('Private storage не поддерживает требуемое атомарное переименование');
             }
@@ -261,7 +266,6 @@ final class InstallerEnvironmentService
             throw new RuntimeException('Private storage не обеспечивает надёжную запись проверочного файла');
         }
         @flock($handle, LOCK_UN);
-        fclose($handle);
     }
 
     private function filesystemFunctionsAvailable(): bool
