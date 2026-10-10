@@ -1,4 +1,7 @@
 <?php
+
+declare(strict_types=1);
+
 namespace App\Models;
 
 use Core\ORM;
@@ -10,15 +13,16 @@ use Core\ORM;
  * /notes/attachment/{file_uid}. Значение is_encrypted описывает реальное
  * шифрование байтов файла; новые вложения пока не шифруются и имеют 0.
  */
-class NoteAttachmentModel extends ORM {
-    protected ?string $_tablename = "note_attachments";
+class NoteAttachmentModel extends ORM
+{
+    protected ?string $_tablename = 'note_attachments';
 
     public int $id = 0;
     public int $note_id = 0;
     public string $file_uid = '';
     public string $file_name = '';
     public string $file_path = '';
-    public string $file_type = ''; // image, audio, video, document, voice
+    public string $file_type = ''; // изображение, аудио, видео, документ или голосовое сообщение
     public string $mime_type = '';
     public int $file_size = 0;
     public ?int $duration = null;
@@ -29,25 +33,30 @@ class NoteAttachmentModel extends ORM {
 
     public ?NoteModel $note = null;
 
-    public function getFileUrl(): string {
+    public function getFileUrl(): string
+    {
         $baseSegment = trim((string) getenv('BASE_PATH'), '/');
         $basePath = $baseSegment !== '' ? '/' . $baseSegment : '';
         return $basePath . '/notes/attachment/' . rawurlencode($this->file_uid);
     }
 
-    public function isVoice(): bool {
+    public function isVoice(): bool
+    {
         return $this->file_type === 'voice';
     }
 
-    public function isImage(): bool {
+    public function isImage(): bool
+    {
         return $this->file_type === 'image';
     }
 
-    public function isMedia(): bool {
+    public function isMedia(): bool
+    {
         return in_array($this->file_type, ['audio', 'video'], true);
     }
 
-    public function getFormattedSize(): string {
+    public function getFormattedSize(): string
+    {
         $units = ['B', 'KB', 'MB', 'GB'];
         $size = $this->file_size;
         $unit = 0;
