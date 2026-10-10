@@ -1,26 +1,29 @@
 <?php
+
+declare(strict_types=1);
+
 namespace App\Controllers;
 
-use App\Models\NoteModel;
 use App\Models\UserModel;
-use App\Models\UserNModel;
 use Core\Controller;
 use Core\Request;
 
-class MainController extends Controller {
-    public function __construct() {
-        parent::__construct();
-    }
-    public function index(Request $request) {
+class MainController extends Controller
+{
+    public function index(Request $request): ?string
+    {
         $user = UserModel::select()
-        ->where('id', '=', $request->session('user_id'))
-        ->first();
-        
+            ->where('id', '=', $request->session('user_id'))
+            ->first();
+
         if (!$user) {
-            return "Пользователь не загружен";
+            return 'Пользователь не загружен';
         }
 
-        $data['user'] = get_object_vars($user); 
-        return $this->render_template('main_page/index', $data);
+        $this->render_template('main_page/index', [
+            'user' => get_object_vars($user),
+        ]);
+
+        return null;
     }
 }
