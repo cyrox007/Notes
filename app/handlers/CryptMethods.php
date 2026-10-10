@@ -4,16 +4,18 @@ declare(strict_types=1);
 
 namespace App\Helpers;
 
+use SensitiveParameter;
+
 /**
- * Fatal cryptographic failure used to prevent legacy catch(Exception) blocks
- * from silently downgrading encrypted data to plaintext.
+ * Критический сбой криптографии, который не даёт старым catch(Exception)
+ * незаметно понизить защищённые данные до открытого текста.
  */
 final class CryptographicFailure extends \Error
 {
 }
 
 /**
- * Cryptographic helpers for passwords and encrypted application data.
+ * Криптографические операции для паролей и защищённых данных приложения.
  */
 class CryptMethods
 {
@@ -29,11 +31,11 @@ class CryptMethods
         $key = is_string($key) ? trim($key) : '';
 
         if (strlen($key) < 32) {
-            throw new CryptographicFailure('UNIQUE_KEY must contain at least 32 characters');
+            throw new CryptographicFailure('UNIQUE_KEY должен содержать не менее 32 символов');
         }
 
         if (!function_exists('sodium_crypto_aead_xchacha20poly1305_ietf_encrypt')) {
-            throw new CryptographicFailure('libsodium XChaCha20-Poly1305 support is required');
+            throw new CryptographicFailure('Для шифрования требуется поддержка libsodium XChaCha20-Poly1305');
         }
 
         self::$masterKey = hash('sha256', $key, true);
@@ -50,7 +52,7 @@ class CryptMethods
         );
     }
 
-    public static function hashPassword(string $password): string
+    public static function hashPassword(#[SensitiveParameter] string $password): string
     {
         return password_hash(
             $password,
@@ -63,27 +65,32 @@ class CryptMethods
         );
     }
 
-    public static function verifyPassword(string $password, string $hash): bool
-    {
+    public static function verifyPassword(
+        #[SensitiveParameter] string $password,
+        #[SensitiveParameter] string $hash
+    ): bool {
         return password_verify($password, $hash);
     }
 
-    public static function needsRehash(string $hash): bool
+    public static function needsRehash(#[SensitiveParameter] string $hash): bool
     {
         return password_needs_rehash($hash, PASSWORD_ARGON2ID);
     }
 
-    public static function encrypt(string $plaintext, string $aad = ''): string
+    public static function encrypt(#[SensitiveParameter] string $plaintext, string $aad = ''): string
     {
         return self::encryptWithDerivedKey($plaintext, $aad, self::deriveKey('app-data-encryption'));
     }
 
     /**
-     * Maintenance-only primitive used by the data-key rotator.
-     * Normal application writes must continue to call encrypt().
+     * Служебная операция только для ротации ключей данных.
+     * Обычные записи приложения должны продолжать использовать encrypt().
      */
-    public static function encryptWithSecret(string $plaintext, string $aad, string $secret): string
-    {
+    public static function encryptWithSecret(
+        #[SensitiveParameter] string $plaintext,
+        string $aad,
+        #[SensitiveParameter] string $secret
+    ): string {
         return self::encryptWithDerivedKey(
             $plaintext,
             $aad,
@@ -91,17 +98,20 @@ class CryptMethods
         );
     }
 
-    public static function decrypt(string $payload, string $aad = ''): string
+    public static function decrypt(#[SensitiveParameter] string $payload, string $aad = ''): string
     {
         return self::decryptWithDerivedKey($payload, $aad, self::deriveKey('app-data-encryption'));
     }
 
     /**
-     * Maintenance-only primitive used to authenticate ciphertext against an
-     * explicitly supplied old/new secret during key rotation.
+     * Служебная операция ротации, проверяющая шифротекст явно переданным
+     * старым или новым секретом.
      */
-    public static function decryptWithSecret(string $payload, string $aad, string $secret): string
-    {
+    public static function decryptWithSecret(
+        #[SensitiveParameter] string $payload,
+        string $aad,
+        #[SensitiveParameter] string $secret
+    ): string {
         return self::decryptWithDerivedKey(
             $payload,
             $aad,
@@ -129,14 +139,16 @@ class CryptMethods
             && is_string($data['c']);
     }
 
-    private static function deriveKeyFromSecret(string $secret, string $purpose): string
-    {
+    private static function deriveKeyFromSecret(
+        #[SensitiveParameter] string $secret,
+        string $purpose
+    ): string {
         $secret = trim($secret);
         if (strlen($secret) < 32) {
-            throw new CryptographicFailure('Explicit data-encryption secret must contain at least 32 characters');
+            throw new CryptographicFailure('Явный секрет шифрования данных должен содержать не менее 32 символов');
         }
         if (!function_exists('sodium_crypto_aead_xchacha20poly1305_ietf_encrypt')) {
-            throw new CryptographicFailure('libsodium XChaCha20-Poly1305 support is required');
+            throw new CryptographicFailure('Для шифрования требуется поддержка libsodium XChaCha20-Poly1305');
         }
 
         return hash_hkdf(
@@ -147,8 +159,11 @@ class CryptMethods
         );
     }
 
-    private static function encryptWithDerivedKey(string $plaintext, string $aad, string $key): string
-    {
+    private static function encryptWithDerivedKey(
+        #[SensitiveParameter] string $plaintext,
+        string $aad,
+        #[SensitiveParameter] string $key
+    ): string {
         try {
             $nonce = random_bytes(SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES);
             $ciphertext = sodium_crypto_aead_xchacha20poly1305_ietf_encrypt(
@@ -168,33 +183,36 @@ class CryptMethods
         } catch (CryptographicFailure $e) {
             throw $e;
         } catch (\Throwable $e) {
-            throw new CryptographicFailure('Encryption failed', 0, $e);
+            throw new CryptographicFailure('Не удалось зашифровать данные', 0, $e);
         }
     }
 
-    private static function decryptWithDerivedKey(string $payload, string $aad, string $key): string
-    {
+    private static function decryptWithDerivedKey(
+        #[SensitiveParameter] string $payload,
+        string $aad,
+        #[SensitiveParameter] string $key
+    ): string {
         try {
             $decoded = base64_decode($payload, true);
             if ($decoded === false) {
-                throw new \RuntimeException('Invalid payload encoding');
+                throw new \RuntimeException('Некорректная кодировка шифротекста');
             }
 
             $data = json_decode($decoded, true, flags: JSON_THROW_ON_ERROR);
             if (!is_array($data) || !isset($data['v'], $data['n'], $data['c'])) {
-                throw new \RuntimeException('Malformed encrypted payload');
+                throw new \RuntimeException('Некорректная структура шифротекста');
             }
             if ($data['v'] !== 1) {
-                throw new \RuntimeException('Unsupported encrypted payload version');
+                throw new \RuntimeException('Версия шифротекста не поддерживается');
             }
 
             $nonce = base64_decode((string) $data['n'], true);
             $ciphertext = base64_decode((string) $data['c'], true);
             if ($nonce === false || $ciphertext === false) {
-                throw new \RuntimeException('Invalid encrypted payload fields');
+                throw new \RuntimeException('Некорректные поля шифротекста');
             }
             if (strlen($nonce) !== SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES) {
-                throw new \RuntimeException('Invalid nonce length');
+                throw new \RuntimeException('Некорректная длина nonce');
             }
 
             $plaintext = sodium_crypto_aead_xchacha20poly1305_ietf_decrypt(
@@ -204,14 +222,14 @@ class CryptMethods
                 $key
             );
             if ($plaintext === false) {
-                throw new \RuntimeException('Message authentication failed');
+                throw new \RuntimeException('Не удалось подтвердить подлинность сообщения');
             }
 
             return $plaintext;
         } catch (CryptographicFailure $e) {
             throw $e;
         } catch (\Throwable $e) {
-            throw new CryptographicFailure('Decryption failed', 0, $e);
+            throw new CryptographicFailure('Не удалось расшифровать данные', 0, $e);
         }
     }
 }
