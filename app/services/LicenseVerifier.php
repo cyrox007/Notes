@@ -6,18 +6,19 @@ namespace App\Services;
 
 use Closure;
 use InvalidArgumentException;
+use SensitiveParameter;
 
 /**
- * Offline verifier for installation-bound Workspace Organizer licenses.
+ * Автономная проверка лицензий Workspace Organizer, привязанных к установке.
  *
- * Token format:
+ * Формат токена:
  *   wo1.<key-id>.<base64url-json-payload>.<base64url-ed25519-signature>
  *
- * The detached Ed25519 signature covers the exact ASCII bytes:
+ * Отделённая подпись Ed25519 покрывает точные ASCII-байты:
  *   wo1.<key-id>.<base64url-json-payload>
  *
- * Private signing material must never be present in this repository or in a
- * customer installation. Only public verification keys belong here.
+ * Приватный материал подписи не должен находиться ни в репозитории, ни в
+ * установке пользователя. Здесь допустимы только публичные ключи проверки.
  */
 final class LicenseVerifier
 {
@@ -27,30 +28,30 @@ final class LicenseVerifier
     public const CLOCK_SKEW_SECONDS = 300;
     public const MAX_USERS_HARD_LIMIT = 1_000_000;
 
-    /** @var array<string,string> raw Ed25519 public keys */
+    /** @var array<string,string> необработанные публичные ключи Ed25519 */
     private array $trustedKeys = [];
     private Closure $clock;
 
     /**
-     * @param array<string,string>|null $trustedPublicKeys base64url encoded raw public keys.
-     *        Passing null loads the public-only release trust registry.
+     * @param array<string,string>|null $trustedPublicKeys публичные ключи в base64url.
+     *        null загружает публичный реестр доверия релиза.
      */
     public function __construct(?array $trustedPublicKeys = null, ?callable $clock = null)
     {
         if (!extension_loaded('sodium')) {
-            throw new InvalidArgumentException('PHP sodium extension is required for license verification');
+            throw new InvalidArgumentException('Для проверки лицензии требуется расширение PHP sodium');
         }
 
         $source = $trustedPublicKeys ?? self::loadDefaultTrustedPublicKeys();
         foreach ($source as $keyId => $encodedKey) {
             $keyId = trim((string) $keyId);
             if (preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$/', $keyId) !== 1) {
-                throw new InvalidArgumentException('Invalid license public key id');
+                throw new InvalidArgumentException('Некорректный идентификатор публичного ключа лицензии');
             }
 
             $raw = self::base64UrlDecode((string) $encodedKey);
             if ($raw === null || strlen($raw) !== SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES) {
-                throw new InvalidArgumentException("Invalid Ed25519 public key for {$keyId}");
+                throw new InvalidArgumentException("Некорректный публичный ключ Ed25519: {$keyId}");
             }
             $this->trustedKeys[$keyId] = $raw;
         }
@@ -84,8 +85,10 @@ final class LicenseVerifier
      *   payload:?array<string,mixed>
      * }
      */
-    public function verify(string $token, string $expectedInstallationId): array
-    {
+    public function verify(
+        #[SensitiveParameter] string $token,
+        string $expectedInstallationId
+    ): array {
         $token = trim($token);
         $installationId = strtolower(trim($expectedInstallationId));
 
@@ -244,14 +247,14 @@ final class LicenseVerifier
     {
         $path = dirname(__DIR__, 2) . '/config/license_trusted_keys.php';
         if (!is_file($path) || !is_readable($path)) {
-            throw new InvalidArgumentException('License public-key trust registry is missing or unreadable');
+            throw new InvalidArgumentException('Реестр доверенных публичных ключей лицензии отсутствует или недоступен');
         }
 
         $keys = (static function (string $registryPath): mixed {
             return require $registryPath;
         })($path);
         if (!is_array($keys)) {
-            throw new InvalidArgumentException('License public-key trust registry must return an array');
+            throw new InvalidArgumentException('Реестр доверенных публичных ключей лицензии должен возвращать массив');
         }
 
         /** @var array<string,string> $keys */
