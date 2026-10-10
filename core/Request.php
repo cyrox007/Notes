@@ -40,18 +40,18 @@ class Request
         $this->session = &$_SESSION;
     }
 
-    public function session($key = null, $default = null)
+    public function session(string|int|null $key = null, mixed $default = null): mixed
     {
-        return $key === null ? $this->session : ($this->session[$key] ?? $default);
+        return $this->valueFrom($this->session, $key, $default);
     }
 
-    public function setSession($key, $value): void
+    public function setSession(string|int $key, mixed $value): void
     {
         $_SESSION[$key] = $value;
         $this->session[$key] = $value;
     }
 
-    public function unsetSession($key): void
+    public function unsetSession(string|int $key): void
     {
         unset($_SESSION[$key], $this->session[$key]);
     }
@@ -125,21 +125,22 @@ class Request
         return max(self::MIN_MAX_JSON_BYTES, min(self::MAX_MAX_JSON_BYTES, $value));
     }
 
-    private function sanitize($data)
+    private function sanitize(mixed $data): mixed
     {
-        if (is_array($data)) {
-            foreach ($data as $key => $value) {
-                $data[$key] = $this->sanitize($value);
-            }
-            return $data;
+        if (!is_array($data)) {
+            return is_string($data) ? htmlspecialchars($data, ENT_QUOTES, 'UTF-8') : $data;
         }
 
-        return is_string($data) ? htmlspecialchars($data, ENT_QUOTES, 'UTF-8') : $data;
+        foreach ($data as $key => $value) {
+            $data[$key] = $this->sanitize($value);
+        }
+
+        return $data;
     }
 
-    public function get($key = null, $default = null)
+    public function get(string|int|null $key = null, mixed $default = null): mixed
     {
-        $data = $key === null ? $this->get : ($this->get[$key] ?? $default);
+        $data = $this->valueFrom($this->get, $key, $default);
 
         // Идентификаторы ORDER BY нельзя передать связанным SQL-параметром.
         // Пока каждый экран не имеет собственного списка разрешённых колонок,
@@ -159,10 +160,9 @@ class Request
         return $this->sanitize($data);
     }
 
-    public function post($key = null, $default = null)
+    public function post(string|int|null $key = null, mixed $default = null): mixed
     {
-        $data = $key === null ? $this->post : ($this->post[$key] ?? $default);
-        return $this->sanitize($data);
+        return $this->sanitize($this->valueFrom($this->post, $key, $default));
     }
 
     /**
@@ -172,14 +172,14 @@ class Request
      * контракта приложения, например для паролей. Перед выводом в HTML
      * вызывающий код обязан экранировать значение на границе представления.
      */
-    public function rawPost($key = null, $default = null)
+    public function rawPost(string|int|null $key = null, mixed $default = null): mixed
     {
-        return $key === null ? $this->post : ($this->post[$key] ?? $default);
+        return $this->valueFrom($this->post, $key, $default);
     }
 
-    public function files($key = null, $default = null)
+    public function files(string|int|null $key = null, mixed $default = null): mixed
     {
-        return $key === null ? $this->files : ($this->files[$key] ?? $default);
+        return $this->valueFrom($this->files, $key, $default);
     }
 
     public function hasFile(string $key): bool
@@ -189,12 +189,12 @@ class Request
             && ($this->files[$key]['error'] ?? null) === UPLOAD_ERR_OK;
     }
 
-    public function file(string $key, $default = null)
+    public function file(string $key, mixed $default = null): mixed
     {
         return $this->hasFile($key) ? $this->files[$key] : $default;
     }
 
-    public function json($key = null, $default = null)
+    public function json(string|int|null $key = null, mixed $default = null): mixed
     {
         if ($this->jsonError !== null) {
             return $default;
@@ -207,12 +207,12 @@ class Request
         return $this->sanitize($data);
     }
 
-    public function server($key = null, $default = null)
+    public function server(string|int|null $key = null, mixed $default = null): mixed
     {
-        $data = $key === null ? $this->server : ($this->server[$key] ?? $default);
-        return $this->sanitize($data);
+        return $this->sanitize($this->valueFrom($this->server, $key, $default));
     }
 
+    /** @return array{get:array,post:array,files:array,json:mixed,server:array} */
     public function all(): array
     {
         return [
@@ -222,5 +222,10 @@ class Request
             'json' => $this->json,
             'server' => $this->server,
         ];
+    }
+
+    private function valueFrom(array $source, string|int|null $key, mixed $default): mixed
+    {
+        return $key === null ? $source : ($source[$key] ?? $default);
     }
 }
