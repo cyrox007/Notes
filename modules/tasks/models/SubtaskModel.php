@@ -1,11 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
 use Core\ORM;
 
-class SubtaskModel extends ORM {
-    protected ?string $_tablename = "subtasks";
+class SubtaskModel extends ORM
+{
+    protected ?string $_tablename = 'subtasks';
 
     public int $id = 0;
     public int $task_id = 0;
