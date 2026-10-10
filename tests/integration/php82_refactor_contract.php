@@ -65,4 +65,38 @@ php82RefactorAssert(
 $audit = $root . '/tools/release/php82_refactor_audit.php';
 php82RefactorAssert(is_file($audit), 'Должен существовать автоматический аудит PHP 8.2');
 
-fwrite(STDOUT, "[OK] минимальный PHP 8.2 и контур полного рефакторинга 1.1\n");
+$command = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($audit) . ' --json 2>&1';
+$auditLines = [];
+$auditExitCode = 0;
+exec($command, $auditLines, $auditExitCode);
+php82RefactorAssert($auditExitCode === 0, 'Аудит PHP 8.2 должен завершаться без ошибок');
+
+$auditOutput = implode("\n", $auditLines);
+try {
+    $auditReport = json_decode($auditOutput, true, 64, JSON_THROW_ON_ERROR);
+} catch (JsonException $exception) {
+    throw new RuntimeException(
+        'Аудит PHP 8.2 должен выдавать чистый JSON без предупреждений PHP',
+        previous: $exception
+    );
+}
+
+php82RefactorAssert(
+    ($auditReport['minimum_supported_php'] ?? null) === '8.2',
+    'Аудит должен сообщать технический минимум PHP 8.2'
+);
+
+foreach (($auditReport['deprecated'] ?? []) as $finding) {
+    $file = (string) ($finding['file'] ?? '');
+    $kind = (string) ($finding['kind'] ?? '');
+    php82RefactorAssert(
+        $file !== 'tools/release/php82_refactor_audit.php',
+        'Аудит не должен принимать собственные шаблоны поиска за устаревший код'
+    );
+    php82RefactorAssert(
+        !($file === 'core/Environment.php' && $kind === 'dollar_brace_interpolation'),
+        'Комментарии и шаблон разбора .env не должны считаться устаревшей PHP-интерполяцией'
+    );
+}
+
+fwrite(STDOUT, "[OK] минимальный PHP 8.2 и достоверный контур полного рефакторинга 1.1\n");
