@@ -4,10 +4,12 @@ on:
   pull_request:
     branches: [dev, '1.0', master, 'release/1.0.*-rc']
   push:
-    branches: [dev]
+    branches: [dev, 'fix/messenger-transient-reconnect-20261010']
     paths:
       - 'modules/messenger/**'
       - 'assets/js/messenger-connection-ux.js'
+      - 'assets/css/messenger-connection-ux.css'
+      - 'tests/integration/messenger_connection_notice_runtime.mjs'
       - 'assets/js/messenger-global-notifications.js'
       - 'assets/js/messenger-tab-coordinator.js'
       - 'tests/integration/messenger_long_poll_**'
@@ -68,6 +70,9 @@ jobs:
 
       - name: Проверить сохранение черновика HTTP fallback
         run: node tests/integration/messenger_long_poll_composer_runtime.mjs
+
+      - name: Проверить задержку предупреждения о переподключении
+        run: node tests/integration/messenger_connection_notice_runtime.mjs
 
       - name: Проверить самовосстановление Long Poll
         run: node tests/integration/messenger_long_poll_resilience_runtime.mjs
