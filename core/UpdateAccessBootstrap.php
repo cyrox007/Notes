@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Core;
 
 use RuntimeException;
+use SensitiveParameter;
 use Throwable;
 
 require_once __DIR__ . '/UpdateDownloadCredentials.php';
@@ -14,7 +15,7 @@ require_once __DIR__ . '/Version.php';
 /**
  * Автоматическая привязка установленной лицензии к серверу обновлений.
  *
- * Пользователь не работает с activation code, файлами credentials и путями.
+ * Пользователь не работает с кодом активации, файлами credentials и путями.
  * Лицензионный токен отправляется только штатному HTTPS control plane, который
  * уже хранит этот же выпущенный токен и сверяет installation_id.
  */
@@ -87,11 +88,11 @@ final class UpdateAccessBootstrap
         return in_array($mode, ['auto', 'online'], true);
     }
 
-    /**
-     * @return array{status:string,source:string,path?:string}
-     */
-    public function ensure(string $installationId, string $licenseToken): array
-    {
+    /** @return array{status:string,source:string,path?:string} */
+    public function ensure(
+        string $installationId,
+        #[SensitiveParameter] string $licenseToken
+    ): array {
         if (UpdateDownloadCredentials::accessMode() === 'offline') {
             return ['status' => 'offline', 'source' => 'configuration'];
         }
@@ -122,8 +123,10 @@ final class UpdateAccessBootstrap
      *
      * @return array{status:string,source:string,path?:string}
      */
-    public function refresh(string $installationId, string $licenseToken): array
-    {
+    public function refresh(
+        string $installationId,
+        #[SensitiveParameter] string $licenseToken
+    ): array {
         if (UpdateDownloadCredentials::accessMode() === 'offline') {
             return ['status' => 'offline', 'source' => 'configuration'];
         }
@@ -142,7 +145,7 @@ final class UpdateAccessBootstrap
     /** @return array{status:string,source:string,path:string} */
     private function issueCredentials(
         string $installationId,
-        string $licenseToken,
+        #[SensitiveParameter] string $licenseToken,
         string $feedUrl,
         string $source
     ): array {
@@ -175,7 +178,7 @@ final class UpdateAccessBootstrap
         ];
     }
 
-    private function validatedLicenseToken(string $licenseToken): string
+    private function validatedLicenseToken(#[SensitiveParameter] string $licenseToken): string
     {
         $licenseToken = trim($licenseToken);
         if ($licenseToken === '' || !str_starts_with($licenseToken, 'wo1.')) {
@@ -226,6 +229,7 @@ final class UpdateAccessBootstrap
                 return null;
             }
         }
+
         return null;
     }
 }
