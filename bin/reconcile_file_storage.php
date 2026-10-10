@@ -3,35 +3,30 @@
 
 declare(strict_types=1);
 
-if (PHP_SAPI !== 'cli') {
-    fwrite(STDERR, "This command is CLI-only.\n");
-    exit(1);
-}
+require_once dirname(__DIR__) . '/core/CliRuntime.php';
+\Core\CliRuntime::assertCli(1);
 
 if (!defined('SITEPATH')) {
-    define('SITEPATH', dirname(__DIR__));
+    define('SITEPATH', \Core\CliRuntime::projectRoot());
 }
 
-// Keep this maintenance command usable from cron/CI when configuration is
-// supplied through environment variables and no project .env file is present.
-require_once SITEPATH . '/core/Config.php';
-require_once SITEPATH . '/core/DatabaseManager.php';
-require_once SITEPATH . '/modules/files/services/FileLifecycleService.php';
+\Core\CliRuntime::loadEnvironment(SITEPATH);
+\Core\CliRuntime::registerAutoloader(SITEPATH);
 
 use App\Services\FileLifecycleService;
+use Core\CliRuntime;
 
 $options = getopt('', ['cleanup-deleted']);
 $cleanupDeleted = array_key_exists('cleanup-deleted', $options);
 
 try {
     $result = (new FileLifecycleService())->reconcile($cleanupDeleted);
-    fwrite(STDOUT, json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . PHP_EOL);
+    CliRuntime::writeJson($result);
 
-    // Missing active files indicate user-visible data inconsistency and should
-    // surface to operators even in report-only mode.
+    // Отсутствующие активные файлы означают видимую пользователю потерю согласованности
+    // и должны завершать проверку с ненулевым кодом даже без удаления.
     exit($result['active_missing'] === [] ? 0 : 2);
-} catch (\Throwable $e) {
-    error_log('File Manager storage reconciliation failed: ' . $e->getMessage());
-    fwrite(STDERR, "File Manager storage reconciliation failed.\n");
-    exit(1);
+} catch (Throwable $e) {
+    error_log('Ошибка сверки хранилища файлов: ' . $e->getMessage());
+    CliRuntime::fail($e, false, 'file_storage_reconciliation_failed');
 }
