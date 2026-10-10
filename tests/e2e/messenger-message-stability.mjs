@@ -31,8 +31,10 @@ try{
  await page.setContent(`<style>${css}</style><article class="messenger-message messenger-message--own"><div class="messenger-message__bubble">Видео</div><div class="messenger-message__actions"><button class="messenger-message__action messenger-message__reply-action">Ответить</button><button class="messenger-message__action messenger-message__reaction-action">Реакция</button>${'<button class="messenger-message__action">Другое</button>'.repeat(6)}<button class="messenger-message__action messenger-message__more-actions">Ещё</button></div></article>`);
  await page.locator('article').hover();
  assert.equal(await page.locator('.messenger-message__action:visible').count(),3);
+ const collapsedWidth=await page.locator('.messenger-message__bubble').evaluate(el=>el.getBoundingClientRect().width);
  await page.evaluate(()=>document.querySelector('article').classList.add('messenger-message--actions-open'));
  assert.equal(await page.locator('.messenger-message__action:visible').count(),9);
+ assert.equal(await page.locator('.messenger-message__bubble').evaluate(el=>el.getBoundingClientRect().width),collapsedWidth,'Actions must not widen the message');
  await page.route('https://state.test/**',route=>route.fulfill({body:'<html><body></body></html>',contentType:'text/html'}));
  await page.goto('https://state.test/');
  const installStateFixture=async(user='one',uids=['a','b'])=>{
@@ -41,6 +43,7 @@ try{
   await page.evaluate(({user,uids})=>{
    const root=document.querySelector('#fixture');root.dataset.userUid=user;
    const app=new window.MessengerAppForTest(root);
+   const tools=document.createElement('div');tools.className='messenger-composer__tools';tools.innerHTML='<button type="button" aria-label="Файл">Файл</button><button type="button" aria-label="Микрофон">Микрофон</button>';root.append(tools);
    for(const name of ['renderDialogs','renderChatHeader','clearComposeContext','storeDialogCache','renderDialogSnapshotState','markCurrentRead','focusRequestedMessage','notifyTyping'])app[name]=()=>{};
    app.sendEvent=()=>true;
    app.renderMessages=()=>{app.el.messageList.innerHTML='<div style="height:1000px">History</div>';};
@@ -48,6 +51,13 @@ try{
   },{user,uids});
  };
  await installStateFixture();
+ await page.waitForSelector('.messenger-tools-toggle');
+ assert.equal(await page.locator('.messenger-tools-panel').evaluate(el=>el.inert),true);
+ await page.locator('.messenger-tools-toggle').click();
+ assert.equal(await page.locator('.messenger-tools-panel').evaluate(el=>el.inert),false);
+ await page.getByRole('button',{name:'Файл',exact:true}).focus();await page.keyboard.press('Escape');
+ assert.equal(await page.locator('.messenger-tools-toggle').getAttribute('aria-expanded'),'false');
+ assert.equal(await page.locator('.messenger-tools-toggle').evaluate(el=>el===document.activeElement),true);
  await page.evaluate(()=>{stateApp.openDialog('a');stateApp.el.input.value='Черновик';stateApp.el.messageList.innerHTML='<div style="height:1000px">History</div>';stateApp.el.messageScroll.scrollTop=123;});
  await page.reload();await installStateFixture();
  assert.equal(await page.evaluate(()=>stateApp.currentDialog.uid),'a');

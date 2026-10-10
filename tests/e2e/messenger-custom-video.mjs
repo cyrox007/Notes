@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';import {createRequire} from 'node:module';import {readFile} from 'node:fs/promises';
+const require=createRequire(import.meta.url);const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
+const browser=await chromium.launch({headless:true,...(process.env.E2E_BROWSER_EXECUTABLE?{executablePath:process.env.E2E_BROWSER_EXECUTABLE}:{channel:'chromium'})});
+try {
+ const page=await browser.newPage();await page.route('https://video.test/',route=>route.fulfill({contentType:'text/html',body:'<button id="message-attach-button"></button><input id="message-file-input" type="file"><div id="messenger-upload-status"></div><progress id="messenger-upload-progress"></progress><div id="root"></div>'}));await page.goto('https://video.test/');
+ const recorded=await page.evaluate(async()=>{const canvas=document.createElement('canvas');canvas.width=160;canvas.height=120;const ctx=canvas.getContext('2d');ctx.fillStyle='blue';ctx.fillRect(0,0,160,120);const stream=canvas.captureStream(10);const recorder=new MediaRecorder(stream,{mimeType:'video/webm'});const chunks=[];recorder.ondataavailable=e=>chunks.push(e.data);const done=new Promise(resolve=>recorder.onstop=resolve);recorder.start();await new Promise(resolve=>setTimeout(resolve,250));ctx.fillStyle='red';ctx.fillRect(0,0,160,120);await new Promise(resolve=>setTimeout(resolve,250));recorder.stop();await done;stream.getTracks().forEach(t=>t.stop());return Array.from(new Uint8Array(await new Blob(chunks).arrayBuffer()));});
+ await page.route('**/messenger/media/test-video',route=>route.fulfill({contentType:'video/webm',body:Buffer.from(recorded)}));
+ await page.evaluate(()=>{window.wspace={messenger:{el:{},submitComposer(){},openDialog(){},renderMessage(){const row=document.createElement('article');row.innerHTML='<div class="messenger-message__text"></div>';return row;}}};});
+ const media=(await readFile('modules/messenger/views/media.js','utf8')).replace('{literal}','').replace('{/literal}','');await page.addScriptTag({content:media});await page.evaluate(()=>{document.dispatchEvent(new Event('DOMContentLoaded'));document.querySelector('#root').append(wspace.messenger.renderMessage({message_type:'video',media_url:'/messenger/media/test-video'}));});
+ assert.equal(await page.locator('video').evaluate(el=>el.controls),false);assert.equal(await page.locator('a[download]').count(),0);
+ await page.getByRole('button',{name:'Воспроизвести видео',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('video').paused);
+ await page.getByRole('button',{name:'Приостановить видео',exact:true}).click();assert.equal(await page.locator('video').evaluate(el=>el.paused),true);
+ await page.getByRole('button',{name:'Выключить звук',exact:true}).click();assert.equal(await page.locator('video').evaluate(el=>el.muted),true);
+ console.log('PASS: custom video player plays real recording, pauses and mutes without native/download controls');
+}finally{await browser.close();}

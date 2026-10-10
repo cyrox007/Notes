@@ -103,6 +103,19 @@
         }
 
         bindEvents() {
+            window.setTimeout(() => {
+                const tools = this.root.querySelector('.messenger-composer__tools');
+                if (!tools || tools.querySelector('.messenger-tools-toggle')) return;
+                const toggle = document.createElement('button');toggle.type = 'button';toggle.className = 'messenger-icon-button messenger-tools-toggle';toggle.textContent = '+';toggle.setAttribute('aria-label', 'Вложения и действия');toggle.setAttribute('aria-expanded', 'false');
+                const panel = document.createElement('div');panel.className = 'messenger-tools-panel';panel.id = 'messenger-tools-panel';panel.inert = true;toggle.setAttribute('aria-controls', panel.id);
+                while (tools.firstChild) panel.append(tools.firstChild);
+                tools.append(toggle, panel);
+                const close = () => {panel.classList.remove('is-open');panel.inert = true;toggle.setAttribute('aria-expanded', 'false');};
+                toggle.addEventListener('click', () => {const open = toggle.getAttribute('aria-expanded') !== 'true';panel.classList.toggle('is-open', open);panel.inert = !open;toggle.setAttribute('aria-expanded', String(open));});
+                tools.addEventListener('keydown', event => {if (event.key === 'Escape') {close();toggle.focus();event.stopPropagation();}});
+                document.addEventListener('click', event => {if (!tools.contains(event.target)) close();});
+                new MutationObserver(() => {for (const child of Array.from(tools.childNodes)) if (child !== toggle && child !== panel) panel.append(child);}).observe(tools, {childList:true});
+            }, 0);
             this.el.dialogSearch?.addEventListener('input', () => this.renderDialogs());
             this.el.newChatButton?.addEventListener('click', () => this.openNewChatDialog());
             this.el.dialogRetry?.addEventListener('click', () => void this.loadInitialDialogs());
