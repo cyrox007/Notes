@@ -19,6 +19,7 @@ error_reporting(E_ALL);
 require_once __DIR__ . '/core/SecurityHeaders.php';
 require_once __DIR__ . '/core/PrivateStorageResolver.php';
 require_once __DIR__ . '/core/HostingCompatibility.php';
+require_once __DIR__ . '/core/InstallerDatabaseService.php';
 \Core\SecurityHeaders::apply();
 
 function installerIsHttps(): bool
@@ -80,14 +81,7 @@ $warnings = [];
 $successMessage = '';
 $installationCompleted = false;
 $installedAppUrl = '';
-
-function uuidV4(): string
-{
-    $data = random_bytes(16);
-    $data[6] = chr((ord($data[6]) & 0x0f) | 0x40);
-    $data[8] = chr((ord($data[8]) & 0x3f) | 0x80);
-    return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
-}
+$installerDatabase = new \Core\InstallerDatabaseService();
 
 function randomSecret(): string
 {
@@ -275,7 +269,7 @@ function openServerLocalWebSocketUrl(string $siteUrl, string $basePath): string
         return 'ws://' . $host . ':27800';
     }
 
-    // Native listener не завершает TLS. Для локальной HTTPS-установки WSS
+    // Нативный listener не завершает TLS. Для локальной HTTPS-установки WSS
     // должен завершаться веб-сервером на same-origin пути /ws.
     return defaultWebSocketUrl($siteUrl, $basePath);
 }
@@ -284,7 +278,7 @@ function privateStorageCandidate(string $basePath): string
 {
     try {
         return (new \Core\PrivateStorageResolver($basePath))->candidate();
-    } catch (Throwable $ignored) {
+    } catch (Throwable) {
         return '';
     }
 }
@@ -355,219 +349,6 @@ function prepareRuntimeDirectories(string $basePath): void
             throw new RuntimeException('Runtime каталог недоступен на запись: ' . $directory);
         }
     }
-}
-
-function connectDatabase(
-    string $host,
-    int $port,
-    string $database,
-    string $username,
-    #[SensitiveParameter] string $password
-): PDO {
-    return new PDO(
-        sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $host, $port, $database),
-        $username,
-        $password,
-        [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES => false,
-            PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES utf8mb4',
-        ]
-    );
-}
-
-function connectDatabaseServer(
-    string $host,
-    int $port,
-    string $username,
-    #[SensitiveParameter] string $password
-): PDO {
-    return new PDO(
-        sprintf('mysql:host=%s;port=%d;charset=utf8mb4', $host, $port),
-        $username,
-        $password,
-        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, PDO::ATTR_EMULATE_PREPARES => false]
-    );
-}
-
-function assertDatabaseServerCompatibility(PDO $pdo): string
-{
-    $rawVersion = (string) $pdo->query('SELECT VERSION()')->fetchColumn();
-    $support = \Core\HostingCompatibility::databaseServerSupport($rawVersion);
-    if (!$support['supported']) {
-        throw new RuntimeException($support['message']);
-    }
-
-    return $support['message'];
-}
-
-function assertDatabaseSchemaPrivileges(PDO $pdo): void
-{
-    $suffix = substr(bin2hex(random_bytes(8)), 0, 16);
-    $table = 'wo_install_probe_' . $suffix;
-    $trigger = 'wo_install_trigger_' . $suffix;
-    $quotedTable = '`' . $table . '`';
-    $quotedTrigger = '`' . $trigger . '`';
-
-    try {
-        $pdo->exec(
-            'CREATE TABLE ' . $quotedTable
-            . ' (id INT NOT NULL PRIMARY KEY, marker INT NOT NULL DEFAULT 0) ENGINE=InnoDB'
-        );
-    } catch (Throwable $e) {
-        throw new RuntimeException(
-            'Пользователь БД не может создавать таблицы в выбранной базе. '
-            . 'Для установки нужны права CREATE, ALTER, INDEX, REFERENCES и DROP в собственной базе.',
-            0,
-            $e
-        );
-    }
-
-    try {
-        try {
-            $pdo->exec('ALTER TABLE ' . $quotedTable . ' ADD COLUMN probe_value INT NULL');
-        } catch (Throwable $e) {
-            throw new RuntimeException(
-                'Пользователь БД не имеет права ALTER, необходимого для обновлений схемы.',
-                0,
-                $e
-            );
-        }
-
-        try {
-            $pdo->exec(
-                'CREATE TRIGGER ' . $quotedTrigger
-                . ' BEFORE INSERT ON ' . $quotedTable
-                . ' FOR EACH ROW SET NEW.marker = 1'
-            );
-        } catch (Throwable $e) {
-            throw new RuntimeException(
-                'Пользователь БД не имеет права CREATE TRIGGER. '
-                . 'Текущая схема Workspace Organizer использует триггеры RBAC и истории заметок.',
-                0,
-                $e
-            );
-        }
-
-        $pdo->exec('INSERT INTO ' . $quotedTable . ' (id) VALUES (1)');
-        $marker = (int) $pdo->query(
-            'SELECT marker FROM ' . $quotedTable . ' WHERE id = 1'
-        )->fetchColumn();
-        if ($marker !== 1) {
-            throw new RuntimeException('Проверочный триггер БД не выполнился.');
-        }
-    } finally {
-        try {
-            $pdo->exec('DROP TRIGGER IF EXISTS ' . $quotedTrigger);
-        } catch (Throwable $ignored) {
-            // Основную ошибку не маскируем; ниже всё равно пытаемся убрать таблицу.
-        }
-        try {
-            $pdo->exec('DROP TABLE IF EXISTS ' . $quotedTable);
-        } catch (Throwable $e) {
-            throw new RuntimeException(
-                'Пользователь БД не может удалить проверочную таблицу. '
-                . 'Для безопасной установки и обновлений требуется право DROP.',
-                0,
-                $e
-            );
-        }
-    }
-}
-
-function connectOrCreateDatabase(
-    string $host,
-    int $port,
-    string $database,
-    string $username,
-    #[SensitiveParameter] string $password
-): PDO {
-    if (preg_match('/^[A-Za-z0-9_]{1,64}$/', $database) !== 1) {
-        throw new RuntimeException('Имя базы может содержать только латиницу, цифры и _.');
-    }
-    try {
-        return connectDatabase($host, $port, $database, $username, $password);
-    } catch (PDOException $e) {
-        if ((int) ($e->errorInfo[1] ?? 0) !== 1049) {
-            throw $e;
-        }
-        try {
-            $server = connectDatabaseServer($host, $port, $username, $password);
-            $server->exec('CREATE DATABASE `' . $database . '` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
-        } catch (Throwable $createError) {
-            throw new RuntimeException(
-                'База «' . $database . '» не существует, а этот MySQL-пользователь не может создать её. Создайте пустую базу в панели хостинга и повторите установку.',
-                0,
-                $createError
-            );
-        }
-        return connectDatabase($host, $port, $database, $username, $password);
-    }
-}
-
-/** @return list<string> */
-function existingTables(PDO $pdo): array
-{
-    return array_map(static fn ($table): string => trim((string) $table, '`'), $pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN));
-}
-
-/** @param list<string> $files */
-function importSchemas(
-    string $host,
-    int $port,
-    string $database,
-    string $username,
-    #[SensitiveParameter] string $password,
-    array $files
-): void {
-    mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
-    $mysqli = new mysqli($host, $username, $password, $database, $port);
-    $mysqli->set_charset('utf8mb4');
-    $mysqli->query('SET FOREIGN_KEY_CHECKS=0');
-    try {
-        foreach ($files as $file) {
-            if (!is_file($file) || is_link($file)) {
-                throw new RuntimeException('Не найдена безопасная схема: ' . basename($file));
-            }
-            $sql = file_get_contents($file);
-            if ($sql === false) {
-                throw new RuntimeException('Не удалось прочитать схему: ' . basename($file));
-            }
-            $mysqli->multi_query($sql);
-            do {
-                if ($result = $mysqli->store_result()) {
-                    $result->free();
-                }
-            } while ($mysqli->more_results() && $mysqli->next_result());
-        }
-    } finally {
-        $mysqli->query('SET FOREIGN_KEY_CHECKS=1');
-        $mysqli->close();
-    }
-}
-
-function createAdminUser(
-    PDO $pdo,
-    string $username,
-    string $email,
-    #[SensitiveParameter] string $password,
-    string $firstname,
-    string $lastname
-): void {
-    $passwordHash = password_hash($password, PASSWORD_ARGON2ID);
-    if ($passwordHash === false) {
-        throw new RuntimeException('Не удалось создать Argon2id хеш пароля.');
-    }
-    $stmt = $pdo->prepare(
-        'INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active,created_at,updated_at) '
-        . 'VALUES (:uid,:username,:email,:password_hash,:firstname,:lastname,1,1,:created_at,:updated_at)'
-    );
-    $now = date('Y-m-d H:i:s');
-    $stmt->execute([
-        ':uid' => uuidV4(), ':username' => $username, ':email' => $email, ':password_hash' => $passwordHash,
-        ':firstname' => $firstname, ':lastname' => $lastname, ':created_at' => $now, ':updated_at' => $now,
-    ]);
 }
 
 function envQuoted(string $value): string
@@ -693,7 +474,7 @@ function installerRequirements(string $basePath, array $schemaFiles, array $pack
     try {
         prepareRuntimeDirectories($basePath);
         $checks['Каталоги runtime доступны для записи'] = true;
-    } catch (Throwable $ignored) {
+    } catch (Throwable) {
         $checks['Каталоги runtime доступны для записи'] = false;
     }
     return $checks;
@@ -756,17 +537,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         if ($errors === []) {
             try {
                 $storageReal = preparePrivateStorage($privateStorage, $basePath);
-                $pdo = connectOrCreateDatabase($host, $port, $database, $username, $password);
-                assertDatabaseServerCompatibility($pdo);
-                $existing = existingTables($pdo);
+                $pdo = $installerDatabase->connectOrCreate($host, $port, $database, $username, $password);
+                $installerDatabase->assertServerCompatibility($pdo);
+                $existing = $installerDatabase->existingTables($pdo);
                 if ($existing === []) {
-                    assertDatabaseSchemaPrivileges($pdo);
-                    $existing = existingTables($pdo);
+                    $installerDatabase->assertSchemaPrivileges($pdo);
+                    $existing = $installerDatabase->existingTables($pdo);
                 }
                 $appTables = array_values(array_intersect($requiredTables, $existing));
                 $missing = array_values(array_diff($requiredTables, $existing));
                 if ($existing === []) {
-                    importSchemas($host, $port, $database, $username, $password, $schemaFiles);
+                    $installerDatabase->importSchemas($host, $port, $database, $username, $password, $schemaFiles);
                 } elseif ($appTables === []) {
                     throw new RuntimeException('Для Workspace Organizer нужна отдельная пустая база данных. В указанной базе уже есть чужие таблицы.');
                 } elseif ($missing !== []) {
@@ -775,7 +556,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                         . 'Для обновления используйте версионные миграции. Отсутствуют таблицы: ' . implode(', ', $missing)
                     );
                 }
-                $remaining = array_values(array_diff($requiredTables, existingTables($pdo)));
+                $remaining = array_values(array_diff($requiredTables, $installerDatabase->existingTables($pdo)));
                 if ($remaining !== []) {
                     throw new RuntimeException('После импорта отсутствуют таблицы: ' . implode(', ', $remaining));
                 }
@@ -784,11 +565,21 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                     throw new RuntimeException('В базе уже есть пользователи. Восстановите существующую установку и используйте миграции.');
                 }
                 $_SESSION['notes_install_db'] = [
-                    'db_host' => $host, 'db_port' => $port, 'db_name' => $database, 'db_user' => $username, 'db_pass' => $password,
-                    'private_storage' => $storageReal, 'site_url' => $siteUrl, 'base_path' => $baseUrlPath,
-                    'install_mode' => $installMode, 'ws_enabled' => $wsEnabled, 'ws_public_url' => $wsPublicUrl,
-                    'unique_key' => randomSecret(), 'message_key' => randomSecret(),
-                    'ws_ticket_secret' => randomSecret(), 'install_date' => date('YmdHis'),
+                    'db_host' => $host,
+                    'db_port' => $port,
+                    'db_name' => $database,
+                    'db_user' => $username,
+                    'db_pass' => $password,
+                    'private_storage' => $storageReal,
+                    'site_url' => $siteUrl,
+                    'base_path' => $baseUrlPath,
+                    'install_mode' => $installMode,
+                    'ws_enabled' => $wsEnabled,
+                    'ws_public_url' => $wsPublicUrl,
+                    'unique_key' => randomSecret(),
+                    'message_key' => randomSecret(),
+                    'ws_ticket_secret' => randomSecret(),
+                    'install_date' => date('YmdHis'),
                 ];
                 header('Location: install.php?step=3');
                 exit;
@@ -826,7 +617,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         }
         if ($errors === []) {
             try {
-                $pdo = connectDatabase((string) $db['db_host'], (int) $db['db_port'], (string) $db['db_name'], (string) $db['db_user'], (string) $db['db_pass']);
+                $pdo = $installerDatabase->connect(
+                    (string) $db['db_host'],
+                    (int) $db['db_port'],
+                    (string) $db['db_name'],
+                    (string) $db['db_user'],
+                    (string) $db['db_pass']
+                );
                 $exists = $pdo->prepare('SELECT id FROM users WHERE username = :username OR email = :email LIMIT 1');
                 $exists->execute([':username' => $username, ':email' => $email]);
                 if ($exists->fetch()) {
@@ -834,7 +631,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 }
                 $pdo->beginTransaction();
                 try {
-                    createAdminUser($pdo, $username, $email, $password, $firstname, $lastname);
+                    $installerDatabase->createAdminUser($pdo, $username, $email, $password, $firstname, $lastname);
                     writeEnvironmentFile($envFile, $db);
                     $pdo->commit();
                 } catch (Throwable $e) {
