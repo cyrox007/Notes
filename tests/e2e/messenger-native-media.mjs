@@ -7,6 +7,7 @@ const origin=process.env.E2E_NATIVE_MEDIA_ORIGIN||'http://127.0.0.1:18116';
 const browser=await chromium.launch({headless:true,args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--autoplay-policy=no-user-gesture-required'],...(process.env.E2E_BROWSER_EXECUTABLE?{executablePath:process.env.E2E_BROWSER_EXECUTABLE}:{})});
 try{
  const contexts=await Promise.all([1,2].map(async id=>{const c=await browser.newContext({permissions:['camera','microphone']});await c.addCookies([{name:'fixture_user',value:String(id),url:origin}]);return c;}));
+ contexts.forEach(c=>{c.setDefaultTimeout(15000);c.setDefaultNavigationTimeout(15000);});
  const pages=await Promise.all(contexts.map(c=>c.newPage()));
  const errors=[],externalRequests=[];pages.forEach(p=>p.on('request',r=>{if(new URL(r.url()).origin!==origin)externalRequests.push(r.url());}));pages.forEach(p=>p.on('pageerror',e=>errors.push(e.message)));
  await Promise.all(pages.map(p=>p.goto(origin)));
