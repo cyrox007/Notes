@@ -77,6 +77,25 @@ try{
  assert.equal(await page.evaluate(()=>stateApp.currentDialog.uid),'b');
  await page.goto('https://state.test/');await installStateFixture('other');
  assert.equal(await page.evaluate(()=>stateApp.currentDialog),null);
+ await page.evaluate(()=>{window.deletions=[];stateApp.sendEvent=(event,payload)=>{deletions.push({event,payload});return true;};stateApp.deleteMessage({uid:'mine',user:{uid:stateApp.userUid}});});
+ assert.equal(await page.getByRole('radio',{name:'Только у меня',exact:true}).isChecked(),true);
+ await page.getByRole('button',{name:'Отмена',exact:true}).click();
+ assert.equal(await page.evaluate(()=>deletions.length),0);
+ await page.evaluate(()=>stateApp.deleteMessage({uid:'mine',user:{uid:stateApp.userUid}}));
+ await page.getByRole('button',{name:'Удалить',exact:true}).click();
+ assert.equal(await page.evaluate(()=>deletions.at(-1).payload.for_all),false);
+ await page.evaluate(()=>stateApp.deleteMessage({uid:'mine',user:{uid:stateApp.userUid}}));
+ await page.getByRole('radio',{name:'У всех участников',exact:true}).check();
+ await page.getByRole('button',{name:'Удалить',exact:true}).click();
+ assert.equal(await page.evaluate(()=>deletions.at(-1).payload.for_all),true);
+ await page.evaluate(()=>stateApp.deleteMessage({uid:'someone-else',user:{uid:'another'}}));
+ assert.equal(await page.getByRole('radio').count(),0);
+ await page.keyboard.press('Escape');
+ assert.equal(await page.evaluate(()=>deletions.length),2);
+ await page.addStyleTag({content:css});
+ await page.evaluate(()=>{const tools=document.querySelector('.messenger-composer__tools');const footer=document.createElement('footer');footer.className='messenger-composer';tools.before(footer);footer.append(tools);const input=document.createElement('textarea');input.rows=1;footer.append(input);});
+ assert.equal(await page.evaluate(()=>{const a=document.querySelector('.messenger-tools-toggle').getBoundingClientRect(),b=document.querySelector('.messenger-composer textarea').getBoundingClientRect();return Math.abs((a.top+a.bottom-b.top-b.bottom)/2)<2;}),true,'Composer toggle must be vertically centered');
+ console.log('PASS: deletion scope in confirmation, safe default, cancel/Escape and centered composer toggle');
  console.log('PASS: reload restores dialog and draft at latest message; loading, late media layout, manual history scroll and user isolation preserved');
  console.log('PASS: video node stays connected across receipt changes and prepend; actions above cards at 390/900/1440px');
 }finally{await browser.close();}

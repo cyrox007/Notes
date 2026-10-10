@@ -1091,12 +1091,11 @@
             actions.className = 'messenger-message__actions';
             actions.append(
                 this.messageAction('Ответить', 'fa-reply', () => this.startReply(message)),
-                this.messageAction('Удалить у меня', 'fa-trash-o', () => this.deleteMessage(message, false))
+                this.messageAction('Удалить сообщение', 'fa-trash-o', () => this.deleteMessage(message))
             );
             if (own) {
                 actions.append(
-                    this.messageAction('Изменить', 'fa-pencil', () => this.startEdit(message)),
-                    this.messageAction('Удалить у всех', 'fa-trash', () => this.deleteMessage(message, true))
+                    this.messageAction('Изменить', 'fa-pencil', () => this.startEdit(message))
                 );
             }
 
@@ -1282,16 +1281,29 @@
             }
         }
 
-        deleteMessage(message, forAll) {
-            const question = forAll
-                ? 'Удалить это сообщение у всех участников?'
-                : 'Удалить это сообщение только у вас?';
-            if (!window.confirm(question)) return;
-
-            this.sendEvent('MessangerSocket:delete_message', {
-                message_uid: message.uid,
-                for_all: forAll
+        deleteMessage(message) {
+            if (this.deleteConfirmation?.open) return;
+            const dialog = document.createElement('dialog');dialog.className = 'messenger-delete-dialog';this.deleteConfirmation = dialog;
+            dialog.setAttribute('aria-labelledby', 'messenger-delete-title');
+            const title = document.createElement('h2');title.id = 'messenger-delete-title';title.textContent = 'Удалить сообщение?';
+            const description = document.createElement('p');description.textContent = 'Выберите, у кого удалить сообщение. Это действие нельзя отменить.';
+            dialog.append(title, description);
+            let forAll = false;
+            if (message.user?.uid === this.userUid) {
+                const choices = document.createElement('fieldset');const legend = document.createElement('legend');legend.textContent = 'Область удаления';choices.append(legend);
+                for (const [value, label] of [['self','Только у меня'],['all','У всех участников']]) {
+                    const option = document.createElement('label');const input = document.createElement('input');input.type = 'radio';input.name = 'message-delete-scope';input.value = value;input.checked = value === 'self';input.addEventListener('change', () => {if (input.checked) forAll = value === 'all';});option.append(input, document.createTextNode(label));choices.append(option);
+                }
+                dialog.append(choices);
+            } else description.textContent = 'Сообщение будет удалено только у вас. У остальных участников оно останется.';
+            const status = document.createElement('p');status.setAttribute('role','status');dialog.append(status);
+            const actions = document.createElement('div');actions.className = 'messenger-delete-dialog__actions';
+            const cancel = document.createElement('button');cancel.type = 'button';cancel.textContent = 'Отмена';cancel.autofocus = true;cancel.addEventListener('click', () => dialog.close());
+            const confirm = document.createElement('button');confirm.type = 'button';confirm.className = 'messenger-delete-dialog__confirm';confirm.textContent = 'Удалить';confirm.addEventListener('click', () => {
+                if (this.sendEvent('MessangerSocket:delete_message', {message_uid:message.uid,for_all:forAll})) dialog.close();
+                else status.textContent = 'Нет соединения. Сообщение не удалено. Повторите попытку после подключения.';
             });
+            actions.append(cancel, confirm);dialog.append(actions);dialog.addEventListener('close', () => {dialog.remove();if (this.deleteConfirmation === dialog) this.deleteConfirmation = null;}, {once:true});document.body.append(dialog);dialog.showModal();
         }
 
         notifyTyping() {
