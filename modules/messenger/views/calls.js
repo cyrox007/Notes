@@ -36,7 +36,8 @@
   function show(incoming){
    app.root.dataset.callActive='true';
    accept.hidden=!incoming;mute.hidden=incoming;camera.hidden=incoming||call.mode!=='video';
-   local.hidden=call.mode!=='video';remote.classList.toggle('workspace-call__remote--audio',call.mode!=='video');
+   camera.disabled=Boolean(stream&&!stream.getVideoTracks().length);
+   local.hidden=call.mode!=='video'||Boolean(stream&&!stream.getVideoTracks().length);remote.classList.toggle('workspace-call__remote--audio',call.mode!=='video');
    mute.setAttribute('aria-pressed','false');camera.setAttribute('aria-pressed','false');mute.textContent='Выключить микрофон';camera.textContent='Выключить камеру';
    dialog.querySelector('h2').textContent=call.mode==='video'?'Видеозвонок':'Аудиозвонок';
    if(!dialog.open)dialog.showModal();
@@ -62,9 +63,20 @@
   }
   async function prepare(){
    const token=epoch;
-   const acquired=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true},video:call.mode==='video'?{width:{ideal:640},height:{ideal:480},frameRate:{ideal:24,max:30}}:false});
+   let acquired;
+   const audio={echoCancellation:true,noiseSuppression:true,autoGainControl:true};
+   try {
+    acquired=await navigator.mediaDevices.getUserMedia({audio,video:call.mode==='video'?{width:{ideal:640},height:{ideal:480},frameRate:{ideal:24,max:30}}:false});
+   } catch(error) {
+    if(token!==epoch||!call)throw new Error('Звонок отменён');
+    if(call.mode!=='video'||!['NotReadableError','AbortError','OverconstrainedError','NotFoundError'].includes(error.name))throw error;
+    // A camera may be exclusively held by another browser on the same PC.
+    // Keep the incoming call instead of rejecting it when audio is available.
+    acquired=await navigator.mediaDevices.getUserMedia({audio,video:false});
+    if(token===epoch)app.showToast('Камера недоступна или занята другим приложением. Звонок продолжится без вашей камеры. Освободите камеру и начните новый видеозвонок.');
+   }
    if(token!==epoch){acquired.getTracks().forEach(t=>t.stop());throw new Error('Звонок отменён');}
-   stream=acquired;local.srcObject=stream;
+   stream=acquired;local.srcObject=stream;camera.disabled=!stream.getVideoTracks().length;local.hidden=!stream.getVideoTracks().length;
    pc=new RTCPeerConnection({iceServers:[]}); // No external STUN/TURN, SDK or signaling service.
    stream.getTracks().forEach(track=>pc.addTrack(track,stream));
    pc.ontrack=event=>{remote.srcObject=event.streams[0]||new MediaStream([event.track]);void remote.play().catch(()=>display('Нажмите на видео, чтобы включить звук'));};

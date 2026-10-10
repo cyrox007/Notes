@@ -543,7 +543,7 @@
             currentTime.textContent = '0:00';
             const durationTime = document.createElement('span');
             durationTime.className = 'messenger-voice-player__time messenger-voice-player__time--duration';
-            durationTime.textContent = '0:00';
+            durationTime.textContent = '—';
             timing.append(currentTime, durationTime);
             body.append(waveform, timing);
 
@@ -559,7 +559,7 @@
                 const ratio = duration > 0 ? Math.max(0, Math.min(1, current / duration)) : 0;
                 progress.value = String(Math.round(ratio * 1000));
                 currentTime.textContent = formatDuration(current);
-                durationTime.textContent = formatDuration(duration);
+                durationTime.textContent = duration > 0 ? formatDuration(duration) : '—';
                 const playedBars = Math.round(ratio * bars.length);
                 bars.forEach((bar, index) => bar.classList.toggle('is-played', index < playedBars));
             };
@@ -586,6 +586,7 @@
                 playIcon.className = 'fa fa-play';
                 play.setAttribute('aria-label', 'Воспроизвести голосовое сообщение');
             });
+            nativeAudio.addEventListener('error', () => { durationTime.textContent = 'Недоступно'; play.disabled = true; play.setAttribute('aria-label', 'Аудиозапись недоступна'); });
             nativeAudio.addEventListener('loadedmetadata', updateTime);
             nativeAudio.addEventListener('durationchange', updateTime);
             nativeAudio.addEventListener('timeupdate', updateTime);
