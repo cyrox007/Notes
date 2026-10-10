@@ -1,10 +1,11 @@
 {
   "version": "1.0.16",
-  "ready": false,
-  "blockers": [
-    "Current-head 1.0.15 to 1.0.16 upgrade and final CI must pass",
-    "Final hosting bundle and SHA-256/source SHA verification",
-    "Production manifest signature and stable-feed acceptance",
-    "Real-device media and visual acceptance; browser-local transcription and direct-call network limitations remain"
+  "ready": true,
+  "blockers": [],
+  "publication_scope": "github_release_after_ci",
+  "signed_channel_ready": false,
+  "post_publication_checks": [
+    "Production manifest signature and stable-feed acceptance through JSInteractive",
+    "Real-device Russian speech and cross-network media acceptance; browser-local recognition and direct-call limitations remain"
   ]
 }
