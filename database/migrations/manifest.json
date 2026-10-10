@@ -30,6 +30,7 @@
     "20260930_file_upload_limit.sql",
     "20260930_module_entitlements.sql",
     "20261002_notes_dump_compatibility.sql",
-    "20261002_user_lifecycle.sql"
+    "20261002_user_lifecycle.sql",
+    "20261010_user_status_bridge.sql"
   ]
 }

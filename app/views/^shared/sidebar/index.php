@@ -6,6 +6,7 @@ declare(strict_types=1);
 $currentUser = isset($user) && is_array($user) ? $user : [];
 $access = isset($workspaceAccess) && is_array($workspaceAccess) ? $workspaceAccess : [];
 $workspaceVersion = isset($version) ? trim((string) $version) : '';
+$activeRouteName = (string) ($workspace_route_name ?? '');
 $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
 ?>
 <aside class="sidebar" id="workspaceSidebar" aria-label="Основная навигация">
@@ -20,34 +21,34 @@ $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
     </div>
 
     <nav class="sidebar__menu" aria-label="Разделы Workspace Organizer">
-        <a href="<?= $view->e($view->route('main')) ?>" class="sidebar__menu-link" data-nav-key="home" title="Главная">
+        <a href="<?= $view->e($view->route('main')) ?>" class="sidebar__menu-link"<?= $activeRouteName === 'main' ? ' aria-current="page"' : '' ?> data-nav-key="home" title="Главная">
             <span class="sidebar__menu-icon"><i class="fa fa-home" aria-hidden="true"></i></span>
             <span class="sidebar__menu-label">Главная</span>
         </a>
 
         <?php if (!empty($access['notes'])): ?>
-            <a href="<?= $view->e($view->route('notes')) ?>" class="sidebar__menu-link" data-nav-key="notes" title="Заметки">
+            <a href="<?= $view->e($view->route('notes')) ?>" class="sidebar__menu-link"<?= $activeRouteName === 'notes' ? ' aria-current="page"' : '' ?> data-nav-key="notes" title="Заметки">
                 <span class="sidebar__menu-icon"><i class="fa fa-sticky-note-o" aria-hidden="true"></i></span>
                 <span class="sidebar__menu-label">Заметки</span>
             </a>
         <?php endif; ?>
 
         <?php if (!empty($access['tasks'])): ?>
-            <a href="<?= $view->e($view->route('tasks')) ?>" class="sidebar__menu-link" data-nav-key="tasks" title="Задачи">
+            <a href="<?= $view->e($view->route('tasks')) ?>" class="sidebar__menu-link"<?= $activeRouteName === 'tasks' ? ' aria-current="page"' : '' ?> data-nav-key="tasks" title="Задачи">
                 <span class="sidebar__menu-icon"><i class="fa fa-check-square-o" aria-hidden="true"></i></span>
                 <span class="sidebar__menu-label">Задачи</span>
             </a>
         <?php endif; ?>
 
         <?php if (!empty($access['files'])): ?>
-            <a href="<?= $view->e($view->route('files')) ?>" class="sidebar__menu-link" data-nav-key="files" title="Файлы">
+            <a href="<?= $view->e($view->route('files')) ?>" class="sidebar__menu-link"<?= $activeRouteName === 'files' ? ' aria-current="page"' : '' ?> data-nav-key="files" title="Файлы">
                 <span class="sidebar__menu-icon"><i class="fa fa-folder-o" aria-hidden="true"></i></span>
                 <span class="sidebar__menu-label">Файлы</span>
             </a>
         <?php endif; ?>
 
         <?php if (!empty($access['messenger'])): ?>
-            <a href="<?= $view->e($view->route('messenger')) ?>" class="sidebar__menu-link" data-nav-key="messenger" title="Мессенджер">
+            <a href="<?= $view->e($view->route('messenger')) ?>" class="sidebar__menu-link"<?= $activeRouteName === 'messenger' ? ' aria-current="page"' : '' ?> data-nav-key="messenger" title="Мессенджер">
                 <span class="sidebar__menu-icon"><i class="fa fa-comment-o" aria-hidden="true"></i></span>
                 <span class="sidebar__menu-label">Мессенджер</span>
                 <span class="sidebar__menu-badge" id="messenger-unread-badge" hidden aria-live="polite" aria-label="Непрочитанных сообщений: 0">0</span>
@@ -55,14 +56,14 @@ $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
         <?php endif; ?>
 
         <?php if (!empty($access['profile'])): ?>
-            <a href="<?= $view->e($view->route('profile')) ?>" class="sidebar__menu-link" data-nav-key="profile" title="Профиль">
+            <a href="<?= $view->e($view->route('profile')) ?>" class="sidebar__menu-link"<?= $activeRouteName === 'profile' ? ' aria-current="page"' : '' ?> data-nav-key="profile" title="Профиль">
                 <span class="sidebar__menu-icon"><i class="fa fa-user-o" aria-hidden="true"></i></span>
                 <span class="sidebar__menu-label">Профиль</span>
             </a>
         <?php endif; ?>
 
         <?php if (!empty($access['admin'])): ?>
-            <a href="<?= $view->e($view->route('adminpanel')) ?>" class="sidebar__menu-link" data-nav-key="admin" title="Админ">
+            <a href="<?= $view->e($view->route('adminpanel')) ?>" class="sidebar__menu-link"<?= $activeRouteName === 'adminpanel' ? ' aria-current="page"' : '' ?> data-nav-key="admin" title="Админ">
                 <span class="sidebar__menu-icon"><i class="fa fa-users" aria-hidden="true"></i></span>
                 <span class="sidebar__menu-label">Админ</span>
             </a>
@@ -83,12 +84,12 @@ $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
         </div>
 
         <?php if (!empty($access['license_manage']) && !empty($access['admin'])): ?>
-            <a href="<?= $view->e($view->route('admin_settings')) ?>" class="sidebar__utility" data-nav-key="admin" title="Системные настройки">
+            <a href="<?= $view->e($view->route('admin_settings')) ?>" class="sidebar__utility"<?= $activeRouteName === 'admin_settings' ? ' aria-current="page"' : '' ?> data-nav-key="admin" title="Системные настройки">
                 <span class="sidebar__menu-icon"><i class="fa fa-cog" aria-hidden="true"></i></span>
                 <span class="sidebar__menu-label">Настройки</span>
             </a>
         <?php elseif (!empty($access['license_manage'])): ?>
-            <a href="<?= $view->e($view->route('system_license')) ?>" class="sidebar__utility" data-nav-key="license" title="Лицензия">
+            <a href="<?= $view->e($view->route('system_license')) ?>" class="sidebar__utility"<?= $activeRouteName === 'system_license' ? ' aria-current="page"' : '' ?> data-nav-key="license" title="Лицензия">
                 <span class="sidebar__menu-icon"><i class="fa fa-key" aria-hidden="true"></i></span>
                 <span class="sidebar__menu-label">Лицензия</span>
             </a>

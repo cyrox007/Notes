@@ -1,11 +1,11 @@
 {
-  "version": "1.0.15",
-  "ready": false,
-  "blockers": [
-    "Signed browser bootstrap from exact 1.0.14 without PHP CLI",
-    "Consistent resumable database backup and bounded large operations",
-    "Recovery from process termination during partial live code replacement",
-    "Acceptance on the affected shared hosting (access unavailable)",
-    "Production signing and stable-feed verification"
+  "version": "1.0.16",
+  "ready": true,
+  "blockers": [],
+  "publication_scope": "github_release_after_ci",
+  "signed_channel_ready": false,
+  "post_publication_checks": [
+    "Production manifest signature and stable-feed acceptance through JSInteractive",
+    "Real-device Russian speech and cross-network media acceptance; browser-local recognition and direct-call limitations remain"
   ]
 }

@@ -97,7 +97,7 @@ jobs:
           ! grep -Fq 'core/product-ux-013.css' app/views/styles.css
           grep -Fq 'core/common.css' app/views/styles.css
           grep -Fq 'core/accessibility.css' app/views/styles.css
-          grep -Fq '/assets/css/workspace-ui-1.0.css' app/views/core/base.php
+          grep -Fq '/assets/css/workspace.css' app/views/core/base.php
           grep -Fq 'id="main-content"' app/views/core/base.php
           grep -Fq 'class="skip-link"' app/views/core/base.php
           grep -Fq 'id="workspaceSidebar"' app/views/^shared/sidebar/index.php

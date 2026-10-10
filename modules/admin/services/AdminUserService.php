@@ -132,6 +132,11 @@ final class AdminUserService
             $applyStatus();
         }
 
+        $saved = $this->targetUser($targetId);
+        if ((string) $saved['account_status'] !== $status || (int) $saved['is_active'] !== 1) {
+            throw new DomainException('База данных не сохранила статус пользователя. Проверьте применение миграций обновления.', 409);
+        }
+
         return $status === 'blocked' ? 'Пользователь заблокирован' : 'Пользователь активирован';
     }
 

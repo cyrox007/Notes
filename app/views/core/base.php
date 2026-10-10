@@ -25,6 +25,23 @@ $moduleScripts = isset($module_scripts) && is_array($module_scripts)
     ? array_values(array_filter($module_scripts, static fn ($value): bool => is_string($value) && $value !== ''))
     : [];
 $cspNonce = \Core\SecurityHeaders::nonce();
+$workspaceSection = 'home';
+$workspaceRouteName = '';
+$currentPath = rtrim((string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH), '/') ?: '/';
+$bestSectionLength = -1;
+foreach (['main' => 'home', 'notes' => 'notes', 'tasks' => 'tasks', 'files' => 'files', 'messenger' => 'messenger', 'profile' => 'profile', 'adminpanel' => 'admin', 'admin_settings' => 'admin', 'system_license' => 'license'] as $routeName => $sectionName) {
+    $routeUrl = $view->route($routeName);
+    if ($routeUrl === '') {
+        continue;
+    }
+    $routePath = rtrim((string) parse_url($routeUrl, PHP_URL_PATH), '/') ?: '/';
+    if (($currentPath === $routePath || ($routePath !== '/' && str_starts_with($currentPath, $routePath . '/'))) && strlen($routePath) > $bestSectionLength) {
+        $workspaceSection = $sectionName;
+        $workspaceRouteName = $routeName;
+        $bestSectionLength = strlen($routePath);
+    }
+}
+
 
 $styleFiles = [
     'core/common.css',
@@ -67,6 +84,7 @@ $partialData = [
     'base_url' => $baseUrl,
     'user' => $currentUser,
     'workspaceAccess' => $access,
+    'workspace_route_name' => $workspaceRouteName,
 ];
 ?>
 <!DOCTYPE html>
@@ -88,6 +106,7 @@ $partialData = [
                 : (preference === 'dark' ? 'dark' : 'light');
             document.documentElement.dataset.themePreference = preference;
             document.documentElement.dataset.theme = resolved;
+            document.querySelector('meta[name="theme-color"]').setAttribute('content', resolved === 'dark' ? '#121314' : '#f4f8ff');
         } catch (error) {
             document.documentElement.dataset.themePreference = 'light';
             document.documentElement.dataset.theme = 'light';
@@ -129,15 +148,15 @@ if (is_file($controlsPath) && is_readable($controlsPath)) {
 }
 ?>
     </style>
-    <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/css/workspace-ui-1.0.css')) ?>">
-    <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/css/workspace-brand-1.0.14.css')) ?>">
-    <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/css/workspace-dark-1.0.16.css')) ?>">
+    <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/css/workspace.css')) ?>">
+    <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/css/local-transcription.css')) ?>">
     <link rel="icon" href="<?= $view->e($assetUrl($baseUrl . '/assets/img/workspace-brand-mark.svg')) ?>" type="image/svg+xml">
     <link rel="alternate icon" href="<?= $view->e($baseUrl) ?>/favicon.ico" type="image/x-icon">
     <template id="csrf-token-template"><?= $view->csrfInput() ?></template>
     <script nonce="<?= $view->e($cspNonce) ?>">window.wspaceRuntime = <?= $runtimeConfig ?>; window.wspace = window.wspace || {};</script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/common.js')) ?>" defer></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/theme-mode.js')) ?>" defer></script>
+    <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/local-transcription.js')) ?>" defer></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/findability.js')) ?>" defer></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/feedback.js')) ?>" defer></script>
 <?php if (!empty($access['admin'])): ?>
@@ -157,7 +176,7 @@ if (is_file($controlsPath) && is_readable($controlsPath)) {
     <script src="<?= $view->e($assetUrl($moduleScript)) ?>" defer></script>
 <?php endforeach; ?>
 </head>
-<body<?= $bodyClass !== '' ? ' class="' . $view->e($bodyClass) . '"' : '' ?><?php if ($paginationData !== null):
+<body data-workspace-section="<?= $view->e($workspaceSection) ?>"<?= $bodyClass !== '' ? ' class="' . $view->e($bodyClass) . '"' : '' ?><?php if ($paginationData !== null):
     $attributes = [
         'data-list-q' => $paginationData['q'] ?? '',
         'data-list-page' => $paginationData['page'] ?? 1,

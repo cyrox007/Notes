@@ -1,21 +1,4 @@
-:root {
-  --ui-bg:#f3f6fc; --ui-surface:#ffffff; --ui-surface-soft:#f8faff; --ui-surface-raised:#ffffff;
-  --ui-text:#182235; --ui-muted:#6f7b91; --ui-subtle:#9aa5b8; --ui-border:#dde3ec; --ui-border-strong:#cfd7e4;
-  --ui-action:#2864ed; --ui-action-hover:#1d52d0; --ui-primary:#2864ed; --ui-primary-hover:#1d52d0; --ui-primary-soft:#eef1ff;
-  --ui-success:#18a66a; --ui-success-soft:#eaf8f1; --ui-warning:#d88916; --ui-warning-soft:#fff6e6;
-  --ui-danger:#d84d5e; --ui-danger-soft:#fff0f2; --ui-info:#2d86d9; --ui-info-soft:#edf6ff;
-  --ui-shadow:0 8px 28px rgba(30,45,75,.08); --ui-shadow-sm:0 2px 10px rgba(30,45,75,.06);
-  --ui-radius:14px; --ui-radius-sm:10px; --ui-sidebar:184px; --ui-sidebar-collapsed:76px; --ui-header:60px;
-  --ui-content:1320px; --ui-gap:18px; --ui-font:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-}
-html[data-theme="dark"] {
-  --ui-bg:#0b1220; --ui-surface:#101827; --ui-surface-soft:#131d2f; --ui-surface-raised:#162136;
-  --ui-text:#eef3fb; --ui-muted:#94a0b5; --ui-subtle:#68758b; --ui-border:#243149; --ui-border-strong:#34425d;
-  --ui-primary:#93a5ff; --ui-primary-hover:#b1bfff; --ui-primary-soft:#1c2a55;
-  --ui-success:#43c58a; --ui-success-soft:#12382c; --ui-warning:#f0ae4d; --ui-warning-soft:#3a2a13;
-  --ui-danger:#ff7381; --ui-danger-soft:#3b1d25; --ui-info:#65adf1; --ui-info-soft:#16304a;
-  --ui-shadow:0 10px 32px rgba(0,0,0,.25); --ui-shadow-sm:0 2px 12px rgba(0,0,0,.18);
-}
+/* Design tokens are owned by assets/css/workspace.css. */
 *,*::before,*::after{box-sizing:border-box}
 html{min-height:100%;background:var(--ui-bg);font-family:var(--ui-font);color-scheme:light}
 html[data-theme="dark"]{color-scheme:dark}

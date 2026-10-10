@@ -24,17 +24,55 @@
         }
 
         const uploadForm = root.querySelector('#uploadForm');
+        const fileDrop = root.querySelector('[data-note-file-drop]');
+        const fileInput = uploadForm?.querySelector('input[type="file"]');
+        const uploadStatus = fileDrop?.querySelector('[role="status"]');
+        let uploadingFile = false;
+        const isFileDrag = (event) => Array.from(event.dataTransfer?.types || []).includes('Files');
+        fileDrop?.addEventListener('dragover', (event) => {
+            if (!isFileDrag(event)) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = uploadingFile ? 'none' : 'copy';
+            fileDrop.classList.toggle('is-file-dragover', !uploadingFile);
+        });
+        fileDrop?.addEventListener('dragleave', (event) => {
+            if (event.relatedTarget && fileDrop.contains(event.relatedTarget)) return;
+            const bounds = fileDrop.getBoundingClientRect();
+            if (!event.relatedTarget && event.clientX > bounds.left && event.clientX < bounds.right && event.clientY > bounds.top && event.clientY < bounds.bottom) return;
+            fileDrop.classList.remove('is-file-dragover');
+        });
+        fileDrop?.addEventListener('drop', (event) => {
+            if (!isFileDrag(event)) return;
+            event.preventDefault();
+            fileDrop.classList.remove('is-file-dragover');
+            if (uploadingFile || !fileInput) return;
+            const files = event.dataTransfer.files;
+            if (files.length !== 1 || !files[0].size) {
+                uploadStatus.textContent = 'Перетащите один непустой файл. Папки не поддерживаются.';
+                return;
+            }
+            fileInput.files = files;
+            uploadForm.requestSubmit();
+        });
+        window.addEventListener('dragend', () => fileDrop?.classList.remove('is-file-dragover'));
         uploadForm?.addEventListener('submit', async (event) => {
             event.preventDefault();
+            if (uploadingFile) return;
             const submit = uploadForm.querySelector('button[type="submit"]');
             try {
+                uploadingFile = true;
+                if (uploadStatus) uploadStatus.textContent = 'Загружаем файл…';
+                fileDrop?.setAttribute('aria-busy', 'true');
                 if (submit) submit.disabled = true;
                 await parseJson(await fetch(uploadUrl, { method: 'POST', body: new FormData(uploadForm) }));
                 toast('Файл добавлен к заметке', 'success');
                 window.location.reload();
             } catch (error) {
+                if (uploadStatus) uploadStatus.textContent = error.message;
                 feedback?.inline?.(uploadForm, error.message, 'error');
             } finally {
+                uploadingFile = false;
+                fileDrop?.removeAttribute('aria-busy');
                 if (submit) submit.disabled = false;
             }
         });

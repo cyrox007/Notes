@@ -47,6 +47,17 @@ final class MessengerVoiceController extends Controller
         }
     }
 
+    public function sendRecorded(Request $request, string $uid): void
+    {
+        try {
+            $result=(new \App\Services\MessengerMediaService())->sendRecorded((int)$request->session('user_id',0),$uid,trim((string)$request->rawPost('reply_to_uid',''))?:null);
+            (new \App\Services\MessengerRealtimeRevisionService())->bump();
+            $this->responseJson(['success'=>true]+$result);
+        } catch(DomainException $error) {$this->jsonError($error->getMessage(),403);}
+        catch(InvalidArgumentException $error) {$this->jsonError($error->getMessage(),422);}
+        catch(\Throwable $error) {error_log('Recorded media send failed: '.$error->getMessage());$this->jsonError('Не удалось подтвердить отправку записи. Можно повторить отправку.',503);}
+    }
+
     private function jsonError(string $message, int $status): void
     {
         http_response_code($status);

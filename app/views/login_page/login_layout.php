@@ -26,7 +26,7 @@ $pageScripts = isset($page_scripts) && is_array($page_scripts)
     <title><?= $view->e($siteName) ?> — <?= $view->e($title) ?></title>
     <link rel="stylesheet" href="<?= $view->e($base . '/assets/css/auth_page/style.css') ?>">
     <link rel="stylesheet" href="<?= $view->e($base . '/assets/font-awesome/css/font-awesome.min.css') ?>">
-    <link rel="stylesheet" href="<?= $view->e($base . '/assets/css/workspace-brand-1.0.14.css') ?>">
+    <link rel="stylesheet" href="<?= $view->e($base . '/assets/css/workspace.css') ?>">
 <?php foreach ($pageStyles as $pageStyle): ?>
     <link rel="stylesheet" href="<?= $view->e($base . '/' . ltrim($pageStyle, '/')) ?>">
 <?php endforeach; ?>

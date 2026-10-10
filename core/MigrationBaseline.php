@@ -22,6 +22,7 @@ final class MigrationBaseline
         10012 => '20260930_file_upload_limit.sql',
         10013 => '20260930_module_entitlements.sql',
         10014 => '20260930_module_entitlements.sql',
+        10015 => '20261002_user_lifecycle.sql',
     ];
 
     public static function activeUpdaterSourceVersionCode(

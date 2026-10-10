@@ -43,7 +43,7 @@ foreach ([
     '/auth/registration/',
     '/files/',
     '/messenger/realtime/poll/',
-    '/assets/css/workspace-ui-1.0.css',
+    '/assets/css/workspace.css',
 ] as $path) {
     crawlerDefenseAssert(
         CrawlerDefense::classifyPath($path) === null,

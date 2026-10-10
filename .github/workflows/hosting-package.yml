@@ -170,7 +170,7 @@ jobs:
           test -f "$ROOT/core/UpdateReadiness.php"
           test -f "$ROOT/core/UpdateArtifactCleaner.php"
           test -f "$ROOT/database/migrations/manifest.json"
-          test -f "$ROOT/assets/css/workspace-brand-1.0.14.css"
+          test -f "$ROOT/assets/css/workspace.css"
           test -f "$ROOT/assets/img/workspace-brand-mark.svg"
           test -f "$ROOT/assets/img/workspace-brand-lockup.svg"
           test ! -e "$ROOT/.env"
@@ -230,7 +230,7 @@ jobs:
           unzip -l "$BUNDLE" | grep -F 'core/UpdateReadiness.php'
           unzip -l "$BUNDLE" | grep -F 'core/UpdateArtifactCleaner.php'
           unzip -l "$BUNDLE" | grep -F 'database/migrations/manifest.json'
-          unzip -l "$BUNDLE" | grep -F 'assets/css/workspace-brand-1.0.14.css'
+          unzip -l "$BUNDLE" | grep -F 'assets/css/workspace.css'
           unzip -l "$BUNDLE" | grep -F 'assets/img/workspace-brand-mark.svg'
           unzip -l "$BUNDLE" | grep -F 'assets/img/workspace-brand-lockup.svg'
           if unzip -l "$BUNDLE" | grep -Eq '/vendor/'; then

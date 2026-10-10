@@ -12,6 +12,15 @@ $loadError = isset($admin_roles_load_error) ? trim((string) $admin_roles_load_er
 $siteName = isset($sitename) ? (string) $sitename : 'Workspace Organizer';
 $workspaceVersion = isset($version) ? (string) $version : '';
 $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
+$permissionGuide = [];
+foreach ($roleRows as $guideRole) {
+    if (!is_array($guideRole)) continue;
+    foreach (($guideRole['permission_items'] ?? []) as $permission) {
+        if (is_array($permission) && !empty($permission['code'])) {
+            $permissionGuide[(string) $permission['code']] = (string) ($permission['description'] ?? '');
+        }
+    }
+}
 
 ob_start();
 ?>
@@ -28,6 +37,47 @@ ob_start();
         <?php $flashType = in_array(($flash['type'] ?? ''), ['success', 'error'], true) ? (string) $flash['type'] : 'error'; ?>
         <div class="admin-page__flash admin-page__flash--<?= $view->e($flashType) ?>" role="status"><?= $view->e($flash['message'] ?? '') ?></div>
     <?php endif; ?>
+
+    <section class="admin-panel-card admin-role-guide" aria-labelledby="admin-role-guide-title">
+        <div class="admin-panel-card__header"><div>
+            <span class="admin-panel-card__kicker">Как пользоваться</span>
+            <h2 id="admin-role-guide-title">Что дают роли и как настроить доступ</h2>
+            <p>Роль объединяет права и ограничения для группы пользователей. Назначения находятся внизу этой страницы.</p>
+        </div></div>
+        <div class="admin-role-guide__body">
+            <dl class="admin-role-guide__terms">
+                <div><dt>Разрешения</dt><dd>Открывают разделы и действия. Например, <code>tasks.use</code> даёт доступ к задачам, а <code>admin.users.manage</code> — к управлению пользователями. Доступ к чужим заметкам, файлам и диалогам по-прежнему определяется их владельцами и участниками.</dd></div>
+                <div><dt>Ограничения модулей</dt><dd>Задают допустимое количество ресурсов, размер файлов, расширения и отдельные возможности. Они не открывают модуль, если у пользователя нет разрешения на его использование.</dd></div>
+                <div><dt>Системные и прикладные роли</dt><dd>«Пользователь» и «Администратор» — базовые роли. Для отдела или должности создайте прикладную роль. Суперадминистратор имеет полный доступ; его права здесь не редактируются.</dd></div>
+            </dl>
+            <ol class="admin-role-guide__steps">
+                <li>Создайте роль: код — постоянное техническое имя латиницей, название — понятная подпись для людей.</li>
+                <li>Отметьте нужные разрешения и нажмите «Сохранить разрешения».</li>
+                <li>Задайте ограничения и отдельно нажмите «Сохранить ограничения».</li>
+                <li>В блоке «Роли пользователей» отметьте роль у пользователя и нажмите «Применить» в его строке. Проверьте доступ под обычной учётной записью.</li>
+            </ol>
+            <details class="admin-help-details">
+                <summary>Пустые поля, единицы измерения и несколько ролей</summary>
+                <div class="admin-help-details__body">
+                    <p><strong>Пустое поле / «По умолчанию»:</strong> роль не задаёт своё значение. Если ни одна назначенная роль не задаёт его явно, действует значение системы. Число <strong>0</strong> снимает дополнительный лимит роли, но сохраняет системные, персональные и серверные ограничения.</p>
+                    <p><strong>Размеры:</strong> поля с подписью «байт» принимают байты: 1 МБ = 1048576, 10 МБ = 10485760. Расширения вводятся через запятую, например <code>pdf, docx, jpg</code>; пустой список использует системный список допустимых типов.</p>
+                    <p><strong>Несколько ролей расширяют возможности.</strong> Разрешения складываются. Среди явно заданных политик побеждают «Разрешено», наибольший числовой лимит и объединённый список расширений. Явный 0 снимает лимит роли, а явно пустой список использует системный список типов.</p>
+                    <p>Например, лимиты 10 и 30 заметок дают 30; «Запрещено» не перекрывает «Разрешено» другой роли. Чтобы сузить доступ, проверьте все назначения: добавление ограничивающей роли не отменяет более широкие права уже назначенной роли.</p>
+                    <p>Общий размер хранилища, персональная квота и лимит одного файла — разные настройки. Роль не может увеличить предел, установленный системой, PHP или веб-сервером. Изменения учитываются при следующей серверной проверке доступа.</p>
+                </div>
+            </details>
+            <?php if ($permissionGuide !== []): ?>
+                <details class="admin-help-details">
+                    <summary>Справочник разрешений</summary>
+                    <dl class="admin-role-guide__permissions">
+                        <?php foreach ($permissionGuide as $code => $description): ?>
+                            <div><dt><code><?= $view->e($code) ?></code></dt><dd><?= $view->e($description !== '' ? $description : 'Разрешение отдельной функции модуля.') ?></dd></div>
+                        <?php endforeach; ?>
+                    </dl>
+                </details>
+            <?php endif; ?>
+        </div>
+    </section>
 
     <?php if ($loadError !== ''): ?>
         <section class="admin-panel-card" aria-labelledby="admin-roles-unavailable-title">
@@ -133,7 +183,7 @@ ob_start();
                                             $fieldName = 'policies[' . $moduleId . '][' . $key . ']';
                                         ?>
                                         <div class="custom-field__control">
-                                            <label for="<?= $view->e($inputId) ?>"><?= $view->e($policy['label'] ?? $key) ?></label>
+                                            <label for="<?= $view->e($inputId) ?>"><?= $view->e($policy['label'] ?? $key) ?><?= ($policy['unit'] ?? '') === 'bytes' ? ' (байт)' : '' ?></label>
                                             <?php if ($type === 'bool'): ?>
                                                 <select id="<?= $view->e($inputId) ?>" name="<?= $view->e($fieldName) ?>">
                                                     <option value="__inherit__"<?= !$explicit ? ' selected' : '' ?>>По умолчанию</option>

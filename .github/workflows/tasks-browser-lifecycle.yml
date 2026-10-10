@@ -10,7 +10,7 @@ on:
       - 'tests/e2e/tasks-lifecycle.mjs'
       - 'tests/e2e/tasks-kanban-regression.mjs'
       - 'assets/js/usability-actions.js'
-      - 'assets/css/workspace-dark-1.0.16.css'
+      - 'assets/css/workspace.css'
       - '.github/workflows/tasks-browser-lifecycle.yml'
 
 permissions:

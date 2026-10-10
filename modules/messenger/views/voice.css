@@ -31,3 +31,5 @@
 @keyframes voicePulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--ui-danger) 24%,transparent)}50%{box-shadow:0 0 0 6px transparent}}
 @media(max-width:760px){.messenger-voice-player{width:min(360px,72vw);min-width:230px}.messenger-voice-recorder{margin-inline:8px}}
 @media(max-width:430px){.messenger-voice-player{width:min(300px,76vw);min-width:210px;grid-template-columns:38px minmax(0,1fr) auto;gap:8px}.messenger-voice-player__play{width:38px;height:38px}.messenger-voice-player__waveform{height:30px}.messenger-voice-player__waveform>span{width:2px}}
+
+.messenger-voice-recovery{display:flex;gap:8px;flex-wrap:wrap;padding:10px;border:1px solid var(--ui-warning);border-radius:9px;background:var(--ui-warning-soft);color:var(--ui-text)}.messenger-voice-recovery[hidden]{display:none}.messenger-voice-recovery button,.messenger-voice-recovery a{padding:6px 9px;border:1px solid var(--ui-border-strong);border-radius:7px;background:var(--ui-surface);color:var(--ui-text);font:inherit;cursor:pointer}

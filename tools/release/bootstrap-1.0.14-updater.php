@@ -183,9 +183,10 @@ if (bootstrap1014Inside($sourceRoot, $liveRoot) || bootstrap1014Inside($liveRoot
 
 [$sourceVersion, $sourceCode] = bootstrap1014Version($sourceRoot);
 [$liveVersion, $liveCode] = bootstrap1014Version($liveRoot);
-if ($sourceVersion !== '1.0.15' || $sourceCode !== 10015) {
+if (($sourceVersion !== '1.0.15' || $sourceCode !== 10015)
+    && ($sourceVersion !== '1.0.16' || $sourceCode !== 10016)) {
     bootstrap1014Fail(
-        "Мост должен запускаться из exact-пакета 1.0.15 (10015), получено {$sourceVersion} ({$sourceCode}).",
+        "Мост должен запускаться из exact-пакета 1.0.15 (10015) или 1.0.16 (10016), получено {$sourceVersion} ({$sourceCode}).",
         4
     );
 }

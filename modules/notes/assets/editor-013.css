@@ -44,5 +44,8 @@
 .note-editor-013 .share-form .btn{justify-self:start;min-width:132px}
 .note-editor-013__empty{padding:12px;text-align:center;color:var(--ui-muted);font-size:11px}
 .note-attachment-preview__image,.note-attachment-preview__video{max-width:100%;border-radius:10px}
+.note-editor-013 [data-note-file-drop].is-file-dragover{outline:2px dashed var(--ui-primary,var(--ui-text));outline-offset:-4px;background:var(--ui-surface-soft)}
+.note-editor-013__drop-hint,.note-editor-013__upload-status{font-size:11px;color:var(--ui-muted);overflow-wrap:anywhere}
+.note-editor-013__upload-status:empty{display:none}
 @media(max-width:980px){.note-editor-013__workspace{grid-template-columns:1fr}.note-editor-013__sidebar{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:640px){.note-editor-013__topbar{align-items:flex-start;flex-direction:column}.note-editor-013__top-actions{width:100%}.note-editor-013__sidebar{grid-template-columns:1fr}.note-editor-013__share-url{flex-direction:column}.note-editor-013__save-row{grid-template-columns:1fr;gap:8px}.note-editor-013__save-row .note__submit{justify-content:stretch}.note-editor-013__save-row .note__submit button{width:100%}.note-editor-013__save-hint{text-align:left}}

@@ -24,7 +24,7 @@
     function syncThemeColor(theme) {
         const meta = document.querySelector('meta[name="theme-color"]');
         if (meta) {
-            meta.setAttribute('content', theme === 'dark' ? '#061329' : '#f4f8ff');
+            meta.setAttribute('content', theme === 'dark' ? '#121314' : '#f4f8ff');
         }
     }
 

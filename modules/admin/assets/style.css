@@ -508,10 +508,38 @@
   .admin-copy-control .admin-action{width:100%}
 }
 
+.admin-role-guide__body{display:grid;gap:14px;padding:16px 18px;font-size:12px;line-height:1.6;color:var(--ui-text)}
+.admin-role-guide__terms{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0}
+.admin-role-guide__terms>div{min-width:0;padding:12px;border:1px solid var(--ui-border);border-radius:10px;background:var(--ui-surface-soft)}
+.admin-role-guide dt{font-weight:800;color:var(--ui-text)}.admin-role-guide dd{margin:5px 0 0;color:var(--ui-muted)}
+.admin-role-guide__steps{margin:0;padding-left:22px}.admin-role-guide__steps li+li{margin-top:7px}
+.admin-help-details{min-width:0;border:1px solid var(--ui-border);border-radius:10px;background:var(--ui-surface)}
+.admin-help-details>summary{padding:12px;cursor:pointer;font-weight:700;color:var(--ui-text)}
+.admin-help-details__body{padding:0 12px 12px}.admin-help-details__body p{margin:8px 0;overflow-wrap:anywhere}
+.admin-role-guide__permissions{display:grid;gap:10px;margin:0;padding:0 12px 12px}.admin-role-guide__permissions>div{display:grid;grid-template-columns:minmax(160px,1fr) 2fr;gap:12px;min-width:0}.admin-role-guide__permissions dd{margin:0}
+.admin-role-guide code,.admin-upload-diagnostics code{overflow-wrap:anywhere;white-space:normal}
+.admin-settings-page>.admin-panel-card>.custom-fields-form>button.admin-action{justify-self:start;max-width:100%;white-space:normal;min-height:36px;padding:7px 12px}
+.admin-upload-diagnostics{display:grid;gap:12px;padding:16px 18px;border-top:1px solid var(--ui-border);font-size:12px;line-height:1.6}
+.admin-upload-diagnostics h3{margin:0;font-size:14px;color:var(--ui-text)}
+.admin-upload-diagnostics .admin-users-table{display:table;min-width:0;width:100%;table-layout:fixed;border:1px solid var(--ui-border)}
+.admin-upload-diagnostics .admin-users-table tbody{display:table-row-group}.admin-upload-diagnostics .admin-users-table tr{display:table-row;padding:0}
+.admin-upload-diagnostics .admin-users-table th,.admin-upload-diagnostics .admin-users-table td{display:table-cell;width:50%;padding:10px 12px;overflow-wrap:anywhere;vertical-align:top;text-transform:none;letter-spacing:normal}
+.admin-upload-diagnostics .admin-users-table td::before{content:none}.admin-upload-diagnostics .admin-page__flash{margin:0}
+.admin-upload-diagnostics>details{border:1px solid var(--ui-border);border-radius:10px;padding:12px;min-width:0}
+.admin-upload-diagnostics>details>summary{cursor:pointer;font-weight:700}.admin-upload-diagnostics pre{max-width:100%;overflow:auto;padding:10px;border-radius:8px;background:var(--ui-surface-soft)}
+.admin-settings-page .admin-user-actions input{flex:1 1 130px;min-width:0;width:130px;max-width:100%}
+@media(max-width:700px){.admin-role-guide__terms{grid-template-columns:1fr}.admin-role-guide__permissions>div{grid-template-columns:1fr;gap:2px}.admin-settings-page>.admin-panel-card>.custom-fields-form>button.admin-action{justify-self:stretch;width:100%}.admin-upload-diagnostics{padding:12px}.admin-upload-diagnostics .admin-users-table th,.admin-upload-diagnostics .admin-users-table td{padding:8px;font-size:11px}}
 .admin-user-editor{position:relative}.admin-user-editor>summary{list-style:none;cursor:pointer}.admin-user-editor>summary::-webkit-details-marker{display:none}
-.admin-user-editor[open]{z-index:5}.admin-user-editor__form{position:absolute;right:0;top:calc(100% + 6px);z-index:20;width:min(360px,80vw);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:12px;border:1px solid var(--ui-border);border-radius:12px;background:var(--ui-surface);box-shadow:var(--ui-shadow-lg)}
-.admin-user-editor__form label{display:grid;gap:4px;color:var(--ui-muted);font-size:11px;font-weight:700}.admin-user-editor__form input{min-width:0}.admin-user-editor__form label:nth-last-of-type(1),.admin-user-editor__form .admin-action{grid-column:1/-1}
+.admin-user-editor[open]{flex:1 0 100%;min-width:0}.admin-user-actions .admin-user-editor__form{position:static;box-sizing:border-box;width:min(420px,100%);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:8px;padding:12px;border:1px solid var(--ui-border);border-radius:12px;background:var(--ui-surface);box-shadow:var(--ui-shadow-lg)}
+.admin-user-editor__form label{display:grid;min-width:0;gap:4px;color:var(--ui-muted);font-size:11px;font-weight:700}.admin-user-editor__form input{min-width:0;width:100%;box-sizing:border-box}.admin-user-editor__form label:nth-last-of-type(1),.admin-user-editor__form .admin-action{grid-column:1/-1}
 .admin-user-actions__hint{display:block;max-width:190px;color:var(--ui-muted);font-size:10px;line-height:1.35}
 .admin-user-lifecycle-note{display:flex;flex-wrap:wrap;align-items:center;gap:7px 12px;margin-top:12px;padding:10px;border:1px solid var(--ui-border);border-radius:10px;background:var(--ui-surface-soft);font-size:11px;color:var(--ui-muted)}.admin-user-lifecycle-note>strong{color:var(--ui-text)}.admin-user-lifecycle-note form{margin-left:auto}
 .admin-status--deletion_pending{background:var(--ui-warning-soft);color:var(--ui-warning)}.admin-status--anonymized{background:var(--ui-surface-soft);color:var(--ui-muted)}
-@media(max-width:760px){.admin-user-editor__form{position:fixed;inset:auto 12px 12px 12px;width:auto;max-height:70vh;overflow:auto;grid-template-columns:1fr}.admin-user-editor__form label:nth-last-of-type(1),.admin-user-editor__form .admin-action{grid-column:auto}.admin-user-lifecycle-note form{width:100%;margin-left:0}}
+@media(max-width:760px){.admin-user-actions .admin-user-editor__form{width:100%;grid-template-columns:1fr}.admin-user-editor__form label:nth-last-of-type(1),.admin-user-editor__form .admin-action{grid-column:auto}.admin-user-lifecycle-note form{width:100%;margin-left:0}}
+
+.admin-storage-capacity{display:grid;gap:12px;padding:16px 18px;font-size:12px;line-height:1.6}
+.admin-storage-capacity p{margin:0}
+.admin-storage-capacity__metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:0}
+.admin-storage-capacity__metrics>div{padding:12px;border:1px solid var(--ui-border);border-radius:10px;background:var(--ui-surface-soft);min-width:0}
+.admin-storage-capacity__metrics dt{color:var(--ui-muted)}
+.admin-storage-capacity__metrics dd{margin:5px 0 0;font-size:17px;font-weight:700;overflow-wrap:anywhere}

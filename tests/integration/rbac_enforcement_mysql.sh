@@ -35,6 +35,7 @@ rm -rf "$PRIVATE_STORAGE_PATH"
 mkdir -m 700 -p "$PRIVATE_STORAGE_PATH/users"
 
 php tests/integration/rbac_enforcement_runtime.php
+php tests/integration/user_status_bridge_mysql.php
 
 # Static wiring is part of the security contract: there must be no fallback to
 # the legacy numeric role helper at HTTP or WebSocket authentication boundaries.
