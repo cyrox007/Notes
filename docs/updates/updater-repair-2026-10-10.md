@@ -18,6 +18,10 @@ This stop occurred before live mutation; the original version remained healthy.
 The user's subsequent real admin-button transaction
 web-update-20261010-071104-fa7d0ccc32 committed original signed 1.0.14 on local
 Windows/Apache. Full repair was reapplied afterward; health status is ok.
+The next real admin-button transaction
+web-update-20261010-071727-565c20c53f committed original signed 1.0.15 from 1.0.14
+on the same Windows/Apache installation. Health status is ok. Full repair was
+reapplied after both stock releases; before/after row values and .env were unchanged.
 The legacy 1.0.12/14 bridges now carry the environment reader's dependencies too;
 the full archive also includes the compatibility stage-repair entrypoint.
 
