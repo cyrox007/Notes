@@ -6,14 +6,16 @@ namespace App\Helpers;
 
 require_once dirname(__DIR__, 3) . '/core/Environment.php';
 
+use SensitiveParameter;
+
 /**
- * Versioned encryption for messenger message bodies.
+ * Версионированное шифрование текста сообщений Messenger.
  *
- * v2 payload: "v2:" + base64(24-byte nonce || XChaCha20-Poly1305 ciphertext)
- * AAD binds ciphertext to the immutable message UID.
+ * Формат v2: "v2:" + base64(24-byte nonce || XChaCha20-Poly1305 ciphertext).
+ * AAD привязывает шифротекст к неизменяемому UID сообщения.
  *
- * Legacy formats are read-only migration paths. New writes never use AES-CBC
- * and never use an embedded/default key.
+ * Старые форматы доступны только для миграционного чтения. Новые записи не
+ * используют AES-CBC и встроенный либо запасной ключ.
  */
 final class MessengerCrypto
 {
@@ -26,15 +28,15 @@ final class MessengerCrypto
         return self::keyFromSecret((string) (\Core\Environment::get('MSG_SECRET_KEY') ?: ''));
     }
 
-    private static function keyFromSecret(string $secret): string
+    private static function keyFromSecret(#[SensitiveParameter] string $secret): string
     {
         $secret = trim($secret);
         if (strlen($secret) < 32) {
-            throw new \RuntimeException('MSG_SECRET_KEY must contain at least 32 characters');
+            throw new \RuntimeException('MSG_SECRET_KEY должен содержать не менее 32 символов');
         }
 
         if (!function_exists('sodium_crypto_aead_xchacha20poly1305_ietf_encrypt')) {
-            throw new \RuntimeException('libsodium XChaCha20-Poly1305 support is required');
+            throw new \RuntimeException('Для Messenger требуется поддержка libsodium XChaCha20-Poly1305');
         }
 
         return hash('sha256', $secret, true);
@@ -45,31 +47,48 @@ final class MessengerCrypto
         return str_starts_with($payload, self::PREFIX);
     }
 
-    public static function encrypt(string $plaintext, string $messageUid): string
-    {
+    public static function encrypt(
+        #[SensitiveParameter] string $plaintext,
+        string $messageUid
+    ): string {
         return self::encryptWithKey($plaintext, $messageUid, self::key());
     }
 
-    /** Maintenance-only primitive for master-key rotation. */
-    public static function encryptWithSecret(string $plaintext, string $messageUid, string $secret): string
-    {
+    /** Служебная операция только для ротации мастер-ключа. */
+    public static function encryptWithSecret(
+        #[SensitiveParameter] string $plaintext,
+        string $messageUid,
+        #[SensitiveParameter] string $secret
+    ): string {
         return self::encryptWithKey($plaintext, $messageUid, self::keyFromSecret($secret));
     }
 
-    /** Maintenance-only current-format decrypt for master-key rotation. */
-    public static function decryptCurrentWithSecret(string $payload, string $messageUid, string $secret): string
-    {
+    /** Служебная расшифровка текущего формата только для ротации мастер-ключа. */
+    public static function decryptCurrentWithSecret(
+        #[SensitiveParameter] string $payload,
+        string $messageUid,
+        #[SensitiveParameter] string $secret
+    ): string {
         if (!self::isCurrentPayload($payload)) {
-            throw new \RuntimeException('Messenger payload is not current v2 format; run migrate_crypto.php first');
+            throw new \RuntimeException(
+                'Шифротекст Messenger не относится к текущему формату v2; сначала выполните migrate_crypto.php'
+            );
         }
 
-        return self::decryptV2(substr($payload, strlen(self::PREFIX)), $messageUid, self::keyFromSecret($secret));
+        return self::decryptV2(
+            substr($payload, strlen(self::PREFIX)),
+            $messageUid,
+            self::keyFromSecret($secret)
+        );
     }
 
-    private static function encryptWithKey(string $plaintext, string $messageUid, string $key): string
-    {
+    private static function encryptWithKey(
+        #[SensitiveParameter] string $plaintext,
+        string $messageUid,
+        #[SensitiveParameter] string $key
+    ): string {
         if ($messageUid === '') {
-            throw new \InvalidArgumentException('Message UID is required for encryption');
+            throw new \InvalidArgumentException('Для шифрования требуется UID сообщения');
         }
 
         $nonce = random_bytes(SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES);
@@ -83,40 +102,45 @@ final class MessengerCrypto
         return self::PREFIX . base64_encode($nonce . $ciphertext);
     }
 
-    public static function decrypt(string $payload, string $messageUid): string
-    {
+    public static function decrypt(
+        #[SensitiveParameter] string $payload,
+        string $messageUid
+    ): string {
         if ($messageUid === '') {
-            throw new \InvalidArgumentException('Message UID is required for decryption');
+            throw new \InvalidArgumentException('Для расшифровки требуется UID сообщения');
         }
 
         if (str_starts_with($payload, self::PREFIX)) {
             return self::decryptV2(substr($payload, strlen(self::PREFIX)), $messageUid, self::key());
         }
 
-        // Transitional payload produced by the short-lived compatibility shim
-        // on audit-hardening: base64(16-byte seed || base64(aead ciphertext)).
+        // Переходный формат, который короткое время создавался совместимым
+        // слоем audit-hardening: base64(16-byte seed || base64(aead ciphertext)).
         $compat = self::decryptTransitionPayload($payload);
         if ($compat !== null) {
             return $compat;
         }
 
-        // Pre-v2 AES-CBC records can only be read when an operator explicitly
-        // supplies the historic key during migration.
+        // Записи AES-CBC до v2 читаются только когда оператор явно задаёт
+        // исторический ключ на время миграции.
         $legacy = self::decryptLegacyAesCbc($payload);
         if ($legacy !== null) {
             return $legacy;
         }
 
-        throw new \RuntimeException('Messenger message authentication/decryption failed');
+        throw new \RuntimeException('Не удалось подтвердить подлинность или расшифровать сообщение Messenger');
     }
 
-    private static function decryptV2(string $encoded, string $messageUid, string $key): string
-    {
+    private static function decryptV2(
+        #[SensitiveParameter] string $encoded,
+        string $messageUid,
+        #[SensitiveParameter] string $key
+    ): string {
         $raw = base64_decode($encoded, true);
         $nonceLength = SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES;
 
         if ($raw === false || strlen($raw) <= $nonceLength) {
-            throw new \RuntimeException('Malformed messenger ciphertext');
+            throw new \RuntimeException('Некорректный шифротекст Messenger');
         }
 
         $nonce = substr($raw, 0, $nonceLength);
@@ -129,13 +153,13 @@ final class MessengerCrypto
         );
 
         if ($plaintext === false) {
-            throw new \RuntimeException('Messenger message authentication failed');
+            throw new \RuntimeException('Не удалось подтвердить подлинность сообщения Messenger');
         }
 
         return $plaintext;
     }
 
-    private static function decryptTransitionPayload(string $payload): ?string
+    private static function decryptTransitionPayload(#[SensitiveParameter] string $payload): ?string
     {
         $raw = base64_decode($payload, true);
         if ($raw === false || strlen($raw) <= 16) {
@@ -165,7 +189,7 @@ final class MessengerCrypto
         return $plaintext === false ? null : $plaintext;
     }
 
-    private static function decryptLegacyAesCbc(string $payload): ?string
+    private static function decryptLegacyAesCbc(#[SensitiveParameter] string $payload): ?string
     {
         $legacyKey = (string) (getenv('MSG_LEGACY_SECRET_KEY') ?: '');
         if ($legacyKey === '') {
