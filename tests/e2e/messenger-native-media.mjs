@@ -93,7 +93,7 @@ try{
  });
  await stt.addScriptTag({content:await readFile('assets/js/local-transcription.js','utf8')});
  const unsupported=await bounded('unavailable local language',stt.evaluate(async()=>{try{await wspace.localTranscription('/fixture.wav','ru-RU');}catch(error){return error.message;}}));
- assert.match(unsupported,/не поддерживается/);assert.equal(audioReads,0,'no audio read when the on-device language is unavailable');
+ assert.match(unsupported,/не предоставляет локальное распознавание выбранного языка/);assert.equal(audioReads,0,'no audio read when the on-device language is unavailable');
  const transcript=await bounded('local audio track transcription',stt.evaluate(async()=>{window.fixtureAvailability='available';return await wspace.localTranscription('/fixture.wav','ru-RU');}));
  assert.equal(transcript,'Проверка локальной расшифровки');assert.equal(audioReads,1);
  const engine=await stt.evaluate(()=>fixtureRecognition);assert.equal(engine.local,true);assert.equal(engine.options.processLocally,true);assert.equal(engine.track,'audio');
