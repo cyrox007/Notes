@@ -12,6 +12,7 @@ use Core\DatabaseManager;
 use Core\Uuid;
 use DomainException;
 use InvalidArgumentException;
+use SensitiveParameter;
 
 final class UserProvisioningService
 {
@@ -29,20 +30,22 @@ final class UserProvisioningService
     }
 
     /** @param array<string,mixed> $input */
-    public function createByAdmin(int $actorId, array $input): int
-    {
+    public function createByAdmin(
+        int $actorId,
+        #[SensitiveParameter] array $input
+    ): int {
         $this->permissions->requirePermission($actorId, 'admin.users.manage');
         return $this->createUser($input);
     }
 
     /** @param array<string,mixed> $input */
-    public function createSelfService(array $input): int
+    public function createSelfService(#[SensitiveParameter] array $input): int
     {
         return $this->createUser($input);
     }
 
     /** @param array<string,mixed> $input */
-    private function createUser(array $input): int
+    private function createUser(#[SensitiveParameter] array $input): int
     {
         $data = $this->normalizeAndValidate($input);
 
@@ -92,7 +95,7 @@ final class UserProvisioningService
      * @param array<string,mixed> $input
      * @return array{username:string,password:string,firstname:string,patronymic:string,lastname:string,phone:string,email:string}
      */
-    private function normalizeAndValidate(array $input): array
+    private function normalizeAndValidate(#[SensitiveParameter] array $input): array
     {
         $username = trim((string) ($input['login'] ?? $input['username'] ?? ''));
         $password = (string) ($input['password'] ?? '');
