@@ -8,6 +8,9 @@ on:
     paths:
       - 'modules/tasks/**'
       - 'tests/e2e/tasks-lifecycle.mjs'
+      - 'tests/e2e/tasks-kanban-regression.mjs'
+      - 'assets/js/usability-actions.js'
+      - 'assets/css/workspace-dark-1.0.16.css'
       - '.github/workflows/tasks-browser-lifecycle.yml'
 
 permissions:
@@ -54,6 +57,9 @@ jobs:
           set -euo pipefail
           npm install --no-save playwright@1.55.0
           npx playwright install --with-deps chromium
+
+      - name: Prove drag cleanup, rollback and dark controls
+        run: node tests/e2e/tasks-kanban-regression.mjs
 
       - name: Syntax and isolated ownership contracts
         shell: bash

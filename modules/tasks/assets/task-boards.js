@@ -87,11 +87,17 @@
                     if (candidate !== column) candidate.dataset.dragOver = 'false';
                 });
                 column.dataset.dragOver = 'true';
-                placeholder.textContent = 'Переместить сюда';
-                column.querySelector('.task-board-column__items')?.appendChild(placeholder);
+                const items = column.querySelector('.task-board-column__items');
+                if (items && placeholder.parentElement !== items) {
+                    placeholder.textContent = 'Переместить сюда';
+                    items.appendChild(placeholder);
+                }
             });
             column.addEventListener('dragleave', (event) => {
                 if (event.relatedTarget instanceof Node && column.contains(event.relatedTarget)) return;
+                const bounds = column.getBoundingClientRect();
+                if (event.clientX >= bounds.left && event.clientX < bounds.right
+                    && event.clientY >= bounds.top && event.clientY < bounds.bottom) return;
                 column.dataset.dragOver = 'false';
                 if (placeholder.closest('.task-board-column') === column) placeholder.remove();
             });

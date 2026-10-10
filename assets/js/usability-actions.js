@@ -275,6 +275,9 @@
             return;
         }
 
+        // Native tasks own persistence, optimistic moves and rollback as one operation.
+        if (target.dataset.nativeTaskChange === '1') return;
+
         if (target.matches('.task-status-toggle,.task-complete-toggle,.subtask-toggle')) {
             handleTaskChange(event);
         }
