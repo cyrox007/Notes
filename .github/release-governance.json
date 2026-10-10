@@ -30,7 +30,9 @@
     "admin-update-ui (8.1)",
     "admin-update-ui (8.3)",
     "admin-update-e2e",
-    "previous-stable-upgrade"
+    "previous-stable-upgrade",
+    "current-stable-upgrade",
+    "native-media"
   ],
   "stabilization_required_checks": [
     "release-gate",
@@ -55,7 +57,9 @@
     "admin-update-ui (8.1)",
     "admin-update-ui (8.3)",
     "admin-update-e2e",
-    "previous-stable-upgrade"
+    "previous-stable-upgrade",
+    "current-stable-upgrade",
+    "native-media"
   ],
   "required_checks_after_product_e2e_merge": [],
   "release_candidate_required_checks": [
@@ -81,6 +85,8 @@
     "admin-update-ui (8.1)",
     "admin-update-ui (8.3)",
     "admin-update-e2e",
-    "previous-stable-upgrade"
+    "previous-stable-upgrade",
+    "current-stable-upgrade",
+    "native-media"
   ]
 }

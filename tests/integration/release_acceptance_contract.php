@@ -125,7 +125,7 @@ foreach ([
     'production_public_trust_roots',
     'release_evidence_harness',
     'private_signing_material_absent',
-    "Version::VERSION === '1.0.15'",
+    "Version::VERSION === '1.0.16'",
     "Version::STATUS === 'stable'",
     'exit(3)',
 ] as $marker) {
@@ -281,4 +281,17 @@ releaseAcceptanceAssert(
     'Stable release gate не запускает контракт двухфакторной аутентификации'
 );
 
-fwrite(STDOUT, "[OK] финальный контракт release acceptance 1.0.15 выполнен\n");
+$currentUpgrade = releaseAcceptanceText($root, '.github/workflows/1.0.15-to-1.0.16-upgrade.yml');
+releaseAcceptanceAssert(
+    str_contains($currentUpgrade, 'git archive --format=tar v1.0.15')
+    && str_contains($currentUpgrade, '--version=1.0.16')
+    && str_contains($currentUpgrade, '--min-source-version-code=10015')
+    && str_contains($currentUpgrade, 'admin_update_preservation_probe.php --verify')
+    && !str_contains($currentUpgrade, 'git show v1.0.16:core/Version.php')
+    && array_diff($requiredDisabledFunctions, releaseAcceptanceDisabledFunctions($currentUpgrade)) === [],
+    'Current-head 1.0.15 to 1.0.16 data-preserving web upgrade is missing'
+);
+foreach (['current-stable-upgrade', 'native-media'] as $check) {
+    releaseAcceptanceAssert(in_array($check, $requiredChecks, true), 'Missing current release check: ' . $check);
+}
+fwrite(STDOUT, "[OK] финальный контракт release acceptance 1.0.16 и исторических переходов выполнен\n");

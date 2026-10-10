@@ -179,9 +179,10 @@ if (repairUpdaterInside($sourceRoot, $liveRoot) || repairUpdaterInside($liveRoot
 
 [$sourceVersion, $sourceCode] = repairUpdaterVersion($sourceRoot);
 [$liveVersion, $liveCode] = repairUpdaterVersion($liveRoot);
-if ($sourceVersion !== '1.0.15' || $sourceCode !== 10015) {
+if (($sourceVersion !== '1.0.15' || $sourceCode !== 10015)
+    && ($sourceVersion !== '1.0.16' || $sourceCode !== 10016)) {
     repairUpdaterFail(
-        "Мост должен запускаться из exact-пакета 1.0.15 (10015), получено {$sourceVersion} ({$sourceCode}).",
+        "Мост должен запускаться из exact-пакета 1.0.15 (10015) или 1.0.16 (10016), получено {$sourceVersion} ({$sourceCode}).",
         4
     );
 }

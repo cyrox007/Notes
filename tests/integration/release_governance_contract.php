@@ -80,6 +80,8 @@ if ($candidateChecks !== $requiredChecks) {
 }
 
 $workflowByCheck = [
+    'current-stable-upgrade' => ['.github/workflows/1.0.15-to-1.0.16-upgrade.yml', 'current-stable-upgrade'],
+    'native-media' => ['.github/workflows/messenger-native-media.yml', 'native-media'],
     'release-gate' => ['.github/workflows/release-gate.yml', 'release-gate'],
     'notes-browser-lifecycle' => ['.github/workflows/notes-browser-lifecycle.yml', 'notes-browser-lifecycle'],
     'tasks-browser-lifecycle' => ['.github/workflows/tasks-browser-lifecycle.yml', 'tasks-browser-lifecycle'],
