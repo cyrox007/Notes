@@ -20,6 +20,7 @@ require_once __DIR__ . '/core/SecurityHeaders.php';
 require_once __DIR__ . '/core/PrivateStorageResolver.php';
 require_once __DIR__ . '/core/HostingCompatibility.php';
 require_once __DIR__ . '/core/InstallerDatabaseService.php';
+require_once __DIR__ . '/core/InstallerEnvironmentService.php';
 \Core\SecurityHeaders::apply();
 
 function installerIsHttps(): bool
@@ -28,6 +29,7 @@ function installerIsHttps(): bool
     if (in_array($forwarded, ['http', 'https'], true)) {
         return $forwarded === 'https';
     }
+
     $https = strtolower((string) ($_SERVER['HTTPS'] ?? ''));
     return in_array($https, ['on', '1', 'true'], true) || (int) ($_SERVER['SERVER_PORT'] ?? 0) === 443;
 }
@@ -58,6 +60,7 @@ try {
     http_response_code(500);
     exit('Некорректное описание владения БД модулей в пакете: ' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8'));
 }
+
 $packagedModules = $databaseOwnership->moduleIds();
 $requiredTables = $databaseOwnership->tables();
 $schemaFiles = array_map(
@@ -82,11 +85,7 @@ $successMessage = '';
 $installationCompleted = false;
 $installedAppUrl = '';
 $installerDatabase = new \Core\InstallerDatabaseService();
-
-function randomSecret(): string
-{
-    return bin2hex(random_bytes(32));
-}
+$installerEnvironment = new \Core\InstallerEnvironmentService();
 
 function verifyInstallerCsrf(): void
 {
@@ -170,91 +169,6 @@ function defaultWebSocketUrl(string $siteUrl, string $basePath): string
     return $scheme . $authority . $prefix . '/ws';
 }
 
-function installerFunctionAvailable(string $name): bool
-{
-    return \Core\HostingCompatibility::functionAvailable($name);
-}
-
-function installerLongPollTimeoutSeconds(): int
-{
-    $maxExecution = (int) \Core\HostingCompatibility::iniValue('max_execution_time');
-    if ($maxExecution <= 0) {
-        return 15;
-    }
-
-    return max(5, min(15, $maxExecution - 2));
-}
-
-function installerIniBytes(string $name): int
-{
-    return \Core\HostingCompatibility::iniBytes(\Core\HostingCompatibility::iniValue($name));
-}
-
-function installerUploadTempWritable(): bool
-{
-    $configured = trim(\Core\HostingCompatibility::iniValue('upload_tmp_dir'));
-    if ($configured !== '') {
-        return is_dir($configured) && is_writable($configured);
-    }
-
-    if (!installerFunctionAvailable('sys_get_temp_dir')) {
-        return false;
-    }
-
-    $fallback = sys_get_temp_dir();
-    return is_string($fallback) && $fallback !== '' && is_dir($fallback) && is_writable($fallback);
-}
-
-/**
- * Необязательные возможности не блокируют установку.
- *
- * @param list<string> $packagedModules
- * @return array<string,array{available:bool,message:string}>
- */
-function installerOptionalCapabilities(string $basePath, array $packagedModules): array
-{
-    $hasMessenger = in_array('messenger', $packagedModules, true);
-    $wsRuntime = !$hasMessenger || (
-        is_file($basePath . '/modules/messenger/socket/NativeMessengerServer.php')
-        && is_file($basePath . '/modules/messenger/socket/SocketHandshake.php')
-        && is_file($basePath . '/modules/messenger/socket/SocketFrameCodec.php')
-        && installerFunctionAvailable('stream_socket_server')
-        && installerFunctionAvailable('stream_select')
-    );
-
-    $procOpen = installerFunctionAvailable('proc_open');
-    $pcntl = installerFunctionAvailable('pcntl_fork');
-    $httpsPrerequisites = \Core\HostingCompatibility::outboundHttpsPrerequisites();
-    $onlineUpdates = $httpsPrerequisites['ok'];
-
-    return [
-        'Онлайн-обновления через HTTPS' => [
-            'available' => $onlineUpdates,
-            'message' => $onlineUpdates
-                ? 'Локальные PHP-предпосылки готовы. Фактический доступ к исходящему TCP/443 проверяется при обращении к серверу обновлений.'
-                : 'Установка работает, но встроенный updater не сможет скачать релиз: отсутствуют локальные TLS/DNS-предпосылки.',
-        ],
-        'WebSocket-ускоритель Messenger' => [
-            'available' => $wsRuntime,
-            'message' => $wsRuntime
-                ? 'Можно включить позже; Long Poll уже обеспечивает полный Messenger.'
-                : 'Недоступен в этом PHP; Messenger будет полностью работать через Long Poll.',
-        ],
-        'Изолированный updater через proc_open' => [
-            'available' => $procOpen,
-            'message' => $procOpen
-                ? 'Доступен ускоренный режим обновления в отдельном PHP-процессе.'
-                : 'Не требуется: updater автоматически использует совместимый web-режим.',
-        ],
-        'Daemon mode WebSocket через pcntl' => [
-            'available' => $pcntl,
-            'message' => $pcntl
-                ? 'Доступен Unix daemon mode.'
-                : 'Не требуется: WebSocket можно запускать process manager-ом или не использовать.',
-        ],
-    ];
-}
-
 function isOpenServerLayout(string $basePath): bool
 {
     return PHP_OS_FAMILY === 'Windows'
@@ -274,212 +188,6 @@ function openServerLocalWebSocketUrl(string $siteUrl, string $basePath): string
     return defaultWebSocketUrl($siteUrl, $basePath);
 }
 
-function privateStorageCandidate(string $basePath): string
-{
-    try {
-        return (new \Core\PrivateStorageResolver($basePath))->candidate();
-    } catch (Throwable) {
-        return '';
-    }
-}
-
-function preparePrivateStorage(string $path, string $basePath): string
-{
-    $real = (new \Core\PrivateStorageResolver($basePath))->prepareExplicit($path);
-
-    foreach (['file_manager', 'messenger', 'notes', 'users', 'rate-limit', 'logs', 'legacy'] as $directory) {
-        $target = $real . DIRECTORY_SEPARATOR . $directory;
-        if (!is_dir($target) && !mkdir($target, 0700, true) && !is_dir($target)) {
-            throw new RuntimeException('Не удалось создать private storage каталог: ' . $directory);
-        }
-        @chmod($target, 0700);
-    }
-
-    assertPrivateStorageFilesystemContract($real);
-    return $real;
-}
-
-function assertPrivateStorageFilesystemContract(string $root): void
-{
-    foreach (['fopen', 'flock', 'rename', 'unlink'] as $function) {
-        if (!installerFunctionAvailable($function)) {
-            throw new RuntimeException('Private storage требует доступную PHP-функцию ' . $function);
-        }
-    }
-
-    $source = $root . DIRECTORY_SEPARATOR . '.hosting-fs-probe-' . bin2hex(random_bytes(6));
-    $target = $source . '.renamed';
-    $handle = @fopen($source, 'xb');
-    if ($handle === false) {
-        throw new RuntimeException('Private storage не позволяет создать lock-probe файл');
-    }
-
-    try {
-        if (!@flock($handle, LOCK_EX | LOCK_NB)) {
-            throw new RuntimeException('Файловая система private storage не поддерживает требуемый flock');
-        }
-        if (fwrite($handle, 'ok') !== 2 || !fflush($handle)) {
-            throw new RuntimeException('Private storage не обеспечивает надёжную запись lock-probe');
-        }
-        @flock($handle, LOCK_UN);
-        fclose($handle);
-        $handle = null;
-
-        if (!@rename($source, $target) || !is_file($target)) {
-            throw new RuntimeException('Private storage не поддерживает требуемый atomic rename');
-        }
-    } finally {
-        if (is_resource($handle)) {
-            @flock($handle, LOCK_UN);
-            fclose($handle);
-        }
-        @unlink($source);
-        @unlink($target);
-    }
-}
-
-function prepareRuntimeDirectories(string $basePath): void
-{
-    foreach (['compile', 'cache'] as $directory) {
-        $path = $basePath . '/' . $directory;
-        if (!is_dir($path) && !mkdir($path, 0750, true) && !is_dir($path)) {
-            throw new RuntimeException('Не удалось создать runtime каталог: ' . $directory);
-        }
-        if (!is_writable($path)) {
-            throw new RuntimeException('Runtime каталог недоступен на запись: ' . $directory);
-        }
-    }
-}
-
-function envQuoted(string $value): string
-{
-    return '"' . str_replace(["\\", '"', "\r", "\n"], ['\\\\', '\\"', '', '\\n'], $value) . '"';
-}
-
-function writeEnvironmentFile(string $file, #[SensitiveParameter] array $data): void
-{
-    $privateStorage = rtrim((string) $data['private_storage'], '/');
-    $lines = [
-        '# Создано web-установщиком Workspace Organizer',
-        '# Профиль установки: ' . (string) ($data['install_mode'] ?? 'hosting'),
-        'DBDRIVER=mysql',
-        'DBHOST=' . envQuoted((string) $data['db_host']),
-        'DBPORT=' . (int) $data['db_port'],
-        'DBUSER=' . envQuoted((string) $data['db_user']),
-        'DBPASS=' . envQuoted((string) $data['db_pass']),
-        'DBNAME=' . envQuoted((string) $data['db_name']),
-        '',
-        'UNIQUE_KEY=' . envQuoted((string) $data['unique_key']),
-        'MSG_SECRET_KEY=' . envQuoted((string) $data['message_key']),
-        'WS_TICKET_SECRET=' . envQuoted((string) $data['ws_ticket_secret']),
-        '',
-        'PRIVATE_STORAGE_PATH=' . envQuoted($privateStorage),
-        'UPLOAD_DIR=' . envQuoted($privateStorage . '/legacy/file_manager'),
-        'NOTES_UPLOAD_DIR=' . envQuoted($privateStorage . '/legacy/notes'),
-        'MESSENGER_UPLOAD_DIR=' . envQuoted($privateStorage . '/legacy/messenger'),
-        '',
-        'UPDATE_SERVER_URL=https://jsinteractive.ru/api/notes/v1/',
-        'UPDATE_FEED_URL=https://jsinteractive.ru/api/notes/v1/stable/feed.json',
-        'UPDATE_CHANNEL=stable',
-        'UPDATE_ACCESS_MODE=auto',
-        'UPDATE_CREDENTIALS_FILE=',
-        '',
-        'MAX_UPLOAD_SIZE=10485760',
-        'NOTES_MAX_UPLOAD_SIZE=10485760',
-        'MAX_NOTE_ATTACHMENTS=10',
-        'MESSENGER_MAX_UPLOAD_SIZE=10485760',
-        'MESSENGER_MAX_VOICE_SIZE=5242880',
-        'MESSENGER_GROUP_AVATAR_MAX_SIZE=2097152',
-        'PROFILE_AVATAR_MAX_SIZE=2097152',
-        'MESSENGER_ORPHAN_TTL_SECONDS=86400',
-        'MESSENGER_SEARCH_SCAN_LIMIT=1000',
-        'MESSENGER_LONG_POLL_TIMEOUT_SECONDS=' . installerLongPollTimeoutSeconds(),
-        '',
-        'SITEURL=' . envQuoted((string) $data['site_url']),
-        'BASE_PATH=' . envQuoted((string) $data['base_path']),
-        'REGISTRATION_INVITE_CODE=',
-        '',
-        'WS_ENABLED=' . (!empty($data['ws_enabled']) ? '1' : '0'),
-        'WS_HOST=127.0.0.1',
-        'WS_PORT=27800',
-        'WS_PUBLIC_URL=' . envQuoted((string) $data['ws_public_url']),
-        'WS_ALLOWED_ORIGINS=' . envQuoted((string) $data['site_url']),
-        'WS_MAX_CONNECTIONS=256',
-        'WS_MAX_PAYLOAD_BYTES=2097152',
-        '',
-        'LOG_LEVEL=INFO',
-        'LOG_FILE=' . envQuoted($privateStorage . '/logs/app.log'),
-        'AUDIT_LOG_RETENTION_DAYS=180',
-        'SESSION_LIFETIME=3600',
-        'MAX_LOGIN_ATTEMPTS=5',
-        'AUTH_RATE_LIMIT_WINDOW_SECONDS=300',
-        'UPLOAD_RATE_LIMIT_ATTEMPTS=60',
-        'UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60',
-        'CSRF_ENABLED=true',
-        'INSTALL_DATE=' . envQuoted((string) $data['install_date']),
-        '',
-    ];
-    $temp = $file . '.installing-' . bin2hex(random_bytes(6));
-    if (file_put_contents($temp, implode("\n", $lines), LOCK_EX) === false) {
-        throw new RuntimeException('Не удалось подготовить .env. Проверьте права корня проекта.');
-    }
-    @chmod($temp, 0600);
-    if (!rename($temp, $file)) {
-        @unlink($temp);
-        throw new RuntimeException('Не удалось атомарно создать .env.');
-    }
-    @chmod($file, 0600);
-}
-
-/** @param list<string> $schemaFiles @param list<string> $packagedModules */
-function installerRequirements(string $basePath, array $schemaFiles, array $packagedModules): array
-{
-    $checks = [
-        'PHP 8.2+' => version_compare(PHP_VERSION, '8.2.0', '>='),
-        'Нативное ядро приложения' => is_file($basePath . '/core/Environment.php') && is_file($basePath . '/core/NativeViewRenderer.php'),
-        'mbstring' => extension_loaded('mbstring'),
-        'ctype' => extension_loaded('ctype'),
-        'pdo_mysql' => extension_loaded('pdo_mysql'),
-        'mysqli' => extension_loaded('mysqli'),
-        'sodium' => extension_loaded('sodium'),
-        'openssl' => extension_loaded('openssl'),
-        'zlib' => extension_loaded('zlib'),
-        'fileinfo' => extension_loaded('fileinfo'),
-        'gd' => extension_loaded('gd'),
-        'Хеширование паролей Argon2id' => in_array('argon2id', password_algos(), true),
-        'random_bytes' => function_exists('random_bytes'),
-        'ini_get' => installerFunctionAvailable('ini_get'),
-        'getenv / putenv' => \Core\HostingCompatibility::processEnvironmentAvailable(),
-        'HTTP-загрузка файлов' => filter_var(
-            \Core\HostingCompatibility::iniValue('file_uploads'),
-            FILTER_VALIDATE_BOOLEAN
-        ),
-        'Доступный временный каталог PHP для загрузок' => installerUploadTempWritable(),
-        'flock / атомарное переименование' => installerFunctionAvailable('flock')
-            && installerFunctionAvailable('rename')
-            && installerFunctionAvailable('fopen')
-            && installerFunctionAvailable('unlink'),
-        'Запись .env в корень проекта' => is_writable($basePath),
-        'Схемы БД состава модулей' => $schemaFiles !== [] && array_reduce(
-            $schemaFiles,
-            static fn (bool $ok, string $file): bool => $ok && is_file($file) && !is_link($file),
-            true
-        ),
-    ];
-    if (in_array('messenger', $packagedModules, true)) {
-        $checks['HTTP Long Poll Messenger'] = installerFunctionAvailable('session_write_close')
-            && installerFunctionAvailable('usleep')
-            && installerFunctionAvailable('connection_aborted');
-    }
-    try {
-        prepareRuntimeDirectories($basePath);
-        $checks['Каталоги runtime доступны для записи'] = true;
-    } catch (Throwable) {
-        $checks['Каталоги runtime доступны для записи'] = false;
-    }
-    return $checks;
-}
-
 $detectedSiteUrl = detectedSiteUrl();
 $detectedBasePath = detectedBasePath();
 $detectedOpenServer = isOpenServerLayout($basePath);
@@ -487,7 +195,7 @@ $detectedInstallMode = $detectedOpenServer && !installerIsHttps() ? 'openserver_
 $detectedWsUrl = $detectedInstallMode === 'openserver_local'
     ? openServerLocalWebSocketUrl($detectedSiteUrl, $detectedBasePath)
     : defaultWebSocketUrl($detectedSiteUrl, $detectedBasePath);
-$detectedPrivateStorage = privateStorageCandidate($basePath);
+$detectedPrivateStorage = $installerEnvironment->privateStorageCandidate($basePath);
 $selectedInstallMode = (string) ($_POST['install_mode'] ?? $detectedInstallMode);
 if (!in_array($selectedInstallMode, ['hosting', 'openserver_local'], true)) {
     $selectedInstallMode = $detectedInstallMode;
@@ -512,6 +220,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         $selectedInstallMode = $installMode;
         $wsEnabled = $hasMessenger && ((string) ($_POST['ws_enabled'] ?? '')) === '1';
         $selectedWsEnabled = $wsEnabled;
+
         try {
             $siteUrl = normalizeSiteUrl((string) ($_POST['site_url'] ?? $detectedSiteUrl));
             $baseUrlPath = normalizeBasePath((string) ($_POST['base_path'] ?? $detectedBasePath));
@@ -531,12 +240,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             $baseUrlPath = $detectedBasePath;
             $wsPublicUrl = $detectedWsUrl;
         }
+
         if ($host === '' || $database === '' || $username === '' || $port < 1 || $port > 65535) {
             $errors[] = 'Некорректные параметры базы данных.';
         }
+
         if ($errors === []) {
             try {
-                $storageReal = preparePrivateStorage($privateStorage, $basePath);
+                $storageReal = $installerEnvironment->preparePrivateStorage($privateStorage, $basePath);
                 $pdo = $installerDatabase->connectOrCreate($host, $port, $database, $username, $password);
                 $installerDatabase->assertServerCompatibility($pdo);
                 $existing = $installerDatabase->existingTables($pdo);
@@ -544,6 +255,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                     $installerDatabase->assertSchemaPrivileges($pdo);
                     $existing = $installerDatabase->existingTables($pdo);
                 }
+
                 $appTables = array_values(array_intersect($requiredTables, $existing));
                 $missing = array_values(array_diff($requiredTables, $existing));
                 if ($existing === []) {
@@ -556,14 +268,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                         . 'Для обновления используйте версионные миграции. Отсутствуют таблицы: ' . implode(', ', $missing)
                     );
                 }
+
                 $remaining = array_values(array_diff($requiredTables, $installerDatabase->existingTables($pdo)));
                 if ($remaining !== []) {
                     throw new RuntimeException('После импорта отсутствуют таблицы: ' . implode(', ', $remaining));
                 }
+
                 $userCount = (int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn();
                 if ($userCount > 0) {
                     throw new RuntimeException('В базе уже есть пользователи. Восстановите существующую установку и используйте миграции.');
                 }
+
                 $_SESSION['notes_install_db'] = [
                     'db_host' => $host,
                     'db_port' => $port,
@@ -576,9 +291,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                     'install_mode' => $installMode,
                     'ws_enabled' => $wsEnabled,
                     'ws_public_url' => $wsPublicUrl,
-                    'unique_key' => randomSecret(),
-                    'message_key' => randomSecret(),
-                    'ws_ticket_secret' => randomSecret(),
+                    'unique_key' => $installerEnvironment->randomSecret(),
+                    'message_key' => $installerEnvironment->randomSecret(),
+                    'ws_ticket_secret' => $installerEnvironment->randomSecret(),
                     'install_date' => date('YmdHis'),
                 ];
                 header('Location: install.php?step=3');
@@ -596,6 +311,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         $confirmation = (string) ($_POST['admin_password_confirm'] ?? '');
         $firstname = trim((string) ($_POST['admin_firstname'] ?? 'Admin'));
         $lastname = trim((string) ($_POST['admin_lastname'] ?? 'User'));
+
         if (preg_match('/^[a-z0-9_.-]{3,50}$/', $username) !== 1) {
             $errors[] = 'Логин: 3–50 символов, латиница, цифры, точка, _ или -.';
         }
@@ -611,10 +327,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         if ($password !== $confirmation) {
             $errors[] = 'Пароли не совпадают.';
         }
+
         $db = $_SESSION['notes_install_db'] ?? null;
         if (!is_array($db)) {
             $errors[] = 'Сессия установки потеряна. Вернитесь к настройке базы данных.';
         }
+
         if ($errors === []) {
             try {
                 $pdo = $installerDatabase->connect(
@@ -629,10 +347,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 if ($exists->fetch()) {
                     throw new RuntimeException('Пользователь с таким логином или email уже существует.');
                 }
+
                 $pdo->beginTransaction();
                 try {
                     $installerDatabase->createAdminUser($pdo, $username, $email, $password, $firstname, $lastname);
-                    writeEnvironmentFile($envFile, $db);
+                    $installerEnvironment->writeEnvironmentFile($envFile, $db);
                     $pdo->commit();
                 } catch (Throwable $e) {
                     if ($pdo->inTransaction()) {
@@ -643,6 +362,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                     }
                     throw $e;
                 }
+
                 $step = 4;
                 $installationCompleted = true;
                 $installedAppUrl = appUrl((string) $db['site_url'], (string) $db['base_path']);
@@ -658,8 +378,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     }
 }
 
-$requirements = installerRequirements($basePath, $schemaFiles, $packagedModules);
-$optionalCapabilities = installerOptionalCapabilities($basePath, $packagedModules);
+$requirements = $installerEnvironment->requirements($basePath, $schemaFiles, $packagedModules);
+$optionalCapabilities = $installerEnvironment->optionalCapabilities($basePath, $packagedModules);
 if ($step === 1) {
     foreach ($requirements as $label => $ok) {
         if (!$ok) {
@@ -669,13 +389,15 @@ if ($step === 1) {
     if ($needsPrivateStorage && $detectedPrivateStorage === '') {
         $warnings[] = 'Автоматически подобрать private storage вне web-root не удалось. На следующем шаге укажите абсолютный writable путь из панели хостинга.';
     }
+
     $maxExecution = (int) ini_get('max_execution_time');
     if ($hasMessenger && $maxExecution > 0 && $maxExecution < 7) {
         $warnings[] = 'max_execution_time меньше 7 секунд. Для устойчивого Long Poll нужен лимит хотя бы 7 секунд.';
     }
+
     $productUploadLimit = 10 * 1024 * 1024;
-    $uploadLimit = installerIniBytes('upload_max_filesize');
-    $postLimit = installerIniBytes('post_max_size');
+    $uploadLimit = $installerEnvironment->iniBytes('upload_max_filesize');
+    $postLimit = $installerEnvironment->iniBytes('post_max_size');
     if ($uploadLimit > 0 && $uploadLimit < $productUploadLimit) {
         $warnings[] = 'upload_max_filesize ограничен значением ' . \Core\HostingCompatibility::iniValue('upload_max_filesize')
             . ': фактический максимальный размер вложения будет ниже продуктового лимита 10 МБ.';
@@ -684,11 +406,13 @@ if ($step === 1) {
         $warnings[] = 'post_max_size ограничен значением ' . \Core\HostingCompatibility::iniValue('post_max_size')
             . ': большие вложения не дойдут до приложения.';
     }
+
     $maxFileUploads = (int) \Core\HostingCompatibility::iniValue('max_file_uploads');
     if ($maxFileUploads > 0 && $maxFileUploads < 10) {
         $warnings[] = 'max_file_uploads=' . $maxFileUploads
             . ': за один запрос можно будет загрузить меньше 10 вложений.';
     }
+
     $memoryLimit = \Core\HostingCompatibility::memoryLimitBytes();
     if ($memoryLimit !== null && $memoryLimit < \Core\HostingCompatibility::RECOMMENDED_MEMORY_BYTES) {
         $warnings[] = 'memory_limit=' . \Core\HostingCompatibility::iniValue('memory_limit')
@@ -700,6 +424,7 @@ if ($step === 1) {
             . 'WebSocket можно включить на следующем шаге как необязательное ускорение.';
     }
 }
+
 $csrf = htmlspecialchars((string) $_SESSION['notes_install_csrf'], ENT_QUOTES, 'UTF-8');
 $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 ?>
@@ -729,7 +454,7 @@ $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SU
         <ul><?php foreach ($requirements as $label => $ok): ?><li class="<?= $ok ? 'ok' : 'fail' ?>"><?= $ok ? '✓' : '✕' ?> <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></li><?php endforeach; ?></ul>
         <p><strong>Необязательные ускорения</strong></p>
         <ul><?php foreach ($optionalCapabilities as $label => $capability): ?><li class="<?= $capability['available'] ? 'ok' : '' ?>"><?= $capability['available'] ? '✓' : '—' ?> <?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?><small><?= htmlspecialchars($capability['message'], ENT_QUOTES, 'UTF-8') ?></small></li><?php endforeach; ?></ul>
-        <div class="summary"><strong>Автоопределение</strong><p>Профиль: <code><?= $detectedInstallMode === 'openserver_local' ? 'OpenServer local' : 'Обычный хостинг / production' ?></code><br>Сайт: <code><?= htmlspecialchars(appUrl($detectedSiteUrl,$detectedBasePath), ENT_QUOTES, 'UTF-8') ?></code><br>Messenger: <code>HTTP Long Poll</code> — основной transport<br>WebSocket: <code>необязательный ускоритель</code><br>Long Poll timeout: <code><?= installerLongPollTimeoutSeconds() ?> с</code><br>Private storage: <code><?= htmlspecialchars($detectedPrivateStorage !== '' ? $detectedPrivateStorage : 'нужно указать', ENT_QUOTES, 'UTF-8') ?></code></p></div>
+        <div class="summary"><strong>Автоопределение</strong><p>Профиль: <code><?= $detectedInstallMode === 'openserver_local' ? 'OpenServer local' : 'Обычный хостинг / production' ?></code><br>Сайт: <code><?= htmlspecialchars(appUrl($detectedSiteUrl,$detectedBasePath), ENT_QUOTES, 'UTF-8') ?></code><br>Messenger: <code>HTTP Long Poll</code> — основной transport<br>WebSocket: <code>необязательный ускоритель</code><br>Long Poll timeout: <code><?= $installerEnvironment->longPollTimeoutSeconds() ?> с</code><br>Private storage: <code><?= htmlspecialchars($detectedPrivateStorage !== '' ? $detectedPrivateStorage : 'нужно указать', ENT_QUOTES, 'UTF-8') ?></code></p></div>
         <?php if ($errors === []): ?><a class="button" href="?step=2">Продолжить</a><?php endif; ?>
     <?php elseif ($step === 2): ?>
         <h2>2. База и окружение</h2>
