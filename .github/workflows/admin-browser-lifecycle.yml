@@ -207,7 +207,9 @@ jobs:
         env:
           E2E_ORIGIN: http://127.0.0.1:18093
           E2E_BASE_PATH: /workspace
-        run: node tests/e2e/admin-lifecycle.mjs
+        run: |
+          node tests/e2e/admin-lifecycle.mjs
+          node tests/e2e/admin-user-editor-layout.mjs
 
       - name: Verify durable Admin lifecycle state
         shell: bash

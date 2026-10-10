@@ -88,6 +88,19 @@ try {
         $missingRejected = str_contains($error->getMessage(), '20261002_user_lifecycle.sql');
     }
     ownershipAssert($missingRejected, '1.0.15 must still reject a missing required migration');
+    $version15Canonical = array_values(array_filter($canonical['migrations'],
+        static fn (string $name): bool => $name !== '20261010_user_status_bridge.sql'));
+    ownershipAssert(!in_array('20261010_user_status_bridge.sql',
+        DatabaseOwnership::fromPackageRoot($coreFixture)->migrationNamesInCanonicalOrder($version15Canonical), true),
+        '1.0.15 package must not require the 1.0.16 status bridge');
+    file_put_contents($coreFixture . '/core/Version.php', "<?php\nclass FixtureVersion { public const VERSION_CODE = 10016; }\n");
+    $missingRejected = false;
+    try {
+        DatabaseOwnership::fromPackageRoot($coreFixture)->migrationNamesInCanonicalOrder($version15Canonical);
+    } catch (RuntimeException $error) {
+        $missingRejected = str_contains($error->getMessage(), '20261010_user_status_bridge.sql');
+    }
+    ownershipAssert($missingRejected, '1.0.16 requires the status bridge migration');
 } finally {
     removeFixture($coreFixture);
 }

@@ -57,6 +57,7 @@ final class DatabaseOwnership
         'database/migrations/20260921_totp_two_factor.sql',
         'database/migrations/20260930_module_entitlements.sql',
         'database/migrations/20261002_user_lifecycle.sql',
+        'database/migrations/20261010_user_status_bridge.sql',
     ];
 
     /** @param array<string,ModuleManifest> $modules */
@@ -124,6 +125,10 @@ final class DatabaseOwnership
     public function migrationFiles(): array
     {
         $coreMigrations = self::CORE_MIGRATIONS;
+        if ($this->packageVersionCode !== null && $this->packageVersionCode <= 10015) {
+            $coreMigrations = array_values(array_filter($coreMigrations,
+                static fn (string $path): bool => $path !== 'database/migrations/20261010_user_status_bridge.sql'));
+        }
         if ($this->packageVersionCode !== null && $this->packageVersionCode <= 10014) {
             $coreMigrations = array_values(array_filter($coreMigrations,
                 static fn (string $path): bool => $path !== 'database/migrations/20261002_user_lifecycle.sql'));
