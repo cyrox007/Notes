@@ -8,6 +8,7 @@ use App\Controllers\MessagerController;
 use App\Controllers\MessengerRealtimeController;
 use App\Controllers\MessengerGroupController;
 use App\Controllers\MessengerVoiceController;
+use App\Controllers\MessengerCallController;
 use App\Controllers\MessengerWorkspaceController;
 use App\Middlewares\CSRFMiddleware;
 use App\Middlewares\EnforceMessengerUploadPolicy;
@@ -53,6 +54,9 @@ final class MessengerRuntimeProvider implements ModuleRuntimeProvider
             ->add('GET', '/realtime/poll', [MessengerRealtimeController::class, 'poll'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_realtime_poll')
             ->add('POST', '/realtime/action', [MessengerRealtimeController::class, 'action'], [LoginRequared::class, RequireMessengerUse::class, CSRFMiddleware::class], 'messenger_realtime_action')
             ->add('POST', '/upload', [MessagerController::class, 'uploadFile'], [LoginRequared::class, RequireMessengerUse::class, UploadRateLimit::class, EnforceMessengerUploadPolicy::class], 'messenger_upload')
+            ->add('POST', '/recorded/{str:uid}/send', [MessengerVoiceController::class, 'sendRecorded'], [LoginRequared::class, RequireMessengerUse::class, CSRFMiddleware::class], 'messenger_recorded_send')
+            ->add('GET', '/calls', [MessengerCallController::class, 'poll'], [LoginRequared::class, RequireMessengerUse::class], 'messenger_calls')
+            ->add('POST', '/calls', [MessengerCallController::class, 'signal'], [LoginRequared::class, RequireMessengerUse::class, CSRFMiddleware::class], 'messenger_call_signal')
             ->add('POST', '/voice-upload', [MessengerVoiceController::class, 'upload'], [LoginRequared::class, RequireMessengerUse::class, UploadRateLimit::class, EnforceMessengerUploadPolicy::class], 'messenger_voice_upload');
 
         if ($capabilities->has('workspace.notes')) {

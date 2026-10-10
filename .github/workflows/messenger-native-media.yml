@@ -1,0 +1,49 @@
+name: Native messenger media
+on:
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-media:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: pdo_sqlite, mbstring, sodium
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Native PHP and ownership contracts
+        run: |
+          php -l modules/messenger/services/MessengerCallService.php
+          php -l modules/messenger/controllers/MessengerCallController.php
+          php -l modules/messenger/controllers/MessengerVoiceController.php
+          php tests/integration/messenger_calls_contract.php
+          php tests/integration/messenger_recorded_retry_contract.php
+          php tests/integration/native_messenger_contract.php
+          php tests/integration/module_runtime_composition_contract.php
+      - name: Install browser test tools
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Two-peer audio/video and recording regression
+        env:
+          E2E_CALL_STORAGE: /tmp/notes-native-media-calls
+        run: |
+          php -S 127.0.0.1:18116 tests/e2e/messenger-native-media-router.php >/tmp/native-media-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18116/ >/dev/null; then break; fi
+            sleep 1
+          done
+          node tests/e2e/messenger-native-media.mjs
+      - name: Failure logs
+        if: failure()
+        run: cat /tmp/native-media-http.log || true

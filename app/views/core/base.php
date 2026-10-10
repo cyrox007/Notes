@@ -132,12 +132,14 @@ if (is_file($controlsPath) && is_readable($controlsPath)) {
     <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/css/workspace-ui-1.0.css')) ?>">
     <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/css/workspace-brand-1.0.14.css')) ?>">
     <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/css/workspace-dark-1.0.16.css')) ?>">
+    <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/css/local-transcription.css')) ?>">
     <link rel="icon" href="<?= $view->e($assetUrl($baseUrl . '/assets/img/workspace-brand-mark.svg')) ?>" type="image/svg+xml">
     <link rel="alternate icon" href="<?= $view->e($baseUrl) ?>/favicon.ico" type="image/x-icon">
     <template id="csrf-token-template"><?= $view->csrfInput() ?></template>
     <script nonce="<?= $view->e($cspNonce) ?>">window.wspaceRuntime = <?= $runtimeConfig ?>; window.wspace = window.wspace || {};</script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/common.js')) ?>" defer></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/theme-mode.js')) ?>" defer></script>
+    <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/local-transcription.js')) ?>" defer></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/findability.js')) ?>" defer></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/feedback.js')) ?>" defer></script>
 <?php if (!empty($access['admin'])): ?>

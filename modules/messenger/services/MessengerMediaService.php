@@ -407,6 +407,24 @@ final class MessengerMediaService
         }
     }
 
+    /** Retrying a recorded attachment must not create a second message. */
+    public function sendRecorded(int $userId, string $attachmentUid, ?string $replyToUid = null): array
+    {
+        $attachment = $this->download($userId, $attachmentUid);
+        if ((int)$attachment['uploader_user_id'] !== $userId || !in_array($attachment['media_kind'], ['voice', 'video'], true)) {
+            throw new DomainException('Запись не принадлежит пользователю');
+        }
+        if (!empty($attachment['message_id'])) return ['already_sent'=>true,'attachment_uid'=>$attachmentUid];
+        $user=$this->db->fetchOne('SELECT uid FROM users WHERE id=:id AND is_active=1 LIMIT 1',[':id'=>$userId]);
+        if (!$user) throw new DomainException('Пользователь недоступен');
+        try { return ['already_sent'=>false,'message'=>$this->send((string)$user['uid'],$attachmentUid,'',$replyToUid)]; }
+        catch (InvalidArgumentException $error) {
+            $current=$this->download($userId,$attachmentUid);
+            if (!empty($current['message_id'])) return ['already_sent'=>true,'attachment_uid'=>$attachmentUid];
+            throw $error;
+        }
+    }
+
     /** @return array<string,mixed> */
     public function download(int $userId, string $attachmentUid): array
     {

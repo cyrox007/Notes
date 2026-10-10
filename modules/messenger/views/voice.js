@@ -89,7 +89,34 @@
         let initialDialogUid = null;
         let sendAfterStop = false;
         let voiceUploading = false;
+        let voiceStarting = false;
         let activeAudio = null;
+        let pendingVoice = null;
+        let recoveryUrl = null;
+        const recovery = document.createElement('div');
+        recovery.className = 'messenger-voice-recovery';
+        recovery.hidden = true;
+        const retry = document.createElement('button');
+        retry.type = 'button'; retry.textContent = 'Повторить отправку голосового';
+        const saveRecording = document.createElement('a');
+        saveRecording.textContent = 'Скачать запись'; saveRecording.download = 'voice.webm';
+        const dismiss = document.createElement('button');
+        dismiss.type = 'button'; dismiss.textContent = 'Удалить неотправленную запись';
+        recovery.append(retry, saveRecording, dismiss);
+        recorderBar.after(recovery);
+        const clearRecovery = () => {
+            pendingVoice = null; recovery.hidden = true;
+            if (recoveryUrl) URL.revokeObjectURL(recoveryUrl);
+            recoveryUrl = null;
+        };
+        retry.addEventListener('click', () => {
+            if (!pendingVoice || voiceUploading) return;
+            const p = pendingVoice;
+            void submitRecording(p.blob, p.mime, p.extension, p.dialogUid, p.replyToUid);
+        });
+        dismiss.addEventListener('click', () => {
+            if (!voiceUploading && window.confirm('Удалить неотправленную голосовую запись?')) clearRecovery();
+        });
 
         const setActivity = (activity, active, dialogUid = initialDialogUid || app.currentDialog?.uid || '') => {
             if (!dialogUid || typeof app.setLocalActivity !== 'function') return false;
@@ -172,6 +199,8 @@
             const xhr = new XMLHttpRequest();
             xhr.open('POST', appPath('/messenger/voice-upload'), true);
             xhr.responseType = 'json';
+            xhr.timeout = 90000;
+            xhr.addEventListener('timeout', () => reject(new Error('Превышено время загрузки голосового сообщения')));
             xhr.upload.addEventListener('progress', (event) => {
                 if (!event.lengthComputable) return;
                 setUploadUi(true, 'Загрузка голосового сообщения…', (event.loaded / event.total) * 100);
@@ -195,6 +224,8 @@
                 return;
             }
 
+            const previousAttachment = pendingVoice?.blob === blob ? pendingVoice.attachment : null;
+            pendingVoice = { blob, mime, extension, dialogUid, replyToUid, attachment: previousAttachment };
             const file = new File(
                 [blob],
                 `voice-${Date.now()}.${extension}`,
@@ -204,27 +235,34 @@
             setActivity('uploading_voice', true, dialogUid);
 
             try {
-                const attachment = await uploadVoice(file, dialogUid);
+                const attachment = pendingVoice.attachment || await uploadVoice(file, dialogUid);
+                pendingVoice.attachment = attachment;
                 if ((attachment.media_kind || '') !== 'voice') {
                     throw new Error('Сервер не распознал голосовое сообщение');
                 }
-                if (app.currentDialog?.uid !== dialogUid) {
-                    throw new Error('Диалог изменился до отправки записи');
-                }
-                const sent = app.sendEvent('MediaSocket:send', {
-                    attachment_uid: attachment.uid,
-                    caption: '',
-                    reply_to_uid: replyToUid || null,
-                });
-                if (!sent) {
-                    throw new Error('Запись загружена, но WebSocket сейчас недоступен');
-                }
+                const controller = new AbortController();
+                const timeout = window.setTimeout(() => controller.abort(), 30000);
+                try {
+                    const response = await fetch(appPath(`/messenger/recorded/${encodeURIComponent(attachment.uid)}/send`), {
+                        method: 'POST', headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+                        body: new URLSearchParams({ reply_to_uid: replyToUid || '' }), signal: controller.signal,
+                    });
+                    const result = await response.json();
+                    if (!response.ok || !result.success) throw new Error(result.message || 'Не удалось подтвердить отправку');
+                } finally { window.clearTimeout(timeout); }
+                clearRecovery();
+                if (app.currentDialog?.uid === dialogUid) app.sendEvent('MessangerSocket:load', { dialog_uid: dialogUid });
+                app.sendEvent('MessangerSocket:get_dialogs', {});
                 if (replyToUid) app.clearComposeContext();
                 app.stopTyping();
-                app.showToast('Голосовое сообщение отправляется');
+                app.showToast('Голосовое сообщение отправлено');
             } catch (error) {
                 console.error(error);
-                app.showToast(error?.message || 'Не удалось отправить голосовое сообщение');
+                if (recoveryUrl) URL.revokeObjectURL(recoveryUrl);
+                recoveryUrl = URL.createObjectURL(blob);
+                saveRecording.href = recoveryUrl; saveRecording.download = `voice-${Date.now()}.${extension}`;
+                recovery.hidden = false;
+                app.showToast(`${error?.message || 'Не удалось отправить голосовое сообщение'}. Запись сохранена: повторите отправку или скачайте её.`);
             } finally {
                 setActivity('uploading_voice', false, dialogUid);
                 setUploadUi(false);
@@ -238,7 +276,12 @@
         };
 
         const startRecording = async () => {
-            if (voiceUploading || isRecording()) return;
+            if (voiceUploading || voiceStarting || isRecording()) return;
+            if (pendingVoice) { app.showToast('Отправьте или удалите предыдущую неотправленную запись'); return; }
+            if (app.root.dataset.videoRecording === 'true' || app.root.dataset.callActive === 'true') {
+                app.showToast('Завершите текущую видеозапись или звонок');
+                return;
+            }
             if (!app.currentDialog?.uid) {
                 app.showToast('Сначала выберите диалог');
                 return;
@@ -257,6 +300,9 @@
             }
 
             const selected = selectedMime();
+            const targetDialog = app.currentDialog.uid;
+            voiceStarting = true;
+            app.root.dataset.voiceRecording = 'true';
             try {
                 stream = await navigator.mediaDevices.getUserMedia({
                     audio: {
@@ -267,11 +313,16 @@
                     video: false,
                 });
 
+                if (app.currentDialog?.uid !== targetDialog) {
+                    resetRecorderState();
+                    app.showToast('Диалог изменился. Начните запись заново.');
+                    return;
+                }
                 recorder = selected
                     ? new MediaRecorder(stream, { mimeType: selected.mime, audioBitsPerSecond: 64000 })
                     : new MediaRecorder(stream, { audioBitsPerSecond: 64000 });
                 const actualMime = recorder.mimeType || selected?.mime || '';
-                const extension = selected?.extension || extensionForMime(actualMime);
+                const extension = extensionForMime(actualMime) || selected?.extension;
                 if (!extension) {
                     resetRecorderState();
                     app.showToast('Браузер использует неподдерживаемый формат записи');
@@ -326,6 +377,9 @@
                 } else {
                     app.showToast('Не удалось начать запись с микрофона');
                 }
+            } finally {
+                voiceStarting = false;
+                if (!isRecording()) app.root.dataset.voiceRecording = 'false';
             }
         };
 
