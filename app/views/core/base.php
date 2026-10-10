@@ -131,6 +131,7 @@ if (is_file($controlsPath) && is_readable($controlsPath)) {
     </style>
     <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/css/workspace-ui-1.0.css')) ?>">
     <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/css/workspace-brand-1.0.14.css')) ?>">
+    <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/css/workspace-dark-1.0.16.css')) ?>">
     <link rel="icon" href="<?= $view->e($assetUrl($baseUrl . '/assets/img/workspace-brand-mark.svg')) ?>" type="image/svg+xml">
     <link rel="alternate icon" href="<?= $view->e($baseUrl) ?>/favicon.ico" type="image/x-icon">
     <template id="csrf-token-template"><?= $view->csrfInput() ?></template>

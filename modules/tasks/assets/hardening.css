@@ -10,3 +10,13 @@
 .task-edit-form{display:grid;gap:8px}.task-edit-form .form-group{display:grid;gap:4px}.task-edit-form textarea{min-height:76px}.task-edit-form .form-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .task-actions form{display:inline-flex;margin:0}
 @media(max-width:620px){.tasks__sort-form,.category-create-form,.task-category-attach{align-items:stretch;flex-direction:column}.task-category-select,.tasks__sort-form select,.category-create-form input,.category-create-form select{max-width:none;width:100%}.task-edit-form .form-row{grid-template-columns:1fr}}
+
+/* Native controls must retain their appearance when cards move out of the list. */
+.tasks :is(.btn-sm,.btn-primary,.btn-secondary){appearance:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:32px;padding:6px 10px;border:1px solid var(--ui-border-strong);border-radius:8px;background:var(--ui-surface);color:var(--ui-text);font:inherit;font-size:12px;font-weight:650;line-height:1.3;cursor:pointer}
+.tasks .btn-primary{background:var(--ui-action);border-color:var(--ui-action);color:#fff}
+.tasks :is(.btn-sm,.btn-secondary):hover{background:var(--ui-surface-soft);border-color:var(--ui-primary)}
+.tasks :is(input:not([type=checkbox]):not([type=color]),textarea,select){border:1px solid var(--ui-border-strong);border-radius:7px;padding:6px 8px;background:var(--ui-surface);color:var(--ui-text);font:inherit;max-width:100%;min-width:0}
+.tasks :is(button,input,select,textarea):focus-visible{outline:2px solid var(--ui-primary);outline-offset:2px}
+.tasks :is(button,select):disabled{opacity:.55;cursor:wait}
+.tasks .task-item[data-save-state=saving]{cursor:progress}
+.tasks .task-item[data-save-state=error]{outline:2px solid var(--ui-danger)}

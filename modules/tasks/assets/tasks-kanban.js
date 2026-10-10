@@ -188,6 +188,7 @@
 
         function clearDragState() {
             board.classList.remove('tasks-board--dragging');
+            board.querySelectorAll('.task-item--dragging').forEach((task) => task.classList.remove('task-item--dragging'));
             dropPlaceholder.remove();
             board.querySelectorAll('.tasks-board__dropzone--active,.tasks-board__dropzone--ready').forEach((zone) => {
                 zone.classList.remove('tasks-board__dropzone--active', 'tasks-board__dropzone--ready');
@@ -228,6 +229,10 @@
             });
 
             handle?.addEventListener('dragstart', (event) => {
+                if (task.dataset.saveState === 'saving') {
+                    event.preventDefault();
+                    return;
+                }
                 const transfer = event.dataTransfer;
                 if (!transfer) {
                     event.preventDefault();
@@ -265,11 +270,17 @@
                     if (candidate !== zone) candidate.classList.remove('tasks-board__dropzone--active');
                 });
                 zone.classList.add('tasks-board__dropzone--active');
-                dropPlaceholder.textContent = 'Переместить сюда';
-                zone.appendChild(dropPlaceholder);
+                if (dropPlaceholder.parentElement !== zone) {
+                    dropPlaceholder.textContent = 'Переместить сюда';
+                    zone.appendChild(dropPlaceholder);
+                }
             });
             zone.addEventListener('dragleave', (event) => {
                 if (event.relatedTarget instanceof Node && zone.contains(event.relatedTarget)) return;
+                // Native dragleave can omit relatedTarget over a child or the placeholder.
+                const bounds = zone.getBoundingClientRect();
+                if (event.clientX >= bounds.left && event.clientX < bounds.right
+                    && event.clientY >= bounds.top && event.clientY < bounds.bottom) return;
                 zone.classList.remove('tasks-board__dropzone--active');
                 if (dropPlaceholder.parentElement === zone) dropPlaceholder.remove();
             });
@@ -279,7 +290,7 @@
                 const task = tasks.find((candidate) => candidate.dataset.taskId === uid);
                 const select = task?.querySelector('.task-status-toggle');
                 clearDragState();
-                if (!task || !select || select.value === status) return;
+                if (!task || !select || select.disabled || task.dataset.saveState === 'saving' || select.value === status) return;
 
                 const previousStatus = statusOf(task);
                 task.classList.add('task-item--status-pending', 'task-item--just-moved');
