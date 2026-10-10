@@ -1,10 +1,14 @@
 <?php
+
+declare(strict_types=1);
+
 namespace App\Models;
+
 use Core\ORM;
 
-
-class FieldModel extends ORM {
-    protected ?string $_tablename = "user_fields";
+class FieldModel extends ORM
+{
+    protected ?string $_tablename = 'user_fields';
 
     public int $id = 0;
     public string $field_name = '';
