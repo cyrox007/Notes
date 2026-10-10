@@ -6,6 +6,9 @@ on:
     branches: ['codex/**']
     paths:
       - 'tools/release/repair-updater-stage.php'
+      - 'tools/release/repair-updater-full.php'
+      - 'tools/release/build-updater-repair.py'
+      - 'tests/integration/updater_full_repair_contract.php'
       - 'docs/updates/updater-repair-2026-10-10.md'
       - '.github/workflows/updater-repair.yml'
 
@@ -20,18 +23,18 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.1'
+          extensions: mysqli, sodium, openssl, mbstring, fileinfo, zlib
           coverage: none
       - name: Validate and package repair
         run: |
           php -l tools/release/repair-updater-stage.php
-          mkdir patch
-          cp tools/release/repair-updater-stage.php patch/
-          cp docs/updates/updater-repair-2026-10-10.md patch/README.md
-          cd patch
-          sha256sum repair-updater-stage.php README.md > SHA256SUMS
-          zip ../notes-updater-repair-1.0.13-1.0.15.zip repair-updater-stage.php README.md SHA256SUMS
+          php -l tools/release/repair-updater-full.php
+          php tests/integration/updater_full_repair_contract.php
+          php tests/integration/database_ownership_contract.php
+          php tests/integration/updater_external_web_contract.php
+          python3 tools/release/build-updater-repair.py --output notes-updater-repair-full-1.0.13-1.0.15.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: notes-updater-repair-1.0.13-1.0.15
-          path: notes-updater-repair-1.0.13-1.0.15.zip
+          name: notes-updater-repair-full-1.0.13-1.0.15
+          path: notes-updater-repair-full-1.0.13-1.0.15.zip
           retention-days: 90

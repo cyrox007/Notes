@@ -60,7 +60,10 @@ final class DatabaseOwnership
     ];
 
     /** @param array<string,ModuleManifest> $modules */
-    private function __construct(private readonly array $modules)
+    private function __construct(
+        private readonly array $modules,
+        private readonly ?int $packageVersionCode = null
+    )
     {
     }
 
@@ -85,7 +88,18 @@ final class DatabaseOwnership
             $modules[$id] = $manifest;
         }
         ksort($modules, SORT_STRING);
-        return new self($modules);
+        // A frozen updater may inspect an older source/candidate package. Its
+        // compiled Version constant describes the runtime, not that package.
+        $versionPath = rtrim($root, '/\\') . '/core/Version.php';
+        $packageVersionCode = null;
+        if (is_file($versionPath) && !is_link($versionPath)) {
+            $versionSource = file_get_contents($versionPath);
+            if (is_string($versionSource)
+                && preg_match('/public const VERSION_CODE = ([0-9]+);/', $versionSource, $versionMatch) === 1) {
+                $packageVersionCode = (int) $versionMatch[1];
+            }
+        }
+        return new self($modules, $packageVersionCode);
     }
 
     /** @return list<string> */
@@ -109,7 +123,12 @@ final class DatabaseOwnership
     /** @return list<string> */
     public function migrationFiles(): array
     {
-        $paths = $this->uniqueOwned(self::CORE_MIGRATIONS, 'migration', static fn (ModuleManifest $m): array => $m->databaseMigrations());
+        $coreMigrations = self::CORE_MIGRATIONS;
+        if ($this->packageVersionCode !== null && $this->packageVersionCode <= 10014) {
+            $coreMigrations = array_values(array_filter($coreMigrations,
+                static fn (string $path): bool => $path !== 'database/migrations/20261002_user_lifecycle.sql'));
+        }
+        $paths = $this->uniqueOwned($coreMigrations, 'migration', static fn (ModuleManifest $m): array => $m->databaseMigrations());
 
         // 0.13 profile publication is an immutable historical migration touching
         // three optional product modules. It is applicable only when all three
