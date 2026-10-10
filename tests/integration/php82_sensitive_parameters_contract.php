@@ -7,6 +7,7 @@ use App\Helpers\MessengerCrypto;
 use App\Services\LicenseVerifier;
 use App\Services\TwoFactorService;
 use Core\DatabaseManager;
+use Core\InstallerDatabaseService;
 use Core\UpdateDownloadCredentials;
 
 function sensitiveParameterAssert(bool $condition, string $message): void
@@ -70,6 +71,8 @@ require_once $root . '/app/handlers/CryptMethods.php';
 require_once $root . '/app/services/TwoFactorService.php';
 require_once $root . '/app/services/LicenseVerifier.php';
 require_once $root . '/core/DatabaseManager.php';
+require_once $root . '/core/HostingCompatibility.php';
+require_once $root . '/core/InstallerDatabaseService.php';
 require_once $root . '/core/UpdateDownloadCredentials.php';
 require_once $root . '/modules/messenger/handlers/MessengerCrypto.php';
 
@@ -96,6 +99,12 @@ foreach (['queueInsert', 'queueUpdate', 'execute', 'fetchAll', 'fetchOne', 'fetc
 }
 sensitiveParameterAssertMarked(DatabaseManager::class, 'buildDsn', 'config');
 sensitiveParameterAssertMarked(DatabaseManager::class, 'maskQuery', 'params');
+
+foreach (['connect', 'connectOrCreate', 'importSchemas', 'createAdminUser'] as $method) {
+    sensitiveParameterAssertMarked(InstallerDatabaseService::class, $method, 'password');
+}
+sensitiveParameterAssertMarked(InstallerDatabaseService::class, 'connectServer', 'password');
+sensitiveParameterAssertMarked(InstallerDatabaseService::class, 'createDatabase', 'password');
 
 $credentialsClass = new ReflectionClass(UpdateDownloadCredentials::class);
 sensitiveParameterAssert(
@@ -142,8 +151,15 @@ sensitiveParameterAssert(
     'В установщике не должно оставаться старого требования PHP 8.1+'
 );
 sensitiveParameterAssert(
-    substr_count($installer, '#[SensitiveParameter] string $password') >= 5,
-    'Пароли БД и администратора должны скрываться из трассировок установщика'
+    str_contains($installer, 'new \\Core\\InstallerDatabaseService()'),
+    'HTTP-установщик должен использовать выделенный сервис БД'
+);
+sensitiveParameterAssert(
+    !str_contains($installer, 'function connectDatabase(')
+        && !str_contains($installer, 'function connectOrCreateDatabase(')
+        && !str_contains($installer, 'function importSchemas(')
+        && !str_contains($installer, 'function createAdminUser('),
+    'БД-операции не должны возвращаться в HTTP-файл установщика'
 );
 sensitiveParameterAssert(
     str_contains($installer, 'function writeEnvironmentFile(string $file, #[SensitiveParameter] array $data): void'),
