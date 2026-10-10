@@ -22,15 +22,18 @@ enum LogLevel: string
 }
 
 /**
- * Small PDO manager used by the legacy controllers and the newer service layer.
+ * Компактный менеджер PDO для старых контроллеров и нового сервисного слоя.
  *
- * Public API is intentionally kept compatible with the previous implementation.
+ * Публичный API сохраняет совместимость с предыдущей реализацией.
  */
 class DatabaseManager
 {
     private static ?self $instance = null;
     private ?PDO $pdo = null;
+
+    /** @var list<array{type:string,query:string,parameters:array,table:string}> */
     private array $transactionQueue = [];
+
     private bool $inTransaction = false;
     private int $queryCount = 0;
     private array $queryLog = [];
@@ -50,7 +53,7 @@ class DatabaseManager
 
     public function __wakeup(): void
     {
-        throw new Exception('Cannot unserialize singleton');
+        throw new Exception('Нельзя десериализовать singleton DatabaseManager');
     }
 
     public static function getInstance(): self
@@ -64,10 +67,12 @@ class DatabaseManager
 
     public static function resetInstance(): void
     {
-        if (self::$instance !== null) {
-            self::$instance->close();
-            self::$instance = null;
+        if (self::$instance === null) {
+            return;
         }
+
+        self::$instance->close();
+        self::$instance = null;
     }
 
     public function log(string $message, LogLevel|string $level = LogLevel::INFO): void
@@ -104,27 +109,12 @@ class DatabaseManager
 
         $this->log("[createConnection] Подключение к БД: {$driver}", LogLevel::INFO);
 
-        $options = [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES => false,
-            PDO::ATTR_STRINGIFY_FETCHES => false,
-            PDO::ATTR_TIMEOUT => 30,
-            PDO::ATTR_PERSISTENT => false,
-        ];
-
-        if ($driver === 'mysql') {
-            $options[PDO::MYSQL_ATTR_INIT_COMMAND] = 'SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci';
-            $options[PDO::MYSQL_ATTR_FOUND_ROWS] = true;
-            $options[PDO::MYSQL_ATTR_USE_BUFFERED_QUERY] = true;
-        }
-
         try {
             $pdo = new PDO(
                 $dsn,
                 (string) ($config['username'] ?? ''),
                 (string) ($config['password'] ?? ''),
-                $options
+                $this->connectionOptions($driver)
             );
             $this->log('[createConnection] Соединение успешно установлено', LogLevel::INFO);
             return $pdo;
@@ -144,7 +134,29 @@ class DatabaseManager
         }
     }
 
-    private function buildDsn(string $driver, array $config): string
+    /** @return array<int,mixed> */
+    private function connectionOptions(string $driver): array
+    {
+        $options = [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
+            PDO::ATTR_STRINGIFY_FETCHES => false,
+            PDO::ATTR_TIMEOUT => 30,
+            PDO::ATTR_PERSISTENT => false,
+        ];
+
+        if ($driver !== 'mysql') {
+            return $options;
+        }
+
+        $options[PDO::MYSQL_ATTR_INIT_COMMAND] = 'SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci';
+        $options[PDO::MYSQL_ATTR_FOUND_ROWS] = true;
+        $options[PDO::MYSQL_ATTR_USE_BUFFERED_QUERY] = true;
+        return $options;
+    }
+
+    private function buildDsn(string $driver, #[\SensitiveParameter] array $config): string
     {
         return match ($driver) {
             'mysql' => sprintf(
@@ -160,7 +172,7 @@ class DatabaseManager
                 $config['database'] ?? ''
             ),
             'sqlite' => 'sqlite:' . ($config['database'] ?? ':memory:'),
-            default => throw new Exception("Unsupported database driver: {$driver}"),
+            default => throw new Exception("Неподдерживаемый драйвер базы данных: {$driver}"),
         };
     }
 
@@ -188,11 +200,11 @@ class DatabaseManager
         }
     }
 
-    public function queueInsert(array $data, string $table): self
+    public function queueInsert(#[\SensitiveParameter] array $data, string $table): self
     {
         $this->assertIdentifier($table);
         if ($data === []) {
-            throw new Exception('INSERT data cannot be empty');
+            throw new Exception('Данные INSERT не могут быть пустыми');
         }
 
         $columns = array_keys($data);
@@ -218,11 +230,11 @@ class DatabaseManager
         return $this;
     }
 
-    public function queueUpdate(array $data, string $table, mixed $id): self
+    public function queueUpdate(#[\SensitiveParameter] array $data, string $table, mixed $id): self
     {
         $this->assertIdentifier($table);
         if ($data === []) {
-            throw new Exception('UPDATE data cannot be empty');
+            throw new Exception('Данные UPDATE не могут быть пустыми');
         }
 
         $set = [];
@@ -256,14 +268,11 @@ class DatabaseManager
     }
 
     /**
-     * Commit queued writes atomically.
+     * Атомарно применяет накопленные операции записи.
      *
-     * A failed queued write must never be indistinguishable from a successful
-     * request. Legacy callers historically ignored a false return value, which
-     * allowed controllers to report success after the transaction had rolled
-     * back. Keep the method shape compatible, but propagate the original error
-     * after rollback so every caller either completes durably or enters its
-     * normal exception/error path.
+     * Ошибка одной операции не должна выглядеть как успешный запрос. Старый код
+     * иногда игнорировал false, поэтому после отката исходное исключение всегда
+     * передаётся вызывающему коду.
      */
     public function commit(): array|false
     {
@@ -298,25 +307,31 @@ class DatabaseManager
             $this->transactionQueue = [];
             return $results;
         } catch (Throwable $e) {
-            $operationCount = count($this->transactionQueue);
-            if ($this->pdo->inTransaction()) {
-                $this->pdo->rollBack();
-            }
-            $this->inTransaction = false;
-            $this->transactionQueue = [];
-            $this->log('[commit] Откат: ' . $e->getMessage(), LogLevel::ERROR);
-            ServiceLog::emit(
-                'database.transaction_failed',
-                'error',
-                'database',
-                [
-                    'operations' => $operationCount,
-                    'error_type' => $e::class,
-                    'error_code' => (string) $e->getCode(),
-                ]
-            );
+            $this->rollbackFailedCommit($e);
             throw $e;
         }
+    }
+
+    private function rollbackFailedCommit(Throwable $error): void
+    {
+        $operationCount = count($this->transactionQueue);
+        if ($this->pdo?->inTransaction()) {
+            $this->pdo->rollBack();
+        }
+
+        $this->inTransaction = false;
+        $this->transactionQueue = [];
+        $this->log('[commit] Откат: ' . $error->getMessage(), LogLevel::ERROR);
+        ServiceLog::emit(
+            'database.transaction_failed',
+            'error',
+            'database',
+            [
+                'operations' => $operationCount,
+                'error_type' => $error::class,
+                'error_code' => (string) $error->getCode(),
+            ]
+        );
     }
 
     public function rollback(): void
@@ -328,7 +343,7 @@ class DatabaseManager
         $this->inTransaction = false;
     }
 
-    public function execute(string $query, array $params = []): PDOStatement|int
+    public function execute(string $query, #[\SensitiveParameter] array $params = []): PDOStatement|int
     {
         $this->ensureConnection();
         $this->queryCount++;
@@ -375,12 +390,12 @@ class DatabaseManager
         return DatabaseSqlInspector::queryType($query);
     }
 
-    private function maskQuery(string $query, array $params): string
+    private function maskQuery(string $query, #[\SensitiveParameter] array $params): string
     {
         return DatabaseSqlInspector::diagnosticQuery($query, $params);
     }
 
-    public function fetchAll(string $query, array $params = []): array
+    public function fetchAll(string $query, #[\SensitiveParameter] array $params = []): array
     {
         $stmt = $this->execute($query, $params);
         if (!$stmt instanceof PDOStatement) {
@@ -390,7 +405,7 @@ class DatabaseManager
         return $stmt->fetchAll();
     }
 
-    public function fetchOne(string $query, array $params = []): ?array
+    public function fetchOne(string $query, #[\SensitiveParameter] array $params = []): ?array
     {
         $stmt = $this->execute($query, $params);
         if (!$stmt instanceof PDOStatement) {
@@ -401,7 +416,7 @@ class DatabaseManager
         return $row === false ? null : $row;
     }
 
-    public function fetchValue(string $query, array $params = []): mixed
+    public function fetchValue(string $query, #[\SensitiveParameter] array $params = []): mixed
     {
         $stmt = $this->execute($query, $params);
         if (!$stmt instanceof PDOStatement) {
@@ -422,7 +437,7 @@ class DatabaseManager
     {
         $this->ensureConnection();
         if ($this->pdo->inTransaction()) {
-            throw new Exception('Transaction is already active');
+            throw new Exception('Транзакция уже активна');
         }
 
         $this->inTransaction = $this->pdo->beginTransaction();
@@ -475,6 +490,7 @@ class DatabaseManager
         $this->inTransaction = false;
     }
 
+    /** @return array{total_queries:int,log_entries:int} */
     public function getQueryStats(): array
     {
         return [
