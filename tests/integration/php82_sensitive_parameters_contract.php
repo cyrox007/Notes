@@ -8,6 +8,7 @@ use App\Services\LicenseVerifier;
 use App\Services\TwoFactorService;
 use Core\DatabaseManager;
 use Core\InstallerDatabaseService;
+use Core\InstallerEnvironmentService;
 use Core\UpdateDownloadCredentials;
 
 function sensitiveParameterAssert(bool $condition, string $message): void
@@ -72,7 +73,9 @@ require_once $root . '/app/services/TwoFactorService.php';
 require_once $root . '/app/services/LicenseVerifier.php';
 require_once $root . '/core/DatabaseManager.php';
 require_once $root . '/core/HostingCompatibility.php';
+require_once $root . '/core/PrivateStorageResolver.php';
 require_once $root . '/core/InstallerDatabaseService.php';
+require_once $root . '/core/InstallerEnvironmentService.php';
 require_once $root . '/core/UpdateDownloadCredentials.php';
 require_once $root . '/modules/messenger/handlers/MessengerCrypto.php';
 
@@ -105,6 +108,9 @@ foreach (['connect', 'connectOrCreate', 'importSchemas', 'createAdminUser'] as $
 }
 sensitiveParameterAssertMarked(InstallerDatabaseService::class, 'connectServer', 'password');
 sensitiveParameterAssertMarked(InstallerDatabaseService::class, 'createDatabase', 'password');
+
+sensitiveParameterAssertMarked(InstallerEnvironmentService::class, 'writeEnvironmentFile', 'data');
+sensitiveParameterAssertMarked(InstallerEnvironmentService::class, 'environmentLines', 'data');
 
 $credentialsClass = new ReflectionClass(UpdateDownloadCredentials::class);
 sensitiveParameterAssert(
@@ -143,16 +149,16 @@ sensitiveParameterAssert(
     'Установщик должен отклонять PHP ниже 8.2'
 );
 sensitiveParameterAssert(
-    str_contains($installer, "'PHP 8.2+' => version_compare(PHP_VERSION, '8.2.0', '>=')"),
-    'Проверка требований установщика должна соответствовать минимуму PHP 8.2'
-);
-sensitiveParameterAssert(
     !str_contains($installer, 'PHP 8.1+'),
     'В установщике не должно оставаться старого требования PHP 8.1+'
 );
 sensitiveParameterAssert(
     str_contains($installer, 'new \\Core\\InstallerDatabaseService()'),
     'HTTP-установщик должен использовать выделенный сервис БД'
+);
+sensitiveParameterAssert(
+    str_contains($installer, 'new \\Core\\InstallerEnvironmentService()'),
+    'HTTP-установщик должен использовать выделенный сервис окружения'
 );
 sensitiveParameterAssert(
     !str_contains($installer, 'function connectDatabase(')
@@ -162,8 +168,17 @@ sensitiveParameterAssert(
     'БД-операции не должны возвращаться в HTTP-файл установщика'
 );
 sensitiveParameterAssert(
-    str_contains($installer, 'function writeEnvironmentFile(string $file, #[SensitiveParameter] array $data): void'),
-    'Массив секретов .env должен быть чувствительным параметром установщика'
+    !str_contains($installer, 'function writeEnvironmentFile(')
+        && !str_contains($installer, 'function randomSecret(')
+        && !str_contains($installer, 'function preparePrivateStorage('),
+    'Секреты и файловое окружение не должны возвращаться в HTTP-файл установщика'
+);
+
+$environmentSource = file_get_contents($root . '/core/InstallerEnvironmentService.php');
+sensitiveParameterAssert(is_string($environmentSource), 'Не удалось прочитать InstallerEnvironmentService.php');
+sensitiveParameterAssert(
+    str_contains($environmentSource, "'PHP 8.2+' => version_compare(PHP_VERSION, '8.2.0', '>=')"),
+    'Проверка требований установщика должна соответствовать минимуму PHP 8.2'
 );
 
 fwrite(STDOUT, "[OK] чувствительные параметры PHP 8.2 скрыты из трассировок\n");
