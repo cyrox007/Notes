@@ -12,7 +12,7 @@ if(!str_contains($version,"VERSION = '1.0.16'")||!str_contains($version,'VERSION
 $manifest=json_decode(file_get_contents($source.'/payload.json'),true,16,JSON_THROW_ON_ERROR);
 $payload=[];
 foreach($manifest as $name=>$hash){
- if(!preg_match('~^(modules/messenger/(views|services|handlers)/[A-Za-z0-9.-]+|assets/css/local-transcription.css)$~D',$name))throw new RuntimeException('Unsafe payload entry');
+ if(!preg_match('~^(modules/messenger/(views|services|handlers)/[A-Za-z0-9.-]+|assets/css/(local-transcription|messenger-connection-ux)\.css|assets/js/messenger-connection-ux\.js)$~D',$name))throw new RuntimeException('Unsafe payload entry');
  $bytes=file_get_contents($source.'/'.$name);
  if(!hash_equals($hash,hash('sha256',$bytes)))throw new RuntimeException('Payload checksum mismatch: '.$name);
  if(!is_file($root.'/'.$name)||is_link($root.'/'.$name))throw new RuntimeException('Installed file missing or unsafe: '.$name);
