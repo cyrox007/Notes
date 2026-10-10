@@ -33,5 +33,31 @@ try{
  assert.equal(await page.locator('.messenger-message__action:visible').count(),3);
  await page.evaluate(()=>document.querySelector('article').classList.add('messenger-message--actions-open'));
  assert.equal(await page.locator('.messenger-message__action:visible').count(),9);
+ await page.route('https://state.test/**',route=>route.fulfill({body:'<html><body></body></html>',contentType:'text/html'}));
+ await page.goto('https://state.test/');
+ const installStateFixture=async(user='one',uids=['a','b'])=>{
+  await page.evaluate(()=>{document.body.innerHTML='<div id="fixture"><div id="chat-empty-state"></div><div id="chat-active"></div><textarea id="message-input"></textarea><div id="message-scroll" style="height:100px;overflow:auto"><div id="message-list"></div></div><button id="load-older-button"></button></div>';});
+  await page.addScriptTag({content:source});
+  await page.evaluate(({user,uids})=>{
+   const root=document.querySelector('#fixture');root.dataset.userUid=user;
+   const app=new window.MessengerAppForTest(root);
+   for(const name of ['renderDialogs','renderChatHeader','clearComposeContext','storeDialogCache','renderDialogSnapshotState','markCurrentRead','focusRequestedMessage','notifyTyping'])app[name]=()=>{};
+   app.sendEvent=()=>true;
+   app.renderMessages=()=>{app.el.messageList.innerHTML='<div style="height:1000px">History</div>';};
+   app.bindEvents();app.applyDialogs(uids.map(uid=>({uid,type:'private'})));window.stateApp=app;
+  },{user,uids});
+ };
+ await installStateFixture();
+ await page.evaluate(()=>{stateApp.openDialog('a');stateApp.el.input.value='Черновик';stateApp.el.messageList.innerHTML='<div style="height:1000px">History</div>';stateApp.el.messageScroll.scrollTop=123;});
+ await page.reload();await installStateFixture();
+ assert.equal(await page.evaluate(()=>stateApp.currentDialog.uid),'a');
+ assert.equal(await page.locator('#message-input').inputValue(),'Черновик');
+ await page.evaluate(()=>stateApp.applyMessages({dialog_uid:'a',messages:[]}));await page.waitForTimeout(50);
+ assert.equal(await page.locator('#message-scroll').evaluate(el=>el.scrollTop),123);
+ await page.goto('https://state.test/?dialog=b');await installStateFixture();
+ assert.equal(await page.evaluate(()=>stateApp.currentDialog.uid),'b');
+ await page.goto('https://state.test/');await installStateFixture('other');
+ assert.equal(await page.evaluate(()=>stateApp.currentDialog),null);
+ console.log('PASS: reload restores authorized dialog, draft and scroll; explicit links and user isolation preserved');
  console.log('PASS: video node stays connected across receipt changes and prepend; actions above cards at 390/900/1440px');
 }finally{await browser.close();}

@@ -26,11 +26,18 @@
             this.typingTimer = null;
             this.typingSent = false;
             this.pendingOpenUid = null;
+            this.activeDialogStateKey = `wspace:messenger-active:v1:${this.userUid || 'anonymous'}`;
+            this.restoredDialogState = null;
+            try {
+                const saved = JSON.parse(sessionStorage.getItem(this.activeDialogStateKey) || 'null');
+                if (saved && typeof saved.uid === 'string' && saved.uid.length <= 128) this.restoredDialogState = saved;
+            } catch (_) { /* Storage may be disabled. */ }
             const deepLink = new URLSearchParams(window.location.search);
             this.requestedDialogUid = String(deepLink.get('dialog') || '').trim();
             this.requestedMessageUid = String(deepLink.get('message') || '').trim();
             this.requestedMessageAttempts = 0;
             if (this.requestedDialogUid) this.pendingOpenUid = this.requestedDialogUid;
+            else if (this.restoredDialogState) this.pendingOpenUid = this.restoredDialogState.uid;
 
             this.dialogs = [];
             this.dialogMap = new Map();
@@ -129,6 +136,7 @@
                 this.notifyTyping();
             });
 
+            window.addEventListener('pagehide', () => this.storeActiveDialogState());
             window.addEventListener('focus', () => this.markCurrentRead());
             document.addEventListener('wspace:update-install-start', () => this.suspendTransportForUpdate());
         }
@@ -638,6 +646,11 @@
                 this.renderChatHeader();
             }
 
+            if (this.pendingOpenUid && !this.requestedDialogUid && !this.dialogMap.has(this.pendingOpenUid)) {
+                this.pendingOpenUid = null;
+                this.restoredDialogState = null;
+                try { sessionStorage.removeItem(this.activeDialogStateKey); } catch (_) {}
+            }
             if (this.pendingOpenUid && this.dialogMap.has(this.pendingOpenUid)) {
                 const uid = this.pendingOpenUid;
                 this.pendingOpenUid = null;
@@ -825,10 +838,23 @@
             });
         }
 
+        storeActiveDialogState() {
+            if (!this.currentDialog?.uid) return;
+            const scroll = this.el.messageScroll;
+            const state = {
+                uid: this.currentDialog.uid,
+                draft: this.editing ? '' : String(this.el.input?.value || '').slice(0, 20000),
+                scrollTop: scroll?.scrollTop || 0,
+                atBottom: !scroll || scroll.scrollHeight - scroll.clientHeight - scroll.scrollTop < 40
+            };
+            try { sessionStorage.setItem(this.activeDialogStateKey, JSON.stringify(state)); } catch (_) {}
+        }
+
         openDialog(uid) {
             const dialog = this.dialogMap.get(uid);
             if (!dialog) return;
 
+            this.storeActiveDialogState();
             this.currentDialog = dialog;
             this.messages = [];
             this.replyTo = null;
@@ -841,6 +867,11 @@
             this.renderChatHeader();
             this.el.messageList.replaceChildren();
             this.el.loadOlder.hidden = true;
+            if (this.restoredDialogState?.uid === uid && !this.requestedMessageUid) {
+                if (this.el.input) this.el.input.value = typeof this.restoredDialogState.draft === 'string' ? this.restoredDialogState.draft.slice(0, 20000) : '';
+                this.autosizeComposer();
+            }
+            this.storeActiveDialogState();
             this.sendEvent('MessangerSocket:load', { dialog_uid: uid });
         }
 
@@ -891,6 +922,15 @@
             this.el.loadOlder.hidden = !this.hasMore;
             this.markCurrentRead();
             this.focusRequestedMessage();
+            const restored = this.restoredDialogState;
+            if (restored?.uid === this.currentDialog.uid) {
+                this.restoredDialogState = null;
+                if (!this.requestedMessageUid && !restored.atBottom) {
+                    requestAnimationFrame(() => {
+                        if (this.currentDialog?.uid === restored.uid) this.el.messageScroll.scrollTop = Math.max(0, Number(restored.scrollTop) || 0);
+                    });
+                }
+            }
         }
 
         renderMessages(options = {}) {

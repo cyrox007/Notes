@@ -5,7 +5,7 @@ files=['modules/messenger/views/style.css','modules/messenger/views/visual-refre
 payload={n:(root/n).read_bytes() for n in files}
 payload['payload.json']=json.dumps({n:hashlib.sha256(b).hexdigest() for n,b in payload.items()},indent=2).encode()
 payload['repair-messenger.php']=(root/'tools/release/repair-messenger-1.0.16.php').read_bytes()
-payload['README.md']='''# Messenger repair r7 for installed Workspace Organizer 1.0.16
+payload['README.md']='''# Messenger repair r8 for installed Workspace Organizer 1.0.16
 
 Extract outside the site. Finish active updates before applying. Run PHP 8.1+:
 
@@ -20,7 +20,7 @@ Then run from the installed site directory:
 
 Final status must show zero pending migrations. Reload both browsers with Ctrl+F5. Use trusted HTTPS for camera and microphone.
 
-Fixes: stable message/video nodes during receipt refresh and typing; compact Reply/Reaction/More toolbar above messages; request-local Apache storage/key lookup, compact responsive voice/transcription card, live microphone meter, camera permission policy, audio fallback if a camera is busy/unavailable. The receiving participant can continue a video call without their camera. A hardware camera may remain exclusive to one browser: use two devices to test two-way video, or release the other browser camera and start a new call. No external services or runtime libraries added.
+Fixes: per-tab/per-user active dialog, draft and scroll restoration after reload; stable message/video nodes during receipt refresh and typing; compact Reply/Reaction/More toolbar above messages; request-local Apache storage/key lookup, compact responsive voice/transcription card, live microphone meter, camera permission policy, audio fallback if a camera is busy/unavailable. The receiving participant can continue a video call without their camera. A hardware camera may remain exclusive to one browser: use two devices to test two-way video, or release the other browser camera and start a new call. No external services or runtime libraries added.
 
 Unknown audio duration is displayed as a dash rather than a false zero. Existing files recorded into an old fallback directory may require separate recovery; the patch does not automatically move user media. Browser proxy and local TLS certificate configuration are machine-specific and not included. This is not a signed offline update package. Do not copy the complete archive over the application.
 '''.encode()
