@@ -1,8 +1,20 @@
-# Full updater repair, 2026-10-10 (revision 3)
+# Full updater repair, 2026-10-10 (revision 4)
 
 The original two-file repair fixed preparation and backup dates only. It did
 not fix installation on Windows. **Use the full archive and `repair-updater.php`**
 described below; the old two-file archive is superseded.
+
+## Revision 4: Apache environment and HTTP error visibility
+
+The real admin button then reached candidate_verified, but the external Apache
+request's preflight health check could no longer read environment values.
+Environment now captures pre-existing process values into request-local arrays;
+updater readers fall back to that captured configuration if getenv loses a value.
+The frozen closure includes health schema/WebSocket dependencies explicitly.
+The HTTP boundary logs otherwise unhandled exceptions to private
+updates/http-events.jsonl without relying on loaded environment. Browser failures
+show HTTP status, error code, transaction ID and retry count.
+This stop occurred before live mutation; the original version remained healthy.
 
 ## Revision 3: real browser mode and diagnostics
 

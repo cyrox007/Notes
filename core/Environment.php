@@ -49,6 +49,16 @@ final class Environment
         }
     }
 
+    /** Request-local fallback when Apache loses process environment values. */
+    public static function get(string $name): string|false
+    {
+        $value = getenv($name);
+        if ($value !== false) return $value;
+        if (array_key_exists($name, $_ENV)) return (string) $_ENV[$name];
+        if (array_key_exists($name, $_SERVER)) return (string) $_SERVER[$name];
+        return false;
+    }
+
     private static function loadLine(string $line, int $lineNumber, string $file): void
     {
         $trimmed = trim($line);
@@ -67,8 +77,11 @@ final class Environment
         $key = $matches[1];
         $value = self::parseValue($matches[2], $file, $lineNumber);
 
+        // Apache on Windows may expose a variable only through getenv().
+        // Capture it in request-local arrays too, before another request ends.
         if (self::isDefined($key)) {
-            return;
+            $existing = getenv($key);
+            $value = $existing !== false ? $existing : (string) ($_ENV[$key] ?? $_SERVER[$key]);
         }
 
         if (!putenv($key . '=' . $value)) {

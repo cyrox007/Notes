@@ -218,6 +218,8 @@ $files = [
     'core/ModuleManifest.php',
     'core/SecurityEventLog.php',
     'core/ServiceLog.php',
+    'core/SchemaReadiness.php',
+    'core/WebSocketEndpoint.php',
     'core/UpdateApplyCommand.php',
     'core/UpdateApplyOperationLock.php',
     'core/UpdateArchiveInspector.php',

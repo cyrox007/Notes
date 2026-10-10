@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Core;
 
+require_once __DIR__ . '/Environment.php';
+
 use RuntimeException;
 
 /**
@@ -40,7 +42,7 @@ final class UpdatePhpCli
 
         self::appendCandidate(
             $candidates,
-            trim((string) (getenv('UPDATE_PHP_BINARY') ?: ''))
+            trim((string) (Environment::get('UPDATE_PHP_BINARY') ?: ''))
         );
 
         $phpBinary = trim((string) PHP_BINARY);
@@ -85,7 +87,7 @@ final class UpdatePhpCli
     /** @return list<string> */
     private static function pathDirectories(): array
     {
-        $path = trim((string) (getenv('PATH') ?: ''));
+        $path = trim((string) (Environment::get('PATH') ?: ''));
         if ($path === '') {
             return [];
         }

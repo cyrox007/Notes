@@ -77,6 +77,10 @@ envContractAssert(getenv($exported) === 'yes', 'синтаксис export KEY=VA
 envContractAssert(getenv($expanded) === 'alpha-beta', 'подстановка переменной не сработала');
 envContractAssert(getenv($literalDollar) === '${' . $base . '}', 'экранированная ссылка на переменную была ошибочно раскрыта');
 envContractAssert(getenv($preset) === 'from-process', 'существующее окружение процесса было перезаписано');
+envContractAssert(($_ENV[$preset] ?? null) === 'from-process', 'predefined process value not captured');
+putenv($plain);
+envContractAssert(Environment::get($plain) === 'hello', 'request-local fallback lost loaded environment');
+putenv($plain . '=hello');
 envContractAssert(($_ENV[$plain] ?? null) === 'hello', 'массив $_ENV не заполнен');
 envContractAssert(($_SERVER[$plain] ?? null) === 'hello', 'массив $_SERVER не заполнен');
 envContractAssert(getenv($bom) === 'ok', 'UTF-8 BOM не обработан');

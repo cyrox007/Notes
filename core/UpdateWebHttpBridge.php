@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Core;
 
+require_once __DIR__ . '/Environment.php';
+
 use App\Services\MaintenanceModeService;
 use Throwable;
 
@@ -132,7 +134,7 @@ final class UpdateWebHttpBridge
             return true;
         }
 
-        $siteUrl = trim((string) (getenv('SITEURL') ?: ''));
+        $siteUrl = trim((string) (Environment::get('SITEURL') ?: ''));
         $originParts = parse_url($origin);
         $siteParts = parse_url($siteUrl);
         if (!is_array($originParts) || !is_array($siteParts)) {

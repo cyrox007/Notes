@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Core;
 
+require_once __DIR__ . '/Environment.php';
+
 use RuntimeException;
 
 /**
@@ -26,9 +28,9 @@ final class MigrationBaseline
         string $appRoot,
         int $targetVersionCode
     ): ?int {
-        $stateRoot = trim((string) (getenv('UPDATE_STATE_PATH') ?: ''));
+        $stateRoot = trim((string) (Environment::get('UPDATE_STATE_PATH') ?: ''));
         if ($stateRoot === '') {
-            $privateRoot = trim((string) (getenv('PRIVATE_STORAGE_PATH') ?: ''));
+            $privateRoot = trim((string) (Environment::get('PRIVATE_STORAGE_PATH') ?: ''));
             if ($privateRoot === '') {
                 return null;
             }

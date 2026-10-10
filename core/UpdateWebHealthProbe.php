@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Core;
 
+require_once __DIR__ . '/Environment.php';
+
 use RuntimeException;
 use Throwable;
 
 require_once __DIR__ . '/DatabaseOwnership.php';
+require_once __DIR__ . '/ModuleManifest.php';
 require_once __DIR__ . '/SchemaReadiness.php';
 require_once __DIR__ . '/SecurityEventLog.php';
 require_once __DIR__ . '/WebSocketEndpoint.php';
@@ -217,7 +220,7 @@ final class UpdateWebHealthProbe
 
     private function env(string $name): string
     {
-        $value = getenv($name);
+        $value = Environment::get($name);
         return is_string($value) ? trim($value) : '';
     }
 

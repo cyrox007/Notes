@@ -46,7 +46,7 @@ try {
         'поиск PHP CLI не проверяет бинарник рядом с фактическим web-PHP'
     );
     readinessAssert(
-        str_contains($phpCliSource, "getenv('PATH')"),
+        str_contains($phpCliSource, "Environment::get('PATH')"),
         'поиск PHP CLI не использует абсолютные каталоги PATH как резервный источник'
     );
 

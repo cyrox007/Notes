@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Core;
 
+require_once __DIR__ . '/Environment.php';
+
 use RuntimeException;
 use Throwable;
 
@@ -40,7 +42,7 @@ final class PrivateStorageResolver
      */
     public function candidate(): string
     {
-        $configured = trim((string) (getenv('PRIVATE_STORAGE_PATH') ?: ''));
+        $configured = trim((string) (Environment::get('PRIVATE_STORAGE_PATH') ?: ''));
         if ($configured !== '') {
             return $this->validateCandidate($configured);
         }
@@ -145,7 +147,7 @@ final class PrivateStorageResolver
     public function automaticCandidates(): array
     {
         $suffix = substr(hash('sha256', self::stableNormalize($this->appRoot)), 0, 10);
-        $home = trim((string) (getenv('HOME') ?: ($_SERVER['HOME'] ?? '')));
+        $home = trim((string) (Environment::get('HOME') ?: ($_SERVER['HOME'] ?? '')));
 
         $items = [
             dirname($this->appRoot) . DIRECTORY_SEPARATOR . '.workspace-organizer-private-' . $suffix,

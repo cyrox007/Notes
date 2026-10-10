@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Core;
 
+require_once __DIR__ . '/Environment.php';
+
 use RuntimeException;
 use Throwable;
 
@@ -243,11 +245,11 @@ final class SecurityEventLog
     {
         $path = trim((string) ($explicit ?? ''));
         if ($path === '') {
-            $configured = getenv('SECURITY_EVENT_LOG_PATH');
+            $configured = Environment::get('SECURITY_EVENT_LOG_PATH');
             $path = is_string($configured) ? trim($configured) : '';
         }
         if ($path === '') {
-            $private = getenv('PRIVATE_STORAGE_PATH');
+            $private = Environment::get('PRIVATE_STORAGE_PATH');
             $private = is_string($private) ? trim($private) : '';
             if ($private === '') {
                 throw new RuntimeException('PRIVATE_STORAGE_PATH or SECURITY_EVENT_LOG_PATH is required');

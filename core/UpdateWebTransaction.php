@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Core;
 
+require_once __DIR__ . '/Environment.php';
+
 use App\Services\MaintenanceModeService;
 use mysqli;
 use RuntimeException;
@@ -48,7 +50,7 @@ final class UpdateWebTransaction
 
         $this->appRoot = rtrim($resolved, '/\\');
         $this->verifier = $verifier ?? new UpdateManifestVerifier();
-        $privateRoot = trim((string) (getenv('PRIVATE_STORAGE_PATH') ?: ''));
+        $privateRoot = trim((string) (Environment::get('PRIVATE_STORAGE_PATH') ?: ''));
 
         $this->stateRoot = $this->externalRoot('UPDATE_STATE_PATH', $privateRoot, 'updates');
         $this->backupRoot = $this->externalRoot('UPDATE_BACKUP_PATH', $privateRoot, 'update-backups');
@@ -613,7 +615,7 @@ final class UpdateWebTransaction
             'UPDATE_BACKUP_PATH',
             'UPDATE_RELEASE_PATH',
         ] as $name) {
-            $value = getenv($name);
+            $value = Environment::get($name);
             if (is_string($value) && trim($value) !== '') {
                 $paths[] = trim($value);
             }
@@ -628,19 +630,19 @@ final class UpdateWebTransaction
             throw new RuntimeException('Для резервной копии updater требуется mysqli');
         }
 
-        $user = trim((string) (getenv('DBUSER') ?: ''));
-        $database = trim((string) (getenv('DBNAME') ?: ''));
+        $user = trim((string) (Environment::get('DBUSER') ?: ''));
+        $database = trim((string) (Environment::get('DBNAME') ?: ''));
         if ($user === '' || $database === '') {
             throw new RuntimeException('Не заданы DBUSER/DBNAME для резервной копии updater');
         }
 
         mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
         $db = new mysqli(
-            (string) (getenv('DBHOST') ?: 'localhost'),
+            (string) (Environment::get('DBHOST') ?: 'localhost'),
             $user,
-            (string) (getenv('DBPASS') ?: ''),
+            (string) (Environment::get('DBPASS') ?: ''),
             $database,
-            (int) (getenv('DBPORT') ?: 3306)
+            (int) (Environment::get('DBPORT') ?: 3306)
         );
         $db->set_charset('utf8mb4');
         return $db;
@@ -651,7 +653,7 @@ final class UpdateWebTransaction
         string $privateRoot,
         string $fallbackSuffix
     ): string {
-        $configured = trim((string) (getenv($envName) ?: ''));
+        $configured = trim((string) (Environment::get($envName) ?: ''));
         $path = $configured !== ''
             ? $configured
             : ($privateRoot !== ''

@@ -67,3 +67,8 @@ const handedOff = await scenario([start, { status: 200, payload: externalStart.p
     { ...done, expectedUrl: 'https://notes.test/workspace/update-continuations/frozen.php' }]);
 assert.equal(handedOff.result.status, 'committed', 'Контроллер 1.0.14 должен получить URL на первом шаге');
 console.log('[OK] Окончательные отказы, WAF, обрыв сети и ограниченные повторы');
+
+const diagnostic = await scenario([start, { status: 403, payload: { success: false, error: 'continuation_invalid', retryable: false } }]);
+assert.match(diagnostic.error.message, /HTTP 403/);
+assert.match(diagnostic.error.message, /continuation_invalid/);
+assert.match(diagnostic.error.message, /transaction/);
