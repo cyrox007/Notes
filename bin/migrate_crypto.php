@@ -2,21 +2,14 @@
 
 declare(strict_types=1);
 
-if (PHP_SAPI !== 'cli') {
-    fwrite(STDERR, "This command is CLI-only.\n");
-    exit(2);
-}
+require_once dirname(__DIR__) . '/core/CliRuntime.php';
+$root = \Core\CliRuntime::loadEnvironment();
+\Core\CliRuntime::registerAutoloader($root);
+require_once $root . '/app/handlers/CryptMethods.php';
+require_once $root . '/modules/messenger/handlers/MessengerCrypto.php';
+require_once $root . '/app/services/CryptoMigrationService.php';
 
-$root = dirname(__DIR__);
-require_once $root . '/core/Environment.php';
-if (is_file($root . '/.env')) {
-    \Core\Environment::load($root . '/.env');
-}
-require_once $root . '/core/RuntimeAutoloader.php';
-\Core\RuntimeAutoloader::register($root);
-require $root . '/app/handlers/CryptMethods.php';
-require $root . '/modules/messenger/handlers/MessengerCrypto.php';
-require $root . '/app/services/CryptoMigrationService.php';
+use Core\CliRuntime;
 
 $options = getopt('', [
     'scope:',
@@ -28,29 +21,29 @@ $options = getopt('', [
 ]);
 
 if (isset($options['help'])) {
-    echo "Usage: php bin/migrate_crypto.php [options]\n";
-    echo "  --scope=all|messenger|notes   Data set to scan (default all).\n";
-    echo "  --dry-run                     Authenticate/decrypt only; do not update DB.\n";
-    echo "  --limit=N                     Maximum rows per scope, 1..10000 (default 1000).\n";
-    echo "  --after-id=N                  Resume after primary-key ID N.\n";
-    echo "  --allow-plaintext-notes       Treat unknown notes marked encrypted as plaintext.\n";
+    echo "Использование: php bin/migrate_crypto.php [параметры]\n";
+    echo "  --scope=all|messenger|notes   Набор данных для обработки (по умолчанию all).\n";
+    echo "  --dry-run                     Только проверить расшифровку, без изменения БД.\n";
+    echo "  --limit=N                     Максимум строк на область, 1..10000 (по умолчанию 1000).\n";
+    echo "  --after-id=N                  Продолжить после первичного ключа N.\n";
+    echo "  --allow-plaintext-notes       Считать неизвестные зашифрованные заметки открытым текстом.\n";
     exit(0);
 }
 
 $scope = strtolower((string) ($options['scope'] ?? 'all'));
 if (!in_array($scope, ['all', 'messenger', 'notes'], true)) {
-    fwrite(STDERR, "Invalid --scope. Use all, messenger or notes.\n");
+    fwrite(STDERR, "Некорректный --scope. Используйте all, messenger или notes.\n");
     exit(2);
 }
 
 $limit = isset($options['limit']) ? (int) $options['limit'] : 1000;
 if ($limit < 1 || $limit > 10000) {
-    fwrite(STDERR, "--limit must be between 1 and 10000.\n");
+    fwrite(STDERR, "--limit должен быть в диапазоне 1..10000.\n");
     exit(2);
 }
 $afterId = isset($options['after-id']) ? (int) $options['after-id'] : 0;
 if ($afterId < 0) {
-    fwrite(STDERR, "--after-id must be >= 0.\n");
+    fwrite(STDERR, "--after-id должен быть не меньше 0.\n");
     exit(2);
 }
 $dryRun = isset($options['dry-run']);
@@ -74,7 +67,7 @@ try {
         $output['results']['notes'] = $service->migrateNotes($dryRun, $limit, $allowPlaintextNotes, $afterId);
     }
 
-    echo json_encode($output, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . PHP_EOL;
+    CliRuntime::writeJson($output, true);
 
     $failed = 0;
     foreach ($output['results'] as $result) {
@@ -82,6 +75,5 @@ try {
     }
     exit($failed > 0 ? 1 : 0);
 } catch (Throwable $e) {
-    fwrite(STDERR, 'Crypto migration failed: ' . $e->getMessage() . PHP_EOL);
-    exit(1);
+    CliRuntime::fail($e, false, 'crypto_migration_failed');
 }
