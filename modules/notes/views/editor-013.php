@@ -98,8 +98,10 @@ foreach ($attachmentRows as $attachment) {
                 </div>
             </section>
 
-            <section class="note-editor-013__side-card">
+            <section class="note-editor-013__side-card" data-note-file-drop>
                 <div class="note-editor-013__section-head"><div><h2>Файлы</h2><p>Документы и медиа в приватном хранилище.</p></div></div>
+                <p class="note-editor-013__drop-hint">Перетащите сюда файл, чтобы добавить его к заметке.</p>
+                <p class="note-editor-013__upload-status" role="status" aria-live="polite"></p>
                 <form id="uploadForm" class="note-editor-013__file-form" enctype="multipart/form-data">
                     <input type="file" name="attachment" id="attachmentInput" accept="image/jpeg,image/png,image/gif,image/webp,audio/*,video/mp4,video/webm,video/quicktime,.pdf,.txt,.md,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp" required>
                     <input type="hidden" name="is_voice" value="false"><button type="submit" class="btn btn-secondary">Добавить файл</button>
