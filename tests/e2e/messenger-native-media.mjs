@@ -9,7 +9,8 @@ async function bounded(label,operation,milliseconds=20000){
  try{return await Promise.race([operation,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(`${label} timed out`)),milliseconds);})]);}
  finally{clearTimeout(timer);}
 }
-const browser=await chromium.launch({headless:true,args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--autoplay-policy=no-user-gesture-required'],...(process.env.E2E_BROWSER_EXECUTABLE?{executablePath:process.env.E2E_BROWSER_EXECUTABLE}:{})});
+// Native on-device speech requires the full Chromium browser services, not headless shell.
+const browser=await chromium.launch({headless:true,args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream','--autoplay-policy=no-user-gesture-required'],...(process.env.E2E_BROWSER_EXECUTABLE?{executablePath:process.env.E2E_BROWSER_EXECUTABLE}:{channel:'chromium'})});
 try{
  const contexts=await Promise.all([1,2].map(async id=>{const c=await browser.newContext({permissions:['camera','microphone']});await c.addCookies([{name:'fixture_user',value:String(id),url:origin}]);return c;}));
  contexts.forEach(c=>{c.setDefaultTimeout(15000);c.setDefaultNavigationTimeout(15000);});
