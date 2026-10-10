@@ -106,6 +106,10 @@ $cliFiles = [
     'bin/retention.php',
     'bin/cleanup_messenger_orphans.php',
     'bin/healthcheck.php',
+    'bin/control.php',
+    'bin/migrate_crypto.php',
+    'bin/reconcile_file_storage.php',
+    'bin/repair_phpmyadmin_dump.php',
 ];
 foreach ($cliFiles as $relative) {
     $source = file_get_contents($root . '/' . $relative);
