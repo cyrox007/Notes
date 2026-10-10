@@ -7,27 +7,28 @@ namespace Core;
 use RuntimeException;
 
 /**
- * Неблокирующий lock всей пользовательской операции обновления.
+ * Неблокирующая блокировка всей пользовательской операции обновления.
  *
- * В отличие от apply-lock он охватывает также backup и candidate. Файловый
- * дескриптор освобождается операционной системой при гибели PHP-процесса, после
- * чего следующий HTTP-запрос может безопасно начать recovery.
+ * В отличие от блокировки применения она охватывает также резервную копию и
+ * подготовку кандидата. Файловый дескриптор освобождается операционной системой
+ * при завершении PHP-процесса, после чего следующий HTTP-запрос может безопасно
+ * начать восстановление.
  */
 final class UpdateCoordinatorLock
 {
     /** @var resource|null */
-    private $handle = null;
+    private mixed $handle = null;
 
     public function __construct(string $stateRoot, string $transactionId)
     {
         $transactionId = trim($transactionId);
         if (preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]{7,95}$/', $transactionId) !== 1) {
-            throw new RuntimeException('Некорректный идентификатор транзакции для coordinator-lock');
+            throw new RuntimeException('Некорректный идентификатор транзакции для блокировки координатора');
         }
 
         $root = realpath($stateRoot);
         if (!is_string($root) || !is_dir($root) || is_link($stateRoot) || !is_writable($root)) {
-            throw new RuntimeException('Каталог состояния updater недоступен для coordinator-lock');
+            throw new RuntimeException('Каталог состояния обновлятора недоступен для блокировки координатора');
         }
 
         $locksRoot = rtrim($root, '/\\') . DIRECTORY_SEPARATOR . 'coordinator-locks';
@@ -36,24 +37,24 @@ final class UpdateCoordinatorLock
             $created = @mkdir($locksRoot, 0700, false);
             umask($oldUmask);
             if (!$created && !is_dir($locksRoot)) {
-                throw new RuntimeException('Не удалось создать каталог coordinator-lock');
+                throw new RuntimeException('Не удалось создать каталог блокировок координатора');
             }
         }
         if (!is_dir($locksRoot) || is_link($locksRoot)) {
-            throw new RuntimeException('Каталог coordinator-lock небезопасен');
+            throw new RuntimeException('Каталог блокировок координатора небезопасен');
         }
         @chmod($locksRoot, 0700);
 
         $path = $locksRoot . DIRECTORY_SEPARATOR . $transactionId . '.lock';
         if (is_link($path) || (file_exists($path) && !is_file($path))) {
-            throw new RuntimeException('Путь coordinator-lock небезопасен');
+            throw new RuntimeException('Путь блокировки координатора небезопасен');
         }
 
         $oldUmask = umask(0077);
         $handle = @fopen($path, 'c');
         umask($oldUmask);
         if ($handle === false) {
-            throw new RuntimeException('Не удалось открыть coordinator-lock');
+            throw new RuntimeException('Не удалось открыть блокировку координатора');
         }
         @chmod($path, 0600);
 
