@@ -79,9 +79,13 @@ final class Environment
 
         // Apache on Windows may expose a variable only through getenv().
         // Capture it in request-local arrays too, before another request ends.
-        if (self::isDefined($key)) {
-            $existing = getenv($key);
-            $value = $existing !== false ? $existing : (string) ($_ENV[$key] ?? $_SERVER[$key]);
+        $existing = getenv($key);
+        if ($existing !== false) {
+            $value = $existing;
+        } elseif (array_key_exists($key, $_ENV)) {
+            $value = (string) $_ENV[$key];
+        } elseif (array_key_exists($key, $_SERVER)) {
+            $value = (string) $_SERVER[$key];
         }
 
         if (!putenv($key . '=' . $value)) {
