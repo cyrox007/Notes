@@ -123,7 +123,11 @@ final class UpdatePackageStager
         }
 
         $targetVersionCode = (int) $manifest['version_code'];
-        $stageName = sprintf('%d-%s', $targetVersionCode, substr($verified['sha256'], 0, 16));
+        // Re-signing an unchanged ZIP must not collide with an older signed stage.
+        // Existing transaction journals retain their original directory unchanged.
+        $signedIdentity = hash('sha256', $manifestBytes . "\0" . trim($signatureToken));
+        $stageName = sprintf('%d-%s-%s', $targetVersionCode,
+            substr($verified['sha256'], 0, 16), substr($signedIdentity, 0, 16));
         $finalDir = $stageRoot . DIRECTORY_SEPARATOR . $stageName;
         $tempDir = $stageRoot . DIRECTORY_SEPARATOR . '.tmp-' . $stageName . '-' . bin2hex(random_bytes(6));
 

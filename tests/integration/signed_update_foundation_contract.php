@@ -147,6 +147,18 @@ try {
     );
     updateAssert($again['stage_dir'] === $staged['stage_dir'], 'staging the same signed package was not idempotent');
 
+    $renewedBytes = $manifestBytes . "\n";
+    $renewedToken = UpdateManifestVerifier::SIGNATURE_PREFIX . '.' . $keyId . '.'
+        . UpdateManifestVerifier::base64UrlEncode(
+            sodium_crypto_sign_detached(UpdateManifestVerifier::DOMAIN . $renewedBytes, $secretKey)
+        );
+    $renewedManifest = $verifier->verify($renewedBytes, $renewedToken)['manifest'] ?? null;
+    updateAssert(is_array($renewedManifest), 'renewed manifest signature invalid');
+    $renewed = $stager->stage($renewedManifest, $renewedBytes, $renewedToken,
+        $packagePath, $stageRoot, Version::VERSION_CODE, PHP_VERSION);
+    updateAssert($renewed['stage_dir'] !== $staged['stage_dir'], 're-signed ZIP collided with old stage');
+    updateAssert(file_get_contents($staged['manifest']) === $manifestBytes, 'old transaction stage changed');
+
     $insideRootRejected = false;
     try {
         $stager->stage(

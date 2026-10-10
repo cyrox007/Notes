@@ -1,0 +1,37 @@
+name: Standalone updater repair
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['codex/**']
+    paths:
+      - 'tools/release/repair-updater-stage.php'
+      - 'docs/updates/updater-repair-2026-10-10.md'
+      - '.github/workflows/updater-repair.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          coverage: none
+      - name: Validate and package repair
+        run: |
+          php -l tools/release/repair-updater-stage.php
+          mkdir patch
+          cp tools/release/repair-updater-stage.php patch/
+          cp docs/updates/updater-repair-2026-10-10.md patch/README.md
+          cd patch
+          sha256sum repair-updater-stage.php README.md > SHA256SUMS
+          zip ../notes-updater-repair-1.0.13-1.0.15.zip repair-updater-stage.php README.md SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: notes-updater-repair-1.0.13-1.0.15
+          path: notes-updater-repair-1.0.13-1.0.15.zip
+          retention-days: 90
