@@ -75,4 +75,5 @@ jobs:
           set -euo pipefail
           php tests/integration/core_refactor_contract.php
           php tests/integration/core_php82_architecture_contract.php
+          php tests/integration/http_entrypoint_contract.php
           php tests/integration/router_session_security_contract.php

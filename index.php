@@ -12,11 +12,17 @@ if (!defined('SITEPATH')) {
 require_once SITEPATH . '/core/SecurityHeaders.php';
 \Core\SecurityHeaders::apply();
 
-// Startup failures can happen before .env is loaded. Keep this fallback outside
-// the public application tree; configured application logging takes over later.
+// Ошибки до загрузки .env пишем во внешний временный журнал. После запуска
+// ServiceLog приложение переключается на штатный контур журналирования.
 ini_set('error_log', sys_get_temp_dir() . '/workspace-organizer-startup.log');
 
-function handleStartupError(string $message, string $title = 'System Error'): never
+function startupRequestPath(): string
+{
+    $path = parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
+    return is_string($path) ? $path : '';
+}
+
+function handleStartupError(string $message, string $title = 'Системная ошибка'): never
 {
     http_response_code(500);
     header('Content-Type: text/html; charset=utf-8');
@@ -51,7 +57,7 @@ function handleStartupError(string $message, string $title = 'System Error'): ne
         <h1>{$safeTitle}</h1>
         <p>Приложение не смогло завершить запуск.</p>
         <div class="message">{$safeMessage}</div>
-        <p class="hint">Проверьте конфигурацию окружения и server error log. Для fresh install откройте <code>/install.php</code>.</p>
+        <p class="hint">Проверьте конфигурацию окружения и журнал ошибок сервера. Для новой установки откройте <code>/install.php</code>.</p>
     </main>
 </body>
 </html>
@@ -59,23 +65,14 @@ HTML;
     exit;
 }
 
-/** @param array{active:bool,valid:bool,transaction_id:?string,reason:string,started_at:?int,state_path:?string} $state */
-/**
- * @param array{ready:bool,missing_tables:list<string>,missing_user_columns:list<string>} $state
- */
 function isMessengerLongPollRequest(): bool
 {
     if (strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'GET') {
         return false;
     }
 
-    $requestUri = (string) ($_SERVER['REQUEST_URI'] ?? '');
-    $path = parse_url($requestUri, PHP_URL_PATH);
-    if (!is_string($path) || $path === '') {
-        return false;
-    }
-
-    return preg_match('~(?:^|/)messenger/realtime/poll/?$~D', $path) === 1;
+    $path = startupRequestPath();
+    return $path !== '' && preg_match('~(?:^|/)messenger/realtime/poll/?$~D', $path) === 1;
 }
 
 function handleSuspendedMessengerLongPoll(int $retryAfterMs = 3000): never
@@ -112,74 +109,7 @@ function handleSuspendedMessengerLongPoll(int $retryAfterMs = 3000): never
     exit;
 }
 
-function handleSchemaUpgradeRequired(array $state): never
-{
-    if (isMessengerLongPollRequest()) {
-        handleSuspendedMessengerLongPoll();
-    }
-
-    http_response_code(503);
-    header('Cache-Control: no-store');
-    header('Retry-After: 60');
-
-    $accept = strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? ''));
-    if (str_contains($accept, 'application/json')) {
-        header('Content-Type: application/json; charset=utf-8');
-        echo json_encode([
-            'success' => false,
-            'error' => 'database_schema_update_required',
-            'message' => 'Код приложения новее схемы базы данных. Завершите миграции.',
-            'retry_after' => 60,
-        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
-        exit;
-    }
-
-    header('Content-Type: text/html; charset=utf-8');
-    $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-    $missingCount = count($state['missing_tables']) + count($state['missing_user_columns']);
-    echo <<<HTML
-<!doctype html>
-<html lang="ru">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <meta name="robots" content="noindex,nofollow">
-    <title>Требуется обновление базы данных</title>
-    <style nonce="{$cspNonce}">
-        :root { color-scheme: light dark; font-family: system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
-        * { box-sizing:border-box; }
-        body { margin:0; min-height:100vh; display:grid; place-items:center; padding:24px; background:#f4f6f9; color:#1f2937; }
-        main { width:min(720px,100%); padding:28px; background:#fff; border:1px solid #dce2e9; border-radius:16px; box-shadow:0 18px 48px rgba(31,41,55,.10); }
-        h1 { margin:0 0 10px; font-size:24px; }
-        p { margin:8px 0; line-height:1.6; color:#667085; }
-        code { display:block; margin-top:8px; padding:10px 12px; border:1px solid #e4e7ec; border-radius:8px; background:#f8fafc; color:#344054; white-space:pre-wrap; }
-        .count { font-weight:700; color:#344054; }
-        @media (prefers-color-scheme:dark) {
-            body { background:#111318; color:#f3f4f6; }
-            main { background:#191c22; border-color:#303640; }
-            p { color:#aab2bf; }
-            code { background:#111318; border-color:#303640; color:#e5e7eb; }
-            .count { color:#e5e7eb; }
-        }
-    </style>
-</head>
-<body>
-<main role="status">
-    <h1>Требуется обновление базы данных</h1>
-    <p>Файлы приложения уже обновлены, но схема базы данных ещё относится к предыдущей версии.</p>
-    <p class="count">Обнаружено несоответствий: {$missingCount}.</p>
-    <p>Перед продолжением сделайте резервную копию БД и выполните из корня Workspace:</p>
-    <code>php bin/migrate.php --status
-php bin/migrate.php
-php bin/healthcheck.php --json</code>
-    <p>После успешной миграции просто обновите страницу. Установщик запускать не нужно.</p>
-</main>
-</body>
-</html>
-HTML;
-    exit;
-}
-
+/** @param array{active:bool,valid:bool,transaction_id:?string,reason:string,started_at:?int,state_path:?string} $state */
 function handleMaintenanceMode(array $state): never
 {
     if (isMessengerLongPollRequest()) {
@@ -232,6 +162,62 @@ HTML;
     exit;
 }
 
+function isSupportDiagnosticsRequest(): bool
+{
+    if (strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'GET') {
+        return false;
+    }
+
+    return preg_match('~(?:^|/)support-diagnostics/?$~D', startupRequestPath()) === 1;
+}
+
+function tryHandleSupportDiagnostics(string $root): void
+{
+    if (!isSupportDiagnosticsRequest()) {
+        return;
+    }
+
+    $diagnosticsPath = $root . '/core/SupportDiagnostics.php';
+    if (!is_file($diagnosticsPath) || is_link($diagnosticsPath)) {
+        return;
+    }
+    if (!is_file($root . '/core/SupportZipWriter.php') || !is_file($root . '/core/HostingProfileProbe.php')) {
+        return;
+    }
+
+    require_once $diagnosticsPath;
+    if (\Core\SupportDiagnostics::canHandleRequest()) {
+        \Core\SupportDiagnostics::handleRequest($root);
+    }
+}
+
+function isUpdateWebStepRequest(): bool
+{
+    if (strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? '')) !== 'POST') {
+        return false;
+    }
+
+    return str_ends_with(rtrim(startupRequestPath(), '/'), '/admin/updates/web-step');
+}
+
+/**
+ * @param array{active:bool,valid:bool,transaction_id:?string,reason:string,started_at:?int,state_path:?string} $state
+ */
+function tryHandleUpdateWebStep(
+    string $root,
+    \App\Services\MaintenanceModeService $maintenance,
+    array $state
+): void {
+    if (!$state['active'] || !$state['valid'] || !isUpdateWebStepRequest()) {
+        return;
+    }
+
+    require_once $root . '/core/UpdateWebHttpBridge.php';
+    if (\Core\UpdateWebHttpBridge::canHandle($maintenance, $state)) {
+        \Core\UpdateWebHttpBridge::handle($root, $maintenance, $state);
+    }
+}
+
 try {
     require_once SITEPATH . '/core/Environment.php';
     \Core\Environment::load(SITEPATH . '/.env');
@@ -239,48 +225,19 @@ try {
     require_once SITEPATH . '/core/ServiceLog.php';
     \Core\ServiceLog::registerRuntimeCapture();
 
-    // При пофайловом code switch новый index.php может стать видимым на долю
-    // секунды раньше нового SupportDiagnostics.php. В этот момент нельзя
-    // превращать штатный maintenance/recovery в PHP Warning/Fatal.
-    $supportDiagnosticsPath = SITEPATH . '/core/SupportDiagnostics.php';
-    $supportDiagnosticsRequest = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) === 'GET'
-        && preg_match('~(?:^|/)support-diagnostics/?$~D',
-            (string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH)) === 1;
-    if ($supportDiagnosticsRequest
-        && is_file($supportDiagnosticsPath) && !is_link($supportDiagnosticsPath)
-        && is_file(SITEPATH . '/core/SupportZipWriter.php')
-        && is_file(SITEPATH . '/core/HostingProfileProbe.php')) {
-        require_once $supportDiagnosticsPath;
-
-        // Одноразовый пакет поддержки остаётся доступен даже когда обычный
-        // bootstrap заблокирован maintenance/recovery или схемой БД.
-        if (\Core\SupportDiagnostics::canHandleRequest()) {
-            \Core\SupportDiagnostics::handleRequest(SITEPATH);
-        }
-    }
+    // Диагностика должна оставаться доступной до maintenance/recovery. Проверка
+    // наличия файлов защищает пофайловое обновление от временно неполного дерева.
+    tryHandleSupportDiagnostics(SITEPATH);
 
     require_once SITEPATH . '/app/services/MaintenanceModeService.php';
-
     $maintenance = new \App\Services\MaintenanceModeService();
     $maintenanceState = $maintenance->state();
 
-    // Во время пошагового web-обновления только один capability-защищённый
-    // endpoint может пройти раньше общего maintenance-барьера. Обычные запросы
-    // по-прежнему закрыты, а Router и модули до завершения миграций не грузятся.
-    $updateStepRequest = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? '')) === 'POST'
-        && str_ends_with(
-            rtrim((string) parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH), '/'),
-            '/admin/updates/web-step'
-        );
-    if ($maintenanceState['active'] && $maintenanceState['valid'] && $updateStepRequest) {
-        require_once SITEPATH . '/core/UpdateWebHttpBridge.php';
-        if (\Core\UpdateWebHttpBridge::canHandle($maintenance, $maintenanceState)) {
-            \Core\UpdateWebHttpBridge::handle(SITEPATH, $maintenance, $maintenanceState);
-        }
-    }
+    // Единственный updater-endpoint, который разрешён до общего maintenance-барьера.
+    tryHandleUpdateWebStep(SITEPATH, $maintenance, $maintenanceState);
 
-    // До обычного maintenance-ответа завершаем восстановление оборванного
-    // обновления. Активный lease живого web-updater recovery не перехватывает.
+    // Сначала завершаем восстановление оборванного обновления. Только после
+    // этого можно зависеть от новых файлов обычного запуска 1.1.
     require_once SITEPATH . '/core/UpdateBootRecoveryGate.php';
     \Core\UpdateBootRecoveryGate::enforce(SITEPATH);
 
@@ -289,18 +246,8 @@ try {
         handleMaintenanceMode($maintenanceState);
     }
 
-    require_once SITEPATH . '/core/CrawlerDefense.php';
-    \Core\CrawlerDefense::handleEarlyRequest();
-
-    require_once SITEPATH . '/core/ModuleManifest.php';
-    require_once SITEPATH . '/core/DatabaseOwnership.php';
-    require_once SITEPATH . '/core/SchemaReadiness.php';
-    $schemaState = \Core\SchemaReadiness::inspect(SITEPATH);
-    if (!$schemaState['ready']) {
-        handleSchemaUpgradeRequired($schemaState);
-    }
-
-    require_once SITEPATH . '/core.php';
+    require_once SITEPATH . '/core/ApplicationEntryPoint.php';
+    \Core\ApplicationEntryPoint::bootstrap(SITEPATH);
 } catch (Throwable $e) {
     $exceptionClass = $e::class;
     $incidentId = substr(
@@ -308,7 +255,8 @@ try {
         0,
         16
     );
-    error_log("Workspace bootstrap failed [{$incidentId}] {$exceptionClass}: {$e->getMessage()}");
+
+    error_log("Ошибка запуска Workspace [{$incidentId}] {$exceptionClass}: {$e->getMessage()}");
     if (class_exists('Core\\ServiceLog', false)) {
         \Core\ServiceLog::emit(
             'bootstrap.failed',
@@ -321,16 +269,11 @@ try {
             ]
         );
     }
+
     handleStartupError(
-        "Не удалось безопасно запустить приложение. Код ошибки: {$incidentId}. Подробности записаны в server error log.",
-        'Configuration Error'
+        "Не удалось безопасно запустить приложение. Код ошибки: {$incidentId}. Подробности записаны в журнал ошибок сервера.",
+        'Ошибка конфигурации'
     );
 }
 
-require_once SITEPATH . '/core/Router.php';
-$router = \Core\Router::getInstance();
-$router->addGlobalMiddleware(\App\Middlewares\EnforceMaintenanceMode::class);
-$router->add('GET', '/module-assets', [\Core\ModuleAssetController::class, 'serve'], [], 'module_asset');
-require_once SITEPATH . '/core/routerConfig.php';
-\Core\ModuleRuntimeLoader::getInstance()->registerRoutes($router);
-$router->dispatch();
+\Core\ApplicationEntryPoint::dispatch(SITEPATH);
