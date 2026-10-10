@@ -50,6 +50,15 @@ try{
  assert.equal(uploads,1);assert.ok(recorded.length>1000);await page.locator('[data-video=send]').click();await page.locator('.workspace-video-recording').waitFor({state:'hidden'});assert.equal(uploads,1);assert.equal(sends,2);
  console.log('PASS: video confirmation retry');
  // Local STT fails closed without an installed on-device language, before reading audio.
+ await page.bringToFront();
+ page.on('console',message=>{if(message.text().startsWith('STT native:'))console.log(message.text());});
+ await page.evaluate(()=>{
+  const Engine=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(typeof Engine?.available==='function'){
+   const available=Engine.available.bind(Engine);
+   Engine.available=options=>{console.log('STT native: availability requested');return available(options).then(status=>{console.log('STT native: '+status);return status;});};
+  }
+ });
  await bounded('load local transcription adapter',page.addScriptTag({content:await readFile('assets/js/local-transcription.js','utf8')}));
  const available=await bounded('native local language availability',page.evaluate(async()=>{
   try{await window.wspace.localTranscription('/does-not-exist.wav','ru-RU');return 'unexpected-success';}catch(error){return error.message;}

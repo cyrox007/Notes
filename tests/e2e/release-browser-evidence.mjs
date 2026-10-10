@@ -53,7 +53,10 @@ function isExpectedMessengerNavigationAbort(request) {
     messengerBase + '/socket-ticket',
     messengerBase + '/calls',
   ]);
-  if (url.origin !== origin || !expectedBackgroundPaths.has(url.pathname)) return false;
+  const action = new URLSearchParams(request.postData() || '').get('action');
+  const readonlyAction = url.pathname === messengerBase + '/realtime/action'
+    && ['PingSocket:index', 'MessangerSocket:get_dialogs', 'DialogStateSocket:list', 'MessangerSocket:load', 'ReceiptSocket:list'].includes(action);
+  if (url.origin !== origin || (!expectedBackgroundPaths.has(url.pathname) && !readonlyAction)) return false;
 
   const failure = String(request.failure()?.errorText || '');
   const normalizedFailure = failure.toLowerCase();
