@@ -26,7 +26,7 @@ $formatBytes = static function (mixed $bytes): string {
 
 ob_start();
 ?>
-<section class="admin-page">
+<section class="admin-page admin-settings-page">
     <header class="admin-page__hero">
         <div>
             <span class="admin-page__eyebrow">Хранилище Workspace</span>
