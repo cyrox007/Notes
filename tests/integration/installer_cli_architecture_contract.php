@@ -18,24 +18,77 @@ installerCliAssert(
     'Установщик должен явно подключать сервис БД'
 );
 installerCliAssert(
+    str_contains($installer, "require_once __DIR__ . '/core/InstallerEnvironmentService.php';"),
+    'Установщик должен явно подключать сервис окружения'
+);
+installerCliAssert(
     str_contains($installer, 'new \\Core\\InstallerDatabaseService()'),
     'Установщик должен создавать InstallerDatabaseService'
 );
-foreach (['connectDatabase', 'connectOrCreateDatabase', 'assertDatabaseSchemaPrivileges', 'importSchemas', 'createAdminUser'] as $legacyFunction) {
+installerCliAssert(
+    str_contains($installer, 'new \\Core\\InstallerEnvironmentService()'),
+    'Установщик должен создавать InstallerEnvironmentService'
+);
+
+$legacyInstallerFunctions = [
+    'connectDatabase',
+    'connectOrCreateDatabase',
+    'assertDatabaseSchemaPrivileges',
+    'importSchemas',
+    'createAdminUser',
+    'randomSecret',
+    'installerFunctionAvailable',
+    'installerLongPollTimeoutSeconds',
+    'installerIniBytes',
+    'installerUploadTempWritable',
+    'installerOptionalCapabilities',
+    'privateStorageCandidate',
+    'preparePrivateStorage',
+    'assertPrivateStorageFilesystemContract',
+    'prepareRuntimeDirectories',
+    'envQuoted',
+    'writeEnvironmentFile',
+    'installerRequirements',
+];
+foreach ($legacyInstallerFunctions as $legacyFunction) {
     installerCliAssert(
         !str_contains($installer, 'function ' . $legacyFunction . '('),
-        'БД-логика не должна возвращаться в install.php: ' . $legacyFunction
+        'Инфраструктурная логика не должна возвращаться в install.php: ' . $legacyFunction
     );
 }
 
 require_once $root . '/core/HostingCompatibility.php';
+require_once $root . '/core/PrivateStorageResolver.php';
 require_once $root . '/core/InstallerDatabaseService.php';
+require_once $root . '/core/InstallerEnvironmentService.php';
+
 $installerDatabase = new ReflectionClass(\Core\InstallerDatabaseService::class);
 installerCliAssert($installerDatabase->isFinal(), 'InstallerDatabaseService должен оставаться final');
 foreach (['connect', 'connectOrCreate', 'assertServerCompatibility', 'assertSchemaPrivileges', 'existingTables', 'importSchemas', 'createAdminUser'] as $method) {
     installerCliAssert(
         $installerDatabase->hasMethod($method),
         'InstallerDatabaseService должен содержать метод ' . $method
+    );
+}
+
+$installerEnvironment = new ReflectionClass(\Core\InstallerEnvironmentService::class);
+installerCliAssert($installerEnvironment->isFinal(), 'InstallerEnvironmentService должен оставаться final');
+foreach ([
+    'randomSecret',
+    'functionAvailable',
+    'longPollTimeoutSeconds',
+    'iniBytes',
+    'uploadTempWritable',
+    'optionalCapabilities',
+    'privateStorageCandidate',
+    'preparePrivateStorage',
+    'prepareRuntimeDirectories',
+    'requirements',
+    'writeEnvironmentFile',
+] as $method) {
+    installerCliAssert(
+        $installerEnvironment->hasMethod($method),
+        'InstallerEnvironmentService должен содержать метод ' . $method
     );
 }
 
