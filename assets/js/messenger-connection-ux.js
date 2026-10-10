@@ -2,6 +2,7 @@
     'use strict';
 
     const MAX_RECONNECT_DELAY = 10000;
+    const CONNECTION_NOTICE_DELAY = 5000;
 
     document.addEventListener('DOMContentLoaded', () => {
         const app = window.wspace?.messenger;
@@ -23,6 +24,9 @@
         let countdownTimer = null;
         let reconnectAt = 0;
         let lastIdentityCheckAt = 0;
+        let connectionNoticeTimer = null;
+        let pendingConnectionNotice = null;
+        let connectionNoticeVisible = false;
 
         function ticketSubject(ticket) {
             try {
@@ -91,7 +95,45 @@
             clearCountdown();
         }
 
+        function clearConnectionNotice() {
+            if (connectionNoticeTimer !== null) {
+                window.clearTimeout(connectionNoticeTimer);
+                connectionNoticeTimer = null;
+            }
+            pendingConnectionNotice = null;
+            connectionNoticeVisible = false;
+        }
+
         function renderState(state, text, options = {}) {
+            const transient = state === 'connecting'
+                || (state === 'fallback' && text === 'Восстанавливаем синхронизацию…');
+            if (!transient) clearConnectionNotice();
+
+            // Загрузка страницы и одиночный сбой не означают длительную потерю связи.
+            // Повторные попытки не сдвигают срок предупреждения о непрерывном сбое.
+            if (transient && !connectionNoticeVisible) {
+                pendingConnectionNotice = { state, text, options };
+                const pendingText = state === 'connecting' ? 'Подключение…' : 'Синхронизация…';
+                originalSetConnectionState(state, pendingText);
+                connectionText?.setAttribute('title', pendingText);
+                if (connection) connection.dataset.pending = 'true';
+                root.dataset.connectionState = state;
+                root.dataset.connectionReason = options.reason || '';
+                banner.hidden = true;
+                retryButton.hidden = true;
+                if (connectionNoticeTimer === null) {
+                    connectionNoticeTimer = window.setTimeout(() => {
+                        connectionNoticeTimer = null;
+                        connectionNoticeVisible = true;
+                        const pending = pendingConnectionNotice;
+                        pendingConnectionNotice = null;
+                        if (pending) renderState(pending.state, pending.text, pending.options);
+                    }, CONNECTION_NOTICE_DELAY);
+                }
+                return;
+            }
+
+            if (connection) delete connection.dataset.pending;
             originalSetConnectionState(state, text);
             connectionText?.setAttribute('title', text);
             root.dataset.connectionState = state;
@@ -134,17 +176,12 @@
             const text = remaining > 0
                 ? `Связь потеряна · повтор через ${remaining} с`
                 : 'Восстанавливаем соединение…';
-            originalSetConnectionState('connecting', text);
-            connectionText?.setAttribute('title', text);
-            root.dataset.connectionState = 'connecting';
-            banner.hidden = false;
-            banner.dataset.state = 'connecting';
-            banner.dataset.reason = 'server';
-            bannerIcon.className = 'fa fa-refresh';
-            bannerText.textContent = remaining > 0
-                ? `Соединение прервано. Повторная попытка через ${remaining} с.`
-                : 'Восстанавливаем соединение с сервером…';
-            bannerAction.hidden = true;
+            renderState('connecting', text, {
+                reason: 'server', hideRetry: true,
+                bannerText: remaining > 0
+                    ? `Соединение прервано. Повторная попытка через ${remaining} с.`
+                    : 'Восстанавливаем соединение с сервером…'
+            });
         }
 
         async function refreshTicket() {
@@ -419,11 +456,9 @@
                 hideRetry: true
             });
         } else if (initialState !== 'online') {
-            banner.hidden = false;
-            banner.dataset.state = initialState;
-            banner.dataset.reason = 'server';
-            bannerText.textContent = connectionText?.textContent || 'Подключение к мессенджеру…';
-            bannerAction.hidden = true;
+            renderState(initialState, connectionText?.textContent || 'Подключение к мессенджеру…', {
+                reason: 'server', hideRetry: true
+            });
         }
     });
 })();
