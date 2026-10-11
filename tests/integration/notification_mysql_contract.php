@@ -27,17 +27,24 @@ function notificationApplySql(mysqli $db, string $path): void
         throw new RuntimeException('Не удалось прочитать SQL: ' . $path);
     }
 
-    $db->multi_query($sql);
-    do {
-        $result = $db->store_result();
-        if ($result instanceof mysqli_result) {
-            $result->free();
+    $statements = preg_split('/;\s*(?:\R|$)/', $sql) ?: [];
+    foreach ($statements as $index => $statement) {
+        $statement = trim($statement);
+        if ($statement === '') {
+            continue;
         }
-        if (!$db->more_results()) {
-            break;
+
+        try {
+            $db->query($statement);
+        } catch (mysqli_sql_exception $e) {
+            throw new RuntimeException(
+                'Ошибка SQL #' . ($index + 1) . ' в ' . basename($path) . ': ' . $e->getMessage()
+                . PHP_EOL . $statement,
+                0,
+                $e
+            );
         }
-        $db->next_result();
-    } while (true);
+    }
 }
 
 notificationApplySql($mysqli, $root . '/database/core_identity_schema.sql');
