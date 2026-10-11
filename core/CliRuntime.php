@@ -30,6 +30,19 @@ final class CliRuntime
         exit($exitCode);
     }
 
+    /**
+     * Запрещает web-вызов служебной команды без раскрытия её существования.
+     */
+    public static function assertCliHidden(): void
+    {
+        if (PHP_SAPI === 'cli') {
+            return;
+        }
+
+        http_response_code(404);
+        exit;
+    }
+
     public static function loadEnvironment(?string $root = null): string
     {
         self::assertCli();
