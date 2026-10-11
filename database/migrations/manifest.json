@@ -33,6 +33,7 @@
     "20261002_user_lifecycle.sql",
     "20261010_user_status_bridge.sql",
     "20261010_notifications_foundation.sql",
-    "20261011_calendar_reminders.sql"
+    "20261011_calendar_reminders.sql",
+    "20261011_calendar_crud.sql"
   ]
 }

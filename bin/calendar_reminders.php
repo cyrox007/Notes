@@ -30,7 +30,7 @@ if (!is_int($limit) || $limit < 1 || $limit > 100) {
     exit(2);
 }
 if (!is_int($catchUp) || $catchUp < 60 || $catchUp > 2592000) {
-    fwrite(STDERR, "Некорректный --catch-up-seconds: допустимо значение от 60 до 2592000.\n");
+    fwrite(STDERR, "Некорректный --catch-up-seconds: допустимо значение от 60 до 2592000 секунд.\n");
     exit(2);
 }
 
@@ -42,9 +42,10 @@ try {
         throw new RuntimeException('Модуль Calendar не предоставил capability workspace.calendar');
     }
 
+    $planning = $calendar->maintainUpcomingReminders(min($limit, 50));
     $result = $calendar->publishDueReminders($limit, $catchUp);
     if ($json) {
-        CliRuntime::writeJson(['status' => 'ok'] + $result);
+        CliRuntime::writeJson(['status' => 'ok', 'planning' => $planning] + $result);
         exit(0);
     }
 
@@ -54,7 +55,9 @@ try {
     }
 
     printf(
-        "Напоминания Calendar: выбрано %d, опубликовано %d, ошибок %d, просрочено %d.\n",
+        "Calendar: проверено серий %d, подготовлено напоминаний %d; выбрано %d, опубликовано %d, ошибок %d, просрочено %d.\n",
+        $planning['selected'],
+        $planning['scheduled'],
         $result['selected'],
         $result['published'],
         $result['failed'],

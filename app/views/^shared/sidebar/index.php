@@ -40,6 +40,13 @@ $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
             </a>
         <?php endif; ?>
 
+        <?php if (!empty($access['calendar'])): ?>
+            <a href="<?= $view->e($view->route('calendar')) ?>" class="sidebar__menu-link"<?= $activeRouteName === 'calendar' ? ' aria-current="page"' : '' ?> data-nav-key="calendar" title="Календарь">
+                <span class="sidebar__menu-icon"><i class="fa fa-calendar-o" aria-hidden="true"></i></span>
+                <span class="sidebar__menu-label">Календарь</span>
+            </a>
+        <?php endif; ?>
+
         <?php if (!empty($access['files'])): ?>
             <a href="<?= $view->e($view->route('files')) ?>" class="sidebar__menu-link"<?= $activeRouteName === 'files' ? ' aria-current="page"' : '' ?> data-nav-key="files" title="Файлы">
                 <span class="sidebar__menu-icon"><i class="fa fa-folder-o" aria-hidden="true"></i></span>

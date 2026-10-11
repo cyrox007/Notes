@@ -28,12 +28,21 @@ calendarReminderAssert(($manifest['runtime']['entrypoint'] ?? null) === 'runtime
 calendarReminderAssert(($manifest['capabilities'] ?? []) === ['workspace.calendar'], 'Calendar должен экспортировать только workspace.calendar');
 calendarReminderAssert(($manifest['license']['feature'] ?? null) === 'workspace.calendar', 'Calendar должен иметь отдельное лицензионное разрешение');
 calendarReminderAssert(
-    ($manifest['database']['tables'] ?? []) === ['calendar_events', 'calendar_reminders', 'calendar_runtime_state'],
-    'Calendar должен владеть только своими таблицами'
+    ($manifest['database']['tables'] ?? []) === [
+        'calendar_events',
+        'calendar_event_reminder_offsets',
+        'calendar_reminders',
+        'calendar_runtime_state',
+    ],
+    'Calendar должен владеть только своими таблицами, включая сохранённые смещения напоминаний'
 );
 calendarReminderAssert(
     in_array('database/migrations/20261011_calendar_reminders.sql', $manifest['database']['migrations'] ?? [], true),
-    'Manifest Calendar должен владеть своей миграцией'
+    'Manifest Calendar должен владеть миграцией фундамента напоминаний'
+);
+calendarReminderAssert(
+    in_array('database/migrations/20261011_calendar_crud.sql', $manifest['database']['migrations'] ?? [], true),
+    'Manifest Calendar должен владеть CRUD-миграцией'
 );
 
 $globalMigrationManifest = json_decode(
@@ -45,6 +54,10 @@ $globalMigrationManifest = json_decode(
 calendarReminderAssert(
     in_array('20261011_calendar_reminders.sql', $globalMigrationManifest['migrations'] ?? [], true),
     'Миграция Calendar должна входить в канонический порядок'
+);
+calendarReminderAssert(
+    in_array('20261011_calendar_crud.sql', $globalMigrationManifest['migrations'] ?? [], true),
+    'CRUD-миграция Calendar должна входить в канонический порядок'
 );
 
 $sql = calendarReminderRead($root . '/database/migrations/20261011_calendar_reminders.sql');
@@ -81,6 +94,7 @@ calendarReminderAssert(str_contains($publisher, 'HTTP_INTERVAL_SECONDS = 60'), '
 calendarReminderAssert(!preg_match('/\bsleep\s*\(|while\s*\(\s*true\s*\)/', $calendarSources), 'Calendar reminders не должны требовать бесконечный daemon-loop');
 calendarReminderAssert(str_contains($provider, 'runHttpFallback'), 'Runtime Calendar должен запускать резервный bounded catch-up');
 calendarReminderAssert(str_contains($provider, "PHP_SAPI === 'cli'"), 'HTTP fallback не должен дублировать CLI-проход');
+calendarReminderAssert(str_contains($capability, 'maintainUpcomingReminders'), 'Capability должен поддерживать rolling-планирование повторяющихся напоминаний');
 
 calendarReminderAssert(str_contains($scheduler, 'scheduleOccurrences'), 'Scheduler должен принимать несколько конкретных экземпляров серии');
 calendarReminderAssert(str_contains($scheduler, 'ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)'), 'Повторное планирование должно быть идемпотентным');
@@ -90,7 +104,8 @@ calendarReminderAssert(!str_contains($publisher, 'getMessage()'), 'Publisher н�
 
 calendarReminderAssert(str_contains($cli, '--catch-up-seconds'), 'CLI должен позволять задавать окно восстановления');
 calendarReminderAssert(str_contains($cli, '--limit'), 'CLI должен иметь bounded batch');
-calendarReminderAssert(str_contains($cli, 'Напоминания Calendar:'), 'CLI-вывод должен быть русскоязычным');
+calendarReminderAssert(str_contains($cli, 'подготовлено напоминаний'), 'CLI-вывод должен сообщать результат rolling-планирования по-русски');
+calendarReminderAssert(str_contains($cli, 'опубликовано'), 'CLI-вывод должен сообщать результат публикации по-русски');
 calendarReminderAssert(!preg_match('/while\s*\(\s*true\s*\)/', $cli), 'CLI должен выполнять один проход');
 
 echo "[OK] архитектурный контракт напоминаний Calendar 1.1.0\n";

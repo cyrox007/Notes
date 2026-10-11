@@ -26,6 +26,7 @@
   "database": {
     "tables": [
       "calendar_events",
+      "calendar_event_reminder_offsets",
       "calendar_reminders",
       "calendar_runtime_state"
     ],
@@ -33,7 +34,8 @@
       "database/calendar_schema.sql"
     ],
     "migrations": [
-      "database/migrations/20261011_calendar_reminders.sql"
+      "database/migrations/20261011_calendar_reminders.sql",
+      "database/migrations/20261011_calendar_crud.sql"
     ]
   }
 }
