@@ -8,7 +8,9 @@ use App\Services\PermissionService;
 use App\Services\RolePolicyService;
 use App\Services\StorageQuotaService;
 use Core\DatabaseManager;
+use Core\PrivateStoragePath;
 use Core\ProfileContentProvider;
+use Core\ServiceLog;
 use Core\WorkspaceFileProvider;
 use DomainException;
 use InvalidArgumentException;
@@ -94,7 +96,12 @@ final class FilesCapability implements ProfileContentProvider, WorkspaceFileProv
         try {
             $storage = $quota->usage($userId);
         } catch (Throwable $e) {
-            error_log('Files capability storage metric fallback: ' . $e->getMessage());
+            ServiceLog::emit(
+                'files.storage_metric_fallback',
+                'warning',
+                'files',
+                ['exception' => $e::class]
+            );
             $used = $quota->usedBytes($userId);
             $limit = StorageQuotaService::DEFAULT_QUOTA_BYTES;
             $storage = [
@@ -344,38 +351,34 @@ final class FilesCapability implements ProfileContentProvider, WorkspaceFileProv
         if ($storedPath === '') {
             return null;
         }
+
         $absolute = str_starts_with($storedPath, '/')
             || str_starts_with($storedPath, '\\')
             || preg_match('/^[A-Za-z]:[\\\\\/]/', $storedPath) === 1;
         $candidate = $absolute
             ? $storedPath
             : rtrim(SITEPATH, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . ltrim($storedPath, '/\\');
-        $realPath = realpath($candidate);
-        if ($realPath === false) {
-            return null;
+
+        $storage = new PrivateStoragePath();
+        $resolved = $storage->resolveExisting($candidate);
+        if ($resolved !== null) {
+            return $resolved;
         }
 
-        $allowedRoots = [];
-        $configured = getenv('PRIVATE_STORAGE_PATH');
-        $private = is_string($configured) && trim($configured) !== ''
-            ? trim($configured)
-            : dirname(SITEPATH) . DIRECTORY_SEPARATOR . 'notes-private-storage';
-        $privateRoot = realpath($private);
-        if ($privateRoot !== false) {
-            $allowedRoots[] = rtrim($privateRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-        }
-        $legacyRoot = realpath(rtrim(SITEPATH, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'file_manager');
-        if ($legacyRoot !== false) {
-            $allowedRoots[] = rtrim($legacyRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+        $legacyRoot = rtrim(SITEPATH, DIRECTORY_SEPARATOR)
+            . DIRECTORY_SEPARATOR . 'uploads'
+            . DIRECTORY_SEPARATOR . 'file_manager';
+        $resolved = $storage->resolveExisting($candidate, $legacyRoot);
+        if ($resolved !== null) {
+            return $resolved;
         }
 
-        $candidatePrefix = rtrim($realPath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-        foreach ($allowedRoots as $root) {
-            if (str_starts_with($candidatePrefix, $root)) {
-                return $realPath;
-            }
-        }
-        error_log('Blocked Files capability path outside storage roots: ' . $storedPath);
+        ServiceLog::emit(
+            'files.storage_path_blocked',
+            'warning',
+            'files',
+            ['path_hash' => hash('sha256', $storedPath)]
+        );
         return null;
     }
 

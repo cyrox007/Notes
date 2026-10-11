@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Services;
 
 use Core\DatabaseManager;
+use Core\Environment;
+use Core\PrivateStoragePath;
+use Core\Uuid;
 use DomainException;
 use InvalidArgumentException;
 use RuntimeException;
-use Core\Uuid;
 
 final class MessengerVoiceService
 {
@@ -16,12 +18,12 @@ final class MessengerVoiceService
 
     /** @var array<string,list<string>> */
     private const ALLOWED_VOICE_UPLOADS = [
-        // Chromium/Firefox MediaRecorder commonly produces Opus inside WebM.
-        // libmagic may report the audio-only container as video/webm.
+        // Chromium и Firefox обычно записывают Opus в контейнер WebM.
+        // libmagic иногда определяет такой аудиофайл как video/webm.
         'webm' => ['audio/webm', 'video/webm'],
         'ogg' => ['audio/ogg', 'application/ogg'],
-        // Safari commonly records audio/mp4. Some libmagic databases report
-        // an audio-only MP4 container as video/mp4, so .m4a accepts both.
+        // Safari обычно записывает audio/mp4. Некоторые базы libmagic
+        // определяют аудиоконтейнер MP4 как video/mp4, поэтому разрешены оба.
         'm4a' => ['audio/mp4', 'audio/x-m4a', 'video/mp4'],
         'wav' => ['audio/wav', 'audio/x-wav'],
     ];
@@ -171,7 +173,7 @@ final class MessengerVoiceService
 
     private function maxSize(): int
     {
-        $configured = getenv('MESSENGER_MAX_VOICE_SIZE');
+        $configured = Environment::get('MESSENGER_MAX_VOICE_SIZE');
         return is_string($configured) && ctype_digit($configured) && (int) $configured > 0
             ? (int) $configured
             : self::DEFAULT_MAX_SIZE;
@@ -179,15 +181,11 @@ final class MessengerVoiceService
 
     private function privateStorageRoot(): string
     {
-        $configured = \Core\Environment::get('PRIVATE_STORAGE_PATH');
-        $root = is_string($configured) && trim($configured) !== ''
-            ? trim($configured)
-            : dirname(SITEPATH) . DIRECTORY_SEPARATOR . 'notes-private-storage';
-        return rtrim($root, DIRECTORY_SEPARATOR);
+        return (new PrivateStoragePath())->root();
     }
 
     private function storageRoot(): string
     {
-        return $this->privateStorageRoot() . DIRECTORY_SEPARATOR . 'messenger';
+        return (new PrivateStoragePath())->child('messenger');
     }
 }

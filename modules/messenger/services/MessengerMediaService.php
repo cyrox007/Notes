@@ -6,10 +6,13 @@ namespace App\Services;
 
 use App\Helpers\MessengerCrypto;
 use Core\DatabaseManager;
+use Core\Environment;
+use Core\PrivateStoragePath;
+use Core\ServiceLog;
+use Core\Uuid;
 use DomainException;
 use InvalidArgumentException;
 use RuntimeException;
-use Core\Uuid;
 
 final class MessengerMediaService
 {
@@ -407,20 +410,35 @@ final class MessengerMediaService
         }
     }
 
-    /** Retrying a recorded attachment must not create a second message. */
+    /** Повторная отправка записанного вложения не должна создавать второе сообщение. */
     public function sendRecorded(int $userId, string $attachmentUid, ?string $replyToUid = null): array
     {
         $attachment = $this->download($userId, $attachmentUid);
-        if ((int)$attachment['uploader_user_id'] !== $userId || !in_array($attachment['media_kind'], ['voice', 'video'], true)) {
+        if ((int) $attachment['uploader_user_id'] !== $userId || !in_array($attachment['media_kind'], ['voice', 'video'], true)) {
             throw new DomainException('Запись не принадлежит пользователю');
         }
-        if (!empty($attachment['message_id'])) return ['already_sent'=>true,'attachment_uid'=>$attachmentUid];
-        $user=$this->db->fetchOne('SELECT uid FROM users WHERE id=:id AND is_active=1 LIMIT 1',[':id'=>$userId]);
-        if (!$user) throw new DomainException('Пользователь недоступен');
-        try { return ['already_sent'=>false,'message'=>$this->send((string)$user['uid'],$attachmentUid,'',$replyToUid)]; }
-        catch (InvalidArgumentException $error) {
-            $current=$this->download($userId,$attachmentUid);
-            if (!empty($current['message_id'])) return ['already_sent'=>true,'attachment_uid'=>$attachmentUid];
+        if (!empty($attachment['message_id'])) {
+            return ['already_sent' => true, 'attachment_uid' => $attachmentUid];
+        }
+
+        $user = $this->db->fetchOne(
+            'SELECT uid FROM users WHERE id = :id AND is_active = 1 LIMIT 1',
+            [':id' => $userId]
+        );
+        if (!$user) {
+            throw new DomainException('Пользователь недоступен');
+        }
+
+        try {
+            return [
+                'already_sent' => false,
+                'message' => $this->send((string) $user['uid'], $attachmentUid, '', $replyToUid),
+            ];
+        } catch (InvalidArgumentException $error) {
+            $current = $this->download($userId, $attachmentUid);
+            if (!empty($current['message_id'])) {
+                return ['already_sent' => true, 'attachment_uid' => $attachmentUid];
+            }
             throw $error;
         }
     }
@@ -528,9 +546,15 @@ final class MessengerMediaService
 
     private function mediaKind(string $mimeType, bool $voice): string
     {
-        if (str_starts_with($mimeType, 'image/')) return 'image';
-        if (str_starts_with($mimeType, 'audio/')) return $voice ? 'voice' : 'audio';
-        if (str_starts_with($mimeType, 'video/')) return 'video';
+        if (str_starts_with($mimeType, 'image/')) {
+            return 'image';
+        }
+        if (str_starts_with($mimeType, 'audio/')) {
+            return $voice ? 'voice' : 'audio';
+        }
+        if (str_starts_with($mimeType, 'video/')) {
+            return 'video';
+        }
         return 'file';
     }
 
@@ -554,44 +578,38 @@ final class MessengerMediaService
 
     private function privateStorageRoot(): string
     {
-        $configured = \Core\Environment::get('PRIVATE_STORAGE_PATH');
-        $root = is_string($configured) && trim($configured) !== ''
-            ? trim($configured)
-            : dirname(SITEPATH) . DIRECTORY_SEPARATOR . 'notes-private-storage';
-        return rtrim($root, DIRECTORY_SEPARATOR);
+        return (new PrivateStoragePath())->root();
     }
 
     private function messengerStorageRoot(): string
     {
-        return $this->privateStorageRoot() . DIRECTORY_SEPARATOR . 'messenger';
+        return (new PrivateStoragePath())->child('messenger');
     }
 
     private function resolveStoredPath(string $storedPath): ?string
     {
-        $realPath = realpath($storedPath);
-        $root = realpath($this->messengerStorageRoot());
-        if ($realPath === false || $root === false) {
-            return null;
+        $resolved = (new PrivateStoragePath())->resolveExisting($storedPath, $this->messengerStorageRoot());
+        if ($resolved !== null) {
+            return $resolved;
         }
 
-        $rootPrefix = rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-        $candidate = rtrim($realPath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-        if (!str_starts_with($candidate, $rootPrefix)) {
-            error_log('Blocked messenger media path outside private storage: ' . $storedPath);
-            return null;
-        }
-
-        return $realPath;
+        ServiceLog::emit(
+            'messenger.storage_path_blocked',
+            'warning',
+            'messenger',
+            ['path_hash' => hash('sha256', $storedPath)]
+        );
+        return null;
     }
 
     private function maxUploadSize(): int
     {
-        $messengerLimit = getenv('MESSENGER_MAX_UPLOAD_SIZE');
+        $messengerLimit = Environment::get('MESSENGER_MAX_UPLOAD_SIZE');
         if (is_string($messengerLimit) && ctype_digit($messengerLimit) && (int) $messengerLimit > 0) {
             return (int) $messengerLimit;
         }
 
-        $genericLimit = getenv('MAX_UPLOAD_SIZE');
+        $genericLimit = Environment::get('MAX_UPLOAD_SIZE');
         return is_string($genericLimit) && ctype_digit($genericLimit) && (int) $genericLimit > 0
             ? (int) $genericLimit
             : self::DEFAULT_MAX_UPLOAD_SIZE;

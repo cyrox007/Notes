@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Services;
 
 use Core\DatabaseManager;
+use Core\Environment;
+use Core\PrivateStoragePath;
 use InvalidArgumentException;
 use RuntimeException;
 
@@ -142,31 +144,17 @@ final class UserAvatarService
 
     private function avatarDirectory(int $userId): string
     {
-        return $this->privateRoot()
-            . DIRECTORY_SEPARATOR . 'users'
-            . DIRECTORY_SEPARATOR . $userId
-            . DIRECTORY_SEPARATOR . 'avatar';
+        return (new PrivateStoragePath())->child('users', (string) $userId, 'avatar');
     }
 
     private function privateRoot(): string
     {
-        $configured = getenv('PRIVATE_STORAGE_PATH');
-        $root = is_string($configured) && trim($configured) !== ''
-            ? trim($configured)
-            : dirname(SITEPATH) . DIRECTORY_SEPARATOR . 'notes-private-storage';
-        return rtrim($root, DIRECTORY_SEPARATOR);
+        return (new PrivateStoragePath())->root();
     }
 
     private function resolvePrivatePath(string $candidate, int $userId): ?string
     {
-        $real = realpath($candidate);
-        $root = realpath($this->avatarDirectory($userId));
-        if ($real === false || $root === false) {
-            return null;
-        }
-
-        $rootPrefix = rtrim($root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-        return str_starts_with($real, $rootPrefix) ? $real : null;
+        return (new PrivateStoragePath())->resolveExisting($candidate, $this->avatarDirectory($userId));
     }
 
     private function resolveLegacyPath(string $stored, int $userId): ?string
@@ -190,7 +178,7 @@ final class UserAvatarService
 
     private function maxSize(): int
     {
-        $configured = getenv('PROFILE_AVATAR_MAX_SIZE');
+        $configured = Environment::get('PROFILE_AVATAR_MAX_SIZE');
         $value = is_string($configured) && ctype_digit($configured) ? (int) $configured : 0;
         return $value > 0 ? $value : self::DEFAULT_MAX_SIZE;
     }
