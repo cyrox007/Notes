@@ -2,16 +2,9 @@
 
 declare(strict_types=1);
 
-if (PHP_SAPI !== 'cli') {
-    fwrite(STDERR, "This command is CLI-only.\n");
-    exit(2);
-}
-
 $root = dirname(__DIR__);
-require_once $root . '/core/Environment.php';
-if (is_file($root . '/.env')) {
-    \Core\Environment::load($root . '/.env');
-}
+require_once $root . '/core/CliRuntime.php';
+\Core\CliRuntime::loadEnvironment($root);
 require_once $root . '/core/Version.php';
 require_once $root . '/core/UpdateManifestVerifier.php';
 require_once $root . '/core/UpdatePackageStager.php';
@@ -33,15 +26,15 @@ $options = getopt('', [
 ]);
 
 if (isset($options['help'])) {
-    echo "Workspace Organizer signed updater preflight\n\n";
-    echo "Verify only:\n";
+    echo "Предварительная проверка подписанного обновления Workspace Organizer\n\n";
+    echo "Только проверить:\n";
     echo "  php bin/update.php --manifest=/path/update.json --signature=/path/update.sig \\\n";
     echo "      --package=/path/package.zip --verify-only [--json]\n\n";
-    echo "Verify and stage outside the live application tree:\n";
+    echo "Проверить и подготовить пакет вне рабочего дерева приложения:\n";
     echo "  php bin/update.php --manifest=/path/update.json --signature=/path/update.sig \\\n";
     echo "      --package=/path/package.zip [--stage-root=/absolute/external/path] [--json]\n\n";
-    echo "The package signature/hash and ZIP structure are audited before staging.\n";
-    echo "This command NEVER extracts the package and NEVER modifies live application files.\n";
+    echo "Подпись/хеш пакета и структура ZIP проверяются до подготовки.\n";
+    echo "Команда НИКОГДА не распаковывает пакет и не изменяет рабочие файлы приложения.\n";
     exit(0);
 }
 
@@ -67,20 +60,20 @@ function updaterLocalFile(string $value, string $label, int $maxBytes = 0): stri
 {
     $value = trim($value);
     if ($value === '' || str_contains($value, '://')) {
-        updaterFail("{$label} must be an explicit local file path", 'invalid_input', 2);
+        updaterFail("{$label}: требуется явный путь к локальному файлу", 'invalid_input', 2);
     }
     if (!is_file($value) || is_link($value) || !is_readable($value)) {
-        updaterFail("{$label} must be a readable regular local file, not a symlink", 'invalid_input', 2);
+        updaterFail("{$label}: требуется читаемый обычный локальный файл, не символическая ссылка", 'invalid_input', 2);
     }
     if ($maxBytes > 0) {
         $size = filesize($value);
         if (!is_int($size) || $size <= 0 || $size > $maxBytes) {
-            updaterFail("{$label} has an invalid size", 'invalid_input', 2);
+            updaterFail("{$label}: некорректный размер файла", 'invalid_input', 2);
         }
     }
     $real = realpath($value);
     if (!is_string($real)) {
-        updaterFail("{$label} path cannot be resolved", 'invalid_input', 2);
+        updaterFail("{$label}: не удалось разрешить путь", 'invalid_input', 2);
     }
     return $real;
 }
@@ -96,14 +89,14 @@ $packagePath = updaterLocalFile((string) ($options['package'] ?? ''), 'package')
 $manifestBytes = file_get_contents($manifestPath);
 $signatureToken = file_get_contents($signaturePath);
 if (!is_string($manifestBytes) || !is_string($signatureToken)) {
-    updaterFail('Unable to read update manifest or signature', 'read_failed');
+    updaterFail('Не удалось прочитать манифест обновления или подпись', 'read_failed');
 }
 
 try {
     $verifier = new UpdateManifestVerifier();
     if (!$verifier->hasTrustedKeys()) {
         updaterFail(
-            'No trusted update public keys are configured. Signed updates remain disabled until the production update-key ceremony is completed.',
+            'Не настроены доверенные публичные ключи обновлений. Подписанные обновления остаются отключены до настройки production trust root.',
             'trust_not_configured'
         );
     }
@@ -111,21 +104,21 @@ try {
     $status = $verifier->verify($manifestBytes, trim($signatureToken));
     if (!($status['valid'] ?? false)) {
         updaterFail(
-            (string) ($status['message'] ?? 'Update manifest verification failed'),
+            (string) ($status['message'] ?? 'Проверка манифеста обновления завершилась ошибкой'),
             (string) ($status['code'] ?? 'manifest_invalid')
         );
     }
     $manifest = $status['manifest'] ?? null;
     if (!is_array($manifest)) {
-        updaterFail('Verified update manifest payload is missing', 'manifest_invalid');
+        updaterFail('В проверенном манифесте отсутствуют данные обновления', 'manifest_invalid');
     }
 
     $stager = new UpdatePackageStager($root);
     $stager->assertCompatibility($manifest, Version::VERSION_CODE, PHP_VERSION);
     $package = $stager->verifyPackage($manifest, $packagePath);
 
-    // Structural archive audit happens only after the signed size/hash contract
-    // succeeds. It is read-only and does not extract any package entry.
+    // Структурный аудит архива выполняется только после успешной проверки
+    // подписанного размера/хеша. Он работает только на чтение и ничего не распаковывает.
     $archive = (new UpdateArchiveInspector())->inspect($packagePath);
 
     if (isset($options['verify-only'])) {
@@ -142,13 +135,13 @@ try {
         if ($json) {
             echo json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
         } else {
-            echo "[OK] Signed update verified and ZIP preflight passed\n";
-            echo "Installed: " . Version::VERSION . ' (' . Version::VERSION_CODE . ")\n";
-            echo "Target:    " . $manifest['version'] . ' (' . $manifest['version_code'] . ")\n";
-            echo "Key ID:    " . $status['key_id'] . "\n";
-            echo "SHA-256:   " . $package['sha256'] . "\n";
-            echo "Entries:   " . $archive['entries'] . ' (' . $archive['files'] . " files)\n";
-            echo "No live files were changed.\n";
+            echo "[OK] Подписанное обновление и ZIP-пакет успешно проверены\n";
+            echo "Установлено: " . Version::VERSION . ' (' . Version::VERSION_CODE . ")\n";
+            echo "Цель:       " . $manifest['version'] . ' (' . $manifest['version_code'] . ")\n";
+            echo "ID ключа:   " . $status['key_id'] . "\n";
+            echo "SHA-256:    " . $package['sha256'] . "\n";
+            echo "Записей:    " . $archive['entries'] . ' (' . $archive['files'] . " файлов)\n";
+            echo "Рабочие файлы не изменялись.\n";
         }
         exit(0);
     }
@@ -167,7 +160,7 @@ try {
     }
     if ($stageRoot === '') {
         updaterFail(
-            'No external staging root configured. Set UPDATE_STAGING_PATH, PRIVATE_STORAGE_PATH, or pass --stage-root.',
+            'Не настроен внешний staging-каталог. Задайте UPDATE_STAGING_PATH, PRIVATE_STORAGE_PATH или --stage-root.',
             'staging_not_configured',
             2
         );
@@ -197,12 +190,12 @@ try {
     if ($json) {
         echo json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
     } else {
-        echo "[OK] Signed update verified, audited and staged\n";
-        echo "Target:    " . $manifest['version'] . ' (' . $manifest['version_code'] . ")\n";
-        echo "Stage:     " . $staged['stage_dir'] . "\n";
+        echo "[OK] Подписанное обновление проверено, проаудировано и подготовлено\n";
+        echo "Цель:      " . $manifest['version'] . ' (' . $manifest['version_code'] . ")\n";
+        echo "Staging:   " . $staged['stage_dir'] . "\n";
         echo "SHA-256:   " . $staged['sha256'] . "\n";
-        echo "Entries:   " . $archive['entries'] . ' (' . $archive['files'] . " files)\n";
-        echo "No live files were changed. Apply/rollback is intentionally not enabled in this preflight layer.\n";
+        echo "Записей:   " . $archive['entries'] . ' (' . $archive['files'] . " файлов)\n";
+        echo "Рабочие файлы не изменялись. Применение/откат намеренно не выполняются на этом слое.\n";
     }
 } catch (Throwable $e) {
     updaterFail($e->getMessage());
