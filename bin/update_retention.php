@@ -2,16 +2,10 @@
 
 declare(strict_types=1);
 
-if (PHP_SAPI !== 'cli') {
-    http_response_code(404);
-    exit;
-}
-
 $root = dirname(__DIR__);
-require_once $root . '/core/Environment.php';
-if (is_file($root . '/.env')) {
-    \Core\Environment::load($root . '/.env');
-}
+require_once $root . '/core/CliRuntime.php';
+\Core\CliRuntime::assertCliHidden();
+\Core\CliRuntime::loadEnvironment($root);
 require_once $root . '/core/UpdateArtifactCleaner.php';
 require_once $root . '/core/SecurityEventLog.php';
 require_once $root . '/app/services/MaintenanceModeService.php';
@@ -33,13 +27,13 @@ $options = getopt('', [
 ]);
 
 if (isset($options['help'])) {
-    echo "Workspace Organizer updater retention cleanup\n\n";
-    echo "Preview old terminal recovery artifacts (default: older than 30 days, keep newest 2):\n";
+    echo "Очистка старых артефактов updater Workspace Organizer\n\n";
+    echo "Предпросмотр старых завершённых артефактов восстановления (по умолчанию старше 30 дней, сохранить 2 новых):\n";
     echo "  php bin/update_retention.php [--older-than-days=30] [--keep=2] [--json]\n\n";
-    echo "Apply cleanup:\n";
+    echo "Применить очистку:\n";
     echo "  php bin/update_retention.php --apply --yes [--older-than-days=30] [--keep=2] [--json]\n\n";
-    echo "Only committed/rollback_verified rollback backups and release candidates are eligible.\n";
-    echo "Transaction journals, active/incomplete recovery state and staged packages are preserved.\n";
+    echo "Удаляться могут только резервные копии и кандидаты транзакций committed/rollback_verified.\n";
+    echo "Журналы транзакций, активное/незавершённое восстановление и staged-пакеты сохраняются.\n";
     exit(0);
 }
 
@@ -56,7 +50,7 @@ function updateRetentionFail(string $message, string $code = 'retention_failed',
             'message' => $message,
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
     } else {
-        fwrite(STDERR, "[FAIL] {$message}\n");
+        fwrite(STDERR, "[ОШИБКА] {$message}\n");
     }
     exit($exitCode);
 }
@@ -75,7 +69,7 @@ function updateRetentionRoot(array $options, string $option, string $env, string
     if (is_string($private) && trim($private) !== '') {
         return rtrim(trim($private), '/\\') . DIRECTORY_SEPARATOR . $suffix;
     }
-    updateRetentionFail("{$env} is not configured and PRIVATE_STORAGE_PATH is unavailable", 'path_not_configured', 2);
+    updateRetentionFail("{$env} не настроен, а PRIVATE_STORAGE_PATH недоступен", 'path_not_configured', 2);
 }
 
 function updateRetentionInt(array $options, string $name, int $default): int
@@ -85,7 +79,7 @@ function updateRetentionInt(array $options, string $name, int $default): int
     }
     $raw = trim((string) $options[$name]);
     if ($raw === '' || preg_match('/^\d+$/', $raw) !== 1) {
-        updateRetentionFail("--{$name} must be a non-negative integer", 'invalid_option', 2);
+        updateRetentionFail("--{$name} должен быть неотрицательным целым числом", 'invalid_option', 2);
     }
     return (int) $raw;
 }
@@ -93,13 +87,13 @@ function updateRetentionInt(array $options, string $name, int $default): int
 $apply = isset($options['apply']);
 if ($apply && !isset($options['yes'])) {
     updateRetentionFail(
-        'Refusing updater artifact deletion without explicit --apply --yes confirmation.',
+        'Удаление артефактов updater требует явного подтверждения --apply --yes.',
         'confirmation_required',
         2
     );
 }
 if (!$apply && isset($options['yes'])) {
-    updateRetentionFail('--yes is valid only together with --apply', 'invalid_option', 2);
+    updateRetentionFail('--yes допустим только вместе с --apply', 'invalid_option', 2);
 }
 
 $olderThanDays = updateRetentionInt($options, 'older-than-days', 30);
@@ -115,7 +109,7 @@ try {
         $maintenanceState = $maintenance->state();
         if (($maintenanceState['active'] ?? false) === true) {
             updateRetentionFail(
-                'Updater retention refuses to delete artifacts while maintenance is active.',
+                'Очистка артефактов updater запрещена при активном режиме обслуживания.',
                 'maintenance_active',
                 75
             );
@@ -154,14 +148,14 @@ try {
         exit(0);
     }
 
-    echo $apply ? "[OK] Updater retention cleanup applied\n" : "[OK] Updater retention preview\n";
-    echo 'Terminal transactions: ' . (int) ($result['terminal_transactions'] ?? 0) . PHP_EOL;
-    echo 'Eligible transactions: ' . (int) ($result['eligible_transactions'] ?? 0) . PHP_EOL;
+    echo $apply ? "[OK] Очистка старых артефактов updater выполнена\n" : "[OK] Предпросмотр очистки артефактов updater\n";
+    echo 'Завершённых транзакций: ' . (int) ($result['terminal_transactions'] ?? 0) . PHP_EOL;
+    echo 'Доступно для очистки:    ' . (int) ($result['eligible_transactions'] ?? 0) . PHP_EOL;
     if ($apply) {
-        echo 'Deleted directories:   ' . (int) ($result['deleted_directories'] ?? 0) . PHP_EOL;
-        echo 'Deleted bytes:         ' . (int) ($result['deleted_bytes'] ?? 0) . PHP_EOL;
+        echo 'Удалено каталогов:       ' . (int) ($result['deleted_directories'] ?? 0) . PHP_EOL;
+        echo 'Удалено байт:            ' . (int) ($result['deleted_bytes'] ?? 0) . PHP_EOL;
     } else {
-        echo "No files were deleted. Use --apply --yes after reviewing the preview.\n";
+        echo "Файлы не удалялись. После проверки предпросмотра используйте --apply --yes.\n";
     }
 } catch (Throwable $e) {
     updateRetentionFail($e->getMessage());
