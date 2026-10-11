@@ -14,9 +14,12 @@ $dbPort = (int) (getenv('TEST_DB_PORT') ?: 3306);
 $dbName = getenv('TEST_DB_NAME') ?: 'workspace_test';
 $dbUser = getenv('TEST_DB_USER') ?: 'workspace';
 $dbPass = getenv('TEST_DB_PASS') ?: 'workspace';
+$dbRootPass = getenv('TEST_DB_ROOT_PASS') ?: 'root';
 
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
-$mysqli = new mysqli($dbHost, $dbUser, $dbPass, $dbName, $dbPort);
+// Схемы RBAC содержат триггеры. В CI их создаёт административное соединение,
+// а прикладной runtime ниже по-прежнему работает от ограниченного пользователя workspace.
+$mysqli = new mysqli($dbHost, 'root', $dbRootPass, $dbName, $dbPort);
 $mysqli->set_charset('utf8mb4');
 
 function calendarCrudMysqlAssert(bool $condition, string $message): void
