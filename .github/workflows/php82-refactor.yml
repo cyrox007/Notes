@@ -94,6 +94,13 @@ jobs:
           php tests/integration/notification_preferences_contract.php
           php tests/integration/notification_center_ui_contract.php
 
+      - name: Проверить фундамент напоминаний Calendar
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/integration/calendar_reminders_contract.php
+          php bin/calendar_reminders.php --help
+
       - name: Проверить отказоустойчивость updater
         shell: bash
         run: |
