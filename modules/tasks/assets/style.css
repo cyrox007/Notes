@@ -6,7 +6,7 @@
 .stat-value{display:block;font-size:23px;font-weight:800;line-height:1}.stat-label{display:block;margin-top:0;color:var(--ui-muted);font-size:12px;font-weight:700}
 .tasks__controls{min-width:0;display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;padding:0;background:transparent}
 .tasks__filters{min-width:0;max-width:100%;display:flex;align-items:center;flex-wrap:wrap;gap:4px}
-.filter-btn,.tasks-view-switch__button{display:inline-flex;align-items:center;justify-content:center;line-height:1.2;flex-shrink:0;height:32px;border:0;border-radius:8px;padding:0 10px;background:transparent;color:var(--ui-muted);font-weight:700;white-space:nowrap;cursor:pointer}
+.filter-btn,.tasks-view-switch__button{display:inline-flex;align-items:center;justify-content:center;gap:6px;line-height:1.2;flex-shrink:0;height:32px;border:0;border-radius:8px;padding:0 10px;background:transparent;color:var(--ui-muted);font-weight:700;white-space:nowrap;cursor:pointer}
 .filter-btn:hover,.filter-btn.active,.tasks-view-switch__button.active{background:var(--module-soft);color:var(--module-accent)}
 .btn-primary{background:var(--ui-action);color:#fff}.btn-primary:hover{filter:brightness(.96)}
 .btn-secondary{border:1px solid var(--ui-border);background:var(--ui-surface);color:var(--ui-text)}
