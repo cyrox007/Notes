@@ -2,16 +2,9 @@
 
 declare(strict_types=1);
 
-if (PHP_SAPI !== 'cli') {
-    fwrite(STDERR, "This command is CLI-only.\n");
-    exit(2);
-}
-
 $root = dirname(__DIR__);
-require_once $root . '/core/Environment.php';
-if (is_file($root . '/.env')) {
-    \Core\Environment::load($root . '/.env');
-}
+require_once $root . '/core/CliRuntime.php';
+\Core\CliRuntime::loadEnvironment($root);
 require_once $root . '/core/Version.php';
 require_once $root . '/core/UpdateManifestVerifier.php';
 require_once $root . '/core/UpdatePackageStager.php';
@@ -37,11 +30,11 @@ $options = getopt('', [
 ]);
 
 if (isset($options['help'])) {
-    echo "Workspace Organizer verified external release-candidate extraction\n\n";
-    echo "Prerequisites: the transaction owns maintenance and its journal is backup_verified.\n\n";
+    echo "Подготовка проверенного внешнего кандидата релиза Workspace Organizer\n\n";
+    echo "Условия: транзакция владеет режимом обслуживания, а журнал находится в состоянии backup_verified.\n\n";
     echo "  php bin/update_candidate.php --transaction=update-... \\\n";
     echo "      [--state-root=/external/state] [--candidate-root=/external/releases] [--json]\n\n";
-    echo "This command extracts only to an external candidate directory. It never overwrites live code or runs migrations.\n";
+    echo "Команда распаковывает пакет только во внешний каталог кандидата и не меняет рабочий код или БД.\n";
     exit(0);
 }
 
@@ -58,7 +51,7 @@ function updateCandidateFail(string $message, string $code = 'candidate_failed',
             'message' => $message,
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
     } else {
-        fwrite(STDERR, "[FAIL] {$message}\n");
+        fwrite(STDERR, "[ОШИБКА] {$message}\n");
     }
     exit($exitCode);
 }
@@ -77,12 +70,12 @@ function updateCandidateResolveRoot(string $explicit, string $envName, string $p
     if (is_string($private) && trim($private) !== '') {
         return rtrim(trim($private), '/\\') . DIRECTORY_SEPARATOR . $privateSuffix;
     }
-    updateCandidateFail("{$envName} is not configured and PRIVATE_STORAGE_PATH is unavailable", 'path_not_configured', 2);
+    updateCandidateFail("{$envName} не настроен, а PRIVATE_STORAGE_PATH недоступен", 'path_not_configured', 2);
 }
 
 $transactionId = trim((string) ($options['transaction'] ?? ''));
 if (preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]{7,95}$/', $transactionId) !== 1) {
-    updateCandidateFail('A valid --transaction id is required', 'invalid_transaction', 2);
+    updateCandidateFail('Требуется корректный идентификатор --transaction', 'invalid_transaction', 2);
 }
 $stateRoot = updateCandidateResolveRoot((string) ($options['state-root'] ?? ''), 'UPDATE_STATE_PATH', 'updates');
 $candidateRoot = updateCandidateResolveRoot((string) ($options['candidate-root'] ?? ''), 'UPDATE_RELEASE_PATH', 'update-releases');
@@ -91,55 +84,55 @@ try {
     $maintenance = new MaintenanceModeService($stateRoot, $root);
     $maintenanceState = $maintenance->state();
     if (!$maintenanceState['active'] || !$maintenanceState['valid']) {
-        updateCandidateFail('Release candidate extraction requires active valid maintenance', 'maintenance_required');
+        updateCandidateFail('Подготовка кандидата релиза требует активный и корректный режим обслуживания', 'maintenance_required');
     }
     if (!hash_equals($transactionId, (string) $maintenanceState['transaction_id'])) {
-        updateCandidateFail('Maintenance mode belongs to another updater transaction', 'maintenance_owner_mismatch');
+        updateCandidateFail('Режим обслуживания принадлежит другой транзакции updater', 'maintenance_owner_mismatch');
     }
 
     $journal = new UpdateTransactionJournal($stateRoot, $root);
     $journalState = $journal->load($transactionId);
     if (($journalState['state'] ?? null) !== 'backup_verified') {
-        updateCandidateFail('Updater transaction must have verified rollback backups before extraction', 'backup_required');
+        updateCandidateFail('До подготовки кандидата транзакция должна иметь проверенную резервную копию отката', 'backup_required');
     }
     if (($journalState['live_mutation_started'] ?? true) !== false) {
-        updateCandidateFail('Refusing candidate extraction after live mutation started', 'unsafe_transaction_state');
+        updateCandidateFail('Подготовка кандидата запрещена после начала изменения рабочего дерева', 'unsafe_transaction_state');
     }
 
     $stageDir = (string) ($journalState['stage_dir'] ?? '');
     if ($stageDir === '' || is_link($stageDir)) {
-        updateCandidateFail('Transaction stage path is missing or unsafe', 'invalid_stage');
+        updateCandidateFail('Путь stage в транзакции отсутствует или небезопасен', 'invalid_stage');
     }
     $stageReal = realpath($stageDir);
     if (!is_string($stageReal) || !is_dir($stageReal)) {
-        updateCandidateFail('Transaction stage directory cannot be resolved', 'invalid_stage');
+        updateCandidateFail('Не удалось определить каталог stage транзакции', 'invalid_stage');
     }
 
     foreach (['manifest.json', 'manifest.sig', 'stage.json'] as $required) {
         $path = $stageReal . DIRECTORY_SEPARATOR . $required;
         if (!is_file($path) || is_link($path) || !is_readable($path)) {
-            updateCandidateFail("Verified stage is missing safe {$required}", 'invalid_stage');
+            updateCandidateFail("В проверенном stage отсутствует безопасный файл {$required}", 'invalid_stage');
         }
     }
     $manifestBytes = file_get_contents($stageReal . '/manifest.json');
     $signatureToken = file_get_contents($stageReal . '/manifest.sig');
     $stageBytes = file_get_contents($stageReal . '/stage.json');
     if (!is_string($manifestBytes) || !is_string($signatureToken) || !is_string($stageBytes)) {
-        updateCandidateFail('Cannot read staged update metadata', 'invalid_stage');
+        updateCandidateFail('Не удалось прочитать метаданные подготовленного обновления', 'invalid_stage');
     }
 
     $verifier = new UpdateManifestVerifier();
     if (!$verifier->hasTrustedKeys()) {
-        updateCandidateFail('No trusted update public keys are configured', 'trust_not_configured');
+        updateCandidateFail('Не настроены доверенные публичные ключи обновлений', 'trust_not_configured');
     }
     $verified = $verifier->verify($manifestBytes, trim($signatureToken));
     if (!($verified['valid'] ?? false) || !is_array($verified['manifest'] ?? null)) {
-        updateCandidateFail((string) ($verified['message'] ?? 'Staged update signature is invalid'), (string) ($verified['code'] ?? 'manifest_invalid'));
+        updateCandidateFail((string) ($verified['message'] ?? 'Подпись подготовленного обновления недействительна'), (string) ($verified['code'] ?? 'manifest_invalid'));
     }
     $manifest = $verified['manifest'];
     $stageMetadata = json_decode($stageBytes, true, 32, JSON_THROW_ON_ERROR);
     if (!is_array($stageMetadata) || array_is_list($stageMetadata) || ($stageMetadata['state'] ?? null) !== 'verified_staged') {
-        updateCandidateFail('Stage metadata is invalid', 'invalid_stage');
+        updateCandidateFail('Метаданные stage некорректны', 'invalid_stage');
     }
 
     $packageName = (string) ($manifest['package']['filename'] ?? '');
@@ -155,7 +148,7 @@ try {
         || (string) ($journalState['target_version'] ?? '') !== (string) $manifest['version']
         || !hash_equals((string) ($stageMetadata['package_sha256'] ?? ''), $package['sha256'])
     ) {
-        updateCandidateFail('Transaction/stage metadata no longer matches the signed package', 'transaction_mismatch');
+        updateCandidateFail('Метаданные транзакции или stage больше не совпадают с подписанным пакетом', 'transaction_mismatch');
     }
 
     $candidate = (new UpdateReleaseCandidate($root))->extract($packagePath, $candidateRoot, $manifest);
@@ -177,12 +170,12 @@ try {
     if ($json) {
         echo json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
     } else {
-        echo "[OK] External update release candidate verified\n";
-        echo "Transaction: {$transactionId}\n";
-        echo "Target:      " . $manifest['version'] . "\n";
-        echo "Candidate:   " . $candidate['candidate_dir'] . "\n";
-        echo "Tree SHA:    " . $candidate['tree_sha256'] . "\n";
-        echo "Maintenance remains ACTIVE. Live code and database were not changed.\n";
+        echo "[OK] Внешний кандидат обновления проверен\n";
+        echo "Транзакция: {$transactionId}\n";
+        echo "Цель:       " . $manifest['version'] . "\n";
+        echo "Кандидат:   " . $candidate['candidate_dir'] . "\n";
+        echo "SHA дерева: " . $candidate['tree_sha256'] . "\n";
+        echo "Режим обслуживания остаётся АКТИВНЫМ. Рабочий код и БД не изменялись.\n";
     }
 } catch (Throwable $e) {
     updateCandidateFail($e->getMessage());
