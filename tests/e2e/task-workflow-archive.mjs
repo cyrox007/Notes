@@ -37,6 +37,9 @@ try {
  assert.equal(Math.round((await page.locator('.content-wrapper').boundingBox()).width),1716);
  assert.ok((await page.locator('.tasks-board__column').first().boundingBox()).width>=300);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+ await page.locator('.tasks-board__dropzone').first().evaluate(zone=>{for(let i=0;i<12;i++)zone.appendChild(zone.firstElementChild.cloneNode(true));});
+ const zone=page.locator('.tasks-board__dropzone').first();assert.ok(await zone.evaluate(e=>e.scrollHeight>e.clientHeight));assert.ok((await page.locator('.tasks-board').boundingBox()).height<=680);
+ const header=await page.locator('.tasks-board__column-header').first().boundingBox();await zone.evaluate(e=>e.scrollTop=e.scrollHeight);assert.equal((await page.locator('.tasks-board__column-header').first().boundingBox()).y,header.y);
  await page.setContent(render(false,true));
  assert.equal(await page.locator('.task-board-column').count(),5);
  assert.equal(await page.locator('.task-board-archive').count(),1);

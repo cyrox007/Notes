@@ -29,3 +29,5 @@
 
 /* The drop hint must not become a new drag target under the pointer. */
 .tasks-board__drop-placeholder,.tasks-board__drop-placeholder *{pointer-events:none}
+
+.tasks-board{height:clamp(320px,55dvh,680px);box-sizing:border-box;overflow-y:hidden}.tasks-board__column{display:flex;flex-direction:column;min-height:0;overflow:hidden}.tasks-board__column-header{flex:0 0 auto}.tasks-board__dropzone{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-gutter:stable;overscroll-behavior-y:contain}
