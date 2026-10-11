@@ -21,7 +21,7 @@
 .task-priority-badge,.category-badge{display:inline-flex;align-items:center;min-height:22px;padding:0 7px;border-radius:999px;background:var(--ui-surface-soft);color:var(--ui-muted);font-size:12px;font-weight:800}
 .task-priority-low{--priority:#5b9cf0}.task-priority-medium{--priority:#d6a039}.task-priority-high{--priority:#e17749}.task-priority-urgent{--priority:var(--ui-danger)}
 .task-item[class*="task-priority-"]{border-left:3px solid var(--priority,var(--ui-border))}
-.task-actions{display:flex;gap:4px;flex:0 0 auto}.task-status-toggle{min-width:110px}
+.task-actions{display:flex;align-items:center;gap:4px;flex:0 0 auto}.task-status-toggle{min-width:110px}
 .btn-icon{width:30px;height:30px;display:grid;place-items:center;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--ui-muted);cursor:pointer}.btn-icon:hover{background:var(--ui-surface-soft);color:var(--ui-text)}.delete-task:hover{background:var(--ui-danger-soft);color:var(--ui-danger)}
 .task-description{margin:8px 0 0;color:var(--ui-muted);font-size:12px}.task-description p{margin:0}
 .task-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:9px;color:var(--ui-muted);font-size:12px}
