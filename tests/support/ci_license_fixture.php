@@ -5,12 +5,12 @@ declare(strict_types=1);
 use App\Services\LicenseVerifier;
 
 /**
- * Install an ephemeral CI-only license into the current test database.
+ * Устанавливает временную лицензию только для CI в текущую тестовую базу.
  *
- * The signing keypair exists only in runner memory. The CI working copy gets an
- * additional ephemeral PUBLIC key so runtime licensing remains fully enforced
- * while mutation-heavy browser/HTTP tests execute. No production private key is
- * read, copied or uploaded.
+ * Пара ключей подписи существует только в памяти runner. В рабочую копию CI
+ * добавляется временный ОТКРЫТЫЙ ключ, поэтому проверка лицензии остаётся
+ * полностью включённой во время браузерных и HTTP-тестов с изменением данных.
+ * Закрытый ключ production не читается, не копируется и никуда не передаётся.
  */
 function workspaceEnsureCiLicense(): void
 {
@@ -20,7 +20,7 @@ function workspaceEnsureCiLicense(): void
     }
 
     if (!extension_loaded('sodium')) {
-        throw new RuntimeException('CI license fixture requires the sodium extension');
+        throw new RuntimeException('Для временной CI-лицензии требуется расширение sodium');
     }
 
     $root = dirname(__DIR__, 2);
@@ -63,17 +63,17 @@ function workspaceEnsureCiLicense(): void
         . hash('sha256', $root . '|' . $env['DBNAME']) . '.lock';
     $lock = fopen($lockPath, 'c+');
     if ($lock === false) {
-        throw new RuntimeException('Unable to create CI license fixture lock');
+        throw new RuntimeException('Не удалось создать блокировку временной CI-лицензии');
     }
 
     try {
         if (!flock($lock, LOCK_EX)) {
-            throw new RuntimeException('Unable to lock CI license fixture');
+            throw new RuntimeException('Не удалось заблокировать подготовку временной CI-лицензии');
         }
 
         $keys = require $registryPath;
         if (!is_array($keys)) {
-            throw new RuntimeException('License trust registry must return an array');
+            throw new RuntimeException('Реестр доверенных ключей лицензии должен возвращать массив');
         }
 
         $existing = $pdo->prepare(
@@ -108,6 +108,7 @@ function workspaceEnsureCiLicense(): void
                 'features' => [
                     'workspace.notes',
                     'workspace.tasks',
+                    'workspace.calendar',
                     'workspace.files',
                     'workspace.messenger',
                     'workspace.profile',
@@ -126,22 +127,22 @@ function workspaceEnsureCiLicense(): void
             $verifier = new LicenseVerifier([$keyId => $publicEncoded]);
             $status = $verifier->verify($token, $installationId);
             if (!($status['valid'] ?? false)) {
-                throw new RuntimeException('Ephemeral CI license failed self-verification');
+                throw new RuntimeException('Временная CI-лицензия не прошла самопроверку');
             }
 
-            // This modifies only the disposable runner checkout. The production
-            // public trust root remains present and no CI private key is written.
+            // Изменяется только одноразовая рабочая копия runner. Боевой открытый
+            // корневой ключ остаётся на месте, закрытый CI-ключ на диск не записывается.
             $keys[$keyId] = $publicEncoded;
             $registry = "<?php\n\ndeclare(strict_types=1);\n\n"
-                . "/** CI runner overlay: production public roots plus one ephemeral test public key. */\n"
+                . "/** Наложение CI: боевые открытые ключи и один временный тестовый открытый ключ. */\n"
                 . 'return ' . var_export($keys, true) . ";\n";
             $temporaryRegistry = $registryPath . '.ci-' . getmypid() . '.tmp';
             if (file_put_contents($temporaryRegistry, $registry, LOCK_EX) === false) {
-                throw new RuntimeException('Unable to write CI trust-registry overlay');
+                throw new RuntimeException('Не удалось записать временное наложение реестра доверенных ключей CI');
             }
             if (!rename($temporaryRegistry, $registryPath)) {
                 @unlink($temporaryRegistry);
-                throw new RuntimeException('Unable to activate CI trust-registry overlay');
+                throw new RuntimeException('Не удалось активировать временное наложение реестра доверенных ключей CI');
             }
 
             $upsert = $pdo->prepare(
@@ -154,12 +155,12 @@ function workspaceEnsureCiLicense(): void
             $upsert->execute([
                 ':key' => 'installation_id',
                 ':value' => $installationId,
-                ':description' => 'Ephemeral CI installation identifier',
+                ':description' => 'Временный идентификатор установки CI',
             ]);
             $upsert->execute([
                 ':key' => 'workspace_license_token',
                 ':value' => $token,
-                ':description' => 'Ephemeral CI signed license token',
+                ':description' => 'Временный подписанный токен лицензии CI',
             ]);
 
             $done = true;
@@ -233,5 +234,5 @@ if (
     && realpath((string) $_SERVER['SCRIPT_FILENAME']) === __FILE__
 ) {
     workspaceEnsureCiLicense();
-    fwrite(STDOUT, "[OK] ephemeral CI license activated when a test database was available\n");
+    fwrite(STDOUT, "[OK] временная CI-лицензия активирована при наличии тестовой базы\n");
 }
