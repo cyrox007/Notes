@@ -275,6 +275,21 @@
             });
         });
 
+        root.querySelectorAll('[data-category-create-open]').forEach(link => {
+            link.addEventListener('click', event => {
+                const panel = root.querySelector('#task-category-create');
+                if (!panel) return;
+                event.preventDefault();
+                panel.open = true;
+                panel.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'center'});
+                panel.querySelector('input[name="name"]')?.focus({preventScroll:true});
+            });
+        });
+        root.querySelectorAll('.task-category-select').forEach(selector => {
+            const sync = () => {const button=selector.closest('.task-category-attach')?.querySelector('.attach-category-btn');if(button)button.disabled=!selector.value;};
+            selector.addEventListener('change',sync);sync();
+        });
+
         root.querySelectorAll('.attach-category-btn').forEach((button) => {
             button.addEventListener('click', async () => {
                 const selector = document.querySelector(`.task-category-select[data-task-id="${CSS.escape(button.dataset.taskId)}"]`);
