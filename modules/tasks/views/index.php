@@ -76,8 +76,9 @@ ob_start();
         <div class="stat-card stat-overdue"><span class="stat-value"><?= (int) ($statsData['overdue'] ?? 0) ?></span><span class="stat-label">Просрочено</span></div>
     </div>
 
-    <details class="tasks__category-create">
-        <summary><i class="fa fa-tags" aria-hidden="true"></i> Создать категорию</summary>
+    <details class="tasks__category-create" id="task-category-create">
+        <summary><i class="fa fa-tags" aria-hidden="true"></i> Создать новую категорию</summary>
+        <p class="task-category-help">Категории — метки для группировки задач, например «Работа» или «Личное». Создайте категорию, затем выберите её в карточке задачи и нажмите «Назначить». Одну категорию можно назначить нескольким задачам, а задаче — несколько категорий.</p>
         <form action="<?= $view->e($view->route('create_category')) ?>" method="post" class="category-create-form">
             <?= $view->csrfInput() ?>
             <label>Новая категория<input type="text" name="name" maxlength="120" required placeholder="Например: Проект"></label>

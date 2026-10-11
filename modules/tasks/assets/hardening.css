@@ -22,3 +22,6 @@
 .tasks .task-item[data-save-state=error]{outline:2px solid var(--ui-danger)}
 
 .tasks .tasks__search-row input:focus-visible{outline:2px solid var(--ui-primary);outline-offset:-2px;box-shadow:none}
+
+.task-category-attach{margin-top:10px;align-items:flex-end}.task-category-attach>label{display:grid;gap:5px;min-width:0;max-width:100%;flex:1;color:var(--ui-muted);font-size:11px;font-weight:700}.task-category-create-link{flex-basis:100%;color:var(--module-accent);font-size:11px;text-decoration:underline}.task-category-help{margin:0;padding:4px 12px 12px;color:var(--ui-muted);font-size:12px;line-height:1.6}.tasks .attach-category-btn:disabled{opacity:.5;cursor:default}
+@media(max-width:620px){.task-category-attach{align-items:stretch}.task-category-attach>label{width:100%}}

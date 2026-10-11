@@ -91,14 +91,15 @@ $createdAt = $formatDate($taskRow['created_at'] ?? '', 'd.m.Y H:i');
     </div>
 
     <div class="task-category-attach">
-        <select class="task-category-select" data-task-id="<?= $view->e($uid) ?>" aria-label="Добавить категорию">
+        <label>Категория задачи<select class="task-category-select" data-task-id="<?= $view->e($uid) ?>" aria-label="Категория задачи">
             <option value="">Выберите категорию</option>
             <?php foreach ($availableCategories as $category): ?>
                 <?php if (!is_array($category)) { continue; } ?>
                 <option value="<?= $view->e($category['id'] ?? '') ?>"><?= $view->e($category['name'] ?? '') ?></option>
             <?php endforeach; ?>
-        </select>
-        <button type="button" class="btn-sm attach-category-btn" data-task-id="<?= $view->e($uid) ?>">Добавить категорию</button>
+        </select></label>
+        <button type="button" class="btn-sm attach-category-btn" disabled data-task-id="<?= $view->e($uid) ?>">Назначить</button>
+        <a class="task-category-create-link" href="#task-category-create" data-category-create-open>Создать новую категорию</a>
     </div>
 
     <div class="task-subtasks" data-subtask-total="<?= count($subtasks) ?>">
