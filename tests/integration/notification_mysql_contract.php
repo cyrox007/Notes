@@ -85,16 +85,22 @@ $insertUser->close();
 [$activeId, $inactiveId, $deletingId, $anonymousId] = $userIds;
 
 $mysqli->query(
-    "INSERT INTO notification_channel_configs (channel, owner_user_id, label, enabled, config_json, secret_ref)
-     VALUES ('email', NULL, 'Основной SMTP', 1, JSON_OBJECT('host', 'smtp.example.test'), 'smtp:test')"
+    "INSERT INTO notification_channel_configs (
+        channel, owner_user_id, owner_scope, label, enabled, config_json, secret_ref
+     ) VALUES (
+        'email', NULL, 0, 'Основной SMTP', 1, JSON_OBJECT('host', 'smtp.example.test'), 'smtp:test'
+     )"
 );
 $globalConfigId = (int) $mysqli->insert_id;
 
 $duplicateRejected = false;
 try {
     $mysqli->query(
-        "INSERT INTO notification_channel_configs (channel, owner_user_id, label, enabled, config_json)
-         VALUES ('email', NULL, 'Основной SMTP', 1, JSON_OBJECT())"
+        "INSERT INTO notification_channel_configs (
+            channel, owner_user_id, owner_scope, label, enabled, config_json
+         ) VALUES (
+            'email', NULL, 0, 'Основной SMTP', 1, JSON_OBJECT()
+         )"
     );
 } catch (mysqli_sql_exception $e) {
     $duplicateRejected = $e->getCode() === 1062;
@@ -102,11 +108,22 @@ try {
 notificationMysqlAssert($duplicateRejected, 'MySQL должен запрещать дубликат глобальной конфигурации канала');
 
 $mysqli->query(
-    "INSERT INTO notification_channel_configs (channel, owner_user_id, label, enabled, config_json)
-     VALUES ('email', {$activeId}, 'Основной SMTP', 1, JSON_OBJECT('host', 'user-smtp.example.test'))"
+    "INSERT INTO notification_channel_configs (
+        channel, owner_user_id, owner_scope, label, enabled, config_json
+     ) VALUES (
+        'email', {$activeId}, {$activeId}, 'Основной SMTP', 1, JSON_OBJECT('host', 'user-smtp.example.test')
+     )"
 );
 $userConfigId = (int) $mysqli->insert_id;
 notificationMysqlAssert($userConfigId > $globalConfigId, 'Пользовательская конфигурация с тем же label должна быть допустима');
+
+$scopeRow = $mysqli->query(
+    "SELECT owner_user_id, owner_scope FROM notification_channel_configs WHERE id = {$userConfigId}"
+)->fetch_assoc();
+notificationMysqlAssert(
+    (int) $scopeRow['owner_user_id'] === $activeId && (int) $scopeRow['owner_scope'] === $activeId,
+    'Пользовательская конфигурация должна хранить owner_scope, равный user_id'
+);
 
 $mysqli->query(
     "INSERT INTO notification_subscriptions (user_id, category, enabled, in_app_enabled, email_enabled)

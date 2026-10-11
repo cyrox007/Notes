@@ -174,12 +174,20 @@ notificationDeliveryAssert(
 );
 
 notificationDeliveryAssert(
-    is_string($migration) && str_contains($migration, '`owner_scope` INT AS (IFNULL(`owner_user_id`, 0)) STORED'),
-    'Глобальная конфигурация канала должна иметь нормализованную область уникальности'
+    is_string($migration) && str_contains($migration, '`owner_scope` INT NOT NULL DEFAULT 0'),
+    'Конфигурация канала должна хранить явную нормализованную область владельца'
+);
+notificationDeliveryAssert(
+    is_string($migration) && !str_contains($migration, '`owner_scope` INT AS ('),
+    'Область владельца не должна быть generated-колонкой: это несовместимо с ON DELETE CASCADE в MySQL'
 );
 notificationDeliveryAssert(
     is_string($migration) && str_contains($migration, '(`channel`, `owner_scope`, `label`)'),
     'Уникальность конфигурации канала должна учитывать нормализованную область владельца'
+);
+notificationDeliveryAssert(
+    is_string($migration) && str_contains($migration, 'FOREIGN KEY (`owner_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE'),
+    'Удаление пользователя должно каскадно удалять его конфигурации каналов'
 );
 
 fwrite(STDOUT, "[OK] очередь и отказоустойчивость уведомлений 1.1.0\n");

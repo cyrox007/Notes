@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS `notification_channel_configs` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     `channel` VARCHAR(32) NOT NULL,
     `owner_user_id` INT DEFAULT NULL,
-    `owner_scope` INT AS (IFNULL(`owner_user_id`, 0)) STORED,
+    `owner_scope` INT NOT NULL DEFAULT 0,
     `label` VARCHAR(120) NOT NULL,
     `enabled` TINYINT(1) NOT NULL DEFAULT 1,
     `config_json` JSON NOT NULL,
