@@ -118,6 +118,7 @@ $cliFiles = [
     'bin/update_activate.php',
     'bin/update.php',
     'bin/update_remote.php',
+    'bin/update_apply.php',
 ];
 foreach ($cliFiles as $relative) {
     $source = file_get_contents($root . '/' . $relative);
@@ -195,8 +196,8 @@ foreach (['bin/update.php', 'bin/update_remote.php'] as $relative) {
     );
     installerCliAssert(
         str_contains($source, "'status' => 'fail'")
-            && str_contains($source, "'code' => $code")
-            && str_contains($source, "'message' => $message"),
+            && str_contains($source, '\'code\' => $code')
+            && str_contains($source, '\'message\' => $message'),
         $relative . ' должен сохранять совместимый JSON-контракт ошибки updater'
     );
 }
@@ -218,6 +219,29 @@ installerCliAssert(
         && str_contains($updateRemote, 'refreshUpdateAccess()'),
     'Удалённая проверка updater должна сохранять автоматическое восстановление credentials'
 );
+
+$updateApply = file_get_contents($root . '/bin/update_apply.php');
+installerCliAssert(is_string($updateApply), 'Не удалось прочитать bin/update_apply.php');
+installerCliAssert(
+    str_contains($updateApply, 'new UpdateApplyCommand($root, $json)')
+        && str_contains($updateApply, 'UpdateApplyException')
+        && str_contains($updateApply, 'SecurityEventLog::emit('),
+    'Транзакционный apply должен сохранять единый UpdateApplyCommand и журнал безопасности'
+);
+installerCliAssert(
+    str_contains($updateApply, "'code' => $e->errorCode")
+        && str_contains($updateApply, "'code' => 'apply_failed'"),
+    'Транзакционный apply должен сохранять машинные коды ошибок'
+);
+
+foreach (['bin/update_external_apply.php', 'bin/update_bootstrap.php'] as $relative) {
+    $source = file_get_contents($root . '/' . $relative);
+    installerCliAssert(is_string($source), 'Не удалось прочитать ' . $relative);
+    installerCliAssert(
+        !str_contains($source, 'CliRuntime'),
+        $relative . ' должен оставаться самодостаточным внешним runner без зависимости от live CliRuntime'
+    );
+}
 
 $healthcheck = file_get_contents($root . '/bin/healthcheck.php');
 installerCliAssert(is_string($healthcheck), 'Не удалось прочитать bin/healthcheck.php');
