@@ -2,16 +2,9 @@
 
 declare(strict_types=1);
 
-if (PHP_SAPI !== 'cli') {
-    fwrite(STDERR, "This command is CLI-only.\n");
-    exit(2);
-}
-
 $root = dirname(__DIR__);
-require_once $root . '/core/Environment.php';
-if (is_file($root . '/.env')) {
-    \Core\Environment::load($root . '/.env');
-}
+require_once $root . '/core/CliRuntime.php';
+\Core\CliRuntime::loadEnvironment($root);
 require_once $root . '/core/Version.php';
 require_once $root . '/core/UpdateManifestVerifier.php';
 require_once $root . '/core/UpdatePackageStager.php';
@@ -38,12 +31,12 @@ $options = getopt('', [
 ]);
 
 if (isset($options['help'])) {
-    echo "Workspace Organizer updater rollback-backup checkpoint\n\n";
-    echo "Prerequisite: the same transaction must already own maintenance mode.\n\n";
+    echo "Контрольная точка резервной копии updater Workspace Organizer\n\n";
+    echo "Условие: эта же транзакция уже должна владеть режимом обслуживания.\n\n";
     echo "  php bin/update_backup.php --transaction=update-... --stage-dir=/external/stage/... \\\n";
     echo "      [--state-root=/external/state] [--backup-root=/external/backups] [--json]\n\n";
-    echo "This command does not extract or overwrite live application code and does not run migrations.\n";
-    echo "Maintenance remains active after success and must be released explicitly by the transaction owner.\n";
+    echo "Команда не распаковывает и не перезаписывает рабочий код приложения и не запускает миграции.\n";
+    echo "После успеха режим обслуживания остаётся активным и снимается только владельцем транзакции.\n";
     exit(0);
 }
 
@@ -60,7 +53,7 @@ function updateBackupFail(string $message, string $code = 'backup_failed', int $
             'message' => $message,
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
     } else {
-        fwrite(STDERR, "[FAIL] {$message}\n");
+        fwrite(STDERR, "[ОШИБКА] {$message}\n");
     }
     exit($exitCode);
 }
@@ -79,18 +72,18 @@ function updateBackupResolveRoot(string $explicit, string $envName, string $priv
     if (is_string($private) && trim($private) !== '') {
         return rtrim(trim($private), '/\\') . DIRECTORY_SEPARATOR . $privateSuffix;
     }
-    updateBackupFail("{$envName} is not configured and PRIVATE_STORAGE_PATH is unavailable", 'path_not_configured', 2);
+    updateBackupFail("{$envName} не настроен, а PRIVATE_STORAGE_PATH недоступен", 'path_not_configured', 2);
 }
 
 function updateBackupDb(): mysqli
 {
     if (!extension_loaded('mysqli')) {
-        updateBackupFail('PHP mysqli extension is required for updater database backup', 'mysqli_missing', 2);
+        updateBackupFail('Для резервной копии БД updater требуется расширение PHP mysqli', 'mysqli_missing', 2);
     }
     $user = getenv('DBUSER');
     $name = getenv('DBNAME');
     if (!is_string($user) || trim($user) === '' || !is_string($name) || trim($name) === '') {
-        updateBackupFail('Database environment is incomplete', 'database_config_missing', 2);
+        updateBackupFail('Конфигурация окружения БД неполная', 'database_config_missing', 2);
     }
     mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
     $db = new mysqli(
@@ -108,12 +101,12 @@ function updateBackupSafeStage(string $path, string $appRoot): string
 {
     $path = trim($path);
     if ($path === '' || is_link($path)) {
-        updateBackupFail('Stage directory must be an explicit non-symlink local directory', 'invalid_stage', 2);
+        updateBackupFail('Каталог stage должен быть задан явно и не должен быть символической ссылкой', 'invalid_stage', 2);
     }
     $real = realpath($path);
     $app = realpath($appRoot);
     if (!is_string($real) || !is_dir($real) || !is_string($app)) {
-        updateBackupFail('Stage directory cannot be resolved', 'invalid_stage', 2);
+        updateBackupFail('Не удалось определить каталог stage', 'invalid_stage', 2);
     }
     $realNorm = rtrim(str_replace('\\', '/', $real), '/');
     $appNorm = rtrim(str_replace('\\', '/', $app), '/');
@@ -122,14 +115,14 @@ function updateBackupSafeStage(string $path, string $appRoot): string
         $appNorm = strtolower($appNorm);
     }
     if ($realNorm === $appNorm || str_starts_with($realNorm . '/', $appNorm . '/')) {
-        updateBackupFail('Stage directory must be outside the live application tree', 'invalid_stage', 2);
+        updateBackupFail('Каталог stage должен находиться вне рабочего дерева приложения', 'invalid_stage', 2);
     }
     return $real;
 }
 
 $transactionId = trim((string) ($options['transaction'] ?? ''));
 if (preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]{7,95}$/', $transactionId) !== 1) {
-    updateBackupFail('A valid --transaction id is required', 'invalid_transaction', 2);
+    updateBackupFail('Требуется корректный идентификатор --transaction', 'invalid_transaction', 2);
 }
 $stageDir = updateBackupSafeStage((string) ($options['stage-dir'] ?? ''), $root);
 $stateRoot = updateBackupResolveRoot((string) ($options['state-root'] ?? ''), 'UPDATE_STATE_PATH', 'updates');
@@ -139,16 +132,16 @@ try {
     $maintenance = new MaintenanceModeService($stateRoot, $root);
     $maintenanceState = $maintenance->state();
     if (!$maintenanceState['active'] || !$maintenanceState['valid']) {
-        updateBackupFail('Updater rollback backup requires a valid active maintenance transaction', 'maintenance_required');
+        updateBackupFail('Резервная копия отката требует активную и корректную транзакцию режима обслуживания', 'maintenance_required');
     }
     if (!hash_equals($transactionId, (string) $maintenanceState['transaction_id'])) {
-        updateBackupFail('Maintenance mode belongs to another updater transaction', 'maintenance_owner_mismatch');
+        updateBackupFail('Режим обслуживания принадлежит другой транзакции updater', 'maintenance_owner_mismatch');
     }
 
     foreach (['manifest.json', 'manifest.sig', 'stage.json'] as $required) {
         $path = $stageDir . DIRECTORY_SEPARATOR . $required;
         if (!is_file($path) || is_link($path) || !is_readable($path)) {
-            updateBackupFail("Verified stage is missing safe {$required}", 'invalid_stage');
+            updateBackupFail("В проверенном stage отсутствует безопасный файл {$required}", 'invalid_stage');
         }
     }
 
@@ -156,22 +149,22 @@ try {
     $signatureToken = file_get_contents($stageDir . DIRECTORY_SEPARATOR . 'manifest.sig');
     $stageBytes = file_get_contents($stageDir . DIRECTORY_SEPARATOR . 'stage.json');
     if (!is_string($manifestBytes) || !is_string($signatureToken) || !is_string($stageBytes)) {
-        updateBackupFail('Cannot read verified stage metadata', 'invalid_stage');
+        updateBackupFail('Не удалось прочитать метаданные проверенного stage', 'invalid_stage');
     }
 
     $verifier = new UpdateManifestVerifier();
     if (!$verifier->hasTrustedKeys()) {
-        updateBackupFail('No trusted update public keys are configured', 'trust_not_configured');
+        updateBackupFail('Не настроены доверенные публичные ключи обновлений', 'trust_not_configured');
     }
     $verified = $verifier->verify($manifestBytes, trim($signatureToken));
     if (!($verified['valid'] ?? false) || !is_array($verified['manifest'] ?? null)) {
-        updateBackupFail((string) ($verified['message'] ?? 'Staged update signature is invalid'), (string) ($verified['code'] ?? 'manifest_invalid'));
+        updateBackupFail((string) ($verified['message'] ?? 'Подпись подготовленного обновления недействительна'), (string) ($verified['code'] ?? 'manifest_invalid'));
     }
     $manifest = $verified['manifest'];
 
     $stageMetadata = json_decode($stageBytes, true, 32, JSON_THROW_ON_ERROR);
     if (!is_array($stageMetadata) || array_is_list($stageMetadata) || ($stageMetadata['state'] ?? null) !== 'verified_staged') {
-        updateBackupFail('Stage metadata does not describe a verified staged update', 'invalid_stage');
+        updateBackupFail('Метаданные stage не описывают проверенное подготовленное обновление', 'invalid_stage');
     }
 
     $packageName = (string) ($manifest['package']['filename'] ?? '');
@@ -187,7 +180,7 @@ try {
         || (string) ($stageMetadata['target_version'] ?? '') !== (string) $manifest['version']
         || !hash_equals((string) ($stageMetadata['package_sha256'] ?? ''), $package['sha256'])
     ) {
-        updateBackupFail('Stage metadata no longer matches installed/target version or package hash', 'invalid_stage');
+        updateBackupFail('Метаданные stage больше не совпадают с установленной/целевой версией или хешем пакета', 'invalid_stage');
     }
 
     $journal = new UpdateTransactionJournal($stateRoot, $root);
@@ -201,7 +194,7 @@ try {
         'stage_dir' => $stageDir,
     ]);
     if (($journalState['live_mutation_started'] ?? true) !== false) {
-        updateBackupFail('Transaction journal indicates live mutation has already started', 'unsafe_transaction_state');
+        updateBackupFail('Журнал транзакции указывает, что изменение рабочего дерева уже началось', 'unsafe_transaction_state');
     }
 
     $excluded = [];
@@ -239,12 +232,12 @@ try {
     if ($json) {
         echo json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
     } else {
-        echo "[OK] Updater rollback backup verified\n";
-        echo "Transaction: {$transactionId}\n";
-        echo "Target:      " . $manifest['version'] . "\n";
-        echo "Backup:      " . $backups['backup_dir'] . "\n";
-        echo "Manifest:    " . $backups['manifest_sha256'] . "\n";
-        echo "Maintenance remains ACTIVE. No live application files or schema were changed.\n";
+        echo "[OK] Резервная копия отката updater проверена\n";
+        echo "Транзакция: {$transactionId}\n";
+        echo "Цель:       " . $manifest['version'] . "\n";
+        echo "Копия:      " . $backups['backup_dir'] . "\n";
+        echo "Манифест:   " . $backups['manifest_sha256'] . "\n";
+        echo "Режим обслуживания остаётся АКТИВНЫМ. Рабочие файлы приложения и схема БД не изменялись.\n";
     }
 } catch (Throwable $e) {
     updateBackupFail($e->getMessage());
