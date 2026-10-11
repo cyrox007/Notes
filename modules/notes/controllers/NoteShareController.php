@@ -14,6 +14,34 @@ use InvalidArgumentException;
 
 final class NoteShareController extends Controller
 {
+    public function published(Request $request, string $uid): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        header('Cache-Control: private, no-store, max-age=0');
+        $db = DatabaseManager::getInstance();
+        $note = $db->fetchOne(
+            'SELECT n.id,n.uid,n.notename,n.content,n.is_encrypted,u.username AS owner
+             FROM notes n INNER JOIN users u ON u.id=n.user_id AND u.is_active=1
+             INNER JOIN users viewer ON viewer.id=:viewer AND viewer.is_active=1
+             WHERE n.uid=:uid AND n.is_deleted=0 AND n.is_profile_public=1 LIMIT 1',
+            [':viewer'=>(int)$request->session('user_id',0), ':uid'=>$uid]
+        );
+        if (!$note) { http_response_code(404); echo json_encode(['error'=>'Заметка больше не опубликована или недоступна']); return; }
+        try {
+            $content=(string)($note['content']??'');
+            if ((int)$note['is_encrypted']===1 && $content!=='') $content=CryptMethods::decrypt($content,(string)$note['uid']);
+        } catch (\Throwable $e) {
+            http_response_code(500); echo json_encode(['error'=>'Не удалось прочитать заметку']); return;
+        }
+        $attachments=$db->fetchAll('SELECT file_uid,file_name FROM note_attachments WHERE note_id=:id AND is_deleted=0 ORDER BY id', [':id'=>(int)$note['id']]);
+        foreach ($attachments as &$attachment) {
+            $attachment['url']=$this->appPath('/notes/published/'.rawurlencode($uid).'/attachment/'.rawurlencode((string)$attachment['file_uid']));
+            unset($attachment['file_uid']);
+        }
+        unset($attachment);
+        echo json_encode(['title'=>$note['notename']?:'Без названия','content'=>$content,'owner'=>$note['owner'],'attachments'=>$attachments], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+    }
+
     public function create(Request $request, string $uid): void
     {
         header('Content-Type: application/json; charset=utf-8');

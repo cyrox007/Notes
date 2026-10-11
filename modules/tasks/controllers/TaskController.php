@@ -45,6 +45,25 @@ final class TaskController extends Controller
         'cancelled' => 'Отменена',
     ];
 
+    public function published(Request $request, string $uid): void
+    {
+        header('Cache-Control: private, no-store, max-age=0');
+        $db=DatabaseManager::getInstance();
+        $task=$db->fetchOne(
+            'SELECT t.id,t.title,t.description,t.status,t.priority,t.due_date,u.username AS owner
+             FROM tasks t INNER JOIN users u ON u.id=t.user_id AND u.is_active=1
+             INNER JOIN users viewer ON viewer.id=:viewer AND viewer.is_active=1
+             WHERE t.uid=:uid AND t.is_deleted=0 AND t.is_profile_public=1 LIMIT 1',
+            [':viewer'=>(int)$request->session('user_id',0), ':uid'=>$uid]
+        );
+        if (!$task) { $this->jsonError('Задача больше не опубликована или недоступна',404); return; }
+        $subtasks=$db->fetchAll('SELECT title,is_completed FROM subtasks WHERE task_id=:id ORDER BY sort_order,id', [':id'=>(int)$task['id']]);
+        $this->json(['title'=>$task['title'],'content'=>$task['description']??'', 'owner'=>$task['owner'],
+            'status'=>self::STATUS_LABELS[$task['status']]??$task['status'],
+            'priority'=>['low'=>'Низкий','medium'=>'Обычный','high'=>'Высокий','urgent'=>'Срочный'][$task['priority']]??$task['priority'],
+            'due_date'=>$task['due_date'],'subtasks'=>$subtasks]);
+    }
+
     public function index(Request $request): void
     {
         $user = $this->currentUser($request);

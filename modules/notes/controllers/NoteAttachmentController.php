@@ -188,6 +188,20 @@ final class NoteAttachmentController extends Controller
         }
     }
 
+    public function publishedDownload(Request $request, string $uid, string $fileUid): void
+    {
+        $row=DatabaseManager::getInstance()->fetchOne(
+            'SELECT a.* FROM note_attachments a
+             INNER JOIN notes n ON n.id=a.note_id AND n.is_deleted=0 AND n.is_profile_public=1
+             INNER JOIN users owner ON owner.id=n.user_id AND owner.is_active=1
+             INNER JOIN users viewer ON viewer.id=:viewer AND viewer.is_active=1
+             WHERE n.uid=:uid AND a.file_uid=:file_uid AND a.is_deleted=0 LIMIT 1',
+            [':viewer'=>(int)$request->session('user_id',0), ':uid'=>$uid, ':file_uid'=>$fileUid]
+        );
+        if (!$row) { $this->notFound(); return; }
+        $this->stream($row);
+    }
+
     public function sharedDownload(Request $request, string $token, string $fileUid): void
     {
         $row = DatabaseManager::getInstance()->fetchOne(

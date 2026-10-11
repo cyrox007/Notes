@@ -55,6 +55,8 @@ final class NotesRuntimeProvider implements ModuleRuntimeProvider
             ->add('GET', '/attachment/{str:fileUid}', [NoteAttachmentController::class, 'download'], [LoginRequared::class, RequireNotesUse::class], 'note_attachment_download')
             ->add('POST', '/share/{str:uid}', [NoteShareController::class, 'create'], [LoginRequared::class, RequireNotesUse::class, EnforceNoteSharePolicy::class], 'note_share')
             ->add('POST', '/unshare/{str:uid}', [NoteShareController::class, 'unshare'], [LoginRequared::class, RequireNotesUse::class], 'note_unshare')
+            ->add('GET', '/published/{str:uid}', [NoteShareController::class, 'published'], [LoginRequared::class, RequireNotesUse::class], 'note_published')
+            ->add('GET', '/published/{str:uid}/attachment/{str:fileUid}', [NoteAttachmentController::class, 'publishedDownload'], [LoginRequared::class, RequireNotesUse::class], 'note_published_attachment')
             ->add('GET', '/shared/{str:token}', [NoteShareController::class, 'view'], [], 'note_shared_view')
             ->add('GET', '/shared/{str:token}/attachment/{str:fileUid}', [NoteAttachmentController::class, 'sharedDownload'], [], 'note_shared_attachment')
             ->endGroup();
