@@ -363,6 +363,25 @@ class FileController extends Controller
             ->where('is_deleted', '=', 0)
             ->first();
 
+        $this->serveFile($file);
+    }
+
+    public function publishedFile(Request $request, string $uid): void
+    {
+        $viewer = $this->currentUser($request);
+        if (!$viewer || !(int) $viewer->is_active) {
+            http_response_code(403);
+            return;
+        }
+        $file = FileModel::select()->where('uid', '=', $uid)
+            ->where('is_profile_public', '=', 1)->where('is_deleted', '=', 0)->first();
+        $owner = $file ? UserModel::select()->where('id', '=', $file->user_id)
+            ->where('is_active', '=', 1)->first() : null;
+        $this->serveFile($owner ? $file : null);
+    }
+
+    private function serveFile(?object $file): void
+    {
         if (!$file || $file->type === 'folder' || empty($file->path)) {
             http_response_code(404);
             echo 'File not found';

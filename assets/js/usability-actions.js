@@ -367,3 +367,26 @@
         if (confirmed) HTMLFormElement.prototype.submit.call(form);
     }, true);
 })();
+
+// Animate the real details height so the following table moves with the form.
+document.querySelectorAll('details.admin-create-user').forEach((details) => {
+    const summary = details.querySelector('summary');
+    let animation;
+    let expanded = details.open;
+    summary?.addEventListener('click', (event) => {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        event.preventDefault();
+        const start = details.getBoundingClientRect().height;
+        animation?.cancel();
+        expanded = !expanded;
+        details.open = true;
+        const end = expanded ? details.getBoundingClientRect().height : summary.getBoundingClientRect().height;
+        details.style.overflow = 'hidden';
+        animation = details.animate({height: [start + 'px', end + 'px']}, {duration: 240, easing: 'ease-in-out'});
+        animation.onfinish = () => {
+            details.open = expanded;
+            details.style.overflow = '';
+            animation = null;
+        };
+    });
+});

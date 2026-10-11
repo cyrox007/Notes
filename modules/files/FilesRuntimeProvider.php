@@ -53,6 +53,7 @@ final class FilesRuntimeProvider implements ModuleRuntimeProvider
             ->add('POST', '/upload/', [FileController::class, 'uploadFile'], [LoginRequared::class, RequireFilesUse::class, UploadRateLimit::class, EnforceFileUploadPolicy::class, StorageQuotaLimit::class], 'files_upload')
             ->add('POST', '/delete/', [FileDeleteController::class, 'delete'], [LoginRequared::class, RequireFilesUse::class], 'files_delete')
             ->add('POST', '/rename/', [FileController::class, 'rename'], [LoginRequared::class, RequireFilesUse::class, StorageMutationLock::class], 'files_rename')
+            ->add('GET', '/published/{str:uid}/', [FileController::class, 'publishedFile'], [LoginRequared::class, RequireFilesUse::class], 'files_published')
             ->add('GET', '/get/{int:fileId}/', [FileController::class, 'getFile'], [LoginRequared::class, RequireFilesUse::class], 'files_get')
             ->add('GET', '/shares/', [FileShareController::class, 'index'], [LoginRequared::class, RequireFilesUse::class], 'files_shares')
             ->add('POST', '/share/{str:uid}', [FileShareController::class, 'create'], [LoginRequared::class, RequireFilesUse::class, CSRFMiddleware::class], 'files_share')

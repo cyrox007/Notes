@@ -30,6 +30,32 @@ final class MessengerActivityService
         $this->db ??= DatabaseManager::getInstance();
     }
 
+    // Shared heartbeat: HTTP workers and WebSocket clients use the same state.
+    public function touchPresence(string $userUid): void
+    {
+        $this->db->execute(
+            "INSERT INTO messenger_activity (dialog_id,user_id,activity,expires_at,updated_at)
+             SELECT me.dialog_id,u.id,'presence',DATE_ADD(CURRENT_TIMESTAMP(3), INTERVAL 75 SECOND),CURRENT_TIMESTAMP(3)
+             FROM users u INNER JOIN user_to_dialogs me ON me.user_id=u.id AND me.is_deleted=0
+             WHERE u.uid=:uid AND u.is_active=1
+             ON DUPLICATE KEY UPDATE expires_at=VALUES(expires_at),updated_at=VALUES(updated_at)",
+            [':uid' => $userUid]
+        );
+    }
+
+    public function onlineUids(string $viewerUid): array
+    {
+        return array_column($this->db->fetchAll(
+            "SELECT DISTINCT u.uid FROM messenger_activity ma
+             INNER JOIN users u ON u.id=ma.user_id AND u.is_active=1
+             INNER JOIN user_to_dialogs member ON member.dialog_id=ma.dialog_id AND member.user_id=u.id AND member.is_deleted=0
+             INNER JOIN user_to_dialogs me ON me.dialog_id=ma.dialog_id AND me.is_deleted=0
+             INNER JOIN users viewer ON viewer.id=me.user_id
+             WHERE viewer.uid=:uid AND ma.activity='presence' AND ma.expires_at>CURRENT_TIMESTAMP(3)",
+            [':uid' => $viewerUid]
+        ), 'uid');
+    }
+
     public function publish(string $userUid, string $dialogUid, string $activity, bool $active): void
     {
         if (!in_array($activity, self::ALLOWED_TYPES, true)) {
@@ -83,6 +109,7 @@ final class MessengerActivityService
              FROM messenger_activity ma
              INNER JOIN users u ON u.id = ma.user_id
              WHERE ma.dialog_id = :dialog_id
+               AND ma.activity <> "presence"
                AND ma.user_id <> :viewer_id
                AND ma.expires_at > CURRENT_TIMESTAMP(3)
                AND u.is_active = 1

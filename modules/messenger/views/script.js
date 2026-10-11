@@ -100,6 +100,11 @@
             }
             void this.loadInitialDialogs();
             this.connect();
+            this.presenceTimer = window.setInterval(() => {
+                if (this.socketAuthorized && !this.sessionUnavailable && !this.transportSuspended) {
+                    this.sendEvent('MessangerSocket:get_dialogs', {});
+                }
+            }, 25000);
         }
 
         bindEvents() {
