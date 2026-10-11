@@ -119,7 +119,7 @@ ob_start();
                                             <a href="<?= $view->e($fileUrl) ?>"><strong><?= $view->e($fileName) ?></strong></a>
                                             <span><?= $view->e(strtoupper((string) ($item['extension'] ?? 'Файл'))) ?> · <?= $view->e($size) ?></span>
                                         </div>
-                                        <a class="profile-public__file-open" href="<?= $view->e($fileUrl) ?>" aria-label="<?= $view->e('Открыть файл ' . $fileName) ?>">Открыть <i class="fa fa-arrow-right" aria-hidden="true"></i></a>
+                                        <a class="profile-public__file-open" href="<?= $view->e($fileUrl) ?>" download="<?= $view->e($fileName) ?>" aria-label="<?= $view->e('Скачать файл ' . $fileName) ?>">Скачать <i class="fa fa-download" aria-hidden="true"></i></a>
                                     </article>
                                 <?php endforeach; ?>
                             </div>
