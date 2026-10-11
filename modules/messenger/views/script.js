@@ -111,7 +111,8 @@
         setupMobileChatActions() {
             const host = this.root.querySelector('.messenger-chat__actions');
             if (!host || host.querySelector('.messenger-chat-actions-toggle')) return;
-            const media = window.matchMedia('(max-width: 680px)');
+            const header = host.closest('.messenger-chat__header');
+            let compact = header.getBoundingClientRect().width <= 680;
             const toggle = document.createElement('button');
             toggle.type = 'button';toggle.className = 'messenger-icon-button messenger-chat-actions-toggle';
             toggle.textContent = '⋯';toggle.setAttribute('aria-label', 'Действия с чатом');toggle.setAttribute('aria-expanded', 'false');
@@ -119,13 +120,13 @@
             toggle.setAttribute('aria-controls', panel.id);
             while(host.firstChild) panel.append(host.firstChild);
             host.append(toggle,panel);
-            const close = () => {host.classList.remove('is-expanded');toggle.setAttribute('aria-expanded','false');panel.inert = media.matches;};
+            const close = () => {host.classList.remove('is-expanded');toggle.setAttribute('aria-expanded','false');panel.inert = compact;};
             close();
-            toggle.addEventListener('click', () => {const open = toggle.getAttribute('aria-expanded') !== 'true';host.classList.toggle('is-expanded',open);toggle.setAttribute('aria-expanded',String(open));panel.inert = !open && media.matches;});
+            toggle.addEventListener('click', () => {const open = toggle.getAttribute('aria-expanded') !== 'true';host.classList.toggle('is-expanded',open);toggle.setAttribute('aria-expanded',String(open));panel.inert = !open && compact;});
             host.addEventListener('keydown', event => {if(event.key==='Escape'){close();toggle.focus();event.stopPropagation();}});
             panel.addEventListener('click', event => {if(event.target.closest('button')) close();});
             document.addEventListener('click', event => {if(!host.contains(event.target)) close();});
-            media.addEventListener('change',close);
+            new ResizeObserver(() => {const next = header.getBoundingClientRect().width <= 680;if(next !== compact){compact = next;close();}}).observe(header);
             // Search and call modules add their actions after the main app starts.
             new MutationObserver(() => {for(const child of Array.from(host.childNodes)) if(child!==toggle && child!==panel) panel.append(child);}).observe(host,{childList:true});
         }
@@ -930,6 +931,19 @@
             this.sendEvent('MessangerSocket:load', { dialog_uid: uid });
         }
 
+        formatLastSeen(timestamp) {
+            const seconds = Number(timestamp);
+            if (!Number.isFinite(seconds) || seconds <= 0) return 'не в сети';
+            const date = new Date(seconds * 1000);
+            if (!Number.isFinite(date.getTime())) return 'не в сети';
+            const now = new Date();
+            const yesterday = new Date(now);yesterday.setDate(now.getDate()-1);
+            const day = date.toDateString() === now.toDateString() ? 'сегодня'
+                : date.toDateString() === yesterday.toDateString() ? 'вчера'
+                : date.toLocaleDateString('ru-RU', {day:'numeric',month:'short',...(date.getFullYear()!==now.getFullYear()?{year:'numeric'}:{})});
+            return `был(а) ${day} в ${date.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})}`;
+        }
+
         renderChatHeader() {
             if (!this.currentDialog) return;
             this.el.chatTitle.textContent = this.currentDialog.title || 'Диалог';
@@ -939,7 +953,9 @@
 
             if (this.currentDialog.type === 'private') {
                 const online = Boolean(this.currentDialog.partner?.online);
-                this.el.chatSubtitle.textContent = online ? 'в сети' : 'не в сети';
+                this.el.chatSubtitle.textContent = online ? 'в сети' : this.formatLastSeen(this.currentDialog.partner?.last_seen);
+                this.el.chatSubtitle.title = this.el.chatSubtitle.textContent;
+                this.el.chatAvatar.dataset.presence = online ? 'online' : 'offline';
                 this.el.chatSubtitle.dataset.state = online ? 'online' : 'offline';
             } else {
                 const count = Array.isArray(this.currentDialog.participants)
@@ -948,6 +964,8 @@
                 const online = Number(this.currentDialog.online_count || 0);
                 this.el.chatSubtitle.textContent = `${count} участников${online ? `, ${online} онлайн` : ''}`;
                 this.el.chatSubtitle.dataset.state = '';
+                delete this.el.chatAvatar.dataset.presence;
+                this.el.chatSubtitle.title = '';
             }
         }
 
