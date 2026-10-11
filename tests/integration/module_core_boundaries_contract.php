@@ -58,7 +58,10 @@ if ($tasks !== '' && preg_match('/\bCREATE\s+TABLE\b/i', $tasks) === 1) {
 }
 
 $manifest = json_decode($read('database/migrations/manifest.json'), true);
-if (!is_array($manifest) || !in_array('20260915_shared_task_boards.sql', $manifest, true)) {
+$migrations = is_array($manifest) && is_array($manifest['migrations'] ?? null)
+    ? $manifest['migrations']
+    : [];
+if (!in_array('20260915_shared_task_boards.sql', $migrations, true)) {
     $failures[] = 'Схема общих досок должна принадлежать миграции 20260915_shared_task_boards.sql';
 }
 
