@@ -57,3 +57,14 @@
 /* Task boards use the available workspace width rather than the article limit. */
 .content-wrapper:has(>.tasks),.content-wrapper:has(>.task-boards-page){width:100%;max-width:none}
 @media(min-width:901px){.tasks__stats{grid-template-columns:repeat(6,minmax(0,1fr))}}
+
+.tasks__category-create{min-width:0;padding:10px;border:1px solid var(--ui-border);border-radius:10px;background:var(--ui-surface)}
+.tasks__category-create summary{-webkit-user-select:none;user-select:none;border:1px solid var(--ui-border);border-radius:9px;background:var(--ui-surface)}
+.tasks .category-create-form{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin:0}
+.tasks .category-create-form>label{display:grid;gap:5px;min-width:0;margin:0}
+.tasks .category-create-form :is(input,select,button){height:36px;box-sizing:border-box;margin:0}
+.tasks .category-create-form input[type=color]{width:52px;padding:4px;border:1px solid var(--ui-border-strong);border-radius:7px;background:var(--ui-surface)}
+.tasks .category-create-form input[name=name]{width:280px;max-width:100%}
+.tasks .category-create-form select{min-width:148px}
+.tasks[data-archive="1"] .tasks__archive-link{margin-right:auto}
+@media(max-width:620px){.tasks .category-create-form>label{width:100%}.tasks .category-create-form input[name=name]{width:100%}.tasks .category-create-form select{min-width:0}}
