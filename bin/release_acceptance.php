@@ -2,12 +2,9 @@
 
 declare(strict_types=1);
 
-if (PHP_SAPI !== 'cli') {
-    fwrite(STDERR, "Команда доступна только из CLI.\n");
-    exit(2);
-}
-
-$root = dirname(__DIR__);
+require_once dirname(__DIR__) . '/core/CliRuntime.php';
+\Core\CliRuntime::assertCli();
+$root = \Core\CliRuntime::projectRoot();
 require_once $root . '/core/Version.php';
 
 use Core\Version;
@@ -26,7 +23,7 @@ $options = getopt('', [
     'one-click-update-acceptance-green',
     'two-factor-acceptance-green',
     'one-zero-one-drill-green',
-    'beta4-drill-green', // Совместимый alias для старых операторских сценариев
+    'beta4-drill-green', // Совместимый псевдоним для старых операторских сценариев
     'p0p1-clear',
     'trust-canaries-green',
     'artifact-signed',
@@ -36,7 +33,7 @@ $options = getopt('', [
 if (isset($options['help'])) {
     echo "Использование: php bin/release_acceptance.php [--json] [--strict <подтверждения оператора>]\n";
     echo "Обычный режим показывает ошибки исходников и ожидающие внешние релизные проверки.\n";
-    echo "Строгий режим завершается с ошибкой, пока каждая production/manual проверка явно не подтверждена.\n";
+    echo "Строгий режим завершается с ошибкой, пока каждая внешняя или ручная проверка явно не подтверждена.\n";
     exit(0);
 }
 
@@ -86,7 +83,7 @@ $governanceOk = is_array($governance)
     && in_array('admin-update-ui (8.3)', $requiredChecks, true)
     && in_array('admin-update-e2e', $requiredChecks, true)
     && in_array('previous-stable-upgrade', $requiredChecks, true);
-$record('governance_source_contract', $governanceOk, 'master + 1.0 / единый обязательный набор checks');
+$record('governance_source_contract', $governanceOk, 'master + 1.0 / единый обязательный набор проверок');
 
 foreach ([
     'README.md',
@@ -131,7 +128,7 @@ foreach ($iterator as $file) {
 $record(
     'private_signing_material_absent',
     $privateMatches === [],
-    $privateMatches === [] ? 'запрещённые файлы приватных signing keys не найдены' : implode(', ', $privateMatches)
+    $privateMatches === [] ? 'запрещённые файлы приватных ключей подписи не найдены' : implode(', ', $privateMatches)
 );
 
 $decodePublic = static function (string $token): ?string {
@@ -159,7 +156,7 @@ if (is_array($licenseRegistry)) {
     foreach ($licenseRegistry as $id => $token) {
         $raw = is_string($token) ? $decodePublic($token) : null;
         if (!is_string($id) || $raw === null) {
-            $record('license_public_key_format', false, 'некорректный key ID или публичный ключ');
+            $record('license_public_key_format', false, 'некорректный ID ключа или публичный ключ');
             break;
         }
         $licenseFingerprints[$id] = hash('sha256', $raw);
@@ -169,7 +166,7 @@ if (is_array($updateRegistry)) {
     foreach ($updateRegistry as $id => $token) {
         $raw = is_string($token) ? $decodePublic($token) : null;
         if (!is_string($id) || $raw === null) {
-            $record('update_public_key_format', false, 'некорректный key ID или публичный ключ');
+            $record('update_public_key_format', false, 'некорректный ID ключа или публичный ключ');
             break;
         }
         $updateFingerprints[$id] = hash('sha256', $raw);
@@ -181,7 +178,7 @@ if ($trustRootsReady) {
         'production_trust_domains_independent',
         array_intersect(array_keys($licenseFingerprints), array_keys($updateFingerprints)) === []
             && array_intersect(array_values($licenseFingerprints), array_values($updateFingerprints)) === [],
-        'независимые ID и Ed25519 key material'
+        'независимые ID и материал ключей Ed25519'
     );
 } else {
     $pending[] = 'production_public_trust_roots';
