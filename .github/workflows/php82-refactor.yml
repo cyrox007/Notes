@@ -92,6 +92,7 @@ jobs:
           php tests/integration/notification_worker_cli_contract.php
           php tests/integration/notification_center_contract.php
           php tests/integration/notification_preferences_contract.php
+          php tests/integration/notification_center_ui_contract.php
 
       - name: Проверить отказоустойчивость updater
         shell: bash

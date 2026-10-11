@@ -56,7 +56,20 @@ final class DatabaseNotificationCenter
                 e.source_name,
                 e.category,
                 e.importance,
-                e.occurred_at
+                e.occurred_at,
+                (SELECT COUNT(*)
+                 FROM notification_delivery_jobs dj_total
+                 WHERE dj_total.notification_id = n.id) AS delivery_total,
+                (SELECT COUNT(*)
+                 FROM notification_delivery_jobs dj_sent
+                 WHERE dj_sent.notification_id = n.id AND dj_sent.state = \'sent\') AS delivery_sent,
+                (SELECT COUNT(*)
+                 FROM notification_delivery_jobs dj_active
+                 WHERE dj_active.notification_id = n.id
+                   AND dj_active.state IN (\'pending\', \'processing\', \'retry\')) AS delivery_active,
+                (SELECT COUNT(*)
+                 FROM notification_delivery_jobs dj_failed
+                 WHERE dj_failed.notification_id = n.id AND dj_failed.state = \'failed\') AS delivery_failed
              FROM notifications n
              INNER JOIN notification_events e ON e.id = n.event_id
              WHERE ' . $whereSql . '
@@ -241,6 +254,38 @@ final class DatabaseNotificationCenter
             'category' => (string) ($row['category'] ?? ''),
             'importance' => (string) ($row['importance'] ?? ''),
             'occurred_at' => (string) ($row['occurred_at'] ?? ''),
+            'delivery' => $this->normalizeDelivery($row),
+        ];
+    }
+
+    /** @param array<string,mixed> $row @return array{external:bool,state:string,sent:int,pending:int,failed:int} */
+    private function normalizeDelivery(array $row): array
+    {
+        $total = max(0, (int) ($row['delivery_total'] ?? 0));
+        $sent = max(0, (int) ($row['delivery_sent'] ?? 0));
+        $pending = max(0, (int) ($row['delivery_active'] ?? 0));
+        $failed = max(0, (int) ($row['delivery_failed'] ?? 0));
+
+        if ($total === 0) {
+            $state = 'none';
+        } elseif ($failed > 0 && $sent > 0) {
+            $state = 'partial';
+        } elseif ($failed > 0 && $pending === 0) {
+            $state = 'failed';
+        } elseif ($pending > 0) {
+            $state = 'pending';
+        } elseif ($sent >= $total) {
+            $state = 'sent';
+        } else {
+            $state = 'pending';
+        }
+
+        return [
+            'external' => $total > 0,
+            'state' => $state,
+            'sent' => $sent,
+            'pending' => $pending,
+            'failed' => $failed,
         ];
     }
 

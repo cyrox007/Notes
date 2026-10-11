@@ -7,6 +7,10 @@ on:
       - 'app/services/notifications/**'
       - 'app/controllers/NotificationController.php'
       - 'app/middlewares/ApiLoginRequired.php'
+      - 'app/views/core/base.php'
+      - 'assets/css/notification-center.css'
+      - 'assets/js/notification-center.js'
+      - 'assets/js/update-notifications.js'
       - 'bin/notifications_worker.php'
       - 'core/routerConfig.php'
       - 'database/core_identity_schema.sql'
@@ -20,6 +24,10 @@ on:
       - 'app/services/notifications/**'
       - 'app/controllers/NotificationController.php'
       - 'app/middlewares/ApiLoginRequired.php'
+      - 'app/views/core/base.php'
+      - 'assets/css/notification-center.css'
+      - 'assets/js/notification-center.js'
+      - 'assets/js/update-notifications.js'
       - 'bin/notifications_worker.php'
       - 'core/routerConfig.php'
       - 'database/core_identity_schema.sql'
@@ -87,6 +95,7 @@ jobs:
         run: |
           set -euo pipefail
           php tests/integration/notification_center_mysql_contract.php
+          php tests/integration/notification_center_delivery_mysql_contract.php
 
       - name: Проверить пользовательские подписки на MySQL
         env:
@@ -99,7 +108,7 @@ jobs:
           set -euo pipefail
           php tests/integration/notification_preferences_mysql_contract.php
 
-      - name: Проверить SMTP, API и CLI worker без внешней сети
+      - name: Проверить SMTP, API, UI и CLI worker без внешней сети
         run: |
           set -euo pipefail
           php tests/integration/notification_smtp_contract.php
@@ -107,3 +116,7 @@ jobs:
           php tests/integration/notification_worker_cli_contract.php
           php tests/integration/notification_center_contract.php
           php tests/integration/notification_preferences_contract.php
+          php tests/integration/notification_center_ui_contract.php
+          node --check assets/js/notification-center.js
+          node --check assets/js/update-notifications.js
+

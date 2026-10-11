@@ -2,113 +2,22 @@
     'use strict';
 
     const CHECK_INTERVAL_MS = 5 * 60 * 1000;
-    const CACHE_KEY = 'workspace.update.notification.v1';
-    const CHECKED_AT_KEY = 'workspace.update.notification.checked_at.v1';
+    const CACHE_KEY = 'workspace.update.notification.v2';
+    const CHECKED_AT_KEY = 'workspace.update.notification.checked_at.v2';
     const NOTIFIED_PREFIX = 'workspace.update.notification.shown.';
 
-    document.addEventListener('DOMContentLoaded', () => {
+    function init() {
         const host = document.querySelector('[data-update-notifications]');
         if (!host) return;
 
         const statusUrl = String(host.dataset.updateStatusUrl || '').trim();
-        const toggle = host.querySelector('[data-update-notifications-toggle]');
-        const panel = host.querySelector('[data-update-notifications-panel]');
-        const badge = host.querySelector('[data-update-badge]');
-        const empty = host.querySelector('[data-update-empty]');
-        const item = host.querySelector('[data-update-item]');
-        const title = host.querySelector('[data-update-title]');
-        const message = host.querySelector('[data-update-message]');
         const form = host.querySelector('[data-update-apply-form]');
         const action = host.querySelector('[data-update-action]');
+        const detailsLink = host.querySelector('.workspace-notifications__header a');
+        if (!statusUrl) return;
 
-        if (!statusUrl || !toggle || !panel || !badge || !empty || !item || !title || !message) {
-            return;
-        }
-
-        function setPanel(open) {
-            panel.hidden = !open;
-            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-        }
-
-        toggle.addEventListener('click', () => {
-            setPanel(panel.hidden);
-        });
-
-        document.addEventListener('click', (event) => {
-            if (!panel.hidden && !host.contains(event.target)) {
-                setPanel(false);
-            }
-        });
-
-        document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape' && !panel.hidden) {
-                setPanel(false);
-                toggle.focus();
-            }
-        });
-
-        if (form && action) {
-            form.addEventListener('submit', (event) => {
-                if (form.dataset.updateWebMode !== 'true') {
-                    document.dispatchEvent(new CustomEvent('wspace:update-install-start'));
-                    action.disabled = true;
-                    action.textContent = 'Устанавливаем…';
-                    return;
-                }
-
-                event.preventDefault();
-                const runner = window.wspace?.updateWebRunner;
-                if (!runner || typeof runner.run !== 'function') {
-                    window.wspace?.feedback?.toast?.(
-                        'Не загружен безопасный web-updater. Откройте раздел «Обновления».',
-                        'error',
-                        8000
-                    );
-                    return;
-                }
-
-                const originalLabel = action.textContent || 'Обновить';
-                action.disabled = true;
-                action.textContent = 'Устанавливаем…';
-                document.dispatchEvent(new CustomEvent('wspace:update-install-start'));
-
-                void runner.run(form, (state) => {
-                    const progress = Math.max(0, Math.min(100, Number(state?.progress || 0)));
-                    action.textContent = progress > 0 && progress < 100
-                        ? `Обновление — ${progress}%`
-                        : 'Устанавливаем…';
-                }).then((result) => {
-                    const status = String(result?.status || '');
-                    if (status === 'committed') {
-                        safeStorageSet(CHECKED_AT_KEY, '0');
-                        window.location.reload();
-                        return;
-                    }
-                    if (status === 'recovered') {
-                        safeStorageSet(CHECKED_AT_KEY, '0');
-                        const diagnosticCode = String(result?.diagnostic_code || '').trim();
-                        const recoveredMessage = result?.message
-                            || 'Обновление не установлено. Предыдущая версия восстановлена.';
-                        window.wspace?.feedback?.toast?.(
-                            diagnosticCode ? `${recoveredMessage} Код диагностики: ${diagnosticCode}.` : recoveredMessage,
-                            'error',
-                            9000
-                        );
-                        window.setTimeout(() => window.location.reload(), 1200);
-                        return;
-                    }
-                    throw new Error('Updater завершился в неизвестном состоянии.');
-                }).catch((error) => {
-                    action.disabled = false;
-                    action.textContent = originalLabel;
-                    window.wspace?.feedback?.toast?.(
-                        error instanceof Error ? error.message : 'Не удалось установить обновление.',
-                        'error',
-                        9000
-                    );
-                });
-            });
-        }
+        host.hidden = true;
+        host.setAttribute('aria-hidden', 'true');
 
         function safeStorageGet(key) {
             try {
@@ -126,34 +35,36 @@
             }
         }
 
-        function render(payload, announce) {
+        function dispatchNotification(payload) {
             const available = payload?.status === 'ok' && payload?.update_available === true;
-            if (!available) {
-                badge.hidden = true;
-                item.hidden = true;
-                empty.hidden = false;
-                return;
-            }
+            const version = String(payload?.target_version || '').trim();
+            const canApply = payload?.can_apply === true;
+            document.dispatchEvent(new CustomEvent('wspace:update-notification', {
+                detail: {
+                    available,
+                    version,
+                    canApply,
+                    title: available
+                        ? (version ? `Доступно обновление ${version}` : 'Доступно обновление')
+                        : '',
+                    message: available
+                        ? (canApply
+                            ? 'Новая версия проверена сервером обновлений и готова к автоматической установке.'
+                            : 'Новая версия доступна. Установить её может суперадминистратор.')
+                        : '',
+                    detailsUrl: detailsLink instanceof HTMLAnchorElement ? detailsLink.href : ''
+                }
+            }));
+        }
+
+        function render(payload, announce) {
+            dispatchNotification(payload);
+            const available = payload?.status === 'ok' && payload?.update_available === true;
+            if (!available || !announce) return;
 
             const version = String(payload.target_version || '').trim();
             const versionCode = Number(payload.target_version_code || 0);
-            const canApply = payload.can_apply === true;
-
-            badge.hidden = false;
-            item.hidden = false;
-            empty.hidden = true;
-            title.textContent = version ? `Доступно обновление ${version}` : 'Доступно обновление';
-            message.textContent = canApply
-                ? 'Новая версия проверена сервером обновлений и готова к автоматической установке.'
-                : 'Новая версия доступна. Установить её может суперадминистратор.';
-
-            if (form) form.hidden = !canApply;
-            if (action) {
-                action.textContent = version ? `Обновить до ${version}` : 'Обновить';
-                action.disabled = false;
-            }
-
-            if (!announce || versionCode <= 0) return;
+            if (versionCode <= 0) return;
             const notifiedKey = NOTIFIED_PREFIX + versionCode;
             if (safeStorageGet(notifiedKey) === '1') return;
 
@@ -217,14 +128,95 @@
             }
         }
 
+        async function installUpdate() {
+            if (!(form instanceof HTMLFormElement) || !(action instanceof HTMLButtonElement)) {
+                window.wspace?.feedback?.toast?.(
+                    'Автоматическая установка недоступна. Откройте раздел «Обновления».',
+                    'error',
+                    7000
+                );
+                return;
+            }
+
+            if (form.dataset.updateWebMode !== 'true') {
+                form.requestSubmit();
+                return;
+            }
+
+            const runner = window.wspace?.updateWebRunner;
+            if (!runner || typeof runner.run !== 'function') {
+                window.wspace?.feedback?.toast?.(
+                    'Не загружен безопасный web-updater. Откройте раздел «Обновления».',
+                    'error',
+                    8000
+                );
+                return;
+            }
+
+            document.dispatchEvent(new CustomEvent('wspace:update-install-state', {
+                detail: { state: 'running', progress: 0 }
+            }));
+            action.disabled = true;
+            document.dispatchEvent(new CustomEvent('wspace:update-install-start'));
+
+            try {
+                const result = await runner.run(form, (state) => {
+                    const progress = Math.max(0, Math.min(100, Number(state?.progress || 0)));
+                    document.dispatchEvent(new CustomEvent('wspace:update-install-state', {
+                        detail: { state: 'running', progress }
+                    }));
+                });
+                const status = String(result?.status || '');
+                if (status === 'committed') {
+                    safeStorageSet(CHECKED_AT_KEY, '0');
+                    window.location.reload();
+                    return;
+                }
+                if (status === 'recovered') {
+                    safeStorageSet(CHECKED_AT_KEY, '0');
+                    const diagnosticCode = String(result?.diagnostic_code || '').trim();
+                    const recoveredMessage = result?.message
+                        || 'Обновление не установлено. Предыдущая версия восстановлена.';
+                    window.wspace?.feedback?.toast?.(
+                        diagnosticCode ? `${recoveredMessage} Код диагностики: ${diagnosticCode}.` : recoveredMessage,
+                        'error',
+                        9000
+                    );
+                    document.dispatchEvent(new CustomEvent('wspace:update-install-state', {
+                        detail: { state: 'error' }
+                    }));
+                    window.setTimeout(() => window.location.reload(), 1200);
+                    return;
+                }
+                throw new Error('Updater завершился в неизвестном состоянии.');
+            } catch (error) {
+                action.disabled = false;
+                document.dispatchEvent(new CustomEvent('wspace:update-install-state', {
+                    detail: { state: 'error' }
+                }));
+                window.wspace?.feedback?.toast?.(
+                    error instanceof Error ? error.message : 'Не удалось установить обновление.',
+                    'error',
+                    9000
+                );
+            }
+        }
+
+        document.addEventListener('wspace:update-install-request', () => void installUpdate());
+
         const cached = readCached();
         if (cached) render(cached, false);
-        check(true);
-
-        window.setInterval(() => check(true), CHECK_INTERVAL_MS);
+        void check(true);
+        window.setInterval(() => void check(true), CHECK_INTERVAL_MS);
         document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible') check(false);
+            if (document.visibilityState === 'visible') void check(false);
         });
-        window.addEventListener('online', () => check(true));
-    });
+        window.addEventListener('online', () => void check(true));
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init, { once: true });
+    } else {
+        init();
+    }
 })();

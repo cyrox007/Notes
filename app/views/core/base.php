@@ -42,7 +42,6 @@ foreach (['main' => 'home', 'notes' => 'notes', 'tasks' => 'tasks', 'files' => '
     }
 }
 
-
 $styleFiles = [
     'core/common.css',
     'core/accessibility.css',
@@ -131,6 +130,9 @@ $partialData = [
     <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/font-awesome/css/font-awesome.min.css')) ?>">
     <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/css/findability.css')) ?>">
     <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/css/feedback.css')) ?>">
+<?php if ($view->session('auth')): ?>
+    <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/css/notification-center.css')) ?>">
+<?php endif; ?>
 <?php if (!empty($access['messenger'])): ?>
     <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/css/messenger-connection-ux.css')) ?>">
 <?php endif; ?>
@@ -159,6 +161,9 @@ if (is_file($controlsPath) && is_readable($controlsPath)) {
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/local-transcription.js')) ?>" defer></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/findability.js')) ?>" defer></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/feedback.js')) ?>" defer></script>
+<?php if ($view->session('auth')): ?>
+    <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/notification-center.js')) ?>" defer></script>
+<?php endif; ?>
 <?php if (!empty($access['admin'])): ?>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/update-web-runner.js')) ?>" defer></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/update-notifications.js')) ?>" defer></script>

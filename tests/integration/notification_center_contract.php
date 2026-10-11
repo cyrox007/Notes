@@ -31,6 +31,10 @@ foreach ([
     "['all', 'unread', 'read']",
     'MAX_LIMIT = 100',
     'COALESCE(read_at, :read_at)',
+    'notification_delivery_jobs',
+    'dj_failed.state',
+    "'delivery' => \$this->normalizeDelivery(\$row)",
+    "'partial'",
 ] as $fragment) {
     notificationCenterAssert(
         str_contains($service, $fragment),
@@ -38,10 +42,10 @@ foreach ([
     );
 }
 
-foreach (['payload_json', 'config_json', 'secret_ref', 'notification_delivery_jobs'] as $forbidden) {
+foreach (['payload_json', 'config_json', 'secret_ref', 'error_summary'] as $forbidden) {
     notificationCenterAssert(
         !str_contains($service, $forbidden),
-        'API центра уведомлений не должен читать внутреннее поле: ' . $forbidden
+        'API центра уведомлений не должен читать чувствительное внутреннее поле: ' . $forbidden
     );
 }
 
@@ -49,6 +53,8 @@ foreach ([
     "->group('/api/notifications')",
     "[NotificationController::class, 'index'], [ApiLoginRequired::class]",
     "[NotificationController::class, 'unreadCount'], [ApiLoginRequired::class]",
+    "[NotificationController::class, 'preferences'], [ApiLoginRequired::class]",
+    "[NotificationController::class, 'updatePreferences'], [ApiLoginRequired::class, CSRFMiddleware::class]",
     "[NotificationController::class, 'markRead'], [ApiLoginRequired::class, CSRFMiddleware::class]",
     "[NotificationController::class, 'markUnread'], [ApiLoginRequired::class, CSRFMiddleware::class]",
     "[NotificationController::class, 'markAllRead'], [ApiLoginRequired::class, CSRFMiddleware::class]",
