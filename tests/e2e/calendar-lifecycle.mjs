@@ -156,7 +156,8 @@ try {
 
   const createRequest = alicePage.waitForResponse((response) => {
     const url = new URL(response.url());
-    return response.request().method() === 'POST' && url.pathname.endsWith('/api/calendar/events/');
+    const path = url.pathname.replace(/\/+$/, '');
+    return response.request().method() === 'POST' && path.endsWith('/api/calendar/events');
   }, { timeout: 10000 });
   await editor.locator('[data-calendar-save]').click();
   const createResponse = await createRequest;
