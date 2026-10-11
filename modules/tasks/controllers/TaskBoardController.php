@@ -28,7 +28,7 @@ final class TaskBoardController extends Controller
         $selected = null;
         $tasks = [];
         $members = [];
-        $stats = ['pending' => 0, 'in_progress' => 0, 'completed' => 0, 'cancelled' => 0];
+        $stats = ['pending' => 0, 'in_progress' => 0, 'studying' => 0, 'review' => 0, 'completed' => 0];
         $boardUid = trim((string) $request->get('board', ''));
         $flash = $request->session('task_boards_flash');
         $request->unsetSession('task_boards_flash');
@@ -43,7 +43,7 @@ final class TaskBoardController extends Controller
                 $members = $service->members($userId, $boardUid);
                 foreach ($tasks as $task) {
                     $status = (string) ($task['status'] ?? '');
-                    if (array_key_exists($status, $stats)) {
+                    if (empty($task['archived_at']) && array_key_exists($status, $stats)) {
                         $stats[$status]++;
                     }
                 }
@@ -146,7 +146,7 @@ final class TaskBoardController extends Controller
         try {
             $post = $request->post();
             $changes = [];
-            foreach (['title', 'description', 'status', 'priority', 'due_date'] as $key) {
+            foreach (['title', 'description', 'status', 'priority', 'due_date', 'archived'] as $key) {
                 if (is_array($post) && array_key_exists($key, $post)) {
                     $changes[$key] = $post[$key];
                 }

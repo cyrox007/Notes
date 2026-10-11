@@ -13,10 +13,12 @@ $workspaceVersion = isset($version) ? (string) $version : '';
 $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
 $avatarUrl = isset($avatar_url) && is_string($avatar_url) ? $avatar_url : '';
 $statusLabels = [
-    'completed' => 'Готово',
+    'completed' => 'Завершено',
     'in_progress' => 'В работе',
     'cancelled' => 'Отменено',
-    'pending' => 'Новая',
+    'pending' => 'Запланировано',
+    'studying' => 'Изучение',
+    'review' => 'Проверка',
 ];
 $title = 'Профиль не найден';
 if ($targetProfile !== null) {

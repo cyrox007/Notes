@@ -32,17 +32,22 @@ $createdAt = $formatDate($taskRow['created_at'] ?? '', 'd.m.Y H:i');
 <div class="task-item task-priority-<?= $view->e($priority) ?>" data-task-id="<?= $view->e($uid) ?>" data-status="<?= $view->e($status) ?>">
     <div class="task-header">
         <div class="task-title-section">
-            <input type="checkbox" class="task-complete-toggle" <?= $status === 'completed' ? 'checked' : '' ?> data-task-id="<?= $view->e($uid) ?>" title="Отметить как выполненную">
+            <input type="checkbox" class="task-complete-toggle" <?= !empty($taskRow['archived_at']) ? 'disabled' : '' ?> <?= $status === 'completed' ? 'checked' : '' ?> data-task-id="<?= $view->e($uid) ?>" title="Отметить как выполненную">
             <h3 class="task-title<?= $status === 'completed' ? ' completed' : '' ?>"><?= $view->e($title) ?></h3>
             <span class="task-priority-badge"><?= $view->e($priority) ?></span>
         </div>
 
         <div class="task-actions">
-            <select class="task-status-toggle" data-task-id="<?= $view->e($uid) ?>" aria-label="Статус задачи">
-                <option value="pending" <?= $status === 'pending' ? 'selected' : '' ?>>Ожидает</option>
-                <option value="in_progress" <?= $status === 'in_progress' ? 'selected' : '' ?>>В процессе</option>
-                <option value="completed" <?= $status === 'completed' ? 'selected' : '' ?>>Завершена</option>
-                <option value="cancelled" <?= $status === 'cancelled' ? 'selected' : '' ?>>Отменена</option>
+            <form action="<?= $view->e($view->route('update_task', ['uid' => $uid])) ?>" method="post" class="task-archive-form">
+                <?= $view->csrfInput() ?><input type="hidden" name="archived" value="<?= empty($taskRow['archived_at']) ? '1' : '0' ?>">
+                <button type="submit" class="btn-icon" title="<?= empty($taskRow['archived_at']) ? 'В архив' : 'Восстановить' ?>" aria-label="<?= empty($taskRow['archived_at']) ? 'В архив' : 'Восстановить' ?>"><i class="fa <?= empty($taskRow['archived_at']) ? 'fa-archive' : 'fa-undo' ?>" aria-hidden="true"></i></button>
+            </form>
+            <select class="task-status-toggle" <?= !empty($taskRow['archived_at']) ? 'disabled' : '' ?> data-task-id="<?= $view->e($uid) ?>" aria-label="Статус задачи">
+                <option value="pending" <?= $status === 'pending' ? 'selected' : '' ?>>Запланировано</option>
+                <option value="studying" <?= $status === 'studying' ? 'selected' : '' ?>>Изучение</option>
+                <option value="in_progress" <?= $status === 'in_progress' ? 'selected' : '' ?>>В работе</option>
+                <option value="review" <?= $status === 'review' ? 'selected' : '' ?>>Проверка</option>
+                <option value="completed" <?= $status === 'completed' ? 'selected' : '' ?>>Завершено</option>
             </select>
             <button type="button" class="btn-icon edit-task" data-task-id="<?= $view->e($uid) ?>" title="Редактировать"><i class="fa fa-edit" aria-hidden="true"></i></button>
             <form action="<?= $view->e($view->route('delete_task', ['uid' => $uid])) ?>" method="post" data-confirm-message="Вы уверены, что хотите удалить эту задачу?" data-confirm-title="Удаление задачи" data-confirm-text="Удалить">
@@ -128,11 +133,12 @@ $createdAt = $formatDate($taskRow['created_at'] ?? '', 'd.m.Y H:i');
             <div class="form-row">
                 <div class="form-group">
                     <label>Статус</label>
-                    <select name="status">
-                        <option value="pending" <?= $status === 'pending' ? 'selected' : '' ?>>Ожидает</option>
-                        <option value="in_progress" <?= $status === 'in_progress' ? 'selected' : '' ?>>В процессе</option>
-                        <option value="completed" <?= $status === 'completed' ? 'selected' : '' ?>>Завершена</option>
-                        <option value="cancelled" <?= $status === 'cancelled' ? 'selected' : '' ?>>Отменена</option>
+                    <select name="status" <?= !empty($taskRow['archived_at']) ? 'disabled' : '' ?>>
+                        <option value="pending" <?= $status === 'pending' ? 'selected' : '' ?>>Запланировано</option>
+                        <option value="studying" <?= $status === 'studying' ? 'selected' : '' ?>>Изучение</option>
+                <option value="in_progress" <?= $status === 'in_progress' ? 'selected' : '' ?>>В работе</option>
+                        <option value="review" <?= $status === 'review' ? 'selected' : '' ?>>Проверка</option>
+                <option value="completed" <?= $status === 'completed' ? 'selected' : '' ?>>Завершено</option>
                     </select>
                 </div>
                 <div class="form-group">

@@ -1,15 +1,17 @@
 (() => {
     const STATUS_META = [
-        ['pending', 'Новые', 'Не начато'],
+        ['pending', 'Запланировано', 'Ожидает начала работы'],
+        ['studying', 'Изучение', 'Разбор задачи'],
         ['in_progress', 'В работе', 'Сейчас в процессе'],
-        ['completed', 'Готово', 'Завершённые задачи'],
-        ['cancelled', 'Отменено', 'Снято с работы'],
+        ['review', 'Проверка', 'Проверка результата'],
+        ['completed', 'Завершено', 'Завершённые задачи'],
     ];
     const STATUS_LABELS = {
-        pending: 'Ожидает',
-        in_progress: 'В процессе',
-        completed: 'Завершена',
-        cancelled: 'Отменена',
+        pending: 'Запланировано',
+        studying: 'Изучение',
+        review: 'Проверка',
+        in_progress: 'В работе',
+        completed: 'Завершено',
     };
 
     function boot() {
@@ -18,6 +20,7 @@
         const controls = root?.querySelector('.tasks__controls');
         if (!root || !list || !controls || root.dataset.kanbanReady === '1') return;
         root.dataset.kanbanReady = '1';
+        if (root.dataset.archive === '1') return;
 
         const tasks = [...list.querySelectorAll('.task-item')];
         const empty = list.querySelector('.tasks__empty');
@@ -82,10 +85,10 @@
 
         function shiftStats(previous, nextStatus, task) {
             if (previous === nextStatus) return;
-            if (['pending', 'in_progress', 'completed'].includes(previous)) {
+            if (['pending', 'studying', 'in_progress', 'review', 'completed'].includes(previous)) {
                 writeStat(previous, readStat(previous) - 1);
             }
-            if (['pending', 'in_progress', 'completed'].includes(nextStatus)) {
+            if (['pending', 'studying', 'in_progress', 'review', 'completed'].includes(nextStatus)) {
                 writeStat(nextStatus, readStat(nextStatus) + 1);
             }
 
