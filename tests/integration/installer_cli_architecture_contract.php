@@ -110,6 +110,9 @@ $cliFiles = [
     'bin/migrate_crypto.php',
     'bin/reconcile_file_storage.php',
     'bin/repair_phpmyadmin_dump.php',
+    'bin/rotate_data_keys.php',
+    'bin/ws_doctor.php',
+    'bin/release_acceptance.php',
 ];
 foreach ($cliFiles as $relative) {
     $source = file_get_contents($root . '/' . $relative);
@@ -123,6 +126,21 @@ foreach ($cliFiles as $relative) {
         $relative . ' не должен возвращать старое англоязычное сообщение CLI'
     );
 }
+
+$rotation = file_get_contents($root . '/bin/rotate_data_keys.php');
+installerCliAssert(is_string($rotation), 'Не удалось прочитать bin/rotate_data_keys.php');
+installerCliAssert(
+    str_contains($rotation, 'CliRuntime::fail(') && str_contains($rotation, 'CliRuntime::writeJson('),
+    'Ротация ключей должна использовать единый JSON/error-контур CLI'
+);
+
+$releaseAcceptance = file_get_contents($root . '/bin/release_acceptance.php');
+installerCliAssert(is_string($releaseAcceptance), 'Не удалось прочитать bin/release_acceptance.php');
+installerCliAssert(
+    str_contains($releaseAcceptance, 'CliRuntime::assertCli();')
+        && !str_contains($releaseAcceptance, 'CliRuntime::loadEnvironment('),
+    'Приёмка релиза не должна зависеть от .env приложения'
+);
 
 $healthcheck = file_get_contents($root . '/bin/healthcheck.php');
 installerCliAssert(is_string($healthcheck), 'Не удалось прочитать bin/healthcheck.php');
