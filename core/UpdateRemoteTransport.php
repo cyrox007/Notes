@@ -27,13 +27,17 @@ interface UpdateRemoteTransport
 interface UpdateAccessActivationTransport
 {
     /** @return array<string,mixed> */
-    public function activate(string $baseUrl, string $installationId, string $activationCode): array;
+    public function activate(
+        string $baseUrl,
+        string $installationId,
+        #[\SensitiveParameter] string $activationCode
+    ): array;
 
     /** @return array<string,mixed> */
     public function activateWithLicense(
         string $baseUrl,
         string $installationId,
-        string $licenseToken,
+        #[\SensitiveParameter] string $licenseToken,
         string $version,
         int $versionCode,
         string $channel
@@ -170,7 +174,7 @@ final class UpdateHttpsTransport implements UpdateRemoteTransport, UpdateAccessA
     public function __construct(
         private int $connectTimeoutSeconds = 10,
         private int $readTimeoutSeconds = 30,
-        private ?UpdateDownloadCredentials $credentials = null
+        #[\SensitiveParameter] private ?UpdateDownloadCredentials $credentials = null
     ) {
         if ($connectTimeoutSeconds < 1 || $connectTimeoutSeconds > 60) {
             throw new RuntimeException('Updater HTTPS connect timeout is invalid');
@@ -189,8 +193,11 @@ final class UpdateHttpsTransport implements UpdateRemoteTransport, UpdateAccessA
     }
 
     /** Совместимая активация по одноразовому коду для старых установок. */
-    public function activate(string $baseUrl, string $installationId, string $activationCode): array
-    {
+    public function activate(
+        string $baseUrl,
+        string $installationId,
+        #[\SensitiveParameter] string $activationCode
+    ): array {
         return $this->activateRequest(
             $baseUrl,
             [
@@ -208,7 +215,7 @@ final class UpdateHttpsTransport implements UpdateRemoteTransport, UpdateAccessA
     public function activateWithLicense(
         string $baseUrl,
         string $installationId,
-        string $licenseToken,
+        #[\SensitiveParameter] string $licenseToken,
         string $version,
         int $versionCode,
         string $channel
@@ -227,8 +234,11 @@ final class UpdateHttpsTransport implements UpdateRemoteTransport, UpdateAccessA
     }
 
     /** @param array<string,mixed> $payload @return array<string,mixed> */
-    private function activateRequest(string $baseUrl, array $payload, int $maxRequestBytes): array
-    {
+    private function activateRequest(
+        string $baseUrl,
+        #[\SensitiveParameter] array $payload,
+        int $maxRequestBytes
+    ): array {
         UpdateDownloadCredentials::validateBaseUrl($baseUrl);
         if ($this->credentials !== null) {
             throw new RuntimeException('Bootstrap updater выполняется только без действующих download credentials');
@@ -363,8 +373,10 @@ final class UpdateHttpsTransport implements UpdateRemoteTransport, UpdateAccessA
     }
 
     /** @return array{0:resource,1:int} */
-    private function openResponse(string $url, ?string $jsonBody = null): array
-    {
+    private function openResponse(
+        string $url,
+        #[\SensitiveParameter] ?string $jsonBody = null
+    ): array {
         $authHeaders = $this->credentials?->headersFor($url) ?? '';
         $target = $this->parseHttpsUrl($url);
         $ip = $this->resolvePublicAddress($target['host']);
@@ -599,9 +611,9 @@ final class UpdateHttpsTransport implements UpdateRemoteTransport, UpdateAccessA
     }
 
     /**
-     * PHP's FILTER_FLAG_NO_PRIV_RANGE / NO_RES_RANGE still accepts several
-     * special-use networks (for example CGNAT, TEST-NET and multicast). For an
-     * updater SSRF boundary we intentionally use a stricter conservative policy.
+     * FILTER_FLAG_NO_PRIV_RANGE / NO_RES_RANGE в PHP всё ещё принимают ряд
+     * специальных сетей (например CGNAT, TEST-NET и multicast). На границе
+     * SSRF обновлятора намеренно используется более строгая политика.
      */
     private function isPublicAddress(string $ip): bool
     {
@@ -666,7 +678,7 @@ final class UpdateHttpsTransport implements UpdateRemoteTransport, UpdateAccessA
     }
 
     /** @param resource $stream */
-    private function writeAll($stream, string $bytes): void
+    private function writeAll($stream, #[\SensitiveParameter] string $bytes): void
     {
         $offset = 0;
         $length = strlen($bytes);
@@ -724,8 +736,8 @@ final class UpdateHttpsTransport implements UpdateRemoteTransport, UpdateAccessA
             }
         }
 
-        // A repeated identical Content-Length is legal but our concatenation above
-        // would no longer be numeric. Normalize only the identical-value case.
+        // Повторяющийся одинаковый Content-Length допустим, но после объединения
+        // строк значение перестаёт быть числом. Нормализуем только этот случай.
         if (isset($headers['content-length']) && str_contains($headers['content-length'], ',')) {
             $parts = array_map('trim', explode(',', $headers['content-length']));
             if ($parts === [] || count(array_unique($parts)) !== 1) {
