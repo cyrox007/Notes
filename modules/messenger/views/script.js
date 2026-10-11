@@ -92,6 +92,7 @@
         }
 
         init() {
+            this.setupMobileChatActions();
             this.bindEvents();
             this.restoreDialogCache();
             this.renderDialogSnapshotState();
@@ -105,6 +106,28 @@
                     this.sendEvent('MessangerSocket:get_dialogs', {});
                 }
             }, 25000);
+        }
+
+        setupMobileChatActions() {
+            const host = this.root.querySelector('.messenger-chat__actions');
+            if (!host || host.querySelector('.messenger-chat-actions-toggle')) return;
+            const media = window.matchMedia('(max-width: 680px)');
+            const toggle = document.createElement('button');
+            toggle.type = 'button';toggle.className = 'messenger-icon-button messenger-chat-actions-toggle';
+            toggle.textContent = '⋯';toggle.setAttribute('aria-label', 'Действия с чатом');toggle.setAttribute('aria-expanded', 'false');
+            const panel = document.createElement('div');panel.className = 'messenger-chat-actions-panel';panel.id = 'messenger-chat-actions-panel';
+            toggle.setAttribute('aria-controls', panel.id);
+            while(host.firstChild) panel.append(host.firstChild);
+            host.append(toggle,panel);
+            const close = () => {host.classList.remove('is-expanded');toggle.setAttribute('aria-expanded','false');panel.inert = media.matches;};
+            close();
+            toggle.addEventListener('click', () => {const open = toggle.getAttribute('aria-expanded') !== 'true';host.classList.toggle('is-expanded',open);toggle.setAttribute('aria-expanded',String(open));panel.inert = !open && media.matches;});
+            host.addEventListener('keydown', event => {if(event.key==='Escape'){close();toggle.focus();event.stopPropagation();}});
+            panel.addEventListener('click', event => {if(event.target.closest('button')) close();});
+            document.addEventListener('click', event => {if(!host.contains(event.target)) close();});
+            media.addEventListener('change',close);
+            // Search and call modules add their actions after the main app starts.
+            new MutationObserver(() => {for(const child of Array.from(host.childNodes)) if(child!==toggle && child!==panel) panel.append(child);}).observe(host,{childList:true});
         }
 
         bindEvents() {
