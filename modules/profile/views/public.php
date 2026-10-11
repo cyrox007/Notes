@@ -79,7 +79,7 @@ ob_start();
                             <div class="profile-public__items">
                                 <?php foreach ($notes as $item): ?>
                                     <?php if (!is_array($item)) { continue; } ?>
-                                    <article class="profile-public__item"><strong><?= $view->e($item['title'] ?? '') ?></strong><span>Публичная заметка</span></article>
+                                    <article class="profile-public__item"><strong><?= $view->e($item['title'] ?? '') ?></strong><span>Публичная заметка</span><button type="button" class="profile-public__file-open" data-public-view="<?= $view->e($baseUrl . '/notes/published/' . rawurlencode((string) ($item['uid'] ?? ''))) ?>">Посмотреть</button></article>
                                 <?php endforeach; ?>
                             </div>
                         </section>
@@ -95,7 +95,8 @@ ob_start();
                                     <?php $status = (string) ($item['status'] ?? 'pending'); ?>
                                     <article class="profile-public__item">
                                         <strong><?= $view->e($item['title'] ?? '') ?></strong>
-                                        <span><?= $view->e($statusLabels[$status] ?? 'Новая') ?> · <?= $view->e($item['priority'] ?? '') ?></span>
+                                        <span><?= $view->e($statusLabels[$status] ?? 'Новая') ?></span>
+                                        <button type="button" class="profile-public__file-open" data-public-view="<?= $view->e($baseUrl . '/tasks/published/' . rawurlencode((string) ($item['uid'] ?? ''))) ?>">Посмотреть</button>
                                     </article>
                                 <?php endforeach; ?>
                             </div>
@@ -153,6 +154,7 @@ echo $view->layout('core/base', [
     'workspaceAccess' => $access,
     'socket_ticket' => $socket_ticket ?? '',
     'socket_url' => $socket_url ?? '',
+    'module_scripts' => [$view->moduleAsset('profile', 'profile.js')],
     'module_styles' => [
         $view->moduleAsset('profile', 'style.css'),
         $view->moduleAsset('profile', 'hub.css'),
