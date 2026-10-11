@@ -25,6 +25,8 @@ $router->add('GET', '/', [MainController::class, 'index'], [LoginRequared::class
 $router->group('/api/notifications')
     ->add('GET', '/', [NotificationController::class, 'index'], [ApiLoginRequired::class], 'notifications_index')
     ->add('GET', '/unread-count', [NotificationController::class, 'unreadCount'], [ApiLoginRequired::class], 'notifications_unread_count')
+    ->add('GET', '/preferences', [NotificationController::class, 'preferences'], [ApiLoginRequired::class], 'notifications_preferences')
+    ->add('PATCH', '/preferences', [NotificationController::class, 'updatePreferences'], [ApiLoginRequired::class, CSRFMiddleware::class], 'notifications_preferences_update')
     ->add('POST', '/{int:notificationId}/read', [NotificationController::class, 'markRead'], [ApiLoginRequired::class, CSRFMiddleware::class], 'notifications_mark_read')
     ->add('POST', '/{int:notificationId}/unread', [NotificationController::class, 'markUnread'], [ApiLoginRequired::class, CSRFMiddleware::class], 'notifications_mark_unread')
     ->add('POST', '/read-all', [NotificationController::class, 'markAllRead'], [ApiLoginRequired::class, CSRFMiddleware::class], 'notifications_mark_all_read')

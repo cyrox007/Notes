@@ -88,10 +88,22 @@ jobs:
           set -euo pipefail
           php tests/integration/notification_center_mysql_contract.php
 
-      - name: Проверить SMTP и CLI worker без внешней сети
+      - name: Проверить пользовательские подписки на MySQL
+        env:
+          TEST_DB_HOST: 127.0.0.1
+          TEST_DB_PORT: 3306
+          TEST_DB_NAME: workspace_test
+          TEST_DB_USER: workspace
+          TEST_DB_PASS: workspace
+        run: |
+          set -euo pipefail
+          php tests/integration/notification_preferences_mysql_contract.php
+
+      - name: Проверить SMTP, API и CLI worker без внешней сети
         run: |
           set -euo pipefail
           php tests/integration/notification_smtp_contract.php
           php tests/integration/smtp_socket_transport_contract.php
           php tests/integration/notification_worker_cli_contract.php
           php tests/integration/notification_center_contract.php
+          php tests/integration/notification_preferences_contract.php

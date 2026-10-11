@@ -6,10 +6,13 @@ namespace App\Controllers;
 
 require_once dirname(__DIR__, 2) . '/core/Controller.php';
 require_once dirname(__DIR__) . '/services/notifications/DatabaseNotificationCenter.php';
+require_once dirname(__DIR__) . '/services/notifications/DatabaseNotificationPreferences.php';
 
 use App\Services\Notifications\DatabaseNotificationCenter;
+use App\Services\Notifications\DatabaseNotificationPreferences;
 use Core\Controller;
 use Core\Request;
+use Core\UserActionLog;
 use InvalidArgumentException;
 use Throwable;
 
@@ -43,6 +46,51 @@ final class NotificationController extends Controller
             return [
                 'status' => 'ok',
                 'unread_count' => $center->unreadCount($this->userId($request)),
+            ];
+        });
+    }
+
+    public function preferences(Request $request): void
+    {
+        $this->handle(function () use ($request): array {
+            $preferences = new DatabaseNotificationPreferences();
+            return [
+                'status' => 'ok',
+                ...$preferences->summaryForUser($this->userId($request)),
+            ];
+        });
+    }
+
+    public function updatePreferences(Request $request): void
+    {
+        $this->handle(function () use ($request): array {
+            $payload = $request->json();
+            if (!is_array($payload) || array_is_list($payload)) {
+                throw new InvalidArgumentException('Тело запроса настроек должно быть JSON-объектом');
+            }
+
+            $userId = $this->userId($request);
+            $preferences = new DatabaseNotificationPreferences();
+            $result = $preferences->updateForUser($userId, $payload);
+            $subscription = $result['subscription'];
+
+            UserActionLog::emit(
+                $userId,
+                'notifications.subscription.updated',
+                'core',
+                'http',
+                'success',
+                200,
+                [
+                    'category' => (string) ($subscription['category'] ?? ''),
+                    'external_enabled' => (bool) ($subscription['external_enabled'] ?? false),
+                    'channels' => (array) ($subscription['channels'] ?? []),
+                ]
+            );
+
+            return [
+                'status' => 'ok',
+                ...$result,
             ];
         });
     }
