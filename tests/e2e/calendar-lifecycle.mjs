@@ -141,8 +141,18 @@ try {
   await editor.locator('[data-field="frequency"]').selectOption('weekly');
   await editor.locator('[data-field="interval"]').fill('1');
   await editor.locator('[data-field="until"]').fill(timing.until);
-  await editor.locator(`[data-weekday][value="${timing.weekday}"]`).check();
-  await editor.locator('[data-reminder-offset][value="900"]').check();
+
+  const weekdayInput = editor.locator(`[data-weekday][value="${timing.weekday}"]`);
+  await weekdayInput.locator('xpath=..').click();
+  if (!(await weekdayInput.isChecked())) {
+    throw new Error(`День недели ${timing.weekday} не выбрался через видимый переключатель`);
+  }
+
+  const reminderInput = editor.locator('[data-reminder-offset][value="900"]');
+  await reminderInput.locator('xpath=..').click();
+  if (!(await reminderInput.isChecked())) {
+    throw new Error('Напоминание за 15 минут не выбралось через видимый переключатель');
+  }
 
   const createRequest = alicePage.waitForResponse((response) => {
     const url = new URL(response.url());
