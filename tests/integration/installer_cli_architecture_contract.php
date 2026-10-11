@@ -95,7 +95,7 @@ foreach ([
 require_once $root . '/core/CliRuntime.php';
 $cliRuntime = new ReflectionClass(\Core\CliRuntime::class);
 installerCliAssert($cliRuntime->isFinal(), 'CliRuntime должен оставаться final');
-foreach (['projectRoot', 'assertCli', 'loadEnvironment', 'registerAutoloader', 'writeJson', 'fail'] as $method) {
+foreach (['projectRoot', 'assertCli', 'assertCliHidden', 'loadEnvironment', 'registerAutoloader', 'writeJson', 'fail'] as $method) {
     installerCliAssert($cliRuntime->hasMethod($method), 'CliRuntime должен содержать метод ' . $method);
 }
 
@@ -114,6 +114,8 @@ $cliFiles = [
     'bin/rotate_data_keys.php',
     'bin/ws_doctor.php',
     'bin/release_acceptance.php',
+    'bin/update_doctor.php',
+    'bin/update_activate.php',
 ];
 foreach ($cliFiles as $relative) {
     $source = file_get_contents($root . '/' . $relative);
@@ -161,6 +163,23 @@ installerCliAssert(
     str_contains($releaseAcceptance, 'CliRuntime::assertCli();')
         && !str_contains($releaseAcceptance, 'CliRuntime::loadEnvironment('),
     'Приёмка релиза не должна зависеть от .env приложения'
+);
+
+foreach (['bin/update_doctor.php', 'bin/update_activate.php'] as $relative) {
+    $source = file_get_contents($root . '/' . $relative);
+    installerCliAssert(is_string($source), 'Не удалось прочитать ' . $relative);
+    installerCliAssert(
+        str_contains($source, 'CliRuntime::assertCliHidden();'),
+        $relative . ' должен скрывать web-вызов кодом 404'
+    );
+}
+
+$updateActivate = file_get_contents($root . '/bin/update_activate.php');
+installerCliAssert(is_string($updateActivate), 'Не удалось прочитать bin/update_activate.php');
+installerCliAssert(
+    str_contains($updateActivate, "@fopen($destination, 'xb')")
+        && !str_contains($updateActivate, "@fopen($destination, 'wb')"),
+    'Активация updater не должна перезаписывать существующий файл credentials'
 );
 
 $healthcheck = file_get_contents($root . '/bin/healthcheck.php');
