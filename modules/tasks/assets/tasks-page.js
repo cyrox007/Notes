@@ -7,8 +7,10 @@
         root.dataset.pageBehaviorReady = '1';
 
         const filters = root.querySelector('.tasks__filter-panel');
-        const summary = filters?.querySelector('summary');
-        if (filters && summary) {
+        for (const panel of [filters, root.querySelector('.tasks__category-create')].filter(Boolean)) {
+            const filters = panel;
+            const summary = panel.querySelector('summary');
+            if (!summary) continue;
             let motion = null;
             let expanded = filters.open;
             summary.addEventListener('click', event => {
@@ -16,7 +18,7 @@
                 event.preventDefault();
                 const start = filters.getBoundingClientRect().height;
                 motion?.cancel();
-                expanded = !expanded;
+                expanded = motion ? !expanded : !filters.open;
                 filters.open = expanded;
                 const end = filters.getBoundingClientRect().height;
                 filters.open = true;
@@ -280,7 +282,7 @@
                 const panel = root.querySelector('#task-category-create');
                 if (!panel) return;
                 event.preventDefault();
-                panel.open = true;
+                if (!panel.open) panel.querySelector('summary')?.click();
                 panel.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'center'});
                 panel.querySelector('input[name="name"]')?.focus({preventScroll:true});
             });
