@@ -108,6 +108,7 @@ function workspaceEnsureCiLicense(): void
                 'features' => [
                     'workspace.notes',
                     'workspace.tasks',
+                    'workspace.calendar',
                     'workspace.files',
                     'workspace.messenger',
                     'workspace.profile',
