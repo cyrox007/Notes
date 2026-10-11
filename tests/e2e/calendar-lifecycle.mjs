@@ -19,6 +19,12 @@ const browser = await chromium.launch({ headless: true });
 const pageErrors = [];
 const escapedRequests = [];
 const unexpectedHttpErrors = [];
+let currentStage = 'инициализация';
+
+function markStage(name) {
+  currentStage = name;
+  console.log(`[Calendar E2E] этап: ${name}`);
+}
 
 function instrument(page) {
   page.on('pageerror', (error) => pageErrors.push(error));
@@ -81,10 +87,13 @@ async function waitForCalendarIdle(page) {
 }
 
 try {
+  markStage('вход Alice');
   const aliceContext = await browser.newContext({ locale: 'ru-RU', timezoneId: 'Europe/Stockholm' });
   const alicePage = await aliceContext.newPage();
   instrument(alicePage);
   await login(alicePage, aliceUser, alicePassword);
+
+  markStage('открытие Calendar');
   await openCalendar(alicePage);
 
   const stamp = Date.now();
@@ -96,6 +105,7 @@ try {
   const updatedLocation = 'Переговорная B';
   const timing = localDateParts(1);
 
+  markStage('переключение представлений');
   // Проверяем переключение представлений до создания данных.
   for (const view of ['week', 'day', 'month']) {
     await alicePage.locator(`[data-calendar-view="${view}"]`).click();
@@ -104,6 +114,7 @@ try {
     if (pressed !== 'true') throw new Error(`Представление Calendar ${view} не стало активным`);
   }
 
+  markStage('создание события');
   await alicePage.locator('[data-calendar-create]').click();
   const editor = alicePage.locator('[data-calendar-editor]');
   await editor.waitFor({ state: 'visible', timeout: 5000 });
@@ -130,6 +141,7 @@ try {
   const eventUid = createdPayload?.event?.uid || '';
   if (!/^[0-9a-f-]{36}$/i.test(eventUid)) throw new Error('Созданное событие не вернуло корректный UID');
 
+  markStage('проверка события после создания');
   await editor.waitFor({ state: 'hidden', timeout: 5000 });
   await waitForCalendarIdle(alicePage);
   await alicePage.locator('.calendar-event-chip').filter({ hasText: title }).first().waitFor({ state: 'visible', timeout: 10000 });
@@ -141,6 +153,7 @@ try {
     await alicePage.locator('.calendar-agenda-card').filter({ hasText: title }).first().waitFor({ state: 'visible', timeout: 10000 });
   }
 
+  markStage('повторное открытие редактора');
   await alicePage.locator('.calendar-agenda-card').filter({ hasText: title }).first().click();
   await editor.waitFor({ state: 'visible', timeout: 5000 });
   if ((await editor.locator('[data-field="frequency"]').inputValue()) !== 'weekly') {
@@ -150,6 +163,7 @@ try {
     throw new Error('Напоминание события не восстановилось в редакторе');
   }
 
+  markStage('редактирование события');
   await editor.locator('[data-field="title"]').fill(updatedTitle);
   await editor.locator('[data-field="description"]').fill(updatedDescription);
   await editor.locator('[data-field="location"]').fill(updatedLocation);
@@ -165,6 +179,7 @@ try {
   await waitForCalendarIdle(alicePage);
   await alicePage.locator('.calendar-agenda-card').filter({ hasText: updatedTitle }).first().waitFor({ state: 'visible', timeout: 10000 });
 
+  markStage('проверка прямой ссылки Alice');
   // Глубокая ссылка должна восстановить то же событие после полной перезагрузки страницы.
   const deepLinkResponse = await alicePage.goto(`${baseUrl}/calendar/?event=${eventUid}`, { waitUntil: 'domcontentloaded' });
   if (!deepLinkResponse || deepLinkResponse.status() !== 200) {
@@ -183,6 +198,7 @@ try {
   await editor.locator('[data-calendar-close]').last().click();
   await editor.waitFor({ state: 'hidden', timeout: 5000 });
 
+  markStage('проверка изоляции Bob');
   // Второй пользователь не должен увидеть или прочитать чужое событие.
   const bobContext = await browser.newContext({ locale: 'ru-RU', timezoneId: 'Europe/Stockholm' });
   const bobPage = await bobContext.newPage();
@@ -205,6 +221,7 @@ try {
 
   await bobContext.close();
 
+  markStage('удаление события Alice');
   // Удаление выполняется через реальный редактор и должно сохраняться после обновления страницы.
   await alicePage.goto(`${baseUrl}/calendar/?event=${eventUid}`, { waitUntil: 'domcontentloaded' });
   await editor.waitFor({ state: 'visible', timeout: 10000 });
@@ -222,6 +239,7 @@ try {
     throw new Error('Удалённое событие осталось видимым после перезагрузки');
   }
 
+  markStage('финальная проверка');
   if (pageErrors.length) throw pageErrors[0];
   if (escapedRequests.length) {
     throw new Error(`Запросы вышли за BASE_PATH: ${[...new Set(escapedRequests)].join(', ')}`);
@@ -232,6 +250,10 @@ try {
 
   console.log(`Браузерный жизненный цикл Calendar: OK (${eventUid})`);
   await aliceContext.close();
+} catch (error) {
+  console.error(`[Calendar E2E] ошибка на этапе: ${currentStage}`);
+  console.error(error?.stack || error);
+  throw error;
 } finally {
   await browser.close();
 }
