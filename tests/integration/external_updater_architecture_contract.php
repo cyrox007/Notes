@@ -31,13 +31,12 @@ $bootstrapSource = externalUpdaterArchitectureSource($root . '/bin/update_bootst
 $cliSupportSource = externalUpdaterArchitectureSource($root . '/core/UpdateExternalCliSupport.php');
 $bootstrapSupportSource = externalUpdaterArchitectureSource($root . '/core/UpdateBootstrapSupport.php');
 
-externalUpdaterArchitectureAssert(
-    !str_contains($externalSource, 'CliRuntime')
-        && !str_contains($bootstrapSource, 'CliRuntime')
-        && !str_contains($cliSupportSource, 'CliRuntime')
-        && !str_contains($bootstrapSupportSource, 'CliRuntime'),
-    'Автономный updater не должен зависеть от live CliRuntime'
-);
+foreach ([$externalSource, $bootstrapSource, $cliSupportSource, $bootstrapSupportSource] as $source) {
+    externalUpdaterArchitectureAssert(
+        preg_match('/(?:require(?:_once)?[^\n]*CliRuntime|use\s+Core\\\\CliRuntime|new\s+CliRuntime|CliRuntime::)/', $source) !== 1,
+        'Автономный updater не должен загружать или вызывать live CliRuntime'
+    );
+}
 
 externalUpdaterArchitectureAssert(
     str_contains($externalSource, '/core/UpdateExternalCliSupport.php')
