@@ -67,6 +67,8 @@ final class MessengerRealtimeController extends Controller
             return;
         }
 
+        (new MessengerActivityService())->touchPresence($user['uid']);
+
         $cursor = trim((string) $request->get('cursor', ''));
         if ($cursor !== '' && preg_match('/^[a-f0-9]{64}$/D', $cursor) !== 1) {
             $cursor = '';

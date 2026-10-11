@@ -49,19 +49,21 @@ final class MessangerSocket
         array $payload = []
     ): void {
         $this->guard($connection, function () use ($connections, $connection, $userUid): void {
+            $this->activities->touchPresence($userUid);
+            $online = array_fill_keys($this->activities->onlineUids($userUid), true);
             $dialogs = $this->messenger->listDialogs($userUid);
 
             foreach ($dialogs as &$dialog) {
                 $onlineCount = 0;
                 foreach ($dialog['participants'] ?? [] as $participant) {
                     $participantUid = (string) ($participant['uid'] ?? '');
-                    if ($participantUid !== '' && !empty($connections[$participantUid])) {
+                    if ($participantUid !== '' && (!empty($connections[$participantUid]) || isset($online[$participantUid]))) {
                         $onlineCount++;
                     }
                 }
                 $dialog['online_count'] = $onlineCount;
                 if (!empty($dialog['partner']['uid'])) {
-                    $dialog['partner']['online'] = !empty($connections[$dialog['partner']['uid']]);
+                    $dialog['partner']['online'] = !empty($connections[$dialog['partner']['uid']]) || isset($online[$dialog['partner']['uid']]);
                 }
             }
             unset($dialog);
@@ -85,7 +87,13 @@ final class MessangerSocket
                 ? (int) $payload['before_id']
                 : null;
 
+            $this->activities->touchPresence($userUid);
             $result = $this->messenger->getMessages($userUid, $dialogUid, $beforeId);
+            $online = array_fill_keys($this->activities->onlineUids($userUid), true);
+            $result['dialog']['online_count'] = count(array_filter($result['dialog']['participants'] ?? [], static fn(array $p): bool => isset($online[$p['uid'] ?? ''])));
+            if (!empty($result['dialog']['partner']['uid'])) {
+                $result['dialog']['partner']['online'] = isset($online[$result['dialog']['partner']['uid']]);
+            }
             $this->send($connection, [
                 'action' => 'get_messages',
                 'dialog_uid' => $dialogUid,

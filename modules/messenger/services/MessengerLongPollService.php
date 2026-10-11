@@ -206,7 +206,7 @@ final class MessengerLongPollService
                 (
                     SELECT COALESCE(SUM(CRC32(CONCAT_WS("|",
                         ma.dialog_id,ma.user_id,ma.activity,
-                        DATE_FORMAT(ma.expires_at, "%Y-%m-%d %H:%i:%s.%f")
+                        IF(ma.activity="presence", "online", DATE_FORMAT(ma.expires_at, "%Y-%m-%d %H:%i:%s.%f"))
                     ))),0)
                     FROM messenger_activity ma
                     WHERE ma.dialog_id IN (
@@ -274,7 +274,7 @@ final class MessengerLongPollService
                 ma.dialog_id,
                 ma.user_id,
                 ma.activity,
-                DATE_FORMAT(ma.expires_at, "%Y-%m-%d %H:%i:%s.%f") AS expires_at
+                IF(ma.activity="presence", "online", DATE_FORMAT(ma.expires_at, "%Y-%m-%d %H:%i:%s.%f")) AS expires_at
              FROM messenger_activity ma
              INNER JOIN user_to_dialogs me
                 ON me.dialog_id = ma.dialog_id

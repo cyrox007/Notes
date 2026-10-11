@@ -107,7 +107,7 @@ ob_start();
                                 <?php foreach ($files as $item): ?>
                                     <?php if (!is_array($item)) { continue; } ?>
                                     <?php $fileName = (string) ($item['name'] ?? '') . (!empty($item['extension']) ? '.' . (string) $item['extension'] : ''); ?>
-                                    <article class="profile-public__item"><strong><?= $view->e($fileName) ?></strong><span>Публичный файл · <?= $view->e($item['size'] ?? 0) ?> Б</span></article>
+                                    <article class="profile-public__item"><a href="<?= $view->e($baseUrl . '/files/published/' . rawurlencode((string) ($item['uid'] ?? '')) . '/') ?>"><strong><?= $view->e($fileName) ?></strong></a><span>Публичный файл · <?= $view->e($item['size'] ?? 0) ?> Б</span></article>
                                 <?php endforeach; ?>
                             </div>
                         </section>
