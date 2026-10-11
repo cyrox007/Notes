@@ -5,17 +5,21 @@ on:
     branches: ['1.1']
     paths:
       - 'app/services/notifications/**'
+      - 'bin/notifications_worker.php'
       - 'database/core_identity_schema.sql'
       - 'database/migrations/20261010_notifications_foundation.sql'
-      - 'tests/integration/notification_mysql_contract.php'
+      - 'tests/integration/notification_*contract.php'
+      - 'tests/integration/smtp_socket_transport_contract.php'
       - '.github/workflows/notifications-foundation.yml'
   pull_request:
     branches: ['1.1']
     paths:
       - 'app/services/notifications/**'
+      - 'bin/notifications_worker.php'
       - 'database/core_identity_schema.sql'
       - 'database/migrations/20261010_notifications_foundation.sql'
-      - 'tests/integration/notification_mysql_contract.php'
+      - 'tests/integration/notification_*contract.php'
+      - 'tests/integration/smtp_socket_transport_contract.php'
       - '.github/workflows/notifications-foundation.yml'
   workflow_dispatch:
 
@@ -52,7 +56,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
-          extensions: mysqli, pdo_mysql, mbstring
+          extensions: mysqli, pdo_mysql, mbstring, openssl
           coverage: none
 
       - name: Проверить реальную схему и очередь уведомлений
@@ -62,4 +66,14 @@ jobs:
           TEST_DB_NAME: workspace_test
           TEST_DB_USER: workspace
           TEST_DB_PASS: workspace
-        run: php tests/integration/notification_mysql_contract.php
+        run: |
+          set -euo pipefail
+          php tests/integration/notification_mysql_contract.php
+          php tests/integration/notification_smtp_mysql_contract.php
+
+      - name: Проверить SMTP и CLI worker без внешней сети
+        run: |
+          set -euo pipefail
+          php tests/integration/notification_smtp_contract.php
+          php tests/integration/smtp_socket_transport_contract.php
+          php tests/integration/notification_worker_cli_contract.php

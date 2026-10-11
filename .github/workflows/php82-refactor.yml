@@ -87,6 +87,9 @@ jobs:
           set -euo pipefail
           php tests/integration/notification_foundation_contract.php
           php tests/integration/notification_delivery_contract.php
+          php tests/integration/notification_smtp_contract.php
+          php tests/integration/smtp_socket_transport_contract.php
+          php tests/integration/notification_worker_cli_contract.php
 
       - name: Проверить отказоустойчивость updater
         shell: bash
