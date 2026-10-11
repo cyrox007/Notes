@@ -80,8 +80,9 @@ final class TaskController extends Controller
         $now = date('Y-m-d H:i:s');
 
         if ($query['q'] !== '') {
-            $where[] = '(t.title LIKE :q OR t.description LIKE :q)';
-            $params[':q'] = '%' . $query['q'] . '%';
+            $where[] = '(t.title LIKE :q_title OR t.description LIKE :q_description)';
+            $params[':q_title'] = '%' . $query['q'] . '%';
+            $params[':q_description'] = '%' . $query['q'] . '%';
         }
 
         switch ($filter) {

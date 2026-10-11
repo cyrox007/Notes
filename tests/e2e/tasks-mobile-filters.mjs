@@ -9,6 +9,7 @@ try {const page=await browser.newPage();
 for(const width of [320,360,390,768,1440]){
  await page.setViewportSize({width,height:900});await page.setContent('<style>*{box-sizing:border-box}body{margin:12px;font:14px Arial}'+styles.join('\n')+'</style>'+html);
  const behavior=await readFile('modules/tasks/assets/tasks-page.js','utf8');await page.addScriptTag({content:"{const root=document.querySelector('.tasks');"+behavior.slice(behavior.indexOf('        const filters ='),behavior.indexOf('        const appPath ='))+'}'});
+ await page.locator('.tasks__search-row').evaluate(e=>e.innerHTML='<input aria-label=Search placeholder=Search>');await page.getByRole('textbox',{name:'Search'}).focus();assert.equal(await page.getByRole('textbox',{name:'Search'}).evaluate(e=>getComputedStyle(e).outlineOffset),'-2px');
  const failures=await page.evaluate(()=>{const panel=document.querySelector('.tasks__filter-panel');const bounds=panel.getBoundingClientRect();return [...panel.querySelectorAll('summary,.filter-btn,label,select,button')].filter(e=>{const r=e.getBoundingClientRect();return r.width&&(r.left<bounds.left-1||r.right>bounds.right+1||r.left<0||r.right>innerWidth);}).map(e=>e.outerHTML);});
  assert.deepEqual(failures,[], 'Filter element outside panel at '+width);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
