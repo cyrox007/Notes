@@ -6,6 +6,7 @@ final class PresenceDatabase extends \Core\DatabaseManager {
     public PDO $pdo;
     public function __construct() {
         $this->pdo=new PDO('sqlite::memory:');
+        $this->pdo->sqliteCreateFunction('UNIX_TIMESTAMP',static fn($v)=>strtotime((string)$v.' UTC'));
         $this->pdo->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);
         $this->pdo->exec("CREATE TABLE users(id INTEGER,uid TEXT,is_active INTEGER);
         CREATE TABLE user_to_dialogs(dialog_id INTEGER,user_id INTEGER,is_deleted INTEGER);
@@ -34,7 +35,11 @@ $a->touchPresence('alice');$b->touchPresence('bob');$b->touchPresence('outsider'
 check($a->onlineUids('alice')===['alice','bob'],'Independent workers must see their shared peers only');
 $b->touchPresence('bob');
 check(count($a->onlineUids('alice'))===2,'Heartbeat must upsert, not duplicate');
+$lastSeen=$a->lastSeenByUid('alice');
+check(isset($lastSeen['bob'])&&!isset($lastSeen['outsider']),'Last seen must stay within shared dialogs');
 $db->pdo->exec("UPDATE messenger_activity SET expires_at='2000-01-01' WHERE user_id=2");
+$cleanup=new ReflectionMethod($a,'cleanupExpired');$cleanup->setAccessible(true);$cleanup->invoke($a);
+check($a->lastSeenByUid('alice')['bob']===$lastSeen['bob'],'Expiry cleanup must retain last activity');
 check($a->onlineUids('alice')===['alice'],'Expired peers must become offline');
 $b->touchPresence('bob');$db->pdo->exec('UPDATE users SET is_active=0 WHERE id=2');
 check($a->onlineUids('alice')===['alice'],'Inactive peers must be offline');

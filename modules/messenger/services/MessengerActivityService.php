@@ -56,6 +56,24 @@ final class MessengerActivityService
         ), 'uid');
     }
 
+    /** Last activity is shared only with current dialog members. */
+    public function lastSeenByUid(string $viewerUid): array
+    {
+        $rows=$this->db->fetchAll(
+            "SELECT u.uid, UNIX_TIMESTAMP(MAX(ma.updated_at)) AS last_seen
+             FROM messenger_activity ma
+             INNER JOIN users u ON u.id=ma.user_id AND u.is_active=1
+             INNER JOIN user_to_dialogs member ON member.dialog_id=ma.dialog_id AND member.user_id=u.id AND member.is_deleted=0
+             INNER JOIN user_to_dialogs me ON me.dialog_id=ma.dialog_id AND me.is_deleted=0
+             INNER JOIN users viewer ON viewer.id=me.user_id AND viewer.is_active=1
+             WHERE viewer.uid=:uid AND ma.activity='presence' GROUP BY u.uid",
+            [':uid'=>$viewerUid]
+        );
+        $result=[];
+        foreach ($rows as $row) $result[(string)$row['uid']]=(int)$row['last_seen'];
+        return $result;
+    }
+
     public function publish(string $userUid, string $dialogUid, string $activity, bool $active): void
     {
         if (!in_array($activity, self::ALLOWED_TYPES, true)) {
@@ -132,7 +150,7 @@ final class MessengerActivityService
     private function cleanupExpired(): void
     {
         $this->db->execute(
-            'DELETE FROM messenger_activity WHERE expires_at <= CURRENT_TIMESTAMP(3)'
+            'DELETE FROM messenger_activity WHERE activity <> "presence" AND expires_at <= CURRENT_TIMESTAMP(3)'
         );
     }
 

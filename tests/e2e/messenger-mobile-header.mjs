@@ -11,5 +11,7 @@ assert.equal(await page.locator('.messenger-chat-actions-panel').evaluate(e=>e.i
 await page.getByRole('button',{name:'Действия с чатом'}).click();await page.waitForTimeout(220);assert.equal(await page.locator('.messenger-chat-actions-panel').evaluate(e=>e.inert),false);
 await page.keyboard.press('Escape');assert.equal(await page.locator('.messenger-chat-actions-panel').evaluate(e=>e.inert),true);
 await page.setViewportSize({width:1000,height:740});await page.waitForTimeout(50);assert.equal(await page.locator('.messenger-chat-actions-panel').evaluate(e=>e.inert),false);assert.equal(await page.locator('.messenger-chat-actions-toggle').isVisible(),false);
+await page.locator('.messenger-chat__header').evaluate(e=>e.style.width='360px');await page.waitForTimeout(60);assert.equal(await page.locator('.messenger-chat-actions-toggle').isVisible(),true);assert.equal(await page.locator('.messenger-chat-actions-panel').evaluate(e=>e.inert),true);
+const seen=await page.evaluate(()=>{const app=Object.create(window.TestMessenger.prototype);return [app.formatLastSeen(null),app.formatLastSeen(Date.now()/1000),app.formatLastSeen((Date.now()-86400000)/1000)];});assert.equal(seen[0],'не в сети');assert.match(seen[1],/сегодня/);assert.match(seen[2],/вчера/);
 console.log('PASS compact mobile header, title width, late call buttons, inert/Escape and desktop actions');
 }finally{await browser.close();}

@@ -51,6 +51,7 @@ final class MessangerSocket
         $this->guard($connection, function () use ($connections, $connection, $userUid): void {
             $this->activities->touchPresence($userUid);
             $online = array_fill_keys($this->activities->onlineUids($userUid), true);
+            $lastSeen = $this->activities->lastSeenByUid($userUid);
             $dialogs = $this->messenger->listDialogs($userUid);
 
             foreach ($dialogs as &$dialog) {
@@ -63,6 +64,7 @@ final class MessangerSocket
                 }
                 $dialog['online_count'] = $onlineCount;
                 if (!empty($dialog['partner']['uid'])) {
+                    $dialog['partner']['last_seen'] = $lastSeen[$dialog['partner']['uid']] ?? null;
                     $dialog['partner']['online'] = !empty($connections[$dialog['partner']['uid']]) || isset($online[$dialog['partner']['uid']]);
                 }
             }
@@ -90,8 +92,10 @@ final class MessangerSocket
             $this->activities->touchPresence($userUid);
             $result = $this->messenger->getMessages($userUid, $dialogUid, $beforeId);
             $online = array_fill_keys($this->activities->onlineUids($userUid), true);
+            $lastSeen = $this->activities->lastSeenByUid($userUid);
             $result['dialog']['online_count'] = count(array_filter($result['dialog']['participants'] ?? [], static fn(array $p): bool => isset($online[$p['uid'] ?? ''])));
             if (!empty($result['dialog']['partner']['uid'])) {
+                $result['dialog']['partner']['last_seen'] = $lastSeen[$result['dialog']['partner']['uid']] ?? null;
                 $result['dialog']['partner']['online'] = isset($online[$result['dialog']['partner']['uid']]);
             }
             $this->send($connection, [
