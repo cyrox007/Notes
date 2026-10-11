@@ -55,6 +55,9 @@ ob_start();
                     <p>@<?= $view->e($targetProfile['username'] ?? '') ?></p>
                 </div>
             </div>
+            <a class="profile-public__back" href="<?= $view->e($view->route('profile')) ?>">
+                <i class="fa fa-arrow-left" aria-hidden="true"></i> Вернуться к моему профилю
+            </a>
         </header>
 
         <section class="profile-public__content ux-section" aria-labelledby="public-content-title">
