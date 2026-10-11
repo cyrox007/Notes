@@ -53,3 +53,7 @@
 .tasks__sort-form select{width:auto;max-width:100%}
 .tasks__sort-form{min-width:0;max-width:100%}.tasks__sort-form label{min-width:0;max-width:100%;display:flex;align-items:center;gap:8px}
 @media(max-width:620px){.tasks__controls{flex-direction:row}.tasks-view-switch{width:100%}.tasks__sort-form label{align-items:stretch;flex-direction:column}.tasks__controls>.btn-primary{margin-left:auto}.tasks__controls>.btn-secondary{font-size:12px}}
+
+/* Task boards use the available workspace width rather than the article limit. */
+.content-wrapper:has(>.tasks),.content-wrapper:has(>.task-boards-page){width:100%;max-width:none}
+@media(min-width:901px){.tasks__stats{grid-template-columns:repeat(6,minmax(0,1fr))}}
