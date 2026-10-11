@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 $runtimeRoot = dirname(__DIR__);
-require_once $runtimeRoot . '/core/UpdateExternalCliSupport.php';
+require_once dirname(__DIR__) . '/core/UpdateExternalCliSupport.php';
 
 use Core\SecurityEventLog;
 use Core\UpdateApplyCommand;
