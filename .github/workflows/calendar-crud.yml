@@ -87,6 +87,7 @@ jobs:
           TEST_DB_NAME: workspace_test
           TEST_DB_USER: workspace
           TEST_DB_PASS: workspace
+          TEST_DB_ROOT_PASS: root
         shell: bash
         run: |
           set -euo pipefail
