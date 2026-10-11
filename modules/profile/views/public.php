@@ -60,9 +60,9 @@ ob_start();
         <section class="profile-public__content ux-section" aria-labelledby="public-content-title">
             <div class="ux-section__heading">
                 <div>
-                    <span class="ux-kicker">Видимость профиля</span>
+                    <span class="ux-kicker">Открыто для коллег</span>
                     <h2 id="public-content-title">Материалы пользователя</h2>
-                    <p>Здесь показываются только объекты, которые владелец разрешил видеть другим пользователям Workspace.</p>
+                    <p>Заметки, задачи и файлы, которыми пользователь поделился внутри Workspace.</p>
                 </div>
                 <?php if ($publicTotal > 0): ?><span class="profile-public__counter"><?= $view->e($publicTotal) ?> опубликовано</span><?php endif; ?>
             </div>
@@ -107,7 +107,20 @@ ob_start();
                                 <?php foreach ($files as $item): ?>
                                     <?php if (!is_array($item)) { continue; } ?>
                                     <?php $fileName = (string) ($item['name'] ?? '') . (!empty($item['extension']) ? '.' . (string) $item['extension'] : ''); ?>
-                                    <article class="profile-public__item"><a href="<?= $view->e($baseUrl . '/files/published/' . rawurlencode((string) ($item['uid'] ?? '')) . '/') ?>"><strong><?= $view->e($fileName) ?></strong></a><span>Публичный файл · <?= $view->e($item['size'] ?? 0) ?> Б</span></article>
+                                    <?php
+                                        $fileUrl = $baseUrl . '/files/published/' . rawurlencode((string) ($item['uid'] ?? '')) . '/';
+                                        $bytes = max(0, (int) ($item['size'] ?? 0));
+                                        $size = $bytes >= 1048576 ? number_format($bytes / 1048576, 1, ',', ' ') . ' МБ'
+                                            : ($bytes >= 1024 ? number_format($bytes / 1024, 1, ',', ' ') . ' КБ' : $bytes . ' Б');
+                                    ?>
+                                    <article class="profile-public__item profile-public__file">
+                                        <i class="fa fa-file-o profile-public__file-icon" aria-hidden="true"></i>
+                                        <div class="profile-public__file-copy">
+                                            <a href="<?= $view->e($fileUrl) ?>"><strong><?= $view->e($fileName) ?></strong></a>
+                                            <span><?= $view->e(strtoupper((string) ($item['extension'] ?? 'Файл'))) ?> · <?= $view->e($size) ?></span>
+                                        </div>
+                                        <a class="profile-public__file-open" href="<?= $view->e($fileUrl) ?>" aria-label="<?= $view->e('Открыть файл ' . $fileName) ?>">Открыть <i class="fa fa-arrow-right" aria-hidden="true"></i></a>
+                                    </article>
                                 <?php endforeach; ?>
                             </div>
                         </section>
