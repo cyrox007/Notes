@@ -199,7 +199,11 @@ calendarMysqlAssert(
     'Ключ идемпотентности должен включать конкретный экземпляр серии и offset'
 );
 $payload = json_decode((string) $eventRow['payload_json'], true, 16, JSON_THROW_ON_ERROR);
-calendarMysqlAssert(array_keys($payload) === ['event_uid', 'occurrence_start_utc', 'timezone', 'offset_seconds'], 'Payload Calendar должен оставаться минимальным');
+$payloadKeys = array_keys($payload);
+sort($payloadKeys, SORT_STRING);
+$expectedPayloadKeys = ['event_uid', 'occurrence_start_utc', 'offset_seconds', 'timezone'];
+sort($expectedPayloadKeys, SORT_STRING);
+calendarMysqlAssert($payloadKeys === $expectedPayloadKeys, 'Payload Calendar должен оставаться минимальным независимо от порядка ключей MySQL JSON');
 
 $notification = $db->fetchOne(
     'SELECT title, body, target_path FROM notifications WHERE event_id = :event_id AND recipient_user_id = :user_id LIMIT 1',
