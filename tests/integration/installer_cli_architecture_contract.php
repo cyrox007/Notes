@@ -116,6 +116,8 @@ $cliFiles = [
     'bin/release_acceptance.php',
     'bin/update_doctor.php',
     'bin/update_activate.php',
+    'bin/update.php',
+    'bin/update_remote.php',
 ];
 foreach ($cliFiles as $relative) {
     $source = file_get_contents($root . '/' . $relative);
@@ -180,6 +182,41 @@ installerCliAssert(
     str_contains($updateActivate, '@fopen($destination, \'xb\')')
         && !str_contains($updateActivate, '@fopen($destination, \'wb\')'),
     'Активация updater не должна перезаписывать существующий файл credentials'
+);
+
+foreach (['bin/update.php', 'bin/update_remote.php'] as $relative) {
+    $source = file_get_contents($root . '/' . $relative);
+    installerCliAssert(is_string($source), 'Не удалось прочитать ' . $relative);
+    installerCliAssert(
+        !str_contains($source, 'MaintenanceModeService')
+            && !str_contains($source, 'UpdateLiveApplier')
+            && !str_contains($source, 'UpdateApplyCommand'),
+        $relative . ' должен оставаться предтранзакционным слоем без maintenance/live apply'
+    );
+    installerCliAssert(
+        str_contains($source, "'status' => 'fail'")
+            && str_contains($source, "'code' => $code")
+            && str_contains($source, "'message' => $message"),
+        $relative . ' должен сохранять совместимый JSON-контракт ошибки updater'
+    );
+}
+
+$updatePreflight = file_get_contents($root . '/bin/update.php');
+installerCliAssert(is_string($updatePreflight), 'Не удалось прочитать bin/update.php');
+installerCliAssert(
+    str_contains($updatePreflight, 'UpdateManifestVerifier')
+        && str_contains($updatePreflight, 'UpdatePackageStager')
+        && str_contains($updatePreflight, 'UpdateArchiveInspector'),
+    'Локальная предвалидация updater должна сохранять подпись, staging и аудит ZIP'
+);
+
+$updateRemote = file_get_contents($root . '/bin/update_remote.php');
+installerCliAssert(is_string($updateRemote), 'Не удалось прочитать bin/update_remote.php');
+installerCliAssert(
+    str_contains($updateRemote, 'UpdateCredentialRefreshingTransport')
+        && str_contains($updateRemote, 'ensureUpdateAccess()')
+        && str_contains($updateRemote, 'refreshUpdateAccess()'),
+    'Удалённая проверка updater должна сохранять автоматическое восстановление credentials'
 );
 
 $healthcheck = file_get_contents($root . '/bin/healthcheck.php');
