@@ -14,7 +14,7 @@ function moduleEntitlementAssert(bool $condition, string $message): void
 
 require_once $root . '/core/ModuleManifest.php';
 
-foreach (['admin', 'files', 'messenger', 'notes', 'profile', 'tasks'] as $moduleId) {
+foreach (['admin', 'calendar', 'files', 'messenger', 'notes', 'profile', 'tasks'] as $moduleId) {
     $manifest = \Core\ModuleManifest::fromFile(
         $root . '/modules/' . $moduleId . '/module.json',
         $moduleId

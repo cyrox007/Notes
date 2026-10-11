@@ -1,0 +1,86 @@
+name: Calendar 1.1 — напоминания
+
+on:
+  push:
+    branches:
+      - 'feature/1.1-calendar-reminders-*'
+    paths:
+      - 'modules/calendar/**'
+      - 'bin/calendar_reminders.php'
+      - 'database/calendar_schema.sql'
+      - 'database/migrations/20261011_calendar_reminders.sql'
+      - 'database/migrations/manifest.json'
+      - 'tests/integration/calendar_reminders_*.php'
+      - '.github/workflows/calendar-reminders.yml'
+  pull_request:
+    branches: ['1.1']
+    paths:
+      - 'modules/calendar/**'
+      - 'bin/calendar_reminders.php'
+      - 'database/calendar_schema.sql'
+      - 'database/migrations/20261011_calendar_reminders.sql'
+      - 'database/migrations/manifest.json'
+      - 'tests/integration/calendar_reminders_*.php'
+      - '.github/workflows/calendar-reminders.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  calendar-reminders:
+    name: calendar-reminders
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: workspace_test
+          MYSQL_USER: workspace
+          MYSQL_PASSWORD: workspace
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+
+      - name: Подготовить PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mysqli, pdo_mysql, mbstring
+          coverage: none
+
+      - name: Проверить архитектуру Calendar reminders
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/integration/calendar_reminders_contract.php
+          php -l modules/calendar/services/CalendarReminderScheduler.php
+          php -l modules/calendar/services/CalendarReminderPublisher.php
+          php -l modules/calendar/CalendarCapability.php
+          php -l modules/calendar/CalendarRuntimeProvider.php
+          php -l modules/calendar/runtime.php
+          php -l bin/calendar_reminders.php
+          php bin/calendar_reminders.php --help
+
+      - name: Проверить напоминания Calendar на MySQL
+        env:
+          TEST_DB_HOST: 127.0.0.1
+          TEST_DB_PORT: 3306
+          TEST_DB_NAME: workspace_test
+          TEST_DB_USER: workspace
+          TEST_DB_PASS: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/integration/calendar_reminders_mysql_contract.php

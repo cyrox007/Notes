@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "id": "calendar",
+  "name": "Calendar",
+  "version": "1.1.0",
+  "core": {
+    "min": "0.13.0-alpha",
+    "max_exclusive": "2.0.0"
+  },
+  "dependencies": [],
+  "capabilities": [
+    "workspace.calendar"
+  ],
+  "package": {
+    "bundled": true,
+    "default_enabled": true
+  },
+  "license": {
+    "feature": "workspace.calendar"
+  },
+  "runtime": {
+    "mode": "isolated",
+    "entrypoint": "runtime.php"
+  },
+  "storage_namespaces": [],
+  "database": {
+    "tables": [
+      "calendar_events",
+      "calendar_reminders",
+      "calendar_runtime_state"
+    ],
+    "schemas": [
+      "database/calendar_schema.sql"
+    ],
+    "migrations": [
+      "database/migrations/20261011_calendar_reminders.sql"
+    ]
+  }
+}
