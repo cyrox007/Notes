@@ -2,21 +2,14 @@
 
 declare(strict_types=1);
 
-if (PHP_SAPI !== 'cli') {
-    fwrite(STDERR, "This command is CLI-only.\n");
-    exit(2);
-}
-
 $root = dirname(__DIR__);
-require_once $root . '/core/Environment.php';
+require_once $root . '/core/CliRuntime.php';
+\Core\CliRuntime::loadEnvironment($root);
 require_once $root . '/core/MigrationManifest.php';
 require_once $root . '/core/ModuleManifest.php';
 require_once $root . '/core/DatabaseOwnership.php';
 require_once $root . '/core/MigrationBaseline.php';
 require_once $root . '/core/Version.php';
-if (is_file($root . '/.env')) {
-    \Core\Environment::load($root . '/.env');
-}
 
 $options = getopt('', ['dry-run', 'status', 'help', 'baseline-version-code:']);
 if (isset($options['help'])) {
@@ -50,7 +43,7 @@ function envRequired(string $name): string
 {
     $value = getenv($name);
     if (!is_string($value) || trim($value) === '') {
-        throw new RuntimeException("Missing environment variable: {$name}");
+        throw new RuntimeException("Не задана обязательная переменная окружения: {$name}");
     }
     return trim($value);
 }
@@ -112,7 +105,7 @@ function parseMigrationStatements(string $sql): array
     $statements = [];
     $lines = preg_split('/\R/u', $sql);
     if ($lines === false) {
-        throw new RuntimeException('Malformed migration: SQL is not valid UTF-8');
+        throw new RuntimeException('Некорректная миграция: SQL не является допустимым UTF-8');
     }
     foreach ($lines as $line) {
         if (preg_match('/^\s*--/', $line) === 1) {
@@ -120,7 +113,7 @@ function parseMigrationStatements(string $sql): array
         }
         if (preg_match('/^\s*DELIMITER\s+(\S+)\s*$/i', $line, $match) === 1) {
             if (trim($buffer) !== '') {
-                throw new RuntimeException('Malformed migration: DELIMITER changed before statement ended');
+                throw new RuntimeException('Некорректная миграция: DELIMITER изменён до завершения SQL-выражения');
             }
             $delimiter = (string) $match[1];
             continue;
@@ -140,7 +133,7 @@ function parseMigrationStatements(string $sql): array
         }
     }
     if (trim($buffer) !== '') {
-        throw new RuntimeException('Malformed migration: unterminated SQL statement');
+        throw new RuntimeException('Некорректная миграция: SQL-выражение не завершено');
     }
     return $statements;
 }
@@ -211,11 +204,11 @@ function verifyCurrentContract(mysqli $db, array $tables, bool $hasFiles): void
         }
     }
     if ($missing !== []) {
-        throw new RuntimeException('Database contract is incomplete; missing tables: ' . implode(', ', $missing));
+        throw new RuntimeException('Контракт БД неполон; отсутствуют таблицы: ' . implode(', ', $missing));
     }
 
     if (!tableExists($db, 'system_settings')) {
-        throw new RuntimeException('Database contract is incomplete; missing table system_settings');
+        throw new RuntimeException('Контракт БД неполон; отсутствует таблица system_settings');
     }
     $result = $db->query(
         "SELECT setting_key,setting_value,setting_type,category,is_editable
@@ -227,22 +220,22 @@ function verifyCurrentContract(mysqli $db, array $tables, bool $hasFiles): void
     }
     foreach (['installation_id', 'workspace_license_token'] as $key) {
         if (!isset($settings[$key])) {
-            throw new RuntimeException("Database contract is incomplete; missing {$key} setting");
+            throw new RuntimeException("Контракт БД неполон; отсутствует настройка {$key}");
         }
         if ((string) $settings[$key]['setting_type'] !== 'string'
             || (string) $settings[$key]['category'] !== 'licensing'
             || (int) $settings[$key]['is_editable'] !== 0) {
-            throw new RuntimeException("Incompatible licensing setting metadata: {$key}");
+            throw new RuntimeException("Несовместимые метаданные настройки лицензирования: {$key}");
         }
     }
     $installationId = strtolower(trim((string) $settings['installation_id']['setting_value']));
     if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $installationId) !== 1) {
-        throw new RuntimeException('Database contract is incomplete; installation_id is not a UUID');
+        throw new RuntimeException('Контракт БД неполон; installation_id не является UUID');
     }
 
     if ($hasFiles) {
         if (!tableExists($db, 'user_storage_quotas')) {
-            throw new RuntimeException('Database contract is incomplete; missing table user_storage_quotas');
+            throw new RuntimeException('Контракт БД неполон; отсутствует таблица user_storage_quotas');
         }
         $quota = $db->query(
             "SELECT setting_value,setting_type,category,is_editable FROM system_settings
@@ -252,7 +245,7 @@ function verifyCurrentContract(mysqli $db, array $tables, bool $hasFiles): void
             || (string) $quota['setting_type'] !== 'integer'
             || (string) $quota['category'] !== 'file_manager'
             || (int) $quota['is_editable'] !== 1) {
-            throw new RuntimeException('Database contract is incomplete; File Manager quota setting is missing or invalid');
+            throw new RuntimeException('Контракт БД неполон; настройка квоты File Manager отсутствует или некорректна');
         }
     }
 }
@@ -263,10 +256,11 @@ try {
     $applied = appliedMigrations($db);
     $baseline = [];
 
-    // Старые опубликованные updater 1.0.12/1.0.13 запускают уже новый
+    // Старые опубликованные обновляторы 1.0.12/1.0.13 запускают уже новый
     // bin/migrate.php после переключения файлов, но ещё не умеют передавать
     // --baseline-version-code. В этом узком случае исходная версия берётся
-    // только из активной внешней updater-транзакции, уже пересёкшей destructive boundary.
+    // только из активной внешней транзакции обновления, уже пересёкшей границу
+    // необратимых изменений.
     if (!$ledgerPresent && $baselineVersionCode === null) {
         $baselineVersionCode = \Core\MigrationBaseline::activeUpdaterSourceVersionCode(
             $root,
@@ -290,15 +284,15 @@ try {
     }
 
     // Каждая запись журнала остаётся проверяемой по неизменяемому каноническому набору,
-    // even when its owning module is absent from this packaged composition.
+    // даже когда модуль-владелец отсутствует в составе текущего пакета.
     foreach ($applied as $filename => $checksum) {
         if (!in_array($filename, $canonical, true)) {
-            throw new RuntimeException('Migration ledger contains entry absent from canonical manifest: ' . $filename);
+            throw new RuntimeException('Журнал миграций содержит запись вне канонического манифеста: ' . $filename);
         }
         $expected = hash('sha256', $canonicalManifest->readMigration($filename));
         if (!hash_equals($expected, $checksum)) {
             throw new RuntimeException(
-                "Checksum mismatch for already applied migration {$filename}. Do not edit applied migrations; create a new migration instead."
+                "Контрольная сумма уже применённой миграции {$filename} не совпадает. Не изменяйте применённые миграции; создайте новую."
             );
         }
     }
@@ -315,10 +309,10 @@ try {
             echo sprintf("%-8s %s\n", in_array($filename, $pending, true) ? 'PENDING' : 'APPLIED', $filename);
         }
         $selectedApplied = count($manifest) - count($pending);
-        echo sprintf("Summary: %d applied, %d pending\n", $selectedApplied, count($pending));
+        echo sprintf("Итого: %d применено, %d ожидает\n", $selectedApplied, count($pending));
         if ($statusOnly && $pending === []) {
             verifyCurrentContract($db, $currentTables, $hasFiles);
-            echo "Schema contract: OK\n";
+            echo "Контракт схемы: OK\n";
         }
         $db->close();
         exit(0);
@@ -335,7 +329,7 @@ try {
     foreach ($pending as $filename) {
         $sql = $canonicalManifest->readMigration($filename);
         $checksum = hash('sha256', $sql);
-        echo "Applying {$filename} ... ";
+        echo "Применение {$filename} ... ";
         executeMigration($db, $sql, $filename);
         recordMigration($db, $filename, $checksum);
         echo "OK\n";
@@ -343,10 +337,10 @@ try {
 
     verifyCurrentContract($db, $currentTables, $hasFiles);
     echo $pending === []
-        ? "Database is up to date. Schema contract: OK\n"
-        : 'Applied ' . count($pending) . " migration(s). Schema contract: OK\n";
+        ? "База данных актуальна. Контракт схемы: OK\n"
+        : 'Применено миграций: ' . count($pending) . ". Контракт схемы: OK\n";
     $db->close();
 } catch (Throwable $e) {
-    fwrite(STDERR, 'Migration failed: ' . $e->getMessage() . PHP_EOL);
+    fwrite(STDERR, 'Ошибка миграции: ' . $e->getMessage() . PHP_EOL);
     exit(1);
 }
