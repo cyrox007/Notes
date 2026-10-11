@@ -2,16 +2,9 @@
 
 declare(strict_types=1);
 
-if (PHP_SAPI !== 'cli') {
-    fwrite(STDERR, "This command is CLI-only.\n");
-    exit(2);
-}
-
 $root = dirname(__DIR__);
-require_once $root . '/core/Environment.php';
-if (is_file($root . '/.env')) {
-    \Core\Environment::load($root . '/.env');
-}
+require_once $root . '/core/CliRuntime.php';
+\Core\CliRuntime::loadEnvironment($root);
 require_once $root . '/core/Version.php';
 require_once $root . '/core/UpdateAccessBootstrap.php';
 require_once $root . '/core/UpdateManifestVerifier.php';
@@ -48,7 +41,7 @@ if (isset($options['help'])) {
     echo "  php bin/update_remote.php [--feed-url=https://updates.example/feed.json] [--channel=stable] \\\n";
     echo "      [--stage-root=/absolute/external/path] [--json]\n\n";
     echo "По умолчанию используются штатный stable-канал и внешний staging.\n";
-    echo "Эта команда не включает maintenance и не меняет рабочие файлы приложения.\n";
+    echo "Команда не включает режим обслуживания и не меняет рабочие файлы приложения.\n";
     exit(0);
 }
 
@@ -90,13 +83,12 @@ if ($channel === '') {
 
 try {
     if (UpdateDownloadCredentials::accessMode() !== 'offline') {
-        require_once $root . '/core/RuntimeAutoloader.php';
-        \Core\RuntimeAutoloader::register($root);
+        \Core\CliRuntime::registerAutoloader($root);
         require_once $root . '/core/Config.php';
 
-        // Для 1.0.2+ штатная CLI-проверка использует тот же автоматический
-        // bootstrap по установленной лицензии, что и Admin UI. Готовый
-        // credential повторно не ротируется.
+        // Штатная CLI-проверка использует тот же автоматический bootstrap по
+        // установленной лицензии, что и Admin UI. Готовый credential повторно
+        // не ротируется.
         (new LicenseService())->ensureUpdateAccess();
     }
 
@@ -155,36 +147,36 @@ try {
     } else {
         $status = (string) ($result['status'] ?? '');
         if ($status === 'update_available') {
-            echo "[OK] Signed remote update is available\n";
-            echo 'Channel:   ' . $result['channel'] . PHP_EOL;
-            echo 'Target:    ' . $result['target_version'] . ' (' . $result['target_version_code'] . ')' . PHP_EOL;
-            echo 'Package:   ' . $result['package_filename'] . ' (' . $result['package_size'] . " bytes)\n";
-            echo 'Key ID:    ' . $result['key_id'] . PHP_EOL;
-            echo "Package was not downloaded. No live files were changed.\n";
+            echo "[OK] Доступно подписанное удалённое обновление\n";
+            echo 'Канал:     ' . $result['channel'] . PHP_EOL;
+            echo 'Цель:      ' . $result['target_version'] . ' (' . $result['target_version_code'] . ')' . PHP_EOL;
+            echo 'Пакет:     ' . $result['package_filename'] . ' (' . $result['package_size'] . " байт)\n";
+            echo 'ID ключа:  ' . $result['key_id'] . PHP_EOL;
+            echo "Пакет не загружался. Рабочие файлы не изменялись.\n";
         } elseif ($status === 'up_to_date') {
-            echo "[OK] Installation is up to date with the configured signed feed\n";
-            echo 'Installed version code: ' . Version::VERSION_CODE . PHP_EOL;
-            echo 'Feed target:            ' . $result['target_version'] . ' (' . $result['target_version_code'] . ')' . PHP_EOL;
-            echo "Package was not downloaded. No live files were changed.\n";
+            echo "[OK] Установка соответствует настроенному подписанному каналу\n";
+            echo 'Код установленной версии: ' . Version::VERSION_CODE . PHP_EOL;
+            echo 'Цель канала:              ' . $result['target_version'] . ' (' . $result['target_version_code'] . ')' . PHP_EOL;
+            echo "Пакет не загружался. Рабочие файлы не изменялись.\n";
         } elseif ($status === 'ahead_of_feed') {
-            echo "[OK] Installed version is newer than the configured signed feed\n";
-            echo 'Installed version code: ' . Version::VERSION_CODE . PHP_EOL;
-            echo 'Feed target:            ' . $result['target_version'] . ' (' . $result['target_version_code'] . ')' . PHP_EOL;
-            echo "Package was not downloaded. No live files were changed.\n";
+            echo "[OK] Установленная версия новее настроенного подписанного канала\n";
+            echo 'Код установленной версии: ' . Version::VERSION_CODE . PHP_EOL;
+            echo 'Цель канала:              ' . $result['target_version'] . ' (' . $result['target_version_code'] . ')' . PHP_EOL;
+            echo "Пакет не загружался. Рабочие файлы не изменялись.\n";
         } elseif ($status === 'update_incompatible') {
-            echo "[WARN] A newer signed update exists but is incompatible with this installation\n";
-            echo 'Target:  ' . $result['target_version'] . ' (' . $result['target_version_code'] . ')' . PHP_EOL;
-            echo 'Reason:  ' . ($result['compatibility_message'] ?? 'compatibility policy rejected the update') . PHP_EOL;
-            echo "Package was not downloaded. No live files were changed.\n";
+            echo "[WARN] Доступно более новое подписанное обновление, несовместимое с этой установкой\n";
+            echo 'Цель:     ' . $result['target_version'] . ' (' . $result['target_version_code'] . ')' . PHP_EOL;
+            echo 'Причина:  ' . ($result['compatibility_message'] ?? 'политика совместимости отклонила обновление') . PHP_EOL;
+            echo "Пакет не загружался. Рабочие файлы не изменялись.\n";
         } elseif ($status === 'staged') {
-            echo "[OK] Remote signed update verified, audited and staged\n";
-            echo 'Channel:   ' . $result['channel'] . PHP_EOL;
-            echo 'Target:    ' . $result['target_version'] . ' (' . $result['target_version_code'] . ')' . PHP_EOL;
-            echo 'Stage:     ' . $result['stage_dir'] . PHP_EOL;
+            echo "[OK] Удалённое подписанное обновление проверено, проаудировано и подготовлено\n";
+            echo 'Канал:     ' . $result['channel'] . PHP_EOL;
+            echo 'Цель:      ' . $result['target_version'] . ' (' . $result['target_version_code'] . ')' . PHP_EOL;
+            echo 'Staging:   ' . $result['stage_dir'] . PHP_EOL;
             echo 'SHA-256:   ' . $result['package_sha256'] . PHP_EOL;
-            echo "No maintenance was entered and no live files were changed.\n";
+            echo "Режим обслуживания не включался, рабочие файлы не изменялись.\n";
         } else {
-            throw new RuntimeException('Remote updater returned an unknown success state');
+            throw new RuntimeException('Удалённый updater вернул неизвестное успешное состояние');
         }
     }
 } catch (Throwable $e) {
