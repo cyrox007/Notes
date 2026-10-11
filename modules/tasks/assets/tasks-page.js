@@ -6,6 +6,31 @@
         if (!root || root.dataset.pageBehaviorReady === '1') return;
         root.dataset.pageBehaviorReady = '1';
 
+        const filters = root.querySelector('.tasks__filter-panel');
+        const summary = filters?.querySelector('summary');
+        if (filters && summary) {
+            let motion = null;
+            let expanded = filters.open;
+            summary.addEventListener('click', event => {
+                if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+                event.preventDefault();
+                const start = filters.getBoundingClientRect().height;
+                motion?.cancel();
+                expanded = !expanded;
+                filters.open = expanded;
+                const end = filters.getBoundingClientRect().height;
+                filters.open = true;
+                filters.style.overflow = 'hidden';
+                motion = filters.animate({height:[start+'px',end+'px']}, {duration:240,easing:'cubic-bezier(.2,.8,.2,1)'});
+                motion.onfinish = () => {
+                    filters.open = expanded;
+                    filters.style.overflow = '';
+                    motion = null;
+                };
+            });
+        }
+
+
         const appPath = (path) => window.wspace?.path ? window.wspace.path(path) : path;
         const modal = document.getElementById('create-task-modal');
         const openBtn = document.getElementById('open-create-task');
