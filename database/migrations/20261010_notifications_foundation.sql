@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS `notification_channel_configs` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     `channel` VARCHAR(32) NOT NULL,
     `owner_user_id` INT DEFAULT NULL,
+    `owner_scope` INT AS (IFNULL(`owner_user_id`, 0)) STORED,
     `label` VARCHAR(120) NOT NULL,
     `enabled` TINYINT(1) NOT NULL DEFAULT 1,
     `config_json` JSON NOT NULL,
@@ -68,7 +69,7 @@ CREATE TABLE IF NOT EXISTS `notification_channel_configs` (
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uq_notification_channel_config` (`channel`, `owner_user_id`, `label`),
+    UNIQUE KEY `uq_notification_channel_config` (`channel`, `owner_scope`, `label`),
     KEY `idx_notification_channel_configs_owner` (`owner_user_id`, `enabled`),
     CONSTRAINT `fk_notification_channel_config_user`
         FOREIGN KEY (`owner_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE

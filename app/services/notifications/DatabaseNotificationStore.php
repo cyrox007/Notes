@@ -7,15 +7,28 @@ namespace App\Services\Notifications;
 require_once dirname(__DIR__, 3) . '/core/DatabaseManager.php';
 require_once __DIR__ . '/NotificationEvent.php';
 require_once __DIR__ . '/NotificationStore.php';
+require_once __DIR__ . '/NotificationRecipientResolver.php';
+require_once __DIR__ . '/DatabaseNotificationRecipientResolver.php';
+require_once __DIR__ . '/NotificationDeliveryQueue.php';
+require_once __DIR__ . '/DatabaseNotificationDeliveryQueue.php';
 
 use Core\DatabaseManager;
 use Throwable;
 
 final class DatabaseNotificationStore implements NotificationStore
 {
-    public function __construct(private ?DatabaseManager $db = null)
-    {
-        $this->db ??= DatabaseManager::getInstance();
+    private DatabaseManager $db;
+    private NotificationRecipientResolver $recipientResolver;
+    private NotificationDeliveryQueue $deliveryQueue;
+
+    public function __construct(
+        ?DatabaseManager $db = null,
+        ?NotificationRecipientResolver $recipientResolver = null,
+        ?NotificationDeliveryQueue $deliveryQueue = null
+    ) {
+        $this->db = $db ?? DatabaseManager::getInstance();
+        $this->recipientResolver = $recipientResolver ?? new DatabaseNotificationRecipientResolver($this->db);
+        $this->deliveryQueue = $deliveryQueue ?? new DatabaseNotificationDeliveryQueue($this->db);
     }
 
     public function persist(NotificationEvent $event): array
@@ -24,7 +37,9 @@ final class DatabaseNotificationStore implements NotificationStore
 
         try {
             $eventId = $this->persistEvent($event);
-            $notificationIds = $this->persistRecipients($eventId, $event);
+            $eligibleUserIds = $this->recipientResolver->eligibleUserIds($event->recipientUserIds);
+            $notificationIdsByUser = $this->persistRecipients($eventId, $event, $eligibleUserIds);
+            $this->deliveryQueue->enqueueForEvent($event, $notificationIdsByUser);
             $this->db->endTransaction(true);
         } catch (Throwable $e) {
             $this->db->endTransaction(false);
@@ -33,7 +48,7 @@ final class DatabaseNotificationStore implements NotificationStore
 
         return [
             'event_id' => $eventId,
-            'notification_ids' => $notificationIds,
+            'notification_ids' => array_values($notificationIdsByUser),
         ];
     }
 
@@ -82,12 +97,15 @@ final class DatabaseNotificationStore implements NotificationStore
         return (int) $this->db->getPdo()->lastInsertId();
     }
 
-    /** @return list<int> */
-    private function persistRecipients(int $eventId, NotificationEvent $event): array
+    /**
+     * @param list<int> $eligibleUserIds
+     * @return array<int,int> ключ — user_id, значение — notification_id
+     */
+    private function persistRecipients(int $eventId, NotificationEvent $event, array $eligibleUserIds): array
     {
         $notificationIds = [];
 
-        foreach ($event->recipientUserIds as $userId) {
+        foreach ($eligibleUserIds as $userId) {
             $this->db->execute(
                 'INSERT INTO notifications (
                     event_id,
@@ -114,7 +132,7 @@ final class DatabaseNotificationStore implements NotificationStore
                 ]
             );
 
-            $notificationIds[] = (int) $this->db->getPdo()->lastInsertId();
+            $notificationIds[$userId] = (int) $this->db->getPdo()->lastInsertId();
         }
 
         return $notificationIds;

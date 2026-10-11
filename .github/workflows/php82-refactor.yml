@@ -81,6 +81,13 @@ jobs:
           php tests/integration/external_updater_architecture_contract.php
           php tests/integration/router_session_security_contract.php
 
+      - name: Проверить фундамент уведомлений
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/integration/notification_foundation_contract.php
+          php tests/integration/notification_delivery_contract.php
+
       - name: Проверить отказоустойчивость updater
         shell: bash
         run: |
