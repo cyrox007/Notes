@@ -78,6 +78,7 @@ jobs:
           php tests/integration/http_entrypoint_contract.php
           php tests/integration/installer_cli_architecture_contract.php
           php tests/integration/update_run_architecture_contract.php
+          php tests/integration/external_updater_architecture_contract.php
           php tests/integration/router_session_security_contract.php
 
       - name: Проверить отказоустойчивость updater
