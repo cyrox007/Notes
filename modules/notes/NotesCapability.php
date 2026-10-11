@@ -9,6 +9,7 @@ use App\Services\PermissionService;
 use App\Services\RolePolicyService;
 use Core\DatabaseManager;
 use Core\ProfileContentProvider;
+use Core\ServiceLog;
 use Core\WorkspaceNoteCreator;
 use DomainException;
 use InvalidArgumentException;
@@ -118,7 +119,12 @@ final class NotesCapability implements ProfileContentProvider, WorkspaceNoteCrea
         try {
             $encrypted = CryptMethods::encrypt($content, $uid);
         } catch (Throwable $e) {
-            error_log('Workspace note encryption failed: ' . $e->getMessage());
+            ServiceLog::emit(
+                'notes.workspace_encrypt_failed',
+                'error',
+                'notes',
+                ['exception' => $e::class]
+            );
             throw new RuntimeException('Не удалось безопасно сохранить заметку');
         }
 

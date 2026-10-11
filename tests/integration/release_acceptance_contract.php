@@ -186,7 +186,6 @@ releaseAcceptanceAssert(
     'описание 1.0.15 не фиксирует проверенный CLI-handoff, ограничения предварительного выпуска и сохранность данных'
 );
 
-
 $protectionScript = releaseAcceptanceText($root, 'tools/release/apply-github-protection.sh');
 releaseAcceptanceAssert(
     str_contains($protectionScript, 'Проверка branch protection не пройдена:')
@@ -196,11 +195,14 @@ releaseAcceptanceAssert(
 );
 
 $rotationCli = releaseAcceptanceText($root, 'bin/rotate_data_keys.php');
+$cliRuntime = releaseAcceptanceText($root, 'core/CliRuntime.php');
 releaseAcceptanceAssert(
-    str_contains($preflight, 'Команда доступна только из CLI.')
+    str_contains($preflight, '\Core\CliRuntime::assertCli()')
+    && str_contains($cliRuntime, 'Команда доступна только из CLI.')
     && str_contains($preflight, 'Использование: php bin/release_acceptance.php')
-    && !str_contains($preflight, 'Non-strict mode reports source failures'),
-    'release acceptance CLI снова содержит английскую операторскую справку'
+    && !str_contains($preflight, 'Non-strict mode reports source failures')
+    && !str_contains($cliRuntime, 'This command is available only from CLI.'),
+    'release acceptance CLI снова содержит английскую операторскую справку или обходит общий CLI-runtime'
 );
 releaseAcceptanceAssert(
     str_contains($rotationCli, 'Ротация ключей данных:')
@@ -289,9 +291,9 @@ releaseAcceptanceAssert(
     && str_contains($currentUpgrade, 'admin_update_preservation_probe.php --verify')
     && !str_contains($currentUpgrade, 'git show v1.0.16:core/Version.php')
     && array_diff($requiredDisabledFunctions, releaseAcceptanceDisabledFunctions($currentUpgrade)) === [],
-    'Current-head 1.0.15 to 1.0.16 data-preserving web upgrade is missing'
+    'Проверка обновления 1.0.15 → 1.0.16 с сохранением данных через web-контур отсутствует'
 );
 foreach (['current-stable-upgrade', 'native-media'] as $check) {
-    releaseAcceptanceAssert(in_array($check, $requiredChecks, true), 'Missing current release check: ' . $check);
+    releaseAcceptanceAssert(in_array($check, $requiredChecks, true), 'В текущем релизном наборе отсутствует проверка: ' . $check);
 }
 fwrite(STDOUT, "[OK] финальный контракт release acceptance 1.0.16 и исторических переходов выполнен\n");

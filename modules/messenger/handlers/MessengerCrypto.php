@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace App\Helpers;
 
 require_once dirname(__DIR__, 3) . '/core/Environment.php';
+require_once dirname(__DIR__, 3) . '/core/AeadCipher.php';
 
+use Core\AeadCipher;
+use Core\Environment;
 use SensitiveParameter;
 
 /**
@@ -25,7 +28,7 @@ final class MessengerCrypto
 
     private static function key(): string
     {
-        return self::keyFromSecret((string) (\Core\Environment::get('MSG_SECRET_KEY') ?: ''));
+        return self::keyFromSecret((string) (Environment::get('MSG_SECRET_KEY') ?: ''));
     }
 
     private static function keyFromSecret(#[SensitiveParameter] string $secret): string
@@ -91,15 +94,8 @@ final class MessengerCrypto
             throw new \InvalidArgumentException('Для шифрования требуется UID сообщения');
         }
 
-        $nonce = random_bytes(SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES);
-        $ciphertext = sodium_crypto_aead_xchacha20poly1305_ietf_encrypt(
-            $plaintext,
-            self::AAD_PREFIX . $messageUid,
-            $nonce,
-            $key
-        );
-
-        return self::PREFIX . base64_encode($nonce . $ciphertext);
+        $payload = AeadCipher::seal($plaintext, self::AAD_PREFIX . $messageUid, $key);
+        return self::PREFIX . base64_encode($payload);
     }
 
     public static function decrypt(
@@ -115,7 +111,7 @@ final class MessengerCrypto
         }
 
         // Переходный формат, который короткое время создавался совместимым
-        // слоем audit-hardening: base64(16-byte seed || base64(aead ciphertext)).
+        // слоем усиления аудита: base64(16-byte seed || base64(aead ciphertext)).
         $compat = self::decryptTransitionPayload($payload);
         if ($compat !== null) {
             return $compat;
@@ -137,21 +133,11 @@ final class MessengerCrypto
         #[SensitiveParameter] string $key
     ): string {
         $raw = base64_decode($encoded, true);
-        $nonceLength = SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES;
-
-        if ($raw === false || strlen($raw) <= $nonceLength) {
+        if ($raw === false) {
             throw new \RuntimeException('Некорректный шифротекст Messenger');
         }
 
-        $nonce = substr($raw, 0, $nonceLength);
-        $ciphertext = substr($raw, $nonceLength);
-        $plaintext = sodium_crypto_aead_xchacha20poly1305_ietf_decrypt(
-            $ciphertext,
-            self::AAD_PREFIX . $messageUid,
-            $nonce,
-            $key
-        );
-
+        $plaintext = AeadCipher::open($raw, self::AAD_PREFIX . $messageUid, $key);
         if ($plaintext === false) {
             throw new \RuntimeException('Не удалось подтвердить подлинность сообщения Messenger');
         }
@@ -179,7 +165,7 @@ final class MessengerCrypto
             SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES
         );
 
-        $plaintext = sodium_crypto_aead_xchacha20poly1305_ietf_decrypt(
+        $plaintext = AeadCipher::openWithNonce(
             $ciphertext,
             self::COMPAT_AAD,
             $nonce,
@@ -191,7 +177,7 @@ final class MessengerCrypto
 
     private static function decryptLegacyAesCbc(#[SensitiveParameter] string $payload): ?string
     {
-        $legacyKey = (string) (getenv('MSG_LEGACY_SECRET_KEY') ?: '');
+        $legacyKey = (string) (Environment::get('MSG_LEGACY_SECRET_KEY') ?: '');
         if ($legacyKey === '') {
             return null;
         }
