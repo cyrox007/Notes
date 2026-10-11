@@ -1,10 +1,10 @@
-name: Core refactor contract
+name: Архитектурный контракт Core
 
 on:
   pull_request:
-    branches: [dev, '1.0', master, 'release/1.0.7-rc']
+    branches: [dev, '1.0', '1.1', master, 'release/1.0.7-rc']
   push:
-    branches: [refactor/core-boundaries, 'refactor/1.0.7-core-audit-final']
+    branches: [refactor/core-boundaries, 'refactor/1.0.7-core-audit-final', 'refactor/1.1-core-boundaries-20261011']
 
 permissions:
   contents: read
@@ -33,17 +33,17 @@ jobs:
           --health-retries=10
 
     steps:
-      - name: Checkout
+      - name: Получить исходный код
         uses: actions/checkout@v4
 
-      - name: Setup PHP
+      - name: Настроить PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
-          extensions: pdo_mysql, mysqli, gd
+          extensions: pdo_mysql, mysqli, gd, sodium
           coverage: none
 
-      - name: Lint refactored core boundaries
+      - name: Проверить синтаксис границ Core и модулей
         shell: bash
         run: |
           set -euo pipefail
@@ -56,6 +56,11 @@ jobs:
           php -l core/Router.php
           php -l core/DatabaseSqlInspector.php
           php -l core/DatabaseManager.php
+          php -l core/Environment.php
+          php -l core/PrivateStorageResolver.php
+          php -l core/PrivateStoragePath.php
+          php -l core/AeadCipher.php
+          php -l core/ServiceLog.php
           php -l core/UpdateCommandRunner.php
           php -l core/UpdateProcessRunner.php
           php -l core/UpdateInProcessRunner.php
@@ -79,10 +84,19 @@ jobs:
           php -l core/UpdateRemoteDelivery.php
           php -l core/UpdateApplyCommand.php
           php -l core.php
+          php -l modules/files/FilesCapability.php
+          php -l modules/notes/NotesCapability.php
+          php -l modules/notes/controllers/NoteAttachmentController.php
+          php -l modules/messenger/handlers/MessengerCrypto.php
+          php -l modules/messenger/services/MessengerMediaService.php
+          php -l modules/messenger/services/MessengerVoiceService.php
+          php -l modules/profile/services/UserAvatarService.php
+          php -l modules/tasks/services/TaskBoardService.php
           php -l modules/notes/models/NoteModel.php
           php -l bin/release_acceptance.php
           php -l tests/integration/release_acceptance_contract.php
           php -l tests/integration/core_refactor_contract.php
+          php -l tests/integration/module_core_boundaries_contract.php
           php -l tools/release/core_usage_audit.php
           php -l modules/profile/services/AvatarImageProcessor.php
           php -l tests/integration/profile_avatar_image_processor_contract.php
@@ -113,6 +127,7 @@ jobs:
         run: |
           php tests/integration/core_refactor_contract.php
           php tests/integration/updater_web_mode_contract.php
+          php tests/integration/module_core_boundaries_contract.php
 
       - name: Построить карту использования ядра на PHP 8.1
         if: matrix.php == '8.1'
@@ -122,7 +137,7 @@ jobs:
           php tools/release/core_usage_audit.php --json | tee /tmp/core-usage-audit.json
           php -r '$d=json_decode(file_get_contents("/tmp/core-usage-audit.json"),true,64,JSON_THROW_ON_ERROR); if (($d["minimum_supported_php"]??"")!=="8.1") exit(1); if (($d["candidates"]["classes_without_product_references"]??[])!==[]) exit(1); if (($d["candidates"]["functions_without_product_references"]??[])!==[]) exit(1); if (($d["candidates"]["private_methods_with_declaration_only"]??[])!==[]) exit(1);'
 
-      - name: Проверить обработку аватара без legacy Core Images
+      - name: Проверить обработку аватара без старого Core Images
         run: php tests/integration/profile_avatar_image_processor_contract.php
 
       - name: Проверить исходный контракт приёмки релиза
