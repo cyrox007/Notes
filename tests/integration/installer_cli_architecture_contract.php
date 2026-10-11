@@ -177,8 +177,8 @@ foreach (['bin/update_doctor.php', 'bin/update_activate.php'] as $relative) {
 $updateActivate = file_get_contents($root . '/bin/update_activate.php');
 installerCliAssert(is_string($updateActivate), 'Не удалось прочитать bin/update_activate.php');
 installerCliAssert(
-    str_contains($updateActivate, "@fopen($destination, 'xb')")
-        && !str_contains($updateActivate, "@fopen($destination, 'wb')"),
+    str_contains($updateActivate, '@fopen($destination, \'xb\')')
+        && !str_contains($updateActivate, '@fopen($destination, \'wb\')'),
     'Активация updater не должна перезаписывать существующий файл credentials'
 );
 
