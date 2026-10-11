@@ -9,7 +9,7 @@
 .task-edit-panel{margin-top:10px;padding:10px;border:1px solid var(--ui-border);border-radius:10px;background:var(--ui-surface-soft)}.task-edit-panel[hidden]{display:none}
 .task-edit-form{display:grid;gap:8px}.task-edit-form .form-group{display:grid;gap:4px}.task-edit-form textarea{min-height:76px}.task-edit-form .form-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .task-actions form{display:inline-flex;margin:0}
-@media(max-width:620px){.tasks__sort-form,.category-create-form,.task-category-attach{align-items:stretch;flex-direction:column}.task-category-select,.tasks__sort-form select,.category-create-form input,.category-create-form select{max-width:none;width:100%}.task-edit-form .form-row{grid-template-columns:1fr}}
+@media(max-width:620px){.tasks__sort-form,.category-create-form,.task-category-attach{align-items:stretch;flex-direction:column}.task-category-select,.tasks__sort-form select,.category-create-form input,.category-create-form select{max-width:100%;width:100%;box-sizing:border-box}.task-edit-form .form-row{grid-template-columns:1fr}}
 
 /* Native controls must retain their appearance when cards move out of the list. */
 .tasks :is(.btn-sm,.btn-primary,.btn-secondary){appearance:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:32px;padding:6px 10px;border:1px solid var(--ui-border-strong);border-radius:8px;background:var(--ui-surface);color:var(--ui-text);font:inherit;font-size:12px;font-weight:650;line-height:1.3;cursor:pointer}
