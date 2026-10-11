@@ -1,0 +1,256 @@
+name: Calendar 1.1 — браузерный жизненный цикл
+
+on:
+  push:
+    branches:
+      - '1.1'
+      - 'test/1.1-calendar-browser-lifecycle-*'
+    paths:
+      - 'modules/calendar/**'
+      - 'core/**'
+      - 'app/services/PermissionService.php'
+      - 'app/views/^shared/**'
+      - 'database/calendar_schema.sql'
+      - 'database/access_control_schema.sql'
+      - 'database/migrations/20261011_calendar_crud.sql'
+      - 'tests/e2e/calendar-lifecycle.mjs'
+      - 'tests/e2e/router.php'
+      - '.github/workflows/calendar-browser-lifecycle.yml'
+  pull_request:
+    branches: ['1.1']
+    paths:
+      - 'modules/calendar/**'
+      - 'core/**'
+      - 'app/services/PermissionService.php'
+      - 'app/views/^shared/**'
+      - 'database/calendar_schema.sql'
+      - 'database/access_control_schema.sql'
+      - 'database/migrations/20261011_calendar_crud.sql'
+      - 'tests/e2e/calendar-lifecycle.mjs'
+      - 'tests/e2e/router.php'
+      - '.github/workflows/calendar-browser-lifecycle.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  calendar-browser-lifecycle:
+    name: calendar-browser-lifecycle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: calendar_browser_lifecycle
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+
+      - name: Подготовить PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo
+          coverage: none
+
+      - name: Установить Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Проверить синтаксис и контракты Calendar
+        shell: bash
+        run: |
+          set -euo pipefail
+          find modules/calendar -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          node --check modules/calendar/assets/calendar.js
+          node --check tests/e2e/calendar-lifecycle.mjs
+          php -l tests/e2e/router.php
+          php tests/integration/calendar_crud_contract.php
+
+      - name: Подготовить каноническую базу
+        shell: bash
+        run: |
+          set -euo pipefail
+          mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/messenger_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/notes_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/file_manager_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/user_fields_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/tasks_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/settings_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/module_lifecycle_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/access_control_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/audit_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/calendar_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/migrations/20261011_calendar_crud.sql
+
+      - name: Создать пользователей и окружение
+        shell: bash
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: calendar_browser_lifecycle
+        run: |
+          set -euo pipefail
+          ALICE_PASSWORD="$(php -r 'echo bin2hex(random_bytes(18));')"
+          BOB_PASSWORD="$(php -r 'echo bin2hex(random_bytes(18));')"
+          APP_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
+          MESSAGE_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
+          TICKET_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
+          echo "::add-mask::$ALICE_PASSWORD"
+          echo "::add-mask::$BOB_PASSWORD"
+          echo "::add-mask::$APP_KEY"
+          echo "::add-mask::$MESSAGE_KEY"
+          echo "::add-mask::$TICKET_KEY"
+          export ALICE_PASSWORD BOB_PASSWORD
+
+          php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          $pdo = new PDO(
+              sprintf('mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4', getenv('DBHOST'), getenv('DBPORT'), getenv('DBNAME')),
+              getenv('DBUSER'),
+              getenv('DBPASS'),
+              [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+          );
+          $stmt = $pdo->prepare(
+              'INSERT INTO users (uid,username,email,password_hash,firstname,lastname,role,is_active,created_at,updated_at) '
+              . 'VALUES (:uid,:username,:email,:password_hash,:firstname,:lastname,888,1,NOW(),NOW())'
+          );
+          foreach ([
+              ['11111111-1111-4111-8111-111111111111', 'calendar-alice', 'calendar-alice@example.test', getenv('ALICE_PASSWORD'), 'Alice'],
+              ['22222222-2222-4222-8222-222222222222', 'calendar-bob', 'calendar-bob@example.test', getenv('BOB_PASSWORD'), 'Bob'],
+          ] as [$uid, $username, $email, $password, $firstname]) {
+              $stmt->execute([
+                  ':uid' => $uid,
+                  ':username' => $username,
+                  ':email' => $email,
+                  ':password_hash' => password_hash((string) $password, PASSWORD_ARGON2ID),
+                  ':firstname' => $firstname,
+                  ':lastname' => 'Calendar',
+              ]);
+          }
+          PHP
+
+          rm -rf /tmp/workspace-calendar-lifecycle
+          mkdir -p /tmp/workspace-calendar-lifecycle/logs compile cache
+          chmod 700 /tmp/workspace-calendar-lifecycle /tmp/workspace-calendar-lifecycle/logs
+          rm -f /tmp/workspace-organizer-startup.log
+
+          cat > .env <<ENV
+          DBDRIVER=mysql
+          DBHOST=127.0.0.1
+          DBPORT=3306
+          DBUSER=root
+          DBPASS=root
+          DBNAME=calendar_browser_lifecycle
+          UNIQUE_KEY=${APP_KEY}
+          MSG_SECRET_KEY=${MESSAGE_KEY}
+          WS_TICKET_SECRET=${TICKET_KEY}
+          PRIVATE_STORAGE_PATH=/tmp/workspace-calendar-lifecycle
+          SITEURL=http://127.0.0.1:18091
+          BASE_PATH=/workspace/
+          WS_HOST=127.0.0.1
+          WS_PORT=27804
+          WS_PUBLIC_URL=ws://127.0.0.1:27804/workspace/ws
+          WS_ALLOWED_ORIGINS=http://127.0.0.1:18091
+          AUTH_RATE_LIMIT_ATTEMPTS=50
+          AUTH_RATE_LIMIT_WINDOW_SECONDS=60
+          UPLOAD_RATE_LIMIT_ATTEMPTS=100
+          UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60
+          LOG_LEVEL=INFO
+          LOG_FILE=/tmp/workspace-calendar-lifecycle/logs/app.log
+          CSRF_ENABLED=true
+          ENV
+          chmod 600 .env
+
+          printf 'E2E_ALICE_USER=%s\n' 'calendar-alice' >> "$GITHUB_ENV"
+          printf 'E2E_ALICE_PASSWORD=%s\n' "$ALICE_PASSWORD" >> "$GITHUB_ENV"
+          printf 'E2E_BOB_USER=%s\n' 'calendar-bob' >> "$GITHUB_ENV"
+          printf 'E2E_BOB_PASSWORD=%s\n' "$BOB_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Активировать временную лицензию CI
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/support/ci_license_fixture.php
+
+      - name: Запустить приложение в подпапке
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > /tmp/workspace-calendar-lifecycle-http.log
+          PHP_CLI_SERVER_WORKERS=4 php -S 127.0.0.1:18091 tests/e2e/router.php >/tmp/workspace-calendar-lifecycle-http.log 2>&1 &
+          echo $! >/tmp/workspace-calendar-lifecycle-http.pid
+          READY=0
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:18091/workspace/auth/login/ >/dev/null; then
+              READY=1
+              break
+            fi
+            sleep 0.25
+          done
+          if [[ "$READY" != '1' ]]; then
+            cat /tmp/workspace-calendar-lifecycle-http.log >&2
+            exit 1
+          fi
+
+      - name: Пройти жизненный цикл Calendar в Chromium
+        shell: bash
+        env:
+          E2E_ORIGIN: http://127.0.0.1:18091
+          E2E_BASE_PATH: /workspace
+        run: node tests/e2e/calendar-lifecycle.mjs
+
+      - name: Проверить сохранённое состояние Calendar
+        shell: bash
+        run: |
+          set -euo pipefail
+          EVENT_ROW="$(mysql -N -B -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle -e "SELECT CONCAT(status,':',IF(recurrence_rule IS NULL,0,1)) FROM calendar_events WHERE title LIKE 'Calendar lifecycle % — изменено' ORDER BY id DESC LIMIT 1")"
+          test "$EVENT_ROW" = 'cancelled:1'
+
+          EVENT_ID="$(mysql -N -B -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle -e "SELECT id FROM calendar_events WHERE title LIKE 'Calendar lifecycle % — изменено' ORDER BY id DESC LIMIT 1")"
+          test -n "$EVENT_ID"
+
+          OFFSET_COUNT="$(mysql -N -B -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle -e "SELECT COUNT(*) FROM calendar_event_reminder_offsets WHERE event_id=${EVENT_ID} AND offset_seconds=900")"
+          test "$OFFSET_COUNT" = '1'
+
+          PENDING_COUNT="$(mysql -N -B -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle -e "SELECT COUNT(*) FROM calendar_reminders WHERE event_id=${EVENT_ID} AND state='pending'")"
+          test "$PENDING_COUNT" = '0'
+
+      - name: Показать журналы при ошибке
+        if: failure()
+        shell: bash
+        run: |
+          echo '--- PHP server ---'
+          cat /tmp/workspace-calendar-lifecycle-http.log || true
+          echo '--- PHP startup/application errors ---'
+          cat /tmp/workspace-organizer-startup.log || true
+          echo '--- application log ---'
+          cat /tmp/workspace-calendar-lifecycle/logs/app.log || true
+
+      - name: Остановить локальный сервер
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f /tmp/workspace-calendar-lifecycle-http.pid ]]; then
+            PID="$(cat /tmp/workspace-calendar-lifecycle-http.pid)"
+            pkill -TERM -P "$PID" >/dev/null 2>&1 || true
+            kill "$PID" >/dev/null 2>&1 || true
+          fi
