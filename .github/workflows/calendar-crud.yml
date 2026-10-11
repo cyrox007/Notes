@@ -3,6 +3,7 @@ name: Calendar 1.1 — CRUD и интерфейс
 on:
   push:
     branches:
+      - '1.1'
       - 'feature/1.1-calendar-crud-ui-*'
     paths:
       - 'modules/calendar/**'
