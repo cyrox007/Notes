@@ -39,10 +39,13 @@ foreach ([$externalSource, $bootstrapSource, $cliSupportSource, $bootstrapSuppor
 }
 
 externalUpdaterArchitectureAssert(
-    str_contains($externalSource, '/core/UpdateExternalCliSupport.php')
+    str_contains(
+        $externalSource,
+        "require_once dirname(__DIR__) . '/core/UpdateExternalCliSupport.php';"
+    )
         && str_contains($bootstrapSource, '/core/UpdateExternalCliSupport.php')
         && str_contains($bootstrapSource, '/core/UpdateBootstrapSupport.php'),
-    'Внешние точки входа не используют выделенные support-классы'
+    'Внешние точки входа не используют выделенные support-классы с замкнутыми зависимостями'
 );
 
 $cliReflection = new ReflectionClass(UpdateExternalCliSupport::class);
