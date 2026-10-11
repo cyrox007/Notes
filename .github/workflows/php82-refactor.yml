@@ -79,3 +79,12 @@ jobs:
           php tests/integration/installer_cli_architecture_contract.php
           php tests/integration/update_run_architecture_contract.php
           php tests/integration/router_session_security_contract.php
+
+      - name: Проверить отказоустойчивость updater
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/integration/automatic_update_recovery_contract.php
+          php tests/integration/external_update_runtime_contract.php
+          php tests/integration/updater_preapply_crash_recovery_contract.php
+          php tests/integration/updater_recovery_invariants_contract.php
