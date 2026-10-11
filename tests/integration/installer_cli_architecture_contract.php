@@ -9,6 +9,13 @@ function installerCliAssert(bool $condition, string $message): void
     }
 }
 
+function installerCliPosition(string $source, string $needle, string $message): int
+{
+    $position = strpos($source, $needle);
+    installerCliAssert(is_int($position), $message);
+    return $position;
+}
+
 $root = dirname(__DIR__, 2);
 
 $installer = file_get_contents($root . '/install.php');
@@ -119,6 +126,9 @@ $cliFiles = [
     'bin/update.php',
     'bin/update_remote.php',
     'bin/update_apply.php',
+    'bin/update_backup.php',
+    'bin/update_candidate.php',
+    'bin/update_retention.php',
 ];
 foreach ($cliFiles as $relative) {
     $source = file_get_contents($root . '/' . $relative);
@@ -168,7 +178,7 @@ installerCliAssert(
     'Приёмка релиза не должна зависеть от .env приложения'
 );
 
-foreach (['bin/update_doctor.php', 'bin/update_activate.php'] as $relative) {
+foreach (['bin/update_doctor.php', 'bin/update_activate.php', 'bin/update_retention.php'] as $relative) {
     $source = file_get_contents($root . '/' . $relative);
     installerCliAssert(is_string($source), 'Не удалось прочитать ' . $relative);
     installerCliAssert(
@@ -232,6 +242,57 @@ installerCliAssert(
     str_contains($updateApply, "'code' => $e->errorCode")
         && str_contains($updateApply, "'code' => 'apply_failed'"),
     'Транзакционный apply должен сохранять машинные коды ошибок'
+);
+
+$updateBackup = file_get_contents($root . '/bin/update_backup.php');
+installerCliAssert(is_string($updateBackup), 'Не удалось прочитать bin/update_backup.php');
+$backupMaintenance = installerCliPosition($updateBackup, 'new MaintenanceModeService(', 'Backup updater должен проверять maintenance');
+$backupVerify = installerCliPosition($updateBackup, '$verifier->verify(', 'Backup updater должен повторно проверять подпись stage');
+$backupJournal = installerCliPosition($updateBackup, '$journal->initialize(', 'Backup updater должен инициализировать журнал до создания копии');
+$backupCreate = installerCliPosition($updateBackup, '$backupManager->create(', 'Backup updater должен создавать проверенную копию');
+$backupRecord = installerCliPosition($updateBackup, '$journal->recordBackups(', 'Backup updater должен фиксировать копию в журнале');
+installerCliAssert(
+    $backupMaintenance < $backupVerify
+        && $backupVerify < $backupJournal
+        && $backupJournal < $backupCreate
+        && $backupCreate < $backupRecord,
+    'Backup updater должен сохранять порядок maintenance -> verify -> journal -> backup -> recordBackups'
+);
+installerCliAssert(
+    str_contains($updateBackup, "'live_files_changed' => false")
+        && !str_contains($updateBackup, 'UpdateLiveApplier'),
+    'Checkpoint резервной копии не должен изменять рабочий код'
+);
+
+$updateCandidate = file_get_contents($root . '/bin/update_candidate.php');
+installerCliAssert(is_string($updateCandidate), 'Не удалось прочитать bin/update_candidate.php');
+$candidateMaintenance = installerCliPosition($updateCandidate, 'new MaintenanceModeService(', 'Candidate updater должен проверять maintenance');
+$candidateJournal = installerCliPosition($updateCandidate, '$journal->load(', 'Candidate updater должен загрузить журнал транзакции');
+$candidateVerify = installerCliPosition($updateCandidate, '$verifier->verify(', 'Candidate updater должен повторно проверять подпись stage');
+$candidateExtract = installerCliPosition($updateCandidate, 'new UpdateReleaseCandidate($root)', 'Candidate updater должен извлекать только проверенный пакет');
+installerCliAssert(
+    $candidateMaintenance < $candidateJournal
+        && $candidateJournal < $candidateVerify
+        && $candidateVerify < $candidateExtract,
+    'Candidate updater должен сохранять порядок maintenance -> journal -> verify -> extract'
+);
+installerCliAssert(
+    str_contains($updateCandidate, "!== 'backup_verified'")
+        && str_contains($updateCandidate, "['live_mutation_started'] ?? true) !== false")
+        && str_contains($updateCandidate, "'live_files_changed' => false")
+        && !str_contains($updateCandidate, 'UpdateLiveApplier'),
+    'Candidate updater должен требовать backup_verified до destructive boundary'
+);
+
+$updateRetention = file_get_contents($root . '/bin/update_retention.php');
+installerCliAssert(is_string($updateRetention), 'Не удалось прочитать bin/update_retention.php');
+installerCliAssert(
+    str_contains($updateRetention, "if ($apply && !isset($options['yes']))")
+        && str_contains($updateRetention, "'maintenance_active',")
+        && str_contains($updateRetention, 'new UpdateArtifactCleaner(')
+        && str_contains($updateRetention, "'update.retention_cleanup'")
+        && str_contains($updateRetention, 'SecurityEventLog::emit('),
+    'Retention updater должен требовать подтверждение, запрещать active maintenance и журналировать удаление'
 );
 
 foreach (['bin/update_external_apply.php', 'bin/update_bootstrap.php'] as $relative) {
