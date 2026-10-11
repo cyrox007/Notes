@@ -9,7 +9,9 @@ use App\Services\TwoFactorService;
 use Core\DatabaseManager;
 use Core\InstallerDatabaseService;
 use Core\InstallerEnvironmentService;
+use Core\UpdateAccessActivationTransport;
 use Core\UpdateDownloadCredentials;
+use Core\UpdateHttpsTransport;
 
 function sensitiveParameterAssert(bool $condition, string $message): void
 {
@@ -77,6 +79,7 @@ require_once $root . '/core/PrivateStorageResolver.php';
 require_once $root . '/core/InstallerDatabaseService.php';
 require_once $root . '/core/InstallerEnvironmentService.php';
 require_once $root . '/core/UpdateDownloadCredentials.php';
+require_once $root . '/core/UpdateRemoteTransport.php';
 require_once $root . '/modules/messenger/handlers/MessengerCrypto.php';
 
 sensitiveParameterAssertMarked(CryptMethods::class, 'hashPassword', 'password');
@@ -111,6 +114,15 @@ sensitiveParameterAssertMarked(InstallerDatabaseService::class, 'createDatabase'
 
 sensitiveParameterAssertMarked(InstallerEnvironmentService::class, 'writeEnvironmentFile', 'data');
 sensitiveParameterAssertMarked(InstallerEnvironmentService::class, 'environmentLines', 'data');
+
+sensitiveParameterAssertMarked(UpdateAccessActivationTransport::class, 'activate', 'activationCode');
+sensitiveParameterAssertMarked(UpdateAccessActivationTransport::class, 'activateWithLicense', 'licenseToken');
+sensitiveParameterAssertMarked(UpdateHttpsTransport::class, '__construct', 'credentials');
+sensitiveParameterAssertMarked(UpdateHttpsTransport::class, 'activate', 'activationCode');
+sensitiveParameterAssertMarked(UpdateHttpsTransport::class, 'activateWithLicense', 'licenseToken');
+sensitiveParameterAssertMarked(UpdateHttpsTransport::class, 'activateRequest', 'payload');
+sensitiveParameterAssertMarked(UpdateHttpsTransport::class, 'openResponse', 'jsonBody');
+sensitiveParameterAssertMarked(UpdateHttpsTransport::class, 'writeAll', 'bytes');
 
 $credentialsClass = new ReflectionClass(UpdateDownloadCredentials::class);
 sensitiveParameterAssert(
