@@ -221,7 +221,9 @@ jobs:
         env:
           E2E_ORIGIN: http://127.0.0.1:18091
           E2E_BASE_PATH: /workspace
-        run: node tests/e2e/calendar-lifecycle.mjs
+        run: |
+          set -o pipefail
+          node tests/e2e/calendar-lifecycle.mjs 2>&1 | tee /tmp/calendar-e2e.log
 
       - name: Проверить сохранённое состояние Calendar
         shell: bash
@@ -243,12 +245,27 @@ jobs:
         if: failure()
         shell: bash
         run: |
+          echo '--- Browser ---'
+          cat /tmp/calendar-e2e.log || true
           echo '--- PHP server ---'
           cat /tmp/workspace-calendar-lifecycle-http.log || true
           echo '--- Ошибки запуска PHP/приложения ---'
           cat /tmp/workspace-organizer-startup.log || true
           echo '--- Журнал приложения ---'
           cat /tmp/workspace-calendar-lifecycle/logs/app.log || true
+
+      - name: Сохранить диагностику при ошибке
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: calendar-lifecycle-diagnostics
+          path: |
+            /tmp/calendar-e2e.log
+            /tmp/workspace-calendar-lifecycle-http.log
+            /tmp/workspace-organizer-startup.log
+            /tmp/workspace-calendar-lifecycle/logs/app.log
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: Остановить локальный сервер
         if: always()
