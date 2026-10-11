@@ -107,6 +107,7 @@ $cliFiles = [
     'bin/cleanup_messenger_orphans.php',
     'bin/healthcheck.php',
     'bin/control.php',
+    'bin/migrate.php',
     'bin/migrate_crypto.php',
     'bin/reconcile_file_storage.php',
     'bin/repair_phpmyadmin_dump.php',
@@ -126,6 +127,26 @@ foreach ($cliFiles as $relative) {
         $relative . ' не должен возвращать старое англоязычное сообщение CLI'
     );
 }
+
+$migrate = file_get_contents($root . '/bin/migrate.php');
+installerCliAssert(is_string($migrate), 'Не удалось прочитать bin/migrate.php');
+foreach ([
+    '--baseline-version-code',
+    'MigrationBaseline::activeUpdaterSourceVersionCode(',
+    'SET FOREIGN_KEY_CHECKS=0',
+    'SET FOREIGN_KEY_CHECKS=1',
+    "'PENDING' : 'APPLIED'",
+] as $compatibilityMarker) {
+    installerCliAssert(
+        str_contains($migrate, $compatibilityMarker),
+        'Миграции должны сохранять совместимость старого обновлятора: ' . $compatibilityMarker
+    );
+}
+installerCliAssert(
+    !str_contains($migrate, 'Missing environment variable:')
+        && !str_contains($migrate, 'Migration failed:'),
+    'Операторские сообщения миграций должны оставаться русскоязычными'
+);
 
 $rotation = file_get_contents($root . '/bin/rotate_data_keys.php');
 installerCliAssert(is_string($rotation), 'Не удалось прочитать bin/rotate_data_keys.php');
