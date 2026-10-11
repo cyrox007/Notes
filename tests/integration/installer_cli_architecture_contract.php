@@ -239,7 +239,7 @@ installerCliAssert(
     'Транзакционный apply должен сохранять единый UpdateApplyCommand и журнал безопасности'
 );
 installerCliAssert(
-    str_contains($updateApply, "'code' => $e->errorCode")
+    str_contains($updateApply, '\'code\' => $e->errorCode')
         && str_contains($updateApply, "'code' => 'apply_failed'"),
     'Транзакционный apply должен сохранять машинные коды ошибок'
 );
@@ -287,7 +287,7 @@ installerCliAssert(
 $updateRetention = file_get_contents($root . '/bin/update_retention.php');
 installerCliAssert(is_string($updateRetention), 'Не удалось прочитать bin/update_retention.php');
 installerCliAssert(
-    str_contains($updateRetention, "if ($apply && !isset($options['yes']))")
+    str_contains($updateRetention, 'if ($apply && !isset($options[\'yes\']))')
         && str_contains($updateRetention, "'maintenance_active',")
         && str_contains($updateRetention, 'new UpdateArtifactCleaner(')
         && str_contains($updateRetention, "'update.retention_cleanup'")
