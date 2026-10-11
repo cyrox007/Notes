@@ -5,7 +5,9 @@ declare(strict_types=1);
 use App\Controllers\MainController;
 use App\Controllers\AuthController;
 use App\Controllers\LicenseRecoveryController;
+use App\Controllers\NotificationController;
 use App\Middlewares\LoginRequared;
+use App\Middlewares\ApiLoginRequired;
 use App\Middlewares\RequireLicenseManage;
 use App\Middlewares\AuthRateLimit;
 use App\Middlewares\CSRFMiddleware;
@@ -19,6 +21,14 @@ $router->addGlobalMiddleware(EnforceLicenseMutation::class);
 $router->addGlobalMiddleware(EnforceTwoFactorPolicy::class);
 
 $router->add('GET', '/', [MainController::class, 'index'], [LoginRequared::class], 'main');
+
+$router->group('/api/notifications')
+    ->add('GET', '/', [NotificationController::class, 'index'], [ApiLoginRequired::class], 'notifications_index')
+    ->add('GET', '/unread-count', [NotificationController::class, 'unreadCount'], [ApiLoginRequired::class], 'notifications_unread_count')
+    ->add('POST', '/{int:notificationId}/read', [NotificationController::class, 'markRead'], [ApiLoginRequired::class, CSRFMiddleware::class], 'notifications_mark_read')
+    ->add('POST', '/{int:notificationId}/unread', [NotificationController::class, 'markUnread'], [ApiLoginRequired::class, CSRFMiddleware::class], 'notifications_mark_unread')
+    ->add('POST', '/read-all', [NotificationController::class, 'markAllRead'], [ApiLoginRequired::class, CSRFMiddleware::class], 'notifications_mark_all_read')
+    ->endGroup();
 
 $router->group('/system')
     ->add('GET', '/license', [LicenseRecoveryController::class, 'index'], [LoginRequared::class, RequireLicenseManage::class], 'system_license')
