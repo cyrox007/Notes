@@ -18,7 +18,7 @@ final class TaskBoardService
 {
     private static bool $schemaReady = false;
 
-    private const STATUSES = ['pending', 'in_progress', 'completed', 'cancelled'];
+    private const STATUSES = ['pending', 'studying', 'in_progress', 'review', 'completed'];
     private const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 
     public function __construct(
@@ -73,10 +73,11 @@ final class TaskBoardService
                 creator_user_id INT NOT NULL,
                 title VARCHAR(255) NOT NULL,
                 description TEXT DEFAULT NULL,
-                status ENUM('pending','in_progress','completed','cancelled') NOT NULL DEFAULT 'pending',
+                status ENUM('pending','studying','in_progress','review','completed','cancelled') NOT NULL DEFAULT 'pending',
                 priority ENUM('low','medium','high','urgent') NOT NULL DEFAULT 'medium',
                 due_date DATETIME DEFAULT NULL,
                 completed_at DATETIME DEFAULT NULL,
+                archived_at DATETIME DEFAULT NULL,
                 is_deleted TINYINT(1) NOT NULL DEFAULT 0,
                 deleted_at DATETIME DEFAULT NULL,
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -347,7 +348,7 @@ final class TaskBoardService
              FROM task_board_items i
              INNER JOIN users creator ON creator.id = i.creator_user_id
              WHERE i.board_id = :board_id AND i.is_deleted = 0
-             ORDER BY FIELD(i.status,'pending','in_progress','completed','cancelled'),i.updated_at DESC,i.id DESC",
+             ORDER BY FIELD(i.status,'pending','studying','in_progress','review','completed'),i.updated_at DESC,i.id DESC",
             [':board_id' => (int) $board['id']]
         );
 
@@ -441,6 +442,11 @@ final class TaskBoardService
 
         $set = [];
         $params = [':id' => (int) $task['id']];
+        if (array_key_exists('archived', $changes)) {
+            if (!in_array((string) $changes['archived'], ['0', '1'], true)) throw new InvalidArgumentException('Некорректное действие архива');
+            $set['archived_at'] = (string) $changes['archived'] === '1' ? ($task['archived_at'] ?? date('Y-m-d H:i:s')) : null;
+        }
+        if (!empty($task['archived_at']) && array_key_exists('status', $changes)) throw new InvalidArgumentException('Сначала восстановите задачу из архива');
         if (array_key_exists('title', $changes)) {
             $set['title'] = $this->title((string) $changes['title']);
         }

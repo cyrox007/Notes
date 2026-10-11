@@ -15,9 +15,9 @@ use RuntimeException;
 
 final class TaskController extends Controller
 {
-    private const STATUSES = ['pending', 'in_progress', 'completed', 'cancelled'];
+    private const STATUSES = ['pending', 'studying', 'in_progress', 'review', 'completed'];
     private const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
-    private const FILTERS = ['all', 'today', 'week', 'overdue', 'pending', 'in_progress', 'completed', 'cancelled'];
+    private const FILTERS = ['all', 'today', 'week', 'overdue', 'pending', 'studying', 'in_progress', 'review', 'completed', 'archive'];
 
     /** @var array<string,string> */
     private const SORT_COLUMNS = [
@@ -39,10 +39,12 @@ final class TaskController extends Controller
 
     /** @var array<string,string> */
     private const STATUS_LABELS = [
-        'pending' => 'Ожидает',
-        'in_progress' => 'В процессе',
-        'completed' => 'Завершена',
-        'cancelled' => 'Отменена',
+        'pending' => 'Запланировано',
+        'studying' => 'Изучение',
+        'review' => 'Проверка',
+        'in_progress' => 'В работе',
+        'completed' => 'Завершено',
+
     ];
 
     public function published(Request $request, string $uid): void
@@ -76,7 +78,7 @@ final class TaskController extends Controller
 
         $query = ListQuery::fromRequest($request, self::SORT_COLUMNS, 'created_at');
         $params = [':user_id' => (int) $user->id];
-        $where = ['t.user_id = :user_id', 't.is_deleted = 0'];
+        $where = ['t.user_id = :user_id', 't.is_deleted = 0', $filter === 'archive' ? 't.archived_at IS NOT NULL' : 't.archived_at IS NULL'];
         $now = date('Y-m-d H:i:s');
 
         if ($query['q'] !== '') {
@@ -136,10 +138,12 @@ final class TaskController extends Controller
                 COUNT(*) AS total,
                 SUM(status = "pending") AS pending,
                 SUM(status = "in_progress") AS in_progress,
+                SUM(status = "studying") AS studying,
+                SUM(status = "review") AS review,
                 SUM(status = "completed") AS completed,
                 SUM(status NOT IN ("completed", "cancelled") AND due_date IS NOT NULL AND due_date < :now) AS overdue
              FROM tasks
-             WHERE user_id = :user_id AND is_deleted = 0',
+             WHERE user_id = :user_id AND is_deleted = 0 AND archived_at IS NULL',
             [':user_id' => (int) $user->id, ':now' => $now]
         ) ?? [];
 
@@ -156,6 +160,8 @@ final class TaskController extends Controller
                 'total' => (int) ($statsRow['total'] ?? 0),
                 'pending' => (int) ($statsRow['pending'] ?? 0),
                 'in_progress' => (int) ($statsRow['in_progress'] ?? 0),
+                'studying' => (int) ($statsRow['studying'] ?? 0),
+                'review' => (int) ($statsRow['review'] ?? 0),
                 'completed' => (int) ($statsRow['completed'] ?? 0),
                 'overdue' => (int) ($statsRow['overdue'] ?? 0),
             ],
@@ -226,6 +232,15 @@ final class TaskController extends Controller
             }
 
             $changes = [];
+            if (array_key_exists('archived', $post)) {
+                if (!in_array((string) $post['archived'], ['0', '1'], true)) {
+                    throw new InvalidArgumentException('Некорректное действие архива');
+                }
+                $changes['archived_at'] = (string) $post['archived'] === '1' ? ($task['archived_at'] ?? date('Y-m-d H:i:s')) : null;
+            }
+            if (!empty($task['archived_at']) && array_key_exists('status', $post)) {
+                throw new InvalidArgumentException('Сначала восстановите задачу из архива');
+            }
             if (array_key_exists('title', $post)) {
                 $changes['title'] = $this->taskTitle((string) $post['title']);
             }
@@ -545,7 +560,7 @@ final class TaskController extends Controller
             $task['subtasks'] = $subtaskMap[$taskId] ?? [];
             $task['priority_color'] = self::PRIORITY_COLORS[(string) $task['priority']] ?? '#3498db';
             $task['status_label'] = self::STATUS_LABELS[(string) $task['status']] ?? 'Неизвестный статус';
-            $task['is_overdue'] = $task['due_date'] !== null
+            $task['is_overdue'] = empty($task['archived_at']) && $task['due_date'] !== null
                 && !in_array((string) $task['status'], ['completed', 'cancelled'], true)
                 && strtotime((string) $task['due_date']) < $now;
 

@@ -37,7 +37,7 @@
         const completeToggle = item.querySelector('.task-complete-toggle');
         const title = item.querySelector('.task-title');
         const label = item.querySelector('.task-status-label');
-        const labels = { pending: 'Ожидает', in_progress: 'В процессе', completed: 'Завершена', cancelled: 'Отменена' };
+        const labels = { pending: 'Запланировано', studying: 'Изучение', in_progress: 'В работе', review: 'Проверка', completed: 'Завершено' };
         if (statusSelect) {
             statusSelect.value = status;
             statusSelect.dataset.previousValue = status;

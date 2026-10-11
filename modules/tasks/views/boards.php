@@ -22,7 +22,7 @@ $canManage = !empty($selected['can_manage']);
 $canCreateBoards = !empty($policies['can_create_shared_boards']);
 $canAssignTasks = !empty($policies['can_assign_tasks']);
 $maxBoardMembers = max(0, (int) ($policies['max_board_members'] ?? 0));
-$statusLabels = ['pending' => 'Новые', 'in_progress' => 'В работе', 'completed' => 'Готово', 'cancelled' => 'Отменено'];
+$statusLabels = ['pending' => 'Запланировано', 'studying' => 'Изучение', 'in_progress' => 'В работе', 'review' => 'Проверка', 'completed' => 'Завершено'];
 $memberIds = [];
 foreach ($memberRows as $member) {
     if (is_array($member)) $memberIds[(int) ($member['id'] ?? 0)] = true;
@@ -91,10 +91,9 @@ ob_start();
         </section>
 
         <section class="task-board-stats">
-            <div class="task-board-stat"><strong><?= (int) ($statsData['pending'] ?? 0) ?></strong><span>Ожидает</span></div>
-            <div class="task-board-stat"><strong><?= (int) ($statsData['in_progress'] ?? 0) ?></strong><span>В процессе</span></div>
-            <div class="task-board-stat"><strong><?= (int) ($statsData['completed'] ?? 0) ?></strong><span>Завершено</span></div>
-            <div class="task-board-stat"><strong><?= (int) ($statsData['cancelled'] ?? 0) ?></strong><span>Отменено</span></div>
+            <?php foreach ($statusLabels as $code => $label): ?>
+                <div class="task-board-stat"><strong><?= (int) ($statsData[$code] ?? 0) ?></strong><span><?= $view->e($label) ?></span></div>
+            <?php endforeach; ?>
         </section>
 
         <?php if ($canWrite): ?>
@@ -104,7 +103,7 @@ ob_start();
                     <?= $view->csrfInput() ?>
                     <label class="task-board-field"><span>Название</span><input name="title" type="text" maxlength="255" required></label>
                     <label class="task-board-field"><span>Срок</span><input name="due_date" type="datetime-local"></label>
-                    <label class="task-board-field"><span>Статус</span><select name="status"><option value="pending">Ожидает</option><option value="in_progress">В процессе</option><option value="completed">Завершена</option><option value="cancelled">Отменена</option></select></label>
+                    <label class="task-board-field"><span>Статус</span><select name="status"><option value="pending">Запланировано</option><option value="studying">Изучение</option><option value="in_progress">В работе</option><option value="review">Проверка</option><option value="completed">Завершено</option></select></label>
                     <label class="task-board-field"><span>Приоритет</span><select name="priority"><option value="low">Низкий</option><option value="medium" selected>Средний</option><option value="high">Высокий</option><option value="urgent">Срочный</option></select></label>
                     <label class="task-board-field task-board-field--wide"><span>Описание</span><textarea name="description" rows="3" maxlength="10000"></textarea></label>
                     <?php if ($canAssignTasks): ?>
@@ -139,14 +138,15 @@ ob_start();
         <section class="task-board-panel">
             <div class="task-board-section-title"><div><h2>Задачи доски</h2><div class="task-board-hint">Перетаскивайте карточки между колонками — статус сохранится на сервере.</div></div></div>
             <div class="task-board-columns" id="shared-task-board">
-                <?php foreach ($statusLabels as $statusCode => $statusLabel): ?>
-                    <?php $tasksForStatus = array_values(array_filter($taskRows, static fn ($row): bool => is_array($row) && (string) ($row['status'] ?? '') === $statusCode)); ?>
-                    <div class="task-board-column" data-status="<?= $view->e($statusCode) ?>">
+                <?php foreach ($statusLabels + ['archive' => 'Архив'] as $statusCode => $statusLabel): ?>
+                    <?php $tasksForStatus = array_values(array_filter($taskRows, static fn ($row): bool => is_array($row) && ($statusCode === 'archive' ? !empty($row['archived_at']) : (empty($row['archived_at']) && (string) ($row['status'] ?? '') === $statusCode)))); ?>
+                    <?php if ($statusCode === 'archive'): ?><details class="task-board-archive"><summary>Архив · <?= count($tasksForStatus) ?></summary><?php endif; ?>
+                    <div class="<?= $statusCode === 'archive' ? 'task-board-archive-content' : 'task-board-column' ?>" data-status="<?= $view->e($statusCode === 'archive' ? '' : $statusCode) ?>">
                         <div class="task-board-column__head"><h3><?= $view->e($statusLabel) ?></h3><span class="task-board-pill"><?= count($tasksForStatus) ?></span></div>
                         <div class="task-board-column__items">
                             <?php foreach ($tasksForStatus as $boardTask): ?>
                                 <?php $taskUid = (string) ($boardTask['uid'] ?? ''); $assignees = isset($boardTask['assignees']) && is_array($boardTask['assignees']) ? $boardTask['assignees'] : []; ?>
-                                <article class="task-board-card" draggable="<?= $canWrite ? 'true' : 'false' ?>" data-task-uid="<?= $view->e($taskUid) ?>" data-update-url="<?= $view->e($view->route('task_board_task_update', ['uid' => $taskUid])) ?>">
+                                <article class="task-board-card" draggable="<?= $canWrite && empty($boardTask['archived_at']) ? 'true' : 'false' ?>" data-task-uid="<?= $view->e($taskUid) ?>" data-update-url="<?= $view->e($view->route('task_board_task_update', ['uid' => $taskUid])) ?>">
                                     <div class="task-board-card__title"><strong><?= $view->e($boardTask['title'] ?? '') ?></strong><span class="task-board-priority"><?= $view->e($boardTask['priority'] ?? '') ?></span></div>
                                     <?php if (trim((string) ($boardTask['description'] ?? '')) !== ''): ?><p class="task-board-card__description"><?= $view->e($boardTask['description']) ?></p><?php endif; ?>
                                     <div class="task-board-card__meta"><span>Автор: @<?= $view->e($boardTask['creator_username'] ?? '') ?></span><?php if (!empty($boardTask['due_date'])): ?><span>Срок: <?= $view->e($boardTask['due_date']) ?></span><?php endif; ?></div>
@@ -155,9 +155,10 @@ ob_start();
                                         <div class="task-board-card__actions">
                                             <form action="<?= $view->e($view->route('task_board_task_update', ['uid' => $taskUid])) ?>" method="post">
                                                 <?= $view->csrfInput() ?>
-                                                <select name="status" data-submit-on-change aria-label="Статус задачи">
-                                                    <option value="pending" <?= ($boardTask['status'] ?? '') === 'pending' ? 'selected' : '' ?>>Ожидает</option><option value="in_progress" <?= ($boardTask['status'] ?? '') === 'in_progress' ? 'selected' : '' ?>>В процессе</option><option value="completed" <?= ($boardTask['status'] ?? '') === 'completed' ? 'selected' : '' ?>>Завершена</option><option value="cancelled" <?= ($boardTask['status'] ?? '') === 'cancelled' ? 'selected' : '' ?>>Отменена</option>
-                                                </select>
+                                                <select name="status" data-submit-on-change <?= !empty($boardTask['archived_at']) ? 'disabled' : '' ?> aria-label="Статус задачи"><option value="pending" <?= ($boardTask['status'] ?? '') === 'pending' ? 'selected' : '' ?>>Запланировано</option><option value="studying" <?= ($boardTask['status'] ?? '') === 'studying' ? 'selected' : '' ?>>Изучение</option><option value="in_progress" <?= ($boardTask['status'] ?? '') === 'in_progress' ? 'selected' : '' ?>>В работе</option><option value="review" <?= ($boardTask['status'] ?? '') === 'review' ? 'selected' : '' ?>>Проверка</option><option value="completed" <?= ($boardTask['status'] ?? '') === 'completed' ? 'selected' : '' ?>>Завершено</option></select>
+                                            </form>
+                                            <form action="<?= $view->e($view->route('task_board_task_update', ['uid' => $taskUid])) ?>" method="post">
+                                                <?= $view->csrfInput() ?><input type="hidden" name="board_uid" value="<?= $view->e($selectedUid) ?>"><input type="hidden" name="archived" value="<?= empty($boardTask['archived_at']) ? '1' : '0' ?>"><button type="submit" class="task-board-button"><?= empty($boardTask['archived_at']) ? 'В архив' : 'Восстановить' ?></button>
                                             </form>
                                             <form action="<?= $view->e($view->route('task_board_task_delete', ['uid' => $taskUid])) ?>" method="post" data-confirm-message="Удалить задачу с общей доски?" data-confirm-title="Подтверждение" data-confirm-text="Удалить">
                                                 <?= $view->csrfInput() ?><input type="hidden" name="board_uid" value="<?= $view->e($selectedUid) ?>"><button class="task-board-button task-board-button--danger" type="submit">Удалить</button>
@@ -168,6 +169,7 @@ ob_start();
                             <?php endforeach; ?>
                         </div>
                     </div>
+                    <?php if ($statusCode === 'archive'): ?></details><?php endif; ?>
                 <?php endforeach; ?>
             </div>
         </section>

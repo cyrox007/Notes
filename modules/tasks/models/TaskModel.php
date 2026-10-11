@@ -16,6 +16,7 @@ class TaskModel extends ORM {
     public string $priority = 'medium';
     public ?string $due_date = null;
     public ?string $completed_at = null;
+    public ?string $archived_at = null;
     public int $is_deleted = 0;
     public ?string $deleted_at = null;
     public string $created_at = '';
@@ -125,7 +126,7 @@ class TaskModel extends ORM {
      * Проверить просрочена ли задача
      */
     public function isOverdue(): bool {
-        if (!$this->due_date || $this->status === 'completed' || $this->status === 'cancelled') {
+        if ($this->archived_at || !$this->due_date || $this->status === 'completed' || $this->status === 'cancelled') {
             return false;
         }
         
@@ -151,8 +152,10 @@ class TaskModel extends ORM {
      */
     public function getStatusLabel(): string {
         $labels = [
-            'pending' => 'Ожидает',
-            'in_progress' => 'В процессе',
+            'pending' => 'Запланировано',
+            'studying' => 'Изучение',
+            'review' => 'Проверка',
+            'in_progress' => 'В работе',
             'completed' => 'Завершена',
             'cancelled' => 'Отменена',
         ];

@@ -13,7 +13,7 @@ for(const width of [320,360,390,768,1440]){
  const failures=await page.evaluate(()=>{const panel=document.querySelector('.tasks__filter-panel');const bounds=panel.getBoundingClientRect();return [...panel.querySelectorAll('summary,.filter-btn,label,select,button')].filter(e=>{const r=e.getBoundingClientRect();return r.width&&(r.left<bounds.left-1||r.right>bounds.right+1||r.left<0||r.right>innerWidth);}).map(e=>e.outerHTML);});
  assert.deepEqual(failures,[], 'Filter element outside panel at '+width);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
- assert.equal(await page.locator('.tasks__filters a').count(),8);
+ assert.equal(await page.locator('.tasks__filters a').count(),10);
  await page.locator('select[name=sort]').selectOption('priority');await page.locator('select[name=direction]').selectOption('asc');
  assert.equal(await page.locator('select[name=sort]').inputValue(),'priority');
  const summaryBefore=await page.locator('.tasks__filter-panel summary').boundingBox();assert.equal(await page.locator('.tasks__filter-panel summary').evaluate(e=>getComputedStyle(e).userSelect),'none');const before=await page.locator('.tasks__filter-panel').evaluate(e=>e.getBoundingClientRect().height);await page.locator('.tasks__filter-panel summary').click();await page.waitForTimeout(50);const middle=await page.locator('.tasks__filter-panel').evaluate(e=>e.getBoundingClientRect().height);assert.ok(middle<before);await page.waitForTimeout(260);assert.equal(await page.locator('.tasks__sort-form').isVisible(),false);const summaryAfter=await page.locator('.tasks__filter-panel summary').boundingBox();assert.ok(Math.abs(summaryBefore.x-summaryAfter.x)<1&&Math.abs(summaryBefore.y-summaryAfter.y)<1,'Summary must not jump');

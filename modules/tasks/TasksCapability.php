@@ -75,7 +75,7 @@ final class TasksCapability implements ProfileContentProvider, WorkspaceTaskCrea
         $row = $this->db()->fetchOne(
             "SELECT
                 COUNT(*) AS tasks_count,
-                SUM(CASE WHEN status IN ('pending','in_progress') THEN 1 ELSE 0 END) AS open_tasks_count
+                SUM(CASE WHEN archived_at IS NULL AND status IN ('pending','studying','in_progress','review') THEN 1 ELSE 0 END) AS open_tasks_count
              FROM tasks
              WHERE user_id = :user_id AND is_deleted = 0",
             [':user_id' => $userId]

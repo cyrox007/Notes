@@ -20,11 +20,13 @@ $filterLabels = [
     'all' => 'Все',
     'today' => 'Сегодня',
     'week' => 'Неделя',
-    'pending' => 'Ожидают',
-    'in_progress' => 'В процессе',
+    'pending' => 'Запланировано',
+    'studying' => 'Изучение',
+    'in_progress' => 'В работе',
+    'review' => 'Проверка',
     'overdue' => 'Просрочены',
     'completed' => 'Завершены',
-    'cancelled' => 'Отменены',
+    'archive' => 'Архив',
 ];
 
 ob_start();
@@ -33,7 +35,7 @@ ob_start();
     <div><h1>Задачи</h1></div>
 </section>
 
-<section class="tasks">
+<section class="tasks" data-archive="<?= $filter === 'archive' ? '1' : '0' ?>">
     <div class="tasks__controls">
         <details class="tasks__filter-panel"<?= $filter !== 'all' ? ' open' : '' ?>>
             <summary><i class="fa fa-filter" aria-hidden="true"></i> Фильтры и сортировка</summary>
@@ -70,8 +72,10 @@ ob_start();
 
     <div class="tasks__search-row" data-findability-slot></div>
     <div class="tasks__stats">
-        <div class="stat-card stat-pending"><span class="stat-value"><?= (int) ($statsData['pending'] ?? 0) ?></span><span class="stat-label">Ожидает</span></div>
-        <div class="stat-card stat-in_progress"><span class="stat-value"><?= (int) ($statsData['in_progress'] ?? 0) ?></span><span class="stat-label">В процессе</span></div>
+        <div class="stat-card stat-pending"><span class="stat-value"><?= (int) ($statsData['pending'] ?? 0) ?></span><span class="stat-label">Запланировано</span></div>
+        <div class="stat-card stat-in_progress"><span class="stat-value"><?= (int) ($statsData['in_progress'] ?? 0) ?></span><span class="stat-label">В работе</span></div>
+        <div class="stat-card stat-studying"><span class="stat-value"><?= (int) ($statsData['studying'] ?? 0) ?></span><span class="stat-label">Изучение</span></div>
+        <div class="stat-card stat-review"><span class="stat-value"><?= (int) ($statsData['review'] ?? 0) ?></span><span class="stat-label">Проверка</span></div>
         <div class="stat-card stat-completed"><span class="stat-value"><?= (int) ($statsData['completed'] ?? 0) ?></span><span class="stat-label">Завершено</span></div>
         <div class="stat-card stat-overdue"><span class="stat-value"><?= (int) ($statsData['overdue'] ?? 0) ?></span><span class="stat-label">Просрочено</span></div>
     </div>
@@ -125,7 +129,7 @@ ob_start();
                 <?= $view->partial('@tasks/elements/task_item/index', ['task' => $taskRow, 'user' => $currentUser, 'categories' => $categoryRows]) ?>
             <?php endforeach; ?>
         <?php else: ?>
-            <div class="tasks__empty"><p>Здесь пока нет задач. Создайте первую задачу!</p></div>
+            <div class="tasks__empty"><p><?= $filter === 'archive' ? 'В архиве пока нет задач. Задачу можно убрать сюда кнопкой «В архив» на её карточке.' : 'Здесь пока нет задач. Создайте первую задачу!' ?></p></div>
         <?php endif; ?>
     </div>
 </section>
