@@ -2,16 +2,9 @@
 
 declare(strict_types=1);
 
-if (PHP_SAPI !== 'cli') {
-    fwrite(STDERR, "Команда доступна только из CLI.\n");
-    exit(2);
-}
-
 $root = dirname(__DIR__);
-require_once $root . '/core/Environment.php';
-if (is_file($root . '/.env')) {
-    \Core\Environment::load($root . '/.env');
-}
+require_once $root . '/core/CliRuntime.php';
+\Core\CliRuntime::loadEnvironment($root);
 require_once $root . '/core/Config.php';
 require_once $root . '/core/DatabaseManager.php';
 require_once $root . '/app/handlers/CryptMethods.php';
@@ -127,7 +120,7 @@ try {
     );
 
     if ($json) {
-        echo json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . PHP_EOL;
+        \Core\CliRuntime::writeJson($result, true);
     } else {
         $directionLabel = ($result['direction'] ?? '') === 'rollback' ? 'откат' : 'прямая ротация';
         $scopeLabel = match ($result['scope'] ?? '') {
@@ -144,7 +137,7 @@ try {
         if ($result['complete']) {
             echo "Проверка: OK\n";
             if (!$rollback) {
-                echo "Оставьте maintenance активным. Обновите UNIQUE_KEY/MSG_SECRET_KEY в secret manager или .env, перезапустите HTTP/WS workers, выполните проверку и только затем выйдите из maintenance.\n";
+                echo "Оставьте режим обслуживания активным. Обновите UNIQUE_KEY/MSG_SECRET_KEY в хранилище секретов или .env, перезапустите HTTP/WS-процессы, выполните проверку и только затем выйдите из режима обслуживания.\n";
             } else {
                 echo "Проверка отката: OK. База данных снова читается исходными ключами.\n";
             }
@@ -152,14 +145,5 @@ try {
     }
     exit(0);
 } catch (Throwable $e) {
-    if ($json) {
-        echo json_encode([
-            'status' => 'fail',
-            'error' => 'data_key_rotation_failed',
-            'message' => $e->getMessage(),
-        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
-    } else {
-        fwrite(STDERR, '[ОШИБКА] ' . $e->getMessage() . PHP_EOL);
-    }
-    exit(1);
+    \Core\CliRuntime::fail($e, $json, 'data_key_rotation_failed');
 }
