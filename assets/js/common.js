@@ -306,6 +306,21 @@
             const empty = palette.querySelector('[data-command-empty]');
             const closers = [...palette.querySelectorAll('[data-command-close]')];
             let restoreFocus = null;
+            let motion = [];
+            let motionVersion = 0;
+            let closing = false;
+            const surface = palette.querySelector('.workspace-command-palette__surface');
+            const backdrop = palette.querySelector('.workspace-command-palette__backdrop');
+            function animatePalette(open) {
+                motion.forEach(animation => animation.cancel());
+                motion = [];
+                if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+                const options = {duration: open ? 220 : 160, easing: open ? 'cubic-bezier(.2,.8,.2,1)' : 'ease-in', fill: 'both'};
+                if (surface) motion.push(surface.animate(open
+                    ? [{opacity:0,transform:'translateY(8px) scale(.985)'},{opacity:1,transform:'translateY(0) scale(1)'}]
+                    : [{opacity:1,transform:'translateY(0) scale(1)'},{opacity:0,transform:'translateY(6px) scale(.985)'}],options));
+                if (backdrop) motion.push(backdrop.animate(open ? [{opacity:0},{opacity:1}] : [{opacity:1},{opacity:0}],options));
+            }
 
             function filterItems() {
                 const query = String(input?.value || '').trim().toLocaleLowerCase('ru');
@@ -321,7 +336,11 @@
 
             function openPalette(source) {
                 restoreFocus = source instanceof HTMLElement ? source : document.activeElement;
+                motionVersion += 1;
+                closing = false;
                 palette.hidden = false;
+                palette.inert = false;
+                animatePalette(true);
                 document.body.classList.add('command-palette-open');
                 if (input) {
                     input.value = '';
@@ -331,12 +350,23 @@
             }
 
             function closePalette() {
-                if (palette.hidden) return;
-                palette.hidden = true;
-                document.body.classList.remove('command-palette-open');
-                if (restoreFocus && typeof restoreFocus.focus === 'function') {
-                    restoreFocus.focus();
-                }
+                if (palette.hidden || closing) return;
+                closing = true;
+                palette.inert = true;
+                const version = ++motionVersion;
+                animatePalette(false);
+                const finish = () => {
+                    if (version !== motionVersion) return;
+                    palette.hidden = true;
+                    palette.inert = false;
+                    closing = false;
+                    motion.forEach(animation => animation.cancel());
+                    motion = [];
+                    document.body.classList.remove('command-palette-open');
+                    if (restoreFocus && typeof restoreFocus.focus === 'function') restoreFocus.focus();
+                };
+                if (motion.length) Promise.allSettled(motion.map(animation => animation.finished)).then(finish);
+                else finish();
             }
 
             openers.forEach((opener) => opener.addEventListener('click', () => openPalette(opener)));
