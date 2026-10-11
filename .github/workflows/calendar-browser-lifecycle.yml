@@ -12,9 +12,11 @@ on:
       - 'app/views/^shared/**'
       - 'database/calendar_schema.sql'
       - 'database/access_control_schema.sql'
+      - 'database/migrations/20261010_notifications_foundation.sql'
       - 'database/migrations/20261011_calendar_crud.sql'
       - 'tests/e2e/calendar-lifecycle.mjs'
       - 'tests/e2e/router.php'
+      - 'tests/support/ci_license_fixture.php'
       - '.github/workflows/calendar-browser-lifecycle.yml'
   pull_request:
     branches: ['1.1']
@@ -25,9 +27,11 @@ on:
       - 'app/views/^shared/**'
       - 'database/calendar_schema.sql'
       - 'database/access_control_schema.sql'
+      - 'database/migrations/20261010_notifications_foundation.sql'
       - 'database/migrations/20261011_calendar_crud.sql'
       - 'tests/e2e/calendar-lifecycle.mjs'
       - 'tests/e2e/router.php'
+      - 'tests/support/ci_license_fixture.php'
       - '.github/workflows/calendar-browser-lifecycle.yml'
   workflow_dispatch:
 
@@ -95,6 +99,7 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/module_lifecycle_schema.sql
           mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/access_control_schema.sql
           mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/audit_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/migrations/20261010_notifications_foundation.sql
           mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/calendar_schema.sql
           mysql -h 127.0.0.1 -uroot -proot calendar_browser_lifecycle < database/migrations/20261011_calendar_crud.sql
 
