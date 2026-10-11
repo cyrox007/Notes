@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Modules\Calendar;
 
 use DateTimeImmutable;
+use Modules\Calendar\Services\CalendarReminderPlanner;
 use Modules\Calendar\Services\CalendarReminderPublisher;
 use Modules\Calendar\Services\CalendarReminderScheduler;
 
@@ -12,7 +13,8 @@ final class CalendarCapability
 {
     public function __construct(
         private ?CalendarReminderScheduler $scheduler = null,
-        private ?CalendarReminderPublisher $publisher = null
+        private ?CalendarReminderPublisher $publisher = null,
+        private ?CalendarReminderPlanner $planner = null
     ) {
     }
 
@@ -25,17 +27,19 @@ final class CalendarCapability
         return $this->scheduler()->scheduleOccurrence($eventId, $occurrenceStart, $offsetSeconds);
     }
 
-    /**
-     * @param list<DateTimeImmutable> $occurrences
-     * @param list<int> $offsetSeconds
-     * @return list<int>
-     */
+    /** @param list<DateTimeImmutable> $occurrences @param list<int> $offsetSeconds @return list<int> */
     public function scheduleRecurringOccurrenceReminders(
         int $eventId,
         array $occurrences,
         array $offsetSeconds
     ): array {
         return $this->scheduler()->scheduleOccurrences($eventId, $occurrences, $offsetSeconds);
+    }
+
+    /** @return array{selected:int,scheduled:int,failed:int} */
+    public function maintainUpcomingReminders(int $limit = 20, ?DateTimeImmutable $now = null): array
+    {
+        return $this->planner()->maintainUpcoming($limit, $now);
     }
 
     /** @return array{locked:bool,throttled:bool,selected:int,published:int,failed:int,expired:int} */
@@ -50,7 +54,11 @@ final class CalendarCapability
     /** @return array{locked:bool,throttled:bool,selected:int,published:int,failed:int,expired:int} */
     public function runHttpFallback(?DateTimeImmutable $now = null): array
     {
-        return $this->publisher()->runHttpFallback($now);
+        $result = $this->publisher()->runHttpFallback($now);
+        if (!$result['throttled'] && !$result['locked']) {
+            $this->planner()->maintainUpcoming(10, $now);
+        }
+        return $result;
     }
 
     private function scheduler(): CalendarReminderScheduler
@@ -61,5 +69,10 @@ final class CalendarCapability
     private function publisher(): CalendarReminderPublisher
     {
         return $this->publisher ??= new CalendarReminderPublisher();
+    }
+
+    private function planner(): CalendarReminderPlanner
+    {
+        return $this->planner ??= new CalendarReminderPlanner();
     }
 }

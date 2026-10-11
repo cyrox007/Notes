@@ -1,8 +1,7 @@
 -- ============================================================
--- Workspace Organizer Calendar — события и напоминания 1.1
--- Все моменты времени в таблицах хранятся в UTC.
--- Часовой пояс события хранится как IANA-идентификатор и используется
--- только для представления локального времени и будущего расчёта повторений.
+-- Workspace Organizer Calendar — события, повторения и напоминания 1.1
+-- Все моменты времени хранятся в UTC. Часовой пояс события хранится
+-- как IANA-идентификатор и используется для локального времени и повторений.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS `calendar_events` (
@@ -10,6 +9,9 @@ CREATE TABLE IF NOT EXISTS `calendar_events` (
     `uid` CHAR(36) NOT NULL,
     `owner_user_id` INT NOT NULL,
     `title` VARCHAR(190) NOT NULL,
+    `description` TEXT DEFAULT NULL,
+    `location` VARCHAR(255) DEFAULT NULL,
+    `is_all_day` TINYINT(1) NOT NULL DEFAULT 0,
     `timezone` VARCHAR(64) NOT NULL DEFAULT 'UTC',
     `starts_at_utc` DATETIME NOT NULL,
     `ends_at_utc` DATETIME DEFAULT NULL,
@@ -21,6 +23,15 @@ CREATE TABLE IF NOT EXISTS `calendar_events` (
     KEY `idx_calendar_events_owner_time` (`owner_user_id`, `status`, `starts_at_utc`),
     CONSTRAINT `fk_calendar_events_owner`
         FOREIGN KEY (`owner_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `calendar_event_reminder_offsets` (
+    `event_id` BIGINT UNSIGNED NOT NULL,
+    `offset_seconds` INT UNSIGNED NOT NULL,
+    `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`event_id`, `offset_seconds`),
+    CONSTRAINT `fk_calendar_event_reminder_offsets_event`
+        FOREIGN KEY (`event_id`) REFERENCES `calendar_events` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `calendar_reminders` (

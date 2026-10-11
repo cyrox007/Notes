@@ -113,10 +113,7 @@ class Controller
         return $segment === '' ? '' : '/' . $segment;
     }
 
-    /**
-     * @param array{notes:bool,tasks:bool,files:bool,messenger:bool,profile:bool,admin:bool,admin_audit:bool,license_manage:bool} $workspaceAccess
-     * @return array<string,mixed>
-     */
+    /** @param array<string,bool> $workspaceAccess @return array<string,mixed> */
     private function commonViewData(string $basePath, array $workspaceAccess): array
     {
         return [
@@ -152,9 +149,7 @@ class Controller
         return array_merge($viewData, $normalized);
     }
 
-    /**
-     * @param array{notes:bool,tasks:bool,files:bool,messenger:bool,profile:bool,admin:bool,admin_audit:bool,license_manage:bool} $workspaceAccess
-     */
+    /** @param array<string,bool> $workspaceAccess */
     private function socketUrl(array $workspaceAccess): string
     {
         if (empty($workspaceAccess['messenger'])) {
@@ -169,7 +164,7 @@ class Controller
         }
     }
 
-    /** @return array{notes:bool,tasks:bool,files:bool,messenger:bool,profile:bool,admin:bool,admin_audit:bool,license_manage:bool} */
+    /** @return array<string,bool> */
     private function workspaceAccess(): array
     {
         $emptyAccess = $this->emptyWorkspaceAccess();
@@ -186,7 +181,7 @@ class Controller
         }
     }
 
-    /** @return array{notes:bool,tasks:bool,files:bool,messenger:bool,profile:bool,admin:bool,admin_audit:bool,license_manage:bool} */
+    /** @return array<string,bool> */
     private function resolveWorkspaceAccess(int $viewerId): array
     {
         $permissions = (new PermissionService())->permissionsForUser($viewerId);
@@ -200,6 +195,7 @@ class Controller
         return [
             'notes' => $active('workspace.notes') && in_array('notes.use', $permissions, true),
             'tasks' => $active('workspace.tasks') && in_array('tasks.use', $permissions, true),
+            'calendar' => $active('workspace.calendar') && in_array('calendar.use', $permissions, true),
             'files' => $active('workspace.files') && in_array('files.use', $permissions, true),
             'messenger' => $active('workspace.messenger') && in_array('messenger.use', $permissions, true),
             'profile' => $active('workspace.profile') && in_array('profile.use', $permissions, true),
@@ -211,12 +207,13 @@ class Controller
         ];
     }
 
-    /** @return array{notes:bool,tasks:bool,files:bool,messenger:bool,profile:bool,admin:bool,admin_audit:bool,license_manage:bool} */
+    /** @return array<string,bool> */
     private function emptyWorkspaceAccess(): array
     {
         return [
             'notes' => false,
             'tasks' => false,
+            'calendar' => false,
             'files' => false,
             'messenger' => false,
             'profile' => false,
@@ -227,7 +224,7 @@ class Controller
     }
 
     /**
-     * @param array{notes:bool,tasks:bool,files:bool,messenger:bool,profile:bool,admin:bool,admin_audit:bool,license_manage:bool} $access
+     * @param array<string,bool> $access
      * @return array{enforced:bool,writable:bool,code:string,message:string,can_manage:bool}
      */
     private function licenseRuntimeState(array $access): array

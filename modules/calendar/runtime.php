@@ -6,8 +6,14 @@ use Modules\Calendar\CalendarRuntimeProvider;
 
 $moduleRoot = __DIR__;
 $files = [
+    $moduleRoot . '/services/CalendarRecurrence.php',
     $moduleRoot . '/services/CalendarReminderScheduler.php',
+    $moduleRoot . '/services/CalendarReminderPlanner.php',
     $moduleRoot . '/services/CalendarReminderPublisher.php',
+    $moduleRoot . '/services/CalendarEventService.php',
+    $moduleRoot . '/middlewares.php',
+    $moduleRoot . '/controllers/CalendarController.php',
+    $moduleRoot . '/controllers/CalendarApiController.php',
     $moduleRoot . '/CalendarCapability.php',
     $moduleRoot . '/CalendarRuntimeProvider.php',
 ];
