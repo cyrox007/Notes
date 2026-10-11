@@ -2,16 +2,9 @@
 
 declare(strict_types=1);
 
-if (PHP_SAPI !== 'cli') {
-    fwrite(STDERR, "This command is CLI-only.\n");
-    exit(2);
-}
-
 $root = dirname(__DIR__);
-require_once $root . '/core/Environment.php';
-if (is_file($root . '/.env')) {
-    \Core\Environment::load($root . '/.env');
-}
+require_once $root . '/core/CliRuntime.php';
+\Core\CliRuntime::loadEnvironment($root);
 require_once $root . '/core/Version.php';
 require_once $root . '/core/UpdateTransactionJournal.php';
 require_once $root . '/core/UpdateTransactionStateMachine.php';
@@ -39,13 +32,13 @@ $options = getopt('', [
 ]);
 
 if (isset($options['help'])) {
-    echo "Workspace Organizer transactional live updater\n\n";
-    echo "Apply a previously verified candidate:\n";
+    echo "Транзакционный updater Workspace Organizer\n\n";
+    echo "Применить ранее проверенный candidate:\n";
     echo "  php bin/update_apply.php --transaction=update-... --candidate-dir=/external/releases/candidate-... --apply\n\n";
-    echo "Recover an interrupted/failed live mutation from its verified rollback checkpoint:\n";
+    echo "Восстановить прерванное/неудачное изменение из проверенной точки отката:\n";
     echo "  php bin/update_apply.php --transaction=update-... --recover\n\n";
-    echo "Optional: --state-root=/external/state --backup-root=/external/backups --json\n";
-    echo "Maintenance must already be active and owned by the transaction.\n";
+    echo "Необязательно: --state-root=/external/state --backup-root=/external/backups --json\n";
+    echo "Режим обслуживания должен быть уже активен и принадлежать этой транзакции.\n";
     exit(0);
 }
 
@@ -75,9 +68,9 @@ try {
         $status = (string) ($result['status'] ?? 'ok');
         echo "[OK] {$status}\n";
         if (isset($result['installed_version'])) {
-            echo 'Version: ' . $result['installed_version'] . PHP_EOL;
+            echo 'Версия: ' . $result['installed_version'] . PHP_EOL;
         }
-        echo 'Maintenance: ' . (($result['maintenance_active'] ?? true) ? 'ACTIVE' : 'released') . PHP_EOL;
+        echo 'Режим обслуживания: ' . (($result['maintenance_active'] ?? true) ? 'АКТИВЕН' : 'снят') . PHP_EOL;
     }
     exit(0);
 } catch (UpdateApplyException $e) {
