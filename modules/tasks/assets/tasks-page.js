@@ -170,8 +170,7 @@
             return control?.closest('.task-item') || null;
         }
 
-        function markSaveState(control, state) {
-            const task = taskItemFor(control);
+        function markTaskSaveState(task, state) {
             if (!task) return;
             task.dataset.saveState = state;
             if (state === 'saved') {
@@ -179,6 +178,10 @@
                     if (task.dataset.saveState === 'saved') delete task.dataset.saveState;
                 }, 900);
             }
+        }
+
+        function markSaveState(control, state) {
+            markTaskSaveState(taskItemFor(control), state);
         }
 
         root.querySelectorAll('.task-status-toggle').forEach((toggle) => {
@@ -254,12 +257,16 @@
         });
 
         root.addEventListener('click', async (event) => {
-            const addSubtaskButton = event.target.closest('.add-subtask-btn');
+            const target = event.target instanceof Element ? event.target : null;
+            if (!target) return;
+
+            const addSubtaskButton = target.closest('.add-subtask-btn');
             if (addSubtaskButton && root.contains(addSubtaskButton)) {
                 const title = window.prompt('Название подзадачи:');
                 if (title === null || title.trim() === '') return;
+                const task = taskItemFor(addSubtaskButton);
                 addSubtaskButton.disabled = true;
-                markSaveState(addSubtaskButton, 'saving');
+                markTaskSaveState(task, 'saving');
                 try {
                     await requestJson(appPath(`/tasks/${encodeURIComponent(addSubtaskButton.dataset.taskId)}/subtask`), {
                         method: 'POST',
@@ -267,45 +274,50 @@
                         body: new URLSearchParams({ title: title.trim() }).toString()
                     });
                     await refreshTaskSection(addSubtaskButton.dataset.taskId, '.task-subtasks');
+                    markTaskSaveState(task, 'saved');
                 } catch (error) {
-                    markSaveState(addSubtaskButton, 'error');
+                    markTaskSaveState(task, 'error');
                     addSubtaskButton.disabled = false;
                     window.alert(`Не удалось добавить подзадачу: ${error.message}`);
                 }
                 return;
             }
 
-            const deleteSubtaskButton = event.target.closest('.delete-subtask');
+            const deleteSubtaskButton = target.closest('.delete-subtask');
             if (deleteSubtaskButton && root.contains(deleteSubtaskButton)) {
                 if (!window.confirm('Удалить подзадачу?')) return;
-                const taskUid = taskItemFor(deleteSubtaskButton)?.dataset.taskId || '';
+                const task = taskItemFor(deleteSubtaskButton);
+                const taskUid = task?.dataset.taskId || '';
                 deleteSubtaskButton.disabled = true;
-                markSaveState(deleteSubtaskButton, 'saving');
+                markTaskSaveState(task, 'saving');
                 try {
                     await requestJson(appPath(`/tasks/subtask/${encodeURIComponent(deleteSubtaskButton.dataset.subtaskId)}/delete`), { method: 'POST' });
                     await refreshTaskSection(taskUid, '.task-subtasks');
+                    markTaskSaveState(task, 'saved');
                 } catch (error) {
-                    markSaveState(deleteSubtaskButton, 'error');
+                    markTaskSaveState(task, 'error');
                     deleteSubtaskButton.disabled = false;
                     window.alert(`Не удалось удалить подзадачу: ${error.message}`);
                 }
                 return;
             }
 
-            const attachCategoryButton = event.target.closest('.attach-category-btn');
+            const attachCategoryButton = target.closest('.attach-category-btn');
             if (attachCategoryButton && root.contains(attachCategoryButton)) {
+                const task = taskItemFor(attachCategoryButton);
                 const taskUid = attachCategoryButton.dataset.taskId || '';
                 const selector = root.querySelector(`.task-category-select[data-task-id="${CSS.escape(taskUid)}"]`);
                 const categoryId = selector?.value || '';
                 if (!categoryId) return;
                 attachCategoryButton.disabled = true;
-                markSaveState(attachCategoryButton, 'saving');
+                markTaskSaveState(task, 'saving');
                 try {
                     await requestJson(appPath(`/tasks/${encodeURIComponent(taskUid)}/category/${encodeURIComponent(categoryId)}`), { method: 'POST' });
                     await refreshTaskSection(taskUid, '.task-meta');
                     if (selector) selector.value = '';
+                    markTaskSaveState(task, 'saved');
                 } catch (error) {
-                    markSaveState(attachCategoryButton, 'error');
+                    markTaskSaveState(task, 'error');
                     window.alert(`Не удалось добавить категорию: ${error.message}`);
                 } finally {
                     attachCategoryButton.disabled = !selector?.value;
@@ -313,16 +325,18 @@
                 return;
             }
 
-            const detachCategoryButton = event.target.closest('.detach-category-btn');
+            const detachCategoryButton = target.closest('.detach-category-btn');
             if (detachCategoryButton && root.contains(detachCategoryButton)) {
+                const task = taskItemFor(detachCategoryButton);
                 const taskUid = detachCategoryButton.dataset.taskId || '';
                 detachCategoryButton.disabled = true;
-                markSaveState(detachCategoryButton, 'saving');
+                markTaskSaveState(task, 'saving');
                 try {
                     await requestJson(appPath(`/tasks/${encodeURIComponent(taskUid)}/category/${encodeURIComponent(detachCategoryButton.dataset.categoryId)}`), { method: 'DELETE' });
                     await refreshTaskSection(taskUid, '.task-meta');
+                    markTaskSaveState(task, 'saved');
                 } catch (error) {
-                    markSaveState(detachCategoryButton, 'error');
+                    markTaskSaveState(task, 'error');
                     detachCategoryButton.disabled = false;
                     window.alert(`Не удалось убрать категорию: ${error.message}`);
                 }
@@ -330,7 +344,8 @@
         });
 
         root.addEventListener('change', async (event) => {
-            const toggle = event.target.closest('.subtask-toggle');
+            const target = event.target instanceof Element ? event.target : null;
+            const toggle = target?.closest('.subtask-toggle');
             if (!toggle || !root.contains(toggle)) return;
 
             const previous = !toggle.checked;
