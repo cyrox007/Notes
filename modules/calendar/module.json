@@ -28,14 +28,17 @@
       "calendar_events",
       "calendar_event_reminder_offsets",
       "calendar_reminders",
-      "calendar_runtime_state"
+      "calendar_runtime_state",
+      "calendar_time_blocks",
+      "calendar_item_links"
     ],
     "schemas": [
       "database/calendar_schema.sql"
     ],
     "migrations": [
       "database/migrations/20261011_calendar_reminders.sql",
-      "database/migrations/20261011_calendar_crud.sql"
+      "database/migrations/20261011_calendar_crud.sql",
+      "database/migrations/20261012_calendar_planning_links.sql"
     ]
   }
 }

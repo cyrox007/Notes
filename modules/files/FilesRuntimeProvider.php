@@ -21,10 +21,12 @@ use Core\Router;
 final class FilesRuntimeProvider implements ModuleRuntimeProvider
 {
     private FilesCapability $capability;
+    private FilesCalendarLinkProvider $calendarLinks;
 
     public function __construct()
     {
         $this->capability = new FilesCapability();
+        $this->calendarLinks = new FilesCalendarLinkProvider();
     }
 
     public function moduleId(): string
@@ -34,13 +36,16 @@ final class FilesRuntimeProvider implements ModuleRuntimeProvider
 
     public function boot(): void
     {
-        // Module-owned classes are loaded explicitly by runtime.php.
+        // Классы модуля загружаются явно через runtime.php.
     }
 
     /** @return array<string,object> */
     public function capabilities(): array
     {
-        return ['workspace.files' => $this->capability];
+        return [
+            'workspace.files' => $this->capability,
+            'workspace.files.calendar-links' => $this->calendarLinks,
+        ];
     }
 
     public function registerRoutes(Router $router): void

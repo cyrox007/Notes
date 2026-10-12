@@ -9,7 +9,8 @@
   },
   "dependencies": [],
   "capabilities": [
-    "workspace.files"
+    "workspace.files",
+    "workspace.files.calendar-links"
   ],
   "package": {
     "bundled": true,

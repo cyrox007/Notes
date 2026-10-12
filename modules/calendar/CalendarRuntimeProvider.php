@@ -11,6 +11,7 @@ use Core\ModuleRuntimeProvider;
 use Core\Router;
 use Modules\Calendar\Controllers\CalendarApiController;
 use Modules\Calendar\Controllers\CalendarController;
+use Modules\Calendar\Controllers\CalendarPlanningApiController;
 use Throwable;
 
 final class CalendarRuntimeProvider implements ModuleRuntimeProvider
@@ -58,6 +59,17 @@ final class CalendarRuntimeProvider implements ModuleRuntimeProvider
             ->add('GET', '/{str:uid}', [CalendarApiController::class, 'show'], [ApiLoginRequired::class], 'calendar_event_show')
             ->add('PUT', '/{str:uid}', [CalendarApiController::class, 'update'], [ApiLoginRequired::class, CSRFMiddleware::class], 'calendar_event_update')
             ->add('DELETE', '/{str:uid}', [CalendarApiController::class, 'delete'], [ApiLoginRequired::class, CSRFMiddleware::class], 'calendar_event_delete')
+            ->endGroup();
+
+        $router->group('/api/calendar/planning')
+            ->add('GET', '/agenda', [CalendarPlanningApiController::class, 'agenda'], [ApiLoginRequired::class], 'calendar_planning_agenda')
+            ->add('GET', '/link-targets', [CalendarPlanningApiController::class, 'linkTargets'], [ApiLoginRequired::class], 'calendar_planning_link_targets')
+            ->add('GET', '/links', [CalendarPlanningApiController::class, 'links'], [ApiLoginRequired::class], 'calendar_planning_links')
+            ->add('PUT', '/links', [CalendarPlanningApiController::class, 'replaceLinks'], [ApiLoginRequired::class, CSRFMiddleware::class], 'calendar_planning_links_update')
+            ->add('POST', '/time-blocks', [CalendarPlanningApiController::class, 'createTimeBlock'], [ApiLoginRequired::class, CSRFMiddleware::class], 'calendar_time_block_create')
+            ->add('GET', '/time-blocks/{str:uid}', [CalendarPlanningApiController::class, 'showTimeBlock'], [ApiLoginRequired::class], 'calendar_time_block_show')
+            ->add('PUT', '/time-blocks/{str:uid}', [CalendarPlanningApiController::class, 'updateTimeBlock'], [ApiLoginRequired::class, CSRFMiddleware::class], 'calendar_time_block_update')
+            ->add('DELETE', '/time-blocks/{str:uid}', [CalendarPlanningApiController::class, 'deleteTimeBlock'], [ApiLoginRequired::class, CSRFMiddleware::class], 'calendar_time_block_delete')
             ->endGroup();
     }
 }

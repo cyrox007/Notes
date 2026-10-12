@@ -9,7 +9,8 @@
   },
   "dependencies": [],
   "capabilities": [
-    "workspace.tasks"
+    "workspace.tasks",
+    "workspace.tasks.calendar-links"
   ],
   "package": {
     "bundled": true,
