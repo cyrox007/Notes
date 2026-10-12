@@ -15,8 +15,6 @@ use App\Services\Notifications\NotificationDeliveryResult;
 use App\Services\Notifications\NotificationDeliveryWorker;
 use App\Services\Notifications\NotificationEvent;
 use App\Services\Notifications\NotificationRetryPolicy;
-use DateTimeImmutable;
-use DateTimeZone;
 
 function notificationDeliveryAssert(bool $condition, string $message): void
 {
@@ -100,7 +98,7 @@ $policy = new NotificationRetryPolicy(60, 3600);
 notificationDeliveryAssert($policy->delaySeconds(1) === 60, 'Первая повторная попытка должна ждать 60 секунд');
 notificationDeliveryAssert($policy->delaySeconds(2) === 120, 'Вторая повторная попытка должна удваивать задержку');
 notificationDeliveryAssert($policy->delaySeconds(10) === 3600, 'Backoff должен ограничиваться максимальной задержкой');
-$fixedNow = new DateTimeImmutable('2026-10-11 10:00:00', new DateTimeZone('UTC'));
+$fixedNow = new \DateTimeImmutable('2026-10-11 10:00:00', new \DateTimeZone('UTC'));
 notificationDeliveryAssert(
     $policy->nextAttemptAt(3, $fixedNow)->format('Y-m-d H:i:s') === '2026-10-11 10:04:00',
     'Время следующей попытки должно рассчитываться детерминированно'
@@ -156,7 +154,7 @@ foreach ([
     'FOR UPDATE',
     'worker_interrupted',
     'attempts = attempts + 1',
-    "'user:' . $userId",
+    "':recipient_ref' => 'user:' . \$userId",
     'recipient_eligible',
     'channel_enabled',
 ] as $fragment) {
