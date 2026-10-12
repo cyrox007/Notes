@@ -135,18 +135,6 @@ jobs:
           set -euo pipefail
           php tests/integration/notification_preferences_mysql_contract.php
 
-      - name: Проверить напоминания Calendar через общий слой уведомлений
-        env:
-          TEST_DB_HOST: 127.0.0.1
-          TEST_DB_PORT: 3306
-          TEST_DB_NAME: workspace_test
-          TEST_DB_USER: workspace
-          TEST_DB_PASS: workspace
-        run: |
-          set -euo pipefail
-          php tests/integration/calendar_reminders_contract.php
-          php tests/integration/calendar_reminders_mysql_contract.php
-
       - name: Проверить SMTP, API, UI, CLI worker и HTTP fallback без внешней сети
         run: |
           set -euo pipefail
@@ -161,6 +149,50 @@ jobs:
           php -l core/ApplicationEntryPoint.php
           php -l core/DatabaseOwnership.php
           php -l bin/notifications_worker.php
-          php -l bin/calendar_reminders.php
           node --check assets/js/notification-center.js
           node --check assets/js/update-notifications.js
+
+  calendar-notification-mysql:
+    name: calendar-notification-mysql
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: workspace_test
+          MYSQL_USER: workspace
+          MYSQL_PASSWORD: workspace
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+
+      - name: Подготовить PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mysqli, pdo_mysql, mbstring, openssl
+          coverage: none
+
+      - name: Проверить Calendar через общий слой уведомлений
+        env:
+          TEST_DB_HOST: 127.0.0.1
+          TEST_DB_PORT: 3306
+          TEST_DB_NAME: workspace_test
+          TEST_DB_USER: workspace
+          TEST_DB_PASS: workspace
+        run: |
+          set -euo pipefail
+          php tests/integration/calendar_reminders_contract.php
+          php tests/integration/calendar_reminders_mysql_contract.php
+          php -l bin/calendar_reminders.php
