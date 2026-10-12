@@ -178,5 +178,7 @@ try {
         proc_terminate($process);
         proc_close($process);
     }
+    unset($registry, $server);
+    gc_collect_cycles();
     httpAccessRemove($work);
 }

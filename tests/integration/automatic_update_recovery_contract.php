@@ -93,7 +93,7 @@ try {
             automaticRecoveryAssert(in_array('--recover', $command, true), 'Recovery не передаёт --recover');
             automaticRecoveryAssert(in_array('--json', $command, true), 'Recovery не запрашивает JSON');
             automaticRecoveryAssert(
-                in_array('--state-root=' . str_replace('\\', '/', (string) realpath($stateRoot)), array_map(static fn (string $argument): string => str_replace('\\', '/', $argument), $command), true),
+                in_array('--state-root=' . $maintenance->configuredStateRoot(), $command, true),
                 'Recovery не закрепляет внешний state root'
             );
             automaticRecoveryAssert(

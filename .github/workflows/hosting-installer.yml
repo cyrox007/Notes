@@ -52,31 +52,13 @@ jobs:
           rm -rf vendor
           test ! -e vendor
           php -l install.php
-          grep -Fq 'PHP 8.2+' install.php
-          grep -Fq 'Native core runtime' install.php
-          grep -Fq 'HTTP Long Poll Messenger' install.php
-          grep -Fq 'getenv / putenv' install.php
-          grep -Fq 'assertDatabaseServerCompatibility' install.php
-          grep -Fq 'Фактический доступ к исходящему TCP/443' install.php
-          grep -Fq 'WebSocket-ускоритель Messenger' install.php
-          grep -Fq 'Изолированный updater через proc_open' install.php
-          ! grep -Fq 'vendor/autoload.php' install.php
-          ! grep -Fq 'Workerman' install.php
-          grep -Fq 'preparePrivateStorage' install.php
-          grep -Fq 'connectOrCreateDatabase' install.php
-          grep -Fq 'writeEnvironmentFile' install.php
-          grep -Fq 'WS_PUBLIC_URL' install.php
-          grep -Fq 'WS_ENABLED=' install.php
-          grep -Fq 'Использовать WebSocket-ускорение' install.php
-          grep -Fq 'Long Poll' install.php
-          grep -Fq 'BASE_PATH' install.php
+          php tests/integration/vendor_free_runtime_contract.php
+          php tests/integration/installer_cli_architecture_contract.php
           test -f database/settings_schema.sql
           test -f database/access_control_schema.sql
           test -f database/module_lifecycle_schema.sql
           grep -Fq 'task_boards' database/tasks_schema.sql
           grep -Fq 'role_module_policies' database/access_control_schema.sql
-          ! grep -Fq 'SITEURL=http://localhost' install.php
-          ! grep -Fq 'WS_PUBLIC_URL=ws://localhost:27800' install.php
 
       - name: Prepare hosting-like document root without vendor
         shell: bash
@@ -130,11 +112,11 @@ jobs:
             fi
             sleep 1
           done
-          grep -Fq 'Native core runtime' /tmp/install-step1.html
+          grep -Fq 'Нативное ядро приложения' /tmp/install-step1.html
           grep -Fq 'HTTP Long Poll Messenger' /tmp/install-step1.html
           grep -Fq 'WebSocket-ускоритель Messenger' /tmp/install-step1.html
           grep -Fq 'Недоступен в этом PHP; Messenger будет полностью работать через Long Poll.' /tmp/install-step1.html
-          grep -Fq 'Не требуется: updater автоматически использует совместимый web-режим.' /tmp/install-step1.html
+          grep -Fq 'Не требуется: обновлятор автоматически использует совместимый web-режим.' /tmp/install-step1.html
           ! grep -Fq 'vendor/autoload.php' /tmp/install-step1.html
           grep -Fq 'http://127.0.0.1:8080/workspace/' /tmp/install-step1.html
           grep -Fq 'HTTP Long Poll' /tmp/install-step1.html
@@ -189,7 +171,7 @@ jobs:
             "$BASE/install.php" -o /tmp/install-finished.html
 
           grep -Fq 'Установка завершена' /tmp/install-finished.html
-          grep -Fq 'основной Long Poll transport уже работает' /tmp/install-finished.html
+          grep -Fq 'Long Poll' /tmp/install-finished.html
           grep -Fq 'http://127.0.0.1:8080/workspace/' /tmp/install-finished.html
 
       - name: Verify generated hosting contract

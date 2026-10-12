@@ -36,6 +36,7 @@ jobs:
         run: |
           set -euo pipefail
           composer validate --no-check-publish
+          php tests/integration/php_minimum_runtime_contract.php
           php tests/integration/php82_refactor_contract.php
           php tests/integration/php82_sensitive_parameters_contract.php
 
@@ -110,3 +111,34 @@ jobs:
           php tests/integration/external_update_runtime_contract.php
           php tests/integration/updater_preapply_crash_recovery_contract.php
           php tests/integration/updater_recovery_invariants_contract.php
+
+  windows-runtime:
+    name: Windows PHP 8.2 runtime
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_sqlite, sqlite3, mbstring, sodium, openssl, fileinfo
+          coverage: none
+      - name: Verify Windows runtime contracts
+        shell: pwsh
+        run: |
+          $contracts = @(
+            'php_minimum_runtime_contract',
+            'module_runtime_composition_contract',
+            'native_websocket_runtime_regressions',
+            'messenger_recorded_retry_contract',
+            'messenger_storage_environment_contract',
+            'notification_preferences_contract',
+            'tasks_ajax_contract',
+            'automatic_update_recovery_contract',
+            'online_update_access_contract',
+            'online_update_http_contract'
+          )
+          foreach ($contract in $contracts) {
+            php "tests/integration/$contract.php"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }

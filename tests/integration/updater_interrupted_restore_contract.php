@@ -49,7 +49,7 @@ function interruptedRestoreStart(string $backupDir, string $logPath): mixed
     $command = [PHP_BINARY, __FILE__, '--child', $backupDir];
     if (in_array('--resumable', $argv, true)) $command[] = '--resumable';
     $process = proc_open($command, [
-        0 => ['file', '/dev/null', 'r'],
+        0 => ['file', PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null', 'r'],
         1 => ['file', $logPath, 'a'],
         2 => ['file', $logPath, 'a'],
     ], $pipes);
@@ -113,7 +113,8 @@ try {
         if (!$status['running']) break;
         usleep(50000);
     } while (microtime(true) < $deadline);
-    interruptedRestoreAssert(!$status['running'] && $status['signaled'] && $status['termsig'] === 9,
+    interruptedRestoreAssert(!$status['running'] && (PHP_OS_FAMILY === 'Windows'
+        || ($status['signaled'] && $status['termsig'] === 9)),
         'Не подтверждена смерть PHP по SIGKILL');
     proc_close($process);
     $process = null;

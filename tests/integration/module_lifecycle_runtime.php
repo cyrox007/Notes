@@ -88,8 +88,8 @@ $store = new ModuleLifecycleStore($db);
 
 $registry = ModuleRegistry::boot($root . '/modules', Version::VERSION, $store);
 $rows = $registry->lifecycle();
-lifecycleAssert(count($rows) === 6, 'all bundled manifests must be registered');
-lifecycleAssert($registry->enabledComposition() === ['admin', 'files', 'messenger', 'notes', 'profile', 'tasks'], 'bundled default composition must be enabled');
+lifecycleAssert(count($rows) === 7, 'all bundled manifests must be registered');
+lifecycleAssert($registry->enabledComposition() === ['admin', 'calendar', 'files', 'messenger', 'notes', 'profile', 'tasks'], 'bundled default composition must be enabled');
 foreach ($rows as $moduleId => $row) {
     lifecycleAssert($row['configured_state'] === 'enabled', "{$moduleId} configured state must initialize enabled");
     lifecycleAssert($row['effective_state'] === 'enabled', "{$moduleId} effective state must initialize enabled");

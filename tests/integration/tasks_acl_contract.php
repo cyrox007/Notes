@@ -22,18 +22,18 @@ final class TaskHarnessRequest extends \Core\Request
     ) {
     }
 
-    public function session($key = null, $default = null)
+    public function session(string|int|null $key = null, mixed $default = null): mixed
     {
         $data = ['user_id' => $this->userId];
         return $key === null ? $data : ($data[$key] ?? $default);
     }
 
-    public function post($key = null, $default = null)
+    public function post(string|int|null $key = null, mixed $default = null): mixed
     {
         return $key === null ? $this->postData : ($this->postData[$key] ?? $default);
     }
 
-    public function server($key = null, $default = null)
+    public function server(string|int|null $key = null, mixed $default = null): mixed
     {
         return $key === null ? $this->serverData : ($this->serverData[$key] ?? $default);
     }
