@@ -198,6 +198,7 @@ final class NoteController extends Controller
 
     public function update(Request $request, string $uid): void
     {
+        $ajax = $this->expectsJsonResponse($request);
         $user = $this->currentUser($request);
         $db = DatabaseManager::getInstance();
         $note = $db->fetchOne(
@@ -207,36 +208,61 @@ final class NoteController extends Controller
             [':uid' => $uid, ':user_id' => (int) $user->id]
         );
         if (!$note) {
+            if ($ajax) {
+                $this->respondJsonError('Заметка не найдена или недоступна', 404);
+                return;
+            }
             Router::getInstance()->redirect('notes', 'name');
             return;
         }
 
-        $name = $this->noteName((string) $request->post('notename', ''));
-        $content = (string) $request->post('content', '');
-        $this->assertContentLength($content);
         try {
+            $name = $this->noteName((string) $request->post('notename', ''));
+            $content = (string) $request->post('content', '');
+            $this->assertContentLength($content);
             $encrypted = CryptMethods::encrypt($content, (string) $note['uid']);
+            $updatedAt = date('Y-m-d H:i:s');
+
+            $db->execute(
+                'UPDATE notes
+                 SET notename = :notename,
+                     content = :content,
+                     content_type = "text",
+                     is_encrypted = 1,
+                     updated_note = :updated_note
+                 WHERE id = :id AND user_id = :user_id AND is_deleted = 0',
+                [
+                    ':notename' => $name,
+                    ':content' => $encrypted,
+                    ':updated_note' => $updatedAt,
+                    ':id' => (int) $note['id'],
+                    ':user_id' => (int) $user->id,
+                ]
+            );
+        } catch (InvalidArgumentException $e) {
+            if (!$ajax) throw $e;
+            $this->respondJsonError($e->getMessage(), 422);
+            return;
         } catch (\Throwable $e) {
-            error_log('Note encryption failed on update for ' . $uid . ': ' . $e->getMessage());
-            throw new RuntimeException('Не удалось безопасно сохранить заметку');
+            error_log('Note update failed for ' . $uid . ': ' . $e->getMessage());
+            if (!$ajax) {
+                throw new RuntimeException('Не удалось безопасно сохранить заметку', 0, $e);
+            }
+            $this->respondJsonError('Не удалось сохранить заметку', 500);
+            return;
         }
 
-        $db->execute(
-            'UPDATE notes
-             SET notename = :notename,
-                 content = :content,
-                 content_type = "text",
-                 is_encrypted = 1,
-                 updated_note = :updated_note
-             WHERE id = :id AND user_id = :user_id AND is_deleted = 0',
-            [
-                ':notename' => $name,
-                ':content' => $encrypted,
-                ':updated_note' => date('Y-m-d H:i:s'),
-                ':id' => (int) $note['id'],
-                ':user_id' => (int) $user->id,
-            ]
-        );
+        if ($ajax) {
+            $this->responseJson([
+                'success' => true,
+                'note' => [
+                    'uid' => (string) $note['uid'],
+                    'notename' => $name,
+                    'updated_note' => $updatedAt,
+                ],
+            ]);
+            return;
+        }
 
         Router::getInstance()->redirect('notes', 'name');
     }
@@ -317,6 +343,24 @@ final class NoteController extends Controller
         if (strlen($content) > 60000) {
             throw new InvalidArgumentException('Текст заметки слишком большой');
         }
+    }
+
+    private function expectsJsonResponse(Request $request): bool
+    {
+        $requestedWith = strtolower((string) $request->server('HTTP_X_REQUESTED_WITH', ''));
+        if ($requestedWith === 'xmlhttprequest') return true;
+
+        $accept = strtolower((string) $request->server('HTTP_ACCEPT', ''));
+        return str_contains($accept, 'application/json');
+    }
+
+    private function respondJsonError(string $message, int $status): void
+    {
+        http_response_code($status);
+        $this->responseJson([
+            'success' => false,
+            'error' => $message,
+        ]);
     }
 
     private function formatBytes(int $bytes): string

@@ -101,20 +101,42 @@ try {
   }
   await assertEditPage(ownerPage, 'after create');
 
+  const saveEditorRoot = ownerPage.locator('[data-note-editor-013]');
+  const saveSentinel = `save-ajax-${stamp}`;
+  await saveEditorRoot.evaluate((element, value) => { element.dataset.ajaxSentinel = value; }, saveSentinel);
+  const updateAction = await ownerPage.locator('.note__edit').getAttribute('action');
+  if (!updateAction) throw new Error('У формы редактирования отсутствует маршрут сохранения');
+  const updatePath = new URL(updateAction, editUrl).pathname;
+
   await ownerPage.locator('.note__edit input[name="notename"]').fill(updatedName);
   await ownerPage.locator('.note__edit textarea[name="content"]').fill(updatedContent);
-  await Promise.all([
-    ownerPage.waitForURL((url) => url.pathname.replace(/\/+$/, '') === `${basePath}/notes`, { timeout: 15000 }),
-    ownerPage.getByRole('button', { name: 'Сохранить текст' }).click(),
-  ]);
+  const saveResponsePromise = ownerPage.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.origin === origin && url.pathname === updatePath && response.request().method() === 'POST';
+  }, { timeout: 15000 });
+  await ownerPage.getByRole('button', { name: 'Сохранить текст' }).click();
+  const saveResponse = await saveResponsePromise;
+  if (saveResponse.status() !== 200) {
+    throw new Error(`AJAX-сохранение заметки завершилось с HTTP ${saveResponse.status()}`);
+  }
+  const savePayload = await saveResponse.json();
+  if (!savePayload?.success || savePayload?.note?.notename !== updatedName) {
+    throw new Error(`Сервер вернул некорректный JSON после сохранения: ${JSON.stringify(savePayload)}`);
+  }
+  await ownerPage.getByRole('heading', { name: updatedName, exact: true }).waitFor({ state: 'visible', timeout: 10000 });
+  await ownerPage.getByText('Все изменения сохранены на сервере', { exact: true }).waitFor({ state: 'visible', timeout: 10000 });
+  if ((await saveEditorRoot.getAttribute('data-ajax-sentinel')) !== saveSentinel) {
+    throw new Error('Сохранение текста вызвало полную перезагрузку редактора');
+  }
+  if (ownerPage.url() !== editUrl) {
+    throw new Error(`AJAX-сохранение изменило URL редактора: ${ownerPage.url()}`);
+  }
 
-  const noteRow = ownerPage.locator('.notes__list_item').filter({ hasText: updatedName });
-  await noteRow.waitFor({ state: 'visible', timeout: 15000 });
-  await Promise.all([
-    ownerPage.waitForURL((url) => /\/notes\/[\w-]+\/edit\/?$/.test(url.pathname), { timeout: 15000 }),
-    noteRow.locator('.notes__btn--edit').click(),
-  ]);
-  await assertEditPage(ownerPage, 'after reopen');
+  await ownerPage.reload({ waitUntil: 'domcontentloaded' });
+  await assertEditPage(ownerPage, 'after AJAX save reload');
+  if ((await ownerPage.locator('.note__edit input[name="notename"]').inputValue()) !== updatedName) {
+    throw new Error('Updated note name did not round-trip through storage');
+  }
   if ((await ownerPage.locator('.note__edit textarea[name="content"]').inputValue()) !== updatedContent) {
     throw new Error('Updated note content did not round-trip through encrypted storage');
   }

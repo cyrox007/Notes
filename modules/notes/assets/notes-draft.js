@@ -9,7 +9,7 @@
 
         const feedback = window.wspace?.feedback;
         const storageKey = `workspace.note.draft:${window.location.pathname}`;
-        const initial = { title: title.value, content: content.value };
+        let initial = { title: title.value, content: content.value };
         let dirty = false;
         let saveTimer = null;
 
@@ -32,6 +32,10 @@
         function setStatus(message, isDirty) {
             status.textContent = message;
             status.classList.toggle('is-dirty', Boolean(isDirty));
+        }
+
+        function removeDraft() {
+            try { localStorage.removeItem(storageKey); } catch (_) {}
         }
 
         function writeDraft() {
@@ -69,7 +73,7 @@
                 })
                 : window.confirm('Найден локальный черновик. Восстановить его?');
             if (!restore) {
-                try { localStorage.removeItem(storageKey); } catch (_) {}
+                removeDraft();
                 return;
             }
             title.value = draftTitle;
@@ -79,14 +83,53 @@
             feedback?.toast?.('Локальный черновик восстановлен', 'success');
         }
 
+        function savedStateFromEvent(event) {
+            const detail = event instanceof CustomEvent && event.detail && typeof event.detail === 'object'
+                ? event.detail
+                : {};
+            const saved = detail.saved && typeof detail.saved === 'object' ? detail.saved : {};
+            return {
+                title: typeof saved.title === 'string' ? saved.title : title.value,
+                content: typeof saved.content === 'string' ? saved.content : content.value,
+            };
+        }
+
+        function markServerSaved(event) {
+            initial = savedStateFromEvent(event);
+            dirty = title.value !== initial.title || content.value !== initial.content;
+            window.clearTimeout(saveTimer);
+
+            if (dirty) {
+                writeDraft();
+                return;
+            }
+
+            removeDraft();
+            setStatus('Все изменения сохранены на сервере', false);
+        }
+
+        function markServerSaveFailed() {
+            dirty = title.value !== initial.title || content.value !== initial.content;
+            window.clearTimeout(saveTimer);
+            if (dirty) {
+                writeDraft();
+                return;
+            }
+            setStatus('Не удалось подтвердить сохранение на сервере', true);
+        }
+
         title.addEventListener('input', scheduleSave);
         content.addEventListener('input', scheduleSave);
-        form.addEventListener('submit', () => {
-            dirty = false;
+        form.addEventListener('submit', (event) => {
             window.clearTimeout(saveTimer);
-            try { localStorage.removeItem(storageKey); } catch (_) {}
-            setStatus('Сохраняем…', false);
+            setStatus('Сохраняем…', dirty);
+            if (event.defaultPrevented) return;
+
+            dirty = false;
+            removeDraft();
         });
+        form.addEventListener('notes:server-saved', markServerSaved);
+        form.addEventListener('notes:server-save-failed', markServerSaveFailed);
         window.addEventListener('beforeunload', (event) => {
             if (!dirty) return;
             writeDraft();
