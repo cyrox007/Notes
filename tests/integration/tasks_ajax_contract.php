@@ -46,6 +46,10 @@ tasksAjaxAssert(
     'Динамические переключатели подзадач должны обслуживаться делегированным обработчиком'
 );
 tasksAjaxAssert(
+    substr_count($script, "markTaskSaveState(task, 'saved')") >= 4,
+    'Локальные операции должны завершать состояние сохранения после успешного обновления'
+);
+tasksAjaxAssert(
     str_contains($script, "headers: {\n                    'Accept': 'text/html',\n                    'X-Requested-With': 'XMLHttpRequest'"),
     'Локальное обновление должно запрашивать серверную разметку через AJAX'
 );
