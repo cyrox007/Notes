@@ -2,7 +2,7 @@ name: Уведомления 1.1 — MySQL
 
 on:
   push:
-    branches: ['1.1', 'fix/1.1-notification-http-fallback-*']
+    branches: ['1.1', 'fix/1.1-notification-http-fallback-*', 'codex/1.1-notifications-acceptance']
     paths:
       - 'app/services/notifications/**'
       - 'app/controllers/NotificationController.php'
@@ -12,13 +12,20 @@ on:
       - 'assets/js/notification-center.js'
       - 'assets/js/update-notifications.js'
       - 'bin/notifications_worker.php'
+      - 'bin/calendar_reminders.php'
       - 'core/ApplicationEntryPoint.php'
       - 'core/DatabaseOwnership.php'
       - 'core/routerConfig.php'
+      - 'modules/calendar/CalendarCapability.php'
+      - 'modules/calendar/CalendarRuntimeProvider.php'
+      - 'modules/calendar/module.json'
+      - 'modules/calendar/services/CalendarReminder*.php'
       - 'database/core_identity_schema.sql'
       - 'database/migrations/manifest.json'
       - 'database/migrations/*notifications*.sql'
+      - 'database/migrations/*calendar*.sql'
       - 'tests/integration/notification_*contract.php'
+      - 'tests/integration/calendar_reminders_*contract.php'
       - 'tests/integration/smtp_socket_transport_contract.php'
       - '.github/workflows/notifications-foundation.yml'
   pull_request:
@@ -32,13 +39,20 @@ on:
       - 'assets/js/notification-center.js'
       - 'assets/js/update-notifications.js'
       - 'bin/notifications_worker.php'
+      - 'bin/calendar_reminders.php'
       - 'core/ApplicationEntryPoint.php'
       - 'core/DatabaseOwnership.php'
       - 'core/routerConfig.php'
+      - 'modules/calendar/CalendarCapability.php'
+      - 'modules/calendar/CalendarRuntimeProvider.php'
+      - 'modules/calendar/module.json'
+      - 'modules/calendar/services/CalendarReminder*.php'
       - 'database/core_identity_schema.sql'
       - 'database/migrations/manifest.json'
       - 'database/migrations/*notifications*.sql'
+      - 'database/migrations/*calendar*.sql'
       - 'tests/integration/notification_*contract.php'
+      - 'tests/integration/calendar_reminders_*contract.php'
       - 'tests/integration/smtp_socket_transport_contract.php'
       - '.github/workflows/notifications-foundation.yml'
   workflow_dispatch:
@@ -79,6 +93,12 @@ jobs:
           extensions: mysqli, pdo_mysql, mbstring, openssl
           coverage: none
 
+      - name: Проверить фундамент и отказоустойчивость доставки
+        run: |
+          set -euo pipefail
+          php tests/integration/notification_foundation_contract.php
+          php tests/integration/notification_delivery_contract.php
+
       - name: Проверить реальную схему и очередь уведомлений
         env:
           TEST_DB_HOST: 127.0.0.1
@@ -115,6 +135,18 @@ jobs:
           set -euo pipefail
           php tests/integration/notification_preferences_mysql_contract.php
 
+      - name: Проверить напоминания Calendar через общий слой уведомлений
+        env:
+          TEST_DB_HOST: 127.0.0.1
+          TEST_DB_PORT: 3306
+          TEST_DB_NAME: workspace_test
+          TEST_DB_USER: workspace
+          TEST_DB_PASS: workspace
+        run: |
+          set -euo pipefail
+          php tests/integration/calendar_reminders_contract.php
+          php tests/integration/calendar_reminders_mysql_contract.php
+
       - name: Проверить SMTP, API, UI, CLI worker и HTTP fallback без внешней сети
         run: |
           set -euo pipefail
@@ -129,5 +161,6 @@ jobs:
           php -l core/ApplicationEntryPoint.php
           php -l core/DatabaseOwnership.php
           php -l bin/notifications_worker.php
+          php -l bin/calendar_reminders.php
           node --check assets/js/notification-center.js
           node --check assets/js/update-notifications.js
