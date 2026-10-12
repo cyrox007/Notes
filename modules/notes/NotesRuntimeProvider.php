@@ -19,10 +19,12 @@ use Core\Router;
 final class NotesRuntimeProvider implements ModuleRuntimeProvider
 {
     private NotesCapability $capability;
+    private NotesCalendarLinkProvider $calendarLinks;
 
     public function __construct()
     {
         $this->capability = new NotesCapability();
+        $this->calendarLinks = new NotesCalendarLinkProvider();
     }
 
     public function moduleId(): string
@@ -32,14 +34,16 @@ final class NotesRuntimeProvider implements ModuleRuntimeProvider
 
     public function boot(): void
     {
-        // Module-owned classes are loaded explicitly by runtime.php. No recursive
-        // directory scan is permitted for isolated modules.
+        // Классы модуля загружаются явно через runtime.php без обхода каталога.
     }
 
     /** @return array<string,object> */
     public function capabilities(): array
     {
-        return ['workspace.notes' => $this->capability];
+        return [
+            'workspace.notes' => $this->capability,
+            'workspace.notes.calendar-links' => $this->calendarLinks,
+        ];
     }
 
     public function registerRoutes(Router $router): void

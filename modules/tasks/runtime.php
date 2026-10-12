@@ -14,6 +14,7 @@ $files = [
     '/controllers/TaskController.php',
     '/controllers/TaskBoardController.php',
     '/TasksCapability.php',
+    '/TasksCalendarLinkProvider.php',
     '/TasksRuntimeProvider.php',
 ];
 

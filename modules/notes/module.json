@@ -9,7 +9,8 @@
   },
   "dependencies": [],
   "capabilities": [
-    "workspace.notes"
+    "workspace.notes",
+    "workspace.notes.calendar-links"
   ],
   "package": {
     "bundled": true,

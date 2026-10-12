@@ -4,6 +4,7 @@ declare(strict_types=1);
 $moduleRoot = __DIR__;
 foreach ([
     '/FilesCapability.php',
+    '/FilesCalendarLinkProvider.php',
     '/models/FileModel.php',
     '/services/FileLifecycleService.php',
     '/services/FileShareService.php',
@@ -17,8 +18,8 @@ foreach ([
     '/FilesRuntimeProvider.php',
 ] as $relativePath) {
     $path = $moduleRoot . $relativePath;
-    if (!is_file($path)) {
-        throw new RuntimeException('Files module runtime file is missing: ' . $relativePath);
+    if (!is_file($path) || is_link($path)) {
+        throw new RuntimeException('Files module runtime file is missing or unsafe: ' . $relativePath);
     }
     require_once $path;
 }

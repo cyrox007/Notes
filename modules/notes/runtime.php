@@ -17,6 +17,7 @@ $files = [
     '/controllers/NoteAttachmentController.php',
     '/controllers/NoteShareController.php',
     '/NotesCapability.php',
+    '/NotesCalendarLinkProvider.php',
     '/NotesRuntimeProvider.php',
 ];
 

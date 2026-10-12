@@ -15,10 +15,12 @@ use Core\Router;
 final class TasksRuntimeProvider implements ModuleRuntimeProvider
 {
     private TasksCapability $capability;
+    private TasksCalendarLinkProvider $calendarLinks;
 
     public function __construct()
     {
         $this->capability = new TasksCapability();
+        $this->calendarLinks = new TasksCalendarLinkProvider();
     }
 
     public function moduleId(): string
@@ -28,13 +30,16 @@ final class TasksRuntimeProvider implements ModuleRuntimeProvider
 
     public function boot(): void
     {
-        // Module-owned classes are loaded explicitly by runtime.php.
+        // Классы модуля загружаются явно через runtime.php.
     }
 
     /** @return array<string,object> */
     public function capabilities(): array
     {
-        return ['workspace.tasks' => $this->capability];
+        return [
+            'workspace.tasks' => $this->capability,
+            'workspace.tasks.calendar-links' => $this->calendarLinks,
+        ];
     }
 
     public function registerRoutes(Router $router): void
