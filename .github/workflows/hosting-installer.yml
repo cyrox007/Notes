@@ -203,7 +203,9 @@ jobs:
           done
 
           TABLES=$(mysql -N -h 127.0.0.1 -uroot -proot -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='notes_hosting_test';")
-          test "$TABLES" -eq 35
+          EXPECTED_TABLES=$(php -r 'require "core/ModuleManifest.php"; require "core/DatabaseOwnership.php"; echo count(\Core\DatabaseOwnership::fromPackageRoot(getcwd())->tables());')
+          echo "Installed tables: $TABLES; package contract: $EXPECTED_TABLES"
+          test "$TABLES" -eq "$EXPECTED_TABLES"
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='module_lifecycle'")" = "1"
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('system_settings','user_storage_quotas')")" = "2"
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('roles','permissions','role_permissions','user_roles','role_module_policies')")" = "5"
@@ -221,7 +223,7 @@ jobs:
           test ! -e vendor
           php bin/healthcheck.php --json | tee /tmp/hosting-health.json
           grep -Fq '"status": "ok"' /tmp/hosting-health.json
-          grep -Fq '35 required tables present' /tmp/hosting-health.json
+          php -r '$health=json_decode(file_get_contents("/tmp/hosting-health.json"),true,512,JSON_THROW_ON_ERROR); $checks=array_column($health["checks"],null,"name"); if (($checks["database_contract"]["ok"] ?? false) !== true) { exit(1); }' 
           grep -Fq '"name": "database_server_version"' /tmp/hosting-health.json
 
       - name: Installer locks after completion
@@ -229,7 +231,7 @@ jobs:
         run: |
           STATUS=$(curl -sS -o /tmp/locked-installer.txt -w '%{http_code}' -c /tmp/new-cookie.txt http://127.0.0.1:8080/workspace/install.php)
           test "$STATUS" = '404'
-          grep -Fq 'Installer is locked.' /tmp/locked-installer.txt
+          grep -Fq 'Установщик заблокирован.' /tmp/locked-installer.txt
 
       - name: Show server log on failure
         if: failure()
