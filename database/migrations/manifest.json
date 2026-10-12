@@ -35,6 +35,7 @@
     "20261010_notifications_foundation.sql",
     "20261011_calendar_reminders.sql",
     "20261011_calendar_crud.sql",
-    "20261011_tasks_workflow_archive.sql"
+    "20261011_tasks_workflow_archive.sql",
+    "20261012_notifications_http_fallback.sql"
   ]
 }

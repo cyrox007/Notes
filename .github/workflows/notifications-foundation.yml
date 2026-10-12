@@ -2,7 +2,7 @@ name: Уведомления 1.1 — MySQL
 
 on:
   push:
-    branches: ['1.1']
+    branches: ['1.1', 'fix/1.1-notification-http-fallback-*']
     paths:
       - 'app/services/notifications/**'
       - 'app/controllers/NotificationController.php'
@@ -12,9 +12,12 @@ on:
       - 'assets/js/notification-center.js'
       - 'assets/js/update-notifications.js'
       - 'bin/notifications_worker.php'
+      - 'core/ApplicationEntryPoint.php'
+      - 'core/DatabaseOwnership.php'
       - 'core/routerConfig.php'
       - 'database/core_identity_schema.sql'
-      - 'database/migrations/20261010_notifications_foundation.sql'
+      - 'database/migrations/manifest.json'
+      - 'database/migrations/*notifications*.sql'
       - 'tests/integration/notification_*contract.php'
       - 'tests/integration/smtp_socket_transport_contract.php'
       - '.github/workflows/notifications-foundation.yml'
@@ -29,9 +32,12 @@ on:
       - 'assets/js/notification-center.js'
       - 'assets/js/update-notifications.js'
       - 'bin/notifications_worker.php'
+      - 'core/ApplicationEntryPoint.php'
+      - 'core/DatabaseOwnership.php'
       - 'core/routerConfig.php'
       - 'database/core_identity_schema.sql'
-      - 'database/migrations/20261010_notifications_foundation.sql'
+      - 'database/migrations/manifest.json'
+      - 'database/migrations/*notifications*.sql'
       - 'tests/integration/notification_*contract.php'
       - 'tests/integration/smtp_socket_transport_contract.php'
       - '.github/workflows/notifications-foundation.yml'
@@ -84,6 +90,7 @@ jobs:
           set -euo pipefail
           php tests/integration/notification_mysql_contract.php
           php tests/integration/notification_smtp_mysql_contract.php
+          php tests/integration/notification_http_fallback_mysql_contract.php
 
       - name: Проверить API центра уведомлений на MySQL
         env:
@@ -108,15 +115,19 @@ jobs:
           set -euo pipefail
           php tests/integration/notification_preferences_mysql_contract.php
 
-      - name: Проверить SMTP, API, UI и CLI worker без внешней сети
+      - name: Проверить SMTP, API, UI, CLI worker и HTTP fallback без внешней сети
         run: |
           set -euo pipefail
           php tests/integration/notification_smtp_contract.php
           php tests/integration/smtp_socket_transport_contract.php
           php tests/integration/notification_worker_cli_contract.php
+          php tests/integration/notification_http_fallback_contract.php
           php tests/integration/notification_center_contract.php
           php tests/integration/notification_preferences_contract.php
           php tests/integration/notification_center_ui_contract.php
+          php -l app/services/notifications/NotificationDeliveryRuntime.php
+          php -l core/ApplicationEntryPoint.php
+          php -l core/DatabaseOwnership.php
+          php -l bin/notifications_worker.php
           node --check assets/js/notification-center.js
           node --check assets/js/update-notifications.js
-

@@ -7,12 +7,7 @@ $root = \Core\CliRuntime::loadEnvironment();
 \Core\CliRuntime::registerAutoloader($root);
 require_once $root . '/core/Config.php';
 
-use App\Services\Notifications\DatabaseNotificationDeliveryQueue;
-use App\Services\Notifications\DatabaseNotificationEmailRecipientResolver;
-use App\Services\Notifications\EnvironmentNotificationSecretResolver;
-use App\Services\Notifications\NotificationDeliveryWorker;
-use App\Services\Notifications\SmtpNotificationChannel;
-use App\Services\Notifications\SocketSmtpTransport;
+use App\Services\Notifications\NotificationDeliveryRuntime;
 use Core\CliRuntime;
 use Core\DatabaseManager;
 
@@ -44,18 +39,8 @@ try {
         throw new InvalidArgumentException('Размер пакета уведомлений должен быть в диапазоне 1..100');
     }
 
-    $db = DatabaseManager::getInstance();
-    $queue = new DatabaseNotificationDeliveryQueue($db);
-    $emailRecipients = new DatabaseNotificationEmailRecipientResolver($db);
-    $siteUrl = getenv('SITEURL');
-    $email = new SmtpNotificationChannel(
-        $emailRecipients,
-        new EnvironmentNotificationSecretResolver(),
-        new SocketSmtpTransport(),
-        $siteUrl === false ? '' : $siteUrl
-    );
-    $worker = new NotificationDeliveryWorker($queue, [$email]);
-    $stats = $worker->run($workerId, $limit);
+    $runtime = new NotificationDeliveryRuntime(DatabaseManager::getInstance());
+    $stats = $runtime->run($workerId, $limit);
 
     $result = [
         'status' => 'ok',

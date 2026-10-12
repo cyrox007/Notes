@@ -12,21 +12,32 @@ function notificationWorkerAssert(bool $condition, string $message): void
 $root = dirname(__DIR__, 2);
 $workerPath = $root . '/bin/notifications_worker.php';
 $source = file_get_contents($workerPath);
+$runtimeSource = file_get_contents($root . '/app/services/notifications/NotificationDeliveryRuntime.php');
 notificationWorkerAssert(is_string($source), 'CLI worker уведомлений должен существовать');
+notificationWorkerAssert(is_string($runtimeSource), 'Общий runtime доставки уведомлений должен существовать');
 
 foreach ([
     "CliRuntime::loadEnvironment()",
     'CliRuntime::registerAutoloader($root)',
+    'NotificationDeliveryRuntime',
+    "'notification_worker_failed'",
+    "getenv('NOTIFICATION_WORKER_BATCH_SIZE')",
+] as $fragment) {
+    notificationWorkerAssert(str_contains($source, $fragment), 'CLI worker обязан содержать: ' . $fragment);
+}
+
+foreach ([
     'DatabaseNotificationDeliveryQueue',
     'DatabaseNotificationEmailRecipientResolver',
     'EnvironmentNotificationSecretResolver',
     'SocketSmtpTransport',
     'SmtpNotificationChannel',
     'NotificationDeliveryWorker',
-    "'notification_worker_failed'",
-    "getenv('NOTIFICATION_WORKER_BATCH_SIZE')",
 ] as $fragment) {
-    notificationWorkerAssert(str_contains($source, $fragment), 'CLI worker обязан содержать: ' . $fragment);
+    notificationWorkerAssert(
+        str_contains($runtimeSource, $fragment),
+        'Общий runtime доставки обязан собирать компонент: ' . $fragment
+    );
 }
 
 notificationWorkerAssert(!str_contains($source, 'while ('), 'Cron-worker должен выполнять один bounded-проход, а не вечный цикл');
