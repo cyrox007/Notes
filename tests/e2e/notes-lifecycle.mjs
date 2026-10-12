@@ -218,12 +218,35 @@ try {
     .waitFor({ state: 'visible', timeout: 10000 });
 
   await ownerPage.goto(`${baseUrl}/notes/`, { waitUntil: 'domcontentloaded' });
+  const listUrl = ownerPage.url();
+  const notesRoot = ownerPage.locator('.notes');
+  const listSentinel = `list-ajax-${stamp}`;
+  await notesRoot.evaluate((element, value) => { element.dataset.ajaxSentinel = value; }, listSentinel);
+
   const deleteRow = ownerPage.locator('.notes__list_item').filter({ hasText: updatedName });
   await deleteRow.waitFor({ state: 'visible', timeout: 10000 });
+  const deleteAction = await deleteRow.locator('.notes__delete-form').getAttribute('action');
+  if (!deleteAction) throw new Error('У формы удаления отсутствует маршрут');
+  const deletePath = new URL(deleteAction, listUrl).pathname;
+  const deleteResponsePromise = ownerPage.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.origin === origin && url.pathname === deletePath && response.request().method() === 'POST';
+  }, { timeout: 15000 });
   const deleteDialogPromise = acceptNextDialog(ownerPage, 'Вы уверены, что хотите удалить эту заметку?');
   await deleteRow.locator('.notes__btn--delete').click();
   await deleteDialogPromise;
-  await ownerPage.waitForURL((url) => url.pathname.replace(/\/+$/, '') === `${basePath}/notes`, { timeout: 15000 });
+  const deleteResponse = await deleteResponsePromise;
+  if (deleteResponse.status() >= 400) {
+    throw new Error(`AJAX-удаление заметки завершилось с HTTP ${deleteResponse.status()}`);
+  }
+  await deleteRow.waitFor({ state: 'detached', timeout: 15000 });
+
+  if ((await notesRoot.getAttribute('data-ajax-sentinel')) !== listSentinel) {
+    throw new Error('Удаление заметки вызвало полную перезагрузку списка Notes');
+  }
+  if (ownerPage.url() !== listUrl) {
+    throw new Error(`AJAX-удаление изменило URL списка Notes: ${ownerPage.url()}`);
+  }
   if (await ownerPage.locator('.notes__list_item').filter({ hasText: updatedName }).count()) {
     throw new Error('Deleted note is still visible in the personal Notes list');
   }
@@ -236,7 +259,7 @@ try {
     throw new Error(`Unexpected HTTP errors: ${unexpectedHttpErrors.join(', ')}`);
   }
 
-  console.log('Жизненный цикл Notes и AJAX-действия редактора: OK');
+  console.log('Жизненный цикл Notes и AJAX-действия редактора и списка: OK');
 
   await publicContext.close();
   await ownerContext.close();
