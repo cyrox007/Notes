@@ -23,7 +23,7 @@ notificationHttpFallbackAssert(is_string($worker), 'CLI worker должен су
 foreach ([
     'public const HTTP_LIMIT = 3',
     'public const HTTP_INTERVAL_SECONDS = 60',
-    "workspace.notifications.delivery.http_fallback",
+    'workspace.notifications.delivery.http_fallback',
     'SELECT GET_LOCK(:lock_name, 0)',
     'SELECT RELEASE_LOCK(:lock_name)',
     'notification_runtime_state',
@@ -42,7 +42,7 @@ notificationHttpFallbackAssert(
 );
 notificationHttpFallbackAssert(
     str_contains($migration, 'CREATE TABLE IF NOT EXISTS `notification_runtime_state`'),
-    'Состояние throttle должно принадлежать отдельной миграции'
+    'Состояние ограничения частоты должно принадлежать отдельной миграции'
 );
 
 foreach ([
@@ -55,7 +55,8 @@ foreach ([
     "['HEAD', 'OPTIONS']",
     'module-assets',
     "'notifications.http_fallback_failed'",
-    "['error_type' => $e::class]",
+    "['error_type' =>",
+    '$e::class',
 ] as $fragment) {
     notificationHttpFallbackAssert(
         str_contains($entryPoint, $fragment),
@@ -64,7 +65,7 @@ foreach ([
 }
 
 notificationHttpFallbackAssert(
-    !str_contains($entryPoint, "'message' => $e->getMessage()"),
+    !str_contains($entryPoint, 'getMessage()'),
     'HTTP fallback не должен писать текст исключения с потенциальными секретами'
 );
 notificationHttpFallbackAssert(
