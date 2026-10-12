@@ -42,7 +42,7 @@ $forbiddenRuntimeMarkers = [
     'str_decrement(',      // PHP 8.3
 ];
 
-$scanRoots = ['app', 'bin', 'core', 'ws_server'];
+$scanRoots = ['app', 'bin', 'core', 'modules', 'ws_server'];
 foreach ($scanRoots as $directory) {
     $iterator = new RecursiveIteratorIterator(
         new RecursiveDirectoryIterator($root . '/' . $directory, RecursiveDirectoryIterator::SKIP_DOTS)

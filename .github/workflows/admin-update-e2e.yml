@@ -21,14 +21,14 @@ jobs:
             source_code: '10012'
             target_version: '1.0.14'
             target_code: '10014'
-            php: '8.1'
+            php: '8.2'
             mode: web-only
             disable_functions: 'proc_open,proc_get_status,proc_terminate,proc_close,exec,system,passthru,shell_exec,popen'
           - source_version: '1.0.13'
             source_code: '10013'
             target_version: '1.0.14'
             target_code: '10014'
-            php: '8.1'
+            php: '8.2'
             mode: web-only
             disable_functions: 'proc_open,proc_get_status,proc_terminate,proc_close,exec,system,passthru,shell_exec,popen'
 
@@ -36,7 +36,7 @@ jobs:
             source_code: '10014'
             target_version: '1.0.15'
             target_code: '10015'
-            php: '8.1'
+            php: '8.2'
             mode: web-only-external
             disable_functions: 'proc_open,proc_get_status,proc_terminate,proc_close,exec,system,passthru,shell_exec,popen,opcache_reset'
           - source_version: '1.0.14'

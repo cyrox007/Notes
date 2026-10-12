@@ -35,7 +35,7 @@ jobs:
       - name: Setup PHP 8.1
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.1'
+          php-version: '8.2'
           extensions: mysqli, pdo_mysql, mbstring
           coverage: none
 
