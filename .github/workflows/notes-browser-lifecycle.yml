@@ -2,7 +2,7 @@ name: Notes browser lifecycle
 
 on:
   pull_request:
-    branches: [master, '1.0', 0.13-ux-foundation]
+    branches: [master, '1.0', '1.1', 0.13-ux-foundation]
 
 permissions:
   contents: read
