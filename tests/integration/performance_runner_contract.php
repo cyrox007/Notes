@@ -3,18 +3,24 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__, 2);
-$profileFile = $root . '/tools/performance/profile.json';
-$runnerFile = $root . '/tools/performance/load-runner.mjs';
-$fixtureFile = $root . '/tools/performance/prepare-users.php';
-$readmeFile = $root . '/tools/performance/README.md';
+$files = [
+    'profile' => $root . '/tools/performance/profile.json',
+    'runner' => $root . '/tools/performance/load-runner.mjs',
+    'users' => $root . '/tools/performance/prepare-users.php',
+    'dataset' => $root . '/tools/performance/prepare-dataset.php',
+    'environment' => $root . '/tools/performance/collect-environment.php',
+    'metrics' => $root . '/tools/performance/sample-metrics.php',
+    'reference' => $root . '/tools/performance/run-reference.sh',
+    'readme' => $root . '/tools/performance/README.md',
+];
 
-foreach ([$profileFile, $runnerFile, $fixtureFile, $readmeFile] as $file) {
+foreach ($files as $name => $file) {
     if (!is_file($file)) {
-        throw new RuntimeException('Отсутствует файл нагрузочного контура: ' . $file);
+        throw new RuntimeException('Отсутствует файл нагрузочного контура ' . $name . ': ' . $file);
     }
 }
 
-$profile = json_decode((string) file_get_contents($profileFile), true, 64, JSON_THROW_ON_ERROR);
+$profile = json_decode((string) file_get_contents($files['profile']), true, 64, JSON_THROW_ON_ERROR);
 if (($profile['schema'] ?? null) !== 1) {
     throw new RuntimeException('Профиль нагрузки должен иметь schema=1');
 }
@@ -68,8 +74,7 @@ foreach (['notes_search', 'files_list', 'messenger_long_poll', 'calendar_create'
     }
 }
 
-$runner = (string) file_get_contents($runnerFile);
-foreach ([
+assertMarkers($files['runner'], [
     'new CookieJar()',
     "'/messenger/realtime/poll?wait_seconds=1'",
     "'X-CSRF-Token'",
@@ -77,27 +82,77 @@ foreach ([
     'p95_ms <= 1200',
     'p99_ms <= 2500',
     "this.runMode === 'full'",
-] as $marker) {
-    if (!str_contains($runner, $marker)) {
-        throw new RuntimeException('Runner потерял обязательный контракт: ' . $marker);
-    }
-}
+], 'Runner');
 
-$fixture = (string) file_get_contents($fixtureFile);
-foreach ([
+assertMarkers($files['users'], [
     'WORKSPACE_PERFORMANCE_ONLY',
     "preg_match('/^perf_",
     '@chmod($output, 0600)',
     "'performance_fixture' => true",
+], 'Генератор пользователей');
+
+assertMarkers($files['dataset'], [
+    'WORKSPACE_PERFORMANCE_ONLY',
+    'performance_fixture',
+    'MessengerSavedService',
+    'notification_events',
+    'user_files',
+    'calendar_events',
+    'stableUuid',
+], 'Генератор набора данных');
+
+assertMarkers($files['environment'], [
+    'commit_sha',
+    'max_connections',
+    'innodb_buffer_pool_size',
+    'database_size_bytes',
+    'private_storage',
+], 'Снимок окружения');
+
+assertMarkers($files['metrics'], [
+    'Threads_connected',
+    'Threads_running',
+    'Slow_queries',
+    'Innodb_row_lock_current_waits',
+    'notification_jobs_ready',
+    'calendar_reminders_pending',
+    'messenger_activity_active',
+    '/proc/diskstats',
+    '/proc/net/dev',
+], 'Сборщик метрик');
+
+assertMarkers($files['reference'], [
+    'PERF_MODE=full',
+    'git diff --quiet',
+    'collect-environment.php',
+    'sample-metrics.php',
+    'load-runner.mjs',
+    'sha256sum',
+    'manifest.txt',
+], 'Эталонный запуск');
+
+$readme = (string) file_get_contents($files['readme']);
+foreach ([
+    'не является доказательством производительности 1000 пользователей',
+    'репрезентативный набор данных',
+    'Снимок эталонной конфигурации',
+    'Серверные метрики',
+    'manifest.txt',
 ] as $marker) {
-    if (!str_contains($fixture, $marker)) {
-        throw new RuntimeException('Fixture-generator потерял защитный контракт: ' . $marker);
+    if (!str_contains($readme, $marker)) {
+        throw new RuntimeException('Документация потеряла обязательный маркер: ' . $marker);
     }
 }
 
-$readme = (string) file_get_contents($readmeFile);
-if (!str_contains($readme, 'не является доказательством производительности 1000 пользователей')) {
-    throw new RuntimeException('Документация должна явно запрещать выдавать smoke за release evidence');
-}
-
 echo "Контракт performance-runner: OK\n";
+
+/** @param list<string> $markers */
+function assertMarkers(string $file, array $markers, string $label): void
+{
+    $content = (string) file_get_contents($file);
+    foreach ($markers as $marker) {
+        if (!str_contains($content, $marker)) {
+            throw new RuntimeException($label . ' потерял обязательный контракт: ' . $marker);
+        }
+    }
+}

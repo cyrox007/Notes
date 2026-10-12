@@ -38,7 +38,7 @@
 - p99 обычных операций <= 2500 мс;
 - не менее 1000 успешно авторизованных независимых сессий.
 
-Сам runner не может доказать отсутствие утечки памяти, SQL-lock/deadlock или исчерпания ресурсов. Эти метрики должны собираться на сервере параллельно и прикладываться к тому же отчёту exact commit.
+Сам runner не может доказать отсутствие утечки памяти, SQL-lock/deadlock или исчерпания ресурсов. Поэтому полный эталонный запуск обязательно сопровождается `sample-metrics.php`.
 
 ## Подготовка отдельного стенда
 
@@ -57,6 +57,18 @@ php tools/performance/prepare-users.php \
 
 Пароль генерируется автоматически, если `--password` не указан. Он сохраняется только в указанном файле с правами `0600` и не печатается в консоль.
 
+После создания пользователей подготавливается репрезентативный набор данных:
+
+```bash
+php tools/performance/prepare-dataset.php \
+  --confirm=WORKSPACE_PERFORMANCE_ONLY \
+  --max-users=1200
+```
+
+По умолчанию для каждого synthetic-user создаются детерминированные данные Notes, Tasks, Files, Calendar, встроенных уведомлений и Saved Messages. Повторный запуск не размножает те же записи. Обычные аккаунты не изменяются: команда принимает только пользователей с `perf_`-префиксом и `performance_fixture=true`.
+
+Файлы на этом этапе представлены реалистичными метаданными и размерами. Реальный параллельный I/O больших файлов относится к отдельному этапу Files из #274 и не подменяется фиктивным содержимым.
+
 ## Быстрый smoke
 
 Smoke нужен только для проверки самого runner и маршрутов. Он не является доказательством производительности 1000 пользователей.
@@ -72,36 +84,87 @@ node tools/performance/load-runner.mjs \
 
 Для локального стенда с тестовым самоподписанным TLS допускается `PERF_INSECURE_TLS=1`. На эталонном внешнем стенде сертификат должен проверяться штатно.
 
-## Полная приёмка
+## Снимок эталонной конфигурации
+
+Перед каждым полным прогоном сохраняется фактическая конфигурация exact стенда:
 
 ```bash
+php tools/performance/collect-environment.php \
+  --output=/private/performance/environment.json \
+  --commit="$(git rev-parse HEAD)" \
+  --environment=reference-1
+```
+
+Снимок не содержит паролей, DSN или секретов. Он фиксирует:
+
+- ОС, ядро, модель и число логических CPU;
+- RAM и swap;
+- PHP version/SAPI, лимиты, OPcache и набор расширений;
+- версию MySQL и параметры, влияющие на ёмкость;
+- размер БД;
+- объём и тип файловой системы private storage;
+- host/scheme целевой установки;
+- exact commit.
+
+Именно сохранённый `environment.json`, а не словесное «примерно такой сервер», является частью доказательства ёмкости.
+
+## Серверные метрики
+
+`sample-metrics.php` пишет NDJSON с интервалом по умолчанию 5 секунд. Собираются:
+
+- CPU и load average;
+- RAM/swap;
+- видимые процессы PHP-FPM/Apache/Nginx/PHP CLI;
+- дисковые read/write counters;
+- сетевые RX/TX counters;
+- свободное место private storage;
+- MySQL Threads_connected/Threads_running/Connections/Slow_queries;
+- InnoDB lock waits и buffer-pool counters;
+- размер БД;
+- длина очереди внешних уведомлений;
+- ожидающие Calendar reminders;
+- активные transient-состояния Messenger.
+
+Секреты и пользовательское содержимое в файл метрик не записываются.
+
+## Полная эталонная приёмка
+
+Для ручного запуска отдельных компонентов можно использовать `load-runner.mjs`, но канонический полный запуск выполняется обёрткой:
+
+```bash
+PERF_FIXTURE_CONFIRM=WORKSPACE_PERFORMANCE_ONLY \
 PERF_BASE_URL=https://workspace-perf.example/ \
 PERF_CREDENTIALS=/private/performance/workspace-users.ndjson \
-PERF_MODE=full \
-PERF_COMMIT_SHA=$(git rev-parse HEAD) \
 PERF_ENVIRONMENT_NAME=reference-1 \
-PERF_INFRASTRUCTURE='2xHTTP 4vCPU/8GB; MySQL 8; 1xWS 2vCPU/4GB; SSD' \
-node tools/performance/load-runner.mjs \
-  --output=/private/performance/report-$(git rev-parse --short HEAD).json
+PERF_OUTPUT_DIR=/private/performance/run-1 \
+bash tools/performance/run-reference.sh
 ```
+
+Обёртка:
+
+1. требует чистое рабочее дерево;
+2. фиксирует exact commit;
+3. сохраняет `environment.json`;
+4. запускает серверный sampler на весь профиль;
+5. выполняет `PERF_MODE=full`;
+6. сохраняет HTTP-отчёт и журналы;
+7. создаёт manifest с SHA-256 артефактов.
 
 Full-режим нельзя сокращать и одновременно выдавать результат за release evidence. Переменные длительности существуют для инженерных экспериментов, но итоговый релизный отчёт обязан соответствовать минимуму канонического профиля.
 
-## Отчёт
+## Артефакты полного запуска
 
-JSON содержит:
+Каталог одного прогона содержит как минимум:
 
-- точное время и режим запуска;
-- число успешных/неуспешных сессий;
-- RPS и долю ошибок;
-- HTTP-статусы;
-- p50/p95/p99 в целом, по типу, операции и фазе;
-- результаты проверки порогов;
-- Node/platform/architecture;
-- exact commit и текстовое описание инфраструктуры, если они переданы окружением.
+- `environment.json` — точная конфигурация стенда;
+- `server-metrics.ndjson` — временной ряд серверных метрик;
+- `load-report.json` — p50/p95/p99, RPS, ошибки и проверка HTTP-порогов;
+- `load-runner.log` — журнал генератора;
+- `metrics.log` — журнал сборщика;
+- `manifest.txt` — exact commit, имя среды, коды завершения и SHA-256 файлов.
 
-К итоговому release evidence отдельно прикладываются серверные графики или выгрузка CPU/RAM/swap, PHP workers, MySQL connections/slow queries/lock waits, длины очередей, WebSocket connections/reconnect rate и storage I/O.
+Эти файлы рассматриваются совместно. Зелёный `load-report.json` при исчерпанной RAM, растущем swap, lock waits или неограниченной очереди не является успешной приёмкой.
 
 ## Ограничения текущего этапа
 
-Этот PR создаёт воспроизводимый генератор и профиль нагрузки, то есть закрывает инфраструктурную часть этапа 1 #274. Он не заявляет, что Workspace Organizer уже выдержал 1000 пользователей: для этого нужен фактический полный прогон на эталонной конфигурации и сохранённый отчёт на точном SHA.
+Наличие runner, fixture-generator и sampler само по себе не означает, что Workspace Organizer уже выдержал 1000 пользователей. После слияния этого контура требуется фактический полный прогон на выделенном эталонном стенде, анализ узких мест и повторная приёмка на точном релизном SHA.
