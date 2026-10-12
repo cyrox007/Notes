@@ -51,6 +51,7 @@ const page = await context.newPage();
 const pageErrors = [];
 const escapedRequests = [];
 const httpErrors = [];
+let stage = 'инициализация';
 
 page.on('pageerror', (error) => pageErrors.push(error));
 page.on('request', (request) => {
@@ -65,6 +66,7 @@ page.on('response', (response) => {
 });
 
 try {
+  stage = 'вход в систему';
   await page.goto(`${baseUrl}/auth/login/`, { waitUntil: 'domcontentloaded' });
   await page.locator('#login').fill(username);
   await page.locator('#password').fill(password);
@@ -73,6 +75,7 @@ try {
     page.getByRole('button', { name: 'Войти' }).click(),
   ]);
 
+  stage = 'создание заметки';
   const stamp = Date.now();
   const noteName = `Voice contract ${stamp}`;
   await page.goto(`${baseUrl}/notes/`, { waitUntil: 'domcontentloaded' });
@@ -82,6 +85,7 @@ try {
     page.locator('.notes__create button[type="submit"]').click(),
   ]);
 
+  stage = 'открытие голосового редактора';
   const editor = page.locator('[data-note-editor-013]');
   await editor.waitFor({ state: 'visible', timeout: 10000 });
   const uploadPath = await editor.getAttribute('data-upload-url');
@@ -95,6 +99,7 @@ try {
   const sendButton = page.getByRole('button', { name: 'Сохранить голосовую', exact: true });
   await sendButton.waitFor({ state: 'visible' });
 
+  stage = 'подготовка тестовой аудиозаписи';
   const ajaxSentinel = `voice-ajax-${stamp}`;
   await editor.evaluate((element, value) => { element.dataset.ajaxSentinel = value; }, ajaxSentinel);
 
@@ -113,6 +118,7 @@ try {
     if (timer) timer.textContent = '00:02';
   }, wavBytes);
 
+  stage = 'загрузка голосовой записи';
   const uploadResponsePromise = page.waitForResponse((response) => {
     const url = new URL(response.url());
     return url.origin === origin && url.pathname === uploadPath && response.request().method() === 'POST';
@@ -121,13 +127,16 @@ try {
   const upload = await uploadResponsePromise;
   if (upload.status() !== 200) throw new Error(`Voice upload failed: HTTP ${upload.status()}`);
 
+  stage = 'обновление списка голосовых';
   const voiceItem = page.locator('.attachment-item--voice').filter({ hasText: 'Голосовая заметка' }).first();
   await voiceItem.waitFor({ state: 'visible', timeout: 10000 });
   await voiceItem.getByText('2 сек', { exact: false }).waitFor({ state: 'visible', timeout: 5000 });
 
+  stage = 'проверка отсутствия перезагрузки';
   const sentinelAfterUpload = await editor.getAttribute('data-ajax-sentinel');
   if (sentinelAfterUpload !== ajaxSentinel) throw new Error('Голосовая заметка вызвала полную перезагрузку редактора');
 
+  stage = 'проверка воспроизведения';
   const source = voiceItem.locator('audio source');
   const href = await source.getAttribute('src');
   if (!href || !href.startsWith(`${basePath}/notes/attachment/`)) throw new Error(`Voice playback URL escaped BASE_PATH: ${href}`);
@@ -138,13 +147,14 @@ try {
     throw new Error(`Voice playback invalid: HTTP ${playback.status()}, ${contentType}, ${body.length} bytes`);
   }
 
+  stage = 'проверка ошибок браузера и маршрутов';
   if (pageErrors.length) throw pageErrors[0];
   if (escapedRequests.length) throw new Error(`Requests escaped BASE_PATH: ${[...new Set(escapedRequests)].join(', ')}`);
   if (httpErrors.length) throw new Error(`Unexpected HTTP errors: ${httpErrors.join(', ')}`);
 
   console.log('Голосовая заметка Notes сохраняется по AJAX без перезагрузки: OK');
 } catch (error) {
-  console.error(`::error title=Голосовой контракт Notes::${actionAnnotation(error)}`);
+  console.error(`::error title=Голосовой контракт Notes — ${stage}::${actionAnnotation(error)}`);
   throw error;
 } finally {
   await context.close();
