@@ -83,10 +83,27 @@
             feedback?.toast?.('Локальный черновик восстановлен', 'success');
         }
 
-        function markServerSaved() {
-            initial = { title: title.value, content: content.value };
-            dirty = false;
+        function savedStateFromEvent(event) {
+            const detail = event instanceof CustomEvent && event.detail && typeof event.detail === 'object'
+                ? event.detail
+                : {};
+            const saved = detail.saved && typeof detail.saved === 'object' ? detail.saved : {};
+            return {
+                title: typeof saved.title === 'string' ? saved.title : title.value,
+                content: typeof saved.content === 'string' ? saved.content : content.value,
+            };
+        }
+
+        function markServerSaved(event) {
+            initial = savedStateFromEvent(event);
+            dirty = title.value !== initial.title || content.value !== initial.content;
             window.clearTimeout(saveTimer);
+
+            if (dirty) {
+                writeDraft();
+                return;
+            }
+
             removeDraft();
             setStatus('Все изменения сохранены на сервере', false);
         }
