@@ -2,7 +2,7 @@ name: Notes browser lifecycle
 
 on:
   pull_request:
-    branches: [master, '1.0', 0.13-ux-foundation]
+    branches: [master, '1.0', '1.1', 0.13-ux-foundation]
 
 permissions:
   contents: read
@@ -73,6 +73,9 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot notes_browser_lifecycle < database/module_lifecycle_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_browser_lifecycle < database/access_control_schema.sql
           mysql -h 127.0.0.1 -uroot -proot notes_browser_lifecycle < database/audit_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_browser_lifecycle < database/migrations/20261010_notifications_foundation.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_browser_lifecycle < database/migrations/20261012_notifications_http_fallback.sql
+          mysql -h 127.0.0.1 -uroot -proot notes_browser_lifecycle < database/calendar_schema.sql
 
       - name: Seed browser user and environment
         shell: bash
@@ -189,7 +192,24 @@ jobs:
         run: |
           set -euo pipefail
           node tests/e2e/notes-lifecycle.mjs
+
+      - name: Run Notes voice contract in Chromium
+        shell: bash
+        env:
+          E2E_ORIGIN: http://127.0.0.1:18089
+          E2E_BASE_PATH: /workspace
+        run: |
+          set -euo pipefail
           node tests/e2e/notes-voice-contract.mjs
+
+      - name: Save Notes voice diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: notes-voice-contract-failure
+          path: /tmp/notes-voice-contract-failure.json
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: Verify durable Notes lifecycle state
         shell: bash
@@ -213,6 +233,8 @@ jobs:
         if: failure()
         shell: bash
         run: |
+          echo '--- Voice contract ---'
+          cat /tmp/notes-voice-contract-failure.json || true
           echo '--- PHP server ---'
           cat /tmp/workspace-notes-lifecycle-http.log || true
           echo '--- PHP startup/application errors ---'

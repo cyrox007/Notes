@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 
 function requiredEnv(name) {
@@ -26,6 +27,22 @@ function wavFixture(seconds = 2, sampleRate = 8000) {
   return buffer;
 }
 
+function actionAnnotation(error) {
+  const message = error instanceof Error ? (error.stack || error.message) : String(error);
+  return message
+    .replace(/%/g, '%25')
+    .replace(/\r/g, '%0D')
+    .replace(/\n/g, '%0A');
+}
+
+function isHttpUrl(url) {
+  return url.protocol === 'http:' || url.protocol === 'https:';
+}
+
+function diagnosticMessage(error) {
+  return error instanceof Error ? (error.stack || error.message) : String(error);
+}
+
 const origin = requiredEnv('E2E_ORIGIN');
 const basePathRaw = requiredEnv('E2E_BASE_PATH');
 const username = requiredEnv('E2E_USER');
@@ -39,18 +56,22 @@ const page = await context.newPage();
 const pageErrors = [];
 const escapedRequests = [];
 const httpErrors = [];
+let stage = 'инициализация';
 
 page.on('pageerror', (error) => pageErrors.push(error));
 page.on('request', (request) => {
   const url = new URL(request.url());
+  if (!isHttpUrl(url)) return;
   if (url.origin === origin && url.pathname !== basePath && !url.pathname.startsWith(basePath + '/')) escapedRequests.push(url.pathname);
 });
 page.on('response', (response) => {
   const url = new URL(response.url());
+  if (!isHttpUrl(url)) return;
   if (url.origin === origin && response.status() >= 400) httpErrors.push(`${response.status()} ${url.pathname}`);
 });
 
 try {
+  stage = 'вход в систему';
   await page.goto(`${baseUrl}/auth/login/`, { waitUntil: 'domcontentloaded' });
   await page.locator('#login').fill(username);
   await page.locator('#password').fill(password);
@@ -59,6 +80,7 @@ try {
     page.getByRole('button', { name: 'Войти' }).click(),
   ]);
 
+  stage = 'создание заметки';
   const stamp = Date.now();
   const noteName = `Voice contract ${stamp}`;
   await page.goto(`${baseUrl}/notes/`, { waitUntil: 'domcontentloaded' });
@@ -68,6 +90,7 @@ try {
     page.locator('.notes__create button[type="submit"]').click(),
   ]);
 
+  stage = 'открытие голосового редактора';
   const editor = page.locator('[data-note-editor-013]');
   await editor.waitFor({ state: 'visible', timeout: 10000 });
   const uploadPath = await editor.getAttribute('data-upload-url');
@@ -81,15 +104,17 @@ try {
   const sendButton = page.getByRole('button', { name: 'Сохранить голосовую', exact: true });
   await sendButton.waitFor({ state: 'visible' });
 
+  stage = 'подготовка тестовой аудиозаписи';
   const ajaxSentinel = `voice-ajax-${stamp}`;
   await editor.evaluate((element, value) => { element.dataset.ajaxSentinel = value; }, ajaxSentinel);
 
   const wavBytes = Array.from(wavFixture(2));
   await page.evaluate((bytes) => {
+    const root = document.querySelector('[data-note-editor-013]');
     const preview = document.querySelector('#voicePreview');
     const send = document.querySelector('#sendVoice');
     const timer = document.querySelector('#recordingTimer');
-    if (!(preview instanceof HTMLAudioElement) || !(send instanceof HTMLButtonElement)) {
+    if (!(root instanceof HTMLElement) || !(preview instanceof HTMLAudioElement) || !(send instanceof HTMLButtonElement)) {
       throw new Error('Элементы голосовой записи не найдены');
     }
     const blob = new Blob([new Uint8Array(bytes)], { type: 'audio/wav' });
@@ -97,23 +122,30 @@ try {
     preview.hidden = false;
     send.disabled = false;
     if (timer) timer.textContent = '00:02';
+    root.dispatchEvent(new CustomEvent('notes:voice-ready', {
+      detail: { blob, duration: 2 },
+    }));
   }, wavBytes);
 
+  stage = 'загрузка голосовой записи';
   const uploadResponsePromise = page.waitForResponse((response) => {
     const url = new URL(response.url());
     return url.origin === origin && url.pathname === uploadPath && response.request().method() === 'POST';
   }, { timeout: 15000 });
   await sendButton.click();
   const upload = await uploadResponsePromise;
-  if (upload.status() !== 200) throw new Error(`Voice upload failed: HTTP ${upload.status()}`);
+  if (upload.status() !== 200) throw new Error(`Загрузка голосовой записи завершилась с HTTP ${upload.status()}, ожидался 200`);
 
+  stage = 'обновление списка голосовых';
   const voiceItem = page.locator('.attachment-item--voice').filter({ hasText: 'Голосовая заметка' }).first();
   await voiceItem.waitFor({ state: 'visible', timeout: 10000 });
   await voiceItem.getByText('2 сек', { exact: false }).waitFor({ state: 'visible', timeout: 5000 });
 
+  stage = 'проверка отсутствия перезагрузки';
   const sentinelAfterUpload = await editor.getAttribute('data-ajax-sentinel');
   if (sentinelAfterUpload !== ajaxSentinel) throw new Error('Голосовая заметка вызвала полную перезагрузку редактора');
 
+  stage = 'проверка воспроизведения';
   const source = voiceItem.locator('audio source');
   const href = await source.getAttribute('src');
   if (!href || !href.startsWith(`${basePath}/notes/attachment/`)) throw new Error(`Voice playback URL escaped BASE_PATH: ${href}`);
@@ -124,11 +156,24 @@ try {
     throw new Error(`Voice playback invalid: HTTP ${playback.status()}, ${contentType}, ${body.length} bytes`);
   }
 
+  stage = 'проверка ошибок браузера и маршрутов';
   if (pageErrors.length) throw pageErrors[0];
   if (escapedRequests.length) throw new Error(`Requests escaped BASE_PATH: ${[...new Set(escapedRequests)].join(', ')}`);
   if (httpErrors.length) throw new Error(`Unexpected HTTP errors: ${httpErrors.join(', ')}`);
 
   console.log('Голосовая заметка Notes сохраняется по AJAX без перезагрузки: OK');
+} catch (error) {
+  const diagnostic = {
+    stage,
+    error: diagnosticMessage(error),
+    pageErrors: pageErrors.map(diagnosticMessage),
+    escapedRequests: [...new Set(escapedRequests)],
+    httpErrors,
+    pageUrl: page.url(),
+  };
+  writeFileSync('/tmp/notes-voice-contract-failure.json', `${JSON.stringify(diagnostic, null, 2)}\n`, 'utf8');
+  console.error(`::error title=Голосовой контракт Notes — ${stage}::${actionAnnotation(error)}`);
+  throw error;
 } finally {
   await context.close();
   await browser.close();

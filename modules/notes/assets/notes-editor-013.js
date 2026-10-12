@@ -246,6 +246,7 @@
             recorder = null;
             chunks = [];
             blob = null;
+            root.dispatchEvent(new CustomEvent('notes:voice-reset'));
             startedAt = 0;
             elapsedMs = 0;
             timer.textContent = '00:00';
@@ -289,6 +290,14 @@
                     pulse?.classList.remove('is-recording');
                     stopTracks();
                     updateTimer();
+                    if (blob.size) {
+                        root.dispatchEvent(new CustomEvent('notes:voice-ready', {
+                            detail: {
+                                blob,
+                                duration: Math.max(1, Math.round(elapsedMs / 1000)),
+                            },
+                        }));
+                    }
                 }, { once: true });
                 recorder.start(500);
                 startMeter();
