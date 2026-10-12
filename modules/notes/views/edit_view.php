@@ -36,6 +36,7 @@ echo $view->layout('core/base', [
     'module_scripts' => [
         $view->moduleAsset('notes', 'notes-editor-013.js'),
         $view->moduleAsset('notes', 'notes-editor-ajax.js'),
+        $view->moduleAsset('notes', 'notes-editor-save.js'),
         $view->moduleAsset('notes', 'notes-draft.js'),
     ],
     'socket_ticket' => $socket_ticket ?? '',
