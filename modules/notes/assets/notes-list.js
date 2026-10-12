@@ -24,22 +24,6 @@
             return window.confirm(message);
         }
 
-        async function requestJson(url, options = {}) {
-            const headers = new Headers(options.headers || {});
-            headers.set('Accept', 'application/json');
-            headers.set('X-Requested-With', 'XMLHttpRequest');
-            const response = await fetch(url, {
-                ...options,
-                credentials: 'same-origin',
-                headers,
-            });
-            const payload = await response.json().catch(() => ({}));
-            if (!response.ok || payload?.success !== true) {
-                throw new Error(payload?.error || `HTTP ${response.status}`);
-            }
-            return payload;
-        }
-
         function visibleList() {
             return root.querySelector('#all-user.visible') || root.querySelector('#personal.visible') || root.querySelector('#personal');
         }
@@ -63,20 +47,19 @@
             personal.append(item);
         }
 
-        async function refreshNotesContent() {
-            const response = await fetch(window.location.href, {
-                method: 'GET',
-                credentials: 'same-origin',
-                cache: 'no-store',
-                headers: { 'X-Requested-With': 'XMLHttpRequest' },
-            });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-            const html = await response.text();
+        function replaceNotesContent(html, sourceUrl, deletedAction) {
             const documentCopy = new DOMParser().parseFromString(html, 'text/html');
             const current = root.querySelector('.notes__content');
             const fresh = documentCopy.querySelector('.notes__content');
             if (!current || !fresh) throw new Error('Сервер вернул неполный список заметок');
+
+            const noteStillPresent = [...documentCopy.querySelectorAll('.notes__delete-form')].some((form) => {
+                const action = form.getAttribute('action');
+                if (!action) return false;
+                return new URL(action, sourceUrl).pathname === deletedAction;
+            });
+            if (noteStillPresent) throw new Error('Сервер не подтвердил удаление заметки');
+
             current.replaceWith(document.importNode(fresh, true));
         }
 
@@ -88,33 +71,35 @@
             busyForms.add(form);
             button.disabled = true;
             const row = form.closest('.notes__list_item');
+            const deletedAction = new URL(form.action, window.location.href).pathname;
             let deleted = false;
 
             try {
-                await requestJson(form.action, {
+                const response = await fetch(form.action, {
                     method: (form.method || 'post').toUpperCase(),
+                    credentials: 'same-origin',
                     body: new FormData(form),
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
                 });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+                const html = await response.text();
+                replaceNotesContent(html, response.url || window.location.href, deletedAction);
                 deleted = true;
-
-                try {
-                    await refreshNotesContent();
-                } catch (_) {
-                    row?.remove();
-                    ensurePersonalEmptyState();
-                    syncCount();
-                    toast('Заметка удалена. Список обновлён локально.', 'warning');
-                    return;
-                }
-
                 toast('Заметка удалена', 'success');
             } catch (error) {
+                if (deleted) return;
                 const message = error instanceof Error ? error.message : 'Не удалось удалить заметку';
                 feedback?.inline?.(form, message, 'error');
                 toast(message, 'error');
             } finally {
                 busyForms.delete(form);
                 if (!deleted && button.isConnected) button.disabled = false;
+                if (deleted && row?.isConnected) {
+                    row.remove();
+                    ensurePersonalEmptyState();
+                    syncCount();
+                }
             }
         }
 
