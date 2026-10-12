@@ -26,6 +26,14 @@ function wavFixture(seconds = 2, sampleRate = 8000) {
   return buffer;
 }
 
+function actionAnnotation(error) {
+  const message = error instanceof Error ? (error.stack || error.message) : String(error);
+  return message
+    .replace(/%/g, '%25')
+    .replace(/\r/g, '%0D')
+    .replace(/\n/g, '%0A');
+}
+
 const origin = requiredEnv('E2E_ORIGIN');
 const basePathRaw = requiredEnv('E2E_BASE_PATH');
 const username = requiredEnv('E2E_USER');
@@ -129,6 +137,9 @@ try {
   if (httpErrors.length) throw new Error(`Unexpected HTTP errors: ${httpErrors.join(', ')}`);
 
   console.log('Голосовая заметка Notes сохраняется по AJAX без перезагрузки: OK');
+} catch (error) {
+  console.error(`::error title=Голосовой контракт Notes::${actionAnnotation(error)}`);
+  throw error;
 } finally {
   await context.close();
   await browser.close();
