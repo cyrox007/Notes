@@ -34,6 +34,10 @@ function actionAnnotation(error) {
     .replace(/\n/g, '%0A');
 }
 
+function isHttpUrl(url) {
+  return url.protocol === 'http:' || url.protocol === 'https:';
+}
+
 const origin = requiredEnv('E2E_ORIGIN');
 const basePathRaw = requiredEnv('E2E_BASE_PATH');
 const username = requiredEnv('E2E_USER');
@@ -51,10 +55,12 @@ const httpErrors = [];
 page.on('pageerror', (error) => pageErrors.push(error));
 page.on('request', (request) => {
   const url = new URL(request.url());
+  if (!isHttpUrl(url)) return;
   if (url.origin === origin && url.pathname !== basePath && !url.pathname.startsWith(basePath + '/')) escapedRequests.push(url.pathname);
 });
 page.on('response', (response) => {
   const url = new URL(response.url());
+  if (!isHttpUrl(url)) return;
   if (url.origin === origin && response.status() >= 400) httpErrors.push(`${response.status()} ${url.pathname}`);
 });
 
