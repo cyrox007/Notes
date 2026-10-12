@@ -8,7 +8,7 @@ on:
       - 'tests/integration/performance_runner_contract.php'
       - '.github/workflows/performance-runner-contract.yml'
   push:
-    branches: ['1.1', 'perf/1.1-1000-users-runner-*']
+    branches: ['1.1', 'perf/1.1-1000-users-runner-*', 'perf/1.1-reference-baseline-*']
     paths:
       - 'tools/performance/**'
       - 'tests/integration/performance_runner_contract.php'
@@ -30,12 +30,16 @@ jobs:
         run: |
           set -euo pipefail
           php -l tools/performance/prepare-users.php
+          php -l tools/performance/prepare-dataset.php
+          php -l tools/performance/collect-environment.php
+          php -l tools/performance/sample-metrics.php
           php -l tests/integration/performance_runner_contract.php
 
-      - name: Проверить Node.js-синтаксис
+      - name: Проверить Node.js и shell-синтаксис
         run: |
           set -euo pipefail
           node --check tools/performance/load-runner.mjs
+          bash -n tools/performance/run-reference.sh
 
       - name: Проверить профиль и статический контракт
         run: |
