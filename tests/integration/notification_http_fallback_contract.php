@@ -13,11 +13,15 @@ $root = dirname(__DIR__, 2);
 $runtime = file_get_contents($root . '/app/services/notifications/NotificationDeliveryRuntime.php');
 $entryPoint = file_get_contents($root . '/core/ApplicationEntryPoint.php');
 $migration = file_get_contents($root . '/database/migrations/20261012_notifications_http_fallback.sql');
+$manifest = file_get_contents($root . '/database/migrations/manifest.json');
+$ownership = file_get_contents($root . '/core/DatabaseOwnership.php');
 $worker = file_get_contents($root . '/bin/notifications_worker.php');
 
 notificationHttpFallbackAssert(is_string($runtime), 'Runtime внешней доставки должен существовать');
 notificationHttpFallbackAssert(is_string($entryPoint), 'HTTP entry point должен существовать');
 notificationHttpFallbackAssert(is_string($migration), 'Миграция состояния HTTP fallback должна существовать');
+notificationHttpFallbackAssert(is_string($manifest), 'Канонический manifest миграций должен существовать');
+notificationHttpFallbackAssert(is_string($ownership), 'Контракт владения БД должен существовать');
 notificationHttpFallbackAssert(is_string($worker), 'CLI worker должен существовать');
 
 foreach ([
@@ -43,6 +47,22 @@ notificationHttpFallbackAssert(
 notificationHttpFallbackAssert(
     str_contains($migration, 'CREATE TABLE IF NOT EXISTS `notification_runtime_state`'),
     'Состояние ограничения частоты должно принадлежать отдельной миграции'
+);
+
+$migrationName = '20261012_notifications_http_fallback.sql';
+notificationHttpFallbackAssert(
+    str_contains($manifest, $migrationName),
+    'Новая миграция должна быть зарегистрирована в каноническом manifest'
+);
+notificationHttpFallbackAssert(
+    str_contains($ownership, $migrationName),
+    'Новая миграция должна принадлежать Core в DatabaseOwnership'
+);
+$foundationPosition = strpos($manifest, '20261010_notifications_foundation.sql');
+$fallbackPosition = strpos($manifest, $migrationName);
+notificationHttpFallbackAssert(
+    is_int($foundationPosition) && is_int($fallbackPosition) && $foundationPosition < $fallbackPosition,
+    'HTTP fallback должен применяться после базовой миграции уведомлений'
 );
 
 foreach ([
