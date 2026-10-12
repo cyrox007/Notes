@@ -6,6 +6,7 @@
         const feedback = window.wspace?.feedback;
         const busyForms = new WeakSet();
         const busyButtons = new WeakSet();
+        let preparedVoice = null;
 
         async function parseJson(response) {
             const data = await response.json().catch(() => ({}));
@@ -258,11 +259,27 @@
             return Math.max(1, Number(match[1]) * 60 + Number(match[2]));
         }
 
+        function prepareVoice(event) {
+            const detail = event instanceof CustomEvent ? event.detail : null;
+            const blob = detail?.blob;
+            if (!(blob instanceof Blob) || !blob.size) {
+                preparedVoice = null;
+                return;
+            }
+
+            const seconds = Number(detail?.duration);
+            preparedVoice = {
+                blob,
+                duration: Number.isFinite(seconds) && seconds > 0 ? Math.max(1, Math.round(seconds)) : null,
+            };
+        }
+
         async function sendVoice(button) {
             if (busyButtons.has(button)) return;
             const preview = root.querySelector('#voicePreview');
             const status = root.querySelector('#recordingStatus');
-            if (!(preview instanceof HTMLAudioElement) || !preview.src) {
+            const voice = preparedVoice;
+            if (!(preview instanceof HTMLAudioElement) || !voice?.blob?.size) {
                 toast('Сначала запишите голосовую заметку', 'error');
                 return;
             }
@@ -272,9 +289,7 @@
             if (status) status.textContent = 'Сохраняем голосовую заметку…';
 
             try {
-                const blob = await (await fetch(preview.currentSrc || preview.src)).blob();
-                if (!blob.size) throw new Error('Запись пустая');
-
+                const blob = voice.blob;
                 const mime = (blob.type || 'audio/webm').split(';')[0];
                 const extension = mime.includes('ogg') ? 'ogg'
                     : mime.includes('mp4') ? 'm4a'
@@ -284,7 +299,7 @@
                 const form = new FormData();
                 form.append('attachment', file);
                 form.append('is_voice', 'true');
-                form.append('duration', String(durationFromRecorder(preview)));
+                form.append('duration', String(voice.duration || durationFromRecorder(preview)));
 
                 await parseJson(await fetch(root.dataset.uploadUrl || '', {
                     method: 'POST',
@@ -294,6 +309,7 @@
                 await refreshSection('.note-editor-013__voice-list');
                 enhanceVoiceList();
                 root.querySelector('#discardRecord')?.click();
+                preparedVoice = null;
                 toast('Голосовая заметка сохранена', 'success');
             } catch (error) {
                 button.disabled = false;
@@ -303,6 +319,11 @@
                 busyButtons.delete(button);
             }
         }
+
+        root.addEventListener('notes:voice-ready', prepareVoice);
+        root.addEventListener('notes:voice-reset', () => {
+            preparedVoice = null;
+        });
 
         root.addEventListener('submit', (event) => {
             const form = event.target;
