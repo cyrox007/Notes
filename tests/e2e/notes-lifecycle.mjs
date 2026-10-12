@@ -119,6 +119,15 @@ try {
     throw new Error('Updated note content did not round-trip through encrypted storage');
   }
 
+  const ajaxSentinel = `ajax-${stamp}`;
+  const editorRoot = ownerPage.locator('[data-note-editor-013]');
+  await editorRoot.evaluate((element, value) => { element.dataset.ajaxSentinel = value; }, ajaxSentinel);
+  const assertEditorStayedMounted = async (stage) => {
+    const value = await editorRoot.getAttribute('data-ajax-sentinel');
+    if (value !== ajaxSentinel) throw new Error(`${stage}: редактор был полностью перезагружен`);
+    if (ownerPage.url() !== editUrl) throw new Error(`${stage}: изменился URL редактора`);
+  };
+
   await ownerPage.locator('#attachmentInput').setInputFiles({
     name: attachmentName,
     mimeType: 'text/plain',
@@ -127,6 +136,7 @@ try {
   await ownerPage.locator('#uploadForm button[type="submit"]').click();
   const attachment = ownerPage.locator('.attachment-item').filter({ hasText: attachmentName });
   await attachment.waitFor({ state: 'visible', timeout: 15000 });
+  await assertEditorStayedMounted('после загрузки вложения');
 
   const privateAttachmentHref = await attachment.locator('a').getAttribute('href');
   if (!privateAttachmentHref || !privateAttachmentHref.startsWith(`${basePath}/notes/attachment/`)) {
@@ -137,19 +147,14 @@ try {
     throw new Error(`Authenticated attachment download failed: HTTP ${privateDownload.status()}`);
   }
 
-  const shareDialogPromise = acceptNextDialog(ownerPage, 'Ссылка создана:');
   await ownerPage.locator('#shareForm button[type="submit"]').click();
-  const shareDialog = await shareDialogPromise;
   await ownerPage.locator('#shareUrl').waitFor({ state: 'visible', timeout: 15000 });
+  await assertEditorStayedMounted('после создания публичной ссылки');
   const shareValue = await ownerPage.locator('#shareUrl').inputValue();
   const resolvedShare = new URL(shareValue, ownerPage.url());
   const shareUrl = resolvedShare.href;
   if (resolvedShare.origin !== origin || !resolvedShare.pathname.startsWith(`${basePath}/notes/shared/`)) {
-    throw new Error(`Share URL is not BASE_PATH-aware: ${shareUrl}\nDialog: ${shareDialog}`);
-  }
-
-  if (shareDialog !== `Ссылка создана: ${shareUrl}`) {
-    throw new Error('Share API URL and rendered public link disagree');
+    throw new Error(`Share URL is not BASE_PATH-aware: ${shareUrl}`);
   }
 
   const publicContext = await browser.newContext();
@@ -175,10 +180,12 @@ try {
     throw new Error(`Public attachment download failed: HTTP ${publicDownload.status()}`);
   }
 
-  const unshareDialogPromise = acceptNextDialog(ownerPage, 'Деактивировать публичную ссылку?');
+  await ownerPage.evaluate(() => {
+    if (window.wspace?.feedback) window.wspace.feedback.confirm = async () => true;
+  });
   await ownerPage.locator('#unshareNote').click();
-  await unshareDialogPromise;
   await ownerPage.locator('#shareForm').waitFor({ state: 'visible', timeout: 15000 });
+  await assertEditorStayedMounted('после отключения публичной ссылки');
 
   sharedLinkRevoked = true;
   const revokedResponse = await publicPage.goto(shareUrl, { waitUntil: 'domcontentloaded' });
@@ -207,7 +214,7 @@ try {
     throw new Error(`Unexpected HTTP errors: ${unexpectedHttpErrors.join(', ')}`);
   }
 
-  console.log('Notes create/edit/attachment/share/unshare/delete browser lifecycle: OK');
+  console.log('Жизненный цикл Notes и AJAX-действия редактора: OK');
 
   await publicContext.close();
   await ownerContext.close();

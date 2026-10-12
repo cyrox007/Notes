@@ -78,42 +78,41 @@ try {
   await voiceButton.click();
   await page.locator('#voiceRecorder').waitFor({ state: 'visible', timeout: 5000 });
   await page.getByRole('button', { name: /Начать запись/ }).waitFor({ state: 'visible' });
-  await page.getByRole('button', { name: 'Сохранить голосовую', exact: true }).waitFor({ state: 'visible' });
+  const sendButton = page.getByRole('button', { name: 'Сохранить голосовую', exact: true });
+  await sendButton.waitFor({ state: 'visible' });
 
-  // Exercise the same browser FormData/fetch path as the product. common.js injects
-  // the session CSRF token into this request, so the voice contract cannot bypass CSRF.
-  const uploadForm = page.locator('#uploadForm');
-  await uploadForm.locator('#attachmentInput').setInputFiles({
-    name: `voice-${stamp}.wav`,
-    mimeType: 'audio/wav',
-    buffer: wavFixture(2),
-  });
-  await uploadForm.locator('input[name="is_voice"]').evaluate((input) => { input.value = 'true'; });
-  await uploadForm.evaluate((form) => {
-    let duration = form.querySelector('input[name="duration"]');
-    if (!duration) {
-      duration = document.createElement('input');
-      duration.type = 'hidden';
-      duration.name = 'duration';
-      form.appendChild(duration);
+  const ajaxSentinel = `voice-ajax-${stamp}`;
+  await editor.evaluate((element, value) => { element.dataset.ajaxSentinel = value; }, ajaxSentinel);
+
+  const wavBytes = Array.from(wavFixture(2));
+  await page.evaluate((bytes) => {
+    const preview = document.querySelector('#voicePreview');
+    const send = document.querySelector('#sendVoice');
+    const timer = document.querySelector('#recordingTimer');
+    if (!(preview instanceof HTMLAudioElement) || !(send instanceof HTMLButtonElement)) {
+      throw new Error('Элементы голосовой записи не найдены');
     }
-    duration.value = '2';
-  });
+    const blob = new Blob([new Uint8Array(bytes)], { type: 'audio/wav' });
+    preview.src = URL.createObjectURL(blob);
+    preview.hidden = false;
+    send.disabled = false;
+    if (timer) timer.textContent = '00:02';
+  }, wavBytes);
 
   const uploadResponsePromise = page.waitForResponse((response) => {
     const url = new URL(response.url());
     return url.origin === origin && url.pathname === uploadPath && response.request().method() === 'POST';
   }, { timeout: 15000 });
-  await uploadForm.getByRole('button', { name: 'Добавить файл', exact: true }).click();
+  await sendButton.click();
   const upload = await uploadResponsePromise;
   if (upload.status() !== 200) throw new Error(`Voice upload failed: HTTP ${upload.status()}`);
 
-  // The durable, user-visible contract is stronger than coupling the test to response-body
-  // timing while the product reloads the editor after upload: the voice card must reappear
-  // with persisted duration and a protected playback URL.
   const voiceItem = page.locator('.attachment-item--voice').filter({ hasText: 'Голосовая заметка' }).first();
   await voiceItem.waitFor({ state: 'visible', timeout: 10000 });
   await voiceItem.getByText('2 сек', { exact: false }).waitFor({ state: 'visible', timeout: 5000 });
+
+  const sentinelAfterUpload = await editor.getAttribute('data-ajax-sentinel');
+  if (sentinelAfterUpload !== ajaxSentinel) throw new Error('Голосовая заметка вызвала полную перезагрузку редактора');
 
   const source = voiceItem.locator('audio source');
   const href = await source.getAttribute('src');
@@ -129,7 +128,7 @@ try {
   if (escapedRequests.length) throw new Error(`Requests escaped BASE_PATH: ${[...new Set(escapedRequests)].join(', ')}`);
   if (httpErrors.length) throw new Error(`Unexpected HTTP errors: ${httpErrors.join(', ')}`);
 
-  console.log('Notes voice UI/CSRF upload/playback contract: OK');
+  console.log('Голосовая заметка Notes сохраняется по AJAX без перезагрузки: OK');
 } finally {
   await context.close();
   await browser.close();
