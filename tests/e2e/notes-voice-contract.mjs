@@ -110,10 +110,11 @@ try {
 
   const wavBytes = Array.from(wavFixture(2));
   await page.evaluate((bytes) => {
+    const root = document.querySelector('[data-note-editor-013]');
     const preview = document.querySelector('#voicePreview');
     const send = document.querySelector('#sendVoice');
     const timer = document.querySelector('#recordingTimer');
-    if (!(preview instanceof HTMLAudioElement) || !(send instanceof HTMLButtonElement)) {
+    if (!(root instanceof HTMLElement) || !(preview instanceof HTMLAudioElement) || !(send instanceof HTMLButtonElement)) {
       throw new Error('Элементы голосовой записи не найдены');
     }
     const blob = new Blob([new Uint8Array(bytes)], { type: 'audio/wav' });
@@ -121,6 +122,9 @@ try {
     preview.hidden = false;
     send.disabled = false;
     if (timer) timer.textContent = '00:02';
+    root.dispatchEvent(new CustomEvent('notes:voice-ready', {
+      detail: { blob, duration: 2 },
+    }));
   }, wavBytes);
 
   stage = 'загрузка голосовой записи';
