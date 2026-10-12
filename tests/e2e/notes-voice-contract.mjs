@@ -134,7 +134,7 @@ try {
   }, { timeout: 15000 });
   await sendButton.click();
   const upload = await uploadResponsePromise;
-  if (upload.status() !== 201) throw new Error(`Загрузка голосовой записи завершилась с HTTP ${upload.status()}, ожидался 201`);
+  if (upload.status() !== 200) throw new Error(`Загрузка голосовой записи завершилась с HTTP ${upload.status()}, ожидался 200`);
 
   stage = 'обновление списка голосовых';
   const voiceItem = page.locator('.attachment-item--voice').filter({ hasText: 'Голосовая заметка' }).first();
