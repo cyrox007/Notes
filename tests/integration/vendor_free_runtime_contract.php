@@ -67,7 +67,9 @@ $controller = (string) file_get_contents($root . '/core/Controller.php');
 vendorFreeAssert(str_contains($controller, 'new NativeViewRenderer('), 'HTTP controller does not use native view renderer');
 
 $installer = (string) file_get_contents($root . '/install.php');
-vendorFreeAssert(str_contains($installer, "'Native core runtime'"), 'installer does not verify native core runtime');
+$installer .= (string) file_get_contents($root . '/core/InstallerEnvironmentService.php');
+$installer .= (string) file_get_contents($root . '/core/InstallerDatabaseService.php');
+vendorFreeAssert(str_contains($installer, "'Нативное ядро приложения'"), 'installer does not verify native core runtime');
 vendorFreeAssert(
     str_contains($installer, "'HTTP Long Poll Messenger'")
     && str_contains($installer, "'WebSocket-ускоритель Messenger'"),

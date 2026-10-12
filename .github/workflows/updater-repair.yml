@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.1'
+          php-version: '8.2'
           extensions: mysqli, sodium, openssl, mbstring, fileinfo, zlib
           coverage: none
       - name: Validate and package repair

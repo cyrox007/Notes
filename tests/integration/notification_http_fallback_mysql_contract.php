@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 use App\Services\Notifications\NotificationDeliveryRuntime;
 use Core\DatabaseManager;
-use DateTimeImmutable;
-use DateTimeZone;
 
 $root = dirname(__DIR__, 2);
 $dbHost = getenv('TEST_DB_HOST') ?: '127.0.0.1';

@@ -58,6 +58,8 @@ hostingCompatibilityAssert(
 
 $environment = (string) file_get_contents($root . '/core/Environment.php');
 $installer = (string) file_get_contents($root . '/install.php');
+$installer .= (string) file_get_contents($root . '/core/InstallerEnvironmentService.php');
+$installer .= (string) file_get_contents($root . '/core/InstallerDatabaseService.php');
 $readiness = (string) file_get_contents($root . '/core/UpdateReadiness.php');
 $database = (string) file_get_contents($root . '/core/DatabaseManager.php');
 $longPoll = (string) file_get_contents($root . '/modules/messenger/services/MessengerLongPollService.php');
@@ -71,23 +73,23 @@ hostingCompatibilityAssert(
     'Загрузчик окружения не проверяет getenv/putenv'
 );
 hostingCompatibilityAssert(
-    str_contains($installer, 'PHP_VERSION_ID < 80100')
-        && strpos($installer, 'PHP_VERSION_ID < 80100') < strpos($installer, "require_once __DIR__ . '/core/SecurityHeaders.php'"),
+    str_contains($installer, 'PHP_VERSION_ID < 80200')
+        && strpos($installer, 'PHP_VERSION_ID < 80200') < strpos($installer, "require_once __DIR__ . '/core/SecurityHeaders.php'"),
     'Установщик не показывает совместимый с PHP 7.4 preflight до подключения ядра'
 );
 
 hostingCompatibilityAssert(
     str_contains($installer, "'getenv / putenv'")
         && str_contains($installer, "'ini_get'")
-        && str_contains($installer, "'Writable PHP upload temp'")
-        && str_contains($installer, "'flock / atomic rename'")
+        && str_contains($installer, "'Доступный временный каталог PHP для загрузок'")
+        && str_contains($installer, "'flock / атомарное переименование'")
         && str_contains($installer, 'assertPrivateStorageFilesystemContract')
-        && str_contains($installer, 'assertDatabaseServerCompatibility')
-        && str_contains($installer, 'assertDatabaseSchemaPrivileges')
+        && str_contains($installer, 'assertServerCompatibility')
+        && str_contains($installer, 'assertSchemaPrivileges')
         && str_contains($installer, 'CREATE TRIGGER')
         && str_contains($installer, 'HostingCompatibility::memoryLimitBytes()')
         && str_contains($installer, 'connection_aborted')
-        && str_contains($installer, 'PHP session storage недоступно')
+        && str_contains($installer, 'Хранилище PHP-сессий недоступно')
         && str_contains($installer, 'Фактический доступ к исходящему TCP/443'),
     'Установщик не содержит полный preflight виртуального хостинга'
 );

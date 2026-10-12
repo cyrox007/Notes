@@ -39,8 +39,9 @@ function runtimeCompositionAssert(bool $condition, string $message): void
     }
 }
 
-$expected = ['admin', 'files', 'messenger', 'notes', 'profile', 'tasks'];
+$expected = ['admin', 'calendar', 'files', 'messenger', 'notes', 'profile', 'tasks'];
 $providerClasses = [
+    'calendar' => 'Modules\\Calendar\\CalendarRuntimeProvider',
     'admin' => 'Modules\\Admin\\AdminRuntimeProvider',
     'files' => 'Modules\\Files\\FilesRuntimeProvider',
     'messenger' => 'Modules\\Messenger\\MessengerRuntimeProvider',
@@ -49,6 +50,7 @@ $providerClasses = [
     'tasks' => 'Modules\\Tasks\\TasksRuntimeProvider',
 ];
 $routeControllerClasses = [
+    'calendar' => 'Modules\\Calendar\\Controllers\\CalendarController',
     'admin' => 'App\\Controllers\\Admin\\AdminController',
     'files' => 'App\\Controllers\\FileController',
     'messenger' => 'App\\Controllers\\MessagerController',
@@ -102,7 +104,7 @@ $runtime = ModuleRuntimeLoader::boot($registry, $composition);
 runtimeCompositionAssert(array_keys($runtime->providers()) === $composition, 'loaded provider set does not equal requested composition');
 
 $capabilities = $runtime->capabilities();
-$capabilityOwners = array_values($capabilities->providers());
+$capabilityOwners = array_values(array_unique($capabilities->providers()));
 sort($capabilityOwners, SORT_STRING);
 $sortedComposition = $composition;
 sort($sortedComposition, SORT_STRING);

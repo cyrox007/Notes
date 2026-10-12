@@ -28,7 +28,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.1'
+          php-version: '8.2'
           extensions: mysqli, mbstring, sodium
           coverage: none
       - name: Проверить память отката и поведение браузера

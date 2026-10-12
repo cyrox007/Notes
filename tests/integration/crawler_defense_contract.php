@@ -83,9 +83,9 @@ foreach ([
     );
 }
 
-$index = (string) file_get_contents($root . '/index.php');
+$index = (string) file_get_contents($root . '/core/ApplicationEntryPoint.php');
 crawlerDefenseAssert(
-    str_contains($index, '\\Core\\CrawlerDefense::handleEarlyRequest();'),
+    str_contains($index, 'CrawlerDefense::handleEarlyRequest();'),
     'ранний scanner guard не подключён в index.php'
 );
 

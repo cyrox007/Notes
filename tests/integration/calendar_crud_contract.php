@@ -35,6 +35,26 @@ calendarCrudAssert($occurrences[0]->format('Y-m-d H:i:s') === '2026-10-24 07:00:
 calendarCrudAssert($occurrences[1]->format('Y-m-d H:i:s') === '2026-10-31 08:00:00', 'После DST локальные 09:00 должны стать 08:00 UTC');
 calendarCrudAssert($occurrences[2]->format('Y-m-d H:i:s') === '2026-11-07 08:00:00', 'Локальное время серии не должно сдвигаться после DST');
 
+// Range expansion must not leak a previous occurrence unless overlap is requested.
+$rangeStart = new DateTimeImmutable('2026-10-25T00:00:00Z');
+$rangeEnd = new DateTimeImmutable('2026-10-26T00:00:00Z');
+$eventStart = new DateTimeImmutable('2026-10-24T23:00:00Z');
+foreach ([null, 'FREQ=DAILY;INTERVAL=1'] as $rangeRule) {
+    $within = $recurrence->occurrences($eventStart, 'UTC', $rangeRule, $rangeStart, $rangeEnd);
+    foreach ($within as $occurrence) {
+        calendarCrudAssert($occurrence >= $rangeStart && $occurrence <= $rangeEnd, 'Occurrence outside requested range');
+    }
+    $overlapping = $recurrence->occurrences($eventStart, 'UTC', $rangeRule, $rangeStart, $rangeEnd, 500, 7200);
+    calendarCrudAssert($overlapping[0] == $eventStart, 'Explicit overlap must retain an event starting before range');
+}
+foreach ([-1, 2678401] as $invalidLookback) {
+    try {
+        $recurrence->occurrences($eventStart, 'UTC', null, $rangeStart, $rangeEnd, 500, $invalidLookback);
+        throw new RuntimeException('Invalid overlap window accepted');
+    } catch (InvalidArgumentException) {
+    }
+}
+
 $provider = (string) file_get_contents($root . '/modules/calendar/CalendarRuntimeProvider.php');
 calendarCrudAssert(str_contains($provider, "->group('/calendar')"), 'UI-маршрут Calendar отсутствует');
 calendarCrudAssert(str_contains($provider, "->group('/api/calendar/events')"), 'API-маршруты Calendar отсутствуют');

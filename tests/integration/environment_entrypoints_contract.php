@@ -22,17 +22,20 @@ $entrypoints = [
 foreach ($entrypoints as $relative) {
     $path = $root . '/' . $relative;
     $source = file_get_contents($path);
+    if (is_string($source) && str_contains($source, 'CliRuntime::loadEnvironment(')) {
+        $source .= (string) file_get_contents($root . '/core/CliRuntime.php');
+    }
     entrypointAssert(is_string($source), "cannot read {$relative}");
     entrypointAssert(
         !str_contains($source, 'Dotenv\\Dotenv'),
         "{$relative} still references phpdotenv"
     );
     entrypointAssert(
-        str_contains($source, '/core/Environment.php'),
+        str_contains($source, '/core/Environment.php') || str_contains($source, "__DIR__ . '/Environment.php'"),
         "{$relative} does not bootstrap the internal Environment loader"
     );
     entrypointAssert(
-        str_contains($source, '\\Core\\Environment::load('),
+        str_contains($source, '\\Core\\Environment::load(') || str_contains($source, 'Environment::load('),
         "{$relative} does not load .env through Core\\Environment"
     );
 }
@@ -61,8 +64,11 @@ entrypointAssert(!str_contains($core, 'Dotenv\\Dotenv'), 'core.php still referen
 // turning a missing local file into a hard failure.
 foreach ($entrypoints as $relative) {
     $source = (string) file_get_contents($root . '/' . $relative);
+    if (str_contains($source, 'CliRuntime::loadEnvironment(')) {
+        $source .= (string) file_get_contents($root . '/core/CliRuntime.php');
+    }
     entrypointAssert(
-        str_contains($source, "is_file(\$root . '/.env')"),
+        str_contains($source, "is_file(\$root . '/.env')") || str_contains($source, 'is_file($envFile)'),
         "{$relative} no longer preserves OS-only environment deployments"
     );
 }

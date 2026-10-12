@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 $root=dirname(__DIR__,2);
+require_once $root.'/core/RuntimeAutoloader.php';
+\Core\RuntimeAutoloader::register($root);
 require_once $root.'/core/DatabaseManager.php';
 require_once $root.'/core/Uuid.php';
 require_once $root.'/modules/messenger/handlers/MessengerCrypto.php';

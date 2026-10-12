@@ -18,9 +18,9 @@ $webRunner = (string) file_get_contents($root . '/assets/js/update-web-runner.js
 $router = (string) file_get_contents($root . '/modules/admin/AdminRuntimeProvider.php');
 $controller = (string) file_get_contents($root . '/modules/admin/controllers/UpdateController.php');
 $service = (string) file_get_contents($root . '/modules/admin/services/AdminUpdateService.php');
-$installer = (string) file_get_contents($root . '/install.php');
+$installer = (string) file_get_contents($root . '/install.php') . file_get_contents($root . '/core/InstallerEnvironmentService.php');
 $phpCli = (string) file_get_contents($root . '/core/UpdatePhpCli.php');
-$updateRun = (string) file_get_contents($root . '/bin/update_run.php');
+$updateRun = (string) file_get_contents($root . '/bin/update_run.php') . file_get_contents($root . '/core/UpdateRunSupport.php');
 $updateApply = (string) file_get_contents($root . '/core/UpdateApplyCommand.php');
 $updateBackup = (string) file_get_contents($root . '/core/UpdateBackupManager.php');
 $automaticRecovery = (string) file_get_contents($root . '/core/UpdateAutomaticRecovery.php');
@@ -66,9 +66,9 @@ updateNotificationAssert(
     'Клиент уведомлений не выполняет фоновую проверку'
 );
 updateNotificationAssert(
-    str_contains($script, "form.addEventListener('submit'")
+    str_contains($script, "document.addEventListener('wspace:update-install-request'")
         && str_contains($script, 'window.wspace?.updateWebRunner')
-        && str_contains($script, 'event.preventDefault()'),
+        && str_contains($script, 'runner.run('),
     'Кнопка обновления не использует общий пошаговый web-updater'
 );
 updateNotificationAssert(
@@ -125,7 +125,7 @@ updateNotificationAssert(
     'Поиск PHP CLI не проверяет бинарник рядом с фактическим web-PHP'
 );
 updateNotificationAssert(
-    str_contains($updateRun, 'function updateRunAutomaticRecover('),
+    str_contains($updateRun, 'function automaticRecover('),
     'Обновлятор не запускает автоматическое восстановление после ошибки применения'
 );
 updateNotificationAssert(
@@ -204,8 +204,8 @@ updateNotificationAssert(
     'Отсутствует ранний recovery до запуска БД и модулей'
 );
 $bootRecoveryOffset = strpos($entrypoint, '\\Core\\UpdateBootRecoveryGate::enforce(SITEPATH)');
-$schemaReadinessOffset = strpos($entrypoint, '\\Core\\SchemaReadiness::inspect(SITEPATH)');
-$coreBootstrapOffset = strpos($entrypoint, "require_once SITEPATH . '/core.php';");
+$schemaReadinessOffset = strpos($entrypoint, '\\Core\\ApplicationEntryPoint::bootstrap(SITEPATH)');
+$coreBootstrapOffset = strpos($entrypoint, '\\Core\\ApplicationEntryPoint::bootstrap(SITEPATH)');
 updateNotificationAssert(
     $bootRecoveryOffset !== false
         && $schemaReadinessOffset !== false
@@ -216,9 +216,9 @@ updateNotificationAssert(
     'Ранний recovery должен выполняться в index.php до проверки схемы и запуска core'
 );
 updateNotificationAssert(
-    str_contains($entrypoint, "\$supportDiagnosticsPath = SITEPATH . '/core/SupportDiagnostics.php'")
-        && str_contains($entrypoint, 'is_file($supportDiagnosticsPath)')
-        && str_contains($entrypoint, 'require_once $supportDiagnosticsPath'),
+    str_contains($entrypoint, "\$diagnosticsPath = \$root . '/core/SupportDiagnostics.php'")
+        && str_contains($entrypoint, 'is_file($diagnosticsPath)')
+        && str_contains($entrypoint, 'require_once $diagnosticsPath'),
     'Ранний bootstrap диагностики должен переживать пофайловый code switch без Warning/Fatal до публикации SupportDiagnostics.php'
 );
 updateNotificationAssert(

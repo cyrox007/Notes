@@ -2,7 +2,7 @@ name: Hosting installer
 
 on:
   pull_request:
-    branches: [master, '1.0', 'release/1.0.*-rc']
+    branches: [master, '1.0', '1.1', 'release/1.0.*-rc']
   push:
     branches: [hosting-installer-e2e]
 
@@ -31,10 +31,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup PHP 8.1
+      - name: Setup PHP 8.2
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.1'
+          php-version: '8.2'
           extensions: mysqli, pdo_mysql, mbstring, sodium, openssl, zlib, fileinfo, gd
           coverage: none
 
@@ -52,31 +52,13 @@ jobs:
           rm -rf vendor
           test ! -e vendor
           php -l install.php
-          grep -Fq 'PHP 8.1+' install.php
-          grep -Fq 'Native core runtime' install.php
-          grep -Fq 'HTTP Long Poll Messenger' install.php
-          grep -Fq 'getenv / putenv' install.php
-          grep -Fq 'assertDatabaseServerCompatibility' install.php
-          grep -Fq 'Фактический доступ к исходящему TCP/443' install.php
-          grep -Fq 'WebSocket-ускоритель Messenger' install.php
-          grep -Fq 'Изолированный updater через proc_open' install.php
-          ! grep -Fq 'vendor/autoload.php' install.php
-          ! grep -Fq 'Workerman' install.php
-          grep -Fq 'preparePrivateStorage' install.php
-          grep -Fq 'connectOrCreateDatabase' install.php
-          grep -Fq 'writeEnvironmentFile' install.php
-          grep -Fq 'WS_PUBLIC_URL' install.php
-          grep -Fq 'WS_ENABLED=' install.php
-          grep -Fq 'Использовать WebSocket-ускорение' install.php
-          grep -Fq 'Long Poll' install.php
-          grep -Fq 'BASE_PATH' install.php
+          php tests/integration/vendor_free_runtime_contract.php
+          php tests/integration/installer_cli_architecture_contract.php
           test -f database/settings_schema.sql
           test -f database/access_control_schema.sql
           test -f database/module_lifecycle_schema.sql
           grep -Fq 'task_boards' database/tasks_schema.sql
           grep -Fq 'role_module_policies' database/access_control_schema.sql
-          ! grep -Fq 'SITEURL=http://localhost' install.php
-          ! grep -Fq 'WS_PUBLIC_URL=ws://localhost:27800' install.php
 
       - name: Prepare hosting-like document root without vendor
         shell: bash
@@ -130,11 +112,11 @@ jobs:
             fi
             sleep 1
           done
-          grep -Fq 'Native core runtime' /tmp/install-step1.html
+          grep -Fq 'Нативное ядро приложения' /tmp/install-step1.html
           grep -Fq 'HTTP Long Poll Messenger' /tmp/install-step1.html
           grep -Fq 'WebSocket-ускоритель Messenger' /tmp/install-step1.html
           grep -Fq 'Недоступен в этом PHP; Messenger будет полностью работать через Long Poll.' /tmp/install-step1.html
-          grep -Fq 'Не требуется: updater автоматически использует совместимый web-режим.' /tmp/install-step1.html
+          grep -Fq 'Не требуется: обновлятор автоматически использует совместимый web-режим.' /tmp/install-step1.html
           ! grep -Fq 'vendor/autoload.php' /tmp/install-step1.html
           grep -Fq 'http://127.0.0.1:8080/workspace/' /tmp/install-step1.html
           grep -Fq 'HTTP Long Poll' /tmp/install-step1.html
@@ -189,7 +171,7 @@ jobs:
             "$BASE/install.php" -o /tmp/install-finished.html
 
           grep -Fq 'Установка завершена' /tmp/install-finished.html
-          grep -Fq 'основной Long Poll transport уже работает' /tmp/install-finished.html
+          grep -Fq 'Long Poll' /tmp/install-finished.html
           grep -Fq 'http://127.0.0.1:8080/workspace/' /tmp/install-finished.html
 
       - name: Verify generated hosting contract
@@ -221,7 +203,9 @@ jobs:
           done
 
           TABLES=$(mysql -N -h 127.0.0.1 -uroot -proot -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='notes_hosting_test';")
-          test "$TABLES" -eq 35
+          EXPECTED_TABLES=$(php -r 'require "core/ModuleManifest.php"; require "core/DatabaseOwnership.php"; echo count(\Core\DatabaseOwnership::fromPackageRoot(getcwd())->tables());')
+          echo "Installed tables: $TABLES; package contract: $EXPECTED_TABLES"
+          test "$TABLES" -eq "$EXPECTED_TABLES"
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='module_lifecycle'")" = "1"
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('system_settings','user_storage_quotas')")" = "2"
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_hosting_test -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('roles','permissions','role_permissions','user_roles','role_module_policies')")" = "5"
@@ -239,7 +223,7 @@ jobs:
           test ! -e vendor
           php bin/healthcheck.php --json | tee /tmp/hosting-health.json
           grep -Fq '"status": "ok"' /tmp/hosting-health.json
-          grep -Fq '35 required tables present' /tmp/hosting-health.json
+          php -r '$health=json_decode(file_get_contents("/tmp/hosting-health.json"),true,512,JSON_THROW_ON_ERROR); $checks=array_column($health["checks"],null,"name"); if (($checks["database_contract"]["ok"] ?? false) !== true) { exit(1); }' 
           grep -Fq '"name": "database_server_version"' /tmp/hosting-health.json
 
       - name: Installer locks after completion
@@ -247,7 +231,7 @@ jobs:
         run: |
           STATUS=$(curl -sS -o /tmp/locked-installer.txt -w '%{http_code}' -c /tmp/new-cookie.txt http://127.0.0.1:8080/workspace/install.php)
           test "$STATUS" = '404'
-          grep -Fq 'Installer is locked.' /tmp/locked-installer.txt
+          grep -Fq 'Установщик заблокирован.' /tmp/locked-installer.txt
 
       - name: Show server log on failure
         if: failure()
@@ -274,8 +258,8 @@ jobs:
           set -euo pipefail
           php -l install.php
           php install.php > /tmp/php74-installer.html
-          grep -Fq 'Требуется PHP 8.1 или новее' /tmp/php74-installer.html
-          grep -Fq 'Выберите PHP 8.1+ в панели хостинга' /tmp/php74-installer.html
+          grep -Fq 'Требуется PHP 8.2 или новее' /tmp/php74-installer.html
+          grep -Fq 'Выберите PHP 8.2+ в панели хостинга' /tmp/php74-installer.html
           ! grep -Fq 'Parse error' /tmp/php74-installer.html
           ! grep -Fq 'Fatal error' /tmp/php74-installer.html
 

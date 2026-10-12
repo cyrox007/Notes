@@ -185,5 +185,7 @@ try {
 } finally {
     putenv('UPDATE_ACCESS_MODE');
     putenv('UPDATE_CREDENTIALS_FILE');
+    unset($db, $server, $transport, $delivery);
+    gc_collect_cycles();
     accessRemove($work);
 }

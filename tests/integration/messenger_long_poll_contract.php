@@ -37,7 +37,7 @@ $updateNotifications = file_get_contents($root . '/assets/js/update-notification
 $adminUpdates = file_get_contents($root . '/modules/admin/assets/admin-updates.js');
 $tabCoordinator = file_get_contents($root . '/assets/js/messenger-tab-coordinator.js');
 $baseView = file_get_contents($root . '/app/views/core/base.php');
-$entrypoint = file_get_contents($root . '/index.php');
+$entrypoint = file_get_contents($root . '/index.php') . file_get_contents($root . '/core/ApplicationEntryPoint.php');
 $messengerRunbook = file_get_contents($root . '/docs/MESSENGER_SERVER.md');
 $hostingRunbook = file_get_contents($root . '/docs/HOSTING_INSTALL.md');
 $deploymentCompatibility = file_get_contents($root . '/docs/DEPLOYMENT_COMPATIBILITY.md');
@@ -132,7 +132,7 @@ assertLongPollContract(
         $entrypoint
     ) === 1
     && preg_match(
-        '/function handleSchemaUpgradeRequired.*?isMessengerLongPollRequest\(\).*?handleSuspendedMessengerLongPoll\(\)/s',
+        '/function respondSchemaUpgradeRequired.*?isMessengerLongPollRequest\(\).*?respondSuspendedMessengerLongPoll\(\)/s',
         $entrypoint
     ) === 1,
     'maintenance/schema barrier must suspend background Long Poll with HTTP 200 instead of producing background 5xx'

@@ -16,6 +16,7 @@ $script = file_get_contents($scriptPath);
 if (!is_string($script)) {
     throw new RuntimeException('Не удалось прочитать modules/tasks/assets/tasks-page.js');
 }
+$script = str_replace("\r\n", "\n", $script);
 
 tasksAjaxAssert(
     !str_contains($script, 'window.location.reload()'),

@@ -14,6 +14,7 @@ final class CalendarRecurrence
 {
     private const FREQUENCIES = ['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'];
     private const WEEKDAYS = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
+    private const MAX_LOOKBACK_SECONDS = 2678400;
 
     /** @param array<string,mixed>|null $definition */
     public function encode(?array $definition, DateTimeZone $timezone): ?string
@@ -94,11 +95,16 @@ final class CalendarRecurrence
         ?string $rule,
         DateTimeImmutable $rangeStartUtc,
         DateTimeImmutable $rangeEndUtc,
-        int $limit = 500
+        int $limit = 500,
+        int $lookbackSeconds = 0
     ): array {
         if ($limit < 1 || $limit > 1000) {
             throw new InvalidArgumentException('Лимит экземпляров повторения должен быть от 1 до 1000');
         }
+        if ($lookbackSeconds < 0 || $lookbackSeconds > self::MAX_LOOKBACK_SECONDS) {
+            throw new InvalidArgumentException('Окно пересечения события должно быть от 0 до 31 дня');
+        }
+
         $utc = new DateTimeZone('UTC');
         $eventStartUtc = $eventStartUtc->setTimezone($utc);
         $rangeStartUtc = $rangeStartUtc->setTimezone($utc);
@@ -107,8 +113,14 @@ final class CalendarRecurrence
             throw new InvalidArgumentException('Конец диапазона календаря раньше начала');
         }
 
+        $effectiveRangeStartUtc = $lookbackSeconds > 0
+            ? $rangeStartUtc->modify('-' . $lookbackSeconds . ' seconds')
+            : $rangeStartUtc;
+
         if ($rule === null || trim($rule) === '') {
-            return $eventStartUtc <= $rangeEndUtc ? [$eventStartUtc] : [];
+            return $eventStartUtc >= $effectiveRangeStartUtc && $eventStartUtc <= $rangeEndUtc
+                ? [$eventStartUtc]
+                : [];
         }
 
         $parts = $this->parse($rule);
@@ -121,7 +133,7 @@ final class CalendarRecurrence
         $tz = $this->timezone($timezone);
         $startLocal = $eventStartUtc->setTimezone($tz);
         $startDay = new DateTimeImmutable($startLocal->format('Y-m-d') . ' 00:00:00', $tz);
-        $scanStartLocal = $rangeStartUtc->setTimezone($tz)->modify('-1 day');
+        $scanStartLocal = $effectiveRangeStartUtc->setTimezone($tz)->modify('-1 day');
         if ($scanStartLocal < $startDay) {
             $scanStartLocal = $startDay;
         }
@@ -141,6 +153,7 @@ final class CalendarRecurrence
                 $candidateLocal = new DateTimeImmutable($cursor->format('Y-m-d') . ' ' . $time, $tz);
                 $candidateUtc = $candidateLocal->setTimezone($utc);
                 if ($candidateUtc >= $eventStartUtc
+                    && $candidateUtc >= $effectiveRangeStartUtc
                     && $candidateUtc <= $rangeEndUtc
                     && ($untilUtc === null || $candidateUtc <= $untilUtc)) {
                     $result[] = $candidateUtc;

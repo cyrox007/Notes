@@ -6,13 +6,13 @@ use App\Sockets\NativeMessengerServer;
 use Core\WebSocketEndpoint;
 
 // Keep this guard before loading any application source. The supported runtime
-// uses PHP 8.1 language features, but this launcher intentionally remains
+// uses PHP 8.2 language features, but this launcher intentionally remains
 // parseable on common legacy CLI versions so a hosting shell with the wrong PHP
 // binary reports a useful diagnostic instead of an unrelated syntax error.
-if (PHP_VERSION_ID < 80100) {
+if (PHP_VERSION_ID < 80200) {
     fwrite(
         STDERR,
-        'Для WebSocket-сервера Workspace Organizer требуется PHP CLI 8.1+; сейчас используется '
+        'Для WebSocket-сервера Workspace Organizer требуется PHP CLI 8.2+; сейчас используется '
         . PHP_VERSION
         . ' через '
         . PHP_BINARY

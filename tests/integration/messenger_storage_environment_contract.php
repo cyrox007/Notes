@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 $root=dirname(__DIR__,2);
+require_once $root.'/core/RuntimeAutoloader.php';
+\Core\RuntimeAutoloader::register($root);
 require $root.'/core/Environment.php';
 require $root.'/modules/messenger/services/MessengerVoiceService.php';
 require $root.'/modules/messenger/services/MessengerMediaService.php';
@@ -12,7 +14,7 @@ try {
         $reflection=new ReflectionClass($class);
         $instance=$reflection->newInstanceWithoutConstructor();
         $method=$reflection->getMethod('privateStorageRoot');$method->setAccessible(true);
-        if($method->invoke($instance)!==$_ENV['PRIVATE_STORAGE_PATH'])throw new RuntimeException($class.' lost request-local private storage');
+        if(str_replace('\\','/',$method->invoke($instance))!==str_replace('\\','/',$_ENV['PRIVATE_STORAGE_PATH']))throw new RuntimeException($class.' lost request-local private storage');
     }
     echo "PASS: voice upload and recorded send preserve request-local storage when process environment disappears\n";
 } finally {

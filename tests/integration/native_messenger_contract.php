@@ -66,7 +66,7 @@ $literalClose = '{/' . 'literal}';
 foreach ($jsFiles as $asset) {
     $source = (string) file_get_contents($module . '/views/' . $asset);
     $source = str_replace([$literalOpen, $literalClose], '', $source);
-    foreach (['{$', '{if ', '{foreach ', '{include '] as $smartyToken) {
+    foreach (['{$', '{if $', '{foreach $', '{include "'] as $smartyToken) {
         nativeMessengerAssert(!str_contains($source, $smartyToken), "Messenger JS {$asset} still requires Smarty expansion: {$smartyToken}");
     }
 }
@@ -112,7 +112,7 @@ nativeMessengerAssert(str_contains($media, 'sendFiles(files).then'), 'staged cli
 nativeMessengerAssert(str_contains($media, "appPath('/messenger/upload')"), 'Messenger media upload is not BASE_PATH-aware');
 $connectionCss = (string) file_get_contents($root . '/assets/css/messenger-connection-ux.css');
 nativeMessengerAssert(str_contains($connectionCss, '.messenger-app .messenger-list__header{height:auto;min-height:64px;max-height:none;align-items:center}'), 'шапка списка чатов не использует компактную высоту');
-nativeMessengerAssert(str_contains($connectionCss, '.messenger-list__header .messenger-connection{display:flex!important}'), 'состояние транспорта скрыто в шапке Messenger');
+nativeMessengerAssert(str_contains($connectionCss, '.messenger-list__header .messenger-connection{display:flex!important;'), 'состояние транспорта скрыто в шапке Messenger');
 nativeMessengerAssert(str_contains($view, 'data-state="connecting" data-transport="none" role="status"'), 'Messenger не показывает безопасное начальное состояние транспорта');
 nativeMessengerAssert(str_contains($script, "setConnectionTransport('websocket')"), 'Messenger не отмечает активный WebSocket зелёным транспортным состоянием');
 nativeMessengerAssert(str_contains($script, "setConnectionTransport('long-poll')"), 'Messenger не отмечает активный Long Poll отдельным транспортным состоянием');

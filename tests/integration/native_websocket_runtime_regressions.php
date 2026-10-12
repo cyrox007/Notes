@@ -24,8 +24,23 @@ function wsRuntimeAssert(bool $condition, string $message): void
 /** @return array{0:resource,1:resource} */
 function wsRuntimeSocketPair(): array
 {
-    $pair = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
-    if (!is_array($pair) || count($pair) !== 2) {
+    if (PHP_OS_FAMILY === 'Windows') {
+        $listener = stream_socket_server('tcp://127.0.0.1:0', $errorCode, $errorMessage);
+        if ($listener === false) {
+            throw new RuntimeException('Unable to create test TCP listener: ' . $errorMessage);
+        }
+        try {
+            $address = stream_socket_get_name($listener, false);
+            $client = stream_socket_client('tcp://' . $address, $errorCode, $errorMessage, 5);
+            $server = stream_socket_accept($listener, 5);
+            $pair = [$client, $server];
+        } finally {
+            fclose($listener);
+        }
+    } else {
+        $pair = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
+    }
+    if (!is_array($pair) || count($pair) !== 2 || !is_resource($pair[0]) || !is_resource($pair[1])) {
         throw new RuntimeException('Unable to create local socket pair');
     }
     stream_set_blocking($pair[0], false);

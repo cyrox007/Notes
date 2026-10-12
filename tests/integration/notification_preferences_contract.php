@@ -11,7 +11,7 @@ function notificationPreferencesAssert(bool $condition, string $message): void
     }
 }
 
-$service = file_get_contents($root . '/app/services/notifications/DatabaseNotificationPreferences.php');
+$service = str_replace("\r\n", "\n", (string) file_get_contents($root . '/app/services/notifications/DatabaseNotificationPreferences.php'));
 $controller = file_get_contents($root . '/app/controllers/NotificationController.php');
 $routes = file_get_contents($root . '/core/routerConfig.php');
 

@@ -22,7 +22,6 @@ use App\Services\LicenseVerifier;
 use App\Services\UserProvisioningService;
 use Core\DatabaseManager;
 use Core\LocalControlPlaneContext;
-use DomainException;
 
 function seatAssert(bool $condition, string $message): void
 {
