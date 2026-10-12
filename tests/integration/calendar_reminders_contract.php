@@ -33,8 +33,10 @@ calendarReminderAssert(
         'calendar_event_reminder_offsets',
         'calendar_reminders',
         'calendar_runtime_state',
+        'calendar_time_blocks',
+        'calendar_item_links',
     ],
-    'Calendar должен владеть только своими таблицами, включая сохранённые смещения напоминаний'
+    'Calendar должен владеть только своими таблицами, включая напоминания, временные блоки и связи'
 );
 calendarReminderAssert(
     in_array('database/migrations/20261011_calendar_reminders.sql', $manifest['database']['migrations'] ?? [], true),
@@ -43,6 +45,10 @@ calendarReminderAssert(
 calendarReminderAssert(
     in_array('database/migrations/20261011_calendar_crud.sql', $manifest['database']['migrations'] ?? [], true),
     'Manifest Calendar должен владеть CRUD-миграцией'
+);
+calendarReminderAssert(
+    in_array('database/migrations/20261012_calendar_planning_links.sql', $manifest['database']['migrations'] ?? [], true),
+    'Manifest Calendar должен владеть миграцией ежедневника и связей'
 );
 
 $globalMigrationManifest = json_decode(
@@ -58,6 +64,10 @@ calendarReminderAssert(
 calendarReminderAssert(
     in_array('20261011_calendar_crud.sql', $globalMigrationManifest['migrations'] ?? [], true),
     'CRUD-миграция Calendar должна входить в канонический порядок'
+);
+calendarReminderAssert(
+    in_array('20261012_calendar_planning_links.sql', $globalMigrationManifest['migrations'] ?? [], true),
+    'Миграция ежедневника Calendar должна входить в канонический порядок'
 );
 
 $sql = calendarReminderRead($root . '/database/migrations/20261011_calendar_reminders.sql');
