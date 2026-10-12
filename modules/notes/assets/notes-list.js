@@ -13,14 +13,7 @@
             feedback?.toast?.(message, type);
         }
 
-        async function confirmAction(message) {
-            if (feedback?.confirm) {
-                return feedback.confirm(message, {
-                    title: 'Удаление заметки',
-                    confirmText: 'Удалить',
-                    danger: true,
-                });
-            }
+        function confirmAction(message) {
             return window.confirm(message);
         }
 
@@ -66,7 +59,7 @@
         async function deleteNote(form, button) {
             if (busyForms.has(form)) return;
             const message = form.dataset.confirmMessage || 'Вы уверены, что хотите удалить эту заметку?';
-            if (!await confirmAction(message)) return;
+            if (!confirmAction(message)) return;
 
             busyForms.add(form);
             button.disabled = true;
@@ -88,7 +81,6 @@
                 deleted = true;
                 toast('Заметка удалена', 'success');
             } catch (error) {
-                if (deleted) return;
                 const message = error instanceof Error ? error.message : 'Не удалось удалить заметку';
                 feedback?.inline?.(form, message, 'error');
                 toast(message, 'error');
