@@ -13,8 +13,10 @@ on:
       - 'assets/js/update-notifications.js'
       - 'bin/notifications_worker.php'
       - 'core/ApplicationEntryPoint.php'
+      - 'core/DatabaseOwnership.php'
       - 'core/routerConfig.php'
       - 'database/core_identity_schema.sql'
+      - 'database/migrations/manifest.json'
       - 'database/migrations/*notifications*.sql'
       - 'tests/integration/notification_*contract.php'
       - 'tests/integration/smtp_socket_transport_contract.php'
@@ -31,8 +33,10 @@ on:
       - 'assets/js/update-notifications.js'
       - 'bin/notifications_worker.php'
       - 'core/ApplicationEntryPoint.php'
+      - 'core/DatabaseOwnership.php'
       - 'core/routerConfig.php'
       - 'database/core_identity_schema.sql'
+      - 'database/migrations/manifest.json'
       - 'database/migrations/*notifications*.sql'
       - 'tests/integration/notification_*contract.php'
       - 'tests/integration/smtp_socket_transport_contract.php'
@@ -123,6 +127,7 @@ jobs:
           php tests/integration/notification_center_ui_contract.php
           php -l app/services/notifications/NotificationDeliveryRuntime.php
           php -l core/ApplicationEntryPoint.php
+          php -l core/DatabaseOwnership.php
           php -l bin/notifications_worker.php
           node --check assets/js/notification-center.js
           node --check assets/js/update-notifications.js
