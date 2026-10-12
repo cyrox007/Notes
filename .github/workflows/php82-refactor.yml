@@ -121,7 +121,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
-          extensions: pdo_sqlite, sqlite3, mbstring, sodium, openssl, fileinfo
+          extensions: pdo_sqlite, sqlite3, mbstring, sodium, openssl, fileinfo, zip
           coverage: none
       - name: Verify Windows runtime contracts
         shell: pwsh
@@ -142,3 +142,4 @@ jobs:
             php "tests/integration/$contract.php"
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
+
