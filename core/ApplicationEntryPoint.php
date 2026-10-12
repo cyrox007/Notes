@@ -29,6 +29,7 @@ final class ApplicationEntryPoint
         }
 
         require_once $root . '/core.php';
+        self::scheduleNotificationHttpFallback();
     }
 
     public static function dispatch(string $root): void
@@ -48,6 +49,48 @@ final class ApplicationEntryPoint
         require_once $root . '/core/routerConfig.php';
         ModuleRuntimeLoader::getInstance()->registerRoutes($router);
         $router->dispatch();
+    }
+
+    private static function scheduleNotificationHttpFallback(): void
+    {
+        if (!self::shouldScheduleNotificationHttpFallback()) {
+            return;
+        }
+
+        register_shutdown_function(static function (): void {
+            if (session_status() === PHP_SESSION_ACTIVE) {
+                session_write_close();
+            }
+            if (function_exists('fastcgi_finish_request')) {
+                fastcgi_finish_request();
+            }
+
+            try {
+                (new \App\Services\Notifications\NotificationDeliveryRuntime())->runHttpFallback();
+            } catch (\Throwable $e) {
+                ServiceLog::emit(
+                    'notifications.http_fallback_failed',
+                    'warning',
+                    'notifications',
+                    ['error_type' => $e::class]
+                );
+            }
+        });
+    }
+
+    private static function shouldScheduleNotificationHttpFallback(): bool
+    {
+        if (PHP_SAPI === 'cli' || self::isMessengerLongPollRequest()) {
+            return false;
+        }
+
+        $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+        if (in_array($method, ['HEAD', 'OPTIONS'], true)) {
+            return false;
+        }
+
+        $path = self::requestPath();
+        return preg_match('~(?:^|/)module-assets/?$~D', $path) !== 1;
     }
 
     /**
