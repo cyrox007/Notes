@@ -192,6 +192,14 @@ jobs:
         run: |
           set -euo pipefail
           node tests/e2e/notes-lifecycle.mjs
+
+      - name: Run Notes voice contract in Chromium
+        shell: bash
+        env:
+          E2E_ORIGIN: http://127.0.0.1:18089
+          E2E_BASE_PATH: /workspace
+        run: |
+          set -euo pipefail
           node tests/e2e/notes-voice-contract.mjs
 
       - name: Verify durable Notes lifecycle state
