@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 
 function requiredEnv(name) {
@@ -36,6 +37,10 @@ function actionAnnotation(error) {
 
 function isHttpUrl(url) {
   return url.protocol === 'http:' || url.protocol === 'https:';
+}
+
+function diagnosticMessage(error) {
+  return error instanceof Error ? (error.stack || error.message) : String(error);
 }
 
 const origin = requiredEnv('E2E_ORIGIN');
@@ -154,6 +159,15 @@ try {
 
   console.log('Голосовая заметка Notes сохраняется по AJAX без перезагрузки: OK');
 } catch (error) {
+  const diagnostic = {
+    stage,
+    error: diagnosticMessage(error),
+    pageErrors: pageErrors.map(diagnosticMessage),
+    escapedRequests: [...new Set(escapedRequests)],
+    httpErrors,
+    pageUrl: page.url(),
+  };
+  writeFileSync('/tmp/notes-voice-contract-failure.json', `${JSON.stringify(diagnostic, null, 2)}\n`, 'utf8');
   console.error(`::error title=Голосовой контракт Notes — ${stage}::${actionAnnotation(error)}`);
   throw error;
 } finally {
