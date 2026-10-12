@@ -32,7 +32,6 @@
             });
         }
 
-
         const appPath = (path) => window.wspace?.path ? window.wspace.path(path) : path;
         const modal = document.getElementById('create-task-modal');
         const openBtn = document.getElementById('open-create-task');
@@ -97,6 +96,33 @@
             return payload;
         }
 
+        async function refreshTaskSection(taskUid, selector) {
+            const response = await fetch(window.location.href, {
+                method: 'GET',
+                credentials: 'same-origin',
+                headers: {
+                    'Accept': 'text/html',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const html = await response.text();
+            const documentCopy = new DOMParser().parseFromString(html, 'text/html');
+            const escapedUid = CSS.escape(taskUid);
+            const currentTask = root.querySelector(`.task-item[data-task-id="${escapedUid}"]`);
+            const freshTask = documentCopy.querySelector(`.task-item[data-task-id="${escapedUid}"]`);
+            const currentSection = currentTask?.querySelector(selector);
+            const freshSection = freshTask?.querySelector(selector);
+            if (!currentSection || !freshSection) {
+                throw new Error('Не удалось обновить карточку задачи');
+            }
+
+            currentSection.replaceWith(document.importNode(freshSection, true));
+        }
+
         async function updateTaskStatus(taskUid, status) {
             return requestJson(appPath(`/tasks/${encodeURIComponent(taskUid)}/update`), {
                 method: 'POST',
@@ -144,8 +170,7 @@
             return control?.closest('.task-item') || null;
         }
 
-        function markSaveState(control, state) {
-            const task = taskItemFor(control);
+        function markTaskSaveState(task, state) {
             if (!task) return;
             task.dataset.saveState = state;
             if (state === 'saved') {
@@ -153,6 +178,10 @@
                     if (task.dataset.saveState === 'saved') delete task.dataset.saveState;
                 }, 900);
             }
+        }
+
+        function markSaveState(control, state) {
+            markTaskSaveState(taskItemFor(control), state);
         }
 
         root.querySelectorAll('.task-status-toggle').forEach((toggle) => {
@@ -227,54 +256,113 @@
             });
         });
 
-        root.querySelectorAll('.add-subtask-btn').forEach((button) => {
-            button.addEventListener('click', async () => {
+        root.addEventListener('click', async (event) => {
+            const target = event.target instanceof Element ? event.target : null;
+            if (!target) return;
+
+            const addSubtaskButton = target.closest('.add-subtask-btn');
+            if (addSubtaskButton && root.contains(addSubtaskButton)) {
                 const title = window.prompt('Название подзадачи:');
                 if (title === null || title.trim() === '') return;
+                const task = taskItemFor(addSubtaskButton);
+                addSubtaskButton.disabled = true;
+                markTaskSaveState(task, 'saving');
                 try {
-                    await requestJson(appPath(`/tasks/${encodeURIComponent(button.dataset.taskId)}/subtask`), {
+                    await requestJson(appPath(`/tasks/${encodeURIComponent(addSubtaskButton.dataset.taskId)}/subtask`), {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
                         body: new URLSearchParams({ title: title.trim() }).toString()
                     });
-                    window.location.reload();
+                    await refreshTaskSection(addSubtaskButton.dataset.taskId, '.task-subtasks');
+                    markTaskSaveState(task, 'saved');
                 } catch (error) {
+                    markTaskSaveState(task, 'error');
+                    addSubtaskButton.disabled = false;
                     window.alert(`Не удалось добавить подзадачу: ${error.message}`);
                 }
-            });
-        });
+                return;
+            }
 
-        root.querySelectorAll('.subtask-toggle').forEach((toggle) => {
-            toggle.dataset.nativeTaskChange = '1';
-            toggle.addEventListener('change', async function () {
-                const previous = !this.checked;
-                this.disabled = true;
-                syncSubtaskProgress(this);
-                markSaveState(this, 'saving');
-                try {
-                    await requestJson(appPath(`/tasks/subtask/${encodeURIComponent(this.dataset.subtaskId)}/toggle`), { method: 'POST' });
-                    markSaveState(this, 'saved');
-                } catch (error) {
-                    this.checked = previous;
-                    syncSubtaskProgress(this);
-                    markSaveState(this, 'error');
-                    window.alert(`Не удалось изменить подзадачу: ${error.message}`);
-                } finally {
-                    this.disabled = false;
-                }
-            });
-        });
-
-        root.querySelectorAll('.delete-subtask').forEach((button) => {
-            button.addEventListener('click', async () => {
+            const deleteSubtaskButton = target.closest('.delete-subtask');
+            if (deleteSubtaskButton && root.contains(deleteSubtaskButton)) {
                 if (!window.confirm('Удалить подзадачу?')) return;
+                const task = taskItemFor(deleteSubtaskButton);
+                const taskUid = task?.dataset.taskId || '';
+                deleteSubtaskButton.disabled = true;
+                markTaskSaveState(task, 'saving');
                 try {
-                    await requestJson(appPath(`/tasks/subtask/${encodeURIComponent(button.dataset.subtaskId)}/delete`), { method: 'POST' });
-                    window.location.reload();
+                    await requestJson(appPath(`/tasks/subtask/${encodeURIComponent(deleteSubtaskButton.dataset.subtaskId)}/delete`), { method: 'POST' });
+                    await refreshTaskSection(taskUid, '.task-subtasks');
+                    markTaskSaveState(task, 'saved');
                 } catch (error) {
+                    markTaskSaveState(task, 'error');
+                    deleteSubtaskButton.disabled = false;
                     window.alert(`Не удалось удалить подзадачу: ${error.message}`);
                 }
-            });
+                return;
+            }
+
+            const attachCategoryButton = target.closest('.attach-category-btn');
+            if (attachCategoryButton && root.contains(attachCategoryButton)) {
+                const task = taskItemFor(attachCategoryButton);
+                const taskUid = attachCategoryButton.dataset.taskId || '';
+                const selector = root.querySelector(`.task-category-select[data-task-id="${CSS.escape(taskUid)}"]`);
+                const categoryId = selector?.value || '';
+                if (!categoryId) return;
+                attachCategoryButton.disabled = true;
+                markTaskSaveState(task, 'saving');
+                try {
+                    await requestJson(appPath(`/tasks/${encodeURIComponent(taskUid)}/category/${encodeURIComponent(categoryId)}`), { method: 'POST' });
+                    await refreshTaskSection(taskUid, '.task-meta');
+                    if (selector) selector.value = '';
+                    markTaskSaveState(task, 'saved');
+                } catch (error) {
+                    markTaskSaveState(task, 'error');
+                    window.alert(`Не удалось добавить категорию: ${error.message}`);
+                } finally {
+                    attachCategoryButton.disabled = !selector?.value;
+                }
+                return;
+            }
+
+            const detachCategoryButton = target.closest('.detach-category-btn');
+            if (detachCategoryButton && root.contains(detachCategoryButton)) {
+                const task = taskItemFor(detachCategoryButton);
+                const taskUid = detachCategoryButton.dataset.taskId || '';
+                detachCategoryButton.disabled = true;
+                markTaskSaveState(task, 'saving');
+                try {
+                    await requestJson(appPath(`/tasks/${encodeURIComponent(taskUid)}/category/${encodeURIComponent(detachCategoryButton.dataset.categoryId)}`), { method: 'DELETE' });
+                    await refreshTaskSection(taskUid, '.task-meta');
+                    markTaskSaveState(task, 'saved');
+                } catch (error) {
+                    markTaskSaveState(task, 'error');
+                    detachCategoryButton.disabled = false;
+                    window.alert(`Не удалось убрать категорию: ${error.message}`);
+                }
+            }
+        });
+
+        root.addEventListener('change', async (event) => {
+            const target = event.target instanceof Element ? event.target : null;
+            const toggle = target?.closest('.subtask-toggle');
+            if (!toggle || !root.contains(toggle)) return;
+
+            const previous = !toggle.checked;
+            toggle.disabled = true;
+            syncSubtaskProgress(toggle);
+            markSaveState(toggle, 'saving');
+            try {
+                await requestJson(appPath(`/tasks/subtask/${encodeURIComponent(toggle.dataset.subtaskId)}/toggle`), { method: 'POST' });
+                markSaveState(toggle, 'saved');
+            } catch (error) {
+                toggle.checked = previous;
+                syncSubtaskProgress(toggle);
+                markSaveState(toggle, 'error');
+                window.alert(`Не удалось изменить подзадачу: ${error.message}`);
+            } finally {
+                toggle.disabled = false;
+            }
         });
 
         root.querySelectorAll('[data-category-create-open]').forEach(link => {
@@ -290,31 +378,6 @@
         root.querySelectorAll('.task-category-select').forEach(selector => {
             const sync = () => {const button=selector.closest('.task-category-attach')?.querySelector('.attach-category-btn');if(button)button.disabled=!selector.value;};
             selector.addEventListener('change',sync);sync();
-        });
-
-        root.querySelectorAll('.attach-category-btn').forEach((button) => {
-            button.addEventListener('click', async () => {
-                const selector = document.querySelector(`.task-category-select[data-task-id="${CSS.escape(button.dataset.taskId)}"]`);
-                const categoryId = selector?.value || '';
-                if (!categoryId) return;
-                try {
-                    await requestJson(appPath(`/tasks/${encodeURIComponent(button.dataset.taskId)}/category/${encodeURIComponent(categoryId)}`), { method: 'POST' });
-                    window.location.reload();
-                } catch (error) {
-                    window.alert(`Не удалось добавить категорию: ${error.message}`);
-                }
-            });
-        });
-
-        root.querySelectorAll('.detach-category-btn').forEach((button) => {
-            button.addEventListener('click', async () => {
-                try {
-                    await requestJson(appPath(`/tasks/${encodeURIComponent(button.dataset.taskId)}/category/${encodeURIComponent(button.dataset.categoryId)}`), { method: 'DELETE' });
-                    window.location.reload();
-                } catch (error) {
-                    window.alert(`Не удалось убрать категорию: ${error.message}`);
-                }
-            });
         });
     }
 

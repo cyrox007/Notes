@@ -1,0 +1,45 @@
+name: Tasks 1.1 — действия без перезагрузки
+
+on:
+  push:
+    branches:
+      - '1.1'
+      - 'ux/1.1-tasks-inline-actions-*'
+    paths:
+      - 'modules/tasks/assets/tasks-page.js'
+      - 'tests/integration/tasks_ajax_contract.php'
+      - '.github/workflows/tasks-ajax.yml'
+  pull_request:
+    branches: ['1.1']
+    paths:
+      - 'modules/tasks/assets/tasks-page.js'
+      - 'tests/integration/tasks_ajax_contract.php'
+      - '.github/workflows/tasks-ajax.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tasks-ajax:
+    name: tasks-ajax
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+
+      - name: Подготовить PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: Проверить сценарии Tasks без полной перезагрузки
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check modules/tasks/assets/tasks-page.js
+          php -l tests/integration/tasks_ajax_contract.php
+          php tests/integration/tasks_ajax_contract.php
