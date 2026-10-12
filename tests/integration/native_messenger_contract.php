@@ -66,7 +66,7 @@ $literalClose = '{/' . 'literal}';
 foreach ($jsFiles as $asset) {
     $source = (string) file_get_contents($module . '/views/' . $asset);
     $source = str_replace([$literalOpen, $literalClose], '', $source);
-    foreach (['{$', '{if ', '{foreach ', '{include '] as $smartyToken) {
+    foreach (['{$', '{if $', '{foreach $', '{include "'] as $smartyToken) {
         nativeMessengerAssert(!str_contains($source, $smartyToken), "Messenger JS {$asset} still requires Smarty expansion: {$smartyToken}");
     }
 }

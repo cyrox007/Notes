@@ -26,7 +26,7 @@ Browser не должен иметь прямого доступа к `PRIVATE_S
 
 Минимум:
 
-- PHP 8.1+ как технический compatibility floor; для Internet-facing production используйте поддерживаемую ветку PHP, сейчас рекомендуется 8.3+;
+- PHP 8.2+ как технический compatibility floor; для Internet-facing production используйте поддерживаемую ветку PHP, сейчас рекомендуется 8.3+;
 - MySQL 8.0+ или MariaDB 10.5+;
 - runtime не требует Composer/vendor dependencies;
 - расширения `mysqli`, `pdo_mysql`, `mbstring`, `ctype`, `fileinfo`, `sodium`, `openssl`, `zlib`, `gd`;
@@ -205,7 +205,7 @@ php bin/healthcheck.php --json
 
 Проверяются:
 
-- PHP >= 8.1; для публичного production рекомендуется PHP 8.3+;
+- PHP >= 8.2; для публичного production рекомендуется PHP 8.3+;
 - required extensions;
 - crypto/WebSocket secrets;
 - writable private storage;

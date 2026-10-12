@@ -15,7 +15,7 @@ function updateRunContract(bool $ok, string $message): void
 }
 
 updateRunContract($source !== '', 'bin/update_run.php is missing');
-updateRunContract(str_contains($source, "PHP_SAPI !== 'cli'"), 'операторский сценарий должен оставаться CLI-only');
+updateRunContract(str_contains($source, '\\Core\\CliRuntime::assertCliHidden()'), 'операторский сценарий должен оставаться CLI-only');
 updateRunContract(str_contains($source, "'yes'"), 'операторский сценарий потерял явное подтверждение установки');
 updateRunContract(str_contains($source, 'confirmation_required'), 'операторский сценарий не закрывается безопасно без --yes');
 updateRunContract(str_contains($source, 'UpdateProcessRunner'), 'операторский сценарий должен использовать ограниченный argv process runner');

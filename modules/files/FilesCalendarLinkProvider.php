@@ -14,7 +14,11 @@ final class FilesCalendarLinkProvider implements WorkspaceCalendarLinkTargetProv
 {
     public function __construct(private ?DatabaseManager $db = null)
     {
-        $this->db ??= DatabaseManager::getInstance();
+    }
+
+    private function database(): DatabaseManager
+    {
+        return $this->db ??= DatabaseManager::getInstance();
     }
 
     public function listCalendarLinkTargets(int $userId, string $query = '', int $limit = 20): array
@@ -29,7 +33,7 @@ final class FilesCalendarLinkProvider implements WorkspaceCalendarLinkTargetProv
             $params[':query'] = '%' . $query . '%';
         }
 
-        $rows = $this->db->fetchAll(
+        $rows = $this->database()->fetchAll(
             'SELECT uid,name,extension,size FROM user_files WHERE ' . $where
             . ' ORDER BY updated_at DESC, id DESC LIMIT ' . $limit,
             $params
@@ -40,7 +44,7 @@ final class FilesCalendarLinkProvider implements WorkspaceCalendarLinkTargetProv
     public function resolveCalendarLinkTarget(int $userId, string $uid): array
     {
         $this->requireAccess($userId);
-        $row = $this->db->fetchOne(
+        $row = $this->database()->fetchOne(
             "SELECT uid,name,extension,size FROM user_files "
             . "WHERE uid = :uid AND user_id = :user_id AND is_deleted = 0 AND type <> 'folder' LIMIT 1",
             [':uid' => $this->normalizeUid($uid), ':user_id' => $userId]
@@ -56,7 +60,7 @@ final class FilesCalendarLinkProvider implements WorkspaceCalendarLinkTargetProv
         if ($userId <= 0) {
             throw new DomainException('Требуется авторизация', 401);
         }
-        (new PermissionService($this->db))->requirePermission($userId, 'files.use');
+        (new PermissionService($this->database()))->requirePermission($userId, 'files.use');
     }
 
     private function normalizeQuery(string $query): string

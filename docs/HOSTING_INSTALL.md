@@ -10,7 +10,7 @@
 
 Минимум:
 
-- PHP 8.1+; для публичного production рекомендуется поддерживаемая ветка PHP, сейчас 8.3+;
+- PHP 8.2+; для публичного production рекомендуется поддерживаемая ветка PHP, сейчас 8.3+;
 - MySQL 8.0+ или MariaDB 10.5+;
 - extensions `mysqli`, `pdo_mysql`, `mbstring`, `sodium`, `openssl`, `zlib`, `fileinfo`, `gd`;
 - доступные `getenv` и `putenv` для загрузки `.env`;

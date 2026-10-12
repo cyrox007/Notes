@@ -13,35 +13,33 @@ function requireMarker(string $path, string $marker, string $message): void
     }
 }
 
-if (PHP_VERSION_ID < 80100) {
-    fwrite(STDERR, "PHP minimum runtime contract requires PHP 8.1+; running " . PHP_VERSION . "\n");
+if (PHP_VERSION_ID < 80200) {
+    fwrite(STDERR, "PHP minimum runtime contract requires PHP 8.2+; running " . PHP_VERSION . "\n");
     exit(1);
 }
 
-requireMarker($root . '/README.md', 'PHP `8.1+`', 'README must state PHP 8.1+ technical minimum');
+requireMarker($root . '/README.md', 'PHP `8.2+`', 'README must state PHP 8.2+ technical minimum');
 requireMarker($root . '/README.md', '8.3+', 'README must retain a production recommendation newer than the technical floor');
-requireMarker($root . '/docs/HOSTING_INSTALL.md', 'PHP 8.1+', 'hosting guide must state PHP 8.1+ minimum');
-requireMarker($root . '/docs/PRODUCTION.md', 'PHP 8.1+', 'production guide must state PHP 8.1+ technical minimum');
-requireMarker($root . '/docs/SYSTEM_REQUIREMENTS_0.14.md', '**PHP 8.1+**', 'audited requirements document must define the runtime floor');
+requireMarker($root . '/docs/HOSTING_INSTALL.md', 'PHP 8.2+', 'hosting guide must state PHP 8.2+ minimum');
+requireMarker($root . '/docs/PRODUCTION.md', 'PHP 8.2+', 'production guide must state PHP 8.2+ technical minimum');
+requireMarker($root . '/composer.json', '"php": ">=8.2"', 'Composer must define the PHP 8.2 runtime floor');
 requireMarker($root . '/docs/SYSTEM_REQUIREMENTS_0.14.md', '`pcntl`', 'realtime requirements must document pcntl');
 requireMarker($root . '/docs/SYSTEM_REQUIREMENTS_0.14.md', '`posix`', 'realtime requirements must document posix');
-requireMarker($root . '/install.php', "'PHP 8.1+' => version_compare(PHP_VERSION, '8.1.0', '>=')", 'installer must accept PHP 8.1+');
-requireMarker($root . '/bin/healthcheck.php', "version_compare(PHP_VERSION, '8.1.0', '>=')", 'healthcheck must use PHP 8.1 floor');
-requireMarker($root . '/.github/workflows/hosting-installer.yml', "php-version: '8.1'", 'real HTTP installer workflow must run on the minimum PHP version');
+requireMarker($root . '/core/InstallerEnvironmentService.php', "'PHP 8.2+' => version_compare(PHP_VERSION, '8.2.0', '>=')", 'installer must accept PHP 8.2+');
+requireMarker($root . '/bin/healthcheck.php', "version_compare(PHP_VERSION, '8.2.0', '>=')", 'healthcheck must use PHP 8.2 floor');
+requireMarker($root . '/.github/workflows/hosting-installer.yml', "php-version: '8.2'", 'real HTTP installer workflow must run on the minimum PHP version');
 
-// Evidence that 8.1 is an intentional floor rather than an arbitrary documentation number.
-requireMarker($root . '/core/DatabaseManager.php', 'enum LogLevel:', 'core uses enums introduced in PHP 8.1');
-requireMarker($root . '/core/ModuleManifest.php', 'readonly', 'module platform uses readonly properties introduced in PHP 8.1');
-requireMarker($root . '/core/ModuleManifest.php', 'array_is_list(', 'module manifest uses array_is_list introduced in PHP 8.1');
-requireMarker($root . '/index.php', '): never', 'startup boundary uses never return type introduced in PHP 8.1');
+// Baseline language features remain available at the declared floor.
+requireMarker($root . '/core/DatabaseManager.php', 'enum LogLevel:', 'core uses enums available in PHP 8.2');
+requireMarker($root . '/core/ModuleManifest.php', 'readonly', 'module platform uses readonly properties available in PHP 8.2');
+requireMarker($root . '/core/ModuleManifest.php', 'array_is_list(', 'module manifest uses array_is_list available in PHP 8.2');
+requireMarker($root . '/core/ApplicationEntryPoint.php', '): never', 'startup boundary retains a terminal response contract');
 
-// Known PHP 8.2/8.3-only runtime calls must not silently enter the supported 8.1 path.
+// PHP 8.3-only calls must not silently enter the supported 8.2 path.
 $forbiddenRuntimeMarkers = [
     'json_validate(',      // PHP 8.3
     'str_increment(',      // PHP 8.3
     'str_decrement(',      // PHP 8.3
-    'ini_parse_quantity(', // PHP 8.2
-    'memory_reset_peak_usage(', // PHP 8.2
 ];
 
 $scanRoots = ['app', 'bin', 'core', 'ws_server'];

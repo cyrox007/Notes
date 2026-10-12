@@ -238,20 +238,20 @@ assertWebSocketEndpoint($portRejected, 'out-of-range WS_PORT was accepted');
 $serverSource = file_get_contents($root . '/ws_server/server.php');
 assertWebSocketEndpoint(is_string($serverSource), 'cannot read WebSocket launcher source');
 assertWebSocketEndpoint(
-    str_contains($serverSource, 'PHP_VERSION_ID < 80100'),
+    str_contains($serverSource, 'PHP_VERSION_ID < 80200'),
     'WebSocket launcher must reject unsupported CLI PHP before application bootstrap'
 );
-$runtimeGuardPosition = strpos($serverSource, 'PHP_VERSION_ID < 80100');
+$runtimeGuardPosition = strpos($serverSource, 'PHP_VERSION_ID < 80200');
 $environmentBootstrapPosition = strpos($serverSource, "require_once SITEPATH . '/core/Environment.php'");
 assertWebSocketEndpoint(
     is_int($runtimeGuardPosition)
     && is_int($environmentBootstrapPosition)
     && $runtimeGuardPosition < $environmentBootstrapPosition,
-    'CLI PHP version guard must run before loading PHP 8.1 application source'
+    'CLI PHP version guard must run before loading PHP 8.2 application source'
 );
 assertWebSocketEndpoint(
     !str_contains($serverSource, 'usleep(100_000)'),
-    'launcher must stay parseable on legacy CLI long enough to print the PHP 8.1 requirement'
+    'launcher must stay parseable on legacy CLI long enough to print the PHP 8.2 requirement'
 );
 
 assertWebSocketEndpoint(
@@ -302,6 +302,8 @@ assertWebSocketEndpoint(
 $coreControllerSource = file_get_contents($root . '/core/Controller.php');
 $messengerControllerSource = file_get_contents($root . '/modules/messenger/controllers/MessagerController.php');
 $installerSource = file_get_contents($root . '/install.php');
+$installerSource .= (string) file_get_contents($root . '/core/InstallerEnvironmentService.php');
+$installerSource .= (string) file_get_contents($root . '/core/InstallerDatabaseService.php');
 $healthcheckSource = file_get_contents($root . '/bin/healthcheck.php');
 $updateHealthProbeSource = file_get_contents($root . '/core/UpdateWebHealthProbe.php');
 
@@ -323,7 +325,7 @@ assertWebSocketEndpoint(
     && str_contains($installerSource, 'Использовать WebSocket-ускорение')
     && str_contains($installerSource, 'HTTP Long Poll Messenger')
     && str_contains($installerSource, 'WebSocket-ускоритель Messenger')
-    && str_contains($installerSource, 'Long Poll transport уже работает')
+    && str_contains($installerSource, 'Long Poll уже обеспечивает полный Messenger')
     && !str_contains($installerSource, "\$checks['Native WebSocket runtime']"),
     'installer должен считать Long Poll обязательным transport, а native WebSocket — только ускорителем'
 );
@@ -331,7 +333,7 @@ assertWebSocketEndpoint(
 assertWebSocketEndpoint(
     is_string($healthcheckSource)
     && str_contains($healthcheckSource, 'messenger_transport')
-    && str_contains($healthcheckSource, 'Long Poll only')
+    && str_contains($healthcheckSource, 'только Long Poll')
     && str_contains($healthcheckSource, 'if ($webSocketEnabled)'),
     'общий health-check по-прежнему считает WebSocket обязательным'
 );

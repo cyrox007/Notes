@@ -2,7 +2,7 @@ name: Hosting installer
 
 on:
   pull_request:
-    branches: [master, '1.0', 'release/1.0.*-rc']
+    branches: [master, '1.0', '1.1', 'release/1.0.*-rc']
   push:
     branches: [hosting-installer-e2e]
 
@@ -31,10 +31,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup PHP 8.1
+      - name: Setup PHP 8.2
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.1'
+          php-version: '8.2'
           extensions: mysqli, pdo_mysql, mbstring, sodium, openssl, zlib, fileinfo, gd
           coverage: none
 
@@ -52,7 +52,7 @@ jobs:
           rm -rf vendor
           test ! -e vendor
           php -l install.php
-          grep -Fq 'PHP 8.1+' install.php
+          grep -Fq 'PHP 8.2+' install.php
           grep -Fq 'Native core runtime' install.php
           grep -Fq 'HTTP Long Poll Messenger' install.php
           grep -Fq 'getenv / putenv' install.php
@@ -274,8 +274,8 @@ jobs:
           set -euo pipefail
           php -l install.php
           php install.php > /tmp/php74-installer.html
-          grep -Fq 'Требуется PHP 8.1 или новее' /tmp/php74-installer.html
-          grep -Fq 'Выберите PHP 8.1+ в панели хостинга' /tmp/php74-installer.html
+          grep -Fq 'Требуется PHP 8.2 или новее' /tmp/php74-installer.html
+          grep -Fq 'Выберите PHP 8.2+ в панели хостинга' /tmp/php74-installer.html
           ! grep -Fq 'Parse error' /tmp/php74-installer.html
           ! grep -Fq 'Fatal error' /tmp/php74-installer.html
 

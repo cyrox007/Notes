@@ -265,9 +265,9 @@ try {
     );
 
     $index = (string) file_get_contents($root . '/index.php');
-    $supportOffset = strpos($index, '\\Core\\SupportDiagnostics::handleRequest(SITEPATH)');
+    $supportOffset = strpos($index, 'tryHandleSupportDiagnostics(SITEPATH)');
     $recoveryOffset = strpos($index, '\\Core\\UpdateBootRecoveryGate::enforce(SITEPATH)');
-    $schemaOffset = strpos($index, '\\Core\\SchemaReadiness::inspect(SITEPATH)');
+    $schemaOffset = strpos($index, '\\Core\\ApplicationEntryPoint::bootstrap(SITEPATH)');
     supportDiagnosticsAssert(
         $supportOffset !== false
             && $recoveryOffset !== false

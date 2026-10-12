@@ -18,7 +18,7 @@ $webRunner = (string) file_get_contents($root . '/assets/js/update-web-runner.js
 $router = (string) file_get_contents($root . '/modules/admin/AdminRuntimeProvider.php');
 $controller = (string) file_get_contents($root . '/modules/admin/controllers/UpdateController.php');
 $service = (string) file_get_contents($root . '/modules/admin/services/AdminUpdateService.php');
-$installer = (string) file_get_contents($root . '/install.php');
+$installer = (string) file_get_contents($root . '/install.php') . file_get_contents($root . '/core/InstallerEnvironmentService.php');
 $phpCli = (string) file_get_contents($root . '/core/UpdatePhpCli.php');
 $updateRun = (string) file_get_contents($root . '/bin/update_run.php');
 $updateApply = (string) file_get_contents($root . '/core/UpdateApplyCommand.php');
@@ -66,9 +66,9 @@ updateNotificationAssert(
     'Клиент уведомлений не выполняет фоновую проверку'
 );
 updateNotificationAssert(
-    str_contains($script, "form.addEventListener('submit'")
+    str_contains($script, "document.addEventListener('wspace:update-install-request'")
         && str_contains($script, 'window.wspace?.updateWebRunner')
-        && str_contains($script, 'event.preventDefault()'),
+        && str_contains($script, 'runner.run('),
     'Кнопка обновления не использует общий пошаговый web-updater'
 );
 updateNotificationAssert(

@@ -262,7 +262,7 @@ try {
 
     $source = (string) file_get_contents($root . '/index.php');
     $maintenancePos = strpos($source, 'MaintenanceModeService');
-    $corePos = strpos($source, "require_once SITEPATH . '/core.php'");
+    $corePos = strpos($source, '\\Core\\ApplicationEntryPoint::bootstrap(SITEPATH)');
     preflightAssert(is_int($maintenancePos) && is_int($corePos) && $maintenancePos < $corePos, 'maintenance gate is not before core/database bootstrap');
 
     $updateSource = (string) file_get_contents($root . '/bin/update.php');
