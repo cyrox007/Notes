@@ -1,0 +1,49 @@
+name: Performance runner contract
+
+on:
+  pull_request:
+    branches: ['1.1']
+    paths:
+      - 'tools/performance/**'
+      - 'tests/integration/performance_runner_contract.php'
+      - '.github/workflows/performance-runner-contract.yml'
+  push:
+    branches: ['1.1', 'perf/1.1-1000-users-runner-*']
+    paths:
+      - 'tools/performance/**'
+      - 'tests/integration/performance_runner_contract.php'
+      - '.github/workflows/performance-runner-contract.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: Проверить нагрузочный runner
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Получить исходный код
+        uses: actions/checkout@v4
+
+      - name: Проверить PHP-синтаксис
+        run: |
+          set -euo pipefail
+          php -l tools/performance/prepare-users.php
+          php -l tests/integration/performance_runner_contract.php
+
+      - name: Проверить Node.js-синтаксис
+        run: |
+          set -euo pipefail
+          node --check tools/performance/load-runner.mjs
+
+      - name: Проверить профиль и статический контракт
+        run: |
+          set -euo pipefail
+          php tests/integration/performance_runner_contract.php
+
+      - name: Убедиться, что CI не подменяет эталонный нагрузочный стенд
+        run: |
+          set -euo pipefail
+          ! grep -Eq 'PERF_MODE[=:][[:space:]]*full' .github/workflows/performance-runner-contract.yml
+          echo 'Полная нагрузочная приёмка намеренно не запускается на случайном GitHub-hosted runner.'

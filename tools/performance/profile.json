@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "nominal_users": 1000,
+  "peak_users": 1200,
+  "ramp_seconds": 600,
+  "steady_seconds": 1800,
+  "soak_seconds": 7200,
+  "peak_seconds": 300,
+  "recovery_seconds": 300,
+  "think_time_ms": {
+    "min": 2000,
+    "max": 8000
+  },
+  "request_timeout_ms": 30000,
+  "operations": [
+    {"name": "home", "kind": "read", "weight": 8},
+    {"name": "notes_list", "kind": "read", "weight": 15},
+    {"name": "notes_search", "kind": "read", "weight": 8},
+    {"name": "tasks_list", "kind": "read", "weight": 15},
+    {"name": "calendar_page", "kind": "read", "weight": 7},
+    {"name": "calendar_range", "kind": "read", "weight": 12},
+    {"name": "files_list", "kind": "read", "weight": 10},
+    {"name": "messenger_page", "kind": "read", "weight": 5},
+    {"name": "notifications_count", "kind": "read", "weight": 9},
+    {"name": "messenger_long_poll", "kind": "realtime", "weight": 3},
+    {"name": "calendar_create", "kind": "write", "weight": 3},
+    {"name": "calendar_update", "kind": "write", "weight": 2},
+    {"name": "calendar_delete", "kind": "write", "weight": 3}
+  ]
+}
