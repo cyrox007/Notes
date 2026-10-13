@@ -21,7 +21,8 @@ final class Release11Acceptance
         ];
         $failed = array_keys(array_filter($checks, static fn (bool $ok): bool => !$ok));
         $pending = ($policy['ready'] ?? false) === true ? [] : ($policy['blockers'] ?? ['Release acceptance pending']);
-        $result = ['status' => $failed !== [] ? 'fail' : ($pending !== [] ? 'pending' : 'ok'),
+        $result = ['status' => $failed !== [] ? 'fail' : (($policy['candidate_ready'] ?? false) === true ? 'candidate_ready' : ($pending !== [] ? 'pending' : 'ok')),
+            'stable_publication_ready' => ($policy['ready'] ?? false) === true,
             'version' => Version::VERSION, 'checks' => $checks, 'failures' => $failed, 'pending' => $pending,
             'load_testing' => 'Deferred to 1.2.0; capacity not yet certified'];
         if (in_array('--json', $arguments, true)) {
