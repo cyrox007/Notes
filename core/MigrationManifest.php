@@ -123,6 +123,17 @@ final class MigrationManifest
         return $this->readRegularFile($path, self::MAX_MIGRATION_BYTES, 'migration ' . $filename);
     }
 
+    /** Accept only exact SQL bytes or their uniform Git/Windows line endings. */
+    public static function matchesChecksum(string $sql, string $checksum): bool
+    {
+        if (preg_match('/^[a-f0-9]{64}$/D', $checksum) !== 1) return false;
+        $lf = str_replace("\r\n", "\n", $sql);
+        foreach ([$sql, $lf, str_replace("\n", "\r\n", $lf)] as $bytes) {
+            if (hash_equals(hash('sha256', $bytes), $checksum)) return true;
+        }
+        return false;
+    }
+
     private function resolveMigration(string $filename): string
     {
         $path = $this->migrationRoot . '/' . $filename;

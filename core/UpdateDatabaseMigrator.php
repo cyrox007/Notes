@@ -203,8 +203,8 @@ final class UpdateDatabaseMigrator
                 );
             }
 
-            $expected = hash('sha256', $manifest->readMigration($filename));
-            if (!hash_equals($expected, $checksum)) {
+            $sql = $manifest->readMigration($filename);
+            if (!MigrationManifest::matchesChecksum($sql, $checksum)) {
                 throw new RuntimeException(
                     "Checksum уже применённой миграции {$filename} изменился"
                 );

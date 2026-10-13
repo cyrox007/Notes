@@ -22,7 +22,7 @@ version = re.search(r"public const VERSION = '([^']+)'", version_source).group(1
 code = int(re.search(r'public const VERSION_CODE = (\d+)', version_source).group(1))
 if not re.fullmatch(r'\d+\.\d+\.\d+-rc\.\d+', version):
     raise SystemExit('Only release-candidate identities are accepted')
-archive = subprocess.check_output(['git', 'archive', '--format=tar', sha], cwd=root)
+archive = subprocess.check_output(['git', '-c', 'core.autocrlf=false', '-c', 'core.eol=lf', 'archive', '--format=tar', sha], cwd=root)
 args.output.mkdir(parents=True, exist_ok=True)
 path = args.output / f'workspace-organizer-v{version}.zip'
 allowed_dirs = {'app', 'assets', 'bin', 'config', 'core', 'database', 'modules', 'ws_server'}

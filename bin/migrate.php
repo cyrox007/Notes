@@ -289,8 +289,8 @@ try {
         if (!in_array($filename, $canonical, true)) {
             throw new RuntimeException('Журнал миграций содержит запись вне канонического манифеста: ' . $filename);
         }
-        $expected = hash('sha256', $canonicalManifest->readMigration($filename));
-        if (!hash_equals($expected, $checksum)) {
+        $sql = $canonicalManifest->readMigration($filename);
+        if (!\Core\MigrationManifest::matchesChecksum($sql, $checksum)) {
             throw new RuntimeException(
                 "Контрольная сумма уже применённой миграции {$filename} не совпадает. Не изменяйте применённые миграции; создайте новую."
             );
