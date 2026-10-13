@@ -36,6 +36,7 @@ jobs:
         run: |
           set -euo pipefail
           composer validate --no-check-publish
+          php tests/integration/migration_line_endings_contract.php
           php tests/integration/php_minimum_runtime_contract.php
           php tests/integration/php82_refactor_contract.php
           php tests/integration/php82_sensitive_parameters_contract.php
@@ -86,6 +87,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          php tests/integration/system_event_outbox_contract.php
           php tests/integration/notification_foundation_contract.php
           php tests/integration/notification_delivery_contract.php
           php tests/integration/notification_smtp_contract.php
@@ -127,6 +129,8 @@ jobs:
         shell: pwsh
         run: |
           $contracts = @(
+            'migration_line_endings_contract',
+            'system_event_outbox_contract',
             'php_minimum_runtime_contract',
             'module_runtime_composition_contract',
             'native_websocket_runtime_regressions',

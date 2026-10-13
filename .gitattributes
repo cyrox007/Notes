@@ -1,6 +1,9 @@
 # Keep executable/tooling scripts portable across Windows and Unix checkouts.
 *.sh text eol=lf
 
+# Historical migration bytes must survive checkout and release archive unchanged.
+*.sql -text
+
 # Keep project source/docs normalized as text.
 *.php text
 *.js text

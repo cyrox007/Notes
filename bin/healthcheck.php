@@ -331,6 +331,25 @@ try {
     recordHealth($checks, $failed, 'database_connection', false, $e->getMessage());
 }
 
+// Persist operational alerts before attempting DB-backed notification delivery.
+require_once $root . '/core/SystemEventOutbox.php';
+$day = gmdate('Y-m-d');
+$storagePath = trim((string) getenv('PRIVATE_STORAGE_PATH'));
+$threshold = max(10485760, min(10737418240, (int) (getenv('STORAGE_LOW_THRESHOLD_BYTES') ?: 104857600)));
+$free = $storagePath !== '' && is_dir($storagePath) ? @disk_free_space($storagePath) : false;
+if ($free !== false) {
+    recordHealth($checks, $failed, 'storage_free_space', $free >= $threshold,
+        $free >= $threshold ? 'достаточно' : 'ниже настроенного порога');
+    if ($free < $threshold) \Core\SystemEventOutbox::emit($root, 'system.storage_low', $day);
+}
+$failedNames = array_column(array_values(array_filter($checks, static fn (array $check): bool => !$check['ok'])), 'name');
+if ($failedNames !== []) {
+    sort($failedNames);
+    \Core\SystemEventOutbox::emit($root, 'system.health_failed', $day . ':' . substr(hash('sha256', implode(',', $failedNames)), 0, 24));
+}
+require_once $root . '/app/services/notifications/SystemNotificationRuntime.php';
+\App\Services\Notifications\SystemNotificationRuntime::catchUp($root);
+
 if ($json) {
     \Core\CliRuntime::writeJson([
         'status' => $failed ? 'fail' : 'ok',

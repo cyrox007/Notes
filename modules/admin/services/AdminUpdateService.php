@@ -159,12 +159,17 @@ final class AdminUpdateService
             throw new DomainException('Проверка обновлений недоступна, пока не устранены ошибки конфигурации', 503);
         }
 
-        return $this->delivery()->check(
+        $result = $this->delivery()->check(
             $this->feedUrlOrFail(),
             $this->channelOrFail(),
             Version::VERSION_CODE,
             PHP_VERSION
         );
+        if (($result['status'] ?? '') === 'update_available') {
+            require_once dirname(__DIR__, 3) . '/core/SystemEventOutbox.php';
+            \Core\SystemEventOutbox::emit(dirname(__DIR__, 3), 'update.available', (string) ($result['target_version_code'] ?? 0));
+        }
+        return $result;
     }
 
     /**

@@ -4,6 +4,8 @@ on:
   push:
     branches: ['1.1', 'fix/1.1-notification-http-fallback-*', 'codex/1.1-notifications-acceptance']
     paths:
+      - 'core/SystemEventOutbox.php'
+      - 'tests/integration/system_*contract.php'
       - 'app/services/notifications/**'
       - 'app/controllers/NotificationController.php'
       - 'app/middlewares/ApiLoginRequired.php'
@@ -31,6 +33,8 @@ on:
   pull_request:
     branches: ['1.1']
     paths:
+      - 'core/SystemEventOutbox.php'
+      - 'tests/integration/system_*contract.php'
       - 'app/services/notifications/**'
       - 'app/controllers/NotificationController.php'
       - 'app/middlewares/ApiLoginRequired.php'
@@ -196,3 +200,35 @@ jobs:
           php tests/integration/calendar_reminders_contract.php
           php tests/integration/calendar_reminders_mysql_contract.php
           php -l bin/calendar_reminders.php
+
+  system-notifications:
+    name: system-notifications-mysql84
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: system_notifications_test
+          MYSQL_ROOT_PASSWORD: root
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mysqli, pdo_mysql, mbstring, sodium
+          coverage: none
+      - name: Verify durable operational events and recipient ACL
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: '3306'
+          DBUSER: root
+          DBPASS: root
+          DBNAME: system_notifications_test
+        run: |
+          php tests/integration/system_event_outbox_contract.php
+          php tests/integration/system_notifications_mysql_contract.php

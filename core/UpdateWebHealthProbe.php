@@ -55,7 +55,7 @@ final class UpdateWebHealthProbe
 
         $record(
             'php_version',
-            version_compare(PHP_VERSION, '8.1.0', '>='),
+            version_compare(PHP_VERSION, '8.2.0', '>='),
             PHP_VERSION
         );
 

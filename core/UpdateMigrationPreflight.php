@@ -88,7 +88,7 @@ final class UpdateMigrationPreflight
                     throw new RuntimeException('Current migration ledger contains a duplicate: ' . $name);
                 }
                 if (preg_match('/^[0-9a-f]{64}$/', $checksum) !== 1
-                    || !hash_equals($target[$name]['sha256'], $checksum)) {
+                    || !MigrationManifest::matchesChecksum($this->manifest->readMigration($name), $checksum)) {
                     throw new RuntimeException('Applied migration checksum mismatch in target release: ' . $name);
                 }
 

@@ -52,6 +52,8 @@ ownershipAssert(is_array($canonical['migrations'] ?? null), 'canonical migration
 
 $full = DatabaseOwnership::fromPackageRoot($root);
 ownershipAssert(in_array('users', $full->tables(), true), 'core owns users');
+ownershipAssert(in_array('notification_runtime_state', $full->tables(), true), '1.1 owns notification runtime state');
+ownershipAssert(in_array('database/notifications_schema.sql', $full->schemaFiles(), true), '1.1 fresh install includes notifications');
 ownershipAssert(in_array('system_settings', $full->tables(), true), 'core owns system_settings');
 ownershipAssert(in_array('dialogs', $full->tables(), true), 'Messenger tables are included in full package');
 ownershipAssert(in_array('notes', $full->tables(), true), 'Notes tables are included in full package');

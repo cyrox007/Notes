@@ -39,6 +39,7 @@ try {
         throw new InvalidArgumentException('Размер пакета уведомлений должен быть в диапазоне 1..100');
     }
 
+    \App\Services\Notifications\SystemNotificationRuntime::catchUp($root, $limit);
     $runtime = new NotificationDeliveryRuntime(DatabaseManager::getInstance());
     $stats = $runtime->run($workerId, $limit);
 

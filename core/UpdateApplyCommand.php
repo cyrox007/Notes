@@ -18,6 +18,7 @@ require_once __DIR__ . '/UpdateApplyOperationLock.php';
 require_once __DIR__ . '/UpdateLiveApplier.php';
 require_once __DIR__ . '/UpdateRollbackCodeRestorer.php';
 require_once __DIR__ . '/ServiceLog.php';
+require_once __DIR__ . '/SystemEventOutbox.php';
 require_once __DIR__ . '/UpdateStepBudget.php';
 
 use App\Services\MaintenanceModeService;
@@ -675,6 +676,7 @@ final class UpdateApplyCommand
                 'committed_at' => time(),
                 'version' => (string) ($post['version'] ?? $journalState['target_version'] ?? ''),
             ]);
+            SystemEventOutbox::emit($this->appRoot, 'update.installed', $transactionId);
             $this->logService('updater.committed', 'info', $transactionId, [
                 'version' => (string) ($journalState['target_version'] ?? ''),
                 'version_code' => (int) ($journalState['target_version_code'] ?? 0),
@@ -1015,6 +1017,7 @@ final class UpdateApplyCommand
             'verified_at' => time(),
         ];
         $stateMachine->markRollbackVerified($transactionId, $verified);
+        SystemEventOutbox::emit($this->appRoot, 'update.rollback', $transactionId);
         $this->logService('updater.rollback_verified', 'warning', $transactionId, [
             'version' => (string) $restored['version'],
             'version_code' => (int) $restored['version_code'],
