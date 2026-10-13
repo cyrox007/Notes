@@ -267,7 +267,7 @@ foreach ($runtimeFiles as $file) {
 }
 $files = array_values(array_unique([...$files, ...$runtimeFiles,
     'core/CliRuntime.php', 'core/RuntimeAutoloader.php', 'core/SystemEventOutbox.php',
-    'core/UpdateExternalCliSupport.php', 'core/UpdateRunCommand.php', 'core/UpdateRunSupport.php']));
+    'core/UpdateExternalCliSupport.php', 'core/UpdateRunSupport.php']));
 // Trust anchors and the installed identity always belong to the existing installation.
 $files = array_values(array_filter($files, static fn (string $file): bool =>
     $file !== 'core/Version.php' && !str_starts_with($file, 'config/')));
