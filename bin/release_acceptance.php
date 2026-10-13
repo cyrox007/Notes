@@ -9,6 +9,11 @@ require_once $root . '/core/Version.php';
 
 use Core\Version;
 
+if (str_starts_with(Version::VERSION, '1.1.')) {
+    require_once $root . '/core/Release11Acceptance.php';
+    exit(\Core\Release11Acceptance::run($root, $argv));
+}
+
 $options = getopt('', [
     'strict',
     'json',

@@ -141,13 +141,18 @@ final class DatabaseOwnership
     /** @return list<string> */
     public function tables(): array
     {
-        return $this->uniqueOwned(self::CORE_TABLES, 'table', static fn (ModuleManifest $m): array => $m->databaseTables());
+        return $this->uniqueOwned([...self::CORE_TABLES, ...($this->hasNotifications() ? ['notification_events', 'notifications', 'notification_subscriptions', 'notification_channel_configs', 'notification_delivery_jobs', 'notification_delivery_attempts', 'notification_runtime_state'] : [])], 'table', static fn (ModuleManifest $m): array => $m->databaseTables());
     }
 
     /** @return list<string> */
     public function schemaFiles(): array
     {
-        return $this->uniqueOwned(self::CORE_SCHEMAS, 'schema', static fn (ModuleManifest $m): array => $m->databaseSchemas());
+        return $this->uniqueOwned([...self::CORE_SCHEMAS, ...($this->hasNotifications() ? ['database/notifications_schema.sql'] : [])], 'schema', static fn (ModuleManifest $m): array => $m->databaseSchemas());
+    }
+
+    private function hasNotifications(): bool
+    {
+        return ($this->packageVersionCode ?? 0) >= 10901;
     }
 
     /** @return list<string> */

@@ -7,6 +7,7 @@ namespace App\Controllers;
 require_once dirname(__DIR__, 2) . '/core/Controller.php';
 require_once dirname(__DIR__) . '/services/notifications/DatabaseNotificationCenter.php';
 require_once dirname(__DIR__) . '/services/notifications/DatabaseNotificationPreferences.php';
+require_once dirname(__DIR__) . '/services/notifications/SystemNotificationRuntime.php';
 
 use App\Services\Notifications\DatabaseNotificationCenter;
 use App\Services\Notifications\DatabaseNotificationPreferences;
@@ -21,6 +22,8 @@ final class NotificationController extends Controller
     public function index(Request $request): void
     {
         $this->handle(function () use ($request): array {
+            $this->userId($request);
+            \App\Services\Notifications\SystemNotificationRuntime::catchUp(dirname(__DIR__, 2));
             $center = new DatabaseNotificationCenter();
             return [
                 'status' => 'ok',
@@ -42,6 +45,8 @@ final class NotificationController extends Controller
     public function unreadCount(Request $request): void
     {
         $this->handle(function () use ($request): array {
+            $this->userId($request);
+            \App\Services\Notifications\SystemNotificationRuntime::catchUp(dirname(__DIR__, 2));
             $center = new DatabaseNotificationCenter();
             return [
                 'status' => 'ok',

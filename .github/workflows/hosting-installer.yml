@@ -223,7 +223,7 @@ jobs:
           test ! -e vendor
           php bin/healthcheck.php --json | tee /tmp/hosting-health.json
           grep -Fq '"status": "ok"' /tmp/hosting-health.json
-          php -r '$health=json_decode(file_get_contents("/tmp/hosting-health.json"),true,512,JSON_THROW_ON_ERROR); $checks=array_column($health["checks"],null,"name"); if (($checks["database_contract"]["ok"] ?? false) !== true) { exit(1); }' 
+          php -r '$health=json_decode(file_get_contents("/tmp/hosting-health.json"),true,512,JSON_THROW_ON_ERROR); $checks=array_column($health["checks"],null,"name"); if (($checks["database_contract"]["ok"] ?? false) !== true) { exit(1); }'
           grep -Fq '"name": "database_server_version"' /tmp/hosting-health.json
 
       - name: Installer locks after completion

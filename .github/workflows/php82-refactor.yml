@@ -86,6 +86,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          php tests/integration/system_event_outbox_contract.php
           php tests/integration/notification_foundation_contract.php
           php tests/integration/notification_delivery_contract.php
           php tests/integration/notification_smtp_contract.php
@@ -127,6 +128,7 @@ jobs:
         shell: pwsh
         run: |
           $contracts = @(
+            'system_event_outbox_contract',
             'php_minimum_runtime_contract',
             'module_runtime_composition_contract',
             'native_websocket_runtime_regressions',

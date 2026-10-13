@@ -23,6 +23,7 @@ final class MigrationBaseline
         10013 => '20260930_module_entitlements.sql',
         10014 => '20260930_module_entitlements.sql',
         10015 => '20261002_user_lifecycle.sql',
+        10016 => '20261010_user_status_bridge.sql',
     ];
 
     public static function activeUpdaterSourceVersionCode(

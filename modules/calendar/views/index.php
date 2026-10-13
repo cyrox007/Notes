@@ -120,6 +120,7 @@ ob_start();
             </div>
 
             <section class="calendar-recurrence" data-calendar-recurrence hidden>
+                <p class="calendar-help">Изменения и удаление относятся ко всей повторяющейся серии.</p>
                 <div class="calendar-form__row">
                     <label class="calendar-field">
                         <span>Интервал</span>
