@@ -83,7 +83,8 @@ if ($publicPath !== '/' && !str_contains($publicPath, "\0") && !str_contains($pu
 
         // Apache/FPM исполняет опубликованный PHP-вход продолжения. В стенде
         // с BASE_PATH его нельзя отдавать как статический исходный текст.
-        if (preg_match('~^/update-continuations/[a-f0-9]{32}\.php$~D', $publicPath) === 1) {
+        if (preg_match('~^/update-continuations/[a-f0-9]{32}\.php$~D', $publicPath) === 1
+            || ($publicPath === '/prepare-1.1.php' && getenv('E2E_ADMIN_PREPARATION') === '1')) {
             require $candidate;
             return true;
         }

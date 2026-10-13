@@ -1,4 +1,6 @@
 import { chromium } from 'playwright';
+import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 
 function requiredEnv(name) {
   const value = process.env[name];
@@ -90,9 +92,30 @@ async function installUpdateFromNotification(page) {
 
 try {
   const context = await browser.newContext();
+  if (process.env.E2E_ADMIN_PREPARATION === '1') {
+    const denied = await context.request.get(`${baseUrl}/prepare-1.1.php`);
+    if (denied.status() !== 403) throw new Error('Preparation must deny anonymous users');
+  }
   const page = await context.newPage();
   instrument(page);
   await login(page);
+
+  if (process.env.E2E_ADMIN_PREPARATION === '1') {
+    const root = requiredEnv('E2E_APP_ROOT');
+    const protectedFiles = ['.env', 'core/Version.php', 'config/update_trusted_keys.php', 'config/license_trusted_keys.php'];
+    const hashes = () => protectedFiles.map((file) => createHash('sha256').update(readFileSync(`${root}/${file}`)).digest('hex'));
+    const before = hashes();
+    const denied = await context.request.post(`${baseUrl}/prepare-1.1.php`, { form: { csrf: 'invalid' } });
+    if (denied.status() !== 403) throw new Error('Preparation must enforce CSRF');
+    await page.goto(`${baseUrl}/prepare-1.1.php`);
+    await page.getByText('Минимальные требования подготовки выполнены', { exact: true }).waitFor();
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
+      page.getByRole('button', { name: 'Установить подготовительный патч', exact: true }).click(),
+    ]);
+    await page.getByText('Подготовительный патч установлен.', { exact: false }).waitFor();
+    if (JSON.stringify(before) !== JSON.stringify(hashes())) throw new Error('Preparation modified protected installation identity');
+  }
 
   let response = await page.goto(`${baseUrl}/`, { waitUntil: 'domcontentloaded' });
   if (!response || response.status() !== 200) {
