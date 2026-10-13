@@ -69,6 +69,19 @@ bootstrapContractAssert(str_contains($bridgeSource, "\$liveVersion !== '1.0.14'"
 bootstrapContractAssert(!str_contains($bridgeSource, "'core/Version.php',"), 'Мост не должен копировать Version.php');
 bootstrapContractAssert(!str_contains($bridgeSource, "'database/migrations/"), 'Мост не должен копировать миграции');
 
+// Historical repair payloads are deliberately restricted to their published line.
+require_once $root . '/core/Version.php';
+if (\Core\Version::VERSION_CODE >= 10901) {
+    $probe = sys_get_temp_dir() . '/bridge-line-guard-' . bin2hex(random_bytes(6));
+    mkdir($probe, 0700);
+    bootstrapContractWriteVersion($probe, '1.0.14', 10014);
+    [$code, , $stderr] = bootstrapContractRun($bridge, $probe);
+    bootstrapContractRemoveTree($probe);
+    bootstrapContractAssert($code !== 0 && str_contains($stderr, 'exact'), '1.1 must not distribute a legacy repair payload');
+    echo "[OK] Legacy bootstrap rejects the unsupported 1.1 source package\n";
+    exit(0);
+}
+
 $temp = sys_get_temp_dir() . '/notes-bootstrap-1014-' . bin2hex(random_bytes(6));
 bootstrapContractAssert(mkdir($temp, 0700, true), 'Не удалось создать временный каталог');
 

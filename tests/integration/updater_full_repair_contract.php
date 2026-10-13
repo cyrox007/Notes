@@ -24,6 +24,18 @@ function repairRun(string $root, string $app): array
     return [proc_close($process), $output];
 }
 
+require_once $root . '/core/Version.php';
+if (\Core\Version::VERSION_CODE >= 10901) {
+    $app = $temporary . '/unsupported-line';
+    mkdir($app . '/core', 0700, true);
+    file_put_contents($app . '/core/Version.php', "<?php class Version { public const VERSION = '1.0.14'; public const VERSION_CODE = 10014; }");
+    [$code, $output] = repairRun($root, $app);
+    Core\UpdatePath::removeTree($temporary);
+    repairAssert($code !== 0 && str_contains($output, 'exact'), '1.1 must not apply a frozen legacy repair payload');
+    echo "[OK] Full legacy repair rejects the unsupported 1.1 source package\n";
+    exit(0);
+}
+
 try {
     foreach ([13, 14, 15] as $patch) {
         $app = $temporary . '/app-' . $patch;
