@@ -12,7 +12,8 @@ final class Release11Acceptance
         $policy = json_decode((string) file_get_contents($root . '/.github/release-readiness.json'), true, 32, JSON_THROW_ON_ERROR);
         $checks = [
             'php_floor' => PHP_VERSION_ID >= 80200,
-            'release_identity' => Version::VERSION === '1.1.0-rc.1' && Version::VERSION_CODE === 10901 && Version::STATUS === 'rc',
+            'release_identity' => (Version::VERSION === '1.1.0-rc.1' && Version::VERSION_CODE === 10901 && Version::STATUS === 'rc')
+                || (Version::VERSION === '1.1.0' && Version::VERSION_CODE === 11000 && Version::STATUS === 'stable'),
             'release_policy_identity' => ($policy['version'] ?? '') === Version::VERSION,
             'upgrade_drill' => is_file($root . '/.github/workflows/1.0.16-to-1.1-upgrade.yml'),
             'rollback_drill' => is_file($root . '/.github/workflows/1.0.16-to-1.1-rollback.yml'),
@@ -21,8 +22,9 @@ final class Release11Acceptance
         ];
         $failed = array_keys(array_filter($checks, static fn (bool $ok): bool => !$ok));
         $pending = ($policy['ready'] ?? false) === true ? [] : ($policy['blockers'] ?? ['Release acceptance pending']);
-        $result = ['status' => $failed !== [] ? 'fail' : (($policy['candidate_ready'] ?? false) === true ? 'candidate_ready' : ($pending !== [] ? 'pending' : 'ok')),
+        $result = ['status' => $failed !== [] ? 'fail' : (($policy['ready'] ?? false) === true ? 'ok' : (($policy['candidate_ready'] ?? false) === true ? 'candidate_ready' : ($pending !== [] ? 'pending' : 'ok'))),
             'stable_publication_ready' => ($policy['ready'] ?? false) === true,
+            'signed_channel_ready' => ($policy['signed_channel_ready'] ?? false) === true,
             'version' => Version::VERSION, 'checks' => $checks, 'failures' => $failed, 'pending' => $pending,
             'load_testing' => 'Deferred to 1.2.0; capacity not yet certified'];
         if (in_array('--json', $arguments, true)) {

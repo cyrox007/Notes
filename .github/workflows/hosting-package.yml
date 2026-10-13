@@ -316,9 +316,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          php -l tools/release/bootstrap-1.0.14-updater.php
           BRIDGE="$GITHUB_WORKSPACE/${BUNDLE_NAME%.zip}-updater-bridge.zip"
-          zip -q "$BRIDGE" tools/release/bootstrap-1.0.14-updater.php
+          if [[ "$(php -r 'require "core/Version.php"; echo Core\Version::VERSION_CODE;')" -ge 10901 ]]; then
+            php -l tools/release/bootstrap-1.0.16-updater.php
+            zip -q "$BRIDGE" tools/release/bootstrap-1.0.16-updater.php
+          else
+            php -l tools/release/bootstrap-1.0.14-updater.php
+            zip -q "$BRIDGE" tools/release/bootstrap-1.0.14-updater.php
+          fi
           (cd "$GITHUB_WORKSPACE" && sha256sum "$(basename "$BRIDGE")") > "$BRIDGE.sha256"
           echo "UPDATE_1014_BRIDGE=$BRIDGE" >> "$GITHUB_ENV"
           echo "UPDATE_1014_BRIDGE_CHECKSUM=$BRIDGE.sha256" >> "$GITHUB_ENV"
@@ -366,9 +371,11 @@ jobs:
             exit 0
           fi
 
+          LATEST=(--latest)
           PRERELEASE=()
           if [[ "$TAG" == *-* ]]; then
             PRERELEASE=(--prerelease)
+            LATEST=()
           fi
 
           gh release create "$TAG" \
@@ -384,6 +391,7 @@ jobs:
             --verify-tag \
             --title "Workspace Organizer ${TAG#v}" \
             --notes-file "$NOTES" \
-            "${PRERELEASE[@]}"
+            "${PRERELEASE[@]}" \
+            "${LATEST[@]}"
 
           echo "GitHub Release $TAG опубликован из проверенного тега и неизменяемого пакета."
