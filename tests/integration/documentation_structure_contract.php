@@ -40,7 +40,7 @@ foreach ([
 }
 
 $roadmap = documentationText($root, 'docs/ROADMAP.md');
-documentationAssert(str_contains($roadmap, '1.0.15'), 'ROADMAP не фиксирует текущий релиз сопровождения 1.0.15');
+documentationAssert(str_contains($roadmap, 'v1.0.16'), 'ROADMAP must identify published stable v1.0.16');
 documentationAssert(str_contains($roadmap, '1.1.0 — Календарь и ежедневник'), 'ROADMAP не содержит следующую продуктовую линию 1.1.0');
 documentationAssert(!str_contains($roadmap, '### 1.0.12'), 'ROADMAP снова содержит исторический релиз 1.0.12 как активный раздел');
 documentationAssert(!str_contains($roadmap, '### 1.0.2'), 'ROADMAP снова содержит исторический релиз 1.0.2 как активный раздел');

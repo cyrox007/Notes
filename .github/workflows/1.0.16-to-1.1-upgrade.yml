@@ -232,6 +232,12 @@ jobs:
           PHP
           php bin/migrate.php --status
 
+      - name: Установить совместимый мост updater без изменения версии и данных
+        shell: bash
+        run: |
+          php tools/release/bootstrap-1.0.16-updater.php --yes --root=/tmp/workspace-1016-1100/live
+          test "$(php -r "require '/tmp/workspace-1016-1100/live/core/Version.php'; echo Core\\Version::VERSION;")" = '1.0.16'
+
       - name: Подготовить подписанный exact-head 1.1.0-rc.1
         shell: bash
         run: |
