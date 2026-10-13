@@ -235,6 +235,7 @@ jobs:
       - name: Собрать подготовительный патч для браузера
         shell: bash
         run: |
+          python3 tests/support/admin_preparation_engine_contract.py php
           python3 tools/release/build-admin-preparation.py /tmp/workspace-1016-1100/live/prepare-1.1.php
           php -l /tmp/workspace-1016-1100/live/prepare-1.1.php
 
