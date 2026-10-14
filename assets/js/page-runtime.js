@@ -82,7 +82,11 @@
                 controller.abort();
                 cleanups.forEach(callback => { try { callback(new Event('pagehide')); } catch (error) { console.error(error); } });
                 timers.forEach(id => { window.clearTimeout(id); window.clearInterval(id); });
-                nodes.forEach(node => node.remove());
+                document.querySelectorAll('#main-content audio, #main-content video').forEach(media => media.pause());
+                nodes.forEach(node => {
+                    node.querySelectorAll?.('audio,video').forEach(media => media.pause());
+                    node.remove();
+                });
             }
         };
         return current;

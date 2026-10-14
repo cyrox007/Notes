@@ -6,6 +6,8 @@
     let revision = 0;
     let submitting = false;
     let renderedUrl = location.href;
+    let committing = false;
+    let queuedVisit = null;
     const nativePath = /\/(?:auth|logout|update-continuations)(?:\/|$)|\/admin\/updates(?:\/|$)|\/files\/(?:get|download)(?:\/|$)/;
     const inlineNonce = document.querySelector('script[nonce]')?.nonce || '';
 
@@ -58,7 +60,7 @@
         const styles = [...next.querySelectorAll('link[data-workspace-module-style]')];
         const newStyles = [];
         const before = document.querySelector('link[href*="/assets/css/workspace.css"]');
-        for (const source of styles) {
+        try { for (const source of styles) {
             const link = document.createElement('link');
             link.rel = 'stylesheet';
             const href = new URL(source.getAttribute('href'), response.url);
@@ -71,6 +73,9 @@
                 link.onerror = () => reject(new Error('Не удалось загрузить стили страницы.'));
                 document.head.insertBefore(link, before);
             });
+        } } catch (error) {
+            newStyles.forEach(link => link.remove());
+            throw error;
         }
         if (ticket !== revision) { newStyles.forEach(link => link.remove()); return false; }
         document.querySelectorAll('link[data-workspace-module-style]').forEach(link => link.remove());
@@ -81,6 +86,10 @@
         const preserveScroll = options.submission ? samePageSubmission : options.preserveScroll;
         const method = (options.submission ? samePageSubmission : options.replace) ? 'replaceState' : 'pushState';
         if (!options.popstate) history[method]({ workspaceScroll: preserveScroll ? previousScroll : [0, 0] }, '', response.url);
+        committing = true;
+        current.inert = true;
+        let initialized = false;
+        try {
         wspace.page.beginRender();
         wspace.page.dispose();
         document.documentElement.classList.remove('calendar-editor-open');
@@ -95,8 +104,14 @@
         const csrf = next.querySelector('#csrf-token-template');
         if (csrf) {
             document.querySelector('#csrf-token-template')?.replaceWith(csrf.cloneNode(true));
-            wspace.security?.refreshToken(csrf.content.querySelector('input')?.value || '');
+            const input = csrf.content.querySelector('input');
+            wspace.security?.refreshToken(input?.value || '');
+            if (input) document.querySelectorAll('input[type="hidden"]').forEach(field => {
+                if (field.name === input.name) field.value = input.value;
+            });
         }
+        const profile = next.querySelector('.navbar__profile');
+        if (profile) document.querySelector('.navbar__profile')?.replaceChildren(...[...profile.childNodes].map(node => node.cloneNode(true)));
         incoming.querySelectorAll('style').forEach(style => {
             if (nonce && style.nonce === nonce) style.nonce = inlineNonce;
             else style.remove();
@@ -117,7 +132,9 @@
         if (window.wspaceRuntime) wspace.socketConfig = { ticket: window.wspaceRuntime.socketTicket || '', url: window.wspaceRuntime.socketUrl || '' };
         for (const script of next.querySelectorAll('script[data-workspace-module-script]')) await loadScript(script, nonce, true);
         for (const script of scripts) await loadScript(script, nonce);
+        initialized = true;
         wspace.page.initialize();
+        current.inert = false;
         renderedUrl = response.url;
         const scroll = options.scroll || (preserveScroll ? previousScroll : [0, 0]);
         window.scrollTo(...scroll);
@@ -125,9 +142,23 @@
         if (location.hash) document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView();
         document.dispatchEvent(new CustomEvent('wspace:page-loaded', { detail: { url: response.url } }));
         return true;
+        } finally {
+            try {
+                if (!initialized) wspace.page.initialize();
+            } finally {
+            current.inert = false;
+            committing = false;
+            if (queuedVisit) {
+                const queued = queuedVisit;
+                queuedVisit = null;
+                window.setTimeout(() => void visit(queued.value, queued.options), 0);
+            }
+            }
+        }
     }
 
     async function visit(value, options = {}) {
+        if (committing) { queuedVisit = { value, options }; return false; }
         const url = new URL(value, location.href);
         if (!eligible(url)) { location.assign(url.href); return false; }
         if (submitting && !options.submission) return false;
@@ -175,6 +206,7 @@
             HTMLFormElement.prototype.submit.call(form); return false;
         }
         if (!await wspace.page.mayLeave()) return false;
+        if (submitting) return false;
         const data = new FormData(form);
         if (submitter?.name) data.append(submitter.name, submitter.value);
         const csrf = document.querySelector('#csrf-token-template')?.content.querySelector('input');

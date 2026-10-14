@@ -87,6 +87,7 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot ajax_browser_lifecycle < database/module_lifecycle_schema.sql
           mysql -h 127.0.0.1 -uroot -proot ajax_browser_lifecycle < database/notifications_schema.sql
           mysql -h 127.0.0.1 -uroot -proot ajax_browser_lifecycle < database/calendar_schema.sql
+          mysql -h 127.0.0.1 -uroot -proot ajax_browser_lifecycle < database/migrations/20261011_calendar_crud.sql
 
       - name: Seed admin, target user and environment
         shell: bash

@@ -23,6 +23,11 @@ const server = createServer(async (request, response) => {
     if (url.pathname === '/module.js') {
         response.setHeader('Content-Type', 'application/javascript'); response.end(moduleCode); return;
     }
+    if (url.pathname === '/late.js') {
+        response.setHeader('Content-Type', 'application/javascript');
+        setTimeout(() => response.end("window.wspace.page.register('late-module',scope=>{const button=document.querySelector('#late-button');if(button)button.addEventListener('click',()=>window.lateClicks=(window.lateClicks||0)+1);});"), 400);
+        return;
+    }
     if (url.pathname === '/module.css') {
         response.setHeader('Content-Type', 'text/css'); response.end('main{min-height:150px}'); return;
     }
@@ -44,8 +49,9 @@ const server = createServer(async (request, response) => {
       <script src="/assets/js/common.js" defer></script>
       <script src="/assets/js/navigation.js" defer></script>
       <script data-workspace-module-script src="/module.js" defer></script>
+      ${section === 'notes' ? '<script data-workspace-module-script src="/late.js" defer></script>' : ''}
       <body data-workspace-section="${section}"><header id="header">Оболочка</header><nav>${sections.map(name => `<a href="/${name}/" data-nav-key="${name}" class="${section === name ? 'active' : ''}">${name}</a>`).join('')}</nav>
-      <main id="main-content" tabindex="-1"><h1>${section}</h1><p id="mutations">${mutations}</p>
+      <main id="main-content" tabindex="-1"><h1>${section}</h1><p id="mutations">${mutations}</p>${section === 'notes' ? '<button id="late-button">Действие модуля</button>' : ''}
       <form action="/tasks/create" method="post"><input name="title" required value="Тест"><button name="action" value="create">Создать</button></form>
       <script nonce="${nonce}">window.wspace.page.register('fixture-inline',scope=>{window.inlineRuns=(window.inlineRuns||0)+1;});</script>
       <script>window.untrustedScriptExecuted=true;</script></main></body>`);
@@ -63,6 +69,11 @@ try {
     let visits = 1;
     for (const section of [...sections.slice(1), 'tasks', 'notes', 'tasks']) {
         await page.locator(`a[data-nav-key="${section}"]`).click();
+        if (section === 'notes') {
+            const previous = await page.evaluate(() => window.lateClicks || 0);
+            await page.locator('#late-button').click();
+            assert.equal(await page.evaluate(() => window.lateClicks), previous + 1, 'Click was lost while a module script was loading');
+        }
         await page.waitForFunction(section => document.body.dataset.workspaceSection === section && !document.documentElement.classList.contains('workspace-navigating'), section);
         visits++;
         assert.equal(await page.evaluate(() => window.instance), instance);
@@ -73,7 +84,7 @@ try {
         await page.evaluate(() => document.dispatchEvent(new Event('fixture-action')));
         assert.equal(await page.evaluate(() => window.actions), visits - 1);
     }
-    await page.getByRole('button', { name: 'Создать' }).click();
+    await page.getByRole('button', { name: 'Создать' }).evaluate(button => { button.click(); button.click(); });
     await page.waitForFunction(() => document.querySelector('#mutations')?.textContent === '1');
     assert.equal(await page.evaluate(() => window.instance), instance);
     assert.equal(mutations, 1);
