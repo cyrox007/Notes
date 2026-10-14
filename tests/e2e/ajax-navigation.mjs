@@ -16,6 +16,10 @@ const moduleCode = `window.wspace.page.register('fixture-module',scope=>{
 const server = createServer(async (request, response) => {
     const url = new URL(request.url, 'http://localhost');
     if (url.pathname === '/favicon.ico') { response.writeHead(204); response.end(); return; }
+    if (url.pathname.includes('/attachment/') || url.pathname === '/files/published/test' || url.pathname === '/messenger/media/test') {
+        response.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="fixture.txt"' });
+        response.end('download fixture'); return;
+    }
     if (url.pathname.startsWith('/assets/js/')) {
         response.setHeader('Content-Type', 'application/javascript');
         response.end(readFileSync(resolve('.' + url.pathname))); return;
@@ -91,6 +95,14 @@ try {
     assert.equal(await page.evaluate(() => window.instance), instance);
     assert.equal(mutations, 1);
     assert.equal(await page.evaluate(() => window.untrustedScriptExecuted), undefined);
+    for (const path of ['/notes/attachment/test', '/notes/published/test/attachment/test', '/notes/shared/test/attachment/test', '/files/published/test', '/messenger/media/test']) {
+        await page.evaluate(path => { const link = document.createElement('a'); link.id = 'fixture-download'; link.href = path; link.textContent = 'Вложение'; document.querySelector('main').append(link); }, path);
+        const download = page.waitForEvent('download');
+        await page.locator('#fixture-download').click();
+        assert.equal((await download).suggestedFilename(), 'fixture.txt');
+        assert.equal(await page.evaluate(() => window.instance), instance);
+        await page.locator('#fixture-download').evaluate(link => link.remove());
+    }
     await page.goBack();
     await page.waitForFunction(() => document.body.dataset.workspaceSection === 'notes');
     await page.goForward();

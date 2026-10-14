@@ -9,10 +9,11 @@
     let committing = false;
     let queuedVisit = null;
     const nativePath = /\/(?:auth|logout|update-continuations)(?:\/|$)|\/admin\/updates(?:\/|$)|\/files\/(?:get|download)(?:\/|$)/;
+    const mediaPath = /\/notes\/(?:attachment\/[^/]+|(?:published|shared)\/[^/]+\/attachment\/[^/]+)\/?$|\/files\/(?:published\/[^/]+|shared\/[^/]+\/file\/[^/]+)\/?$|\/messenger\/media\/[^/]+\/?$/;
     const inlineNonce = document.querySelector('script[nonce]')?.nonce || '';
 
     function eligible(url) {
-        return url.origin === location.origin && ['http:', 'https:'].includes(url.protocol) && !nativePath.test(url.pathname);
+        return url.origin === location.origin && ['http:', 'https:'].includes(url.protocol) && !nativePath.test(url.pathname) && !mediaPath.test(url.pathname);
     }
 
     function notify(message) { wspace.feedback?.toast(message, { type: 'error' }); }
