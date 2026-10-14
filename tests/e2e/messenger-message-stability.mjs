@@ -1,3 +1,4 @@
+import { addWorkspaceScript } from './page-runtime-fixture.mjs';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {readFile} from 'node:fs/promises';
@@ -8,7 +9,7 @@ try{
  const page=await browser.newPage();
  const source=(await readFile('modules/messenger/views/script.js','utf8')).replace('{literal}','').replace('{/literal}','').replace('class MessengerApp {','window.MessengerAppForTest = class MessengerApp {');
  await page.setContent('<div id="scroll"><div id="messages"></div></div>');
- await page.addScriptTag({content:source});
+ await addWorkspaceScript(page, {content:source});
  await page.evaluate(()=>{
   const app=Object.create(window.MessengerAppForTest.prototype);
   Object.assign(app,{userUid:'me',currentDialog:{type:'private'},el:{messageList:document.querySelector('#messages'),messageScroll:document.querySelector('#scroll')},dayKey:()=> 'today',formatDay:()=> 'Сегодня',messages:[{uid:'video-a',message:'',message_type:'video'}],renderMessage(message){const row=document.createElement('article');row.dataset.uid=message.uid;row.innerHTML='<div class="messenger-message__bubble"><video controls></video><div class="messenger-message__meta"></div></div>';row.querySelector('.messenger-message__meta').textContent=message.message_status||'sent';return row;}});
@@ -39,7 +40,7 @@ try{
  await page.goto('https://state.test/');
  const installStateFixture=async(user='one',uids=['a','b'])=>{
   await page.evaluate(()=>{document.body.innerHTML='<div id="fixture"><div id="chat-empty-state"></div><div id="chat-active"></div><textarea id="message-input"></textarea><div id="message-scroll" style="height:100px;overflow:auto"><div id="message-list"></div></div><button id="load-older-button"></button></div>';});
-  await page.addScriptTag({content:source});
+  await addWorkspaceScript(page, {content:source});
   await page.evaluate(({user,uids})=>{
    const root=document.querySelector('#fixture');root.dataset.userUid=user;
    const app=new window.MessengerAppForTest(root);
@@ -79,14 +80,14 @@ try{
  assert.equal(await page.evaluate(()=>stateApp.currentDialog),null);
  await page.evaluate(()=>{window.deletions=[];stateApp.sendEvent=(event,payload)=>{deletions.push({event,payload});return true;};stateApp.deleteMessage({uid:'mine',user:{uid:stateApp.userUid}});});
  assert.equal(await page.getByRole('radio',{name:'Только у меня',exact:true}).isChecked(),true);
- await page.getByRole('button',{name:'Отмена',exact:true}).click();
+ await page.getByRole('button',{name:'Отмена',exact:true}).click();await page.locator('.messenger-delete-dialog').waitFor({state:'detached'});
  assert.equal(await page.evaluate(()=>deletions.length),0);
  await page.evaluate(()=>stateApp.deleteMessage({uid:'mine',user:{uid:stateApp.userUid}}));
- await page.getByRole('button',{name:'Удалить',exact:true}).click();
+ await page.getByRole('button',{name:'Удалить',exact:true}).click();await page.locator('.messenger-delete-dialog').waitFor({state:'detached'});
  assert.equal(await page.evaluate(()=>deletions.at(-1).payload.for_all),false);
  await page.evaluate(()=>stateApp.deleteMessage({uid:'mine',user:{uid:stateApp.userUid}}));
  await page.getByRole('radio',{name:'У всех участников',exact:true}).check();
- await page.getByRole('button',{name:'Удалить',exact:true}).click();
+ await page.getByRole('button',{name:'Удалить',exact:true}).click();await page.locator('.messenger-delete-dialog').waitFor({state:'detached'});
  assert.equal(await page.evaluate(()=>deletions.at(-1).payload.for_all),true);
  await page.evaluate(()=>stateApp.deleteMessage({uid:'someone-else',user:{uid:'another'}}));
  assert.equal(await page.getByRole('radio').count(),0);

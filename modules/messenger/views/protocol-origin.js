@@ -1,4 +1,5 @@
 {literal}
+window.wspace.page.register('modules/messenger/views/protocol-origin.js', (pageScope) => {
 (() => {
     'use strict';
 
@@ -24,10 +25,11 @@
     // exact browser transformation without booting the rest of Messenger.
     window.wspaceResolveSocketUrl = resolveSocketUrl;
 
-    document.addEventListener('DOMContentLoaded', () => {
+    pageScope.onInit( () => {
         const config = window.wspace?.socketConfig;
         if (!config) return;
         config.url = resolveSocketUrl(config.url);
     });
 })();
+});
 {/literal}

@@ -1,8 +1,9 @@
 {literal}
+window.wspace.page.register('modules/messenger/views/storage-files.js', (pageScope) => {
 (() => {
     'use strict';
 
-    document.addEventListener('DOMContentLoaded', () => {
+    pageScope.onInit( () => {
         const app = window.wspace?.messenger;
         const root = document.getElementById('messenger-app');
         if (!app || !root || root.dataset.canUseFiles !== '1') return;
@@ -123,7 +124,7 @@
             const query = String(search.value || '').trim();
             setBusy(true);
             try {
-                const response = await fetch(appPath('/messenger/workspace/files') + (query ? `?q=${encodeURIComponent(query)}` : ''), {
+                const response = await pageScope.fetch(appPath('/messenger/workspace/files') + (query ? `?q=${encodeURIComponent(query)}` : ''), {
                     credentials: 'same-origin',
                     headers: { 'Accept': 'application/json' }
                 });
@@ -155,14 +156,14 @@
             selected = null;
             search.value = '';
             setSelected(null);
-            dialog.showModal();
+            window.wspace.modalMotion.openDialog(dialog);
             loadFiles();
-            window.setTimeout(() => search.focus(), 0);
+            pageScope.setTimeout(() => search.focus(), 0);
         });
 
         search.addEventListener('input', () => {
             window.clearTimeout(searchTimer);
-            searchTimer = window.setTimeout(loadFiles, 220);
+            searchTimer = pageScope.setTimeout(loadFiles, 220);
         });
 
         sendAttachment.addEventListener('click', async () => {
@@ -173,7 +174,7 @@
             payload.set('dialog_uid', initialDialog);
             setBusy(true);
             try {
-                const response = await fetch(appPath('/messenger/workspace/file-attachment'), {
+                const response = await pageScope.fetch(appPath('/messenger/workspace/file-attachment'), {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: { 'Accept': 'application/json' },
@@ -201,7 +202,7 @@
                     app.autosizeComposer();
                 }
                 if (replyUid) app.clearComposeContext();
-                dialog.close();
+                window.wspace.modalMotion.closeDialog(dialog);
                 app.showToast('Файл из хранилища отправляется');
             } catch (error) {
                 app.showToast(error instanceof Error ? error.message : 'Не удалось отправить файл');
@@ -218,7 +219,7 @@
             payload.set('expires_hours', '0');
             setBusy(true);
             try {
-                const response = await fetch(appPath('/messenger/workspace/file-link'), {
+                const response = await pageScope.fetch(appPath('/messenger/workspace/file-link'), {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: { 'Accept': 'application/json' },
@@ -248,7 +249,7 @@
                     app.autosizeComposer();
                 }
                 if (app.replyTo) app.clearComposeContext();
-                dialog.close();
+                window.wspace.modalMotion.closeDialog(dialog);
                 app.showToast('Ссылка на файл отправляется');
             } catch (error) {
                 app.showToast(error instanceof Error ? error.message : 'Не удалось отправить ссылку');
@@ -258,4 +259,5 @@
         });
     });
 })();
+});
 {/literal}

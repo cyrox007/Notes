@@ -1,8 +1,9 @@
 {literal}
+window.wspace.page.register('modules/messenger/views/dialog-actions.js', (pageScope) => {
 (() => {
     'use strict';
 
-    document.addEventListener('DOMContentLoaded', () => {
+    pageScope.onInit( () => {
         const app = window.wspace?.messenger;
         if (!app) return;
 
@@ -227,4 +228,5 @@
         updateHeaderActions();
     });
 })();
+});
 {/literal}

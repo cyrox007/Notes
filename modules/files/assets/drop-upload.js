@@ -1,4 +1,5 @@
-document.addEventListener('DOMContentLoaded', () => {
+window.wspace.page.register('modules/files/assets/drop-upload.js', (pageScope) => {
+pageScope.onInit( () => {
   const root = document.querySelector('.file-manager');
   const fileInput = document.getElementById('file-input');
   if (!(root instanceof HTMLElement) || !(fileInput instanceof HTMLInputElement)) return;
@@ -63,5 +64,6 @@ document.addEventListener('DOMContentLoaded', () => {
     fileInput.dispatchEvent(new Event('change', { bubbles: true }));
   });
 
-  window.addEventListener('blur', hide);
+  pageScope.listen(window, 'blur', hide);
+});
 });

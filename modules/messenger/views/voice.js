@@ -1,8 +1,9 @@
 {literal}
+window.wspace.page.register('modules/messenger/views/voice.js', (pageScope) => {
 (() => {
     'use strict';
 
-    document.addEventListener('DOMContentLoaded', () => {
+    pageScope.onInit( () => {
         const app = window.wspace?.messenger;
         const composer = document.querySelector('.messenger-composer');
         if (!app || !composer || !app.el?.input) return;
@@ -266,13 +267,18 @@
             sendAfterStop = false;
             setRecordingUi(false);
         };
+        pageScope.onDispose(() => {
+            sendAfterStop = false;
+            if (recorder && recorder.state !== 'inactive') recorder.stop();
+            resetRecorderState();
+        });
 
         const uploadVoice = (file, dialogUid) => new Promise((resolve, reject) => {
             const form = new FormData();
             form.append('dialog_uid', dialogUid);
             form.append('voice', file, file.name);
 
-            const xhr = new XMLHttpRequest();
+            const xhr = pageScope.xhr();
             xhr.open('POST', appPath('/messenger/voice-upload'), true);
             xhr.responseType = 'json';
             xhr.timeout = 90000;
@@ -317,9 +323,9 @@
                     throw new Error('Сервер не распознал голосовое сообщение');
                 }
                 const controller = new AbortController();
-                const timeout = window.setTimeout(() => controller.abort(), 30000);
+                const timeout = pageScope.setTimeout(() => controller.abort(), 30000);
                 try {
-                    const response = await fetch(appPath(`/messenger/recorded/${encodeURIComponent(attachment.uid)}/send`), {
+                    const response = await pageScope.fetch(appPath(`/messenger/recorded/${encodeURIComponent(attachment.uid)}/send`), {
                         method: 'POST', headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
                         body: new URLSearchParams({ reply_to_uid: replyToUid || '' }), signal: controller.signal,
                     });
@@ -436,7 +442,7 @@
                 startedAt = Date.now();
                 setRecordingUi(true);
                 recordingTime.textContent = '0:00';
-                timerId = window.setInterval(() => {
+                timerId = pageScope.setInterval(() => {
                     const elapsed = Math.floor((Date.now() - startedAt) / 1000);
                     recordingTime.textContent = formatDuration(elapsed);
                     if (elapsed >= MAX_DURATION_SECONDS) {
@@ -613,4 +619,5 @@
         };
     });
 })();
+});
 {/literal}

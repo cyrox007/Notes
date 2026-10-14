@@ -1,3 +1,4 @@
+window.wspace.page.register('modules/calendar/assets/calendar-planning.js', (pageScope) => {
 (() => {
     'use strict';
 
@@ -72,7 +73,7 @@
         });
         linksSave.addEventListener('click', saveLinks);
 
-        document.addEventListener('keydown', (event) => {
+        pageScope.listen(document, 'keydown', (event) => {
             if (event.key !== 'Escape') return;
             if (!refs.linksEditor.hidden) closeLinksEditor();
             else if (!refs.blockEditor.hidden) closeBlockEditor();
@@ -147,7 +148,7 @@
             }
             const url = new URL(window.location.href);
             url.searchParams.set('event', safe(item.uid));
-            window.location.href = url.toString();
+            void pageScope.visit(url.toString());
         });
         return button;
     }
@@ -255,16 +256,18 @@
     }
 
     function openBlockEditor() {
-        refs.blockEditor.hidden = false;
+        window.wspace.modalMotion.open(refs.blockEditor);
         document.documentElement.classList.add('calendar-editor-open');
     }
 
     function closeBlockEditor() {
-        refs.blockEditor.hidden = true;
-        hideFeedback(blockFeedback);
-        if (refs.linksEditor.hidden && document.querySelector('[data-calendar-editor]')?.hidden !== false) {
-            document.documentElement.classList.remove('calendar-editor-open');
-        }
+        window.wspace.modalMotion.close(refs.blockEditor, () => {
+            refs.blockEditor.hidden = true;
+            hideFeedback(blockFeedback);
+            if (refs.linksEditor.hidden && document.querySelector('[data-calendar-editor]')?.hidden !== false) {
+                document.documentElement.classList.remove('calendar-editor-open');
+            }
+        });
     }
 
     function setBlockBusy(busy) {
@@ -287,7 +290,7 @@
 
         state.source = { type: sourceType, uid: sourceUid };
         state.links = [];
-        refs.linksEditor.hidden = false;
+        window.wspace.modalMotion.open(refs.linksEditor);
         document.documentElement.classList.add('calendar-editor-open');
         hideFeedback(linksFeedback);
         linksCurrent.replaceChildren(node('span', '', 'Загружаем связи…'));
@@ -306,15 +309,17 @@
     }
 
     function closeLinksEditor() {
-        refs.linksEditor.hidden = true;
-        state.source = null;
-        state.links = [];
-        linksQuery.value = '';
-        linksTarget.replaceChildren(option('', 'Выберите объект'));
-        hideFeedback(linksFeedback);
-        if (refs.blockEditor.hidden && document.querySelector('[data-calendar-editor]')?.hidden !== false) {
-            document.documentElement.classList.remove('calendar-editor-open');
-        }
+        window.wspace.modalMotion.close(refs.linksEditor, () => {
+            refs.linksEditor.hidden = true;
+            state.source = null;
+            state.links = [];
+            linksQuery.value = '';
+            linksTarget.replaceChildren(option('', 'Выберите объект'));
+            hideFeedback(linksFeedback);
+            if (refs.blockEditor.hidden && document.querySelector('[data-calendar-editor]')?.hidden !== false) {
+                document.documentElement.classList.remove('calendar-editor-open');
+            }
+        });
     }
 
     async function loadTargets() {
@@ -417,7 +422,7 @@
     }
 
     async function requestJson(url, options = {}) {
-        const response = await fetch(url, {
+        const response = await pageScope.fetch(url, {
             credentials: 'same-origin',
             cache: 'no-store',
             headers: { 'Accept': 'application/json', ...(options.headers || {}) },
@@ -552,3 +557,4 @@
         return typeof value === 'string' ? value : value == null ? '' : String(value);
     }
 })();
+});

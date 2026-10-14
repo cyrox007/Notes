@@ -97,10 +97,10 @@
    section('Обработка данных','Распознавание выполняется средствами браузера на устройстве. Notes не отправляет звук во внешние сервисы распознавания. Установка модели браузера может потребовать загрузки из интернета. Полученный текст нужно проверить.');
    const sources=document.createElement('p');sources.textContent='Документация: ';
    for(const [label,url] of [['совместимость браузеров','https://github.com/mdn/browser-compat-data/blob/main/api/SpeechRecognition.json'],['локальный режим Edge','https://learn.microsoft.com/en-us/microsoft-edge/web-platform/speech-recognition-api']]){const a=document.createElement('a');a.textContent=label;a.href=url;a.target='_blank';a.rel='noopener noreferrer';sources.append(a,document.createTextNode(' '));}helpDialog.append(sources);
-   const close=document.createElement('button');close.type='button';close.textContent='Закрыть';close.autofocus=true;close.addEventListener('click',()=>helpDialog.close());helpDialog.append(close);document.body.append(helpDialog);
+   const close=document.createElement('button');close.type='button';close.textContent='Закрыть';close.autofocus=true;close.addEventListener('click',()=>window.wspace.modalMotion.closeDialog(helpDialog));helpDialog.append(close);document.body.append(helpDialog);
   }
   helpReason.textContent=reason;
-  if(!helpDialog.open)helpDialog.showModal();
+  if(!helpDialog.open)window.wspace.modalMotion.openDialog(helpDialog);
  }
  function attach(audio){
   if(audio.dataset.localTranscription==='1')return;audio.dataset.localTranscription='1';

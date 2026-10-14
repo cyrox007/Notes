@@ -1,3 +1,4 @@
+import { addWorkspaceScript } from './page-runtime-fixture.mjs';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';import {readFile} from 'node:fs/promises';import {execFileSync} from 'node:child_process';
 const require=createRequire(import.meta.url);const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
@@ -8,7 +9,7 @@ const browser=await chromium.launch({headless:true,...(process.env.E2E_BROWSER_E
 try {const page=await browser.newPage();
 for(const width of [320,360,390,768,1440]){
  await page.setViewportSize({width,height:900});await page.setContent('<style>*{box-sizing:border-box}body{margin:12px;font:14px Arial}'+styles.join('\n')+'</style>'+html);
- const behavior=await readFile('modules/tasks/assets/tasks-page.js','utf8');await page.addScriptTag({content:"{const root=document.querySelector('.tasks');"+behavior.slice(behavior.indexOf('        const filters ='),behavior.indexOf('        const appPath ='))+'}'});
+ const behavior=await readFile('modules/tasks/assets/tasks-page.js','utf8');await addWorkspaceScript(page, {content:"{const root=document.querySelector('.tasks');"+behavior.slice(behavior.indexOf('        const filters ='),behavior.indexOf('        const appPath ='))+'}'});
  await page.locator('.tasks__search-row').evaluate(e=>e.innerHTML='<input aria-label=Search placeholder=Search>');await page.getByRole('textbox',{name:'Search'}).focus();assert.equal(await page.getByRole('textbox',{name:'Search'}).evaluate(e=>getComputedStyle(e).outlineOffset),'-2px');
  const failures=await page.evaluate(()=>{const panel=document.querySelector('.tasks__filter-panel');const bounds=panel.getBoundingClientRect();return [...panel.querySelectorAll('summary,.filter-btn,label,select,button')].filter(e=>{const r=e.getBoundingClientRect();return r.width&&(r.left<bounds.left-1||r.right>bounds.right+1||r.left<0||r.right>innerWidth);}).map(e=>e.outerHTML);});
  assert.deepEqual(failures,[], 'Filter element outside panel at '+width);

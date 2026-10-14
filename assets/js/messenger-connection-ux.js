@@ -1,10 +1,11 @@
+window.wspace.page.register('assets/js/messenger-connection-ux.js', (pageScope) => {
 (() => {
     'use strict';
 
     const MAX_RECONNECT_DELAY = 10000;
     const CONNECTION_NOTICE_DELAY = 5000;
 
-    document.addEventListener('DOMContentLoaded', () => {
+    pageScope.onInit( () => {
         const app = window.wspace?.messenger;
         const root = document.getElementById('messenger-app');
         if (!app || !root || typeof app.connect !== 'function') {
@@ -122,7 +123,7 @@
                 banner.hidden = true;
                 retryButton.hidden = true;
                 if (connectionNoticeTimer === null) {
-                    connectionNoticeTimer = window.setTimeout(() => {
+                    connectionNoticeTimer = pageScope.setTimeout(() => {
                         connectionNoticeTimer = null;
                         connectionNoticeVisible = true;
                         const pending = pendingConnectionNotice;
@@ -195,7 +196,7 @@
                     const endpoint = typeof window.wspace?.path === 'function'
                         ? window.wspace.path('/messenger/socket-ticket')
                         : '/messenger/socket-ticket';
-                    const response = await fetch(endpoint, {
+                    const response = await pageScope.fetch(endpoint, {
                         method: 'POST',
                         credentials: 'same-origin',
                         headers: { 'Accept': 'application/json' }
@@ -235,7 +236,7 @@
                             bannerText: 'Обнаружена другая авторизованная учётная запись. Обновляем страницу…',
                             hideRetry: true
                         });
-                        window.setTimeout(() => window.location.reload(), 80);
+                        pageScope.setTimeout(() => pageScope.refresh(), 80);
                         return false;
                     }
 
@@ -355,10 +356,10 @@
             reconnectAt = Date.now() + delay;
             updateCountdown();
             if (delay > 0) {
-                countdownTimer = window.setInterval(updateCountdown, 250);
+                countdownTimer = pageScope.setInterval(updateCountdown, 250);
             }
 
-            app.reconnectTimer = window.setTimeout(() => {
+            app.reconnectTimer = pageScope.setTimeout(() => {
                 app.reconnectTimer = null;
                 clearCountdown();
                 app.connect();
@@ -367,7 +368,7 @@
 
         function retryNow() {
             if (sessionUnavailable) {
-                window.location.reload();
+                pageScope.refresh();
                 return;
             }
             clearReconnectTimer();
@@ -378,7 +379,7 @@
         retryButton.addEventListener('click', retryNow);
         bannerAction.addEventListener('click', retryNow);
 
-        document.addEventListener('wspace:messenger-session-unavailable', () => {
+        pageScope.listen(document, 'wspace:messenger-session-unavailable', () => {
             sessionUnavailable = true;
             clearReconnectTimer();
             app.stopLongPoll?.();
@@ -389,7 +390,7 @@
             });
         });
 
-        window.addEventListener('offline', () => {
+        pageScope.listen(window, 'offline', () => {
             clearReconnectTimer();
 
             // Сразу переводим realtime в ожидающий Long Poll режим. Это важно
@@ -411,7 +412,7 @@
             });
         });
 
-        window.addEventListener('online', () => {
+        pageScope.listen(window, 'online', () => {
             if (!sessionUnavailable) {
                 app.startLongPoll?.('сеть восстановлена');
                 app.resumeLongPoll?.();
@@ -424,7 +425,7 @@
             verifySessionIdentity();
         });
 
-        window.addEventListener('focus', () => {
+        pageScope.listen(window, 'focus', () => {
             verifySessionIdentity();
             const socketReady = app.socket?.readyState === WebSocket.OPEN && app.socketAuthorized === true;
             if (navigator.onLine !== false && !sessionUnavailable && !socketReady) {
@@ -433,7 +434,7 @@
             }
         });
 
-        document.addEventListener('visibilitychange', () => {
+        pageScope.listen(document, 'visibilitychange', () => {
             if (document.visibilityState !== 'visible') return;
             verifySessionIdentity();
             const socketReady = app.socket?.readyState === WebSocket.OPEN && app.socketAuthorized === true;
@@ -462,3 +463,4 @@
         }
     });
 })();
+});

@@ -1,5 +1,6 @@
+window.wspace.page.register('assets/js/release-polish.js', (pageScope) => {
 (function bootstrapReleasePolish() {
-    document.addEventListener('DOMContentLoaded', () => {
+    pageScope.onInit( () => {
         normalizePagedUrl();
         initFileManagerFindability();
     });
@@ -14,7 +15,7 @@
         if (requested === normalized) return;
 
         url.searchParams.set('page', String(normalized));
-        window.location.replace(`${url.pathname}${url.search}${url.hash}`);
+        pageScope.visit(`${url.pathname}${url.search}${url.hash}`);
     }
 
     function initFileManagerFindability() {
@@ -107,3 +108,4 @@
         apply();
     }
 })();
+});

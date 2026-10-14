@@ -1,3 +1,4 @@
+window.wspace.page.register('modules/calendar/assets/calendar.js', (pageScope) => {
 (() => {
     'use strict';
 
@@ -54,7 +55,7 @@
         fields.frequency.addEventListener('change', syncRecurrenceFields);
         form.addEventListener('submit', saveEvent);
         deleteButton.addEventListener('click', deleteEvent);
-        document.addEventListener('keydown', (event) => {
+        pageScope.listen(document, 'keydown', (event) => {
             if (event.key === 'Escape' && state.editorOpen) closeEditor();
         });
         void refresh().then(openLinkedEvent);
@@ -371,16 +372,18 @@
     }
 
     function openEditor() {
-        refs.editor.hidden = false;
+        window.wspace.modalMotion.open(refs.editor);
         state.editorOpen = true;
         document.documentElement.classList.add('calendar-editor-open');
     }
 
     function closeEditor() {
-        refs.editor.hidden = true;
         state.editorOpen = false;
-        document.documentElement.classList.remove('calendar-editor-open');
-        hideFeedback(formFeedback);
+        window.wspace.modalMotion.close(refs.editor, () => {
+            refs.editor.hidden = true;
+            if (!document.querySelector('.calendar-editor:not([hidden])')) document.documentElement.classList.remove('calendar-editor-open');
+            hideFeedback(formFeedback);
+        });
     }
 
     function setFormBusy(busy) {
@@ -394,7 +397,7 @@
     }
 
     async function requestJson(url, options = {}) {
-        const response = await fetch(url, {
+        const response = await pageScope.fetch(url, {
             credentials: 'same-origin',
             cache: 'no-store',
             headers: { 'Accept': 'application/json', ...(options.headers || {}) },
@@ -515,3 +518,4 @@
         return Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
     }
 })();
+});

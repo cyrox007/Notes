@@ -1,3 +1,4 @@
+window.wspace.page.register('modules/admin/assets/admin-updates.js', (pageScope) => {
 (() => {
     'use strict';
 
@@ -83,7 +84,7 @@
                     progress: 100,
                     message: 'Обновление установлено. Перезагружаем интерфейс…',
                 }));
-                window.setTimeout(() => window.location.reload(), 700);
+                pageScope.setTimeout(() => pageScope.refresh(), 700);
                 return;
             }
 
@@ -99,7 +100,7 @@
                         ? `${recoveredMessage} Код диагностики: ${diagnosticCode}.`
                         : recoveredMessage
                 );
-                window.setTimeout(() => window.location.reload(), 1400);
+                pageScope.setTimeout(() => pageScope.refresh(), 1400);
                 return;
             }
 
@@ -115,7 +116,7 @@
     }
 
     function boot() {
-        document.addEventListener('submit', (event) => {
+        pageScope.listen(document, 'submit', (event) => {
             const form = event.target instanceof HTMLFormElement
                 ? event.target.closest('[data-update-install-form]')
                 : null;
@@ -140,8 +141,9 @@
     }
 
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', boot, { once: true });
+        pageScope.onInit( boot, { once: true });
     } else {
         boot();
     }
 })();
+});

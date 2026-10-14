@@ -1,3 +1,4 @@
+window.wspace.page.register('modules/notes/assets/notes-editor-save.js', (pageScope) => {
 (() => {
     function boot() {
         const root = document.querySelector('[data-note-editor-013]');
@@ -56,7 +57,7 @@
             setBusy(true);
 
             try {
-                const response = await fetch(form.action, {
+                const response = await pageScope.fetch(form.action, {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: {
@@ -102,6 +103,7 @@
         });
     }
 
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+    if (document.readyState === 'loading') pageScope.onInit( boot);
     else boot();
 })();
+});

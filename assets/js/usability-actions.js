@@ -251,7 +251,7 @@
                 });
                 item.remove();
                 feedback()?.toast('Удалено', 'success');
-                if (!document.querySelector('.file-manager__item')) window.location.reload();
+                if (!document.querySelector('.file-manager__item')) window.wspace.page.refresh();
             } catch (error) {
                 feedback()?.toast(error.message || 'Ошибка при удалении', 'error');
             }
@@ -354,7 +354,7 @@
                         confirmText: form.dataset.confirmText || 'Подтвердить'
                     })
                     : window.confirm(confirmMessage));
-            if (confirmed) HTMLFormElement.prototype.submit.call(form);
+            if (confirmed) window.wspace.page.submit(form);
             return;
         }
 
@@ -364,11 +364,12 @@
         const confirmed = feedback()?.confirm
             ? await feedback().confirm('Вы уверены, что хотите удалить эту задачу?', { title: 'Удаление задачи', danger: true, confirmText: 'Удалить' })
             : window.confirm('Вы уверены, что хотите удалить эту задачу?');
-        if (confirmed) HTMLFormElement.prototype.submit.call(form);
+        if (confirmed) window.wspace.page.submit(form);
     }, true);
 })();
 
 // Animate the real details height so the following table moves with the form.
+window.wspace.page.register('assets/js/admin-create-user-motion', () => {
 document.querySelectorAll('details.admin-create-user').forEach((details) => {
     const summary = details.querySelector('summary');
     let animation;
@@ -389,4 +390,6 @@ document.querySelectorAll('details.admin-create-user').forEach((details) => {
             animation = null;
         };
     });
+});
+
 });

@@ -1,3 +1,4 @@
+import { addWorkspaceScript } from './page-runtime-fixture.mjs';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {readFile} from 'node:fs/promises';
@@ -11,7 +12,7 @@ try {
  let revoked=false;
  await page.route('**/notes/published/note',async route=>{await new Promise(r=>setTimeout(r,150));await route.fulfill({status:revoked?404:200,contentType:'application/json',body:JSON.stringify(revoked?{error:'Заметка больше не опубликована'}:{title:'Заметка',owner:'owner',content:'<script>window.injected=true</script>',attachments:[{file_name:'file.txt',url:'/notes/published/note/attachment/file'}],subtasks:[{title:'Step',is_completed:1}]})});});
  await page.goto('http://profile.test/');
- await page.addScriptTag({content:await readFile('modules/profile/assets/profile.js','utf8')});
+ await addWorkspaceScript(page, {content:await readFile('modules/profile/assets/profile.js','utf8')});
  await page.locator('[data-public-view]').click();
  await page.locator('[aria-busy="true"]').waitFor();
  await page.locator('.profile-public-view__text').waitFor();

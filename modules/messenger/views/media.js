@@ -1,8 +1,9 @@
 {literal}
+window.wspace.page.register('modules/messenger/views/media.js', (pageScope) => {
 (() => {
     'use strict';
 
-    document.addEventListener('DOMContentLoaded', () => {
+    pageScope.onInit( () => {
         const app = window.wspace?.messenger;
         if (!app) return;
 
@@ -220,7 +221,7 @@ const setActivity = (activity, active, dialogUid) => {
             form.append('dialog_uid', app.currentDialog.uid);
             form.append('file', file, file.name || 'attachment');
 
-            const xhr = new XMLHttpRequest();
+            const xhr = pageScope.xhr();
             xhr.open('POST', appPath('/messenger/upload'), true);
             xhr.responseType = 'json';
             xhr.upload.addEventListener('progress', (event) => {
@@ -366,4 +367,5 @@ const setActivity = (activity, active, dialogUid) => {
         }
     });
 })();
+});
 {/literal}

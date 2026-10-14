@@ -412,9 +412,9 @@
             open.textContent = 'Открыть';
             open.addEventListener('click', () => {
                 if (unread && notificationId > 0) {
-                    void mutate(`/` + notificationId + '/read', 'POST').finally(() => window.location.assign(target));
+                    void mutate(`/` + notificationId + '/read', 'POST').finally(() => window.wspace.page.visit(target));
                 } else {
-                    window.location.assign(target);
+                    window.wspace.page.visit(target);
                 }
             });
             actions.appendChild(open);

@@ -1,0 +1,22 @@
+name: AJAX navigation and modal motion
+on:
+  pull_request:
+    branches: ['1.1']
+  push:
+    branches: ['1.1']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ajax-ui-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-save playwright@1.55.0
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/e2e/modal-motion.mjs
+      - run: node tests/e2e/ajax-navigation.mjs

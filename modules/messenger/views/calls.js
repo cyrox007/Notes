@@ -1,6 +1,7 @@
+window.wspace.page.register('modules/messenger/views/calls.js', (pageScope) => {
 (() => {
  'use strict';
- document.addEventListener('DOMContentLoaded',()=>{
+ pageScope.onInit(()=>{
   const app=window.wspace?.messenger;
   if(!app) return;
   const path=p=>window.wspace?.path?window.wspace.path(p):p;
@@ -8,15 +9,15 @@
   if(!actions) return;
   const dialog=document.createElement('dialog');dialog.className='workspace-call';
   dialog.innerHTML='<h2>Звонок</h2><p class="workspace-call__status" role="status"></p><div class="workspace-call__videos"><video class="workspace-call__remote" autoplay playsinline></video><video class="workspace-call__local" autoplay playsinline muted></video></div><div class="workspace-call__controls"><button type="button" data-call-action="accept">Ответить</button><button type="button" data-call-action="mute">Микрофон</button><button type="button" data-call-action="camera">Камера</button><button type="button" data-call-action="end">Завершить</button></div><p class="workspace-call__hint">Прямое соединение между участниками. Если сеть блокирует его, звонок не сможет соединиться.</p>';
-  document.body.appendChild(dialog);
+  pageScope.append(dialog);
   const status=dialog.querySelector('[role=status]'), local=dialog.querySelector('.workspace-call__local'),remote=dialog.querySelector('.workspace-call__remote');
   const accept=dialog.querySelector('[data-call-action=accept]'),mute=dialog.querySelector('[data-call-action=mute]'),camera=dialog.querySelector('[data-call-action=camera]');
   let call=null,pc=null,stream=null,epoch=0,polling=false,lastPoll=Date.now(),retries=0,restarting=false,deadline=null,disconnectTimer=null,remoteDescription='';
   const supported=()=>window.isSecureContext && navigator.mediaDevices?.getUserMedia && window.RTCPeerConnection;
   async function request(method,data){
-   const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),12000);
+   const controller=new AbortController(),timeout=pageScope.setTimeout(()=>controller.abort(),12000);
    try {
-   const response=await fetch(path('/messenger/calls'),{method,signal:controller.signal,headers:{'Accept':'application/json','X-Requested-With':'XMLHttpRequest',...(data?{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'}:{})},...(data?{body:new URLSearchParams(data).toString()}:{})});
+   const response=await pageScope.fetch(path('/messenger/calls'),{method,signal:controller.signal,headers:{'Accept':'application/json','X-Requested-With':'XMLHttpRequest',...(data?{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'}:{})},...(data?{body:new URLSearchParams(data).toString()}:{})});
    const payload=await response.json();if(!response.ok||!payload.success) throw new Error(payload.message||'Сигнализация недоступна');return payload;
    } finally {clearTimeout(timeout);}
   }
@@ -26,7 +27,7 @@
    epoch++;clearTimeout(deadline);clearTimeout(disconnectTimer);deadline=disconnectTimer=null;
    if(pc){pc.onconnectionstatechange=null;pc.close();} pc=null;
    stream?.getTracks().forEach(t=>t.stop());stream=null;local.srcObject=remote.srcObject=null;call=null;remoteDescription='';retries=0;restarting=false;
-   app.root.dataset.callActive='false';dialog.close();if(text) app.showToast(text);
+   app.root.dataset.callActive='false';window.wspace.modalMotion.closeDialog(dialog);if(text) app.showToast(text);
   }
   async function end(){
    const current=call;
@@ -40,16 +41,16 @@
    local.hidden=call.mode!=='video'||Boolean(stream&&!stream.getVideoTracks().length);remote.classList.toggle('workspace-call__remote--audio',call.mode!=='video');
    mute.setAttribute('aria-pressed','false');camera.setAttribute('aria-pressed','false');mute.textContent='Выключить микрофон';camera.textContent='Выключить камеру';
    dialog.querySelector('h2').textContent=call.mode==='video'?'Видеозвонок':'Аудиозвонок';
-   if(!dialog.open)dialog.showModal();
+   if(!dialog.open)window.wspace.modalMotion.openDialog(dialog);
   }
-  function startDeadline(){clearTimeout(deadline);deadline=setTimeout(()=>{if(pc?.connectionState!=='connected')void end().then(()=>app.showToast('Не удалось установить прямое соединение. Возможно, сеть блокирует звонки.'));},25000);}
+  function startDeadline(){clearTimeout(deadline);deadline=pageScope.setTimeout(()=>{if(pc?.connectionState!=='connected')void end().then(()=>app.showToast('Не удалось установить прямое соединение. Возможно, сеть блокирует звонки.'));},25000);}
   async function description(type,options){
    const active=pc, token=epoch;
    await active.setLocalDescription(type==='offer'?await active.createOffer(options):await active.createAnswer());
    if(active.iceGatheringState!=='complete') await new Promise(resolve=>{
     const done=()=>{clearTimeout(timer);active.removeEventListener('icegatheringstatechange',change);resolve();};
     const change=()=>{if(active.iceGatheringState==='complete')done();};
-    const timer=setTimeout(done,5000);active.addEventListener('icegatheringstatechange',change);
+    const timer=pageScope.setTimeout(done,5000);active.addEventListener('icegatheringstatechange',change);
    });
    if(token!==epoch||pc!==active)throw new Error('Звонок отменён');
    return active.localDescription.sdp;
@@ -83,7 +84,7 @@
    pc.onconnectionstatechange=()=>{
     if(!pc)return;
     if(pc.connectionState==='connected'){clearTimeout(deadline);clearTimeout(disconnectTimer);display('Соединение установлено');}
-    if(pc.connectionState==='disconnected'){display('Связь прервана. Восстанавливаем…');clearTimeout(disconnectTimer);disconnectTimer=setTimeout(()=>void restart(),5000);}
+    if(pc.connectionState==='disconnected'){display('Связь прервана. Восстанавливаем…');clearTimeout(disconnectTimer);disconnectTimer=pageScope.setTimeout(()=>void restart(),5000);}
     if(pc.connectionState==='failed'){display('Соединение прервано. Восстанавливаем…');startDeadline();void restart();}
    };
    startDeadline();
@@ -131,8 +132,9 @@
    }catch(error){if(call){display('Проверяем соединение с Notes…');if(Date.now()-lastPoll>30000)cleanup('Сигнализация звонка недоступна');}}
    finally{polling=false;}
   }
-  void poll();const pollTimer=setInterval(()=>void poll(),2000);
-  window.addEventListener('pagehide',()=>{clearInterval(pollTimer);if(call){const token=document.querySelector('#csrf-token-template')?.content.querySelector('input')?.value;const data=new URLSearchParams({id:call.id,dialog_uid:call.dialog_uid,action:'hangup',mode:call.mode,...(token?{csrf_token:token}:{})});navigator.sendBeacon?.(path('/messenger/calls'),data);}cleanup('');});
-  document.addEventListener('wspace:messenger-session-unavailable',()=>cleanup('Сессия завершена'));
+  void poll();const pollTimer=pageScope.setInterval(()=>void poll(),2000);
+  pageScope.listen(window, 'pagehide',()=>{clearInterval(pollTimer);if(call){const token=document.querySelector('#csrf-token-template')?.content.querySelector('input')?.value;const data=new URLSearchParams({id:call.id,dialog_uid:call.dialog_uid,action:'hangup',mode:call.mode,...(token?{csrf_token:token}:{})});navigator.sendBeacon?.(path('/messenger/calls'),data);}cleanup('');});
+  pageScope.listen(document, 'wspace:messenger-session-unavailable',()=>cleanup('Сессия завершена'));
  });
 })();
+});

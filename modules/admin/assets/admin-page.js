@@ -1,4 +1,5 @@
-document.addEventListener('DOMContentLoaded', function () {
+window.wspace.page.register('modules/admin/assets/admin-page.js', (pageScope) => {
+pageScope.onInit( function () {
     const container = document.getElementById('custom-fields-container');
     const addButton = document.getElementById('add-field-btn');
 
@@ -82,4 +83,5 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     });
+});
 });

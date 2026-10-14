@@ -1,3 +1,4 @@
+window.wspace.page.register('modules/admin/assets/license.js', (pageScope) => {
 'use strict';
 
 function copyInstallationIdFallback(value) {
@@ -8,7 +9,7 @@ function copyInstallationIdFallback(value) {
     helper.style.opacity = '0';
     helper.style.pointerEvents = 'none';
 
-    document.body.appendChild(helper);
+    pageScope.append(helper);
     helper.select();
     helper.setSelectionRange(0, value.length);
 
@@ -35,7 +36,7 @@ async function copyInstallationId(value) {
     return copyInstallationIdFallback(value);
 }
 
-document.addEventListener('DOMContentLoaded', function () {
+pageScope.onInit( function () {
     const button = document.querySelector('[data-copy-installation-id]');
     const valueNode = document.getElementById('installation-id-value');
     const status = document.getElementById('installation-id-copy-status');
@@ -70,9 +71,10 @@ document.addEventListener('DOMContentLoaded', function () {
             status.textContent = 'Не удалось скопировать Installation ID';
         }
 
-        resetTimer = window.setTimeout(function () {
+        resetTimer = pageScope.setTimeout(function () {
             button.textContent = defaultText;
             status.textContent = '';
         }, 1800);
     });
+});
 });

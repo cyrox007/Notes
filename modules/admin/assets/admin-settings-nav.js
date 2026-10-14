@@ -1,3 +1,4 @@
+window.wspace.page.register('modules/admin/assets/admin-settings-nav.js', (pageScope) => {
 (() => {
     'use strict';
 
@@ -42,6 +43,7 @@
         hero.insertAdjacentElement('afterend', nav);
     }
 
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+    if (document.readyState === 'loading') pageScope.onInit( boot);
     else boot();
 })();
+});

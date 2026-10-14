@@ -1,8 +1,9 @@
 {literal}
+window.wspace.page.register('modules/messenger/views/search.js', (pageScope) => {
 (() => {
     'use strict';
 
-    document.addEventListener('DOMContentLoaded', () => {
+    pageScope.onInit( () => {
         const app = window.wspace?.messenger;
         if (!app) return;
 
@@ -73,7 +74,7 @@
         body.append(input, tabs, results);
         surface.append(header, body);
         dialog.append(surface);
-        document.body.append(dialog);
+        pageScope.append(dialog);
 
         let mode = 'chat';
         let debounceTimer = null;
@@ -118,7 +119,7 @@
 
         const queueSearch = () => {
             window.clearTimeout(debounceTimer);
-            debounceTimer = window.setTimeout(runSearch, 280);
+            debounceTimer = pageScope.setTimeout(runSearch, 280);
         };
 
         input.addEventListener('input', queueSearch);
@@ -150,7 +151,7 @@
             input.value = '';
             updateTabs();
             showHint('Введите минимум 2 символа');
-            if (!dialog.open) dialog.showModal();
+            if (!dialog.open) window.wspace.modalMotion.openDialog(dialog);
             requestAnimationFrame(() => input.focus());
         });
 
@@ -168,7 +169,7 @@
                 app.showToast('Диалог больше недоступен');
                 return;
             }
-            dialog.close();
+            window.wspace.modalMotion.closeDialog(dialog);
             app.openDialog(dialogUid);
         };
 
@@ -186,7 +187,7 @@
                 message_id: messageId,
                 targeted_load_requested: false
             };
-            dialog.close();
+            window.wspace.modalMotion.closeDialog(dialog);
             app.openDialog(message.dialog_uid);
         };
 
@@ -305,4 +306,5 @@
         };
     });
 })();
+});
 {/literal}

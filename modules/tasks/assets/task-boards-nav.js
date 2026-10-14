@@ -1,7 +1,8 @@
+window.wspace.page.register('modules/tasks/assets/task-boards-nav.js', (pageScope) => {
 (() => {
     'use strict';
 
-    document.addEventListener('DOMContentLoaded', () => {
+    pageScope.onInit( () => {
         if (!document.querySelector('.tasks') || document.querySelector('[data-shared-task-boards-link]')) {
             return;
         }
@@ -24,3 +25,4 @@
         controls.insertBefore(link, createButton || null);
     });
 })();
+});

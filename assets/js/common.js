@@ -37,7 +37,7 @@
         const tokenInput = template && template.content
             ? template.content.querySelector('input[name="csrf_token"]')
             : null;
-        const csrfToken = tokenInput ? tokenInput.value : '';
+        let csrfToken = tokenInput ? tokenInput.value : '';
 
         function isSameOrigin(url) {
             try {
@@ -55,6 +55,10 @@
 
         wspace.security = {
             csrfToken,
+            refreshToken(value) {
+                csrfToken = String(value || '');
+                this.csrfToken = csrfToken;
+            },
             getCSRFToken() {
                 return csrfToken;
             }

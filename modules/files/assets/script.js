@@ -1,10 +1,11 @@
+window.wspace.page.register('modules/files/assets/script.js', (pageScope) => {
 /**
  * Поведение файлового менеджера в браузере.
  * Пользовательские файлы открываются только через защищённый маршрут /files/get/{id}/.
  * Предпросмотр текста и кода работает только для чтения и ничего не выполняет.
  */
 
-document.addEventListener('DOMContentLoaded', function () {
+pageScope.onInit( function () {
     const root = document.querySelector('.file-manager');
     if (!root) return;
 
@@ -38,16 +39,17 @@ document.addEventListener('DOMContentLoaded', function () {
     function showModal(modal) {
         if (!modal) return;
         lastFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-        modal.classList.add('show');
+        window.wspace.modalMotion.open(modal, () => modal.classList.add('show'));
         document.body.classList.add('file-manager-modal-open');
         const focusTarget = modal.querySelector('input:not([type="hidden"]), button, [tabindex="0"]');
         if (focusTarget instanceof HTMLElement) {
-            window.setTimeout(() => focusTarget.focus(), 0);
+            pageScope.setTimeout(() => focusTarget.focus(), 0);
         }
     }
 
     function hideModal(modal) {
         if (!modal) return;
+        window.wspace.modalMotion.close(modal, () => {
         modal.classList.remove('show');
         if (!document.querySelector('.file-manager__modal.show')) {
             document.body.classList.remove('file-manager-modal-open');
@@ -55,6 +57,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (lastFocusedElement && document.contains(lastFocusedElement)) {
             lastFocusedElement.focus();
         }
+        });
     }
 
     function showError(message) {
@@ -68,7 +71,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function postForm(url, values) {
         const body = new URLSearchParams();
         Object.entries(values).forEach(([key, value]) => body.set(key, String(value)));
-        return fetch(appPath(url), {
+        return pageScope.fetch(appPath(url), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -87,7 +90,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     async function refreshVisibleItems() {
-        const response = await fetch(window.location.href, {
+        const response = await pageScope.fetch(window.location.href, {
             method: 'GET',
             credentials: 'same-origin',
             cache: 'no-store',
@@ -121,7 +124,7 @@ document.addEventListener('DOMContentLoaded', function () {
             return true;
         } catch (error) {
             console.warn('Не удалось обновить файловый менеджер без перезагрузки страницы', error);
-            window.location.assign(window.location.href);
+            pageScope.visit(window.location.href);
             return false;
         }
     }
@@ -230,7 +233,7 @@ document.addEventListener('DOMContentLoaded', function () {
             resetProgress(file.name);
             showModal(modalUploadProgress);
 
-            const xhr = new XMLHttpRequest();
+            const xhr = pageScope.xhr();
             xhr.open('POST', appPath('/files/upload/'), true);
             xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
 
@@ -332,7 +335,7 @@ document.addEventListener('DOMContentLoaded', function () {
         showModal(modalTextPreview);
 
         try {
-            const response = await fetch(fileUrl(id), {
+            const response = await pageScope.fetch(fileUrl(id), {
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
             });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -353,7 +356,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!id) return;
 
         if (type === 'folder') {
-            window.location.href = appPath(`/files/folder/${encodeURIComponent(id)}/`);
+            void pageScope.visit(appPath(`/files/folder/${encodeURIComponent(id)}/`));
             return;
         }
         if (imageExtensions.has(extension) || audioExtensions.has(extension) || videoExtensions.has(extension)) {
@@ -397,7 +400,7 @@ document.addEventListener('DOMContentLoaded', function () {
             renameInput.value = item.dataset.name || '';
             renameIdInput.value = currentItemId || '';
             showModal(modalRename);
-            window.setTimeout(() => renameInput.select(), 0);
+            pageScope.setTimeout(() => renameInput.select(), 0);
             return;
         }
 
@@ -426,7 +429,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    document.addEventListener('keydown', function (event) {
+    pageScope.listen(document, 'keydown', function (event) {
         if (event.key === 'Escape') {
             const openModal = document.querySelector('.file-manager__modal.show');
             if (openModal) hideModal(openModal);
@@ -446,4 +449,5 @@ document.addEventListener('DOMContentLoaded', function () {
             renameItem();
         }
     });
+});
 });

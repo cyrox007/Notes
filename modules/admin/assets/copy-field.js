@@ -1,3 +1,4 @@
+window.wspace.page.register('modules/admin/assets/copy-field.js', (pageScope) => {
 'use strict';
 
 function copyTextFallback(value) {
@@ -8,7 +9,7 @@ function copyTextFallback(value) {
     helper.style.opacity = '0';
     helper.style.pointerEvents = 'none';
 
-    document.body.appendChild(helper);
+    pageScope.append(helper);
     helper.select();
     helper.setSelectionRange(0, value.length);
 
@@ -35,7 +36,7 @@ async function copyText(value) {
     return copyTextFallback(value);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+pageScope.onInit( () => {
     document.querySelectorAll('[data-copy-target]').forEach((button) => {
         if (!(button instanceof HTMLButtonElement)) return;
 
@@ -78,10 +79,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            resetTimer = window.setTimeout(() => {
+            resetTimer = pageScope.setTimeout(() => {
                 button.textContent = defaultText;
                 if (status) status.textContent = '';
             }, 1800);
         });
     });
+});
 });

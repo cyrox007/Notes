@@ -1,3 +1,4 @@
+import { addWorkspaceScript } from './page-runtime-fixture.mjs';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {readFile} from 'node:fs/promises';
@@ -8,7 +9,7 @@ try {
  await page.addStyleTag({content:await readFile('modules/notes/assets/editor-013.css','utf8')});
  const source=await readFile('modules/notes/assets/notes-editor-013.js','utf8');const functions=source.slice(source.indexOf('    function setupAudioPlayer('),source.indexOf("    if (document.readyState === 'loading')"));
  await page.evaluate(()=>{window.testAudio=new AudioContext();const oscillator=testAudio.createOscillator();const gain=testAudio.createGain();const destination=testAudio.createMediaStreamDestination();oscillator.connect(gain);gain.connect(destination);oscillator.start();window.testGain=gain;window.testStream=destination.stream;navigator.mediaDevices.getUserMedia=async()=>testStream;});
- await page.addScriptTag({content:functions+'\nsetupVoiceRecorder(document.querySelector("#root"),"",()=>{},{});'});
+ await addWorkspaceScript(page, {content:"window.wspace.page.register('note-voice-fixture',pageScope=>{"+functions+'\nsetupVoiceRecorder(document.querySelector("#root"),"",()=>{},{});});'});
  await page.click('#recordVoiceBtn');await page.click('#startRecord');
  await page.waitForFunction(()=>document.querySelector('#recordingStatus').textContent.includes('принимает звук'));
  assert.equal(await page.locator('.note-voice-meter').isVisible(),true);
@@ -24,7 +25,7 @@ try {
  console.log('PASS: real audio signal/silence meter, recording preview playback, custom controls and track cleanup');
  await page.route('**/tasks/subtask/1/toggle',route=>route.fulfill({json:{success:true,is_completed:1}}));
  await page.setContent('<div class="task-item"><div class="task-subtasks"><span class="task-subtasks__percent">0</span><progress class="task-subtasks__progress" max="100" value="0"></progress><div class="subtask-item"><input class="subtask-toggle" type="checkbox" data-subtask-id="1"></div></div></div>');
- await page.addScriptTag({content:await readFile('assets/js/usability-actions.js','utf8')});
+ await addWorkspaceScript(page, {content:await readFile('assets/js/usability-actions.js','utf8')});
  await page.locator('.subtask-toggle').check();
  await page.waitForFunction(()=>{const value=document.querySelector('progress').value;return value>0&&value<100;});
  await page.waitForFunction(()=>document.querySelector('progress').value===100);

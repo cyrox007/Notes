@@ -1,5 +1,6 @@
+window.wspace.page.register('assets/js/findability.js', (pageScope) => {
 (function bootstrapFindability() {
-    document.addEventListener('DOMContentLoaded', () => {
+    pageScope.onInit( () => {
         const body = document.body;
         if (!body.dataset.listTotalPages) return;
 
@@ -161,3 +162,4 @@
         if (tail) tail.after(pagination);
     });
 })();
+});

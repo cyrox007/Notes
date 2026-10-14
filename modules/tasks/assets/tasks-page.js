@@ -1,3 +1,4 @@
+window.wspace.page.register('modules/tasks/assets/tasks-page.js', (pageScope) => {
 (() => {
     'use strict';
 
@@ -56,7 +57,7 @@
                 return;
             }
             modal.classList.add('is-closing');
-            modalCloseTimer = window.setTimeout(() => {
+            modalCloseTimer = pageScope.setTimeout(() => {
                 modal.hidden = true;
                 modal.classList.remove('is-closing');
                 modalCloseTimer = null;
@@ -71,11 +72,11 @@
             btn.addEventListener('click', closeTaskModal);
         });
 
-        window.addEventListener('click', (event) => {
+        pageScope.listen(window, 'click', (event) => {
             if (modal && event.target === modal) closeTaskModal();
         });
 
-        document.addEventListener('keydown', (event) => {
+        pageScope.listen(document, 'keydown', (event) => {
             if (event.key === 'Escape' && modal && !modal.hidden) closeTaskModal();
         });
 
@@ -83,7 +84,7 @@
             const headers = new Headers(options.headers || {});
             headers.set('Accept', 'application/json');
             headers.set('X-Requested-With', 'XMLHttpRequest');
-            const response = await fetch(url, Object.assign({}, options, { headers }));
+            const response = await pageScope.fetch(url, Object.assign({}, options, { headers }));
             let payload = null;
             try {
                 payload = await response.json();
@@ -97,7 +98,7 @@
         }
 
         async function refreshTaskSection(taskUid, selector) {
-            const response = await fetch(window.location.href, {
+            const response = await pageScope.fetch(window.location.href, {
                 method: 'GET',
                 credentials: 'same-origin',
                 headers: {
@@ -174,7 +175,7 @@
             if (!task) return;
             task.dataset.saveState = state;
             if (state === 'saved') {
-                window.setTimeout(() => {
+                pageScope.setTimeout(() => {
                     if (task.dataset.saveState === 'saved') delete task.dataset.saveState;
                 }, 900);
             }
@@ -381,6 +382,7 @@
         });
     }
 
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+    if (document.readyState === 'loading') pageScope.onInit( boot);
     else boot();
 })();
+});

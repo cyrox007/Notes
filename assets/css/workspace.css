@@ -137,6 +137,8 @@ html[data-theme="dark"]{
 .list-pagination a:hover{border-color:var(--ui-border-strong);background:var(--ui-surface-soft);}
 .modal{position:fixed;inset:0px;z-index:2100;display:grid;place-items:center;padding:18px;background:rgba(6, 12, 24, 0.5);backdrop-filter:blur(4px);}
 .modal[hidden]{display:none !important;}
+dialog.is-motion-closing::backdrop{animation:workspace-dialog-backdrop-out .18s ease-in both}
+@keyframes workspace-dialog-backdrop-out{from{opacity:1}to{opacity:0}}
 .modal:not([hidden]){animation:0.18s ease-out 0s 1 normal both running workspace-modal-backdrop-in;}
 .modal-content{width:min(560px, 100%);max-height:calc(-36px + 100vh);overflow:auto;border:1px solid var(--ui-border);border-radius:15px;background:var(--ui-surface);box-shadow:rgba(7, 13, 25, 0.28) 0px 24px 70px;}
 .modal:not([hidden]) .modal-content{animation:0.22s cubic-bezier(0.2, 0.8, 0.2, 1) 0s 1 normal both running workspace-modal-content-in;}

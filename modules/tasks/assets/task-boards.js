@@ -1,3 +1,4 @@
+window.wspace.page.register('modules/tasks/assets/task-boards.js', (pageScope) => {
 (() => {
     'use strict';
 
@@ -46,7 +47,7 @@
             title.textContent = card.querySelector('.task-board-card__title strong')?.textContent?.trim() || 'Задача';
 
             preview.append(marker, title);
-            document.body.appendChild(preview);
+            pageScope.append(preview);
             return preview;
         }
 
@@ -69,7 +70,7 @@
                 transfer.effectAllowed = 'move';
                 transfer.setData('text/plain', card.dataset.taskUid || '');
                 transfer.setDragImage(preview, 28, 20);
-                window.setTimeout(() => preview.remove(), 0);
+                pageScope.setTimeout(() => preview.remove(), 0);
             });
             card.addEventListener('dragend', () => {
                 clearDragState();
@@ -122,7 +123,7 @@
 
                 card.dataset.moveState = 'saving';
                 try {
-                    const response = await fetch(url, {
+                    const response = await pageScope.fetch(url, {
                         method: 'POST',
                         headers: {
                             'Accept': 'application/json',
@@ -142,8 +143,8 @@
                     if (select) select.value = status;
                     card.dataset.moveState = 'saved';
                     card.classList.add('task-board-card--just-moved');
-                    window.setTimeout(() => card.classList.remove('task-board-card--just-moved'), 520);
-                    window.setTimeout(() => window.location.reload(), 520);
+                    pageScope.setTimeout(() => card.classList.remove('task-board-card--just-moved'), 520);
+                    pageScope.setTimeout(() => pageScope.refresh(), 520);
                 } catch (error) {
                     card.dataset.moveState = 'error';
                     const message = `Не удалось изменить статус: ${error.message}`;
@@ -152,7 +153,7 @@
                     } else {
                         window.alert(message);
                     }
-                    window.setTimeout(() => {
+                    pageScope.setTimeout(() => {
                         if (card.dataset.moveState === 'error') delete card.dataset.moveState;
                     }, 1800);
                 } finally {
@@ -162,6 +163,7 @@
         });
     }
 
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+    if (document.readyState === 'loading') pageScope.onInit( boot);
     else boot();
 })();
+});
