@@ -1,4 +1,5 @@
-document.addEventListener('DOMContentLoaded', () => {
+window.wspace.page.register('modules/files/assets/polish.js', (pageScope) => {
+pageScope.onInit( () => {
   const root = document.querySelector('.file-manager');
   if (!root) return;
   const content = root.querySelector('.file-manager__content');
@@ -86,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   search.addEventListener('input', apply);
   sort.addEventListener('change', apply);
-  document.addEventListener('wspace:files-changed', apply);
+  pageScope.listen(document, 'wspace:files-changed', apply);
 
   const storageKey = 'wspace:file-manager:view';
   function setView(mode) {
@@ -103,4 +104,5 @@ document.addEventListener('DOMContentLoaded', () => {
   try { savedView = localStorage.getItem(storageKey) || 'list'; } catch (_) {}
   setView(savedView);
   apply();
+});
 });

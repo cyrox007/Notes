@@ -67,7 +67,7 @@
             toast.classList.add('wspace-toast--message');
             toast.title = 'Открыть Мессенджер';
             toast.addEventListener('click', () => {
-                window.location.href = link.href;
+                void window.wspace.page.visit(link.href);
             }, { once: true });
         }
 
@@ -219,7 +219,7 @@
             toast.classList.add('wspace-toast--message');
             toast.title = 'Открыть Мессенджер';
             toast.addEventListener('click', () => {
-                window.location.href = link.href;
+                void window.wspace.page.visit(link.href);
             }, { once: true });
         }
 

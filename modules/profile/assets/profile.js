@@ -1,4 +1,5 @@
-document.addEventListener('DOMContentLoaded', () => {
+window.wspace.page.register('modules/profile/assets/profile.js', (pageScope) => {
+pageScope.onInit( () => {
     const editButtons = Array.from(document.querySelectorAll('.profile__edit_user-info, [data-profile-edit]'));
     const cardInfo = document.querySelector('.profile__card-info--data');
     const cardEdit = document.querySelector('.profile__card-info--edit');
@@ -66,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Read-only published content. Render server values as text, never as HTML.
-document.addEventListener('click', async (event) => {
+pageScope.listen(document, 'click', async (event) => {
     const trigger = event.target.closest('[data-public-view]');
     if (!trigger) return;
     const dialog = document.createElement('dialog');
@@ -77,16 +78,16 @@ document.addEventListener('click', async (event) => {
     const close = document.createElement('button');close.type = 'button';close.className = 'profile-public__file-open';close.textContent = 'Закрыть';
     header.append(title, close);
     const body = document.createElement('div');body.className = 'profile-public-view__body';body.setAttribute('aria-busy', 'true');body.textContent = 'Загружаем опубликованный материал…';
-    dialog.append(header, body);document.body.append(dialog);
+    dialog.append(header, body);pageScope.append(dialog);
     const controller = new AbortController();
-    const dismiss = () => {dialog.classList.add('is-closing');window.setTimeout(() => dialog.close(), matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 180);};
+    const dismiss = () => window.wspace.modalMotion.closeDialog(dialog);
     close.addEventListener('click', dismiss);
     dialog.addEventListener('cancel', e => {e.preventDefault();dismiss();});
     dialog.addEventListener('click', e => {if(e.target===dialog){const r=dialog.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)dismiss();}});
     dialog.addEventListener('close', () => {controller.abort();dialog.remove();trigger.focus();});
-    dialog.showModal();
+    window.wspace.modalMotion.openDialog(dialog);
     try {
-        const response = await fetch(trigger.dataset.publicView, {credentials:'same-origin', cache:'no-store', headers:{Accept:'application/json'}, signal:controller.signal});
+        const response = await pageScope.fetch(trigger.dataset.publicView, {credentials:'same-origin', cache:'no-store', headers:{Accept:'application/json'}, signal:controller.signal});
         if(response.redirected) throw new Error('Сессия завершена. Войдите в систему заново.');
         const data = await response.json();
         if(!response.ok) throw new Error(data.error || 'Материал недоступен');
@@ -98,4 +99,5 @@ document.addEventListener('click', async (event) => {
         if(data.attachments?.length){const heading=document.createElement('h3');heading.textContent='Вложения заметки';body.append(heading);for(const file of data.attachments){const url=new URL(file.url,location.href);if(url.origin!==location.origin)continue;const link=document.createElement('a');link.className='profile-public__file-open';link.href=url.href;link.download=file.file_name;link.textContent='Скачать: '+file.file_name;body.append(link);}}
     } catch(error) {if(error.name!=='AbortError'){title.textContent='Не удалось открыть';body.textContent=error.message || 'Попробуйте ещё раз';}}
     finally {body.removeAttribute('aria-busy');}
+});
 });

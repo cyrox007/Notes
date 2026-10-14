@@ -1,3 +1,4 @@
+import { addWorkspaceScript } from './page-runtime-fixture.mjs';
 import assert from 'node:assert/strict';
 import { readFile, mkdir } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -20,7 +21,7 @@ try {
  <button type="button" class="btn-sm">Добавить категорию</button><button type="button" class="btn-primary">Сохранить</button><div class="task-subtasks"><button type="button" class="btn-sm">+ Добавить</button></div></div></div></section></body></html>`);
  for(const path of ['app/views/core/common.css','modules/tasks/assets/style.css','modules/tasks/assets/hardening.css','modules/tasks/assets/kanban.css','app/views/core/controls.css','assets/css/workspace.css']) await page.addStyleTag({content:await readFile(path,'utf8')});
  await page.evaluate(()=>{window.wspace={path:p=>'http://tasks.test'+p};window.alert=()=>{};});
- for(const path of ['assets/js/usability-actions.js','modules/tasks/assets/tasks-page.js','modules/tasks/assets/tasks-kanban.js']) await page.addScriptTag({content:await readFile(path,'utf8')});
+ for(const path of ['assets/js/usability-actions.js','modules/tasks/assets/tasks-page.js','modules/tasks/assets/tasks-kanban.js']) await addWorkspaceScript(page, {content:await readFile(path,'utf8')});
  const card=page.locator('.task-item');
  const stableHint=await page.evaluate(()=>{
   const zone=document.querySelector('.tasks-board__dropzone[data-status="in_progress"]');
@@ -81,7 +82,7 @@ try {
   document.body.appendChild(root);
  });
  await page.addStyleTag({content:await readFile('modules/tasks/assets/boards.css','utf8')});
- await page.addScriptTag({content:await readFile('modules/tasks/assets/task-boards.js','utf8')});
+ await addWorkspaceScript(page, {content:await readFile('modules/tasks/assets/task-boards.js','utf8')});
  const sharedHint=await page.evaluate(()=>{
   const card=document.querySelector('.task-board-card');
   const transfer=new DataTransfer();card.dispatchEvent(new DragEvent('dragstart',{bubbles:true,dataTransfer:transfer}));

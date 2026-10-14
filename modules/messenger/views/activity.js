@@ -1,8 +1,9 @@
 {literal}
+window.wspace.page.register('modules/messenger/views/activity.js', (pageScope) => {
 (() => {
     'use strict';
 
-    document.addEventListener('DOMContentLoaded', () => {
+    pageScope.onInit( () => {
         const app = window.wspace?.messenger;
         if (!app) return;
 
@@ -94,7 +95,7 @@
                 expiresAt: Date.now() + ACTIVITY_TTL_MS,
                 timerId: null
             };
-            state.timerId = window.setTimeout(() => {
+            state.timerId = pageScope.setTimeout(() => {
                 const current = remoteActivities.get(key);
                 if (current === state) {
                     remoteActivities.delete(key);
@@ -178,7 +179,7 @@
             const dialogUid = app.currentDialog.uid;
             app.typingSent = app.setLocalActivity('typing', true, dialogUid);
             window.clearTimeout(app.typingTimer);
-            app.typingTimer = window.setTimeout(() => app.stopTyping(), 1400);
+            app.typingTimer = pageScope.setTimeout(() => app.stopTyping(), 1400);
         };
 
         app.stopTyping = () => {
@@ -225,4 +226,5 @@
         app.activityLabels = Object.freeze({ ...labels });
     });
 })();
+});
 {/literal}

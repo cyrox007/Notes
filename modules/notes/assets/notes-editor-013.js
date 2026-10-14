@@ -1,3 +1,4 @@
+window.wspace.page.register('modules/notes/assets/notes-editor-013.js', (pageScope) => {
 (() => {
     function boot() {
         const root = document.querySelector('[data-note-editor-013]');
@@ -54,7 +55,7 @@
             fileInput.files = files;
             uploadForm.requestSubmit();
         });
-        window.addEventListener('dragend', () => fileDrop?.classList.remove('is-file-dragover'));
+        pageScope.listen(window, 'dragend', () => fileDrop?.classList.remove('is-file-dragover'));
         uploadForm?.addEventListener('submit', async (event) => {
             event.preventDefault();
             if (uploadingFile) return;
@@ -64,9 +65,9 @@
                 if (uploadStatus) uploadStatus.textContent = 'Загружаем файл…';
                 fileDrop?.setAttribute('aria-busy', 'true');
                 if (submit) submit.disabled = true;
-                await parseJson(await fetch(uploadUrl, { method: 'POST', body: new FormData(uploadForm) }));
+                await parseJson(await pageScope.fetch(uploadUrl, { method: 'POST', body: new FormData(uploadForm) }));
                 toast('Файл добавлен к заметке', 'success');
-                window.location.reload();
+                pageScope.refresh();
             } catch (error) {
                 if (uploadStatus) uploadStatus.textContent = error.message;
                 feedback?.inline?.(uploadForm, error.message, 'error');
@@ -85,7 +86,7 @@
                 if (!approved) return;
                 try {
                     button.disabled = true;
-                    await parseJson(await fetch(button.dataset.deleteUrl, { method: 'POST' }));
+                    await parseJson(await pageScope.fetch(button.dataset.deleteUrl, { method: 'POST' }));
                     button.closest('.attachment-item')?.remove();
                     toast('Вложение удалено', 'success');
                 } catch (error) {
@@ -101,11 +102,11 @@
             const submit = shareForm.querySelector('button[type="submit"]');
             try {
                 if (submit) submit.disabled = true;
-                const result = await parseJson(await fetch(shareUrl, { method: 'POST', body: new FormData(shareForm) }));
+                const result = await parseJson(await pageScope.fetch(shareUrl, { method: 'POST', body: new FormData(shareForm) }));
                 if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(result.share_url).catch(() => {});
                 toast('Ссылка для просмотра создана', 'success');
                 window.alert('Ссылка создана: ' + result.share_url);
-                window.location.reload();
+                pageScope.refresh();
             } catch (error) {
                 feedback?.inline?.(shareForm, error.message, 'error');
                 if (submit) submit.disabled = false;
@@ -132,9 +133,9 @@
             if (!window.confirm('Деактивировать публичную ссылку?')) return;
             try {
                 button.disabled = true;
-                await parseJson(await fetch(unshareUrl, { method: 'POST' }));
+                await parseJson(await pageScope.fetch(unshareUrl, { method: 'POST' }));
                 toast('Публичная ссылка отключена', 'success');
-                window.location.reload();
+                pageScope.refresh();
             } catch (error) {
                 toast(error.message, 'error');
                 button.disabled = false;
@@ -159,7 +160,7 @@
         seek.addEventListener('input', () => {if (Number.isFinite(audio.duration)) audio.currentTime = Number(seek.value) / 100 * audio.duration;});
         player.append(play,seek,time);audio.after(player);audio.style.display = 'none';
         const sync = () => {player.hidden = audio.hidden;};
-        new MutationObserver(sync).observe(audio,{attributes:true,attributeFilter:['hidden']});sync();update();audio._notePlayer = player;return player;
+        pageScope.observer(MutationObserver, sync).observe(audio,{attributes:true,attributeFilter:['hidden']});sync();update();audio._notePlayer = player;return player;
     }
 
     function setupVoiceRecorder(root, uploadUrl, parseJson, feedback) {
@@ -309,7 +310,7 @@
                 preview.hidden = true;
                 status.textContent = 'Идёт запись…';
                 pulse?.classList.add('is-recording');
-                ticker = window.setInterval(updateTimer, 250);
+                ticker = pageScope.setInterval(updateTimer, 250);
                 updateTimer();
             } catch (error) {
                 reset();
@@ -338,9 +339,9 @@
             try {
                 send.disabled = true;
                 status.textContent = 'Сохраняем голосовую заметку…';
-                await parseJson(await fetch(uploadUrl, { method: 'POST', body: form }));
+                await parseJson(await pageScope.fetch(uploadUrl, { method: 'POST', body: form }));
                 feedback?.toast?.('Голосовая заметка сохранена', 'success');
-                window.location.reload();
+                pageScope.refresh();
             } catch (error) {
                 send.disabled = false;
                 status.textContent = 'Не удалось сохранить запись. Она остаётся в предпросмотре.';
@@ -348,10 +349,11 @@
             }
         });
 
-        window.addEventListener('pagehide', () => {stopTracks();preview.pause();});
+        pageScope.listen(window, 'pagehide', () => {stopTracks();preview.pause();});
         reset({ close: true });
     }
 
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+    if (document.readyState === 'loading') pageScope.onInit( boot);
     else boot();
 })();
+});

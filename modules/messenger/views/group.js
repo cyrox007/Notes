@@ -1,8 +1,9 @@
 {literal}
+window.wspace.page.register('modules/messenger/views/group.js', (pageScope) => {
 (() => {
     'use strict';
 
-    document.addEventListener('DOMContentLoaded', () => {
+    pageScope.onInit( () => {
         const app = window.wspace?.messenger;
         if (!app) return;
 
@@ -102,7 +103,7 @@
             if (openAfter) {
                 el.loading.hidden = false;
                 el.content.hidden = true;
-                if (!el.dialog.open) el.dialog.showModal();
+                if (!el.dialog.open) window.wspace.modalMotion.openDialog(el.dialog);
             }
             app.sendEvent('GroupSocket:info', { dialog_uid: app.currentDialog.uid });
         };
@@ -153,7 +154,7 @@
             form.append('avatar', file, file.name || 'avatar');
 
             try {
-                const response = await fetch(`/messenger/group-avatar/${encodeURIComponent(group.dialog_uid)}`, {
+                const response = await pageScope.fetch(`/messenger/group-avatar/${encodeURIComponent(group.dialog_uid)}`, {
                     method: 'POST',
                     body: form
                 });
@@ -189,7 +190,7 @@
             avatarChange.disabled = true;
             avatarRemove.disabled = true;
             try {
-                const response = await fetch(
+                const response = await pageScope.fetch(
                     `/messenger/group-avatar/${encodeURIComponent(group.dialog_uid)}/delete`,
                     { method: 'POST' }
                 );
@@ -386,7 +387,7 @@
                 app.el.messageList?.replaceChildren();
             }
             group = null;
-            if (el.dialog.open) el.dialog.close();
+            if (el.dialog.open) window.wspace.modalMotion.closeDialog(el.dialog);
             app.showToast(message);
             app.sendEvent('MessangerSocket:get_dialogs', {});
             app.sendEvent('DialogStateSocket:list', {});
@@ -405,7 +406,7 @@
                 if (!app.currentDialog || data.group.dialog_uid !== app.currentDialog.uid) return;
                 group = data.group;
                 renderGroup();
-                if (pendingOpen && !el.dialog.open) el.dialog.showModal();
+                if (pendingOpen && !el.dialog.open) window.wspace.modalMotion.openDialog(el.dialog);
                 pendingOpen = false;
                 return;
             }
@@ -437,4 +438,5 @@
         };
     });
 })();
+});
 {/literal}

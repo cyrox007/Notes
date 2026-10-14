@@ -1,3 +1,4 @@
+import { addWorkspaceScript } from './page-runtime-fixture.mjs';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {readFile} from 'node:fs/promises';
@@ -17,7 +18,7 @@ try {
  for(const width of [390,1440]){
   await page.setViewportSize({width,height:900});
   await page.setContent('<style>body{margin:12px}*{box-sizing:border-box}'+styles.join('\n')+'</style>'+render());
-  await page.addScriptTag({content:script});
+  await addWorkspaceScript(page, {content:script});
   assert.deepEqual(await page.locator('.tasks-board__column h2').allTextContents(),['Запланировано','Изучение','В работе','Проверка','Завершено']);
   for(const status of ['pending','studying','in_progress','review','completed']){
    assert.equal(await page.locator('.tasks-board__column--'+status+' .task-item').count(),1);
@@ -25,7 +26,7 @@ try {
    assert.equal(await page.locator('#create-task-modal input[name=status]').inputValue(),status);
   }
   assert.equal(await page.locator('.task-archive-form input[name=archived][value="1"]').count(),5);
-  await page.setContent('<style>'+styles.join('\n')+'</style>'+render(true));await page.addScriptTag({content:script});
+  await page.setContent('<style>'+styles.join('\n')+'</style>'+render(true));await addWorkspaceScript(page, {content:script});
   assert.equal(await page.locator('.tasks-board').count(),0);
   assert.equal(await page.locator('.task-archive-form input[name=archived][value="0"]').count(),5);
   assert.equal(await page.locator('.task-status-toggle:disabled').count(),5);
@@ -33,7 +34,7 @@ try {
  }
  await page.setViewportSize({width:1920,height:1080});
  await page.setContent('<style>*{box-sizing:border-box}body{margin:0}.workspace-region{margin-left:204px}.content-wrapper{width:min(100%,1320px);margin:auto;padding:22px 24px}'+styles.join('\n')+'</style><div class="workspace-region"><main class="content-wrapper">'+render()+'</main></div>');
- await page.addScriptTag({content:script});
+ await addWorkspaceScript(page, {content:script});
  assert.equal(Math.round((await page.locator('.content-wrapper').boundingBox()).width),1716);
  assert.ok((await page.locator('.tasks-board__column').first().boundingBox()).width>=300);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);

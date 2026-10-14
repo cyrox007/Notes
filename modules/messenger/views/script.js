@@ -1,4 +1,5 @@
 {literal}
+window.wspace.page.register('modules/messenger/views/script.js', (pageScope) => {
 (() => {
     'use strict';
 
@@ -101,7 +102,7 @@
             }
             void this.loadInitialDialogs();
             this.connect();
-            this.presenceTimer = window.setInterval(() => {
+            this.presenceTimer = pageScope.setInterval(() => {
                 if (this.socketAuthorized && !this.sessionUnavailable && !this.transportSuspended) {
                     this.sendEvent('MessangerSocket:get_dialogs', {});
                 }
@@ -125,14 +126,14 @@
             toggle.addEventListener('click', () => {const open = toggle.getAttribute('aria-expanded') !== 'true';host.classList.toggle('is-expanded',open);toggle.setAttribute('aria-expanded',String(open));panel.inert = !open && compact;});
             host.addEventListener('keydown', event => {if(event.key==='Escape'){close();toggle.focus();event.stopPropagation();}});
             panel.addEventListener('click', event => {if(event.target.closest('button')) close();});
-            document.addEventListener('click', event => {if(!host.contains(event.target)) close();});
-            new ResizeObserver(() => {const next = header.getBoundingClientRect().width <= 680;if(next !== compact){compact = next;close();}}).observe(header);
+            pageScope.listen(document, 'click', event => {if(!host.contains(event.target)) close();});
+            pageScope.observer(ResizeObserver, () => {const next = header.getBoundingClientRect().width <= 680;if(next !== compact){compact = next;close();}}).observe(header);
             // Search and call modules add their actions after the main app starts.
-            new MutationObserver(() => {for(const child of Array.from(host.childNodes)) if(child!==toggle && child!==panel) panel.append(child);}).observe(host,{childList:true});
+            pageScope.observer(MutationObserver, () => {for(const child of Array.from(host.childNodes)) if(child!==toggle && child!==panel) panel.append(child);}).observe(host,{childList:true});
         }
 
         bindEvents() {
-            window.setTimeout(() => {
+            pageScope.setTimeout(() => {
                 const tools = this.root.querySelector('.messenger-composer__tools');
                 if (!tools || tools.querySelector('.messenger-tools-toggle')) return;
                 const toggle = document.createElement('button');toggle.type = 'button';toggle.className = 'messenger-icon-button messenger-tools-toggle';toggle.textContent = '+';toggle.setAttribute('aria-label', 'Вложения и действия');toggle.setAttribute('aria-expanded', 'false');
@@ -142,8 +143,8 @@
                 const close = () => {panel.classList.remove('is-open');panel.inert = true;toggle.setAttribute('aria-expanded', 'false');};
                 toggle.addEventListener('click', () => {const open = toggle.getAttribute('aria-expanded') !== 'true';panel.classList.toggle('is-open', open);panel.inert = !open;toggle.setAttribute('aria-expanded', String(open));});
                 tools.addEventListener('keydown', event => {if (event.key === 'Escape') {close();toggle.focus();event.stopPropagation();}});
-                document.addEventListener('click', event => {if (!tools.contains(event.target)) close();});
-                new MutationObserver(() => {for (const child of Array.from(tools.childNodes)) if (child !== toggle && child !== panel) panel.append(child);}).observe(tools, {childList:true});
+                pageScope.listen(document, 'click', event => {if (!tools.contains(event.target)) close();});
+                pageScope.observer(MutationObserver, () => {for (const child of Array.from(tools.childNodes)) if (child !== toggle && child !== panel) panel.append(child);}).observe(tools, {childList:true});
             }, 0);
             this.el.dialogSearch?.addEventListener('input', () => this.renderDialogs());
             this.el.newChatButton?.addEventListener('click', () => this.openNewChatDialog());
@@ -178,9 +179,9 @@
                 this.notifyTyping();
             });
 
-            window.addEventListener('pagehide', () => this.storeActiveDialogState());
-            window.addEventListener('focus', () => this.markCurrentRead());
-            document.addEventListener('wspace:update-install-start', () => this.suspendTransportForUpdate());
+            pageScope.listen(window, 'pagehide', () => this.storeActiveDialogState());
+            pageScope.listen(window, 'focus', () => this.markCurrentRead());
+            pageScope.listen(document, 'wspace:update-install-start', () => this.suspendTransportForUpdate());
         }
 
         suspendTransportForUpdate() {
@@ -275,7 +276,7 @@
             if (this.sessionUnavailable || this.transportSuspended || this.reconnectTimer) return;
             const delay = Math.min(10000, 1000 * (2 ** Math.min(this.reconnectAttempt, 3)));
             this.reconnectAttempt += 1;
-            this.reconnectTimer = window.setTimeout(() => {
+            this.reconnectTimer = pageScope.setTimeout(() => {
                 this.reconnectTimer = null;
                 this.connect();
             }, delay);
@@ -434,7 +435,7 @@
                     headers['X-CSRF-Token'] = csrfToken;
                 }
 
-                const response = await fetch(endpoint, {
+                const response = await pageScope.fetch(endpoint, {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers,
@@ -567,7 +568,7 @@
                 const controller = new AbortController();
                 let watchdogExpired = false;
                 this.longPollAbortController = controller;
-                const watchdogTimer = window.setTimeout(() => {
+                const watchdogTimer = pageScope.setTimeout(() => {
                     watchdogExpired = true;
                     if (this.longPollAbortController === controller) {
                         controller.abort();
@@ -576,7 +577,7 @@
                 this.longPollWatchdogTimer = watchdogTimer;
 
                 try {
-                    const response = await fetch(endpoint, {
+                    const response = await pageScope.fetch(endpoint, {
                         method: 'GET',
                         credentials: 'same-origin',
                         cache: 'no-store',
@@ -611,7 +612,7 @@
                         );
                         this.setConnectionState('fallback', 'Синхронизация временно приостановлена…');
                         await new Promise((resolve) => {
-                            this.longPollRetryTimer = window.setTimeout(resolve, retryAfter);
+                            this.longPollRetryTimer = pageScope.setTimeout(resolve, retryAfter);
                         });
                         this.longPollRetryTimer = null;
                         continue;
@@ -640,7 +641,7 @@
                     console.warn('Messenger long poll will reconnect', error);
                     this.setConnectionState('fallback', 'Восстанавливаем синхронизацию…');
                     await new Promise((resolve) => {
-                        this.longPollRetryTimer = window.setTimeout(resolve, delay);
+                        this.longPollRetryTimer = pageScope.setTimeout(resolve, delay);
                     });
                     this.longPollRetryTimer = null;
                 } finally {
@@ -709,7 +710,7 @@
             if (this.dialogSnapshotTimer !== null) {
                 window.clearTimeout(this.dialogSnapshotTimer);
             }
-            this.dialogSnapshotTimer = window.setTimeout(() => {
+            this.dialogSnapshotTimer = pageScope.setTimeout(() => {
                 if (!['loading', 'syncing'].includes(this.dialogSnapshotState)) return;
                 this.dialogSnapshotState = this.dialogs.length > 0 ? 'stale' : 'error';
                 this.renderDialogSnapshotState();
@@ -913,7 +914,7 @@
             this.el.messageList.setAttribute('aria-label', 'Загружаем сообщения');
             this.keepHistoryAtBottom = true;
             if (!this.historyResizeObserver && typeof ResizeObserver === 'function') {
-                this.historyResizeObserver = new ResizeObserver(() => {
+                this.historyResizeObserver = pageScope.observer(ResizeObserver, () => {
                     if (this.keepHistoryAtBottom && !this.requestedMessageUid) this.scrollToBottom();
                 });
                 this.historyResizeObserver.observe(this.el.messageList);
@@ -1344,12 +1345,12 @@
             } else description.textContent = 'Сообщение будет удалено только у вас. У остальных участников оно останется.';
             const status = document.createElement('p');status.setAttribute('role','status');dialog.append(status);
             const actions = document.createElement('div');actions.className = 'messenger-delete-dialog__actions';
-            const cancel = document.createElement('button');cancel.type = 'button';cancel.textContent = 'Отмена';cancel.autofocus = true;cancel.addEventListener('click', () => dialog.close());
+            const cancel = document.createElement('button');cancel.type = 'button';cancel.textContent = 'Отмена';cancel.autofocus = true;cancel.addEventListener('click', () => window.wspace.modalMotion.closeDialog(dialog));
             const confirm = document.createElement('button');confirm.type = 'button';confirm.className = 'messenger-delete-dialog__confirm';confirm.textContent = 'Удалить';confirm.addEventListener('click', () => {
-                if (this.sendEvent('MessangerSocket:delete_message', {message_uid:message.uid,for_all:forAll})) dialog.close();
+                if (this.sendEvent('MessangerSocket:delete_message', {message_uid:message.uid,for_all:forAll})) window.wspace.modalMotion.closeDialog(dialog);
                 else status.textContent = 'Нет соединения. Сообщение не удалено. Повторите попытку после подключения.';
             });
-            actions.append(cancel, confirm);dialog.append(actions);dialog.addEventListener('close', () => {dialog.remove();if (this.deleteConfirmation === dialog) this.deleteConfirmation = null;}, {once:true});document.body.append(dialog);dialog.showModal();
+            actions.append(cancel, confirm);dialog.append(actions);dialog.addEventListener('close', () => {dialog.remove();if (this.deleteConfirmation === dialog) this.deleteConfirmation = null;}, {once:true});pageScope.append(dialog);window.wspace.modalMotion.openDialog(dialog);
         }
 
         notifyTyping() {
@@ -1360,7 +1361,7 @@
                 });
             }
             window.clearTimeout(this.typingTimer);
-            this.typingTimer = window.setTimeout(() => this.stopTyping(), 1400);
+            this.typingTimer = pageScope.setTimeout(() => this.stopTyping(), 1400);
         }
 
         stopTyping() {
@@ -1404,11 +1405,11 @@
             this.el.newChatDialog.querySelectorAll('.messenger-contact__checkbox').forEach((input) => {
                 input.checked = false;
             });
-            this.el.newChatDialog.showModal();
+            window.wspace.modalMotion.openDialog(this.el.newChatDialog);
         }
 
         closeNewChatDialog() {
-            if (this.el.newChatDialog?.open) this.el.newChatDialog.close();
+            if (this.el.newChatDialog?.open) window.wspace.modalMotion.closeDialog(this.el.newChatDialog);
         }
 
         filterContacts() {
@@ -1477,7 +1478,7 @@
             if (!node) return;
             node.scrollIntoView({ behavior: 'smooth', block: 'center' });
             node.classList.add('messenger-message--highlight');
-            window.setTimeout(() => node.classList.remove('messenger-message--highlight'), 1200);
+            pageScope.setTimeout(() => node.classList.remove('messenger-message--highlight'), 1200);
         }
 
         scrollToBottom() {
@@ -1615,7 +1616,7 @@
             if (!this.canUseProfile || !uid || this.currentDialog?.type !== 'private') return;
             const path = `/profile/user/${encodeURIComponent(uid)}`;
             const target = typeof window.wspace?.path === 'function' ? window.wspace.path(path) : path;
-            window.location.assign(target);
+            pageScope.visit(target);
         }
 
         displayUser(user) {
@@ -1671,21 +1672,27 @@
                 toast = document.createElement('div');
                 toast.id = 'messenger-toast';
                 toast.className = 'messenger-toast';
-                document.body.append(toast);
+                pageScope.append(toast);
             }
             toast.textContent = message;
             toast.classList.add('messenger-toast--visible');
             window.clearTimeout(this.toastTimer);
-            this.toastTimer = window.setTimeout(() => toast.classList.remove('messenger-toast--visible'), 3200);
+            this.toastTimer = pageScope.setTimeout(() => toast.classList.remove('messenger-toast--visible'), 3200);
         }
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
+    pageScope.onInit( () => {
         const root = document.getElementById('messenger-app');
         if (!root) return;
         const app = new MessengerApp(root);
         window.wspace.messenger = app;
+        pageScope.onDispose(() => {
+            app.storeActiveDialogState();
+            app.suspendTransportForUpdate();
+            if (window.wspace.messenger === app) delete window.wspace.messenger;
+        });
         app.init();
     });
 })();
+});
 {/literal}

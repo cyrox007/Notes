@@ -1,8 +1,9 @@
 {literal}
+window.wspace.page.register('modules/messenger/views/reactions.js', (pageScope) => {
 (() => {
     'use strict';
 
-    document.addEventListener('DOMContentLoaded', () => {
+    pageScope.onInit( () => {
         const app = window.wspace?.messenger;
         if (!app) return;
 
@@ -35,7 +36,7 @@
             }
         };
 
-        document.addEventListener('click', (event) => {
+        pageScope.listen(document, 'click', (event) => {
             if (!openPicker || openPicker.contains(event.target)) return;
             closePicker();
         });
@@ -184,4 +185,5 @@
         app.reactionStates = states;
     });
 })();
+});
 {/literal}

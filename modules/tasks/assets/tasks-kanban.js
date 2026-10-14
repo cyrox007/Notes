@@ -1,3 +1,4 @@
+window.wspace.page.register('modules/tasks/assets/tasks-kanban.js', (pageScope) => {
 (() => {
     const STATUS_META = [
         ['pending', 'Запланировано', 'Ожидает начала работы'],
@@ -218,7 +219,7 @@
             const title = document.createElement('strong');
             title.textContent = task.querySelector('.task-title')?.textContent?.trim() || 'Задача';
             preview.append(icon, title);
-            document.body.appendChild(preview);
+            pageScope.append(preview);
             return preview;
         }
 
@@ -267,7 +268,7 @@
                 } catch (_) {
                     // Синтетическое событие или ограниченный браузер может не поддерживать изображение перетаскивания.
                 }
-                window.setTimeout(() => preview.remove(), 0);
+                pageScope.setTimeout(() => preview.remove(), 0);
             });
             handle?.addEventListener('dragend', () => {
                 task.classList.remove('task-item--dragging', 'task-item--status-pending');
@@ -316,8 +317,8 @@
                 select.dataset.uiSynced = '1';
                 select.value = status;
                 select.dispatchEvent(new Event('change', { bubbles: true }));
-                window.setTimeout(() => task.classList.remove('task-item--just-moved'), 520);
-                window.setTimeout(() => task.classList.remove('task-item--status-pending'), 6000);
+                pageScope.setTimeout(() => task.classList.remove('task-item--just-moved'), 520);
+                pageScope.setTimeout(() => task.classList.remove('task-item--status-pending'), 6000);
             });
         }
 
@@ -350,6 +351,7 @@
         renderView(activeView);
     }
 
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+    if (document.readyState === 'loading') pageScope.onInit( boot);
     else boot();
 })();
+});

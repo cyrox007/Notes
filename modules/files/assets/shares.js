@@ -1,4 +1,5 @@
-document.addEventListener('DOMContentLoaded', () => {
+window.wspace.page.register('modules/files/assets/shares.js', (pageScope) => {
+pageScope.onInit( () => {
   document.querySelectorAll('.file-shares__expiry input[name="expires_at"]').forEach((input) => {
     if (!(input instanceof HTMLInputElement)) return;
 
@@ -22,7 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
         await navigator.clipboard.writeText(value);
         const original = button.textContent;
         button.textContent = 'Скопировано';
-        window.setTimeout(() => { button.textContent = original; }, 1600);
+        pageScope.setTimeout(() => { button.textContent = original; }, 1600);
       } catch (_) {
         window.prompt('Скопируйте ссылку', value);
       }
@@ -55,4 +56,5 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   });
+});
 });

@@ -1,3 +1,4 @@
+window.wspace.page.register('modules/notes/assets/notes-editor-ajax.js', (pageScope) => {
 (() => {
     function boot() {
         const root = document.querySelector('[data-note-editor-013]');
@@ -26,7 +27,7 @@
         }
 
         async function refreshSection(selector) {
-            const response = await fetch(window.location.href, {
+            const response = await pageScope.fetch(window.location.href, {
                 method: 'GET',
                 credentials: 'same-origin',
                 cache: 'no-store',
@@ -129,7 +130,7 @@
             if (status) status.textContent = 'Загружаем файл…';
 
             try {
-                await parseJson(await fetch(root.dataset.uploadUrl || '', {
+                await parseJson(await pageScope.fetch(root.dataset.uploadUrl || '', {
                     method: 'POST',
                     credentials: 'same-origin',
                     body: new FormData(form),
@@ -156,7 +157,7 @@
             if (submit) submit.disabled = true;
 
             try {
-                const result = await parseJson(await fetch(root.dataset.shareUrl || '', {
+                const result = await parseJson(await pageScope.fetch(root.dataset.shareUrl || '', {
                     method: 'POST',
                     credentials: 'same-origin',
                     body: new FormData(form),
@@ -187,7 +188,7 @@
             busyButtons.add(button);
             button.disabled = true;
             try {
-                await parseJson(await fetch(root.dataset.unshareUrl || '', {
+                await parseJson(await pageScope.fetch(root.dataset.unshareUrl || '', {
                     method: 'POST',
                     credentials: 'same-origin',
                 }));
@@ -234,7 +235,7 @@
             busyButtons.add(button);
             button.disabled = true;
             try {
-                await parseJson(await fetch(button.dataset.deleteUrl || '', {
+                await parseJson(await pageScope.fetch(button.dataset.deleteUrl || '', {
                     method: 'POST',
                     credentials: 'same-origin',
                 }));
@@ -301,7 +302,7 @@
                 form.append('is_voice', 'true');
                 form.append('duration', String(voice.duration || durationFromRecorder(preview)));
 
-                await parseJson(await fetch(root.dataset.uploadUrl || '', {
+                await parseJson(await pageScope.fetch(root.dataset.uploadUrl || '', {
                     method: 'POST',
                     credentials: 'same-origin',
                     body: form,
@@ -356,6 +357,7 @@
         }, true);
     }
 
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+    if (document.readyState === 'loading') pageScope.onInit( boot);
     else boot();
 })();
+});

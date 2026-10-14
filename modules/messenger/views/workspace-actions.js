@@ -1,8 +1,9 @@
 {literal}
+window.wspace.page.register('modules/messenger/views/workspace-actions.js', (pageScope) => {
 (() => {
     'use strict';
 
-    document.addEventListener('DOMContentLoaded', () => {
+    pageScope.onInit( () => {
         const app = window.wspace?.messenger;
         const root = document.getElementById('messenger-app');
         if (!app || !root) return;
@@ -99,8 +100,8 @@
                 sourceText.textContent = '';
             }
 
-            dialog.showModal();
-            window.setTimeout(() => titleInput?.focus(), 0);
+            window.wspace.modalMotion.openDialog(dialog);
+            pageScope.setTimeout(() => titleInput?.focus(), 0);
         }
 
         function hideMenu() {
@@ -122,7 +123,7 @@
             });
         });
 
-        document.addEventListener('click', (event) => {
+        pageScope.listen(document, 'click', (event) => {
             if (menu?.hidden === false && !menu.contains(event.target) && event.target !== createButton) hideMenu();
         });
 
@@ -130,8 +131,8 @@
             button.addEventListener('click', () => setKind(button.dataset.workspaceKind));
         });
 
-        close?.addEventListener('click', () => dialog?.close());
-        cancel?.addEventListener('click', () => dialog?.close());
+        close?.addEventListener('click', () => window.wspace.modalMotion.closeDialog(dialog));
+        cancel?.addEventListener('click', () => window.wspace.modalMotion.closeDialog(dialog));
 
         const originalRenderMessage = app.renderMessage.bind(app);
         app.renderMessage = (message) => {
@@ -180,7 +181,7 @@
             const originalText = submit.textContent;
             submit.textContent = 'Создание…';
             try {
-                const response = await fetch(appPath('/messenger/workspace/' + kind), {
+                const response = await pageScope.fetch(appPath('/messenger/workspace/' + kind), {
                     method: 'POST',
                     credentials: 'same-origin',
                     headers: { 'Accept': 'application/json' },
@@ -191,7 +192,7 @@
                     throw new Error(data?.message || 'Не удалось создать объект');
                 }
 
-                dialog.close();
+                window.wspace.modalMotion.closeDialog(dialog);
                 showResult(data);
             } catch (error) {
                 app.showToast(error instanceof Error ? error.message : 'Не удалось создать объект');
@@ -217,11 +218,12 @@
                 link.textContent = 'Открыть';
                 toast.append(link);
             }
-            document.body.append(toast);
-            window.setTimeout(() => toast.remove(), 6500);
+            pageScope.append(toast);
+            pageScope.setTimeout(() => toast.remove(), 6500);
         }
 
         setKind(kind);
     });
 })();
+});
 {/literal}

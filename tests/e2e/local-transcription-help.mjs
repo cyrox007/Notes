@@ -1,3 +1,4 @@
+import { addWorkspaceScript } from './page-runtime-fixture.mjs';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {readFile} from 'node:fs/promises';
@@ -11,7 +12,7 @@ try {
  await page.addStyleTag({content:(await readFile('assets/css/workspace.css','utf8'))+'\n'+(await readFile('assets/css/local-transcription.css','utf8'))});
  await page.setViewportSize({width:390,height:700});
  await page.evaluate(()=>{window.availability='downloadable';window.SpeechRecognition=class{constructor(){this.processLocally=false;}static async available(){return window.availability;}};});
- await page.addScriptTag({content:await readFile('assets/js/local-transcription.js','utf8')});
+ await addWorkspaceScript(page, {content:await readFile('assets/js/local-transcription.js','utf8')});
  assert.equal(await page.getByRole('button',{name:'Почему не работает?'}).count(),0);
  for(const [value,expected] of [['downloadable',/не установлен пакет/],['downloading',/Дождитесь завершения/],['unavailable',/не предоставляет локальное распознавание/]]) {
   await page.evaluate(v=>window.availability=v,value);
@@ -26,6 +27,7 @@ try {
   assert.match(await dialog.innerText(),/HTTPS/);
   assert.equal(await dialog.evaluate(el=>el.getBoundingClientRect().width<=innerWidth&&el.scrollWidth<=el.clientWidth),true);
   await page.keyboard.press('Escape');
+  await dialog.waitFor({state:'hidden'});
   assert.equal(await page.getByRole('dialog').count(),0);
   assert.equal(await page.getByRole('button',{name:'Почему не работает?',exact:true}).evaluate(el=>document.activeElement===el),true);
  }

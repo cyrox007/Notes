@@ -1,8 +1,9 @@
 {literal}
+window.wspace.page.register('modules/messenger/views/forwarding.js', (pageScope) => {
 (() => {
     'use strict';
 
-    document.addEventListener('DOMContentLoaded', () => {
+    pageScope.onInit( () => {
         const app = window.wspace?.messenger;
         if (!app) return;
 
@@ -57,7 +58,7 @@
         list.className = 'messenger-forward-dialog__list';
         surface.append(header, searchWrap, list);
         modal.append(surface);
-        document.body.append(modal);
+        pageScope.append(modal);
 
         let pendingMessageUid = null;
 
@@ -107,7 +108,7 @@
                     if (!pendingMessageUid) return;
                     const messageUid = pendingMessageUid;
                     pendingMessageUid = null;
-                    modal.close();
+                    window.wspace.modalMotion.closeDialog(modal);
                     app.sendEvent('ForwardSocket:forward', {
                         message_uid: messageUid,
                         dialog_uid: dialog.uid,
@@ -128,7 +129,7 @@
             if (!pendingMessageUid) return;
             search.value = '';
             renderDestinations();
-            if (!modal.open) modal.showModal();
+            if (!modal.open) window.wspace.modalMotion.openDialog(modal);
             requestAnimationFrame(() => search.focus());
         };
 
@@ -203,4 +204,5 @@
         };
     });
 })();
+});
 {/literal}

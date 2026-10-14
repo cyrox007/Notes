@@ -1,8 +1,9 @@
 {literal}
+window.wspace.page.register('modules/messenger/views/receipts.js', (pageScope) => {
 (() => {
     'use strict';
 
-    document.addEventListener('DOMContentLoaded', () => {
+    pageScope.onInit( () => {
         const app = window.wspace?.messenger;
         if (!app) return;
 
@@ -157,4 +158,5 @@
         };
     });
 })();
+});
 {/literal}

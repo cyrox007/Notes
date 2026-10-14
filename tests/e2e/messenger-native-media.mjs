@@ -1,3 +1,4 @@
+import { addWorkspaceScript } from './page-runtime-fixture.mjs';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {readFile} from 'node:fs/promises';
@@ -72,7 +73,7 @@ try{
    Engine.available=options=>{console.log('STT native: availability requested');return available(options).then(status=>{console.log('STT native: '+status);return status;});};
   }
  });
- await bounded('load local transcription adapter',page.addScriptTag({content:await readFile('assets/js/local-transcription.js','utf8')}));
+ await bounded('load local transcription adapter',addWorkspaceScript(page, {content:await readFile('assets/js/local-transcription.js','utf8')}));
  const available=await bounded('native local language availability',page.evaluate(async()=>{
   try{await window.wspace.localTranscription('/does-not-exist.wav','ru-RU');return 'unexpected-success';}catch(error){return error.message;}
  }));
@@ -91,7 +92,7 @@ try{
    stop(){this.onend?.();}abort(){}
   };
  });
- await stt.addScriptTag({content:await readFile('assets/js/local-transcription.js','utf8')});
+ await addWorkspaceScript(stt, {content:await readFile('assets/js/local-transcription.js','utf8')});
  const unsupported=await bounded('unavailable local language',stt.evaluate(async()=>{try{await wspace.localTranscription('/fixture.wav','ru-RU');}catch(error){return error.message;}}));
  assert.match(unsupported,/не предоставляет локальное распознавание выбранного языка/);assert.equal(audioReads,0,'no audio read when the on-device language is unavailable');
  const transcript=await bounded('local audio track transcription',stt.evaluate(async()=>{window.fixtureAvailability='available';return await wspace.localTranscription('/fixture.wav','ru-RU');}));

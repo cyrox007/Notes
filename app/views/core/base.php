@@ -137,7 +137,7 @@ $partialData = [
     <link rel="stylesheet" href="<?= $view->e($assetUrl($baseUrl . '/assets/css/messenger-connection-ux.css')) ?>">
 <?php endif; ?>
 <?php foreach ($moduleStyles as $moduleStyle): ?>
-    <link rel="stylesheet" href="<?= $view->e($assetUrl($moduleStyle)) ?>">
+    <link rel="stylesheet" data-workspace-module-style href="<?= $view->e($assetUrl($moduleStyle)) ?>">
 <?php endforeach; ?>
     <style nonce="<?= $view->e($cspNonce) ?>">
 <?php
@@ -155,8 +155,10 @@ if (is_file($controlsPath) && is_readable($controlsPath)) {
     <link rel="icon" href="<?= $view->e($assetUrl($baseUrl . '/assets/img/workspace-brand-mark.svg')) ?>" type="image/svg+xml">
     <link rel="alternate icon" href="<?= $view->e($baseUrl) ?>/favicon.ico" type="image/x-icon">
     <template id="csrf-token-template"><?= $view->csrfInput() ?></template>
-    <script nonce="<?= $view->e($cspNonce) ?>">window.wspaceRuntime = <?= $runtimeConfig ?>; window.wspace = window.wspace || {};</script>
+    <script data-workspace-runtime nonce="<?= $view->e($cspNonce) ?>">window.wspaceRuntime = <?= $runtimeConfig ?>; window.wspace = window.wspace || {};</script>
+    <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/page-runtime.js')) ?>"></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/common.js')) ?>" defer></script>
+    <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/modal-motion.js')) ?>" defer></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/theme-mode.js')) ?>" defer></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/local-transcription.js')) ?>" defer></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/findability.js')) ?>" defer></script>
@@ -174,11 +176,12 @@ if (is_file($controlsPath) && is_readable($controlsPath)) {
 <?php endif; ?>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/usability-actions.js')) ?>" defer></script>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/release-polish.js')) ?>" defer></script>
+    <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/navigation.js')) ?>" defer></script>
 <?php if (!empty($access['messenger'])): ?>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/messenger-connection-ux.js')) ?>" defer></script>
 <?php endif; ?>
 <?php foreach ($moduleScripts as $moduleScript): ?>
-    <script src="<?= $view->e($assetUrl($moduleScript)) ?>" defer></script>
+    <script data-workspace-module-script src="<?= $view->e($assetUrl($moduleScript)) ?>" defer></script>
 <?php endforeach; ?>
 </head>
 <body data-workspace-section="<?= $view->e($workspaceSection) ?>"<?= $bodyClass !== '' ? ' class="' . $view->e($bodyClass) . '"' : '' ?><?php if ($paginationData !== null):

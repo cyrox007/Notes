@@ -1,4 +1,5 @@
-document.addEventListener('DOMContentLoaded', () => {
+window.wspace.page.register('modules/files/assets/share.js', (pageScope) => {
+pageScope.onInit( () => {
   const root = document.querySelector('.file-manager');
   const modal = document.getElementById('modal-share');
   const uidInput = document.getElementById('share-item-uid');
@@ -34,8 +35,8 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       toast.append(copy);
     }
-    document.body.append(toast);
-    window.setTimeout(() => toast.remove(), 8000);
+    pageScope.append(toast);
+    pageScope.setTimeout(() => toast.remove(), 8000);
   }
 
   function openModal(item) {
@@ -52,16 +53,18 @@ document.addEventListener('DOMContentLoaded', () => {
       customInput.value = '';
     }
     if (customWrap) customWrap.hidden = true;
-    modal.classList.add('show');
+    window.wspace.modalMotion.open(modal, () => modal.classList.add('show'));
     document.body.classList.add('file-manager-modal-open');
     expiryMode.focus();
   }
 
   function closeModal() {
+    window.wspace.modalMotion.close(modal, () => {
     modal.classList.remove('show');
     if (!document.querySelector('.file-manager__modal.show')) {
       document.body.classList.remove('file-manager-modal-open');
     }
+    });
   }
 
   expiryMode.addEventListener('change', () => {
@@ -106,7 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     createButton.disabled = true;
     try {
-      const response = await fetch(appPath('/files/share/' + encodeURIComponent(uid)), {
+      const response = await pageScope.fetch(appPath('/files/share/' + encodeURIComponent(uid)), {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
@@ -139,4 +142,5 @@ document.addEventListener('DOMContentLoaded', () => {
   modal.addEventListener('mousedown', (event) => {
     if (event.target === modal) closeModal();
   });
+});
 });

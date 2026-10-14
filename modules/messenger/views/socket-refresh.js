@@ -1,8 +1,9 @@
 {literal}
+window.wspace.page.register('modules/messenger/views/socket-refresh.js', (pageScope) => {
 (() => {
     'use strict';
 
-    document.addEventListener('DOMContentLoaded', () => {
+    pageScope.onInit( () => {
         const app = window.wspace?.messenger;
         if (!app || typeof app.connect !== 'function') {
             return;
@@ -24,7 +25,7 @@
 
             refreshPromise = (async () => {
                 try {
-                    const response = await fetch('/messenger/socket-ticket', {
+                    const response = await pageScope.fetch('/messenger/socket-ticket', {
                         method: 'POST',
                         credentials: 'same-origin',
                         headers: {
@@ -86,4 +87,5 @@
         firstConnectionAlreadyStarted = false;
     });
 })();
+});
 {/literal}

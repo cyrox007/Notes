@@ -1,5 +1,6 @@
+window.wspace.page.register('modules/notes/assets/notes-draft.js', (pageScope) => {
 (function bootstrapNoteDraft() {
-    document.addEventListener('DOMContentLoaded', () => {
+    pageScope.onInit( () => {
         const form = document.querySelector('form.note__edit');
         if (!(form instanceof HTMLFormElement)) return;
 
@@ -51,7 +52,7 @@
             dirty = title.value !== initial.title || content.value !== initial.content;
             setStatus(dirty ? 'Есть несохранённые изменения' : 'Все изменения сохранены на сервере', dirty);
             window.clearTimeout(saveTimer);
-            if (dirty) saveTimer = window.setTimeout(writeDraft, 700);
+            if (dirty) saveTimer = pageScope.setTimeout(writeDraft, 700);
         }
 
         async function restoreDraftIfNeeded() {
@@ -130,7 +131,7 @@
         });
         form.addEventListener('notes:server-saved', markServerSaved);
         form.addEventListener('notes:server-save-failed', markServerSaveFailed);
-        window.addEventListener('beforeunload', (event) => {
+        pageScope.listen(window, 'beforeunload', (event) => {
             if (!dirty) return;
             writeDraft();
             event.preventDefault();
@@ -141,3 +142,4 @@
         restoreDraftIfNeeded();
     });
 })();
+});

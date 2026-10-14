@@ -1,3 +1,4 @@
+window.wspace.page.register('modules/files/assets/quota.js', (pageScope) => {
 (() => {
     'use strict';
 
@@ -36,7 +37,7 @@
         }
 
         try {
-            const response = await fetch(endpoint, {
+            const response = await pageScope.fetch(endpoint, {
                 headers: {
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest'
@@ -66,9 +67,10 @@
         }
     }
 
-    document.addEventListener('wspace:files-changed', () => {
+    pageScope.listen(document, 'wspace:files-changed', () => {
         void loadQuota();
     });
 
     void loadQuota();
 })();
+});
