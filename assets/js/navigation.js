@@ -85,7 +85,6 @@
         const samePageSubmission = options.submission && response.url === renderedUrl;
         const preserveScroll = options.submission ? samePageSubmission : options.preserveScroll;
         const method = (options.submission ? samePageSubmission : options.replace) ? 'replaceState' : 'pushState';
-        if (!options.popstate) history[method]({ workspaceScroll: preserveScroll ? previousScroll : [0, 0] }, '', response.url);
         committing = true;
         current.inert = true;
         let initialized = false;
@@ -132,6 +131,7 @@
         if (window.wspaceRuntime) wspace.socketConfig = { ticket: window.wspaceRuntime.socketTicket || '', url: window.wspaceRuntime.socketUrl || '' };
         for (const script of next.querySelectorAll('script[data-workspace-module-script]')) await loadScript(script, nonce, true);
         for (const script of scripts) await loadScript(script, nonce);
+        if (!options.popstate) history[method]({ workspaceScroll: preserveScroll ? previousScroll : [0, 0] }, '', response.url);
         initialized = true;
         wspace.page.initialize();
         current.inert = false;

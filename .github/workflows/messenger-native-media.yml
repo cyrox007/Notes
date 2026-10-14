@@ -1,7 +1,7 @@
 name: Native messenger media
 on:
   pull_request:
-    branches: [master, '1.0']
+    branches: [master, '1.0', '1.1']
   workflow_dispatch:
 permissions:
   contents: read

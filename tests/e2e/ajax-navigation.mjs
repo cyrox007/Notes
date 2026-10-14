@@ -70,6 +70,8 @@ try {
     for (const section of [...sections.slice(1), 'tasks', 'notes', 'tasks']) {
         await page.locator(`a[data-nav-key="${section}"]`).click();
         if (section === 'notes') {
+            await page.waitForURL(url => url.pathname === '/notes/');
+            assert.equal(await page.locator('#main-content').evaluate(main => main.inert), false, 'The editor URL became current before its controls were ready');
             const previous = await page.evaluate(() => window.lateClicks || 0);
             await page.locator('#late-button').click();
             assert.equal(await page.evaluate(() => window.lateClicks), previous + 1, 'Click was lost while a module script was loading');
