@@ -356,6 +356,7 @@ jobs:
         env:
           SSL_CERT_FILE: /tmp/workspace-1100-1101/ca.crt
           E2E_ADMIN_PREPARATION: "0"
+          E2E_UPDATE_ENTRY: admin
           E2E_APP_ROOT: /tmp/workspace-1100-1101/live
         run: node tests/e2e/admin-update-apply.mjs
 
