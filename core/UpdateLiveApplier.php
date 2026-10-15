@@ -24,6 +24,7 @@ final class UpdateLiveApplier
     /** @var list<string> */
     private const PRESERVED_ROOTS = [
         '.git',
+        '.osp',
         'vendor',
         'cache',
         'compile',

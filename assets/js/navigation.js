@@ -60,27 +60,35 @@
         const nonce = policy.match(/'nonce-([^']+)'/)?.[1] || '';
         const styles = [...next.querySelectorAll('link[data-workspace-module-style]')];
         const newStyles = [];
-        const before = document.querySelector('link[href*="/assets/css/workspace.css"]');
-        try { for (const source of styles) {
-            const link = document.createElement('link');
-            link.rel = 'stylesheet';
-            const href = new URL(source.getAttribute('href'), response.url);
-            if (href.origin !== location.origin) throw new Error('Недопустимый адрес стилей страницы.');
-            link.href = href.href;
-            link.dataset.workspaceNextStyle = '1';
-            newStyles.push(link);
-            await new Promise((resolve, reject) => {
-                link.onload = resolve;
-                link.onerror = () => reject(new Error('Не удалось загрузить стили страницы.'));
-                document.head.insertBefore(link, before);
-            });
-        } } catch (error) {
+        const before = document.querySelector('link[data-workspace-module-style]')
+            || document.querySelector('link[href*="/assets/css/workspace.css"]');
+        try {
+            for (const source of styles) {
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                // Existing page styles stay later in the cascade until the whole new set loads.
+                if (source.hasAttribute('media')) link.media = source.getAttribute('media');
+                const href = new URL(source.getAttribute('href'), response.url);
+                if (href.origin !== location.origin) throw new Error('Недопустимый адрес стилей страницы.');
+                link.href = href.href;
+                link.dataset.workspaceNextStyle = '1';
+                newStyles.push(link);
+                await new Promise((resolve, reject) => {
+                    link.onload = resolve;
+                    link.onerror = () => reject(new Error('Не удалось загрузить стили страницы.'));
+                    document.head.insertBefore(link, before);
+                });
+            }
+        } catch (error) {
             newStyles.forEach(link => link.remove());
             throw error;
         }
         if (ticket !== revision) { newStyles.forEach(link => link.remove()); return false; }
         document.querySelectorAll('link[data-workspace-module-style]').forEach(link => link.remove());
-        newStyles.forEach(link => { delete link.dataset.workspaceNextStyle; link.dataset.workspaceModuleStyle = '1'; });
+        newStyles.forEach(link => {
+            delete link.dataset.workspaceNextStyle;
+            link.dataset.workspaceModuleStyle = '1';
+        });
         const previousScroll = [scrollX, scrollY];
         if (!options.popstate) history.replaceState({ ...history.state, workspaceScroll: previousScroll }, '', location.href);
         const samePageSubmission = options.submission && response.url === renderedUrl;

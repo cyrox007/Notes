@@ -33,7 +33,11 @@ const server = createServer(async (request, response) => {
         return;
     }
     if (url.pathname === '/module.css') {
-        response.setHeader('Content-Type', 'text/css'); response.end('main{min-height:150px}'); return;
+        response.setHeader('Content-Type', 'text/css'); response.end('main{min-height:150px;width:120px}'); return;
+    }
+    if (url.pathname === '/layout.css') {
+        response.setHeader('Content-Type', 'text/css');
+        setTimeout(() => response.end('main{width:auto}'), 200); return;
     }
     if (url.pathname === '/tasks/create') {
         let body = ''; for await (const chunk of request) body += chunk;
@@ -46,12 +50,13 @@ const server = createServer(async (request, response) => {
     response.setHeader('Content-Type', 'text/html; charset=utf-8');
     response.setHeader('Content-Security-Policy', `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src 'self' 'nonce-${nonce}'; connect-src 'self'`);
     response.end(`<!doctype html><title>${section}</title>
-      <link rel="stylesheet" data-workspace-module-style href="/module.css">
+      <link rel="stylesheet" data-workspace-module-style href="/module.css?section=${section}">
       <template id="csrf-token-template"><input name="csrf_token" value="${csrf}"></template>
       <script data-workspace-runtime nonce="${nonce}">window.wspaceRuntime={basePath:''};window.wspace=window.wspace||{};window.instance=window.instance||crypto.randomUUID();</script>
       <script src="/assets/js/page-runtime.js"></script>
       <script src="/assets/js/common.js" defer></script>
       <script src="/assets/js/navigation.js" defer></script>
+      <link data-workspace-module-style rel="stylesheet" href="/layout.css?section=${section}">
       <script data-workspace-module-script src="/module.js" defer></script>
       ${section === 'notes' ? '<script data-workspace-module-script src="/late.js" defer></script>' : ''}
       <body data-workspace-section="${section}"><header id="header">Оболочка</header><nav>${sections.map(name => `<a href="/${name}/" data-nav-key="${name}" class="${section === name ? 'active' : ''}">${name}</a>`).join('')}</nav>
@@ -70,6 +75,14 @@ try {
     page.on('console', message => { if (message.type() === 'error') console.error(message.text()); });
     await page.goto(origin + '/home/');
     const instance = await page.evaluate(() => window.instance);
+    await page.evaluate(() => {
+        window.narrowFrames = 0;
+        const measure = () => {
+            if (document.querySelector('main').getBoundingClientRect().width < 500) window.narrowFrames++;
+            window.layoutFrame = requestAnimationFrame(measure);
+        };
+        window.layoutFrame = requestAnimationFrame(measure);
+    });
     let visits = 1;
     for (const section of [...sections.slice(1), 'tasks', 'notes', 'tasks']) {
         await page.locator(`a[data-nav-key="${section}"]`).click();
@@ -86,7 +99,7 @@ try {
         assert.equal(await page.locator('h1').innerText(), section);
         assert.equal(await page.evaluate(() => window.initializations), visits);
         assert.equal(await page.evaluate(() => window.inlineRuns), visits);
-        assert.equal(await page.locator('link[data-workspace-module-style]').count(), 1);
+        assert.equal(await page.locator('link[data-workspace-module-style]').count(), 2);
         await page.evaluate(() => document.dispatchEvent(new Event('fixture-action')));
         assert.equal(await page.evaluate(() => window.actions), visits - 1);
     }
@@ -95,6 +108,7 @@ try {
     assert.equal(await page.evaluate(() => window.instance), instance);
     assert.equal(mutations, 1);
     assert.equal(await page.evaluate(() => window.untrustedScriptExecuted), undefined);
+    assert.equal(await page.evaluate(() => window.narrowFrames), 0, 'The page shrank while only part of its styles had loaded');
     for (const path of ['/notes/attachment/test', '/notes/published/test/attachment/test', '/notes/shared/test/attachment/test', '/files/published/test', '/messenger/media/test']) {
         await page.evaluate(path => { const link = document.createElement('a'); link.id = 'fixture-download'; link.href = path; link.textContent = 'Вложение'; document.querySelector('main').append(link); }, path);
         const download = page.waitForEvent('download');

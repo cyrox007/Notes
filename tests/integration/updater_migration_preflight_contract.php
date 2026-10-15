@@ -171,6 +171,12 @@ try {
     );
 
     $activeStateRoot = $temp . '/active-update-state';
+    foreach ([11000, 11001] as $publishedCode) {
+        migrationPreflightAssert(
+            MigrationBaseline::appliedNames($canonical, $publishedCode) === array_slice($canonical, 0, 36),
+            'baseline 1.1 не должен повторно выполнять исторические миграции'
+        );
+    }
     migrationPreflightAssert(
         mkdir($activeStateRoot . '/transactions', 0700, true),
         'не удалось создать внешний updater state fixture'

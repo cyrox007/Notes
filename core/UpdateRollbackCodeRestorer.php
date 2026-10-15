@@ -24,6 +24,7 @@ final class UpdateRollbackCodeRestorer
     /** @var list<string> */
     private const PRESERVED_ROOTS = [
         '.git',
+        '.osp',
         'vendor',
         'cache',
         'compile',

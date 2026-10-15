@@ -84,7 +84,7 @@ try {
         'target_version_code' => 2, 'files' => $files, 'file_count' => count($files),
         'total_bytes' => array_sum(array_column($files, 'size')),
     ], JSON_THROW_ON_ERROR));
-    $preserved = ['uploads/user.txt' => 'user-data', 'update-continuations/entry.php' => '<?php // capability entry'];
+    $preserved = ['.osp/project.ini' => "[notes.local]\nphp_engine = PHP-8.2\n", 'uploads/user.txt' => 'user-data', 'update-continuations/entry.php' => '<?php // capability entry'];
     foreach ($preserved as $path => $bytes) interruptedCodeWrite($live . '/' . $path, $bytes);
     $plan = (new Core\UpdateLiveApplier($live))->prepareCodeSwitch($transaction, $candidate, $backup);
     $configPath = $temp . '/config.json';

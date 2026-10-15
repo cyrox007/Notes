@@ -38,7 +38,8 @@ function instrument(page) {
 
     const failure = `${response.status()} ${url.pathname}`;
     const socketTicketPath = `${basePath}/messenger/socket-ticket`;
-    if (installationWindow && response.status() === 503 && url.pathname === socketTicketPath) {
+    const backgroundPollPath = `${basePath}/messenger/realtime/poll`;
+    if (installationWindow && response.status() === 503 && [socketTicketPath, backgroundPollPath].includes(url.pathname)) {
       maintenanceHttpErrors.push(failure);
       return;
     }
@@ -90,6 +91,20 @@ async function installUpdateFromNotification(page) {
   return await navigation;
 }
 
+async function installUpdateFromAdmin(page) {
+  const response = await page.goto(`${baseUrl}/admin/updates/`, { waitUntil: 'domcontentloaded' });
+  if (response?.status() !== 200) throw new Error(`Экран обновлений вернул HTTP ${response?.status()}`);
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
+    page.getByRole('link', { name: 'Проверить обновления', exact: false }).click(),
+  ]);
+  const targetCard = page.locator('.admin-status-card').filter({ hasText: 'Целевая версия' }).first();
+  await targetCard.getByText(`${expectedVersion} (${expectedVersionCode})`, { exact: true }).waitFor({ state: 'visible' });
+  const navigation = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 180000 });
+  await page.getByRole('button', { name: 'Установить обновление', exact: false }).click();
+  return await navigation;
+}
+
 try {
   const context = await browser.newContext();
   if (process.env.E2E_ADMIN_PREPARATION === '1') {
@@ -128,7 +143,9 @@ try {
   }
 
   installationWindow = true;
-  const installResponse = await installUpdateFromNotification(page);
+  const installResponse = process.env.E2E_UPDATE_ENTRY === 'admin'
+    ? await installUpdateFromAdmin(page)
+    : await installUpdateFromNotification(page);
   const installStatus = installResponse?.status() ?? 0;
   const installUrl = page.url();
 
@@ -200,7 +217,7 @@ try {
       `Во время maintenance ожидаемо отклонено фоновых socket-ticket запросов: ${maintenanceHttpErrors.length}`
     );
   }
-  console.log(`Автоматическое уведомление и обновление в один клик: OK (${expectedVersion})`);
+  console.log(`Обновление через ${process.env.E2E_UPDATE_ENTRY === 'admin' ? 'админку' : 'уведомление'}: OK (${expectedVersion})`);
   await context.close();
 } finally {
   await browser.close();
