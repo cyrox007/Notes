@@ -181,9 +181,8 @@ if (repairUpdaterInside($sourceRoot, $liveRoot) || repairUpdaterInside($liveRoot
 [$liveVersion, $liveCode] = repairUpdaterVersion($liveRoot);
 if (PHP_VERSION_ID < 80200) repairUpdaterFail('Для перехода 1.1 требуется PHP 8.2+', 4);
 if (($sourceVersion !== '1.1.0-rc.1' || $sourceCode !== 10901)
-    && ($sourceVersion !== '1.1.0' || $sourceCode !== 11000)
-    && ($sourceVersion !== '1.1.1' || $sourceCode !== 11001)) {
-    repairUpdaterFail('Запускайте мост из доверенного exact-пакета 1.1.0-rc.1 (10901), 1.1.0 (11000) или 1.1.1 (11001).', 4);
+    && ($sourceVersion !== '1.1.0' || $sourceCode !== 11000)) {
+    repairUpdaterFail('Запускайте мост из доверенного exact-пакета 1.1.0-rc.1 (10901) или 1.1.0 (11000).', 4);
 }
 if ($liveVersion !== '1.0.16' || $liveCode !== 10016) {
     repairUpdaterFail('Мост предназначен только для установленной 1.0.16 (10016).', 4);
