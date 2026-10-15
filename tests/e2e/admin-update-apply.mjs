@@ -97,7 +97,8 @@ async function installUpdateFromAdmin(page) {
     page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
     page.getByRole('link', { name: 'Проверить обновления', exact: false }).click(),
   ]);
-  await page.getByText(expectedVersion, { exact: false }).first().waitFor({ state: 'visible' });
+  const targetCard = page.locator('.admin-status-card').filter({ hasText: 'Целевая версия' }).first();
+  await targetCard.getByText(`${expectedVersion} (${expectedVersionCode})`, { exact: true }).waitFor({ state: 'visible' });
   const navigation = page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 180000 });
   await page.getByRole('button', { name: 'Установить обновление', exact: false }).click();
   return await navigation;
