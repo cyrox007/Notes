@@ -38,7 +38,8 @@ function instrument(page) {
 
     const failure = `${response.status()} ${url.pathname}`;
     const socketTicketPath = `${basePath}/messenger/socket-ticket`;
-    if (installationWindow && response.status() === 503 && url.pathname === socketTicketPath) {
+    const backgroundPollPath = `${basePath}/messenger/realtime/poll`;
+    if (installationWindow && response.status() === 503 && [socketTicketPath, backgroundPollPath].includes(url.pathname)) {
       maintenanceHttpErrors.push(failure);
       return;
     }

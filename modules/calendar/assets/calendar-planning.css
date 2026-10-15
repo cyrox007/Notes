@@ -17,14 +17,14 @@
 .calendar-planning-toolbar p,
 .calendar-planning-links-shortcut p {
     margin: 4px 0 0;
-    color: var(--text-muted, #667085);
+    color: var(--ui-muted, #667085);
     font-size: 13px;
 }
 
 .calendar-planning-eyebrow {
     display: block;
     margin-bottom: 4px;
-    color: var(--text-muted, #667085);
+    color: var(--ui-muted, #667085);
     font-size: 11px;
     font-weight: 700;
     letter-spacing: .08em;
@@ -34,9 +34,9 @@
 .calendar-planning-date {
     min-height: 38px;
     padding: 7px 10px;
-    border: 1px solid var(--border-color, #d8dee8);
+    border: 1px solid var(--ui-border, #d8dee8);
     border-radius: 9px;
-    background: var(--surface, #fff);
+    background: var(--ui-surface, #fff);
     color: inherit;
 }
 
@@ -53,9 +53,9 @@
     align-items: center;
     width: 100%;
     padding: 14px 16px;
-    border: 1px solid var(--border-color, #e4e7ec);
+    border: 1px solid var(--ui-border, #e4e7ec);
     border-radius: 12px;
-    background: var(--surface, #fff);
+    background: var(--ui-surface, #fff);
     color: inherit;
     text-align: left;
 }
@@ -76,7 +76,7 @@
 
 .calendar-planning-item__body span {
     margin-top: 3px;
-    color: var(--text-muted, #667085);
+    color: var(--ui-muted, #667085);
     font-size: 13px;
 }
 
@@ -86,8 +86,8 @@
     justify-content: center;
     padding: 4px 8px;
     border-radius: 999px;
-    background: var(--surface-soft, #f2f4f7);
-    color: var(--text-muted, #475467);
+    background: var(--ui-surface-soft, #f2f4f7);
+    color: var(--ui-muted, #475467);
     font-size: 11px;
     font-weight: 700;
     white-space: nowrap;
@@ -99,9 +99,9 @@
     gap: 8px;
     min-height: 44px;
     padding: 10px;
-    border: 1px solid var(--border-color, #e4e7ec);
+    border: 1px solid var(--ui-border, #e4e7ec);
     border-radius: 10px;
-    background: var(--surface-soft, #f8fafc);
+    background: var(--ui-surface-soft, #f8fafc);
 }
 
 .calendar-link-chip {
@@ -110,9 +110,9 @@
     gap: 7px;
     max-width: 100%;
     padding: 7px 9px;
-    border: 1px solid var(--border-color, #e4e7ec);
+    border: 1px solid var(--ui-border, #e4e7ec);
     border-radius: 999px;
-    background: var(--surface, #fff);
+    background: var(--ui-surface, #fff);
 }
 
 .calendar-link-chip span {

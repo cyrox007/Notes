@@ -31,6 +31,7 @@ final class UpdateBackupManager
     /** @var list<string> */
     private const DEFAULT_EXCLUDED_ROOTS = [
         '.git',
+        '.osp',
         'vendor',
         'cache',
         'compile',
