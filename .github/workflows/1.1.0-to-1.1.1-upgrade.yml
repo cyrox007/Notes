@@ -231,6 +231,14 @@ jobs:
           PHP
           php bin/migrate.php --status
 
+      - name: Проверить подготовку установки без журнала миграций
+        if: matrix.migration_ledger == 'without-ledger'
+        run: |
+          mkdir -p /tmp/workspace-1100-1101/live/.osp
+          printf '[notes.local]\nphp_engine = PHP-8.2\n' > /tmp/workspace-1100-1101/live/.osp/project.ini
+          python3 tests/support/admin_preparation_engine_contract.py php 1.1.0
+          python3 tools/release/build-admin-preparation.py /tmp/workspace-1100-1101/live/prepare-1.1.php --source-1.1.0
+
       - name: Подготовить подписанный exact-head 1.1.1
         shell: bash
         run: |
@@ -355,7 +363,7 @@ jobs:
         shell: bash
         env:
           SSL_CERT_FILE: /tmp/workspace-1100-1101/ca.crt
-          E2E_ADMIN_PREPARATION: "0"
+          E2E_ADMIN_PREPARATION: ${{ matrix.migration_ledger == 'without-ledger' && '1' || '0' }}
           E2E_UPDATE_ENTRY: admin
           E2E_APP_ROOT: /tmp/workspace-1100-1101/live
         run: node tests/e2e/admin-update-apply.mjs
@@ -379,6 +387,9 @@ jobs:
           test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.1.1'
           test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '11001'
           test ! -e "$PRIVATE/state/workspace-maintenance.json"
+          if [[ '${{ matrix.migration_ledger }}' = 'without-ledger' ]]; then
+            printf '[notes.local]\nphp_engine = PHP-8.2\n' | cmp - "$LIVE/.osp/project.ini"
+          fi
 
           php tests/support/admin_update_preservation_probe.php --verify
 
