@@ -25,7 +25,6 @@ final class MigrationBaseline
         10015 => '20261002_user_lifecycle.sql',
         10016 => '20261010_user_status_bridge.sql',
         11000 => '20261012_calendar_planning_links.sql',
-        11001 => '20261012_calendar_planning_links.sql',
     ];
 
     public static function activeUpdaterSourceVersionCode(

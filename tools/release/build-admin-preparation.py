@@ -8,9 +8,6 @@ import sys
 import zlib
 
 root = Path(__file__).resolve().parents[2]
-source_11 = len(sys.argv) > 2 and sys.argv[2] == '--source-1.1.0'
-if len(sys.argv) > 2 and not source_11:
-    raise SystemExit('Supported source option: --source-1.1.0')
 bridge = (root / 'tools/release/bootstrap-1.0.16-updater.php').read_text(encoding='utf-8')
 runtime = (root / 'core/UpdateExternalRuntime.php').read_text(encoding='utf-8')
 paths = set(re.findall(r"'((?:core|bin|app/services|assets/js)/[A-Za-z0-9_./-]+)'", bridge))
@@ -37,11 +34,6 @@ engine = engine.replace("sys_get_temp_dir() . DIRECTORY_SEPARATOR\n    . 'notes-
 engine += '\nreturn $backupRoot;\n'
 template = (root / 'tools/release/admin-preparation.template.php').read_text(encoding='utf-8')
 requirements = (root / 'tools/release/PreparationRequirements.php').read_text(encoding='utf-8').split('final class', 1)[1]
-if source_11:
-    engine = engine.replace("$liveVersion !== '1.0.16' || $liveCode !== 10016", "$liveVersion !== '1.1.0' || $liveCode !== 11000")
-    engine = engine.replace('1.0.16', '1.1.0')
-    requirements = requirements.replace('10016', '11000').replace('1.0.16', '1.1.0')
-    template = template.replace('установите 1.1.0 через', 'установите 1.1.1 через').replace('1.0.16', '1.1.0')
 result = template.replace('/* REQUIREMENTS */', 'final class' + requirements)
 result = result.replace('/* HELPERS */', helpers)
 result = result.replace('/* ENGINE */', engine)

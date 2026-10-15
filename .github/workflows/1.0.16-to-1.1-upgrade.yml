@@ -1,4 +1,4 @@
-name: 1.0.16 → 1.1.1 обновление без переустановки
+name: 1.0.16 → 1.1.0 обновление без переустановки
 
 on:
   push:
@@ -57,8 +57,8 @@ jobs:
           node --check tests/e2e/admin-update-apply.mjs
           python3 -m py_compile tests/support/admin_update_https_fixture.py
           php -l tests/support/admin_update_preservation_probe.php
-          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")" = '1.1.1'
-          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '11001'
+          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION;")" = '1.1.0'
+          test "$(php -r "require 'core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '11000'
           git rev-parse --verify refs/tags/v1.0.16
 
       - name: Подготовить exact v1.0.16 и тестовую БД
@@ -181,8 +181,8 @@ jobs:
           printf 'E2E_BASE_PATH=%s\n' '/workspace' >> "$GITHUB_ENV"
           printf 'E2E_SOURCE_VERSION=%s\n' '1.0.16' >> "$GITHUB_ENV"
           printf 'E2E_SOURCE_VERSION_CODE=%s\n' '10016' >> "$GITHUB_ENV"
-          printf 'E2E_TARGET_VERSION=%s\n' '1.1.1' >> "$GITHUB_ENV"
-          printf 'E2E_TARGET_VERSION_CODE=%s\n' '11001' >> "$GITHUB_ENV"
+          printf 'E2E_TARGET_VERSION=%s\n' '1.1.0' >> "$GITHUB_ENV"
+          printf 'E2E_TARGET_VERSION_CODE=%s\n' '11000' >> "$GITHUB_ENV"
 
       - name: Активировать тестовую лицензию и создать контрольные данные
         shell: bash
@@ -215,7 +215,7 @@ jobs:
           cd /tmp/workspace-1016-1100/live
           # Published 1.0.16 schema already contains the lifecycle migration.
           # Seed only the published source ledger. Running the current migrator here
-          # would also apply 1.1.1 migrations before the actual upgrade.
+          # would also apply 1.1.0 migrations before the actual upgrade.
           php <<'PHP'
           <?php
           require getenv('GITHUB_WORKSPACE') . '/core/MigrationManifest.php';
@@ -239,13 +239,13 @@ jobs:
           python3 tools/release/build-admin-preparation.py /tmp/workspace-1016-1100/live/prepare-1.1.php
           php -l /tmp/workspace-1016-1100/live/prepare-1.1.php
 
-      - name: Подготовить подписанный exact-head 1.1.1
+      - name: Подготовить подписанный exact-head 1.1.0
         shell: bash
         run: |
           set -euo pipefail
           DRILL=/tmp/workspace-1016-1100
           LIVE="$DRILL/live"
-          TARGET="$DRILL/workspace-organizer-v1.1.1"
+          TARGET="$DRILL/workspace-organizer-v1.1.0"
           FEED_ROOT="$DRILL/feed-root"
           KEY_ID=ci-one-one-upgrade
           PRIVATE_KEY="$DRILL/$KEY_ID.update-secret"
@@ -276,30 +276,30 @@ jobs:
             if (file_put_contents($path,$bytes,LOCK_EX)===false) exit(1);
           ' "$TARGET/config/update_trusted_keys.php"
 
-          test "$(php -r "require '$TARGET/core/Version.php'; echo Core\\Version::VERSION;")" = '1.1.1'
-          test "$(php -r "require '$TARGET/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '11001'
+          test "$(php -r "require '$TARGET/core/Version.php'; echo Core\\Version::VERSION;")" = '1.1.0'
+          test "$(php -r "require '$TARGET/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '11000'
 
           cd "$DRILL"
-          zip -qr "$DRILL/workspace-organizer-v1.1.1.zip" "$(basename "$TARGET")"
+          zip -qr "$DRILL/workspace-organizer-v1.1.0.zip" "$(basename "$TARGET")"
           cd "$GITHUB_WORKSPACE"
 
-          php tools/vendor-update/build-manifest.php             --package="$DRILL/workspace-organizer-v1.1.1.zip"             --version=1.1.1             --version-code=11001             --channel=stable             --source-commit="$GITHUB_SHA"             --min-source-version-code=10016             --requires-php=8.2.0             --notes='CI: обновление exact v1.0.16 до exact-head 1.1.1 без переустановки'             --out="$DRILL/release-11001.json"
+          php tools/vendor-update/build-manifest.php             --package="$DRILL/workspace-organizer-v1.1.0.zip"             --version=1.1.0             --version-code=11000             --channel=stable             --source-commit="$GITHUB_SHA"             --min-source-version-code=10016             --requires-php=8.2.0             --notes='CI: обновление exact v1.0.16 до exact-head 1.1.0 без переустановки'             --out="$DRILL/release-11000.json"
 
-          php tools/vendor-update/sign-manifest.php             --private-key="$PRIVATE_KEY"             --key-id="$KEY_ID"             --manifest="$DRILL/release-11001.json"             --signature-out="$DRILL/release-11001.sig"
+          php tools/vendor-update/sign-manifest.php             --private-key="$PRIVATE_KEY"             --key-id="$KEY_ID"             --manifest="$DRILL/release-11000.json"             --signature-out="$DRILL/release-11000.sig"
 
           mkdir -p "$FEED_ROOT/stable"
-          cp "$DRILL/release-11001.json" "$FEED_ROOT/stable/release-11001.json"
-          cp "$DRILL/release-11001.sig" "$FEED_ROOT/stable/release-11001.sig"
-          cp "$DRILL/workspace-organizer-v1.1.1.zip" "$FEED_ROOT/stable/workspace-organizer-v1.1.1.zip"
+          cp "$DRILL/release-11000.json" "$FEED_ROOT/stable/release-11000.json"
+          cp "$DRILL/release-11000.sig" "$FEED_ROOT/stable/release-11000.sig"
+          cp "$DRILL/workspace-organizer-v1.1.0.zip" "$FEED_ROOT/stable/workspace-organizer-v1.1.0.zip"
           cat > "$FEED_ROOT/stable/feed.json" <<'JSON'
-          {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-11001.json","signature":"release-11001.sig"}
+          {"schema":1,"product":"workspace-organizer","channel":"stable","manifest":"release-11000.json","signature":"release-11000.sig"}
           JSON
 
           php -r '
             $manifest=json_decode((string) file_get_contents($argv[1]),true,32,JSON_THROW_ON_ERROR);
-            if (($manifest["version_code"]??0)!==11001) exit(1);
+            if (($manifest["version_code"]??0)!==11000) exit(1);
             if (($manifest["min_source_version_code"]??0)!==10016) exit(1);
-          ' "$DRILL/release-11001.json"
+          ' "$DRILL/release-11000.json"
 
           rm -f "$PRIVATE_KEY"
           test ! -e "$PRIVATE_KEY"
@@ -310,7 +310,7 @@ jobs:
           set -euo pipefail
           DRILL=/tmp/workspace-1016-1100
 
-          openssl req -x509 -newkey rsa:2048 -nodes             -keyout "$DRILL/ca.key" -out "$DRILL/ca.crt" -days 1             -subj '/CN=Workspace 1.1.1 Upgrade E2E CA' >/dev/null 2>&1
+          openssl req -x509 -newkey rsa:2048 -nodes             -keyout "$DRILL/ca.key" -out "$DRILL/ca.crt" -days 1             -subj '/CN=Workspace 1.1.0 Upgrade E2E CA' >/dev/null 2>&1
           openssl req -newkey rsa:2048 -nodes             -keyout "$DRILL/server.key" -out "$DRILL/server.csr"             -subj '/CN=updates-1016.e2e.test' >/dev/null 2>&1
           cat > "$DRILL/server.ext" <<'EOF'
           subjectAltName=DNS:updates-1016.e2e.test
@@ -359,7 +359,7 @@ jobs:
             exit 1
           fi
 
-      - name: Обновить 1.0.16 до 1.1.1 через Admin
+      - name: Обновить 1.0.16 до 1.1.0 через Admin
         shell: bash
         env:
           SSL_CERT_FILE: /tmp/workspace-1016-1100/ca.crt
@@ -383,8 +383,8 @@ jobs:
           LIVE="$DRILL/live"
           PRIVATE="$DRILL/private"
 
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.1.1'
-          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '11001'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION;")" = '1.1.0'
+          test "$(php -r "require '$LIVE/core/Version.php'; echo Core\\Version::VERSION_CODE;")" = '11000'
           test ! -e "$PRIVATE/state/workspace-maintenance.json"
 
           php tests/support/admin_update_preservation_probe.php --verify
@@ -399,11 +399,11 @@ jobs:
           test -s "$DRILL/post-update-health.json"
 
           if grep -E 'PHP (Warning|Fatal error|Parse error)|Uncaught ' "$DRILL/app-http.log" 2>/dev/null; then
-            echo 'Во время обновления 1.0.16 → 1.1.1 обнаружена PHP-ошибка' >&2
+            echo 'Во время обновления 1.0.16 → 1.1.0 обнаружена PHP-ошибка' >&2
             exit 1
           fi
 
-          echo '[OK] exact v1.0.16 обновлён до 1.1.1 без переустановки; контрольные данные сохранены'
+          echo '[OK] exact v1.0.16 обновлён до 1.1.0 без переустановки; контрольные данные сохранены'
 
       - name: Диагностика при ошибке
         if: failure()

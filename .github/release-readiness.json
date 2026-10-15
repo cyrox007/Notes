@@ -1,15 +1,15 @@
 {
-  "version": "1.1.1",
-  "ready": false,
-  "blockers": ["Production signing and publication through JSInteractive"],
-  "publication_scope": "prepared_package_for_publisher_signing",
+  "version": "1.1.0",
+  "ready": true,
+  "blockers": [],
+  "publication_scope": "github_latest_release_after_ci",
   "signed_channel_ready": false,
   "post_publication_checks": [
     "Production manifest signature and stable-feed acceptance through JSInteractive",
     "Real-device Russian speech and cross-network media acceptance; browser-local recognition and direct-call limitations remain"
   ],
   "candidate_ready": false,
-  "validated_runtime_commit": "e1e81ff5567d4e37dc5ed90a609d39dc85fbc4a6",
+  "validated_runtime_commit": "d930cd81d26569995c87160f3f6c743a94b309c3",
   "load_testing_version": "1.2.0",
-  "stable_release_authorized": false
+  "stable_release_authorized": true
 }

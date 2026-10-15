@@ -13,11 +13,9 @@ final class Release11Acceptance
         $checks = [
             'php_floor' => PHP_VERSION_ID >= 80200,
             'release_identity' => (Version::VERSION === '1.1.0-rc.1' && Version::VERSION_CODE === 10901 && Version::STATUS === 'rc')
-                || (Version::VERSION === '1.1.0' && Version::VERSION_CODE === 11000 && Version::STATUS === 'stable')
-                || (Version::VERSION === '1.1.1' && Version::VERSION_CODE === 11001 && Version::STATUS === 'stable'),
+                || (Version::VERSION === '1.1.0' && Version::VERSION_CODE === 11000 && Version::STATUS === 'stable'),
             'release_policy_identity' => ($policy['version'] ?? '') === Version::VERSION,
             'upgrade_drill' => is_file($root . '/.github/workflows/1.0.16-to-1.1-upgrade.yml'),
-            'patch_upgrade_drill' => Version::VERSION_CODE < 11001 || is_file($root . '/.github/workflows/1.1.0-to-1.1.1-upgrade.yml'),
             'rollback_drill' => is_file($root . '/.github/workflows/1.0.16-to-1.1-rollback.yml'),
             'release_notes' => is_file($root . '/docs/releases/v' . Version::VERSION . '.md'),
             'operator_instructions' => is_file($root . '/docs/releases/1.1-UPGRADE.md'),
