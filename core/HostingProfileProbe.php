@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 namespace Core;
+require_once __DIR__ . '/PrefixMysqli.php';
+
 
 use mysqli;
 use Throwable;
@@ -192,7 +194,7 @@ final class HostingProfileProbe
         mysqli_report(MYSQLI_REPORT_OFF);
 
         try {
-            $db = @new mysqli(
+            $db = @new \Core\PrefixMysqli(
                 (string) (getenv('DBHOST') ?: 'localhost'),
                 trim($user),
                 (string) (getenv('DBPASS') ?: ''),

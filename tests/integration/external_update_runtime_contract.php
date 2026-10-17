@@ -160,6 +160,10 @@ try {
     $environmentProbe = 'require_once ' . var_export($environmentPath, true)
         . '; echo "ENVIRONMENT_RUNTIME_OK\\n";';
     $probe = externalRuntimeRunPhp($environmentProbe, $runtimeRoot);
+    $prefixProbe = externalRuntimeRunPhp('require_once ' . var_export($runtimeRoot . '/core/DatabasePrefix.php', true)
+        . '; $namespace = new Core\\DatabasePrefix("test_"); echo $namespace->sql("SELECT * FROM users");', $runtimeRoot);
+    externalRuntimeAssert($prefixProbe['code'] === 0 && str_contains($prefixProbe['stdout'], 'test_users'),
+        'Frozen recovery runtime lost the database identifier registry');
     externalRuntimeAssert(
         $probe['code'] === 0 && str_contains($probe['stdout'], 'ENVIRONMENT_RUNTIME_OK'),
         'Environment внешнего runtime не загружается вместе со своими зависимостями: ' . $probe['stderr']

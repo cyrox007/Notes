@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 namespace Core;
+require_once __DIR__ . '/PrefixMysqli.php';
+
 
 require_once __DIR__ . '/Environment.php';
 
@@ -49,7 +51,7 @@ final class SchemaReadiness
                 'SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()'
             );
             while ($row = $result->fetch_row()) {
-                $existingTables[(string) ($row[0] ?? '')] = true;
+                $existingTables[$db->namespace->logical((string) ($row[0] ?? ''))] = true;
             }
             $result->free();
 
@@ -101,7 +103,7 @@ final class SchemaReadiness
         }
 
         mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
-        $db = new mysqli(
+        $db = new \Core\PrefixMysqli(
             (string) (Environment::get('DBHOST') ?: 'localhost'),
             $user,
             (string) (Environment::get('DBPASS') ?: ''),

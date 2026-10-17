@@ -108,6 +108,7 @@
         for (const attribute of [...next.body.attributes]) {
             if (attribute.name.startsWith('data-') || attribute.name === 'class') document.body.setAttribute(attribute.name, attribute.value);
         }
+        document.dispatchEvent(new Event('wspace:sidebar-sync'));
         document.title = next.title;
         const csrf = next.querySelector('#csrf-token-template');
         if (csrf) {

@@ -54,11 +54,14 @@ final class UpdateMigrationPreflight
         $selected = array_fill_keys($files, true);
         $target = [];
         $sqlSetHash = hash_init('sha256');
+        $targetRoutines = [];
 
         // Validate every immutable historical entry so an existing ledger remains
         // verifiable even when the target package no longer contains its module.
         foreach ($canonicalFiles as $index => $filename) {
             $sql = $this->manifest->readMigration($filename);
+            preg_match_all('/\bCREATE\s+(?:PROCEDURE|FUNCTION)\s+`?([a-z][a-z0-9_]*)/i', $sql, $routineNames);
+            foreach ($routineNames[1] as $routine) $targetRoutines[strtolower($routine)] = true;
             $sha = hash('sha256', $sql);
             $statements = $this->parseStatements($sql, $filename);
             $target[$filename] = [
@@ -125,6 +128,8 @@ final class UpdateMigrationPreflight
         $selectedApplied = count(array_intersect_key($applied, $selected));
         return [
             'status' => 'ok',
+            'database_tables' => $this->ownership?->tables() ?? [],
+            'database_routines' => array_keys($targetRoutines),
             'ledger_present' => $ledgerPresent,
             // Published Beta4 predates a reliable ledger for installer-created
             // schema. In that case we can still prove target SQL is bounded and
@@ -197,7 +202,8 @@ final class UpdateMigrationPreflight
             'SELECT 1 FROM information_schema.tables '
             . 'WHERE table_schema=DATABASE() AND table_name=? LIMIT 1'
         );
-        $stmt->bind_param('s', $table);
+        $physicalTable = $db instanceof \Core\PrefixMysqli ? $db->namespace->name($table) : $table;
+        $stmt->bind_param('s', $physicalTable);
         $stmt->execute();
         $exists = $stmt->get_result()->num_rows === 1;
         $stmt->close();

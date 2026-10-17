@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 namespace Core;
+require_once __DIR__ . '/PrefixMysqli.php';
+
 
 require_once __DIR__ . '/Environment.php';
 
@@ -149,7 +151,7 @@ final class UpdateDatabaseMigrator
         }
 
         mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
-        $db = new mysqli(
+        $db = new \Core\PrefixMysqli(
             (string) (Environment::get('DBHOST') ?: 'localhost'),
             $user,
             (string) (Environment::get('DBPASS') ?: ''),
@@ -231,7 +233,7 @@ final class UpdateDatabaseMigrator
         try {
             foreach ($this->parseMigrationStatements($sql) as $index => $statement) {
                 try {
-                    $result = $db->query($statement);
+                    $result = ($db instanceof \Core\PrefixMysqli ? $db->schemaQuery($statement) : $db->query($statement));
                     if ($result instanceof mysqli_result) {
                         $result->free();
                     }
@@ -326,7 +328,8 @@ final class UpdateDatabaseMigrator
             'SELECT 1 FROM information_schema.tables '
             . 'WHERE table_schema=DATABASE() AND table_name=? LIMIT 1'
         );
-        $stmt->bind_param('s', $table);
+        $physicalTable = $db instanceof \Core\PrefixMysqli ? $db->namespace->name($table) : $table;
+        $stmt->bind_param('s', $physicalTable);
         $stmt->execute();
         $exists = $stmt->get_result()->num_rows === 1;
         $stmt->close();

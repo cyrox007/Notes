@@ -234,6 +234,11 @@ if (!isset($allowedLiveVersions[$liveVersion])
 
 $files = [
     'core/Environment.php',
+    'core/DatabasePrefix.php',
+    'core/DatabaseIdentifiers.php',
+    'core/PrefixMysqli.php',
+    'core/PrefixPDO.php',
+    'core/PrefixPDOStatement.php',
     'core/SchemaReadiness.php',
     'core/WebSocketEndpoint.php',
     'core/UpdateReadiness.php',

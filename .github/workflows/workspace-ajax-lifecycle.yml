@@ -11,6 +11,12 @@ permissions:
 
 jobs:
   workspace-ajax-lifecycle:
+    strategy:
+      fail-fast: false
+      matrix:
+        prefix: ['', 'test_']
+    env:
+      DBPREFIX: ${{ matrix.prefix }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -112,7 +118,17 @@ jobs:
           php <<'PHP'
           <?php
           declare(strict_types=1);
-          $pdo = new PDO(
+          require_once 'core/PrefixPDO.php';
+          require_once 'core/InstallerDatabaseService.php';
+          require_once 'core/ModuleManifest.php';
+          require_once 'core/DatabaseOwnership.php';
+          require_once 'core/UpdateDatabaseMigrator.php';
+          if (getenv('DBPREFIX') !== '') {
+              $schemas = array_map(fn ($path) => getcwd() . '/' . $path, Core\DatabaseOwnership::fromPackageRoot(getcwd())->schemaFiles());
+              (new Core\InstallerDatabaseService())->importSchemas('127.0.0.1', 3306, getenv('DBNAME'), getenv('DBUSER'), getenv('DBPASS'), $schemas);
+              (new Core\UpdateDatabaseMigrator())->run();
+          }
+          $pdo = new Core\PrefixPDO(
               sprintf('mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4', getenv('DBHOST'), getenv('DBPORT'), getenv('DBNAME')),
               getenv('DBUSER'),
               getenv('DBPASS'),
@@ -155,6 +171,7 @@ jobs:
           DBUSER=root
           DBPASS=root
           DBNAME=ajax_browser_lifecycle
+          DBPREFIX=${DBPREFIX}
           UNIQUE_KEY=${APP_KEY}
           MSG_SECRET_KEY=${MESSAGE_KEY}
           WS_TICKET_SECRET=${TICKET_KEY}

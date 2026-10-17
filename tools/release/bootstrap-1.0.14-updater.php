@@ -201,6 +201,11 @@ if ($liveVersion !== '1.0.14' || $liveCode !== 10014) {
 // код остаются 1.0.14 до штатной транзакции, поэтому мост не считается релизом.
 $files = [
     'core/Environment.php',
+    'core/DatabasePrefix.php',
+    'core/DatabaseIdentifiers.php',
+    'core/PrefixMysqli.php',
+    'core/PrefixPDO.php',
+    'core/PrefixPDOStatement.php',
     'core/SchemaReadiness.php',
     'core/WebSocketEndpoint.php',
     'core/UpdateReadiness.php',

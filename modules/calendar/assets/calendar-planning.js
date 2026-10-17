@@ -159,7 +159,7 @@ window.wspace.page.register('modules/calendar/assets/calendar-planning.js', (pag
         const end = new Date(start.getTime() + 60 * 60 * 1000);
         blockFields.starts_at.value = dateTimeInput(start);
         blockFields.ends_at.value = dateTimeInput(end);
-        blockFields.timezone.value = browserTimezone();
+        selectTimezone(browserTimezone());
         blockTitle.textContent = 'Новый временной блок';
         blockDelete.hidden = true;
         openBlockEditor();
@@ -189,7 +189,7 @@ window.wspace.page.register('modules/calendar/assets/calendar-planning.js', (pag
         blockFields.title.value = safe(block.title);
         blockFields.description.value = safe(block.description);
         blockFields.location.value = safe(block.location);
-        blockFields.timezone.value = safe(block.timezone) || browserTimezone();
+        selectTimezone(safe(block.timezone) || browserTimezone());
         blockFields.starts_at.value = safe(block.local_start).slice(0, 16);
         blockFields.ends_at.value = safe(block.local_end).slice(0, 16);
     }
@@ -197,7 +197,7 @@ window.wspace.page.register('modules/calendar/assets/calendar-planning.js', (pag
     function resetBlockForm() {
         blockForm.reset();
         blockFields.uid.value = '';
-        blockFields.timezone.value = browserTimezone();
+        selectTimezone(browserTimezone());
         hideFeedback(blockFeedback);
     }
 
@@ -488,6 +488,16 @@ window.wspace.page.register('modules/calendar/assets/calendar-planning.js', (pag
         if (!match) return null;
         const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), Number(match[4]), Number(match[5]));
         return Number.isNaN(date.getTime()) ? null : date;
+    }
+
+    function selectTimezone(value) {
+        const select = blockFields.timezone;
+        // Keep previously accepted aliases/UTC offsets and newer browser zones
+        // when the server timezone database does not list them yet.
+        if (![...select.options].some(option => option.value === value)) {
+            select.add(new Option(value, value));
+        }
+        select.value = value;
     }
 
     function browserTimezone() {

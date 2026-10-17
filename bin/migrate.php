@@ -1,6 +1,8 @@
 <?php
 
 declare(strict_types=1);
+require_once __DIR__ . '/../core/PrefixMysqli.php';
+
 
 $root = dirname(__DIR__);
 require_once $root . '/core/CliRuntime.php';
@@ -51,7 +53,7 @@ function envRequired(string $name): string
 function dbConnection(): mysqli
 {
     mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
-    $db = new mysqli(
+    $db = new \Core\PrefixMysqli(
         (string) (getenv('DBHOST') ?: 'localhost'),
         envRequired('DBUSER'),
         (string) (getenv('DBPASS') ?: ''),
@@ -154,7 +156,7 @@ function executeMigration(mysqli $db, string $sql, string $filename): void
     try {
         foreach (parseMigrationStatements($sql) as $index => $statement) {
             try {
-                $result = $db->query($statement);
+                $result = ($db instanceof \Core\PrefixMysqli ? $db->schemaQuery($statement) : $db->query($statement));
                 if ($result instanceof mysqli_result) {
                     $result->free();
                 }
@@ -187,7 +189,8 @@ function tableExists(mysqli $db, string $table): bool
     $stmt = $db->prepare(
         'SELECT 1 FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name=? LIMIT 1'
     );
-    $stmt->bind_param('s', $table);
+    $physicalTable = $db instanceof \Core\PrefixMysqli ? $db->namespace->name($table) : $table;
+        $stmt->bind_param('s', $physicalTable);
     $stmt->execute();
     $exists = $stmt->get_result()->num_rows === 1;
     $stmt->close();

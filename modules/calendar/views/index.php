@@ -8,6 +8,11 @@ $access = isset($workspaceAccess) && is_array($workspaceAccess) ? $workspaceAcce
 $siteName = isset($sitename) ? (string) $sitename : 'Workspace Organizer';
 $workspaceVersion = isset($version) ? (string) $version : '';
 $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
+$timezoneOptions = '';
+foreach (DateTimeZone::listIdentifiers(DateTimeZone::ALL_WITH_BC) as $timezoneId) {
+    $escapedTimezone = htmlspecialchars($timezoneId, ENT_QUOTES, 'UTF-8');
+    $timezoneOptions .= '<option value="' . $escapedTimezone . '">' . $escapedTimezone . '</option>';
+}
 
 ob_start();
 ?>
@@ -98,7 +103,7 @@ ob_start();
                 <label class="calendar-check"><input type="checkbox" data-field="all_day"><span>Весь день</span></label>
                 <label class="calendar-field calendar-field--timezone">
                     <span>Часовой пояс</span>
-                    <input type="text" maxlength="64" data-field="timezone" required placeholder="Europe/Stockholm">
+                    <select data-field="timezone" required aria-label="Часовой пояс события"><?= $timezoneOptions ?></select>
                 </label>
             </div>
 
@@ -191,7 +196,7 @@ ob_start();
             </div>
             <div class="calendar-form__row">
                 <label class="calendar-field"><span>Место</span><input type="text" maxlength="255" data-block-field="location" placeholder="Необязательно"></label>
-                <label class="calendar-field"><span>Часовой пояс</span><input type="text" maxlength="64" data-block-field="timezone" required placeholder="Europe/Stockholm"></label>
+                <label class="calendar-field"><span>Часовой пояс</span><select data-block-field="timezone" required aria-label="Часовой пояс временного блока"><?= $timezoneOptions ?></select></label>
             </div>
             <label class="calendar-field calendar-field--wide">
                 <span>Описание</span>

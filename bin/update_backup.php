@@ -1,6 +1,8 @@
 <?php
 
 declare(strict_types=1);
+require_once __DIR__ . '/../core/PrefixMysqli.php';
+
 
 $root = dirname(__DIR__);
 require_once $root . '/core/CliRuntime.php';
@@ -86,7 +88,7 @@ function updateBackupDb(): mysqli
         updateBackupFail('Конфигурация окружения БД неполная', 'database_config_missing', 2);
     }
     mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
-    $db = new mysqli(
+    $db = new \Core\PrefixMysqli(
         (string) (getenv('DBHOST') ?: 'localhost'),
         trim($user),
         (string) (getenv('DBPASS') ?: ''),

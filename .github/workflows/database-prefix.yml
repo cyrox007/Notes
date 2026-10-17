@@ -1,0 +1,40 @@
+name: Database namespace isolation
+on:
+  pull_request:
+    branches: ['1.1']
+  push:
+    branches: ['1.1']
+permissions:
+  contents: read
+jobs:
+  database-prefix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.3']
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: prefix_test_ci
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    env:
+      DBHOST: 127.0.0.1
+      DBPORT: '3306'
+      DBUSER: root
+      DBPASS: root
+      PREFIX_TEST_DBNAME: prefix_test_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mysqli, pdo_mysql, sodium, mbstring
+          coverage: none
+      - run: php tests/integration/database_prefix_contract.php

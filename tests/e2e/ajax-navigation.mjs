@@ -59,7 +59,7 @@ const server = createServer(async (request, response) => {
       <link data-workspace-module-style rel="stylesheet" href="/layout.css?section=${section}">
       <script data-workspace-module-script src="/module.js" defer></script>
       ${section === 'notes' ? '<script data-workspace-module-script src="/late.js" defer></script>' : ''}
-      <body data-workspace-section="${section}"><header id="header">Оболочка</header><nav>${sections.map(name => `<a href="/${name}/" data-nav-key="${name}" class="${section === name ? 'active' : ''}">${name}</a>`).join('')}</nav>
+      <body data-workspace-section="${section}"><header id="header">Оболочка</header><button data-sidebar-toggle>Меню</button><nav id="workspaceSidebar" class="sidebar">${sections.map(name => `<a href="/${name}/" data-nav-key="${name}" class="${section === name ? 'active' : ''}">${name}</a>`).join('')}</nav>
       <main id="main-content" tabindex="-1"><h1>${section}</h1><p id="mutations">${mutations}</p>${section === 'notes' ? '<button id="late-button">Действие модуля</button>' : ''}
       <form action="/tasks/create" method="post"><input name="title" required value="Тест"><button name="action" value="create">Создать</button></form>
       <script nonce="${nonce}">window.wspace.page.register('fixture-inline',scope=>{window.inlineRuns=(window.inlineRuns||0)+1;});</script>
@@ -75,6 +75,8 @@ try {
     page.on('console', message => { if (message.type() === 'error') console.error(message.text()); });
     await page.goto(origin + '/home/');
     const instance = await page.evaluate(() => window.instance);
+    await page.locator('[data-sidebar-toggle]').click();
+    assert.equal(await page.locator('body').evaluate(body => body.classList.contains('sidebar-is-collapsed')), true);
     await page.evaluate(() => {
         window.narrowFrames = 0;
         const measure = () => {
@@ -97,6 +99,8 @@ try {
         visits++;
         assert.equal(await page.evaluate(() => window.instance), instance);
         assert.equal(await page.locator('h1').innerText(), section);
+        assert.equal(await page.locator('body').evaluate(body => body.classList.contains('sidebar-is-collapsed')), true, 'AJAX navigation lost the collapsed sidebar offset');
+        assert.equal(await page.locator('#workspaceSidebar').evaluate(sidebar => sidebar.classList.contains('sidebar--collapsed')), true);
         assert.equal(await page.evaluate(() => window.initializations), visits);
         assert.equal(await page.evaluate(() => window.inlineRuns), visits);
         assert.equal(await page.locator('link[data-workspace-module-style]').count(), 2);
@@ -122,6 +126,15 @@ try {
     await page.goForward();
     await page.waitForFunction(() => document.body.dataset.workspaceSection === 'tasks');
     assert.equal(await page.evaluate(() => window.instance), instance);
+    assert.equal(await page.locator('body').evaluate(body => body.classList.contains('sidebar-is-collapsed')), true, 'History navigation lost the collapsed sidebar offset');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.waitForFunction(() => !document.body.classList.contains('sidebar-is-collapsed'));
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.waitForFunction(() => document.body.classList.contains('sidebar-is-collapsed'));
+    await page.locator('[data-sidebar-toggle]').click();
+    await page.locator('a[data-nav-key="calendar"]').click();
+    await page.waitForURL('**/calendar/');
+    assert.equal(await page.locator('body').evaluate(body => body.classList.contains('sidebar-is-collapsed')), false, 'Expanded sidebar state was not preserved');
     assert.deepEqual(errors, []);
     console.log('AJAX: all module navigation, lifecycle cleanup, HTML forms, CSRF rotation, CSP, back/forward passed');
 } finally {

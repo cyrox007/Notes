@@ -20,3 +20,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: node tests/e2e/modal-motion.mjs
       - run: node tests/e2e/ajax-navigation.mjs
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+      - run: node tests/e2e/maintenance-r2-ui.mjs
