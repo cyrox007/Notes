@@ -62,6 +62,18 @@ final class DatabasePrefix
         return isset($this->tables[$this->logical($physical)]) && $this->name($this->logical($physical)) === $physical;
     }
 
+    /** Extend recovery ownership only from the verified target package/journal. */
+    public function includeTargetIdentifiers(array $tables, array $routines = []): void
+    {
+        foreach ([$tables, $routines] as $names) foreach ($names as $name) {
+            if (!is_string($name) || preg_match('/^[a-z][a-z0-9_]{0,63}$/D', $name) !== 1) {
+                throw new \RuntimeException('Некорректный SQL-идентификатор целевого пакета');
+            }
+        }
+        foreach ($tables as $name) $this->tables[$name] = true;
+        foreach ($routines as $name) $this->objects[$name] = true;
+    }
+
     /** SQL values, comments and placeholders are never identifier substitutions. */
     public function sql(string $sql, bool $schema = false): string
     {

@@ -62,10 +62,19 @@ foreach ($connections as $prefix => $db) {
     check($backup['database']['table_prefix'] === $prefix, 'Backup namespace identity');
     foreach ($backup['database']['table_metadata'] as $table) check($db->namespace->ownsTable($table['name']), 'Foreign table in dump');
     $db->query("UPDATE system_settings SET setting_value='changed' WHERE setting_key='prefix_marker'");
+    $db->namespace->includeTargetIdentifiers(['future_feature_rows'], ['future_feature_procedure']);
+    $db->query('CREATE TABLE future_feature_rows(id INT PRIMARY KEY) ENGINE=InnoDB');
+    $db->query('CREATE PROCEDURE future_feature_procedure() SELECT 1');
+    $db->close();
+    $db = new Core\PrefixMysqli($host, $user, $password, $database, $port);
+    $connections[$prefix] = $db;
+    $db->namespace->includeTargetIdentifiers(['future_feature_rows'], ['future_feature_procedure']);
     (new Core\UpdateDatabaseRestorer())->restore($db, $backup['backup_dir'], $backup['database']);
+    check($raw->query("SELECT 1 FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='" . $db->namespace->name('future_feature_rows') . "'")->num_rows === 0, 'Rollback left a table introduced by the target package');
     check($db->query("SELECT setting_value FROM system_settings WHERE setting_key='prefix_marker'")->fetch_assoc()['setting_value'] === $prefix, 'Rollback failed');
     // Exercise the checkpointed HTTP rollback path as well.
     $db->query("UPDATE system_settings SET setting_value='changed-again' WHERE setting_key='prefix_marker'");
+    $db->query('CREATE TABLE future_feature_rows(id INT PRIMARY KEY) ENGINE=InnoDB');
     for ($attempt = 0; $attempt < 200; ++$attempt) {
         try {
             (new Core\UpdateDatabaseRestorer())->restore($db, $backup['backup_dir'], $backup['database'], new Core\UpdateStepBudget(10, 10));
@@ -73,6 +82,7 @@ foreach ($connections as $prefix => $db) {
         } catch (Core\UpdateStepPending) {}
     }
     check($attempt < 200, 'Checkpointed restore did not finish');
+    check($raw->query("SELECT 1 FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='" . $db->namespace->name('future_feature_rows') . "'")->num_rows === 0, 'Checkpointed rollback left a new table');
     foreach ($connections as $otherPrefix => $other) {
         check($other->query("SELECT setting_value FROM system_settings WHERE setting_key='prefix_marker'")->fetch_assoc()['setting_value'] === $otherPrefix, 'Rollback touched a neighboring installation');
     }

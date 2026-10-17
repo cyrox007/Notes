@@ -476,6 +476,8 @@ final class UpdateApplyCommand
             $stateMachine->markPreflightVerified($transactionId, [
                 'health_status' => $health['status'] ?? null,
                 'migration_preflight_sha256' => $migrationPreflight['sha256'],
+                'database_tables' => $migrationPreflight['database_tables'],
+                'database_routines' => $migrationPreflight['database_routines'],
                 'migration_manifest_sha256' => $migrationPreflight['manifest_sha256'],
                 'migration_ledger_present' => $migrationPreflight['ledger_present'],
                 'migration_pending' => $migrationPreflight['pending'],
@@ -981,6 +983,10 @@ final class UpdateApplyCommand
         if ($state === 'code_restored') {
             $db = $this->database();
             try {
+                $db->namespace->includeTargetIdentifiers(
+                    (array) ($current['preflight']['database_tables'] ?? []),
+                    (array) ($current['preflight']['database_routines'] ?? [])
+                );
                 $database = $applier->restoreDatabase(
                     $db,
                     $backups['backup_dir'],
@@ -1163,6 +1169,8 @@ final class UpdateApplyCommand
         return [
             'sha256' => hash('sha256', $bytes),
             'manifest_sha256' => (string) $result['manifest_sha256'],
+            'database_tables' => $result['database_tables'],
+            'database_routines' => $result['database_routines'],
             'ledger_present' => (bool) $result['ledger_present'],
             'pending' => (int) $result['pending'],
         ];
