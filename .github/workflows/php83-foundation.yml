@@ -47,11 +47,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          php tests/integration/environment_loader_contract.php
+          php tests/integration/environment_entrypoints_contract.php
           php tests/integration/core_refactor_contract.php
           php tests/integration/module_runtime_composition_contract.php
           php tests/integration/external_update_runtime_contract.php
           php tests/integration/automatic_update_recovery_contract.php
-          php tests/integration/database_prefix_contract.php
 
   windows-php83:
     name: Windows PHP 8.3 — базовый runtime
@@ -73,6 +74,10 @@ jobs:
         shell: pwsh
         run: |
           php tests/integration/php83_foundation_contract.php
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          php tests/integration/environment_loader_contract.php
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          php tests/integration/environment_entrypoints_contract.php
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           php tests/integration/module_runtime_composition_contract.php
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
