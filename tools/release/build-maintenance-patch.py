@@ -22,18 +22,19 @@ if "VERSION = '1.1.0'" not in version or 'VERSION_CODE = 11000;' not in version:
 names = git('diff', '--name-only', '--diff-filter=AM', 'v1.1.0', sha, '--',
             'app', 'assets', 'bin', 'core', 'modules').decode().splitlines()
 names = [name for name in names if name != 'core/Version.php']
-names += ['CHANGELOG.md', 'docs/releases/1.1.0-patch-r1.md']
+revision = 'r2'
+names += ['CHANGELOG.md', 'docs/releases/1.1.0-patch-r1.md', 'docs/releases/1.1.0-patch-r2.md']
 payload = {}
 for name in sorted(set(names)):
     path = PurePosixPath(name)
     if path.is_absolute() or '..' in path.parts or path.suffix not in {'.php', '.js', '.css', '.md', '.json'}:
         raise SystemExit('Unsafe patch entry: ' + name)
     payload[name] = git('show', sha + ':' + name)
-manifest = {'patch': '1.1.0-r1', 'installed_version': '1.1.0', 'installed_version_code': 11000,
+manifest = {'patch': f'1.1.0-{revision}', 'installed_version': '1.1.0', 'installed_version_code': 11000,
             'source_commit': sha, 'changes_database': False, 'changes_version': False,
             'files': {name: hashlib.sha256(data).hexdigest() for name, data in payload.items()}}
-payload['PATCH_1.1.0_r1.json'] = (json.dumps(manifest, ensure_ascii=False, indent=2) + '\n').encode()
-payload['README_PATCH_1.1.0_r1.txt'] = '''Патч r1 для Workspace Organizer 1.1.0 / 11000
+payload[f'PATCH_1.1.0_{revision}.json'] = (json.dumps(manifest, ensure_ascii=False, indent=2) + '\n').encode()
+payload[f'README_PATCH_1.1.0_{revision}.txt'] = f'''Патч {revision} для Workspace Organizer 1.1.0 / 11000
 
 Это обычный файловый патч. Подпись, сайт публикации, админский offline-пакет и переход на новую версию не нужны.
 
@@ -46,13 +47,14 @@ payload['README_PATCH_1.1.0_r1.txt'] = '''Патч r1 для Workspace Organizer
 
 Исправления: AJAX-переходы и действия модулей; плавное закрытие модальных окон; тёмно-серый календарь; отсутствие сжатия профиля при показе/скрытии материалов; сохранение .osp в последующих обновлениях; распознавание опубликованной схемы 1.1.0 без журнала миграций.
 
-Список заменяемых файлов и SHA-256 находятся в PATCH_1.1.0_r1.json. Для отката верните файлы из резервной копии; дополнительные файлы, отсутствовавшие до патча, можно удалить по этому списку.
+Список заменяемых файлов и SHA-256 находятся в PATCH_1.1.0_{revision}.json. Для отката верните файлы из резервной копии; дополнительные файлы, отсутствовавшие до патча, можно удалить по этому списку.
 '''.encode('utf-8')
+payload[f'README_PATCH_1.1.0_{revision}.txt'] += ('\nДополнительно r2: сохранение положения свёрнутого меню при AJAX-переходах; единая тёмная палитра мессенджера; списки часовых поясов событий и временных блоков. Патч накопительный, включает r1. Префиксы таблиц БД пока не поддерживаются.\n').encode('utf-8')
 args.output.mkdir(parents=True, exist_ok=True)
-archive = args.output / 'workspace-organizer-1.1.0-patch-r1.zip'
+archive = args.output / f'workspace-organizer-1.1.0-patch-{revision}.zip'
 with zipfile.ZipFile(archive, 'x', compression=zipfile.ZIP_DEFLATED) as target:
     for name, data in sorted(payload.items()):
-        info = zipfile.ZipInfo(name, date_time=(2026, 10, 15, 0, 0, 0))
+        info = zipfile.ZipInfo(name, date_time=(2026, 10, 17, 0, 0, 0))
         info.external_attr = 0o100644 << 16
         info.compress_type = zipfile.ZIP_DEFLATED
         target.writestr(info, data)

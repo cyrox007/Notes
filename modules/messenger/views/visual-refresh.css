@@ -105,21 +105,21 @@
   --msg-soft:var(--msg-panel-alt)
 }
 html[data-theme="dark"] .workspace-viewport--messenger{
-  --msg-panel:#111b29;
-  --msg-panel-alt:#0e1825;
-  --msg-canvas:#0a1420;
-  --msg-border:#223146;
-  --msg-text:#eef4ff;
-  --msg-muted:#92a1b8;
-  --msg-accent:#4284ff;
-  --msg-accent-strong:#2f73f5;
-  --msg-accent-soft:#172d53;
-  --msg-hover:#172438;
-  --msg-own-bg:#164a83;
-  --msg-own-border:#255f9f;
-  --msg-own-text:#f7fbff;
-  --msg-other-bg:#1a2636;
-  --msg-other-border:#26364b;
+  --msg-panel:var(--ui-surface);
+  --msg-panel-alt:var(--ui-surface-soft);
+  --msg-canvas:var(--ui-bg);
+  --msg-border:var(--ui-border);
+  --msg-text:var(--ui-text);
+  --msg-muted:var(--ui-muted);
+  --msg-accent:var(--ui-primary);
+  --msg-accent-strong:var(--ui-primary-hover);
+  --msg-accent-soft:var(--ui-primary-soft);
+  --msg-hover:var(--ui-surface-raised);
+  --msg-own-bg:var(--ui-primary-soft);
+  --msg-own-border:var(--ui-border-strong);
+  --msg-own-text:var(--ui-text);
+  --msg-other-bg:var(--ui-surface-raised);
+  --msg-other-border:var(--ui-border);
   --msg-shadow:0 18px 46px rgba(0,0,0,.24)
 }
 

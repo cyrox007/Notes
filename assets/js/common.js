@@ -278,6 +278,10 @@
                 }
             };
 
+            // The sidebar survives AJAX renders; restore its body layout state
+            // before the incoming module is painted.
+            document.addEventListener('wspace:sidebar-sync', syncLayout);
+
             if (typeof media.addEventListener === 'function') {
                 media.addEventListener('change', syncLayout);
             } else if (typeof media.addListener === 'function') {
