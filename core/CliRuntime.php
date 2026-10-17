@@ -15,6 +15,8 @@ use Throwable;
  */
 final class CliRuntime
 {
+    private const MINIMUM_PHP_VERSION = '8.3.0';
+
     public static function projectRoot(): string
     {
         return dirname(__DIR__);
@@ -22,11 +24,23 @@ final class CliRuntime
 
     public static function assertCli(int $exitCode = 2): void
     {
-        if (PHP_SAPI === 'cli') {
+        if (PHP_SAPI !== 'cli') {
+            fwrite(STDERR, "Команда доступна только из CLI.\n");
+            exit($exitCode);
+        }
+
+        if (version_compare(PHP_VERSION, self::MINIMUM_PHP_VERSION, '>=')) {
             return;
         }
 
-        fwrite(STDERR, "Команда доступна только из CLI.\n");
+        fwrite(
+            STDERR,
+            sprintf(
+                "Для команд Workspace Organizer 1.2 требуется PHP %s или новее; запущен PHP %s.\n",
+                self::MINIMUM_PHP_VERSION,
+                PHP_VERSION
+            )
+        );
         exit($exitCode);
     }
 
@@ -35,12 +49,24 @@ final class CliRuntime
      */
     public static function assertCliHidden(): void
     {
-        if (PHP_SAPI === 'cli') {
+        if (PHP_SAPI !== 'cli') {
+            http_response_code(404);
+            exit;
+        }
+
+        if (version_compare(PHP_VERSION, self::MINIMUM_PHP_VERSION, '>=')) {
             return;
         }
 
-        http_response_code(404);
-        exit;
+        fwrite(
+            STDERR,
+            sprintf(
+                "Для служебных команд Workspace Organizer 1.2 требуется PHP %s или новее; запущен PHP %s.\n",
+                self::MINIMUM_PHP_VERSION,
+                PHP_VERSION
+            )
+        );
+        exit(2);
     }
 
     public static function loadEnvironment(?string $root = null): string
