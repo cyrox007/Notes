@@ -28,6 +28,7 @@ final class DatabaseOwnership
         'role_module_policies',
         'module_lifecycle',
         'user_action_log',
+        'mutation_commands',
     ];
 
     /** @var list<string> */
@@ -72,6 +73,7 @@ final class DatabaseOwnership
     private const CORE_PACKAGE_MANIFEST_MIGRATIONS = [
         '20261010_notifications_foundation.sql',
         '20261012_notifications_http_fallback.sql',
+        '20261017_mutation_commands.sql',
     ];
 
     /**
