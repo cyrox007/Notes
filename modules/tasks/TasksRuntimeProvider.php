@@ -5,6 +5,7 @@ namespace Modules\Tasks;
 
 use App\Controllers\TaskBoardController;
 use App\Controllers\TaskController;
+use App\Controllers\TaskMutationController;
 use App\Middlewares\CSRFMiddleware;
 use App\Middlewares\EnforceTaskCreatePolicy;
 use App\Middlewares\LoginRequared;
@@ -54,8 +55,8 @@ final class TasksRuntimeProvider implements ModuleRuntimeProvider
             ->add('POST', '/boards/task/{str:uid}/update', [TaskBoardController::class, 'updateTask'], [LoginRequared::class, RequireTasksUse::class, CSRFMiddleware::class], 'task_board_task_update')
             ->add('POST', '/boards/task/{str:uid}/delete', [TaskBoardController::class, 'deleteTask'], [LoginRequared::class, RequireTasksUse::class, CSRFMiddleware::class], 'task_board_task_delete')
             ->add('GET', '/published/{str:uid}', [TaskController::class, 'published'], [LoginRequared::class, RequireTasksUse::class], 'task_published')
-            ->add('POST', '/{str:uid}/update', [TaskController::class, 'update'], [LoginRequared::class, RequireTasksUse::class], 'update_task')
-            ->add('POST', '/{str:uid}/delete', [TaskController::class, 'delete'], [LoginRequared::class, RequireTasksUse::class], 'delete_task')
+            ->add('POST', '/{str:uid}/update', [TaskMutationController::class, 'update'], [LoginRequared::class, RequireTasksUse::class], 'update_task')
+            ->add('POST', '/{str:uid}/delete', [TaskMutationController::class, 'delete'], [LoginRequared::class, RequireTasksUse::class], 'delete_task')
             ->add('POST', '/{str:taskUid}/subtask', [TaskController::class, 'addSubtask'], [LoginRequared::class, RequireTasksUse::class], 'add_subtask')
             ->add('POST', '/subtask/{int:subtaskId}/toggle', [TaskController::class, 'toggleSubtask'], [LoginRequared::class, RequireTasksUse::class], 'toggle_subtask')
             ->add('POST', '/subtask/{int:subtaskId}/delete', [TaskController::class, 'deleteSubtask'], [LoginRequared::class, RequireTasksUse::class], 'delete_subtask')
