@@ -145,7 +145,7 @@ final class InstallerEnvironmentService
     public function requirements(string $basePath, array $schemaFiles, array $packagedModules): array
     {
         $checks = [
-            'PHP 8.2+' => version_compare(PHP_VERSION, '8.2.0', '>='),
+            'PHP 8.3+' => version_compare(PHP_VERSION, '8.3.0', '>='),
             'Нативное ядро приложения' => is_file($basePath . '/core/Environment.php')
                 && is_file($basePath . '/core/NativeViewRenderer.php'),
             'mbstring' => extension_loaded('mbstring'),
@@ -305,7 +305,7 @@ final class InstallerEnvironmentService
             'DBUSER=' . $this->envQuoted((string) $data['db_user']),
             'DBPASS=' . $this->envQuoted((string) $data['db_pass']),
             'DBNAME=' . $this->envQuoted((string) $data['db_name']),
-            'DBPREFIX=' . $this->envQuoted(DatabasePrefix::validate((string) ($data['db_prefix'] ?? ''))),
+            'DBPREFIX=' . $this->envQuoted(DatabasePrefix::validate((string) ($data['db_prefix'] ?? '')),
             '',
             'UNIQUE_KEY=' . $this->envQuoted((string) $data['unique_key']),
             'MSG_SECRET_KEY=' . $this->envQuoted((string) $data['message_key']),
