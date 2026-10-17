@@ -145,7 +145,7 @@ final class InstallerEnvironmentService
     public function requirements(string $basePath, array $schemaFiles, array $packagedModules): array
     {
         $checks = [
-            'PHP 8.2+' => version_compare(PHP_VERSION, '8.2.0', '>='),
+            'PHP 8.3+' => version_compare(PHP_VERSION, '8.3.0', '>='),
             'Нативное ядро приложения' => is_file($basePath . '/core/Environment.php')
                 && is_file($basePath . '/core/NativeViewRenderer.php'),
             'mbstring' => extension_loaded('mbstring'),
