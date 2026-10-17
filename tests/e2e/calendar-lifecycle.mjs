@@ -137,7 +137,7 @@ try {
   await editor.locator('[data-field="location"]').fill(location);
   await editor.locator('[data-field="starts_at"]').fill(timing.start);
   await editor.locator('[data-field="ends_at"]').fill(timing.end);
-  await editor.locator('[data-field="timezone"]').fill('Europe/Stockholm');
+  await editor.locator('[data-field="timezone"]').selectOption('Europe/Stockholm');
   await editor.locator('[data-field="frequency"]').selectOption('weekly');
   await editor.locator('[data-field="interval"]').fill('1');
   await editor.locator('[data-field="until"]').fill(timing.until);
