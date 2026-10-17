@@ -241,7 +241,7 @@ window.wspace.page.register('modules/calendar/assets/calendar.js', (pageScope) =
         const end = new Date(start.getTime() + 60 * 60 * 1000);
         fields.starts_at.value = inputDateTime(start);
         fields.ends_at.value = inputDateTime(end);
-        fields.timezone.value = browserTimezone();
+        selectTimezone(browserTimezone());
         fields.frequency.value = 'none';
         syncRecurrenceFields();
         editorTitle.textContent = 'Новое событие';
@@ -278,7 +278,7 @@ window.wspace.page.register('modules/calendar/assets/calendar.js', (pageScope) =
         fields.description.value = safe(event.description);
         fields.location.value = safe(event.location);
         fields.all_day.checked = event.all_day === true;
-        fields.timezone.value = safe(event.timezone) || browserTimezone();
+        selectTimezone(safe(event.timezone) || browserTimezone());
         fields.starts_at.value = safe(event.local_start).slice(0, 16);
         fields.ends_at.value = safe(event.local_end).slice(0, 16);
         const recurrence = event.recurrence && typeof event.recurrence === 'object' ? event.recurrence : {};
@@ -296,7 +296,7 @@ window.wspace.page.register('modules/calendar/assets/calendar.js', (pageScope) =
         form.reset();
         fields.uid.value = '';
         fields.interval.value = '1';
-        fields.timezone.value = browserTimezone();
+        selectTimezone(browserTimezone());
         hideFeedback(formFeedback);
     }
 
@@ -469,6 +469,16 @@ window.wspace.page.register('modules/calendar/assets/calendar.js', (pageScope) =
 
     function sameDate(a, b) {
         return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    }
+
+    function selectTimezone(value) {
+        const select = fields.timezone;
+        // Keep previously accepted aliases/UTC offsets and newer browser zones
+        // when the server timezone database does not list them yet.
+        if (![...select.options].some(option => option.value === value)) {
+            select.add(new Option(value, value));
+        }
+        select.value = value;
     }
 
     function browserTimezone() {

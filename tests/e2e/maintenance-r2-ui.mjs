@@ -22,7 +22,10 @@ const server = createServer(async (request, response) => {
             writes.push(JSON.parse(body));
         }
         response.setHeader('Content-Type', 'application/json');
-        response.end(JSON.stringify({ events: [], blocks: [], items: [] }));
+        response.end(JSON.stringify({ events: [], blocks: [], items: [], event: {
+            uid: '12345678-1234-1234-1234-123456789abc', title: 'Existing offset event', timezone: '+03:00',
+            local_start: '2026-10-17T12:00:00', local_end: '2026-10-17T13:00:00'
+        } }));
     } else if (url.pathname === '/') {
         response.setHeader('Content-Type', 'text/html; charset=utf-8');
         response.end('<!doctype html><html data-theme="dark"><head>' +
@@ -67,6 +70,9 @@ try {
         await page.close();
     }
     const page = await browser.newPage();
+    await page.goto(origin + '?event=12345678-1234-1234-1234-123456789abc');
+    await page.waitForFunction(() => document.querySelector('[data-field="timezone"]').value === '+03:00');
+    assert.equal(await page.locator('[data-field="title"]').inputValue(), 'Existing offset event');
     await page.goto(origin);
     await page.setContent('<html data-theme="dark"><body class="workspace-viewport--messenger"><div class="messenger-app"><aside class="messenger-list"></aside><section class="messenger-chat"><div class="messenger-history"></div></section></div></body></html>');
     for (const path of ['modules/messenger/views/style.css', 'modules/messenger/views/visual-refresh.css', 'assets/css/workspace.css']) await page.addStyleTag({ path: resolve(path) });
