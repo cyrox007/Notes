@@ -7,6 +7,7 @@ final class PrefixPDOStatement extends \PDOStatement
     public function execute(?array $params = null): bool { return parent::execute($this->namespace->parameters($this->queryString, $params)); }
     public function bindValue(string|int $param, mixed $value, int $type = \PDO::PARAM_STR): bool
     {
-        return parent::bindValue($param, $this->namespace->parameters($this->queryString, [$value])[0], $type);
+        $key = is_int($param) ? $param - 1 : $param;
+        return parent::bindValue($param, $this->namespace->parameters($this->queryString, [$key => $value])[$key], $type);
     }
 }

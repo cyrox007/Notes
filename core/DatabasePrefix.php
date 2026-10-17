@@ -16,7 +16,7 @@ final class DatabasePrefix
     {
         $configured = Environment::get('DBPREFIX');
         $this->prefix = self::validate($prefix ?? ($configured === false ? '' : $configured));
-        $this->scoped = $scoped ?? ($prefix !== null || $configured !== false);
+        $this->scoped = $this->prefix !== '' || ($scoped ?? ($prefix !== null || $configured !== false));
         static $definitions = null;
         if ($definitions === null) {
             $definitions = require __DIR__ . '/DatabaseIdentifiers.php';
@@ -143,7 +143,13 @@ final class DatabasePrefix
     public function parameters(string $sql, ?array $parameters): ?array
     {
         if ($parameters === null || stripos($sql, 'information_schema.') === false) return $parameters;
-        foreach ($parameters as &$value) if (is_string($value) && isset($this->tables[$value])) $value = $this->name($value);
+        preg_match_all('/\b(?:table_name|event_object_table|constraint_name)\s*=\s*(:[a-zA-Z_][a-zA-Z0-9_]*|\?)/i', $sql, $matches, PREG_OFFSET_CAPTURE);
+        foreach ($matches[1] as [$placeholder, $offset]) {
+            $key = $placeholder === '?' ? substr_count(substr($sql, 0, $offset), '?') : $placeholder;
+            if (is_string($key) && !array_key_exists($key, $parameters)) $key = ltrim($key, ':');
+            $value = $parameters[$key] ?? null;
+            if (is_string($value) && (isset($this->tables[$value]) || isset($this->objects[$value]))) $parameters[$key] = $this->name($value);
+        }
         return $parameters;
     }
 }

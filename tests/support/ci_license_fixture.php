@@ -37,8 +37,12 @@ function workspaceEnsureCiLicense(): void
     );
 
     try {
-    require_once $root . '/core/PrefixPDO.php';
-    $pdo = new Core\PrefixPDO(
+        $connectionClass = PDO::class;
+        if (is_file($root . '/core/PrefixPDO.php')) {
+            require_once $root . '/core/PrefixPDO.php';
+            $connectionClass = Core\PrefixPDO::class;
+        }
+        $pdo = new $connectionClass(
             $dsn,
             $env['DBUSER'],
             $env['DBPASS'],

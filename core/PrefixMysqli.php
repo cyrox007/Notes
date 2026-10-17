@@ -3,6 +3,10 @@ declare(strict_types=1);
 namespace Core;
 require_once __DIR__ . '/DatabasePrefix.php';
 
+// Module composition/readiness must still load when mysqli is unavailable.
+// The existing hosting checks report the missing extension before connecting.
+if (!extension_loaded('mysqli')) return;
+
 final class PrefixMysqli extends \mysqli
 {
     public readonly DatabasePrefix $namespace;
