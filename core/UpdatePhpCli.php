@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Core;
 
 require_once __DIR__ . '/Environment.php';
+require_once __DIR__ . '/UpdateProcessRunner.php';
 
 use RuntimeException;
+use Throwable;
 
 /**
  * Находит CLI-бинарник PHP для запуска транзакционного обновлятора из web-процесса.
@@ -17,8 +19,12 @@ use RuntimeException;
  */
 final class UpdatePhpCli
 {
-    public static function resolve(): string
+    private const MINIMUM_PHP_VERSION = '8.3.0';
+
+    public static function resolve(string $minimumVersion = self::MINIMUM_PHP_VERSION): string
     {
+        $unsupported = [];
+
         foreach (self::candidates() as $candidate) {
             if (!self::isAbsolute($candidate) || !is_file($candidate)) {
                 continue;
@@ -26,11 +32,28 @@ final class UpdatePhpCli
             if (DIRECTORY_SEPARATOR !== '\\' && !is_executable($candidate)) {
                 continue;
             }
-            return $candidate;
+
+            $version = self::runtimeVersion($candidate);
+            if ($version === null) {
+                continue;
+            }
+            if (version_compare($version, $minimumVersion, '>=')) {
+                return $candidate;
+            }
+
+            $unsupported[] = $candidate . ' (' . $version . ')';
+        }
+
+        if ($unsupported !== []) {
+            throw new RuntimeException(
+                'Найденный PHP CLI не соответствует требованиям обновления: нужен PHP '
+                . $minimumVersion . ' или новее; найдено: ' . implode(', ', $unsupported) . '. '
+                . 'Задайте UPDATE_PHP_BINARY на совместимый CLI-бинарник.'
+            );
         }
 
         throw new RuntimeException(
-            'Не найден CLI-бинарник PHP для установки обновления. '
+            'Не найден совместимый CLI-бинарник PHP ' . $minimumVersion . '+ для установки обновления. '
             . 'Установите PHP CLI рядом с web-PHP или задайте абсолютный UPDATE_PHP_BINARY.'
         );
     }
@@ -82,6 +105,41 @@ final class UpdatePhpCli
             return;
         }
         $candidates[] = $candidate;
+    }
+
+    private static function runtimeVersion(string $candidate): ?string
+    {
+        $candidateReal = realpath($candidate);
+        $currentReal = PHP_BINARY !== '' ? realpath(PHP_BINARY) : false;
+        if (PHP_SAPI === 'cli'
+            && is_string($candidateReal)
+            && is_string($currentReal)
+            && $candidateReal === $currentReal) {
+            return PHP_VERSION;
+        }
+
+        if (!UpdateProcessRunner::available()) {
+            return null;
+        }
+
+        try {
+            $result = (new UpdateProcessRunner())->run(
+                [$candidate, '-r', 'echo PHP_VERSION;'],
+                dirname(__DIR__),
+                10
+            );
+        } catch (Throwable) {
+            return null;
+        }
+
+        if ($result['code'] !== 0) {
+            return null;
+        }
+
+        $version = trim($result['stdout']);
+        return preg_match('/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/D', $version) === 1
+            ? $version
+            : null;
     }
 
     /** @return list<string> */
