@@ -305,7 +305,7 @@ final class InstallerEnvironmentService
             'DBUSER=' . $this->envQuoted((string) $data['db_user']),
             'DBPASS=' . $this->envQuoted((string) $data['db_pass']),
             'DBNAME=' . $this->envQuoted((string) $data['db_name']),
-            'DBPREFIX=' . $this->envQuoted(DatabasePrefix::validate((string) ($data['db_prefix'] ?? '')),
+            'DBPREFIX=' . $this->envQuoted(DatabasePrefix::validate((string) ($data['db_prefix'] ?? ''))),
             '',
             'UNIQUE_KEY=' . $this->envQuoted((string) $data['unique_key']),
             'MSG_SECRET_KEY=' . $this->envQuoted((string) $data['message_key']),
