@@ -17,6 +17,7 @@ on:
       - 'tests/integration/environment_entrypoints_contract.php'
       - '.github/workflows/internal-env-loader.yml'
   pull_request:
+    branches: [master, '1.0', '1.1']
     paths:
       - 'core/Environment.php'
       - 'core.php'

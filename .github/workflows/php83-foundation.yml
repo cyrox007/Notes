@@ -1,0 +1,85 @@
+name: Основа PHP 8.3 для 1.2
+
+on:
+  push:
+    branches: ['1.2']
+  pull_request:
+    branches: ['1.2']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  php83-foundation:
+    name: PHP 8.3 — базовый контракт 1.2
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql, mbstring, ctype, fileinfo, sodium, openssl, zlib, gd
+          coverage: none
+
+      - name: Проверить Composer и фундамент 1.2
+        shell: bash
+        run: |
+          set -euo pipefail
+          composer validate --no-check-publish
+          php tests/integration/php83_foundation_contract.php
+
+      - name: Проверить синтаксис PHP
+        shell: bash
+        run: |
+          set -euo pipefail
+          find . -type f -name '*.php' \
+            -not -path './vendor/*' \
+            -not -path './node_modules/*' \
+            -print0 | xargs -0 -n1 php -l
+
+      - name: Проверить основные платформенные контракты на PHP 8.3
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/integration/environment_loader_contract.php
+          php tests/integration/environment_entrypoints_contract.php
+          php tests/integration/core_refactor_contract.php
+          php tests/integration/module_runtime_composition_contract.php
+          php tests/integration/external_update_runtime_contract.php
+          php tests/integration/automatic_update_recovery_contract.php
+
+  windows-php83:
+    name: Windows PHP 8.3 — базовый runtime
+    runs-on: windows-2022
+    timeout-minutes: 15
+
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_sqlite, sqlite3, mbstring, sodium, openssl, fileinfo, zip
+          coverage: none
+
+      - name: Проверить фундамент 1.2
+        shell: pwsh
+        run: |
+          php tests/integration/php83_foundation_contract.php
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          php tests/integration/environment_loader_contract.php
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          php tests/integration/environment_entrypoints_contract.php
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          php tests/integration/module_runtime_composition_contract.php
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          php tests/integration/automatic_update_recovery_contract.php
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
