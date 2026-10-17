@@ -155,6 +155,7 @@ echo $view->layout('core/base', [
     ],
     'module_scripts' => [
         $view->moduleAsset('tasks', 'tasks-page.js'),
+        $view->moduleAsset('tasks', 'tasks-versioned-mutations.js'),
         $view->moduleAsset('tasks', 'tasks-kanban.js'),
         $view->moduleAsset('tasks', 'task-boards-nav.js'),
     ],

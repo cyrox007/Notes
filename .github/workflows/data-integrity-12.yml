@@ -56,10 +56,19 @@ jobs:
           set -euo pipefail
           php -l core/MutationCommandStore.php
           php -l modules/tasks/services/TaskVersionMutationService.php
+          php -l modules/tasks/controllers/TaskMutationController.php
+          php -l modules/tasks/views/elements/task_item/index.php
           php -l tests/integration/data_integrity_12_contract.php
+          php -l tests/integration/tasks_versioned_mutation_contract.php
+          node --check modules/tasks/assets/tasks-versioned-mutations.js
 
       - name: Проверить две вкладки и повтор команды
         run: php tests/integration/data_integrity_12_contract.php
+
+      - name: Проверить HTTP и AJAX границу Tasks
+        run: |
+          php tests/integration/tasks_versioned_mutation_contract.php
+          php tests/integration/tasks_ajax_contract.php
 
       - name: Проверить владение БД и SQL миграций
         run: |

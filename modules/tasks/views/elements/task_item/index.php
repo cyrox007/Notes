@@ -10,10 +10,12 @@ $status = (string) ($taskRow['status'] ?? 'pending');
 $priority = (string) ($taskRow['priority'] ?? 'medium');
 $title = (string) ($taskRow['title'] ?? '');
 $description = (string) ($taskRow['description'] ?? '');
+$version = max(1, (int) ($taskRow['version'] ?? 1));
 $taskCategories = isset($taskRow['categories']) && is_array($taskRow['categories']) ? $taskRow['categories'] : [];
 $subtasks = isset($taskRow['subtasks']) && is_array($taskRow['subtasks']) ? $taskRow['subtasks'] : [];
 $completion = max(0, min(100, (int) ($taskRow['completion_percentage'] ?? 0)));
 $isOverdue = !empty($taskRow['is_overdue']);
+$commandId = static fn (string $action): string => $action . '-' . bin2hex(random_bytes(12));
 
 $formatDate = static function (mixed $value, string $format): string {
     $raw = trim((string) $value);
@@ -29,7 +31,7 @@ $dueDate = $formatDate($taskRow['due_date'] ?? '', 'd.m.Y H:i');
 $dueInput = $formatDate($taskRow['due_date'] ?? '', 'Y-m-d\TH:i');
 $createdAt = $formatDate($taskRow['created_at'] ?? '', 'd.m.Y H:i');
 ?>
-<div class="task-item task-priority-<?= $view->e($priority) ?>" data-task-id="<?= $view->e($uid) ?>" data-status="<?= $view->e($status) ?>">
+<div class="task-item task-priority-<?= $view->e($priority) ?>" data-task-id="<?= $view->e($uid) ?>" data-status="<?= $view->e($status) ?>" data-version="<?= $version ?>">
     <div class="task-header">
         <div class="task-title-section">
             <input type="checkbox" class="task-complete-toggle" <?= !empty($taskRow['archived_at']) ? 'disabled' : '' ?> <?= $status === 'completed' ? 'checked' : '' ?> data-task-id="<?= $view->e($uid) ?>" title="Отметить как выполненную">
@@ -39,7 +41,10 @@ $createdAt = $formatDate($taskRow['created_at'] ?? '', 'd.m.Y H:i');
 
         <div class="task-actions">
             <form action="<?= $view->e($view->route('update_task', ['uid' => $uid])) ?>" method="post" class="task-archive-form">
-                <?= $view->csrfInput() ?><input type="hidden" name="archived" value="<?= empty($taskRow['archived_at']) ? '1' : '0' ?>">
+                <?= $view->csrfInput() ?>
+                <input type="hidden" name="expected_version" value="<?= $version ?>">
+                <input type="hidden" name="command_id" value="<?= $view->e($commandId('task-archive')) ?>">
+                <input type="hidden" name="archived" value="<?= empty($taskRow['archived_at']) ? '1' : '0' ?>">
                 <button type="submit" class="btn-icon" title="<?= empty($taskRow['archived_at']) ? 'В архив' : 'Восстановить' ?>" aria-label="<?= empty($taskRow['archived_at']) ? 'В архив' : 'Восстановить' ?>"><i class="fa <?= empty($taskRow['archived_at']) ? 'fa-archive' : 'fa-undo' ?>" aria-hidden="true"></i></button>
             </form>
             <select class="task-status-toggle" <?= !empty($taskRow['archived_at']) ? 'disabled' : '' ?> data-task-id="<?= $view->e($uid) ?>" aria-label="Статус задачи">
@@ -50,8 +55,10 @@ $createdAt = $formatDate($taskRow['created_at'] ?? '', 'd.m.Y H:i');
                 <option value="completed" <?= $status === 'completed' ? 'selected' : '' ?>>Завершено</option>
             </select>
             <button type="button" class="btn-icon edit-task" data-task-id="<?= $view->e($uid) ?>" title="Редактировать"><i class="fa fa-edit" aria-hidden="true"></i></button>
-            <form action="<?= $view->e($view->route('delete_task', ['uid' => $uid])) ?>" method="post" data-confirm-message="Вы уверены, что хотите удалить эту задачу?" data-confirm-title="Удаление задачи" data-confirm-text="Удалить">
+            <form action="<?= $view->e($view->route('delete_task', ['uid' => $uid])) ?>" method="post" class="task-delete-form" data-confirm-message="Вы уверены, что хотите удалить эту задачу?" data-confirm-title="Удаление задачи" data-confirm-text="Удалить">
                 <?= $view->csrfInput() ?>
+                <input type="hidden" name="expected_version" value="<?= $version ?>">
+                <input type="hidden" name="command_id" value="<?= $view->e($commandId('task-delete')) ?>">
                 <button type="submit" class="btn-icon delete-task" title="Удалить"><i class="fa fa-trash" aria-hidden="true"></i></button>
             </form>
         </div>
@@ -128,6 +135,8 @@ $createdAt = $formatDate($taskRow['created_at'] ?? '', 'd.m.Y H:i');
     <div class="task-edit-panel" data-task-edit-panel="<?= $view->e($uid) ?>" hidden>
         <form action="<?= $view->e($view->route('update_task', ['uid' => $uid])) ?>" method="post" class="task-edit-form">
             <?= $view->csrfInput() ?>
+            <input type="hidden" name="expected_version" value="<?= $version ?>">
+            <input type="hidden" name="command_id" value="<?= $view->e($commandId('task-edit')) ?>">
             <div class="form-group"><label>Название</label><input type="text" name="title" maxlength="255" required value="<?= $view->e($title) ?>"></div>
             <div class="form-group"><label>Описание</label><textarea name="description" rows="4" maxlength="10000"><?= $view->e($description) ?></textarea></div>
             <div class="form-row">
@@ -136,9 +145,9 @@ $createdAt = $formatDate($taskRow['created_at'] ?? '', 'd.m.Y H:i');
                     <select name="status" <?= !empty($taskRow['archived_at']) ? 'disabled' : '' ?>>
                         <option value="pending" <?= $status === 'pending' ? 'selected' : '' ?>>Запланировано</option>
                         <option value="studying" <?= $status === 'studying' ? 'selected' : '' ?>>Изучение</option>
-                <option value="in_progress" <?= $status === 'in_progress' ? 'selected' : '' ?>>В работе</option>
+                        <option value="in_progress" <?= $status === 'in_progress' ? 'selected' : '' ?>>В работе</option>
                         <option value="review" <?= $status === 'review' ? 'selected' : '' ?>>Проверка</option>
-                <option value="completed" <?= $status === 'completed' ? 'selected' : '' ?>>Завершено</option>
+                        <option value="completed" <?= $status === 'completed' ? 'selected' : '' ?>>Завершено</option>
                     </select>
                 </div>
                 <div class="form-group">
