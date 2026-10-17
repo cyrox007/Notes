@@ -1,0 +1,67 @@
+name: 1.2 — целостность изменяющих команд
+
+on:
+  push:
+    branches: ['1.2']
+  pull_request:
+    branches: ['1.2']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  data-integrity:
+    name: version + command_id (${{ matrix.prefix == '' && 'без префикса' || 'с префиксом' }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        prefix: ['', 'integrity_']
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: integrity_contract
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DBHOST: 127.0.0.1
+      DBPORT: '3306'
+      DBUSER: root
+      DBPASS: root
+      DBPREFIX: ${{ matrix.prefix }}
+      DATA_INTEGRITY_DBNAME: integrity_contract
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql, mbstring, sodium, openssl, fileinfo, gd
+          coverage: none
+
+      - name: Проверить синтаксис новых контрактов
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l core/MutationCommandStore.php
+          php -l modules/tasks/services/TaskVersionMutationService.php
+          php -l tests/integration/data_integrity_12_contract.php
+
+      - name: Проверить две вкладки и повтор команды
+        run: php tests/integration/data_integrity_12_contract.php
+
+      - name: Проверить владение БД и manifest миграций
+        run: |
+          php tests/integration/module_database_contract.php
+          php tests/integration/migration_manifest_contract.php
