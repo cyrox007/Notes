@@ -28,7 +28,6 @@ final class DatabaseOwnership
         'role_module_policies',
         'module_lifecycle',
         'user_action_log',
-        'mutation_commands',
     ];
 
     /** @var list<string> */
@@ -143,7 +142,28 @@ final class DatabaseOwnership
     /** @return list<string> */
     public function tables(): array
     {
-        return $this->uniqueOwned([...self::CORE_TABLES, ...($this->hasNotifications() ? ['notification_events', 'notifications', 'notification_subscriptions', 'notification_channel_configs', 'notification_delivery_jobs', 'notification_delivery_attempts', 'notification_runtime_state'] : [])], 'table', static fn (ModuleManifest $m): array => $m->databaseTables());
+        $coreTables = self::CORE_TABLES;
+        if (in_array(
+            'database/migrations/20261017_mutation_commands.sql',
+            $this->packageCoreMigrations,
+            true
+        )) {
+            $coreTables[] = 'mutation_commands';
+        }
+
+        return $this->uniqueOwned(
+            [...$coreTables, ...($this->hasNotifications() ? [
+                'notification_events',
+                'notifications',
+                'notification_subscriptions',
+                'notification_channel_configs',
+                'notification_delivery_jobs',
+                'notification_delivery_attempts',
+                'notification_runtime_state',
+            ] : [])],
+            'table',
+            static fn (ModuleManifest $m): array => $m->databaseTables()
+        );
     }
 
     /** @return list<string> */
