@@ -14,6 +14,8 @@ require_once __DIR__ . '/UpdatePath.php';
  */
 final class UpdateExternalCliSupport
 {
+    private const MINIMUM_PHP_VERSION = '8.3.0';
+
     public function __construct(
         private readonly string $runnerRoot,
         private readonly bool $json
@@ -22,11 +24,23 @@ final class UpdateExternalCliSupport
 
     public static function assertCli(string $message = 'Команда доступна только из CLI.'): void
     {
-        if (PHP_SAPI === 'cli') {
+        if (PHP_SAPI !== 'cli') {
+            fwrite(STDERR, $message . PHP_EOL);
+            exit(2);
+        }
+
+        if (version_compare(PHP_VERSION, self::MINIMUM_PHP_VERSION, '>=')) {
             return;
         }
 
-        fwrite(STDERR, $message . PHP_EOL);
+        fwrite(
+            STDERR,
+            sprintf(
+                "Внешнему обновлятору Workspace Organizer 1.2 требуется PHP %s или новее; запущен PHP %s.\n",
+                self::MINIMUM_PHP_VERSION,
+                PHP_VERSION
+            )
+        );
         exit(2);
     }
 
