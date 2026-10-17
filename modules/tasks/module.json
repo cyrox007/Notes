@@ -42,7 +42,8 @@
     "migrations": [
       "database/migrations/20260913_tasks_contract.sql",
       "database/migrations/20260915_shared_task_boards.sql",
-      "database/migrations/20261011_tasks_workflow_archive.sql"
+      "database/migrations/20261011_tasks_workflow_archive.sql",
+      "database/migrations/20261017_tasks_entity_versions.sql"
     ]
   }
 }

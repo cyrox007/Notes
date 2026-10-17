@@ -1,8 +1,8 @@
 -- ============================================================
--- Workspace Organizer Tasks - canonical schema
--- Fresh-install source of truth for personal tasks and shared boards.
--- Requires canonical `users` table from database/messenger_schema.sql.
--- Existing installations should use database/migrations/*.sql.
+-- Workspace Organizer Tasks - каноническая схема
+-- Источник истины fresh-install для личных задач и общих досок.
+-- Требует каноническую таблицу `users` из database/messenger_schema.sql.
+-- Для существующих установок используются database/migrations/*.sql.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS `tasks` (
@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS `tasks` (
     `is_deleted` TINYINT(1) NOT NULL DEFAULT 0,
     `is_profile_public` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Явно опубликовано владельцем в публичном профиле',
     `deleted_at` DATETIME DEFAULT NULL,
+    `version` BIGINT UNSIGNED NOT NULL DEFAULT 1,
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY `uq_tasks_uid` (`uid`),
@@ -87,9 +88,8 @@ CREATE TABLE IF NOT EXISTS `task_reminders` (
         FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Shared boards are separate from legacy personal tasks so the existing
--- ownership contract remains backward-compatible while collaboration gets a
--- board-level ACL and independent assignees.
+-- Общие доски отделены от личных задач: старый ownership-контракт остаётся
+-- совместимым, а совместная работа получает собственный ACL и исполнителей.
 CREATE TABLE IF NOT EXISTS `task_boards` (
     `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     `uid` CHAR(32) NOT NULL,
@@ -134,6 +134,7 @@ CREATE TABLE IF NOT EXISTS `task_board_items` (
     `archived_at` DATETIME DEFAULT NULL,
     `is_deleted` TINYINT(1) NOT NULL DEFAULT 0,
     `deleted_at` DATETIME DEFAULT NULL,
+    `version` BIGINT UNSIGNED NOT NULL DEFAULT 1,
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY `uq_task_board_items_uid` (`uid`),

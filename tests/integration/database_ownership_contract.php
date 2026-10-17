@@ -53,7 +53,9 @@ ownershipAssert(is_array($canonical['migrations'] ?? null), 'canonical migration
 $full = DatabaseOwnership::fromPackageRoot($root);
 ownershipAssert(in_array('users', $full->tables(), true), 'core owns users');
 ownershipAssert(in_array('notification_runtime_state', $full->tables(), true), '1.1 owns notification runtime state');
+ownershipAssert(in_array('mutation_commands', $full->tables(), true), '1.2 owns mutation_commands');
 ownershipAssert(in_array('database/notifications_schema.sql', $full->schemaFiles(), true), '1.1 fresh install includes notifications');
+ownershipAssert(in_array('database/migrations/20261017_mutation_commands.sql', $full->migrationFiles(), true), '1.2 includes mutation command migration');
 ownershipAssert(in_array('system_settings', $full->tables(), true), 'core owns system_settings');
 ownershipAssert(in_array('dialogs', $full->tables(), true), 'Messenger tables are included in full package');
 ownershipAssert(in_array('notes', $full->tables(), true), 'Notes tables are included in full package');
@@ -73,6 +75,7 @@ try {
         'users', 'system_settings', 'roles', 'permissions', 'role_permissions',
         'user_roles', 'role_module_policies', 'module_lifecycle', 'user_action_log',
     ], 'core-only package requires only platform tables');
+    ownershipAssert(!in_array('mutation_commands', $coreOnly->tables(), true), 'older package without 1.2 manifest must not require mutation_commands');
     ownershipAssert(!in_array('dialogs', $coreOnly->tables(), true), 'core-only does not require Messenger tables');
     ownershipAssert(!in_array('user_storage_quotas', $coreOnly->tables(), true), 'core-only does not require Files quota');
     mkdir($coreFixture . '/core');
