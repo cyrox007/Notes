@@ -61,8 +61,8 @@ recordHealth(
     $checks,
     $failed,
     'php_version',
-    version_compare(PHP_VERSION, '8.2.0', '>='),
-    PHP_VERSION . ' (технический минимум 8.2; для production рекомендуется 8.3+)'
+    version_compare(PHP_VERSION, '8.3.0', '>='),
+    PHP_VERSION . ' (технический минимум линии 1.2 — PHP 8.3)'
 );
 foreach (['mysqli', 'pdo_mysql', 'mbstring', 'sodium', 'openssl', 'zlib', 'fileinfo', 'gd'] as $extension) {
     recordHealth($checks, $failed, 'extension_' . $extension, extension_loaded($extension));
@@ -333,7 +333,7 @@ try {
     recordHealth($checks, $failed, 'database_connection', false, $e->getMessage());
 }
 
-// Persist operational alerts before attempting DB-backed notification delivery.
+// Фиксируем эксплуатационные сигналы до попытки доставки через БД.
 require_once $root . '/core/SystemEventOutbox.php';
 $day = gmdate('Y-m-d');
 $storagePath = trim((string) getenv('PRIVATE_STORAGE_PATH'));
