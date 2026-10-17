@@ -1,6 +1,8 @@
 <?php
 
 declare(strict_types=1);
+require_once __DIR__ . '/../core/PrefixMysqli.php';
+
 
 require_once dirname(__DIR__) . '/core/CliRuntime.php';
 \Core\CliRuntime::assertCli();
@@ -277,7 +279,7 @@ try {
         throw new RuntimeException('DBUSER/DBNAME не настроены');
     }
 
-    $db = new mysqli($host, $user, $pass, $database, $port);
+    $db = new \Core\PrefixMysqli($host, $user, $pass, $database, $port);
     $db->set_charset('utf8mb4');
     recordHealth($checks, $failed, 'database_connection', true, $database);
 
@@ -291,7 +293,7 @@ try {
     );
 
     $escaped = array_map(
-        static fn (string $table): string => "'" . $db->real_escape_string($table) . "'",
+        fn (string $table): string => "'" . $db->real_escape_string($db->namespace->name($table)) . "'",
         $requiredTables
     );
     $result = $db->query(
@@ -300,7 +302,7 @@ try {
     );
     $existing = [];
     while ($row = $result->fetch_assoc()) {
-        $existing[] = (string) ($row['table_name'] ?? '');
+        $existing[] = $db->namespace->logical((string) ($row['table_name'] ?? ''));
     }
     $missing = array_values(array_diff($requiredTables, $existing));
     recordHealth(

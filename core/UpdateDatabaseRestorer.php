@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 namespace Core;
+require_once __DIR__ . '/PrefixMysqli.php';
 
 require_once __DIR__ . '/UpdatePath.php';
 require_once __DIR__ . '/UpdateDatabaseRestoreSteps.php';
@@ -29,6 +30,18 @@ final class UpdateDatabaseRestorer
      */
     public function restore(mysqli $db, string $backupDir, array $databaseMetadata, ?UpdateStepBudget $budget = null): array
     {
+        $namespace = $db instanceof PrefixMysqli ? $db->namespace : new DatabasePrefix();
+        if ((string) ($databaseMetadata['table_prefix'] ?? '') !== $namespace->prefix) {
+            throw new RuntimeException('Префикс таблиц резервной копии не совпадает с текущей установкой');
+        }
+        if ($namespace->scoped) {
+            if (!$db instanceof PrefixMysqli) throw new RuntimeException('Для восстановления общей БД требуется изолированное подключение');
+            foreach ($databaseMetadata['table_metadata'] ?? [] as $table) {
+                if (!$namespace->ownsTable((string) ($table['name'] ?? ''))) {
+                    throw new RuntimeException('Резервная копия содержит таблицы другой установки');
+                }
+            }
+        }
         $backupDirReal = realpath($backupDir);
         if (!is_string($backupDirReal) || !is_dir($backupDirReal) || is_link($backupDir)) {
             throw new RuntimeException('Rollback backup directory cannot be resolved safely');

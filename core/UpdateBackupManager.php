@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 namespace Core;
+require_once __DIR__ . '/PrefixMysqli.php';
 
 require_once __DIR__ . '/UpdatePath.php';
 require_once __DIR__ . '/HostingCompatibility.php';
@@ -76,6 +77,9 @@ final class UpdateBackupManager
      */
     public function create(string $transactionId, mysqli $db, ?UpdateStepBudget $budget = null): array
     {
+        if ((getenv('DBPREFIX') ?: '') !== '' && !$db instanceof PrefixMysqli) {
+            throw new RuntimeException('Для DBPREFIX требуется изолированное подключение резервного копирования');
+        }
         $this->validateTransactionId($transactionId);
 
         return $this->withLock(function () use ($transactionId, $db, $budget): array {
@@ -543,6 +547,7 @@ final class UpdateBackupManager
             'tables' => count($tableMetadata),
             'triggers' => $triggerCount,
             'table_metadata' => $tableMetadata,
+            'table_prefix' => $db instanceof PrefixMysqli ? $db->namespace->prefix : '',
             'format' => 'mysql-sql-v1',
         ];
     }

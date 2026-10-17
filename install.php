@@ -222,6 +222,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         $selectedWsEnabled = $wsEnabled;
 
         try {
+            $prefix = \Core\DatabasePrefix::validate((string) ($_POST['db_prefix'] ?? ''));
+            putenv('DBPREFIX=' . $prefix);
             $siteUrl = normalizeSiteUrl((string) ($_POST['site_url'] ?? $detectedSiteUrl));
             $baseUrlPath = normalizeBasePath((string) ($_POST['base_path'] ?? $detectedBasePath));
             if ($hasMessenger && $wsEnabled) {
@@ -283,6 +285,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                     'db_host' => $host,
                     'db_port' => $port,
                     'db_name' => $database,
+                    'db_prefix' => $prefix,
                     'db_user' => $username,
                     'db_pass' => $password,
                     'private_storage' => $storageReal,
@@ -335,6 +338,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 
         if ($errors === []) {
             try {
+                putenv('DBPREFIX=' . \Core\DatabasePrefix::validate((string) ($db['db_prefix'] ?? '')));
                 $pdo = $installerDatabase->connect(
                     (string) $db['db_host'],
                     (int) $db['db_port'],
@@ -476,6 +480,7 @@ $cspNonce = htmlspecialchars(\Core\SecurityHeaders::nonce(), ENT_QUOTES | ENT_SU
                 <label>Хост<input name="db_host" value="<?= htmlspecialchars((string)($_POST['db_host'] ?? 'localhost'),ENT_QUOTES,'UTF-8') ?>" required></label>
                 <label>Порт<input name="db_port" type="number" value="<?= (int)($_POST['db_port'] ?? 3306) ?>" min="1" max="65535" required></label>
                 <label>Имя базы<input name="db_name" value="<?= htmlspecialchars((string)($_POST['db_name'] ?? ''),ENT_QUOTES,'UTF-8') ?>" pattern="[A-Za-z0-9_]{1,64}" required></label>
+                <label>Префикс таблиц<input name="db_prefix" value="<?= htmlspecialchars((string)($_POST['db_prefix'] ?? ''),ENT_QUOTES,'UTF-8') ?>" pattern="[a-z][a-z0-9_]{0,14}_" maxlength="16" placeholder="test_"><small>Для общей БД задайте отдельный префикс каждой установки. Пустое значение — существующие таблицы без префикса.</small></label>
                 <label>Пользователь<input name="db_user" value="<?= htmlspecialchars((string)($_POST['db_user'] ?? ''),ENT_QUOTES,'UTF-8') ?>" required></label>
                 <label>Пароль<input name="db_pass" type="password" autocomplete="new-password"></label>
             </fieldset>

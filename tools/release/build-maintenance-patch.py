@@ -20,18 +20,18 @@ version = git('show', sha + ':core/Version.php').decode()
 if "VERSION = '1.1.0'" not in version or 'VERSION_CODE = 11000;' not in version:
     raise SystemExit('This maintenance patch requires source identity 1.1.0 / 11000')
 names = git('diff', '--name-only', '--diff-filter=AM', 'v1.1.0', sha, '--',
-            'app', 'assets', 'bin', 'core', 'modules').decode().splitlines()
+            'app', 'assets', 'bin', 'core', 'modules', 'install.php', 'default.env').decode().splitlines()
 names = [name for name in names if name != 'core/Version.php']
 revision = 'r2'
-names += ['CHANGELOG.md', 'docs/releases/1.1.0-patch-r1.md', 'docs/releases/1.1.0-patch-r2.md']
+names += ['CHANGELOG.md', 'docs/database-prefix.md', 'docs/releases/1.1.0-patch-r1.md', 'docs/releases/1.1.0-patch-r2.md']
 payload = {}
 for name in sorted(set(names)):
     path = PurePosixPath(name)
-    if path.is_absolute() or '..' in path.parts or path.suffix not in {'.php', '.js', '.css', '.md', '.json'}:
+    if path.is_absolute() or '..' in path.parts or (name != 'default.env' and path.suffix not in {'.php', '.js', '.css', '.md', '.json'}):
         raise SystemExit('Unsafe patch entry: ' + name)
     payload[name] = git('show', sha + ':' + name)
 manifest = {'patch': f'1.1.0-{revision}', 'installed_version': '1.1.0', 'installed_version_code': 11000,
-            'source_commit': sha, 'changes_database': False, 'changes_version': False,
+            'source_commit': sha, 'changes_database': False, 'changes_version': False, 'database_prefix_support': True,
             'files': {name: hashlib.sha256(data).hexdigest() for name, data in payload.items()}}
 payload[f'PATCH_1.1.0_{revision}.json'] = (json.dumps(manifest, ensure_ascii=False, indent=2) + '\n').encode()
 payload[f'README_PATCH_1.1.0_{revision}.txt'] = f'''Патч {revision} для Workspace Organizer 1.1.0 / 11000
@@ -49,7 +49,7 @@ payload[f'README_PATCH_1.1.0_{revision}.txt'] = f'''Патч {revision} для W
 
 Список заменяемых файлов и SHA-256 находятся в PATCH_1.1.0_{revision}.json. Для отката верните файлы из резервной копии; дополнительные файлы, отсутствовавшие до патча, можно удалить по этому списку.
 '''.encode('utf-8')
-payload[f'README_PATCH_1.1.0_{revision}.txt'] += ('\nДополнительно r2: сохранение положения свёрнутого меню при AJAX-переходах; единая тёмная палитра мессенджера; списки часовых поясов событий и временных блоков. Патч накопительный, включает r1. Префиксы таблиц БД пока не поддерживаются.\n').encode('utf-8')
+payload[f'README_PATCH_1.1.0_{revision}.txt'] += ('\nДополнительно r2: сохранение положения свёрнутого меню при AJAX-переходах; единая тёмная палитра мессенджера; списки часовых поясов событий и временных блоков; DBPREFIX для общей базы данных. Патч накопительный, включает r1. Для существующих таблиц без префикса добавьте DBPREFIX= в .env; для новой тестовой установки укажите test_. Обе установки должны работать на r2. Смена префикса не переносит данные. Подробности: docs/database-prefix.md.\n').encode('utf-8')
 args.output.mkdir(parents=True, exist_ok=True)
 archive = args.output / f'workspace-organizer-1.1.0-patch-{revision}.zip'
 with zipfile.ZipFile(archive, 'x', compression=zipfile.ZIP_DEFLATED) as target:

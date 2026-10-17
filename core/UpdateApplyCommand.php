@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 namespace Core;
+require_once __DIR__ . '/PrefixMysqli.php';
+
 
 require_once __DIR__ . '/Environment.php';
 
@@ -1326,7 +1328,7 @@ PHP;
             throw new RuntimeException('Database environment is incomplete');
         }
         mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
-        $db = new mysqli(
+        $db = new \Core\PrefixMysqli(
             (string) (Environment::get('DBHOST') ?: 'localhost'),
             trim($user),
             (string) (Environment::get('DBPASS') ?: ''),

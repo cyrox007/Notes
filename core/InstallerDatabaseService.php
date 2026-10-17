@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 namespace Core;
+require_once __DIR__ . '/PrefixMysqli.php';
+require_once __DIR__ . '/PrefixPDO.php';
+
 
 use mysqli;
 use PDO;
@@ -25,7 +28,7 @@ final class InstallerDatabaseService
         string $username,
         #[SensitiveParameter] string $password
     ): PDO {
-        return new PDO(
+        return new \Core\PrefixPDO(
             sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $host, $port, $database),
             $username,
             $password,
@@ -93,7 +96,10 @@ final class InstallerDatabaseService
     public function existingTables(PDO $pdo): array
     {
         $tables = $pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
-        return array_map(static fn ($table): string => trim((string) $table, '`'), $tables);
+        if ($pdo instanceof PrefixPDO && $pdo->namespace->prefix !== '') {
+            $tables = array_filter($tables, fn ($table) => $pdo->namespace->ownsTable((string) $table));
+        }
+        return array_values(array_map(fn ($table): string => $pdo instanceof PrefixPDO ? $pdo->namespace->logical((string) $table) : (string) $table, $tables));
     }
 
     /** @param list<string> $files */
@@ -106,7 +112,7 @@ final class InstallerDatabaseService
         array $files
     ): void {
         mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
-        $mysqli = new mysqli($host, $username, $password, $database, $port);
+        $mysqli = new \Core\PrefixMysqli($host, $username, $password, $database, $port);
         $mysqli->set_charset('utf8mb4');
         $mysqli->query('SET FOREIGN_KEY_CHECKS=0');
 
@@ -156,7 +162,7 @@ final class InstallerDatabaseService
         string $username,
         #[SensitiveParameter] string $password
     ): PDO {
-        return new PDO(
+        return new \Core\PrefixPDO(
             sprintf('mysql:host=%s;port=%d;charset=utf8mb4', $host, $port),
             $username,
             $password,

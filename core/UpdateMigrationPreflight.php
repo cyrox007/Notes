@@ -197,7 +197,8 @@ final class UpdateMigrationPreflight
             'SELECT 1 FROM information_schema.tables '
             . 'WHERE table_schema=DATABASE() AND table_name=? LIMIT 1'
         );
-        $stmt->bind_param('s', $table);
+        $physicalTable = $db instanceof \Core\PrefixMysqli ? $db->namespace->name($table) : $table;
+        $stmt->bind_param('s', $physicalTable);
         $stmt->execute();
         $exists = $stmt->get_result()->num_rows === 1;
         $stmt->close();

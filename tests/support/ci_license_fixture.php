@@ -37,7 +37,8 @@ function workspaceEnsureCiLicense(): void
     );
 
     try {
-        $pdo = new PDO(
+    require_once $root . '/core/PrefixPDO.php';
+    $pdo = new Core\PrefixPDO(
             $dsn,
             $env['DBUSER'],
             $env['DBPASS'],
