@@ -61,7 +61,7 @@ jobs:
       - name: Проверить две вкладки и повтор команды
         run: php tests/integration/data_integrity_12_contract.php
 
-      - name: Проверить владение БД и manifest миграций
+      - name: Проверить владение БД и SQL миграций
         run: |
-          php tests/integration/module_database_contract.php
-          php tests/integration/migration_manifest_contract.php
+          php tests/integration/database_ownership_contract.php
+          php tests/integration/migration_line_endings_contract.php
