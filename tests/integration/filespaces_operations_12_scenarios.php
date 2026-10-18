@@ -77,6 +77,14 @@ filespaceCheck($staleRename['error'] === 'version_conflict'
     && $staleRename['current_version'] === 2,
     'две вкладки не перезаписывают переименование');
 
+$badExtensionDenied = false;
+try {
+    $do($reader, $managedId, 'rename', 'fsp-obj-extension-denied', ['name' => 'Опасно.php']);
+} catch (\InvalidArgumentException) {
+    $badExtensionDenied = true;
+}
+filespaceCheck($badExtensionDenied, 'переименование не обходит список разрешённых расширений');
+
 $othersRename = $do($reader, $managedId, 'rename', 'fsp-obj-rename-other', ['name' => 'Общий.txt']);
 filespaceCheck($othersRename['version'] === 3, 'разрешённое rename_others работает');
 
