@@ -61,6 +61,11 @@ jobs:
           php -l tests/integration/board_integrity_12_scenarios.php
           node --check modules/tasks/assets/task-boards.js
           node --check modules/tasks/assets/task-boards-versioned.js
+          php -l modules/tasks/services/TaskRelationMutationService.php
+          php -l modules/tasks/controllers/TaskRelationController.php
+          php -l modules/tasks/views/index.php
+          php -l tests/integration/task_relations_12_scenarios.php
+          node --check modules/tasks/assets/tasks-page.js
           php -l modules/tasks/controllers/TaskMutationController.php
           php -l modules/tasks/views/elements/task_item/index.php
           php -l tests/integration/data_integrity_12_contract.php
