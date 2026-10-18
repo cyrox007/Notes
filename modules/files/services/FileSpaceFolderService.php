@@ -69,10 +69,16 @@ final class FileSpaceFolderService
                 $exhausted = true;
                 break;
             }
+            $rights = $this->access->childrenRights(
+                $actorId, $parentId, $batch,
+                ['view','download','rename_own','rename_others','move_own','move_others',
+                 'delete_own','delete_others','replace_own','replace_others']
+            );
             foreach ($batch as $item) {
                 $position = ['name' => (string) $item['name'], 'id' => (int) $item['id']];
                 $scanned++;
-                if (!$this->access->decision($actorId, 'global', (int) $item['id'], 'view')['allowed']) {
+                $itemRights = $rights[(int) $item['id']];
+                if (!$itemRights['view']['allowed']) {
                     continue;
                 }
                 if (count($items) === self::PAGE_SIZE) {
@@ -93,12 +99,12 @@ final class FileSpaceFolderService
                 'inherit_acl' => (int) $item['inherit_acl'] === 1,
                 'byte_size' => (int) $item['byte_size'],
                 'can_download' => (string) $item['node_type'] === 'file'
-                    && $this->access->decision($actorId, 'global', (int) $item['id'], 'download')['allowed'],
-                'can_rename' => $this->access->decision($actorId, 'global', (int) $item['id'], $renamePermission)['allowed'],
-                'can_move' => $this->access->decision($actorId, 'global', (int) $item['id'], $movePermission)['allowed'],
-                'can_delete' => $this->access->decision($actorId, 'global', (int) $item['id'], $deletePermission)['allowed'],
+                    && $itemRights['download']['allowed'],
+                'can_rename' => $itemRights[$renamePermission]['allowed'],
+                'can_move' => $itemRights[$movePermission]['allowed'],
+                'can_delete' => $itemRights[$deletePermission]['allowed'],
                 'can_replace' => (string) $item['node_type'] === 'file'
-                    && $this->access->decision($actorId, 'global', (int) $item['id'], $replacePermission)['allowed'],
+                    && $itemRights[$replacePermission]['allowed'],
                 'is_author' => $own,
 
             ];
