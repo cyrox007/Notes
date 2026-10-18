@@ -79,11 +79,17 @@ final class FileSpaceAccessService
         );
         $roles->execute([':id' => $userId]);
         $memberships = $roles->fetchAll(PDO::FETCH_ASSOC);
+        $groupQuery = $this->pdo->prepare(
+            'SELECT group_id FROM file_access_group_members WHERE user_id=:id'
+        );
+        $groupQuery->execute([':id' => $userId]);
+        $groups = array_map('intval', $groupQuery->fetchAll(PDO::FETCH_COLUMN));
         $ids = array_map('intval', array_column($memberships, 'id'));
         $codes = array_column($memberships, 'code');
         return [
             'id' => $userId,
             'roles' => $ids,
+            'groups' => $groups,
             'is_admin' => in_array('admin', $codes, true)
                 || in_array('superadmin', $codes, true)
                 || in_array((int) $user['role'], [1, 111], true),
@@ -127,6 +133,24 @@ final class FileSpaceAccessService
         }
 
         return $this->resolve($actor, (int) $space['id'], $chain, $permission);
+    }
+
+    /** @return list<array{permission:string,allowed:bool,source:string}> */
+    public function explain(int $actorId, int $targetUserId, ?int $folderId = null): array
+    {
+        if (!$this->decision($actorId, 'global', $folderId, 'manage_acl')['allowed']) {
+            throw new DomainException('Только управляющий правами может просматривать диагностику', 403);
+        }
+        $results = [];
+        foreach (self::PERMISSIONS as $permission) {
+            $decision = $this->decision($targetUserId, 'global', $folderId, $permission);
+            $results[] = [
+                'permission' => $permission,
+                'allowed' => $decision['allowed'],
+                'source' => $decision['source'],
+            ];
+        }
+        return $results;
     }
 
     public function require(int $userId, string $spaceUid, ?int $nodeId, string $permission, bool $includeDeletedTarget = false): void
@@ -211,9 +235,8 @@ final class FileSpaceAccessService
             'everyone' => true,
             'user' => $id === $actor['id'],
             'role' => in_array($id, $actor['roles'], true),
+            'group' => in_array($id, $actor['groups'], true),
             'author' => $author !== null && $author === $actor['id'],
-            // Группы будут подключены к общей модели рабочих команд;
-            // неизвестное членство никогда не означает разрешение.
             default => false,
         };
     }
