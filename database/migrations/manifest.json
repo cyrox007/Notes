@@ -40,6 +40,7 @@
     "20261012_calendar_planning_links.sql",
     "20261017_mutation_commands.sql",
     "20261017_tasks_entity_versions.sql",
-    "20261018_file_spaces_foundation.sql"
+    "20261018_file_spaces_foundation.sql",
+    "20261018_file_spaces_admin_policy.sql"
   ]
 }
