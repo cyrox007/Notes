@@ -47,7 +47,7 @@ final class FileSpaceAccessService
             'SELECT id,uid,space_id,parent_id,node_type,name,created_by,
                     inherit_acl,version,is_deleted
              FROM file_space_nodes
-             WHERE space_id=:space_id AND id=:id AND is_deleted=0 LIMIT 1'
+             WHERE space_id=:space_id AND id=:id AND ' . ($includeDeleted ? '1=1' : 'is_deleted=0') . ' LIMIT 1'
         );
         $stmt->execute([':space_id' => $spaceId, ':id' => $nodeId]);
         $node = $stmt->fetch(PDO::FETCH_ASSOC);
