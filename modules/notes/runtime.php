@@ -15,6 +15,7 @@ $files = [
     '/middlewares/EnforceNoteSharePolicy.php',
     '/controllers/NoteController.php',
     '/controllers/NoteAttachmentController.php',
+    '/NotePublicUrl.php',
     '/controllers/NoteShareController.php',
     '/NotesCapability.php',
     '/NotesCalendarLinkProvider.php',
