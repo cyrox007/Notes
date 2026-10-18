@@ -138,6 +138,17 @@ ob_start();
         <?php endif; ?>
     </div>
 
+    <?php if (!empty($catalog['next_cursor'])): ?>
+        <nav class="file-manager__toolbar" aria-label="Следующая страница общих файлов">
+            <?php $query = ['cursor' => (string) $catalog['next_cursor']]; ?>
+            <?php if ($folderId !== null) { $query['folder'] = $folderId; } ?>
+            <a class="file-manager__btn file-manager__btn--secondary"
+               href="<?= $view->e($rootLink . '?' . http_build_query($query)) ?>">
+                Продолжить просмотр каталога
+            </a>
+        </nav>
+    <?php endif; ?>
+
     <?php if ($canUpload): ?>
         <section class="file-manager__content">
             <h2>Загрузить файл в общий каталог</h2>
