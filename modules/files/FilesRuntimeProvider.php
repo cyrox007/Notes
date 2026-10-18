@@ -92,6 +92,8 @@ final class FilesRuntimeProvider implements ModuleRuntimeProvider
                 [LoginRequared::class, RequireAdminSettingsManage::class, RequireFilesUse::class, CSRFMiddleware::class], 'files_admin_group_delete')
             ->add('POST', '/acl', [FileSpaceAdminController::class, 'setAcl'],
                 [LoginRequared::class, RequireAdminSettingsManage::class, RequireFilesUse::class, CSRFMiddleware::class], 'files_admin_acl')
+            ->add('POST', '/acl/bulk', [FileSpaceAdminController::class, 'setAclBulk'],
+                [LoginRequared::class, RequireFilesUse::class, CSRFMiddleware::class], 'files_admin_acl_bulk')
             ->add('POST', '/retention', [FileSpaceAdminController::class, 'retention'],
                 [LoginRequared::class, RequireAdminSettingsManage::class, RequireFilesUse::class, CSRFMiddleware::class], 'files_admin_retention')
             ->endGroup();
