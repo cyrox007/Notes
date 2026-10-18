@@ -10,9 +10,8 @@ use Core\Request;
 use Throwable;
 
 /**
- * Enforces role-level File Manager upload limits before controller storage work.
- * Platform upload allow-lists and the existing per-user/system quota middleware
- * still apply afterwards, so this layer can only make access more restrictive.
+ * Ограничения роли действуют и на личное, и на общее хранилище.
+ * Личная квота отдельно проверяется штатным ограничителем Files.
  */
 final class EnforceFileUploadPolicy
 {
@@ -50,6 +49,13 @@ final class EnforceFileUploadPolicy
                 $used = (int) DatabaseManager::getInstance()->fetchValue(
                     "SELECT COALESCE(SUM(size),0) FROM user_files "
                     . "WHERE user_id = :user_id AND is_deleted = 0 AND type <> 'folder'",
+                    [':user_id' => $userId]
+                );
+                // Общие файлы тоже учитываются в лимите суммарного объёма роли.
+                // Организационные файлы при этом не попадают в личную квоту user_files.
+                $used += (int) DatabaseManager::getInstance()->fetchValue(
+                    "SELECT COALESCE(SUM(byte_size),0) FROM file_space_nodes "
+                    . "WHERE created_by=:user_id AND is_deleted=0 AND node_type='file'",
                     [':user_id' => $userId]
                 );
                 if ($used + $size > $maxStorageBytes) {
