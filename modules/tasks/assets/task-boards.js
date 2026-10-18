@@ -130,7 +130,7 @@ window.wspace.page.register('modules/tasks/assets/task-boards.js', (pageScope) =
                 const signature = version + ':' + status;
                 if (card.dataset.lastMoveSignature !== signature) {
                     card.dataset.lastMoveSignature = signature;
-                    card.dataset.lastMoveCommand = 'board:web:' + crypto.randomUUID();
+                    card.dataset.lastMoveCommand = 'board:web:' + (globalThis.crypto?.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2));
                 }
                 card.dataset.moveState = 'saving';
                 try {
