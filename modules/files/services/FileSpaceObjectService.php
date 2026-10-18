@@ -243,6 +243,11 @@ final class FileSpaceObjectService
     {
         $parent = $node['parent_id'] === null ? null : (int) $node['parent_id'];
         if ($action === 'rename') {
+            if ($node['node_type'] === 'file'
+                && strtolower((string) pathinfo((string) $node['name'], PATHINFO_EXTENSION))
+                !== strtolower((string) pathinfo($data['name'], PATHINFO_EXTENSION))) {
+                throw new InvalidArgumentException('Нельзя менять расширение файла простым переименованием');
+            }
             if ($data['name'] === $node['name']) {
                 return false;
             }
