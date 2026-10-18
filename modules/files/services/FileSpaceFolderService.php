@@ -213,13 +213,13 @@ final class FileSpaceFolderService
         if (!in_array($effect, ['allow', 'deny', 'remove'], true)) {
             throw new InvalidArgumentException('Недопустимое действие с правилом');
         }
-        if (!in_array($subjectType, ['everyone', 'role', 'user', 'author'], true)) {
+        if (!in_array($subjectType, ['everyone', 'role', 'user', 'group', 'author'], true)) {
             throw new InvalidArgumentException('Неизвестный субъект политики доступа');
         }
         if (in_array($subjectType, ['everyone', 'author'], true) && $subjectId !== 0) {
             throw new InvalidArgumentException('Для общего правила идентификатор должен быть нулевым');
         }
-        if (in_array($subjectType, ['role', 'user'], true) && $subjectId < 1) {
+        if (in_array($subjectType, ['role', 'user', 'group'], true) && $subjectId < 1) {
             throw new InvalidArgumentException('Требуется идентификатор роли или пользователя');
         }
         if ($folderId === null && $inheritAcl !== null) {
@@ -358,11 +358,15 @@ final class FileSpaceFolderService
 
     private function assertSubject(string $type, int $id): void
     {
-        if (!in_array($type, ['role', 'user'], true)) {
+        if (!in_array($type, ['role', 'user', 'group'], true)) {
             return;
         }
         $statement = $this->pdo->prepare(
-            $type === 'role' ? 'SELECT id FROM roles WHERE id=:id' : 'SELECT id FROM users WHERE id=:id'
+            match ($type) {
+                'role' => 'SELECT id FROM roles WHERE id=:id',
+                'group' => 'SELECT id FROM file_access_groups WHERE id=:id',
+                default => 'SELECT id FROM users WHERE id=:id',
+            }
         );
         $statement->execute([':id' => $id]);
         if ($statement->fetchColumn() === false) {
