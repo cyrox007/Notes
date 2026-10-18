@@ -40,7 +40,7 @@ final class FileSpaceAdminService
         )->fetchAll(PDO::FETCH_ASSOC);
         $setting = $this->setting(false);
         $users = $this->pdo->query(
-            "SELECT id,username FROM users WHERE is_active=1 AND account_status='active'
+            "SELECT id,username,is_active,account_status FROM users
              ORDER BY username LIMIT 500"
         )->fetchAll(PDO::FETCH_ASSOC);
         $roles = $this->pdo->query(
@@ -110,13 +110,15 @@ final class FileSpaceAdminService
                 $this->audit($actorId, 'group.delete', ['group_id' => $groupId]);
                 return ['success' => true, 'group_id' => $groupId, 'deleted' => true];
             }
-            $active = $this->pdo->prepare(
-                "SELECT id FROM users WHERE id=:id AND is_active=1
-                 AND account_status='active' LIMIT 1"
-            );
-            $active->execute([':id' => $memberId]);
-            if ($active->fetchColumn() === false) {
-                throw new InvalidArgumentException('Участник не является активным пользователем');
+            if ($operation === 'add') {
+                $active = $this->pdo->prepare(
+                    "SELECT id FROM users WHERE id=:id AND is_active=1
+                     AND account_status='active' LIMIT 1"
+                );
+                $active->execute([':id' => $memberId]);
+                if ($active->fetchColumn() === false) {
+                    throw new InvalidArgumentException('Добавить можно только активного пользователя');
+                }
             }
             $stmt = $this->pdo->prepare($operation === 'add'
                 ? 'INSERT IGNORE INTO file_access_group_members (group_id,user_id,added_by)
