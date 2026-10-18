@@ -112,19 +112,17 @@ final class FileSpaceAccessService
         }
 
         $chain = $this->chain((int) $space['id'], $nodeId);
-        // Чтение закрытого предка не должно обходиться прямым идентификатором дочерней папки.
-        foreach (array_reverse($chain) as $scope) {
-            if ($scope['key'] === 'space') {
-                continue;
-            }
-            $parent = $scope['parent'];
-            if ($parent === null) {
-                continue;
-            }
-            $parentChain = $this->chain((int) $space['id'], $parent);
-            $visibility = $this->resolve($actor, (int) $space['id'], $parentChain, 'view');
-            if (!$visibility['allowed']) {
-                return ['allowed' => false, 'source' => 'ancestor'];
+        if ($nodeId !== null) {
+            // Доступ к вложенному объекту не должен обходить закрытый корень
+            // либо закрытую папку-предка даже при локальном разрешении.
+            $ancestors = array_slice($chain, 1);
+            foreach ($ancestors as $index => $scope) {
+                $permissionAtAncestor = $this->resolve(
+                    $actor, (int) $space['id'], array_slice($ancestors, $index), 'view'
+                );
+                if (!$permissionAtAncestor['allowed']) {
+                    return ['allowed' => false, 'source' => 'ancestor'];
+                }
             }
         }
 
