@@ -86,6 +86,7 @@ ob_start();
         <p class="task-category-help">Категории — метки для группировки задач, например «Работа» или «Личное». Создайте категорию, затем выберите её в карточке задачи и нажмите «Назначить». Одну категорию можно назначить нескольким задачам, а задаче — несколько категорий.</p>
         <form action="<?= $view->e($view->route('create_category')) ?>" method="post" class="category-create-form">
             <?= $view->csrfInput() ?>
+            <input type="hidden" name="command_id" value="<?= $view->e('task:category:' . bin2hex(random_bytes(16))) ?>">
             <label>Новая категория<input type="text" name="name" maxlength="120" required placeholder="Например: Проект"></label>
             <label>Цвет<input type="color" name="color" value="#3498db"></label>
             <label>
