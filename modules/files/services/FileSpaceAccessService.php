@@ -41,7 +41,7 @@ final class FileSpaceAccessService
     }
 
     /** @return array<string,mixed> */
-    public function node(int $spaceId, int $nodeId): array
+    public function node(int $spaceId, int $nodeId, bool $includeDeleted = false): array
     {
         $stmt = $this->pdo->prepare(
             'SELECT id,uid,space_id,parent_id,node_type,name,created_by,
@@ -94,7 +94,7 @@ final class FileSpaceAccessService
      * @param array<string,mixed>|null $target
      * @return array{allowed:bool,source:string}
      */
-    public function decision(int $userId, string $spaceUid, ?int $nodeId, string $permission): array
+    public function decision(int $userId, string $spaceUid, ?int $nodeId, string $permission, bool $includeDeletedTarget = false): array
     {
         if (!in_array($permission, self::PERMISSIONS, true)) {
             throw new InvalidArgumentException('Неизвестное файловое право');
@@ -106,12 +106,12 @@ final class FileSpaceAccessService
             return ['allowed' => $allowed, 'source' => 'personal_owner'];
         }
 
-        // Администратор сохраняет восстановительный доступ, даже если все правила запрещают операции.
+        // Даже административный доступ не должен обходить удалённый объект
+        // или удалённого предка при прямом запросе файла.
+        $chain = $this->chain((int) $space['id'], $nodeId, $includeDeletedTarget);
         if ($actor['is_admin']) {
             return ['allowed' => true, 'source' => 'administrator'];
         }
-
-        $chain = $this->chain((int) $space['id'], $nodeId);
         if ($nodeId !== null) {
             // Доступ к вложенному объекту не должен обходить закрытый корень
             // либо закрытую папку-предка даже при локальном разрешении.
@@ -129,9 +129,9 @@ final class FileSpaceAccessService
         return $this->resolve($actor, (int) $space['id'], $chain, $permission);
     }
 
-    public function require(int $userId, string $spaceUid, ?int $nodeId, string $permission): void
+    public function require(int $userId, string $spaceUid, ?int $nodeId, string $permission, bool $includeDeletedTarget = false): void
     {
-        $result = $this->decision($userId, $spaceUid, $nodeId, $permission);
+        $result = $this->decision($userId, $spaceUid, $nodeId, $permission, $includeDeletedTarget);
         if (!$result['allowed']) {
             throw new DomainException('Объект не найден или недоступен', 404);
         }
@@ -141,7 +141,7 @@ final class FileSpaceAccessService
      * Корень всегда завершающий. Предел глубины не допускает циклических ссылок.
      * @return list<array{key:string,parent:?int,author:?int,inherit:bool}>
      */
-    private function chain(int $spaceId, ?int $nodeId): array
+    private function chain(int $spaceId, ?int $nodeId, bool $includeDeletedTarget = false): array
     {
         $chain = [];
         $seen = [];
@@ -151,7 +151,7 @@ final class FileSpaceAccessService
                 throw new DomainException('Небезопасная структура каталогов', 409);
             }
             $seen[$cursor] = true;
-            $node = $this->node($spaceId, $cursor);
+            $node = $this->node($spaceId, $cursor, $includeDeletedTarget && $cursor === $nodeId);
             $chain[] = [
                 'key' => 'node:' . $cursor,
                 'parent' => $node['parent_id'] === null ? null : (int) $node['parent_id'],
