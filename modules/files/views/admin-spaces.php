@@ -230,7 +230,7 @@ ob_start();
         </form>
         <?php if ($decisions): ?>
             <table>
-                <thead><tr><th>Операция</th><th>Результат</th><th>Источник политики</th></tr></thead>
+                <thead><tr><th>Операция</th><th>Результат</th><th>Источник политики</th><th>Сработавшее правило</th></tr></thead>
                 <tbody>
                     <?php foreach ($decisions as $decision): ?>
                         <tr>
@@ -241,6 +241,7 @@ ob_start();
                                 : ($decision['source'] === 'ancestor' ? 'Закрытая родительская папка'
                                 : ($decision['source'] === 'space' ? 'Глобальное пространство'
                                 : 'Правило папки ' . $decision['source'])))) ?></td>
+                            <td><?= $view->e($decision['subject'] ?? '') ?></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
