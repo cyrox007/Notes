@@ -7,7 +7,7 @@ require_once $root . '/modules/tasks/services/TaskRelationMutationService.php';
 
 use App\Services\Tasks\TaskRelationMutationService;
 
-$relations = new TaskRelationMutationService($pdo, new MutationCommandStore());
+$relations = new TaskRelationMutationService($pdo, new \Core\MutationCommandStore());
 $relationsUid = bin2hex(random_bytes(16));
 $createTask = $pdo->prepare(
     "INSERT INTO tasks (uid,user_id,title,description,status,priority,version,created_at,updated_at)
