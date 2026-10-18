@@ -39,12 +39,12 @@ $insert = $pdo->prepare(
     'INSERT INTO file_space_nodes
        (uid,space_id,parent_id,node_type,name,created_by,updated_by,
         mime_type,byte_size,storage_key)
-     VALUES (:uid,:space,NULL,"file","Тестовый.txt",:owner,:owner,
+     VALUES (:uid,:space,NULL,"file","Тестовый.txt",:owner,:editor,
              "text/plain",:size,:storage_key)'
 );
 $insert->execute([
     ':uid' => bin2hex(random_bytes(16)), ':space' => $spaceId,
-    ':owner' => $member, ':size' => filesize($physical . '/' . $originalKey),
+    ':owner' => $member, ':editor' => $member, ':size' => filesize($physical . '/' . $originalKey),
     ':storage_key' => $originalKey,
 ]);
 $managedId = (int) $pdo->lastInsertId();
