@@ -69,6 +69,9 @@ final class FileSpaceObjectService
                 $this->pdo->commit();
                 return $result;
             }
+            if ((int) $node['is_deleted'] === 1 && $action === 'delete') {
+                throw new DomainException('Объект уже находится в корзине', 404);
+            }
 
             $destinationId = $action === 'move' ? $data['parent_id'] : null;
             $destinationVersion = $action === 'move'
@@ -198,7 +201,16 @@ final class FileSpaceObjectService
             return;
         }
         if ($deleted) {
-            throw new DomainException('Объект удалён', 404);
+            if ($action !== 'delete') {
+                throw new DomainException('Объект удалён', 404);
+            }
+            $this->access->require($actorId, 'global', (int) $node['id'], 'view', true);
+            $own = $node['created_by'] !== null && (int) $node['created_by'] === $actorId;
+            $this->access->require(
+                $actorId, 'global', (int) $node['id'],
+                $own ? 'delete_own' : 'delete_others', true
+            );
+            return;
         }
         $this->access->require($actorId, 'global', $node['id'], 'view');
         $own = $node['created_by'] !== null && (int) $node['created_by'] === $actorId;
