@@ -97,6 +97,61 @@ window.wspace.page.register('modules/tasks/assets/tasks-page.js', (pageScope) =>
             return payload;
         }
 
+        const pendingRelationCommands = new Map();
+
+        function relationCommandId() {
+            const random = globalThis.crypto?.randomUUID?.()
+                || Date.now().toString(36) + Math.random().toString(36).slice(2);
+            return 'task:relation:' + random;
+        }
+
+        async function relationRequest(task, url, fields = {}) {
+            if (!task) throw new Error('Карточка задачи не найдена');
+            const taskUid = task.dataset.taskId || '';
+            const version = task.dataset.version || '';
+            if (!/^[1-9][0-9]*$/.test(version)) {
+                throw new Error('Неизвестна версия задачи. Обновите страницу.');
+            }
+
+            const body = new URLSearchParams({ ...fields, task_uid: taskUid, expected_version: version });
+            const csrf = root.querySelector('input[name="csrf_token"]')?.value || '';
+            body.set('csrf_token', csrf);
+            const signature = taskUid + '|' + url + '|' + body.toString();
+            const commandId = pendingRelationCommands.get(signature) || relationCommandId();
+            pendingRelationCommands.set(signature, commandId);
+            body.set('command_id', commandId);
+
+            const response = await pageScope.fetch(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+                },
+                body: body.toString()
+            });
+            const result = await response.json().catch(() => ({ success: false, message: 'Некорректный ответ сервера' }));
+            if (!response.ok || result.success !== true) {
+                // Только сетевой сбой допускает повтор с прежним command_id.
+                pendingRelationCommands.delete(signature);
+                if (response.status === 409 && result.error === 'version_conflict') {
+                    pageScope.refresh();
+                }
+                throw new Error(result.message || 'Не удалось сохранить изменения');
+            }
+
+            pendingRelationCommands.delete(signature);
+            const nextVersion = String(result.version ?? '');
+            if (/^[1-9][0-9]*$/.test(nextVersion)) {
+                task.dataset.version = nextVersion;
+                task.querySelectorAll('input[name="expected_version"]').forEach(input => {
+                    input.value = nextVersion;
+                });
+            }
+            return result;
+        }
+
         async function refreshTaskSection(taskUid, selector) {
             const response = await pageScope.fetch(window.location.href, {
                 method: 'GET',
@@ -269,11 +324,7 @@ window.wspace.page.register('modules/tasks/assets/tasks-page.js', (pageScope) =>
                 addSubtaskButton.disabled = true;
                 markTaskSaveState(task, 'saving');
                 try {
-                    await requestJson(appPath(`/tasks/${encodeURIComponent(addSubtaskButton.dataset.taskId)}/subtask`), {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-                        body: new URLSearchParams({ title: title.trim() }).toString()
-                    });
+                    await relationRequest(task, appPath(`/tasks/${encodeURIComponent(addSubtaskButton.dataset.taskId)}/subtask`), { title: title.trim() });
                     await refreshTaskSection(addSubtaskButton.dataset.taskId, '.task-subtasks');
                     markTaskSaveState(task, 'saved');
                 } catch (error) {
@@ -292,7 +343,7 @@ window.wspace.page.register('modules/tasks/assets/tasks-page.js', (pageScope) =>
                 deleteSubtaskButton.disabled = true;
                 markTaskSaveState(task, 'saving');
                 try {
-                    await requestJson(appPath(`/tasks/subtask/${encodeURIComponent(deleteSubtaskButton.dataset.subtaskId)}/delete`), { method: 'POST' });
+                    await relationRequest(task, appPath(`/tasks/subtask/${encodeURIComponent(deleteSubtaskButton.dataset.subtaskId)}/delete`));
                     await refreshTaskSection(taskUid, '.task-subtasks');
                     markTaskSaveState(task, 'saved');
                 } catch (error) {
@@ -313,7 +364,7 @@ window.wspace.page.register('modules/tasks/assets/tasks-page.js', (pageScope) =>
                 attachCategoryButton.disabled = true;
                 markTaskSaveState(task, 'saving');
                 try {
-                    await requestJson(appPath(`/tasks/${encodeURIComponent(taskUid)}/category/${encodeURIComponent(categoryId)}`), { method: 'POST' });
+                    await relationRequest(task, appPath(`/tasks/${encodeURIComponent(taskUid)}/category/${encodeURIComponent(categoryId)}`));
                     await refreshTaskSection(taskUid, '.task-meta');
                     if (selector) selector.value = '';
                     markTaskSaveState(task, 'saved');
@@ -333,7 +384,7 @@ window.wspace.page.register('modules/tasks/assets/tasks-page.js', (pageScope) =>
                 detachCategoryButton.disabled = true;
                 markTaskSaveState(task, 'saving');
                 try {
-                    await requestJson(appPath(`/tasks/${encodeURIComponent(taskUid)}/category/${encodeURIComponent(detachCategoryButton.dataset.categoryId)}`), { method: 'DELETE' });
+                    await relationRequest(task, appPath(`/tasks/${encodeURIComponent(taskUid)}/category/${encodeURIComponent(detachCategoryButton.dataset.categoryId)}/detach`));
                     await refreshTaskSection(taskUid, '.task-meta');
                     markTaskSaveState(task, 'saved');
                 } catch (error) {
@@ -354,7 +405,7 @@ window.wspace.page.register('modules/tasks/assets/tasks-page.js', (pageScope) =>
             syncSubtaskProgress(toggle);
             markSaveState(toggle, 'saving');
             try {
-                await requestJson(appPath(`/tasks/subtask/${encodeURIComponent(toggle.dataset.subtaskId)}/toggle`), { method: 'POST' });
+                await relationRequest(taskItemFor(toggle), appPath(`/tasks/subtask/${encodeURIComponent(toggle.dataset.subtaskId)}/toggle`), { is_completed: toggle.checked ? '1' : '0' });
                 markSaveState(toggle, 'saved');
             } catch (error) {
                 toggle.checked = previous;
@@ -363,6 +414,38 @@ window.wspace.page.register('modules/tasks/assets/tasks-page.js', (pageScope) =>
                 window.alert(`Не удалось изменить подзадачу: ${error.message}`);
             } finally {
                 toggle.disabled = false;
+            }
+        });
+
+        const categoryForm = root.querySelector('.category-create-form');
+        categoryForm?.addEventListener('submit', async event => {
+            event.preventDefault();
+            if (categoryForm.dataset.submitting === '1') return;
+            categoryForm.dataset.submitting = '1';
+            const button = categoryForm.querySelector('button[type="submit"]');
+            if (button) button.disabled = true;
+            try {
+                const body = new URLSearchParams(new FormData(categoryForm));
+                const result = await requestJson(categoryForm.action, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+                    body: body.toString()
+                });
+                const category = result.category;
+                if (!category || !category.id) throw new Error('Сервер не вернул новую категорию');
+                root.querySelectorAll('.task-category-select').forEach(select => {
+                    if ([...select.options].some(option => option.value === String(category.id))) return;
+                    select.add(new Option(category.name, String(category.id)));
+                });
+                categoryForm.reset();
+                categoryForm.querySelector('input[name="command_id"]').value = relationCommandId();
+                const panel = root.querySelector('#task-category-create');
+                if (panel) panel.open = false;
+            } catch (error) {
+                window.alert('Не удалось создать категорию: ' + error.message);
+            } finally {
+                delete categoryForm.dataset.submitting;
+                if (button) button.disabled = false;
             }
         });
 
