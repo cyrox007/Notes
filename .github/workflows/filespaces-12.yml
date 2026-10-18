@@ -1,0 +1,76 @@
+name: Files 1.2 — общие пространства и ACL
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'modules/files/**'
+      - 'database/file_spaces_schema.sql'
+      - 'database/migrations/20261018_file_spaces_foundation.sql'
+      - 'database/migrations/manifest.json'
+      - 'tests/integration/filespaces_12_contract.php'
+      - '.github/workflows/filespaces-12.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  filespaces:
+    name: Глобальный каталог и наследуемые права
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        prefix: ['', 'fsp_']
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: fsp_contract
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      DBHOST: 127.0.0.1
+      DBPORT: '3306'
+      DBUSER: root
+      DBPASS: root
+      DBPREFIX: ${{ matrix.prefix }}
+      FILESPACES_DBNAME: fsp_contract
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, mbstring, sodium, openssl, fileinfo
+          coverage: none
+
+      - name: Проверить синтаксис Filespaces
+        run: |
+          php -l modules/files/services/FileSpaceAccessService.php
+          php -l modules/files/services/FileSpaceFolderService.php
+          php -l modules/files/controllers/FileSpaceController.php
+          php -l modules/files/controllers/FileController.php
+          php -l modules/files/views/index.php
+          php -l modules/files/views/spaces.php
+          php -l modules/files/FilesRuntimeProvider.php
+          php -l tests/integration/filespaces_12_contract.php
+          node --check modules/files/assets/spaces.js
+
+      - name: Проверить права и конкурентные команды Filespaces
+        run: php tests/integration/filespaces_12_contract.php
+
+      - name: Проверить владение схемой и миграции
+        run: |
+          php tests/integration/database_ownership_contract.php
+          php tests/integration/migration_line_endings_contract.php

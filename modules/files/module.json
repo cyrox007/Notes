@@ -30,18 +30,24 @@
     "tables": [
       "user_files",
       "user_storage_quotas",
-      "file_shares"
+      "file_shares",
+      "file_spaces",
+      "file_space_nodes",
+      "file_space_acl",
+      "file_space_events"
     ],
     "schemas": [
       "database/file_manager_module_schema.sql",
-      "database/file_storage_quota_schema.sql"
+      "database/file_storage_quota_schema.sql",
+      "database/file_spaces_schema.sql"
     ],
     "migrations": [
       "database/migrations/20260914_storage_quota_legacy_reconcile.sql",
       "database/migrations/20260913_system_settings_storage_quota.sql",
       "database/migrations/20260920_file_public_shares.sql",
       "database/migrations/20260920_file_uid_backfill.sql",
-      "database/migrations/20260930_file_upload_limit.sql"
+      "database/migrations/20260930_file_upload_limit.sql",
+      "database/migrations/20261018_file_spaces_foundation.sql"
     ]
   }
 }
