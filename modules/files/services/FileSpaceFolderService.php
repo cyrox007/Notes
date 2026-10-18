@@ -52,6 +52,11 @@ final class FileSpaceFolderService
             if (!$this->access->decision($actorId, 'global', (int) $item['id'], 'view')['allowed']) {
                 continue;
             }
+            $own = $item['created_by'] !== null && (int) $item['created_by'] === $actorId;
+            $renamePermission = $own ? 'rename_own' : 'rename_others';
+            $movePermission = $own ? 'move_own' : 'move_others';
+            $deletePermission = $own ? 'delete_own' : 'delete_others';
+            $replacePermission = $own ? 'replace_own' : 'replace_others';
             $items[] = [
                 'id' => (int) $item['id'],
                 'uid' => $item['uid'],
@@ -62,6 +67,13 @@ final class FileSpaceFolderService
                 'byte_size' => (int) $item['byte_size'],
                 'can_download' => (string) $item['node_type'] === 'file'
                     && $this->access->decision($actorId, 'global', (int) $item['id'], 'download')['allowed'],
+                'can_rename' => $this->access->decision($actorId, 'global', (int) $item['id'], $renamePermission)['allowed'],
+                'can_move' => $this->access->decision($actorId, 'global', (int) $item['id'], $movePermission)['allowed'],
+                'can_delete' => $this->access->decision($actorId, 'global', (int) $item['id'], $deletePermission)['allowed'],
+                'can_replace' => (string) $item['node_type'] === 'file'
+                    && $this->access->decision($actorId, 'global', (int) $item['id'], $replacePermission)['allowed'],
+                'is_author' => $own,
+
             ];
         }
 
