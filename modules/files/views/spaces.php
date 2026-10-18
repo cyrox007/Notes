@@ -14,6 +14,7 @@ $users = isset($available_users) && is_array($available_users) ? $available_user
 $folderVersion = (int) ($catalog['version'] ?? 1);
 $workspaceVersion = isset($version) ? (string) $version : '';
 $canCreate = !empty($catalog['can_create']);
+$canUpload = !empty($catalog['can_upload']);
 $canManage = !empty($catalog['can_manage']);
 $folderId = $parent !== null ? (int) ($parent['id'] ?? 0) : null;
 $rootLink = $view->route('files_global');
@@ -46,16 +47,18 @@ ob_start();
     </div>
     <div class="file-manager__content">
         <?php if ($items === []): ?>
-            <div class="file-manager__empty">В этом каталоге пока нет папок.</div>
+            <div class="file-manager__empty">В этом каталоге пока нет файлов и папок.</div>
         <?php else: ?>
             <div class="file-manager__grid">
                 <?php foreach ($items as $item): ?>
                     <?php if (!is_array($item)) { continue; } ?>
                     <div class="file-manager__item">
-                        <div class="file-manager__item-icon"><i class="fa fa-folder" aria-hidden="true"></i></div>
+                        <div class="file-manager__item-icon"><i class="fa <?= ($item['type'] ?? '') === 'folder' ? 'fa-folder' : 'fa-file-o' ?>" aria-hidden="true"></i></div>
                         <div class="file-manager__item-name">
                             <?php if (($item['type'] ?? '') === 'folder'): ?>
                                 <a href="<?= $view->e($folderLink((int) $item['id'])) ?>"><?= $view->e($item['name']) ?></a>
+                            <?php elseif (!empty($item['can_download'])): ?>
+                                <a href="<?= $view->e($view->route('files_global_download', ['fileId' => (int) $item['id']])) ?>"><?= $view->e($item['name']) ?></a>
                             <?php else: ?>
                                 <?= $view->e($item['name']) ?>
                             <?php endif; ?>
@@ -66,6 +69,21 @@ ob_start();
             </div>
         <?php endif; ?>
     </div>
+
+    <?php if ($canUpload): ?>
+        <section class="file-manager__content">
+            <h2>Загрузить файл в общий каталог</h2>
+            <form action="<?= $view->e($view->route('files_global_upload')) ?>" method="post"
+                  enctype="multipart/form-data" data-filespace-action>
+                <?= $view->csrfInput() ?>
+                <input type="hidden" name="parent_id" value="<?= $folderId === null ? '' : (int) $folderId ?>">
+                <input type="hidden" name="expected_version" value="<?= $folderVersion ?>">
+                <input type="hidden" name="command_id" value="<?= $view->e($command()) ?>">
+                <label>Файл <input type="file" name="file" required></label>
+                <button type="submit" class="file-manager__btn file-manager__btn--primary">Загрузить</button>
+            </form>
+        </section>
+    <?php endif; ?>
 
     <?php if ($canCreate): ?>
         <section class="file-manager__content">
@@ -149,7 +167,7 @@ ob_start();
         </section>
     <?php endif; ?>
 
-    <p class="file-manager__empty">Загрузка, скачивание и перемещение файлов в общих пространствах подключаются следующим этапом. Личное хранилище работает без изменений.</p>
+    <p class="file-manager__empty">Перемещение, изменение и удаление общих файлов подключаются следующим этапом. Личное хранилище работает без изменений.</p>
 </div>
 <?php
 $content = (string) ob_get_clean();
