@@ -12,6 +12,7 @@ use App\Controllers\FileSpaceAdminController;
 use App\Controllers\FileSpaceTransferController;
 use App\Controllers\FileSpaceObjectController;
 use App\Middlewares\CSRFMiddleware;
+use App\Middlewares\RequireAdminSettingsManage;
 use App\Middlewares\EnforceFileFolderPolicy;
 use App\Middlewares\EnforceFileUploadPolicy;
 use App\Middlewares\LoginRequared;
@@ -82,17 +83,17 @@ final class FilesRuntimeProvider implements ModuleRuntimeProvider
             ->endGroup();
         $router->group('/admin/files')
             ->add('GET', '/', [FileSpaceAdminController::class, 'index'],
-                [LoginRequared::class, RequireFilesUse::class], 'files_admin')
+                [LoginRequared::class, RequireAdminSettingsManage::class, RequireFilesUse::class], 'files_admin')
             ->add('POST', '/groups/create', [FileSpaceAdminController::class, 'createGroup'],
-                [LoginRequared::class, RequireFilesUse::class, CSRFMiddleware::class], 'files_admin_group_create')
+                [LoginRequared::class, RequireAdminSettingsManage::class, RequireFilesUse::class, CSRFMiddleware::class], 'files_admin_group_create')
             ->add('POST', '/groups/member', [FileSpaceAdminController::class, 'groupMember'],
-                [LoginRequared::class, RequireFilesUse::class, CSRFMiddleware::class], 'files_admin_group_member')
+                [LoginRequared::class, RequireAdminSettingsManage::class, RequireFilesUse::class, CSRFMiddleware::class], 'files_admin_group_member')
             ->add('POST', '/groups/delete', [FileSpaceAdminController::class, 'deleteGroup'],
-                [LoginRequared::class, RequireFilesUse::class, CSRFMiddleware::class], 'files_admin_group_delete')
+                [LoginRequared::class, RequireAdminSettingsManage::class, RequireFilesUse::class, CSRFMiddleware::class], 'files_admin_group_delete')
             ->add('POST', '/acl', [FileSpaceAdminController::class, 'setAcl'],
-                [LoginRequared::class, RequireFilesUse::class, CSRFMiddleware::class], 'files_admin_acl')
+                [LoginRequared::class, RequireAdminSettingsManage::class, RequireFilesUse::class, CSRFMiddleware::class], 'files_admin_acl')
             ->add('POST', '/retention', [FileSpaceAdminController::class, 'retention'],
-                [LoginRequared::class, RequireFilesUse::class, CSRFMiddleware::class], 'files_admin_retention')
+                [LoginRequared::class, RequireAdminSettingsManage::class, RequireFilesUse::class, CSRFMiddleware::class], 'files_admin_retention')
             ->endGroup();
     }
 }
