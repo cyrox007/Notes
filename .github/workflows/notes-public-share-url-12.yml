@@ -1,0 +1,38 @@
+name: Notes 1.2 — публичные ссылки с доменом
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'modules/notes/NotePublicUrl.php'
+      - 'modules/notes/controllers/NoteShareController.php'
+      - 'modules/notes/views/editor-013.php'
+      - 'modules/notes/runtime.php'
+      - 'tests/integration/notes_public_share_url_contract.php'
+      - '.github/workflows/notes-public-share-url-12.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  note-public-url:
+    name: Публичная ссылка Notes — протокол, домен и путь
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - name: Проверить синтаксис
+        run: |
+          php -l modules/notes/NotePublicUrl.php
+          php -l modules/notes/controllers/NoteShareController.php
+          php -l modules/notes/views/editor-013.php
+          php -l modules/notes/runtime.php
+          php -l tests/integration/notes_public_share_url_contract.php
+      - name: Проверить абсолютный адрес публичных ссылок
+        run: php tests/integration/notes_public_share_url_contract.php
