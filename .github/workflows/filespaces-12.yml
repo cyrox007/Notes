@@ -11,6 +11,7 @@ on:
       - 'tests/integration/filespaces_12_contract.php'
       - 'tests/integration/filespaces_transfers_12_scenarios.php'
       - 'tests/integration/filespaces_operations_12_scenarios.php'
+      - 'tests/integration/filespaces_admin_12_scenarios.php'
       - '.github/workflows/filespaces-12.yml'
   workflow_dispatch:
 
@@ -62,6 +63,11 @@ jobs:
           php -l modules/files/services/FileUploadTypes.php
           php -l modules/files/services/FileSpaceTransferService.php
           php -l modules/files/services/FileSpaceObjectService.php
+          php -l modules/files/services/FileSpaceAdminService.php
+          php -l modules/files/controllers/FileSpaceAdminController.php
+          php -l modules/files/views/admin-spaces.php
+          php -l tests/integration/filespaces_admin_12_scenarios.php
+          php -l modules/admin/views/index.php
           php -l modules/files/controllers/FileSpaceObjectController.php
           php -l tests/integration/filespaces_operations_12_scenarios.php
           php -l modules/files/controllers/FileSpaceTransferController.php

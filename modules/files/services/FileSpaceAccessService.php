@@ -79,11 +79,17 @@ final class FileSpaceAccessService
         );
         $roles->execute([':id' => $userId]);
         $memberships = $roles->fetchAll(PDO::FETCH_ASSOC);
+        $groupQuery = $this->pdo->prepare(
+            'SELECT group_id FROM file_access_group_members WHERE user_id=:id'
+        );
+        $groupQuery->execute([':id' => $userId]);
+        $groups = array_map('intval', $groupQuery->fetchAll(PDO::FETCH_COLUMN));
         $ids = array_map('intval', array_column($memberships, 'id'));
         $codes = array_column($memberships, 'code');
         return [
             'id' => $userId,
             'roles' => $ids,
+            'groups' => $groups,
             'is_admin' => in_array('admin', $codes, true)
                 || in_array('superadmin', $codes, true)
                 || in_array((int) $user['role'], [1, 111], true),
@@ -110,7 +116,7 @@ final class FileSpaceAccessService
         // или удалённого предка при прямом запросе файла.
         $chain = $this->chain((int) $space['id'], $nodeId, $includeDeletedTarget);
         if ($actor['is_admin']) {
-            return ['allowed' => true, 'source' => 'administrator'];
+            return ['allowed' => true, 'source' => 'administrator', 'subject' => 'administrator'];
         }
         if ($nodeId !== null) {
             // Доступ к вложенному объекту не должен обходить закрытый корень
@@ -121,12 +127,31 @@ final class FileSpaceAccessService
                     $actor, (int) $space['id'], array_slice($ancestors, $index), 'view'
                 );
                 if (!$permissionAtAncestor['allowed']) {
-                    return ['allowed' => false, 'source' => 'ancestor'];
+                    return ['allowed' => false, 'source' => 'ancestor', 'subject' => 'closed_ancestor'];
                 }
             }
         }
 
         return $this->resolve($actor, (int) $space['id'], $chain, $permission);
+    }
+
+    /** @return list<array{permission:string,allowed:bool,source:string,subject:string}> */
+    public function explain(int $actorId, int $targetUserId, ?int $folderId = null): array
+    {
+        if (!$this->decision($actorId, 'global', $folderId, 'manage_acl')['allowed']) {
+            throw new DomainException('Только управляющий правами может просматривать диагностику', 403);
+        }
+        $results = [];
+        foreach (self::PERMISSIONS as $permission) {
+            $decision = $this->decision($targetUserId, 'global', $folderId, $permission);
+            $results[] = [
+                'permission' => $permission,
+                'allowed' => $decision['allowed'],
+                'source' => $decision['source'],
+                'subject' => $decision['subject'] ?? '',
+            ];
+        }
+        return $results;
     }
 
     public function require(int $userId, string $spaceUid, ?int $nodeId, string $permission, bool $includeDeletedTarget = false): void
@@ -184,23 +209,29 @@ final class FileSpaceAccessService
                 ':permission' => $permission,
             ]);
             $matchedAllow = false;
+            $matchedSubject = '';
             foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $rule) {
                 if (!$this->matches($actor, $scope['author'], $rule)) {
                     continue;
                 }
+                $subject = (string) $rule['subject_type'];
+                if (in_array($subject, ['role', 'group', 'user'], true)) {
+                    $subject .= ':' . (int) $rule['subject_id'];
+                }
                 if ($rule['effect'] === 'deny') {
-                    return ['allowed' => false, 'source' => $scope['key']];
+                    return ['allowed' => false, 'source' => $scope['key'], 'subject' => $subject];
                 }
                 $matchedAllow = true;
+                $matchedSubject = $subject;
             }
             if ($matchedAllow) {
-                return ['allowed' => true, 'source' => $scope['key']];
+                return ['allowed' => true, 'source' => $scope['key'], 'subject' => $matchedSubject];
             }
             if (!$scope['inherit']) {
-                return ['allowed' => false, 'source' => $scope['key']];
+                return ['allowed' => false, 'source' => $scope['key'], 'subject' => 'inheritance_off'];
             }
         }
-        return ['allowed' => false, 'source' => 'default_deny'];
+        return ['allowed' => false, 'source' => 'default_deny', 'subject' => 'none'];
     }
 
     /** @param array<string,mixed> $actor @param array<string,mixed> $rule */
@@ -211,9 +242,8 @@ final class FileSpaceAccessService
             'everyone' => true,
             'user' => $id === $actor['id'],
             'role' => in_array($id, $actor['roles'], true),
+            'group' => in_array($id, $actor['groups'], true),
             'author' => $author !== null && $author === $actor['id'],
-            // Группы будут подключены к общей модели рабочих команд;
-            // неизвестное членство никогда не означает разрешение.
             default => false,
         };
     }

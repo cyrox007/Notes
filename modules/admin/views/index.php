@@ -57,6 +57,10 @@ ob_start();
         <?php endif; ?>
     </header>
 
+    <?php if (\Core\ModuleRuntimeLoader::getInstance()->capabilities()->has('workspace.files')): ?>
+        <p><a class="admin-action admin-action--secondary" href="<?= $view->e($view->route('files_admin')) ?>">Общее файловое хранилище — группы и права</a></p>
+    <?php endif; ?>
+
     <?php if ($flash !== null): ?>
         <?php $flashType = in_array(($flash['type'] ?? ''), ['success', 'error'], true) ? (string) $flash['type'] : 'error'; ?>
         <div class="admin-page__flash admin-page__flash--<?= $view->e($flashType) ?>" role="status">
