@@ -79,6 +79,7 @@ class FileController extends Controller
             'current_folder' => null,
             'breadcrumb' => [['name' => 'Главная', 'id' => 0]],
             'can_share_files' => $this->canShareFiles((int) $user->id),
+            'global_files_available' => $this->canViewGlobalFiles((int) $user->id),
             'max_upload_bytes' => $uploadLimits['configured_bytes'],
             'effective_upload_bytes' => $uploadLimits['effective_known_file_bytes'],
         ]);
@@ -119,6 +120,7 @@ class FileController extends Controller
             'current_folder' => $folder,
             'breadcrumb' => $this->buildBreadcrumb($folderId, (int) $user->id),
             'can_share_files' => $this->canShareFiles((int) $user->id),
+            'global_files_available' => $this->canViewGlobalFiles((int) $user->id),
             'max_upload_bytes' => $uploadLimits['configured_bytes'],
             'effective_upload_bytes' => $uploadLimits['effective_known_file_bytes'],
         ]);
@@ -495,6 +497,18 @@ class FileController extends Controller
             'configured_bytes' => (int) $diagnostics['configured_bytes'],
             'effective_known_file_bytes' => (int) $diagnostics['effective_known_file_bytes'],
         ];
+    }
+
+    private function canViewGlobalFiles(int $userId): bool
+    {
+        try {
+            $pdo = DatabaseManager::getInstance()->getPdo();
+            $access = new \App\Services\Files\FileSpaceAccessService($pdo);
+            return $access->decision($userId, 'global', null, 'view')['allowed'];
+        } catch (\Throwable $error) {
+            error_log('Не удалось проверить доступ к общим файлам: ' . $error->getMessage());
+            return false;
+        }
     }
 
     private function canShareFiles(int $userId): bool
