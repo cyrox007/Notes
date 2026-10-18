@@ -6,6 +6,7 @@ namespace Modules\Tasks;
 use App\Controllers\TaskBoardController;
 use App\Controllers\TaskController;
 use App\Controllers\TaskMutationController;
+use App\Controllers\TaskRelationController;
 use App\Middlewares\CSRFMiddleware;
 use App\Middlewares\EnforceTaskCreatePolicy;
 use App\Middlewares\LoginRequared;
@@ -57,12 +58,12 @@ final class TasksRuntimeProvider implements ModuleRuntimeProvider
             ->add('GET', '/published/{str:uid}', [TaskController::class, 'published'], [LoginRequared::class, RequireTasksUse::class], 'task_published')
             ->add('POST', '/{str:uid}/update', [TaskMutationController::class, 'update'], [LoginRequared::class, RequireTasksUse::class], 'update_task')
             ->add('POST', '/{str:uid}/delete', [TaskMutationController::class, 'delete'], [LoginRequared::class, RequireTasksUse::class], 'delete_task')
-            ->add('POST', '/{str:taskUid}/subtask', [TaskController::class, 'addSubtask'], [LoginRequared::class, RequireTasksUse::class], 'add_subtask')
-            ->add('POST', '/subtask/{int:subtaskId}/toggle', [TaskController::class, 'toggleSubtask'], [LoginRequared::class, RequireTasksUse::class], 'toggle_subtask')
-            ->add('POST', '/subtask/{int:subtaskId}/delete', [TaskController::class, 'deleteSubtask'], [LoginRequared::class, RequireTasksUse::class], 'delete_subtask')
-            ->add('POST', '/category', [TaskController::class, 'createCategory'], [LoginRequared::class, RequireTasksUse::class], 'create_category')
-            ->add('POST', '/{str:taskUid}/category/{int:categoryId}', [TaskController::class, 'attachCategory'], [LoginRequared::class, RequireTasksUse::class], 'attach_category')
-            ->add('DELETE', '/{str:taskUid}/category/{int:categoryId}', [TaskController::class, 'detachCategory'], [LoginRequared::class, RequireTasksUse::class], 'detach_category')
+            ->add('POST', '/{str:taskUid}/subtask', [TaskRelationController::class, 'addSubtask'], [LoginRequared::class, RequireTasksUse::class], 'add_subtask')
+            ->add('POST', '/subtask/{int:subtaskId}/toggle', [TaskRelationController::class, 'toggleSubtask'], [LoginRequared::class, RequireTasksUse::class], 'toggle_subtask')
+            ->add('POST', '/subtask/{int:subtaskId}/delete', [TaskRelationController::class, 'deleteSubtask'], [LoginRequared::class, RequireTasksUse::class], 'delete_subtask')
+            ->add('POST', '/category', [TaskRelationController::class, 'createCategory'], [LoginRequared::class, RequireTasksUse::class], 'create_category')
+            ->add('POST', '/{str:taskUid}/category/{int:categoryId}', [TaskRelationController::class, 'attachCategory'], [LoginRequared::class, RequireTasksUse::class], 'attach_category')
+            ->add('POST', '/{str:taskUid}/category/{int:categoryId}/detach', [TaskRelationController::class, 'detachCategory'], [LoginRequared::class, RequireTasksUse::class], 'detach_category')
             ->endGroup();
     }
 }
