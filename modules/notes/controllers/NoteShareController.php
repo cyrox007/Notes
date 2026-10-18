@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Helpers\CryptMethods;
-use Core\Config;
 use Core\Controller;
 use Core\DatabaseManager;
 use Core\Request;
@@ -102,7 +101,7 @@ final class NoteShareController extends Controller
 
             echo json_encode([
                 'success' => true,
-                'share_url' => $this->absoluteAppUrl('/notes/shared/' . rawurlencode($token)),
+                'share_url' => \Modules\Notes\NotePublicUrl::shared($token),
                 'access_type' => 'view',
                 'expires_at' => $expiresAt,
             ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -238,15 +237,6 @@ final class NoteShareController extends Controller
         $baseSegment = trim((string) getenv('BASE_PATH'), '/');
         $basePath = $baseSegment !== '' ? '/' . $baseSegment : '';
         return $basePath . '/' . ltrim($path, '/');
-    }
-
-    private function absoluteAppUrl(string $path): string
-    {
-        $configuredUrl = getenv('SITEURL');
-        $siteUrl = is_string($configuredUrl) && trim($configuredUrl) !== ''
-            ? rtrim(trim($configuredUrl), '/')
-            : rtrim((string) Config::get('SITEURL'), '/');
-        return $siteUrl . $this->appPath($path);
     }
 
     private function formatBytes(int $bytes): string
