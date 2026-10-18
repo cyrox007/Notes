@@ -121,6 +121,17 @@ window.wspace.page.register('modules/tasks/assets/task-boards.js', (pageScope) =
                     || root.querySelector('input[name="csrf_token"]')?.value
                     || '';
 
+                const version = card.dataset.version || '';
+                if (!/^[1-9][0-9]*$/.test(version)) {
+                    dragged = null;
+                    window.alert('Версия задачи недоступна. Обновите доску.');
+                    return;
+                }
+                const signature = version + ':' + status;
+                if (card.dataset.lastMoveSignature !== signature) {
+                    card.dataset.lastMoveSignature = signature;
+                    card.dataset.lastMoveCommand = 'board:web:' + crypto.randomUUID();
+                }
                 card.dataset.moveState = 'saving';
                 try {
                     const response = await pageScope.fetch(url, {
@@ -131,20 +142,34 @@ window.wspace.page.register('modules/tasks/assets/task-boards.js', (pageScope) =
                             'X-CSRF-Token': csrfToken,
                             'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
                         },
-                        body: new URLSearchParams({ status }).toString()
+                        body: new URLSearchParams({ status, expected_version: version, command_id: card.dataset.lastMoveCommand }).toString()
                     });
                     const payload = await response.json().catch(() => ({}));
                     if (!response.ok || payload.success !== true) {
+                        if (response.status === 409 && payload.error === 'version_conflict') {
+                            card.dataset.version = String(payload.current_version);
+                            pageScope.refresh();
+                        }
                         throw new Error(payload.message || `HTTP ${response.status}`);
                     }
 
+                    card.dataset.version = String(payload.version);
+                    card.querySelectorAll('input[name="expected_version"]').forEach(input => {
+                        input.value = String(payload.version);
+                    });
+                    delete card.dataset.lastMoveSignature;
+                    delete card.dataset.lastMoveCommand;
                     column.querySelector('.task-board-column__items')?.appendChild(card);
                     const select = card.querySelector('select[name="status"]');
                     if (select) select.value = status;
                     card.dataset.moveState = 'saved';
                     card.classList.add('task-board-card--just-moved');
                     pageScope.setTimeout(() => card.classList.remove('task-board-card--just-moved'), 520);
-                    pageScope.setTimeout(() => pageScope.refresh(), 520);
+                    root.querySelectorAll('.task-board-column').forEach(item => {
+                        const count = item.querySelectorAll('.task-board-card').length;
+                        const pill = item.querySelector('.task-board-pill');
+                        if (pill) pill.textContent = String(count);
+                    });
                 } catch (error) {
                     card.dataset.moveState = 'error';
                     const message = `Не удалось изменить статус: ${error.message}`;
