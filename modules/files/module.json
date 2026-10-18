@@ -34,7 +34,10 @@
       "file_spaces",
       "file_space_nodes",
       "file_space_acl",
-      "file_space_events"
+      "file_space_events",
+      "file_access_groups",
+      "file_access_group_members",
+      "file_space_settings"
     ],
     "schemas": [
       "database/file_manager_module_schema.sql",
@@ -47,7 +50,8 @@
       "database/migrations/20260920_file_public_shares.sql",
       "database/migrations/20260920_file_uid_backfill.sql",
       "database/migrations/20260930_file_upload_limit.sql",
-      "database/migrations/20261018_file_spaces_foundation.sql"
+      "database/migrations/20261018_file_spaces_foundation.sql",
+      "database/migrations/20261018_file_spaces_admin_policy.sql"
     ]
   }
 }
