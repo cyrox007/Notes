@@ -31,6 +31,9 @@ ob_start();
     <nav class="file-manager__toolbar" aria-label="Файловые пространства">
         <a class="file-manager__btn file-manager__btn--secondary" href="<?= $view->e($view->route('files')) ?>">Мои файлы</a>
         <span class="file-manager__btn file-manager__btn--primary">Общие файлы</span>
+        <?php if (!empty($can_admin_files)): ?>
+            <a class="file-manager__btn file-manager__btn--secondary" href="<?= $view->e($view->route('files_admin')) ?>">Управление доступом</a>
+        <?php endif; ?>
     </nav>
     <div class="file-manager__toolbar">
         <div class="file-manager__breadcrumb">
