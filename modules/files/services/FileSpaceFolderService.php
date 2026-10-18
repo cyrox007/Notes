@@ -24,8 +24,12 @@ final class FileSpaceFolderService
     ) {
     }
 
+    private const int PAGE_SIZE = 40;
+    private const int FETCH_SIZE = 80;
+    private const int MAX_SCAN = 640;
+
     /** @return array<string,mixed> */
-    public function browse(int $actorId, ?int $parentId = null): array
+    public function browse(int $actorId, ?int $parentId = null, ?string $cursorToken = null): array
     {
         $space = $this->access->space('global');
         $this->access->require($actorId, 'global', $parentId, 'view');
@@ -35,23 +39,46 @@ final class FileSpaceFolderService
         if ($parentId !== null) {
             $parent = $this->folder((int) $space['id'], $parentId);
         }
-        $sql = 'SELECT id,uid,name,node_type,created_by,version,inherit_acl,byte_size,mime_type
-                FROM file_space_nodes
-                WHERE space_id=:space_id AND is_deleted=0 AND '
-            . ($parentId === null ? 'parent_id IS NULL' : 'parent_id=:parent_id')
-            . ' ORDER BY node_type DESC,name ASC,id ASC LIMIT 200';
-        $query = $this->pdo->prepare($sql);
-        $params = [':space_id' => (int) $space['id']];
-        if ($parentId !== null) {
-            $params[':parent_id'] = $parentId;
-        }
-        $query->execute($params);
-
+        $folderVersion = $parent === null ? (int) $space['version'] : (int) $parent['version'];
+        $position = $this->parseCursor($cursorToken, $parentId, $folderVersion);
         $items = [];
-        foreach ($query->fetchAll(PDO::FETCH_ASSOC) as $item) {
-            if (!$this->access->decision($actorId, 'global', (int) $item['id'], 'view')['allowed']) {
-                continue;
+        $scanned = 0;
+        $next = null;
+        $lastVisible = null;
+        $exhausted = false;
+        while ($scanned < self::MAX_SCAN && count($items) <= self::PAGE_SIZE) {
+            $params = [':space_id' => (int) $space['id']];
+            $sql = 'SELECT id,uid,name,node_type,created_by,version,inherit_acl,byte_size,mime_type
+                    FROM file_space_nodes
+                    WHERE space_id=:space_id AND is_deleted=0 AND '
+                . ($parentId === null ? 'parent_id IS NULL' : 'parent_id=:parent_id');
+            if ($parentId !== null) {
+                $params[':parent_id'] = $parentId;
             }
+            if ($position !== null) {
+                $sql .= ' AND (name>:after_name OR (name=:same_name AND id>:after_id))';
+                $params[':after_name'] = $position['name'];
+                $params[':same_name'] = $position['name'];
+                $params[':after_id'] = $position['id'];
+            }
+            $batchSize = min(self::FETCH_SIZE, self::MAX_SCAN - $scanned);
+            $stmt = $this->pdo->prepare($sql . ' ORDER BY name ASC,id ASC LIMIT ' . $batchSize);
+            $stmt->execute($params);
+            $batch = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            if ($batch === []) {
+                $exhausted = true;
+                break;
+            }
+            foreach ($batch as $item) {
+                $position = ['name' => (string) $item['name'], 'id' => (int) $item['id']];
+                $scanned++;
+                if (!$this->access->decision($actorId, 'global', (int) $item['id'], 'view')['allowed']) {
+                    continue;
+                }
+                if (count($items) === self::PAGE_SIZE) {
+                    $next = $this->encodeCursor($lastVisible, $parentId, $folderVersion);
+                    break 2;
+                }
             $own = $item['created_by'] !== null && (int) $item['created_by'] === $actorId;
             $renamePermission = $own ? 'rename_own' : 'rename_others';
             $movePermission = $own ? 'move_own' : 'move_others';
@@ -75,6 +102,17 @@ final class FileSpaceFolderService
                 'is_author' => $own,
 
             ];
+                $lastVisible = $position;
+            }
+            if (count($batch) < $batchSize) {
+                $exhausted = true;
+                break;
+            }
+        }
+        if ($next === null && !$exhausted && $position !== null) {
+            // Продолжение требуется только при достижении лимита просмотра;
+            // число недоступных объектов не раскрывается в ответе.
+            $next = $this->encodeCursor($position, $parentId, $folderVersion);
         }
 
         return [
@@ -82,10 +120,46 @@ final class FileSpaceFolderService
             'parent' => $parent,
             'version' => $parent === null ? (int) $space['version'] : (int) $parent['version'],
             'items' => $items,
+            'next_cursor' => $next,
+            'page_size' => self::PAGE_SIZE,
             'can_upload' => $this->access->decision($actorId, 'global', $parentId, 'upload')['allowed'],
             'can_create' => $this->access->decision($actorId, 'global', $parentId, 'create_folder')['allowed'],
             'can_manage' => $this->access->decision($actorId, 'global', $parentId, 'manage_acl')['allowed'],
         ];
+    }
+
+    /** @return array{name:string,id:int}|null */
+    private function parseCursor(?string $token, ?int $parentId, int $version): ?array
+    {
+        if ($token === null || $token === '') {
+            return null;
+        }
+        if (strlen($token) > 1024 || preg_match('/^[A-Za-z0-9_-]+$/D', $token) !== 1) {
+            throw new InvalidArgumentException('Некорректный указатель страницы');
+        }
+        $raw = base64_decode(strtr($token, '-_', '+/'), true);
+        $data = is_string($raw) ? json_decode($raw, true) : null;
+        if (!is_array($data) || ($data['v'] ?? null) !== $version
+            || ($data['p'] ?? null) !== $parentId
+            || !is_string($data['n'] ?? null)
+            || !is_int($data['i'] ?? null) || $data['i'] < 1
+            || mb_strlen($data['n']) > 255) {
+            throw new DomainException('Каталог обновился. Начните просмотр с первой страницы.', 409);
+        }
+        return ['name' => $data['n'], 'id' => $data['i']];
+    }
+
+    /** @param array{name:string,id:int}|null $position */
+    private function encodeCursor(?array $position, ?int $parentId, int $version): ?string
+    {
+        if ($position === null) {
+            return null;
+        }
+        $encoded = json_encode([
+            'n' => $position['name'], 'i' => $position['id'],
+            'p' => $parentId, 'v' => $version,
+        ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        return rtrim(strtr(base64_encode($encoded), '+/', '-_'), '=');
     }
 
     /** @return list<array<string,mixed>> */
