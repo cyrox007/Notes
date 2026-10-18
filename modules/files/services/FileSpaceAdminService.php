@@ -247,7 +247,7 @@ final class FileSpaceAdminService
         }
     }
 
-    private function requireAdmin(int $actorId): void
+    public function requireAdmin(int $actorId): void
     {
         if (!$this->access->actor($actorId)['is_admin']) {
             throw new DomainException('Необходимы административные полномочия', 403);
