@@ -8,6 +8,7 @@ use App\Controllers\FileDeleteController;
 use App\Controllers\FileQuotaController;
 use App\Controllers\FileShareController;
 use App\Controllers\FileSpaceController;
+use App\Controllers\FileSpaceAdminController;
 use App\Controllers\FileSpaceTransferController;
 use App\Controllers\FileSpaceObjectController;
 use App\Middlewares\CSRFMiddleware;
@@ -78,6 +79,20 @@ final class FilesRuntimeProvider implements ModuleRuntimeProvider
             ->add('GET', '/shared/{str:token}', [FileShareController::class, 'open'], [], 'files_shared')
             ->add('GET', '/shared/{str:token}/folder/{str:uid}', [FileShareController::class, 'folder'], [], 'files_shared_folder')
             ->add('GET', '/shared/{str:token}/file/{str:uid}', [FileShareController::class, 'sharedFile'], [], 'files_shared_file')
+            ->endGroup();
+        $router->group('/admin/files')
+            ->add('GET', '/', [FileSpaceAdminController::class, 'index'],
+                [LoginRequared::class, RequireFilesUse::class], 'files_admin')
+            ->add('POST', '/groups/create', [FileSpaceAdminController::class, 'createGroup'],
+                [LoginRequared::class, RequireFilesUse::class, CSRFMiddleware::class], 'files_admin_group_create')
+            ->add('POST', '/groups/member', [FileSpaceAdminController::class, 'groupMember'],
+                [LoginRequared::class, RequireFilesUse::class, CSRFMiddleware::class], 'files_admin_group_member')
+            ->add('POST', '/groups/delete', [FileSpaceAdminController::class, 'deleteGroup'],
+                [LoginRequared::class, RequireFilesUse::class, CSRFMiddleware::class], 'files_admin_group_delete')
+            ->add('POST', '/acl', [FileSpaceAdminController::class, 'setAcl'],
+                [LoginRequared::class, RequireFilesUse::class, CSRFMiddleware::class], 'files_admin_acl')
+            ->add('POST', '/retention', [FileSpaceAdminController::class, 'retention'],
+                [LoginRequared::class, RequireFilesUse::class, CSRFMiddleware::class], 'files_admin_retention')
             ->endGroup();
     }
 }
