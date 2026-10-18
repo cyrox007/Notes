@@ -144,43 +144,34 @@ final class TaskBoardController extends Controller
     public function updateTask(Request $request, string $uid): void
     {
         try {
+            [$version, $commandId] = $this->commandIdentity($request);
             $post = $request->post();
+            if (!is_array($post)) {
+                throw new InvalidArgumentException('Некорректные данные задачи');
+            }
             $changes = [];
-            foreach (['title', 'description', 'status', 'priority', 'due_date', 'archived'] as $key) {
-                if (is_array($post) && array_key_exists($key, $post)) {
-                    $changes[$key] = $post[$key];
+            foreach (['title', 'description', 'status', 'priority', 'due_date', 'archived'] as $field) {
+                if (array_key_exists($field, $post)) {
+                    $changes[$field] = $post[$field];
                 }
             }
-            if (is_array($post) && array_key_exists('assignee_ids', $post)) {
-                $changes['assignee_ids'] = is_array($post['assignee_ids']) ? $post['assignee_ids'] : [];
+            if (array_key_exists('assignee_ids', $post)) {
+                if (!is_array($post['assignee_ids'])) {
+                    throw new InvalidArgumentException('Некорректный список исполнителей');
+                }
+                $changes['assignee_ids'] = $post['assignee_ids'];
             }
-
-            $task = (new TaskBoardService())->updateTask($this->userId($request), $uid, $changes);
-            if ($this->expectsJson($request)) {
-                $this->responseJson([
-                    'success' => true,
-                    'task_uid' => $uid,
-                    'status' => (string) ($task['status'] ?? ''),
-                    'board_uid' => (string) ($task['board_uid'] ?? ''),
-                ]);
-                return;
-            }
-            $this->flash($request, 'success', 'Задача обновлена');
-            $this->redirectBoard((string) $task['board_uid']);
-        } catch (InvalidArgumentException|DomainException $e) {
-            if ($this->expectsJson($request)) {
-                http_response_code($this->status($e, 422));
-                $this->responseJson(['success' => false, 'message' => $e->getMessage()]);
-                return;
-            }
-            $this->fail($request, $e, 'Не удалось обновить задачу');
-        } catch (Throwable $e) {
-            error_log('Shared task update failed: ' . $e->getMessage());
-            if ($this->expectsJson($request)) {
-                http_response_code(500);
-                $this->responseJson(['success' => false, 'message' => 'Не удалось обновить задачу']);
-                return;
-            }
+            $action = array_key_exists('archived', $changes)
+                ? ((string) $changes['archived'] === '1' ? 'board.task.archive' : 'board.task.restore')
+                : (array_keys($changes) === ['status'] ? 'board.task.status' : 'board.task.update');
+            $result = (new \App\Services\Tasks\TaskBoardVersionMutationService(
+                \Core\DatabaseManager::getInstance()->getPdo()
+            ))->mutate($this->userId($request), $uid, $version, $commandId, $action, $changes);
+            $this->respondBoardMutation($request, $result);
+        } catch (InvalidArgumentException|DomainException $error) {
+            $this->fail($request, $error, 'Не удалось обновить задачу');
+        } catch (Throwable $error) {
+            error_log('Не удалось обновить общую задачу: ' . $error->getMessage());
             $this->failMessage($request, 'Не удалось обновить задачу', 500);
         }
     }
@@ -189,15 +180,55 @@ final class TaskBoardController extends Controller
     {
         $boardUid = trim((string) $request->post('board_uid', ''));
         try {
-            (new TaskBoardService())->deleteTask($this->userId($request), $uid);
-            $this->flash($request, 'success', 'Задача удалена');
-            $this->redirectBoard($boardUid !== '' ? $boardUid : null);
-        } catch (InvalidArgumentException|DomainException $e) {
-            $this->fail($request, $e, 'Не удалось удалить задачу', $boardUid !== '' ? $boardUid : null);
-        } catch (Throwable $e) {
-            error_log('Shared task deletion failed: ' . $e->getMessage());
-            $this->failMessage($request, 'Не удалось удалить задачу', 500, $boardUid !== '' ? $boardUid : null);
+            [$version, $commandId] = $this->commandIdentity($request);
+            $result = (new \App\Services\Tasks\TaskBoardVersionMutationService(
+                \Core\DatabaseManager::getInstance()->getPdo()
+            ))->mutate(
+                $this->userId($request), $uid, $version, $commandId,
+                'board.task.delete', ['delete' => '1']
+            );
+            $this->respondBoardMutation($request, $result);
+        } catch (InvalidArgumentException|DomainException $error) {
+            $this->fail($request, $error, 'Не удалось удалить задачу', $boardUid ?: null);
+        } catch (Throwable $error) {
+            error_log('Не удалось удалить общую задачу: ' . $error->getMessage());
+            $this->failMessage($request, 'Не удалось удалить задачу', 500, $boardUid ?: null);
         }
+    }
+
+    /** @return array{0:int,1:string} */
+    private function commandIdentity(Request $request): array
+    {
+        $version = trim((string) $request->post('expected_version', ''));
+        $commandId = trim((string) $request->post('command_id', ''));
+        if (preg_match('/^[1-9][0-9]*$/D', $version) !== 1 || $commandId === '') {
+            throw new InvalidArgumentException('Требуются expected_version и command_id');
+        }
+        return [(int) $version, $commandId];
+    }
+
+    /** @param array<string,mixed> $result */
+    private function respondBoardMutation(Request $request, array $result): void
+    {
+        if (($result['error'] ?? '') === 'version_conflict') {
+            http_response_code(409);
+            if ($this->expectsJson($request)) {
+                $this->responseJson($result);
+                return;
+            }
+            header('Content-Type: text/plain; charset=utf-8');
+            echo (string) $result['message'];
+            return;
+        }
+        if (($result['success'] ?? false) !== true) {
+            throw new \RuntimeException('Непредусмотренный результат изменения задачи');
+        }
+        if ($this->expectsJson($request)) {
+            $this->responseJson($result);
+            return;
+        }
+        $this->flash($request, 'success', 'Задача обновлена');
+        $this->redirectBoard((string) $result['board_uid']);
     }
 
     private function userId(Request $request): int
