@@ -124,6 +124,48 @@ final class FileSpaceAdminController extends Controller
         }
     }
 
+    public function setAclBulk(Request $request): void
+    {
+        try {
+            $actor = $this->actor($request);
+            [$admin, , $folders] = $this->services();
+            $admin->requireAdmin($actor);
+            $rawIds = $request->post('subject_ids', []);
+            $rawPermissions = $request->post('permissions', []);
+            if (!is_array($rawIds) || !is_array($rawPermissions)) {
+                throw new InvalidArgumentException('Выберите получателей и разрешения');
+            }
+            $ids = [];
+            foreach ($rawIds as $rawId) {
+                $ids[] = $this->positiveInt($rawId);
+            }
+            $permissions = [];
+            foreach ($rawPermissions as $permission) {
+                if (!is_string($permission)) {
+                    throw new InvalidArgumentException('Некорректное файловое право');
+                }
+                $permissions[] = $permission;
+            }
+            $result = $folders->setRulesBulk(
+                $actor,
+                $this->optionalId($request->post('folder_id', '')),
+                (string) $request->post('subject_type', ''),
+                $ids,
+                $permissions,
+                (string) $request->post('effect', ''),
+                $this->positiveInt($request->post('expected_version', '')),
+                (string) $request->post('command_id', '')
+            );
+            $this->reply($result);
+        } catch (InvalidArgumentException|DomainException $error) {
+            $this->json(['success' => false, 'message' => $error->getMessage()],
+                $this->status($error, 422));
+        } catch (Throwable $error) {
+            error_log('Ошибка массового назначения прав Files: ' . $error->getMessage());
+            $this->json(['success' => false, 'message' => 'Не удалось назначить права'], 500);
+        }
+    }
+
     /** @param \Closure(FileSpaceAdminService,int):array<string,mixed> $action */
     private function execute(Request $request, \Closure $action): void
     {
