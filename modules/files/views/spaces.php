@@ -11,6 +11,7 @@ $items = isset($catalog['items']) && is_array($catalog['items']) ? $catalog['ite
 $trashItems = isset($trash_items) && is_array($trash_items) ? $trash_items : [];
 $rules = isset($acl_rules) && is_array($acl_rules) ? $acl_rules : [];
 $roles = isset($available_roles) && is_array($available_roles) ? $available_roles : [];
+$groups = isset($available_groups) && is_array($available_groups) ? $available_groups : [];
 $users = isset($available_users) && is_array($available_users) ? $available_users : [];
 $folderVersion = (int) ($catalog['version'] ?? 1);
 $workspaceVersion = isset($version) ? (string) $version : '';
@@ -215,6 +216,7 @@ ob_start();
                     <select name="subject_type" data-filespace-subject-type>
                         <option value="everyone">Все авторизованные</option>
                         <option value="role">Роль</option>
+                        <option value="group">Группа</option>
                         <option value="user">Пользователь</option>
                         <?php if ($parent !== null): ?><option value="author">Автор папки</option><?php endif; ?>
                     </select>
@@ -225,6 +227,9 @@ ob_start();
                         <option value="0" data-for="author">Автор папки</option>
                         <?php foreach ($roles as $role): ?>
                             <option value="<?= (int) $role['id'] ?>" data-for="role"><?= $view->e(($role['name'] ?? '') . ' (' . ($role['code'] ?? '') . ')') ?></option>
+                        <?php endforeach; ?>
+                        <?php foreach ($groups as $group): ?>
+                            <option value="<?= (int) $group['id'] ?>" data-for="group"><?= $view->e($group['name']) ?></option>
                         <?php endforeach; ?>
                         <?php foreach ($users as $member): ?>
                             <option value="<?= (int) $member['id'] ?>" data-for="user"><?= $view->e($member['username'] ?? '') ?></option>
