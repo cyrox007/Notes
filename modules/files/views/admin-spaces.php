@@ -92,7 +92,7 @@ ob_start();
                     <label>Участник
                         <select name="member_id" required>
                             <?php foreach ($users as $listed): ?>
-                                <option value="<?= (int) $listed['id'] ?>"><?= $view->e($listed['username']) ?></option>
+                                <option value="<?= (int) $listed['id'] ?>"><?= $view->e($listed['username']) ?><?= (int) ($listed['is_active'] ?? 1) !== 1 || ($listed['account_status'] ?? 'active') !== 'active' ? ' (заблокирован)' : '' ?></option>
                             <?php endforeach; ?>
                         </select>
                     </label>
