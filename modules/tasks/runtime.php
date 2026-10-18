@@ -10,6 +10,7 @@ $files = [
     '/models/TaskReminderModel.php',
     '/services/TaskBoardService.php',
     '/services/TaskVersionMutationService.php',
+    '/services/TaskBoardVersionMutationService.php',
     '/middlewares/RequireTasksUse.php',
     '/middlewares/EnforceTaskCreatePolicy.php',
     '/controllers/TaskController.php',
