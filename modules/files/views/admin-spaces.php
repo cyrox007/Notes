@@ -217,6 +217,55 @@ ob_start();
             <?php endif; ?>
             <button type="submit" class="admin-action admin-action--primary">Сохранить правило</button>
         </form>
+
+        <details class="admin-panel-card">
+            <summary><strong>Массовое назначение разрешений</strong></summary>
+            <p>Назначьте одинаковые разрешения сразу нескольким пользователям,
+               ролям или группам. Все изменения сохранятся одной операцией.</p>
+            <form action="<?= $view->e($view->route('files_admin_acl_bulk')) ?>"
+                  method="post" data-filespace-action>
+                <?= $view->csrfInput() ?>
+                <input type="hidden" name="folder_id" value="<?= $folderId ?? '' ?>">
+                <input type="hidden" name="expected_version" value="<?= $folderVersion ?>">
+                <input type="hidden" name="command_id" value="<?= $view->e($command()) ?>">
+                <label>Тип получателей
+                    <select name="subject_type" data-filespace-bulk-type>
+                        <option value="group">Группы</option>
+                        <option value="role">Роли</option>
+                        <option value="user">Пользователи</option>
+                    </select>
+                </label>
+                <label>Получатели (выберите несколько)
+                    <select name="subject_ids[]" multiple size="6" required data-filespace-bulk-ids>
+                        <?php foreach ($groups as $group): ?>
+                            <option data-for="group" value="<?= (int) $group['id'] ?>"><?= $view->e($group['name']) ?></option>
+                        <?php endforeach; ?>
+                        <?php foreach ($roles as $role): ?>
+                            <option data-for="role" value="<?= (int) $role['id'] ?>"><?= $view->e($role['name']) ?></option>
+                        <?php endforeach; ?>
+                        <?php foreach ($users as $listed): ?>
+                            <option data-for="user" value="<?= (int) $listed['id'] ?>"><?= $view->e($listed['username']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+                <label>Разрешения (выберите несколько)
+                    <select name="permissions[]" multiple size="9" required>
+                        <?php foreach ($rights as $permission => $label): ?>
+                            <option value="<?= $view->e($permission) ?>"><?= $view->e($label) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
+                <label>Применить
+                    <select name="effect">
+                        <option value="allow">Разрешить</option>
+                        <option value="deny">Запретить</option>
+                        <option value="remove">Удалить выбранные правила</option>
+                    </select>
+                </label>
+                <p>Не более 25 получателей и 100 правил за одну операцию.</p>
+                <button type="submit" class="admin-action admin-action--primary">Применить ко всем выбранным</button>
+            </form>
+        </details>
     </section>
 
     <section class="admin-panel-card">
