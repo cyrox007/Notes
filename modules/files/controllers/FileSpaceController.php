@@ -44,6 +44,8 @@ final class FileSpaceController extends Controller
             $this->render_template('@files/spaces', [
                 'user' => $user,
                 'catalog' => $catalog,
+                'can_admin_files' => (new FileSpaceAccessService(DatabaseManager::getInstance()->getPdo()))
+                    ->actor($actorId)['is_admin'],
                 'acl_rules' => $rules,
                 'trash_items' => $trash,
                 'available_roles' => $roles,
