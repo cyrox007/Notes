@@ -25,7 +25,7 @@ final class FileSpaceAdminController extends Controller
             [$admin, $access, $folders] = $this->services();
             $snapshot = $admin->snapshot($actorId);
             $folderId = $this->optionalId($request->get('folder', ''));
-            $catalog = $folders->browse($actorId, $folderId);
+            $catalog = $folders->browse($actorId, $folderId, (string) $request->get('cursor', ''));
             $rules = $folders->rules($actorId, $folderId);
             $userId = $this->optionalId($request->get('user', ''));
             $decisions = $userId === null ? [] : $access->explain($actorId, $userId, $folderId);
