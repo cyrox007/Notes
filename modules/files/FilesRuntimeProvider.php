@@ -8,6 +8,7 @@ use App\Controllers\FileDeleteController;
 use App\Controllers\FileQuotaController;
 use App\Controllers\FileShareController;
 use App\Controllers\FileSpaceController;
+use App\Controllers\FileSpaceTransferController;
 use App\Middlewares\CSRFMiddleware;
 use App\Middlewares\EnforceFileFolderPolicy;
 use App\Middlewares\EnforceFileUploadPolicy;
@@ -56,6 +57,8 @@ final class FilesRuntimeProvider implements ModuleRuntimeProvider
             ->add('GET', '/spaces/global/', [FileSpaceController::class, 'index'], [LoginRequared::class, RequireFilesUse::class], 'files_global')
             ->add('POST', '/spaces/global/folders/', [FileSpaceController::class, 'createFolder'], [LoginRequared::class, RequireFilesUse::class, CSRFMiddleware::class], 'files_global_create_folder')
             ->add('POST', '/spaces/global/acl/', [FileSpaceController::class, 'setAcl'], [LoginRequared::class, RequireFilesUse::class, CSRFMiddleware::class], 'files_global_acl')
+            ->add('POST', '/spaces/global/upload/', [FileSpaceTransferController::class, 'upload'], [LoginRequared::class, RequireFilesUse::class, CSRFMiddleware::class, UploadRateLimit::class, EnforceFileUploadPolicy::class], 'files_global_upload')
+            ->add('GET', '/spaces/global/download/{int:fileId}/', [FileSpaceTransferController::class, 'download'], [LoginRequared::class, RequireFilesUse::class], 'files_global_download')
             ->add('GET', '/quota/', [FileQuotaController::class, 'usage'], [LoginRequared::class, RequireFilesUse::class], 'files_quota')
             ->add('GET', '/folder/{int:folderId}/', [FileController::class, 'folder'], [LoginRequared::class, RequireFilesUse::class], 'files_folder')
             ->add('POST', '/create-folder/', [FileController::class, 'createFolder'], [LoginRequared::class, RequireFilesUse::class, EnforceFileFolderPolicy::class, StorageMutationLock::class], 'files_create_folder')

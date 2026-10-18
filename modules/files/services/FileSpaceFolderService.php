@@ -35,7 +35,7 @@ final class FileSpaceFolderService
         if ($parentId !== null) {
             $parent = $this->folder((int) $space['id'], $parentId);
         }
-        $sql = 'SELECT id,uid,name,node_type,created_by,version,inherit_acl
+        $sql = 'SELECT id,uid,name,node_type,created_by,version,inherit_acl,byte_size,mime_type
                 FROM file_space_nodes
                 WHERE space_id=:space_id AND is_deleted=0 AND '
             . ($parentId === null ? 'parent_id IS NULL' : 'parent_id=:parent_id')
@@ -59,6 +59,9 @@ final class FileSpaceFolderService
                 'type' => $item['node_type'],
                 'version' => (int) $item['version'],
                 'inherit_acl' => (int) $item['inherit_acl'] === 1,
+                'byte_size' => (int) $item['byte_size'],
+                'can_download' => (string) $item['node_type'] === 'file'
+                    && $this->access->decision($actorId, 'global', (int) $item['id'], 'download')['allowed'],
             ];
         }
 
@@ -67,6 +70,7 @@ final class FileSpaceFolderService
             'parent' => $parent,
             'version' => $parent === null ? (int) $space['version'] : (int) $parent['version'],
             'items' => $items,
+            'can_upload' => $this->access->decision($actorId, 'global', $parentId, 'upload')['allowed'],
             'can_create' => $this->access->decision($actorId, 'global', $parentId, 'create_folder')['allowed'],
             'can_manage' => $this->access->decision($actorId, 'global', $parentId, 'manage_acl')['allowed'],
         ];

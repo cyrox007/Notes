@@ -9,6 +9,7 @@ on:
       - 'database/migrations/20261018_file_spaces_foundation.sql'
       - 'database/migrations/manifest.json'
       - 'tests/integration/filespaces_12_contract.php'
+      - 'tests/integration/filespaces_transfers_12_scenarios.php'
       - '.github/workflows/filespaces-12.yml'
   workflow_dispatch:
 
@@ -57,6 +58,11 @@ jobs:
 
       - name: Проверить синтаксис Filespaces
         run: |
+          php -l modules/files/services/FileUploadTypes.php
+          php -l modules/files/services/FileSpaceTransferService.php
+          php -l modules/files/controllers/FileSpaceTransferController.php
+          php -l modules/files/middlewares/EnforceFileUploadPolicy.php
+          php -l tests/integration/filespaces_transfers_12_scenarios.php
           php -l modules/files/services/FileSpaceAccessService.php
           php -l modules/files/services/FileSpaceFolderService.php
           php -l modules/files/controllers/FileSpaceController.php
