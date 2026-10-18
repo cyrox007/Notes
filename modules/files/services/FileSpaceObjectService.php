@@ -72,6 +72,9 @@ final class FileSpaceObjectService
             if ((int) $node['is_deleted'] === 1 && $action === 'delete') {
                 throw new DomainException('Объект уже находится в корзине', 404);
             }
+            if ((int) $node['is_deleted'] !== 1 && $action === 'restore') {
+                throw new DomainException('Объект не находится в корзине', 404);
+            }
 
             $destinationId = $action === 'move' ? $data['parent_id'] : null;
             $destinationVersion = $action === 'move'
@@ -193,9 +196,8 @@ final class FileSpaceObjectService
     ): void {
         $deleted = (int) $node['is_deleted'] === 1;
         if ($action === 'restore') {
-            if (!$deleted) {
-                throw new DomainException('Объект не находится в корзине', 404);
-            }
+            // Возврат сохранённого ответа разрешён и после восстановления,
+            // но только пока действующее право restore сохраняется.
             $this->access->require($actorId, 'global', $parentId, 'view');
             $this->access->require($actorId, 'global', $parentId, 'restore');
             return;
