@@ -26,7 +26,7 @@ final class FileSpaceController extends Controller
             $actorId = $this->actorId($request);
             $folderId = $this->folderId($request->get('folder', ''));
             $service = $this->service();
-            $catalog = $service->browse($actorId, $folderId);
+            $catalog = $service->browse($actorId, $folderId, (string) $request->get('cursor', ''));
             $rules = $catalog['can_manage'] ? $service->rules($actorId, $folderId) : [];
             $trash = (new FileSpaceObjectService(
                 DatabaseManager::getInstance()->getPdo(),

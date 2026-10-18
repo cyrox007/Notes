@@ -136,6 +136,15 @@ ob_start();
                 </a>
             <?php endforeach; ?>
         </nav>
+        <?php if (!empty($catalog['next_cursor'])): ?>
+            <?php $nextQuery = ['cursor' => (string) $catalog['next_cursor']]; ?>
+            <?php if ($folderId !== null) { $nextQuery['folder'] = $folderId; } ?>
+            <?php if ($selectedUser > 0) { $nextQuery['user'] = $selectedUser; } ?>
+            <a class="admin-action admin-action--secondary"
+               href="<?= $view->e($rootUrl . '?' . http_build_query($nextQuery)) ?>">
+                Следующие папки каталога
+            </a>
+        <?php endif; ?>
         <h3><?= $parent === null ? 'Права глобального пространства' : 'Права папки: ' . $view->e($parent['name']) ?></h3>
         <?php if ($rules): ?>
             <table>
