@@ -113,6 +113,21 @@ $assigneesReplay = $service->mutate(
 integrityCheck(($assigneesReplay['replayed'] ?? false) === true,
     'повтор назначения не удаляет и не создаёт исполнителей второй раз');
 
+// Даже завершённую команду нельзя прочитать после отзыва доступа.
+$removeMember = $pdo->prepare('DELETE FROM task_board_members WHERE board_id=:board AND user_id=:actor');
+$removeMember->execute([':board' => $boardId, ':actor' => $member]);
+$revokedDenied = false;
+try {
+    $service->mutate(
+        $member, $taskUid, 2, 'board-member-command-2', 'board.task.update',
+        ['assignee_ids' => [$userId, $member]]
+    );
+} catch (\DomainException $error) {
+    $revokedDenied = $error->getCode() === 404;
+}
+integrityCheck($revokedDenied, 'отзыв доступа запрещает повтор ранее выполненной команды');
+$membership->execute([':board' => $boardId, ':actor' => $member, ':role' => 'member']);
+
 $archive = $service->mutate(
     $userId, $taskUid, 3, 'board-owner-command-3', 'board.task.archive', ['archived' => '1']
 );
