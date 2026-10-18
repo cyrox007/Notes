@@ -31,6 +31,21 @@ window.wspace.page.register('modules/files/assets/spaces.js', (pageScope) => {
             select.addEventListener('change', () => syncSubject(select.form));
         });
 
+        root.querySelectorAll('[data-filespace-bulk-type]').forEach(type => {
+            const select = type.form?.querySelector('[data-filespace-bulk-ids]');
+            if (!select) return;
+            const sync = () => {
+                [...select.options].forEach(option => {
+                    const visible = option.dataset.for === type.value;
+                    option.disabled = !visible;
+                    option.hidden = !visible;
+                    if (!visible) option.selected = false;
+                });
+            };
+            type.addEventListener('change', sync);
+            sync();
+        });
+
         root.querySelectorAll('[data-filespace-destination]').forEach(select => {
             const apply = () => {
                 const versionInput = select.form?.querySelector('[name="expected_destination_version"]');

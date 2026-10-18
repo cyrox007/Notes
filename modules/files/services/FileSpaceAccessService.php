@@ -135,6 +135,122 @@ final class FileSpaceAccessService
         return $this->resolve($actor, (int) $space['id'], $chain, $permission);
     }
 
+    /**
+     * Пакетная проверка прав для дочерних объектов одного каталога.
+     * Членство пользователя и набор правил считываются один раз на пачку.
+     * Не хранит права между запросами или операциями изменения ACL.
+     *
+     * @param list<array<string,mixed>> $items
+     * @param list<string> $permissions
+     * @return array<int,array<string,array{allowed:bool,source:string,subject:string}>>
+     */
+    public function childrenRights(
+        int $userId, ?int $parentId, array $items, array $permissions
+    ): array {
+        $this->require($userId, 'global', $parentId, 'view');
+        $this->require($userId, 'global', $parentId, 'list');
+        $permissions = array_values(array_unique($permissions));
+        foreach ($permissions as $permission) {
+            if (!in_array($permission, self::PERMISSIONS, true)) {
+                throw new InvalidArgumentException('Неизвестное файловое право');
+            }
+        }
+        if (count($items) > 100 || count($permissions) > count(self::PERMISSIONS)) {
+            throw new InvalidArgumentException('Превышен допустимый размер проверки файловых прав');
+        }
+        if ($items === []) {
+            return [];
+        }
+
+        $actor = $this->actor($userId);
+        $space = $this->space('global');
+        $parentChain = $this->chain((int) $space['id'], $parentId);
+        $result = [];
+
+        if ($actor['is_admin']) {
+            foreach ($items as $item) {
+                $id = (int) $item['id'];
+                foreach ($permissions as $permission) {
+                    $result[$id][$permission] = [
+                        'allowed' => true, 'source' => 'administrator',
+                        'subject' => 'administrator',
+                    ];
+                }
+            }
+            return $result;
+        }
+
+        $scopes = array_column($parentChain, 'key');
+        foreach ($items as $item) {
+            $scopes[] = 'node:' . (int) $item['id'];
+        }
+        $scopes = array_values(array_unique($scopes));
+        $marks = implode(',', array_fill(0, count($scopes), '?'));
+        $rulesQuery = $this->pdo->prepare(
+            'SELECT scope_key,permission_key,subject_type,subject_id,effect
+             FROM file_space_acl WHERE space_id=?
+               AND scope_key IN (' . $marks . ')'
+        );
+        $rulesQuery->execute([(int) $space['id'], ...$scopes]);
+        $rules = [];
+        foreach ($rulesQuery->fetchAll(PDO::FETCH_ASSOC) as $rule) {
+            $rules[$rule['scope_key']][$rule['permission_key']][] = $rule;
+        }
+
+        foreach ($items as $item) {
+            $id = (int) $item['id'];
+            $chain = [[
+                'key' => 'node:' . $id,
+                'parent' => $parentId,
+                'author' => $item['created_by'] === null ? null : (int) $item['created_by'],
+                'inherit' => (int) $item['inherit_acl'] === 1,
+            ], ...$parentChain];
+            foreach ($permissions as $permission) {
+                $result[$id][$permission] = $this->resolveLoaded(
+                    $actor, $chain, $permission, $rules
+                );
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * @param array<string,mixed> $actor
+     * @param list<array{key:string,parent:?int,author:?int,inherit:bool}> $chain
+     * @param array<string,array<string,list<array<string,mixed>>>> $rules
+     * @return array{allowed:bool,source:string,subject:string}
+     */
+    private function resolveLoaded(
+        array $actor, array $chain, string $permission, array $rules
+    ): array {
+        foreach ($chain as $scope) {
+            $allowedBy = null;
+            foreach ($rules[$scope['key']][$permission] ?? [] as $rule) {
+                if (!$this->matches($actor, $scope['author'], $rule)) {
+                    continue;
+                }
+                $subject = (string) $rule['subject_type'];
+                if (in_array($subject, ['role', 'group', 'user'], true)) {
+                    $subject .= ':' . (int) $rule['subject_id'];
+                }
+                if ($rule['effect'] === 'deny') {
+                    return ['allowed' => false, 'source' => $scope['key'], 'subject' => $subject];
+                }
+                $allowedBy = $subject;
+            }
+            if ($allowedBy !== null) {
+                return ['allowed' => true, 'source' => $scope['key'], 'subject' => $allowedBy];
+            }
+            if (!$scope['inherit']) {
+                return [
+                    'allowed' => false, 'source' => $scope['key'],
+                    'subject' => 'inheritance_off',
+                ];
+            }
+        }
+        return ['allowed' => false, 'source' => 'default_deny', 'subject' => 'none'];
+    }
+
     /** @return list<array{permission:string,allowed:bool,source:string,subject:string}> */
     public function explain(int $actorId, int $targetUserId, ?int $folderId = null): array
     {

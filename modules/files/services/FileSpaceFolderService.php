@@ -69,10 +69,16 @@ final class FileSpaceFolderService
                 $exhausted = true;
                 break;
             }
+            $rights = $this->access->childrenRights(
+                $actorId, $parentId, $batch,
+                ['view','download','rename_own','rename_others','move_own','move_others',
+                 'delete_own','delete_others','replace_own','replace_others']
+            );
             foreach ($batch as $item) {
                 $position = ['name' => (string) $item['name'], 'id' => (int) $item['id']];
                 $scanned++;
-                if (!$this->access->decision($actorId, 'global', (int) $item['id'], 'view')['allowed']) {
+                $itemRights = $rights[(int) $item['id']];
+                if (!$itemRights['view']['allowed']) {
                     continue;
                 }
                 if (count($items) === self::PAGE_SIZE) {
@@ -93,12 +99,12 @@ final class FileSpaceFolderService
                 'inherit_acl' => (int) $item['inherit_acl'] === 1,
                 'byte_size' => (int) $item['byte_size'],
                 'can_download' => (string) $item['node_type'] === 'file'
-                    && $this->access->decision($actorId, 'global', (int) $item['id'], 'download')['allowed'],
-                'can_rename' => $this->access->decision($actorId, 'global', (int) $item['id'], $renamePermission)['allowed'],
-                'can_move' => $this->access->decision($actorId, 'global', (int) $item['id'], $movePermission)['allowed'],
-                'can_delete' => $this->access->decision($actorId, 'global', (int) $item['id'], $deletePermission)['allowed'],
+                    && $itemRights['download']['allowed'],
+                'can_rename' => $itemRights[$renamePermission]['allowed'],
+                'can_move' => $itemRights[$movePermission]['allowed'],
+                'can_delete' => $itemRights[$deletePermission]['allowed'],
                 'can_replace' => (string) $item['node_type'] === 'file'
-                    && $this->access->decision($actorId, 'global', (int) $item['id'], $replacePermission)['allowed'],
+                    && $itemRights[$replacePermission]['allowed'],
                 'is_author' => $own,
 
             ];
@@ -374,6 +380,120 @@ final class FileSpaceFolderService
                 'version' => $version,
                 'replayed' => false,
                 'scope' => self::scope($folderId),
+            ];
+            $this->finish($receipt, $result, $version, MutationCommandStore::STATUS_APPLIED);
+            $this->pdo->commit();
+            return $result;
+        } catch (Throwable $error) {
+            $this->rollback();
+            throw $error;
+        }
+    }
+
+    /**
+     * Одно назначение нескольким участникам и нескольким разрешениям.
+     * Либо сохраняются все правила, либо не сохраняется ни одно.
+     *
+     * @param list<int> $subjectIds
+     * @param list<string> $permissions
+     * @return array<string,mixed>
+     */
+    public function setRulesBulk(
+        int $actorId, ?int $folderId, string $subjectType,
+        array $subjectIds, array $permissions, string $effect,
+        int $expectedVersion, string $commandId
+    ): array {
+        self::version($expectedVersion);
+        if (!in_array($subjectType, ['user','role','group'], true)
+            || !in_array($effect, ['allow','deny','remove'], true)) {
+            throw new InvalidArgumentException('Некорректная массовая команда изменения прав');
+        }
+        foreach ($subjectIds as $id) {
+            if (!is_int($id) || $id < 1) {
+                throw new InvalidArgumentException('Некорректный получатель файловых прав');
+            }
+        }
+        foreach ($permissions as $permission) {
+            if (!is_string($permission)
+                || !in_array($permission, FileSpaceAccessService::PERMISSIONS, true)) {
+                throw new InvalidArgumentException('Недопустимое право общего каталога');
+            }
+        }
+        $subjectIds = array_values(array_unique($subjectIds));
+        $permissions = array_values(array_unique($permissions));
+        sort($subjectIds, SORT_NUMERIC);
+        sort($permissions, SORT_STRING);
+        if ($subjectIds === [] || $permissions === []
+            || count($subjectIds) > 25 || count($permissions) > 12
+            || count($subjectIds) * count($permissions) > 100) {
+            throw new InvalidArgumentException('Выберите от 1 до 100 правил, не более 25 получателей');
+        }
+        $hash = $this->commands->requestHash([
+            'folder_id' => $folderId,
+            'subject_type' => $subjectType,
+            'subject_ids' => $subjectIds,
+            'permissions' => $permissions,
+            'effect' => $effect,
+            'expected_version' => $expectedVersion,
+        ]);
+        $this->begin();
+        try {
+            $space = $this->access->space('global');
+            $target = $this->lockTarget((int) $space['id'], $folderId);
+            $this->access->require($actorId, 'global', $folderId, 'manage_acl');
+
+            $receipt = $this->acquire(
+                $actorId, $commandId, 'files.acl.bulk',
+                (string) $space['uid'], self::scope($folderId), $hash
+            );
+            if (!$receipt['owner']) {
+                return $this->replay($receipt);
+            }
+            if ((int) $target['version'] !== $expectedVersion) {
+                return $this->conflict($receipt, $expectedVersion, (int) $target['version']);
+            }
+            foreach ($subjectIds as $id) {
+                $this->assertSubject($subjectType, $id);
+            }
+            $statement = $this->pdo->prepare($effect === 'remove'
+                ? 'DELETE FROM file_space_acl
+                   WHERE space_id=:space AND scope_key=:scope
+                     AND subject_type=:type AND subject_id=:subject_id
+                     AND permission_key=:permission'
+                : 'INSERT INTO file_space_acl
+                   (space_id,scope_key,subject_type,subject_id,permission_key,effect,updated_by)
+                   VALUES (:space,:scope,:type,:subject_id,:permission,:effect,:actor)
+                   ON DUPLICATE KEY UPDATE effect=VALUES(effect),updated_by=VALUES(updated_by)');
+            foreach ($subjectIds as $id) {
+                foreach ($permissions as $permission) {
+                    $parameters = [
+                        ':space' => (int) $space['id'],
+                        ':scope' => self::scope($folderId),
+                        ':type' => $subjectType,
+                        ':subject_id' => $id,
+                        ':permission' => $permission,
+                    ];
+                    if ($effect !== 'remove') {
+                        $parameters[':effect'] = $effect;
+                        $parameters[':actor'] = $actorId;
+                    }
+                    $statement->execute($parameters);
+                }
+            }
+            $version = $this->bumpVersion((int) $space['id'], $folderId, $expectedVersion);
+            $this->audit((int) $space['id'], $folderId, $actorId, 'acl.bulk', [
+                'scope' => self::scope($folderId),
+                'subject_type' => $subjectType,
+                'subject_ids' => $subjectIds,
+                'permissions' => $permissions,
+                'effect' => $effect,
+            ]);
+            $result = [
+                'success' => true,
+                'version' => $version,
+                'rules_count' => count($subjectIds) * count($permissions),
+                'scope' => self::scope($folderId),
+                'replayed' => false,
             ];
             $this->finish($receipt, $result, $version, MutationCommandStore::STATUS_APPLIED);
             $this->pdo->commit();
