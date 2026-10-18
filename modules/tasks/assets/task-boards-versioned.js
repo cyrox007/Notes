@@ -14,9 +14,8 @@ window.wspace.page.register('modules/tasks/assets/task-boards-versioned.js', (pa
         }
 
         function generateCommandId() {
-            return 'board:web:' + (crypto.randomUUID
-                ? crypto.randomUUID()
-                : Date.now().toString(36) + Math.random().toString(36).slice(2));
+            return 'board:web:' + (globalThis.crypto?.randomUUID?.()
+                || Date.now().toString(36) + Math.random().toString(36).slice(2));
         }
 
         function applyVersion(card, version) {
