@@ -153,5 +153,6 @@ $events = (int) $pdo->query('SELECT COUNT(*) FROM file_space_events')->fetchColu
 filespaceCheck($events >= 7, 'значимые операции записаны в журнал');
 
 require __DIR__ . '/filespaces_transfers_12_scenarios.php';
+require __DIR__ . '/filespaces_operations_12_scenarios.php';
 
 echo "Контракт файловых пространств Files 1.2 выполнен\n";
