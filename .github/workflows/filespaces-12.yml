@@ -61,6 +61,7 @@ jobs:
           php -l modules/files/services/FileUploadTypes.php
           php -l modules/files/services/FileSpaceTransferService.php
           php -l modules/files/controllers/FileSpaceTransferController.php
+          php -l modules/files/middlewares/EnforceFileUploadPolicy.php
           php -l tests/integration/filespaces_transfers_12_scenarios.php
           php -l modules/files/services/FileSpaceAccessService.php
           php -l modules/files/services/FileSpaceFolderService.php
