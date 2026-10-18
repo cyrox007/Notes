@@ -157,5 +157,6 @@ require __DIR__ . '/filespaces_operations_12_scenarios.php';
 require __DIR__ . '/filespaces_admin_12_scenarios.php';
 require __DIR__ . '/filespaces_purge_12_scenarios.php';
 require __DIR__ . '/filespaces_pagination_12_scenarios.php';
+require __DIR__ . '/filespaces_bulk_load_12_scenarios.php';
 
 echo "Контракт файловых пространств Files 1.2 выполнен\n";
