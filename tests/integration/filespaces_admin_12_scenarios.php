@@ -63,7 +63,8 @@ $history = array_values(array_filter(
     $explanation, static fn (array $entry): bool => $entry['permission'] === 'history'
 ));
 filespaceCheck(count($history) === 1 && $history[0]['allowed']
-    && $history[0]['source'] === 'space',
+    && $history[0]['source'] === 'space'
+    && $history[0]['subject'] === 'group:' . $groupId,
     'диагностика показывает реально применённое правило и его источник');
 $noDiagnostic = false;
 try {
