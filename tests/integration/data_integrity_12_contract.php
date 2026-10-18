@@ -153,5 +153,6 @@ $boardVersionColumn = (int) $pdo->query(
 integrityCheck($boardVersionColumn === 1, 'общие задачи также должны иметь version');
 
 require __DIR__ . '/board_integrity_12_scenarios.php';
+require __DIR__ . '/task_relations_12_scenarios.php';
 
 echo 'Контракт целостности данных 1.2 выполнен' . PHP_EOL;
