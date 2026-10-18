@@ -7,6 +7,7 @@ namespace App\Controllers;
 use App\Models\UserModel;
 use App\Services\Files\FileSpaceAccessService;
 use App\Services\Files\FileSpaceFolderService;
+use App\Services\Files\FileSpaceObjectService;
 use Core\Controller;
 use Core\DatabaseManager;
 use Core\Request;
@@ -27,6 +28,10 @@ final class FileSpaceController extends Controller
             $service = $this->service();
             $catalog = $service->browse($actorId, $folderId);
             $rules = $catalog['can_manage'] ? $service->rules($actorId, $folderId) : [];
+            $trash = (new FileSpaceObjectService(
+                DatabaseManager::getInstance()->getPdo(),
+                new FileSpaceAccessService(DatabaseManager::getInstance()->getPdo())
+            ))->trash($actorId);
             $db = DatabaseManager::getInstance();
             $roles = $catalog['can_manage']
                 ? $db->fetchAll('SELECT id,code,name FROM roles ORDER BY name,id') : [];
@@ -40,6 +45,7 @@ final class FileSpaceController extends Controller
                 'user' => $user,
                 'catalog' => $catalog,
                 'acl_rules' => $rules,
+                'trash_items' => $trash,
                 'available_roles' => $roles,
                 'available_users' => $users,
             ]);

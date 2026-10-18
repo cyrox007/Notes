@@ -151,6 +151,137 @@ final class FileSpaceTransferService
         }
     }
 
+    /**
+     * Содержимое заменяется под случайным новым ключом.
+     * Старые байты не удаляются до подтверждения транзакции БД.
+     *
+     * @param array<string,mixed> $file
+     * @return array<string,mixed>
+     */
+    public function replace(
+        int $actorId, int $fileId, array $file, int $expectedVersion,
+        int $expectedParentVersion, string $commandId, int $maxBytes
+    ): array {
+        if ($fileId < 1 || $expectedVersion < 1 || $expectedParentVersion < 1) {
+            throw new InvalidArgumentException('Укажите текущую версию файла и каталога');
+        }
+        $upload = $this->inspectUpload($file, $maxBytes);
+        $hash = $this->commands->requestHash([
+            'file_id' => $fileId, 'sha256' => $upload['sha256'],
+            'size' => $upload['size'], 'name' => $upload['name'],
+            'expected_version' => $expectedVersion,
+            'expected_parent_version' => $expectedParentVersion,
+        ]);
+        if ($this->pdo->inTransaction()) {
+            throw new RuntimeException('Замена общего файла требует отдельную транзакцию');
+        }
+        $newPath = null;
+        $oldPath = null;
+        $this->pdo->beginTransaction();
+        try {
+            $space = $this->access->space();
+            $lock = $this->pdo->prepare('SELECT id FROM file_spaces WHERE id=:id FOR UPDATE');
+            $lock->execute([':id' => (int) $space['id']]);
+            $nodeQuery = $this->pdo->prepare(
+                'SELECT id,uid,space_id,parent_id,created_by,name,node_type,storage_key,version
+                 FROM file_space_nodes
+                 WHERE id=:id AND space_id=:space AND is_deleted=0 LIMIT 1 FOR UPDATE'
+            );
+            $nodeQuery->execute([':id' => $fileId, ':space' => (int) $space['id']]);
+            $node = $nodeQuery->fetch(PDO::FETCH_ASSOC);
+            if (!is_array($node) || $node['node_type'] !== 'file') {
+                throw new DomainException('Файл не найден или недоступен', 404);
+            }
+            $parent = $node['parent_id'] === null ? null : (int) $node['parent_id'];
+            $this->access->require($actorId, 'global', $fileId, 'view');
+            $own = $node['created_by'] !== null && (int) $node['created_by'] === $actorId;
+            $this->access->require($actorId, 'global', $fileId, $own ? 'replace_own' : 'replace_others');
+            if (strtolower((string) pathinfo((string) $node['name'], PATHINFO_EXTENSION)) !== $upload['extension']) {
+                throw new InvalidArgumentException('При замене содержимого расширение файла должно оставаться прежним');
+            }
+            $parentVersion = $this->lockContainer((int) $space['id'], $parent);
+            $receipt = $this->commands->acquire(
+                $this->pdo, 'user:' . $actorId, $commandId, 'files',
+                'files.file.replace', 'file_space_node', (string) $node['uid'], $hash
+            );
+            if (!$receipt['owner']) {
+                $result = $this->commands->storedResponse($receipt['record']);
+                $this->pdo->commit();
+                return $result;
+            }
+
+            if ((int) $node['version'] !== $expectedVersion
+                || $parentVersion !== $expectedParentVersion) {
+                $result = [
+                    'success' => false, 'error' => 'version_conflict',
+                    'message' => 'Файл изменился. Обновите страницу перед заменой.',
+                    'current_version' => (int) $node['version'],
+                    'current_parent_version' => $parentVersion,
+                ];
+                $this->finish($receipt, $result, (int) $node['version'], MutationCommandStore::STATUS_CONFLICT);
+                $this->pdo->commit();
+                return $result;
+            }
+
+            $directory = $this->directory(true);
+            $key = bin2hex(random_bytes(24)) . '.' . $upload['extension'];
+            $newPath = $directory . DIRECTORY_SEPARATOR . $key;
+            $moved = $this->moveFile !== null
+                ? ($this->moveFile)($upload['temporary_path'], $newPath)
+                : move_uploaded_file($upload['temporary_path'], $newPath);
+            if (!$moved || is_link($newPath) || !is_file($newPath)) {
+                throw new RuntimeException('Не удалось безопасно записать новую версию файла');
+            }
+            @chmod($newPath, 0600);
+
+            $oldKey = (string) $node['storage_key'];
+            if (preg_match('/^[a-f0-9]{48}\.[a-z0-9]{1,12}$/D', $oldKey) === 1) {
+                $oldPath = $directory . DIRECTORY_SEPARATOR . $oldKey;
+            }
+            $update = $this->pdo->prepare(
+                'UPDATE file_space_nodes SET storage_key=:key,mime_type=:mime,byte_size=:size,
+                    version=version+1,updated_by=:actor,updated_at=NOW()
+                 WHERE id=:id AND version=:expected AND is_deleted=0'
+            );
+            $update->execute([
+                ':key' => $key, ':mime' => $upload['mime_type'], ':size' => $upload['size'],
+                ':actor' => $actorId, ':id' => $fileId, ':expected' => $expectedVersion,
+            ]);
+            if ($update->rowCount() !== 1) {
+                throw new RuntimeException('Файл был изменён параллельно');
+            }
+            $nextParent = $this->bumpContainer((int) $space['id'], $parent, $expectedParentVersion);
+            $event = $this->pdo->prepare(
+                'INSERT INTO file_space_events (space_id,node_id,actor_user_id,event_code,details_json)
+                 VALUES (:space,:node,:actor,"file.replace",:details)'
+            );
+            $event->execute([
+                ':space' => (int) $space['id'], ':node' => $fileId, ':actor' => $actorId,
+                ':details' => json_encode(['size' => $upload['size']], JSON_THROW_ON_ERROR),
+            ]);
+            $result = [
+                'success' => true, 'file_id' => $fileId, 'version' => $expectedVersion + 1,
+                'parent_version' => $nextParent, 'replayed' => false,
+            ];
+            $this->finish($receipt, $result, $expectedVersion + 1, MutationCommandStore::STATUS_APPLIED);
+            $this->pdo->commit();
+        } catch (Throwable $error) {
+            if ($this->pdo->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+            if ($newPath !== null && is_file($newPath)) {
+                @unlink($newPath);
+            }
+            throw $error;
+        }
+
+        // Старое содержимое можно удалить только после успешной фиксации нового.
+        if ($oldPath !== null && is_file($oldPath) && !is_link($oldPath) && !@unlink($oldPath)) {
+            error_log('Не удалось очистить прежнюю физическую версию общего файла: ' . basename($oldPath));
+        }
+        return $result;
+    }
+
     /** @return array{path:string,name:string,mime_type:string,size:int} */
     public function download(int $actorId, int $fileId): array
     {

@@ -8,6 +8,7 @@ $catalog = isset($catalog) && is_array($catalog) ? $catalog : [];
 $space = isset($catalog['space']) && is_array($catalog['space']) ? $catalog['space'] : [];
 $parent = isset($catalog['parent']) && is_array($catalog['parent']) ? $catalog['parent'] : null;
 $items = isset($catalog['items']) && is_array($catalog['items']) ? $catalog['items'] : [];
+$trashItems = isset($trash_items) && is_array($trash_items) ? $trash_items : [];
 $rules = isset($acl_rules) && is_array($acl_rules) ? $acl_rules : [];
 $roles = isset($available_roles) && is_array($available_roles) ? $available_roles : [];
 $users = isset($available_users) && is_array($available_users) ? $available_users : [];
@@ -63,7 +64,70 @@ ob_start();
                                 <?= $view->e($item['name']) ?>
                             <?php endif; ?>
                         </div>
-                        <div class="file-manager__item-meta"><?= !empty($item['inherit_acl']) ? 'Наследует права' : 'Собственные правила' ?></div>
+                        <div class="file-manager__item-meta">
+                            <?php if (($item['type'] ?? '') === 'file'): ?>
+                                <?= number_format(((int) ($item['byte_size'] ?? 0)) / 1024, 1, ',', ' ') ?> КБ
+                            <?php else: ?>
+                                <?= !empty($item['inherit_acl']) ? 'Наследует права' : 'Собственные правила' ?>
+                            <?php endif; ?>
+                        </div>
+                        <?php $objectAction = $view->route('files_global_object_mutate', ['nodeId' => (int) $item['id']]); ?>
+                        <?php if (!empty($item['can_rename'])): ?>
+                            <form method="post" action="<?= $view->e($objectAction) ?>" data-filespace-action>
+                                <?= $view->csrfInput() ?>
+                                <input type="hidden" name="action" value="rename">
+                                <input type="hidden" name="expected_version" value="<?= (int) $item['version'] ?>">
+                                <input type="hidden" name="expected_parent_version" value="<?= $folderVersion ?>">
+                                <input type="hidden" name="command_id" value="<?= $view->e($command()) ?>">
+                                <label>Новое название <input type="text" name="name" maxlength="255"
+                                        value="<?= $view->e($item['name']) ?>" required></label>
+                                <button type="submit" class="file-manager__btn file-manager__btn--secondary">Переименовать</button>
+                            </form>
+                        <?php endif; ?>
+                        <?php if (!empty($item['can_move'])): ?>
+                            <form method="post" action="<?= $view->e($objectAction) ?>" data-filespace-action>
+                                <?= $view->csrfInput() ?>
+                                <input type="hidden" name="action" value="move">
+                                <input type="hidden" name="expected_version" value="<?= (int) $item['version'] ?>">
+                                <input type="hidden" name="expected_parent_version" value="<?= $folderVersion ?>">
+                                <input type="hidden" name="expected_destination_version" value="<?= (int) ($space['version'] ?? 1) ?>">
+                                <input type="hidden" name="command_id" value="<?= $view->e($command()) ?>">
+                                <label>Переместить в
+                                    <select name="destination_id" data-filespace-destination>
+                                        <option value="" data-version="<?= (int) ($space['version'] ?? 1) ?>">Корень общих файлов</option>
+                                        <?php foreach ($items as $destination): ?>
+                                            <?php if (($destination['type'] ?? '') !== 'folder' || (int) $destination['id'] === (int) $item['id']) { continue; } ?>
+                                            <option value="<?= (int) $destination['id'] ?>"
+                                                    data-version="<?= (int) $destination['version'] ?>"><?= $view->e($destination['name']) ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </label>
+                                <button type="submit" class="file-manager__btn file-manager__btn--secondary">Переместить</button>
+                            </form>
+                        <?php endif; ?>
+                        <?php if (!empty($item['can_replace'])): ?>
+                            <form method="post" enctype="multipart/form-data"
+                                  action="<?= $view->e($view->route('files_global_object_replace', ['fileId' => (int) $item['id']])) ?>"
+                                  data-filespace-action>
+                                <?= $view->csrfInput() ?>
+                                <input type="hidden" name="expected_version" value="<?= (int) $item['version'] ?>">
+                                <input type="hidden" name="expected_parent_version" value="<?= $folderVersion ?>">
+                                <input type="hidden" name="command_id" value="<?= $view->e($command()) ?>">
+                                <label>Заменить содержимое <input type="file" name="file" required></label>
+                                <button type="submit" class="file-manager__btn file-manager__btn--secondary">Заменить</button>
+                            </form>
+                        <?php endif; ?>
+                        <?php if (!empty($item['can_delete'])): ?>
+                            <form method="post" action="<?= $view->e($objectAction) ?>"
+                                  data-filespace-action data-filespace-confirm="Переместить объект в корзину?">
+                                <?= $view->csrfInput() ?>
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="expected_version" value="<?= (int) $item['version'] ?>">
+                                <input type="hidden" name="expected_parent_version" value="<?= $folderVersion ?>">
+                                <input type="hidden" name="command_id" value="<?= $view->e($command()) ?>">
+                                <button type="submit" class="file-manager__btn file-manager__btn--secondary">В корзину</button>
+                            </form>
+                        <?php endif; ?>
                     </div>
                 <?php endforeach; ?>
             </div>
@@ -97,6 +161,31 @@ ob_start();
                 <input id="filespace-folder-name" name="name" type="text" maxlength="255" required>
                 <button class="file-manager__btn file-manager__btn--primary" type="submit">Создать</button>
             </form>
+        </section>
+    <?php endif; ?>
+
+    <?php if ($trashItems !== []): ?>
+        <section class="file-manager__content">
+            <h2>Корзина общих файлов</h2>
+            <p>Удалённые папки скрывают всё содержимое. Восстановление возвращает папку вместе с файлами.</p>
+            <?php foreach ($trashItems as $discarded): ?>
+                <div class="file-manager__item">
+                    <div class="file-manager__item-name"><?= $view->e($discarded['name']) ?></div>
+                    <div class="file-manager__item-meta">
+                        Удалено: <?= $view->e($discarded['deleted_at'] ?? '') ?>
+                    </div>
+                    <form method="post"
+                          action="<?= $view->e($view->route('files_global_object_mutate', ['nodeId' => (int) $discarded['id']])) ?>"
+                          data-filespace-action>
+                        <?= $view->csrfInput() ?>
+                        <input type="hidden" name="action" value="restore">
+                        <input type="hidden" name="expected_version" value="<?= (int) $discarded['version'] ?>">
+                        <input type="hidden" name="expected_parent_version" value="<?= (int) $discarded['parent_version'] ?>">
+                        <input type="hidden" name="command_id" value="<?= $view->e($command()) ?>">
+                        <button type="submit" class="file-manager__btn file-manager__btn--secondary">Восстановить</button>
+                    </form>
+                </div>
+            <?php endforeach; ?>
         </section>
     <?php endif; ?>
 

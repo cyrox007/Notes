@@ -31,10 +31,20 @@ window.wspace.page.register('modules/files/assets/spaces.js', (pageScope) => {
             select.addEventListener('change', () => syncSubject(select.form));
         });
 
+        root.querySelectorAll('[data-filespace-destination]').forEach(select => {
+            const apply = () => {
+                const versionInput = select.form?.querySelector('[name="expected_destination_version"]');
+                if (versionInput) versionInput.value = select.selectedOptions[0]?.dataset.version || '';
+            };
+            select.addEventListener('change', apply);
+            apply();
+        });
+
         root.addEventListener('submit', async event => {
             const form = event.target;
             if (!(form instanceof HTMLFormElement) || !form.matches('[data-filespace-action]')) return;
             event.preventDefault();
+            if (form.dataset.filespaceConfirm && !window.confirm(form.dataset.filespaceConfirm)) return;
             if (form.dataset.submitting === '1') return;
             form.dataset.submitting = '1';
             const button = form.querySelector('[type="submit"]');

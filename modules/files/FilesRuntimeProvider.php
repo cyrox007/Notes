@@ -9,6 +9,7 @@ use App\Controllers\FileQuotaController;
 use App\Controllers\FileShareController;
 use App\Controllers\FileSpaceController;
 use App\Controllers\FileSpaceTransferController;
+use App\Controllers\FileSpaceObjectController;
 use App\Middlewares\CSRFMiddleware;
 use App\Middlewares\EnforceFileFolderPolicy;
 use App\Middlewares\EnforceFileUploadPolicy;
@@ -59,6 +60,8 @@ final class FilesRuntimeProvider implements ModuleRuntimeProvider
             ->add('POST', '/spaces/global/acl/', [FileSpaceController::class, 'setAcl'], [LoginRequared::class, RequireFilesUse::class, CSRFMiddleware::class], 'files_global_acl')
             ->add('POST', '/spaces/global/upload/', [FileSpaceTransferController::class, 'upload'], [LoginRequared::class, RequireFilesUse::class, CSRFMiddleware::class, UploadRateLimit::class, EnforceFileUploadPolicy::class], 'files_global_upload')
             ->add('GET', '/spaces/global/download/{int:fileId}/', [FileSpaceTransferController::class, 'download'], [LoginRequared::class, RequireFilesUse::class], 'files_global_download')
+            ->add('POST', '/spaces/global/node/{int:nodeId}/', [FileSpaceObjectController::class, 'mutate'], [LoginRequared::class, RequireFilesUse::class, CSRFMiddleware::class], 'files_global_object_mutate')
+            ->add('POST', '/spaces/global/node/{int:fileId}/replace/', [FileSpaceObjectController::class, 'replace'], [LoginRequared::class, RequireFilesUse::class, CSRFMiddleware::class, UploadRateLimit::class, EnforceFileUploadPolicy::class], 'files_global_object_replace')
             ->add('GET', '/quota/', [FileQuotaController::class, 'usage'], [LoginRequared::class, RequireFilesUse::class], 'files_quota')
             ->add('GET', '/folder/{int:folderId}/', [FileController::class, 'folder'], [LoginRequared::class, RequireFilesUse::class], 'files_folder')
             ->add('POST', '/create-folder/', [FileController::class, 'createFolder'], [LoginRequared::class, RequireFilesUse::class, EnforceFileFolderPolicy::class, StorageMutationLock::class], 'files_create_folder')
