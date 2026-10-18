@@ -56,6 +56,29 @@ filespaceCheck(count(array_filter($preview, static fn (array $item): bool =>
 filespaceCheck(is_file($purgeFiles . '/' . $key),
     'предварительный просмотр не изменяет содержимое');
 
+// Даже повреждённая БД с общим физическим ключом не должна стирать чужие байты.
+$duplicate = $pdo->prepare(
+    'INSERT INTO file_space_nodes
+       (uid,space_id,parent_id,node_type,name,created_by,
+        mime_type,byte_size,storage_key)
+     VALUES (:uid,:space,NULL,"file","Сохранить.txt",:author,
+             "text/plain",:bytes,:storage_key)'
+);
+$duplicate->execute([
+    ':uid' => bin2hex(random_bytes(16)), ':space' => $globalId,
+    ':author' => $reader, ':bytes' => strlen($payload), ':storage_key' => $key,
+]);
+$duplicateId = (int) $pdo->lastInsertId();
+$sharedKeyBlocked = false;
+try {
+    $purge->run(1);
+} catch (\RuntimeException $error) {
+    $sharedKeyBlocked = str_contains($error->getMessage(), 'другим объектом');
+}
+filespaceCheck($sharedKeyBlocked && file_get_contents($purgeFiles . '/' . $key) === $payload,
+    'общий физический ключ блокирует безвозвратное удаление');
+$pdo->prepare('DELETE FROM file_space_nodes WHERE id=:id')->execute([':id' => $duplicateId]);
+
 $simulateFailure = new FileSpacePurgeService(
     $pdo, $purgeHome,
     static function (string $uid): void {
