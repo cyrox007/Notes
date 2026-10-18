@@ -139,7 +139,7 @@ foreach ($attachmentRows as $attachment) {
                 <div class="note-editor-013__section-head"><div><h2>Поделиться</h2><p>Ссылка даёт только просмотр и может быть отключена.</p></div></div>
                 <div class="note-editor-013__share-box">
                     <?php if ($share !== null): ?>
-                        <?php $shareToken = (string) ($share['share_token'] ?? ''); $publicShareUrl = $baseUrl . '/notes/shared/' . rawurlencode($shareToken); ?>
+                        <?php $shareToken = (string) ($share['share_token'] ?? ''); $publicShareUrl = \Modules\Notes\NotePublicUrl::shared($shareToken); ?>
                         <div class="note-editor-013__share-url"><input type="text" id="shareUrl" value="<?= $view->e($publicShareUrl) ?>" readonly aria-label="Публичная ссылка"><button id="copyShareUrl" type="button" class="btn btn-secondary">Копировать</button></div>
                         <?php if (!empty($share['expires_at'])): ?><p>Действует до: <?= $view->e($share['expires_at']) ?></p><?php endif; ?>
                         <button id="unshareNote" type="button" class="btn btn-danger">Отключить ссылку</button>
