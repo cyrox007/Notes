@@ -11,7 +11,8 @@ $items = isset($catalog['items']) && is_array($catalog['items']) ? $catalog['ite
 $rules = isset($acl_rules) && is_array($acl_rules) ? $acl_rules : [];
 $roles = isset($available_roles) && is_array($available_roles) ? $available_roles : [];
 $users = isset($available_users) && is_array($available_users) ? $available_users : [];
-$version = (int) ($catalog['version'] ?? 1);
+$folderVersion = (int) ($catalog['version'] ?? 1);
+$workspaceVersion = isset($version) ? (string) $version : '';
 $canCreate = !empty($catalog['can_create']);
 $canManage = !empty($catalog['can_manage']);
 $folderId = $parent !== null ? (int) ($parent['id'] ?? 0) : null;
@@ -72,7 +73,7 @@ ob_start();
             <form action="<?= $view->e($view->route('files_global_create_folder')) ?>" method="post" data-filespace-action>
                 <?= $view->csrfInput() ?>
                 <input type="hidden" name="parent_id" value="<?= $folderId === null ? '' : (int) $folderId ?>">
-                <input type="hidden" name="expected_version" value="<?= $version ?>">
+                <input type="hidden" name="expected_version" value="<?= $folderVersion ?>">
                 <input type="hidden" name="command_id" value="<?= $view->e($command()) ?>">
                 <label for="filespace-folder-name">Название</label>
                 <input id="filespace-folder-name" name="name" type="text" maxlength="255" required>
@@ -98,7 +99,7 @@ ob_start();
             <form action="<?= $view->e($view->route('files_global_acl')) ?>" method="post" data-filespace-action>
                 <?= $view->csrfInput() ?>
                 <input type="hidden" name="folder_id" value="<?= $folderId === null ? '' : (int) $folderId ?>">
-                <input type="hidden" name="expected_version" value="<?= $version ?>">
+                <input type="hidden" name="expected_version" value="<?= $folderVersion ?>">
                 <input type="hidden" name="command_id" value="<?= $view->e($command()) ?>">
                 <label>Кому
                     <select name="subject_type" data-filespace-subject-type>
@@ -155,7 +156,7 @@ $content = (string) ob_get_clean();
 echo $view->layout('core/base', [
     'title' => 'Общие файлы',
     'sitename' => $sitename ?? 'Workspace Organizer',
-    'version' => $version ?? '',
+    'version' => $workspaceVersion,
     'base_url' => $base_url ?? '',
     'base_path' => $base_path ?? '',
     'user' => $currentUser,
