@@ -11,6 +11,7 @@ foreach ([
     '/services/FileUploadTypes.php',
     '/services/FileSpaceAccessService.php',
     '/services/FileSpaceTransferService.php',
+    '/services/FileSpaceObjectService.php',
     '/services/FileSpaceFolderService.php',
     '/middlewares/RequireFilesUse.php',
     '/middlewares/EnforceFileUploadPolicy.php',
@@ -21,6 +22,7 @@ foreach ([
     '/controllers/FileShareController.php',
     '/controllers/FileSpaceController.php',
     '/controllers/FileSpaceTransferController.php',
+    '/controllers/FileSpaceObjectController.php',
     '/FilesRuntimeProvider.php',
 ] as $relativePath) {
     $path = $moduleRoot . $relativePath;
