@@ -120,6 +120,20 @@ final class FileSpacePurgeService
                     continue;
                 }
                 $key = $this->safeKey((string) ($node['storage_key'] ?? ''));
+                // Ошибка метаданных не должна позволить очистке удалить файл,
+                // на который по-прежнему ссылается другой объект пространства.
+                $references = $this->pdo->prepare(
+                    'SELECT COUNT(*) FROM file_space_nodes
+                     WHERE space_id=:space AND storage_key=:key AND id<>:id'
+                );
+                $references->execute([
+                    ':space' => (int) $candidate['space_id'],
+                    ':key' => $key,
+                    ':id' => (int) $node['id'],
+                ]);
+                if ((int) $references->fetchColumn() !== 0) {
+                    throw new RuntimeException('Физический файл используется другим объектом');
+                }
                 $source = $origin . DIRECTORY_SEPARATOR . $key;
                 $target = $dir . DIRECTORY_SEPARATOR . $key;
                 if (!is_file($source) || is_link($source) || file_exists($target)
