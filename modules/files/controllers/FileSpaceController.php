@@ -40,6 +40,8 @@ final class FileSpaceController extends Controller
                     "SELECT id,username FROM users
                      WHERE is_active=1 AND account_status='active' ORDER BY username LIMIT 200"
                 ) : [];
+            $groups = $catalog['can_manage']
+                ? $db->fetchAll('SELECT id,name FROM file_access_groups ORDER BY name LIMIT 200') : [];
             $user = UserModel::select()->where('id', '=', $actorId)->first();
             $this->render_template('@files/spaces', [
                 'user' => $user,
@@ -49,6 +51,7 @@ final class FileSpaceController extends Controller
                 'acl_rules' => $rules,
                 'trash_items' => $trash,
                 'available_roles' => $roles,
+                'available_groups' => $groups,
                 'available_users' => $users,
             ]);
         } catch (DomainException|InvalidArgumentException $error) {
