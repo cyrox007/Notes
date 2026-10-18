@@ -146,22 +146,22 @@ ob_start();
                         <div class="task-board-column__items">
                             <?php foreach ($tasksForStatus as $boardTask): ?>
                                 <?php $taskUid = (string) ($boardTask['uid'] ?? ''); $assignees = isset($boardTask['assignees']) && is_array($boardTask['assignees']) ? $boardTask['assignees'] : []; ?>
-                                <article class="task-board-card" draggable="<?= $canWrite && empty($boardTask['archived_at']) ? 'true' : 'false' ?>" data-task-uid="<?= $view->e($taskUid) ?>" data-update-url="<?= $view->e($view->route('task_board_task_update', ['uid' => $taskUid])) ?>">
+                                <article class="task-board-card" data-version="<?= max(1, (int) ($boardTask['version'] ?? 1)) ?>" draggable="<?= $canWrite && empty($boardTask['archived_at']) ? 'true' : 'false' ?>" data-task-uid="<?= $view->e($taskUid) ?>" data-update-url="<?= $view->e($view->route('task_board_task_update', ['uid' => $taskUid])) ?>">
                                     <div class="task-board-card__title"><strong><?= $view->e($boardTask['title'] ?? '') ?></strong><span class="task-board-priority"><?= $view->e($boardTask['priority'] ?? '') ?></span></div>
                                     <?php if (trim((string) ($boardTask['description'] ?? '')) !== ''): ?><p class="task-board-card__description"><?= $view->e($boardTask['description']) ?></p><?php endif; ?>
                                     <div class="task-board-card__meta"><span>Автор: @<?= $view->e($boardTask['creator_username'] ?? '') ?></span><?php if (!empty($boardTask['due_date'])): ?><span>Срок: <?= $view->e($boardTask['due_date']) ?></span><?php endif; ?></div>
                                     <?php if ($assignees !== []): ?><div class="task-board-assignees"><?php foreach ($assignees as $assignee): ?><?php if (!is_array($assignee)) { continue; } ?><span class="task-board-assignee">@<?= $view->e($assignee['username'] ?? '') ?></span><?php endforeach; ?></div><?php endif; ?>
                                     <?php if ($canWrite): ?>
                                         <div class="task-board-card__actions">
-                                            <form action="<?= $view->e($view->route('task_board_task_update', ['uid' => $taskUid])) ?>" method="post">
-                                                <?= $view->csrfInput() ?>
+                                            <form action="<?= $view->e($view->route('task_board_task_update', ['uid' => $taskUid])) ?>" method="post" data-board-task-mutation>
+                                                <?= $view->csrfInput() ?><input type="hidden" name="expected_version" value="<?= max(1, (int) ($boardTask['version'] ?? 1)) ?>"><input type="hidden" name="command_id" value="board:web:<?= bin2hex(random_bytes(16)) ?>">
                                                 <select name="status" data-submit-on-change <?= !empty($boardTask['archived_at']) ? 'disabled' : '' ?> aria-label="Статус задачи"><option value="pending" <?= ($boardTask['status'] ?? '') === 'pending' ? 'selected' : '' ?>>Запланировано</option><option value="studying" <?= ($boardTask['status'] ?? '') === 'studying' ? 'selected' : '' ?>>Изучение</option><option value="in_progress" <?= ($boardTask['status'] ?? '') === 'in_progress' ? 'selected' : '' ?>>В работе</option><option value="review" <?= ($boardTask['status'] ?? '') === 'review' ? 'selected' : '' ?>>Проверка</option><option value="completed" <?= ($boardTask['status'] ?? '') === 'completed' ? 'selected' : '' ?>>Завершено</option></select>
                                             </form>
-                                            <form action="<?= $view->e($view->route('task_board_task_update', ['uid' => $taskUid])) ?>" method="post">
-                                                <?= $view->csrfInput() ?><input type="hidden" name="board_uid" value="<?= $view->e($selectedUid) ?>"><input type="hidden" name="archived" value="<?= empty($boardTask['archived_at']) ? '1' : '0' ?>"><button type="submit" class="task-board-button"><?= empty($boardTask['archived_at']) ? 'В архив' : 'Восстановить' ?></button>
+                                            <form action="<?= $view->e($view->route('task_board_task_update', ['uid' => $taskUid])) ?>" method="post" data-board-task-mutation>
+                                                <?= $view->csrfInput() ?><input type="hidden" name="expected_version" value="<?= max(1, (int) ($boardTask['version'] ?? 1)) ?>"><input type="hidden" name="command_id" value="board:web:<?= bin2hex(random_bytes(16)) ?>"><input type="hidden" name="board_uid" value="<?= $view->e($selectedUid) ?>"><input type="hidden" name="archived" value="<?= empty($boardTask['archived_at']) ? '1' : '0' ?>"><button type="submit" class="task-board-button"><?= empty($boardTask['archived_at']) ? 'В архив' : 'Восстановить' ?></button>
                                             </form>
-                                            <form action="<?= $view->e($view->route('task_board_task_delete', ['uid' => $taskUid])) ?>" method="post" data-confirm-message="Удалить задачу с общей доски?" data-confirm-title="Подтверждение" data-confirm-text="Удалить">
-                                                <?= $view->csrfInput() ?><input type="hidden" name="board_uid" value="<?= $view->e($selectedUid) ?>"><button class="task-board-button task-board-button--danger" type="submit">Удалить</button>
+                                            <form action="<?= $view->e($view->route('task_board_task_delete', ['uid' => $taskUid])) ?>" method="post" data-board-task-mutation data-confirm-message="Удалить задачу с общей доски?" data-confirm-title="Подтверждение" data-confirm-text="Удалить">
+                                                <?= $view->csrfInput() ?><input type="hidden" name="expected_version" value="<?= max(1, (int) ($boardTask['version'] ?? 1)) ?>"><input type="hidden" name="command_id" value="board:web:<?= bin2hex(random_bytes(16)) ?>"><input type="hidden" name="board_uid" value="<?= $view->e($selectedUid) ?>"><button class="task-board-button task-board-button--danger" type="submit">Удалить</button>
                                             </form>
                                         </div>
                                     <?php endif; ?>
@@ -194,6 +194,7 @@ echo $view->layout('core/base', [
     ],
     'module_scripts' => [
         $view->moduleAsset('tasks', 'task-boards.js'),
+        $view->moduleAsset('tasks', 'task-boards-versioned.js'),
         $view->moduleAsset('tasks', 'task-boards-nav.js'),
     ],
 ], $content);
