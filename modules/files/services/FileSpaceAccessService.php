@@ -116,7 +116,7 @@ final class FileSpaceAccessService
         // или удалённого предка при прямом запросе файла.
         $chain = $this->chain((int) $space['id'], $nodeId, $includeDeletedTarget);
         if ($actor['is_admin']) {
-            return ['allowed' => true, 'source' => 'administrator'];
+            return ['allowed' => true, 'source' => 'administrator', 'subject' => 'administrator'];
         }
         if ($nodeId !== null) {
             // Доступ к вложенному объекту не должен обходить закрытый корень
@@ -127,7 +127,7 @@ final class FileSpaceAccessService
                     $actor, (int) $space['id'], array_slice($ancestors, $index), 'view'
                 );
                 if (!$permissionAtAncestor['allowed']) {
-                    return ['allowed' => false, 'source' => 'ancestor'];
+                    return ['allowed' => false, 'source' => 'ancestor', 'subject' => 'closed_ancestor'];
                 }
             }
         }
@@ -135,7 +135,7 @@ final class FileSpaceAccessService
         return $this->resolve($actor, (int) $space['id'], $chain, $permission);
     }
 
-    /** @return list<array{permission:string,allowed:bool,source:string}> */
+    /** @return list<array{permission:string,allowed:bool,source:string,subject:string}> */
     public function explain(int $actorId, int $targetUserId, ?int $folderId = null): array
     {
         if (!$this->decision($actorId, 'global', $folderId, 'manage_acl')['allowed']) {
@@ -148,6 +148,7 @@ final class FileSpaceAccessService
                 'permission' => $permission,
                 'allowed' => $decision['allowed'],
                 'source' => $decision['source'],
+                'subject' => $decision['subject'] ?? '',
             ];
         }
         return $results;
@@ -208,23 +209,29 @@ final class FileSpaceAccessService
                 ':permission' => $permission,
             ]);
             $matchedAllow = false;
+            $matchedSubject = '';
             foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $rule) {
                 if (!$this->matches($actor, $scope['author'], $rule)) {
                     continue;
                 }
+                $subject = (string) $rule['subject_type'];
+                if (in_array($subject, ['role', 'group', 'user'], true)) {
+                    $subject .= ':' . (int) $rule['subject_id'];
+                }
                 if ($rule['effect'] === 'deny') {
-                    return ['allowed' => false, 'source' => $scope['key']];
+                    return ['allowed' => false, 'source' => $scope['key'], 'subject' => $subject];
                 }
                 $matchedAllow = true;
+                $matchedSubject = $subject;
             }
             if ($matchedAllow) {
-                return ['allowed' => true, 'source' => $scope['key']];
+                return ['allowed' => true, 'source' => $scope['key'], 'subject' => $matchedSubject];
             }
             if (!$scope['inherit']) {
-                return ['allowed' => false, 'source' => $scope['key']];
+                return ['allowed' => false, 'source' => $scope['key'], 'subject' => 'inheritance_off'];
             }
         }
-        return ['allowed' => false, 'source' => 'default_deny'];
+        return ['allowed' => false, 'source' => 'default_deny', 'subject' => 'none'];
     }
 
     /** @param array<string,mixed> $actor @param array<string,mixed> $rule */
