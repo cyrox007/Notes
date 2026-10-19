@@ -66,6 +66,8 @@ jobs:
           php tests/integration/module_account_ownership_contract_12.php
           php -l tests/integration/module_account_guard_sql_12.php
           php tests/integration/module_account_guard_sql_12.php
+          php -l tests/integration/background_account_retention_12.php
+          php tests/integration/background_account_retention_12.php
 
       - name: Verify module package web boundary
         shell: bash
