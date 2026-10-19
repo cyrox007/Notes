@@ -43,6 +43,15 @@ jobs:
           Start-Sleep -Seconds 10
           $page = 1
 
+          # События synchronize могут выполняться не в порядке поступления.
+          # Устаревшая задача не вправе отменять проверки нового коммита.
+          $pullUri = "https://api.github.com/repos/$env:REPOSITORY/pulls/$env:PR_NUMBER"
+          $livePr = Invoke-RestMethod -Uri $pullUri -Headers $headers -Method Get
+          if ($livePr.head.sha -ne $env:CURRENT_SHA) {
+              Write-Host 'Проверка очистки устарела; актуальные запуски не затронуты.'
+              exit 0
+          }
+
           do {
               $uri = "https://api.github.com/repos/$env:REPOSITORY/actions/runs?event=pull_request&branch=$encodedBranch&per_page=100&page=$page"
               $response = Invoke-RestMethod -Uri $uri -Headers $headers -Method Get
