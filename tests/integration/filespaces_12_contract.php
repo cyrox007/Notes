@@ -75,8 +75,15 @@ foreach ([$member,$reader] as $id) {
         ->execute([':id' => $id, ':role' => $regularRole]);
 }
 
-$access = new FileSpaceAccessService($pdo);
-$folders = new FileSpaceFolderService($pdo, $access);
+$db = \Core\DatabaseManager::forConnection($pdo);
+filespaceCheck($db->getPdo() === $pdo,
+    'менеджер ядра не создаёт второе соединение для тестовой транзакции');
+$statement = $db->prepare('SELECT id FROM file_spaces WHERE uid=:uid');
+$statement->execute([':uid' => 'global']);
+filespaceCheck((int) $statement->fetchColumn() > 0,
+    'подготовленные выражения ядра сохраняют префиксы таблиц');
+$access = new FileSpaceAccessService($db);
+$folders = new FileSpaceFolderService($db, $access);
 $space = $access->space();
 filespaceCheck($space['uid'] === 'global' && $space['owner_user_id'] === null,
     'общие файлы не должны принадлежать администратору');
