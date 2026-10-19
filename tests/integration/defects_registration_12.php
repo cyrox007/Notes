@@ -66,6 +66,10 @@ defectsAssert(count($references->areas(1, 1)) === 1, 'пагинация уча�
 defectsAssert(count($references->categories($areaId)) === 1, 'категория участка не найдена');
 defectsAssert(count($references->objects($categoryId)) === 1, 'объект категории не найден');
 defectsAssert(count($references->services(2, 4)) === 2, 'список служб не ограничен курсором');
+$pdo->exec('UPDATE defect_areas SET is_archived = 1 WHERE id = 2');
+defectsAssert($references->categories($areaId) === [], 'категория архивного участка стала доступной');
+defectsAssert($references->objects($categoryId) === [], 'объект архивного участка стал доступным');
+$pdo->exec('UPDATE defect_areas SET is_archived = 0 WHERE id = 2');
 defectsAssert((string) $database->fetchValue(
     'SELECT name FROM defect_areas WHERE id = :id', ['id' => $areaId]
 ) === 'Северный РЭС', 'название участка не нормализовано');
@@ -99,6 +103,14 @@ try {
     $conflict = true;
 }
 defectsAssert($conflict, 'повтор команды с иным содержимым должен отклоняться');
+
+$missingDescription = false;
+try {
+    $register('command_1234567890ZZ', [4], '   ');
+} catch (InvalidArgumentException) {
+    $missingDescription = true;
+}
+defectsAssert($missingDescription, 'нельзя создать дефект без описания');
 
 $pdo->exec('UPDATE defect_services SET is_archived = 1 WHERE id = 5');
 $archived = false;
