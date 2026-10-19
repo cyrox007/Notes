@@ -8,6 +8,7 @@ foreach ([
     'services/DefectReferenceService.php',
     'services/DefectRegistrationService.php',
     'services/DefectRegistryService.php',
+    'services/DefectReportService.php',
     'controllers/DefectsPageController.php',
     'controllers/DefectsApiController.php',
     'DefectsCapability.php',
