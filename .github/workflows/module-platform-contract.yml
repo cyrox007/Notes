@@ -79,6 +79,12 @@ jobs:
           php -l tests/integration/tasks_personal_queue_12_contract.php
           php tests/integration/tasks_personal_queue_12_contract.php
 
+      - name: Проверить сроки и приоритеты дефектов 1.2
+        run: |
+          php -l modules/defects/services/DefectPriorityPolicy.php
+          php -l tests/integration/defects_priority_policy_12.php
+          php tests/integration/defects_priority_policy_12.php
+
       - name: Verify module package web boundary
         shell: bash
         run: |
