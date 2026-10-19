@@ -234,6 +234,38 @@
         finally { submit.disabled = false; }
     });
 
+    const referenceHistoryForm = document.querySelector('[data-defects-reference-history]');
+    if (referenceHistoryForm) {
+        referenceHistoryForm.addEventListener('submit', async event => {
+            event.preventDefault();
+            const kind = referenceHistoryForm.elements.namedItem('kind').value;
+            const id = referenceHistoryForm.elements.namedItem('record_id').value;
+            const list = referenceHistoryForm.querySelector('[data-defects-reference-history-results]');
+            list.replaceChildren();
+            try {
+                const response = await request(api + '/references/'
+                    + encodeURIComponent(kind) + '/' + encodeURIComponent(id) + '/history?limit=100');
+                response.history.events.forEach(record => {
+                    const li = document.createElement('li');
+                    li.textContent = record.created_at + ' · '
+                        + (record.event_type === 'created' ? 'Создание' : record.event_type)
+                        + ' · пользователь #' + (record.actor_user_id ?? 'не указан');
+                    list.append(li);
+                });
+                if (response.history.next_cursor) {
+                    const li = document.createElement('li');
+                    li.textContent = 'Показаны первые 100 событий; доступно продолжение.';
+                    list.append(li);
+                }
+                if (!response.history.events.length) {
+                    const li = document.createElement('li');
+                    li.textContent = 'История изменений пока отсутствует.';
+                    list.append(li);
+                }
+            } catch (error) { message(error.message, true); }
+        });
+    }
+
     const importForm = document.querySelector('[data-defects-import]');
     if (importForm) {
         const file = importForm.elements.namedItem('file');
