@@ -118,9 +118,35 @@ foreach ([
     'BackgroundAccountRetention',
     'administrative_role_assignment',
     'outside the application tree',
-    'a.deleted_at >= :attachment_cutoff',
+    'BackgroundRetentionCleanup',
 ] as $marker) {
     retentionAssert(str_contains($service, $marker), "RetentionService missing safety marker {$marker}");
+}
+// В платформенном сервисе нет SQL и правил очистки чужих таблиц.
+foreach (['note_attachments', 'notes', 'user_files', 'messenger_attachments',
+          'messages', 'tasks', 'task_board_items', 'task_categories'] as $table) {
+    retentionAssert(
+        !preg_match('/\\b(?:DELETE\\s+FROM|SELECT\\s+.+?\\s+FROM)\\s+' . $table . '\\b/i', $service),
+        'RetentionService содержит SQL принадлежащей модулю таблицы ' . $table
+    );
+}
+foreach ([
+    'notes' => ['NotesRetentionService', 'a.deleted_at >= :attachment_cutoff'],
+    'files' => ['FilesRetentionService', "type = 'folder'"],
+    'messenger' => ['MessengerRetentionService', 'messenger_attachments'],
+    'tasks' => ['TasksRetentionService', 'task_board_items'],
+] as $module => [$name, $marker]) {
+    $provider = retentionText($root, "modules/{$module}/services/{$name}.php");
+    retentionAssert(str_contains($provider, $marker),
+        "Модуль {$module} потерял обязательное ограничение фоновой очистки");
+    $manifest = json_decode(
+        retentionText($root, "modules/{$module}/module.json"),
+        true, 32, JSON_THROW_ON_ERROR
+    );
+    retentionAssert(
+        ($manifest['background']['retention_cleanup'] ?? null) === 'background/retention.php',
+        "Модуль {$module} не экспортирует фоновую очистку"
+    );
 }
 retentionAssert(
     !str_contains($service, 'FROM task_boards')
