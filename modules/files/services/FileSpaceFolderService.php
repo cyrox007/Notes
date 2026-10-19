@@ -32,8 +32,13 @@ final class FileSpaceFolderService
     public function browse(int $actorId, ?int $parentId = null, ?string $cursorToken = null): array
     {
         $space = $this->access->space('global');
-        $this->access->require($actorId, 'global', $parentId, 'view');
-        $this->access->require($actorId, 'global', $parentId, 'list');
+        $rights = $this->access->decisions(
+            $actorId, 'global', $parentId,
+            ['view', 'list', 'upload', 'create_folder', 'manage_acl']
+        );
+        if (!$rights['view']['allowed'] || !$rights['list']['allowed']) {
+            throw new DomainException('Объект не найден или недоступен', 404);
+        }
 
         $parent = null;
         if ($parentId !== null) {
@@ -128,9 +133,9 @@ final class FileSpaceFolderService
             'items' => $items,
             'next_cursor' => $next,
             'page_size' => self::PAGE_SIZE,
-            'can_upload' => $this->access->decision($actorId, 'global', $parentId, 'upload')['allowed'],
-            'can_create' => $this->access->decision($actorId, 'global', $parentId, 'create_folder')['allowed'],
-            'can_manage' => $this->access->decision($actorId, 'global', $parentId, 'manage_acl')['allowed'],
+            'can_upload' => $rights['upload']['allowed'],
+            'can_create' => $rights['create_folder']['allowed'],
+            'can_manage' => $rights['manage_acl']['allowed'],
         ];
     }
 
