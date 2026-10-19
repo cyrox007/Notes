@@ -48,7 +48,7 @@ runtimeRequireMarker(
 runtimeRequireMarker(
     $root,
     'core/CliRuntime.php',
-    "private const MINIMUM_PHP_VERSION = '8.3.0';",
+    "private const string MINIMUM_PHP_VERSION = '8.3.0';",
     'общий CLI bootstrap должен фиксировать минимум PHP 8.3'
 );
 runtimeRequireMarker(
@@ -69,6 +69,10 @@ runtimeRequireMarker(
     '$stager->assertCompatibility($manifest, Version::VERSION_CODE, PHP_VERSION);',
     'подписанный пакет должен проходить PHP preflight до destructive-фазы'
 );
+
+require_once $root . '/core/CliRuntime.php';
+$minimumPhpConstant = new ReflectionClassConstant(\Core\CliRuntime::class, 'MINIMUM_PHP_VERSION');
+runtimeCheck((string) $minimumPhpConstant->getType() === 'string', 'тип минимальной версии PHP должен проверяться средствами PHP 8.3');
 
 require_once $root . '/core/UpdateProcessRunner.php';
 require_once $root . '/core/UpdatePhpCli.php';
