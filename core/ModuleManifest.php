@@ -40,6 +40,7 @@ final class ModuleManifest
         private readonly array $databaseSchemas,
         private readonly array $databaseMigrations,
         private readonly ?string $backgroundAccountGuard,
+        private readonly ?string $backgroundRetentionCleanup,
         private readonly string $manifestPath,
         private readonly string $integrityHash,
     ) {
@@ -170,6 +171,24 @@ final class ModuleManifest
             }
         }
 
+        $backgroundRetentionCleanup = $background['retention_cleanup'] ?? null;
+        if ($backgroundRetentionCleanup !== null) {
+            if (!is_string($backgroundRetentionCleanup)) {
+                throw new RuntimeException("Модуль {$id}: неверная фоновая очистка");
+            }
+            if (
+                $backgroundRetentionCleanup !== 'none'
+                && (
+                    !str_starts_with($backgroundRetentionCleanup, 'background/')
+                    || str_contains($backgroundRetentionCleanup, '..')
+                    || str_contains($backgroundRetentionCleanup, '\\')
+                    || preg_match('~^background/[A-Za-z0-9_./-]+\.php$~D', $backgroundRetentionCleanup) !== 1
+                )
+            ) {
+                throw new RuntimeException("Модуль {$id}: небезопасный путь фоновой очистки");
+            }
+        }
+
         return new self(
             $id,
             $name,
@@ -189,6 +208,7 @@ final class ModuleManifest
             $databaseSchemas,
             $databaseMigrations,
             $backgroundAccountGuard,
+            $backgroundRetentionCleanup,
             $manifestPath,
             hash('sha256', $raw),
         );
@@ -298,6 +318,15 @@ final class ModuleManifest
     public function backgroundAccountGuard(): ?string
     {
         return $this->backgroundAccountGuard;
+    }
+
+    /**
+     * null — политика не объявлена, none — модуль не содержит
+     * данных с истекающим сроком хранения.
+     */
+    public function backgroundRetentionCleanup(): ?string
+    {
+        return $this->backgroundRetentionCleanup;
     }
 
     public function manifestPath(): string
