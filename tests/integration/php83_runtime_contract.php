@@ -93,6 +93,16 @@ $processResult = (new \Core\UpdateProcessRunner())->run(
 runtimeCheck($processResult['code'] === 23, 'должен сохраняться реальный код завершения дочернего PHP-процесса');
 runtimeCheck(trim($processResult['stdout']) === 'runtime-ok', 'должен сохраняться stdout дочернего PHP-процесса');
 
+$largeOutput = (new \\Core\\UpdateProcessRunner())->run(
+    [PHP_BINARY, '-r', 'fwrite(STDOUT, str_repeat("A", 2097152)); fwrite(STDERR, str_repeat("B", 2097152)); exit(17);'],
+    $root,
+    15
+);
+runtimeCheck($largeOutput['code'] === 17, 'большой вывод не должен изменять код завершения');
+runtimeCheck(strlen($largeOutput['stdout']) === 1048576, 'stdout должен быть ограничен одним мегабайтом');
+runtimeCheck(strlen($largeOutput['stderr']) === 1048576, 'stderr должен быть ограничен одним мегабайтом');
+
+
 $previousUpdatePhp = getenv('UPDATE_PHP_BINARY');
 putenv('UPDATE_PHP_BINARY=' . PHP_BINARY);
 try {
