@@ -89,6 +89,8 @@ jobs:
           php -l development/defects/DefectRegistrationService.php
           php -l tests/integration/defects_registration_12.php
           php tests/integration/defects_registration_12.php
+          grep -Fq 'database|development|docs' .htaccess
+          grep -Fq "'development'" tests/e2e/router.php
 
       - name: Verify module package web boundary
         shell: bash
