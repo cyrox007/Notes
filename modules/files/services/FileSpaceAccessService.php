@@ -198,8 +198,10 @@ final class FileSpaceAccessService
     public function childrenRights(
         int $userId, ?int $parentId, array $items, array $permissions
     ): array {
-        $this->require($userId, 'global', $parentId, 'view');
-        $this->require($userId, 'global', $parentId, 'list');
+        $parentRights = $this->decisions($userId, 'global', $parentId, ['view', 'list']);
+        if (!$parentRights['view']['allowed'] || !$parentRights['list']['allowed']) {
+            throw new DomainException('Объект не найден или недоступен', 404);
+        }
         $permissions = array_values(array_unique($permissions));
         foreach ($permissions as $permission) {
             if (!in_array($permission, self::PERMISSIONS, true)) {
