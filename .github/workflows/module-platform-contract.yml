@@ -71,6 +71,14 @@ jobs:
           php -l tests/integration/module_retention_12_contract.php
           php tests/integration/module_retention_12_contract.php
 
+      - name: Проверить личные рабочие представления Tasks
+        run: |
+          php -l modules/tasks/services/TaskPersonalQueue.php
+          php -l modules/tasks/controllers/TaskController.php
+          php -l modules/tasks/views/index.php
+          php -l tests/integration/tasks_personal_queue_12_contract.php
+          php tests/integration/tasks_personal_queue_12_contract.php
+
       - name: Verify module package web boundary
         shell: bash
         run: |

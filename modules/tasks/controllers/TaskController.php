@@ -11,13 +11,14 @@ use Core\Request;
 use Core\Router;
 use DateTimeImmutable;
 use InvalidArgumentException;
+use Modules\Tasks\TaskPersonalQueue;
 use RuntimeException;
 
 final class TaskController extends Controller
 {
     private const STATUSES = ['pending', 'studying', 'in_progress', 'review', 'completed'];
     private const PRIORITIES = ['low', 'medium', 'high', 'urgent'];
-    private const FILTERS = ['all', 'today', 'week', 'overdue', 'pending', 'studying', 'in_progress', 'review', 'completed', 'archive'];
+    private const FILTERS = ['all', 'today', 'tomorrow', 'week', 'overdue', 'pending', 'studying', 'in_progress', 'review', 'completed', 'archive'];
 
     /** @var array<string,string> */
     private const SORT_COLUMNS = [
@@ -76,10 +77,23 @@ final class TaskController extends Controller
             $filter = 'all';
         }
 
-        $query = ListQuery::fromRequest($request, self::SORT_COLUMNS, 'created_at');
+        $dailyView = in_array($filter, ['today', 'tomorrow', 'overdue'], true);
+        $query = ListQuery::fromRequest(
+            $request,
+            self::SORT_COLUMNS,
+            $dailyView ? 'due_date' : 'created_at'
+        );
+        // Рабочую очередь показываем от ближайшего срока; ручная сортировка
+        // в запросе сохраняет приоритет над настройкой по умолчанию.
+        if ($dailyView && $request->get('direction', null) === null) {
+            $query['direction'] = 'asc';
+            $query['direction_sql'] = 'ASC';
+        }
         $params = [':user_id' => (int) $user->id];
         $where = ['t.user_id = :user_id', 't.is_deleted = 0', $filter === 'archive' ? 't.archived_at IS NOT NULL' : 't.archived_at IS NULL'];
-        $now = date('Y-m-d H:i:s');
+        $nowDate = new DateTimeImmutable('now');
+        $now = $nowDate->format('Y-m-d H:i:s');
+        $dayBounds = TaskPersonalQueue::boundaries($nowDate);
 
         if ($query['q'] !== '') {
             $where[] = '(t.title LIKE :q_title OR t.description LIKE :q_description)';
@@ -87,28 +101,13 @@ final class TaskController extends Controller
             $params[':q_description'] = '%' . $query['q'] . '%';
         }
 
-        switch ($filter) {
-            case 'today':
-                $where[] = 't.due_date >= :today_start AND t.due_date < :tomorrow_start';
-                $params[':today_start'] = date('Y-m-d 00:00:00');
-                $params[':tomorrow_start'] = date('Y-m-d 00:00:00', strtotime('+1 day'));
-                break;
-            case 'week':
-                $where[] = 't.due_date >= :week_start AND t.due_date < :week_end';
-                $params[':week_start'] = date('Y-m-d 00:00:00');
-                $params[':week_end'] = date('Y-m-d 00:00:00', strtotime('+7 days'));
-                break;
-            case 'overdue':
-                $where[] = 't.due_date IS NOT NULL AND t.due_date < :now';
-                $where[] = 't.status NOT IN ("completed", "cancelled")';
-                $params[':now'] = $now;
-                break;
-            default:
-                if (in_array($filter, self::STATUSES, true)) {
-                    $where[] = 't.status = :status';
-                    $params[':status'] = $filter;
-                }
-                break;
+        $personalFilter = TaskPersonalQueue::filter($filter, $nowDate);
+        if ($personalFilter['sql'] !== '') {
+            $where[] = $personalFilter['sql'];
+            $params += $personalFilter['params'];
+        } elseif (in_array($filter, self::STATUSES, true)) {
+            $where[] = 't.status = :status';
+            $params[':status'] = $filter;
         }
 
         $whereSql = implode(' AND ', $where);
@@ -141,10 +140,21 @@ final class TaskController extends Controller
                 SUM(status = "studying") AS studying,
                 SUM(status = "review") AS review,
                 SUM(status = "completed") AS completed,
-                SUM(status NOT IN ("completed", "cancelled") AND due_date IS NOT NULL AND due_date < :now) AS overdue
+                SUM(status NOT IN ("completed", "cancelled") AND due_date IS NOT NULL AND due_date < :now) AS overdue,
+                SUM(status NOT IN ("completed", "cancelled")
+                    AND due_date >= :today_start AND due_date < :tomorrow_start) AS today,
+                SUM(status NOT IN ("completed", "cancelled")
+                    AND due_date >= :tomorrow_start_second AND due_date < :after_tomorrow) AS tomorrow
              FROM tasks
              WHERE user_id = :user_id AND is_deleted = 0 AND archived_at IS NULL',
-            [':user_id' => (int) $user->id, ':now' => $now]
+            [
+                ':user_id' => (int) $user->id,
+                ':now' => $now,
+                ':today_start' => $dayBounds['today'],
+                ':tomorrow_start' => $dayBounds['tomorrow'],
+                ':tomorrow_start_second' => $dayBounds['tomorrow'],
+                ':after_tomorrow' => $dayBounds['after_tomorrow'],
+            ]
         ) ?? [];
 
         $pagination = ListQuery::pagination($query, $total);
@@ -164,6 +174,8 @@ final class TaskController extends Controller
                 'review' => (int) ($statsRow['review'] ?? 0),
                 'completed' => (int) ($statsRow['completed'] ?? 0),
                 'overdue' => (int) ($statsRow['overdue'] ?? 0),
+                'today' => (int) ($statsRow['today'] ?? 0),
+                'tomorrow' => (int) ($statsRow['tomorrow'] ?? 0),
             ],
             'pagination' => $pagination,
         ]);

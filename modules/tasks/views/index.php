@@ -16,15 +16,23 @@ $siteName = isset($sitename) ? (string) $sitename : 'Workspace Organizer';
 $workspaceVersion = isset($version) ? (string) $version : '';
 $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
 $tasksRoute = $view->route('tasks');
-$filterLabels = [
-    'all' => 'Все',
+$quickFilters = [
+    'all' => 'Мои задачи',
     'today' => 'Сегодня',
+    'tomorrow' => 'Завтра',
+    'overdue' => 'Просрочено',
+];
+$quickCounts = [
+    'today' => (int) ($statsData['today'] ?? 0),
+    'tomorrow' => (int) ($statsData['tomorrow'] ?? 0),
+    'overdue' => (int) ($statsData['overdue'] ?? 0),
+];
+$filterLabels = [
     'week' => 'Неделя',
     'pending' => 'Запланировано',
     'studying' => 'Изучение',
     'in_progress' => 'В работе',
     'review' => 'Проверка',
-    'overdue' => 'Просрочены',
     'completed' => 'Завершены',
     'archive' => 'Архив',
 ];
@@ -32,10 +40,22 @@ $filterLabels = [
 ob_start();
 ?>
 <section class="module-page-header module-page-header--tasks">
-    <div><h1>Задачи</h1></div>
+    <div><h1>Мои задачи</h1></div>
 </section>
 
 <section class="tasks" data-archive="<?= $filter === 'archive' ? '1' : '0' ?>">
+    <nav class="tasks__filters tasks__day-shortcuts" aria-label="Личная рабочая очередь">
+        <?php foreach ($quickFilters as $code => $label): ?>
+            <a href="<?= $view->e($tasksRoute . '?filter=' . rawurlencode($code)) ?>"
+               class="filter-btn<?= $filter === $code ? ' active' : '' ?>"
+               <?= $filter === $code ? 'aria-current="page"' : '' ?>>
+                <?= $view->e($label) ?>
+                <?php if (isset($quickCounts[$code])): ?>
+                    <span class="tasks__quick-count">(<?= $quickCounts[$code] ?>)</span>
+                <?php endif; ?>
+            </a>
+        <?php endforeach; ?>
+    </nav>
     <div class="tasks__controls">
         <details class="tasks__filter-panel"<?= $filter !== 'all' ? ' open' : '' ?>>
             <summary><i class="fa fa-filter" aria-hidden="true"></i> Фильтры и сортировка</summary>
