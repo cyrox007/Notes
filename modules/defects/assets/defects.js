@@ -200,6 +200,11 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
         if (state.busy && !reset) return;
         const sequence = reset ? ++state.sequence : state.sequence;
         const cursor = reset ? 0 : state.cursor;
+        if (reset) {
+            results.replaceChildren();
+            moreButton.hidden = true;
+            state.cursor = 0;
+        }
         state.busy = true;
         loading.hidden = false;
         refreshButton.disabled = true;
@@ -565,6 +570,11 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
             if (adminState.loading && !reset) return;
             const sequence = reset ? ++adminState.sequence : adminState.sequence;
             const cursor = reset ? 0 : adminState.cursor;
+            if (reset) {
+                adminResults.replaceChildren();
+                adminMore.hidden = true;
+                adminState.cursor = 0;
+            }
             adminState.loading = true;
             adminLoading.hidden = false;
             adminRefresh.disabled = true;
