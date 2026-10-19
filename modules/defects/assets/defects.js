@@ -46,6 +46,11 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
         return item;
     };
     const errorText = (error) => error instanceof Error ? error.message : 'Не удалось выполнить запрос';
+    const newCommand = () => {
+        const bytes = new Uint8Array(16);
+        crypto.getRandomValues(bytes);
+        return Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('');
+    };
     const feedbackMessage = (value, error = false) => {
         feedback.hidden = !value;
         feedback.textContent = value;
@@ -86,8 +91,6 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
         urgent: 'Неотложный', first: 'Первоочередной',
         important: 'Важный', normal: 'Обычный',
     }[value] || 'Неизвестный');
-    const closeButton = (overlay) => $('[data-defects-create-cancel]', overlay)
-        || $('[data-defects-detail-close]', overlay);
     const activeOverlay = () => [createOverlay, detailOverlay].find(node => !node.hidden);
     const setModal = (overlay, opened, opener) => {
         if (opened) {
@@ -214,7 +217,6 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
                 results.append(element('p', 'defects-empty', 'По выбранным условиям записей нет'));
             }
             if (reset) await summaryLoad(sequence);
-            feedbackMessage('');
         } catch (error) {
             if (sequence === state.sequence) feedbackMessage(errorText(error), true);
         } finally {
@@ -277,7 +279,7 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
         const button = $('[type="submit"]', form);
         button.disabled = true;
         showFormError('[data-defects-create-error]', '');
-        state.creationCommand ||= crypto.randomUUID();
+        state.creationCommand ||= newCommand();
         try {
             const response = await request(api + '/', {
                 object_id: Number(object.value),
@@ -355,6 +357,7 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
         state.closeCommand = null;
         state.historyCursor = 0;
         detailTitle.textContent = 'Дефект №' + id;
+        detailLoading.textContent = 'Загрузка карточки…';
         detailLoading.hidden = false;
         detailContent.hidden = true;
         setModal(detailOverlay, true, opener);
@@ -402,7 +405,7 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
         button.disabled = true;
         closeError.hidden = true;
         const id = state.selectedId;
-        state.closeCommand ||= crypto.randomUUID();
+        state.closeCommand ||= newCommand();
         try {
             await request(api + '/' + id + '/close', {
                 completed_work: closeForm.elements.namedItem('completed_work').value,
@@ -497,17 +500,29 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
     if (referenceForm) {
         const kind = referenceForm.elements.namedItem('kind');
         const parent = referenceForm.elements.namedItem('parent_id');
+        const categoryArea = referenceForm.elements.namedItem('category_area');
+        const parentAreaLabel = $('[data-defects-parent-area]', referenceForm);
         const updateParents = async () => {
             const needed = kind.value === 'categories' ? 'areas' :
                 kind.value === 'objects' ? 'categories' : null;
             parent.disabled = !needed;
-            const rows = !needed || (needed === 'categories' && !area.value)
-                ? [] : await refRows(needed, needed === 'categories' ? area.value : null);
+            parentAreaLabel.hidden = needed !== 'categories';
+            categoryArea.disabled = needed !== 'categories';
+            if (needed === 'categories') {
+                const selectedArea = categoryArea.value;
+                fillSelect(categoryArea, await refRows('areas'), 'Выберите участок');
+                if ([...categoryArea.options].some(option => option.value === selectedArea)) categoryArea.value = selectedArea;
+            }
+            const rows = !needed || (needed === 'categories' && !categoryArea.value)
+                ? [] : await refRows(needed, needed === 'categories' ? categoryArea.value : null);
             fillSelect(parent, rows, needed ? 'Выберите родителя' : 'Не требуется');
         };
         kind.addEventListener('change', () => void updateParents().catch(error => feedbackMessage(errorText(error), true)));
-        area.addEventListener('change', () => {
-            if (kind.value === 'objects') void updateParents().catch(error => feedbackMessage(errorText(error), true));
+        categoryArea.addEventListener('change', async () => {
+            if (kind.value !== 'objects') return;
+            try {
+                fillSelect(parent, categoryArea.value ? await refRows('categories', categoryArea.value) : [], 'Выберите категорию');
+            } catch (error) { feedbackMessage(errorText(error), true); }
         });
         referenceForm.addEventListener('submit', async event => {
             event.preventDefault();
