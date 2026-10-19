@@ -22,6 +22,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
+          extensions: pdo_sqlite, sqlite3, mbstring
           coverage: none
 
       - name: Lint module platform
@@ -63,6 +64,8 @@ jobs:
           php -l tests/integration/module_account_ownership_contract_12.php
           php tests/integration/module_schema_ownership_contract_12.php
           php tests/integration/module_account_ownership_contract_12.php
+          php -l tests/integration/module_account_guard_sql_12.php
+          php tests/integration/module_account_guard_sql_12.php
 
       - name: Verify module package web boundary
         shell: bash
