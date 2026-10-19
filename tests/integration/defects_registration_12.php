@@ -9,9 +9,9 @@ use Modules\Defects\Services\DefectReferenceService;
 
 $root = dirname(__DIR__, 2);
 require_once $root . '/core/DatabaseManager.php';
-require_once $root . '/development/defects/DefectPriorityPolicy.php';
-require_once $root . '/development/defects/DefectRegistrationService.php';
-require_once $root . '/development/defects/DefectReferenceService.php';
+require_once $root . '/modules/defects/services/DefectPriorityPolicy.php';
+require_once $root . '/modules/defects/services/DefectRegistrationService.php';
+require_once $root . '/modules/defects/services/DefectReferenceService.php';
 
 function defectsAssert(bool $condition, string $message): void
 {
