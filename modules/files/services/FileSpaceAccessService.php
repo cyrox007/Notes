@@ -358,51 +358,6 @@ final class FileSpaceAccessService
         return $chain;
     }
 
-    /**
-     * Ближайшая папка с правилом приоритетнее родителя.
-     * На одном уровне явный запрет всегда сильнее разрешения.
-     * @param array<string,mixed> $actor
-     * @param list<array{key:string,parent:?int,author:?int,inherit:bool}> $chain
-     * @return array{allowed:bool,source:string}
-     */
-    private function resolve(array $actor, int $spaceId, array $chain, string $permission): array
-    {
-        foreach ($chain as $scope) {
-            $stmt = $this->pdo->prepare(
-                'SELECT subject_type,subject_id,effect FROM file_space_acl
-                 WHERE space_id=:space_id AND scope_key=:scope AND permission_key=:permission'
-            );
-            $stmt->execute([
-                ':space_id' => $spaceId,
-                ':scope' => $scope['key'],
-                ':permission' => $permission,
-            ]);
-            $matchedAllow = false;
-            $matchedSubject = '';
-            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $rule) {
-                if (!$this->matches($actor, $scope['author'], $rule)) {
-                    continue;
-                }
-                $subject = (string) $rule['subject_type'];
-                if (in_array($subject, ['role', 'group', 'user'], true)) {
-                    $subject .= ':' . (int) $rule['subject_id'];
-                }
-                if ($rule['effect'] === 'deny') {
-                    return ['allowed' => false, 'source' => $scope['key'], 'subject' => $subject];
-                }
-                $matchedAllow = true;
-                $matchedSubject = $subject;
-            }
-            if ($matchedAllow) {
-                return ['allowed' => true, 'source' => $scope['key'], 'subject' => $matchedSubject];
-            }
-            if (!$scope['inherit']) {
-                return ['allowed' => false, 'source' => $scope['key'], 'subject' => 'inheritance_off'];
-            }
-        }
-        return ['allowed' => false, 'source' => 'default_deny', 'subject' => 'none'];
-    }
-
     /** @param array<string,mixed> $actor @param array<string,mixed> $rule */
     private function matches(array $actor, ?int $author, array $rule): bool
     {
