@@ -1,340 +1,496 @@
+window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => {
 (() => {
     'use strict';
 
-    const root = document.querySelector('[data-base-url][id="defects-workspace"]');
-    const form = document.querySelector('[data-defects-create]');
-    if (!root || !form) return;
+    const root = document.querySelector('[id="defects-workspace"]');
+    if (!root) return;
 
-    const prefix = root.dataset.baseUrl || '';
-    const api = prefix + '/api/defects';
-    const feedback = root.querySelector('[data-defects-feedback]');
-    const results = root.querySelector('[data-defects-results]');
-    const status = root.querySelector('[data-defects-status]');
-    const more = root.querySelector('[data-defects-more]');
-    const refresh = root.querySelector('[data-defects-refresh]');
-    const summary = root.querySelector('[data-defects-summary]');
-    const filterArea = root.querySelector('[data-defects-filter-area]');
-    const filterObject = root.querySelector('[data-defects-filter-object]');
-    const filterService = root.querySelector('[data-defects-filter-service]');
-    const filterPriority = root.querySelector('[data-defects-priority]');
-    const filterFrom = root.querySelector('[data-defects-from]');
-    const filterTo = root.querySelector('[data-defects-to]');
-    const csrf = root.querySelector('input[name="csrf_token"]');
+    const $ = (selector, parent = root) => parent.querySelector(selector);
+    const $$ = (selector, parent = root) => [...parent.querySelectorAll(selector)];
+    const api = (root.dataset.baseUrl || '') + '/api/defects';
+    const form = $('[data-defects-create]');
+    const createOverlay = $('[data-defects-create-overlay]');
+    const detailOverlay = $('[data-defects-detail-overlay]');
+    const statusButtons = $$('[data-defects-tab]');
+    const results = $('[data-defects-results]');
+    const feedback = $('[data-defects-feedback]');
+    const refreshButton = $('[data-defects-refresh]');
+    const moreButton = $('[data-defects-more]');
+    const loading = $('[data-defects-loading]');
+    const csrf = $('input[name="csrf_token"]');
     const area = form.elements.namedItem('area');
     const category = form.elements.namedItem('category');
     const object = form.elements.namedItem('object_id');
-    const services = form.elements.namedItem('service_ids');
-    const referenceForm = document.querySelector('[data-defects-reference]');
-    let cursor = 0;
-
-    const message = (value, error = false) => {
-        feedback.textContent = value;
-        feedback.setAttribute('role', error ? 'alert' : 'status');
+    const services = $('[data-defects-services]');
+    const referenceForm = $('[data-defects-reference]');
+    const closeForm = $('[data-defects-close]');
+    const filters = {
+        priority: $('[data-defects-priority]'),
+        area_id: $('[data-defects-filter-area]'),
+        object_id: $('[data-defects-filter-object]'),
+        service_id: $('[data-defects-filter-service]'),
+        from: $('[data-defects-from]'),
+        to: $('[data-defects-to]'),
+    };
+    const state = {
+        status: 'open', cursor: 0, sequence: 0, busy: false,
+        selectedId: null, detail: null, detailSequence: 0,
+        historyCursor: 0, creationCommand: null, closeCommand: null,
+        previousFocus: null, historyLoading: false,
     };
 
-    const request = async (path, data) => {
-        const options = { credentials: 'same-origin', headers: { Accept: 'application/json' } };
+    const element = (tag, className = '', value = '') => {
+        const item = document.createElement(tag);
+        if (className) item.className = className;
+        if (value !== '') item.textContent = String(value);
+        return item;
+    };
+    const errorText = (error) => error instanceof Error ? error.message : 'Не удалось выполнить запрос';
+    const feedbackMessage = (value, error = false) => {
+        feedback.hidden = !value;
+        feedback.textContent = value;
+        feedback.dataset.error = String(error);
+    };
+    const showFormError = (selector, value) => {
+        const target = $(selector);
+        target.textContent = value;
+        target.hidden = !value;
+    };
+    const request = async (path, data, options = {}) => {
+        const config = { credentials: 'same-origin', headers: { Accept: 'application/json' }, ...options };
         if (data !== undefined) {
-            options.method = 'POST';
-            options.headers['Content-Type'] = 'application/json';
-            options.headers['X-CSRF-Token'] = csrf?.value || '';
-            options.body = JSON.stringify(data);
+            config.method = 'POST';
+            config.headers = {
+                ...config.headers,
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrf?.value || '',
+            };
+            config.body = JSON.stringify(data);
         }
-        const response = await fetch(path, options);
-        const result = await response.json();
+        const response = await pageScope.fetch(path, config);
+        if (!response.ok && response.status === 401) throw new Error('Войдите в систему повторно');
+        let result;
+        try { result = await response.json(); }
+        catch { throw new Error('Сервер вернул неожиданный ответ'); }
         if (!response.ok || result.status !== 'ok') {
-            throw new Error(result.message || 'Не удалось обработать запрос');
+            throw new Error(result.message || 'Операция не выполнена');
         }
         return result;
     };
-
-    const refill = (select, items, placeholder) => {
-        select.replaceChildren(new Option(placeholder, ''));
-        items.forEach(item => select.add(new Option(item.name, String(item.id))));
+    const dateText = (value) => {
+        if (!value) return 'Не указана';
+        const date = new Date(String(value).replace(' ', 'T') + (/[Z+-]\d\d:\d\d$/.test(String(value)) ? '' : 'Z'));
+        return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' });
     };
-
-    const references = async (kind, parentId) => {
-        const query = new URLSearchParams({ kind, limit: '100' });
-        if (parentId) query.set('parent_id', parentId);
-        return (await request(api + '/references?' + query)).items;
-    };
-
-    const loadAreas = async () => {
-        const items = await references('areas');
-        refill(area, items, 'Выберите участок');
-        refill(filterArea, items, 'Все участки');
-        refill(category, [], 'Выберите категорию');
-        refill(object, [], 'Выберите объект');
-    };
-
-    area.addEventListener('change', async () => {
-        try {
-            refill(category, area.value ? await references('categories', area.value) : [], 'Выберите категорию');
-            refill(object, [], 'Выберите объект');
-        } catch (error) { message(error.message, true); }
-    });
-
-    category.addEventListener('change', async () => {
-        try {
-            refill(object, category.value ? await references('objects', category.value) : [], 'Выберите объект');
-        } catch (error) { message(error.message, true); }
-    });
-
-    const renderItem = item => {
-        const article = document.createElement('article');
-        article.className = 'calendar-shell';
-        const title = document.createElement('h3');
-        title.textContent = '#' + item.id + ' · ' + item.object_name + ' · ' + item.priority;
-        const detail = document.createElement('p');
-        detail.textContent = item.description;
-        const due = document.createElement('p');
-        due.textContent = 'Срок: ' + item.due_at + ' · ' + (item.status === 'closed' ? 'Закрыт' : 'Открыт');
-        article.append(title, detail, due);
-        if (item.status === 'open') {
-            const close = document.createElement('button');
-            close.type = 'button';
-            close.textContent = 'Закрыть';
-            close.addEventListener('click', async () => {
-                const work = window.prompt('Какие работы выполнены?');
-                if (!work?.trim()) return;
-                close.disabled = true;
-                try {
-                    await request(api + '/' + item.id + '/close', {
-                        completed_work: work, version: Number(item.version),
-                        command_id: crypto.randomUUID(),
-                    });
-                    message('Дефект закрыт');
-                    await loadRegistry(true);
-                } catch (error) {
-                    message(error.message, true);
-                    close.disabled = false;
-                }
-            });
-            article.append(close);
-        }
-        const historyButton = document.createElement('button');
-        historyButton.type = 'button';
-        historyButton.textContent = 'История';
-        const historyBox = document.createElement('div');
-        historyBox.hidden = true;
-        historyButton.addEventListener('click', async () => {
-            historyBox.hidden = !historyBox.hidden;
-            if (historyBox.hidden) return;
-            historyButton.disabled = true;
-            historyBox.replaceChildren();
-            const entries = document.createElement('ul');
-            historyBox.append(entries);
-            let afterId = 0;
-            const load = async () => {
-                const query = new URLSearchParams({ limit: '40', after_id: String(afterId) });
-                const response = await request(api + '/' + item.id + '/history?' + query);
-                response.history.events.forEach(event => {
-                    const row = document.createElement('li');
-                    const eventLabel = event.event_type === 'created' ? 'Регистрация'
-                        : event.event_type === 'closed' ? 'Закрытие' : 'Изменение';
-                    row.textContent = event.created_at + ' · ' + eventLabel
-                        + ' · пользователь #' + (event.actor_user_id ?? 'не указан');
-                    entries.append(row);
-                });
-                afterId = response.history.next_cursor || 0;
-                moreHistory.hidden = !afterId;
-            };
-            const moreHistory = document.createElement('button');
-            moreHistory.type = 'button';
-            moreHistory.textContent = 'Другие события';
-            moreHistory.hidden = true;
-            moreHistory.addEventListener('click', () =>
-                load().catch(error => message(error.message, true)));
-            historyBox.append(moreHistory);
-            try { await load(); }
-            catch (error) { message(error.message, true); }
-            finally { historyButton.disabled = false; }
-        });
-        article.append(historyButton, historyBox);
-        return article;
-    };
-
-    const reportFilters = () => {
-        const values = { status: status.value };
-        if (filterPriority.value) values.priority = filterPriority.value;
-        if (filterArea.value) values.area_id = filterArea.value;
-        if (filterObject.value) values.object_id = filterObject.value;
-        if (filterService.value) values.service_id = filterService.value;
-        if (filterFrom.value) values.from = filterFrom.value;
-        if (filterTo.value) values.to = filterTo.value;
-        return values;
-    };
-
-    const loadSummary = async () => {
-        const query = new URLSearchParams(reportFilters());
-        const { report } = await request(api + '/report?' + query);
-        summary.replaceChildren();
-        const main = document.createElement('p');
-        main.textContent = 'Всего: ' + report.total + ' · Просрочено: ' + report.overdue;
-        summary.append(main);
-        const details = document.createElement('p');
-        details.textContent = report.by_priority.map(row =>
-            row.priority + ' / ' + row.status + ': ' + row.total
-        ).join(' · ') || 'Нет записей';
-        summary.append(details);
-        const areas = document.createElement('p');
-        areas.textContent = (report.by_area.map(row =>
-            row.area_name + ': ' + row.total
-        ).join(' · ') || 'Нет участков') + (report.next_area_cursor ? ' · Есть другие участки' : '');
-        summary.append(areas);
-    };
-
-    const loadRegistry = async (reset = false) => {
-        if (reset) {
-            cursor = 0;
-            results.replaceChildren();
-        }
-        refresh.disabled = true;
-        try {
-            const query = new URLSearchParams({ ...reportFilters(), limit: '40', after_id: String(cursor) });
-            const data = await request(api + '/?' + query);
-            data.items.forEach(item => results.append(renderItem(item)));
-            cursor = data.next_cursor || 0;
-            more.hidden = data.items.length < 40;
-            if (reset && !data.items.length) message('По выбранному фильтру записей нет');
-            if (reset) await loadSummary();
-        } catch (error) { message(error.message, true); }
-        finally { refresh.disabled = false; }
-    };
-
-    refresh.addEventListener('click', () => loadRegistry(true));
-    [status, filterPriority, filterArea, filterObject, filterService, filterFrom, filterTo]
-        .forEach(control => control.addEventListener('change', () => loadRegistry(true)));
-    more.addEventListener('click', () => loadRegistry(false));
-
-    form.addEventListener('submit', async event => {
-        event.preventDefault();
-        const submit = form.querySelector('[type="submit"]');
-        const detected = form.elements.namedItem('detected').value;
-        const selectedServices = [...services.selectedOptions].map(option => Number(option.value));
-        if (!detected || !selectedServices.length) {
-            message('Укажите дату обнаружения и ответственные службы', true);
+    const priorityText = (value) => ({
+        urgent: 'Неотложный', first: 'Первоочередной',
+        important: 'Важный', normal: 'Обычный',
+    }[value] || 'Неизвестный');
+    const closeButton = (overlay) => $('[data-defects-create-cancel]', overlay)
+        || $('[data-defects-detail-close]', overlay);
+    const activeOverlay = () => [createOverlay, detailOverlay].find(node => !node.hidden);
+    const setModal = (overlay, opened, opener) => {
+        if (opened) {
+            state.previousFocus = opener || document.activeElement;
+            overlay.hidden = false;
+            $('section[role="dialog"]', overlay).focus();
             return;
         }
-        submit.disabled = true;
+        overlay.hidden = true;
+        if (state.previousFocus?.isConnected) state.previousFocus.focus();
+        state.previousFocus = null;
+    };
+
+    pageScope.listen(document, 'keydown', (event) => {
+        const overlay = activeOverlay();
+        if (!overlay) return;
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            if (overlay === detailOverlay) closeDetail();
+            else setModal(createOverlay, false);
+            return;
+        }
+        if (event.key !== 'Tab') return;
+        const candidates = $$('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex="0"]', overlay)
+            .filter(node => !node.hidden && !node.closest('[hidden]'));
+        if (!candidates.length) return;
+        const first = candidates[0];
+        const last = candidates[candidates.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+            last.focus(); event.preventDefault();
+        } else if (!event.shiftKey && document.activeElement === last) {
+            first.focus(); event.preventDefault();
+        }
+    });
+
+    const refRows = async (kind, parentId) => {
+        const query = new URLSearchParams({ kind, limit: '100' });
+        if (parentId) query.set('parent_id', String(parentId));
+        return (await request(api + '/references?' + query)).items;
+    };
+    const fillSelect = (target, items, label) => {
+        target.replaceChildren(new Option(label, ''));
+        items.forEach(item => target.add(new Option(item.name, String(item.id))));
+    };
+    const loadAreas = async () => {
+        const rows = await refRows('areas');
+        fillSelect(area, rows, 'Выберите участок');
+        fillSelect(filters.area_id, rows, 'Все участки');
+        fillSelect(category, [], 'Выберите категорию');
+        fillSelect(object, [], 'Выберите объект');
+    };
+    const loadServices = async () => {
+        const rows = await refRows('services');
+        fillSelect(filters.service_id, rows, 'Все службы');
+        services.replaceChildren();
+        rows.forEach(item => {
+            const label = element('label');
+            const input = document.createElement('input');
+            input.type = 'checkbox';
+            input.value = String(item.id);
+            input.name = 'service_ids';
+            label.append(input, document.createTextNode(item.name));
+            services.append(label);
+        });
+    };
+
+    const queryFilters = (includeStatus = true) => {
+        const obj = includeStatus ? { status: state.status } : {};
+        Object.entries(filters).forEach(([key, input]) => {
+            if (input.value) obj[key] = input.value;
+        });
+        return obj;
+    };
+    const showSummary = (report) => {
+        const priorities = Array.isArray(report.by_priority) ? report.by_priority : [];
+        const count = (type) => priorities.filter(item => item.status === type)
+            .reduce((total, item) => total + Number(item.total || 0), 0);
+        $('[data-defects-count-open]').textContent = String(count('open'));
+        $('[data-defects-count-closed]').textContent = String(count('closed'));
+        $('[data-defects-count-overdue]').textContent = String(report.overdue || 0);
+    };
+    const summaryLoad = async (sequence) => {
+        const query = new URLSearchParams({ ...queryFilters(false), status: 'all', area_limit: '1' });
+        const { report } = await request(api + '/report?' + query);
+        if (sequence === state.sequence) showSummary(report);
+    };
+    const isOverdue = (item) => item.status === 'open'
+        && new Date(String(item.due_at).replace(' ', 'T') + 'Z').getTime() < Date.now();
+    const renderRow = (item) => {
+        const row = element('button', 'defects-row');
+        row.type = 'button';
+        row.dataset.defectId = String(item.id);
+        const main = element('span', 'defects-row__main');
+        main.append(element('span', 'defects-row__title', '№' + item.id + ' · ' + (item.object_name || 'Объект')));
+        main.append(element('span', 'defects-row__meta', (item.area_name || 'Участок неизвестен')
+            + ' · ' + (item.category_name || 'Без категории')));
+        const aside = element('span', 'defects-row__aside');
+        const tag = element('span', 'defects-tag', priorityText(item.priority));
+        tag.dataset.priority = String(item.priority || '');
+        aside.append(tag, element('span', isOverdue(item) ? 'defects-overdue' : '', 
+            (isOverdue(item) ? 'Просрочен · ' : item.status === 'closed' ? 'Закрыт · ' : 'До · ') + dateText(item.due_at)));
+        row.append(main, aside);
+        row.addEventListener('click', () => void openDetail(item.id, row));
+        return row;
+    };
+    const loadRegistry = async (reset = true) => {
+        if (state.busy && !reset) return;
+        const sequence = reset ? ++state.sequence : state.sequence;
+        const cursor = reset ? 0 : state.cursor;
+        state.busy = true;
+        loading.hidden = false;
+        refreshButton.disabled = true;
+        moreButton.disabled = true;
+        results.setAttribute('aria-busy', 'true');
         try {
-            const result = await request(api + '/', {
+            const query = new URLSearchParams({ ...queryFilters(), limit: '40', after_id: String(cursor) });
+            const data = await request(api + '/?' + query);
+            if (sequence !== state.sequence) return;
+            if (reset) results.replaceChildren();
+            (data.items || []).forEach(item => results.append(renderRow(item)));
+            state.cursor = Number(data.next_cursor || 0);
+            moreButton.hidden = data.items.length < 40 || !state.cursor;
+            if (!results.children.length) {
+                results.append(element('p', 'defects-empty', 'По выбранным условиям записей нет'));
+            }
+            if (reset) await summaryLoad(sequence);
+            feedbackMessage('');
+        } catch (error) {
+            if (sequence === state.sequence) feedbackMessage(errorText(error), true);
+        } finally {
+            if (sequence === state.sequence) {
+                state.busy = false;
+                loading.hidden = true;
+                refreshButton.disabled = false;
+                moreButton.disabled = false;
+                results.removeAttribute('aria-busy');
+            }
+        }
+    };
+    const setStatus = (value) => {
+        state.status = value;
+        statusButtons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.defectsTab === value)));
+        void loadRegistry();
+    };
+    statusButtons.forEach(button => button.addEventListener('click', () => setStatus(button.dataset.defectsTab)));
+    Object.values(filters).forEach(control => control.addEventListener('change', () => void loadRegistry()));
+    $('[data-defects-reset]').addEventListener('click', () => {
+        Object.values(filters).forEach(control => { control.value = ''; });
+        void loadRegistry();
+    });
+    refreshButton.addEventListener('click', () => void loadRegistry());
+    moreButton.addEventListener('click', () => void loadRegistry(false));
+
+    const openCreate = (opener) => {
+        showFormError('[data-defects-create-error]', '');
+        setModal(createOverlay, true, opener);
+    };
+    $('[data-defects-create-open]').addEventListener('click', event => openCreate(event.currentTarget));
+    $$('[data-defects-create-cancel]').forEach(button =>
+        button.addEventListener('click', () => setModal(createOverlay, false)));
+    area.addEventListener('change', async () => {
+        try {
+            fillSelect(category, area.value ? await refRows('categories', area.value) : [], 'Выберите категорию');
+            fillSelect(object, [], 'Выберите объект');
+        } catch (error) { showFormError('[data-defects-create-error]', errorText(error)); }
+    });
+    category.addEventListener('change', async () => {
+        try { fillSelect(object, category.value ? await refRows('objects', category.value) : [], 'Выберите объект'); }
+        catch (error) { showFormError('[data-defects-create-error]', errorText(error)); }
+    });
+    form.addEventListener('input', () => { state.creationCommand = null; });
+    form.addEventListener('change', () => { state.creationCommand = null; });
+    form.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (!form.reportValidity()) return;
+        const checked = $$('input[name="service_ids"]:checked', services).map(node => Number(node.value));
+        if (!checked.length) {
+            showFormError('[data-defects-create-error]', 'Выберите хотя бы одну ответственную службу');
+            return;
+        }
+        const detected = form.elements.namedItem('detected').value;
+        const when = new Date(detected);
+        if (Number.isNaN(when.getTime())) {
+            showFormError('[data-defects-create-error]', 'Укажите корректную дату обнаружения');
+            return;
+        }
+        const button = $('[type="submit"]', form);
+        button.disabled = true;
+        showFormError('[data-defects-create-error]', '');
+        state.creationCommand ||= crypto.randomUUID();
+        try {
+            const response = await request(api + '/', {
                 object_id: Number(object.value),
                 description: form.elements.namedItem('description').value,
                 priority: form.elements.namedItem('priority').value,
-                discovered_at: new Date(detected).toISOString(),
+                discovered_at: when.toISOString(),
                 registered_by_name: form.elements.namedItem('registered_by_name').value,
-                service_ids: selectedServices,
-                command_id: crypto.randomUUID(),
+                service_ids: checked, command_id: state.creationCommand,
             });
-            message('Дефект #' + result.defect.id + ' зарегистрирован');
-            await loadRegistry(true);
-            form.elements.namedItem('description').value = '';
-        } catch (error) { message(error.message, true); }
-        finally { submit.disabled = false; }
+            state.creationCommand = null;
+            form.reset();
+            setModal(createOverlay, false);
+            feedbackMessage('Дефект №' + response.defect.id + ' зарегистрирован');
+            await loadRegistry();
+        } catch (error) { showFormError('[data-defects-create-error]', errorText(error)); }
+        finally { button.disabled = false; }
     });
 
-    const referenceHistoryForm = document.querySelector('[data-defects-reference-history]');
+    const detailTitle = $('[data-defects-detail-title]');
+    const detailFields = $('[data-defects-detail-fields]');
+    const detailLoading = $('[data-defects-detail-loading]');
+    const detailContent = $('[data-defects-detail-content]');
+    const historyList = $('[data-defects-history-list]');
+    const historyMore = $('[data-defects-history-more]');
+    const closeError = $('[data-defects-close-error]');
+    const addField = (label, value) => {
+        detailFields.append(element('dt', '', label), element('dd', '', value == null ? '—' : String(value)));
+    };
+    const historyLabel = (event) => {
+        if (event.event_type === 'created') return 'Зарегистрирован дефект';
+        if (event.event_type === 'closed') return 'Дефект закрыт';
+        return 'Изменение';
+    };
+    const appendHistory = (events) => {
+        events.forEach(event => {
+            const li = element('li');
+            li.append(element('strong', '', historyLabel(event)));
+            li.append(element('small', '', dateText(event.created_at)
+                + ' · пользователь №' + (event.actor_user_id ?? 'не указан')));
+            const details = event.details || {};
+            const description = event.event_type === 'closed' ? details.completed_work
+                : event.event_type === 'created' ? details.description : '';
+            if (description) li.append(element('p', '', description));
+            historyList.append(li);
+        });
+    };
+    const loadHistory = async (id, sequence, reset = false) => {
+        if (state.historyLoading && !reset) return;
+        state.historyLoading = true;
+        historyMore.disabled = true;
+        try {
+            const cursor = reset ? 0 : state.historyCursor;
+            const query = new URLSearchParams({ limit: '40', after_id: String(cursor) });
+            const { history } = await request(api + '/' + id + '/history?' + query);
+            if (state.detailSequence !== sequence) return;
+            if (reset) historyList.replaceChildren();
+            appendHistory(history.events);
+            if (!historyList.children.length) {
+                historyList.append(element('li', '', 'История изменений пока отсутствует'));
+            }
+            state.historyCursor = Number(history.next_cursor || 0);
+            historyMore.hidden = !state.historyCursor;
+        } catch (error) {
+            if (state.detailSequence === sequence) feedbackMessage(errorText(error), true);
+        } finally {
+            if (state.detailSequence === sequence) {
+                state.historyLoading = false;
+                historyMore.disabled = false;
+            }
+        }
+    };
+    const openDetail = async (id, opener) => {
+        const sequence = ++state.detailSequence;
+        state.selectedId = Number(id);
+        state.closeCommand = null;
+        state.historyCursor = 0;
+        detailTitle.textContent = 'Дефект №' + id;
+        detailLoading.hidden = false;
+        detailContent.hidden = true;
+        setModal(detailOverlay, true, opener);
+        try {
+            const { defect } = await request(api + '/' + id);
+            if (sequence !== state.detailSequence) return;
+            state.detail = defect;
+            detailFields.replaceChildren();
+            addField('Описание', defect.description);
+            addField('Приоритет', priorityText(defect.priority));
+            addField('Обнаружен', dateText(defect.discovered_at));
+            addField('Срок устранения', dateText(defect.due_at));
+            addField('Зарегистрировал', defect.registered_by_name);
+            addField('Состояние', defect.status === 'closed' ? 'Закрыт' : 'Открыт');
+            addField('Ответственные службы', (defect.services || []).map(item => item.name).join(', '));
+            if (defect.completed_work) addField('Выполненные работы', defect.completed_work);
+            closeForm.hidden = defect.status !== 'open';
+            closeForm.reset();
+            closeError.hidden = true;
+            detailLoading.hidden = true;
+            detailContent.hidden = false;
+            await loadHistory(id, sequence, true);
+        } catch (error) {
+            if (sequence === state.detailSequence) {
+                detailLoading.textContent = errorText(error);
+                feedbackMessage(errorText(error), true);
+            }
+        }
+    };
+    const closeDetail = () => {
+        ++state.detailSequence;
+        state.selectedId = null;
+        state.detail = null;
+        setModal(detailOverlay, false);
+    };
+    $$('[data-defects-detail-close]').forEach(button => button.addEventListener('click', closeDetail));
+    historyMore.addEventListener('click', () => {
+        if (state.selectedId) void loadHistory(state.selectedId, state.detailSequence);
+    });
+    closeForm.addEventListener('input', () => { state.closeCommand = null; });
+    closeForm.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (!closeForm.reportValidity() || !state.detail || !state.selectedId) return;
+        const button = $('[type="submit"]', closeForm);
+        button.disabled = true;
+        closeError.hidden = true;
+        const id = state.selectedId;
+        state.closeCommand ||= crypto.randomUUID();
+        try {
+            await request(api + '/' + id + '/close', {
+                completed_work: closeForm.elements.namedItem('completed_work').value,
+                version: Number(state.detail.version), command_id: state.closeCommand,
+            });
+            state.closeCommand = null;
+            closeDetail();
+            feedbackMessage('Дефект №' + id + ' закрыт');
+            await loadRegistry();
+        } catch (error) {
+            closeError.textContent = errorText(error)
+                + (errorText(error).includes('изменилась') ? '. Обновите карточку перед повтором.' : '');
+            closeError.hidden = false;
+        } finally { button.disabled = false; }
+    });
+
+    const referenceHistoryForm = $('[data-defects-reference-history]');
     if (referenceHistoryForm) {
         referenceHistoryForm.addEventListener('submit', async event => {
             event.preventDefault();
+            if (!referenceHistoryForm.reportValidity()) return;
             const kind = referenceHistoryForm.elements.namedItem('kind').value;
             const id = referenceHistoryForm.elements.namedItem('record_id').value;
-            const list = referenceHistoryForm.querySelector('[data-defects-reference-history-results]');
+            const list = $('[data-defects-reference-history-results]', referenceHistoryForm);
             list.replaceChildren();
             try {
-                const response = await request(api + '/references/'
+                const { history } = await request(api + '/references/'
                     + encodeURIComponent(kind) + '/' + encodeURIComponent(id) + '/history?limit=100');
-                response.history.events.forEach(record => {
-                    const li = document.createElement('li');
-                    li.textContent = record.created_at + ' · '
-                        + (record.event_type === 'created' ? 'Создание' : record.event_type)
-                        + ' · пользователь #' + (record.actor_user_id ?? 'не указан');
+                history.events.forEach(record => {
+                    const li = element('li');
+                    li.append(element('strong', '', record.event_type === 'created' ? 'Создание' : 'Изменение'));
+                    li.append(element('small', '', dateText(record.created_at)
+                        + ' · пользователь №' + (record.actor_user_id ?? 'не указан')));
+                    if (record.details?.name) li.append(element('p', '', record.details.name));
                     list.append(li);
                 });
-                if (response.history.next_cursor) {
-                    const li = document.createElement('li');
-                    li.textContent = 'Показаны первые 100 событий; доступно продолжение.';
-                    list.append(li);
-                }
-                if (!response.history.events.length) {
-                    const li = document.createElement('li');
-                    li.textContent = 'История изменений пока отсутствует.';
-                    list.append(li);
-                }
-            } catch (error) { message(error.message, true); }
+                if (!history.events.length) list.append(element('li', '', 'Истории пока нет'));
+                if (history.next_cursor) list.append(element('li', '', 'Показаны первые 100 событий'));
+            } catch (error) { feedbackMessage(errorText(error), true); }
         });
     }
 
-    const importForm = document.querySelector('[data-defects-import]');
+    const importForm = $('[data-defects-import]');
     if (importForm) {
         const file = importForm.elements.namedItem('file');
-        const previewButton = importForm.querySelector('[data-defects-import-preview]');
-        const applyButton = importForm.querySelector('[data-defects-import-apply]');
-        const result = importForm.querySelector('[data-defects-import-result]');
-        let previewHash = null;
-
+        const previewButton = $('[data-defects-import-preview]', importForm);
+        const applyButton = $('[data-defects-import-apply]', importForm);
+        const output = $('[data-defects-import-result]', importForm);
+        let hash = null;
         file.addEventListener('change', () => {
-            previewHash = null;
-            applyButton.disabled = true;
-            result.textContent = '';
+            hash = null; applyButton.disabled = true; output.textContent = '';
         });
-
         const upload = async (action, expectedHash) => {
-            if (!file.files.length) throw new Error('Выберите файл справочников');
-            const data = new FormData();
-            data.append('file', file.files[0]);
-            if (expectedHash) data.append('expected_hash', expectedHash);
-            const response = await fetch(api + '/import/' + action, {
-                method: 'POST',
-                credentials: 'same-origin',
-                headers: { Accept: 'application/json', 'X-CSRF-Token': csrf?.value || '' },
-                body: data,
+            if (!file.files.length) throw new Error('Выберите файл');
+            const body = new FormData();
+            body.append('file', file.files[0]);
+            if (expectedHash) body.append('expected_hash', expectedHash);
+            const response = await pageScope.fetch(api + '/import/' + action, {
+                method: 'POST', credentials: 'same-origin',
+                headers: { Accept: 'application/json', 'X-CSRF-Token': csrf?.value || '' }, body,
             });
-            const answer = await response.json();
-            if (!response.ok || answer.status !== 'ok') {
-                throw new Error(answer.message || 'Ошибка импорта');
-            }
-            return answer;
+            const result = await response.json();
+            if (!response.ok || result.status !== 'ok') throw new Error(result.message || 'Ошибка импорта');
+            return result;
         };
-
         previewButton.addEventListener('click', async () => {
-            previewButton.disabled = true;
-            applyButton.disabled = true;
-            previewHash = null;
+            previewButton.disabled = true; applyButton.disabled = true; hash = null;
             try {
-                const answer = await upload('preview');
-                const data = answer.preview;
-                const lines = data.rows.map(row =>
-                    row.line + ': ' + row.type + ' — ' + row.fields.join('; ')
-                );
-                result.textContent = 'Записей: ' + data.total + '\n' + lines.join('\n')
-                    + (data.errors.length ? '\nОшибки:\n' + data.errors.join('\n') : '');
-                if (!data.errors.length) {
-                    previewHash = data.hash;
-                    applyButton.disabled = false;
+                const { preview } = await upload('preview');
+                output.textContent = 'Записей: ' + preview.total + '\n'
+                    + preview.rows.map(item => item.line + ': ' + item.type + ' — ' + item.fields.join('; ')).join('\n')
+                    + (preview.errors.length ? '\nОшибки:\n' + preview.errors.join('\n') : '');
+                if (!preview.errors.length) {
+                    hash = preview.hash; applyButton.disabled = false;
                 }
-            } catch (error) { message(error.message, true); }
+            } catch (error) { feedbackMessage(errorText(error), true); }
             finally { previewButton.disabled = false; }
         });
-
         applyButton.addEventListener('click', async () => {
-            if (!previewHash) return;
+            if (!hash) return;
             applyButton.disabled = true;
             try {
-                const answer = await upload('apply', previewHash);
-                result.textContent = 'Создано: ' + answer.import.created
-                    + ', уже существовали: ' + answer.import.existing;
-                previewHash = null;
-                await Promise.all([loadAreas(), references('services').then(rows => {
-                    refill(services, rows, 'Выберите службы');
-                    refill(filterService, rows, 'Все службы');
-                })]);
-                message('Импорт справочников выполнен');
-            } catch (error) {
-                message(error.message, true);
-                applyButton.disabled = false;
-            }
+                const { import: result } = await upload('apply', hash);
+                output.textContent = 'Создано: ' + result.created + ' · Уже было: ' + result.existing;
+                hash = null;
+                await Promise.all([loadAreas(), loadServices()]);
+                feedbackMessage('Импорт справочников завершён');
+            } catch (error) { feedbackMessage(errorText(error), true); applyButton.disabled = false; }
         });
     }
 
@@ -345,40 +501,36 @@
             const needed = kind.value === 'categories' ? 'areas' :
                 kind.value === 'objects' ? 'categories' : null;
             parent.disabled = !needed;
-            refill(parent, !needed || (needed === 'categories' && !area.value)
-                ? [] : await references(needed, needed === 'categories' ? area.value : null), 'Выберите родительскую запись');
+            const rows = !needed || (needed === 'categories' && !area.value)
+                ? [] : await refRows(needed, needed === 'categories' ? area.value : null);
+            fillSelect(parent, rows, needed ? 'Выберите родителя' : 'Не требуется');
         };
-        kind.addEventListener('change', () => updateParents().catch(error => message(error.message, true)));
+        kind.addEventListener('change', () => void updateParents().catch(error => feedbackMessage(errorText(error), true)));
         area.addEventListener('change', () => {
-            if (kind.value === 'objects') updateParents().catch(error => message(error.message, true));
+            if (kind.value === 'objects') void updateParents().catch(error => feedbackMessage(errorText(error), true));
         });
         referenceForm.addEventListener('submit', async event => {
             event.preventDefault();
-            const button = referenceForm.querySelector('[type="submit"]');
+            if (!referenceForm.reportValidity()) return;
+            const button = $('[type="submit"]', referenceForm);
             button.disabled = true;
             try {
                 await request(api + '/references', {
                     kind: kind.value, name: referenceForm.elements.namedItem('name').value,
                     ...(parent.disabled ? {} : { parent_id: Number(parent.value) }),
                 });
-                message('Запись справочника добавлена');
                 referenceForm.elements.namedItem('name').value = '';
-                await Promise.all([loadAreas(), references('services').then(rows => {
-            refill(services, rows, 'Выберите службы');
-            refill(filterService, rows, 'Все службы');
-        })]);
+                await Promise.all([loadAreas(), loadServices()]);
                 await updateParents();
-            } catch (error) { message(error.message, true); }
+                feedbackMessage('Справочник дополнен');
+            } catch (error) { feedbackMessage(errorText(error), true); }
             finally { button.disabled = false; }
         });
-        updateParents().catch(error => message(error.message, true));
+        void updateParents();
     }
 
-    Promise.all([
-        loadAreas(), references('services').then(rows => {
-            refill(services, rows, 'Выберите службы');
-            refill(filterService, rows, 'Все службы');
-        }),
-        loadRegistry(true),
-    ]).catch(error => message(error.message, true));
+    // Страница не перезагружается при переходах внутри Notes.
+    Promise.all([loadAreas(), loadServices()]).catch(error => feedbackMessage(errorText(error), true));
+    void loadRegistry();
 })();
+});
