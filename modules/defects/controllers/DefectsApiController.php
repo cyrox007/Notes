@@ -14,6 +14,7 @@ use DomainException;
 use InvalidArgumentException;
 use Modules\Defects\Services\DefectReferenceService;
 use Modules\Defects\Services\DefectReferenceImportService;
+use Modules\Defects\Services\DefectHistoryService;
 use Modules\Defects\Services\DefectReportService;
 use Modules\Defects\Services\DefectRegistrationService;
 use Modules\Defects\Services\DefectRegistryService;
@@ -68,6 +69,38 @@ final class DefectsApiController extends Controller
                 throw new DomainException('Дефект не найден', 404);
             }
             return ['defect' => $record];
+        });
+    }
+
+    public function history(Request $request, int $id): void
+    {
+        $this->handle($request, 'defects.use', function () use ($request, $id): array {
+            if ($this->registry()->detail($id) === null) {
+                throw new DomainException('Дефект не найден', 404);
+            }
+            return ['history' => $this->historyService()->list(
+                'defect', $id,
+                $this->integer($request->get('limit', 40), 'limit'),
+                $this->integer($request->get('after_id', 0), 'after_id')
+            )];
+        });
+    }
+
+    public function referenceHistory(Request $request, string $kind, int $id): void
+    {
+        $this->handle($request, 'defects.manage', function () use ($request, $kind, $id): array {
+            $type = match ($kind) {
+                'areas' => 'area',
+                'categories' => 'category',
+                'objects' => 'object',
+                'services' => 'service',
+                default => throw new InvalidArgumentException('Неизвестный справочник'),
+            };
+            return ['history' => $this->historyService()->list(
+                $type, $id,
+                $this->integer($request->get('limit', 40), 'limit'),
+                $this->integer($request->get('after_id', 0), 'after_id')
+            )];
         });
     }
 
@@ -276,6 +309,11 @@ final class DefectsApiController extends Controller
     private function reports(): DefectReportService
     {
         return new DefectReportService(DatabaseManager::getInstance());
+    }
+
+    private function historyService(): DefectHistoryService
+    {
+        return new DefectHistoryService(DatabaseManager::getInstance());
     }
 
     private function registry(): DefectRegistryService
