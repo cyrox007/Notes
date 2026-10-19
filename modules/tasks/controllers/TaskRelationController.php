@@ -102,7 +102,7 @@ final class TaskRelationController extends Controller
 
     private function service(): TaskRelationMutationService
     {
-        return new TaskRelationMutationService(DatabaseManager::getInstance()->getPdo());
+        return new TaskRelationMutationService(DatabaseManager::getInstance());
     }
 
     private function userId(Request $request): int
