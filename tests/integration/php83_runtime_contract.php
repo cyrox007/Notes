@@ -93,7 +93,7 @@ $processResult = (new \Core\UpdateProcessRunner())->run(
 runtimeCheck($processResult['code'] === 23, 'должен сохраняться реальный код завершения дочернего PHP-процесса');
 runtimeCheck(trim($processResult['stdout']) === 'runtime-ok', 'должен сохраняться stdout дочернего PHP-процесса');
 
-$largeOutput = (new \\Core\\UpdateProcessRunner())->run(
+$largeOutput = (new \Core\UpdateProcessRunner())->run(
     [PHP_BINARY, '-r', 'fwrite(STDOUT, str_repeat("A", 2097152)); fwrite(STDERR, str_repeat("B", 2097152)); exit(17);'],
     $root,
     15
