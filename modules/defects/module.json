@@ -31,13 +31,15 @@
       "defect_objects",
       "defect_services",
       "defects",
-      "defect_responsible_services"
+      "defect_responsible_services",
+      "defect_history"
     ],
     "schemas": [
       "database/defects_schema.sql"
     ],
     "migrations": [
-      "database/migrations/20261019_defects_foundation.sql"
+      "database/migrations/20261019_defects_foundation.sql",
+      "database/migrations/20261019_defects_history.sql"
     ]
   },
   "background": {
