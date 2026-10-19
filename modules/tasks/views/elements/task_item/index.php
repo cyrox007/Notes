@@ -40,6 +40,16 @@ $createdAt = $formatDate($taskRow['created_at'] ?? '', 'd.m.Y H:i');
         </div>
 
         <div class="task-actions">
+            <?php if (!empty($dayQueueEnabled)): ?>
+                <div class="task-day-order-controls" aria-label="Порядок задачи">
+                    <button type="button" class="btn-icon" data-day-move="up"
+                        aria-label="Переместить выше: <?= $view->e($title) ?>"
+                        title="Переместить выше"><i class="fa fa-arrow-up" aria-hidden="true"></i></button>
+                    <button type="button" class="btn-icon" data-day-move="down"
+                        aria-label="Переместить ниже: <?= $view->e($title) ?>"
+                        title="Переместить ниже"><i class="fa fa-arrow-down" aria-hidden="true"></i></button>
+                </div>
+            <?php endif; ?>
             <form action="<?= $view->e($view->route('update_task', ['uid' => $uid])) ?>" method="post" class="task-archive-form">
                 <?= $view->csrfInput() ?>
                 <input type="hidden" name="expected_version" value="<?= $version ?>">
