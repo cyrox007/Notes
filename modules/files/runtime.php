@@ -11,6 +11,7 @@ foreach ([
     '/services/FileUploadTypes.php',
     '/services/FileSpaceAccessService.php',
     '/services/FileSpaceAdminService.php',
+    '/services/FileSpaceStorageGuard.php',
     '/services/FileSpaceTransferService.php',
     '/services/FileSpaceObjectService.php',
     '/services/FileSpaceFolderService.php',
