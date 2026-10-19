@@ -51,8 +51,16 @@ foreach ($violations as $path => $lines) {
 }
 
 $baselinePath = $root . '/tests/integration/module_database_legacy_12.json';
-if (is_file($baselinePath)) {
-    $baseline = json_decode((string) file_get_contents($baselinePath), true, 512, JSON_THROW_ON_ERROR);
+if (!is_file($baselinePath)) {
+    fwrite(STDERR, 'Отсутствует утверждённая база исключений БД модулей' . PHP_EOL);
+    exit(1);
+}
+$baseline = json_decode((string) file_get_contents($baselinePath), true, 512, JSON_THROW_ON_ERROR);
+if (!is_array($baseline)) {
+    fwrite(STDERR, 'Неверный формат базы исключений БД модулей' . PHP_EOL);
+    exit(1);
+}
+{
     foreach ($violations as $path => $lines) {
         if (str_starts_with($path, 'modules/files/')) {
             continue;
