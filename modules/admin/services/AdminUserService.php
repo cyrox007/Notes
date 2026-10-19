@@ -159,6 +159,13 @@ final class AdminUserService
         }
 
         $this->requireReleasedModuleOwnership($targetId);
+        $registry = $this->moduleCapabilities();
+        if (!$registry?->has('workspace.profile') && !empty($target['avatar'])) {
+            throw new DomainException(
+                'Невозможно очистить аватар при отключённом Profile. Активируйте модуль перед деактивацией',
+                409
+            );
+        }
 
         $this->db->execute(
             "UPDATE users SET is_active = 0, account_status = 'inactive', avatar = NULL, updated_at = :updated_at "
@@ -169,13 +176,6 @@ final class AdminUserService
             ]
         );
 
-        $registry = $this->moduleCapabilities();
-        if (!$registry?->has('workspace.profile') && !empty($target['avatar'])) {
-            throw new DomainException(
-                'Невозможно очистить аватар при отключённом Profile. Активируйте модуль перед деактивацией',
-                409
-            );
-        }
         if ($registry?->has('workspace.profile')) {
             try {
                 $registry->require('workspace.profile', AccountAvatarCleanup::class)
