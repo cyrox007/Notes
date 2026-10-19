@@ -506,9 +506,9 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
             const needed = kind.value === 'categories' ? 'areas' :
                 kind.value === 'objects' ? 'categories' : null;
             parent.disabled = !needed;
-            parentAreaLabel.hidden = needed !== 'categories';
-            categoryArea.disabled = needed !== 'categories';
-            if (needed === 'categories') {
+            parentAreaLabel.hidden = kind.value !== 'objects';
+            categoryArea.disabled = kind.value !== 'objects';
+            if (kind.value === 'objects') {
                 const selectedArea = categoryArea.value;
                 fillSelect(categoryArea, await refRows('areas'), 'Выберите участок');
                 if ([...categoryArea.options].some(option => option.value === selectedArea)) categoryArea.value = selectedArea;
