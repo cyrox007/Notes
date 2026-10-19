@@ -8,6 +8,7 @@ $files = [
     '/models/TaskCategoryModel.php',
     '/models/TaskCategoryRelationModel.php',
     '/models/TaskReminderModel.php',
+    '/services/TasksAccountOwnership.php',
     '/services/TaskBoardService.php',
     '/services/TaskVersionMutationService.php',
     '/services/TaskRelationMutationService.php',
