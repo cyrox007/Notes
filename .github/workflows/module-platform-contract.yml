@@ -57,6 +57,13 @@ jobs:
       - name: Verify module user avatar context
         run: php tests/integration/module_user_avatar_contract.php
 
+      - name: Проверить владение данными и отсутствие скрытых зависимостей модулей
+        run: |
+          php -l tests/integration/module_schema_ownership_contract_12.php
+          php -l tests/integration/module_account_ownership_contract_12.php
+          php tests/integration/module_schema_ownership_contract_12.php
+          php tests/integration/module_account_ownership_contract_12.php
+
       - name: Verify module package web boundary
         shell: bash
         run: |
