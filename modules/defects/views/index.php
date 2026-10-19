@@ -23,7 +23,25 @@ ob_start();
             <option value="all">Все</option>
         </select>
     </label>
+    <label>Приоритет
+        <select data-defects-priority>
+            <option value="">Все</option>
+            <option value="urgent">Неотложный</option>
+            <option value="first">Первоочередной</option>
+            <option value="important">Важный</option>
+            <option value="normal">Обычный</option>
+        </select>
+    </label>
+    <label>Участок / РЭС <select data-defects-filter-area><option value="">Все участки</option></select></label>
+    <label>Объект (ID) <input type="number" min="1" data-defects-filter-object placeholder="Все объекты"></label>
+    <label>Ответственная служба <select data-defects-filter-service><option value="">Все службы</option></select></label>
+    <label>От <input type="date" data-defects-from></label>
+    <label>До <input type="date" data-defects-to></label>
     <button type="button" data-defects-refresh>Обновить</button>
+    <section aria-live="polite">
+        <h3>Сводка</h3>
+        <div data-defects-summary></div>
+    </section>
     <div data-defects-results aria-live="polite"></div>
     <button type="button" data-defects-more hidden>Показать ещё</button>
 </section>

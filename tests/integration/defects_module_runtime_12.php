@@ -49,7 +49,7 @@ $provider->registerRoutes($router);
 $routes = $router->getRoutes();
 $names = array_column($routes, 'name');
 foreach ([
-    'defects', 'defects_list', 'defects_create',
+    'defects', 'defects_list', 'defects_create', 'defects_report',
     'defects_references', 'defects_reference_create', 'defects_show', 'defects_close',
 ] as $name) {
     defectsModuleAssert(in_array($name, $names, true), 'не найден маршрут ' . $name);

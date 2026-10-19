@@ -12,6 +12,13 @@
     const status = root.querySelector('[data-defects-status]');
     const more = root.querySelector('[data-defects-more]');
     const refresh = root.querySelector('[data-defects-refresh]');
+    const summary = root.querySelector('[data-defects-summary]');
+    const filterArea = root.querySelector('[data-defects-filter-area]');
+    const filterObject = root.querySelector('[data-defects-filter-object]');
+    const filterService = root.querySelector('[data-defects-filter-service]');
+    const filterPriority = root.querySelector('[data-defects-priority]');
+    const filterFrom = root.querySelector('[data-defects-from]');
+    const filterTo = root.querySelector('[data-defects-to]');
     const csrf = root.querySelector('input[name="csrf_token"]');
     const area = form.elements.namedItem('area');
     const category = form.elements.namedItem('category');
@@ -53,7 +60,9 @@
     };
 
     const loadAreas = async () => {
-        refill(area, await references('areas'), 'Выберите участок');
+        const items = await references('areas');
+        refill(area, items, 'Выберите участок');
+        refill(filterArea, items, 'Все участки');
         refill(category, [], 'Выберите категорию');
         refill(object, [], 'Выберите объект');
     };
@@ -106,6 +115,36 @@
         return article;
     };
 
+    const reportFilters = () => {
+        const values = { status: status.value };
+        if (filterPriority.value) values.priority = filterPriority.value;
+        if (filterArea.value) values.area_id = filterArea.value;
+        if (filterObject.value) values.object_id = filterObject.value;
+        if (filterService.value) values.service_id = filterService.value;
+        if (filterFrom.value) values.from = filterFrom.value;
+        if (filterTo.value) values.to = filterTo.value;
+        return values;
+    };
+
+    const loadSummary = async () => {
+        const query = new URLSearchParams(reportFilters());
+        const { report } = await request(api + '/report?' + query);
+        summary.replaceChildren();
+        const main = document.createElement('p');
+        main.textContent = 'Всего: ' + report.total + ' · Просрочено: ' + report.overdue;
+        summary.append(main);
+        const details = document.createElement('p');
+        details.textContent = report.by_priority.map(row =>
+            row.priority + ' / ' + row.status + ': ' + row.total
+        ).join(' · ') || 'Нет записей';
+        summary.append(details);
+        const areas = document.createElement('p');
+        areas.textContent = (report.by_area.map(row =>
+            row.area_name + ': ' + row.total
+        ).join(' · ') || 'Нет участков') + (report.next_area_cursor ? ' · Есть другие участки' : '');
+        summary.append(areas);
+    };
+
     const loadRegistry = async (reset = false) => {
         if (reset) {
             cursor = 0;
@@ -113,18 +152,20 @@
         }
         refresh.disabled = true;
         try {
-            const query = new URLSearchParams({ status: status.value, limit: '40', after_id: String(cursor) });
+            const query = new URLSearchParams({ ...reportFilters(), limit: '40', after_id: String(cursor) });
             const data = await request(api + '/?' + query);
             data.items.forEach(item => results.append(renderItem(item)));
             cursor = data.next_cursor || 0;
             more.hidden = data.items.length < 40;
             if (reset && !data.items.length) message('По выбранному фильтру записей нет');
+            if (reset) await loadSummary();
         } catch (error) { message(error.message, true); }
         finally { refresh.disabled = false; }
     };
 
     refresh.addEventListener('click', () => loadRegistry(true));
-    status.addEventListener('change', () => loadRegistry(true));
+    [status, filterPriority, filterArea, filterObject, filterService, filterFrom, filterTo]
+        .forEach(control => control.addEventListener('change', () => loadRegistry(true)));
     more.addEventListener('click', () => loadRegistry(false));
 
     form.addEventListener('submit', async event => {
@@ -161,9 +202,13 @@
             const needed = kind.value === 'categories' ? 'areas' :
                 kind.value === 'objects' ? 'categories' : null;
             parent.disabled = !needed;
-            refill(parent, needed ? await references(needed, needed === 'categories' ? area.value : null) : [], 'Выберите родительскую запись');
+            refill(parent, !needed || (needed === 'categories' && !area.value)
+                ? [] : await references(needed, needed === 'categories' ? area.value : null), 'Выберите родительскую запись');
         };
         kind.addEventListener('change', () => updateParents().catch(error => message(error.message, true)));
+        area.addEventListener('change', () => {
+            if (kind.value === 'objects') updateParents().catch(error => message(error.message, true));
+        });
         referenceForm.addEventListener('submit', async event => {
             event.preventDefault();
             const button = referenceForm.querySelector('[type="submit"]');
@@ -175,7 +220,10 @@
                 });
                 message('Запись справочника добавлена');
                 referenceForm.elements.namedItem('name').value = '';
-                await Promise.all([loadAreas(), references('services').then(rows => refill(services, rows, 'Выберите службы'))]);
+                await Promise.all([loadAreas(), references('services').then(rows => {
+            refill(services, rows, 'Выберите службы');
+            refill(filterService, rows, 'Все службы');
+        })]);
                 await updateParents();
             } catch (error) { message(error.message, true); }
             finally { button.disabled = false; }
@@ -184,7 +232,10 @@
     }
 
     Promise.all([
-        loadAreas(), references('services').then(rows => refill(services, rows, 'Выберите службы')),
+        loadAreas(), references('services').then(rows => {
+            refill(services, rows, 'Выберите службы');
+            refill(filterService, rows, 'Все службы');
+        }),
         loadRegistry(true),
     ]).catch(error => message(error.message, true));
 })();
