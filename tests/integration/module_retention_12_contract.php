@@ -10,6 +10,7 @@ foreach ([
     '/core/DatabaseManager.php',
     '/core/ModuleManifest.php',
     '/core/ModuleRegistry.php',
+    '/core/ModuleAccountDataCleanup.php',
     '/core/ModuleRetentionCleanup.php',
     '/core/RetentionFileCleanup.php',
     '/core/RetentionCleanupContext.php',
