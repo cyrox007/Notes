@@ -352,7 +352,7 @@ final class TaskController extends Controller
                 ':updated_at' => $now,
             ]
         );
-        $id = (int) $db->getPdo()->lastInsertId();
+        $id = (int) $db->lastInsertId();
 
         $this->json([
             'success' => true,
