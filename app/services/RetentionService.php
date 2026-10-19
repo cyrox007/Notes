@@ -6,6 +6,7 @@ namespace App\Services;
 
 require_once dirname(__DIR__, 2) . '/core/SecurityEventLog.php';
 
+use Core\BackgroundAccountRetention;
 use Core\DatabaseManager;
 use Core\SecurityEventLog;
 use RuntimeException;
@@ -18,6 +19,7 @@ final class RetentionService
     /** @var array<string,bool> */
     private array $tableCache = [];
     private string $appRoot;
+    private ?BackgroundAccountRetention $accountRetention = null;
     private string $privateRoot;
 
     public function __construct(private ?DatabaseManager $db = null, ?string $appRoot = null)
@@ -548,35 +550,19 @@ final class RetentionService
             }
         }
 
-        if ($this->hasTable('dialogs') && $this->hasTable('user_to_dialogs')) {
-            $ownedGroup = $this->db->fetchValue(
-                "SELECT 1 FROM user_to_dialogs owner_link "
-                . 'JOIN dialogs d ON d.id=owner_link.dialog_id '
-                . "WHERE owner_link.user_id=:user_id AND owner_link.role='owner' AND owner_link.is_deleted=0 "
-                . "AND d.type='group' LIMIT 1",
-                [':user_id' => $userId]
-            );
-            if ($ownedGroup !== null) {
-                return 'owned_shared_messenger_group';
-            }
-        }
-
-        if ($this->hasTable('task_boards')) {
-            $sql = "SELECT 1 FROM task_boards b WHERE b.owner_user_id=:user_id AND (b.audience='all_active'";
-            $params = [':user_id' => $userId];
-            if ($this->hasTable('task_board_members')) {
-                $sql .= ' OR EXISTS (SELECT 1 FROM task_board_members m WHERE m.board_id=b.id AND m.user_id<>:other_user_id)';
-                $params[':other_user_id'] = $userId;
-            }
-            $sql .= ') LIMIT 1';
-            $ownedBoard = $this->db->fetchValue($sql, $params);
-            if ($ownedBoard !== null) {
-                return 'owned_shared_task_board';
-            }
-        }
-
-        return null;
+        // Владелец данных сам проверяет препятствия для обезличивания.
+        // Фоновый сервис загружается по manifest даже при disabled/unlicensed.
+        return $this->backgroundAccountRetention()->blockingReason($userId);
     }
+
+    private function backgroundAccountRetention(): BackgroundAccountRetention
+    {
+        return $this->accountRetention ??= new BackgroundAccountRetention(
+            $this->db,
+            $this->appRoot . '/modules'
+        );
+    }
+
 
     /** @return list<string> */
     private function identityPaths(int $userId): array
