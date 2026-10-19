@@ -206,7 +206,7 @@ final class TaskBoardService
                     ':updated_at' => $now,
                 ]
             );
-            $boardId = (int) $this->db->getPdo()->lastInsertId();
+            $boardId = (int) $this->db->lastInsertId();
             $this->db->execute(
                 'INSERT INTO task_board_members (board_id,user_id,role,joined_at)
                  VALUES (:board_id,:user_id,"manager",:joined_at)',
@@ -286,7 +286,7 @@ final class TaskBoardService
         }
         $ids = array_values(array_map(static fn(array $row): int => (int) $row['id'], $rows));
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $assignees = $this->db->getPdo()->prepare(
+        $assignees = $this->db->prepare(
             "SELECT a.task_id,u.id,u.uid,u.username,u.firstname,u.lastname
              FROM task_board_assignees a
              INNER JOIN users u ON u.id = a.user_id
@@ -350,7 +350,7 @@ final class TaskBoardService
                     ':updated_at' => $now,
                 ]
             );
-            $taskId = (int) $this->db->getPdo()->lastInsertId();
+            $taskId = (int) $this->db->lastInsertId();
             $this->replaceTaskAssigneesById($taskId, $assigneeIds);
             $this->touchBoard((int) $board['id']);
             $this->db->endTransaction(true);
@@ -506,14 +506,14 @@ final class TaskBoardService
         $allowed = [];
         if ((string) $board['audience'] === 'all_active') {
             $placeholders = implode(',', array_fill(0, count($ids), '?'));
-            $stmt = $this->db->getPdo()->prepare(
+            $stmt = $this->db->prepare(
                 "SELECT id FROM users WHERE id IN ({$placeholders}) AND is_active = 1 AND account_status = 'active'"
             );
             $stmt->execute($ids);
             $allowed = array_map('intval', $stmt->fetchAll(\PDO::FETCH_COLUMN));
         } else {
             $placeholders = implode(',', array_fill(0, count($ids), '?'));
-            $stmt = $this->db->getPdo()->prepare(
+            $stmt = $this->db->prepare(
                 "SELECT bm.user_id
                  FROM task_board_members bm
                  INNER JOIN users u ON u.id = bm.user_id AND u.is_active = 1 AND u.account_status = 'active'
@@ -539,7 +539,7 @@ final class TaskBoardService
             return [];
         }
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $stmt = $this->db->getPdo()->prepare(
+        $stmt = $this->db->prepare(
             "SELECT id FROM users WHERE id IN ({$placeholders}) AND is_active = 1 AND account_status = 'active'"
         );
         $stmt->execute($ids);
