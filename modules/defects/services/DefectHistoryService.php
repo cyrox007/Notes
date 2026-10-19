@@ -6,7 +6,6 @@ namespace Modules\Defects\Services;
 
 use Core\DatabaseManager;
 use InvalidArgumentException;
-use JsonException;
 
 /**
  * Предметная история изменений. Не открывает собственных соединений или
