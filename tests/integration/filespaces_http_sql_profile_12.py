@@ -181,8 +181,17 @@ def main():
                        "вместе с контейнером. В отчёте нет значений SQL.",
         "маршруты": {name: summarize(rows) for name, rows in samples.items()},
     }
+    # Защита от возврата N+1 при добавлении объектов корзины.
+    # Пороги выше текущей стоимости маршрутов и учитывают накладные
+    # запросы загрузки приложения, но не допускают прежних сотен SQL.
+    limits = {"чтение_каталога": 150, "скачивание": 55, "загрузка": 80}
+    report["предельное_sql_на_ответ"] = limits
     pathlib.Path(args.out).write_text(json.dumps(report, ensure_ascii=False, indent=2))
     print(json.dumps(report, ensure_ascii=False, indent=2))
+    for name, limit in limits.items():
+        average = report["маршруты"][name]["sql_в_среднем_на_ответ"]
+        if average > limit:
+            raise SystemExit(f"SQL-регрессия маршрута {name}: {average} > {limit}")
 
 
 if __name__ == "__main__":
