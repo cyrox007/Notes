@@ -14,7 +14,7 @@ require_once __DIR__ . '/UpdatePath.php';
  */
 final class UpdateExternalCliSupport
 {
-    private const MINIMUM_PHP_VERSION = '8.3.0';
+    private const string MINIMUM_PHP_VERSION = '8.3.0';
 
     public function __construct(
         private readonly string $runnerRoot,
