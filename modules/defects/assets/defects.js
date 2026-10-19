@@ -422,6 +422,155 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
         } finally { button.disabled = false; }
     });
 
+    let refreshManaged = async () => {};
+    const manageRoot = $('[data-defects-reference-manager]');
+    if (manageRoot && !manageRoot.closest('details')?.hidden) {
+        const adminKind = $('[data-defects-manage-kind]', manageRoot);
+        const showArchived = $('[data-defects-manage-archived]', manageRoot);
+        const adminResults = $('[data-defects-manage-results]', manageRoot);
+        const adminLoading = $('[data-defects-manage-loading]', manageRoot);
+        const adminMore = $('[data-defects-manage-more]', manageRoot);
+        const adminRefresh = $('[data-defects-manage-refresh]', manageRoot);
+        const adminState = { cursor: 0, sequence: 0, loading: false, initialized: false };
+
+        const mutate = async (row, item, action, data = {}) => {
+            const buttons = $('button', row);
+            buttons.forEach(button => { button.disabled = true; });
+            try {
+                const { reference } = await request(api + '/references/'
+                    + encodeURIComponent(adminKind.value) + '/' + item.id + '/' + action,
+                    { version: item.version, ...data });
+                feedbackMessage(reference.changed
+                    ? 'Справочник обновлён, изменение сохранено в истории'
+                    : 'Изменения не требуются');
+                await Promise.all([refreshManaged(), loadAreas(), loadServices()]);
+            } catch (error) {
+                feedbackMessage(errorText(error), true);
+                buttons.forEach(button => { button.disabled = false; });
+                if (errorText(error).includes('изменена')) await refreshManaged();
+            }
+        };
+
+        const renderManaged = item => {
+            const row = element('div', 'defects-reference-row');
+            const title = element('div', 'defects-reference-row__title');
+            title.append(element('strong', '', item.name));
+            title.append(element('small', '', '№' + item.id + ' · версия ' + item.version
+                + (item.parent_id ? ' · родитель №' + item.parent_id : '')));
+            const actions = element('div', 'defects-reference-row__actions');
+            row.append(title, actions);
+
+            if (item.is_archived) {
+                const restore = element('button', 'defects-button defects-button--secondary', 'Восстановить');
+                restore.type = 'button';
+                restore.addEventListener('click', () => void mutate(row, item, 'restore'));
+                actions.append(restore);
+                return row;
+            }
+
+            const edit = element('button', 'defects-button defects-button--secondary', 'Переименовать');
+            edit.type = 'button';
+            edit.addEventListener('click', () => {
+                if (row.querySelector('form')) return;
+                const editor = element('form', 'defects-reference-editor');
+                const label = element('label', '', 'Новое название');
+                const input = document.createElement('input');
+                input.name = 'name';
+                input.value = item.name;
+                input.maxLength = adminKind.value === 'objects' ? 180 : 160;
+                input.required = true;
+                const save = element('button', 'defects-button defects-button--primary', 'Сохранить');
+                save.type = 'submit';
+                const cancel = element('button', 'defects-button defects-button--secondary', 'Отмена');
+                cancel.type = 'button';
+                cancel.addEventListener('click', () => {
+                    editor.remove();
+                    actions.hidden = false;
+                    edit.focus();
+                });
+                editor.addEventListener('submit', event => {
+                    event.preventDefault();
+                    if (editor.reportValidity()) void mutate(row, item, 'rename', { name: input.value });
+                });
+                label.append(input);
+                editor.append(label, save, cancel);
+                actions.hidden = true;
+                row.append(editor);
+                input.focus();
+            });
+
+            const archive = element('button', 'defects-button defects-button--secondary', 'В архив');
+            archive.type = 'button';
+            archive.addEventListener('click', () => {
+                if (actions.querySelector('[data-confirm-archive]')) return;
+                archive.hidden = true;
+                const warning = element('span', 'defects-reference-confirm', 'Подтвердить архивирование?');
+                warning.dataset.confirmArchive = 'true';
+                const yes = element('button', 'defects-button defects-button--secondary', 'Подтвердить');
+                yes.type = 'button';
+                yes.addEventListener('click', () => void mutate(row, item, 'archive'));
+                const no = element('button', 'defects-button defects-button--secondary', 'Отмена');
+                no.type = 'button';
+                no.addEventListener('click', () => {
+                    warning.remove(); yes.remove(); no.remove(); archive.hidden = false;
+                });
+                actions.append(warning, yes, no);
+            });
+            actions.append(edit, archive);
+            return row;
+        };
+
+        const load = async (reset = true) => {
+            if (adminState.loading && !reset) return;
+            const sequence = reset ? ++adminState.sequence : adminState.sequence;
+            const cursor = reset ? 0 : adminState.cursor;
+            adminState.loading = true;
+            adminLoading.hidden = false;
+            adminRefresh.disabled = true;
+            adminMore.disabled = true;
+            try {
+                const query = new URLSearchParams({
+                    kind: adminKind.value, archived: showArchived.checked ? '1' : '0',
+                    after_id: String(cursor), limit: '40',
+                });
+                const { references } = await request(api + '/references/manage?' + query);
+                if (sequence !== adminState.sequence) return;
+                if (reset) adminResults.replaceChildren();
+                references.items.forEach(item => adminResults.append(renderManaged(item)));
+                adminState.cursor = Number(references.next_cursor || 0);
+                adminMore.hidden = !adminState.cursor;
+                if (!adminResults.children.length) {
+                    adminResults.append(element('p', 'defects-empty', 'В этом списке записей нет'));
+                }
+            } catch (error) {
+                if (sequence === adminState.sequence) feedbackMessage(errorText(error), true);
+            } finally {
+                if (sequence === adminState.sequence) {
+                    adminLoading.hidden = true;
+                    adminState.loading = false;
+                    adminRefresh.disabled = false;
+                    adminMore.disabled = false;
+                }
+            }
+        };
+        refreshManaged = () => load(true);
+        adminKind.addEventListener('change', refreshManaged);
+        showArchived.addEventListener('change', refreshManaged);
+        adminRefresh.addEventListener('click', refreshManaged);
+        adminMore.addEventListener('click', () => void load(false));
+        const details = manageRoot.closest('details');
+        details?.addEventListener('toggle', () => {
+            if (details.open && !adminState.initialized) {
+                adminState.initialized = true;
+                void refreshManaged();
+            }
+        });
+        if (details?.open) {
+            adminState.initialized = true;
+            void refreshManaged();
+        }
+    }
+
     const referenceHistoryForm = $('[data-defects-reference-history]');
     if (referenceHistoryForm) {
         referenceHistoryForm.addEventListener('submit', async event => {
@@ -491,7 +640,7 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
                 const { import: result } = await upload('apply', hash);
                 output.textContent = 'Создано: ' + result.created + ' · Уже было: ' + result.existing;
                 hash = null;
-                await Promise.all([loadAreas(), loadServices()]);
+                await Promise.all([loadAreas(), loadServices(), refreshManaged()]);
                 feedbackMessage('Импорт справочников завершён');
             } catch (error) { feedbackMessage(errorText(error), true); applyButton.disabled = false; }
         });
@@ -535,7 +684,7 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
                     ...(parent.disabled ? {} : { parent_id: Number(parent.value) }),
                 });
                 referenceForm.elements.namedItem('name').value = '';
-                await Promise.all([loadAreas(), loadServices()]);
+                await Promise.all([loadAreas(), loadServices(), refreshManaged()]);
                 await updateParents();
                 feedbackMessage('Справочник дополнен');
             } catch (error) { feedbackMessage(errorText(error), true); }
