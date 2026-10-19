@@ -181,7 +181,11 @@ def worker(index, origin, fixture, password, stop_at):
                     raise RuntimeError("Скачанный файл не совпадает с оригиналом")
                 expected = 200
             else:
-                status, html, _ = request(opener, origin + folder)
+                status, html, form_latency = request(opener, origin + folder)
+                # Чтение формы — полноценный HTTP-запрос. Ранее оно
+                # отсутствовало в знаменателе общей нагрузки.
+                counts[str(status)] += 1
+                latencies.append(form_latency)
                 if status != 200:
                     raise RuntimeError(f"Нельзя прочитать каталог перед загрузкой: {status}")
                 parser = Fields("/files/spaces/global/upload/")
