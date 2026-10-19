@@ -8,6 +8,7 @@ use Core\MutationCommandStore;
 use DomainException;
 use InvalidArgumentException;
 use PDO;
+use Core\DatabaseManager;
 use RuntimeException;
 use Throwable;
 
@@ -17,11 +18,15 @@ use Throwable;
  */
 final class FileSpaceFolderService
 {
+    private readonly DatabaseManager $db;
+
     public function __construct(
-        private readonly PDO $pdo,
+        PDO|DatabaseManager $connection,
         private readonly FileSpaceAccessService $access,
         private readonly MutationCommandStore $commands = new MutationCommandStore()
     ) {
+        $this->db = $connection instanceof DatabaseManager
+            ? $connection : DatabaseManager::forConnection($connection);
     }
 
     private const int PAGE_SIZE = 40;
@@ -67,7 +72,7 @@ final class FileSpaceFolderService
                 $params[':after_id'] = $position['id'];
             }
             $batchSize = min(self::FETCH_SIZE, self::MAX_SCAN - $scanned);
-            $stmt = $this->pdo->prepare($sql . ' ORDER BY name ASC,id ASC LIMIT ' . $batchSize);
+            $stmt = $this->db->prepare($sql . ' ORDER BY name ASC,id ASC LIMIT ' . $batchSize);
             $stmt->execute($params);
             $batch = $stmt->fetchAll(PDO::FETCH_ASSOC);
             if ($batch === []) {
@@ -181,7 +186,7 @@ final class FileSpaceFolderService
         if ($folderId !== null) {
             $this->folder((int) $space['id'], $folderId);
         }
-        $query = $this->pdo->prepare(
+        $query = $this->db->prepare(
             'SELECT subject_type,subject_id,permission_key,effect
              FROM file_space_acl
              WHERE space_id=:space_id AND scope_key=:scope
@@ -231,7 +236,7 @@ final class FileSpaceFolderService
                 return $this->conflict($receipt, $expectedVersion, (int) $target['version']);
             }
 
-            $exists = $this->pdo->prepare(
+            $exists = $this->db->prepare(
                 'SELECT id FROM file_space_nodes WHERE space_id=:space_id
                  AND ' . ($parentId === null ? 'parent_id IS NULL' : 'parent_id=:parent_id')
                  . ' AND name=:name AND is_deleted=0 LIMIT 1'
@@ -246,7 +251,7 @@ final class FileSpaceFolderService
             }
 
             $uid = bin2hex(random_bytes(16));
-            $insert = $this->pdo->prepare(
+            $insert = $this->db->prepare(
                 'INSERT INTO file_space_nodes (uid,space_id,parent_id,node_type,name,created_by,updated_by)
                  VALUES (:uid,:space_id,:parent_id,"folder",:name,:actor,:editor)'
             );
@@ -258,7 +263,7 @@ final class FileSpaceFolderService
                 ':actor' => $actorId,
                 ':editor' => $actorId,
             ]);
-            $nodeId = (int) $this->pdo->lastInsertId();
+            $nodeId = (int) $this->db->lastInsertId();
             $version = $this->bumpVersion((int) $space['id'], $parentId, $expectedVersion);
             $this->audit((int) $space['id'], $nodeId, $actorId, 'folder.create',
                 ['parent_id' => $parentId, 'name' => $name]);
@@ -271,7 +276,7 @@ final class FileSpaceFolderService
                 'replayed' => false,
             ];
             $this->finish($receipt, $result, $version, MutationCommandStore::STATUS_APPLIED);
-            $this->pdo->commit();
+            $this->db->endTransaction();
             return $result;
         } catch (Throwable $error) {
             $this->rollback();
@@ -342,14 +347,14 @@ final class FileSpaceFolderService
                 ':permission' => $permission,
             ];
             if ($effect === 'remove') {
-                $statement = $this->pdo->prepare(
+                $statement = $this->db->prepare(
                     'DELETE FROM file_space_acl
                      WHERE space_id=:space_id AND scope_key=:scope
                      AND subject_type=:subject_type AND subject_id=:subject_id
                      AND permission_key=:permission'
                 );
             } else {
-                $statement = $this->pdo->prepare(
+                $statement = $this->db->prepare(
                     'INSERT INTO file_space_acl
                        (space_id,scope_key,subject_type,subject_id,permission_key,effect,updated_by)
                      VALUES (:space_id,:scope,:subject_type,:subject_id,:permission,:effect,:editor)
@@ -360,7 +365,7 @@ final class FileSpaceFolderService
             }
             $statement->execute($parameters);
             if ($folderId !== null && $inheritAcl !== null) {
-                $inherit = $this->pdo->prepare(
+                $inherit = $this->db->prepare(
                     'UPDATE file_space_nodes SET inherit_acl=:inherit
                      WHERE id=:id AND space_id=:space_id'
                 );
@@ -387,7 +392,7 @@ final class FileSpaceFolderService
                 'scope' => self::scope($folderId),
             ];
             $this->finish($receipt, $result, $version, MutationCommandStore::STATUS_APPLIED);
-            $this->pdo->commit();
+            $this->db->endTransaction();
             return $result;
         } catch (Throwable $error) {
             $this->rollback();
@@ -460,7 +465,7 @@ final class FileSpaceFolderService
             foreach ($subjectIds as $id) {
                 $this->assertSubject($subjectType, $id);
             }
-            $statement = $this->pdo->prepare($effect === 'remove'
+            $statement = $this->db->prepare($effect === 'remove'
                 ? 'DELETE FROM file_space_acl
                    WHERE space_id=:space AND scope_key=:scope
                      AND subject_type=:type AND subject_id=:subject_id
@@ -501,7 +506,7 @@ final class FileSpaceFolderService
                 'replayed' => false,
             ];
             $this->finish($receipt, $result, $version, MutationCommandStore::STATUS_APPLIED);
-            $this->pdo->commit();
+            $this->db->endTransaction();
             return $result;
         } catch (Throwable $error) {
             $this->rollback();
@@ -523,13 +528,13 @@ final class FileSpaceFolderService
     private function lockTarget(int $spaceId, ?int $folderId): array
     {
         if ($folderId === null) {
-            $query = $this->pdo->prepare(
+            $query = $this->db->prepare(
                 'SELECT version FROM file_spaces WHERE id=:id AND is_archived=0 FOR UPDATE'
             );
             $query->execute([':id' => $spaceId]);
         } else {
             $this->folder($spaceId, $folderId);
-            $query = $this->pdo->prepare(
+            $query = $this->db->prepare(
                 'SELECT version FROM file_space_nodes WHERE id=:id
                  AND space_id=:space_id AND node_type="folder" AND is_deleted=0 FOR UPDATE'
             );
@@ -545,7 +550,7 @@ final class FileSpaceFolderService
     private function bumpVersion(int $spaceId, ?int $folderId, int $expectedVersion): int
     {
         $params = [':id' => $folderId ?? $spaceId, ':version' => $expectedVersion];
-        $statement = $this->pdo->prepare($folderId === null
+        $statement = $this->db->prepare($folderId === null
             ? 'UPDATE file_spaces SET version=version+1 WHERE id=:id AND version=:version'
             : 'UPDATE file_space_nodes SET version=version+1 WHERE id=:id AND version=:version');
         $statement->execute($params);
@@ -560,7 +565,7 @@ final class FileSpaceFolderService
         if (!in_array($type, ['role', 'user', 'group'], true)) {
             return;
         }
-        $statement = $this->pdo->prepare(
+        $statement = $this->db->prepare(
             match ($type) {
                 'role' => 'SELECT id FROM roles WHERE id=:id',
                 'group' => 'SELECT id FROM file_access_groups WHERE id=:id',
@@ -575,7 +580,7 @@ final class FileSpaceFolderService
 
     private function audit(int $spaceId, ?int $folderId, int $actorId, string $action, array $details): void
     {
-        $stmt = $this->pdo->prepare(
+        $stmt = $this->db->prepare(
             'INSERT INTO file_space_events (space_id,node_id,actor_user_id,event_code,details_json)
              VALUES (:space_id,:node_id,:actor,:event,:details)'
         );
@@ -593,7 +598,7 @@ final class FileSpaceFolderService
         string $spaceUid, string $scope, string $hash
     ): array {
         return $this->commands->acquire(
-            $this->pdo, 'user:' . $actorId, $commandId,
+            $this->db, 'user:' . $actorId, $commandId,
             'files', $action, 'file_space', $spaceUid . ':' . $scope, $hash
         );
     }
@@ -602,7 +607,7 @@ final class FileSpaceFolderService
     private function replay(array $receipt): array
     {
         $result = $this->commands->storedResponse($receipt['record']);
-        $this->pdo->commit();
+        $this->db->endTransaction();
         return $result;
     }
 
@@ -617,7 +622,7 @@ final class FileSpaceFolderService
             'current_version' => $current,
         ];
         $this->finish($receipt, $result, $current, MutationCommandStore::STATUS_CONFLICT);
-        $this->pdo->commit();
+        $this->db->endTransaction();
         return $result;
     }
 
@@ -625,7 +630,7 @@ final class FileSpaceFolderService
     private function finish(array $receipt, array $result, int $version, string $status): void
     {
         $this->commands->complete(
-            $this->pdo, (int) $receipt['record']['id'], $receipt['token'], $status, $result, $version
+            $this->db, (int) $receipt['record']['id'], $receipt['token'], $status, $result, $version
         );
     }
 
@@ -643,16 +648,16 @@ final class FileSpaceFolderService
 
     private function begin(): void
     {
-        if ($this->pdo->inTransaction()) {
+        if ($this->db->inTransaction()) {
             throw new RuntimeException('FileSpace требует отдельную транзакцию');
         }
-        $this->pdo->beginTransaction();
+        $this->db->beginTransaction();
     }
 
     private function rollback(): void
     {
-        if ($this->pdo->inTransaction()) {
-            $this->pdo->rollBack();
+        if ($this->db->inTransaction()) {
+            $this->db->endTransaction(false);
         }
     }
 }
