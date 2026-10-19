@@ -15,6 +15,7 @@ on:
       - 'tests/integration/filespaces_purge_12_scenarios.php'
       - 'tests/integration/filespaces_pagination_12_scenarios.php'
       - 'tests/integration/filespaces_bulk_load_12_scenarios.php'
+      - 'tests/integration/filespaces_security_12_scenarios.php'
       - 'database/migrations/20261018_file_spaces_purge.sql'
       - 'bin/files-purge.php'
       - '.github/workflows/filespaces-12.yml'
@@ -67,12 +68,14 @@ jobs:
         run: |
           php -l modules/files/services/FileUploadTypes.php
           php -l modules/files/services/FileSpaceTransferService.php
+          php -l modules/files/services/FileSpaceStorageGuard.php
           php -l modules/files/services/FileSpaceObjectService.php
           php -l modules/files/services/FileSpacePurgeService.php
           php -l bin/files-purge.php
           php -l tests/integration/filespaces_purge_12_scenarios.php
           php -l tests/integration/filespaces_pagination_12_scenarios.php
           php -l tests/integration/filespaces_bulk_load_12_scenarios.php
+          php -l tests/integration/filespaces_security_12_scenarios.php
           php -l modules/files/services/FileSpaceAdminService.php
           php -l modules/files/controllers/FileSpaceAdminController.php
           php -l modules/files/views/admin-spaces.php
