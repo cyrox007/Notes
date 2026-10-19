@@ -9,6 +9,10 @@ use Core\DatabaseManager;
 
 final class MessengerCapability implements AccountDeactivationGuard
 {
+    public function __construct(private ?DatabaseManager $database = null)
+    {
+    }
+
     public function id(): string
     {
         return 'workspace.messenger';
@@ -21,7 +25,7 @@ final class MessengerCapability implements AccountDeactivationGuard
             return null;
         }
 
-        $ownedGroup = DatabaseManager::getInstance()->fetchOne(
+        $ownedGroup = ($this->database ??= DatabaseManager::getInstance())->fetchOne(
             "SELECT COALESCE(NULLIF(d.name, ''), 'Без названия') AS name
              FROM user_to_dialogs utd
              JOIN dialogs d ON d.id = utd.dialog_id

@@ -5,6 +5,7 @@ $moduleRoot = __DIR__;
 foreach ([
     '/ProfileCapability.php',
     '/services/ProfileMetricsService.php',
+    '/services/ProfileCustomFieldsService.php',
     '/services/ProfilePublicationService.php',
     '/services/AvatarImageProcessor.php',
     '/services/UserAvatarService.php',

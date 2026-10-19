@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Controllers\Admin;
 
-use App\Models\FieldModel;
 use App\Models\UserModel;
 use App\Services\AdminUserService;
 use App\Services\ListQuery;
 use App\Services\PermissionService;
 use Core\Controller;
-use Core\DatabaseManager;
+use Core\ModuleRuntimeLoader;
+use Core\ProfileCustomFields;
 use Core\Request;
 use Core\Router;
 use DomainException;
@@ -63,7 +63,7 @@ final class AdminController extends Controller
 
         $this->render_template('@admin/index', [
             'user' => $user,
-            'customFields' => FieldModel::select()->orderBy('id', 'ASC')->get(),
+            'customFields' => $this->profileCustomFields()?->listFields() ?? [],
             'users' => $result['items'],
             'pagination' => ListQuery::pagination($query, (int) $result['total']),
             'canManageRoles' => $canManageRoles,
@@ -124,72 +124,36 @@ final class AdminController extends Controller
                 ];
             }
 
-            $db = DatabaseManager::getInstance();
-            $db->beginTransaction();
-            try {
-                $existingRows = $db->fetchAll('SELECT id FROM user_fields FOR UPDATE');
-                $existingIds = [];
-                foreach ($existingRows as $row) {
-                    $existingIds[(int) $row['id']] = true;
-                }
-
-                $keptIds = [];
-                foreach ($validated as $field) {
-                    if ($field['id'] === null) {
-                        $db->execute(
-                            'INSERT INTO user_fields (field_name,field_type,field_label,is_required,created_at,updated_at) '
-                            . 'VALUES (:field_name,:field_type,:field_label,:is_required,:created_at,:updated_at)',
-                            [
-                                ':field_name' => $field['field_name'],
-                                ':field_type' => $field['field_type'],
-                                ':field_label' => $field['field_label'],
-                                ':is_required' => $field['is_required'],
-                                ':created_at' => date('Y-m-d H:i:s'),
-                                ':updated_at' => date('Y-m-d H:i:s'),
-                            ]
-                        );
-                        continue;
-                    }
-
-                    $fieldId = (int) $field['id'];
-                    if (!isset($existingIds[$fieldId])) {
-                        throw new InvalidArgumentException('Одно из пользовательских полей больше не существует');
-                    }
-                    $keptIds[$fieldId] = true;
-                    $db->execute(
-                        'UPDATE user_fields '
-                        . 'SET field_name = :field_name, field_type = :field_type, field_label = :field_label, '
-                        . 'is_required = :is_required, updated_at = :updated_at WHERE id = :id',
-                        [
-                            ':field_name' => $field['field_name'],
-                            ':field_type' => $field['field_type'],
-                            ':field_label' => $field['field_label'],
-                            ':is_required' => $field['is_required'],
-                            ':updated_at' => date('Y-m-d H:i:s'),
-                            ':id' => $fieldId,
-                        ]
-                    );
-                }
-
-                foreach (array_keys($existingIds) as $existingId) {
-                    if (!isset($keptIds[$existingId])) {
-                        $db->execute('DELETE FROM user_fields WHERE id = :id', [':id' => $existingId]);
-                    }
-                }
-
-                $db->endTransaction(true);
-            } catch (Throwable $e) {
-                $db->endTransaction(false);
-                throw $e;
+            $fields = $this->profileCustomFields();
+            if ($fields === null) {
+                throw new DomainException('Модуль Profile недоступен для изменения пользовательских полей', 409);
             }
+            $fields->saveFields($validated);
 
             $this->respondAdminAction($request, true, 'Пользовательские поля сохранены');
-        } catch (InvalidArgumentException $e) {
-            $this->respondAdminAction($request, false, $e->getMessage(), 422);
+        } catch (InvalidArgumentException|DomainException $e) {
+            $this->respondAdminAction($request, false, $e->getMessage(), $this->exceptionStatus($e, 422));
         } catch (Throwable $e) {
             error_log('Admin custom fields update failed: ' . $e->getMessage());
             $this->respondAdminAction($request, false, 'Не удалось сохранить пользовательские поля', 500);
         }
+    }
+
+    /**
+     * Панель администрирования получает интерфейс из активного Profile,
+     * а не обращается к чужим таблицам напрямую.
+     */
+    private function profileCustomFields(): ?ProfileCustomFields
+    {
+        if (!ModuleRuntimeLoader::isBooted()) {
+            return null;
+        }
+        $registry = ModuleRuntimeLoader::getInstance()->capabilities();
+        if (!$registry->has('workspace.profile')) {
+            return null;
+        }
+        $provider = $registry->require('workspace.profile', ProfileCustomFields::class);
+        return $provider;
     }
 
     public function updateUser(Request $request): void

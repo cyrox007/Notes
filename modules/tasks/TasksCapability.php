@@ -7,14 +7,53 @@ namespace Modules\Tasks;
 use App\Services\PermissionService;
 use App\Services\RolePolicyService;
 use Core\DatabaseManager;
+use Core\AccountDeactivationGuard;
 use Core\ProfileContentProvider;
 use Core\WorkspaceTaskCreator;
 use DateTimeImmutable;
 use DomainException;
 use InvalidArgumentException;
 
-final class TasksCapability implements ProfileContentProvider, WorkspaceTaskCreator
+final class TasksCapability implements ProfileContentProvider, WorkspaceTaskCreator, AccountDeactivationGuard
 {
+    public function __construct(private ?DatabaseManager $database = null)
+    {
+    }
+
+    /**
+     * Проверка принадлежности общих досок остаётся внутри Tasks.
+     * Core и Admin не должны обращаться к таблицам модуля напрямую.
+     *
+     * @return array{code:string,message:string}|null
+     */
+    public function accountDeactivationBlocker(int $userId): ?array
+    {
+        if ($userId <= 0) {
+            return null;
+        }
+
+        $ownedBoard = $this->db()->fetchOne(
+            "SELECT name FROM task_boards b
+             WHERE b.owner_user_id=:user_id
+               AND (b.audience='all_active'
+                    OR EXISTS (
+                        SELECT 1 FROM task_board_members m
+                        WHERE m.board_id=b.id AND m.user_id<>:other_user_id
+                    ))
+             LIMIT 1",
+            [':user_id' => $userId, ':other_user_id' => $userId]
+        );
+        if ($ownedBoard === null) {
+            return null;
+        }
+
+        return [
+            'code' => 'task_board_owner_transfer_required',
+            'message' => 'Перед деактивацией или удалением аккаунта передайте владение доской задач «'
+                . (string) ($ownedBoard['name'] ?? 'Без названия') . '» или удалите её.',
+        ];
+    }
+
     public function moduleId(): string
     {
         return 'tasks';
@@ -175,6 +214,6 @@ final class TasksCapability implements ProfileContentProvider, WorkspaceTaskCrea
 
     private function db(): DatabaseManager
     {
-        return DatabaseManager::getInstance();
+        return $this->database ??= DatabaseManager::getInstance();
     }
 }

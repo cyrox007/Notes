@@ -137,6 +137,23 @@ Private storage объявляется модулем и находится по
 - проверка зависимостей и capability;
 - нагрузочный бюджет согласно [PERFORMANCE_1000_USERS.md](PERFORMANCE_1000_USERS.md).
 
+### Дополнительные проверки линии 1.2
+
+- `php tests/integration/module_database_boundary_12.php` запрещает типичные
+  прямые обращения к PDO внутри модулей, но **не** подтверждает права
+  собственности на таблицы.
+- `php tests/integration/module_schema_ownership_contract_12.php` сверяет
+  SQL-литералы с владельцами в `module.json`, обнаруживает явные
+  подключения соседнего модуля. Для динамического SQL нужен отдельный анализ.
+- `php tests/integration/module_account_ownership_contract_12.php` проверяет
+  безопасные вызовы между Admin и владельцами данных.
+- `php tests/integration/module_account_guard_sql_12.php` проверяет реальные
+  запросы владельцев Messenger/Tasks на изолированной базе.
+
+Доступ к общим платформенным таблицам (например `users`, `roles`)
+производится через ядро. Внутренние таблицы другого модуля не становятся
+общими только потому, что их можно прочитать через `DatabaseManager`.
+
 ## Удаление
 
 Отключение и удаление пакета — разные операции. Физическое удаление схемы/storage допускается только отдельным явным контрактом uninstall с recovery/backup story.
