@@ -39,6 +39,7 @@ final class ModuleManifest
         private readonly array $databaseTables,
         private readonly array $databaseSchemas,
         private readonly array $databaseMigrations,
+        private readonly ?string $backgroundAccountGuard,
         private readonly string $manifestPath,
         private readonly string $integrityHash,
     ) {
@@ -148,6 +149,27 @@ final class ModuleManifest
             'database/migrations/'
         );
 
+        $background = $data['background'] ?? [];
+        if (!is_array($background) || array_is_list($background) && $background !== []) {
+            throw new RuntimeException("Модуль {$id}: неверное описание фоновых операций");
+        }
+        $backgroundAccountGuard = $background['account_purge_guard'] ?? null;
+        if ($backgroundAccountGuard !== null) {
+            if (!is_string($backgroundAccountGuard)) {
+                throw new RuntimeException("Модуль {$id}: неверная политика фоновой очистки");
+            }
+            if ($backgroundAccountGuard !== 'none') {
+                if (
+                    !str_starts_with($backgroundAccountGuard, 'background/')
+                    || str_contains($backgroundAccountGuard, '..')
+                    || str_contains($backgroundAccountGuard, '\\')
+                    || preg_match('~^background/[A-Za-z0-9_./-]+\.php$~D', $backgroundAccountGuard) !== 1
+                ) {
+                    throw new RuntimeException("Модуль {$id}: небезопасный путь фоновой проверки");
+                }
+            }
+        }
+
         return new self(
             $id,
             $name,
@@ -166,6 +188,7 @@ final class ModuleManifest
             $databaseTables,
             $databaseSchemas,
             $databaseMigrations,
+            $backgroundAccountGuard,
             $manifestPath,
             hash('sha256', $raw),
         );
@@ -266,6 +289,15 @@ final class ModuleManifest
     public function databaseMigrations(): array
     {
         return $this->databaseMigrations;
+    }
+
+    /**
+     * null — политика не объявлена; none — подтверждено отсутствие
+     * препятствий для обезличивания, иначе путь модульной проверки.
+     */
+    public function backgroundAccountGuard(): ?string
+    {
+        return $this->backgroundAccountGuard;
     }
 
     public function manifestPath(): string
