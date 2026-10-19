@@ -95,10 +95,10 @@ final class DefectsApiController extends Controller
             $service = $this->referencesService();
             $name = $this->requiredString($data, 'name');
             $id = match ($data['kind'] ?? null) {
-                'areas' => $service->createArea($name),
-                'categories' => $service->createCategory($this->integer($data['parent_id'] ?? null, 'parent_id'), $name),
-                'objects' => $service->createObject($this->integer($data['parent_id'] ?? null, 'parent_id'), $name),
-                'services' => $service->createService($name),
+                'areas' => $service->createArea($name, $userId),
+                'categories' => $service->createCategory($this->integer($data['parent_id'] ?? null, 'parent_id'), $name, $userId),
+                'objects' => $service->createObject($this->integer($data['parent_id'] ?? null, 'parent_id'), $name, $userId),
+                'services' => $service->createService($name, $userId),
                 default => throw new InvalidArgumentException('Неизвестный справочник'),
             };
             $this->audit($userId, 'defects.reference.created', ['reference_id' => $id, 'kind' => $data['kind']]);
@@ -121,7 +121,7 @@ final class DefectsApiController extends Controller
                 throw new InvalidArgumentException('Предварительный просмотр обязателен');
             }
 
-            $result = $this->importService()->apply($this->uploadedText($request), $hash);
+            $result = $this->importService()->apply($this->uploadedText($request), $hash, $userId);
             if ($result['created'] > 0) {
                 $this->audit($userId, 'defects.references.imported', $result);
             }
