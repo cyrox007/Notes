@@ -15,7 +15,7 @@ use Throwable;
  */
 final class CliRuntime
 {
-    private const MINIMUM_PHP_VERSION = '8.3.0';
+    private const string MINIMUM_PHP_VERSION = '8.3.0';
 
     public static function projectRoot(): string
     {
