@@ -48,5 +48,8 @@
       "database/migrations/20260918_messenger_retention_timestamps.sql",
       "database/migrations/20260928_messenger_activity.sql"
     ]
+  },
+  "background": {
+    "account_purge_guard": "background/account-purge.php"
   }
 }
