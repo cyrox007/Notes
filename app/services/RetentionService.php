@@ -383,13 +383,6 @@ final class RetentionService
                 continue;
             }
 
-            // Удаляем только отдельный аватар профиля. Пользовательские заметки,
-            // сообщения, задачи и совместные вложения не должны исчезать каскадно.
-            if (!$this->removePaths($this->identityPaths($userId), $result)) {
-                $result['accounts_failed']++;
-                continue;
-            }
-
             try {
                 $this->db->beginTransaction();
                 $locked = $this->db->fetchOne(
@@ -407,6 +400,27 @@ final class RetentionService
                 );
                 if (!$locked) {
                     $this->db->endTransaction(false);
+                    continue;
+                }
+
+                // Повторить проверку после захвата строки учётной записи.
+                // Не удалять аватар, если владелец стал заблокированным
+                // между предварительной проверкой и транзакцией.
+                $confirmedReason = $this->accountBlockReason($userId);
+                if ($confirmedReason !== null) {
+                    $this->db->endTransaction(false);
+                    $result['accounts_blocked']++;
+                    SecurityEventLog::emit(
+                        'retention.account_blocked', 'warning', 'retention', 'cli', null,
+                        ['user_id' => $userId, 'reason' => $confirmedReason]
+                    );
+                    continue;
+                }
+
+                // Файлы удаляются лишь после обеих проверок владения.
+                if (!$this->removePaths($this->identityPaths($userId), $result)) {
+                    $this->db->endTransaction(false);
+                    $result['accounts_failed']++;
                     continue;
                 }
 
