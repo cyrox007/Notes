@@ -63,8 +63,23 @@ final class BackgroundAccountRetention
         // Только проверка manifest. ModuleRuntimeLoader здесь не вызывается:
         // отключённые и лишённые лицензии пакеты сохраняют владение данными.
         $registry = $this->registry ?? ModuleRegistry::discover($this->modulesRoot, Version::VERSION);
+        $manifests = $registry->all();
+
+        // Удалённый с диска, но зарегистрированный модуль всё ещё может
+        // владеть пользовательскими данными. Нельзя считать их свободными.
+        $known = $this->db->fetchAll(
+            "SELECT module_id FROM module_lifecycle
+             WHERE configured_state NOT IN ('discovered')"
+        );
+        foreach ($known as $registered) {
+            $moduleId = (string) $registered['module_id'];
+            if (!isset($manifests[$moduleId])) {
+                throw new RuntimeException('Модуль с сохраняемыми данными отсутствует: ' . $moduleId);
+            }
+        }
+
         $guards = [];
-        foreach ($registry->all() as $moduleId => $manifest) {
+        foreach ($manifests as $moduleId => $manifest) {
             $entrypoint = $manifest->backgroundAccountGuard();
             if ($entrypoint === 'none') {
                 continue;
