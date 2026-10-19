@@ -93,7 +93,7 @@ def multipart(fields, content):
         ]
     parts += [
         f"--{boundary}\r\n".encode(),
-        b'Content-Disposition: form-data; name="file"; filename="Нагрузка.txt"\r\n'.decode().encode(),
+        'Content-Disposition: form-data; name="file"; filename="Нагрузка.txt"\r\n'.encode("utf-8"),
         b"Content-Type: text/plain\r\n\r\n",
         content,
         b"\r\n",
@@ -194,7 +194,7 @@ def worker(index, origin, fixture, password, stop_at):
                     "command_id": "files:http:load:" + uuid.uuid4().hex,
                     "csrf_token": parser.values["csrf_token"],
                 }
-                payload, content_type = multipart(fields, b"Пробная нагрузочная запись Files")
+                payload, content_type = multipart(fields, "Пробная нагрузочная запись Files".encode("utf-8"))
                 status, response, latency = request(
                     opener, origin + "/files/spaces/global/upload/",
                     "POST", payload,
