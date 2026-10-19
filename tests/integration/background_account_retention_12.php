@@ -82,6 +82,8 @@ retentionGuardAssert($missing->blockingReason(17) === 'account_guard_registry_un
     'Отсутствующий пакет с сохранившимся состоянием не даёт согласия на очистку');
 $pdo->exec("DELETE FROM module_lifecycle WHERE module_id='missing-package'");
 
+// Ни один чужой модуль из исходного реестра не должен мешать проверке нового каталога.
+$pdo->exec('DELETE FROM module_lifecycle');
 $tmp = sys_get_temp_dir() . '/notes-retention-contract-' . bin2hex(random_bytes(5));
 mkdir($tmp, 0700, true);
 mkdir($tmp . '/tasks', 0700, true);
