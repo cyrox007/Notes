@@ -25,3 +25,23 @@
 
 .task-category-attach{margin-top:10px;align-items:flex-end}.task-category-attach>label{display:grid;gap:5px;min-width:0;max-width:100%;flex:1;color:var(--ui-muted);font-size:11px;font-weight:700}.task-category-create-link{flex-basis:100%;color:var(--module-accent);font-size:11px;text-decoration:underline}.task-category-help{margin:0;padding:4px 12px 12px;color:var(--ui-muted);font-size:12px;line-height:1.6}.tasks .attach-category-btn:disabled{opacity:.5;cursor:default}
 @media(max-width:620px){.task-category-attach{align-items:stretch}.task-category-attach>label{width:100%}}
+
+/* Порядок дня: компактные клавиатурные кнопки без нового оформления. */
+.task-day-order-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+}
+.task-day-order-controls .btn-icon:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+}
+.tasks__order-status {
+    margin: .5rem 0;
+    font-size: .875rem;
+    opacity: .85;
+}
+.tasks__order-status[data-error="1"] {
+    font-weight: 600;
+    opacity: 1;
+}
