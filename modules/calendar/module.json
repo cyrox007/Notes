@@ -40,5 +40,8 @@
       "database/migrations/20261011_calendar_crud.sql",
       "database/migrations/20261012_calendar_planning_links.sql"
     ]
+  },
+  "background": {
+    "account_purge_guard": "none"
   }
 }

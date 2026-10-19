@@ -32,25 +32,16 @@ final class TasksCapability implements ProfileContentProvider, WorkspaceTaskCrea
             return null;
         }
 
-        $ownedBoard = $this->db()->fetchOne(
-            "SELECT name FROM task_boards b
-             WHERE b.owner_user_id=:user_id
-               AND (b.audience='all_active'
-                    OR EXISTS (
-                        SELECT 1 FROM task_board_members m
-                        WHERE m.board_id=b.id AND m.user_id<>:other_user_id
-                    ))
-             LIMIT 1",
-            [':user_id' => $userId, ':other_user_id' => $userId]
-        );
-        if ($ownedBoard === null) {
+        $ownedBoardName = (new TasksAccountOwnership($this->db()))
+            ->ownedSharedBoardName($userId);
+        if ($ownedBoardName === null) {
             return null;
         }
 
         return [
             'code' => 'task_board_owner_transfer_required',
             'message' => 'Перед деактивацией или удалением аккаунта передайте владение доской задач «'
-                . (string) ($ownedBoard['name'] ?? 'Без названия') . '» или удалите её.',
+                . $ownedBoardName . '» или удалите её.',
         ];
     }
 

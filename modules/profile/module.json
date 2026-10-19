@@ -36,5 +36,8 @@
       "database/migrations/20260913_user_fields_contract.sql",
       "database/migrations/20260914_profile_publication.sql"
     ]
+  },
+  "background": {
+    "account_purge_guard": "none"
   }
 }

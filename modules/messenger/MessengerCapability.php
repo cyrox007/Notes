@@ -25,25 +25,16 @@ final class MessengerCapability implements AccountDeactivationGuard
             return null;
         }
 
-        $ownedGroup = ($this->database ??= DatabaseManager::getInstance())->fetchOne(
-            "SELECT COALESCE(NULLIF(d.name, ''), 'Без названия') AS name
-             FROM user_to_dialogs utd
-             JOIN dialogs d ON d.id = utd.dialog_id
-             WHERE utd.user_id = :user_id
-               AND utd.role = 'owner'
-               AND utd.is_deleted = 0
-               AND d.type = 'group'
-             LIMIT 1",
-            [':user_id' => $userId]
-        );
-        if ($ownedGroup === null) {
+        $ownedGroupName = (new MessengerAccountOwnership($this->database ??= DatabaseManager::getInstance()))
+            ->ownedGroupName($userId);
+        if ($ownedGroupName === null) {
             return null;
         }
 
         return [
             'code' => 'group_owner_transfer_required',
             'message' => 'Перед деактивацией передайте владение группой «'
-                . (string) ($ownedGroup['name'] ?? 'Без названия')
+                . $ownedGroupName
                 . '» другому участнику.',
         ];
     }

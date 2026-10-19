@@ -2,9 +2,17 @@ name: 1.0 retention and permanent purge
 
 on:
   pull_request:
-    branches: [master, '1.0']
+    branches: [master, '1.0', '1.2']
     paths:
       - 'app/services/RetentionService.php'
+      - 'core/BackgroundAccountRetention*.php'
+      - 'core/ModuleManifest.php'
+      - 'modules/tasks/**'
+      - 'modules/calendar/module.json'
+      - 'modules/files/module.json'
+      - 'modules/profile/module.json'
+      - 'modules/admin/module.json'
+      - 'tests/integration/background_account_retention_12.php'
       - 'bin/retention.php'
       - 'database/notes_schema.sql'
       - 'database/messenger_module_schema.sql'
@@ -61,6 +69,11 @@ jobs:
         run: |
           set -euo pipefail
           php -l app/services/RetentionService.php
+          php -l core/BackgroundAccountRetention.php
+          php -l core/BackgroundAccountRetentionGuard.php
+          php -l core/ModuleManifest.php
+          php -l tests/integration/background_account_retention_12.php
+          php tests/integration/background_account_retention_12.php
           php -l bin/retention.php
           php -l modules/notes/controllers/NoteAttachmentController.php
           php -l modules/notes/controllers/NoteController.php
