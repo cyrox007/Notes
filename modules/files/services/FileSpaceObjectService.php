@@ -8,6 +8,7 @@ use Core\MutationCommandStore;
 use DomainException;
 use InvalidArgumentException;
 use PDO;
+use Core\DatabaseManager;
 use RuntimeException;
 use Throwable;
 
@@ -17,11 +18,15 @@ use Throwable;
  */
 final class FileSpaceObjectService
 {
+    private readonly DatabaseManager $db;
+
     public function __construct(
-        private readonly PDO $pdo,
+        PDO|DatabaseManager $connection,
         private readonly FileSpaceAccessService $access,
         private readonly MutationCommandStore $commands = new MutationCommandStore()
     ) {
+        $this->db = $connection instanceof DatabaseManager
+            ? $connection : DatabaseManager::forConnection($connection);
     }
 
     /**
@@ -45,11 +50,11 @@ final class FileSpaceObjectService
             'node' => $nodeId, 'action' => $action, 'expected_version' => $expectedVersion,
             'expected_parent_version' => $expectedParentVersion, 'data' => $data,
         ]);
-        if ($this->pdo->inTransaction()) {
+        if ($this->db->inTransaction()) {
             throw new RuntimeException('Для операции с файлом нужна отдельная транзакция');
         }
 
-        $this->pdo->beginTransaction();
+        $this->db->beginTransaction();
         try {
             $space = $this->access->space();
             // Единая блокировка пространства сериализует перемещения и исключает
@@ -61,12 +66,12 @@ final class FileSpaceObjectService
             $parentVersion = $this->containerVersion((int) $space['id'], $parentId);
 
             $receipt = $this->commands->acquire(
-                $this->pdo, 'user:' . $actorId, $commandId, 'files',
+                $this->db, 'user:' . $actorId, $commandId, 'files',
                 'files.node.' . $action, 'file_space_node', (string) $node['uid'], $hash
             );
             if (!$receipt['owner']) {
                 $result = $this->commands->storedResponse($receipt['record']);
-                $this->pdo->commit();
+                $this->db->endTransaction();
                 return $result;
             }
             if ((int) $node['is_deleted'] === 1 && $action === 'delete') {
@@ -93,7 +98,7 @@ final class FileSpaceObjectService
                     'current_destination_version' => $destinationVersion,
                 ];
                 $this->finish($receipt, $result, $oldVersion, MutationCommandStore::STATUS_CONFLICT);
-                $this->pdo->commit();
+                $this->db->endTransaction();
                 return $result;
             }
 
@@ -119,11 +124,11 @@ final class FileSpaceObjectService
                 'replayed' => false, 'changed' => $changed,
             ];
             $this->finish($receipt, $result, $newVersion, MutationCommandStore::STATUS_APPLIED);
-            $this->pdo->commit();
+            $this->db->endTransaction();
             return $result;
         } catch (Throwable $error) {
-            if ($this->pdo->inTransaction()) {
-                $this->pdo->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->endTransaction(false);
             }
             throw $error;
         }
@@ -133,7 +138,7 @@ final class FileSpaceObjectService
     public function trash(int $actorId): array
     {
         $space = $this->access->space();
-        $stmt = $this->pdo->prepare(
+        $stmt = $this->db->prepare(
             'SELECT n.id,n.uid,n.name,n.node_type,n.parent_id,n.created_by,n.version,n.deleted_at,
                     n.storage_key,n.byte_size
              FROM file_space_nodes n WHERE n.space_id=:space AND n.is_deleted=1
@@ -318,7 +323,7 @@ final class FileSpaceObjectService
                 WHERE space_id=:space AND name=:name AND id<>:excluded
                 AND is_deleted=0 AND '
             . ($parentId === null ? 'parent_id IS NULL' : 'parent_id=:parent');
-        $stmt = $this->pdo->prepare($sql);
+        $stmt = $this->db->prepare($sql);
         $args = [':space' => $spaceId, ':name' => $name, ':excluded' => $excludedId];
         if ($parentId !== null) {
             $args[':parent'] = $parentId;
@@ -332,14 +337,14 @@ final class FileSpaceObjectService
     /** @param array<string,mixed> $args */
     private function modify(int $nodeId, string $clause, array $args, int $actorId): void
     {
-        $stmt = $this->pdo->prepare('UPDATE file_space_nodes SET ' . $clause
+        $stmt = $this->db->prepare('UPDATE file_space_nodes SET ' . $clause
             . ',updated_by=:actor,updated_at=NOW() WHERE id=:id');
         $stmt->execute([...$args, ':actor' => $actorId, ':id' => $nodeId]);
     }
 
     private function bumpNode(int $id, int $expected): void
     {
-        $stmt = $this->pdo->prepare(
+        $stmt = $this->db->prepare(
             'UPDATE file_space_nodes SET version=version+1 WHERE id=:id AND version=:expected'
         );
         $stmt->execute([':id' => $id, ':expected' => $expected]);
@@ -350,7 +355,7 @@ final class FileSpaceObjectService
 
     private function bumpContainer(int $spaceId, ?int $parent, int $expected): void
     {
-        $stmt = $this->pdo->prepare($parent === null
+        $stmt = $this->db->prepare($parent === null
             ? 'UPDATE file_spaces SET version=version+1 WHERE id=:id AND version=:expected'
             : 'UPDATE file_space_nodes SET version=version+1 WHERE id=:id AND version=:expected');
         $stmt->execute([':id' => $parent ?? $spaceId, ':expected' => $expected]);
@@ -361,7 +366,7 @@ final class FileSpaceObjectService
 
     private function containerVersion(int $spaceId, ?int $parent): int
     {
-        $stmt = $this->pdo->prepare($parent === null
+        $stmt = $this->db->prepare($parent === null
             ? 'SELECT version FROM file_spaces WHERE id=:id AND is_archived=0'
             : 'SELECT version FROM file_space_nodes WHERE id=:id AND node_type="folder" AND is_deleted=0');
         $stmt->execute([':id' => $parent ?? $spaceId]);
@@ -374,7 +379,7 @@ final class FileSpaceObjectService
 
     private function lockSpace(int $id): void
     {
-        $stmt = $this->pdo->prepare('SELECT id FROM file_spaces WHERE id=:id FOR UPDATE');
+        $stmt = $this->db->prepare('SELECT id FROM file_spaces WHERE id=:id FOR UPDATE');
         $stmt->execute([':id' => $id]);
         if ($stmt->fetchColumn() === false) {
             throw new DomainException('Пространство недоступно', 404);
@@ -384,7 +389,7 @@ final class FileSpaceObjectService
     /** @return array<string,mixed> */
     private function lockedNode(int $spaceId, int $nodeId): array
     {
-        $stmt = $this->pdo->prepare(
+        $stmt = $this->db->prepare(
             'SELECT * FROM file_space_nodes WHERE id=:id AND space_id=:space LIMIT 1 FOR UPDATE'
         );
         $stmt->execute([':id' => $nodeId, ':space' => $spaceId]);
@@ -398,7 +403,7 @@ final class FileSpaceObjectService
     /** @param array<string,mixed> $data */
     private function audit(int $spaceId, int $nodeId, int $actorId, string $action, array $data): void
     {
-        $stmt = $this->pdo->prepare(
+        $stmt = $this->db->prepare(
             'INSERT INTO file_space_events (space_id,node_id,actor_user_id,event_code,details_json)
              VALUES (:space,:node,:actor,:event,:details)'
         );
@@ -413,7 +418,7 @@ final class FileSpaceObjectService
     private function finish(array $receipt, array $result, int $version, string $status): void
     {
         $this->commands->complete(
-            $this->pdo, (int) $receipt['record']['id'], $receipt['token'],
+            $this->db, (int) $receipt['record']['id'], $receipt['token'],
             $status, $result, $version
         );
     }
