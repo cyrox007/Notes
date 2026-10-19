@@ -170,6 +170,12 @@ final class AdminUserService
         );
 
         $registry = $this->moduleCapabilities();
+        if (!$registry?->has('workspace.profile') && !empty($target['avatar'])) {
+            throw new DomainException(
+                'Невозможно очистить аватар при отключённом Profile. Активируйте модуль перед деактивацией',
+                409
+            );
+        }
         if ($registry?->has('workspace.profile')) {
             try {
                 $registry->require('workspace.profile', AccountAvatarCleanup::class)
