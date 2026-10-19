@@ -99,6 +99,8 @@ jobs:
           php -l tests/integration/defects_reference_import_12.php
           php tests/integration/defects_reference_import_12.php
           node --check modules/defects/assets/defects.js
+          node --check tests/integration/defects_ajax_workspace_12.mjs
+          node tests/integration/defects_ajax_workspace_12.mjs
           grep -Fq 'database|development|docs' .htaccess
           grep -Fq "'development'" tests/e2e/router.php
 
