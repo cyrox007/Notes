@@ -38,6 +38,8 @@ final class DefectsRuntimeProvider implements ModuleRuntimeProvider
         $router->group('/api/defects')
             ->add('GET', '/', [DefectsApiController::class, 'list'], [ApiLoginRequired::class], 'defects_list')
             ->add('POST', '/', [DefectsApiController::class, 'create'], [ApiLoginRequired::class, CSRFMiddleware::class], 'defects_create')
+            ->add('POST', '/import/preview', [DefectsApiController::class, 'previewImport'], [ApiLoginRequired::class, CSRFMiddleware::class], 'defects_import_preview')
+            ->add('POST', '/import/apply', [DefectsApiController::class, 'applyImport'], [ApiLoginRequired::class, CSRFMiddleware::class], 'defects_import_apply')
             ->add('GET', '/report', [DefectsApiController::class, 'report'], [ApiLoginRequired::class], 'defects_report')
             ->add('GET', '/references', [DefectsApiController::class, 'references'], [ApiLoginRequired::class], 'defects_references')
             ->add('POST', '/references', [DefectsApiController::class, 'createReference'], [ApiLoginRequired::class, CSRFMiddleware::class], 'defects_reference_create')
