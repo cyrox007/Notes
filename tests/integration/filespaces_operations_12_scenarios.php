@@ -109,6 +109,14 @@ filespaceCheck($deniedOthers, 'чужая папка и отсутствие del
 $allowed($folderId, 'user', $member, 'delete_own');
 $deleted = $do($member, $managedId, 'delete', 'fsp-obj-delete-1');
 filespaceCheck($deleted['success'] === true, 'удаление в корзину прошло');
+$trashAfterDelete = $objects->trash($admin);
+$deletedFromTrash = array_values(array_filter(
+    $trashAfterDelete,
+    static fn (array $row): bool => (int) $row['id'] === $managedId
+));
+filespaceCheck(count($deletedFromTrash) === 1
+    && $deletedFromTrash[0]['parent_version'] === $getVersion($folderId),
+    'корзина показывает объект и версию родителя после группировки проверок');
 $deleteAgain = $objects->mutate(
     $member, $managedId, 'delete', $deleted['version'] - 1,
     $deleted['parent_version'] - 1, 'fsp-obj-delete-1'
