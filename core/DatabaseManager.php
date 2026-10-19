@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Core;
 require_once __DIR__ . '/PrefixPDO.php';
+require_once __DIR__ . '/DatabasePreparedStatement.php';
 
 
 require_once __DIR__ . '/DatabaseSqlInspector.php';
@@ -419,25 +420,56 @@ class DatabaseManager
      * потоковой обработки и операций с явными блокировками.
      * Для обычной выборки использовать fetchAll/fetchOne/fetchValue.
      */
-    public function prepare(string $query): PDOStatement
+    public function prepare(string $query): DatabasePreparedStatement
     {
         $this->ensureConnection();
         $statement = $this->pdo->prepare($query);
         if (!$statement instanceof PDOStatement) {
             throw new \RuntimeException('Не удалось подготовить запрос к базе данных');
         }
+        return new DatabasePreparedStatement($this, $statement, $query);
+    }
+
+    public function query(string $query): DatabasePreparedStatement
+    {
+        $statement = $this->prepare($query);
+        $statement->execute();
         return $statement;
     }
 
-    /** Выполнить прямую команду без параметров через соединение ядра. */
-    public function query(string $query): PDOStatement
-    {
-        $this->ensureConnection();
-        $statement = $this->pdo->query($query);
-        if (!$statement instanceof PDOStatement) {
-            throw new \RuntimeException('Не удалось выполнить запрос к базе данных');
+    /** Выполнение подготовленного выражения с общей диагностикой. */
+    public function executePreparedStatement(
+        PDOStatement $statement,
+        string $query,
+        #[\SensitiveParameter] ?array $parameters = null
+    ): void {
+        $this->queryCount++;
+        $type = $this->queryType($query);
+        if ($this->enableLogging) {
+            $this->log(
+                "[execute] #{$this->queryCount} {$type}: " . $this->maskQuery($query, $parameters ?? []),
+                LogLevel::DEBUG
+            );
         }
-        return $statement;
+        try {
+            $started = $this->enableLogging ? microtime(true) : null;
+            if ($parameters === null) {
+                $statement->execute();
+            } else {
+                $statement->execute($parameters);
+            }
+        } catch (Throwable $error) {
+            ServiceLog::emit(
+                'database.query_failed', 'error', 'database',
+                ['query_type' => $type, 'error_type' => $error::class,
+                 'error_code' => (string) $error->getCode()]
+            );
+            throw $error;
+        }
+        if ($started !== null) {
+            $elapsed = round((microtime(true) - $started) * 1000, 2);
+            $this->log("[execute] Завершено за {$elapsed}мс", LogLevel::DEBUG);
+        }
     }
 
     /** Идентификатор строки, созданной на текущем соединении. */
