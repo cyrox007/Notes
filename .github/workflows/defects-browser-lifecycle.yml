@@ -1,0 +1,221 @@
+name: Дефекты 1.2 — браузерная приёмка
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'modules/defects/**'
+      - 'database/defects_schema.sql'
+      - 'database/migrations/20261019_defects_*.sql'
+      - 'tests/e2e/defects-lifecycle.mjs'
+      - 'tests/support/ci_license_fixture.php'
+      - '.github/workflows/defects-browser-lifecycle.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  defects-browser-lifecycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: defects_browser
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, pdo_mysql, mbstring, sodium, fileinfo, gd
+          coverage: none
+
+      - name: Подготовить Chromium
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Проверить синтаксис
+        run: |
+          set -euo pipefail
+          find modules/defects -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+          php -l tests/e2e/router.php
+          php -l tests/support/ci_license_fixture.php
+          node --check modules/defects/assets/defects.js
+          node --check tests/e2e/defects-lifecycle.mjs
+
+      - name: Развернуть каноническую схему MySQL 8.4
+        run: |
+          set -euo pipefail
+          for file in \
+            database/messenger_schema.sql \
+            database/notes_schema.sql \
+            database/file_manager_schema.sql \
+            database/user_fields_schema.sql \
+            database/tasks_schema.sql \
+            database/settings_schema.sql \
+            database/module_lifecycle_schema.sql \
+            database/access_control_schema.sql \
+            database/audit_schema.sql \
+            database/defects_schema.sql \
+            database/migrations/20261019_defects_foundation.sql; do
+            mysql -h 127.0.0.1 -uroot -proot defects_browser < "$file"
+          done
+          mysql -h 127.0.0.1 -uroot -proot defects_browser <<'SQL'
+          INSERT INTO defect_areas(name) VALUES ('Северный РЭС');
+          INSERT INTO defect_object_categories(area_id,name) VALUES (1,'Подстанция');
+          INSERT INTO defect_objects(category_id,name) VALUES (1,'ТП-17');
+          INSERT INTO defect_services(name) VALUES ('Ремонтная служба'),('Диспетчерская');
+          INSERT INTO module_lifecycle
+            (module_id,installed_version,manifest_hash,configured_state,effective_state)
+          VALUES ('defects','1.2.0',REPEAT('0',64),'enabled','enabled');
+          SQL
+
+      - name: Подготовить тестовых пользователей и окружение
+        env:
+          DBHOST: 127.0.0.1
+          DBPORT: 3306
+          DBUSER: root
+          DBPASS: root
+          DBNAME: defects_browser
+        run: |
+          set -euo pipefail
+          E2E_PASSWORD="$(php -r 'echo bin2hex(random_bytes(20));')"
+          APP_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
+          MSG_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
+          TICKET_KEY="$(php -r 'echo bin2hex(random_bytes(32));')"
+          echo "::add-mask::$E2E_PASSWORD"
+          echo "::add-mask::$APP_KEY"
+          echo "::add-mask::$MSG_KEY"
+          echo "::add-mask::$TICKET_KEY"
+          export E2E_PASSWORD
+          php <<'PHP'
+          <?php
+          declare(strict_types=1);
+          $pdo = new PDO('mysql:host=127.0.0.1;port=3306;dbname=defects_browser;charset=utf8mb4','root','root',
+              [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+          $insert = $pdo->prepare('INSERT INTO users
+              (uid,username,email,password_hash,firstname,lastname,role,is_active,created_at,updated_at)
+              VALUES (:uid,:username,:email,:hash,:firstname,:lastname,:role,1,NOW(),NOW())');
+          foreach ([
+              ['defects-admin', 'defects-admin@example.test', 1, 'Администратор'],
+              ['defects-user', 'defects-user@example.test', 888, 'Пользователь'],
+          ] as [$username, $email, $role, $name]) {
+              $insert->execute([
+                  'uid' => sprintf('ba5e0000-0000-4000-8000-%012d', $role),
+                  'username' => $username,
+                  'email' => $email,
+                  'hash' => password_hash((string) getenv('E2E_PASSWORD'), PASSWORD_ARGON2ID),
+                  'firstname' => $name,
+                  'lastname' => 'Дефекты',
+                  'role' => $role,
+              ]);
+          }
+          PHP
+
+          mkdir -p /tmp/workspace-defects-browser/logs compile cache
+          chmod 700 /tmp/workspace-defects-browser /tmp/workspace-defects-browser/logs
+          cat > .env <<ENV
+          DBDRIVER=mysql
+          DBHOST=127.0.0.1
+          DBPORT=3306
+          DBUSER=root
+          DBPASS=root
+          DBNAME=defects_browser
+          UNIQUE_KEY=${APP_KEY}
+          MSG_SECRET_KEY=${MSG_KEY}
+          WS_TICKET_SECRET=${TICKET_KEY}
+          PRIVATE_STORAGE_PATH=/tmp/workspace-defects-browser
+          SITEURL=http://127.0.0.1:18094
+          BASE_PATH=/workspace/
+          WS_HOST=127.0.0.1
+          WS_PORT=27808
+          WS_PUBLIC_URL=ws://127.0.0.1:27808/workspace/ws
+          WS_ALLOWED_ORIGINS=http://127.0.0.1:18094
+          AUTH_RATE_LIMIT_ATTEMPTS=50
+          AUTH_RATE_LIMIT_WINDOW_SECONDS=60
+          LOG_LEVEL=INFO
+          LOG_FILE=/tmp/workspace-defects-browser/logs/app.log
+          CSRF_ENABLED=true
+          ENV
+          chmod 600 .env
+          echo "E2E_USER=defects-admin" >> "$GITHUB_ENV"
+          echo "E2E_REGULAR_USER=defects-user" >> "$GITHUB_ENV"
+          echo "E2E_PASSWORD=$E2E_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Активировать временную лицензию с разрешением Дефектов
+        env:
+          E2E_ENABLE_DEFECTS: '1'
+        run: |
+          set -euo pipefail
+          php tests/support/ci_license_fixture.php
+
+      - name: Запустить приложение внутри каталога
+        run: |
+          set -euo pipefail
+          : > /tmp/workspace-defects-browser-http.log
+          PHP_CLI_SERVER_WORKERS=4 php -S 127.0.0.1:18094 tests/e2e/router.php >/tmp/workspace-defects-browser-http.log 2>&1 &
+          echo $! > /tmp/workspace-defects-browser-http.pid
+          ready=0
+          for i in {1..70}; do
+            if curl -fsS http://127.0.0.1:18094/workspace/auth/login/ >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep .3
+          done
+          if [[ "$ready" != 1 ]]; then
+            cat /tmp/workspace-defects-browser-http.log >&2
+            exit 1
+          fi
+
+      - name: Проверить полный сценарий, AJAX, доступ и мобильный экран
+        env:
+          E2E_ORIGIN: http://127.0.0.1:18094
+          E2E_BASE_PATH: /workspace
+        run: |
+          set -euo pipefail
+          node tests/e2e/defects-lifecycle.mjs
+
+      - name: Проверить сохранение результатов в MySQL
+        run: |
+          set -euo pipefail
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot defects_browser -e "SELECT COUNT(*) FROM defects WHERE description LIKE 'Браузерная проверка %' AND status='closed'")" -ge 1
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot defects_browser -e "SELECT COUNT(*) FROM defect_history WHERE entity_type='defect' AND event_type='closed'")" -ge 1
+
+      - name: Сохранить диагностику при неудаче
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: defects-browser-diagnostics
+          path: |
+            /tmp/defects-browser-*.png
+            /tmp/defects-browser-failure.json
+            /tmp/workspace-defects-browser-http.log
+            /tmp/workspace-defects-browser/logs/app.log
+          if-no-files-found: ignore
+          retention-days: 5
+
+      - name: Остановить тестовый сервер
+        if: always()
+        run: |
+          if [[ -f /tmp/workspace-defects-browser-http.pid ]]; then
+            PID="$(cat /tmp/workspace-defects-browser-http.pid)"
+            pkill -TERM -P "$PID" >/dev/null 2>&1 || true
+            kill "$PID" >/dev/null 2>&1 || true
+          fi
