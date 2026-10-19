@@ -74,6 +74,20 @@ ob_start();
 <?php if (!empty($can_manage_defects)): ?>
 <section class="calendar-shell">
     <h2>Справочники</h2>
+    <form data-defects-import>
+        <h3>Импорт справочников из текстового файла</h3>
+        <p>UTF-8, разделитель «;», одна запись в строке. Форматы:
+            <code>area;Участок</code>,
+            <code>category;Участок;Категория</code>,
+            <code>object;Участок;Категория;Объект</code>,
+            <code>service;Служба</code>.
+            Не более 200 записей и 512 КиБ.
+        </p>
+        <label>Файл <input type="file" name="file" accept=".txt,.csv,text/plain,text/csv" required></label>
+        <button type="button" data-defects-import-preview>Предварительный просмотр</button>
+        <button type="button" data-defects-import-apply disabled>Применить импорт</button>
+        <pre data-defects-import-result aria-live="polite"></pre>
+    </form>
     <form data-defects-reference>
         <label>Тип справочника
             <select name="kind">

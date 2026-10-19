@@ -13,6 +13,7 @@ use DateTimeImmutable;
 use DomainException;
 use InvalidArgumentException;
 use Modules\Defects\Services\DefectReferenceService;
+use Modules\Defects\Services\DefectReferenceImportService;
 use Modules\Defects\Services\DefectReportService;
 use Modules\Defects\Services\DefectRegistrationService;
 use Modules\Defects\Services\DefectRegistryService;
@@ -103,6 +104,55 @@ final class DefectsApiController extends Controller
             $this->audit($userId, 'defects.reference.created', ['reference_id' => $id, 'kind' => $data['kind']]);
             return ['reference_id' => $id];
         }, 201);
+    }
+
+    public function previewImport(Request $request): void
+    {
+        $this->handle($request, 'defects.manage', function () use ($request): array {
+            return ['preview' => $this->importService()->preview($this->uploadedText($request))];
+        });
+    }
+
+    public function applyImport(Request $request): void
+    {
+        $this->handle($request, 'defects.manage', function (int $userId) use ($request): array {
+            $hash = $request->rawPost('expected_hash');
+            if (!is_string($hash)) {
+                throw new InvalidArgumentException('Предварительный просмотр обязателен');
+            }
+
+            $result = $this->importService()->apply($this->uploadedText($request), $hash);
+            if ($result['created'] > 0) {
+                $this->audit($userId, 'defects.references.imported', $result);
+            }
+            return ['import' => $result];
+        });
+    }
+
+    private function uploadedText(Request $request): string
+    {
+        $file = $request->file('file');
+        if (!is_array($file)) {
+            throw new InvalidArgumentException('Файл справочников не загружен');
+        }
+        $path = $file['tmp_name'] ?? null;
+        if (!is_string($path) || !is_uploaded_file($path) || is_link($path)) {
+            throw new InvalidArgumentException('Недопустимый загруженный файл');
+        }
+        $size = filesize($path);
+        if (!is_int($size) || $size < 1 || $size > 524288) {
+            throw new InvalidArgumentException('Файл должен быть не больше 512 КиБ');
+        }
+        $data = file_get_contents($path);
+        if (!is_string($data)) {
+            throw new InvalidArgumentException('Не удалось прочитать файл');
+        }
+        return $data;
+    }
+
+    private function importService(): DefectReferenceImportService
+    {
+        return new DefectReferenceImportService(DatabaseManager::getInstance());
     }
 
     public function create(Request $request): void

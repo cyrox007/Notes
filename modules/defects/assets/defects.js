@@ -195,6 +195,78 @@
         finally { submit.disabled = false; }
     });
 
+    const importForm = document.querySelector('[data-defects-import]');
+    if (importForm) {
+        const file = importForm.elements.namedItem('file');
+        const previewButton = importForm.querySelector('[data-defects-import-preview]');
+        const applyButton = importForm.querySelector('[data-defects-import-apply]');
+        const result = importForm.querySelector('[data-defects-import-result]');
+        let previewHash = null;
+
+        file.addEventListener('change', () => {
+            previewHash = null;
+            applyButton.disabled = true;
+            result.textContent = '';
+        });
+
+        const upload = async (action, expectedHash) => {
+            if (!file.files.length) throw new Error('Выберите файл справочников');
+            const data = new FormData();
+            data.append('file', file.files[0]);
+            if (expectedHash) data.append('expected_hash', expectedHash);
+            const response = await fetch(api + '/import/' + action, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json', 'X-CSRF-Token': csrf?.value || '' },
+                body: data,
+            });
+            const answer = await response.json();
+            if (!response.ok || answer.status !== 'ok') {
+                throw new Error(answer.message || 'Ошибка импорта');
+            }
+            return answer;
+        };
+
+        previewButton.addEventListener('click', async () => {
+            previewButton.disabled = true;
+            applyButton.disabled = true;
+            previewHash = null;
+            try {
+                const answer = await upload('preview');
+                const data = answer.preview;
+                const lines = data.rows.map(row =>
+                    row.line + ': ' + row.type + ' — ' + row.fields.join('; ')
+                );
+                result.textContent = 'Записей: ' + data.total + '\n' + lines.join('\n')
+                    + (data.errors.length ? '\nОшибки:\n' + data.errors.join('\n') : '');
+                if (!data.errors.length) {
+                    previewHash = data.hash;
+                    applyButton.disabled = false;
+                }
+            } catch (error) { message(error.message, true); }
+            finally { previewButton.disabled = false; }
+        });
+
+        applyButton.addEventListener('click', async () => {
+            if (!previewHash) return;
+            applyButton.disabled = true;
+            try {
+                const answer = await upload('apply', previewHash);
+                result.textContent = 'Создано: ' + answer.import.created
+                    + ', уже существовали: ' + answer.import.existing;
+                previewHash = null;
+                await Promise.all([loadAreas(), references('services').then(rows => {
+                    refill(services, rows, 'Выберите службы');
+                    refill(filterService, rows, 'Все службы');
+                })]);
+                message('Импорт справочников выполнен');
+            } catch (error) {
+                message(error.message, true);
+                applyButton.disabled = false;
+            }
+        });
+    }
+
     if (referenceForm) {
         const kind = referenceForm.elements.namedItem('kind');
         const parent = referenceForm.elements.namedItem('parent_id');
