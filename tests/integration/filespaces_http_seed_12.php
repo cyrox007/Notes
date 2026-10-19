@@ -89,6 +89,24 @@ $stmt->execute([
     ':storage' => $key,
 ]);
 $fileId = (int) $pdo->lastInsertId();
+
+// Несколько удалённых объектов в одной папке показывают повторные проверки ACL
+// и версии родителя при отрисовке корзины. Это только одноразовые тестовые данные.
+$deleted = $pdo->prepare(
+    'INSERT INTO file_space_nodes
+       (uid,space_id,parent_id,node_type,name,created_by,updated_by,is_deleted,deleted_at)
+     VALUES (:uid,:space,:parent,"folder",:name,:actor,:editor,1,NOW())'
+);
+for ($index = 0; $index < 30; $index++) {
+    $deleted->execute([
+        ':uid' => bin2hex(random_bytes(16)),
+        ':space' => (int) $space['id'],
+        ':parent' => $folderId,
+        ':name' => sprintf('Удалённая-%03d', $index),
+        ':actor' => $actor,
+        ':editor' => $actor,
+    ]);
+}
 echo json_encode([
     'folder_id' => $folderId,
     'file_id' => $fileId,
