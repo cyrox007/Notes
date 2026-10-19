@@ -56,6 +56,10 @@ jobs:
           set -euo pipefail
           php -l core/MutationCommandStore.php
           php -l modules/tasks/services/TaskVersionMutationService.php
+          php -l modules/tasks/services/TaskDayOrderService.php
+          php -l modules/tasks/controllers/TaskDayOrderController.php
+          php -l tests/integration/task_day_order_12_scenarios.php
+          node --check modules/tasks/assets/tasks-day-order.js
           php -l modules/tasks/services/TaskBoardVersionMutationService.php
           php -l modules/tasks/controllers/TaskBoardController.php
           php -l tests/integration/board_integrity_12_scenarios.php

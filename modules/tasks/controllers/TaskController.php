@@ -9,6 +9,7 @@ use Core\Controller;
 use Core\DatabaseManager;
 use Core\Request;
 use Core\Router;
+use Modules\Tasks\TaskDayOrderService;
 use DateTimeImmutable;
 use InvalidArgumentException;
 use Modules\Tasks\TaskPersonalQueue;
@@ -78,6 +79,9 @@ final class TaskController extends Controller
         }
 
         $dailyView = in_array($filter, ['today', 'tomorrow', 'overdue'], true);
+        $dayQueueActive = in_array($filter, ['today', 'tomorrow'], true)
+            && in_array((string) $request->get('sort', 'manual'),
+                ['manual', ''], true);
         $query = ListQuery::fromRequest(
             $request,
             self::SORT_COLUMNS,
@@ -112,11 +116,27 @@ final class TaskController extends Controller
 
         $whereSql = implode(' AND ', $where);
         $total = (int) $db->fetchValue('SELECT COUNT(*) FROM tasks t WHERE ' . $whereSql, $params);
+        $join = '';
+        $listParams = $params;
+        $orderBy = $query['sort_column'] . ' ' . $query['direction_sql'] . ', t.id DESC';
+        $queueVersion = 1;
+        if (in_array($filter, ['today', 'tomorrow'], true)) {
+            $queueDate = substr($dayBounds[$filter], 0, 10);
+            $queueVersion = (new TaskDayOrderService($db))->version((int) $user->id, $queueDate);
+            if ($dayQueueActive) {
+                $join = ' LEFT JOIN task_personal_day_positions po
+                    ON po.user_id=t.user_id AND po.task_id=t.id AND po.queue_date=:queue_date';
+                $listParams[':queue_date'] = $queueDate;
+                $orderBy = '(po.position IS NULL) ASC, po.position ASC, t.due_date ASC, t.id ASC';
+                $query['sort'] = 'manual';
+                $query['direction'] = 'asc';
+            }
+        }
         $tasks = $db->fetchAll(
-            'SELECT t.* FROM tasks t WHERE ' . $whereSql
-            . ' ORDER BY ' . $query['sort_column'] . ' ' . $query['direction_sql'] . ', t.id DESC'
+            'SELECT t.* FROM tasks t' . $join . ' WHERE ' . $whereSql
+            . ' ORDER BY ' . $orderBy
             . ' LIMIT ' . (int) $query['limit'] . ' OFFSET ' . (int) $query['offset'],
-            $params
+            $listParams
         );
         $this->hydrateTaskRelations($tasks, (int) $user->id);
 
@@ -178,6 +198,8 @@ final class TaskController extends Controller
                 'tomorrow' => (int) ($statsRow['tomorrow'] ?? 0),
             ],
             'pagination' => $pagination,
+            'dayQueueActive' => $dayQueueActive,
+            'dayQueueVersion' => $queueVersion,
         ]);
     }
 

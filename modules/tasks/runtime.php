@@ -11,6 +11,8 @@ $files = [
     '/services/TasksAccountOwnership.php',
     '/services/TaskPersonalQueue.php',
     '/services/TaskBoardService.php',
+    '/services/TaskDayOrderService.php',
+    '/controllers/TaskDayOrderController.php',
     '/services/TaskVersionMutationService.php',
     '/services/TaskRelationMutationService.php',
     '/services/TaskBoardVersionMutationService.php',

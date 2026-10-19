@@ -16,6 +16,9 @@ $siteName = isset($sitename) ? (string) $sitename : 'Workspace Organizer';
 $workspaceVersion = isset($version) ? (string) $version : '';
 $baseUrl = isset($base_url) ? rtrim((string) $base_url, '/') : '';
 $tasksRoute = $view->route('tasks');
+$manualOrder = !empty($dayQueueActive);
+$queueVersion = max(1, (int) ($dayQueueVersion ?? 1));
+$dayLabel = in_array($filter, ['today', 'tomorrow'], true) ? $filter : '';
 $quickFilters = [
     'all' => 'Мои задачи',
     'today' => 'Сегодня',
@@ -43,7 +46,11 @@ ob_start();
     <div><h1>Мои задачи</h1></div>
 </section>
 
-<section class="tasks" data-archive="<?= $filter === 'archive' ? '1' : '0' ?>">
+<section class="tasks" data-archive="<?= $filter === 'archive' ? '1' : '0' ?>"
+         data-day-queue="<?= $view->e($dayLabel) ?>"
+         data-day-order-enabled="<?= $manualOrder ? '1' : '0' ?>"
+         data-day-queue-version="<?= $queueVersion ?>"
+         data-day-order-url="<?= $view->e($view->route('task_day_order')) ?>">
     <nav class="tasks__filters tasks__day-shortcuts" aria-label="Личная рабочая очередь">
         <?php foreach ($quickFilters as $code => $label): ?>
             <a href="<?= $view->e($tasksRoute . '?filter=' . rawurlencode($code)) ?>"
@@ -70,6 +77,9 @@ ob_start();
             <label>
                 Сортировка
                 <select name="sort">
+                    <?php if ($dayLabel !== ''): ?>
+                        <option value="manual" <?= $sort === 'manual' ? 'selected' : '' ?>>Мой порядок</option>
+                    <?php endif; ?>
                     <option value="created_at" <?= $sort === 'created_at' ? 'selected' : '' ?>>По созданию</option>
                     <option value="updated_at" <?= $sort === 'updated_at' ? 'selected' : '' ?>>По изменению</option>
                     <option value="due_date" <?= $sort === 'due_date' ? 'selected' : '' ?>>По сроку</option>
@@ -144,11 +154,17 @@ ob_start();
         </div>
     </div>
 
+    <?php if ($manualOrder): ?>
+        <p class="tasks__order-status" data-day-order-status role="status" aria-live="polite">
+            Используйте стрелки на карточке, чтобы изменить порядок задач на <?= $filter === 'today' ? 'сегодня' : 'завтра' ?>.
+        </p>
+    <?php endif; ?>
     <div class="tasks__list">
         <?php if ($taskRows !== []): ?>
             <?php foreach ($taskRows as $taskRow): ?>
                 <?php if (!is_array($taskRow)) { continue; } ?>
-                <?= $view->partial('@tasks/elements/task_item/index', ['task' => $taskRow, 'user' => $currentUser, 'categories' => $categoryRows]) ?>
+                <?= $view->partial('@tasks/elements/task_item/index', ['task' => $taskRow, 'user' => $currentUser, 'categories' => $categoryRows,
+                    'dayQueueEnabled' => $manualOrder]) ?>
             <?php endforeach; ?>
         <?php else: ?>
             <div class="tasks__empty"><p><?= $filter === 'archive' ? 'В архиве пока нет задач. Задачу можно убрать сюда кнопкой «В архив» на её карточке.' : 'Здесь пока нет задач. Создайте первую задачу!' ?></p></div>
@@ -177,6 +193,7 @@ echo $view->layout('core/base', [
     'module_scripts' => [
         $view->moduleAsset('tasks', 'tasks-page.js'),
         $view->moduleAsset('tasks', 'tasks-versioned-mutations.js'),
+        $view->moduleAsset('tasks', 'tasks-day-order.js'),
         $view->moduleAsset('tasks', 'tasks-kanban.js'),
         $view->moduleAsset('tasks', 'task-boards-nav.js'),
     ],
