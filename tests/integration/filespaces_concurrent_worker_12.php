@@ -113,5 +113,6 @@ try {
     }
 }
 $report['elapsed_ms'] = round((microtime(true) - $startTime) * 1000, 2);
+$report['php_peak_bytes'] = memory_get_peak_usage(true);
 file_put_contents($resultPath, json_encode($report, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
 exit(0);
