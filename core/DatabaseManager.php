@@ -38,17 +38,19 @@ class DatabaseManager
 
     private bool $inTransaction = false;
     private int $queryCount = 0;
+    private bool $externalConnection = false;
     private array $queryLog = [];
 
     public readonly bool $enableLogging;
     public readonly int $maxLogLength;
 
-    private function __construct(bool $enableLogging = true, int $maxLogLength = 100)
+    private function __construct(bool $enableLogging = true, int $maxLogLength = 100, ?PDO $connection = null)
     {
         $this->enableLogging = $enableLogging;
         $this->maxLogLength = $maxLogLength;
         $this->log('[DatabaseManager] Инициализация соединения', LogLevel::INFO);
-        $this->pdo = $this->createConnection();
+        $this->pdo = $connection ?? $this->createConnection();
+        $this->externalConnection = $connection !== null;
     }
 
     private function __clone() {}
@@ -65,6 +67,16 @@ class DatabaseManager
         }
 
         return self::$instance;
+    }
+
+    /**
+     * Использовать существующее соединение в изолированных сценариях
+     * и сервисах, работающих внутри общей транзакции.
+     * Создание второго соединения или замена глобального менеджера исключены.
+     */
+    public static function forConnection(PDO $connection, bool $enableLogging = false): self
+    {
+        return new self($enableLogging, 100, $connection);
     }
 
     public static function resetInstance(): void
@@ -188,6 +200,11 @@ class DatabaseManager
 
             $this->pdo->getAttribute(PDO::ATTR_SERVER_VERSION);
         } catch (PDOException $e) {
+            // Чужое соединение принадлежит вызывающему коду. Нельзя бесшумно
+            // заменить его и потерять действующую транзакцию.
+            if ($this->externalConnection || $this->pdo?->inTransaction()) {
+                throw $e;
+            }
             $this->log('[ensureConnection] Переподключение: ' . $e->getMessage(), LogLevel::WARNING);
             ServiceLog::emit(
                 'database.connection_lost',
@@ -395,6 +412,45 @@ class DatabaseManager
     private function maskQuery(string $query, #[\SensitiveParameter] array $params): string
     {
         return DatabaseSqlInspector::diagnosticQuery($query, $params);
+    }
+
+    /**
+     * Подготовить повторно используемое выражение. Необходимо для
+     * потоковой обработки и операций с явными блокировками.
+     * Для обычной выборки использовать fetchAll/fetchOne/fetchValue.
+     */
+    public function prepare(string $query): PDOStatement
+    {
+        $this->ensureConnection();
+        $statement = $this->pdo->prepare($query);
+        if (!$statement instanceof PDOStatement) {
+            throw new \RuntimeException('Не удалось подготовить запрос к базе данных');
+        }
+        return $statement;
+    }
+
+    /** Выполнить прямую команду без параметров через соединение ядра. */
+    public function query(string $query): PDOStatement
+    {
+        $this->ensureConnection();
+        $statement = $this->pdo->query($query);
+        if (!$statement instanceof PDOStatement) {
+            throw new \RuntimeException('Не удалось выполнить запрос к базе данных');
+        }
+        return $statement;
+    }
+
+    /** Идентификатор строки, созданной на текущем соединении. */
+    public function lastInsertId(): string|false
+    {
+        $this->ensureConnection();
+        return $this->pdo->lastInsertId();
+    }
+
+    /** Не начинать повторную транзакцию внутри изменяющей команды. */
+    public function inTransaction(): bool
+    {
+        return $this->pdo?->inTransaction() ?? false;
     }
 
     public function fetchAll(string $query, #[\SensitiveParameter] array $params = []): array
