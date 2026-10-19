@@ -5,14 +5,26 @@ declare(strict_types=1);
 namespace Modules\Files;
 
 use Core\ModuleRetentionCleanup;
+use Core\ModuleAccountDataCleanup;
 use Core\RetentionCleanupContext;
 
 /** Хранение и очистка принадлежат модулю Files. */
-final class FilesRetentionService implements ModuleRetentionCleanup
+final class FilesRetentionService implements ModuleRetentionCleanup, ModuleAccountDataCleanup
 {
     public function moduleId(): string
     {
         return 'files';
+    }
+
+    public function purgeAccountData(int $userId, RetentionCleanupContext $context): void
+    {
+        if (!$context->hasTable('user_storage_quotas')) {
+            return;
+        }
+        $context->db->execute(
+            'DELETE FROM user_storage_quotas WHERE user_id=:user_id',
+            [':user_id' => $userId]
+        );
     }
 
     /** @return array<string,int> */
