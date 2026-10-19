@@ -54,7 +54,7 @@ runtimeRequireMarker(
 runtimeRequireMarker(
     $root,
     'core/UpdateExternalCliSupport.php',
-    "private const MINIMUM_PHP_VERSION = '8.3.0';",
+    "private const string MINIMUM_PHP_VERSION = '8.3.0';",
     'автономный обновлятор должен фиксировать минимум PHP 8.3'
 );
 runtimeRequireMarker(
@@ -73,6 +73,13 @@ runtimeRequireMarker(
 require_once $root . '/core/CliRuntime.php';
 $minimumPhpConstant = new ReflectionClassConstant(\Core\CliRuntime::class, 'MINIMUM_PHP_VERSION');
 runtimeCheck((string) $minimumPhpConstant->getType() === 'string', 'тип минимальной версии PHP должен проверяться средствами PHP 8.3');
+
+require_once $root . '/core/UpdateExternalCliSupport.php';
+require_once $root . '/core/UpdatePhpCli.php';
+foreach ([\Core\UpdateExternalCliSupport::class, \Core\UpdatePhpCli::class] as $class) {
+    $constant = new ReflectionClassConstant($class, 'MINIMUM_PHP_VERSION');
+    runtimeCheck((string) $constant->getType() === 'string', 'константа минимальной версии обновлятора должна иметь тип string');
+}
 
 require_once $root . '/core/UpdateProcessRunner.php';
 require_once $root . '/core/UpdatePhpCli.php';
