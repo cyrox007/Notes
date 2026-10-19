@@ -19,7 +19,7 @@ use Throwable;
  */
 final class UpdatePhpCli
 {
-    private const MINIMUM_PHP_VERSION = '8.3.0';
+    private const string MINIMUM_PHP_VERSION = '8.3.0';
 
     public static function resolve(string $minimumVersion = self::MINIMUM_PHP_VERSION): string
     {
