@@ -1,0 +1,42 @@
+name: 1.2 — модули используют ядро БД
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'modules/**'
+      - 'core/DatabaseManager.php'
+      - 'core/DatabasePreparedStatement.php'
+      - 'core/MutationCommandStore.php'
+      - 'tests/integration/module_database_boundary_12.php'
+      - 'tests/integration/module_database_legacy_12.json'
+      - '.github/workflows/module-database-boundary-12.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  module-db-boundary:
+    name: Запрет обхода менеджера БД в модулях
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+
+      - name: Подготовить PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Проверить синтаксис библиотеки БД
+        run: |
+          php -l core/DatabaseManager.php
+          php -l core/DatabasePreparedStatement.php
+          php -l core/MutationCommandStore.php
+          php -l tests/integration/module_database_boundary_12.php
+
+      - name: Проверить архитектурную границу всех модулей
+        run: php tests/integration/module_database_boundary_12.php
