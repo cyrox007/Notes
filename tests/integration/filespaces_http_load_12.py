@@ -93,7 +93,7 @@ def multipart(fields, content):
         ]
     parts += [
         f"--{boundary}\r\n".encode(),
-        'Content-Disposition: form-data; name="file"; filename="Нагрузка.txt"\r\n'.encode("utf-8"),
+        ('Content-Disposition: form-data; name="file"; filename="Я-нагрузка-' + uuid.uuid4().hex + '.txt"\r\n').encode("utf-8"),
         b"Content-Type: text/plain\r\n\r\n",
         content,
         b"\r\n",
