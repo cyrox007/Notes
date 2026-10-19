@@ -94,6 +94,10 @@ jobs:
           php -l modules/defects/services/DefectReportService.php
           php -l tests/integration/defects_reporting_12.php
           php tests/integration/defects_reporting_12.php
+          php -l modules/defects/services/DefectReferenceImportService.php
+          php -l tests/integration/defects_reference_import_12.php
+          php tests/integration/defects_reference_import_12.php
+          node --check modules/defects/assets/defects.js
           grep -Fq 'database|development|docs' .htaccess
           grep -Fq "'development'" tests/e2e/router.php
 
