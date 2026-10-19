@@ -260,12 +260,7 @@ final class RetentionService
                         [':user_id' => $userId]
                     );
                 }
-                if ($this->hasTable('user_storage_quotas')) {
-                    $this->db->execute(
-                        'DELETE FROM user_storage_quotas WHERE user_id=:user_id',
-                        [':user_id' => $userId]
-                    );
-                }
+                $this->moduleCleanup()->purgeAccountData($userId, $this->cleanupContext());
 
                 $this->db->endTransaction(true);
             } catch (Throwable $e) {
