@@ -11,7 +11,6 @@ use DateTimeImmutable;
 use DomainException;
 use InvalidArgumentException;
 use PDO;
-use Core\DatabaseManager;
 use RuntimeException;
 use Throwable;
 
