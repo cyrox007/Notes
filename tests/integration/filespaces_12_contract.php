@@ -13,6 +13,7 @@ spl_autoload_register(static function (string $class) use ($root): void {
         require_once $path;
     }
 });
+require_once $root . '/modules/files/services/FileSpaceStorageGuard.php';
 require_once $root . '/modules/files/services/FileSpaceAccessService.php';
 require_once $root . '/modules/files/services/FileSpaceFolderService.php';
 
