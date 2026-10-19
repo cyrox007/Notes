@@ -8,6 +8,7 @@ use Core\MutationCommandStore;
 use DomainException;
 use InvalidArgumentException;
 use PDO;
+use Core\DatabaseManager;
 use RuntimeException;
 use Throwable;
 
@@ -17,13 +18,17 @@ use Throwable;
  */
 final class FileSpaceTransferService
 {
+    private readonly DatabaseManager $db;
+
     public function __construct(
-        private readonly PDO $pdo,
+        PDO|DatabaseManager $connection,
         private readonly FileSpaceAccessService $access,
         private readonly MutationCommandStore $commands = new MutationCommandStore(),
         private readonly ?string $storageRoot = null,
         private readonly ?\Closure $moveFile = null
     ) {
+        $this->db = $connection instanceof DatabaseManager
+            ? $connection : DatabaseManager::forConnection($connection);
     }
 
     /**
@@ -49,24 +54,24 @@ final class FileSpaceTransferService
             'sha256' => $upload['sha256'],
             'expected_version' => $expectedVersion,
         ]);
-        if ($this->pdo->inTransaction()) {
+        if ($this->db->inTransaction()) {
             throw new RuntimeException('Загрузка общего файла требует отдельную транзакцию');
         }
 
         $createdPath = null;
-        $this->pdo->beginTransaction();
+        $this->db->beginTransaction();
         try {
             $space = $this->access->space();
             $version = $this->lockContainer((int) $space['id'], $parentId);
             $this->access->require($actorId, 'global', $parentId, 'upload');
             $receipt = $this->commands->acquire(
-                $this->pdo, 'user:' . $actorId, $commandId,
+                $this->db, 'user:' . $actorId, $commandId,
                 'files', 'files.file.upload', 'file_space',
                 'global:' . ($parentId === null ? 'root' : 'node:' . $parentId), $hash
             );
             if (!$receipt['owner']) {
                 $result = $this->commands->storedResponse($receipt['record']);
-                $this->pdo->commit();
+                $this->db->endTransaction();
                 return $result;
             }
             if ($version !== $expectedVersion) {
@@ -78,7 +83,7 @@ final class FileSpaceTransferService
                     'current_version' => $version,
                 ];
                 $this->finish($receipt, $result, $version, MutationCommandStore::STATUS_CONFLICT);
-                $this->pdo->commit();
+                $this->db->endTransaction();
                 return $result;
             }
 
@@ -95,7 +100,7 @@ final class FileSpaceTransferService
             @chmod($createdPath, 0600);
 
             $uid = bin2hex(random_bytes(16));
-            $stmt = $this->pdo->prepare(
+            $stmt = $this->db->prepare(
                 'INSERT INTO file_space_nodes
                  (uid,space_id,parent_id,node_type,name,created_by,updated_by,
                   mime_type,byte_size,storage_key)
@@ -113,9 +118,9 @@ final class FileSpaceTransferService
                 ':byte_size' => $upload['size'],
                 ':storage_key' => $storageKey,
             ]);
-            $fileId = (int) $this->pdo->lastInsertId();
+            $fileId = (int) $this->db->lastInsertId();
             $nextVersion = $this->bumpContainer((int) $space['id'], $parentId, $expectedVersion);
-            $event = $this->pdo->prepare(
+            $event = $this->db->prepare(
                 'INSERT INTO file_space_events (space_id,node_id,actor_user_id,event_code,details_json)
                  VALUES (:space_id,:node_id,:actor_id,"file.upload",:details)'
             );
@@ -138,11 +143,11 @@ final class FileSpaceTransferService
                 'replayed' => false,
             ];
             $this->finish($receipt, $result, $nextVersion, MutationCommandStore::STATUS_APPLIED);
-            $this->pdo->commit();
+            $this->db->endTransaction();
             return $result;
         } catch (Throwable $error) {
-            if ($this->pdo->inTransaction()) {
-                $this->pdo->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->endTransaction(false);
             }
             if ($createdPath !== null && is_file($createdPath)) {
                 @unlink($createdPath);
@@ -172,17 +177,17 @@ final class FileSpaceTransferService
             'expected_version' => $expectedVersion,
             'expected_parent_version' => $expectedParentVersion,
         ]);
-        if ($this->pdo->inTransaction()) {
+        if ($this->db->inTransaction()) {
             throw new RuntimeException('Замена общего файла требует отдельную транзакцию');
         }
         $newPath = null;
         $oldPath = null;
-        $this->pdo->beginTransaction();
+        $this->db->beginTransaction();
         try {
             $space = $this->access->space();
-            $lock = $this->pdo->prepare('SELECT id FROM file_spaces WHERE id=:id FOR UPDATE');
+            $lock = $this->db->prepare('SELECT id FROM file_spaces WHERE id=:id FOR UPDATE');
             $lock->execute([':id' => (int) $space['id']]);
-            $nodeQuery = $this->pdo->prepare(
+            $nodeQuery = $this->db->prepare(
                 'SELECT id,uid,space_id,parent_id,created_by,name,node_type,storage_key,version
                  FROM file_space_nodes
                  WHERE id=:id AND space_id=:space AND is_deleted=0 LIMIT 1 FOR UPDATE'
@@ -201,12 +206,12 @@ final class FileSpaceTransferService
             }
             $parentVersion = $this->lockContainer((int) $space['id'], $parent);
             $receipt = $this->commands->acquire(
-                $this->pdo, 'user:' . $actorId, $commandId, 'files',
+                $this->db, 'user:' . $actorId, $commandId, 'files',
                 'files.file.replace', 'file_space_node', (string) $node['uid'], $hash
             );
             if (!$receipt['owner']) {
                 $result = $this->commands->storedResponse($receipt['record']);
-                $this->pdo->commit();
+                $this->db->endTransaction();
                 return $result;
             }
 
@@ -219,7 +224,7 @@ final class FileSpaceTransferService
                     'current_parent_version' => $parentVersion,
                 ];
                 $this->finish($receipt, $result, (int) $node['version'], MutationCommandStore::STATUS_CONFLICT);
-                $this->pdo->commit();
+                $this->db->endTransaction();
                 return $result;
             }
 
@@ -238,7 +243,7 @@ final class FileSpaceTransferService
             if (preg_match('/^[a-f0-9]{48}\.[a-z0-9]{1,12}$/D', $oldKey) === 1) {
                 $oldPath = $directory . DIRECTORY_SEPARATOR . $oldKey;
             }
-            $update = $this->pdo->prepare(
+            $update = $this->db->prepare(
                 'UPDATE file_space_nodes SET storage_key=:key,mime_type=:mime,byte_size=:size,
                     version=version+1,updated_by=:actor,updated_at=NOW()
                  WHERE id=:id AND version=:expected AND is_deleted=0'
@@ -251,7 +256,7 @@ final class FileSpaceTransferService
                 throw new RuntimeException('Файл был изменён параллельно');
             }
             $nextParent = $this->bumpContainer((int) $space['id'], $parent, $expectedParentVersion);
-            $event = $this->pdo->prepare(
+            $event = $this->db->prepare(
                 'INSERT INTO file_space_events (space_id,node_id,actor_user_id,event_code,details_json)
                  VALUES (:space,:node,:actor,"file.replace",:details)'
             );
@@ -264,10 +269,10 @@ final class FileSpaceTransferService
                 'parent_version' => $nextParent, 'replayed' => false,
             ];
             $this->finish($receipt, $result, $expectedVersion + 1, MutationCommandStore::STATUS_APPLIED);
-            $this->pdo->commit();
+            $this->db->endTransaction();
         } catch (Throwable $error) {
-            if ($this->pdo->inTransaction()) {
-                $this->pdo->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->endTransaction(false);
             }
             if ($newPath !== null && is_file($newPath)) {
                 @unlink($newPath);
@@ -286,7 +291,7 @@ final class FileSpaceTransferService
     public function download(int $actorId, int $fileId): array
     {
         $space = $this->access->space();
-        $stmt = $this->pdo->prepare(
+        $stmt = $this->db->prepare(
             'SELECT id,space_id,name,node_type,mime_type,byte_size,storage_key
              FROM file_space_nodes
              WHERE id=:id AND space_id=:space_id AND is_deleted=0 LIMIT 1'
@@ -373,12 +378,12 @@ final class FileSpaceTransferService
     private function lockContainer(int $spaceId, ?int $parentId): int
     {
         if ($parentId === null) {
-            $stmt = $this->pdo->prepare(
+            $stmt = $this->db->prepare(
                 'SELECT version FROM file_spaces WHERE id=:id AND is_archived=0 FOR UPDATE'
             );
             $stmt->execute([':id' => $spaceId]);
         } else {
-            $stmt = $this->pdo->prepare(
+            $stmt = $this->db->prepare(
                 'SELECT version FROM file_space_nodes
                  WHERE id=:id AND space_id=:space_id AND node_type="folder"
                    AND is_deleted=0 FOR UPDATE'
@@ -394,7 +399,7 @@ final class FileSpaceTransferService
 
     private function bumpContainer(int $spaceId, ?int $parentId, int $version): int
     {
-        $stmt = $this->pdo->prepare(
+        $stmt = $this->db->prepare(
             $parentId === null
                 ? 'UPDATE file_spaces SET version=version+1 WHERE id=:id AND version=:version'
                 : 'UPDATE file_space_nodes SET version=version+1 WHERE id=:id AND version=:version'
@@ -408,7 +413,7 @@ final class FileSpaceTransferService
 
     private function assertFreeName(int $spaceId, ?int $parentId, string $name): void
     {
-        $stmt = $this->pdo->prepare(
+        $stmt = $this->db->prepare(
             'SELECT id FROM file_space_nodes WHERE space_id=:space_id AND is_deleted=0
              AND name=:name AND '
             . ($parentId === null ? 'parent_id IS NULL' : 'parent_id=:parent_id') . ' LIMIT 1'
@@ -461,7 +466,7 @@ final class FileSpaceTransferService
     private function finish(array $receipt, array $result, int $version, string $status): void
     {
         $this->commands->complete(
-            $this->pdo, (int) $receipt['record']['id'], $receipt['token'],
+            $this->db, (int) $receipt['record']['id'], $receipt['token'],
             $status, $result, $version
         );
     }
