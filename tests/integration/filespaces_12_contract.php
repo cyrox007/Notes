@@ -51,6 +51,24 @@ $schemas = array_map(static fn (string $path): string => $root . '/' . $path, $o
 $installer = new InstallerDatabaseService();
 $installer->importSchemas($host, $port, $database, $user, $password, $schemas);
 $pdo = $installer->connect($host, $port, $database, $user, $password);
+
+// Менеджер с переданным PDO не распоряжается жизненным циклом этого соединения.
+$borrowed = \Core\DatabaseManager::forConnection($pdo);
+$pdo->beginTransaction();
+$borrowed->releaseIdleConnection();
+filespaceCheck($borrowed->getPdo() === $pdo,
+    'освобождение простоя не отключает переданное соединение');
+$borrowed->close();
+filespaceCheck($pdo->inTransaction(),
+    'закрытие менеджера не откатывает чужую транзакцию');
+$pdo->rollBack();
+
+$borrowed = \Core\DatabaseManager::forConnection($pdo);
+$borrowed->beginTransaction();
+unset($borrowed);
+filespaceCheck($pdo->inTransaction(),
+    'уничтожение менеджера не откатывает общую транзакцию сервиса');
+$pdo->rollBack();
 foreach (['fsp-admin','fsp-member','fsp-reader'] as $name) {
     $installer->createAdminUser(
         $pdo, $name, $name . '@example.test', 'filespaces-test-password', 'Test', 'Files'
