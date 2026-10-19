@@ -170,9 +170,24 @@ try {
     await manager.locator('.defects-reference-row').first().waitFor({ state: 'visible', timeout: 15000 });
     const secondService = manager.locator('.defects-reference-row').filter({ hasText: 'Диспетчерская' });
     await secondService.getByRole('button', { name: 'В архив' }).click();
-    const archiveResponse = ajaxResponse(page, '/api/defects/references/services/2/archive');
+    const observed = [];
+    const recordMutation = request => {
+        if (request.url().includes('/api/defects/references/')) {
+            observed.push(request.method() + ' ' + request.url());
+        }
+    };
+    page.on('request', recordMutation);
+    const archiveResponse = ajaxResponse(page, '/api/defects/references/services/');
     await secondService.getByRole('button', { name: 'Подтвердить' }).click();
-    const archivedHttp = await archiveResponse;
+    const archivedHttp = await archiveResponse.catch(async error => {
+        throw new Error('Команда архивации не получила ответ: ' + error.message
+            + '; запросы=' + JSON.stringify(observed)
+            + '; сообщение=' + await page.locator('[data-defects-feedback]').innerText()
+            + '; ошибки браузера=' + errors.join('; '));
+    });
+    page.off('request', recordMutation);
+    check(archivedHttp.url().endsWith('/archive'),
+        'Вместо архивирования вызван другой маршрут: ' + archivedHttp.url());
     check(archivedHttp.status() === 200,
         'Не удалось архивировать службу: HTTP ' + archivedHttp.status() + ', '
         + JSON.stringify(await archivedHttp.json()));
@@ -180,7 +195,7 @@ try {
     await manager.locator('[data-defects-manage-archived]').check();
     const archived = manager.locator('.defects-reference-row').filter({ hasText: 'Диспетчерская' });
     await archived.getByRole('button', { name: 'Восстановить' }).waitFor({ state: 'visible', timeout: 15000 });
-    const restoreResponse = ajaxResponse(page, '/api/defects/references/services/2/restore');
+    const restoreResponse = ajaxResponse(page, '/api/defects/references/services/');
     await archived.getByRole('button', { name: 'Восстановить' }).click();
     const restoredHttp = await restoreResponse;
     check(restoredHttp.status() === 200, 'Восстановление вернуло HTTP ' + restoredHttp.status());
