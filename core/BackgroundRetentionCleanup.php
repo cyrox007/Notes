@@ -22,6 +22,12 @@ final class BackgroundRetentionCleanup
     ) {
     }
 
+    /** Проверить готовность всех модульных обработчиков без выполнения удаления. */
+    public function verify(): void
+    {
+        $this->providers();
+    }
+
     /** @return array<string,int> */
     public function preview(string $cutoff, int $limit, RetentionCleanupContext $context): array
     {
