@@ -78,9 +78,21 @@ async function createDefect(page, description) {
     await form.locator('[name="description"]').fill(description);
     await form.locator('input[name="service_ids"]').first().check();
 
+    const validation = await form.evaluate(node => ({
+        valid: node.checkValidity(),
+        missing: [...node.elements].filter(field => field.willValidate && !field.checkValidity())
+            .map(field => ({ name: field.name, value: field.value, message: field.validationMessage })),
+        submitDisabled: node.querySelector('button[type="submit"]').disabled,
+    }));
+    check(validation.valid && !validation.submitDisabled,
+        'Форма повторной регистрации не готова: ' + JSON.stringify(validation));
     const pending = ajaxResponse(page, '/api/defects/');
     await form.locator('button[type="submit"]').click();
-    const response = await pending;
+    const response = await pending.catch(async (error) => {
+        const feedback = await page.locator('[data-defects-create-error]').innerText();
+        throw new Error('POST регистрации не получен: ' + error.message + '; ошибка формы='
+            + feedback + '; браузер=' + errors.join('; '));
+    });
     check(response.status() === 201, 'Регистрация вернула HTTP ' + response.status());
     const payload = await response.json();
     const id = Number(payload.defect?.id);
