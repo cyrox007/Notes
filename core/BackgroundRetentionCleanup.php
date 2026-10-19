@@ -54,6 +54,19 @@ final class BackgroundRetentionCleanup
         }
     }
 
+    /**
+     * Выполняется внутри транзакции платформенного обезличивания.
+     * Только модуль-владелец определяет очистку своих вспомогательных данных.
+     */
+    public function purgeAccountData(int $userId, RetentionCleanupContext $context): void
+    {
+        foreach ($this->providers() as $provider) {
+            if ($provider instanceof ModuleAccountDataCleanup) {
+                $provider->purgeAccountData($userId, $context);
+            }
+        }
+    }
+
     /** @return array<string,ModuleRetentionCleanup> */
     private function providers(): array
     {
