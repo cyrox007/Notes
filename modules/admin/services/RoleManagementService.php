@@ -188,7 +188,7 @@ final class RoleManagementService
             'INSERT INTO roles (code,name,description,is_system) VALUES (:code,:name,:description,0)',
             [':code' => $code, ':name' => $name, ':description' => $description !== '' ? $description : null]
         );
-        return (int) $this->db->getPdo()->lastInsertId();
+        return (int) $this->db->lastInsertId();
     }
 
     /** @param list<string> $permissionCodes */
