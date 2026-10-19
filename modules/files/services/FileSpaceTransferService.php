@@ -296,8 +296,12 @@ final class FileSpaceTransferService
         if (!is_array($file) || $file['node_type'] !== 'file') {
             throw new DomainException('Файл не найден или недоступен', 404);
         }
-        $this->access->require($actorId, 'global', $fileId, 'view');
-        $this->access->require($actorId, 'global', $fileId, 'download');
+        $rights = $this->access->decisions(
+            $actorId, 'global', $fileId, ['view', 'download']
+        );
+        if (!$rights['view']['allowed'] || !$rights['download']['allowed']) {
+            throw new DomainException('Объект не найден или недоступен', 404);
+        }
 
         $key = (string) $file['storage_key'];
         if (preg_match('/^[a-f0-9]{48}\.[a-z0-9]{1,12}$/D', $key) !== 1) {

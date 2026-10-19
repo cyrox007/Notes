@@ -99,6 +99,10 @@ $listGrant = $grant(null, 'everyone', 0, 'list', 'allow', 2, 'fsp-list-all-001')
 filespaceCheck($listGrant['version'] === 3, 'право просмотра списка настроено');
 filespaceCheck($access->decision($member, 'global', null, 'view')['allowed'],
     'пользователь получил просмотр пространства');
+$rootRights = $access->decisions($member, 'global', null, ['view', 'list', 'create_folder']);
+filespaceCheck($rootRights['view']['allowed'] && $rootRights['list']['allowed']
+    && !$rootRights['create_folder']['allowed'],
+    'пакетная проверка сохраняет независимость прав на чтение и запись');
 filespaceCheck(!$access->decision($member, 'global', null, 'create_folder')['allowed'],
     'просмотр не означает право создания');
 
@@ -106,6 +110,9 @@ $roleGrant = $grant(null, 'role', $regularRole, 'create_folder', 'allow', 3, 'fs
 filespaceCheck($roleGrant['version'] === 4, 'ролевая политика изменила версию');
 filespaceCheck($access->decision($member, 'global', null, 'create_folder')['allowed'],
     'роль пользователя разрешает создание папок');
+filespaceCheck($access->decisions($member, 'global', null, ['view', 'create_folder'])
+    ['create_folder']['allowed'],
+    'после выдачи ACL пакетная проверка видит новые права без устаревшего кеша');
 
 $created = $folders->createFolder($member, null, 'Проект', 4, 'fsp-create-folder-001');
 $folderId = (int) ($created['folder_id'] ?? 0);
@@ -132,6 +139,12 @@ filespaceCheck(count($folders->browse($reader)['items']) === 0,
 $deny = $grant($folderId, 'everyone', 0, 'view', 'deny', 2, 'fsp-deny-view-001');
 filespaceCheck(!$access->decision($member, 'global', $folderId, 'view')['allowed'],
     'явный запрет сильнее разрешения конкретному пользователю');
+$deniedRights = $access->decisions(
+    $member, 'global', $folderId, ['view', 'rename_own', 'download']
+);
+filespaceCheck(!$deniedRights['view']['allowed']
+    && $deniedRights['view']['source'] === 'node:' . $folderId,
+    'пакетная проверка соблюдает явный запрет на уровне объекта');
 $denied = false;
 try {
     $folders->browse($member, $folderId);
@@ -142,6 +155,9 @@ filespaceCheck($denied, 'нельзя открыть запрещённую па
 
 $allowAgain = $grant($folderId, 'everyone', 0, 'view', 'remove', 3, 'fsp-remove-deny-001');
 filespaceCheck($allowAgain['version'] === 4, 'запрет удалён');
+filespaceCheck($access->decisions($member, 'global', $folderId, ['view'])
+    ['view']['allowed'],
+    'снятие запрета ACL сразу влияет на следующий пакетный запрос');
 $author = $grant($folderId, 'author', 0, 'rename_own', 'allow', 4, 'fsp-author-001');
 filespaceCheck($access->decision($member, 'global', $folderId, 'rename_own')['allowed'],
     'автору доступно право управления своим объектом');

@@ -6,6 +6,7 @@ on:
     paths:
       - 'tests/integration/filespaces_http_seed_12.php'
       - 'tests/integration/filespaces_http_load_12.py'
+      - 'tests/integration/filespaces_http_sql_profile_12.py'
       - '.github/workflows/filespaces-http-load-12.yml'
       - 'modules/files/**'
   workflow_dispatch:
@@ -98,7 +99,8 @@ jobs:
           ENV
           chmod 600 .env
           php -l tests/integration/filespaces_http_seed_12.php
-          python3 -m py_compile tests/integration/filespaces_http_load_12.py
+          python3 -m py_compile tests/integration/filespaces_http_load_12.py \
+            tests/integration/filespaces_http_sql_profile_12.py
           php tests/integration/filespaces_http_seed_12.php > /tmp/fsp-http-fixture.json
           php tests/support/ci_license_fixture.php
           # На одноразовом CI-исполнителе файлы находятся под /home/runner.
@@ -166,6 +168,16 @@ jobs:
           curl -fsS 'http://127.0.0.1:18096/__fpm_status?json'
           curl -fsS 'http://127.0.0.1:18096/auth/login/' >/dev/null
 
+      - name: Раздельно профилировать SQL при чтении, скачивании и загрузке
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/integration/filespaces_http_sql_profile_12.py \
+            --origin http://127.0.0.1:18096 \
+            --fixture /tmp/fsp-http-fixture.json \
+            --out /tmp/fsp-http-sql-profile.json
+          test -s /tmp/fsp-http-sql-profile.json
+
       - name: Испытать реальные HTTP-маршруты и собрать показатели
         shell: bash
         run: |
@@ -202,7 +214,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: filespaces-http-load-metrics
-          path: /tmp/fsp-http-load-report.json
+          path: |
+            /tmp/fsp-http-load-report.json
+            /tmp/fsp-http-sql-profile.json
           if-no-files-found: warn
           retention-days: 7
 

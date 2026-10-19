@@ -102,37 +102,88 @@ final class FileSpaceAccessService
      */
     public function decision(int $userId, string $spaceUid, ?int $nodeId, string $permission, bool $includeDeletedTarget = false): array
     {
-        if (!in_array($permission, self::PERMISSIONS, true)) {
-            throw new InvalidArgumentException('Неизвестное файловое право');
+        return $this->decisions(
+            $userId, $spaceUid, $nodeId, [$permission], $includeDeletedTarget
+        )[$permission];
+    }
+
+    /**
+     * Проверяет несколько прав в рамках одной операции без повторных чтений
+     * пользователя, предков и одинаковых правил. Данные не кешируются между
+     * вызовами: изменение ACL вступает в силу для следующей операции.
+     *
+     * @param list<string> $permissions
+     * @return array<string,array{allowed:bool,source:string,subject?:string}>
+     */
+    public function decisions(
+        int $userId, string $spaceUid, ?int $nodeId, array $permissions,
+        bool $includeDeletedTarget = false
+    ): array {
+        $permissions = array_values(array_unique($permissions));
+        foreach ($permissions as $permission) {
+            if (!in_array($permission, self::PERMISSIONS, true)) {
+                throw new InvalidArgumentException('Неизвестное файловое право');
+            }
         }
+        if ($permissions === []) {
+            return [];
+        }
+
         $actor = $this->actor($userId);
         $space = $this->space($spaceUid);
         if ($space['space_type'] === 'personal') {
             $allowed = (int) $space['owner_user_id'] === $userId;
-            return ['allowed' => $allowed, 'source' => 'personal_owner'];
+            return array_fill_keys($permissions, [
+                'allowed' => $allowed, 'source' => 'personal_owner',
+            ]);
         }
 
-        // Даже административный доступ не должен обходить удалённый объект
-        // или удалённого предка при прямом запросе файла.
+        // Цепочка проверяется и для администратора: удалённые предки
+        // не должны становиться доступными через прямой маршрут.
         $chain = $this->chain((int) $space['id'], $nodeId, $includeDeletedTarget);
         if ($actor['is_admin']) {
-            return ['allowed' => true, 'source' => 'administrator', 'subject' => 'administrator'];
+            return array_fill_keys($permissions, [
+                'allowed' => true, 'source' => 'administrator',
+                'subject' => 'administrator',
+            ]);
         }
+
+        $scopes = array_values(array_unique(array_column($chain, 'key')));
+        $rights = array_values(array_unique([...$permissions, 'view']));
+        $scopeMarks = implode(',', array_fill(0, count($scopes), '?'));
+        $rightMarks = implode(',', array_fill(0, count($rights), '?'));
+        $query = $this->pdo->prepare(
+            'SELECT scope_key,permission_key,subject_type,subject_id,effect
+             FROM file_space_acl WHERE space_id=?
+               AND scope_key IN (' . $scopeMarks . ')
+               AND permission_key IN (' . $rightMarks . ')'
+        );
+        $query->execute([(int) $space['id'], ...$scopes, ...$rights]);
+        $rules = [];
+        foreach ($query->fetchAll(PDO::FETCH_ASSOC) as $rule) {
+            $rules[$rule['scope_key']][$rule['permission_key']][] = $rule;
+        }
+
         if ($nodeId !== null) {
-            // Доступ к вложенному объекту не должен обходить закрытый корень
-            // либо закрытую папку-предка даже при локальном разрешении.
             $ancestors = array_slice($chain, 1);
-            foreach ($ancestors as $index => $scope) {
-                $permissionAtAncestor = $this->resolve(
-                    $actor, (int) $space['id'], array_slice($ancestors, $index), 'view'
+            foreach ($ancestors as $index => $_scope) {
+                $visible = $this->resolveLoaded(
+                    $actor, array_slice($ancestors, $index), 'view', $rules
                 );
-                if (!$permissionAtAncestor['allowed']) {
-                    return ['allowed' => false, 'source' => 'ancestor', 'subject' => 'closed_ancestor'];
+                if (!$visible['allowed']) {
+                    return array_fill_keys($permissions, [
+                        'allowed' => false, 'source' => 'ancestor',
+                        'subject' => 'closed_ancestor',
+                    ]);
                 }
             }
         }
 
-        return $this->resolve($actor, (int) $space['id'], $chain, $permission);
+        $result = [];
+        foreach ($permissions as $permission) {
+            $result[$permission] = $this->resolveLoaded($actor, $chain, $permission, $rules);
+        }
+        return $result;
     }
 
     /**
@@ -147,8 +198,10 @@ final class FileSpaceAccessService
     public function childrenRights(
         int $userId, ?int $parentId, array $items, array $permissions
     ): array {
-        $this->require($userId, 'global', $parentId, 'view');
-        $this->require($userId, 'global', $parentId, 'list');
+        $parentRights = $this->decisions($userId, 'global', $parentId, ['view', 'list']);
+        if (!$parentRights['view']['allowed'] || !$parentRights['list']['allowed']) {
+            throw new DomainException('Объект не найден или недоступен', 404);
+        }
         $permissions = array_values(array_unique($permissions));
         foreach ($permissions as $permission) {
             if (!in_array($permission, self::PERMISSIONS, true)) {
@@ -303,51 +356,6 @@ final class FileSpaceAccessService
         }
         $chain[] = ['key' => 'space', 'parent' => null, 'author' => null, 'inherit' => true];
         return $chain;
-    }
-
-    /**
-     * Ближайшая папка с правилом приоритетнее родителя.
-     * На одном уровне явный запрет всегда сильнее разрешения.
-     * @param array<string,mixed> $actor
-     * @param list<array{key:string,parent:?int,author:?int,inherit:bool}> $chain
-     * @return array{allowed:bool,source:string}
-     */
-    private function resolve(array $actor, int $spaceId, array $chain, string $permission): array
-    {
-        foreach ($chain as $scope) {
-            $stmt = $this->pdo->prepare(
-                'SELECT subject_type,subject_id,effect FROM file_space_acl
-                 WHERE space_id=:space_id AND scope_key=:scope AND permission_key=:permission'
-            );
-            $stmt->execute([
-                ':space_id' => $spaceId,
-                ':scope' => $scope['key'],
-                ':permission' => $permission,
-            ]);
-            $matchedAllow = false;
-            $matchedSubject = '';
-            foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $rule) {
-                if (!$this->matches($actor, $scope['author'], $rule)) {
-                    continue;
-                }
-                $subject = (string) $rule['subject_type'];
-                if (in_array($subject, ['role', 'group', 'user'], true)) {
-                    $subject .= ':' . (int) $rule['subject_id'];
-                }
-                if ($rule['effect'] === 'deny') {
-                    return ['allowed' => false, 'source' => $scope['key'], 'subject' => $subject];
-                }
-                $matchedAllow = true;
-                $matchedSubject = $subject;
-            }
-            if ($matchedAllow) {
-                return ['allowed' => true, 'source' => $scope['key'], 'subject' => $matchedSubject];
-            }
-            if (!$scope['inherit']) {
-                return ['allowed' => false, 'source' => $scope['key'], 'subject' => 'inheritance_off'];
-            }
-        }
-        return ['allowed' => false, 'source' => 'default_deny', 'subject' => 'none'];
     }
 
     /** @param array<string,mixed> $actor @param array<string,mixed> $rule */
