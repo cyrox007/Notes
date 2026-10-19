@@ -66,7 +66,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: mysqli, pdo_mysql, mbstring, sodium
+          extensions: mysqli, pdo_mysql, pdo_sqlite, sqlite3, mbstring, sodium
           coverage: none
 
       - name: Проверить синтаксис и контракт хранения
@@ -78,6 +78,8 @@ jobs:
           php -l core/BackgroundAccountRetentionGuard.php
           php -l core/ModuleManifest.php
           php -l core/BackgroundRetentionCleanup.php
+          php -l tests/integration/module_retention_12_contract.php
+          php tests/integration/module_retention_12_contract.php
           php -l core/ModuleRetentionCleanup.php
           php -l core/RetentionCleanupContext.php
           php -l core/RetentionFileCleanup.php
