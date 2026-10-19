@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Services\Files\FileSpaceTransferService;
+use Core\MutationCommandStore;
+
 // Профильная конкуренция: восемь независимых PHP-процессов и соединений MySQL.
 // Результат характеризует только этот короткий стендовый прогон, не тысячу сессий.
 if (!function_exists('proc_open')) {
