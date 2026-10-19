@@ -16,6 +16,8 @@ require_once __DIR__ . '/UpdateCommandRunner.php';
  */
 final class UpdateProcessRunner implements UpdateCommandRunner
 {
+    private const int MAX_CAPTURE_BYTES = 1048576;
+
     public static function available(): bool
     {
         if (!function_exists('proc_open')) {
@@ -69,8 +71,8 @@ final class UpdateProcessRunner implements UpdateCommandRunner
         $exit = -1;
 
         while (true) {
-            $stdout .= (string) stream_get_contents($pipes[1]);
-            $stderr .= (string) stream_get_contents($pipes[2]);
+            self::capture($stdout, (string) stream_get_contents($pipes[1]));
+            self::capture($stderr, (string) stream_get_contents($pipes[2]));
 
             $status = proc_get_status($process);
             if (!($status['running'] ?? false)) {
@@ -95,8 +97,8 @@ final class UpdateProcessRunner implements UpdateCommandRunner
             usleep(50_000);
         }
 
-        $stdout .= (string) stream_get_contents($pipes[1]);
-        $stderr .= (string) stream_get_contents($pipes[2]);
+        self::capture($stdout, (string) stream_get_contents($pipes[1]));
+        self::capture($stderr, (string) stream_get_contents($pipes[2]));
         fclose($pipes[1]);
         fclose($pipes[2]);
 
@@ -106,6 +108,20 @@ final class UpdateProcessRunner implements UpdateCommandRunner
         }
 
         return ['code' => $exit, 'stdout' => $stdout, 'stderr' => $stderr];
+    }
+
+    /**
+     * Ограничиваем объём сохранённого вывода, продолжая читать канал процесса.
+     * Это предотвращает переполнение памяти и блокировку дочернего процесса.
+     */
+    private static function capture(string &$output, string $chunk): void
+    {
+        $remaining = self::MAX_CAPTURE_BYTES - strlen($output);
+        if ($remaining <= 0 || $chunk === '') {
+            return;
+        }
+
+        $output .= substr($chunk, 0, $remaining);
     }
 
     /** @param array{code:int,stdout:string,stderr:string} $result */
