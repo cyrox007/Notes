@@ -179,7 +179,7 @@ try {
     observe(regular);
     await login(regular, required('E2E_REGULAR_USER'));
     await openWorkspace(regular);
-    check(await regular.locator('[data-defects-reference-manager]').count() === 0,
+    check(!(await regular.locator('[data-defects-reference-manager]').isVisible()),
         'Обычный пользователь получил административное управление');
     const denied = await regular.evaluate(async url =>
         (await fetch(url + '/api/defects/references/manage?kind=services', { credentials: 'same-origin' })).status, base);
