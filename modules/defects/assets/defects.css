@@ -1,5 +1,7 @@
 .defects-workspace{--df-border:var(--ui-border,#dfe3ea);--df-surface:var(--ui-surface,#fff);--df-soft:var(--ui-surface-soft,#f3f5f8);--df-muted:var(--ui-muted,#667085);--df-action:var(--ui-action,#4f46e5);--df-danger:var(--ui-danger,#b42318);color:inherit}
 .defects-workspace [hidden]{display:none!important}
+.defects-workspace .calendar-shell{margin-top:16px;border:1px solid var(--df-border);border-radius:16px;background:var(--df-surface);box-shadow:0 12px 32px rgba(20,34,55,.055);overflow:hidden}
+.defects-workspace .defects-administration{overflow:visible}
 .defects-heading{display:flex;align-items:center;justify-content:space-between;gap:16px}.defects-heading p{color:var(--df-muted);margin:6px 0 0}
 .defects-button,.defects-icon-button{font:inherit;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:10px;padding:10px 14px;transition:background .18s ease,transform .18s ease,border-color .18s ease}
 .defects-button:disabled,.defects-icon-button:disabled{opacity:.55;cursor:wait}.defects-button:not(:disabled):hover,.defects-icon-button:not(:disabled):hover{transform:translateY(-1px)}
