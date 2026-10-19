@@ -186,9 +186,9 @@ final class FileSpaceAdminController extends Controller
     /** @return array{FileSpaceAdminService,FileSpaceAccessService,FileSpaceFolderService} */
     private function services(): array
     {
-        $pdo = DatabaseManager::getInstance()->getPdo();
-        $access = new FileSpaceAccessService($pdo);
-        return [new FileSpaceAdminService($pdo, $access), $access, new FileSpaceFolderService($pdo, $access)];
+        $db = DatabaseManager::getInstance();
+        $access = new FileSpaceAccessService($db);
+        return [new FileSpaceAdminService($db, $access), $access, new FileSpaceFolderService($db, $access)];
     }
 
     private function actor(Request $request): int
