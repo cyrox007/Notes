@@ -21,6 +21,7 @@ $createRaceFolder = static function (string $name) use ($folders, $admin, $pdo, 
 };
 $sourceFolder = $createRaceFolder('Конкуренция-источник');
 $targetFolder = $createRaceFolder('Конкуренция-назначение');
+$replayFolder = $createRaceFolder('Конкуренция-повторы');
 
 $folderVersion = static function (int $id) use ($pdo): int {
     $stmt = $pdo->prepare('SELECT version FROM file_space_nodes WHERE id=:id');
@@ -177,23 +178,13 @@ filespaceCheck((int) $count->fetchColumn() === 1,
     'в каталоге не создано дублирующих файлов после восьми одновременных загрузок');
 
 $replayConfig = [
-    ...$uploadConfig,
-    'mode' => 'replay_upload',
-    'command_id' => $uploadResults[$uploadWinner]['value']['not_used'] ?? '',
+    'mode' => 'upload', 'actor' => $admin, 'folder_id' => $replayFolder,
+    'version' => $folderVersion($replayFolder),
+    'command_id' => 'fsp-race-replay-' . bin2hex(random_bytes(6)),
 ];
-$replayConfig['command_id'] = (string) $uploadResults[$uploadWinner]['worker']; // будет заменено идентификатором исходной команды
-$replayConfig['command_id'] = $uploadResults[$uploadWinner]['source_command']
-    ?? ''; // защита от ложного совпадения квитанций
-$replayConfig['command_id'] = 'race-placeholder';
-// Исходная команда задавалась в дочернем процессе как <run_id>-worker-<N>.
-// Для повторов используем отдельную управляемую команду, сначала создавая её
-// один раз на текущей версии каталога.
-$uploadConfig['mode'] = 'replay_upload';
-$uploadConfig['version'] = $folderVersion($sourceFolder);
-$uploadConfig['command_id'] = 'fsp-race-replay-' . bin2hex(random_bytes(6));
-$firstReplay = $runRace($uploadConfig, 1);
+$firstReplay = $runRace($replayConfig, 1);
 $assertRace($firstReplay, 1, 0);
-$allReplays = $runRace($uploadConfig);
+$allReplays = $runRace($replayConfig);
 filespaceCheck(count(array_filter($allReplays, static fn (array $r): bool =>
     $r['kind'] === 'result' && ($r['value']['replayed'] ?? false) === true
 )) === 8, 'восемь конкурентных повторов получили одну сохранённую квитанцию');
@@ -272,7 +263,11 @@ foreach ($phases as $label => $reports) {
         $label, count($reports), $p95);
 }
 
-@unlink($download['path']);
+foreach (glob(dirname($download['path']) . '/*') ?: [] as $file) {
+    if (is_file($file)) {
+        @unlink($file);
+    }
+}
 @rmdir(dirname($download['path']));
 @rmdir(dirname(dirname($download['path'])));
 @rmdir($racePrivate);
