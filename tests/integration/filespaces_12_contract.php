@@ -75,6 +75,28 @@ foreach ([$member,$reader] as $id) {
         ->execute([':id' => $id, ':role' => $regularRole]);
 }
 
+// Соединение принадлежит установщику: краткоживущая обёртка не вправе
+// уничтожить его транзакцию при завершении своей работы.
+$pdo->beginTransaction();
+$temporaryManager = \Core\DatabaseManager::forConnection($pdo);
+filespaceCheck((int) $temporaryManager->fetchValue('SELECT 1') === 1,
+    'переданное соединение поддерживает штатное чтение ядра');
+$temporaryManager->releaseIdleConnection();
+filespaceCheck($temporaryManager->getPdo() === $pdo,
+    'освобождение простаивающего соединения не затрагивает внешнее PDO');
+unset($temporaryManager);
+filespaceCheck($pdo->inTransaction(),
+    'удаление временного менеджера не откатывает чужую транзакцию');
+$pdo->rollBack();
+
+// Собственную незавершённую транзакцию менеджер, напротив, обязан откатить.
+$temporaryManager = \Core\DatabaseManager::forConnection($pdo);
+$temporaryManager->beginTransaction();
+$temporaryManager->close();
+filespaceCheck(!$pdo->inTransaction(),
+    'закрытие менеджера откатывает открытую им транзакцию');
+unset($temporaryManager);
+
 $db = \Core\DatabaseManager::forConnection($pdo);
 filespaceCheck($db->getPdo() === $pdo,
     'менеджер ядра не создаёт второе соединение для тестовой транзакции');
