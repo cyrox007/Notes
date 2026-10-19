@@ -6,8 +6,13 @@ on:
     paths:
       - 'app/services/RetentionService.php'
       - 'core/BackgroundAccountRetention*.php'
+      - 'core/BackgroundRetentionCleanup.php'
+      - 'core/RetentionCleanupContext.php'
+      - 'core/RetentionFileCleanup.php'
+      - 'core/ModuleRetentionCleanup.php'
       - 'core/ModuleManifest.php'
       - 'modules/tasks/**'
+      - 'modules/files/**'
       - 'modules/calendar/module.json'
       - 'modules/files/module.json'
       - 'modules/profile/module.json'
@@ -72,6 +77,14 @@ jobs:
           php -l core/BackgroundAccountRetention.php
           php -l core/BackgroundAccountRetentionGuard.php
           php -l core/ModuleManifest.php
+          php -l core/BackgroundRetentionCleanup.php
+          php -l core/ModuleRetentionCleanup.php
+          php -l core/RetentionCleanupContext.php
+          php -l core/RetentionFileCleanup.php
+          php -l modules/notes/services/NotesRetentionService.php
+          php -l modules/messenger/services/MessengerRetentionService.php
+          php -l modules/files/services/FilesRetentionService.php
+          php -l modules/tasks/services/TasksRetentionService.php
           php -l tests/integration/background_account_retention_12.php
           php tests/integration/background_account_retention_12.php
           php -l bin/retention.php
