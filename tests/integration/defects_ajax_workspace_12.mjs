@@ -32,6 +32,7 @@ for (const [phrase, description] of [
     ['state.detailSequence', 'Нужна защита от запоздавших AJAX-ответов карточки'],
     ['categorySequence', 'Зависимые категории должны игнорировать запоздавшие запросы'],
     ['objectSequence', 'Зависимые объекты должны игнорировать запоздавшие запросы'],
+    ["const buttons = $('button', row)", 'Административные действия должны блокировать массив кнопок'],
     ['state.sequence', 'Нужна защита от запоздавших AJAX-ответов реестра'],
     ['document.createElement', 'Пользовательские данные нужно выводить как текстовые узлы'],
 ]) mustContain(code, phrase, description);
