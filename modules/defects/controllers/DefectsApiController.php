@@ -13,6 +13,7 @@ use DateTimeImmutable;
 use DomainException;
 use InvalidArgumentException;
 use Modules\Defects\Services\DefectReferenceService;
+use Modules\Defects\Services\DefectReportService;
 use Modules\Defects\Services\DefectRegistrationService;
 use Modules\Defects\Services\DefectRegistryService;
 use Throwable;
@@ -26,16 +27,36 @@ final class DefectsApiController extends Controller
     public function list(Request $request): void
     {
         $this->handle($request, 'defects.use', function () use ($request): array {
-            $registry = $this->registry();
-            $items = $registry->list(
+            return $this->reports()->search(
+                $this->reportFilters($request),
                 $this->integer($request->get('limit', 40), 'limit'),
-                $this->integer($request->get('after_id', 0), 'after_id'),
-                (string) $request->get('status', 'open'),
-                $request->get('object_id') === null ? null : $this->integer($request->get('object_id'), 'object_id')
+                $this->integer($request->get('after_id', 0), 'after_id')
             );
-
-            return ['items' => $items, 'next_cursor' => $items === [] ? null : (int) end($items)['id']];
         });
+    }
+
+    public function report(Request $request): void
+    {
+        $this->handle($request, 'defects.use', function () use ($request): array {
+            return ['report' => $this->reports()->summary(
+                $this->reportFilters($request),
+                $this->integer($request->get('after_area_id', 0), 'after_area_id'),
+                $this->integer($request->get('area_limit', 50), 'area_limit')
+            )];
+        });
+    }
+
+    /** @return array<string,mixed> */
+    private function reportFilters(Request $request): array
+    {
+        $filters = [];
+        foreach (['status', 'priority', 'area_id', 'object_id', 'service_id', 'from', 'to'] as $key) {
+            $value = $request->get($key);
+            if ($value !== null) {
+                $filters[$key] = $value;
+            }
+        }
+        return $filters;
     }
 
     public function show(Request $request, int $id): void
@@ -200,6 +221,11 @@ final class DefectsApiController extends Controller
         header('Cache-Control: private, no-store');
         header('Content-Type: application/json; charset=utf-8');
         $this->responseJson($body);
+    }
+
+    private function reports(): DefectReportService
+    {
+        return new DefectReportService(DatabaseManager::getInstance());
     }
 
     private function registry(): DefectRegistryService
