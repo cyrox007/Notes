@@ -366,7 +366,7 @@ final class MessengerMediaService
                     ':updated_at' => $now,
                 ]
             );
-            $messageId = (int) $this->db->getPdo()->lastInsertId();
+            $messageId = (int) $this->db->lastInsertId();
 
             $this->db->execute(
                 'UPDATE messenger_attachments
