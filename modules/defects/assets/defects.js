@@ -366,6 +366,9 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
             if (sequence !== state.detailSequence) return;
             state.detail = defect;
             detailFields.replaceChildren();
+            addField('Объект', defect.object_name || ('№' + defect.object_id));
+            addField('Категория', defect.category_name);
+            addField('Участок / РЭС', defect.area_name);
             addField('Описание', defect.description);
             addField('Приоритет', priorityText(defect.priority));
             addField('Обнаружен', dateText(defect.discovered_at));
