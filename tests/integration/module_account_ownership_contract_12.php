@@ -86,4 +86,30 @@ try {
     guardAssert($error->getCode() === 409, 'Если проверка недоступна, необходимо отказать');
 }
 
+// Проверить, что низкоуровневые обращения к данным соседних модулей
+// не вернулись в контроллеры, даже через общую модель или сервис.
+$adminControllerSource = (string) file_get_contents(
+    $root . '/modules/admin/controllers/AdminController.php'
+);
+$adminUserSource = (string) file_get_contents(
+    $root . '/modules/admin/services/AdminUserService.php'
+);
+guardAssert(
+    !str_contains($adminControllerSource, 'FieldModel::')
+    && !str_contains($adminControllerSource, 'user_fields'),
+    'Admin не должен управлять таблицами Profile напрямую'
+);
+guardAssert(
+    !str_contains($adminUserSource, 'user_to_dialogs')
+    && !str_contains($adminUserSource, 'task_boards')
+    && !str_contains($adminUserSource, 'new UserAvatarService'),
+    'Admin не должен обращаться к данным Messenger, Tasks и Profile напрямую'
+);
+$avatarGuard = strpos($adminUserSource, "if (!\$registry?->has('workspace.profile')");
+$deactivationWrite = strpos($adminUserSource, 'UPDATE users SET is_active = 0');
+guardAssert(
+    $avatarGuard !== false && $deactivationWrite !== false && $avatarGuard < $deactivationWrite,
+    'Отказ в деактивации без Profile должен происходить до изменения пользователя'
+);
+
 echo "Контракт проверки владения через активные модули пройден\n";
