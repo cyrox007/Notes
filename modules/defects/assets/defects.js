@@ -139,9 +139,9 @@
         ).join(' · ') || 'Нет записей';
         summary.append(details);
         const areas = document.createElement('p');
-        areas.textContent = report.by_area.map(row =>
+        areas.textContent = (report.by_area.map(row =>
             row.area_name + ': ' + row.total
-        ).join(' · ') || 'Нет участков';
+        ).join(' · ') || 'Нет участков') + (report.next_area_cursor ? ' · Есть другие участки' : '');
         summary.append(areas);
     };
 
@@ -202,9 +202,13 @@
             const needed = kind.value === 'categories' ? 'areas' :
                 kind.value === 'objects' ? 'categories' : null;
             parent.disabled = !needed;
-            refill(parent, needed ? await references(needed, needed === 'categories' ? area.value : null) : [], 'Выберите родительскую запись');
+            refill(parent, !needed || (needed === 'categories' && !area.value)
+                ? [] : await references(needed, needed === 'categories' ? area.value : null), 'Выберите родительскую запись');
         };
         kind.addEventListener('change', () => updateParents().catch(error => message(error.message, true)));
+        area.addEventListener('change', () => {
+            if (kind.value === 'objects') updateParents().catch(error => message(error.message, true));
+        });
         referenceForm.addEventListener('submit', async event => {
             event.preventDefault();
             const button = referenceForm.querySelector('[type="submit"]');
