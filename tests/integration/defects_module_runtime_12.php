@@ -37,7 +37,9 @@ defectsModuleAssert(
     'платформа не видит миграцию Дефектов'
 );
 
-$provider = require $root . '/modules/defects/runtime.php';
+$provider = (static function (string $projectRoot): object {
+    return require $projectRoot . '/modules/defects/runtime.php';
+})($root);
 defectsModuleAssert($provider instanceof \Core\ModuleRuntimeProvider, 'runtime должен возвращать интерфейс ядра');
 defectsModuleAssert($provider->moduleId() === 'defects', 'неверный идентификатор поставщика');
 defectsModuleAssert(array_keys($provider->capabilities()) === ['workspace.defects'], 'неверный экспорт возможностей');
