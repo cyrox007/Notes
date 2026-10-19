@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS `defect_areas` (
     `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     `name` VARCHAR(160) NOT NULL,
     `is_archived` TINYINT(1) NOT NULL DEFAULT 0,
+    `version` BIGINT UNSIGNED NOT NULL DEFAULT 1,
     UNIQUE KEY `uq_defect_area_name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -13,6 +14,7 @@ CREATE TABLE IF NOT EXISTS `defect_object_categories` (
     `area_id` BIGINT UNSIGNED NOT NULL,
     `name` VARCHAR(160) NOT NULL,
     `is_archived` TINYINT(1) NOT NULL DEFAULT 0,
+    `version` BIGINT UNSIGNED NOT NULL DEFAULT 1,
     UNIQUE KEY `uq_defect_category_area_name` (`area_id`, `name`),
     CONSTRAINT `fk_defect_category_area` FOREIGN KEY (`area_id`)
         REFERENCES `defect_areas` (`id`) ON DELETE RESTRICT
@@ -23,6 +25,7 @@ CREATE TABLE IF NOT EXISTS `defect_objects` (
     `category_id` BIGINT UNSIGNED NOT NULL,
     `name` VARCHAR(180) NOT NULL,
     `is_archived` TINYINT(1) NOT NULL DEFAULT 0,
+    `version` BIGINT UNSIGNED NOT NULL DEFAULT 1,
     UNIQUE KEY `uq_defect_object_category_name` (`category_id`, `name`),
     CONSTRAINT `fk_defect_object_category` FOREIGN KEY (`category_id`)
         REFERENCES `defect_object_categories` (`id`) ON DELETE RESTRICT
@@ -32,6 +35,7 @@ CREATE TABLE IF NOT EXISTS `defect_services` (
     `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     `name` VARCHAR(160) NOT NULL,
     `is_archived` TINYINT(1) NOT NULL DEFAULT 0,
+    `version` BIGINT UNSIGNED NOT NULL DEFAULT 1,
     UNIQUE KEY `uq_defect_service_name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

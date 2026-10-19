@@ -7,6 +7,7 @@ foreach ([
     'services/DefectPriorityPolicy.php',
     'services/DefectHistoryService.php',
     'services/DefectReferenceService.php',
+    'services/DefectReferenceLifecycleService.php',
     'services/DefectReferenceImportService.php',
     'services/DefectRegistrationService.php',
     'services/DefectRegistryService.php',

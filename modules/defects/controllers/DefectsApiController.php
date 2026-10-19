@@ -13,6 +13,7 @@ use DateTimeImmutable;
 use DomainException;
 use InvalidArgumentException;
 use Modules\Defects\Services\DefectReferenceService;
+use Modules\Defects\Services\DefectReferenceLifecycleService;
 use Modules\Defects\Services\DefectReferenceImportService;
 use Modules\Defects\Services\DefectHistoryService;
 use Modules\Defects\Services\DefectReportService;
@@ -137,6 +138,60 @@ final class DefectsApiController extends Controller
             $this->audit($userId, 'defects.reference.created', ['reference_id' => $id, 'kind' => $data['kind']]);
             return ['reference_id' => $id];
         }, 201);
+    }
+
+    public function manageReferences(Request $request): void
+    {
+        $this->handle($request, 'defects.manage', function () use ($request): array {
+            $archived = $request->get('archived', '0');
+            if (!in_array($archived, ['0', '1'], true)) {
+                throw new InvalidArgumentException('Неверное состояние архива');
+            }
+            return ['references' => $this->referenceLifecycle()->list(
+                (string) $request->get('kind', 'areas'),
+                $this->integer($request->get('limit', 40), 'limit'),
+                $this->integer($request->get('after_id', 0), 'after_id'),
+                $archived === '1'
+            )];
+        });
+    }
+
+    public function renameReference(Request $request, string $kind, int $id): void
+    {
+        $this->mutateReference($request, $kind, $id, 'rename');
+    }
+
+    public function archiveReference(Request $request, string $kind, int $id): void
+    {
+        $this->mutateReference($request, $kind, $id, 'archive');
+    }
+
+    public function restoreReference(Request $request, string $kind, int $id): void
+    {
+        $this->mutateReference($request, $kind, $id, 'restore');
+    }
+
+    private function mutateReference(Request $request, string $kind, int $id, string $action): void
+    {
+        $this->handle($request, 'defects.manage', function (int $userId) use ($request, $kind, $id, $action): array {
+            $data = $this->payload($request);
+            $version = $this->integer($data['version'] ?? null, 'version');
+            $service = $this->referenceLifecycle();
+            $result = match ($action) {
+                'rename' => $service->rename($kind, $id, $version, $userId, $this->requiredString($data, 'name')),
+                'archive' => $service->archive($kind, $id, $version, $userId),
+                'restore' => $service->restore($kind, $id, $version, $userId),
+                default => throw new InvalidArgumentException('Неизвестное действие'),
+            };
+            if ($result['changed']) {
+                $this->audit($userId, 'defects.reference.' . $action, [
+                    'reference_id' => $id,
+                    'kind' => $kind,
+                    'version' => $result['version'],
+                ]);
+            }
+            return ['reference' => $result];
+        });
     }
 
     public function previewImport(Request $request): void
@@ -319,6 +374,11 @@ final class DefectsApiController extends Controller
     private function registry(): DefectRegistryService
     {
         return new DefectRegistryService(DatabaseManager::getInstance());
+    }
+
+    private function referenceLifecycle(): DefectReferenceLifecycleService
+    {
+        return new DefectReferenceLifecycleService(DatabaseManager::getInstance());
     }
 
     private function referencesService(): DefectReferenceService

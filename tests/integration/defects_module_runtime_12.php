@@ -52,6 +52,8 @@ foreach ([
     'defects', 'defects_list', 'defects_create', 'defects_report',
     'defects_import_preview', 'defects_import_apply',
     'defects_history', 'defects_reference_history',
+    'defects_references_manage', 'defects_reference_rename',
+    'defects_reference_archive', 'defects_reference_restore',
     'defects_references', 'defects_reference_create', 'defects_show', 'defects_close',
 ] as $name) {
     defectsModuleAssert(in_array($name, $names, true), 'не найден маршрут ' . $name);

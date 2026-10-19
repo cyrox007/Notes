@@ -66,6 +66,25 @@ ob_start();
 
     <details class="calendar-shell defects-administration" <?= empty($can_manage_defects) ? 'hidden' : '' ?>>
         <summary><i class="fa fa-cog" aria-hidden="true"></i> Управление справочниками</summary>
+        <section class="defects-reference-manager" data-defects-reference-manager aria-label="Управление записями справочников">
+            <div class="defects-reference-toolbar">
+                <label>Справочник
+                    <select data-defects-manage-kind>
+                        <option value="areas">Участки / РЭС</option>
+                        <option value="categories">Категории объектов</option>
+                        <option value="objects">Объекты</option>
+                        <option value="services">Ответственные службы</option>
+                    </select>
+                </label>
+                <label class="defects-reference-archive-toggle">
+                    <input type="checkbox" data-defects-manage-archived> Показать архив
+                </label>
+                <button type="button" class="defects-button defects-button--secondary" data-defects-manage-refresh>Обновить</button>
+            </div>
+            <div class="defects-progress" data-defects-manage-loading hidden role="status">Загрузка справочника…</div>
+            <div data-defects-manage-results class="defects-reference-results" aria-live="polite"></div>
+            <button type="button" class="defects-button defects-button--secondary" data-defects-manage-more hidden>Показать ещё</button>
+        </section>
         <div class="defects-admin-grid">
             <form data-defects-reference>
                 <h3>Добавить запись</h3>
