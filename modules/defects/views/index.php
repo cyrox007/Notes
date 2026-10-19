@@ -88,6 +88,20 @@ ob_start();
         <button type="button" data-defects-import-apply disabled>Применить импорт</button>
         <pre data-defects-import-result aria-live="polite"></pre>
     </form>
+    <form data-defects-reference-history>
+        <h3>История справочника</h3>
+        <label>Справочник
+            <select name="kind">
+                <option value="areas">Участки / РЭС</option>
+                <option value="categories">Категории объектов</option>
+                <option value="objects">Объекты</option>
+                <option value="services">Ответственные службы</option>
+            </select>
+        </label>
+        <label>Идентификатор записи <input name="record_id" type="number" min="1" required></label>
+        <button type="submit">Показать историю</button>
+        <ul data-defects-reference-history-results aria-live="polite"></ul>
+    </form>
     <form data-defects-reference>
         <label>Тип справочника
             <select name="kind">

@@ -92,6 +92,16 @@ final class DefectRegistrationService
                 );
             }
 
+            (new DefectHistoryService($this->database))->record('defect', $defectId, 'created', $userId, [
+                'object_id' => $objectId,
+                'priority' => $priority,
+                'discovered_at' => $discoveredUtc,
+                'due_at' => $dueUtc,
+                'description' => $description,
+                'registered_by_name' => $registrarName,
+                'service_ids' => $serviceIds,
+            ], $commandId);
+
             $this->database->endTransaction();
             return ['id' => $defectId, 'due_at' => $dueUtc, 'replayed' => false];
         } catch (Throwable $exception) {

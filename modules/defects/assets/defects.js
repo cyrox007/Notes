@@ -112,6 +112,45 @@
             });
             article.append(close);
         }
+        const historyButton = document.createElement('button');
+        historyButton.type = 'button';
+        historyButton.textContent = 'История';
+        const historyBox = document.createElement('div');
+        historyBox.hidden = true;
+        historyButton.addEventListener('click', async () => {
+            historyBox.hidden = !historyBox.hidden;
+            if (historyBox.hidden) return;
+            historyButton.disabled = true;
+            historyBox.replaceChildren();
+            const entries = document.createElement('ul');
+            historyBox.append(entries);
+            let afterId = 0;
+            const load = async () => {
+                const query = new URLSearchParams({ limit: '40', after_id: String(afterId) });
+                const response = await request(api + '/' + item.id + '/history?' + query);
+                response.history.events.forEach(event => {
+                    const row = document.createElement('li');
+                    const eventLabel = event.event_type === 'created' ? 'Регистрация'
+                        : event.event_type === 'closed' ? 'Закрытие' : 'Изменение';
+                    row.textContent = event.created_at + ' · ' + eventLabel
+                        + ' · пользователь #' + (event.actor_user_id ?? 'не указан');
+                    entries.append(row);
+                });
+                afterId = response.history.next_cursor || 0;
+                moreHistory.hidden = !afterId;
+            };
+            const moreHistory = document.createElement('button');
+            moreHistory.type = 'button';
+            moreHistory.textContent = 'Другие события';
+            moreHistory.hidden = true;
+            moreHistory.addEventListener('click', () =>
+                load().catch(error => message(error.message, true)));
+            historyBox.append(moreHistory);
+            try { await load(); }
+            catch (error) { message(error.message, true); }
+            finally { historyButton.disabled = false; }
+        });
+        article.append(historyButton, historyBox);
         return article;
     };
 
@@ -194,6 +233,38 @@
         } catch (error) { message(error.message, true); }
         finally { submit.disabled = false; }
     });
+
+    const referenceHistoryForm = document.querySelector('[data-defects-reference-history]');
+    if (referenceHistoryForm) {
+        referenceHistoryForm.addEventListener('submit', async event => {
+            event.preventDefault();
+            const kind = referenceHistoryForm.elements.namedItem('kind').value;
+            const id = referenceHistoryForm.elements.namedItem('record_id').value;
+            const list = referenceHistoryForm.querySelector('[data-defects-reference-history-results]');
+            list.replaceChildren();
+            try {
+                const response = await request(api + '/references/'
+                    + encodeURIComponent(kind) + '/' + encodeURIComponent(id) + '/history?limit=100');
+                response.history.events.forEach(record => {
+                    const li = document.createElement('li');
+                    li.textContent = record.created_at + ' · '
+                        + (record.event_type === 'created' ? 'Создание' : record.event_type)
+                        + ' · пользователь #' + (record.actor_user_id ?? 'не указан');
+                    list.append(li);
+                });
+                if (response.history.next_cursor) {
+                    const li = document.createElement('li');
+                    li.textContent = 'Показаны первые 100 событий; доступно продолжение.';
+                    list.append(li);
+                }
+                if (!response.history.events.length) {
+                    const li = document.createElement('li');
+                    li.textContent = 'История изменений пока отсутствует.';
+                    list.append(li);
+                }
+            } catch (error) { message(error.message, true); }
+        });
+    }
 
     const importForm = document.querySelector('[data-defects-import]');
     if (importForm) {

@@ -14,6 +14,7 @@ use DomainException;
 use InvalidArgumentException;
 use Modules\Defects\Services\DefectReferenceService;
 use Modules\Defects\Services\DefectReferenceImportService;
+use Modules\Defects\Services\DefectHistoryService;
 use Modules\Defects\Services\DefectReportService;
 use Modules\Defects\Services\DefectRegistrationService;
 use Modules\Defects\Services\DefectRegistryService;
@@ -71,6 +72,38 @@ final class DefectsApiController extends Controller
         });
     }
 
+    public function history(Request $request, int $id): void
+    {
+        $this->handle($request, 'defects.use', function () use ($request, $id): array {
+            if ($this->registry()->detail($id) === null) {
+                throw new DomainException('Дефект не найден', 404);
+            }
+            return ['history' => $this->historyService()->list(
+                'defect', $id,
+                $this->integer($request->get('limit', 40), 'limit'),
+                $this->integer($request->get('after_id', 0), 'after_id')
+            )];
+        });
+    }
+
+    public function referenceHistory(Request $request, string $kind, int $id): void
+    {
+        $this->handle($request, 'defects.manage', function () use ($request, $kind, $id): array {
+            $type = match ($kind) {
+                'areas' => 'area',
+                'categories' => 'category',
+                'objects' => 'object',
+                'services' => 'service',
+                default => throw new InvalidArgumentException('Неизвестный справочник'),
+            };
+            return ['history' => $this->historyService()->list(
+                $type, $id,
+                $this->integer($request->get('limit', 40), 'limit'),
+                $this->integer($request->get('after_id', 0), 'after_id')
+            )];
+        });
+    }
+
     public function references(Request $request): void
     {
         $this->handle($request, 'defects.use', function () use ($request): array {
@@ -95,10 +128,10 @@ final class DefectsApiController extends Controller
             $service = $this->referencesService();
             $name = $this->requiredString($data, 'name');
             $id = match ($data['kind'] ?? null) {
-                'areas' => $service->createArea($name),
-                'categories' => $service->createCategory($this->integer($data['parent_id'] ?? null, 'parent_id'), $name),
-                'objects' => $service->createObject($this->integer($data['parent_id'] ?? null, 'parent_id'), $name),
-                'services' => $service->createService($name),
+                'areas' => $service->createArea($name, $userId),
+                'categories' => $service->createCategory($this->integer($data['parent_id'] ?? null, 'parent_id'), $name, $userId),
+                'objects' => $service->createObject($this->integer($data['parent_id'] ?? null, 'parent_id'), $name, $userId),
+                'services' => $service->createService($name, $userId),
                 default => throw new InvalidArgumentException('Неизвестный справочник'),
             };
             $this->audit($userId, 'defects.reference.created', ['reference_id' => $id, 'kind' => $data['kind']]);
@@ -121,7 +154,7 @@ final class DefectsApiController extends Controller
                 throw new InvalidArgumentException('Предварительный просмотр обязателен');
             }
 
-            $result = $this->importService()->apply($this->uploadedText($request), $hash);
+            $result = $this->importService()->apply($this->uploadedText($request), $hash, $userId);
             if ($result['created'] > 0) {
                 $this->audit($userId, 'defects.references.imported', $result);
             }
@@ -276,6 +309,11 @@ final class DefectsApiController extends Controller
     private function reports(): DefectReportService
     {
         return new DefectReportService(DatabaseManager::getInstance());
+    }
+
+    private function historyService(): DefectHistoryService
+    {
+        return new DefectHistoryService(DatabaseManager::getInstance());
     }
 
     private function registry(): DefectRegistryService

@@ -23,7 +23,7 @@ $manifest = $registry->get('defects');
 defectsModuleAssert($manifest->runtimeMode() === 'isolated', 'нужен изолированный runtime');
 defectsModuleAssert($manifest->licenseFeature() === 'workspace.defects', 'отсутствует проверка лицензии');
 $expectedTables = ['defect_areas', 'defect_object_categories', 'defect_objects',
-    'defect_services', 'defects', 'defect_responsible_services'];
+    'defect_services', 'defects', 'defect_responsible_services', 'defect_history'];
 sort($expectedTables, SORT_STRING);
 defectsModuleAssert($manifest->databaseTables() === $expectedTables, 'владение собственными таблицами изменено');
 defectsModuleAssert(
@@ -51,6 +51,7 @@ $names = array_column($routes, 'name');
 foreach ([
     'defects', 'defects_list', 'defects_create', 'defects_report',
     'defects_import_preview', 'defects_import_apply',
+    'defects_history', 'defects_reference_history',
     'defects_references', 'defects_reference_create', 'defects_show', 'defects_close',
 ] as $name) {
     defectsModuleAssert(in_array($name, $names, true), 'не найден маршрут ' . $name);

@@ -43,6 +43,8 @@ final class DefectsRuntimeProvider implements ModuleRuntimeProvider
             ->add('GET', '/report', [DefectsApiController::class, 'report'], [ApiLoginRequired::class], 'defects_report')
             ->add('GET', '/references', [DefectsApiController::class, 'references'], [ApiLoginRequired::class], 'defects_references')
             ->add('POST', '/references', [DefectsApiController::class, 'createReference'], [ApiLoginRequired::class, CSRFMiddleware::class], 'defects_reference_create')
+            ->add('GET', '/references/{str:kind}/{int:id}/history', [DefectsApiController::class, 'referenceHistory'], [ApiLoginRequired::class], 'defects_reference_history')
+            ->add('GET', '/{int:id}/history', [DefectsApiController::class, 'history'], [ApiLoginRequired::class], 'defects_history')
             ->add('GET', '/{int:id}', [DefectsApiController::class, 'show'], [ApiLoginRequired::class], 'defects_show')
             ->add('POST', '/{int:id}/close', [DefectsApiController::class, 'close'], [ApiLoginRequired::class, CSRFMiddleware::class], 'defects_close')
             ->endGroup();
