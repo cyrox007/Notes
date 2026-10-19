@@ -26,7 +26,7 @@ final class MutationCommandStore
      * @return array{owner:bool,token:string,record:array<string,mixed>}
      */
     public function acquire(
-        PDO $pdo,
+        PDO|DatabaseManager $pdo,
         string $actorKey,
         string $commandId,
         string $scope,
@@ -102,7 +102,7 @@ final class MutationCommandStore
      * @param array<string,mixed> $response
      */
     public function complete(
-        PDO $pdo,
+        PDO|DatabaseManager $pdo,
         int $recordId,
         string $operationToken,
         string $status,
@@ -177,7 +177,7 @@ final class MutationCommandStore
     }
 
     /** @return array<string,mixed>|null */
-    private function lockedRecord(PDO $pdo, string $actorKey, string $commandId): ?array
+    private function lockedRecord(PDO|DatabaseManager $pdo, string $actorKey, string $commandId): ?array
     {
         $statement = $pdo->prepare(
             'SELECT id,actor_key,command_id,scope,action,entity_type,entity_uid,
