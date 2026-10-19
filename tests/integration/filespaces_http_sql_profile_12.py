@@ -9,6 +9,7 @@ import argparse
 import json
 import os
 import pathlib
+import re
 import statistics
 import subprocess
 import uuid
@@ -16,17 +17,8 @@ import uuid
 from filespaces_http_load_12 import Fields, connect, multipart, request
 
 
-def sql_snapshot():
-    """Счётчики нормализованных SQL-операций только для тестовой базы."""
-    database = os.environ.get("DBNAME", "")
-    if not database.startswith("fsp_http_load"):
-        raise RuntimeError("Профиль SQL разрешён только на базе fsp_http_load")
-    statement = (
-        "SELECT DIGEST, COUNT_STAR, "
-        "REPLACE(REPLACE(LEFT(DIGEST_TEXT, 360), CHAR(10), ' '), CHAR(9), ' ') "
-        "FROM performance_schema.events_statements_summary_by_digest "
-        "WHERE SCHEMA_NAME = '" + database + "' AND DIGEST IS NOT NULL"
-    )
+def mysql_command(statement):
+    """Исполнить административную команду только на временном MySQL CI."""
     command = [
         "mysql", "--connect-timeout=3", "--batch", "--raw", "--skip-column-names",
         "-h", os.getenv("DBHOST", "127.0.0.1"),
@@ -34,24 +26,55 @@ def sql_snapshot():
         "-u", os.getenv("DBUSER", "root"), "-e", statement,
     ]
     result = subprocess.run(command, capture_output=True, text=True, timeout=8, check=True)
-    entries = {}
-    for line in result.stdout.splitlines():
-        digest, count, template = line.split("\t", 2)
-        entries[digest] = (int(count), template)
-    return entries
+    return result.stdout
+
+
+def sql_template(statement):
+    """Оставить тип команды и имена таблиц без значений и пользовательских данных."""
+    normalized = " ".join(statement.split())
+    command = normalized.split(" ", 1)[0].upper() if normalized else "UNKNOWN"
+    tables = re.findall(
+        r"\b(?:FROM|JOIN|INTO|UPDATE)\s+[\x60a-zA-Z0-9_.]+",
+        normalized, flags=re.IGNORECASE
+    )
+    table_names = []
+    for match in tables:
+        table = match.split(None, 1)[-1].strip(chr(96)).split(".")[-1].strip(chr(96))
+        if re.fullmatch(r"[a-zA-Z_][a-zA-Z0-9_]*", table):
+            table_names.append(table)
+    if command in ("START", "COMMIT", "ROLLBACK", "SET"):
+        return command
+    return command + (" " + " ".join(table_names[:8]) if table_names else "")
 
 
 def measured(opener, url, method="GET", payload=None, headers=None):
-    before = sql_snapshot()
-    status, body, latency = request(opener, url, method, payload, headers)
-    after = sql_snapshot()
+    # Включать журнал только между отправкой одного HTTP-запроса и его ответом.
+    # Не извлекать из MySQL параметры файлов, cookie и другую персональную информацию.
+    mysql_command(
+        "SET GLOBAL general_log=OFF; "
+        "SET GLOBAL log_output='TABLE'; "
+        "TRUNCATE TABLE mysql.general_log; "
+        "SET GLOBAL general_log=ON"
+    )
+    try:
+        status, body, latency = request(opener, url, method, payload, headers)
+    finally:
+        mysql_command("SET GLOBAL general_log=OFF")
+    output = mysql_command(
+        "SELECT command_type, REPLACE(REPLACE(argument, CHAR(10), ' '), CHAR(9), ' ') "
+        "FROM mysql.general_log WHERE command_type IN ('Query','Execute')"
+    )
     changes = {}
-    for digest, (count, template) in after.items():
-        increment = count - before.get(digest, (0, ""))[0]
-        if increment > 0:
-            changes[digest] = (increment, template)
-    if not changes:
-        raise RuntimeError("MySQL не предоставил SQL-профиль HTTP-запроса")
+    for line in output.splitlines():
+        kind, statement = line.split("\t", 1)
+        if statement.upper().startswith("SET GLOBAL GENERAL_LOG"):
+            continue
+        template = sql_template(statement)
+        if kind not in ("Query", "Execute"):
+            continue
+        changes[template] = changes.get(template, 0) + 1
+    if len(changes) < 4:
+        raise RuntimeError("MySQL не предоставил полный SQL-профиль HTTP-запроса")
     return status, body, latency, changes
 
 
@@ -59,20 +82,17 @@ def record(samples, name, result):
     status, _, latency, changes = result
     samples[name].append({
         "http": status, "задержка_мс": round(latency, 2),
-        "sql": {digest: count for digest, (count, _) in changes.items()},
-        "шаблоны": {digest: template for digest, (_, template) in changes.items()},
+        "sql": dict(changes),
     })
 
 
 def summarize(rows):
     aggregate = {}
-    templates = {}
     for row in rows:
-        for digest, count in row["sql"].items():
-            aggregate[digest] = aggregate.get(digest, 0) + count
-            templates[digest] = row["шаблоны"][digest]
+        for template, count in row["sql"].items():
+            aggregate[template] = aggregate.get(template, 0) + count
     total = sum(aggregate.values())
-    repeats = sorted(aggregate, key=lambda digest: aggregate[digest], reverse=True)
+    repeats = sorted(aggregate.items(), key=lambda item: item[1], reverse=True)
     return {
         "http_ответы": [row["http"] for row in rows],
         "замеров": len(rows),
@@ -80,8 +100,8 @@ def summarize(rows):
         "sql_в_среднем_на_ответ": round(total / len(rows), 2),
         "p50_мс": round(statistics.median(row["задержка_мс"] for row in rows), 2),
         "повторяющиеся_шаблоны": [
-            {"выполнений": aggregate[digest], "sql": templates[digest]}
-            for digest in repeats[:15]
+            {"выполнений": count, "группа": template}
+            for template, count in repeats[:18]
         ],
     }
 
@@ -94,6 +114,8 @@ def main():
     args = parser.parse_args()
     if args.origin != "http://127.0.0.1:18096":
         raise SystemExit("Профиль разрешён только для локального одноразового стенда")
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        raise SystemExit("Профиль разрешён только на одноразовом стенде GitHub Actions")
     if os.environ.get("DBNAME") != "fsp_http_load":
         raise SystemExit("Требуется одноразовая база fsp_http_load")
 
@@ -153,9 +175,10 @@ def main():
     report = {
         "стенд": "изолированный HTTP, один авторизованный клиент, без фоновой нагрузки",
         "схема": "fsp_http_load",
-        "источник": "performance_schema.events_statements_summary_by_digest",
-        "ограничение": "Счётчики SQL привязаны к тестовой схеме, а не к отдельному соединению. "
-                       "На одноразовом стенде во время замера нет других клиентов.",
+        "источник": "mysql.general_log (Query и Execute; без Prepare)",
+        "ограничение": "Журнал включается лишь на время одного HTTP-ответа; "
+                       "в тестовом MySQL нет посторонних клиентов. Лог удаляется "
+                       "вместе с контейнером. В отчёте нет значений SQL.",
         "маршруты": {name: summarize(rows) for name, rows in samples.items()},
     }
     pathlib.Path(args.out).write_text(json.dumps(report, ensure_ascii=False, indent=2))
