@@ -7,7 +7,12 @@ namespace App\Services;
 require_once dirname(__DIR__, 3) . '/app/services/LicenseSeatPolicy.php';
 
 use App\Helpers\CryptMethods;
+use Core\AccountAvatarCleanup;
+use Core\AccountDeactivationGuard;
 use Core\DatabaseManager;
+use Core\ModuleCapabilityRegistry;
+use Core\ModuleRuntimeLoader;
+use Core\ServiceLog;
 use DomainException;
 use InvalidArgumentException;
 use Throwable;
@@ -27,8 +32,11 @@ final class AdminUserService
 
     private PermissionService $permissions;
 
-    public function __construct(private ?DatabaseManager $db = null, ?PermissionService $permissions = null)
-    {
+    public function __construct(
+        private ?DatabaseManager $db = null,
+        ?PermissionService $permissions = null,
+        private ?ModuleCapabilityRegistry $capabilities = null
+    ) {
         $this->db ??= DatabaseManager::getInstance();
         $this->permissions = $permissions ?? new PermissionService($this->db);
     }
@@ -150,20 +158,7 @@ final class AdminUserService
             return 'Аккаунт уже деактивирован';
         }
 
-        $ownedGroup = $this->db->fetchOne(
-            "SELECT d.uid, COALESCE(NULLIF(d.name, ''), 'Без названия') AS name "
-            . 'FROM user_to_dialogs utd '
-            . 'JOIN dialogs d ON d.id = utd.dialog_id '
-            . "WHERE utd.user_id = :user_id AND utd.role = 'owner' AND utd.is_deleted = 0 AND d.type = 'group' "
-            . 'LIMIT 1',
-            [':user_id' => $targetId]
-        );
-        if ($ownedGroup !== null) {
-            throw new DomainException(
-                'Перед деактивацией передайте владение группой «' . (string) $ownedGroup['name'] . '» другому участнику',
-                409
-            );
-        }
+        $this->requireReleasedModuleOwnership($targetId);
 
         $this->db->execute(
             "UPDATE users SET is_active = 0, account_status = 'inactive', avatar = NULL, updated_at = :updated_at "
@@ -174,10 +169,17 @@ final class AdminUserService
             ]
         );
 
-        try {
-            (new UserAvatarService($this->db))->removeStoredAvatar($target);
-        } catch (Throwable $e) {
-            error_log('Admin user avatar cleanup failed: ' . $e->getMessage());
+        $registry = $this->moduleCapabilities();
+        if ($registry?->has('workspace.profile')) {
+            try {
+                $registry->require('workspace.profile', AccountAvatarCleanup::class)
+                    ->removeStoredAvatar($target);
+            } catch (Throwable $error) {
+                ServiceLog::emit('account.avatar_cleanup_failed', 'warning', 'admin', [
+                    'error_type' => $error::class,
+                    'error_code' => (string) $error->getCode(),
+                ]);
+            }
         }
 
         return 'Пользователь деактивирован, связанные данные сохранены';
@@ -281,46 +283,7 @@ final class AdminUserService
             return 'Персональные данные аккаунта уже очищены';
         }
 
-        $ownedGroup = $this->db->fetchOne(
-            "SELECT d.uid, COALESCE(NULLIF(d.name, ''), 'Без названия') AS name
-             FROM user_to_dialogs utd
-             JOIN dialogs d ON d.id = utd.dialog_id
-             WHERE utd.user_id = :user_id
-               AND utd.role = 'owner'
-               AND utd.is_deleted = 0
-               AND d.type = 'group'
-             LIMIT 1",
-            [':user_id' => $targetId]
-        );
-        if ($ownedGroup !== null) {
-            throw new DomainException(
-                'Перед удалением передайте владение группой «' . (string) $ownedGroup['name'] . '» или удалите её',
-                409
-            );
-        }
-
-        if ($this->tableExists('task_boards')) {
-            $ownedBoard = $this->db->fetchOne(
-                "SELECT id,name FROM task_boards
-                 WHERE owner_user_id = :user_id
-                   AND (audience = 'all_active'
-                        OR EXISTS (
-                            SELECT 1 FROM task_board_members m
-                            WHERE m.board_id = task_boards.id
-                              AND m.user_id <> :user_id_member
-                        ))
-                 LIMIT 1",
-                [':user_id' => $targetId, ':user_id_member' => $targetId]
-            );
-            if ($ownedBoard !== null) {
-                throw new DomainException(
-                    'Перед удалением передайте владение общей доской задач «'
-                    . (string) ($ownedBoard['name'] ?? 'Без названия')
-                    . '» или удалите её',
-                    409
-                );
-            }
-        }
+        $this->requireReleasedModuleOwnership($targetId);
 
         if ($retentionDays === null) {
             $configured = trim((string) (getenv('RETENTION_ACCOUNT_DELETE_DAYS') ?: ''));
@@ -464,13 +427,39 @@ final class AdminUserService
         }
     }
 
-    private function tableExists(string $table): bool
+    /**
+     * При отключённом модуле нельзя достоверно проверить владение.
+     * Поэтому операция закрывается с отказом вместо обхода изоляции
+     * и возможного удаления учётной записи владельца чужих данных.
+     */
+    private function requireReleasedModuleOwnership(int $userId): void
     {
-        return $this->db->fetchValue(
-            'SELECT 1 FROM information_schema.tables
-             WHERE table_schema = DATABASE() AND table_name = :table_name LIMIT 1',
-            [':table_name' => $table]
-        ) !== null;
+        $registry = $this->moduleCapabilities();
+        foreach (['workspace.messenger', 'workspace.tasks'] as $capability) {
+            if ($registry === null || !$registry->has($capability)) {
+                throw new DomainException(
+                    'Проверка владения объектами недоступна: активируйте соответствующий модуль перед изменением состояния аккаунта',
+                    409
+                );
+            }
+
+            $provider = $registry->require($capability, AccountDeactivationGuard::class);
+            $blocker = $provider->accountDeactivationBlocker($userId);
+            if ($blocker !== null) {
+                throw new DomainException((string) $blocker['message'], 409);
+            }
+        }
+    }
+
+    private function moduleCapabilities(): ?ModuleCapabilityRegistry
+    {
+        if ($this->capabilities !== null) {
+            return $this->capabilities;
+        }
+        if (!ModuleRuntimeLoader::isBooted()) {
+            return null;
+        }
+        return $this->capabilities = ModuleRuntimeLoader::getInstance()->capabilities();
     }
 
     /** @param list<array{code:string,name:string}> $roles */
