@@ -55,7 +55,7 @@ final class TaskMutationController extends Controller
             }
 
             $action = $this->mutationAction($post);
-            $result = (new TaskVersionMutationService($db->getPdo()))->mutateOwned(
+            $result = (new TaskVersionMutationService($db))->mutateOwned(
                 $userId,
                 $uid,
                 $expectedVersion,
@@ -77,7 +77,7 @@ final class TaskMutationController extends Controller
             [$expectedVersion, $commandId] = $this->mutationIdentity($request);
             $now = date('Y-m-d H:i:s');
             $result = (new TaskVersionMutationService(
-                DatabaseManager::getInstance()->getPdo()
+                DatabaseManager::getInstance()
             ))->mutateOwned(
                 $userId,
                 $uid,
