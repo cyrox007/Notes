@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__, 2);
-$path = $root . '/development/defects/DefectReferenceService.php';
+$path = $root . '/modules/defects/services/DefectReferenceService.php';
 $source = (string) file_get_contents($path);
 
 function assertDefectReferences(bool $condition, string $message): void
