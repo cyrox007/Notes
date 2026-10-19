@@ -63,8 +63,8 @@ final class FilesRetentionService implements ModuleRetentionCleanup, ModuleAccou
             );
         }
 
-        // Delete only empty folders so ON DELETE CASCADE cannot pull a newer child
-        // across the retention boundary.
+        // Удаляем только пустые папки, чтобы каскадное удаление не затронуло
+        // вложенные файлы, у которых ещё не истёк срок хранения.
         $folders = $context->db->fetchAll(
             "SELECT uf.id FROM user_files uf "
             . "WHERE uf.is_deleted = 1 AND uf.updated_at < :cutoff AND uf.type = 'folder' "
