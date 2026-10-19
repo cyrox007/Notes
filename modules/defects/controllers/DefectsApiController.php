@@ -150,7 +150,7 @@ final class DefectsApiController extends Controller
     /** @return array<string,mixed> */
     private function payload(Request $request): array
     {
-        $data = $request->json();
+        $data = $request->rawJson();
         if (!is_array($data) || array_is_list($data)) {
             throw new InvalidArgumentException('Тело запроса должно быть JSON-объектом');
         }
