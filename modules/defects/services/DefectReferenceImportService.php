@@ -38,7 +38,7 @@ final class DefectReferenceImportService
     }
 
     /** @return array{created:int,existing:int,total:int} */
-    public function apply(string $contents, string $expectedHash): array
+    public function apply(string $contents, string $expectedHash, ?int $actorId = null): array
     {
         if (preg_match('/^[0-9a-f]{64}$/D', $expectedHash) !== 1
             || !hash_equals($expectedHash, hash('sha256', $contents))) {
@@ -68,7 +68,7 @@ final class DefectReferenceImportService
                     continue;
                 }
 
-                $this->createRow($references, $row);
+                $this->createRow($references, $row, $actorId);
                 $created++;
             }
             $this->database->endTransaction();
@@ -176,17 +176,17 @@ final class DefectReferenceImportService
     }
 
     /** @param array<string,mixed> $row */
-    private function createRow(DefectReferenceService $service, array $row): void
+    private function createRow(DefectReferenceService $service, array $row, ?int $actorId): void
     {
         $fields = $row['fields'];
         match ($row['type']) {
-            'area' => $service->createArea($fields[0]),
-            'service' => $service->createService($fields[0]),
+            'area' => $service->createArea($fields[0], $actorId),
+            'service' => $service->createService($fields[0], $actorId),
             'category' => $service->createCategory(
-                $this->requiredId($this->findArea($fields[0])), $fields[1]
+                $this->requiredId($this->findArea($fields[0])), $fields[1], $actorId
             ),
             'object' => $service->createObject(
-                $this->requiredId($this->findCategory($fields[0], $fields[1])), $fields[2]
+                $this->requiredId($this->findCategory($fields[0], $fields[1])), $fields[2], $actorId
             ),
         };
     }
