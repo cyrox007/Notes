@@ -10,6 +10,7 @@ use Modules\Defects\Services\DefectRegistryService;
 
 $root = dirname(__DIR__, 2);
 require_once $root . '/core/DatabaseManager.php';
+require_once $root . '/modules/defects/services/DefectHistoryService.php';
 require_once $root . '/modules/defects/services/DefectPriorityPolicy.php';
 require_once $root . '/modules/defects/services/DefectRegistrationService.php';
 require_once $root . '/modules/defects/services/DefectReferenceService.php';
@@ -27,6 +28,17 @@ function defectsAssert(bool $condition, string $message): void
 
 $pdo = new PDO('sqlite::memory:');
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$pdo->exec('CREATE TABLE defect_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entity_type TEXT NOT NULL,
+    entity_id INTEGER NOT NULL,
+    event_type TEXT NOT NULL,
+    actor_user_id INTEGER DEFAULT NULL,
+    command_id TEXT DEFAULT NULL,
+    payload_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE(entity_type,entity_id,event_type,command_id)
+)');
 $pdo->exec('PRAGMA foreign_keys = ON');
 $pdo->exec('CREATE TABLE defect_areas (id INTEGER PRIMARY KEY, name TEXT NOT NULL DEFAULT \'\', is_archived INTEGER NOT NULL DEFAULT 0)');
 $pdo->exec('CREATE TABLE defect_object_categories (id INTEGER PRIMARY KEY, name TEXT NOT NULL DEFAULT \'\', area_id INTEGER NOT NULL, is_archived INTEGER NOT NULL DEFAULT 0)');
@@ -98,6 +110,7 @@ $first = $register('command_1234567890AB');
 defectsAssert($first['id'] === 1 && $first['replayed'] === false, 'карточка должна создаваться один раз');
 defectsAssert($first['due_at'] === '2026-10-26 09:30:00', 'срок должен сохраняться в UTC');
 defectsAssert((int) $database->fetchValue('SELECT COUNT(*) FROM defect_responsible_services') === 2, 'сохранены не все службы');
+defectsAssert((int) $database->fetchValue("SELECT COUNT(*) FROM defect_history WHERE entity_type='defect' AND event_type='created'") === 1, 'создание не отражено в истории');
 
 $replay = $register('command_1234567890AB', [5, 4]);
 defectsAssert($replay['replayed'] === true && $replay['id'] === $first['id'], 'повтор команды должен вернуть прежнюю карточку');
@@ -141,6 +154,7 @@ try {
 defectsAssert($rolledBack, 'аварийная запись связи должна завершаться ошибкой');
 defectsAssert((int) $database->fetchValue('SELECT COUNT(*) FROM defects') === 1, 'карточка должна откатываться вместе со связями');
 defectsAssert(!$database->inTransaction(), 'ошибка не должна оставлять открытой транзакцию');
+defectsAssert((int) $database->fetchValue("SELECT COUNT(*) FROM defect_history WHERE entity_type='defect'") === 1, 'после отката появилась лишняя история');
 
 
 $pdo->exec('DROP TRIGGER reject_second_service');
@@ -154,6 +168,29 @@ $closed = $registry->close($first['id'], 1, 7, 'Заменён повреждё�
 defectsAssert($closed['version'] === 2 && !$closed['replayed'], 'дефект должен закрыться с новой версией');
 $repeatClose = $registry->close($first['id'], 1, 7, 'Заменён повреждённый изолятор', 'close_1234567890ABCDE');
 defectsAssert($repeatClose['replayed'] && $repeatClose['version'] === 2, 'повтор закрытия должен быть безопасным');
+$history = new \Modules\Defects\Services\DefectHistoryService($database);
+$events = $history->list('defect', $first['id'], 1);
+defectsAssert(count($events['events']) === 1 && $events['next_cursor'] !== null, 'история должна поддерживать страницы');
+$continued = $history->list('defect', $first['id'], 1, $events['next_cursor']);
+defectsAssert(count($continued['events']) === 1 && $continued['events'][0]['event_type'] === 'closed', 'закрытие не отражено в истории');
+defectsAssert($continued['events'][0]['actor_user_id'] === 7, 'потерян автор закрытия');
+defectsAssert($continued['next_cursor'] === null, 'последняя страница должна завершать курсор');
+defectsAssert((int) $database->fetchValue("SELECT COUNT(*) FROM defect_history WHERE entity_type='defect'") === 2, 'повтор закрытия создал лишнюю историю');
+
+$pdo->exec("CREATE TRIGGER reject_history BEFORE INSERT ON defect_history
+    WHEN NEW.command_id='command_HISTORY_FAIL_01'
+    BEGIN SELECT RAISE(ABORT, 'Искусственный сбой истории'); END");
+$historyRollback = false;
+try {
+    $register('command_HISTORY_FAIL_01', [4]);
+} catch (PDOException) {
+    $historyRollback = true;
+}
+defectsAssert($historyRollback, 'сбой истории должен завершать регистрацию ошибкой');
+defectsAssert((int) $database->fetchValue('SELECT COUNT(*) FROM defects') === 1, 'сбой записи истории оставил карточку');
+defectsAssert((int) $database->fetchValue('SELECT COUNT(*) FROM defect_history') >= 2, 'сохранённые события пропали после отката');
+$pdo->exec('DROP TRIGGER reject_history');
+
 defectsAssert(count($registry->list(40, 0, 'closed')) === 1, 'реестр закрытых дефектов должен содержать запись');
 
 $staleRejected = false;
