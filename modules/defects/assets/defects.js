@@ -480,7 +480,7 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
         const adminState = { cursor: 0, sequence: 0, loading: false, initialized: false };
 
         const mutate = async (row, item, action, data = {}) => {
-            const buttons = $('button', row);
+            const buttons = $$('button', row);
             buttons.forEach(button => { button.disabled = true; });
             try {
                 const { reference } = await request(api + '/references/'
