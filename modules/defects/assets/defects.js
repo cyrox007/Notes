@@ -250,15 +250,49 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
     $('[data-defects-create-open]').addEventListener('click', event => openCreate(event.currentTarget));
     $$('[data-defects-create-cancel]').forEach(button =>
         button.addEventListener('click', () => setModal(createOverlay, false)));
+    // Зависимые списки очищаются сразу, до ответа AJAX.
+    // Номер запроса защищает их от запоздавших ответов при быстром выборе.
+    let categorySequence = 0;
+    let objectSequence = 0;
     area.addEventListener('change', async () => {
+        const sequence = ++categorySequence;
+        ++objectSequence;
+        const areaId = area.value;
+        fillSelect(category, [], 'Загрузка категорий…');
+        fillSelect(object, [], 'Выберите объект');
+        if (!areaId) {
+            fillSelect(category, [], 'Выберите категорию');
+            return;
+        }
         try {
-            fillSelect(category, area.value ? await refRows('categories', area.value) : [], 'Выберите категорию');
-            fillSelect(object, [], 'Выберите объект');
-        } catch (error) { showFormError('[data-defects-create-error]', errorText(error)); }
+            const rows = await refRows('categories', areaId);
+            if (sequence !== categorySequence || area.value !== areaId) return;
+            fillSelect(category, rows, 'Выберите категорию');
+        } catch (error) {
+            if (sequence === categorySequence) {
+                fillSelect(category, [], 'Выберите категорию');
+                showFormError('[data-defects-create-error]', errorText(error));
+            }
+        }
     });
     category.addEventListener('change', async () => {
-        try { fillSelect(object, category.value ? await refRows('objects', category.value) : [], 'Выберите объект'); }
-        catch (error) { showFormError('[data-defects-create-error]', errorText(error)); }
+        const sequence = ++objectSequence;
+        const categoryId = category.value;
+        fillSelect(object, [], 'Загрузка объектов…');
+        if (!categoryId) {
+            fillSelect(object, [], 'Выберите объект');
+            return;
+        }
+        try {
+            const rows = await refRows('objects', categoryId);
+            if (sequence !== objectSequence || category.value !== categoryId) return;
+            fillSelect(object, rows, 'Выберите объект');
+        } catch (error) {
+            if (sequence === objectSequence) {
+                fillSelect(object, [], 'Выберите объект');
+                showFormError('[data-defects-create-error]', errorText(error));
+            }
+        }
     });
     form.addEventListener('input', () => { state.creationCommand = null; });
     form.addEventListener('change', () => { state.creationCommand = null; });
@@ -291,6 +325,10 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
             });
             state.creationCommand = null;
             form.reset();
+            ++categorySequence;
+            ++objectSequence;
+            fillSelect(category, [], 'Выберите категорию');
+            fillSelect(object, [], 'Выберите объект');
             setModal(createOverlay, false);
             feedbackMessage('Дефект №' + response.defect.id + ' зарегистрирован');
             await loadRegistry();
