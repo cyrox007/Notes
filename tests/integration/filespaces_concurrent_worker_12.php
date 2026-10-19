@@ -70,6 +70,7 @@ try {
         throw new RuntimeException('Истекло ожидание общего старта процессов');
     }
 
+    $operationStarted = microtime(true);
     $mode = (string) $config['mode'];
     $actor = (int) $config['actor'];
     $version = (int) $config['version'];
@@ -112,7 +113,8 @@ try {
         @unlink($temporaryFile);
     }
 }
-$report['elapsed_ms'] = round((microtime(true) - $startTime) * 1000, 2);
+$report['elapsed_ms'] = round((microtime(true) - ($operationStarted ?? $startTime)) * 1000, 2);
+$report['total_ms'] = round((microtime(true) - $startTime) * 1000, 2);
 $report['php_peak_bytes'] = memory_get_peak_usage(true);
 file_put_contents($resultPath, json_encode($report, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
 exit(0);
