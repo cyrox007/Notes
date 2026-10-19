@@ -29,6 +29,18 @@ final class ProfileCustomFieldsService
     /** @param list<array{id:?int,field_name:string,field_label:string,field_type:string,is_required:int}> $fields */
     public function saveFields(array $fields): void
     {
+        if (count($fields) > 50) {
+            throw new InvalidArgumentException('Можно сохранить не более 50 пользовательских полей');
+        }
+        $seenNames = [];
+        foreach ($fields as $field) {
+            $name = $field['field_name'];
+            if (isset($seenNames[$name])) {
+                throw new InvalidArgumentException('Технические имена пользовательских полей должны быть уникальными');
+            }
+            $seenNames[$name] = true;
+        }
+
         $this->db->beginTransaction();
         try {
             $existing = $this->db->fetchAll('SELECT id FROM user_fields FOR UPDATE');
