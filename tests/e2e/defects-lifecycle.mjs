@@ -173,7 +173,7 @@ try {
     await secondService.getByRole('button', { name: 'Подтвердить' }).click();
     await manager.locator('[data-defects-manage-archived]').check();
     const archived = manager.locator('.defects-reference-row').filter({ hasText: 'Диспетчерская' });
-    await archived.waitFor({ state: 'visible' });
+    await archived.getByRole('button', { name: 'Восстановить' }).waitFor({ state: 'visible', timeout: 15000 });
     await archived.getByRole('button', { name: 'Восстановить' }).click();
     await archived.waitFor({ state: 'hidden', timeout: 15000 });
 
