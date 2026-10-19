@@ -112,6 +112,45 @@
             });
             article.append(close);
         }
+        const historyButton = document.createElement('button');
+        historyButton.type = 'button';
+        historyButton.textContent = 'История';
+        const historyBox = document.createElement('div');
+        historyBox.hidden = true;
+        historyButton.addEventListener('click', async () => {
+            historyBox.hidden = !historyBox.hidden;
+            if (historyBox.hidden) return;
+            historyButton.disabled = true;
+            historyBox.replaceChildren();
+            const entries = document.createElement('ul');
+            historyBox.append(entries);
+            let afterId = 0;
+            const load = async () => {
+                const query = new URLSearchParams({ limit: '40', after_id: String(afterId) });
+                const response = await request(api + '/' + item.id + '/history?' + query);
+                response.history.events.forEach(event => {
+                    const row = document.createElement('li');
+                    const eventLabel = event.event_type === 'created' ? 'Регистрация'
+                        : event.event_type === 'closed' ? 'Закрытие' : 'Изменение';
+                    row.textContent = event.created_at + ' · ' + eventLabel
+                        + ' · пользователь #' + (event.actor_user_id ?? 'не указан');
+                    entries.append(row);
+                });
+                afterId = response.history.next_cursor || 0;
+                moreHistory.hidden = !afterId;
+            };
+            const moreHistory = document.createElement('button');
+            moreHistory.type = 'button';
+            moreHistory.textContent = 'Другие события';
+            moreHistory.hidden = true;
+            moreHistory.addEventListener('click', () =>
+                load().catch(error => message(error.message, true)));
+            historyBox.append(moreHistory);
+            try { await load(); }
+            catch (error) { message(error.message, true); }
+            finally { historyButton.disabled = false; }
+        });
+        article.append(historyButton, historyBox);
         return article;
     };
 
