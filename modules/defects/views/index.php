@@ -77,6 +77,7 @@ ob_start();
                         <option value="services">Ответственные службы</option>
                     </select>
                 </label>
+                <label data-defects-parent-area hidden>Участок для категории <select name="category_area"><option value="">Выберите участок</option></select></label>
                 <label>Родительская запись <select name="parent_id" disabled><option value="">Не требуется</option></select></label>
                 <label>Название <input name="name" maxlength="160" required></label>
                 <button type="submit" class="defects-button defects-button--primary">Добавить</button>
