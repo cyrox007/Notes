@@ -81,7 +81,7 @@ jobs:
 
       - name: Проверить сроки и приоритеты дефектов 1.2
         run: |
-          php -l modules/defects/services/DefectPriorityPolicy.php
+          php -l development/defects/DefectPriorityPolicy.php
           php -l tests/integration/defects_priority_policy_12.php
           php tests/integration/defects_priority_policy_12.php
 
