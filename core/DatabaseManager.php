@@ -559,6 +559,10 @@ class DatabaseManager
      */
     public function releaseIdleConnection(): void
     {
+        // Внешнее соединение принадлежит вызывающему коду: его нельзя освобождать.
+        if ($this->externalConnection) {
+            return;
+        }
         if ($this->inTransaction || $this->transactionQueue !== []) {
             return;
         }
@@ -571,7 +575,9 @@ class DatabaseManager
 
     public function close(): void
     {
-        if ($this->pdo?->inTransaction()) {
+        // Если транзакцию открыл сам менеджер, он обязан её откатить.
+        // В остальных случаях переданное соединение и чужую транзакцию не трогаем.
+        if ($this->pdo?->inTransaction() && (!$this->externalConnection || $this->inTransaction)) {
             $this->pdo->rollBack();
         }
 
