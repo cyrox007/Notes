@@ -22,10 +22,10 @@ defectsModuleAssert(!in_array('defects', $registry->defaultComposition(), true),
 $manifest = $registry->get('defects');
 defectsModuleAssert($manifest->runtimeMode() === 'isolated', 'нужен изолированный runtime');
 defectsModuleAssert($manifest->licenseFeature() === 'workspace.defects', 'отсутствует проверка лицензии');
-defectsModuleAssert($manifest->databaseTables() === [
-    'defect_areas', 'defect_object_categories', 'defect_objects',
-    'defect_services', 'defects', 'defect_responsible_services',
-], 'владение собственными таблицами изменено');
+$expectedTables = ['defect_areas', 'defect_object_categories', 'defect_objects',
+    'defect_services', 'defects', 'defect_responsible_services'];
+sort($expectedTables, SORT_STRING);
+defectsModuleAssert($manifest->databaseTables() === $expectedTables, 'владение собственными таблицами изменено');
 defectsModuleAssert(
     in_array('database/defects_schema.sql', $manifest->databaseSchemas(), true)
     && in_array('database/migrations/20261019_defects_foundation.sql', $manifest->databaseMigrations(), true),
