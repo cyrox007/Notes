@@ -68,7 +68,7 @@ final class MessengerSavedService
                     ':updated_at' => $now,
                 ]
             );
-            $dialogId = (int) $this->db->getPdo()->lastInsertId();
+            $dialogId = (int) $this->db->lastInsertId();
             $this->db->execute(
                 'INSERT INTO user_to_dialogs (
                     dialog_id, user_id, role, joined_at,
