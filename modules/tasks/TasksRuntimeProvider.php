@@ -5,6 +5,7 @@ namespace Modules\Tasks;
 
 use App\Controllers\TaskBoardController;
 use App\Controllers\TaskController;
+use App\Controllers\TaskDayOrderController;
 use App\Controllers\TaskMutationController;
 use App\Controllers\TaskRelationController;
 use App\Middlewares\CSRFMiddleware;
@@ -48,6 +49,7 @@ final class TasksRuntimeProvider implements ModuleRuntimeProvider
     {
         $router->group('/tasks')
             ->add('GET', '/', [TaskController::class, 'index'], [LoginRequared::class, RequireTasksUse::class], 'tasks')
+            ->add('POST', '/day-order', [TaskDayOrderController::class, 'move'], [LoginRequared::class, RequireTasksUse::class, CSRFMiddleware::class], 'task_day_order')
             ->add('POST', '/', [TaskController::class, 'create'], [LoginRequared::class, RequireTasksUse::class, EnforceTaskCreatePolicy::class], 'task_create')
             ->add('GET', '/boards', [TaskBoardController::class, 'index'], [LoginRequared::class, RequireTasksUse::class], 'task_boards')
             ->add('POST', '/boards', [TaskBoardController::class, 'createBoard'], [LoginRequared::class, RequireTasksUse::class, CSRFMiddleware::class], 'task_board_create')
