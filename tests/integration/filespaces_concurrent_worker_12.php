@@ -6,6 +6,7 @@ declare(strict_types=1);
 // Этот файл вызывается только родительским приёмочным сценарием Filespaces.
 $root = dirname(__DIR__, 2);
 require_once $root . '/core/PrefixPDO.php';
+require_once $root . '/core/DatabaseManager.php';
 require_once $root . '/core/MutationCommandStore.php';
 foreach ([
     'FileSpaceStorageGuard', 'FileUploadTypes', 'FileSpaceAccessService',

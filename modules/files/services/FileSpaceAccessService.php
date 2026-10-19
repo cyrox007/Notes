@@ -7,6 +7,7 @@ namespace App\Services\Files;
 use DomainException;
 use InvalidArgumentException;
 use PDO;
+use Core\DatabaseManager;
 
 /**
  * Централизованная проверка прав файловых пространств.
@@ -21,19 +22,22 @@ final class FileSpaceAccessService
         'share', 'history', 'restore', 'manage_acl',
     ];
 
-    public function __construct(private readonly PDO $pdo)
+    private readonly DatabaseManager $db;
+
+    public function __construct(PDO|DatabaseManager $connection)
     {
+        $this->db = $connection instanceof DatabaseManager
+            ? $connection : DatabaseManager::forConnection($connection);
     }
 
     /** @return array<string,mixed> */
     public function space(string $uid = 'global'): array
     {
-        $stmt = $this->pdo->prepare(
+        $space = $this->db->fetchOne(
             'SELECT id,uid,space_type,owner_user_id,name,version,is_archived
-             FROM file_spaces WHERE uid=:uid LIMIT 1'
+             FROM file_spaces WHERE uid=:uid LIMIT 1',
+            [':uid' => $uid]
         );
-        $stmt->execute([':uid' => $uid]);
-        $space = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!is_array($space) || (int) $space['is_archived'] !== 0) {
             throw new DomainException('Файловое пространство недоступно', 404);
         }
@@ -43,14 +47,13 @@ final class FileSpaceAccessService
     /** @return array<string,mixed> */
     public function node(int $spaceId, int $nodeId, bool $includeDeleted = false): array
     {
-        $stmt = $this->pdo->prepare(
+        $node = $this->db->fetchOne(
             'SELECT id,uid,space_id,parent_id,node_type,name,created_by,
                     inherit_acl,version,is_deleted
              FROM file_space_nodes
-             WHERE space_id=:space_id AND id=:id AND ' . ($includeDeleted ? '1=1' : 'is_deleted=0') . ' LIMIT 1'
+             WHERE space_id=:space_id AND id=:id AND ' . ($includeDeleted ? '1=1' : 'is_deleted=0') . ' LIMIT 1',
+            [':space_id' => $spaceId, ':id' => $nodeId]
         );
-        $stmt->execute([':space_id' => $spaceId, ':id' => $nodeId]);
-        $node = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!is_array($node)) {
             throw new DomainException('Папка или файл недоступны', 404);
         }
@@ -63,27 +66,24 @@ final class FileSpaceAccessService
         if ($userId < 1) {
             throw new DomainException('Требуется авторизация', 401);
         }
-        $stmt = $this->pdo->prepare(
+        $user = $this->db->fetchOne(
             "SELECT id,role FROM users WHERE id=:id
-             AND is_active=1 AND account_status='active' LIMIT 1"
+             AND is_active=1 AND account_status='active' LIMIT 1",
+            [':id' => $userId]
         );
-        $stmt->execute([':id' => $userId]);
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!is_array($user)) {
             throw new DomainException('Учётная запись недоступна', 403);
         }
-        $roles = $this->pdo->prepare(
+        $memberships = $this->db->fetchAll(
             'SELECT r.id,r.code FROM roles r
              JOIN user_roles ur ON ur.role_id=r.id
-             WHERE ur.user_id=:id'
+             WHERE ur.user_id=:id',
+            [':id' => $userId]
         );
-        $roles->execute([':id' => $userId]);
-        $memberships = $roles->fetchAll(PDO::FETCH_ASSOC);
-        $groupQuery = $this->pdo->prepare(
-            'SELECT group_id FROM file_access_group_members WHERE user_id=:id'
-        );
-        $groupQuery->execute([':id' => $userId]);
-        $groups = array_map('intval', $groupQuery->fetchAll(PDO::FETCH_COLUMN));
+        $groups = array_map('intval', array_column($this->db->fetchAll(
+            'SELECT group_id FROM file_access_group_members WHERE user_id=:id',
+            [':id' => $userId]
+        ), 'group_id'));
         $ids = array_map('intval', array_column($memberships, 'id'));
         $codes = array_column($memberships, 'code');
         return [
@@ -152,15 +152,15 @@ final class FileSpaceAccessService
         $rights = array_values(array_unique([...$permissions, 'view']));
         $scopeMarks = implode(',', array_fill(0, count($scopes), '?'));
         $rightMarks = implode(',', array_fill(0, count($rights), '?'));
-        $query = $this->pdo->prepare(
+        $rows = $this->db->fetchAll(
             'SELECT scope_key,permission_key,subject_type,subject_id,effect
              FROM file_space_acl WHERE space_id=?
                AND scope_key IN (' . $scopeMarks . ')
-               AND permission_key IN (' . $rightMarks . ')'
+               AND permission_key IN (' . $rightMarks . ')',
+            [(int) $space['id'], ...$scopes, ...$rights]
         );
-        $query->execute([(int) $space['id'], ...$scopes, ...$rights]);
         $rules = [];
-        foreach ($query->fetchAll(PDO::FETCH_ASSOC) as $rule) {
+        foreach ($rows as $rule) {
             $rules[$rule['scope_key']][$rule['permission_key']][] = $rule;
         }
 
@@ -239,14 +239,14 @@ final class FileSpaceAccessService
         }
         $scopes = array_values(array_unique($scopes));
         $marks = implode(',', array_fill(0, count($scopes), '?'));
-        $rulesQuery = $this->pdo->prepare(
+        $rows = $this->db->fetchAll(
             'SELECT scope_key,permission_key,subject_type,subject_id,effect
              FROM file_space_acl WHERE space_id=?
-               AND scope_key IN (' . $marks . ')'
+               AND scope_key IN (' . $marks . ')',
+            [(int) $space['id'], ...$scopes]
         );
-        $rulesQuery->execute([(int) $space['id'], ...$scopes]);
         $rules = [];
-        foreach ($rulesQuery->fetchAll(PDO::FETCH_ASSOC) as $rule) {
+        foreach ($rows as $rule) {
             $rules[$rule['scope_key']][$rule['permission_key']][] = $rule;
         }
 
@@ -311,8 +311,9 @@ final class FileSpaceAccessService
             throw new DomainException('Только управляющий правами может просматривать диагностику', 403);
         }
         $results = [];
+        $decisions = $this->decisions($targetUserId, 'global', $folderId, self::PERMISSIONS);
         foreach (self::PERMISSIONS as $permission) {
-            $decision = $this->decision($targetUserId, 'global', $folderId, $permission);
+            $decision = $decisions[$permission];
             $results[] = [
                 'permission' => $permission,
                 'allowed' => $decision['allowed'],

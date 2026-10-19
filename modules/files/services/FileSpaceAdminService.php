@@ -8,6 +8,7 @@ use Core\MutationCommandStore;
 use DomainException;
 use InvalidArgumentException;
 use PDO;
+use Core\DatabaseManager;
 use RuntimeException;
 use Throwable;
 
@@ -17,33 +18,37 @@ use Throwable;
  */
 final class FileSpaceAdminService
 {
+    private readonly DatabaseManager $db;
+
     public function __construct(
-        private readonly PDO $pdo,
+        PDO|DatabaseManager $connection,
         private readonly FileSpaceAccessService $access,
         private readonly MutationCommandStore $commands = new MutationCommandStore()
     ) {
+        $this->db = $connection instanceof DatabaseManager
+            ? $connection : DatabaseManager::forConnection($connection);
     }
 
     /** @return array<string,mixed> */
     public function snapshot(int $actorId): array
     {
         $this->requireAdmin($actorId);
-        $groups = $this->pdo->query(
+        $groups = $this->db->query(
             'SELECT g.id,g.name,g.version,COUNT(m.user_id) AS members
              FROM file_access_groups g LEFT JOIN file_access_group_members m ON m.group_id=g.id
              GROUP BY g.id,g.name,g.version ORDER BY g.name LIMIT 200'
         )->fetchAll(PDO::FETCH_ASSOC);
-        $members = $this->pdo->query(
+        $members = $this->db->query(
             'SELECT m.group_id,m.user_id,u.username FROM file_access_group_members m
              JOIN users u ON u.id=m.user_id
              ORDER BY m.group_id,u.username LIMIT 1000'
         )->fetchAll(PDO::FETCH_ASSOC);
         $setting = $this->setting(false);
-        $users = $this->pdo->query(
+        $users = $this->db->query(
             "SELECT id,username,is_active,account_status FROM users
              ORDER BY username LIMIT 500"
         )->fetchAll(PDO::FETCH_ASSOC);
-        $roles = $this->pdo->query(
+        $roles = $this->db->query(
             'SELECT id,code,name FROM roles ORDER BY name LIMIT 100'
         )->fetchAll(PDO::FETCH_ASSOC);
         return [
@@ -66,11 +71,11 @@ final class FileSpaceAdminService
         return $this->command(
             $actorId, $commandId, 'group.create', hash('sha256', $name), ['name' => $name],
             function () use ($actorId, $name): array {
-                $insert = $this->pdo->prepare(
+                $insert = $this->db->prepare(
                     'INSERT INTO file_access_groups (name,created_by) VALUES (:name,:actor)'
                 );
                 $insert->execute([':name' => $name, ':actor' => $actorId]);
-                $id = (int) $this->pdo->lastInsertId();
+                $id = (int) $this->db->lastInsertId();
                 $this->audit($actorId, 'group.create', ['group_id' => $id, 'name' => $name]);
                 return ['success' => true, 'group_id' => $id, 'version' => 1];
             }
@@ -89,7 +94,7 @@ final class FileSpaceAdminService
         return $this->command($actorId, $commandId, 'group.' . $operation, 'group:' . $groupId, [
             'member_id' => $memberId, 'expected_version' => $expectedVersion,
         ], function () use ($actorId, $groupId, $operation, $memberId, $expectedVersion): array {
-            $query = $this->pdo->prepare(
+            $query = $this->db->prepare(
                 'SELECT id,version FROM file_access_groups WHERE id=:id FOR UPDATE'
             );
             $query->execute([':id' => $groupId]);
@@ -101,17 +106,17 @@ final class FileSpaceAdminService
                 return $this->conflict((int) $row['version']);
             }
             if ($operation === 'delete') {
-                $acl = $this->pdo->prepare(
+                $acl = $this->db->prepare(
                     "DELETE FROM file_space_acl WHERE subject_type='group' AND subject_id=:id"
                 );
                 $acl->execute([':id' => $groupId]);
-                $stmt = $this->pdo->prepare('DELETE FROM file_access_groups WHERE id=:id');
+                $stmt = $this->db->prepare('DELETE FROM file_access_groups WHERE id=:id');
                 $stmt->execute([':id' => $groupId]);
                 $this->audit($actorId, 'group.delete', ['group_id' => $groupId]);
                 return ['success' => true, 'group_id' => $groupId, 'deleted' => true];
             }
             if ($operation === 'add') {
-                $active = $this->pdo->prepare(
+                $active = $this->db->prepare(
                     "SELECT id FROM users WHERE id=:id AND is_active=1
                      AND account_status='active' LIMIT 1"
                 );
@@ -120,7 +125,7 @@ final class FileSpaceAdminService
                     throw new InvalidArgumentException('Добавить можно только активного пользователя');
                 }
             }
-            $stmt = $this->pdo->prepare($operation === 'add'
+            $stmt = $this->db->prepare($operation === 'add'
                 ? 'INSERT IGNORE INTO file_access_group_members (group_id,user_id,added_by)
                    VALUES (:group_id,:member_id,:actor)'
                 : 'DELETE FROM file_access_group_members
@@ -133,7 +138,7 @@ final class FileSpaceAdminService
             $changed = $stmt->rowCount() > 0;
             $version = $expectedVersion;
             if ($changed) {
-                $update = $this->pdo->prepare(
+                $update = $this->db->prepare(
                     'UPDATE file_access_groups SET version=version+1
                      WHERE id=:id AND version=:version'
                 );
@@ -167,7 +172,7 @@ final class FileSpaceAdminService
             if ((int) $setting['trash_retention_days'] === $days) {
                 return ['success' => true, 'version' => $expectedVersion, 'changed' => false];
             }
-            $stmt = $this->pdo->prepare(
+            $stmt = $this->db->prepare(
                 'UPDATE file_space_settings SET trash_retention_days=:days,
                     version=version+1,updated_by=:actor WHERE space_id=:space'
             );
@@ -182,7 +187,7 @@ final class FileSpaceAdminService
     /** @return array<string,mixed> */
     private function setting(bool $lock): array
     {
-        $stmt = $this->pdo->prepare(
+        $stmt = $this->db->prepare(
             'SELECT s.space_id,s.trash_retention_days,s.version
              FROM file_space_settings s JOIN file_spaces f ON f.id=s.space_id
              WHERE f.uid=:uid LIMIT 1' . ($lock ? ' FOR UPDATE' : '')
@@ -215,19 +220,19 @@ final class FileSpaceAdminService
         array $data, \Closure $work
     ): array {
         $this->requireAdmin($actorId);
-        if ($this->pdo->inTransaction()) {
+        if ($this->db->inTransaction()) {
             throw new RuntimeException('Административная команда требует отдельную транзакцию');
         }
         $hash = $this->commands->requestHash($data);
-        $this->pdo->beginTransaction();
+        $this->db->beginTransaction();
         try {
             $receipt = $this->commands->acquire(
-                $this->pdo, 'user:' . $actorId, $commandId,
+                $this->db, 'user:' . $actorId, $commandId,
                 'files', 'files.admin.' . $action, 'file_admin', $entity, $hash
             );
             if (!$receipt['owner']) {
                 $result = $this->commands->storedResponse($receipt['record']);
-                $this->pdo->commit();
+                $this->db->endTransaction();
                 return $result;
             }
             $result = $work();
@@ -236,14 +241,14 @@ final class FileSpaceAdminService
                 ? MutationCommandStore::STATUS_CONFLICT : MutationCommandStore::STATUS_APPLIED;
             $result['replayed'] = false;
             $this->commands->complete(
-                $this->pdo, (int) $receipt['record']['id'],
+                $this->db, (int) $receipt['record']['id'],
                 $receipt['token'], $status, $result, $version
             );
-            $this->pdo->commit();
+            $this->db->endTransaction();
             return $result;
         } catch (Throwable $error) {
-            if ($this->pdo->inTransaction()) {
-                $this->pdo->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->endTransaction(false);
             }
             throw $error;
         }
@@ -260,7 +265,7 @@ final class FileSpaceAdminService
     private function audit(int $actorId, string $event, array $data): void
     {
         $space = $this->access->space();
-        $stmt = $this->pdo->prepare(
+        $stmt = $this->db->prepare(
             'INSERT INTO file_space_events (space_id,actor_user_id,event_code,details_json)
              VALUES (:space,:actor,:code,:details)'
         );

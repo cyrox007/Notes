@@ -81,14 +81,14 @@ final class FileSpaceObjectController extends Controller
 
     private function objectService(): FileSpaceObjectService
     {
-        $pdo = DatabaseManager::getInstance()->getPdo();
-        return new FileSpaceObjectService($pdo, new FileSpaceAccessService($pdo));
+        $db = DatabaseManager::getInstance();
+        return new FileSpaceObjectService($db, new FileSpaceAccessService($db));
     }
 
     private function transferService(): FileSpaceTransferService
     {
-        $pdo = DatabaseManager::getInstance()->getPdo();
-        return new FileSpaceTransferService($pdo, new FileSpaceAccessService($pdo));
+        $db = DatabaseManager::getInstance();
+        return new FileSpaceTransferService($db, new FileSpaceAccessService($db));
     }
 
     private function actorId(Request $request): int

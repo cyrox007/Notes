@@ -6,6 +6,7 @@ namespace App\Services\Files;
 
 use DomainException;
 use PDO;
+use Core\DatabaseManager;
 use RuntimeException;
 use Throwable;
 
@@ -22,11 +23,15 @@ final class FileSpacePurgeService
     private const int MAX_NODES_PER_ROOT = 500;
     private const string LOCK_KEY = 'notes.filespaces.purge.v1';
 
+    private readonly DatabaseManager $db;
+
     public function __construct(
-        private readonly PDO $pdo,
+        PDO|DatabaseManager $connection,
         private readonly ?string $storageRoot = null,
         private readonly ?\Closure $afterStage = null
     ) {
+        $this->db = $connection instanceof DatabaseManager
+            ? $connection : DatabaseManager::forConnection($connection);
     }
 
     /** @return list<array<string,mixed>> */
@@ -35,7 +40,7 @@ final class FileSpacePurgeService
         if ($limit < 1 || $limit > 50) {
             throw new \InvalidArgumentException('За один запуск можно выбрать от 1 до 50 корневых объектов');
         }
-        $stmt = $this->pdo->prepare(
+        $stmt = $this->db->prepare(
             "SELECT n.id,n.uid,n.name,n.deleted_at,s.trash_retention_days
              FROM file_space_nodes n
              JOIN file_spaces f ON f.id=n.space_id AND f.uid='global'
@@ -75,7 +80,7 @@ final class FileSpacePurgeService
                 'remaining' => count($this->candidates(50)),
             ];
         } finally {
-            $this->pdo->query("SELECT RELEASE_LOCK('" . self::LOCK_KEY . "')");
+            $this->db->query("SELECT RELEASE_LOCK('" . self::LOCK_KEY . "')");
         }
     }
 
@@ -87,7 +92,7 @@ final class FileSpacePurgeService
             return null;
         }
         $batch = bin2hex(random_bytes(16));
-        $register = $this->pdo->prepare(
+        $register = $this->db->prepare(
             "INSERT INTO file_space_purge_batches
                (uid,space_id,root_node_id,root_uid,status)
              VALUES (:uid,:space,:root,:root_uid,'preparing')"
@@ -97,12 +102,12 @@ final class FileSpacePurgeService
             ':root' => $rootId, ':root_uid' => (string) $candidate['uid'],
         ]);
 
-        $this->pdo->beginTransaction();
+        $this->db->beginTransaction();
         try {
-            $spaceLock = $this->pdo->prepare('SELECT id FROM file_spaces WHERE id=:id FOR UPDATE');
+            $spaceLock = $this->db->prepare('SELECT id FROM file_spaces WHERE id=:id FOR UPDATE');
             $spaceLock->execute([':id' => (int) $candidate['space_id']]);
             if ($this->eligibleRoot($rootId) === null) {
-                $this->pdo->rollBack();
+                $this->db->endTransaction(false);
                 $this->rollbackBatch($batch);
                 return null;
             }
@@ -122,7 +127,7 @@ final class FileSpacePurgeService
                 $key = $this->safeKey((string) ($node['storage_key'] ?? ''));
                 // Ошибка метаданных не должна позволить очистке удалить файл,
                 // на который по-прежнему ссылается другой объект пространства.
-                $references = $this->pdo->prepare(
+                $references = $this->db->prepare(
                     'SELECT COUNT(*) FROM file_space_nodes
                      WHERE space_id=:space AND storage_key=:key AND id<>:id'
                 );
@@ -148,10 +153,10 @@ final class FileSpacePurgeService
             }
 
             // Правила файловых папок не имеют FK на узел и удаляются явно.
-            $deleteAcl = $this->pdo->prepare(
+            $deleteAcl = $this->db->prepare(
                 'DELETE FROM file_space_acl WHERE space_id=:space AND scope_key=:scope'
             );
-            $deleteNode = $this->pdo->prepare(
+            $deleteNode = $this->db->prepare(
                 'DELETE FROM file_space_nodes WHERE id=:id AND space_id=:space'
             );
             foreach ($nodes as $node) {
@@ -165,7 +170,7 @@ final class FileSpacePurgeService
                     throw new RuntimeException('Не удалось завершить очистку дерева в базе данных');
                 }
             }
-            $audit = $this->pdo->prepare(
+            $audit = $this->db->prepare(
                 'INSERT INTO file_space_events
                    (space_id,node_id,actor_user_id,event_code,details_json)
                  VALUES (:space,NULL,NULL,:event,:details)'
@@ -179,7 +184,7 @@ final class FileSpacePurgeService
                     'bytes' => $bytes,
                 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
             ]);
-            $complete = $this->pdo->prepare(
+            $complete = $this->db->prepare(
                 "UPDATE file_space_purge_batches
                  SET status='committed',node_count=:nodes,file_count=:files,
                      bytes_total=:bytes,completed_at=NOW()
@@ -192,11 +197,11 @@ final class FileSpacePurgeService
             if ($complete->rowCount() !== 1) {
                 throw new RuntimeException('Не удалось зафиксировать журнал очистки');
             }
-            $this->pdo->commit();
+            $this->db->endTransaction();
             return ['files' => $files, 'bytes' => $bytes];
         } catch (Throwable $error) {
-            if ($this->pdo->inTransaction()) {
-                $this->pdo->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->endTransaction(false);
             }
             $this->rollbackBatch($batch);
             throw $error;
@@ -206,7 +211,7 @@ final class FileSpacePurgeService
     /** @return array<string,mixed>|null */
     private function eligibleRoot(int $id): ?array
     {
-        $stmt = $this->pdo->prepare(
+        $stmt = $this->db->prepare(
             "SELECT n.id,n.uid,n.space_id
              FROM file_space_nodes n
              JOIN file_spaces s ON s.id=n.space_id AND s.uid='global'
@@ -224,7 +229,7 @@ final class FileSpacePurgeService
     /** @return list<array<string,mixed>> Дочерние объекты расположены перед родителями. */
     private function subtree(int $spaceId, int $rootId): array
     {
-        $stmt = $this->pdo->prepare(
+        $stmt = $this->db->prepare(
             'WITH RECURSIVE tree AS (
                 SELECT id,parent_id,node_type,storage_key,byte_size,0 AS depth
                 FROM file_space_nodes WHERE id=:root AND space_id=:space
@@ -247,7 +252,7 @@ final class FileSpacePurgeService
      */
     private function recover(): void
     {
-        $stmt = $this->pdo->query(
+        $stmt = $this->db->query(
             "SELECT uid,status FROM file_space_purge_batches
              WHERE status IN ('preparing','committed') ORDER BY id LIMIT 200"
         );
@@ -277,7 +282,7 @@ final class FileSpacePurgeService
                 throw new RuntimeException('Не удалось завершить восстановление карантина');
             }
         }
-        $stmt = $this->pdo->prepare(
+        $stmt = $this->db->prepare(
             "UPDATE file_space_purge_batches
              SET status='rolled_back',completed_at=NOW() WHERE uid=:uid AND status='preparing'"
         );
@@ -298,7 +303,7 @@ final class FileSpacePurgeService
                 throw new RuntimeException('Не удалось удалить каталог карантина');
             }
         }
-        $stmt = $this->pdo->prepare(
+        $stmt = $this->db->prepare(
             "UPDATE file_space_purge_batches SET status='finished'
              WHERE uid=:uid AND status='committed'"
         );
@@ -386,7 +391,7 @@ final class FileSpacePurgeService
 
     private function lock(): void
     {
-        $stmt = $this->pdo->prepare('SELECT GET_LOCK(:key,0)');
+        $stmt = $this->db->prepare('SELECT GET_LOCK(:key,0)');
         $stmt->execute([':key' => self::LOCK_KEY]);
         if ((int) $stmt->fetchColumn() !== 1) {
             throw new RuntimeException('Очистка уже выполняется в другом процессе');

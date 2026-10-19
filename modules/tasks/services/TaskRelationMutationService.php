@@ -8,6 +8,7 @@ use Core\MutationCommandStore;
 use DomainException;
 use InvalidArgumentException;
 use PDO;
+use Core\DatabaseManager;
 use RuntimeException;
 use Throwable;
 
@@ -17,10 +18,14 @@ use Throwable;
  */
 final class TaskRelationMutationService
 {
+    private readonly DatabaseManager $db;
+
     public function __construct(
-        private readonly PDO $pdo,
+        PDO|DatabaseManager $connection,
         private readonly MutationCommandStore $commands = new MutationCommandStore()
     ) {
+        $this->db = $connection instanceof DatabaseManager
+            ? $connection : DatabaseManager::forConnection($connection);
     }
 
     /** @param array<string,mixed> $data @return array<string,mixed> */
@@ -46,7 +51,7 @@ final class TaskRelationMutationService
         $this->startTransaction();
         try {
             $receipt = $this->commands->acquire(
-                $this->pdo, 'user:' . $userId, $commandId, 'tasks',
+                $this->db, 'user:' . $userId, $commandId, 'tasks',
                 $action, 'task', $taskUid, $hash
             );
             $task = $this->ownedTask($userId, $taskUid);
@@ -55,7 +60,7 @@ final class TaskRelationMutationService
             }
             if (!$receipt['owner']) {
                 $result = $this->commands->storedResponse($receipt['record']);
-                $this->pdo->commit();
+                $this->db->endTransaction();
                 return $result;
             }
 
@@ -70,7 +75,7 @@ final class TaskRelationMutationService
                     'current_version' => $currentVersion,
                 ];
                 $this->finish($receipt, $result, $currentVersion, MutationCommandStore::STATUS_CONFLICT);
-                $this->pdo->commit();
+                $this->db->endTransaction();
                 return $result;
             }
 
@@ -88,7 +93,7 @@ final class TaskRelationMutationService
                 ...$details,
             ];
             $this->finish($receipt, $result, $version, MutationCommandStore::STATUS_APPLIED);
-            $this->pdo->commit();
+            $this->db->endTransaction();
             return $result;
         } catch (Throwable $error) {
             $this->rollBack();
@@ -122,10 +127,10 @@ final class TaskRelationMutationService
         $this->startTransaction();
         try {
             $receipt = $this->commands->acquire(
-                $this->pdo, 'user:' . $userId, $commandId, 'tasks',
+                $this->db, 'user:' . $userId, $commandId, 'tasks',
                 'task.category.create', 'task_category', 'user:' . $userId, $hash
             );
-            $active = $this->pdo->prepare(
+            $active = $this->db->prepare(
                 "SELECT id FROM users WHERE id=:user_id
                  AND is_active=1 AND account_status='active' LIMIT 1 FOR UPDATE"
             );
@@ -135,10 +140,10 @@ final class TaskRelationMutationService
             }
             if (!$receipt['owner']) {
                 $result = $this->commands->storedResponse($receipt['record']);
-                $this->pdo->commit();
+                $this->db->endTransaction();
                 return $result;
             }
-            $insert = $this->pdo->prepare(
+            $insert = $this->db->prepare(
                 'INSERT INTO task_categories
                   (user_id,name,color,icon,sort_order,is_deleted,created_at,updated_at)
                  VALUES (:user_id,:name,:color,:icon,0,0,NOW(),NOW())'
@@ -149,7 +154,7 @@ final class TaskRelationMutationService
                 ':color' => $color,
                 ':icon' => $icon,
             ]);
-            $categoryId = (int) $this->pdo->lastInsertId();
+            $categoryId = (int) $this->db->lastInsertId();
             $result = [
                 'success' => true,
                 'category' => [
@@ -161,7 +166,7 @@ final class TaskRelationMutationService
                 'replayed' => false,
             ];
             $this->finish($receipt, $result, null, MutationCommandStore::STATUS_APPLIED);
-            $this->pdo->commit();
+            $this->db->endTransaction();
             return $result;
         } catch (Throwable $error) {
             $this->rollBack();
@@ -217,7 +222,7 @@ final class TaskRelationMutationService
     /** @return array<string,mixed>|null */
     private function ownedTask(int $userId, string $uid): ?array
     {
-        $select = $this->pdo->prepare(
+        $select = $this->db->prepare(
             "SELECT t.id,t.uid,t.version FROM tasks t
              INNER JOIN users u ON u.id=t.user_id AND u.is_active=1
                  AND u.account_status='active'
@@ -247,12 +252,12 @@ final class TaskRelationMutationService
     /** @return array<string,mixed> */
     private function addSubtask(int $taskId, string $title): array
     {
-        $position = $this->pdo->prepare(
+        $position = $this->db->prepare(
             'SELECT COALESCE(MAX(sort_order), -1)+1 FROM subtasks WHERE task_id=:task_id'
         );
         $position->execute([':task_id' => $taskId]);
         $sortOrder = (int) $position->fetchColumn();
-        $insert = $this->pdo->prepare(
+        $insert = $this->db->prepare(
             'INSERT INTO subtasks
              (task_id,title,is_completed,completed_at,sort_order,created_at,updated_at)
              VALUES (:task_id,:title,0,NULL,:sort_order,NOW(),NOW())'
@@ -265,7 +270,7 @@ final class TaskRelationMutationService
         return [
             'changed' => true,
             'subtask' => [
-                'id' => (int) $this->pdo->lastInsertId(),
+                'id' => (int) $this->db->lastInsertId(),
                 'title' => $title,
                 'is_completed' => 0,
                 'sort_order' => $sortOrder,
@@ -280,7 +285,7 @@ final class TaskRelationMutationService
         if ((int) $row['is_completed'] === $completed) {
             return ['changed' => false, 'is_completed' => $completed, 'subtask_id' => $subtaskId];
         }
-        $statement = $this->pdo->prepare(
+        $statement = $this->db->prepare(
             'UPDATE subtasks SET is_completed=:completed,completed_at=:completed_at,
                 updated_at=NOW() WHERE id=:id AND task_id=:task_id'
         );
@@ -297,7 +302,7 @@ final class TaskRelationMutationService
     private function removeSubtask(int $taskId, int $subtaskId): array
     {
         $this->subtask($taskId, $subtaskId);
-        $stmt = $this->pdo->prepare('DELETE FROM subtasks WHERE id=:id AND task_id=:task_id');
+        $stmt = $this->db->prepare('DELETE FROM subtasks WHERE id=:id AND task_id=:task_id');
         $stmt->execute([':id' => $subtaskId, ':task_id' => $taskId]);
         return ['changed' => true, 'subtask_id' => $subtaskId];
     }
@@ -305,7 +310,7 @@ final class TaskRelationMutationService
     /** @return array<string,mixed> */
     private function subtask(int $taskId, int $subtaskId): array
     {
-        $stmt = $this->pdo->prepare(
+        $stmt = $this->db->prepare(
             'SELECT id,is_completed FROM subtasks WHERE id=:id AND task_id=:task_id LIMIT 1'
         );
         $stmt->execute([':id' => $subtaskId, ':task_id' => $taskId]);
@@ -319,7 +324,7 @@ final class TaskRelationMutationService
     /** @return array<string,mixed> */
     private function changeCategory(int $userId, int $taskId, int $categoryId, bool $attach): array
     {
-        $category = $this->pdo->prepare(
+        $category = $this->db->prepare(
             'SELECT id FROM task_categories WHERE id=:id AND is_deleted=0
              AND (user_id=:user_id OR user_id IS NULL) LIMIT 1'
         );
@@ -327,7 +332,7 @@ final class TaskRelationMutationService
         if ($category->fetchColumn() === false) {
             throw new DomainException('Категория не найдена или недоступна', 404);
         }
-        $exists = $this->pdo->prepare(
+        $exists = $this->db->prepare(
             'SELECT id FROM task_category_relations WHERE task_id=:task_id AND category_id=:category_id'
         );
         $exists->execute([':task_id' => $taskId, ':category_id' => $categoryId]);
@@ -342,14 +347,14 @@ final class TaskRelationMutationService
             $query = 'DELETE FROM task_category_relations
                       WHERE task_id=:task_id AND category_id=:category_id';
         }
-        $stmt = $this->pdo->prepare($query);
+        $stmt = $this->db->prepare($query);
         $stmt->execute([':task_id' => $taskId, ':category_id' => $categoryId]);
         return ['changed' => true, 'category_id' => $categoryId, 'attached' => $attach];
     }
 
     private function increaseVersion(int $taskId, int $expectedVersion): int
     {
-        $stmt = $this->pdo->prepare(
+        $stmt = $this->db->prepare(
             'UPDATE tasks SET version=version+1,updated_at=NOW()
              WHERE id=:id AND version=:expected AND is_deleted=0'
         );
@@ -364,23 +369,23 @@ final class TaskRelationMutationService
     private function finish(array $receipt, array $response, ?int $version, string $status): void
     {
         $this->commands->complete(
-            $this->pdo, (int) $receipt['record']['id'], $receipt['token'],
+            $this->db, (int) $receipt['record']['id'], $receipt['token'],
             $status, $response, $version
         );
     }
 
     private function startTransaction(): void
     {
-        if ($this->pdo->inTransaction()) {
+        if ($this->db->inTransaction()) {
             throw new RuntimeException('Изменение связанной сущности требует отдельную транзакцию');
         }
-        $this->pdo->beginTransaction();
+        $this->db->beginTransaction();
     }
 
     private function rollBack(): void
     {
-        if ($this->pdo->inTransaction()) {
-            $this->pdo->rollBack();
+        if ($this->db->inTransaction()) {
+            $this->db->endTransaction(false);
         }
     }
 }

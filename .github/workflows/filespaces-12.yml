@@ -5,6 +5,11 @@ on:
     branches: ['1.2']
     paths:
       - 'modules/files/**'
+      - 'core/DatabaseManager.php'
+      - 'core/DatabasePreparedStatement.php'
+      - 'core/MutationCommandStore.php'
+      - 'tests/integration/module_database_boundary_12.php'
+      - 'tests/integration/module_database_legacy_12.json'
       - 'database/file_spaces_schema.sql'
       - 'database/migrations/20261018_file_spaces_foundation.sql'
       - 'database/migrations/manifest.json'
@@ -98,7 +103,13 @@ jobs:
           php -l modules/files/views/spaces.php
           php -l modules/files/FilesRuntimeProvider.php
           php -l tests/integration/filespaces_12_contract.php
+          php -l core/DatabaseManager.php
+          php -l core/DatabasePreparedStatement.php
+          php -l tests/integration/module_database_boundary_12.php
           node --check modules/files/assets/spaces.js
+
+      - name: Проверить использование ядра модулями
+        run: php tests/integration/module_database_boundary_12.php
 
       - name: Проверить права и конкурентные команды Filespaces
         run: php tests/integration/filespaces_12_contract.php

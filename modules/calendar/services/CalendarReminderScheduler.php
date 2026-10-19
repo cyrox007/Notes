@@ -87,7 +87,7 @@ final class CalendarReminderScheduler
                             ':offset_seconds' => $offset,
                         ]
                     );
-                    $ids[(int) $this->db->getPdo()->lastInsertId()] = true;
+                    $ids[(int) $this->db->lastInsertId()] = true;
                 }
             }
             $this->db->endTransaction(true);

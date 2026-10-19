@@ -165,7 +165,7 @@ final class TaskBoardController extends Controller
                 ? ((string) $changes['archived'] === '1' ? 'board.task.archive' : 'board.task.restore')
                 : (array_keys($changes) === ['status'] ? 'board.task.status' : 'board.task.update');
             $result = (new \App\Services\Tasks\TaskBoardVersionMutationService(
-                \Core\DatabaseManager::getInstance()->getPdo()
+                \Core\DatabaseManager::getInstance()
             ))->mutate($this->userId($request), $uid, $version, $commandId, $action, $changes);
             $this->respondBoardMutation($request, $result);
         } catch (InvalidArgumentException|DomainException $error) {
@@ -182,7 +182,7 @@ final class TaskBoardController extends Controller
         try {
             [$version, $commandId] = $this->commandIdentity($request);
             $result = (new \App\Services\Tasks\TaskBoardVersionMutationService(
-                \Core\DatabaseManager::getInstance()->getPdo()
+                \Core\DatabaseManager::getInstance()
             ))->mutate(
                 $this->userId($request), $uid, $version, $commandId,
                 'board.task.delete', ['delete' => '1']

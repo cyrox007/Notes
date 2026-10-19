@@ -7,6 +7,7 @@ namespace App\Services\Tasks;
 use Core\MutationCommandStore;
 use InvalidArgumentException;
 use PDO;
+use Core\DatabaseManager;
 use RuntimeException;
 use Throwable;
 
@@ -32,10 +33,14 @@ final class TaskVersionMutationService
         'deleted_at',
     ];
 
+    private readonly DatabaseManager $db;
+
     public function __construct(
-        private readonly PDO $pdo,
+        PDO|DatabaseManager $connection,
         private readonly MutationCommandStore $commands = new MutationCommandStore()
     ) {
+        $this->db = $connection instanceof DatabaseManager
+            ? $connection : DatabaseManager::forConnection($connection);
     }
 
     /**
@@ -69,14 +74,14 @@ final class TaskVersionMutationService
             'changes' => $normalized,
         ]);
 
-        if ($this->pdo->inTransaction()) {
+        if ($this->db->inTransaction()) {
             throw new RuntimeException('TaskVersionMutationService требует самостоятельную транзакцию');
         }
 
-        $this->pdo->beginTransaction();
+        $this->db->beginTransaction();
         try {
             $receipt = $this->commands->acquire(
-                $this->pdo,
+                $this->db,
                 'user:' . $userId,
                 $commandId,
                 'tasks',
@@ -88,7 +93,7 @@ final class TaskVersionMutationService
 
             if (!$receipt['owner']) {
                 $response = $this->commands->storedResponse($receipt['record']);
-                $this->pdo->commit();
+                $this->db->endTransaction();
                 return $response;
             }
 
@@ -109,14 +114,14 @@ final class TaskVersionMutationService
                     'current' => $this->publicTask($task),
                 ];
                 $this->commands->complete(
-                    $this->pdo,
+                    $this->db,
                     (int) $receipt['record']['id'],
                     $receipt['token'],
                     MutationCommandStore::STATUS_CONFLICT,
                     $response,
                     $currentVersion
                 );
-                $this->pdo->commit();
+                $this->db->endTransaction();
                 return $response;
             }
 
@@ -136,7 +141,7 @@ final class TaskVersionMutationService
             $set[] = '`version` = `version` + 1';
             $set[] = '`updated_at` = :updated_at';
 
-            $statement = $this->pdo->prepare(
+            $statement = $this->db->prepare(
                 'UPDATE tasks SET ' . implode(', ', $set)
                 . ' WHERE id=:id AND user_id=:user_id AND version=:expected_version'
             );
@@ -159,18 +164,18 @@ final class TaskVersionMutationService
             ];
 
             $this->commands->complete(
-                $this->pdo,
+                $this->db,
                 (int) $receipt['record']['id'],
                 $receipt['token'],
                 MutationCommandStore::STATUS_APPLIED,
                 $response,
                 $resultVersion
             );
-            $this->pdo->commit();
+            $this->db->endTransaction();
             return $response;
         } catch (Throwable $exception) {
-            if ($this->pdo->inTransaction()) {
-                $this->pdo->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->endTransaction(false);
             }
             throw $exception;
         }
@@ -193,7 +198,7 @@ final class TaskVersionMutationService
     /** @return array<string,mixed>|null */
     private function lockTask(int $userId, string $taskUid): ?array
     {
-        $statement = $this->pdo->prepare(
+        $statement = $this->db->prepare(
             'SELECT id,uid,user_id,title,description,status,priority,due_date,completed_at,
                     archived_at,is_deleted,deleted_at,version,created_at,updated_at
              FROM tasks

@@ -468,8 +468,7 @@ class FileController extends Controller
     private function canViewGlobalFiles(int $userId): bool
     {
         try {
-            $pdo = DatabaseManager::getInstance()->getPdo();
-            $access = new \App\Services\Files\FileSpaceAccessService($pdo);
+            $access = new \App\Services\Files\FileSpaceAccessService(DatabaseManager::getInstance());
             return $access->decision($userId, 'global', null, 'view')['allowed'];
         } catch (\Throwable $error) {
             error_log('Не удалось проверить доступ к общим файлам: ' . $error->getMessage());

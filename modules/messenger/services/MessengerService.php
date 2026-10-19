@@ -400,7 +400,7 @@ final class MessengerService
                     ':updated_at' => $now,
                 ]
             );
-            $dialogId = (int) $this->db->getPdo()->lastInsertId();
+            $dialogId = (int) $this->db->lastInsertId();
 
             $this->db->execute(
                 'INSERT INTO user_to_dialogs (dialog_id, user_id, role, joined_at, is_deleted)
@@ -492,7 +492,7 @@ final class MessengerService
                     ':updated_at' => $now,
                 ]
             );
-            $messageId = (int) $this->db->getPdo()->lastInsertId();
+            $messageId = (int) $this->db->lastInsertId();
             $this->db->execute(
                 'UPDATE dialogs SET updated_at = :updated_at WHERE id = :id',
                 [':updated_at' => $now, ':id' => (int) $dialog['id']]

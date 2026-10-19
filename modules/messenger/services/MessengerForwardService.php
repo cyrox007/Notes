@@ -113,7 +113,7 @@ final class MessengerForwardService
                         ':created_at' => $now,
                     ]
                 );
-                $attachmentId = (int) $this->db->getPdo()->lastInsertId();
+                $attachmentId = (int) $this->db->lastInsertId();
                 $mediaUrl = '/messenger/media/' . rawurlencode($newAttachmentUid);
                 $newMeta = array_merge($newMeta, [
                     'attachment_uid' => $newAttachmentUid,
@@ -146,7 +146,7 @@ final class MessengerForwardService
                     ':updated_at' => $now,
                 ]
             );
-            $newMessageId = (int) $this->db->getPdo()->lastInsertId();
+            $newMessageId = (int) $this->db->lastInsertId();
 
             if ($attachmentId !== null) {
                 $affected = $this->db->execute(

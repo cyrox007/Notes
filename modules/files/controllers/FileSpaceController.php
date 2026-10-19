@@ -29,8 +29,8 @@ final class FileSpaceController extends Controller
             $catalog = $service->browse($actorId, $folderId, (string) $request->get('cursor', ''));
             $rules = $catalog['can_manage'] ? $service->rules($actorId, $folderId) : [];
             $trash = (new FileSpaceObjectService(
-                DatabaseManager::getInstance()->getPdo(),
-                new FileSpaceAccessService(DatabaseManager::getInstance()->getPdo())
+                DatabaseManager::getInstance(),
+                new FileSpaceAccessService(DatabaseManager::getInstance())
             ))->trash($actorId);
             $db = DatabaseManager::getInstance();
             $roles = $catalog['can_manage']
@@ -46,7 +46,7 @@ final class FileSpaceController extends Controller
             $this->render_template('@files/spaces', [
                 'user' => $user,
                 'catalog' => $catalog,
-                'can_admin_files' => (new FileSpaceAccessService(DatabaseManager::getInstance()->getPdo()))
+                'can_admin_files' => (new FileSpaceAccessService(DatabaseManager::getInstance()))
                     ->actor($actorId)['is_admin'],
                 'acl_rules' => $rules,
                 'trash_items' => $trash,
@@ -158,8 +158,8 @@ final class FileSpaceController extends Controller
 
     private function service(): FileSpaceFolderService
     {
-        $pdo = DatabaseManager::getInstance()->getPdo();
-        return new FileSpaceFolderService($pdo, new FileSpaceAccessService($pdo));
+        $db = DatabaseManager::getInstance();
+        return new FileSpaceFolderService($db, new FileSpaceAccessService($db));
     }
 
     private function status(Throwable $error, int $fallback): int
