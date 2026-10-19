@@ -81,12 +81,12 @@ jobs:
 
       - name: Проверить сроки и приоритеты дефектов 1.2
         run: |
-          php -l development/defects/DefectPriorityPolicy.php
+          php -l modules/defects/services/DefectPriorityPolicy.php
           php -l tests/integration/defects_priority_policy_12.php
           php tests/integration/defects_priority_policy_12.php
-          php -l development/defects/DefectReferenceService.php
+          php -l modules/defects/services/DefectReferenceService.php
           php tests/integration/defects_reference_boundary_12.php
-          php -l development/defects/DefectRegistrationService.php
+          php -l modules/defects/services/DefectRegistrationService.php
           php -l tests/integration/defects_registration_12.php
           php tests/integration/defects_registration_12.php
           grep -Fq 'database|development|docs' .htaccess
