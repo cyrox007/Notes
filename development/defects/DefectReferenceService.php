@@ -35,7 +35,9 @@ final class DefectReferenceService
         $this->assertPage($limit, $afterId);
 
         return $this->database->fetchAll(
-            'SELECT id, name FROM defect_object_categories WHERE area_id = :area_id AND is_archived = 0 AND id > :after_id ORDER BY id LIMIT ' . $limit,
+            'SELECT id, name FROM defect_object_categories WHERE area_id = :area_id AND is_archived = 0
+             AND area_id IN (SELECT id FROM defect_areas WHERE is_archived = 0)
+             AND id > :after_id ORDER BY id LIMIT ' . $limit,
             ['area_id' => $areaId, 'after_id' => $afterId]
         );
     }
@@ -47,7 +49,12 @@ final class DefectReferenceService
         $this->assertPage($limit, $afterId);
 
         return $this->database->fetchAll(
-            'SELECT id, name FROM defect_objects WHERE category_id = :category_id AND is_archived = 0 AND id > :after_id ORDER BY id LIMIT ' . $limit,
+            'SELECT id, name FROM defect_objects WHERE category_id = :category_id AND is_archived = 0
+             AND category_id IN (
+                SELECT c.id FROM defect_object_categories c
+                JOIN defect_areas a ON a.id = c.area_id
+                WHERE c.is_archived = 0 AND a.is_archived = 0
+             ) AND id > :after_id ORDER BY id LIMIT ' . $limit,
             ['category_id' => $categoryId, 'after_id' => $afterId]
         );
     }
