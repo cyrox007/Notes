@@ -170,11 +170,20 @@ try {
     await manager.locator('.defects-reference-row').first().waitFor({ state: 'visible', timeout: 15000 });
     const secondService = manager.locator('.defects-reference-row').filter({ hasText: 'Диспетчерская' });
     await secondService.getByRole('button', { name: 'В архив' }).click();
+    const archiveResponse = ajaxResponse(page, '/api/defects/references/services/2/archive');
     await secondService.getByRole('button', { name: 'Подтвердить' }).click();
+    const archivedHttp = await archiveResponse;
+    check(archivedHttp.status() === 200,
+        'Не удалось архивировать службу: HTTP ' + archivedHttp.status() + ', '
+        + JSON.stringify(await archivedHttp.json()));
+    await secondService.waitFor({ state: 'hidden', timeout: 15000 });
     await manager.locator('[data-defects-manage-archived]').check();
     const archived = manager.locator('.defects-reference-row').filter({ hasText: 'Диспетчерская' });
     await archived.getByRole('button', { name: 'Восстановить' }).waitFor({ state: 'visible', timeout: 15000 });
+    const restoreResponse = ajaxResponse(page, '/api/defects/references/services/2/restore');
     await archived.getByRole('button', { name: 'Восстановить' }).click();
+    const restoredHttp = await restoreResponse;
+    check(restoredHttp.status() === 200, 'Восстановление вернуло HTTP ' + restoredHttp.status());
     await archived.waitFor({ state: 'hidden', timeout: 15000 });
 
     // Сетевой сбой не должен оставлять интерфейс заблокированным.
