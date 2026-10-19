@@ -73,7 +73,7 @@ class DatabaseManager
     /**
      * Использовать существующее соединение в изолированных сценариях
      * и сервисах, работающих внутри общей транзакции.
-     * Создание второго соединения или замена глобального менеджера исключены.
+     * Менеджер не создаёт новое соединение и не владеет переданным PDO.
      */
     public static function forConnection(PDO $connection, bool $enableLogging = false): self
     {
@@ -195,6 +195,9 @@ class DatabaseManager
     {
         try {
             if ($this->pdo === null) {
+                if ($this->externalConnection) {
+                    throw new \LogicException('Переданное соединение уже освобождено');
+                }
                 $this->pdo = $this->createConnection();
                 return;
             }
@@ -559,6 +562,9 @@ class DatabaseManager
      */
     public function releaseIdleConnection(): void
     {
+        if ($this->externalConnection) {
+            return;
+        }
         if ($this->inTransaction || $this->transactionQueue !== []) {
             return;
         }
@@ -571,7 +577,7 @@ class DatabaseManager
 
     public function close(): void
     {
-        if ($this->pdo?->inTransaction()) {
+        if (!$this->externalConnection && $this->pdo?->inTransaction()) {
             $this->pdo->rollBack();
         }
 
