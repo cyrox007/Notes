@@ -7,6 +7,7 @@ namespace App\Services\Files;
 use DomainException;
 use InvalidArgumentException;
 use PDO;
+use Core\DatabaseManager;
 
 /**
  * Централизованная проверка прав файловых пространств.
@@ -21,14 +22,18 @@ final class FileSpaceAccessService
         'share', 'history', 'restore', 'manage_acl',
     ];
 
-    public function __construct(private readonly PDO $pdo)
+    private readonly DatabaseManager $db;
+
+    public function __construct(PDO|DatabaseManager $connection)
     {
+        $this->db = $connection instanceof DatabaseManager
+            ? $connection : DatabaseManager::forConnection($connection);
     }
 
     /** @return array<string,mixed> */
     public function space(string $uid = 'global'): array
     {
-        $stmt = $this->pdo->prepare(
+        $stmt = $this->db->prepare(
             'SELECT id,uid,space_type,owner_user_id,name,version,is_archived
              FROM file_spaces WHERE uid=:uid LIMIT 1'
         );
@@ -43,7 +48,7 @@ final class FileSpaceAccessService
     /** @return array<string,mixed> */
     public function node(int $spaceId, int $nodeId, bool $includeDeleted = false): array
     {
-        $stmt = $this->pdo->prepare(
+        $stmt = $this->db->prepare(
             'SELECT id,uid,space_id,parent_id,node_type,name,created_by,
                     inherit_acl,version,is_deleted
              FROM file_space_nodes
@@ -63,7 +68,7 @@ final class FileSpaceAccessService
         if ($userId < 1) {
             throw new DomainException('Требуется авторизация', 401);
         }
-        $stmt = $this->pdo->prepare(
+        $stmt = $this->db->prepare(
             "SELECT id,role FROM users WHERE id=:id
              AND is_active=1 AND account_status='active' LIMIT 1"
         );
@@ -72,14 +77,14 @@ final class FileSpaceAccessService
         if (!is_array($user)) {
             throw new DomainException('Учётная запись недоступна', 403);
         }
-        $roles = $this->pdo->prepare(
+        $roles = $this->db->prepare(
             'SELECT r.id,r.code FROM roles r
              JOIN user_roles ur ON ur.role_id=r.id
              WHERE ur.user_id=:id'
         );
         $roles->execute([':id' => $userId]);
         $memberships = $roles->fetchAll(PDO::FETCH_ASSOC);
-        $groupQuery = $this->pdo->prepare(
+        $groupQuery = $this->db->prepare(
             'SELECT group_id FROM file_access_group_members WHERE user_id=:id'
         );
         $groupQuery->execute([':id' => $userId]);
@@ -152,7 +157,7 @@ final class FileSpaceAccessService
         $rights = array_values(array_unique([...$permissions, 'view']));
         $scopeMarks = implode(',', array_fill(0, count($scopes), '?'));
         $rightMarks = implode(',', array_fill(0, count($rights), '?'));
-        $query = $this->pdo->prepare(
+        $query = $this->db->prepare(
             'SELECT scope_key,permission_key,subject_type,subject_id,effect
              FROM file_space_acl WHERE space_id=?
                AND scope_key IN (' . $scopeMarks . ')
@@ -239,7 +244,7 @@ final class FileSpaceAccessService
         }
         $scopes = array_values(array_unique($scopes));
         $marks = implode(',', array_fill(0, count($scopes), '?'));
-        $rulesQuery = $this->pdo->prepare(
+        $rulesQuery = $this->db->prepare(
             'SELECT scope_key,permission_key,subject_type,subject_id,effect
              FROM file_space_acl WHERE space_id=?
                AND scope_key IN (' . $marks . ')'
