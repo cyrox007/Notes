@@ -40,7 +40,7 @@ $nodeVersion = $folderVersion;
  * @param array<string,mixed> $config
  * @return list<array<string,mixed>>
  */
-$runRace = static function (array $config, int $workers = 8) use ($raceHome, $racePrivate, $root): array {
+$runRace = static function (array $config, int $workers = 8) use ($raceHome, $racePrivate, $root, $pdo): array {
     $id = 'race_' . bin2hex(random_bytes(6));
     $config['run_id'] = $id;
     $config['storage_root'] = $racePrivate;
@@ -48,6 +48,8 @@ $runRace = static function (array $config, int $workers = 8) use ($raceHome, $ra
     $gate = $raceHome . '/' . $id . '.go';
     file_put_contents($configPath, json_encode($config, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
     $running = [];
+    $databaseQueriesBefore = (int) $pdo->query("SHOW GLOBAL STATUS LIKE 'Queries'")->fetch(PDO::FETCH_ASSOC)['Value'];
+    $phaseStarted = microtime(true);
     try {
         for ($index = 0; $index < $workers; $index++) {
             $stdout = $raceHome . '/' . $id . '-' . $index . '.out';
@@ -114,6 +116,13 @@ $runRace = static function (array $config, int $workers = 8) use ($raceHome, $ra
             $report = json_decode((string) file_get_contents($json), true, 512, JSON_THROW_ON_ERROR);
             $reports[] = ['worker' => $index, ...$report];
         }
+        $databaseQueriesAfter = (int) $pdo->query("SHOW GLOBAL STATUS LIKE 'Queries'")->fetch(PDO::FETCH_ASSOC)['Value'];
+        $phaseDuration = microtime(true) - $phaseStarted;
+        $queryCount = $databaseQueriesAfter - $databaseQueriesBefore;
+        $peakMemory = max(array_column($reports, 'php_peak_bytes'));
+        echo sprintf("Нагрузка Files: %s; процессы %d; время %.2f с; MySQL запросов %d; пик PHP %.1f МиБ/процесс\n",
+            (string) $config['mode'], count($reports), $phaseDuration,
+            $queryCount, $peakMemory / 1048576);
         return $reports;
     } finally {
         foreach ($running as $task) {
