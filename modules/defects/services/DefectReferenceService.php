@@ -70,18 +70,20 @@ final class DefectReferenceService
         );
     }
 
-    public function createArea(string $name): int
+    public function createArea(string $name, ?int $actorId = null): int
     {
         $name = $this->validatedName($name);
-        $this->database->execute(
-            'INSERT INTO defect_areas (name) VALUES (:name)',
-            ['name' => $name]
-        );
 
-        return (int) $this->database->lastInsertId();
+        return $this->createWithHistory('area', $name, $actorId, null, function () use ($name): int {
+            $this->database->execute(
+                'INSERT INTO defect_areas (name) VALUES (:name)',
+                ['name' => $name]
+            );
+            return (int) $this->database->lastInsertId();
+        });
     }
 
-    public function createCategory(int $areaId, string $name): int
+    public function createCategory(int $areaId, string $name, ?int $actorId = null): int
     {
         $this->assertId($areaId);
         $name = $this->validatedName($name);
@@ -93,15 +95,16 @@ final class DefectReferenceService
             throw new InvalidArgumentException('Участок недоступен');
         }
 
-        $this->database->execute(
-            'INSERT INTO defect_object_categories (area_id, name) VALUES (:area_id, :name)',
-            ['area_id' => $areaId, 'name' => $name]
-        );
-
-        return (int) $this->database->lastInsertId();
+        return $this->createWithHistory('category', $name, $actorId, $areaId, function () use ($areaId, $name): int {
+            $this->database->execute(
+                'INSERT INTO defect_object_categories (area_id, name) VALUES (:area_id, :name)',
+                ['area_id' => $areaId, 'name' => $name]
+            );
+            return (int) $this->database->lastInsertId();
+        });
     }
 
-    public function createObject(int $categoryId, string $name): int
+    public function createObject(int $categoryId, string $name, ?int $actorId = null): int
     {
         $this->assertId($categoryId);
         $name = $this->validatedName($name);
@@ -115,23 +118,63 @@ final class DefectReferenceService
             throw new InvalidArgumentException('Категория или участок недоступны');
         }
 
-        $this->database->execute(
-            'INSERT INTO defect_objects (category_id, name) VALUES (:category_id, :name)',
-            ['category_id' => $categoryId, 'name' => $name]
-        );
-
-        return (int) $this->database->lastInsertId();
+        return $this->createWithHistory('object', $name, $actorId, $categoryId, function () use ($categoryId, $name): int {
+            $this->database->execute(
+                'INSERT INTO defect_objects (category_id, name) VALUES (:category_id, :name)',
+                ['category_id' => $categoryId, 'name' => $name]
+            );
+            return (int) $this->database->lastInsertId();
+        });
     }
 
-    public function createService(string $name): int
+    public function createService(string $name, ?int $actorId = null): int
     {
         $name = $this->validatedName($name);
-        $this->database->execute(
-            'INSERT INTO defect_services (name) VALUES (:name)',
-            ['name' => $name]
-        );
 
-        return (int) $this->database->lastInsertId();
+        return $this->createWithHistory('service', $name, $actorId, null, function () use ($name): int {
+            $this->database->execute(
+                'INSERT INTO defect_services (name) VALUES (:name)',
+                ['name' => $name]
+            );
+            return (int) $this->database->lastInsertId();
+        });
+    }
+
+    /**
+     * Транзакция принадлежит вызывающему импорту, если он уже начал её.
+     * Обычная операция создаёт и запись, и событие одной транзакцией ядра.
+     */
+    private function createWithHistory(
+        string $type,
+        string $name,
+        ?int $actorId,
+        ?int $parentId,
+        callable $create
+    ): int {
+        $ownTransaction = !$this->database->inTransaction();
+        if ($ownTransaction) {
+            $this->database->beginTransaction();
+        }
+
+        try {
+            $id = $create();
+            if ($id < 1) {
+                throw new \DomainException('Не удалось получить идентификатор справочника');
+            }
+            (new DefectHistoryService($this->database))->record(
+                $type, $id, 'created', $actorId,
+                ['name' => $name, 'parent_id' => $parentId]
+            );
+            if ($ownTransaction) {
+                $this->database->endTransaction();
+            }
+            return $id;
+        } catch (\Throwable $error) {
+            if ($ownTransaction) {
+                $this->database->endTransaction(false);
+            }
+            throw $error;
+        }
     }
 
     private function validatedName(string $name): string
