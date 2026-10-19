@@ -103,11 +103,12 @@ final class DefectRegistryService
         try {
             $affected = $this->database->execute(
                 "UPDATE defects SET status='closed',completed_work=:work,
-                    closed_at=UTC_TIMESTAMP(),closed_by_user_id=:user_id,
+                    closed_at=:closed_at,closed_by_user_id=:user_id,
                     version=version+1,close_command_id=:command_id,close_request_hash=:hash
                  WHERE id=:id AND version=:version AND status='open'",
                 [
                     'work' => $work, 'user_id' => $userId,
+                    'closed_at' => gmdate('Y-m-d H:i:s'),
                     'command_id' => $commandId, 'hash' => $fingerprint,
                     'id' => $id, 'version' => $expectedVersion,
                 ]
