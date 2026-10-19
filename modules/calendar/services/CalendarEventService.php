@@ -105,7 +105,7 @@ final class CalendarEventService
                     ':recurrence_rule' => $data['recurrence_rule'],
                 ]
             );
-            $eventId = (int) $this->db->getPdo()->lastInsertId();
+            $eventId = (int) $this->db->lastInsertId();
             $this->replaceOffsets($eventId, $data['reminder_offsets']);
             $this->db->endTransaction(true);
         } catch (Throwable $e) {
