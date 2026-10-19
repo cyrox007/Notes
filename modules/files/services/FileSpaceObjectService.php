@@ -141,12 +141,30 @@ final class FileSpaceObjectService
         );
         $stmt->execute([':space' => (int) $space['id']]);
         $items = [];
+        $parents = [];
+
+        // За один просмотр корзины права и версия одинакового родителя
+        // вычисляются однажды. Между HTTP-запросами результаты не сохраняются.
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $node) {
             $parent = $node['parent_id'] === null ? null : (int) $node['parent_id'];
-            try {
-                $this->access->require($actorId, 'global', $parent, 'view');
-                $this->access->require($actorId, 'global', $parent, 'restore');
-            } catch (DomainException) {
+            $parentKey = $parent === null ? 'root' : 'node:' . $parent;
+            if (!array_key_exists($parentKey, $parents)) {
+                try {
+                    $rights = $this->access->decisions(
+                        $actorId, 'global', $parent, ['view', 'restore']
+                    );
+                    if (!$rights['view']['allowed'] || !$rights['restore']['allowed']) {
+                        $parents[$parentKey] = null;
+                    } else {
+                        $parents[$parentKey] = $this->containerVersion(
+                            (int) $space['id'], $parent
+                        );
+                    }
+                } catch (DomainException) {
+                    $parents[$parentKey] = null;
+                }
+            }
+            if ($parents[$parentKey] === null) {
                 continue;
             }
             $items[] = [
@@ -156,7 +174,7 @@ final class FileSpaceObjectService
                 'version' => (int) $node['version'],
                 'parent_id' => $parent,
                 'deleted_at' => $node['deleted_at'],
-                'parent_version' => $this->containerVersion((int) $space['id'], $parent),
+                'parent_version' => $parents[$parentKey],
             ];
         }
         return $items;
