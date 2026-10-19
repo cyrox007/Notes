@@ -38,6 +38,7 @@
     ]
   },
   "background": {
-    "account_purge_guard": "none"
+    "account_purge_guard": "none",
+    "retention_cleanup": "none"
   }
 }
