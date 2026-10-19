@@ -6,6 +6,7 @@ $root = __DIR__;
 foreach ([
     'services/DefectPriorityPolicy.php',
     'services/DefectReferenceService.php',
+    'services/DefectReferenceImportService.php',
     'services/DefectRegistrationService.php',
     'services/DefectRegistryService.php',
     'services/DefectReportService.php',
