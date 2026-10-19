@@ -5,11 +5,13 @@ declare(strict_types=1);
 use Core\DatabaseManager;
 use Modules\Defects\Services\DefectPriorityPolicy;
 use Modules\Defects\Services\DefectRegistrationService;
+use Modules\Defects\Services\DefectReferenceService;
 
 $root = dirname(__DIR__, 2);
 require_once $root . '/core/DatabaseManager.php';
 require_once $root . '/development/defects/DefectPriorityPolicy.php';
 require_once $root . '/development/defects/DefectRegistrationService.php';
+require_once $root . '/development/defects/DefectReferenceService.php';
 
 function defectsAssert(bool $condition, string $message): void
 {
@@ -24,10 +26,10 @@ function defectsAssert(bool $condition, string $message): void
 $pdo = new PDO('sqlite::memory:');
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 $pdo->exec('PRAGMA foreign_keys = ON');
-$pdo->exec('CREATE TABLE defect_areas (id INTEGER PRIMARY KEY, is_archived INTEGER NOT NULL DEFAULT 0)');
-$pdo->exec('CREATE TABLE defect_object_categories (id INTEGER PRIMARY KEY, area_id INTEGER NOT NULL, is_archived INTEGER NOT NULL DEFAULT 0)');
-$pdo->exec('CREATE TABLE defect_objects (id INTEGER PRIMARY KEY, category_id INTEGER NOT NULL, is_archived INTEGER NOT NULL DEFAULT 0)');
-$pdo->exec('CREATE TABLE defect_services (id INTEGER PRIMARY KEY, is_archived INTEGER NOT NULL DEFAULT 0)');
+$pdo->exec('CREATE TABLE defect_areas (id INTEGER PRIMARY KEY, name TEXT NOT NULL DEFAULT '', is_archived INTEGER NOT NULL DEFAULT 0)');
+$pdo->exec('CREATE TABLE defect_object_categories (id INTEGER PRIMARY KEY, name TEXT NOT NULL DEFAULT '', area_id INTEGER NOT NULL, is_archived INTEGER NOT NULL DEFAULT 0)');
+$pdo->exec('CREATE TABLE defect_objects (id INTEGER PRIMARY KEY, name TEXT NOT NULL DEFAULT '', category_id INTEGER NOT NULL, is_archived INTEGER NOT NULL DEFAULT 0)');
+$pdo->exec('CREATE TABLE defect_services (id INTEGER PRIMARY KEY, name TEXT NOT NULL DEFAULT '', is_archived INTEGER NOT NULL DEFAULT 0)');
 $pdo->exec('CREATE TABLE defects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     object_id INTEGER NOT NULL,
@@ -53,6 +55,29 @@ $pdo->exec('INSERT INTO defect_objects (id,category_id) VALUES (3,2)');
 $pdo->exec('INSERT INTO defect_services (id) VALUES (4),(5)');
 
 $database = DatabaseManager::forConnection($pdo);
+$references = new DefectReferenceService($database);
+$areaId = $references->createArea('  Северный РЭС  ');
+defectsAssert($areaId === 2, 'новый участок не создан');
+$categoryId = $references->createCategory($areaId, 'Подстанция');
+$objectId = $references->createObject($categoryId, 'ТП-17');
+$serviceId = $references->createService('Ремонтная служба');
+defectsAssert($categoryId === 3 && $objectId === 4 && $serviceId === 6, 'справочники не сохранили идентификаторы');
+defectsAssert(count($references->areas(1, 1)) === 1, 'пагинация участков нарушена');
+defectsAssert(count($references->categories($areaId)) === 1, 'категория участка не найдена');
+defectsAssert(count($references->objects($categoryId)) === 1, 'объект категории не найден');
+defectsAssert(count($references->services(2, 4)) === 2, 'список служб не ограничен курсором');
+defectsAssert((string) $database->fetchValue(
+    'SELECT name FROM defect_areas WHERE id = :id', ['id' => $areaId]
+) === 'Северный РЭС', 'название участка не нормализовано');
+
+$invalidParent = false;
+try {
+    $references->createCategory(999, 'Несуществующая категория');
+} catch (InvalidArgumentException) {
+    $invalidParent = true;
+}
+defectsAssert($invalidParent, 'нельзя создать категорию для отсутствующего участка');
+
 $registrar = new DefectRegistrationService($database);
 $detected = new DateTimeImmutable('2026-10-19 12:30:00', new DateTimeZone('Europe/Moscow'));
 $register = static fn (string $command, array $services = [4, 5], string $description = 'Повреждение изоляции'):
