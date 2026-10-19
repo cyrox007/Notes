@@ -5,6 +5,7 @@ declare(strict_types=1);
 $root = __DIR__;
 foreach ([
     'services/DefectPriorityPolicy.php',
+    'services/DefectHistoryService.php',
     'services/DefectReferenceService.php',
     'services/DefectReferenceImportService.php',
     'services/DefectRegistrationService.php',
