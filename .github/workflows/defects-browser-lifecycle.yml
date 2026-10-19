@@ -62,20 +62,25 @@ jobs:
       - name: Развернуть каноническую схему MySQL 8.4
         run: |
           set -euo pipefail
+          # Свежая установка собирается из схем владельцев, а не старых
+          # агрегированных SQL-файлов ранних версий.
           for file in \
-            database/messenger_schema.sql \
-            database/notes_schema.sql \
-            database/file_manager_schema.sql \
-            database/user_fields_schema.sql \
-            database/tasks_schema.sql \
-            database/settings_schema.sql \
-            database/module_lifecycle_schema.sql \
+            database/core_identity_schema.sql \
             database/access_control_schema.sql \
             database/audit_schema.sql \
-            database/migrations/20261010_notifications_foundation.sql \
-            database/migrations/20261012_notifications_http_fallback.sql \
+            database/core_settings_schema.sql \
+            database/module_lifecycle_schema.sql \
+            database/messenger_module_schema.sql \
+            database/notes_schema.sql \
+            database/file_manager_module_schema.sql \
+            database/file_storage_quota_schema.sql \
+            database/file_spaces_schema.sql \
+            database/user_fields_schema.sql \
+            database/tasks_schema.sql \
             database/calendar_schema.sql \
+            database/notifications_schema.sql \
             database/defects_schema.sql \
+            database/migrations/20261017_mutation_commands.sql \
             database/migrations/20261019_defects_foundation.sql; do
             mysql -h 127.0.0.1 -uroot -proot defects_browser < "$file"
           done
@@ -183,6 +188,10 @@ jobs:
             sleep .3
           done
           if [[ "$ready" != 1 ]]; then
+            echo 'Ответ приложения:' >&2
+            curl -sS -i http://127.0.0.1:18094/workspace/auth/login/ >&2 || true
+            echo 'Состояние обязательных таблиц:' >&2
+            php -r 'require_once "core/CliRuntime.php"; \\Core\\CliRuntime::loadEnvironment(getcwd()); require_once "core/RuntimeAutoloader.php"; \\Core\\RuntimeAutoloader::register(getcwd()); echo json_encode(\\Core\\SchemaReadiness::inspect(getcwd()), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), PHP_EOL;' >&2 || true
             cat /tmp/workspace-defects-browser-http.log >&2
             exit 1
           fi
