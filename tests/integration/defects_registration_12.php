@@ -6,12 +6,14 @@ use Core\DatabaseManager;
 use Modules\Defects\Services\DefectPriorityPolicy;
 use Modules\Defects\Services\DefectRegistrationService;
 use Modules\Defects\Services\DefectReferenceService;
+use Modules\Defects\Services\DefectRegistryService;
 
 $root = dirname(__DIR__, 2);
 require_once $root . '/core/DatabaseManager.php';
-require_once $root . '/development/defects/DefectPriorityPolicy.php';
-require_once $root . '/development/defects/DefectRegistrationService.php';
-require_once $root . '/development/defects/DefectReferenceService.php';
+require_once $root . '/modules/defects/services/DefectPriorityPolicy.php';
+require_once $root . '/modules/defects/services/DefectRegistrationService.php';
+require_once $root . '/modules/defects/services/DefectReferenceService.php';
+require_once $root . '/modules/defects/services/DefectRegistryService.php';
 
 function defectsAssert(bool $condition, string $message): void
 {
@@ -42,6 +44,11 @@ $pdo->exec('CREATE TABLE defects (
     creation_command_id TEXT NOT NULL UNIQUE,
     creation_request_hash TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT "open",
+    completed_work TEXT DEFAULT NULL,
+    closed_at TEXT DEFAULT NULL,
+    closed_by_user_id INTEGER DEFAULT NULL,
+    close_command_id TEXT DEFAULT NULL UNIQUE,
+    close_request_hash TEXT DEFAULT NULL,
     version INTEGER NOT NULL DEFAULT 1
 )');
 $pdo->exec('CREATE TABLE defect_responsible_services (
@@ -134,5 +141,28 @@ try {
 defectsAssert($rolledBack, 'аварийная запись связи должна завершаться ошибкой');
 defectsAssert((int) $database->fetchValue('SELECT COUNT(*) FROM defects') === 1, 'карточка должна откатываться вместе со связями');
 defectsAssert(!$database->inTransaction(), 'ошибка не должна оставлять открытой транзакцию');
+
+
+$pdo->exec('DROP TRIGGER reject_second_service');
+$registry = new DefectRegistryService($database);
+$records = $registry->list(40, 0, 'open');
+defectsAssert(count($records) === 1 && (int) $records[0]['id'] === $first['id'], 'реестр должен отображать дефект');
+defectsAssert(count($registry->detail($first['id'])['services'] ?? []) === 2, 'карточка должна содержать службы');
+defectsAssert($registry->list(40, $first['id'], 'open') === [], 'курсор должен исключать предыдущую запись');
+
+$closed = $registry->close($first['id'], 1, 7, 'Заменён повреждённый изолятор', 'close_1234567890ABCDE');
+defectsAssert($closed['version'] === 2 && !$closed['replayed'], 'дефект должен закрыться с новой версией');
+$repeatClose = $registry->close($first['id'], 1, 7, 'Заменён повреждённый изолятор', 'close_1234567890ABCDE');
+defectsAssert($repeatClose['replayed'] && $repeatClose['version'] === 2, 'повтор закрытия должен быть безопасным');
+defectsAssert(count($registry->list(40, 0, 'closed')) === 1, 'реестр закрытых дефектов должен содержать запись');
+
+$staleRejected = false;
+try {
+    $registry->close($first['id'], 1, 7, 'Ещё одно закрытие', 'close_1234567890XYZAB');
+} catch (DomainException) {
+    $staleRejected = true;
+}
+defectsAssert($staleRejected, 'просроченная версия должна вызывать конфликт');
+defectsAssert(!$database->inTransaction(), 'конфликт закрытия не должен оставлять транзакцию');
 
 echo 'Регистрация дефектов: запись, идемпотентность, проверка ссылок и откат проверены' . PHP_EOL;

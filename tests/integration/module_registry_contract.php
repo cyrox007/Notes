@@ -90,11 +90,12 @@ function removeFixtureTree(string $path): void
 }
 
 $registry = ModuleRegistry::discover($root . '/modules', Version::VERSION);
-$expected = ['admin', 'calendar', 'files', 'messenger', 'notes', 'profile', 'tasks'];
+$expected = ['admin', 'calendar', 'defects', 'files', 'messenger', 'notes', 'profile', 'tasks'];
+$defaultModules = ['admin', 'calendar', 'files', 'messenger', 'notes', 'profile', 'tasks'];
 $isolated = $expected;
 
 moduleAssert(array_keys($registry->all()) === $expected, 'bundled module manifest set drifted');
-moduleAssert($registry->defaultComposition() === $expected, 'default bundled composition drifted');
+moduleAssert($registry->defaultComposition() === $defaultModules, 'default bundled composition drifted');
 
 foreach ($registry->all() as $id => $manifest) {
     moduleAssert($manifest->id() === $id, "manifest id mismatch for {$id}");
@@ -109,6 +110,7 @@ foreach ($registry->all() as $id => $manifest) {
     moduleAssert($manifest->runtimeEntrypoint() === 'runtime.php', "{$id} isolated entrypoint drifted");
 }
 
+moduleAssert($registry->resolveComposition(['defects']) === ['defects'], 'Defects composition failed');
 moduleAssert($registry->resolveComposition(['calendar']) === ['calendar'], 'Calendar composition failed');
 moduleAssert($registry->resolveComposition(['notes']) === ['notes'], 'Notes composition failed');
 moduleAssert($registry->resolveComposition(['tasks']) === ['tasks'], 'Tasks composition failed');

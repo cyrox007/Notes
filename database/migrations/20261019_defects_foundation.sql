@@ -1,6 +1,5 @@
--- Черновик канонической схемы автономного модуля «Дефекты» для 1.2.
--- До завершения регистрации модуля не включается в установщик и миграции.
--- Все изменения существующих установок оформляются отдельной миграцией.
+-- Каноническая схема автономного модуля «Дефекты» линии 1.2.
+-- Данные и ограничения принадлежат только модулю.
 
 CREATE TABLE IF NOT EXISTS `defect_areas` (
     `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -51,10 +50,13 @@ CREATE TABLE IF NOT EXISTS `defects` (
     `completed_work` TEXT DEFAULT NULL,
     `closed_at` DATETIME DEFAULT NULL,
     `closed_by_user_id` INT DEFAULT NULL,
+    `close_command_id` VARCHAR(96) DEFAULT NULL,
+    `close_request_hash` CHAR(64) DEFAULT NULL,
     `version` BIGINT UNSIGNED NOT NULL DEFAULT 1,
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY `uq_defects_command` (`creation_command_id`),
+    UNIQUE KEY `uq_defects_close_command` (`close_command_id`),
     KEY `idx_defects_state_due` (`status`, `due_at`, `id`),
     KEY `idx_defects_object_date` (`object_id`, `discovered_at`, `id`),
     KEY `idx_defects_priority_status` (`priority`, `status`, `id`),
@@ -76,3 +78,17 @@ CREATE TABLE IF NOT EXISTS `defect_responsible_services` (
     CONSTRAINT `fk_defect_responsible_service` FOREIGN KEY (`service_id`)
         REFERENCES `defect_services` (`id`) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Разрешения выполняются через общий RBAC ядра.
+INSERT INTO `permissions` (`code`, `module_id`, `description`) VALUES
+('defects.use','defects','Просмотр и регистрация дефектов'),
+('defects.manage','defects','Управление справочниками и расширенными действиями')
+ON DUPLICATE KEY UPDATE `module_id`=VALUES(`module_id`),`description`=VALUES(`description`);
+
+INSERT IGNORE INTO `role_permissions` (`role_id`,`permission_id`)
+SELECT r.id,p.id FROM roles r JOIN permissions p ON p.code='defects.use'
+WHERE r.code IN ('user','admin','superadmin');
+
+INSERT IGNORE INTO `role_permissions` (`role_id`,`permission_id`)
+SELECT r.id,p.id FROM roles r JOIN permissions p ON p.code='defects.manage'
+WHERE r.code IN ('admin','superadmin');
