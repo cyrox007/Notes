@@ -1,0 +1,199 @@
+name: Files 1.2 — HTTP-нагрузка через PHP-FPM
+
+on:
+  pull_request:
+    branches: ['1.2']
+    paths:
+      - 'tests/integration/filespaces_http_seed_12.php'
+      - 'tests/integration/filespaces_http_load_12.py'
+      - '.github/workflows/filespaces-http-load-12.yml'
+      - 'modules/files/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  http-load:
+    name: Ограниченная нагрузка через Nginx и PHP-FPM
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: fsp_http_load
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      DBHOST: 127.0.0.1
+      DBPORT: '3306'
+      DBUSER: root
+      DBPASS: root
+      DBNAME: fsp_http_load
+      DBPREFIX: ''
+      PRIVATE_STORAGE_PATH: /tmp/fsp-http-private
+      MYSQL_PWD: root
+
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+
+      - name: Установить сервер Nginx и PHP-FPM 8.3
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+            nginx php8.3-fpm php8.3-mysql php8.3-mbstring php8.3-xml \
+            php8.3-curl php8.3-gd php8.3-intl
+          php -v
+          php -m | grep -E 'mysqli|PDO|sodium|mbstring'
+
+      - name: Подготовить одноразовую конфигурацию и схему Files
+        shell: bash
+        run: |
+          set -euo pipefail
+          FSP_HTTP_PASSWORD="$(openssl rand -hex 24)"
+          UNIQUE_KEY="$(openssl rand -hex 32)"
+          MSG_SECRET_KEY="$(openssl rand -hex 32)"
+          WS_TICKET_SECRET="$(openssl rand -hex 32)"
+          echo "::add-mask::$FSP_HTTP_PASSWORD"
+          echo "::add-mask::$UNIQUE_KEY"
+          echo "::add-mask::$MSG_SECRET_KEY"
+          echo "::add-mask::$WS_TICKET_SECRET"
+          echo "FSP_HTTP_PASSWORD=$FSP_HTTP_PASSWORD" >> "$GITHUB_ENV"
+          export FSP_HTTP_PASSWORD
+          mkdir -p "$PRIVATE_STORAGE_PATH" compile cache
+          chmod 700 "$PRIVATE_STORAGE_PATH"
+          cat > .env <<ENV
+          DBDRIVER=mysql
+          DBHOST=127.0.0.1
+          DBPORT=3306
+          DBUSER=root
+          DBPASS=root
+          DBNAME=fsp_http_load
+          DBPREFIX=
+          UNIQUE_KEY=$UNIQUE_KEY
+          MSG_SECRET_KEY=$MSG_SECRET_KEY
+          WS_TICKET_SECRET=$WS_TICKET_SECRET
+          SITEURL=http://127.0.0.1:18096
+          BASE_PATH=/
+          PRIVATE_STORAGE_PATH=$PRIVATE_STORAGE_PATH
+          RATE_LIMIT_STORAGE_PATH=$PRIVATE_STORAGE_PATH/rate-limit
+          AUTH_RATE_LIMIT_ATTEMPTS=120
+          AUTH_RATE_LIMIT_WINDOW_SECONDS=60
+          UPLOAD_RATE_LIMIT_ATTEMPTS=500
+          UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60
+          MAX_UPLOAD_SIZE=10485760
+          CSRF_ENABLED=true
+          ENV
+          chmod 600 .env
+          php -l tests/integration/filespaces_http_seed_12.php
+          python3 -m py_compile tests/integration/filespaces_http_load_12.py
+          php tests/integration/filespaces_http_seed_12.php > /tmp/fsp-http-fixture.json
+          php tests/support/ci_license_fixture.php
+          sudo chown www-data:www-data .env
+          sudo chmod 640 .env
+          sudo chown -R www-data:www-data "$PRIVATE_STORAGE_PATH" compile cache
+
+      - name: Запустить локальные Nginx и PHP-FPM
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo sed -i 's/^pm.max_children = .*/pm.max_children = 12/' /etc/php/8.3/fpm/pool.d/www.conf
+          echo 'pm.status_path = /__fpm_status' | sudo tee -a /etc/php/8.3/fpm/pool.d/www.conf
+          sudo service php8.3-fpm restart
+          cat > /tmp/fsp-http-nginx.conf <<'NGINX'
+          server {
+              listen 127.0.0.1:18096;
+              server_name localhost;
+              root __REPOSITORY_ROOT__;
+              index index.php;
+              client_max_body_size 2m;
+              access_log /tmp/fsp-http-nginx-access.log;
+              error_log /tmp/fsp-http-nginx-error.log warn;
+
+              location ~ ^/(app|bin|config|core|database|docs|modules|tests|tools|ws_server)(/|$) {
+                  return 404;
+              }
+              location ~ /\. { return 404; }
+              location = /default.env { return 404; }
+              location = /__fpm_status {
+                  allow 127.0.0.1;
+                  deny all;
+                  include fastcgi_params;
+                  fastcgi_param SCRIPT_FILENAME $document_root/index.php;
+                  fastcgi_param SCRIPT_NAME /__fpm_status;
+                  fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+              }
+              location = /index.php {
+                  include fastcgi_params;
+                  fastcgi_param SCRIPT_FILENAME $document_root/index.php;
+                  fastcgi_param SCRIPT_NAME /index.php;
+                  fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+              }
+              location ~ \.php$ { return 404; }
+              location / {
+                  try_files $uri /index.php$is_args$args;
+              }
+          }
+          NGINX
+          sed -i "s|__REPOSITORY_ROOT__|$GITHUB_WORKSPACE|g" /tmp/fsp-http-nginx.conf
+          sudo cp /tmp/fsp-http-nginx.conf /etc/nginx/sites-available/default
+          sudo nginx -t
+          sudo service nginx restart
+          for i in {1..40}; do
+            if curl -fsS 'http://127.0.0.1:18096/__fpm_status?json' | grep -q 'active processes'; then
+              break
+            fi
+            sleep 0.25
+          done
+          curl -fsS 'http://127.0.0.1:18096/__fpm_status?json'
+          curl -fsS 'http://127.0.0.1:18096/auth/login/' >/dev/null
+
+      - name: Испытать реальные HTTP-маршруты и собрать показатели
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/integration/filespaces_http_load_12.py \
+            --origin http://127.0.0.1:18096 \
+            --fixture /tmp/fsp-http-fixture.json \
+            --out /tmp/fsp-http-load-report.json \
+            --concurrency 8 --seconds 12
+          test -s /tmp/fsp-http-load-report.json
+          if grep -E 'PHP (Warning|Fatal error|Parse error)|Uncaught' \
+            /var/log/php8.3-fpm.log /tmp/workspace-organizer-startup.log 2>/dev/null; then
+            echo 'Обнаружены ошибки PHP во время нагрузочной проверки' >&2
+            exit 1
+          fi
+
+      - name: Сохранить обезличенные результаты
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: filespaces-http-load-metrics
+          path: /tmp/fsp-http-load-report.json
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Показать ошибки стенда при отказе
+        if: failure()
+        shell: bash
+        run: |
+          sudo tail -n 80 /var/log/php8.3-fpm.log || true
+          sudo tail -n 80 /tmp/fsp-http-nginx-error.log || true
+          tail -n 80 /tmp/workspace-organizer-startup.log || true
+
+      - name: Завершить тестовый стенд
+        if: always()
+        run: |
+          sudo service nginx stop || true
+          sudo service php8.3-fpm stop || true
+          rm -f .env /tmp/fsp-http-fixture.json
