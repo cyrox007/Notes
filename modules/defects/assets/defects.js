@@ -585,10 +585,12 @@ window.wspace.page.register('modules/defects/assets/defects.js', (pageScope) => 
                     + encodeURIComponent(kind) + '/' + encodeURIComponent(id) + '/history?limit=100');
                 history.events.forEach(record => {
                     const li = element('li');
-                    li.append(element('strong', '', record.event_type === 'created' ? 'Создание' : 'Изменение'));
+                    li.append(element('strong', '', ({created:'Создание',updated:'Переименование',archived:'Архивирование',restored:'Восстановление'}[record.event_type] || 'Изменение')));
                     li.append(element('small', '', dateText(record.created_at)
                         + ' · пользователь №' + (record.actor_user_id ?? 'не указан')));
                     if (record.details?.name) li.append(element('p', '', record.details.name));
+                    if (record.details?.name_before) li.append(element('p', '',
+                        record.details.name_before + ' → ' + (record.details.name_after || record.details.name_before)));
                     list.append(li);
                 });
                 if (!history.events.length) list.append(element('li', '', 'Истории пока нет'));
