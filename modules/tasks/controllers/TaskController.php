@@ -77,7 +77,18 @@ final class TaskController extends Controller
             $filter = 'all';
         }
 
-        $query = ListQuery::fromRequest($request, self::SORT_COLUMNS, 'created_at');
+        $dailyView = in_array($filter, ['today', 'tomorrow', 'overdue'], true);
+        $query = ListQuery::fromRequest(
+            $request,
+            self::SORT_COLUMNS,
+            $dailyView ? 'due_date' : 'created_at'
+        );
+        // Рабочую очередь показываем от ближайшего срока; ручная сортировка
+        // в запросе сохраняет приоритет над настройкой по умолчанию.
+        if ($dailyView && $request->get('direction', null) === null) {
+            $query['direction'] = 'asc';
+            $query['direction_sql'] = 'ASC';
+        }
         $params = [':user_id' => (int) $user->id];
         $where = ['t.user_id = :user_id', 't.is_deleted = 0', $filter === 'archive' ? 't.archived_at IS NOT NULL' : 't.archived_at IS NULL'];
         $nowDate = new DateTimeImmutable('now');
