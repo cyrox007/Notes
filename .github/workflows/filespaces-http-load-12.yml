@@ -87,7 +87,9 @@ jobs:
           BASE_PATH=/
           PRIVATE_STORAGE_PATH=$PRIVATE_STORAGE_PATH
           RATE_LIMIT_STORAGE_PATH=$PRIVATE_STORAGE_PATH/rate-limit
-          AUTH_RATE_LIMIT_ATTEMPTS=120
+          # Лимит входа остаётся включённым; для восьми независимых сеансов
+          # на одном loopback-адресе тестовому стенду нужно более пяти попыток.
+          MAX_LOGIN_ATTEMPTS=25
           AUTH_RATE_LIMIT_WINDOW_SECONDS=60
           UPLOAD_RATE_LIMIT_ATTEMPTS=500
           UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60
