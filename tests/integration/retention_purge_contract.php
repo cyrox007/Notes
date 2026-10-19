@@ -115,13 +115,25 @@ foreach ([
     'retention.purge_completed',
     'retention.account_blocked',
     'retention.account_purged',
-    'owned_shared_messenger_group',
-    'owned_shared_task_board',
+    'BackgroundAccountRetention',
     'administrative_role_assignment',
     'outside the application tree',
     'a.deleted_at >= :attachment_cutoff',
 ] as $marker) {
     retentionAssert(str_contains($service, $marker), "RetentionService missing safety marker {$marker}");
+}
+retentionAssert(
+    !str_contains($service, 'FROM task_boards')
+    && !str_contains($service, 'FROM user_to_dialogs'),
+    'Фоновая очистка напрямую обращается к таблицам чужих модулей'
+);
+foreach ([
+    'messenger' => 'owned_shared_messenger_group',
+    'tasks' => 'owned_shared_task_board',
+] as $module => $reason) {
+    $provider = retentionText($root, "modules/{$module}/background/account-purge.php");
+    retentionAssert(str_contains($provider, $reason),
+        "Проверка владельца отсутствует в фоновом сервисе {$module}");
 }
 retentionAssert(
     !str_contains($service, 'DELETE FROM users WHERE id = :id'),
