@@ -26,10 +26,10 @@ function defectsAssert(bool $condition, string $message): void
 $pdo = new PDO('sqlite::memory:');
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 $pdo->exec('PRAGMA foreign_keys = ON');
-$pdo->exec('CREATE TABLE defect_areas (id INTEGER PRIMARY KEY, name TEXT NOT NULL DEFAULT '', is_archived INTEGER NOT NULL DEFAULT 0)');
-$pdo->exec('CREATE TABLE defect_object_categories (id INTEGER PRIMARY KEY, name TEXT NOT NULL DEFAULT '', area_id INTEGER NOT NULL, is_archived INTEGER NOT NULL DEFAULT 0)');
-$pdo->exec('CREATE TABLE defect_objects (id INTEGER PRIMARY KEY, name TEXT NOT NULL DEFAULT '', category_id INTEGER NOT NULL, is_archived INTEGER NOT NULL DEFAULT 0)');
-$pdo->exec('CREATE TABLE defect_services (id INTEGER PRIMARY KEY, name TEXT NOT NULL DEFAULT '', is_archived INTEGER NOT NULL DEFAULT 0)');
+$pdo->exec('CREATE TABLE defect_areas (id INTEGER PRIMARY KEY, name TEXT NOT NULL DEFAULT \'\', is_archived INTEGER NOT NULL DEFAULT 0)');
+$pdo->exec('CREATE TABLE defect_object_categories (id INTEGER PRIMARY KEY, name TEXT NOT NULL DEFAULT \'\', area_id INTEGER NOT NULL, is_archived INTEGER NOT NULL DEFAULT 0)');
+$pdo->exec('CREATE TABLE defect_objects (id INTEGER PRIMARY KEY, name TEXT NOT NULL DEFAULT \'\', category_id INTEGER NOT NULL, is_archived INTEGER NOT NULL DEFAULT 0)');
+$pdo->exec('CREATE TABLE defect_services (id INTEGER PRIMARY KEY, name TEXT NOT NULL DEFAULT \'\', is_archived INTEGER NOT NULL DEFAULT 0)');
 $pdo->exec('CREATE TABLE defects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     object_id INTEGER NOT NULL,
