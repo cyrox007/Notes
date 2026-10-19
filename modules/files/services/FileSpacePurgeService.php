@@ -371,6 +371,9 @@ final class FileSpacePurgeService
             throw new RuntimeException('Хранилище должно находиться по абсолютному пути');
         }
         $realRoot = realpath($root);
+        if ($realRoot !== false) {
+            FileSpaceStorageGuard::assertOutsideWebRoot($realRoot);
+        }
         $path = $realRoot === false ? '' : $realRoot . '/file_spaces/global';
         $realDir = realpath($path);
         if ($realRoot === false || $realDir === false
