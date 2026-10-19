@@ -116,6 +116,12 @@ final class DefectRegistryService
             if ($affected !== 1) {
                 throw new DomainException('Запись изменилась или уже закрыта', 409);
             }
+            (new DefectHistoryService($this->database))->record('defect', $id, 'closed', $userId, [
+                'version_before' => $expectedVersion,
+                'version_after' => $expectedVersion + 1,
+                'completed_work' => $work,
+            ], $commandId);
+
             $this->database->endTransaction();
             return ['id' => $id, 'version' => $expectedVersion + 1, 'replayed' => false];
         } catch (Throwable $error) {
