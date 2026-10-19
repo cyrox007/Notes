@@ -63,6 +63,80 @@ final class DefectReferenceService
         );
     }
 
+    public function createArea(string $name): int
+    {
+        $name = $this->validatedName($name);
+        $this->database->execute(
+            'INSERT INTO defect_areas (name) VALUES (:name)',
+            ['name' => $name]
+        );
+
+        return (int) $this->database->lastInsertId();
+    }
+
+    public function createCategory(int $areaId, string $name): int
+    {
+        $this->assertId($areaId);
+        $name = $this->validatedName($name);
+        $parent = $this->database->fetchOne(
+            'SELECT id FROM defect_areas WHERE id = :id AND is_archived = 0',
+            ['id' => $areaId]
+        );
+        if ($parent === null) {
+            throw new InvalidArgumentException('Участок недоступен');
+        }
+
+        $this->database->execute(
+            'INSERT INTO defect_object_categories (area_id, name) VALUES (:area_id, :name)',
+            ['area_id' => $areaId, 'name' => $name]
+        );
+
+        return (int) $this->database->lastInsertId();
+    }
+
+    public function createObject(int $categoryId, string $name): int
+    {
+        $this->assertId($categoryId);
+        $name = $this->validatedName($name);
+        $parent = $this->database->fetchOne(
+            'SELECT c.id FROM defect_object_categories c
+             JOIN defect_areas a ON a.id = c.area_id
+             WHERE c.id = :id AND c.is_archived = 0 AND a.is_archived = 0',
+            ['id' => $categoryId]
+        );
+        if ($parent === null) {
+            throw new InvalidArgumentException('Категория или участок недоступны');
+        }
+
+        $this->database->execute(
+            'INSERT INTO defect_objects (category_id, name) VALUES (:category_id, :name)',
+            ['category_id' => $categoryId, 'name' => $name]
+        );
+
+        return (int) $this->database->lastInsertId();
+    }
+
+    public function createService(string $name): int
+    {
+        $name = $this->validatedName($name);
+        $this->database->execute(
+            'INSERT INTO defect_services (name) VALUES (:name)',
+            ['name' => $name]
+        );
+
+        return (int) $this->database->lastInsertId();
+    }
+
+    private function validatedName(string $name): string
+    {
+        $name = trim($name);
+        if ($name === '' || mb_strlen($name) > 160) {
+            throw new InvalidArgumentException('Название справочника должно содержать от 1 до 160 символов');
+        }
+
+        return $name;
+    }
+
     private function assertId(int $id): void
     {
         if ($id < 1) {
