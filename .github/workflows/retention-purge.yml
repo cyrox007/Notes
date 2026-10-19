@@ -6,8 +6,13 @@ on:
     paths:
       - 'app/services/RetentionService.php'
       - 'core/BackgroundAccountRetention*.php'
+      - 'core/BackgroundRetentionCleanup.php'
+      - 'core/RetentionCleanupContext.php'
+      - 'core/RetentionFileCleanup.php'
+      - 'core/ModuleRetentionCleanup.php'
       - 'core/ModuleManifest.php'
       - 'modules/tasks/**'
+      - 'modules/files/**'
       - 'modules/calendar/module.json'
       - 'modules/files/module.json'
       - 'modules/profile/module.json'
@@ -61,7 +66,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: mysqli, pdo_mysql, mbstring, sodium
+          extensions: mysqli, pdo_mysql, pdo_sqlite, sqlite3, mbstring, sodium
           coverage: none
 
       - name: Проверить синтаксис и контракт хранения
@@ -72,6 +77,17 @@ jobs:
           php -l core/BackgroundAccountRetention.php
           php -l core/BackgroundAccountRetentionGuard.php
           php -l core/ModuleManifest.php
+          php -l core/BackgroundRetentionCleanup.php
+          php -l tests/integration/module_retention_12_contract.php
+          php tests/integration/module_retention_12_contract.php
+          php -l core/ModuleRetentionCleanup.php
+          php -l core/ModuleAccountDataCleanup.php
+          php -l core/RetentionCleanupContext.php
+          php -l core/RetentionFileCleanup.php
+          php -l modules/notes/services/NotesRetentionService.php
+          php -l modules/messenger/services/MessengerRetentionService.php
+          php -l modules/files/services/FilesRetentionService.php
+          php -l modules/tasks/services/TasksRetentionService.php
           php -l tests/integration/background_account_retention_12.php
           php tests/integration/background_account_retention_12.php
           php -l bin/retention.php
@@ -137,6 +153,10 @@ jobs:
             (101,'00000000-0000-4000-8000-000000000101','retention_owner','owner@example.test','fixture','Retention','Owner',888,1,'active',NULL,NULL,'2026-07-01 00:00:00','2026-07-01 00:00:00'),
             (102,'00000000-0000-4000-8000-000000000102','retention_purge','purge@example.test','fixture','Retention','Purge',888,0,'inactive','2026-07-01 00:00:00','2026-08-01 00:00:00','2026-07-01 00:00:00','2026-07-01 00:00:00'),
             (103,'00000000-0000-4000-8000-000000000103','retention_blocked','blocked@example.test','fixture','Retention','Blocked',888,0,'inactive','2026-07-01 00:00:00','2026-08-01 00:00:00','2026-07-01 00:00:00','2026-07-01 00:00:00');
+
+          INSERT INTO user_storage_quotas (user_id,quota_bytes) VALUES
+            (102,1048576),
+            (103,1048576);
 
           INSERT INTO notes
             (id,uid,user_id,notename,content,is_deleted,deleted_at,created_note,updated_note)
@@ -255,6 +275,8 @@ jobs:
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM messenger_attachments WHERE id=701;')" = '0'
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM users WHERE id=102;')" = '1'
           test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM users WHERE id=102 AND anonymized_at IS NOT NULL AND purge_after IS NULL;')" = '1'
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM user_storage_quotas WHERE user_id=102;')" = '0'
+          test "$(mysql -N -h 127.0.0.1 -uroot -proot notes_retention -e 'SELECT COUNT(*) FROM user_storage_quotas WHERE user_id=103;')" = '1'
 
           anonymized_user_count="$(
             mysql -N -h 127.0.0.1 -uroot -proot notes_retention <<'SQL'

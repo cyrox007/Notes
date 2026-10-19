@@ -7,6 +7,9 @@ namespace App\Services;
 require_once dirname(__DIR__, 2) . '/core/SecurityEventLog.php';
 
 use Core\BackgroundAccountRetention;
+use Core\BackgroundRetentionCleanup;
+use Core\RetentionCleanupContext;
+use Core\RetentionFileCleanup;
 use Core\DatabaseManager;
 use Core\SecurityEventLog;
 use RuntimeException;
@@ -21,6 +24,9 @@ final class RetentionService
     private string $appRoot;
     private ?BackgroundAccountRetention $accountRetention = null;
     private string $privateRoot;
+    private RetentionFileCleanup $retentionFiles;
+    private ?RetentionCleanupContext $cleanupContext = null;
+    private ?BackgroundRetentionCleanup $moduleCleanup = null;
 
     public function __construct(private ?DatabaseManager $db = null, ?string $appRoot = null)
     {
@@ -43,6 +49,7 @@ final class RetentionService
             throw new RuntimeException('PRIVATE_STORAGE_PATH must be outside the application tree');
         }
         $this->privateRoot = rtrim($privateReal, DIRECTORY_SEPARATOR);
+        $this->retentionFiles = new RetentionFileCleanup($this->appRoot, $this->privateRoot);
     }
 
     /** @return array<string,mixed> */
@@ -53,32 +60,7 @@ final class RetentionService
         $accountCutoff = $this->cutoff($accountDays);
         $accountDueAt = gmdate('Y-m-d H:i:s');
 
-        $soft = [];
-        foreach ($this->softDeleteDefinitions() as $name => $definition) {
-            if (!$this->hasTable($definition['table'])) {
-                continue;
-            }
-            if ($name === 'notes' && $this->hasTable('note_attachments')) {
-                $soft[$name] = min(
-                    $limit,
-                    (int) $this->db->fetchValue(
-                        'SELECT COUNT(*) FROM notes n '
-                        . 'WHERE n.is_deleted=1 AND n.deleted_at IS NOT NULL AND n.deleted_at < :cutoff '
-                        . 'AND NOT EXISTS (SELECT 1 FROM note_attachments a WHERE a.note_id=n.id '
-                        . 'AND (a.is_deleted=0 OR a.deleted_at IS NULL OR a.deleted_at >= :attachment_cutoff))',
-                        [':cutoff' => $softCutoff, ':attachment_cutoff' => $softCutoff]
-                    )
-                );
-                continue;
-            }
-            $soft[$name] = min(
-                $limit,
-                (int) $this->db->fetchValue(
-                    'SELECT COUNT(*) FROM ' . $definition['table'] . ' WHERE ' . $definition['where'],
-                    [':cutoff' => $softCutoff]
-                )
-            );
-        }
+        $soft = $this->moduleCleanup()->preview($softCutoff, $limit, $this->cleanupContext());
 
         $accounts = ['eligible' => 0, 'blocked' => 0];
         if ($this->hasTable('users')) {
@@ -130,14 +112,7 @@ final class RetentionService
             'accounts_failed' => 0,
         ];
 
-        $this->purgeNoteAttachments($softCutoff, $limit, $result);
-        $this->purgeNotes($softCutoff, $limit, $result);
-        $this->purgeUserFiles($softCutoff, $limit, $result);
-        $this->purgeMessengerAttachments($softCutoff, $limit, $result);
-        $this->purgeMessages($softCutoff, $limit, $result);
-        $this->purgeSimpleRows('tasks', 'tasks', 'is_deleted = 1 AND deleted_at IS NOT NULL AND deleted_at < :cutoff', $softCutoff, $limit, $result);
-        $this->purgeSimpleRows('task_board_items', 'task_board_items', 'is_deleted = 1 AND deleted_at IS NOT NULL AND deleted_at < :cutoff', $softCutoff, $limit, $result);
-        $this->purgeSimpleRows('task_categories', 'task_categories', 'is_deleted = 1 AND updated_at < :cutoff', $softCutoff, $limit, $result);
+        $this->moduleCleanup()->apply($softCutoff, $limit, $this->cleanupContext(), $result);
         $this->purgeAccounts($accountDueAt, $limit, $result);
 
         SecurityEventLog::emit(
@@ -158,198 +133,6 @@ final class RetentionService
         );
 
         return $result;
-    }
-
-    /** @param array<string,mixed> $result */
-    private function purgeNoteAttachments(string $cutoff, int $limit, array &$result): void
-    {
-        if (!$this->hasTable('note_attachments')) {
-            return;
-        }
-        $rows = $this->db->fetchAll(
-            'SELECT id,file_path FROM note_attachments '
-            . 'WHERE is_deleted = 1 AND deleted_at IS NOT NULL AND deleted_at < :cutoff '
-            . 'ORDER BY id ASC LIMIT ' . $limit,
-            [':cutoff' => $cutoff]
-        );
-        $purged = 0;
-        foreach ($rows as $row) {
-            if (!$this->removePaths([(string) ($row['file_path'] ?? '')], $result)) {
-                continue;
-            }
-            $purged += $this->db->execute(
-                'DELETE FROM note_attachments WHERE id = :id AND is_deleted = 1 AND deleted_at < :cutoff',
-                [':id' => (int) $row['id'], ':cutoff' => $cutoff]
-            );
-        }
-        $this->addPurged($result, 'note_attachments', $purged);
-    }
-
-    /** @param array<string,mixed> $result */
-    private function purgeNotes(string $cutoff, int $limit, array &$result): void
-    {
-        if (!$this->hasTable('notes')) {
-            return;
-        }
-        $rows = $this->db->fetchAll(
-            'SELECT n.id FROM notes n WHERE n.is_deleted = 1 AND n.deleted_at IS NOT NULL AND n.deleted_at < :cutoff '
-            . ($this->hasTable('note_attachments')
-                ? 'AND NOT EXISTS (SELECT 1 FROM note_attachments a WHERE a.note_id=n.id '
-                    . 'AND (a.is_deleted=0 OR a.deleted_at IS NULL OR a.deleted_at >= :attachment_cutoff)) '
-                : '')
-            . 'ORDER BY n.id ASC LIMIT ' . $limit,
-            $this->hasTable('note_attachments')
-                ? [':cutoff' => $cutoff, ':attachment_cutoff' => $cutoff]
-                : [':cutoff' => $cutoff]
-        );
-        $purged = 0;
-        foreach ($rows as $row) {
-            $noteId = (int) $row['id'];
-            $paths = [];
-            if ($this->hasTable('note_attachments')) {
-                $attachments = $this->db->fetchAll(
-                    'SELECT file_path FROM note_attachments WHERE note_id = :note_id',
-                    [':note_id' => $noteId]
-                );
-                foreach ($attachments as $attachment) {
-                    $paths[] = (string) ($attachment['file_path'] ?? '');
-                }
-            }
-            if (!$this->removePaths($paths, $result)) {
-                continue;
-            }
-            $purged += $this->db->execute(
-                'DELETE FROM notes WHERE id = :id AND is_deleted = 1 AND deleted_at < :cutoff',
-                [':id' => $noteId, ':cutoff' => $cutoff]
-            );
-        }
-        $this->addPurged($result, 'notes', $purged);
-    }
-
-    /** @param array<string,mixed> $result */
-    private function purgeUserFiles(string $cutoff, int $limit, array &$result): void
-    {
-        if (!$this->hasTable('user_files')) {
-            return;
-        }
-        $rows = $this->db->fetchAll(
-            "SELECT id,path FROM user_files WHERE is_deleted = 1 AND updated_at < :cutoff AND type <> 'folder' "
-            . 'ORDER BY id ASC LIMIT ' . $limit,
-            [':cutoff' => $cutoff]
-        );
-        $purged = 0;
-        foreach ($rows as $row) {
-            if (!$this->removePaths([(string) ($row['path'] ?? '')], $result)) {
-                continue;
-            }
-            $purged += $this->db->execute(
-                "DELETE FROM user_files WHERE id = :id AND is_deleted = 1 AND updated_at < :cutoff AND type <> 'folder'",
-                [':id' => (int) $row['id'], ':cutoff' => $cutoff]
-            );
-        }
-
-        // Delete only empty folders so ON DELETE CASCADE cannot pull a newer child
-        // across the retention boundary.
-        $folders = $this->db->fetchAll(
-            "SELECT uf.id FROM user_files uf "
-            . "WHERE uf.is_deleted = 1 AND uf.updated_at < :cutoff AND uf.type = 'folder' "
-            . 'AND NOT EXISTS (SELECT 1 FROM user_files child WHERE child.parent_id = uf.id) '
-            . 'ORDER BY uf.id ASC LIMIT ' . $limit,
-            [':cutoff' => $cutoff]
-        );
-        foreach ($folders as $folder) {
-            $purged += $this->db->execute(
-                "DELETE FROM user_files WHERE id = :id AND is_deleted = 1 AND updated_at < :cutoff AND type = 'folder'",
-                [':id' => (int) $folder['id'], ':cutoff' => $cutoff]
-            );
-        }
-        $this->addPurged($result, 'user_files', $purged);
-    }
-
-    /** @param array<string,mixed> $result */
-    private function purgeMessengerAttachments(string $cutoff, int $limit, array &$result): void
-    {
-        if (!$this->hasTable('messenger_attachments')) {
-            return;
-        }
-        $rows = $this->db->fetchAll(
-            'SELECT id,stored_path FROM messenger_attachments '
-            . 'WHERE is_deleted = 1 AND deleted_at IS NOT NULL AND deleted_at < :cutoff '
-            . 'ORDER BY id ASC LIMIT ' . $limit,
-            [':cutoff' => $cutoff]
-        );
-        $purged = 0;
-        foreach ($rows as $row) {
-            if (!$this->removePaths([(string) ($row['stored_path'] ?? '')], $result)) {
-                continue;
-            }
-            $purged += $this->db->execute(
-                'DELETE FROM messenger_attachments WHERE id = :id AND is_deleted = 1 AND deleted_at < :cutoff',
-                [':id' => (int) $row['id'], ':cutoff' => $cutoff]
-            );
-        }
-        $this->addPurged($result, 'messenger_attachments', $purged);
-    }
-
-    /** @param array<string,mixed> $result */
-    private function purgeMessages(string $cutoff, int $limit, array &$result): void
-    {
-        if (!$this->hasTable('messages')) {
-            return;
-        }
-        $rows = $this->db->fetchAll(
-            'SELECT id FROM messages WHERE is_deleted = 1 AND deleted_at IS NOT NULL AND deleted_at < :cutoff '
-            . 'ORDER BY id ASC LIMIT ' . $limit,
-            [':cutoff' => $cutoff]
-        );
-        $purged = 0;
-        foreach ($rows as $row) {
-            $messageId = (int) $row['id'];
-            $paths = [];
-            if ($this->hasTable('messenger_attachments')) {
-                $attachments = $this->db->fetchAll(
-                    'SELECT stored_path FROM messenger_attachments WHERE message_id = :message_id',
-                    [':message_id' => $messageId]
-                );
-                foreach ($attachments as $attachment) {
-                    $paths[] = (string) ($attachment['stored_path'] ?? '');
-                }
-            }
-            if (!$this->removePaths($paths, $result)) {
-                continue;
-            }
-            $purged += $this->db->execute(
-                'DELETE FROM messages WHERE id = :id AND is_deleted = 1 AND deleted_at < :cutoff',
-                [':id' => $messageId, ':cutoff' => $cutoff]
-            );
-        }
-        $this->addPurged($result, 'messages', $purged);
-    }
-
-    /** @param array<string,mixed> $result */
-    private function purgeSimpleRows(
-        string $resultKey,
-        string $table,
-        string $where,
-        string $cutoff,
-        int $limit,
-        array &$result
-    ): void {
-        if (!$this->hasTable($table)) {
-            return;
-        }
-        $rows = $this->db->fetchAll(
-            'SELECT id FROM ' . $table . ' WHERE ' . $where . ' ORDER BY id ASC LIMIT ' . $limit,
-            [':cutoff' => $cutoff]
-        );
-        $purged = 0;
-        foreach ($rows as $row) {
-            $purged += $this->db->execute(
-                'DELETE FROM ' . $table . ' WHERE id = :id AND ' . $where,
-                [':id' => (int) $row['id'], ':cutoff' => $cutoff]
-            );
-        }
-        $this->addPurged($result, $resultKey, $purged);
     }
 
     /**
@@ -477,12 +260,7 @@ final class RetentionService
                         [':user_id' => $userId]
                     );
                 }
-                if ($this->hasTable('user_storage_quotas')) {
-                    $this->db->execute(
-                        'DELETE FROM user_storage_quotas WHERE user_id=:user_id',
-                        [':user_id' => $userId]
-                    );
-                }
+                $this->moduleCleanup()->purgeAccountData($userId, $this->cleanupContext());
 
                 $this->db->endTransaction(true);
             } catch (Throwable $e) {
@@ -590,78 +368,7 @@ final class RetentionService
     /** @param list<string> $paths @param array<string,mixed> $result */
     private function removePaths(array $paths, array &$result): bool
     {
-        $ok = true;
-        foreach (array_values(array_unique($paths)) as $storedPath) {
-            $status = $this->removeManagedFile($storedPath);
-            if ($status === 'deleted') {
-                $result['files_deleted']++;
-            } elseif ($status === 'missing') {
-                $result['files_missing']++;
-            } elseif ($status === 'blocked') {
-                $result['files_blocked']++;
-                $ok = false;
-            } else {
-                $result['files_failed']++;
-                $ok = false;
-            }
-        }
-        return $ok;
-    }
-
-    private function removeManagedFile(string $storedPath): string
-    {
-        $storedPath = trim($storedPath);
-        if ($storedPath === '') {
-            return 'missing';
-        }
-
-        $candidate = $this->isAbsolutePath($storedPath)
-            ? $storedPath
-            : $this->appRoot . DIRECTORY_SEPARATOR . ltrim($storedPath, '/\\');
-
-        $allowedRoots = [
-            $this->privateRoot,
-            $this->appRoot . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'file_manager',
-            $this->appRoot . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'notes',
-            $this->appRoot . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'messenger',
-            $this->appRoot . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . 'users',
-        ];
-
-        $lexicalAllowed = false;
-        foreach ($allowedRoots as $root) {
-            if ($this->isPathWithin($candidate, $root)) {
-                $lexicalAllowed = true;
-                break;
-            }
-        }
-        if (!$lexicalAllowed) {
-            return 'blocked';
-        }
-
-        if (!file_exists($candidate)) {
-            return 'missing';
-        }
-        if (is_link($candidate) || !is_file($candidate)) {
-            return 'blocked';
-        }
-
-        $real = realpath($candidate);
-        if (!is_string($real)) {
-            return 'failed';
-        }
-        $realAllowed = false;
-        foreach ($allowedRoots as $root) {
-            $realRoot = realpath($root);
-            if (is_string($realRoot) && $this->isPathWithin($real, $realRoot)) {
-                $realAllowed = true;
-                break;
-            }
-        }
-        if (!$realAllowed) {
-            return 'blocked';
-        }
-
-        return @unlink($real) ? 'deleted' : 'failed';
+        return $this->retentionFiles->removePaths($paths, $result);
     }
 
     private function removeEmptyUserStorage(int $userId): void
@@ -677,49 +384,17 @@ final class RetentionService
         }
     }
 
-    /** @param array<string,mixed> $result */
-    private function addPurged(array &$result, string $key, int $count): void
+    private function cleanupContext(): RetentionCleanupContext
     {
-        $result['purged'][$key] = (int) ($result['purged'][$key] ?? 0) + $count;
+        return $this->cleanupContext ??= new RetentionCleanupContext($this->db, $this->retentionFiles);
     }
 
-    /** @return array<string,array{table:string,where:string}> */
-    private function softDeleteDefinitions(): array
+    private function moduleCleanup(): BackgroundRetentionCleanup
     {
-        return [
-            'note_attachments' => [
-                'table' => 'note_attachments',
-                'where' => 'is_deleted = 1 AND deleted_at IS NOT NULL AND deleted_at < :cutoff',
-            ],
-            'notes' => [
-                'table' => 'notes',
-                'where' => 'is_deleted = 1 AND deleted_at IS NOT NULL AND deleted_at < :cutoff',
-            ],
-            'user_files' => [
-                'table' => 'user_files',
-                'where' => 'is_deleted = 1 AND updated_at < :cutoff',
-            ],
-            'messenger_attachments' => [
-                'table' => 'messenger_attachments',
-                'where' => 'is_deleted = 1 AND deleted_at IS NOT NULL AND deleted_at < :cutoff',
-            ],
-            'messages' => [
-                'table' => 'messages',
-                'where' => 'is_deleted = 1 AND deleted_at IS NOT NULL AND deleted_at < :cutoff',
-            ],
-            'tasks' => [
-                'table' => 'tasks',
-                'where' => 'is_deleted = 1 AND deleted_at IS NOT NULL AND deleted_at < :cutoff',
-            ],
-            'task_board_items' => [
-                'table' => 'task_board_items',
-                'where' => 'is_deleted = 1 AND deleted_at IS NOT NULL AND deleted_at < :cutoff',
-            ],
-            'task_categories' => [
-                'table' => 'task_categories',
-                'where' => 'is_deleted = 1 AND updated_at < :cutoff',
-            ],
-        ];
+        return $this->moduleCleanup ??= new BackgroundRetentionCleanup(
+            $this->db,
+            $this->appRoot . '/modules'
+        );
     }
 
     private function hasTable(string $table): bool

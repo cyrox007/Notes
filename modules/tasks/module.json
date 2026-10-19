@@ -47,6 +47,7 @@
     ]
   },
   "background": {
-    "account_purge_guard": "background/account-purge.php"
+    "account_purge_guard": "background/account-purge.php",
+    "retention_cleanup": "background/retention.php"
   }
 }
