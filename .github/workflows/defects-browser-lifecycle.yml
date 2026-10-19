@@ -191,7 +191,7 @@ jobs:
             echo 'Ответ приложения:' >&2
             curl -sS -i http://127.0.0.1:18094/workspace/auth/login/ >&2 || true
             echo 'Состояние обязательных таблиц:' >&2
-            php -r 'require_once "core/CliRuntime.php"; \\Core\\CliRuntime::loadEnvironment(getcwd()); require_once "core/RuntimeAutoloader.php"; \\Core\\RuntimeAutoloader::register(getcwd()); echo json_encode(\\Core\\SchemaReadiness::inspect(getcwd()), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), PHP_EOL;' >&2 || true
+            php -r 'require_once "core/CliRuntime.php"; \Core\CliRuntime::loadEnvironment(getcwd()); require_once "core/RuntimeAutoloader.php"; \Core\RuntimeAutoloader::register(getcwd()); echo json_encode(\Core\SchemaReadiness::inspect(getcwd()), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), PHP_EOL;' >&2 || true
             cat /tmp/workspace-defects-browser-http.log >&2
             exit 1
           fi
