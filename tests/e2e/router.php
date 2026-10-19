@@ -45,7 +45,7 @@ if ($basePath !== '' && ($path === $basePath || str_starts_with($path, $basePath
 $trimmedPublicPath = ltrim($publicPath, '/');
 $firstSegment = explode('/', $trimmedPublicPath, 2)[0] ?? '';
 $privateSegments = [
-    'app', 'bin', 'core', 'database', 'docs', 'modules', 'vendor', 'ws_server',
+    'app', 'bin', 'core', 'database', 'development', 'docs', 'modules', 'vendor', 'ws_server',
     '.github', '.git', '.logs',
 ];
 $privateRootFiles = [
