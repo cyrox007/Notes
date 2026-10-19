@@ -118,7 +118,7 @@ final class DefectRegistrationService
         if ($objectId < 1 || $userId < 1) {
             throw new InvalidArgumentException('Неверный объект или пользователь');
         }
-        if ($description === '' || mb_strlen(trim($description)) > 10000) {
+        if (trim($description) === '' || mb_strlen(trim($description)) > 10000) {
             throw new InvalidArgumentException('Описание дефекта должно содержать от 1 до 10000 символов');
         }
         if (trim($registrarName) === '' || mb_strlen(trim($registrarName)) > 160) {
