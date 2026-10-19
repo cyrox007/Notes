@@ -182,6 +182,21 @@ jobs:
             exit 1
           fi
 
+      - name: Проверить данные после параллельных загрузок
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILES="$(mysql -h 127.0.0.1 -uroot -N -B fsp_http_load \
+            -e "SELECT COUNT(*) FROM file_space_nodes WHERE node_type='file' AND is_deleted=0")"
+          test "$FILES" -gt 2
+          DUPLICATES="$(mysql -h 127.0.0.1 -uroot -N -B fsp_http_load \
+            -e "SELECT COUNT(*) FROM (
+              SELECT space_id,parent_id,name FROM file_space_nodes
+              WHERE is_deleted=0 GROUP BY space_id,parent_id,name HAVING COUNT(*)>1
+            ) collisions")"
+          test "$DUPLICATES" = 0
+          echo "Проверка завершена: $FILES общих файлов, совпадающих имён в каталоге нет."
+
       - name: Сохранить обезличенные результаты
         if: always()
         uses: actions/upload-artifact@v4
