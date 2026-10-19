@@ -84,6 +84,8 @@ jobs:
           php -l development/defects/DefectPriorityPolicy.php
           php -l tests/integration/defects_priority_policy_12.php
           php tests/integration/defects_priority_policy_12.php
+          php -l development/defects/DefectReferenceService.php
+          php tests/integration/defects_reference_boundary_12.php
 
       - name: Verify module package web boundary
         shell: bash
