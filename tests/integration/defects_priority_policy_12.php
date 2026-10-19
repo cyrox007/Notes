@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-require_once dirname(__DIR__, 2) . '/development/defects/DefectPriorityPolicy.php';
+require_once dirname(__DIR__, 2) . '/modules/defects/services/DefectPriorityPolicy.php';
 
 use Modules\Defects\Services\DefectPriorityPolicy;
 
