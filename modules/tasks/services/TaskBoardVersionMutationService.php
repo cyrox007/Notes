@@ -11,6 +11,7 @@ use DateTimeImmutable;
 use DomainException;
 use InvalidArgumentException;
 use PDO;
+use Core\DatabaseManager;
 use RuntimeException;
 use Throwable;
 
@@ -27,11 +28,15 @@ final class TaskBoardVersionMutationService
     private const array STATUSES = ['pending', 'studying', 'in_progress', 'review', 'completed'];
     private const array PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 
+    private readonly DatabaseManager $db;
+
     public function __construct(
-        private readonly PDO $pdo,
+        PDO|DatabaseManager $connection,
         private readonly MutationCommandStore $commands = new MutationCommandStore(),
         private readonly ?\Closure $canAssign = null
     ) {
+        $this->db = $connection instanceof DatabaseManager
+            ? $connection : DatabaseManager::forConnection($connection);
     }
 
     /** @param array<string,mixed> $changes @return array<string,mixed> */
@@ -54,11 +59,11 @@ final class TaskBoardVersionMutationService
             'expected_version' => $expectedVersion,
             'changes' => $changes,
         ]);
-        if ($this->pdo->inTransaction()) {
+        if ($this->db->inTransaction()) {
             throw new RuntimeException('Версионная команда требует отдельную транзакцию');
         }
 
-        $this->pdo->beginTransaction();
+        $this->db->beginTransaction();
         try {
             // Проверяем актуальные права ДО возврата результата повтора.
             // FOR UPDATE сериализует изменения задачи и состава участников доски.
@@ -66,12 +71,12 @@ final class TaskBoardVersionMutationService
             $this->assertCanWrite($actorId, $task);
 
             $receipt = $this->commands->acquire(
-                $this->pdo, 'user:' . $actorId, $commandId,
+                $this->db, 'user:' . $actorId, $commandId,
                 'tasks', $action, 'task_board_item', $uid, $hash
             );
             if (!$receipt['owner']) {
                 $result = $this->commands->storedResponse($receipt['record']);
-                $this->pdo->commit();
+                $this->db->endTransaction();
                 return $result;
             }
             if ((int) $task['is_deleted'] !== 0) {
@@ -91,7 +96,7 @@ final class TaskBoardVersionMutationService
                     'current' => $this->publicTask($task),
                 ];
                 $this->complete($receipt, $result, $version, MutationCommandStore::STATUS_CONFLICT);
-                $this->pdo->commit();
+                $this->db->endTransaction();
                 return $result;
             }
 
@@ -113,7 +118,7 @@ final class TaskBoardVersionMutationService
             }
             $parts[] = 'version = version + 1';
             $parts[] = 'updated_at = CURRENT_TIMESTAMP';
-            $update = $this->pdo->prepare(
+            $update = $this->db->prepare(
                 'UPDATE task_board_items SET ' . implode(', ', $parts)
                 . ' WHERE id=:id AND version=:expected AND is_deleted=0'
             );
@@ -125,7 +130,7 @@ final class TaskBoardVersionMutationService
             if ($assignees !== null) {
                 $this->saveAssignees((int) $task['id'], $assignees);
             }
-            $touch = $this->pdo->prepare('UPDATE task_boards SET updated_at=CURRENT_TIMESTAMP WHERE id=:id');
+            $touch = $this->db->prepare('UPDATE task_boards SET updated_at=CURRENT_TIMESTAMP WHERE id=:id');
             $touch->execute([':id' => (int) $task['board_id']]);
 
             $current = $this->lockedTask($actorId, $uid);
@@ -139,11 +144,11 @@ final class TaskBoardVersionMutationService
                 'replayed' => false,
             ];
             $this->complete($receipt, $result, (int) $current['version'], MutationCommandStore::STATUS_APPLIED);
-            $this->pdo->commit();
+            $this->db->endTransaction();
             return $result;
         } catch (Throwable $error) {
-            if ($this->pdo->inTransaction()) {
-                $this->pdo->rollBack();
+            if ($this->db->inTransaction()) {
+                $this->db->endTransaction(false);
             }
             throw $error;
         }
@@ -160,7 +165,7 @@ final class TaskBoardVersionMutationService
                     AND actor.account_status='active'
                 LEFT JOIN task_board_members bm ON bm.board_id=b.id AND bm.user_id=:member
                 WHERE i.uid=:uid LIMIT 1 FOR UPDATE";
-        $stmt = $this->pdo->prepare($sql);
+        $stmt = $this->db->prepare($sql);
         $stmt->execute([':actor' => $actorId, ':member' => $actorId, ':uid' => $uid]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!is_array($row)) {
@@ -337,7 +342,7 @@ final class TaskBoardVersionMutationService
                       ))";
             $params = [...$ids, (int) $task['owner_user_id'], (int) $task['board_id']];
         }
-        $stmt = $this->pdo->prepare($sql);
+        $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         $found = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
         sort($found, SORT_NUMERIC);
@@ -349,9 +354,9 @@ final class TaskBoardVersionMutationService
     /** @param list<int> $ids */
     private function saveAssignees(int $taskId, array $ids): void
     {
-        $delete = $this->pdo->prepare('DELETE FROM task_board_assignees WHERE task_id=:id');
+        $delete = $this->db->prepare('DELETE FROM task_board_assignees WHERE task_id=:id');
         $delete->execute([':id' => $taskId]);
-        $insert = $this->pdo->prepare(
+        $insert = $this->db->prepare(
             'INSERT INTO task_board_assignees (task_id,user_id,assigned_at) VALUES (:task,:user,CURRENT_TIMESTAMP)'
         );
         foreach ($ids as $id) {
@@ -362,7 +367,7 @@ final class TaskBoardVersionMutationService
     /** @param array<string,mixed> $task @return array<string,mixed> */
     private function publicTask(array $task): array
     {
-        $select = $this->pdo->prepare(
+        $select = $this->db->prepare(
             'SELECT user_id FROM task_board_assignees WHERE task_id=:id ORDER BY user_id'
         );
         $select->execute([':id' => (int) $task['id']]);
@@ -386,7 +391,7 @@ final class TaskBoardVersionMutationService
     private function complete(array $receipt, array $response, int $version, string $status): void
     {
         $this->commands->complete(
-            $this->pdo,
+            $this->db,
             (int) $receipt['record']['id'],
             $receipt['token'],
             $status,
