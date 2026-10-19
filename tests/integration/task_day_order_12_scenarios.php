@@ -98,4 +98,39 @@ integrityCheck(count($taskVersions) === 3 && count(array_filter(
 
 integrityCheck($queue->version($userId, $tomorrow) === 1,
     'очередь следующего дня должна иметь независимую версию');
+
+$tomorrowSecondUid = bin2hex(random_bytes(16));
+$insertDay->execute([
+    ':uid' => $tomorrowSecondUid, ':user_id' => $userId,
+    ':title' => 'Вторая задача на завтра', ':due_date' => $tomorrow . ' 18:00:00',
+]);
+$tomorrowMove = $queue->move(
+    $userId, 'tomorrow', $tomorrowSecondUid, 'up',
+    1, 'day-order-tomorrow-0001', $now
+);
+integrityCheck(($tomorrowMove['success'] ?? false) === true
+    && ($tomorrowMove['version'] ?? 0) === 2,
+    'перестановка завтра должна сохраняться независимо от сегодня');
+integrityCheck($queue->version($userId, $today) === 3,
+    'перестановка завтрашней очереди не должна менять сегодняшнюю');
+
+$installer->createAdminUser(
+    $pdo, 'integrity-queue-other', 'integrity-queue-other@example.test',
+    'integrity-test-password', 'Other', 'User'
+);
+$otherUser = (int) $queueDb->fetchValue(
+    'SELECT id FROM users WHERE username=:name',
+    [':name' => 'integrity-queue-other']
+);
+integrityCheck($otherUser > 0 && $otherUser !== $userId,
+    'не удалось создать второго пользователя для проверки прав');
+$foreign = $queue->move(
+    $otherUser, 'today', $uids[0], 'up',
+    1, 'day-order-foreign-0001', $now
+);
+integrityCheck(($foreign['error'] ?? '') === 'queue_changed',
+    'чужую задачу нельзя перемещать в своей очереди');
+integrityCheck($queue->version($userId, $today) === 3,
+    'запрещённый перенос не должен менять очередь владельца');
+
 echo "Контракт ручного порядка личной очереди Tasks выполнен\n";
