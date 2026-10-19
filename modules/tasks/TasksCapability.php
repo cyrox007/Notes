@@ -16,6 +16,10 @@ use InvalidArgumentException;
 
 final class TasksCapability implements ProfileContentProvider, WorkspaceTaskCreator, AccountDeactivationGuard
 {
+    public function __construct(private ?DatabaseManager $database = null)
+    {
+    }
+
     /**
      * Проверка принадлежности общих досок остаётся внутри Tasks.
      * Core и Admin не должны обращаться к таблицам модуля напрямую.
@@ -210,6 +214,6 @@ final class TasksCapability implements ProfileContentProvider, WorkspaceTaskCrea
 
     private function db(): DatabaseManager
     {
-        return DatabaseManager::getInstance();
+        return $this->database ??= DatabaseManager::getInstance();
     }
 }
