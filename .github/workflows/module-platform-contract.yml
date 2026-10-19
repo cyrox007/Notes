@@ -89,6 +89,8 @@ jobs:
           php -l modules/defects/services/DefectRegistrationService.php
           php -l tests/integration/defects_registration_12.php
           php tests/integration/defects_registration_12.php
+          php -l tests/integration/defects_module_runtime_12.php
+          php tests/integration/defects_module_runtime_12.php
           grep -Fq 'database|development|docs' .htaccess
           grep -Fq "'development'" tests/e2e/router.php
 
