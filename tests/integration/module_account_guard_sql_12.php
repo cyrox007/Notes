@@ -9,7 +9,9 @@ foreach ([
     '/core/AccountDeactivationGuard.php',
     '/core/ProfileContentProvider.php',
     '/core/WorkspaceTaskCreator.php',
+    '/modules/tasks/services/TasksAccountOwnership.php',
     '/modules/tasks/TasksCapability.php',
+    '/modules/messenger/services/MessengerAccountOwnership.php',
     '/modules/messenger/MessengerCapability.php',
 ] as $file) {
     require_once $root . $file;
