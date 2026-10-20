@@ -103,7 +103,7 @@ $controller = (string) file_get_contents($root . '/modules/admin/controllers/Not
 smsCheck(str_contains($runtime, 'new SmsGatewayNotificationChannel('),
     'SMS не подключён к общей очереди');
 smsCheck(str_contains($preferences, "'sms' => true")
-    && str_contains($preferences, "['telegram', 'max', 'sms']"),
+    && str_contains($preferences, "['telegram', 'max', 'sms', 'browser']"),
     'SMS должен быть только персональным каналом');
 smsCheck(str_contains($administration, 'SmsGatewayNotificationChannel::configuration')
     && str_contains($administration, 'owner_user_id')
