@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Профиль SQL настоящих HTTP-запросов «Дефектов» через Performance Schema."""
+"""Подсчёт SQL-операций настоящих HTTP-маршрутов в одноразовом MySQL-стенде."""
 
 import argparse
+import collections
 import json
 import os
 from pathlib import Path
+import re
 import statistics
 import subprocess
 import uuid
@@ -25,61 +27,72 @@ def mysql(query):
     return result.stdout.strip().splitlines()
 
 
-def snapshot():
-    # Только одноразовая база: не собираем SQL других проектов или пользователей.
-    database = os.getenv("DBNAME", "")
-    if database != "defects_http_load":
-        raise RuntimeError("Профилирование разрешено только в базе defects_http_load")
-    sql = (
-        "SELECT HEX(DIGEST_TEXT), COUNT_STAR, SUM_TIMER_WAIT, SUM_ROWS_EXAMINED,"
-        " SUM_ROWS_SENT, SUM_NO_INDEX_USED, SUM_CREATED_TMP_DISK_TABLES"
-        " FROM performance_schema.events_statements_summary_by_digest"
-        " WHERE DIGEST_TEXT IS NOT NULL"
+def normalize(statement):
+    # Текст SQL не сохраняется: литералы и числовые значения заменяются.
+    sql = re.sub(r"'(?:\\.|''|[^'])*'", "?", statement)
+    sql = re.sub(r'"(?:\\.|""|[^"])*"', "?", sql)
+    sql = re.sub(r"\b\d+(?:\.\d+)?\b", "?", sql)
+    return " ".join(sql.split())[:320]
+
+
+def sql_family(statement):
+    lower = statement.lower()
+    if "information_schema" in lower or "performance_schema" in lower:
+        return "проверки_схемы"
+    if re.search(r"\bdefects?\b|\bdefect_", lower):
+        return "запросы_дефектов"
+    if lower.startswith(("set names", "set session", "set time_zone")):
+        return "настройка_соединения"
+    return "остальные_запросы_ядра"
+
+
+def stamp():
+    return mysql("SELECT DATE_FORMAT(NOW(6), '%Y-%m-%d %H:%i:%s.%f')")[0]
+
+
+def recorded_queries(started_at):
+    # General Log используется ТОЛЬКО в одноразовой тестовой базе.
+    # На диск в артефактах не попадают значения SQL, пароли и токены.
+    query = (
+        "SELECT HEX(argument) FROM mysql.general_log"
+        f" WHERE event_time > '{started_at}'"
+        " AND command_type IN ('Query','Execute')"
+        " ORDER BY event_time"
     )
-    rows = {}
-    for line in mysql(sql):
-        fields = line.split("\t")
-        if len(fields) != 7:
-            raise RuntimeError("Неожиданный ответ сводки SQL Performance Schema")
-        encoded, *numbers = fields
-        statement = bytes.fromhex(encoded).decode("utf-8", errors="replace")
-        # У подготовленных запросов SCHEMA_NAME бывает NULL: фильтр по базе
-        # исключал именно рабочие запросы приложения.
-        if "performance_schema" in statement.lower():
+    patterns = collections.Counter()
+    families = collections.Counter()
+    for line in mysql(query):
+        sql = bytes.fromhex(line).decode("utf-8", errors="replace")
+        lower = sql.lower().strip()
+        if "mysql.general_log" in lower or "date_format(now(" in lower:
             continue
-        rows[statement] = [int(number) for number in numbers]
-    return rows
-
-
-def changes(before, after):
-    deltas = []
-    for statement, values in after.items():
-        previous = before.get(statement, [0] * len(values))
-        diff = [max(0, current - old) for current, old in zip(values, previous)]
-        if diff[0] == 0:
-            continue
-        deltas.append({
-            "шаблон": statement[:320],
-            "вызовов": diff[0],
-            "время_мс": round(diff[1] / 1_000_000_000, 3),
-            "строк_проверено": diff[2],
-            "строк_выдано": diff[3],
-            "без_индекса": diff[4],
-            "временных_таблиц_на_диске": diff[5],
-        })
-    return sorted(deltas, key=lambda row: (-row["время_мс"], -row["вызовов"]))
+        # Взять только реально выполненные SQL-команды, без повторного счёта PREPARE.
+        family = sql_family(sql)
+        families[family] += 1
+        patterns[(family, normalize(sql))] += 1
+    ordered = sorted(patterns.items(), key=lambda item: -item[1])
+    return {
+        "SQL_операций": sum(families.values()),
+        "по_назначению": dict(families),
+        "основные_шаблоны": [
+            {"назначение": key[0], "шаблон": key[1], "вызовов": count}
+            for key, count in ordered[:16]
+        ],
+    }
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Профиль SQL под настоящими HTTP-запросами Дефектов")
+    parser = argparse.ArgumentParser(description="Измерить SQL-операции под реальными HTTP-запросами")
     parser.add_argument("--origin", default="http://127.0.0.1:18097")
     parser.add_argument("--fixture", required=True)
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
     if args.origin != "http://127.0.0.1:18097":
-        parser.error("Допустим только локальный адрес одноразового стенда")
-    if mysql("SELECT @@performance_schema") != ["1"]:
-        raise RuntimeError("MySQL Performance Schema отключена: профиль SQL недоступен")
+        parser.error("Допустим только loopback-адрес одноразового стенда")
+    if os.getenv("DBNAME") != "defects_http_load":
+        parser.error("Разрешено профилировать только базу defects_http_load")
+    if mysql("SHOW GLOBAL VARIABLES LIKE 'general_log'") != ["general_log\tOFF"]:
+        raise RuntimeError("SQL-журнал должен быть выключен перед профилированием")
 
     fixture = json.loads(Path(args.fixture).read_text(encoding="utf-8"))
     session, csrf = login(args.origin, fixture["username"], os.environ["DEFECTS_HTTP_PASSWORD"])
@@ -92,67 +105,55 @@ def main():
         ("карточка", f"/api/defects/{fixture['known_defect_id']}"),
         ("история", f"/api/defects/{fixture['known_defect_id']}/history?limit=10"),
     ]
+    report = {
+        "описание": "SQL-операции HTTP-маршрутов: MySQL general_log в одноразовом стенде",
+        "замер": "8 последовательных HTTP-запросов для каждого чтения; один — для записи",
+        "маршруты": {},
+    }
 
-    report = {"описание": "Разница показателей MySQL Performance Schema до и после HTTP-запросов", "маршруты": {}}
-    for label, path in workloads:
-        # Первый запрос разогревает маршрут, но не входит в измеряемый интервал.
-        get_json(session, args.origin, path, label)
-        before = snapshot()
-        latencies = []
-        for _ in range(8):
-            _, elapsed = get_json(session, args.origin, path, label)
-            latencies.append(elapsed)
-        after = snapshot()
-        grouped = changes(before, after)
-        report["маршруты"][label] = {
-            "HTTP_запросов": len(latencies),
-            "p50_мс": round(statistics.median(latencies), 2),
-            "SQL_вызовов": sum(row["вызовов"] for row in grouped),
-            "SQL_время_мс": round(sum(row["время_мс"] for row in grouped), 2),
-            "строк_проверено": sum(row["строк_проверено"] for row in grouped),
-            "без_индекса": sum(row["без_индекса"] for row in grouped),
-            "дорогие_запросы": grouped[:16],
+    mysql("SET GLOBAL log_output='TABLE'; SET GLOBAL general_log='ON'")
+    try:
+        for label, path in workloads:
+            get_json(session, args.origin, path, label)
+            started = stamp()
+            latencies = []
+            for _ in range(8):
+                _, duration = get_json(session, args.origin, path, label)
+                latencies.append(duration)
+            measurements = recorded_queries(started)
+            report["маршруты"][label] = {
+                "HTTP_запросов": 8,
+                "p50_HTTP_мс": round(statistics.median(latencies), 2),
+                **measurements,
+            }
+
+        payload = new_payload(fixture, marker, "профиль")
+        started = stamp()
+        created, duration = post_json(session, args.origin, csrf, "/api/defects/", payload, 201)
+        report["маршруты"]["регистрация"] = {
+            "HTTP_запросов": 1, "время_HTTP_мс": round(duration, 2),
+            **recorded_queries(started),
         }
-
-    command = new_payload(fixture, marker, "профиль")
-    before = snapshot()
-    created, latency = post_json(session, args.origin, csrf, "/api/defects/", command, 201)
-    after = snapshot()
-    report["маршруты"]["регистрация"] = {
-        "HTTP_запросов": 1, "время_HTTP_мс": round(latency, 2),
-        "SQL_вызовов": sum(row["вызовов"] for row in changes(before, after)),
-        "дорогие_запросы": changes(before, after)[:16],
-    }
-    identifier = int(created["defect"]["id"])
-    close = {
-        "version": 1, "completed_work": "Проверено в SQL-профиле",
-        "command_id": uuid.uuid4().hex,
-    }
-    before = snapshot()
-    _, latency = post_json(session, args.origin, csrf, f"/api/defects/{identifier}/close", close)
-    after = snapshot()
-    report["маршруты"]["закрытие"] = {
-        "HTTP_запросов": 1, "время_HTTP_мс": round(latency, 2),
-        "SQL_вызовов": sum(row["вызовов"] for row in changes(before, after)),
-        "дорогие_запросы": changes(before, after)[:16],
-    }
+        identifier = int(created["defect"]["id"])
+        command = {
+            "version": 1, "completed_work": "Испытательное устранение в SQL-профиле",
+            "command_id": uuid.uuid4().hex,
+        }
+        started = stamp()
+        _, duration = post_json(session, args.origin, csrf, f"/api/defects/{identifier}/close", command)
+        report["маршруты"]["закрытие"] = {
+            "HTTP_запросов": 1, "время_HTTP_мс": round(duration, 2),
+            **recorded_queries(started),
+        }
+    finally:
+        # Основная 12-секундная нагрузка измеряется БЕЗ накладных расходов general_log.
+        mysql("SET GLOBAL general_log='OFF'; SET GLOBAL log_output='FILE'")
 
     Path(args.out).write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(json.dumps({
-        name: {
-            "запросов_HTTP": values["HTTP_запросов"],
-            "вызовов_SQL": values["SQL_вызовов"],
-            "строк_проверено": values.get("строк_проверено"),
-            "дорогие": values["дорогие_запросы"][:4],
-        }
-        for name, values in report["маршруты"].items()
-    }, indent=2, ensure_ascii=False))
-    for name, data in report["маршруты"].items():
-        if not any("defect" in item["шаблон"].lower()
-                   for item in data["дорогие_запросы"]):
-            raise SystemExit("SQL-профиль не содержит рабочих запросов Дефектов: " + name)
-        if data["SQL_вызовов"] <= 0:
-            raise SystemExit("SQL-профиль не зафиксировал запросы маршрута: " + name)
+    print(json.dumps(report["маршруты"], indent=2, ensure_ascii=False))
+    for name, values in report["маршруты"].items():
+        if values["по_назначению"].get("запросы_дефектов", 0) < values["HTTP_запросов"]:
+            raise SystemExit("Недостаточно рабочих SQL-запросов Дефектов в профиле: " + name)
 
 
 if __name__ == "__main__":
