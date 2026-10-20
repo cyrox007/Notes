@@ -90,7 +90,7 @@ METRICS_STATUS="${METRICS_STATUS:-0}"
 trap - EXIT INT TERM
 
 {
-  echo "Workspace Organizer 1.1 — эталонный нагрузочный прогон"
+  echo "Notes — эталонный нагрузочный прогон"
   echo "commit=$COMMIT_SHA"
   echo "environment=$PERF_ENVIRONMENT_NAME"
   echo "started_profile_seconds=$TOTAL_SECONDS"
