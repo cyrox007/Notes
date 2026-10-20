@@ -7,6 +7,7 @@ on:
       - 'tests/integration/defects_http_seed_12.php'
       - 'tests/integration/defects_http_load_12.py'
       - 'tests/integration/notes_staged_http_capacity_12.py'
+      - 'docs/audits/2026-10-20-notes-staged-capacity-12.md'
       - 'tests/integration/defects_http_sql_profile_12.py'
       - '.github/workflows/defects-http-load-12.yml'
       - 'modules/defects/**'
