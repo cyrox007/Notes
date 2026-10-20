@@ -19,7 +19,7 @@ function systemNotificationAssert(bool $value, string $message): void
 
 $db = DatabaseManager::getInstance();
 // Run only in a disposable database: this mirrors the notification CI fixtures.
-foreach (['core_identity_schema.sql', 'access_control_schema.sql', 'migrations/20261010_notifications_foundation.sql'] as $schema) {
+foreach (['core_identity_schema.sql', 'access_control_schema.sql', 'notifications_schema.sql'] as $schema) {
     $connection = new mysqli((string) getenv('DBHOST'), (string) getenv('DBUSER'), (string) getenv('DBPASS'), (string) getenv('DBNAME'), (int) (getenv('DBPORT') ?: 3306));
     $connection->set_charset('utf8mb4');
     $connection->multi_query((string) file_get_contents($root . '/database/' . $schema));
