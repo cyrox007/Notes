@@ -36,7 +36,9 @@ def normalize(statement):
 
 
 def sql_family(statement):
-    lower = statement.lower()
+    # Сначала скрываем значения: модуль «Дефекты» может упоминаться как
+    # параметр системного UPDATE module_lifecycle, а не как SQL-таблица.
+    lower = normalize(statement).lower()
     if "information_schema" in lower or "performance_schema" in lower:
         return "проверки_схемы"
     if re.search(r"\bdefects?\b|\bdefect_", lower):
@@ -61,6 +63,7 @@ def recorded_queries(started_at):
     )
     patterns = collections.Counter()
     families = collections.Counter()
+    lifecycle_writes = 0
     for line in mysql(query):
         sql = bytes.fromhex(line).decode("utf-8", errors="replace")
         lower = sql.lower().strip()
@@ -68,11 +71,15 @@ def recorded_queries(started_at):
             continue
         # Взять только реально выполненные SQL-команды, без повторного счёта PREPARE.
         family = sql_family(sql)
+        template = normalize(sql)
+        if re.match(r"^UPDATE `?module_lifecycle`?\b", template, re.IGNORECASE):
+            lifecycle_writes += 1
         families[family] += 1
-        patterns[(family, normalize(sql))] += 1
+        patterns[(family, template)] += 1
     ordered = sorted(patterns.items(), key=lambda item: -item[1])
     return {
         "SQL_операций": sum(families.values()),
+        "лишних_UPDATE_жизненного_цикла": lifecycle_writes,
         "по_назначению": dict(families),
         "основные_шаблоны": [
             {"назначение": key[0], "шаблон": key[1], "вызовов": count}
@@ -154,6 +161,8 @@ def main():
     for name, values in report["маршруты"].items():
         if values["по_назначению"].get("запросы_дефектов", 0) < values["HTTP_запросов"]:
             raise SystemExit("Недостаточно рабочих SQL-запросов Дефектов в профиле: " + name)
+        if values["лишних_UPDATE_жизненного_цикла"] != 0:
+            raise SystemExit("На неизменном состоянии модулей остались лишние SQL UPDATE: " + name)
 
 
 if __name__ == "__main__":
