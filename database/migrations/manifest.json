@@ -47,6 +47,7 @@
     "20261019_defects_foundation.sql",
     "20261019_defects_history.sql",
     "20261019_defects_reference_versions.sql",
-    "20261020_notifications_max_channel.sql"
+    "20261020_notifications_max_channel.sql",
+    "20261020_notifications_push_subscriptions.sql"
   ]
 }
