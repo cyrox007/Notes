@@ -33,6 +33,7 @@ on:
       - 'tests/integration/notification_*contract.php'
       - 'tests/integration/notification_admin_smtp_12.php'
       - 'tests/integration/notification_external_channels_12.php'
+      - 'tests/integration/notification_sms_gateway_12.php'
       - 'database/notifications_schema.sql'
       - 'tests/integration/calendar_reminders_*contract.php'
       - 'tests/integration/smtp_socket_transport_contract.php'
@@ -69,6 +70,7 @@ on:
       - 'tests/integration/notification_*contract.php'
       - 'tests/integration/notification_admin_smtp_12.php'
       - 'tests/integration/notification_external_channels_12.php'
+      - 'tests/integration/notification_sms_gateway_12.php'
       - 'database/notifications_schema.sql'
       - 'tests/integration/calendar_reminders_*contract.php'
       - 'tests/integration/smtp_socket_transport_contract.php'
@@ -159,6 +161,8 @@ jobs:
           php tests/integration/notification_smtp_contract.php
           php tests/integration/notification_admin_smtp_12.php
           php tests/integration/notification_external_channels_12.php
+          php tests/integration/notification_sms_gateway_12.php
+          php -l app/services/notifications/SmsGatewayNotificationChannel.php
           php -l app/services/notifications/SignedWebhookNotificationChannel.php
           php -l app/services/notifications/BotNotificationChannel.php
           php -l app/services/notifications/CurlNotificationHttpTransport.php

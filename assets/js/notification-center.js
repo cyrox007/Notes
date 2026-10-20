@@ -551,7 +551,8 @@
             ['email', 'E-mail'],
             ['telegram', 'Telegram'],
             ['max', 'MAX'],
-            ['webhook', 'Webhook']
+            ['webhook', 'Webhook'],
+            ['sms', 'SMS']
         ];
         destinations.forEach(([channel, label]) => {
             const detail = availability?.[channel] && typeof availability[channel] === 'object'
@@ -572,7 +573,7 @@
 
         const future = node('div', 'workspace-notification-preference__future');
         future.appendChild(node('span', '', 'Browser Push · позже'));
-        future.appendChild(node('span', '', 'SMS · позже'));
+
         card.appendChild(future);
 
         external.input.addEventListener('change', () => void savePreference(

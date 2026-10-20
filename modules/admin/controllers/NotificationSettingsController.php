@@ -71,7 +71,7 @@ final class NotificationSettingsController extends Controller
                 throw new DomainException('Неверный пароль администратора');
             }
             $input = [];
-            foreach (['channel','url','owner_user_id','chat_id','max_user_id','secret_ref'] as $field) {
+            foreach (['channel','url','owner_user_id','chat_id','max_user_id','phone','secret_ref'] as $field) {
                 $input[$field] = $request->rawPost($field, '');
             }
             $input['enabled'] = $request->rawPost('enabled', '0') === '1';
