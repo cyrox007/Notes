@@ -11,6 +11,9 @@ require_once __DIR__ . '/EnvironmentNotificationSecretResolver.php';
 require_once __DIR__ . '/NotificationDeliveryWorker.php';
 require_once __DIR__ . '/SmtpNotificationChannel.php';
 require_once __DIR__ . '/SocketSmtpTransport.php';
+require_once __DIR__ . '/CurlNotificationHttpTransport.php';
+require_once __DIR__ . '/SignedWebhookNotificationChannel.php';
+require_once __DIR__ . '/BotNotificationChannel.php';
 
 use Core\DatabaseManager;
 use DateTimeImmutable;
@@ -86,9 +89,16 @@ final class NotificationDeliveryRuntime
             new SocketSmtpTransport(),
             $siteUrl === false ? '' : $siteUrl
         );
+        $https = new CurlNotificationHttpTransport();
+        $secrets = new EnvironmentNotificationSecretResolver();
         $this->worker = new NotificationDeliveryWorker(
             new DatabaseNotificationDeliveryQueue($this->db),
-            [$email]
+            [
+                $email,
+                new SignedWebhookNotificationChannel($secrets, $https),
+                new BotNotificationChannel('telegram', $secrets, $https),
+                new BotNotificationChannel('max', $secrets, $https),
+            ]
         );
         return $this->worker;
     }
