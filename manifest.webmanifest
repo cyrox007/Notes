@@ -1,0 +1,31 @@
+{
+  "id": "./",
+  "name": "Notes — рабочее пространство",
+  "short_name": "Notes",
+  "description": "Задачи, сообщения и рабочие уведомления",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f8ff",
+  "theme_color": "#f4f8ff",
+  "icons": [
+    {
+      "src": "./assets/img/workspace-brand-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Задачи",
+      "url": "./tasks",
+      "description": "Открыть список задач"
+    },
+    {
+      "name": "Сообщения",
+      "url": "./messenger",
+      "description": "Открыть Messenger"
+    }
+  ]
+}
