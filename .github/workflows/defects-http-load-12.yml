@@ -6,6 +6,7 @@ on:
     paths:
       - 'tests/integration/defects_http_seed_12.php'
       - 'tests/integration/defects_http_load_12.py'
+      - 'tests/integration/notes_staged_http_capacity_12.py'
       - 'tests/integration/defects_http_sql_profile_12.py'
       - '.github/workflows/defects-http-load-12.yml'
       - 'modules/defects/**'
@@ -105,7 +106,8 @@ jobs:
           chmod 600 .env
           php -l tests/integration/defects_http_seed_12.php
           python3 -m py_compile tests/integration/defects_http_load_12.py \
-            tests/integration/defects_http_sql_profile_12.py
+            tests/integration/defects_http_sql_profile_12.py \
+            tests/integration/notes_staged_http_capacity_12.py
           php tests/integration/defects_http_seed_12.php > /tmp/defects-http-fixture.json
           mysql -h 127.0.0.1 -uroot defects_http_load < database/migrations/20261019_defects_foundation.sql
           php tests/support/ci_license_fixture.php
@@ -222,6 +224,31 @@ jobs:
           test "$BROKEN" = 0
           echo "Проверено $TOTAL новых карточек: закрыты, версии и история согласованы."
 
+      - name: Ступенчатая нагрузка 4–8–12 и контроль целостности после каждой ступени
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Обычный CI-профиль выше использует 12 процессов. Для ступени
+          # в 12 клиентов оставляем четыре дополнительных процесса для
+          # штатных и измерительных запросов, иначе замер очереди искажается.
+          sudo sed -i 's/^pm.max_children = .*/pm.max_children = 16/' \
+            /etc/php/8.3/fpm/pool.d/www.conf
+          sudo service php8.3-fpm restart
+          python3 tests/integration/notes_staged_http_capacity_12.py \
+            --origin http://127.0.0.1:18097 \
+            --fixture /tmp/defects-http-fixture.json \
+            --out /tmp/notes-staged-http-capacity-12.json \
+            --stages 4,8,12 --seconds 8 \
+            --max-p99-ms 3000 \
+            --max-php-memory-mib 1536 \
+            --max-fpm-queue 8
+          test -s /tmp/notes-staged-http-capacity-12.json
+          if grep -E 'PHP (Warning|Fatal error|Parse error)|Uncaught' \
+            /var/log/php8.3-fpm.log /tmp/workspace-organizer-startup.log 2>/dev/null; then
+            echo 'Обнаружены ошибки PHP во время ступенчатой нагрузки' >&2
+            exit 1
+          fi
+
       - name: Сохранить обезличенные результаты
         if: always()
         uses: actions/upload-artifact@v4
@@ -230,6 +257,7 @@ jobs:
           path: |
             /tmp/defects-http-load-report.json
             /tmp/defects-http-sql-profile.json
+            /tmp/notes-staged-http-capacity-12.json
           if-no-files-found: warn
           retention-days: 7
 
