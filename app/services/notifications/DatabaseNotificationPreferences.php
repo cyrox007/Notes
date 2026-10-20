@@ -30,6 +30,7 @@ final class DatabaseNotificationPreferences
         'telegram' => true,
         'max' => true,
         'webhook' => true,
+        'sms' => true,
     ];
 
     private DatabaseManager $db;
@@ -273,7 +274,7 @@ final class DatabaseNotificationPreferences
             $owner = $row['owner_user_id'] ?? null;
             // Чаты мессенджеров не могут быть глобальным адресатом.
             // Иначе сообщение любого пользователя уйдёт в один чужой чат.
-            if (in_array($channel, ['telegram', 'max'], true) && (int) $owner !== $userId) {
+            if (in_array($channel, ['telegram', 'max', 'sms'], true) && (int) $owner !== $userId) {
                 continue;
             }
             if ($channel === 'webhook' && $owner !== null) {
