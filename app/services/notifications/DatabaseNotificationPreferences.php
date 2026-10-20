@@ -27,6 +27,7 @@ final class DatabaseNotificationPreferences
     /** @var array<string,true> */
     private const SUPPORTED_CHANNELS = [
         'email' => true,
+        'browser' => true,
         'telegram' => true,
         'max' => true,
         'webhook' => true,
@@ -274,7 +275,7 @@ final class DatabaseNotificationPreferences
             $owner = $row['owner_user_id'] ?? null;
             // Чаты мессенджеров не могут быть глобальным адресатом.
             // Иначе сообщение любого пользователя уйдёт в один чужой чат.
-            if (in_array($channel, ['telegram', 'max', 'sms'], true) && (int) $owner !== $userId) {
+            if (in_array($channel, ['telegram', 'max', 'sms', 'browser'], true) && (int) $owner !== $userId) {
                 continue;
             }
             if ($channel === 'webhook' && $owner !== null) {
