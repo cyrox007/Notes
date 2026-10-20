@@ -23,7 +23,7 @@ final class CurlNotificationHttpTransport implements NotificationHttpTransport
         $parts = parse_url($url);
         if (!is_array($parts) || strtolower((string) ($parts['scheme'] ?? '')) !== 'https'
             || !is_string($parts['host'] ?? null)
-            || isset($parts['user'], $parts['pass'])
+            || isset($parts['user']) || isset($parts['pass'])
             || isset($parts['fragment'])
             || isset($parts['port']) && (int) $parts['port'] !== 443) {
             throw new InvalidArgumentException('Доставка разрешена только на корректный HTTPS-адрес');
