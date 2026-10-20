@@ -41,6 +41,7 @@ final class AdminRuntimeProvider implements ModuleRuntimeProvider
             ->add('POST', '/settings/two-factor', [SettingsController::class, 'saveTwoFactorPolicy'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_settings_two_factor')
             ->add('GET', '/notifications', [NotificationSettingsController::class, 'index'], [LoginRequared::class, RequireAdminSettingsManage::class], 'admin_notifications')
             ->add('POST', '/notifications/smtp', [NotificationSettingsController::class, 'saveSmtp'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_notifications_smtp')
+            ->add('POST', '/notifications/external', [NotificationSettingsController::class, 'saveExternal'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_notifications_external')
             ->add('POST', '/notifications/test', [NotificationSettingsController::class, 'sendTest'], [LoginRequared::class, RequireAdminSettingsManage::class, CSRFMiddleware::class], 'admin_notifications_test');
 
         if (ModuleRuntimeLoader::getInstance()->capabilities()->has('workspace.files')) {

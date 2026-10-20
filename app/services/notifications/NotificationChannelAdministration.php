@@ -111,67 +111,91 @@ final class NotificationChannelAdministration
      */
     public function testSmtp(int $actorId): array
     {
-        if ($actorId <= 0) {
-            throw new InvalidArgumentException('Требуется авторизованный администратор');
+        return $this->testChannel($actorId, 'email');
+    }
+
+    /**
+     * Все тестовые каналы проходят ту же очередь, что обычная доставка.
+     * Сменяются только подписки на отдельную диагностическую категорию.
+     *
+     * @return array{event_id:int,job_id:int,state:string,attempts:int,last_result_code:?string}
+     */
+    public function testChannel(int $actorId, string $channel): array
+    {
+        if ($actorId <= 0 || !in_array($channel, ['email', 'telegram', 'max', 'webhook'], true)) {
+            throw new InvalidArgumentException('Недопустимый канал или получатель');
         }
 
-        $config = $this->smtpConfig();
-        if ($config === null || (int) $config['enabled'] !== 1) {
-            throw new DomainException('SMTP отключён или не настроен');
+        if ($channel === 'email') {
+            $config = $this->smtpConfig();
+            if ($config === null || (int) $config['enabled'] !== 1) {
+                throw new DomainException('SMTP отключён или не настроен');
+            }
+            $recipient = (new DatabaseNotificationEmailRecipientResolver($this->db))->emailForUser($actorId);
+            if ($recipient === null) {
+                throw new DomainException('У администратора нет доступного E-mail адреса');
+            }
+        } else {
+            $config = $this->db->fetchOne(
+                'SELECT id FROM notification_channel_configs
+                 WHERE channel=:channel AND enabled=1
+                   AND (owner_user_id = :actor OR (:is_webhook=1 AND owner_user_id IS NULL))
+                 ORDER BY owner_user_id IS NULL ASC,id ASC LIMIT 1',
+                [
+                    ':channel' => $channel,
+                    ':actor' => $actorId,
+                    ':is_webhook' => $channel === 'webhook' ? 1 : 0,
+                ]
+            );
+            if ($config === null) {
+                throw new DomainException('Сначала настройте доступного получателя выбранного канала');
+            }
         }
 
-        $recipient = (new DatabaseNotificationEmailRecipientResolver($this->db))->emailForUser($actorId);
-        if ($recipient === null) {
-            throw new DomainException('У администратора нет действительного адреса E-mail');
-        }
-
+        $eventName = 'notifications.' . ($channel === 'email' ? 'smtp' : $channel) . '_test';
         $last = $this->db->fetchValue(
-            "SELECT MAX(e.created_at)
-             FROM notification_events e
-             JOIN notifications n ON n.event_id = e.id
-             WHERE n.recipient_user_id = :user_id
-               AND e.event_name = 'notifications.smtp_test'",
-            [':user_id' => $actorId]
+            'SELECT MAX(e.created_at)
+             FROM notification_events e JOIN notifications n ON n.event_id=e.id
+             WHERE n.recipient_user_id=:actor AND e.event_name=:event',
+            [':actor' => $actorId, ':event' => $eventName]
         );
         if (is_string($last) && strtotime($last . ' UTC') > time() - 60) {
-            throw new DomainException('Повторная пробная отправка доступна через минуту');
+            throw new DomainException('Пробный запрос доступен один раз в минуту для каждого канала');
         }
 
-        // Только категория диагностики текущего администратора. Действующие
-        // подписки на задачи, сообщения и календарь не изменяются.
+        $channels = array_fill_keys(['email', 'browser', 'telegram', 'max', 'webhook', 'sms'], false);
+        $channels[$channel] = true;
         (new DatabaseNotificationPreferences($this->db))->updateForUser($actorId, [
             'category' => self::TEST_CATEGORY,
             'external_enabled' => true,
-            'channels' => ['email' => true],
+            'channels' => $channels,
         ]);
 
         $published = (new NotificationService(new DatabaseNotificationStore($this->db)))->publish(
             new NotificationEvent(
-                name: 'notifications.smtp_test',
+                name: $eventName,
                 version: 1,
-                idempotencyKey: 'smtp-test:' . bin2hex(random_bytes(16)),
+                idempotencyKey: 'test-' . $channel . ':' . bin2hex(random_bytes(16)),
                 source: 'core',
                 category: self::TEST_CATEGORY,
                 importance: 'normal',
-                title: 'Проверка доставки уведомлений Notes',
-                body: 'Это проверочное письмо отправлено из админпанели через общую очередь уведомлений.',
+                title: 'Проверка уведомлений Notes',
+                body: 'Пробное уведомление из админпанели доставляется штатной очередью.',
                 recipientUserIds: [$actorId],
                 targetPath: '/admin/notifications'
             )
         );
 
-        $job = $this->jobForEvent((int) $published['event_id'], $actorId);
+        $job = $this->jobForEvent((int) $published['event_id'], $actorId, $channel);
         if ($job === null) {
-            throw new DomainException('Событие создано, но задание SMTP не сформировано. Проверьте подписку и настройки.');
+            throw new DomainException('Событие записано, но задание не создано. Проверьте подписку и получателя.');
         }
 
-        // Ограниченный штатный проход. При занятой очереди задание может
-        // остаться pending; это не выдаётся за доставленное письмо.
+        // Не блокируем HTTP ожиданием всей очереди: один ограниченный проход.
         (new NotificationDeliveryRuntime($this->db))->run(
-            'notifications-admin-' . $actorId . '-' . bin2hex(random_bytes(4)), 1
+            'notifications-test-' . $actorId . '-' . bin2hex(random_bytes(4)), 1
         );
-
-        $job = $this->jobForEvent((int) $published['event_id'], $actorId);
+        $job = $this->jobForEvent((int) $published['event_id'], $actorId, $channel);
         return [
             'event_id' => (int) $published['event_id'],
             'job_id' => (int) $job['id'],
@@ -182,16 +206,15 @@ final class NotificationChannelAdministration
     }
 
     /** @return array<string,mixed>|null */
-    private function jobForEvent(int $eventId, int $actorId): ?array
+    private function jobForEvent(int $eventId, int $actorId, string $channel): ?array
     {
         return $this->db->fetchOne(
-            "SELECT j.id, j.state, j.attempts, j.last_result_code
+            'SELECT j.id,j.state,j.attempts,j.last_result_code
              FROM notification_delivery_jobs j
-             JOIN notifications n ON n.id = j.notification_id
-             JOIN notification_events e ON e.id = n.event_id
-             WHERE e.id = :event AND n.recipient_user_id = :actor
-               AND j.channel = 'email' ORDER BY j.id DESC LIMIT 1",
-            [':event' => $eventId, ':actor' => $actorId]
+             JOIN notifications n ON n.id=j.notification_id
+             WHERE n.event_id=:event AND n.recipient_user_id=:actor
+               AND j.channel=:channel ORDER BY j.id DESC LIMIT 1',
+            [':event' => $eventId, ':actor' => $actorId, ':channel' => $channel]
         );
     }
 

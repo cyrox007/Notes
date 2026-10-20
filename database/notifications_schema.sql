@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS `notification_subscriptions` (
     `email_enabled` TINYINT(1) NOT NULL DEFAULT 0,
     `browser_enabled` TINYINT(1) NOT NULL DEFAULT 0,
     `telegram_enabled` TINYINT(1) NOT NULL DEFAULT 0,
+    `max_enabled` TINYINT(1) NOT NULL DEFAULT 0,
     `webhook_enabled` TINYINT(1) NOT NULL DEFAULT 0,
     `sms_enabled` TINYINT(1) NOT NULL DEFAULT 0,
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

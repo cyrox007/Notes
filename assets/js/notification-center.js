@@ -491,8 +491,8 @@
                     category,
                     in_app_enabled: true,
                     external_enabled: false,
-                    channels: { email: false, browser: false, telegram: false, webhook: false, sms: false },
-                    effective_channels: { email: false, browser: false, telegram: false, webhook: false, sms: false }
+                    channels: { email: false, browser: false, telegram: false, max: false, webhook: false, sms: false },
+                    effective_channels: { email: false, browser: false, telegram: false, max: false, webhook: false, sms: false }
                 });
             }
         });
@@ -526,16 +526,13 @@
         const preferences = state.preferences;
         if (!preferences) return;
 
-        const emailAvailability = preferences.channels.email && typeof preferences.channels.email === 'object'
-            ? preferences.channels.email
-            : {};
         const ordered = [...preferences.subscriptions].sort((a, b) => categoryLabel(a.category).localeCompare(categoryLabel(b.category), 'ru'));
         ordered.forEach((subscription) => {
-            refs.settingsList.appendChild(renderPreferenceCard(subscription, emailAvailability, refs, state));
+            refs.settingsList.appendChild(renderPreferenceCard(subscription, preferences.channels, refs, state));
         });
     }
 
-    function renderPreferenceCard(subscription, emailAvailability, refs, state) {
+    function renderPreferenceCard(subscription, availability, refs, state) {
         const category = safeText(subscription.category);
         const card = node('section', 'workspace-notification-preference');
         const header = node('header');
@@ -550,15 +547,31 @@
         const external = switchControl('Внешняя доставка', 'Разрешить дополнительные каналы для этой категории.', subscription.external_enabled === true);
         card.appendChild(external.wrap);
 
-        const emailEnabled = subscription.channels?.email === true;
-        const email = switchControl('E-mail', emailHint(emailAvailability, subscription), emailEnabled);
-        email.input.disabled = emailAvailability.available !== true && !emailEnabled;
-        card.appendChild(email.wrap);
+        const destinations = [
+            ['email', 'E-mail'],
+            ['telegram', 'Telegram'],
+            ['max', 'MAX'],
+            ['webhook', 'Webhook']
+        ];
+        destinations.forEach(([channel, label]) => {
+            const detail = availability?.[channel] && typeof availability[channel] === 'object'
+                ? availability[channel] : {};
+            const enabled = subscription.channels?.[channel] === true;
+            const hint = channel === 'email'
+                ? emailHint(detail, subscription)
+                : detail.available === true
+                    ? 'Доступен для этой категории; отправка выполняется общей очередью.'
+                    : 'Администратор ещё не настроил доступного получателя.';
+            const toggle = switchControl(label, hint, enabled);
+            toggle.input.disabled = detail.available !== true && !enabled;
+            card.appendChild(toggle.wrap);
+            toggle.input.addEventListener('change', () => void savePreference(
+                refs, state, card, category, { channels: { [channel]: toggle.input.checked } }
+            ));
+        });
 
         const future = node('div', 'workspace-notification-preference__future');
         future.appendChild(node('span', '', 'Browser Push · позже'));
-        future.appendChild(node('span', '', 'Telegram · позже'));
-        future.appendChild(node('span', '', 'Webhook · позже'));
         future.appendChild(node('span', '', 'SMS · позже'));
         card.appendChild(future);
 
@@ -568,13 +581,6 @@
             card,
             category,
             { external_enabled: external.input.checked }
-        ));
-        email.input.addEventListener('change', () => void savePreference(
-            refs,
-            state,
-            card,
-            category,
-            { channels: { email: email.input.checked } }
         ));
         return card;
     }

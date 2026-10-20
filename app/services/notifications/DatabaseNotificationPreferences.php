@@ -19,6 +19,7 @@ final class DatabaseNotificationPreferences
         'email' => 'email_enabled',
         'browser' => 'browser_enabled',
         'telegram' => 'telegram_enabled',
+        'max' => 'max_enabled',
         'webhook' => 'webhook_enabled',
         'sms' => 'sms_enabled',
     ];
@@ -26,6 +27,9 @@ final class DatabaseNotificationPreferences
     /** @var array<string,true> */
     private const SUPPORTED_CHANNELS = [
         'email' => true,
+        'telegram' => true,
+        'max' => true,
+        'webhook' => true,
     ];
 
     private DatabaseManager $db;
@@ -142,7 +146,7 @@ final class DatabaseNotificationPreferences
     {
         $rows = $this->db->fetchAll(
             'SELECT category, enabled, in_app_enabled, email_enabled, browser_enabled, '
-            . 'telegram_enabled, webhook_enabled, sms_enabled '
+            . 'telegram_enabled, max_enabled, webhook_enabled, sms_enabled '
             . 'FROM notification_subscriptions '
             . 'WHERE user_id = :user_id '
             . 'ORDER BY category ASC',
@@ -192,7 +196,7 @@ final class DatabaseNotificationPreferences
     private function subscriptionRowForUpdate(int $userId, string $category): ?array
     {
         return $this->db->fetchOne(
-            'SELECT enabled, in_app_enabled, email_enabled, browser_enabled, telegram_enabled, webhook_enabled, sms_enabled '
+            'SELECT enabled, in_app_enabled, email_enabled, browser_enabled, telegram_enabled, max_enabled, webhook_enabled, sms_enabled '
             . 'FROM notification_subscriptions '
             . 'WHERE user_id = :user_id AND category = :category '
             . 'FOR UPDATE',
@@ -224,16 +228,17 @@ final class DatabaseNotificationPreferences
         $this->db->execute(
             'INSERT INTO notification_subscriptions ('
             . 'user_id, category, enabled, in_app_enabled, email_enabled, browser_enabled, '
-            . 'telegram_enabled, webhook_enabled, sms_enabled'
+             . 'telegram_enabled, max_enabled, webhook_enabled, sms_enabled'
             . ') VALUES ('
             . ':user_id, :category, :enabled, 1, :email_enabled, :browser_enabled, '
-            . ':telegram_enabled, :webhook_enabled, :sms_enabled'
+             . ':telegram_enabled, :max_enabled, :webhook_enabled, :sms_enabled'
             . ') ON DUPLICATE KEY UPDATE '
             . 'enabled = VALUES(enabled), '
             . 'in_app_enabled = 1, '
             . 'email_enabled = VALUES(email_enabled), '
             . 'browser_enabled = VALUES(browser_enabled), '
-            . 'telegram_enabled = VALUES(telegram_enabled), '
+             . 'telegram_enabled = VALUES(telegram_enabled), '
+            . 'max_enabled = VALUES(max_enabled), '
             . 'webhook_enabled = VALUES(webhook_enabled), '
             . 'sms_enabled = VALUES(sms_enabled)',
             [
@@ -243,6 +248,7 @@ final class DatabaseNotificationPreferences
                 ':email_enabled' => $state['channels']['email'] ? 1 : 0,
                 ':browser_enabled' => $state['channels']['browser'] ? 1 : 0,
                 ':telegram_enabled' => $state['channels']['telegram'] ? 1 : 0,
+                ':max_enabled' => $state['channels']['max'] ? 1 : 0,
                 ':webhook_enabled' => $state['channels']['webhook'] ? 1 : 0,
                 ':sms_enabled' => $state['channels']['sms'] ? 1 : 0,
             ]
@@ -264,6 +270,15 @@ final class DatabaseNotificationPreferences
         $configured = [];
         foreach ($rows as $row) {
             $channel = (string) ($row['channel'] ?? '');
+            $owner = $row['owner_user_id'] ?? null;
+            // Чаты мессенджеров не могут быть глобальным адресатом.
+            // Иначе сообщение любого пользователя уйдёт в один чужой чат.
+            if (in_array($channel, ['telegram', 'max'], true) && (int) $owner !== $userId) {
+                continue;
+            }
+            if ($channel === 'webhook' && $owner !== null) {
+                continue;
+            }
             if (isset(self::CHANNEL_COLUMNS[$channel])) {
                 $configured[$channel] = true;
             }
@@ -273,7 +288,7 @@ final class DatabaseNotificationPreferences
         $availability = [];
         foreach (array_keys(self::CHANNEL_COLUMNS) as $channel) {
             $supported = isset(self::SUPPORTED_CHANNELS[$channel]);
-            $destinationReady = $channel === 'email' ? $emailReady : false;
+            $destinationReady = $channel === 'email' ? $emailReady : isset($configured[$channel]);
             $isConfigured = isset($configured[$channel]);
             $availability[$channel] = [
                 'supported' => $supported,
