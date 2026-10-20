@@ -100,6 +100,20 @@ if (($profile12['nominal_users'] ?? 0) < 1000 || ($profile12['peak_users'] ?? 0)
     throw new RuntimeException('Нарушены требования полной приёмки 1.2');
 }
 
+$workflow = (string) file_get_contents($root . '/.github/workflows/performance-runner-contract.yml');
+if (!str_contains($workflow, "branches: ['1.1', '1.2']")) {
+    throw new RuntimeException('Нагрузочный контракт должен работать в ветке 1.2');
+}
+if (!str_contains($workflow, "'1.1', '1.2', 'perf/1.1-1000-users-runner-*'")) {
+    throw new RuntimeException('Проверка обязательна и после прямого обновления ветки 1.2');
+}
+if (!str_contains($workflow, 'node tests/integration/performance_runner_smoke_12.mjs')) {
+    throw new RuntimeException('В CI отсутствует локальное HTTP-испытание генератора');
+}
+if (preg_match('/PERF_MODE[=:]\s*full/', $workflow) === 1) {
+    throw new RuntimeException('Полный нагрузочный прогон не должен стартовать на обычном CI');
+}
+
 assertMarkers($files['runner'], [
     'new CookieJar()',
     'PERF_ISOLATED_STAND',
