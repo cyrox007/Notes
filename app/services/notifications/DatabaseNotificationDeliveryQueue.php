@@ -60,12 +60,17 @@ final class DatabaseNotificationDeliveryQueue implements NotificationDeliveryQue
             }
 
             foreach ($channels as $channel) {
-                $configId = $configs[$userId][$channel] ?? $configs[0][$channel] ?? null;
-                if (!is_int($configId)) {
-                    continue;
-                }
+                // На разных устройствах одного пользователя независимые
+                // подписки, каждое устройство получает отдельное задание.
+                $configIds = $channel === 'browser'
+                    ? ($configs[$userId][$channel] ?? [])
+                    : [$configs[$userId][$channel] ?? $configs[0][$channel] ?? null];
+                foreach ($configIds as $configId) {
+                    if (!is_int($configId)) {
+                        continue;
+                    }
 
-                $this->db->execute(
+                    $this->db->execute(
                     'INSERT INTO notification_delivery_jobs (
                         notification_id,
                         channel_config_id,
@@ -101,7 +106,8 @@ final class DatabaseNotificationDeliveryQueue implements NotificationDeliveryQue
                     ]
                 );
 
-                $jobIds[] = (int) $this->db->getPdo()->lastInsertId();
+                    $jobIds[] = (int) $this->db->getPdo()->lastInsertId();
+                }
             }
         }
 
@@ -386,6 +392,12 @@ final class DatabaseNotificationDeliveryQueue implements NotificationDeliveryQue
             $channel = (string) ($row['channel'] ?? '');
             $owner = $row['owner_user_id'] === null ? 0 : (int) $row['owner_user_id'];
             if ($configId <= 0 || !isset(self::SUBSCRIPTION_FLAGS[$channel])) {
+                continue;
+            }
+            if ($channel === 'browser') {
+                if ($owner > 0) {
+                    $configs[$owner][$channel][] = $configId;
+                }
                 continue;
             }
             $configs[$owner][$channel] ??= $configId;
