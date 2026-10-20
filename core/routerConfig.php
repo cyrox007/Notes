@@ -6,6 +6,7 @@ use App\Controllers\MainController;
 use App\Controllers\AuthController;
 use App\Controllers\LicenseRecoveryController;
 use App\Controllers\NotificationController;
+use App\Controllers\NotificationPushController;
 use App\Middlewares\LoginRequared;
 use App\Middlewares\ApiLoginRequired;
 use App\Middlewares\RequireLicenseManage;
@@ -25,6 +26,10 @@ $router->add('GET', '/', [MainController::class, 'index'], [LoginRequared::class
 $router->group('/api/notifications')
     ->add('GET', '/', [NotificationController::class, 'index'], [ApiLoginRequired::class], 'notifications_index')
     ->add('GET', '/unread-count', [NotificationController::class, 'unreadCount'], [ApiLoginRequired::class], 'notifications_unread_count')
+    ->add('GET', '/push/key', [NotificationPushController::class, 'publicKey'], [ApiLoginRequired::class], 'notifications_push_key')
+    ->add('GET', '/push/status', [NotificationPushController::class, 'status'], [ApiLoginRequired::class], 'notifications_push_status')
+    ->add('POST', '/push/subscribe', [NotificationPushController::class, 'subscribe'], [ApiLoginRequired::class, CSRFMiddleware::class], 'notifications_push_subscribe')
+    ->add('POST', '/push/unsubscribe', [NotificationPushController::class, 'unsubscribe'], [ApiLoginRequired::class, CSRFMiddleware::class], 'notifications_push_unsubscribe')
     ->add('GET', '/preferences', [NotificationController::class, 'preferences'], [ApiLoginRequired::class], 'notifications_preferences')
     ->add('PATCH', '/preferences', [NotificationController::class, 'updatePreferences'], [ApiLoginRequired::class, CSRFMiddleware::class], 'notifications_preferences_update')
     ->add('POST', '/{int:notificationId}/read', [NotificationController::class, 'markRead'], [ApiLoginRequired::class, CSRFMiddleware::class], 'notifications_mark_read')

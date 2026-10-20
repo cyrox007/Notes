@@ -96,6 +96,9 @@ $partialData = [
     <meta name="robots" content="noindex,nofollow,noarchive,nosnippet,noimageindex">
     <meta name="theme-color" content="#f4f8ff">
     <meta name="color-scheme" content="light dark">
+    <link rel="manifest" href="<?= $view->e($baseUrl . '/manifest.webmanifest') ?>">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Notes">
     <script nonce="<?= $view->e($cspNonce) ?>">
     (() => {
         try {
@@ -165,6 +168,7 @@ if (is_file($controlsPath) && is_readable($controlsPath)) {
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/feedback.js')) ?>" defer></script>
 <?php if ($view->session('auth')): ?>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/notification-center.js')) ?>" defer></script>
+    <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/pwa-push.js')) ?>" defer></script>
 <?php endif; ?>
 <?php if (!empty($access['admin'])): ?>
     <script src="<?= $view->e($assetUrl($baseUrl . '/assets/js/update-web-runner.js')) ?>" defer></script>

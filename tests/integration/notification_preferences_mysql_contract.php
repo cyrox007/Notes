@@ -154,7 +154,9 @@ notificationPreferencesMysqlAssert($summary['channels']['email']['supported'] ==
 notificationPreferencesMysqlAssert($summary['channels']['email']['configured'] === true, 'Глобальный SMTP должен считаться настроенным');
 notificationPreferencesMysqlAssert($summary['channels']['email']['destination_ready'] === true, 'Корректный E-mail пользователя должен быть готов к доставке');
 notificationPreferencesMysqlAssert($summary['channels']['email']['available'] === true, 'E-mail должен быть доступен при SMTP и адресе пользователя');
-notificationPreferencesMysqlAssert($summary['channels']['browser']['supported'] === false, 'Browser Push пока не должен считаться поддерживаемым адаптером');
+notificationPreferencesMysqlAssert($summary['channels']['browser']['supported'] === true, 'Browser Push должен быть поддерживаемым адаптером');
+notificationPreferencesMysqlAssert($summary['channels']['browser']['available'] === false,
+    'Без зарегистрированного устройства нельзя считать Push готовым к доставке');
 
 $encodedSummary = json_encode($summary, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 foreach (['smtp.preferences.test', 'PREFERENCES_SMTP_SECRET', 'secret_ref', 'config_json'] as $secretFragment) {
@@ -180,7 +182,7 @@ $row = $db->fetchOne(
 notificationPreferencesMysqlAssert((int) ($row['enabled'] ?? 0) === 1, 'Внешняя подписка должна быть активна в БД');
 notificationPreferencesMysqlAssert((int) ($row['in_app_enabled'] ?? 0) === 1, 'Встроенный центр нельзя отключить пользовательским API');
 notificationPreferencesMysqlAssert((int) ($row['email_enabled'] ?? 0) === 1, 'Флаг E-mail должен быть сохранён');
-notificationPreferencesMysqlAssert((int) ($row['browser_enabled'] ?? 0) === 0, 'Неподдерживаемый Browser Push не должен активироваться');
+notificationPreferencesMysqlAssert((int) ($row['browser_enabled'] ?? 0) === 0, 'Browser Push без зарегистрированного устройства не должен активироваться');
 notificationPreferencesMysqlAssert((int) ($row['telegram_enabled'] ?? 0) === 0, 'Неподдерживаемый Telegram не должен активироваться');
 notificationPreferencesMysqlAssert((int) ($row['webhook_enabled'] ?? 0) === 0, 'Неподдерживаемый Webhook не должен активироваться');
 notificationPreferencesMysqlAssert((int) ($row['sms_enabled'] ?? 0) === 0, 'Неподдерживаемый SMS не должен активироваться');
@@ -246,18 +248,18 @@ $normalized = $db->fetchOne(
     [':user_id' => $userA, ':category' => $category]
 );
 notificationPreferencesMysqlAssert((int) ($normalized['in_app_enabled'] ?? 0) === 1, 'API должен восстанавливать обязательный встроенный канал');
-notificationPreferencesMysqlAssert((int) ($normalized['browser_enabled'] ?? 0) === 0, 'API должен сбрасывать неподдерживаемый внешний канал');
+notificationPreferencesMysqlAssert((int) ($normalized['browser_enabled'] ?? 0) === 1,
+    'Выбор поддерживаемого канала должен сохраняться до привязки устройства');
 
-$unsupportedRejected = false;
-try {
-    $preferences->updateForUser($userA, [
-        'category' => $category,
-        'channels' => ['browser' => true],
-    ]);
-} catch (InvalidArgumentException) {
-    $unsupportedRejected = true;
-}
-notificationPreferencesMysqlAssert($unsupportedRejected, 'Нельзя включить канал без реализованного адаптера');
+$browserChoice = $preferences->updateForUser($userA, [
+    'category' => $category,
+    'channels' => ['browser' => true],
+]);
+notificationPreferencesMysqlAssert(
+    $browserChoice['subscription']['channels']['browser'] === true
+    && $browserChoice['subscription']['effective_channels']['browser'] === false,
+    'Можно заранее выбрать Browser Push, но без устройства доставка должна остаться недоступной'
+);
 
 $unknownFieldRejected = false;
 try {

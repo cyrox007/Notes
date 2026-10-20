@@ -2,12 +2,16 @@ name: Уведомления — SMTP, очередь и диагностика
 
 on:
   push:
-    branches: ['1.1', '1.2', 'fix/1.1-notification-http-fallback-*', 'feature/1.2-notification-*']
+    branches: ['1.1', '1.2', 'fix/1.1-notification-http-fallback-*', 'feature/1.2-notification-*', 'feature/1.2-pwa-*']
     paths:
       - 'core/SystemEventOutbox.php'
       - 'tests/integration/system_*contract.php'
       - 'app/services/notifications/**'
       - 'app/controllers/NotificationController.php'
+      - 'app/controllers/NotificationPushController.php'
+      - 'service-worker.js'
+      - 'manifest.webmanifest'
+      - 'assets/js/pwa-push.js'
       - 'modules/admin/controllers/NotificationSettingsController.php'
       - 'modules/admin/views/notifications.php'
       - 'modules/admin/assets/notification-settings.js'
@@ -34,6 +38,8 @@ on:
       - 'tests/integration/notification_admin_smtp_12.php'
       - 'tests/integration/notification_external_channels_12.php'
       - 'tests/integration/notification_sms_gateway_12.php'
+      - 'tests/integration/notification_web_push_*_12.php'
+      - 'tests/integration/notification_pwa_push_12.mjs'
       - 'database/notifications_schema.sql'
       - 'tests/integration/calendar_reminders_*contract.php'
       - 'tests/integration/smtp_socket_transport_contract.php'
@@ -45,6 +51,10 @@ on:
       - 'tests/integration/system_*contract.php'
       - 'app/services/notifications/**'
       - 'app/controllers/NotificationController.php'
+      - 'app/controllers/NotificationPushController.php'
+      - 'service-worker.js'
+      - 'manifest.webmanifest'
+      - 'assets/js/pwa-push.js'
       - 'modules/admin/controllers/NotificationSettingsController.php'
       - 'modules/admin/views/notifications.php'
       - 'modules/admin/assets/notification-settings.js'
@@ -71,6 +81,8 @@ on:
       - 'tests/integration/notification_admin_smtp_12.php'
       - 'tests/integration/notification_external_channels_12.php'
       - 'tests/integration/notification_sms_gateway_12.php'
+      - 'tests/integration/notification_web_push_*_12.php'
+      - 'tests/integration/notification_pwa_push_12.mjs'
       - 'database/notifications_schema.sql'
       - 'tests/integration/calendar_reminders_*contract.php'
       - 'tests/integration/smtp_socket_transport_contract.php'
@@ -106,7 +118,7 @@ jobs:
       - name: Получить исходники
         uses: actions/checkout@v4
 
-      - name: Подготовить PHP 8.2
+      - name: Подготовить PHP 8.3
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
@@ -154,6 +166,7 @@ jobs:
         run: |
           set -euo pipefail
           php tests/integration/notification_preferences_mysql_contract.php
+          php tests/integration/notification_web_push_mysql_12.php
 
       - name: Проверить SMTP, API, UI, CLI worker и HTTP fallback без внешней сети
         run: |
@@ -162,6 +175,15 @@ jobs:
           php tests/integration/notification_admin_smtp_12.php
           php tests/integration/notification_external_channels_12.php
           php tests/integration/notification_sms_gateway_12.php
+          php tests/integration/notification_web_push_crypto_12.php
+          php -l app/services/notifications/PushSubscriptionService.php
+          php -l app/services/notifications/WebPushCrypto.php
+          php -l app/services/notifications/WebPushNotificationChannel.php
+          php -l app/services/notifications/CurlWebPushHttpTransport.php
+          php -l app/controllers/NotificationPushController.php
+          node --check service-worker.js
+          node --check assets/js/pwa-push.js
+          node tests/integration/notification_pwa_push_12.mjs
           php -l app/services/notifications/SmsGatewayNotificationChannel.php
           php -l app/services/notifications/SignedWebhookNotificationChannel.php
           php -l app/services/notifications/BotNotificationChannel.php
@@ -210,7 +232,7 @@ jobs:
       - name: Получить исходники
         uses: actions/checkout@v4
 
-      - name: Подготовить PHP 8.2
+      - name: Подготовить PHP 8.3
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
