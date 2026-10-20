@@ -5,6 +5,9 @@ on:
     branches: ['1.2']
     paths:
       - 'modules/defects/**'
+      - 'core/ModuleLifecycleStore.php'
+      - 'core/SchemaReadiness.php'
+      - 'app/services/LicenseService.php'
       - 'database/defects_schema.sql'
       - 'database/migrations/20261019_defects_*.sql'
       - 'tests/e2e/defects-lifecycle.mjs'

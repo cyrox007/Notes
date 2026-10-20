@@ -75,6 +75,39 @@ final class LicenseService
     }
 
     /**
+     * Один согласованный снимок двух служебных настроек.
+     *
+     * @return array{0:string,1:string}
+     */
+    private function statusSettings(): array
+    {
+        $rows = $this->db->fetchAll(
+            'SELECT setting_key,setting_value FROM system_settings '
+            . 'WHERE setting_key IN (:installation,:token)',
+            [
+                ':installation' => self::INSTALLATION_ID_KEY,
+                ':token' => self::LICENSE_TOKEN_KEY,
+            ]
+        );
+        $settings = [];
+        foreach ($rows as $row) {
+            $settings[(string) $row['setting_key']] = (string) $row['setting_value'];
+        }
+
+        $installationId = strtolower(trim($settings[self::INSTALLATION_ID_KEY] ?? ''));
+        if ($installationId === '') {
+            // Поведение первой установки сохранено: идентификатор создаётся
+            // атомарным INSERT ядра, затем перечитывается из базы.
+            $installationId = $this->installationId();
+        }
+        if (!$this->isUuid($installationId)) {
+            throw new RuntimeException('Некорректный installation_id в system_settings');
+        }
+
+        return [$installationId, trim($settings[self::LICENSE_TOKEN_KEY] ?? '')];
+    }
+
+    /**
      * Безопасное чтение для health/status поверхностей. Проверка полномочий не
      * требуется, а полный сохранённый токен никогда не возвращается наружу.
      *
@@ -82,8 +115,10 @@ final class LicenseService
      */
     public function status(): array
     {
-        $installationId = $this->installationId();
-        $token = $this->storedToken();
+        // Идентификатор установки и токен читаются одним снимком БД.
+        // Между HTTP-запросами состояние не запоминается: отзыв лицензии
+        // становится заметен следующему запросу без задержки кэша.
+        [$installationId, $token] = $this->statusSettings();
 
         if ($token === '') {
             return $this->decorateStatus([

@@ -64,16 +64,22 @@ final class ModuleLifecycleStore
             }
         }
 
+        $added = false;
         foreach ($modules as $moduleId => $manifest) {
             if (!isset($rows[$moduleId])) {
                 $configured = $manifest->bundled()
                     ? ($manifest->defaultEnabled() ? 'enabled' : 'disabled')
                     : 'discovered';
                 $this->insert($manifest, $configured, $configured);
+                $added = true;
             }
         }
 
-        $rows = $this->rows();
+        // Перечитываем состав только при фактическом добавлении модуля.
+        if ($added) {
+            $rows = $this->rows();
+        }
+        $written = false;
         $effective = [];
         $errors = [];
         $visiting = [];
@@ -111,6 +117,7 @@ final class ModuleLifecycleStore
                 );
                 $configured = 'enabled';
                 $rows[$moduleId]['configured_state'] = 'enabled';
+                $written = true;
             }
 
             $entitlement = $this->entitlementDecision($manifest);
@@ -176,6 +183,7 @@ final class ModuleLifecycleStore
                 continue;
             }
 
+            $written = true;
             $this->db->execute(
                 'UPDATE module_lifecycle '
                 . 'SET installed_version = :installed_version, manifest_hash = :manifest_hash, '
@@ -193,7 +201,10 @@ final class ModuleLifecycleStore
             );
         }
 
-        return $this->rows();
+        // Никакого долгоживущего кэша: на каждом новом HTTP-запросе первый
+        // SELECT всё равно читает актуальные состояния. Но когда запись не
+        // потребовалась, третий SELECT этой же операции ничего не добавляет.
+        return $written ? $this->rows() : $rows;
     }
 
     /**
